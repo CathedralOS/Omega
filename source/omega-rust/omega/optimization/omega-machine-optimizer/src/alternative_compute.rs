@@ -10,7 +10,7 @@ use omega_register_model::{
 };
 use omega_terminal_selected_instructions::{
     TerminalMachineAlternative, TerminalMachineAlternativeApplicability, TerminalSelectedBlock,
-    TerminalSelectedInstruction,
+    TerminalSelectedInstruction, TerminalSelectedStructuralUnitFunction,
 };
 
 use crate::{
@@ -19,6 +19,7 @@ use crate::{
     TerminalPostAllocationMachineBlock, TerminalPostAllocationMachineError,
     TerminalPostAllocationMachineFunction, TerminalPostAllocationMachineIdentity,
     TerminalPostAllocationMachineInstruction, TerminalPostAllocationMachinePlan,
+    TerminalPostAllocationStructuralUnitFunction, TerminalStructuralUnitFunctionMachineEffects,
     ValidatedTerminalPreAllocationMachineEffects, terminal_post_allocation_machine_identity,
 };
 
@@ -95,6 +96,22 @@ pub(crate) fn compute_terminal_post_allocation_machine_plan<
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let structural_unit_functions = selected_plan
+        .structural_unit_functions
+        .iter()
+        .enumerate()
+        .map(|(structural_index, function)| {
+            let effect_function = unique_structural_effect(effects, function.machine)?;
+            let home_function = unique_structural_home(homes, function.machine)?;
+            build_structural_function(
+                selected_plan.functions.len() + structural_index,
+                function,
+                effect_function,
+                home_function,
+                physical,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let mut plan = TerminalPostAllocationMachinePlan {
         identity: TerminalPostAllocationMachineIdentity::from_bytes([0; 32]),
         selected: selected.selected_identity(),
@@ -110,9 +127,111 @@ pub(crate) fn compute_terminal_post_allocation_machine_plan<
         machine_effect_catalog: effects.plan().machine_effect_catalog,
         choice_rule: TerminalMachineAlternativeChoiceRule::UniqueApplicableInCatalogOrderV1,
         functions,
+        structural_unit_functions,
     };
     plan.identity = terminal_post_allocation_machine_identity(&plan);
     Ok(plan)
+}
+
+fn build_structural_function(
+    function_index: usize,
+    selected: &TerminalSelectedStructuralUnitFunction,
+    effects: &TerminalStructuralUnitFunctionMachineEffects,
+    homes: &omega_regalloc::TerminalFunctionRegisterHomes,
+    physical: &ValidatedPhysicalRegisterModel,
+) -> Result<TerminalPostAllocationStructuralUnitFunction, TerminalPostAllocationMachineError> {
+    if effects.machine != selected.machine
+        || effects.block != selected.entry_block
+        || effects.return_effect != selected.terminator.effect
+        || effects.return_ownership != selected.terminator.ownership
+        || !structural_call_matches(selected, effects)
+    {
+        return Err(
+            TerminalPostAllocationMachineError::StructuralFunctionMismatch {
+                machine: selected.machine,
+            },
+        );
+    }
+    if homes.machine != selected.machine || !homes.assignments.is_empty() {
+        return Err(
+            TerminalPostAllocationMachineError::StructuralAllocationMismatch {
+                machine: selected.machine,
+            },
+        );
+    }
+    let return_instruction = build_instruction(
+        function_index,
+        &selected.terminator.instruction,
+        &effects.return_instruction,
+        homes,
+        physical,
+    )?;
+    Ok(TerminalPostAllocationStructuralUnitFunction {
+        machine: selected.machine,
+        block: selected.entry_block,
+        call: effects.call.clone(),
+        return_instruction,
+        return_provenance: selected.terminator.instruction.provenance.clone(),
+        return_effect: selected.terminator.effect,
+        return_ownership: selected.terminator.ownership.clone(),
+    })
+}
+
+fn structural_call_matches(
+    selected: &TerminalSelectedStructuralUnitFunction,
+    effects: &TerminalStructuralUnitFunctionMachineEffects,
+) -> bool {
+    match (&selected.call, &effects.call) {
+        (None, None) => true,
+        (Some(selected), Some(effects)) => {
+            effects.instruction == selected.id
+                && effects.operation == selected.operation
+                && effects.callee == selected.callee
+                && effects.constraint == selected.constraint
+                && effects.unit_uses == selected.implicit_uses
+                && effects.unit_defs == selected.implicit_defs
+                && effects.unit_clobbers == selected.clobbers
+                && effects.layout == selected.layout
+                && effects.effect == selected.effect
+                && effects.ownership == selected.ownership
+                && effects.claim_transfers == selected.claim_transfers
+                && effects.provenance == selected.provenance
+                && effects.declaration.constraint == selected.constraint
+        }
+        _ => false,
+    }
+}
+
+fn unique_structural_effect(
+    effects: &ValidatedTerminalPreAllocationMachineEffects,
+    machine: psi_core::MachineId,
+) -> Result<&TerminalStructuralUnitFunctionMachineEffects, TerminalPostAllocationMachineError> {
+    let matches = effects
+        .plan()
+        .structural_unit_functions
+        .iter()
+        .filter(|function| function.machine == machine)
+        .collect::<Vec<_>>();
+    let [function] = matches.as_slice() else {
+        return Err(TerminalPostAllocationMachineError::StructuralFunctionMismatch { machine });
+    };
+    Ok(*function)
+}
+
+fn unique_structural_home(
+    homes: &ValidatedTerminalRegisterHomes,
+    machine: psi_core::MachineId,
+) -> Result<&omega_regalloc::TerminalFunctionRegisterHomes, TerminalPostAllocationMachineError> {
+    let matches = homes
+        .plan()
+        .structural_unit_functions
+        .iter()
+        .filter(|function| function.machine == machine)
+        .collect::<Vec<_>>();
+    let [function] = matches.as_slice() else {
+        return Err(TerminalPostAllocationMachineError::StructuralAllocationMismatch { machine });
+    };
+    Ok(*function)
 }
 
 fn build_block(
@@ -329,14 +448,7 @@ fn validate_roots<S: ValidatedTerminalSelectedAnalysis>(
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), TerminalPostAllocationMachineError> {
-    if !selected
-        .selected_plan()
-        .structural_unit_functions
-        .is_empty()
-        || !effects.plan().structural_unit_functions.is_empty()
-    {
-        return Err(TerminalPostAllocationMachineError::UnsupportedStructuralUnitFunctions);
-    }
+    validate_structural_allocation(selected, effects, ranges, legality, homes)?;
     if effects.receipt().selected() != selected.selected_identity()
         || ranges.receipt().selected() != selected.selected_identity()
     {
@@ -386,6 +498,66 @@ fn validate_roots<S: ValidatedTerminalSelectedAnalysis>(
         || constraints.identity() != effects.plan().register_constraints
     {
         return Err(TerminalPostAllocationMachineError::RegisterConstraintCatalogMismatch);
+    }
+    Ok(())
+}
+
+fn validate_structural_allocation<S: ValidatedTerminalSelectedAnalysis>(
+    selected: &S,
+    effects: &ValidatedTerminalPreAllocationMachineEffects,
+    ranges: &ValidatedTerminalLiveRanges,
+    legality: &ValidatedTerminalAllocationLegality,
+    homes: &ValidatedTerminalRegisterHomes,
+) -> Result<(), TerminalPostAllocationMachineError> {
+    let source = &selected.selected_plan().structural_unit_functions;
+    if effects.plan().structural_unit_functions.len() != source.len()
+        || ranges.plan().structural_unit_functions.len() != source.len()
+        || legality.plan().structural_unit_functions.len() != source.len()
+        || homes.plan().structural_unit_functions.len() != source.len()
+    {
+        let machine = source
+            .first()
+            .map(|function| function.machine)
+            .unwrap_or(selected.selected_plan().entry);
+        return Err(TerminalPostAllocationMachineError::StructuralAllocationMismatch { machine });
+    }
+    for function in source {
+        unique_structural_effect(effects, function.machine)?;
+        let range_matches = ranges
+            .plan()
+            .structural_unit_functions
+            .iter()
+            .filter(|candidate| candidate.machine == function.machine)
+            .collect::<Vec<_>>();
+        let legality_matches = legality
+            .plan()
+            .structural_unit_functions
+            .iter()
+            .filter(|candidate| candidate.machine == function.machine)
+            .collect::<Vec<_>>();
+        let home = unique_structural_home(homes, function.machine)?;
+        let ([range], [legality]) = (range_matches.as_slice(), legality_matches.as_slice()) else {
+            return Err(
+                TerminalPostAllocationMachineError::StructuralAllocationMismatch {
+                    machine: function.machine,
+                },
+            );
+        };
+        if range.block_domains.len() != 1
+            || range.block_domains[0].block != function.entry_block
+            || !range.virtual_registers.is_empty()
+            || !range.tied_pairs.is_empty()
+            || !range.early_clobbers.is_empty()
+            || !range.interference.is_empty()
+            || !legality.virtual_registers.is_empty()
+            || !home.assignments.is_empty()
+        {
+            return Err(
+                TerminalPostAllocationMachineError::StructuralAllocationMismatch {
+                    machine: function.machine,
+                },
+            );
+        }
     }
     Ok(())
 }

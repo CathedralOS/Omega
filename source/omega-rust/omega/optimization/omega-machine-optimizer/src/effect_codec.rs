@@ -163,7 +163,7 @@ fn decode_structural_function(
     })
 }
 
-fn decode_structural_call(
+pub(crate) fn decode_structural_call(
     cursor: &mut Cursor<'_>,
 ) -> Result<TerminalStructuralUnitCallMachineEffects, TerminalPreAllocationMachineEffectDecodeError>
 {
@@ -267,7 +267,7 @@ fn decode_machine_register(
     })
 }
 
-fn decode_effect_link(
+pub(crate) fn decode_effect_link(
     cursor: &mut Cursor<'_>,
 ) -> Result<EffectLink, TerminalPreAllocationMachineEffectDecodeError> {
     Ok(EffectLink {
@@ -404,7 +404,7 @@ fn decode_integer(
     }
 }
 
-fn decode_provenance(
+pub(crate) fn decode_provenance(
     cursor: &mut Cursor<'_>,
 ) -> Result<TerminalSelectedInstructionProvenance, TerminalPreAllocationMachineEffectDecodeError> {
     let operations = decode_ids(cursor, OperationId::new)?;
@@ -655,7 +655,7 @@ fn decode_machine(
     MachineId::new(cursor.u64()?).ok_or(TerminalPreAllocationMachineEffectDecodeError::InvalidField)
 }
 
-fn decode_ownership(
+pub(crate) fn decode_ownership(
     cursor: &mut Cursor<'_>,
 ) -> Result<Vec<OwnershipEvent>, TerminalPreAllocationMachineEffectDecodeError> {
     let count = cursor.length()?;

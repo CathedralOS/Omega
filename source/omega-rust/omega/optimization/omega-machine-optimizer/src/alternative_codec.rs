@@ -17,12 +17,12 @@ use crate::{
     TerminalMachineAlternativeChoiceRule, TerminalPhysicalOperandFootprint,
     TerminalPostAllocationMachineBlock, TerminalPostAllocationMachineFunction,
     TerminalPostAllocationMachineIdentity, TerminalPostAllocationMachineInstruction,
-    TerminalPostAllocationMachinePlan, TerminalPreAllocationMachineEffectIdentity,
-    terminal_post_allocation_machine_identity,
+    TerminalPostAllocationMachinePlan, TerminalPostAllocationStructuralUnitFunction,
+    TerminalPreAllocationMachineEffectIdentity, terminal_post_allocation_machine_identity,
 };
 
 const MAGIC: &[u8; 8] = b"OMGPMX\0\0";
-const VERSION: u32 = 2;
+const VERSION: u32 = 3;
 
 /// Failure while decoding a framed post-allocation machine-plan artifact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -109,6 +109,38 @@ pub(crate) fn decode_terminal_post_allocation_machine_plan(
         }
         functions.push(TerminalPostAllocationMachineFunction { machine, blocks });
     }
+    let structural_count = length(&mut cursor)?;
+    let mut structural_unit_functions =
+        Vec::with_capacity(structural_count.min(cursor.remaining()));
+    for _ in 0..structural_count {
+        let machine = MachineId::new(u64_field(&mut cursor)?)
+            .ok_or(TerminalPostAllocationMachineDecodeError::InvalidField)?;
+        let block = TerminalSelectedBlockId(u32_field(&mut cursor)?);
+        let call = match byte(&mut cursor)? {
+            0 => None,
+            1 => Some(
+                crate::effect_codec::decode_structural_call(&mut cursor)
+                    .map_err(map_field_error)?,
+            ),
+            _ => return Err(TerminalPostAllocationMachineDecodeError::InvalidField),
+        };
+        let return_instruction = decode_instruction(&mut cursor)?;
+        let return_provenance =
+            crate::effect_codec::decode_provenance(&mut cursor).map_err(map_field_error)?;
+        let return_effect =
+            crate::effect_codec::decode_effect_link(&mut cursor).map_err(map_field_error)?;
+        let return_ownership =
+            crate::effect_codec::decode_ownership(&mut cursor).map_err(map_field_error)?;
+        structural_unit_functions.push(TerminalPostAllocationStructuralUnitFunction {
+            machine,
+            block,
+            call,
+            return_instruction,
+            return_provenance,
+            return_effect,
+            return_ownership,
+        });
+    }
     if cursor.remaining() != 0 {
         return Err(TerminalPostAllocationMachineDecodeError::TrailingBytes);
     }
@@ -127,6 +159,7 @@ pub(crate) fn decode_terminal_post_allocation_machine_plan(
         machine_effect_catalog,
         choice_rule,
         functions,
+        structural_unit_functions,
     };
     if plan.identity != terminal_post_allocation_machine_identity(&plan) {
         return Err(TerminalPostAllocationMachineDecodeError::InvalidIdentity);
@@ -262,13 +295,14 @@ fn decode_units(
 #[cfg(test)]
 mod tests {
     use omega_optimization_core::PostAllocationOptimizationManifestIdentity;
+    use omega_optimization_unit::{EffectLink, OwnershipEvent};
     use omega_regalloc::{
         TerminalAllocationLegalityIdentity, TerminalLiveRangeIdentity, TerminalRegisterHomeIdentity,
     };
     use omega_register_model::{
         PhysicalRegisterModelIdentity, RegisterClassId, RegisterConstraintCatalogIdentity,
-        RegisterOperandAccess, RegisterUnitId, RegisterViewId, RegisterWriteSemantics,
-        TargetRegisterEnvironmentIdentity,
+        RegisterConstraintFamily, RegisterConstraintKey, RegisterOperandAccess, RegisterUnitId,
+        RegisterViewId, RegisterWriteSemantics, TargetRegisterEnvironmentIdentity,
     };
     use omega_target::NativeTarget;
     use omega_terminal_selected_instructions::{
@@ -279,15 +313,21 @@ mod tests {
         TerminalMachineEncodedStackEffect, TerminalMachineEncodedTrapBehavior,
         TerminalMachineLatencyKnowledge, TerminalMachineSizeKnowledge, TerminalSelectedBlockId,
         TerminalSelectedInstructionId, TerminalSelectedInstructionPlanIdentity,
+        TerminalSelectedInstructionProvenance, TerminalSelectedMicrosoftX64OwnedIndirectPairLayout,
+        TerminalSelectedStructuralUnitIndirectBinding, TerminalStructuralUnitCallBarrier,
+        TerminalStructuralUnitCallEffect, TerminalStructuralUnitCallEffectDeclaration,
+        TerminalStructuralUnitCallFrameEffect, TerminalStructuralUnitCallMemoryEffect,
         TerminalVirtualRegisterId,
     };
-    use psi_core::MachineId;
+    use omega_terminal_target_operations::MachineRegister;
+    use psi_core::{ClaimId, MachineId, OperationId};
 
     use crate::{
         TerminalMachineAlternativeChoiceRule, TerminalPhysicalOperandFootprint,
         TerminalPostAllocationMachineBlock, TerminalPostAllocationMachineFunction,
         TerminalPostAllocationMachineIdentity, TerminalPostAllocationMachineInstruction,
-        TerminalPostAllocationMachinePlan, TerminalPreAllocationMachineEffectIdentity,
+        TerminalPostAllocationMachinePlan, TerminalPostAllocationStructuralUnitFunction,
+        TerminalPreAllocationMachineEffectIdentity, TerminalStructuralUnitCallMachineEffects,
         terminal_post_allocation_machine_identity,
     };
 
@@ -386,7 +426,88 @@ mod tests {
                     }],
                 }],
             }],
+            structural_unit_functions: Vec::new(),
         };
+        let return_instruction = plan.functions[0].blocks[0].instructions[0].clone();
+        let call_constraint = RegisterConstraintKey {
+            family: RegisterConstraintFamily::Call,
+            variant: 109,
+        };
+        plan.structural_unit_functions
+            .push(TerminalPostAllocationStructuralUnitFunction {
+                machine: MachineId::new(113).unwrap(),
+                block: TerminalSelectedBlockId(127),
+                call: Some(TerminalStructuralUnitCallMachineEffects {
+                    instruction: TerminalSelectedInstructionId(0),
+                    operation: OperationId::new(131).unwrap(),
+                    callee: MachineId::new(137).unwrap(),
+                    constraint: call_constraint,
+                    unit_uses: vec![RegisterUnitId(139), RegisterUnitId(149)],
+                    unit_defs: vec![RegisterUnitId(151)],
+                    unit_clobbers: vec![RegisterUnitId(157)],
+                    layout: TerminalSelectedMicrosoftX64OwnedIndirectPairLayout {
+                        shadow_byte_count: 32,
+                        outgoing_frame_byte_count: 72,
+                        pre_call_stack_alignment: 16,
+                        bindings: [
+                            TerminalSelectedStructuralUnitIndirectBinding {
+                                parameter_index: 0,
+                                pointer: MachineRegister::X86Rcx,
+                                copy_stack_byte_offset: 32,
+                                byte_count: 16,
+                                alignment: 8,
+                            },
+                            TerminalSelectedStructuralUnitIndirectBinding {
+                                parameter_index: 1,
+                                pointer: MachineRegister::X86Rdx,
+                                copy_stack_byte_offset: 48,
+                                byte_count: 16,
+                                alignment: 8,
+                            },
+                        ],
+                    },
+                    effect: EffectLink {
+                        input: 163,
+                        output: 167,
+                    },
+                    ownership: vec![OwnershipEvent::ClaimTransfer(vec![
+                        ClaimId::new(173).unwrap(),
+                    ])],
+                    claim_transfers: vec![psi_terminal::ClaimTransfer {
+                        claim: ClaimId::new(173).unwrap(),
+                        argument_index: 0,
+                    }],
+                    provenance: TerminalSelectedInstructionProvenance {
+                        operations: vec![OperationId::new(131).unwrap()],
+                        ..Default::default()
+                    },
+                    declaration: TerminalStructuralUnitCallEffectDeclaration {
+                        constraint: call_constraint,
+                        memory: TerminalStructuralUnitCallMemoryEffect::ReadOwnedIndirectPairWriteCallerCopiesV1 {
+                            root_byte_count: 16,
+                            copy_stack_byte_offsets: [32, 48],
+                        },
+                        frame: TerminalStructuralUnitCallFrameEffect::BalancedCallerFrameV1 {
+                            frame_byte_count: 72,
+                            shadow_byte_count: 32,
+                            pre_call_stack_alignment: 16,
+                        },
+                        trap: omega_terminal_selected_instructions::TerminalMachineTrapBehavior::MayArchitecturalFaultV1,
+                        barrier: TerminalStructuralUnitCallBarrier::CallV1,
+                        call: TerminalStructuralUnitCallEffect::DirectInternalUnitV1,
+                        cleanup: omega_terminal_selected_instructions::TerminalMachineCleanupEffect::NoneV1,
+                    },
+                }),
+                return_instruction,
+                return_provenance: TerminalSelectedInstructionProvenance::default(),
+                return_effect: EffectLink {
+                    input: 179,
+                    output: 181,
+                },
+                return_ownership: vec![OwnershipEvent::StructuralReturn(vec![
+                    ClaimId::new(191).unwrap(),
+                ])],
+            });
         plan.identity = terminal_post_allocation_machine_identity(&plan);
         plan
     }
@@ -419,10 +540,10 @@ mod tests {
         );
 
         let mut unsupported_version = encoded.clone();
-        unsupported_version[8..12].copy_from_slice(&3_u32.to_le_bytes());
+        unsupported_version[8..12].copy_from_slice(&4_u32.to_le_bytes());
         assert_eq!(
             TerminalPostAllocationMachinePlan::decode(&unsupported_version),
-            Err(TerminalPostAllocationMachineDecodeError::UnsupportedVersion(3))
+            Err(TerminalPostAllocationMachineDecodeError::UnsupportedVersion(4))
         );
 
         for offset in [
@@ -478,5 +599,48 @@ mod tests {
                 "identity-bearing bytes at offset {offset} were accepted"
             );
         }
+    }
+
+    #[test]
+    fn post_allocation_codec_authenticates_structural_call_content() {
+        let source = plan();
+        let mut substituted = source.clone();
+        substituted.structural_unit_functions[0]
+            .call
+            .as_mut()
+            .unwrap()
+            .layout
+            .outgoing_frame_byte_count = 80;
+
+        assert_ne!(
+            terminal_post_allocation_machine_identity(&substituted),
+            source.identity
+        );
+        assert_eq!(
+            TerminalPostAllocationMachinePlan::decode(&substituted.encode()),
+            Err(TerminalPostAllocationMachineDecodeError::InvalidIdentity)
+        );
+
+        let mut erased = source;
+        erased.structural_unit_functions.clear();
+        assert_ne!(
+            terminal_post_allocation_machine_identity(&erased),
+            plan().identity
+        );
+        assert_eq!(
+            TerminalPostAllocationMachinePlan::decode(&erased.encode()),
+            Err(TerminalPostAllocationMachineDecodeError::InvalidIdentity)
+        );
+    }
+
+    #[test]
+    fn post_allocation_receipt_counts_atomic_structural_call_and_return() {
+        let receipt = crate::post_allocation_receipt(&plan()).unwrap();
+
+        assert_eq!(receipt.function_count(), 2);
+        assert_eq!(receipt.block_count(), 2);
+        assert_eq!(receipt.instruction_count(), 3);
+        assert_eq!(receipt.operand_count(), 1);
+        assert_eq!(receipt.unit_action_count(), 10);
     }
 }
