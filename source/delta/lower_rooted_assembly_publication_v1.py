@@ -20,7 +20,7 @@ import source_closure_snapshot_v1 as closure
 
 HERE = Path(__file__).resolve().parent
 REPOSITORY = HERE.parents[1]
-OMEGA2GAMMA_SOURCE = REPOSITORY / "source/delta/meaning/omega2gamma.beta"
+DELTA2GAMMA_SOURCE = REPOSITORY / "source/delta/meaning/delta2gamma.beta"
 INTERPRETER_SOURCE = REPOSITORY / "source/gamma/interp.beta"
 PACKER_SOURCE = REPOSITORY / "source/delta/meaning/encode-gamma-input.py"
 DECODER_SOURCE = REPOSITORY / "source/delta/meaning/decode-gamma-output.py"
@@ -183,7 +183,7 @@ def toolchain_identity(
         },
         "translator": {
             "artifact": file_identity(translator_tape, "delta_to_gamma_beta_built_tape", MAX_TAPE),
-            "source": file_identity(OMEGA2GAMMA_SOURCE, "delta_to_gamma_beta_source"),
+            "source": file_identity(DELTA2GAMMA_SOURCE, "delta_to_gamma_beta_source"),
         },
     }
 

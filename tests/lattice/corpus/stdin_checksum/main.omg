@@ -5,7 +5,7 @@
 // whole meaning-proof pipe applies unchanged per vector), cross-checks the
 // interpreter exit against the table below, and kernel-proves the claim.
 //
-// EOF rides omega2gamma's read_byte sentinel (-1), so the meaning route runs
+// EOF rides delta2gamma's read_byte sentinel (-1), so the meaning route runs
 // in ℤ difference-pair mode; the digest stays within a byte for the grid.
 //
 // Expected exit: 0.

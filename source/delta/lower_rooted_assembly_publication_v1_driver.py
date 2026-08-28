@@ -34,7 +34,7 @@ ALPHA = REPOSITORY / "source/alpha"
 ASSEMBLER = ALPHA / "assembler/beta_arm64_macos"
 ALPHA_SEED = ALPHA / "alpha_arm64_macos"
 BC_TAPE = REPOSITORY / "source/beta/compiler/artifacts/bc.tape"
-TRANSLATOR_SOURCE = REPOSITORY / "source/delta/meaning/omega2gamma.beta"
+TRANSLATOR_SOURCE = REPOSITORY / "source/delta/meaning/delta2gamma.beta"
 INTERPRETER_SOURCE = REPOSITORY / "source/gamma/interp.beta"
 PACKER = REPOSITORY / "source/delta/meaning/encode-gamma-input.py"
 
@@ -190,15 +190,15 @@ def build_tools(root: Path) -> None:
     bc_executable = artifacts / "bc.exe"
     stamp(BC_TAPE, bc_executable)
     translator_assembly = run_short(
-        [str(bc_executable)], TRANSLATOR_SOURCE.read_bytes(), "build omega2gamma"
+        [str(bc_executable)], TRANSLATOR_SOURCE.read_bytes(), "build delta2gamma"
     )
     interpreter_assembly = run_short(
         [str(bc_executable)], INTERPRETER_SOURCE.read_bytes(), "build Gamma interpreter"
     )
-    translator_tape = artifacts / "omega2gamma.tape"
+    translator_tape = artifacts / "delta2gamma.tape"
     interpreter_tape = artifacts / "interp.tape"
     translator_tape.write_bytes(
-        run_short([str(ASSEMBLER)], translator_assembly, "assemble omega2gamma")
+        run_short([str(ASSEMBLER)], translator_assembly, "assemble delta2gamma")
     )
     interpreter_tape.write_bytes(
         run_short([str(ASSEMBLER)], interpreter_assembly, "assemble Gamma interpreter")
@@ -207,7 +207,7 @@ def build_tools(root: Path) -> None:
         raise DriverResourceError("translator tape ceiling")
     if len(interpreter_tape.read_bytes()) > publication.MAX_TAPE:
         raise DriverResourceError("interpreter tape ceiling")
-    stamp(translator_tape, artifacts / "omega2gamma.exe")
+    stamp(translator_tape, artifacts / "delta2gamma.exe")
     stamp(interpreter_tape, artifacts / "interp.exe")
 
 
@@ -226,7 +226,7 @@ def plan_inputs(root: Path) -> dict:
         "decoder_source": identity(publication.DECODER_SOURCE, "gamma_output_decoder_source"),
         "driver_source": identity(Path(__file__).resolve(), "attempt_driver_source"),
         "interpreter_source": identity(INTERPRETER_SOURCE, "gamma_interpreter_beta_source"),
-        "translator_tape": identity(artifacts / "omega2gamma.tape", "omega2gamma_tape"),
+        "translator_tape": identity(artifacts / "delta2gamma.tape", "delta_to_gamma_tape"),
         "interpreter_tape": identity(artifacts / "interp.tape", "gamma_interpreter_tape"),
         "manifest": identity(MANIFEST, "delta_source_closure_manifest"),
         "locations": identity(LOCATIONS, "delta_source_closure_locations"),
@@ -237,7 +237,7 @@ def plan_inputs(root: Path) -> dict:
         "translator_source": identity(TRANSLATOR_SOURCE, "delta_to_gamma_beta_source"),
         # Signed executable hashes are attempt-local mutation guards only.  They
         # are deliberately absent from the publication receipt.
-        "translator_executable": identity(artifacts / "omega2gamma.exe", "attempt_local_translator"),
+        "translator_executable": identity(artifacts / "delta2gamma.exe", "attempt_local_translator"),
         "interpreter_executable": identity(artifacts / "interp.exe", "attempt_local_interpreter"),
         "source_image": identity(root / "canonical-source.lf", "delta_compiler_canonical_lf_image"),
     }
@@ -318,7 +318,7 @@ def load_plan(root: Path) -> dict:
     if plan["inputs"] != expected:
         fail("attempt input custody")
     artifacts = root / "artifacts"
-    if embedded_tape(artifacts / "omega2gamma.exe") != (artifacts / "omega2gamma.tape").read_bytes():
+    if embedded_tape(artifacts / "delta2gamma.exe") != (artifacts / "delta2gamma.tape").read_bytes():
         fail("translator executable/tape relation")
     if embedded_tape(artifacts / "interp.exe") != (artifacts / "interp.tape").read_bytes():
         fail("interpreter executable/tape relation")
@@ -328,7 +328,7 @@ def load_plan(root: Path) -> dict:
 def stage_paths(root: Path, stage: str) -> tuple[list[Path], list[Path]]:
     if stage == "elaboration":
         return (
-            [root / "artifacts/omega2gamma.exe", root / "canonical-source.lf"],
+            [root / "artifacts/delta2gamma.exe", root / "canonical-source.lf"],
             [root / "template.gamma", root / "elaboration.stderr"],
         )
     if stage == "packing":
@@ -554,7 +554,7 @@ def finalize(root: Path) -> dict:
             assemblies.append(path)
         elaboration = publication.make_elaboration_observation(
             0, stages["elaboration"]["elapsed_milliseconds"], MANIFEST, LOCATIONS,
-            roots, artifacts / "assembler.tape", artifacts / "omega2gamma.tape",
+            roots, artifacts / "assembler.tape", artifacts / "delta2gamma.tape",
             artifacts / "interp.tape", root / "template.gamma", root / "elaboration.stderr",
         )
         elaboration_path = temporary / "elaboration.json"
@@ -564,7 +564,7 @@ def finalize(root: Path) -> dict:
             observation = publication.make_execution_observation(
                 ordinal, 0, stages[f"execution-{ordinal}"]["elapsed_milliseconds"],
                 MANIFEST, LOCATIONS, roots, artifacts / "assembler.tape",
-                artifacts / "omega2gamma.tape", artifacts / "interp.tape",
+                artifacts / "delta2gamma.tape", artifacts / "interp.tape",
                 root / "template.gamma", root / "closed.gamma",
                 root / f"execution-{ordinal}.raw", assemblies[ordinal],
                 root / f"execution-{ordinal}.stderr",
@@ -574,7 +574,7 @@ def finalize(root: Path) -> dict:
             observations.append(path)
         receipt = publication.make_receipt(
             MANIFEST, LOCATIONS, roots, artifacts / "assembler.tape",
-            artifacts / "omega2gamma.tape", artifacts / "interp.tape",
+            artifacts / "delta2gamma.tape", artifacts / "interp.tape",
             root / "template.gamma", root / "closed.gamma", elaboration_path,
             root / "elaboration.stderr", (observations[0], observations[1]),
             (root / "execution-0.raw", root / "execution-1.raw"),

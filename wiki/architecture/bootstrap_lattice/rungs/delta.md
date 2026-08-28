@@ -45,7 +45,7 @@ accepted Omega programs retain their exact Omega meaning.
 
 - `source/delta/samples/lowermachine.alp` is the Delta-written compiler
   experiment.
-- `source/delta/meaning/omega2gamma.beta` and its encoding tools provide the
+- `source/delta/meaning/delta2gamma.beta` and its encoding tools provide the
   Rust-free lower-rung meaning route used to publish Delta artifacts.
 - `source/delta/build/` contains checked-in artifacts produced by this work.
 - `source/delta/FEATURE_LEDGER.md` records candidate Delta facilities and the

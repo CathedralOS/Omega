@@ -27,7 +27,7 @@ def gamma_observation(assembly: bytes) -> bytes:
 class Evidence:
     def __init__(self, root: Path) -> None:
         self.assembler = root / "assembler.tape"
-        self.translator = root / "omega2gamma.tape"
+        self.translator = root / "delta2gamma.tape"
         self.interpreter = root / "interp.tape"
         self.template = root / "template.gamma"
         self.gamma = root / "closed.gamma"

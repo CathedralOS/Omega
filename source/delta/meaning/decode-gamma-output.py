@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Decode omega2gamma's exact `(Pair status stdout)` observation.
+"""Decode delta2gamma's exact `(Pair status stdout)` observation.
 
 The canonical Gamma interpreter prints constructor trees rather than performing
 host I/O on their behalf.  Output-capable Delta/Omega programs therefore return

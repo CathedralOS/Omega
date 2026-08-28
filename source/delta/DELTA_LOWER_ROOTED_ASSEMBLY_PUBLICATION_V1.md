@@ -23,7 +23,7 @@ It binds exact bytes for:
   `canonical_alpha_written_assembler_artifact`;
 - `bc.beta` and the repository's persisted fixed-point `bc.tape`, under role
   `persisted_alpha_rooted_beta_compiler_fixed_point`;
-- `omega2gamma.beta` and its Beta-built Alpha tape;
+- `delta2gamma.beta` and its Beta-built Alpha tape;
 - `interp.beta` and its Beta-built Alpha tape; and
 - the canonical packed-input encoder and structured-output decoder sources.
 
@@ -138,7 +138,7 @@ finalize ABSOLUTE_EVIDENCE_DIRECTORY
 
 `prepare` reconstructs the short-lived Beta compiler installation, extracts
 the assembler tape from the committed Alpha assembler artifact, builds the
-exact `omega2gamma.beta` and `interp.beta` tapes, stamps attempt-local Darwin
+exact `delta2gamma.beta` and `interp.beta` tapes, stamps attempt-local Darwin
 executables, materializes the canonical LF image, and writes three explicit
 runner scripts. It does not elaborate the compiler or start either long Gamma
 execution. Ad-hoc-signed executable hashes are attempt-local mutation guards;
