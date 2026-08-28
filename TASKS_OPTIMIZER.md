@@ -525,7 +525,12 @@ These facts constrain the work below.
   root/path/type legality, source and destination access, exclusive overlap,
   multiplicity, qualifications, structural results, ordinary/content claim
   transfers, and complete boundary source/completion correspondence across
-  internal and boundary signatures. The verified builder additionally attaches
+  internal and boundary signatures. Claim liveness is reconstructed from the
+  Terminal frontier's union of ordinary and content-entry claims without
+  collapsing their distinct declarations; content-only internal transfers and
+  boundary completions now have focused acceptance and corruption tests, and a
+  source-derived content-bearing boundary canary passes verified optimizer
+  admission. The verified builder additionally attaches
   a canonical immutable catalog of verifier-owned block-entry,
   operation-entry/exit, and edge-entry/available-edge-exit ownership snapshots.
   `OPT-UNIT-BUILDER` and `OPT-UNIT-VALIDATOR` remain open until verified
@@ -1180,7 +1185,9 @@ dependency.
   reconstructs complete place and content-entry-claim catalogs plus structural
   call arity, roots and paths, resolved types, source/destination access,
   overlap, multiplicity, qualifications, results, internal claim transfers,
-  and boundary requirement/completion correspondence. Full structural
+  and boundary requirement/completion correspondence, including content-only
+  claims in the unified live-claim namespace while retaining separate ordinary
+  and content declarations. Full structural
   type/domain/content-projection graph validation, path-sensitive availability
   of operation-result and local roots, exact payloadless-callee classification,
   and the remaining crash/requirement/effect vocabulary remain open.

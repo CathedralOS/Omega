@@ -62,6 +62,7 @@ omega-lowering-optimizer = { path = "../../optimization/omega-lowering-optimizer
 omega-optimization-core = { path = "../../foundation/omega-optimization-core" }
 omega-optimization-pipeline = { path = "../omega-optimization-pipeline" }
 omega-optimization-unit = { path = "../../representations/omega-optimization-unit" }
+omega-optimization-validation = { path = "../../optimization/omega-optimization-validation" }
 omega-program-storage = { path = "../omega-program-storage" }
 omega-terminal-selected-instructions = { path = "../../representations/omega-terminal-selected-instructions" }
 psi-source-files-to-tokens = { path = "../../../psi/pipeline/psi-source-files-to-tokens" }

@@ -762,7 +762,12 @@ calls are independently replayed against the retained catalogs for arity, root
 and path grammar, resolved type, source and destination access, exclusive
 overlap, multiplicity, qualifications, structural result custody,
 ordinary/content claim transfer, and complete boundary requirement/completion
-correspondence. Full structural type/domain/content-projection graph
+correspondence. The liveness check mirrors Terminal's one live-claim namespace:
+ordinary and content-entry declarations remain distinct authority, while a
+content-only claim may be transferred or completed exactly like an ordinary
+claim. Focused internal/boundary corruption tests and one source-derived
+content-bearing admission canary cover that union. Full structural
+type/domain/content-projection graph
 validation, path-sensitive availability of operation-result and local roots,
 exact payloadless-callee classification, and the wider crash/requirement/effect
 vocabulary remain explicit unfinished validator layers. It

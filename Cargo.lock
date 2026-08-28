@@ -1156,6 +1156,7 @@ dependencies = [
  "omega-optimization-core",
  "omega-optimization-pipeline",
  "omega-optimization-unit",
+ "omega-optimization-validation",
  "omega-program-storage",
  "omega-provider-planning",
  "omega-target",
