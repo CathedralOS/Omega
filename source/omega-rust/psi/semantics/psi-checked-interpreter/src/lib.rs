@@ -157,7 +157,7 @@ pub struct EvaluationUsage {
 /// returned or evaluator-halted outcome. Exact path results and successful file
 /// and directory observation regions plus canonical metadata values are
 /// designated, but replay execution is not complete yet.
-pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 18;
+pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 19;
 
 /// One semantic field in the canonical metadata value returned by the
 /// filesystem host seam. This is target-neutral vocabulary; the selected
@@ -511,6 +511,270 @@ pub fn filesystem_root_relative_path_is_canonical(relative: &[u8], allow_empty: 
         .any(|component| component.is_empty() || component == b"." || component == b"..")
 }
 
+/// Version of Psi's canonical immutable-source metadata policy.
+pub const CANONICAL_FILESYSTEM_METADATA_POLICY_VERSION: u32 = 1;
+
+/// Whether raw bytes are one canonical slash-separated source-tree coordinate.
+///
+/// Unlike runtime rooted-path evidence, the complete source index deliberately
+/// does not require UTF-8. Source custody preserves otherwise valid raw Unix
+/// names even when package code cannot express those names through Psi's
+/// target-neutral runtime path gate.
+pub fn canonical_filesystem_metadata_path_is_canonical(relative: &[u8], allow_empty: bool) -> bool {
+    if relative.len() > FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT
+        || relative.contains(&0)
+        || relative.contains(&b'\\')
+    {
+        return false;
+    }
+    if relative.is_empty() {
+        return allow_empty;
+    }
+    if relative[0] == b'/' {
+        return false;
+    }
+    !relative
+        .split(|byte| *byte == b'/')
+        .any(|component| component.is_empty() || component == b"." || component == b"..")
+}
+
+/// Closed source entry shape from which package-visible metadata is derived.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CanonicalFilesystemMetadataRowKind {
+    Directory,
+    File {
+        executable: bool,
+        logical_byte_length: u64,
+    },
+    Symlink {
+        target_spelling_logical_byte_length: u64,
+    },
+}
+
+impl CanonicalFilesystemMetadataRowKind {
+    pub const fn logical_byte_length(self) -> u64 {
+        match self {
+            Self::Directory => 0,
+            Self::File {
+                logical_byte_length,
+                ..
+            } => logical_byte_length,
+            Self::Symlink {
+                target_spelling_logical_byte_length,
+            } => target_spelling_logical_byte_length,
+        }
+    }
+}
+
+/// One raw root-relative row in a canonical immutable-source metadata index.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CanonicalFilesystemMetadataRow {
+    relative_path: Vec<u8>,
+    kind: CanonicalFilesystemMetadataRowKind,
+}
+
+impl CanonicalFilesystemMetadataRow {
+    pub fn new(
+        relative_path: impl Into<Vec<u8>>,
+        kind: CanonicalFilesystemMetadataRowKind,
+    ) -> Self {
+        Self {
+            relative_path: relative_path.into(),
+            kind,
+        }
+    }
+
+    pub fn relative_path(&self) -> &[u8] {
+        &self.relative_path
+    }
+
+    pub const fn kind(&self) -> CanonicalFilesystemMetadataRowKind {
+        self.kind
+    }
+}
+
+/// Why compiler-supplied immutable-source metadata is not canonical.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CanonicalFilesystemMetadataIndexError {
+    UnsupportedPolicyVersion(u32),
+    InvalidRelativePath(Vec<u8>),
+    DuplicateRelativePath(Vec<u8>),
+    AggregatePathBytesLimitExceeded { limit: usize, attempted: usize },
+    LogicalByteLengthExceedsI64(Vec<u8>),
+    MissingRootDirectory,
+    RootIsNotDirectory,
+    MissingParentDirectory(Vec<u8>),
+    ParentIsNotDirectory(Vec<u8>),
+}
+
+impl std::fmt::Display for CanonicalFilesystemMetadataIndexError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UnsupportedPolicyVersion(version) => {
+                write!(
+                    formatter,
+                    "unsupported canonical filesystem metadata policy {version}"
+                )
+            }
+            Self::InvalidRelativePath(path) => write!(
+                formatter,
+                "canonical filesystem metadata contains an invalid relative path: {path:?}"
+            ),
+            Self::DuplicateRelativePath(path) => write!(
+                formatter,
+                "canonical filesystem metadata duplicates relative path: {path:?}"
+            ),
+            Self::AggregatePathBytesLimitExceeded { limit, attempted } => write!(
+                formatter,
+                "canonical filesystem metadata path bytes exceed {limit}: attempted {attempted}"
+            ),
+            Self::LogicalByteLengthExceedsI64(path) => write!(
+                formatter,
+                "canonical filesystem metadata length does not fit i64 at path: {path:?}"
+            ),
+            Self::MissingRootDirectory => {
+                write!(
+                    formatter,
+                    "canonical filesystem metadata omits the root directory"
+                )
+            }
+            Self::RootIsNotDirectory => {
+                write!(
+                    formatter,
+                    "canonical filesystem metadata root is not a directory"
+                )
+            }
+            Self::MissingParentDirectory(path) => write!(
+                formatter,
+                "canonical filesystem metadata omits a parent directory for path: {path:?}"
+            ),
+            Self::ParentIsNotDirectory(path) => write!(
+                formatter,
+                "canonical filesystem metadata parent is not a directory for path: {path:?}"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for CanonicalFilesystemMetadataIndexError {}
+
+/// Immutable, validated metadata for one complete content-authenticated source.
+///
+/// The source-content commitment is deliberately opaque to Psi. The package
+/// resolver owns its construction and the compiler binds it to the source
+/// identity; the interpreter only enforces the closed metadata policy.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CanonicalFilesystemMetadataIndex {
+    policy_version: u32,
+    source_content_commitment: [u8; 32],
+    rows: std::collections::BTreeMap<Vec<u8>, CanonicalFilesystemMetadataRowKind>,
+}
+
+impl CanonicalFilesystemMetadataIndex {
+    pub fn version_1(
+        source_content_commitment: [u8; 32],
+        rows: impl IntoIterator<Item = CanonicalFilesystemMetadataRow>,
+    ) -> Result<Self, CanonicalFilesystemMetadataIndexError> {
+        Self::new(
+            CANONICAL_FILESYSTEM_METADATA_POLICY_VERSION,
+            source_content_commitment,
+            rows,
+        )
+    }
+
+    pub fn new(
+        policy_version: u32,
+        source_content_commitment: [u8; 32],
+        rows: impl IntoIterator<Item = CanonicalFilesystemMetadataRow>,
+    ) -> Result<Self, CanonicalFilesystemMetadataIndexError> {
+        if policy_version != CANONICAL_FILESYSTEM_METADATA_POLICY_VERSION {
+            return Err(
+                CanonicalFilesystemMetadataIndexError::UnsupportedPolicyVersion(policy_version),
+            );
+        }
+        let mut total_path_bytes = 0usize;
+        let mut canonical_rows = std::collections::BTreeMap::new();
+        for row in rows {
+            if !canonical_filesystem_metadata_path_is_canonical(&row.relative_path, true) {
+                return Err(CanonicalFilesystemMetadataIndexError::InvalidRelativePath(
+                    row.relative_path,
+                ));
+            }
+            total_path_bytes = total_path_bytes
+                .checked_add(row.relative_path.len())
+                .filter(|total| *total <= FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT)
+                .ok_or(
+                    CanonicalFilesystemMetadataIndexError::AggregatePathBytesLimitExceeded {
+                        limit: FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT,
+                        attempted: total_path_bytes.saturating_add(row.relative_path.len()),
+                    },
+                )?;
+            if row.kind.logical_byte_length() > i64::MAX as u64 {
+                return Err(
+                    CanonicalFilesystemMetadataIndexError::LogicalByteLengthExceedsI64(
+                        row.relative_path,
+                    ),
+                );
+            }
+            if canonical_rows
+                .insert(row.relative_path.clone(), row.kind)
+                .is_some()
+            {
+                return Err(
+                    CanonicalFilesystemMetadataIndexError::DuplicateRelativePath(row.relative_path),
+                );
+            }
+        }
+        match canonical_rows.get(b"".as_slice()) {
+            None => return Err(CanonicalFilesystemMetadataIndexError::MissingRootDirectory),
+            Some(CanonicalFilesystemMetadataRowKind::Directory) => {}
+            Some(_) => return Err(CanonicalFilesystemMetadataIndexError::RootIsNotDirectory),
+        }
+        for path in canonical_rows.keys().filter(|path| !path.is_empty()) {
+            let parent = path
+                .iter()
+                .rposition(|byte| *byte == b'/')
+                .map_or(b"".as_slice(), |separator| &path[..separator]);
+            match canonical_rows.get(parent) {
+                None => {
+                    return Err(
+                        CanonicalFilesystemMetadataIndexError::MissingParentDirectory(path.clone()),
+                    );
+                }
+                Some(CanonicalFilesystemMetadataRowKind::Directory) => {}
+                Some(_) => {
+                    return Err(CanonicalFilesystemMetadataIndexError::ParentIsNotDirectory(
+                        path.clone(),
+                    ));
+                }
+            }
+        }
+        Ok(Self {
+            policy_version,
+            source_content_commitment,
+            rows: canonical_rows,
+        })
+    }
+
+    pub const fn policy_version(&self) -> u32 {
+        self.policy_version
+    }
+
+    pub const fn source_content_commitment(&self) -> &[u8; 32] {
+        &self.source_content_commitment
+    }
+
+    pub fn rows(&self) -> impl ExactSizeIterator<Item = CanonicalFilesystemMetadataRow> + '_ {
+        self.rows.iter().map(|(relative_path, kind)| {
+            CanonicalFilesystemMetadataRow::new(relative_path.clone(), *kind)
+        })
+    }
+
+    pub(crate) fn row(&self, relative_path: &[u8]) -> Option<CanonicalFilesystemMetadataRowKind> {
+        self.rows.get(relative_path).copied()
+    }
+}
+
 impl FilesystemGrantRootIdentity {
     pub const fn new(value: u32) -> Option<Self> {
         if value == 0 { None } else { Some(Self(value)) }
@@ -526,6 +790,7 @@ impl FilesystemGrantRootIdentity {
 pub struct FilesystemGrantRoot {
     identity: FilesystemGrantRootIdentity,
     path: std::path::PathBuf,
+    canonical_metadata: Option<CanonicalFilesystemMetadataIndex>,
 }
 
 impl FilesystemGrantRoot {
@@ -533,7 +798,17 @@ impl FilesystemGrantRoot {
         Self {
             identity,
             path: path.into(),
+            canonical_metadata: None,
         }
+    }
+
+    /// Attach canonical immutable-source metadata to this grant root.
+    pub fn with_canonical_metadata(
+        mut self,
+        canonical_metadata: CanonicalFilesystemMetadataIndex,
+    ) -> Self {
+        self.canonical_metadata = Some(canonical_metadata);
+        self
     }
 
     pub const fn identity(&self) -> FilesystemGrantRootIdentity {
@@ -542,6 +817,10 @@ impl FilesystemGrantRoot {
 
     pub fn path(&self) -> &std::path::Path {
         &self.path
+    }
+
+    pub const fn canonical_metadata(&self) -> Option<&CanonicalFilesystemMetadataIndex> {
+        self.canonical_metadata.as_ref()
     }
 }
 
@@ -3325,4 +3604,163 @@ pub fn evaluate_build_machine_with_filesystem_measured(
     options: InterpretOptions,
 ) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, BuildMachineEvaluationFailure> {
     evaluator::run_granted_build_machine_arguments(program, machine_name, arguments, options)
+}
+
+#[cfg(test)]
+mod canonical_filesystem_metadata_tests {
+    use super::*;
+
+    fn row(
+        path: &[u8],
+        kind: CanonicalFilesystemMetadataRowKind,
+    ) -> CanonicalFilesystemMetadataRow {
+        CanonicalFilesystemMetadataRow::new(path.to_vec(), kind)
+    }
+
+    #[test]
+    fn canonical_metadata_accepts_raw_non_utf8_paths_and_preserves_ordered_rows() {
+        let index = CanonicalFilesystemMetadataIndex::version_1(
+            [3; 32],
+            [
+                row(b"raw-\xff", CanonicalFilesystemMetadataRowKind::Directory),
+                row(b"a:b", CanonicalFilesystemMetadataRowKind::Directory),
+                row(b"", CanonicalFilesystemMetadataRowKind::Directory),
+                row(
+                    b"raw-\xff/file",
+                    CanonicalFilesystemMetadataRowKind::File {
+                        executable: false,
+                        logical_byte_length: 9,
+                    },
+                ),
+            ],
+        )
+        .unwrap();
+
+        assert_eq!(index.policy_version(), 1);
+        assert_eq!(index.source_content_commitment(), &[3; 32]);
+        assert_eq!(
+            index
+                .rows()
+                .map(|row| row.relative_path().to_vec())
+                .collect::<Vec<_>>(),
+            vec![
+                b"".to_vec(),
+                b"a:b".to_vec(),
+                b"raw-\xff".to_vec(),
+                b"raw-\xff/file".to_vec()
+            ]
+        );
+    }
+
+    #[test]
+    fn canonical_metadata_rejects_invalid_and_duplicate_paths() {
+        for invalid in [
+            b"/absolute".as_slice(),
+            b"a//b".as_slice(),
+            b"a/./b".as_slice(),
+            b"a/../b".as_slice(),
+            b"a\\b".as_slice(),
+            b"a\0b".as_slice(),
+        ] {
+            assert!(matches!(
+                CanonicalFilesystemMetadataIndex::version_1(
+                    [0; 32],
+                    [
+                        row(b"", CanonicalFilesystemMetadataRowKind::Directory),
+                        row(invalid, CanonicalFilesystemMetadataRowKind::Directory),
+                    ],
+                ),
+                Err(CanonicalFilesystemMetadataIndexError::InvalidRelativePath(path))
+                    if path == invalid
+            ));
+        }
+        assert!(matches!(
+            CanonicalFilesystemMetadataIndex::version_1(
+                [0; 32],
+                [
+                    row(b"", CanonicalFilesystemMetadataRowKind::Directory),
+                    row(b"", CanonicalFilesystemMetadataRowKind::Directory),
+                ],
+            ),
+            Err(CanonicalFilesystemMetadataIndexError::DuplicateRelativePath(path))
+                if path.is_empty()
+        ));
+    }
+
+    #[test]
+    fn canonical_metadata_requires_one_directory_root_and_directory_parent_closure() {
+        assert!(matches!(
+            CanonicalFilesystemMetadataIndex::version_1([0; 32], []),
+            Err(CanonicalFilesystemMetadataIndexError::MissingRootDirectory)
+        ));
+        assert!(matches!(
+            CanonicalFilesystemMetadataIndex::version_1(
+                [0; 32],
+                [row(
+                    b"",
+                    CanonicalFilesystemMetadataRowKind::File {
+                        executable: false,
+                        logical_byte_length: 0,
+                    },
+                )],
+            ),
+            Err(CanonicalFilesystemMetadataIndexError::RootIsNotDirectory)
+        ));
+        assert!(matches!(
+            CanonicalFilesystemMetadataIndex::version_1(
+                [0; 32],
+                [
+                    row(b"", CanonicalFilesystemMetadataRowKind::Directory),
+                    row(
+                        b"missing/leaf",
+                        CanonicalFilesystemMetadataRowKind::File {
+                            executable: false,
+                            logical_byte_length: 0,
+                        },
+                    ),
+                ],
+            ),
+            Err(CanonicalFilesystemMetadataIndexError::MissingParentDirectory(path))
+                if path == b"missing/leaf"
+        ));
+        assert!(matches!(
+            CanonicalFilesystemMetadataIndex::version_1(
+                [0; 32],
+                [
+                    row(b"", CanonicalFilesystemMetadataRowKind::Directory),
+                    row(
+                        b"file",
+                        CanonicalFilesystemMetadataRowKind::File {
+                            executable: false,
+                            logical_byte_length: 0,
+                        },
+                    ),
+                    row(b"file/child", CanonicalFilesystemMetadataRowKind::Directory),
+                ],
+            ),
+            Err(CanonicalFilesystemMetadataIndexError::ParentIsNotDirectory(path))
+                if path == b"file/child"
+        ));
+    }
+
+    #[test]
+    fn canonical_metadata_rejects_lengths_outside_the_stat_domain() {
+        assert!(matches!(
+            CanonicalFilesystemMetadataIndex::version_1(
+                [0; 32],
+                [
+                    row(b"", CanonicalFilesystemMetadataRowKind::Directory),
+                    row(
+                        b"huge",
+                        CanonicalFilesystemMetadataRowKind::File {
+                            executable: false,
+                            logical_byte_length: i64::MAX as u64 + 1,
+                        },
+                    ),
+                ],
+            ),
+            Err(CanonicalFilesystemMetadataIndexError::LogicalByteLengthExceedsI64(path))
+                if path == b"huge"
+        ));
+    }
 }
