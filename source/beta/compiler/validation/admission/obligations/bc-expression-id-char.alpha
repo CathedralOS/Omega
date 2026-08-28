@@ -4,19 +4,11 @@
 ; only p13 here avoids spending audited tape capacity on an unrelated theorem.
 
 expression_id_char_require_shape:
-        imm r20, 7151616
-        imm r21, 13
-        imm r22, 1
-        call transfer_require_cell
-        imm r20, 7159808
-        imm r21, 13
-        imm r22, 1
-        call transfer_require_cell
         imm r20, 13
-        call call_bounds_frame_bytes
-        imm r1, 16
-        jeq r0, r1, expression_id_char_require_block
-        jmp reject
+        imm r21, 1
+        imm r22, 1
+        imm r23, 16
+        call exact_require_proc_frame_identity
 
 expression_id_char_require_block:
         imm r20, 47

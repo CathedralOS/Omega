@@ -36,19 +36,12 @@ fixed_keyword_require_current_proc:
 fixed_keyword_require_frame:
 	imm r1, 530360
 	load r30, r1
-	imm r20, 7151616
-	mov r21, r30
-	imm r22, 0
-	call transfer_require_cell
-	imm r20, 7159808
-	mov r21, r30
-	imm r22, 0
-	call transfer_require_cell
 	mov r20, r30
-	call call_bounds_frame_bytes
-	imm r1, 8
-	jeq r0, r1, exact_shape_ok
-	jmp reject
+	imm r21, 0
+	imm r22, 0
+	imm r23, 8
+	call exact_require_proc_frame_identity
+	ret
 
 fixed_keyword_require_blocks:
 	imm r1, 530384

@@ -6,19 +6,11 @@
 ; adjacent semantic module owns the bounded loop and exact source-slice trace.
 
 emit_ident_require_shape:
-        imm r20, 7151616
-        imm r21, 45
-        imm r22, 2                    ; off,len parameters
-        call transfer_require_cell
-        imm r20, 7159808
-        imm r21, 45
-        imm r22, 3                    ; off,len,k slots
-        call transfer_require_cell
         imm r20, 45
-        call call_bounds_frame_bytes
-        imm r1, 32
-        jeq r0, r1, emit_ident_shape_blocks
-        jmp reject
+        imm r21, 2                    ; off,len parameters
+        imm r22, 3                    ; off,len,k slots
+        imm r23, 32
+        call exact_require_proc_frame_identity
 
 emit_ident_shape_blocks:
         imm r20, 214

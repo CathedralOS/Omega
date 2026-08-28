@@ -63,20 +63,11 @@ operator_classifier_require_shape:
         ret
 
 operator_classifier_require_proc_frame:
-        mov r30, r20
-        imm r20, 7151616
-        mov r21, r30
-        imm r22, 1                    ; one parameter
-        call transfer_require_cell
-        imm r20, 7159808
-        mov r21, r30
+        imm r21, 1                    ; one parameter
         imm r22, 1                    ; one total frame slot
-        call transfer_require_cell
-        mov r20, r30
-        call call_bounds_frame_bytes
-        imm r1, 16                    ; saved fp plus parameter slot
-        jeq r0, r1, exact_shape_ok
-        jmp reject
+        imm r23, 16                   ; saved fp plus parameter slot
+        call exact_require_proc_frame_identity
+        ret
 
 operator_classifier_require_transitions:
         ; is_muldiv: star, slash, percent, complement.

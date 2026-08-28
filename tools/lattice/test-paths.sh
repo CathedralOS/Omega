@@ -6,6 +6,8 @@ OMEGA_REPO_ROOT=$(CDPATH= cd -- "$OMEGA_GATE_DIR/../.." && pwd -P)
 export OMEGA_REPO_ROOT
 . "$OMEGA_GATE_DIR/paths.sh"
 
+OMEGA_LATTICE_RUNNER="$OMEGA_GATE_DIR/verify-lattice.sh"
+
 fail() {
   echo "lattice paths: $*" >&2
   exit 1
@@ -75,5 +77,20 @@ done
 [ ! -e "$OMEGA_REPO_ROOT/tests/canaries" ] || fail "generic canaries test bucket remains"
 [ ! -e "$OMEGA_REPO_ROOT/tools/bootstrap" ] || fail "generic bootstrap tooling bucket remains"
 [ ! -e "$OMEGA_REPO_ROOT/tools/assurance" ] || fail "generic assurance tooling bucket remains"
+
+# Keep the default Beta edge deliberately small. Stress, fuzz, alternate
+# checkers, large corpora, and reports remain independently invocable evidence;
+# adding one of them to the default lattice is a policy change, not plumbing.
+beta_step_count=$(grep -c '^step "beta — ' "$OMEGA_LATTICE_RUNNER" || true)
+[ "$beta_step_count" -eq 3 ] ||
+  fail "default lattice has $beta_step_count Beta rows, expected the canonical three"
+for beta_step in \
+  'step "beta — Alpha-rooted compiler construction" beta-compiler cold-start/full-source.sh alpha alpha-assembler' \
+  'step "beta — compiler artifact framing" beta-validation admission/bc-artifact-structure.sh alpha beta-compiler alpha-assembler' \
+  'step "beta — maximal-observation reconstruction" beta-validation admission/bc-block-control.sh alpha beta-compiler alpha-assembler'
+do
+  grep -Fqx "$beta_step" "$OMEGA_LATTICE_RUNNER" ||
+    fail "default lattice is missing or changed Beta row: $beta_step"
+done
 
 echo "lattice paths: direct compiler-sequence owners verified"

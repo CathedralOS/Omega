@@ -6,19 +6,11 @@
 ; and push row payloads are separated into bc-count-lets-data-shape.alpha.
 
 count_lets_require_control_shape:
-        imm r20, 7151616
-        imm r21, 39
-        imm r22, 0
-        call transfer_require_cell
-        imm r20, 7159808
-        imm r21, 39
-        imm r22, 4
-        call transfer_require_cell
         imm r20, 39
-        call call_bounds_frame_bytes
-        imm r1, 40
-        jeq r0, r1, count_lets_shape_blocks
-        jmp reject
+        imm r21, 0
+        imm r22, 4
+        imm r23, 40
+        call exact_require_proc_frame_identity
 
 count_lets_shape_blocks:
         imm r20, 193

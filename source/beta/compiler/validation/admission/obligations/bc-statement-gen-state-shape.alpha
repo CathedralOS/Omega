@@ -10,19 +10,12 @@ statement_gen_state_require_shape:
         ret
 
 statement_gen_state_require_proc:
-        imm r20, 7151616
-        imm r21, 65
-        imm r22, 0
-        call transfer_require_cell
-        imm r20, 7159808
-        imm r21, 65
-        imm r22, 2
-        call transfer_require_cell
         imm r20, 65
-        call call_bounds_frame_bytes
-        imm r1, 24
-        jeq r0, r1, exact_shape_ok
-        jmp reject
+        imm r21, 0
+        imm r22, 2
+        imm r23, 24
+        call exact_require_proc_frame_identity
+        jmp exact_shape_ok
 
 statement_gen_state_require_blocks:
         imm r20, 317

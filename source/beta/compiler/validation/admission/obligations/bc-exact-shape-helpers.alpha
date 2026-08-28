@@ -1288,6 +1288,27 @@ transfer_require_cell:
 transfer_require_cell_ok:
         ret
 
+; Procedure identity/parameter count/slot count/frame bytes in r20..r23.
+; Rejoin the two canonical source tables and the independently reconstructed
+; frame calculation in one fail-closed owner. Clobbers r0..r6 and r20..r22.
+exact_require_proc_frame_identity:
+        mov r3, r20
+        mov r4, r21
+        mov r5, r22
+        mov r6, r23
+        imm r20, 7151616
+        mov r21, r3
+        mov r22, r4
+        call transfer_require_cell
+        imm r20, 7159808
+        mov r21, r3
+        mov r22, r5
+        call transfer_require_cell
+        mov r20, r3
+        call call_bounds_frame_bytes
+        jeq r0, r6, exact_shape_ok
+        jmp reject
+
 ; local row/block/kind/slot/pc in r20..r24.
 transfer_require_local:
         mov r25, r20

@@ -21,22 +21,9 @@ label_core_require_shape:
 ; r20=procedure, r21=arity, r22=slots.  Both exact frames are sixteen bytes:
 ; one saved caller fp word and one parameter/local word.
 label_core_require_one_proc:
-        mov r30, r20
-        mov r31, r21
-        mov r32, r22
-        imm r20, 7151616
-        mov r21, r30
-        mov r22, r31
-        call transfer_require_cell
-        imm r20, 7159808
-        mov r21, r30
-        mov r22, r32
-        call transfer_require_cell
-        mov r20, r30
-        call call_bounds_frame_bytes
-        imm r1, 16
-        jeq r0, r1, label_core_shape_ok
-        jmp reject
+        imm r23, 16
+        call exact_require_proc_frame_identity
+        jmp label_core_shape_ok
 
 label_core_require_proc_meta:
         imm r20, 1                    ; new_label()

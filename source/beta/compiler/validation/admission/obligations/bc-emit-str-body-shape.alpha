@@ -11,19 +11,11 @@
 ; Private publication cell: 535656 = SBSH.
 
 emit_str_body_require_shape:
-        imm r20, 7151616
-        imm r21, 27
-        imm r22, 0                    ; no parameters
-        call transfer_require_cell
-        imm r20, 7159808
-        imm r21, 27
-        imm r22, 1                    ; local len only
-        call transfer_require_cell
         imm r20, 27
-        call call_bounds_frame_bytes
-        imm r1, 16
-        jeq r0, r1, emit_str_body_shape_blocks
-        jmp reject
+        imm r21, 0                    ; no parameters
+        imm r22, 1                    ; local len only
+        imm r23, 16
+        call exact_require_proc_frame_identity
 
 emit_str_body_shape_blocks:
         imm r20, 140

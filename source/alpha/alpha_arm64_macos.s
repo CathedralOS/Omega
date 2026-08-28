@@ -59,6 +59,15 @@ Lcopy:
 Lcopied:
     mov  x21, x20
     movz x22, #0x0400, lsl #16
+    b    next
+h_imm:
+    // Decode the adjacent destination byte and unaligned immediate without a
+    // program-counter writeback dependency, then advance by the exact 9 bytes.
+    // As the hottest handler, it falls through directly into dispatch.
+    ldrb w9,  [x21]
+    ldr  x10, [x21, #1]
+    add  x21, x21, #9
+    str  x10, [x19, w9, uxtw #3]
 next:
     ldrb w23, [x21], #1
     cmp  w23, #1
@@ -104,14 +113,6 @@ next:
     cmp  w23, #18
     b.eq h_write
     udf  #0
-h_imm:
-    // Decode the adjacent destination byte and unaligned immediate without a
-    // program-counter writeback dependency, then advance by the exact 9 bytes.
-    ldrb w9,  [x21]
-    ldr  x10, [x21, #1]
-    add  x21, x21, #9
-    str  x10, [x19, w9, uxtw #3]
-    b    next
 // Hot two-register handlers read the adjacent operand bytes independently,
 // then advance pc once.  This is the same d,s decode and pc+2 transition as
 // two serial post-index loads, without a load-to-load writeback dependency.

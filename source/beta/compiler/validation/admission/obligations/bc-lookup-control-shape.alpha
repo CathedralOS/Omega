@@ -1,19 +1,11 @@
 ; Exact control/frame/call/effect shape for procedure36 lookup().
 
 lookup_require_shape:
-        imm r20, 7151616
-        imm r21, 36
-        imm r22, 0                    ; no parameters
-        call transfer_require_cell
-        imm r20, 7159808
-        imm r21, 36
-        imm r22, 2                    ; n,i
-        call transfer_require_cell
         imm r20, 36
-        call call_bounds_frame_bytes
-        imm r1, 24                   ; exact proc36 frame bytes
-        jeq r0, r1, lookup_shape_blocks
-        jmp reject
+        imm r21, 0                    ; no parameters
+        imm r22, 2                    ; n,i
+        imm r23, 24                   ; exact proc36 frame bytes
+        call exact_require_proc_frame_identity
 
 lookup_shape_blocks:
         imm r20, 179
