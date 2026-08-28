@@ -18,6 +18,11 @@ rung or a generic assurance layer.
   surfaces the exact source, assembly, target, replayed-executable,
   reconstruction-obligation, and scoped host/target-admission bindings while
   leaving source-to-artifact refinement explicitly open.
+- `install-verified-artifact-v1.sh` reconstructs and verifies the complete
+  supplied publication/custody evidence before atomically installing the exact
+  six retained files. `verify-installed-artifact-v1.sh` rechecks both that
+  inventory and the full reconstruction route; `installation.json` is only a
+  content inventory and grants no authority of its own.
 - The colocated `*-test.sh` entrypoints exercise each boundary directly.
 
 These tools may coordinate or reconstruct evidence, but they do not parse or

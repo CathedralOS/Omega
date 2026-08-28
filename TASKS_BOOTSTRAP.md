@@ -154,6 +154,9 @@ and validates the bounded Darwin ARM64 target dialect.
   installation manifest. Reconstruct tapes, packed input, decoded assembly,
   ordinal wrappers, and empty diagnostics temporarily. Keep install/verify
   commands under adjacent `validation/`; create no generic evidence archive.
+  The atomic six-file installer, reconstruction verifier, and fail-closed
+  artifact loader are implemented and tested; the canonical installation stays
+  absent until the active exact attempt finishes and its custody receipt passes.
 - [x] Realization replay, strict target validation, source closure custody, and
   reconstruction-bearing receipt machinery are implemented under
   `source/delta/compiler/validation/`.
