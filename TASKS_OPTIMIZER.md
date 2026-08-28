@@ -1222,19 +1222,20 @@ dependency.
   freely recombine raw target operations, an abstract plan, and an optimization
   unit. The separate
   `omega-terminal-target-operations-to-selected-instructions` stage produces
-  and validates five deliberately bounded production shapes
+  and validates six deliberately bounded production shapes
   over one runtime Boolean parameter and a three-block conditional: leaf-local
   unsigned-i64 constants, one shared returned entry parameter, or two
   leaf-local constants followed by one proof-bearing exact add or exact
-  subtract and a cleanup-free return. The fifth shape legalizes overflow-proven
-  unsigned-u8 exact addition followed by u8-to-u64 widening into the existing
-  i64 materialize/add vocabulary, with explicit legalization-temporary origins
-  and ordered add/widen custody. Both exact selected kinds retain their
-  obligation and verifier-owned accepted-fact identity. Addition consumes the
-  target-owned flag-transparent `add_i64` row. AArch64 subtraction consumes a
-  flag-transparent three-address `SUB` row; x86-64 subtraction consumes an
-  alias-safe three-address pseudo row and honestly clobbers RFLAGS rather than
-  pretending general subtraction is an LEA. Both x86-64 and
+  subtract and a cleanup-free return. The fifth and sixth shapes legalize
+  overflow-proven unsigned-u8 exact addition or underflow-proven unsigned-u8
+  exact subtraction followed by u8-to-u64 widening into the existing i64
+  materialize/add/subtract vocabulary, with explicit legalization-temporary
+  origins and ordered arithmetic/widen custody. Both exact selected kinds
+  retain their obligation and verifier-owned accepted-fact identity. Addition
+  consumes the target-owned flag-transparent `add_i64` row. AArch64 subtraction
+  consumes a flag-transparent three-address `SUB` row; x86-64 subtraction
+  consumes an alias-safe three-address pseudo row and honestly clobbers RFLAGS
+  rather than pretending general subtraction is an LEA. Both x86-64 and
   AArch64 use ISA-owned constraint rows and fixed-register view resolvers;
   compare/branch explicitly cross RFLAGS/RIP or NZCV/PC, and fixed ABI operands
   remain constraints rather than assigned homes. The opt-in orchestration
@@ -1254,26 +1255,28 @@ dependency.
 
   Current slice: `omega-terminal-legalized-operations` is a data-only,
   target-bound representation below target operations and above instruction
-  selection. Its V2 identity commits to Terminal-Psi, optimization-unit and
+  selection. Its V3 identity commits to Terminal-Psi, optimization-unit and
   fuel-schedule identities, exact `NativeTarget`, entry/function roster,
   attachments, target provenance, one closed legality recipe per function,
   source blocks/values/definition sites, branch/return edges and bindings,
   accepted exact-operation facts, and every operation/edge fuel settlement.
-  A mandatory checked canonicalizer admits five bounded
+  A mandatory checked canonicalizer admits six bounded
   cleanup-free unsigned-u64 three-block conditional families: constants,
   one shared entry parameter, two-immediate exact add, and two-immediate exact
-  subtract, plus overflow-proven unsigned-u8 exact add followed by u8-to-u64
-  widening. The fifth recipe is the first non-identity legalization. It gives
-  the four promoted operands dense function-local temporary identities,
-  retains a closed widen/add commutation theorem separately from the source
-  accepted fact, and reports two independently replayed decomposition groups.
-  Its selected i64 additions retain add-then-widen operation and fuel custody;
+  subtract, plus overflow-proven unsigned-u8 exact add or underflow-proven
+  unsigned-u8 exact subtract followed by u8-to-u64 widening. The last two
+  recipes are non-identity legalizations. Each gives the four promoted operands
+  dense function-local temporary identities, retains a closed widen/arithmetic
+  commutation theorem separately from the source accepted fact, and reports two
+  independently replayed decomposition groups. Subtraction additionally binds
+  authored operand order because it is not commutative. Their selected i64
+  operations retain arithmetic-then-widen operation and fuel custody;
   selected virtual registers distinguish legalization temporaries from Psi
   values rather than pretending the u8 definitions changed type. Both x86-64
   and AArch64 reach effects, liveness, allocation, deterministic homes, and
   post-allocation custody through this boundary. Non-u64 returns and general
   shapes fail there rather than later in selection. A separately implemented,
-  plan-driven validator now replays every admitted V2 field directly from the
+  plan-driven validator now replays every admitted V3 field directly from the
   raw target, abstract-plan, and verified optimization-unit custody without
   calling the canonicalizer or constructing an expected legal plan. Its
   domain-separated validator identity is retained by the legal receipt,
