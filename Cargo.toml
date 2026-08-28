@@ -67,6 +67,7 @@ members = [
     "source/on-ramp/rust/omega/representations/omega-register-model",
     "source/on-ramp/rust/omega/representations/omega-terminal-installation-evidence",
     "source/on-ramp/rust/omega/representations/omega-terminal-target-operations",
+    "source/on-ramp/rust/omega/representations/omega-terminal-legalized-operations",
     "source/on-ramp/rust/omega/representations/omega-terminal-selected-instructions",
     "source/on-ramp/rust/omega/representations/omega-terminal-assigned-target-operations",
     "source/on-ramp/rust/omega/representations/omega-terminal-machine-code",

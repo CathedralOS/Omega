@@ -1,6 +1,6 @@
 # Optimizer Tasks
 
-Last audited: 2026-08-26.
+Last audited: 2026-08-27.
 
 This file is the execution queue for Omega optimization. The durable semantic
 model, pass architecture, folder ownership, build hook, verification boundary,
@@ -1217,9 +1217,12 @@ dependency.
   target-neutral selected CFG with typed virtual registers, exact definition
   sites, explicit operand access/class/fixed-view constraints, machine-state
   uses/defs/clobbers, source block/edge/value/operation provenance, and
-  path-specific logical-fuel settlements. The separate
+  path-specific logical-fuel settlements. Selection now accepts only the
+  opaque validated `omega-terminal-legalized-operations` carrier; it cannot
+  freely recombine raw target operations, an abstract plan, and an optimization
+  unit. The separate
   `omega-terminal-target-operations-to-selected-instructions` stage produces
-  and independently validates four deliberately bounded production shapes
+  and validates four deliberately bounded production shapes
   over one runtime Boolean parameter and a three-block conditional: leaf-local
   unsigned-i64 constants, one shared returned entry parameter, or two
   leaf-local constants followed by one proof-bearing exact add or exact
@@ -1246,6 +1249,32 @@ dependency.
   complete provenance; legalization does not allocate registers or select
   stack offsets.
 
+  Current slice: `omega-terminal-legalized-operations` is a data-only,
+  target-bound representation below target operations and above instruction
+  selection. Its V1 identity commits to Terminal-Psi, optimization-unit and
+  fuel-schedule identities, exact `NativeTarget`, entry/function roster,
+  attachments, target provenance, one closed legality recipe per function,
+  source blocks/values/definition sites, branch/return edges and bindings,
+  accepted exact-operation facts, and every operation/edge fuel settlement.
+  A mandatory checked canonicalizer admits only the four already-supported
+  cleanup-free unsigned-u64 three-block conditional families: constants,
+  one shared entry parameter, two-immediate exact add, and two-immediate exact
+  subtract. Its opaque receipt explicitly reports zero decompositions. Both
+  x86-64 and AArch64 pass through this boundary; non-u64 and general shapes
+  fail there rather than later in selection. Selection constraints are now
+  derived from the validated legal carrier, the selected validation receipt
+  binds its identity, and every later staged custody replay retains it.
+
+  Remaining to close: define a general CFG-shaped legalized value/operation
+  vocabulary with non-Psi temporary identities and complete source-occurrence
+  expansion maps; split legalization replay into an implementation independent
+  from the canonicalizer; bind a complete legality profile (target profile,
+  ABI, feature/capability set, and applicable semantic catalog); and land at
+  least one real illegal-width or illegal-shape decomposition with exact
+  proof/effect/provenance/fuel partitioning. Legalization is mandatory
+  correctness normalization, never an `O` level or build-selectable
+  optimization family.
+
 - **OPT-TARGET-COMBINES.** Add exact immediate folding, addressing-mode folding,
   compare/branch formation, strength reduction, and target instruction
   combines.
@@ -1253,6 +1282,16 @@ dependency.
   Acceptance: rules declare target model dependencies and preserve trap,
   overflow, flag, memory, and effect behavior. Cross-target tests show that an
   ISA-specific rule cannot run on another target.
+
+  Current slice: the separately named
+  `SelectedIncomingU12ExactAddImmediate` family is the first exact target
+  combine. It replaces one immediately adjacent, single-use unsigned-u12
+  materialization plus proof-bearing exact add with the target-owned immediate
+  form, retains both source operations and fuel settlements exactly once, and
+  revalidates the complete selected CFG before liveness/ranges/legality are
+  recomputed. Its explicit fixed-point schedule and no-change receipt remain a
+  selected-lowering opt-in; this does not imply general immediate, addressing,
+  compare/branch, or strength-reduction coverage.
 
 - **OPT-CALL-LOWERING.** Normalize internal, boundary, callback, and tail-call
   sequences before allocation.

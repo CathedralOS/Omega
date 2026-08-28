@@ -1342,29 +1342,59 @@ classes plus machine-state uses/defs. It must not preassign arbitrary scratch
 registers in ways that hide interference from the allocator.
 
 The first production slice makes that boundary concrete without claiming a
-general selector. `omega-terminal-selected-instructions` is the data-only
-representation owner, while
-`omega-terminal-target-operations-to-selected-instructions` produces and
-independently validates three exact three-block runtime conditional forms. The
-first has leaves that materialize unsigned 64-bit constants and return. The
-second carries a shared unsigned 64-bit entry parameter across both branch
-edges and returns it directly, exposing genuine virtual interference and
-different entry/return fixed sites without inventing a move. The third gives
-each leaf two unsigned 64-bit constants and a verifier-admitted exact addition.
-Its selected semantic kind retains the exact obligation and accepted-fact
-identity while its physical constraint remains the target-owned, flag-neutral
-three-address `add_i64` row. Each virtual register retains
-its exact Psi value and definition site; each instruction retains its catalog
-constraint, explicit and implicit state footprint, and semantic provenance;
-branch-edge fuel remains attached to the corresponding selected successor so
-only the taken edge is charged. ISA-owned orchestration injects the exact
-constraint keys and ABI live-in views instead of asking a target-neutral stage
-to infer them from names or coincident numeric variants. The opaque staged
-carrier also owns the final optimized unit, independent abstract projection,
-target plan, and validated register environment. This is allocator input only:
-it grants no physical-home, emission, or publication authority and fails closed
-for every other source shape. A nested liveness carrier may consume it, but
-cannot weaken or detach that custody.
+general selector. `omega-terminal-legalized-operations` is a data-only,
+target-bound representation below raw target operations. A mandatory checked
+canonicalizer reconstructs one exact V1 projection from the target plan,
+optimized abstract plan, and verified optimization unit. Its canonical identity
+binds Terminal-Psi, optimization-unit and fuel-schedule roots, exact native
+target, entry/function roster, attachments, one closed recipe, source
+blocks/values/definition sites, target provenance, branch/return edges and
+bindings, accepted exact-operation facts, and every operation/edge fuel
+settlement. Its receipt says zero decompositions: V1 recognizes already-legal
+forms and cannot masquerade as width expansion.
+
+Instruction selection accepts only that opaque legal carrier, so its public
+producer and validator cannot freely recombine raw target, abstract, and unit
+inputs. Selection constraints are derived from legal ABI source locations,
+the selected receipt binds the legal-plan identity, and orchestration replays
+and retains the same identity through later liveness/effects custody. The
+existing `omega-terminal-target-operations-to-selected-instructions` pipeline
+currently owns both checked legalization and selection mechanics, but the type
+boundary is mandatory and explicit.
+
+The closed V1 has four exact three-block runtime conditional forms. The first
+has leaves that materialize unsigned 64-bit constants and return. The second
+carries a shared unsigned 64-bit entry parameter across both branch edges and
+returns it directly, exposing genuine virtual interference and different
+entry/return fixed sites without inventing a move. The third and fourth give
+each leaf two unsigned 64-bit constants and a verifier-admitted exact addition
+or subtraction. Their selected semantic kinds retain the exact obligation and
+accepted-fact identity. Addition uses the target-owned flag-neutral
+three-address `add_i64` row. AArch64 subtraction uses flag-transparent `SUB`;
+x86-64 retains the honest RFLAGS clobber of its alias-safe subtraction pseudo.
+Each virtual register retains its exact Psi value and definition site; each
+instruction retains its catalog constraint, explicit and implicit state
+footprint, and semantic provenance; branch-edge fuel remains attached to the
+corresponding selected successor so only the taken edge is charged. ISA-owned
+orchestration injects the exact constraint keys and ABI live-in views instead
+of asking a target-neutral stage to infer them from names or coincident numeric
+variants. The opaque staged carrier also owns the final optimized unit,
+independent abstract projection, target plan, legal plan, and validated
+register environment. This is allocator input only: it grants no physical-home,
+emission, or publication authority and fails closed for every other source
+shape. A nested liveness carrier may consume it, but cannot weaken or detach
+that custody.
+
+This is not completion of target legalization. The general representation must
+become CFG-shaped, give decomposition temporaries identities that do not
+fabricate Psi `ValueId`s, record an exact source-occurrence-to-legal-program-
+point expansion map, and partition proof/effect/provenance/fuel custody across
+one-to-many recipes. The legality profile must eventually bind target profile,
+ABI, ISA feature/capability, and applicable semantic catalogs rather than only
+`NativeTarget`. A separately implemented replay must then validate the
+canonicalizer, and at least one genuinely illegal width or shape must be
+decomposed. This mandatory normalization is not a named build optimization;
+optional target combines remain explicit selections.
 
 ## Register allocation
 
@@ -1960,6 +1990,7 @@ omega/
   foundation/omega-optimization-core/
   representations/omega-optimization-unit/
   representations/omega-register-model/
+  representations/omega-terminal-legalized-operations/
   representations/omega-terminal-selected-instructions/
   pipeline/omega-terminal-target-operations-to-selected-instructions/
   optimization/
