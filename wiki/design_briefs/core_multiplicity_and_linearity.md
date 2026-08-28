@@ -264,8 +264,10 @@ instead move indices `0` and `1` exactly once each, in either authored order,
 and then return with no cleanup action. Its custody frontier closes only after
 the complete set `{0, 1}` has moved, and interpreter fuel charges both calls,
 both callee returns, and the caller return. Because no live residual exists,
-this successor establishes no array cleanup ordering rule. Native artifact
-custody for the no-residual successor remains a separate exact replay step.
+this successor establishes no array cleanup ordering rule. Target, machine,
+object/image, and installation custody independently rederive the complete
+two-call set and preserve either authored order without treating either call
+alone as permission to discard the root.
 
 An internal call may now continue that same whole-root result through one
 explicit terminal operation-result place. The checked slice is intentionally

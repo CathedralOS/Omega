@@ -32,6 +32,7 @@ pub(super) fn validate_internal_unit_call_custody(
     validated_scalar_call_stack: Option<&TerminalObjectScalarCallStack>,
     custody: &omega_terminal_machine_code::TerminalInternalUnitCallRecord,
     affine_cleanup: Option<&omega_terminal_machine_code::TerminalUnitAffineCleanupRecord>,
+    fully_consumed_affine_pair: bool,
 ) -> Result<(), TerminalObjectError> {
     let invalid = || TerminalObjectError::InvalidInternalUnitCallEvidence(machine);
     let Some(relocation) = relocations.iter().find(|relocation| {
@@ -321,9 +322,10 @@ pub(super) fn validate_internal_unit_call_custody(
                 return true;
             };
             argument.path.is_empty()
-                || affine_cleanup.is_none_or(|cleanup| {
-                    !cleanup.actions.iter().any(|action| {
-                        matches!(action,
+                || (!fully_consumed_affine_pair
+                    && affine_cleanup.is_none_or(|cleanup| {
+                        !cleanup.actions.iter().any(|action| {
+                            matches!(action,
                             psi_terminal::TerminalAffineCleanupAction::DiscardResidual(residual)
                                 if residual.place == argument.place
                                     && !residual.path.is_empty()
@@ -331,8 +333,8 @@ pub(super) fn validate_internal_unit_call_custody(
                                     && !argument.path.starts_with(&residual.path)
                                     && residual.structural_type
                                         != argument.root_structural_type)
-                    })
-                })
+                        })
+                    }))
         })
         || custody.claim_transfers.iter().any(|transfer| {
             usize::try_from(transfer.argument_index)
