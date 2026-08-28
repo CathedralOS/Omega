@@ -1,6 +1,6 @@
-// Hosted product-compiler entrypoint. The first checkpoint exposes Psi's exact
+// Hosted product-compiler entrypoint. The current live slice exposes Psi's exact
 // source-to-token phase through a hosted acceptance/status adapter; later
-// checkpoints publish structural observations and compose the remaining
+// later phases publish structural observations and compose the remaining
 // Psi/Omega facades behind this owner.
 
 use omega::language::std::console;
@@ -65,7 +65,7 @@ machine Main::main(&mut self) {
 // accepted byte, diagnostic tag, diagnostic source/start/end, exact retained
 // source bytes, and every retained token. Each token carries a structural kind
 // tag plus three metadata bytes, source/start/end, raw spelling, and decoded
-// bytes. This is checkpoint tooling, not an Omega ABI or an enum layout.
+// bytes. This is hosted development tooling, not an Omega ABI or an enum layout.
 machine Main::write_observation(&mut self) {
     self.write_byte(79);
     self.write_byte(77);

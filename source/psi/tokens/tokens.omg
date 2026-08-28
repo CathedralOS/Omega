@@ -144,7 +144,7 @@ pub data LexDiagnostic [copy] {
     source_span: SourceSpan;
 }
 
-// A deliberately flat projection used only at the product/checkpoint
+// A deliberately flat projection used only at the hosted product
 // observation boundary. Keeping this separate from Token avoids copying its
 // nested TokenKind sum through a runtime-selected array element.
 pub data TokenObservation [copy] {
