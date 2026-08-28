@@ -184,12 +184,22 @@ retained entry directory; a substituted entry symlink cannot redirect that
 deletion. Resolver-owned control records—Git configuration, Git source identity,
 and Git/local snapshot identity—are read through retained no-follow directory
 and file capabilities with per-record byte ceilings, repeated handle reads, and
-leaf/handle identity confirmation. Structural metadata observations, staging
-creation and cleanup, and macOS ACL inspection are not yet fully
-handle-relative. Destination
-exclusion is cooperative rather than an atomic hostile-same-user no-replace
-primitive, so this still does not claim exclusion of an actively hostile
-same-user process.
+leaf/handle identity confirmation. Immutable Git-tree and local-source snapshot
+stages are also rooted in retained snapshots-parent and exact stage-directory
+capabilities. Directory, create-new file, symlink, identity-record, permission,
+recapture, publication, and failure-cleanup operations remain beneath those
+handles. Source identity is recaptured again after read-only finalization, whose
+child opens must preserve their classified identities. Publication rejects if
+the stage name no longer identifies the retained stage, and cleanup begins from
+the retained stage handle. The host
+cleanup primitive is not atomic against concurrent rename and is pathname-
+based on Windows, so cleanup remains best-effort under a hostile same-user
+process. The mutable Git object-cache stage remains pathname-visible to
+native Git and belongs to native process confinement; structural metadata
+observations and macOS ACL inspection are not yet fully handle-relative.
+Destination exclusion is cooperative rather than an atomic hostile-same-user
+no-replace primitive, so this still does not claim exclusion of an actively
+hostile same-user process.
 
 Compilation handoff now captures and revalidates the root package of each
 package compilation again, then asks the compiler to independently recapture

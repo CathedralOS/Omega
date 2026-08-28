@@ -496,6 +496,26 @@ complete.
   metadata observations, staging creation/cleanup, and path-based macOS ACL
   inspection remain separate work.
 
+  Milestone 2026-08-27: immutable Git-tree and local-source snapshot staging is
+  now capability-relative end to end. One shared pending-stage type creates a
+  unique child through a retained no-follow snapshots parent, retains the exact
+  stage handle, and materializes directories, create-new files, symlinks, and
+  identity metadata beneath that handle. Staged identity is recaptured from the
+  already-open Source directory before metadata emission and again after
+  read-only finalization; finalization proves each classified child retains its
+  opened identity. Publication requires the stage name still identify the
+  retained stage; failure cleanup begins from the retained stage handle. Canaries replace
+  the snapshots parent, replace the stage name, and substitute a nested
+  directory symlink; writes remain confined, structural substitutions return the
+  cache class's typed custody error, and stale-name publication rejects.
+  This does not cover the mutable Git object-cache stage passed by pathname to
+  native Git: that stage remains coupled to native
+  process confinement. `remove_open_dir_all` uses the opened stage where the
+  host permits, but its contract is not atomic against concurrent rename and
+  its Windows fallback is pathname-based (after clearing read-only attributes
+  through retained child handles). Cleanup is therefore best-effort and
+  makes no hostile-same-user no-replacement guarantee; a raced stage may leak.
+
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build
   machine may execute. Resolver custody is freshly revalidated first; the
@@ -541,8 +561,8 @@ complete.
   ceilings. The local-repository route is explicitly test-only. Remaining P0
   work is native fetch/materialization confinement, effective endpoint and SSH
   credential custody, during-operation resource quotas, remaining
-  handle-relative cache mutation/ACL paths, and a locally reconstructed opaque
-  strict receipt. Public requests now admit only HTTPS and
+  native-Git cache and handle-bound ACL paths, and a locally reconstructed
+  opaque strict receipt. Public requests now admit only HTTPS and
   SSH transports; the sealed executor grants only the request's selected
   `https` or `ssh` protocol, disables HTTP, unauthenticated `git://`, every
   unselected protocol, and HTTP redirects, and permits file transport only

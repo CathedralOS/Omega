@@ -1842,51 +1842,67 @@ fn resolve_git_snapshot(
         return verify_git_snapshot(&publication, &expected, &entries, limits);
     }
 
-    let mut pending = PendingSnapshot::create(&snapshots, tree)?;
+    let mut pending = PendingMaterializedSnapshot::create(
+        CacheCustodyKind::Git,
+        &snapshots,
+        &format!(".tree-{tree}.stage"),
+    )?;
     let source = pending.root.join(GIT_SNAPSHOT_SOURCE);
-    std::fs::create_dir(&source).map_err(|error| io_error(&source, error))?;
-    let directory_paths = git_directory_paths(&entries);
+    pending
+        .directory()?
+        .create_dir(GIT_SNAPSHOT_SOURCE)
+        .map_err(|error| io_error(&source, error))?;
+    let source_directory = pending
+        .directory()?
+        .open_dir_nofollow(GIT_SNAPSHOT_SOURCE)
+        .map_err(|error| io_error(&source, error))?;
     for entry in &entries {
         executor.verify_budget()?;
-        let destination = checked_git_destination(&source, entry)?;
-        let parent = destination
-            .parent()
-            .expect("validated Git paths always have a snapshot parent");
-        std::fs::create_dir_all(parent).map_err(|error| io_error(parent, error))?;
+        checked_git_destination(&source, entry)?;
         match &entry.kind {
             GitTreeEntryKind::Tree => {
-                std::fs::create_dir(&destination).map_err(|error| io_error(&destination, error))?;
+                open_or_create_snapshot_directory(
+                    CacheCustodyKind::Git,
+                    &source_directory,
+                    &entry.relative_path,
+                    &source,
+                )?;
             }
             GitTreeEntryKind::File { executable, bytes } => {
-                let mut file = OpenOptions::new()
-                    .write(true)
-                    .create_new(true)
-                    .open(&destination)
-                    .map_err(|error| io_error(&destination, error))?;
-                file.write_all(bytes.as_slice())
-                    .map_err(|error| io_error(&destination, error))?;
-                file.sync_all()
-                    .map_err(|error| io_error(&destination, error))?;
-                set_snapshot_file_mode(&destination, *executable)?;
+                write_snapshot_file_from_open_root(
+                    CacheCustodyKind::Git,
+                    &source_directory,
+                    &entry.relative_path,
+                    &source,
+                    bytes.as_slice(),
+                    *executable,
+                )?;
             }
             GitTreeEntryKind::Symlink { target_bytes } => {
-                create_snapshot_symlink(target_bytes.as_slice(), &destination)?;
+                create_snapshot_symlink_from_open_root(
+                    CacheCustodyKind::Git,
+                    &source_directory,
+                    &entry.relative_path,
+                    &source,
+                    target_bytes.as_slice(),
+                )?;
             }
         }
-    }
-    // Git trees carry no filesystem permission bits. Omega canonicalizes every materialized
-    // non-root Git directory to 0555: readable/searchable and consistent with the immutable
-    // published snapshot, but never writable.
-    for directory in directory_paths.iter().rev() {
-        let path = source.join(git_path_from_bytes(directory)?);
-        set_snapshot_directory_read_only(&path)?;
     }
 
     // The staged source is re-read to bind publication identity. Release the
     // shared batch payload first so that this verification does not retain a
     // second package-sized in-memory copy.
     release_git_blob_payloads(&mut entries);
-    let staged = resolve_materialized_source(&source, limits)?;
+    let staged = capture_local_source_from_open_root(
+        source.clone(),
+        source_directory
+            .try_clone()
+            .map_err(|error| io_error(&source, error))?,
+        limits,
+        SourceTreePolicy::ExactMaterialized,
+    )?
+    .normalized;
     if staged.file_count != expected.file_count
         || staged.byte_count != expected.byte_count
         || staged.content_identity != expected.content_identity
@@ -1896,26 +1912,34 @@ fn resolve_git_snapshot(
             "materialized snapshot did not preserve the validated Git tree exactly",
         ));
     }
-    let metadata_path = pending.root.join(GIT_SNAPSHOT_METADATA);
-    let mut metadata = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&metadata_path)
-        .map_err(|error| io_error(&metadata_path, error))?;
-    metadata
-        .write_all(&git_snapshot_metadata(tree, &staged))
-        .map_err(|error| io_error(&metadata_path, error))?;
-    metadata
-        .sync_all()
-        .map_err(|error| io_error(&metadata_path, error))?;
-    make_snapshot_read_only(&pending.root)?;
-    publish_cache_directory(
+    write_snapshot_file_from_open_root(
         CacheCustodyKind::Git,
-        &snapshots,
+        pending.directory()?,
+        Path::new(GIT_SNAPSHOT_METADATA),
         &pending.root,
-        &publication,
+        &git_snapshot_metadata(tree, &staged),
+        false,
     )?;
-    pending.published = true;
+    make_open_snapshot_read_only(CacheCustodyKind::Git, pending.directory()?, &pending.root)?;
+    let finalized = capture_local_source_from_open_root(
+        source.clone(),
+        source_directory
+            .try_clone()
+            .map_err(|error| io_error(&source, error))?,
+        limits,
+        SourceTreePolicy::ExactMaterialized,
+    )?
+    .normalized;
+    if finalized.file_count != expected.file_count
+        || finalized.byte_count != expected.byte_count
+        || finalized.content_identity != expected.content_identity
+    {
+        return Err(cache_invalid(
+            &source,
+            "finalized snapshot did not preserve the authenticated Git tree exactly",
+        ));
+    }
+    pending.publish(&snapshots, &publication)?;
 
     // The returned identity is always calculated from the atomically published tree, never from
     // the staging directory or Git's mutable object-cache state.
@@ -2694,25 +2718,269 @@ impl Drop for TemporaryFileGuard {
     }
 }
 
+fn open_or_create_snapshot_directory(
+    kind: CacheCustodyKind,
+    root: &CapabilityDirectory,
+    relative_path: &Path,
+    display_root: &Path,
+) -> Result<CapabilityDirectory, SourceResolveError> {
+    use std::path::Component;
+
+    let mut directory = root
+        .try_clone()
+        .map_err(|error| io_error(display_root, error))?;
+    let mut display_path = display_root.to_path_buf();
+    for component in relative_path.components() {
+        let Component::Normal(name) = component else {
+            return Err(cache_custody_invalid(
+                kind,
+                &display_path,
+                "snapshot materialization received a noncanonical relative directory",
+            ));
+        };
+        display_path.push(name);
+        match directory.create_dir(name) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) => return Err(io_error(&display_path, error)),
+        }
+        directory = directory.open_dir_nofollow(name).map_err(|error| {
+            cache_custody_invalid(
+                kind,
+                &display_path,
+                format!("snapshot directory is not a stable concrete child: {error}"),
+            )
+        })?;
+    }
+    Ok(directory)
+}
+
+fn write_snapshot_file_from_open_root(
+    kind: CacheCustodyKind,
+    root: &CapabilityDirectory,
+    relative_path: &Path,
+    display_root: &Path,
+    bytes: &[u8],
+    executable: bool,
+) -> Result<(), SourceResolveError> {
+    let parent_path = relative_path.parent().unwrap_or_else(|| Path::new(""));
+    let parent = open_or_create_snapshot_directory(kind, root, parent_path, display_root)?;
+    let name = relative_path.file_name().ok_or_else(|| {
+        cache_custody_invalid(
+            kind,
+            &display_root.join(relative_path),
+            "snapshot file has no relative name",
+        )
+    })?;
+    let display_path = display_root.join(relative_path);
+    let mut options = CapabilityOpenOptions::new();
+    options
+        .write(true)
+        .create_new(true)
+        .follow(FollowSymlinks::No);
+    #[cfg(unix)]
+    options.mode(0o600);
+    let mut file = parent.open_with(name, &options).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::AlreadyExists {
+            cache_custody_invalid(
+                kind,
+                &display_path,
+                "snapshot file destination already exists",
+            )
+        } else {
+            io_error(&display_path, error)
+        }
+    })?;
+    file.write_all(bytes)
+        .map_err(|error| io_error(&display_path, error))?;
+    file.sync_all()
+        .map_err(|error| io_error(&display_path, error))?;
+    set_open_snapshot_file_mode(&file, &display_path, executable)
+}
+
 #[cfg(unix)]
-fn create_snapshot_symlink(target: &[u8], destination: &Path) -> Result<(), SourceResolveError> {
-    use std::ffi::OsString;
+fn create_snapshot_symlink_from_open_root(
+    kind: CacheCustodyKind,
+    root: &CapabilityDirectory,
+    relative_path: &Path,
+    display_root: &Path,
+    target: &[u8],
+) -> Result<(), SourceResolveError> {
     use std::os::unix::ffi::OsStringExt;
 
-    std::os::unix::fs::symlink(OsString::from_vec(target.to_vec()), destination)
-        .map_err(|error| io_error(destination, error))
+    let parent_path = relative_path.parent().unwrap_or_else(|| Path::new(""));
+    let parent = open_or_create_snapshot_directory(kind, root, parent_path, display_root)?;
+    let name = relative_path.file_name().ok_or_else(|| {
+        cache_custody_invalid(
+            kind,
+            &display_root.join(relative_path),
+            "snapshot symlink has no relative name",
+        )
+    })?;
+    let display_path = display_root.join(relative_path);
+    parent
+        .symlink_contents(OsString::from_vec(target.to_vec()), name)
+        .map_err(|error| {
+            if error.kind() == std::io::ErrorKind::AlreadyExists {
+                cache_custody_invalid(kind, &display_path, "snapshot symlink already exists")
+            } else {
+                io_error(&display_path, error)
+            }
+        })
 }
 
 #[cfg(not(unix))]
-fn create_snapshot_symlink(target: &[u8], destination: &Path) -> Result<(), SourceResolveError> {
+fn create_snapshot_symlink_from_open_root(
+    kind: CacheCustodyKind,
+    root: &CapabilityDirectory,
+    relative_path: &Path,
+    display_root: &Path,
+    target: &[u8],
+) -> Result<(), SourceResolveError> {
     let target = std::str::from_utf8(target).map_err(|_| {
         git_tree_invalid(target, "symlink target cannot be represented on this host")
     })?;
-    std::os::windows::fs::symlink_file(target, destination)
-        .map_err(|error| io_error(destination, error))
+    let parent_path = relative_path.parent().unwrap_or_else(|| Path::new(""));
+    let parent = open_or_create_snapshot_directory(kind, root, parent_path, display_root)?;
+    let name = relative_path.file_name().ok_or_else(|| {
+        cache_custody_invalid(
+            kind,
+            &display_root.join(relative_path),
+            "snapshot symlink has no relative name",
+        )
+    })?;
+    let display_path = display_root.join(relative_path);
+    parent.symlink_file(target, name).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::AlreadyExists {
+            cache_custody_invalid(kind, &display_path, "snapshot symlink already exists")
+        } else {
+            io_error(&display_path, error)
+        }
+    })
 }
 
 #[cfg(unix)]
+fn set_open_snapshot_file_mode(
+    file: &cap_std::fs::File,
+    path: &Path,
+    executable: bool,
+) -> Result<(), SourceResolveError> {
+    use cap_std::fs::PermissionsExt;
+
+    let mode = if executable { 0o555 } else { 0o444 };
+    file.set_permissions(cap_std::fs::Permissions::from_mode(mode))
+        .map_err(|error| io_error(path, error))
+}
+
+#[cfg(not(unix))]
+fn set_open_snapshot_file_mode(
+    file: &cap_std::fs::File,
+    path: &Path,
+    _executable: bool,
+) -> Result<(), SourceResolveError> {
+    let mut permissions = file
+        .metadata()
+        .map_err(|error| io_error(path, error))?
+        .permissions();
+    permissions.set_readonly(true);
+    file.set_permissions(permissions)
+        .map_err(|error| io_error(path, error))
+}
+
+fn make_open_snapshot_read_only(
+    kind: CacheCustodyKind,
+    root: &CapabilityDirectory,
+    display_root: &Path,
+) -> Result<(), SourceResolveError> {
+    let entries = root
+        .entries()
+        .map_err(|error| io_error(display_root, error))?;
+    for entry in entries {
+        let entry = entry.map_err(|error| io_error(display_root, error))?;
+        let name = entry.file_name();
+        let path = display_root.join(&name);
+        let metadata = root
+            .symlink_metadata(&name)
+            .map_err(|error| io_error(&path, error))?;
+        if metadata.is_dir() {
+            let directory = root.open_dir_nofollow(&name).map_err(|error| {
+                cache_custody_invalid(
+                    kind,
+                    &path,
+                    format!("snapshot directory changed during finalization: {error}"),
+                )
+            })?;
+            let opened = directory
+                .dir_metadata()
+                .map_err(|error| io_error(&path, error))?;
+            if !same_capability_file_identity(&metadata, &opened) {
+                return Err(cache_custody_invalid(
+                    kind,
+                    &path,
+                    "snapshot directory changed during read-only finalization",
+                ));
+            }
+            make_open_snapshot_read_only(kind, &directory, &path)?;
+        } else if metadata.is_file() {
+            let mut options = CapabilityOpenOptions::new();
+            options.read(true).follow(FollowSymlinks::No);
+            let file = root.open_with(&name, &options).map_err(|error| {
+                cache_custody_invalid(
+                    kind,
+                    &path,
+                    format!("snapshot file changed during finalization: {error}"),
+                )
+            })?;
+            let opened = file.metadata().map_err(|error| io_error(&path, error))?;
+            if !same_capability_file_identity(&metadata, &opened) {
+                return Err(cache_custody_invalid(
+                    kind,
+                    &path,
+                    "snapshot file changed during read-only finalization",
+                ));
+            }
+            set_open_snapshot_file_mode(&file, &path, capability_is_executable(&metadata))?;
+        }
+    }
+    set_open_snapshot_directory_read_only(root, display_root)
+}
+
+#[cfg(unix)]
+fn capability_is_executable(metadata: &CapabilityMetadata) -> bool {
+    use cap_fs_ext::OsMetadataExt;
+
+    metadata.mode() & 0o111 != 0
+}
+
+#[cfg(not(unix))]
+fn capability_is_executable(_metadata: &CapabilityMetadata) -> bool {
+    false
+}
+
+#[cfg(unix)]
+fn set_open_snapshot_directory_read_only(
+    directory: &CapabilityDirectory,
+    path: &Path,
+) -> Result<(), SourceResolveError> {
+    use std::os::unix::fs::PermissionsExt;
+
+    directory
+        .try_clone()
+        .map_err(|error| io_error(path, error))?
+        .into_std_file()
+        .set_permissions(std::fs::Permissions::from_mode(0o555))
+        .map_err(|error| io_error(path, error))
+}
+
+#[cfg(not(unix))]
+fn set_open_snapshot_directory_read_only(
+    _directory: &CapabilityDirectory,
+    _path: &Path,
+) -> Result<(), SourceResolveError> {
+    Ok(())
+}
+
+#[cfg(all(test, unix))]
 fn set_snapshot_file_mode(path: &Path, executable: bool) -> Result<(), SourceResolveError> {
     use std::os::unix::fs::PermissionsExt;
 
@@ -2721,7 +2989,7 @@ fn set_snapshot_file_mode(path: &Path, executable: bool) -> Result<(), SourceRes
         .map_err(|error| io_error(path, error))
 }
 
-#[cfg(not(unix))]
+#[cfg(all(test, not(unix)))]
 fn set_snapshot_file_mode(path: &Path, _executable: bool) -> Result<(), SourceResolveError> {
     let mut permissions = std::fs::metadata(path)
         .map_err(|error| io_error(path, error))?
@@ -2730,6 +2998,7 @@ fn set_snapshot_file_mode(path: &Path, _executable: bool) -> Result<(), SourceRe
     std::fs::set_permissions(path, permissions).map_err(|error| io_error(path, error))
 }
 
+#[cfg(test)]
 fn make_snapshot_read_only(root: &Path) -> Result<(), SourceResolveError> {
     let mut directories = vec![root.to_path_buf()];
     let mut cursor = 0;
@@ -2754,7 +3023,7 @@ fn make_snapshot_read_only(root: &Path) -> Result<(), SourceResolveError> {
     Ok(())
 }
 
-#[cfg(unix)]
+#[cfg(all(test, unix))]
 fn set_snapshot_directory_read_only(path: &Path) -> Result<(), SourceResolveError> {
     use std::os::unix::fs::PermissionsExt;
 
@@ -2762,28 +3031,58 @@ fn set_snapshot_directory_read_only(path: &Path) -> Result<(), SourceResolveErro
         .map_err(|error| io_error(path, error))
 }
 
-#[cfg(not(unix))]
+#[cfg(all(test, not(unix)))]
 fn set_snapshot_directory_read_only(_path: &Path) -> Result<(), SourceResolveError> {
     Ok(())
 }
 
-struct PendingSnapshot {
+struct PendingMaterializedSnapshot {
     root: PathBuf,
+    parent: CapabilityDirectory,
+    directory: Option<CapabilityDirectory>,
+    stage_name: OsString,
+    kind: CacheCustodyKind,
     published: bool,
 }
 
-impl PendingSnapshot {
-    fn create(snapshots: &Path, tree: &str) -> Result<Self, SourceResolveError> {
+impl PendingMaterializedSnapshot {
+    fn create(
+        kind: CacheCustodyKind,
+        snapshots: &Path,
+        prefix: &str,
+    ) -> Result<Self, SourceResolveError> {
+        verify_cache_custody_root(snapshots, kind)?;
+        let parent = open_absolute_directory_nofollow(snapshots)
+            .map_err(|error| cache_custody_invalid(kind, snapshots, error.to_string()))?;
         for _ in 0..128 {
             let sequence = STAGING_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-            let root = snapshots.join(format!(
-                ".tree-{tree}.stage-{}-{sequence}",
-                std::process::id()
-            ));
-            match std::fs::create_dir(&root) {
+            let stage_name = OsString::from(format!("{prefix}-{}-{sequence}", std::process::id()));
+            let root = snapshots.join(&stage_name);
+            match parent.create_dir(&stage_name) {
                 Ok(()) => {
+                    let classified = parent
+                        .symlink_metadata(&stage_name)
+                        .map_err(|error| io_error(&root, error))?;
+                    let directory = parent
+                        .open_dir_nofollow(&stage_name)
+                        .map_err(|error| cache_custody_invalid(kind, &root, error.to_string()))?;
+                    let opened = directory
+                        .dir_metadata()
+                        .map_err(|error| io_error(&root, error))?;
+                    if !classified.is_dir() || !same_capability_file_identity(&classified, &opened)
+                    {
+                        return Err(cache_custody_invalid(
+                            kind,
+                            &root,
+                            "snapshot staging directory changed while being retained",
+                        ));
+                    }
                     return Ok(Self {
                         root,
+                        parent,
+                        directory: Some(directory),
+                        stage_name,
+                        kind,
                         published: false,
                     });
                 }
@@ -2791,62 +3090,118 @@ impl PendingSnapshot {
                 Err(error) => return Err(io_error(&root, error)),
             }
         }
-        Err(cache_invalid(
+        Err(cache_custody_invalid(
+            kind,
             snapshots,
-            "could not allocate a unique snapshot staging directory",
+            "could not allocate a unique materialized-snapshot staging directory",
         ))
     }
-}
 
-impl Drop for PendingSnapshot {
-    fn drop(&mut self) {
-        if !self.published {
-            make_tree_owner_writable(&self.root);
-            let _ = std::fs::remove_dir_all(&self.root);
+    fn directory(&self) -> Result<&CapabilityDirectory, SourceResolveError> {
+        self.directory.as_ref().ok_or_else(|| {
+            cache_custody_invalid(self.kind, &self.root, "snapshot stage handle is absent")
+        })
+    }
+
+    fn publish(&mut self, snapshots: &Path, publication: &Path) -> Result<(), SourceResolveError> {
+        let directory = self.directory()?;
+        let retained = directory
+            .dir_metadata()
+            .map_err(|error| io_error(&self.root, error))?;
+        let named = self
+            .parent
+            .symlink_metadata(&self.stage_name)
+            .map_err(|error| io_error(&self.root, error))?;
+        if !named.is_dir() || !same_capability_file_identity(&retained, &named) {
+            return Err(cache_custody_invalid(
+                self.kind,
+                &self.root,
+                "snapshot stage pathname no longer identifies the retained directory",
+            ));
         }
+        let publication_name = direct_cache_child_name(self.kind, snapshots, publication)?;
+        publish_cache_directory_from_open_parent(
+            self.kind,
+            snapshots,
+            &self.parent,
+            &self.stage_name,
+            publication_name,
+            Some(&retained),
+        )?;
+        self.published = true;
+        Ok(())
     }
 }
 
-struct PendingLocalSnapshot {
-    root: PathBuf,
-    published: bool,
-}
-
-impl PendingLocalSnapshot {
-    fn create(snapshots: &Path, identity: &str) -> Result<Self, SourceResolveError> {
-        for _ in 0..128 {
-            let sequence = STAGING_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-            let root = snapshots.join(format!(
-                ".source-{identity}.stage-{}-{sequence}",
-                std::process::id()
-            ));
-            match std::fs::create_dir(&root) {
-                Ok(()) => {
-                    return Ok(Self {
-                        root,
-                        published: false,
-                    });
-                }
-                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
-                Err(error) => return Err(io_error(&root, error)),
+impl Drop for PendingMaterializedSnapshot {
+    fn drop(&mut self) {
+        if !self.published {
+            if let Some(directory) = self.directory.take() {
+                make_open_tree_owner_writable(&directory);
+                let _ = directory.remove_open_dir_all();
             }
         }
-        Err(local_snapshot_invalid(
-            snapshots,
-            "could not allocate a unique snapshot staging directory",
-        ))
     }
 }
 
-impl Drop for PendingLocalSnapshot {
-    fn drop(&mut self) {
-        if !self.published {
-            make_tree_owner_writable(&self.root);
-            let _ = std::fs::remove_dir_all(&self.root);
+fn make_open_tree_owner_writable(root: &CapabilityDirectory) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        if let Ok(directory) = root.try_clone() {
+            let _ = directory
+                .into_std_file()
+                .set_permissions(std::fs::Permissions::from_mode(0o700));
+        }
+        if let Ok(entries) = root.entries() {
+            for entry in entries.flatten() {
+                let name = entry.file_name();
+                if let Ok(metadata) = root.symlink_metadata(&name)
+                    && metadata.is_dir()
+                    && let Ok(directory) = root.open_dir_nofollow(&name)
+                {
+                    make_open_tree_owner_writable(&directory);
+                }
+            }
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        if let Ok(directory) = root.try_clone() {
+            let directory = directory.into_std_file();
+            if let Ok(metadata) = directory.metadata() {
+                let mut permissions = metadata.permissions();
+                permissions.set_readonly(false);
+                let _ = directory.set_permissions(permissions);
+            }
+        }
+        if let Ok(entries) = root.entries() {
+            for entry in entries.flatten() {
+                let name = entry.file_name();
+                if let Ok(metadata) = root.symlink_metadata(&name) {
+                    if metadata.is_dir() {
+                        if let Ok(directory) = root.open_dir_nofollow(&name) {
+                            make_open_tree_owner_writable(&directory);
+                        }
+                    } else if metadata.is_file() {
+                        let mut options = CapabilityOpenOptions::new();
+                        options.read(true).follow(FollowSymlinks::No);
+                        if let Ok(file) = root.open_with(&name, &options)
+                            && let Ok(metadata) = file.metadata()
+                        {
+                            let mut permissions = metadata.permissions();
+                            permissions.set_readonly(false);
+                            let _ = file.set_permissions(permissions);
+                        }
+                    }
+                }
+            }
         }
     }
 }
 
+#[cfg(test)]
 fn make_tree_owner_writable(root: &Path) {
     #[cfg(unix)]
     {
@@ -3438,6 +3793,7 @@ fn publish_cache_directory(
         &directory,
         staged_name,
         publication_name,
+        None,
     )
 }
 
@@ -3473,6 +3829,7 @@ fn publish_cache_directory_from_open_parent(
     directory: &CapabilityDirectory,
     staged_name: &OsStr,
     publication_name: &OsStr,
+    expected_staged: Option<&CapabilityMetadata>,
 ) -> Result<(), SourceResolveError> {
     let staged_path = parent.join(staged_name);
     let publication_path = parent.join(publication_name);
@@ -3484,6 +3841,15 @@ fn publish_cache_directory_from_open_parent(
             kind,
             &staged_path,
             "cache publication stage is not a concrete directory",
+        ));
+    }
+    if expected_staged
+        .is_some_and(|expected| !same_capability_file_identity(expected, &staged_metadata))
+    {
+        return Err(cache_custody_invalid(
+            kind,
+            &staged_path,
+            "cache publication stage no longer identifies the retained directory",
         ));
     }
     match directory.symlink_metadata(publication_name) {
@@ -4280,49 +4646,62 @@ fn materialize_local_snapshot(
     limits: LocalSourceLimits,
 ) -> Result<ResolvedLocalSource, SourceResolveError> {
     let identity = &captured.normalized.content_identity;
-    let mut pending = PendingLocalSnapshot::create(snapshots, identity)?;
+    let mut pending = PendingMaterializedSnapshot::create(
+        CacheCustodyKind::LocalSnapshot,
+        snapshots,
+        &format!(".source-{identity}.stage"),
+    )?;
     let source = pending.root.join(LOCAL_SNAPSHOT_SOURCE);
-    std::fs::create_dir(&source).map_err(|error| io_error(&source, error))?;
+    pending
+        .directory()?
+        .create_dir(LOCAL_SNAPSHOT_SOURCE)
+        .map_err(|error| io_error(&source, error))?;
+    let source_directory = pending
+        .directory()?
+        .open_dir_nofollow(LOCAL_SNAPSHOT_SOURCE)
+        .map_err(|error| io_error(&source, error))?;
 
     for entry in &captured.entries {
-        let destination = source.join(&entry.relative_path);
         match &entry.kind {
             CapturedLocalEntryKind::Directory => {
-                std::fs::create_dir_all(&destination)
-                    .map_err(|error| io_error(&destination, error))?;
+                open_or_create_snapshot_directory(
+                    CacheCustodyKind::LocalSnapshot,
+                    &source_directory,
+                    &entry.relative_path,
+                    &source,
+                )?;
             }
             CapturedLocalEntryKind::File { bytes, executable } => {
-                let parent = destination
-                    .parent()
-                    .expect("captured local paths always have a snapshot parent");
-                std::fs::create_dir_all(parent).map_err(|error| io_error(parent, error))?;
-                let mut file = OpenOptions::new()
-                    .write(true)
-                    .create_new(true)
-                    .open(&destination)
-                    .map_err(|error| io_error(&destination, error))?;
-                file.write_all(bytes)
-                    .map_err(|error| io_error(&destination, error))?;
-                file.sync_all()
-                    .map_err(|error| io_error(&destination, error))?;
-                set_snapshot_file_mode(&destination, *executable)?;
+                write_snapshot_file_from_open_root(
+                    CacheCustodyKind::LocalSnapshot,
+                    &source_directory,
+                    &entry.relative_path,
+                    &source,
+                    bytes,
+                    *executable,
+                )?;
             }
             CapturedLocalEntryKind::Symlink { target_bytes } => {
-                let parent = destination
-                    .parent()
-                    .expect("captured local paths always have a snapshot parent");
-                std::fs::create_dir_all(parent).map_err(|error| io_error(parent, error))?;
-                create_snapshot_symlink(target_bytes, &destination)?;
+                create_snapshot_symlink_from_open_root(
+                    CacheCustodyKind::LocalSnapshot,
+                    &source_directory,
+                    &entry.relative_path,
+                    &source,
+                    target_bytes,
+                )?;
             }
-        }
-    }
-    for entry in captured.entries.iter().rev() {
-        if matches!(entry.kind, CapturedLocalEntryKind::Directory) {
-            set_snapshot_directory_read_only(&source.join(&entry.relative_path))?;
         }
     }
 
-    let staged = resolve_materialized_source(&source, limits)?;
+    let staged = capture_local_source_from_open_root(
+        source.clone(),
+        source_directory
+            .try_clone()
+            .map_err(|error| io_error(&source, error))?,
+        limits,
+        SourceTreePolicy::ExactMaterialized,
+    )?
+    .normalized;
     if !same_source_identity(&staged, &captured.normalized) {
         return Err(local_snapshot_invalid(
             &source,
@@ -4331,26 +4710,35 @@ fn materialize_local_snapshot(
     }
     verify_live_source_unchanged(&captured.normalized, limits)?;
 
-    let metadata_path = pending.root.join(LOCAL_SNAPSHOT_METADATA);
-    let mut metadata = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&metadata_path)
-        .map_err(|error| io_error(&metadata_path, error))?;
-    metadata
-        .write_all(&local_snapshot_metadata(&staged))
-        .map_err(|error| io_error(&metadata_path, error))?;
-    metadata
-        .sync_all()
-        .map_err(|error| io_error(&metadata_path, error))?;
-    make_snapshot_read_only(&pending.root)?;
-    publish_cache_directory(
+    write_snapshot_file_from_open_root(
         CacheCustodyKind::LocalSnapshot,
-        snapshots,
+        pending.directory()?,
+        Path::new(LOCAL_SNAPSHOT_METADATA),
         &pending.root,
-        publication,
+        &local_snapshot_metadata(&staged),
+        false,
     )?;
-    pending.published = true;
+    make_open_snapshot_read_only(
+        CacheCustodyKind::LocalSnapshot,
+        pending.directory()?,
+        &pending.root,
+    )?;
+    let finalized = capture_local_source_from_open_root(
+        source.clone(),
+        source_directory
+            .try_clone()
+            .map_err(|error| io_error(&source, error))?,
+        limits,
+        SourceTreePolicy::ExactMaterialized,
+    )?
+    .normalized;
+    if !same_source_identity(&finalized, &captured.normalized) {
+        return Err(local_snapshot_invalid(
+            &source,
+            "finalized snapshot does not match the captured local tree",
+        ));
+    }
+    pending.publish(snapshots, publication)?;
     verify_local_snapshot(publication, identity, limits)
 }
 
@@ -4661,7 +5049,7 @@ fn capability_metadata_is_executable(_metadata: &cap_std::fs::Metadata) -> bool 
     false
 }
 
-#[cfg(unix)]
+#[cfg(all(test, unix))]
 fn is_executable(metadata: &std::fs::Metadata) -> bool {
     use std::os::unix::fs::PermissionsExt;
 
@@ -8838,6 +9226,108 @@ mod tests {
         let _ = std::fs::remove_dir_all(&cache);
     }
 
+    #[test]
+    fn materialized_snapshot_writes_and_cleanup_remain_bound_to_the_open_stage() {
+        let root = temp_root("retained-materialized-stage");
+        let snapshots = root.join("snapshots");
+        let retained_parent = root.join("retained-snapshots");
+        std::fs::create_dir_all(&snapshots).expect("create snapshot parent");
+        let pending = PendingMaterializedSnapshot::create(
+            CacheCustodyKind::LocalSnapshot,
+            &snapshots,
+            ".source-test.stage",
+        )
+        .expect("create retained materialization stage");
+        let stage_name = pending.stage_name.clone();
+
+        std::fs::rename(&snapshots, &retained_parent).expect("replace snapshot parent path");
+        std::fs::create_dir(&snapshots).expect("create replacement snapshot parent");
+        write_snapshot_file_from_open_root(
+            CacheCustodyKind::LocalSnapshot,
+            pending.directory().expect("retain stage directory"),
+            Path::new("payload"),
+            &pending.root,
+            b"retained",
+            false,
+        )
+        .expect("write through retained stage");
+
+        assert_eq!(
+            std::fs::read(retained_parent.join(&stage_name).join("payload"))
+                .expect("read retained stage payload"),
+            b"retained"
+        );
+        assert!(!snapshots.join(&stage_name).exists());
+        drop(pending);
+        assert!(!retained_parent.join(&stage_name).exists());
+        assert!(snapshots.is_dir());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn materialized_snapshot_publication_rejects_a_replaced_stage_name() {
+        let root = temp_root("replaced-materialized-stage");
+        let snapshots = root.join("snapshots");
+        std::fs::create_dir_all(&snapshots).expect("create snapshot parent");
+        let mut pending = PendingMaterializedSnapshot::create(
+            CacheCustodyKind::Git,
+            &snapshots,
+            ".tree-test.stage",
+        )
+        .expect("create retained materialization stage");
+        let displaced = snapshots.join("displaced-stage");
+        std::fs::rename(&pending.root, &displaced).expect("displace retained stage name");
+        std::fs::create_dir(&pending.root).expect("create replacement stage directory");
+        let replacement = pending.root.clone();
+        let publication = snapshots.join("tree-test");
+
+        let error = pending
+            .publish(&snapshots, &publication)
+            .expect_err("replacement stage name must not publish");
+
+        assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
+        assert!(pending.root.is_dir());
+        assert!(!publication.exists());
+        drop(pending);
+        assert!(!displaced.exists());
+        assert!(replacement.is_dir());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn materialized_snapshot_write_rejects_a_nested_directory_symlink_substitution() {
+        let root = temp_root("materialized-stage-nested-symlink");
+        let stage = root.join("stage");
+        let target = root.join("target");
+        std::fs::create_dir_all(stage.join("nested")).expect("create stage directory");
+        std::fs::create_dir(&target).expect("create substitution target");
+        let stage_directory = open_absolute_directory_nofollow(
+            &stage.canonicalize().expect("canonicalize stage directory"),
+        )
+        .expect("open stage directory");
+        std::fs::remove_dir(stage.join("nested")).expect("remove nested stage directory");
+        std::os::unix::fs::symlink(&target, stage.join("nested"))
+            .expect("substitute nested directory symlink");
+
+        let error = write_snapshot_file_from_open_root(
+            CacheCustodyKind::LocalSnapshot,
+            &stage_directory,
+            Path::new("nested/payload"),
+            &stage,
+            b"must not escape",
+            false,
+        )
+        .expect_err("nested symlink substitution must reject");
+
+        assert!(matches!(
+            error,
+            SourceResolveError::LocalSnapshotInvalid { .. }
+        ));
+        assert!(!target.join("payload").exists());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
     #[cfg(unix)]
     #[test]
     fn open_cache_parent_publication_is_not_redirected_by_path_replacement() {
@@ -8857,6 +9347,7 @@ mod tests {
             &directory,
             OsStr::new("staged"),
             OsStr::new("published"),
+            None,
         )
         .expect("publish through retained parent handle");
 
