@@ -161,9 +161,9 @@ complete.
   are removed until locally regenerated compiler evidence exists. No command
   can write an accepted production lock from standalone JSON manifests.
 
-  Completed 2026-08-23: manifest-based package audit, plan, review, and lock
-  commands are absent from production help and reject before parsing or writing
-  artifacts. Source-audit commands remain separately marked as unhardened until
+  Completed 2026-08-27: manifest-based package audit, plan, review, and lock
+  commands and their rejecting name gates are absent from the production CLI.
+  Source-audit commands remain separately marked as unhardened until
   `HARDEN-SOURCE-RESOLVER` closes.
 
 - **HARDEN-SOURCE-RESOLVER.** Re-audit the current Git/local resolver as a
@@ -2769,14 +2769,12 @@ complete.
 
 ## P6 — Commands
 
-  Safety milestone 2026-08-26: the production CLI now intercepts direct
-  `omega install` and `omega update` invocations at command dispatch and exits
-  before compiler argument parsing, source resolution, or project mutation.
-  Their diagnostic states that accepted package admission is not implemented.
-  This preserves the production fence while P0, recheckable evidence, and the
-  accepted lock remain incomplete; it implements no install or update
-  semantics. Exact source filenames such as `install.omg` and `update.omg`
-  remain ordinary compiler inputs.
+  Cleanup 2026-08-27: the unfinished `omega install` and `omega update`
+  implementations and their temporary rejecting command gates are absent from
+  the production CLI. P0, recheckable evidence, and the accepted lock remain
+  prerequisites for adding the commands described below. Exact source
+  filenames such as `install.omg` and `update.omg` remain ordinary compiler
+  inputs.
 
 - **OMEGA-INSTALL.** Implement
   `omega install <source> [--rev <revision>] [--as <alias>]`.
