@@ -431,14 +431,6 @@ pub struct CompileReport {
     /// runnable installation custody and its flat publication receipt.
     terminal_component_deployment:
         Option<omega_component_deployment::PublishedTerminalComponentFlatOutput>,
-    /// Exact target root-slot/schema/ABI-capture binding for a program-storage
-    /// entry. Hosted compatibility entries and unmigrated name discovery have
-    /// no such authority-bearing artifact.
-    program_storage_entry: Option<omega_program_storage::ProgramStorageEntryPlanBinding>,
-    /// Emitted object-entry handoff awaiting concrete environment supply and
-    /// runtime installation. This is not an installation receipt.
-    program_storage_entry_bridge:
-        Option<omega_program_storage::ProgramStorageEntryNativeBridgePlan>,
     /// Deterministic accounting from the transitional typed-tree build
     /// evaluator. This is explicitly not terminal-Psi fuel.
     pub build_evaluation_usage: Option<omega_build_evaluation::BuildEvaluationUsage>,
@@ -457,10 +449,6 @@ impl CompileReport {
         output_kind: CompileOutputKind,
         executable_publication: Option<ExecutablePublicationReceipt>,
         app_bundle_publication: Option<ExecutablePublicationReceipt>,
-        program_storage_entry: Option<omega_program_storage::ProgramStorageEntryPlanBinding>,
-        program_storage_entry_bridge: Option<
-            omega_program_storage::ProgramStorageEntryNativeBridgePlan,
-        >,
         build_evaluation_usage: Option<omega_build_evaluation::BuildEvaluationUsage>,
         build_observation_summary: Option<omega_build_evaluation::BuildObservationSummary>,
     ) -> Result<Self, &'static str> {
@@ -474,17 +462,11 @@ impl CompileReport {
             executable_publication,
             app_bundle_publication,
             terminal_component_deployment: None,
-            program_storage_entry,
-            program_storage_entry_bridge,
             build_evaluation_usage,
             build_observation_summary,
         };
         if report.has_consistent_executable_publication_custody() {
-            if report.has_consistent_program_storage_entry_custody() {
-                Ok(report)
-            } else {
-                Err("compiler report retained inconsistent program-storage entry custody")
-            }
+            Ok(report)
         } else {
             Err("compiler report retained inconsistent executable publication receipts")
         }
@@ -526,8 +508,6 @@ impl CompileReport {
             executable_publication: None,
             app_bundle_publication: None,
             terminal_component_deployment: Some(deployment),
-            program_storage_entry: None,
-            program_storage_entry_bridge: None,
             build_evaluation_usage,
             build_observation_summary,
         })
@@ -553,8 +533,6 @@ impl CompileReport {
             executable_publication: None,
             app_bundle_publication: None,
             terminal_component_deployment: None,
-            program_storage_entry: None,
-            program_storage_entry_bridge: None,
             build_evaluation_usage,
             build_observation_summary,
         };
@@ -679,14 +657,10 @@ impl CompileReport {
             executable_publication: Some(receipt),
             app_bundle_publication: None,
             terminal_component_deployment: None,
-            program_storage_entry: self.program_storage_entry,
-            program_storage_entry_bridge: self.program_storage_entry_bridge,
             build_evaluation_usage: self.build_evaluation_usage,
             build_observation_summary: self.build_observation_summary,
         };
-        if !report.has_consistent_executable_publication_custody()
-            || !report.has_consistent_program_storage_entry_custody()
-        {
+        if !report.has_consistent_executable_publication_custody() {
             return Err("published native report failed custody replay".to_owned());
         }
         Ok(report)
@@ -728,8 +702,6 @@ impl CompileReport {
             executable_publication: None,
             app_bundle_publication: None,
             terminal_component_deployment: None,
-            program_storage_entry: None,
-            program_storage_entry_bridge: None,
             build_evaluation_usage,
             build_observation_summary,
         };
@@ -783,7 +755,6 @@ impl CompileReport {
     pub fn checked_native_executable_path(&self) -> Option<&std::path::Path> {
         if self.output_kind != CompileOutputKind::NativeExecutable
             || !self.has_consistent_executable_publication_custody()
-            || !self.has_consistent_program_storage_entry_custody()
         {
             return None;
         }
@@ -795,84 +766,6 @@ impl CompileReport {
                     .as_ref()
                     .map(ExecutablePublicationReceipt::output_path)
             })
-    }
-
-    pub fn program_storage_entry(
-        &self,
-    ) -> Option<&omega_program_storage::ProgramStorageEntryPlanBinding> {
-        self.program_storage_entry.as_ref()
-    }
-
-    pub fn program_storage_entry_bridge(
-        &self,
-    ) -> Option<&omega_program_storage::ProgramStorageEntryNativeBridgePlan> {
-        self.program_storage_entry_bridge.as_ref()
-    }
-
-    pub fn has_consistent_program_storage_entry_custody(&self) -> bool {
-        optional_exact_pair_matches(
-            self.program_storage_entry.as_ref(),
-            self.program_storage_entry_bridge
-                .as_ref()
-                .map(omega_program_storage::ProgramStorageEntryNativeBridgePlan::binding),
-        ) && program_storage_emission_matches_output_kind(
-            self.output_kind,
-            self.program_storage_entry_bridge.as_ref().map(|bridge| {
-                (
-                    bridge.wrapper_body_template().is_some(),
-                    bridge.is_receiver_bound_without_wrapper_template(),
-                    bridge.emitted_wrapper_evidence().is_some(),
-                )
-            }),
-        ) && retained_entry_boundary_matches_publication(
-            self.output_kind,
-            self.executable_publication
-                .as_ref()
-                .and_then(ExecutablePublicationReceipt::boundary_contract_fingerprint),
-            self.program_storage_entry.as_ref().map(
-                omega_program_storage::ProgramStorageEntryPlanBinding::boundary_contract_fingerprint,
-            ),
-        ) && emitted_inventory_matches_publication(
-            self.executable_publication
-                .as_ref()
-                .map(ExecutablePublicationReceipt::inventory_fingerprint),
-            self.program_storage_entry_bridge
-                .as_ref()
-                .and_then(
-                    omega_program_storage::ProgramStorageEntryNativeBridgePlan::emitted_wrapper_evidence,
-                )
-                .map(|evidence| evidence.executable_inventory_fingerprint()),
-        ) && emitted_validation_matches_publication(
-            self.executable_publication.as_ref().map(|receipt| {
-                (
-                    receipt.compiler_text_validation_fingerprint,
-                    receipt.compiler_function_validation_fingerprint,
-                )
-            }),
-            self.program_storage_entry_bridge
-                .as_ref()
-                .and_then(
-                    omega_program_storage::ProgramStorageEntryNativeBridgePlan::emitted_wrapper_evidence,
-                )
-                .map(|evidence| {
-                    (
-                        evidence.compiler_text_validation().derivation_fingerprint,
-                        evidence
-                            .compiler_function_validation()
-                            .evidence_fingerprint(),
-                    )
-                }),
-        ) && emitted_boundary_contract_matches_publication(
-            self.executable_publication
-                .as_ref()
-                .and_then(ExecutablePublicationReceipt::boundary_contract_fingerprint),
-            self.program_storage_entry_bridge
-                .as_ref()
-                .and_then(
-                    omega_program_storage::ProgramStorageEntryNativeBridgePlan::emitted_wrapper_evidence,
-                )
-                .map(|evidence| evidence.arrival().boundary_contract_fingerprint()),
-        )
     }
 
     /// Replays exact output-product cardinality. A retained native artifact is
@@ -966,74 +859,6 @@ impl CompileReport {
     }
 }
 
-fn optional_exact_pair_matches<T: PartialEq>(left: Option<&T>, right: Option<&T>) -> bool {
-    match (left, right) {
-        (None, None) => true,
-        (Some(left), Some(right)) => left == right,
-        (None, Some(_)) | (Some(_), None) => false,
-    }
-}
-
-fn program_storage_emission_matches_output_kind(
-    output_kind: CompileOutputKind,
-    bridge_emission: Option<(bool, bool, bool)>,
-) -> bool {
-    match (output_kind, bridge_emission) {
-        (_, None) => true,
-        (CompileOutputKind::CheckOnly, Some((_, _, false))) => true,
-        (CompileOutputKind::TerminalArtifact, Some(_)) => false,
-        (CompileOutputKind::RetainedNativeArtifact, Some(_)) => false,
-        (CompileOutputKind::NativeExecutable, Some((true, false, true)))
-        | (CompileOutputKind::NativeExecutable, Some((false, true, false))) => true,
-        (CompileOutputKind::CheckOnly, Some((_, _, true)))
-        | (CompileOutputKind::NativeExecutable, Some(_))
-        | (CompileOutputKind::ObjectContainer, Some(_)) => false,
-    }
-}
-
-fn emitted_inventory_matches_publication(
-    publication_inventory_fingerprint: Option<u64>,
-    emitted_inventory_fingerprint: Option<u64>,
-) -> bool {
-    emitted_inventory_fingerprint
-        .is_none_or(|emitted| publication_inventory_fingerprint == Some(emitted))
-}
-
-fn retained_entry_boundary_matches_publication(
-    output_kind: CompileOutputKind,
-    publication_boundary_contract_fingerprint: Option<u64>,
-    retained_entry_boundary_contract_fingerprint: Option<u64>,
-) -> bool {
-    match (output_kind, retained_entry_boundary_contract_fingerprint) {
-        (_, None) => true,
-        (CompileOutputKind::CheckOnly, Some(_)) => {
-            publication_boundary_contract_fingerprint.is_none()
-        }
-        (CompileOutputKind::TerminalArtifact, Some(_)) => false,
-        (CompileOutputKind::RetainedNativeArtifact, Some(_)) => false,
-        (CompileOutputKind::NativeExecutable, Some(retained)) => {
-            publication_boundary_contract_fingerprint == Some(retained)
-        }
-        (CompileOutputKind::ObjectContainer, Some(_)) => false,
-    }
-}
-
-fn emitted_validation_matches_publication(
-    publication_validation_fingerprints: Option<(u64, u64)>,
-    emitted_validation_fingerprints: Option<(u64, u64)>,
-) -> bool {
-    emitted_validation_fingerprints
-        .is_none_or(|emitted| publication_validation_fingerprints == Some(emitted))
-}
-
-fn emitted_boundary_contract_matches_publication(
-    publication_boundary_contract_fingerprint: Option<u64>,
-    emitted_boundary_contract_fingerprint: Option<u64>,
-) -> bool {
-    emitted_boundary_contract_fingerprint
-        .is_none_or(|emitted| publication_boundary_contract_fingerprint == Some(emitted))
-}
-
 #[cfg(test)]
 mod tests {
     use super::{
@@ -1080,8 +905,6 @@ mod tests {
             executable_publication: flat,
             app_bundle_publication: bundle,
             terminal_component_deployment: None,
-            program_storage_entry: None,
-            program_storage_entry_bridge: None,
             build_evaluation_usage: None,
             build_observation_summary: None,
         }
@@ -1089,153 +912,6 @@ mod tests {
 
     #[test]
     fn executable_publication_pair_rejects_every_cross_copy_drift() {
-        assert!(super::optional_exact_pair_matches::<u8>(None, None));
-        assert!(super::optional_exact_pair_matches(Some(&1), Some(&1)));
-        assert!(!super::optional_exact_pair_matches(Some(&1), Some(&2)));
-        assert!(!super::optional_exact_pair_matches(Some(&1), None));
-        assert!(!super::optional_exact_pair_matches(None, Some(&1)));
-        for output_kind in [
-            CompileOutputKind::CheckOnly,
-            CompileOutputKind::RetainedNativeArtifact,
-            CompileOutputKind::NativeExecutable,
-            CompileOutputKind::ObjectContainer,
-        ] {
-            assert!(super::program_storage_emission_matches_output_kind(
-                output_kind,
-                None,
-            ));
-        }
-        assert!(super::program_storage_emission_matches_output_kind(
-            CompileOutputKind::CheckOnly,
-            Some((true, false, false)),
-        ));
-        assert!(!super::program_storage_emission_matches_output_kind(
-            CompileOutputKind::CheckOnly,
-            Some((true, false, true)),
-        ));
-        assert!(super::program_storage_emission_matches_output_kind(
-            CompileOutputKind::NativeExecutable,
-            Some((true, false, true)),
-        ));
-        assert!(super::program_storage_emission_matches_output_kind(
-            CompileOutputKind::NativeExecutable,
-            Some((false, true, false)),
-        ));
-        assert!(!super::program_storage_emission_matches_output_kind(
-            CompileOutputKind::NativeExecutable,
-            Some((true, false, false)),
-        ));
-        assert!(!super::program_storage_emission_matches_output_kind(
-            CompileOutputKind::NativeExecutable,
-            Some((false, false, false)),
-        ));
-        assert!(!super::program_storage_emission_matches_output_kind(
-            CompileOutputKind::ObjectContainer,
-            Some((false, true, false)),
-        ));
-        assert!(!super::program_storage_emission_matches_output_kind(
-            CompileOutputKind::ObjectContainer,
-            Some((true, false, true)),
-        ));
-        for output_kind in [
-            CompileOutputKind::CheckOnly,
-            CompileOutputKind::RetainedNativeArtifact,
-            CompileOutputKind::NativeExecutable,
-            CompileOutputKind::ObjectContainer,
-        ] {
-            assert!(super::retained_entry_boundary_matches_publication(
-                output_kind,
-                None,
-                None,
-            ));
-            assert!(super::retained_entry_boundary_matches_publication(
-                output_kind,
-                Some(1),
-                None,
-            ));
-        }
-        assert!(super::retained_entry_boundary_matches_publication(
-            CompileOutputKind::CheckOnly,
-            None,
-            Some(1),
-        ));
-        assert!(!super::retained_entry_boundary_matches_publication(
-            CompileOutputKind::CheckOnly,
-            Some(1),
-            Some(1),
-        ));
-        assert!(super::retained_entry_boundary_matches_publication(
-            CompileOutputKind::NativeExecutable,
-            Some(1),
-            Some(1),
-        ));
-        assert!(!super::retained_entry_boundary_matches_publication(
-            CompileOutputKind::NativeExecutable,
-            None,
-            Some(1),
-        ));
-        assert!(!super::retained_entry_boundary_matches_publication(
-            CompileOutputKind::NativeExecutable,
-            Some(2),
-            Some(1),
-        ));
-        assert!(!super::retained_entry_boundary_matches_publication(
-            CompileOutputKind::ObjectContainer,
-            Some(1),
-            Some(1),
-        ));
-        assert!(super::emitted_inventory_matches_publication(None, None));
-        assert!(super::emitted_inventory_matches_publication(Some(1), None));
-        assert!(super::emitted_inventory_matches_publication(
-            Some(1),
-            Some(1),
-        ));
-        assert!(!super::emitted_inventory_matches_publication(None, Some(1),));
-        assert!(!super::emitted_inventory_matches_publication(
-            Some(1),
-            Some(2),
-        ));
-        assert!(super::emitted_validation_matches_publication(None, None));
-        assert!(super::emitted_validation_matches_publication(
-            Some((1, 2)),
-            None,
-        ));
-        assert!(super::emitted_validation_matches_publication(
-            Some((1, 2)),
-            Some((1, 2)),
-        ));
-        assert!(!super::emitted_validation_matches_publication(
-            None,
-            Some((1, 2)),
-        ));
-        assert!(!super::emitted_validation_matches_publication(
-            Some((1, 2)),
-            Some((1, 3)),
-        ));
-        assert!(!super::emitted_validation_matches_publication(
-            Some((1, 2)),
-            Some((3, 2)),
-        ));
-        assert!(super::emitted_boundary_contract_matches_publication(
-            None, None,
-        ));
-        assert!(super::emitted_boundary_contract_matches_publication(
-            Some(1),
-            None,
-        ));
-        assert!(super::emitted_boundary_contract_matches_publication(
-            Some(1),
-            Some(1),
-        ));
-        assert!(!super::emitted_boundary_contract_matches_publication(
-            None,
-            Some(1),
-        ));
-        assert!(!super::emitted_boundary_contract_matches_publication(
-            Some(1),
-            Some(2),
-        ));
-
         let flat = receipt(ExecutablePublicationDestination::FlatOutput, "build/main");
         let bundle = receipt(
             ExecutablePublicationDestination::MacOsAppBundle,
@@ -1284,8 +960,6 @@ mod tests {
                 false,
                 CompileOutputKind::CheckOnly,
                 Some(flat.clone()),
-                None,
-                None,
                 None,
                 None,
                 None,

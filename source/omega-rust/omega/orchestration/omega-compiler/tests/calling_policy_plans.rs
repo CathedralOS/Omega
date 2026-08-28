@@ -2,49 +2,22 @@ use omega_calling_conventions::{
     CallSignature, CallingPolicy, EntryControl, EntryStack, MachineState, MachineStateSet,
     Preemption, ValueShape,
 };
-use omega_compiler::{CompileOptions, compile_to_checked};
+use omega_compiler::compile_to_checked;
 use omega_program_storage::{
     PROGRAM_STORAGE_INSTALLATION_ARTIFACT, ProgramStorageEntryBridgeError,
     ProgramStorageEntryInitialStorageAuthorityKind,
     ProgramStorageEntryRecordedWholeRootArgumentRecovery, ProgramStorageInstallationHandoffError,
     ProgramStorageRootInput, ProgramStorageSelectedProviderPlan, SelectedProgramStorageEntryPlan,
-    bind_emitted_program_storage_entry_native_bridge,
-    bind_program_storage_entry_emitted_whole_root_arguments, bind_program_storage_entry_plan,
+    bind_emitted_program_storage_entry_native_bridge, bind_program_storage_entry_plan,
     bind_program_storage_entry_whole_root_arguments,
-    bind_program_storage_entry_whole_root_logical_values,
-    bind_program_storage_entry_whole_root_operands,
     bind_recorded_program_storage_entry_whole_root_arguments,
-    install_program_storage_entry_provider_invocation,
-    plan_program_storage_entry_wrapper_caller_frame, program_storage_installation_record_json,
-    reserve_program_storage_entry_outgoing_stack_frame,
+    install_program_storage_entry_provider_invocation, program_storage_installation_record_json,
 };
 use omega_provider_planning::calling_policy_plans::evaluate_calling_policy_plan;
 use omega_provider_planning::plans::{
     selected_external_root_entry_fact_bindings, selected_external_root_provider_plan,
     selected_external_root_provider_plan_id,
 };
-
-fn compile(
-    options: CompileOptions,
-) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
-    let publish = options.write_output;
-    let build_dir = options.build_dir();
-    let product = if publish {
-        omega_compiler::RequestedCompileProduct::NativeArtifact
-    } else {
-        omega_compiler::RequestedCompileProduct::Check
-    };
-    let report = omega_compiler::compile(
-        omega_compiler::CompileRequest::new(options).with_requested_product(product),
-    )?;
-    if publish {
-        report
-            .publish_retained_native_artifact(&build_dir)
-            .map_err(|error| vec![psi_diagnostics::Diagnostic::error(error)])
-    } else {
-        Ok(report)
-    }
-}
 
 use omega_instruction_selection::derive_boundary_entry_storage;
 use psi_extents::{
@@ -282,6 +255,104 @@ boundary trait WindowRegistrar: Calling<RegistrarPolicy> {
 data Main { }
 machine Main::main(&mut self) { }
 "#;
+
+fn root_input_for_provider_invocation(
+    lineage: u64,
+    base: u64,
+    length: u64,
+    provider_plan: u64,
+    invocation: u64,
+) -> (ProgramStorageRootInput, psi_extents::ExtentProviderIssuance) {
+    fn extent_id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExtentDiagnostic>) -> T {
+        constructor(identity).expect("normalized extent identity")
+    }
+
+    let issuance_base = lineage * 16;
+    let provider_issuance = psi_extents::ExtentProviderIssuance::from_normalized_identities([
+        issuance_base + 1,
+        issuance_base + 2,
+        provider_plan + 1000,
+        issuance_base + 4,
+        issuance_base + 5,
+        issuance_base + 6,
+        issuance_base + 7,
+        issuance_base + 8,
+        provider_plan,
+        invocation,
+        issuance_base + 11,
+        issuance_base + 12,
+        issuance_base + 13,
+    ])
+    .expect("normalized physical-provider issuance");
+    (
+        ProgramStorageRootInput::new(
+            ExtentRootGrant::from_admitted_provider(
+                provider_issuance,
+                extent_id(lineage, ExtentLineageId::from_normalized_identity),
+                extent_id(100, AddressSpaceId::from_normalized_identity),
+                ExtentRights::none(),
+                extent_id(101, ExtentProvenanceId::from_normalized_identity),
+                extent_id(102, MappingEraId::from_normalized_identity),
+            ),
+            base,
+            length,
+        ),
+        provider_issuance,
+    )
+}
+
+fn emitted_program_storage_bridge(
+    binding: omega_program_storage::ProgramStorageEntryPlanBinding,
+    selected_provider: Option<ProgramStorageSelectedProviderPlan>,
+) -> omega_program_storage::ProgramStorageEntryNativeBridgePlan {
+    let continuation_key = omega_control_flow::StateKey {
+        machine: psi_symbols::SymbolHandle::from_arena_index(1),
+        state: psi_symbols::SymbolHandle::from_arena_index(2),
+        segment_index: 0,
+    };
+    let mut object =
+        omega_object_file::ObjectPlan::with_capacity(omega_target::NativeTarget::host(), 0, 1);
+    let entry = object.layout.symbols.insert(omega_object_file::SymbolPlan {
+        name: "program_storage_test_entry".into(),
+        section: omega_object_file::SymbolSection::Section(omega_object_file::SectionKind::Text),
+        offset: 32,
+        size: 8,
+        kind: omega_object_file::SymbolKind::Function,
+        import_library: String::new(),
+    });
+    object.layout.entry_symbol = entry;
+    object
+        .layout
+        .function_symbols
+        .insert(omega_object_file::FunctionSymbolPlan {
+            identity: omega_control_flow::MachineFunctionIdentity::source(continuation_key),
+            symbol: entry,
+        });
+    let mut encoded = omega_machine_bytes::EncodedMachinePlan::default();
+    encoded
+        .code
+        .functions
+        .insert(omega_machine_bytes::EncodedMachineFunction {
+            symbol: std::sync::Arc::from("program_storage_test_entry"),
+            identity: omega_control_flow::MachineFunctionIdentity::source(continuation_key),
+            byte_offset: 32,
+            byte_count: 8,
+            instructions: psi_arena::HandleSpan::empty(),
+        });
+    let boundary_fingerprint = binding.boundary_contract_fingerprint();
+    bind_emitted_program_storage_entry_native_bridge(
+        binding,
+        selected_provider,
+        "synthetic_physical_entry".into(),
+        &object,
+        &encoded,
+        continuation_key,
+        Some(boundary_fingerprint),
+        "Boot::launch".into(),
+        "launch".into(),
+    )
+    .expect("synthetic emitted bridge should retain exact continuation identity")
+}
 
 #[test]
 fn target_selected_callback_policy_consumes_two_closed_layout_demands() {
@@ -1867,847 +1938,6 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
     let free_roots = missing_source.into_authority();
     assert_eq!(free_roots.initial_storage().length(), 0x2000);
     let _ = fs::remove_dir_all(main_path.parent().expect("temporary policy directory"));
-}
-
-#[test]
-fn receiver_free_whole_root_authority_binds_exact_continuation_abi() {
-    let directory = std::env::temp_dir().join(format!(
-        "omega-free-program-storage-arguments-{}",
-        std::process::id()
-    ));
-    let _ = fs::remove_dir_all(&directory);
-    fs::create_dir_all(&directory).expect("create free program-storage project");
-    let source = include_str!(
-        "../../../../../../tests/omega/pass/build/uefi_program_entry_storage_roots/main.omg"
-    );
-    let prefix = source
-        .split_once("data Boot {")
-        .expect("UEFI canary retains its Boot declaration")
-        .0;
-    fs::write(
-        directory.join("main.omg"),
-        format!(
-            r#"{prefix}data Boot {{ }}
-
-machine Boot::launch(
-    image: Extent in Granted,
-    initial_storage: Extent in Granted
-) {{
-    transition {{
-        _ -> retain(image as Extent, initial_storage as Extent)
-    }}
-
-    state retain(image: Extent, initial_storage: Extent) {{
-        transition {{
-            _ -> retain(image, initial_storage)
-        }}
-    }}
-}}
-"#
-        ),
-    )
-    .expect("write receiver-free source");
-    fs::write(
-        directory.join("build.omg"),
-        r#"target uefi_x64 {
-}
-
-machine build(builder: &mut Build) {
-    builder.application("receiver-free-whole-root-authority");
-    builder.subsystem = Subsystem::EfiApplication;
-    builder.freestanding = true;
-    builder.roots.bind(uefi_x86_64::ProgramEntry, Boot::launch);
-}
-"#,
-    )
-    .expect("write receiver-free build root");
-    let build_dir = directory.join("build");
-    let report = compile(CompileOptions {
-        root_path: directory.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: Some("uefi_x64".into()),
-        write_output: true,
-    })
-    .expect("receiver-free UEFI entry should retain its source ABI");
-    assert!(report.has_consistent_program_storage_entry_custody());
-    assert_eq!(
-        report
-            .executable_publication()
-            .expect("written bridge publication receipt")
-            .output_path()
-            .parent(),
-        Some(build_dir.as_path()),
-    );
-    assert!(
-        report
-            .executable_publication()
-            .expect("written bridge publication receipt")
-            .has_consistent_installation_identity()
-    );
-    let bridge = report
-        .program_storage_entry_bridge()
-        .cloned()
-        .expect("receiver-free UEFI entry bridge");
-    assert_eq!(
-        Some(bridge.binding().boundary_contract_fingerprint()),
-        report
-            .executable_publication()
-            .expect("written bridge publication receipt")
-            .boundary_contract_fingerprint(),
-    );
-    assert_eq!(
-        bridge
-            .emitted_wrapper_evidence()
-            .expect("written bridge final evidence")
-            .executable_inventory_fingerprint(),
-        report
-            .executable_publication()
-            .expect("written bridge publication receipt")
-            .inventory_fingerprint(),
-    );
-    assert_eq!(
-        bridge
-            .emitted_wrapper_evidence()
-            .expect("written bridge final evidence")
-            .compiler_text_validation()
-            .derivation_fingerprint,
-        report
-            .executable_publication()
-            .expect("written bridge publication receipt")
-            .compiler_text_validation_fingerprint(),
-    );
-    assert_eq!(
-        bridge
-            .emitted_wrapper_evidence()
-            .expect("written bridge final evidence")
-            .compiler_function_validation()
-            .evidence_fingerprint(),
-        report
-            .executable_publication()
-            .expect("written bridge publication receipt")
-            .compiler_function_validation_fingerprint(),
-    );
-    assert_eq!(
-        bridge
-            .emitted_wrapper_evidence()
-            .expect("written bridge final evidence")
-            .arrival()
-            .boundary_contract_fingerprint(),
-        report
-            .executable_publication()
-            .expect("written bridge publication receipt")
-            .boundary_contract_fingerprint()
-            .expect("program-storage publication boundary contract"),
-    );
-    let unwritten_report = compile(CompileOptions {
-        root_path: directory.join("main.omg"),
-        build_dir: Some(directory.join("unwritten-build")),
-        target_name: Some("uefi_x64".into()),
-        write_output: false,
-    })
-    .expect("the same receiver-free entry should compile without publishing an image");
-    assert!(unwritten_report.has_consistent_program_storage_entry_custody());
-    assert!(unwritten_report.executable_publication().is_none());
-    let unwritten_bridge = unwritten_report
-        .program_storage_entry_bridge()
-        .cloned()
-        .expect("unwritten receiver-free UEFI entry bridge");
-    assert_eq!(unwritten_bridge.binding(), bridge.binding());
-    assert!(unwritten_bridge.emitted_wrapper_evidence().is_none());
-    assert!(matches!(
-        bridge.continuation_abi().expect("source ABI").receiver(),
-        omega_program_storage::ProgramStorageEntryContinuationReceiverAbiPlan::Free
-    ));
-    let inbound = bridge
-        .continuation_inbound()
-        .expect("receiver-free source continuation must retain exact inbound realization");
-    assert_eq!(
-        inbound.continuation_identity(),
-        omega_control_flow::MachineFunctionIdentity::source(bridge.continuation_key())
-    );
-    assert_eq!(inbound.continuation_symbol(), bridge.continuation_symbol());
-    assert_eq!(
-        inbound.continuation_text_range(),
-        &(bridge.continuation_text_offset()
-            ..bridge.continuation_text_offset() + bridge.continuation_text_size())
-    );
-    assert_eq!(inbound.call().result, None);
-    let [image_inbound, storage_inbound] = inbound.arguments();
-    assert_eq!(
-        image_inbound.role(),
-        omega_program_storage::ProgramStorageEntryRootRole::Image
-    );
-    assert_eq!(image_inbound.visible_parameter_index(), 0);
-    assert_eq!(image_inbound.call_parameter_index(), 0);
-    assert_eq!(
-        image_inbound.pointer(),
-        omega_calling_conventions::IndirectPointerLocation::Register(
-            omega_calling_conventions::MachineRegister::X86Rcx,
-        )
-    );
-    assert_eq!(image_inbound.shape().byte_size, 16);
-    assert_eq!(image_inbound.source_capture_write_range(), &(0..1));
-    assert_eq!(
-        storage_inbound.role(),
-        omega_program_storage::ProgramStorageEntryRootRole::InitialStorage
-    );
-    assert_eq!(storage_inbound.visible_parameter_index(), 1);
-    assert_eq!(storage_inbound.call_parameter_index(), 1);
-    assert_eq!(
-        storage_inbound.pointer(),
-        omega_calling_conventions::IndirectPointerLocation::Register(
-            omega_calling_conventions::MachineRegister::X86Rdx,
-        )
-    );
-    assert_eq!(storage_inbound.shape().byte_size, 16);
-    assert_eq!(storage_inbound.source_capture_write_range(), &(1..2));
-    let template = bridge
-        .wrapper_body_template()
-        .expect("receiver-free emitted bridge must retain its phase-alignment body template");
-    let source_identity =
-        omega_control_flow::MachineFunctionIdentity::source(bridge.continuation_key());
-    let wrapper_identity =
-        omega_control_flow::MachineFunctionIdentity::program_storage_entry_wrapper(
-            bridge.continuation_key(),
-        )
-        .expect("selected source identity admits one generated wrapper identity");
-    assert_eq!(template.wrapper_identity(), wrapper_identity);
-    assert_eq!(template.continuation_identity(), source_identity);
-    assert_eq!(template.continuation_symbol(), bridge.continuation_symbol());
-    assert_eq!(
-        template.continuation_text_range(),
-        &(bridge.continuation_text_offset()
-            ..bridge.continuation_text_offset() + bridge.continuation_text_size())
-    );
-    assert_eq!(
-        template.wrapper_symbol(),
-        omega_object_file::entry_symbol_name(omega_target::NativeTarget::uefi_x64())
-    );
-    assert_eq!(template.steps().len(), 11);
-    assert!(matches!(
-        &template.steps()[2],
-        omega_program_storage::ProgramStorageEntryWrapperBodyTemplateStep::CopyEntryIndirectU64ToOutgoingStack {
-            role: omega_program_storage::ProgramStorageEntryRootRole::Image,
-            source_register: omega_calling_conventions::MachineRegister::X86Rcx,
-            source_byte_offset: 0,
-            stack_byte_offset: 32,
-        }
-    ));
-    assert_eq!(
-        &template.steps()[8],
-        &omega_program_storage::ProgramStorageEntryWrapperBodyTemplateStep::CallSourceContinuation {
-            target: source_identity,
-        }
-    );
-    assert_eq!(bridge.entry_function_identity(), wrapper_identity);
-    assert_ne!(bridge.entry_function_identity(), source_identity);
-    let emitted = bridge
-        .emitted_wrapper_evidence()
-        .expect("written receiver-free bridge must retain checked final-image evidence");
-    assert_eq!(emitted.wrapper_identity(), wrapper_identity);
-    assert_eq!(emitted.continuation_identity(), source_identity);
-    assert_eq!(emitted.wrapper_symbol(), bridge.entry_symbol());
-    assert_eq!(emitted.wrapper_section_offset(), bridge.entry_text_offset());
-    assert_eq!(emitted.wrapper_byte_count(), bridge.entry_text_size());
-    assert_eq!(
-        emitted.continuation_symbol(),
-        bridge.continuation_link_symbol()
-    );
-    assert_eq!(
-        emitted.continuation_section_offset(),
-        bridge.continuation_text_offset()
-    );
-    assert_eq!(
-        emitted.continuation_byte_count(),
-        bridge.continuation_text_size()
-    );
-    assert_eq!(emitted.final_call_bytes()[0], 0xe8);
-    let arrival = emitted.arrival();
-    assert_eq!(arrival.target(), omega_target::NativeTarget::uefi_x64());
-    assert_eq!(arrival.wrapper_identity(), wrapper_identity);
-    assert_eq!(
-        arrival.boundary_contract_fingerprint(),
-        bridge.binding().boundary_contract_fingerprint()
-    );
-    let [image_arrival, storage_arrival] = arrival.roots();
-    assert_eq!(
-        image_arrival.role(),
-        omega_program_storage::ProgramStorageEntryRootRole::Image
-    );
-    assert_eq!(image_arrival.arrival_parameter_index(), 0);
-    assert_eq!(
-        image_arrival.physical_arrival_placement(),
-        bridge.wrapper_transfer().roots()[0].physical_arrival_placement()
-    );
-    assert_eq!(image_arrival.copies()[0].source_byte_offset(), 0);
-    assert_eq!(
-        image_arrival.copies()[1].caller_copy_stack_byte_offset(),
-        40
-    );
-    assert_eq!(image_arrival.copies()[0].final_bytes().len(), 15);
-    assert_eq!(
-        storage_arrival.role(),
-        omega_program_storage::ProgramStorageEntryRootRole::InitialStorage
-    );
-    assert_eq!(storage_arrival.arrival_parameter_index(), 1);
-    assert_eq!(storage_arrival.copies()[0].source_byte_offset(), 0);
-    assert_eq!(
-        storage_arrival.copies()[1].caller_copy_stack_byte_offset(),
-        56
-    );
-    for root in arrival.roots() {
-        assert!(
-            root.copies()[0].section_byte_range().end
-                <= root.copies()[1].section_byte_range().start
-        );
-        assert_ne!(
-            root.copies()[0].selected_instruction_index(),
-            root.copies()[1].selected_instruction_index()
-        );
-    }
-    let expected_displacement = i32::try_from(emitted.continuation_section_offset()).unwrap()
-        - i32::try_from(emitted.call_section_offset() + emitted.final_call_bytes().len()).unwrap();
-    assert_eq!(
-        &emitted.final_call_bytes()[1..],
-        &expected_displacement.to_le_bytes()
-    );
-    assert!(emitted.wrapper_address() > emitted.continuation_address());
-    assert_ne!(emitted.wrapper_byte_fingerprint(), 0);
-    assert_ne!(emitted.continuation_byte_fingerprint(), 0);
-    assert_ne!(emitted.compiler_text_validation().derivation_fingerprint, 0);
-    assert_ne!(
-        emitted
-            .compiler_function_validation()
-            .evidence_fingerprint(),
-        0
-    );
-    assert_ne!(emitted.executable_inventory_fingerprint(), 0);
-    let entry_manifest = fs::read_to_string(build_dir.join("10_program_storage_entry.json"))
-        .expect("written bridge manifest");
-    assert!(entry_manifest.contains("\"emitted_wrapper_evidence\": {"));
-    assert!(entry_manifest.contains("\"final_call_bytes\": [232,"));
-    assert!(entry_manifest.contains("\"semantic_wrapper_arrival\": {"));
-    assert!(entry_manifest.contains("\"pointer_register\": \"X86Rcx\""));
-    assert!(entry_manifest.contains("\"pointer_register\": \"X86Rdx\""));
-    assert!(entry_manifest.contains("\"status\": \"pending_runtime_installation\""));
-    let selected_provider = provider_for_program_storage_binding(bridge.binding());
-    let (image, provider_issuance) =
-        root_input_for_provider_invocation(701, 0x1000, 0x800, 90, 911);
-    let (initial_storage, _) = root_input_for_provider_invocation(702, 0x8000, 0x2000, 90, 911);
-    let installation = install_program_storage_entry_provider_invocation(
-        &build_dir,
-        bridge.binding().clone(),
-        &selected_provider,
-        provider_issuance,
-        image,
-        initial_storage,
-    )
-    .expect("install exact receiver-free roots");
-    let alternate_source = fs::read_to_string(directory.join("main.omg"))
-        .expect("read receiver-free source")
-        .replace("Boot::launch(", "Boot::alternate(");
-    fs::write(directory.join("main.omg"), alternate_source)
-        .expect("write alternate receiver-free source");
-    let alternate_build = fs::read_to_string(directory.join("build.omg"))
-        .expect("read receiver-free build root")
-        .replace("Boot::launch", "Boot::alternate");
-    fs::write(directory.join("build.omg"), alternate_build)
-        .expect("write alternate receiver-free build root");
-    let other_bridge = compile(CompileOptions {
-        root_path: directory.join("main.omg"),
-        build_dir: Some(directory.join("alternate-build")),
-        target_name: Some("uefi_x64".into()),
-        write_output: false,
-    })
-    .expect("alternate receiver-free UEFI entry should compile")
-    .program_storage_entry_bridge()
-    .cloned()
-    .expect("alternate receiver-free UEFI entry bridge");
-    assert!(
-        other_bridge.emitted_wrapper_evidence().is_none(),
-        "an unwritten build must not claim final-image wrapper evidence"
-    );
-    let wrong_bridge =
-        bind_recorded_program_storage_entry_whole_root_arguments(installation, &other_bridge)
-            .expect_err("a recorded installation cannot bind another selected entry");
-    assert!(
-        wrong_bridge
-            .diagnostic()
-            .0
-            .contains("exact program-storage bridge binding")
-    );
-    let ProgramStorageEntryRecordedWholeRootArgumentRecovery::RecordedInstallation(installation) =
-        wrong_bridge.into_recovery()
-    else {
-        panic!("borrowed ABI preflight must return the intact recorded installation")
-    };
-    assert_eq!(installation.installation_record().image().base(), 0x1000);
-    let carrier = bind_recorded_program_storage_entry_whole_root_arguments(installation, &bridge)
-        .expect("the same recorded installation should retry against its exact bridge");
-    let [image, initial_storage] = carrier.arguments();
-    assert_eq!(
-        image.role(),
-        omega_program_storage::ProgramStorageEntryRootRole::Image
-    );
-    assert_eq!(image.visible_parameter_index(), 0);
-    assert_eq!(image.call_parameter_index(), 0);
-    assert_eq!(
-        initial_storage.role(),
-        omega_program_storage::ProgramStorageEntryRootRole::InitialStorage
-    );
-    assert_eq!(initial_storage.visible_parameter_index(), 1);
-    assert_eq!(initial_storage.call_parameter_index(), 1);
-    assert_eq!(
-        image.placement(),
-        &bridge.continuation_abi().unwrap().call().parameters[0]
-    );
-    assert_eq!(
-        initial_storage.placement(),
-        &bridge.continuation_abi().unwrap().call().parameters[1]
-    );
-    assert_eq!(
-        (
-            carrier
-                .root_authority(omega_program_storage::ProgramStorageEntryRootRole::Image)
-                .base(),
-            carrier
-                .root_authority(omega_program_storage::ProgramStorageEntryRootRole::InitialStorage)
-                .length()
-        ),
-        (0x1000, 0x2000)
-    );
-    let missing_emitted =
-        bind_program_storage_entry_emitted_whole_root_arguments(carrier, &unwritten_bridge)
-            .expect_err("an unwritten bridge cannot bind installed roots to final wrapper bytes");
-    assert!(
-        missing_emitted
-            .diagnostic()
-            .0
-            .contains("without final emitted-wrapper evidence")
-    );
-    let carrier = missing_emitted.into_arguments();
-    let emitted_arguments =
-        bind_program_storage_entry_emitted_whole_root_arguments(carrier, &bridge)
-            .expect("installed roots should bind their exact final emitted wrapper");
-    assert_eq!(
-        emitted_arguments.emitted_wrapper().wrapper_identity(),
-        bridge.entry_function_identity()
-    );
-    assert_eq!(
-        emitted_arguments
-            .emitted_wrapper()
-            .arrival()
-            .boundary_contract_fingerprint(),
-        bridge.binding().boundary_contract_fingerprint()
-    );
-    let carrier = emitted_arguments.into_arguments();
-    let values = bind_program_storage_entry_whole_root_logical_values(carrier)
-        .expect("exact whole-root authorities should bind their logical Extent values");
-    let [image_value, storage_value] = values.values();
-    assert_eq!((image_value.base(), image_value.length()), (0x1000, 0x800));
-    assert_eq!(
-        (storage_value.base(), storage_value.length()),
-        (0x8000, 0x2000)
-    );
-    for (index, value) in values.values().iter().enumerate() {
-        assert_eq!(value.visible_parameter_index(), index);
-        assert_eq!(value.call_parameter_index(), index);
-        assert_eq!(
-            value.layout().shape(),
-            omega_calling_conventions::ValueShape::integer(16, 8)
-        );
-        let [base, length] = value.layout().fields();
-        assert_eq!(base.byte_offset(), 0);
-        assert_eq!(length.byte_offset(), 8);
-    }
-    let operands = bind_program_storage_entry_whole_root_operands(values)
-        .expect("exact logical Extents should bind their indirect operand images");
-    let [image_operand, storage_operand] = operands.operands();
-    assert_eq!(
-        image_operand.pointer(),
-        omega_calling_conventions::IndirectPointerLocation::Register(
-            omega_calling_conventions::MachineRegister::X86Rcx,
-        )
-    );
-    assert_eq!(image_operand.caller_copy_byte_range(), 32..48);
-    assert_eq!(
-        image_operand.bytes(),
-        &[
-            0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00,
-        ]
-    );
-    assert_eq!(
-        storage_operand.pointer(),
-        omega_calling_conventions::IndirectPointerLocation::Register(
-            omega_calling_conventions::MachineRegister::X86Rdx,
-        )
-    );
-    assert_eq!(storage_operand.caller_copy_byte_range(), 48..64);
-    assert_eq!(
-        storage_operand.bytes(),
-        &[
-            0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00,
-        ]
-    );
-    assert_eq!(image_operand.byte_size(), 16);
-    assert_eq!(storage_operand.alignment(), 8);
-    assert_eq!(
-        operands
-            .logical_values()
-            .arguments()
-            .root_authority(omega_program_storage::ProgramStorageEntryRootRole::Image)
-            .base(),
-        0x1000
-    );
-    let caller_frame = plan_program_storage_entry_wrapper_caller_frame(operands)
-        .expect("exact operand images should plan one balanced wrapper caller frame");
-    assert_eq!(caller_frame.shadow_byte_count(), 32);
-    assert_eq!(caller_frame.outgoing_reservation_byte_count(), 72);
-    assert_eq!(caller_frame.outgoing_release_byte_count(), 72);
-    assert_eq!(caller_frame.pre_call_stack_alignment(), 16);
-    use omega_program_storage::ProgramStorageEntryWrapperCallerFrameStep::{
-        BindCallerCopyAddress, WriteExtentWord,
-    };
-    let [
-        WriteExtentWord {
-            role: image_base_role,
-            visible_parameter_index: image_base_visible,
-            call_parameter_index: image_base_call,
-            field: image_base_field,
-            operand_byte_offset: image_base_operand_offset,
-            stack_byte_offset: image_base_stack_offset,
-            bytes: image_base_bytes,
-        },
-        WriteExtentWord {
-            role: image_length_role,
-            field: image_length_field,
-            operand_byte_offset: image_length_operand_offset,
-            stack_byte_offset: image_length_stack_offset,
-            bytes: image_length_bytes,
-            ..
-        },
-        WriteExtentWord {
-            role: storage_base_role,
-            field: storage_base_field,
-            operand_byte_offset: storage_base_operand_offset,
-            stack_byte_offset: storage_base_stack_offset,
-            bytes: storage_base_bytes,
-            ..
-        },
-        WriteExtentWord {
-            role: storage_length_role,
-            field: storage_length_field,
-            operand_byte_offset: storage_length_operand_offset,
-            stack_byte_offset: storage_length_stack_offset,
-            bytes: storage_length_bytes,
-            ..
-        },
-        BindCallerCopyAddress {
-            role: image_address_role,
-            register: image_address_register,
-            caller_copy_stack_byte_offset: image_copy_offset,
-            caller_copy_byte_count: image_copy_size,
-            caller_copy_alignment: image_copy_alignment,
-            ..
-        },
-        BindCallerCopyAddress {
-            role: storage_address_role,
-            register: storage_address_register,
-            caller_copy_stack_byte_offset: storage_copy_offset,
-            caller_copy_byte_count: storage_copy_size,
-            caller_copy_alignment: storage_copy_alignment,
-            ..
-        },
-    ] = caller_frame.steps()
-    else {
-        panic!("caller-frame recipe must retain four writes followed by two address bindings")
-    };
-    assert_eq!(
-        (
-            *image_base_role,
-            *image_base_visible,
-            *image_base_call,
-            *image_base_field,
-            *image_base_operand_offset,
-            *image_base_stack_offset,
-            *image_base_bytes,
-        ),
-        (
-            omega_program_storage::ProgramStorageEntryRootRole::Image,
-            0,
-            0,
-            omega_program_storage::ProgramEntrySourceExtentFieldRole::Base,
-            0,
-            32,
-            0x1000_u64.to_le_bytes(),
-        )
-    );
-    assert_eq!(
-        (
-            *image_length_role,
-            *image_length_field,
-            *image_length_operand_offset,
-            *image_length_stack_offset,
-            *image_length_bytes,
-        ),
-        (
-            omega_program_storage::ProgramStorageEntryRootRole::Image,
-            omega_program_storage::ProgramEntrySourceExtentFieldRole::Length,
-            8,
-            40,
-            0x800_u64.to_le_bytes(),
-        )
-    );
-    assert_eq!(
-        (
-            *storage_base_role,
-            *storage_base_field,
-            *storage_base_operand_offset,
-            *storage_base_stack_offset,
-            *storage_base_bytes,
-        ),
-        (
-            omega_program_storage::ProgramStorageEntryRootRole::InitialStorage,
-            omega_program_storage::ProgramEntrySourceExtentFieldRole::Base,
-            0,
-            48,
-            0x8000_u64.to_le_bytes(),
-        )
-    );
-    assert_eq!(
-        (
-            *storage_length_role,
-            *storage_length_field,
-            *storage_length_operand_offset,
-            *storage_length_stack_offset,
-            *storage_length_bytes,
-        ),
-        (
-            omega_program_storage::ProgramStorageEntryRootRole::InitialStorage,
-            omega_program_storage::ProgramEntrySourceExtentFieldRole::Length,
-            8,
-            56,
-            0x2000_u64.to_le_bytes(),
-        )
-    );
-    assert_eq!(
-        (
-            *image_address_role,
-            *image_address_register,
-            *image_copy_offset,
-            *image_copy_size,
-            *image_copy_alignment,
-        ),
-        (
-            omega_program_storage::ProgramStorageEntryRootRole::Image,
-            omega_calling_conventions::MachineRegister::X86Rcx,
-            32,
-            16,
-            8,
-        )
-    );
-    assert_eq!(
-        (
-            *storage_address_role,
-            *storage_address_register,
-            *storage_copy_offset,
-            *storage_copy_size,
-            *storage_copy_alignment,
-        ),
-        (
-            omega_program_storage::ProgramStorageEntryRootRole::InitialStorage,
-            omega_calling_conventions::MachineRegister::X86Rdx,
-            48,
-            16,
-            8,
-        )
-    );
-    assert_eq!(
-        caller_frame
-            .operands()
-            .logical_values()
-            .arguments()
-            .root_authority(omega_program_storage::ProgramStorageEntryRootRole::InitialStorage)
-            .length(),
-        0x2000
-    );
-    let reserved = reserve_program_storage_entry_outgoing_stack_frame(caller_frame)
-        .expect("exact caller frame should yield sealed write authority");
-    assert_eq!(reserved.frame_byte_count(), 72);
-    assert_eq!(reserved.shadow_byte_range(), 0..32);
-    assert_eq!(reserved.image_writable_byte_range(), 32..48);
-    assert_eq!(reserved.initial_storage_writable_byte_range(), 48..64);
-    assert_eq!(
-        std::array::from_fn(|index| {
-            let word = &reserved.words()[index];
-            (word.stack_byte_offset(), word.value(), *word.bytes())
-        }),
-        [
-            (32, 0x1000, 0x1000_u64.to_le_bytes()),
-            (40, 0x800, 0x800_u64.to_le_bytes()),
-            (48, 0x8000, 0x8000_u64.to_le_bytes()),
-            (56, 0x2000, 0x2000_u64.to_le_bytes()),
-        ]
-    );
-    let recovered_frame = reserved.into_caller_frame();
-    assert_eq!(recovered_frame.outgoing_reservation_byte_count(), 72);
-    assert_eq!(
-        recovered_frame
-            .operands()
-            .logical_values()
-            .arguments()
-            .root_authority(omega_program_storage::ProgramStorageEntryRootRole::Image)
-            .base(),
-        0x1000
-    );
-    let _ = fs::remove_dir_all(directory);
-}
-
-fn root_input_for_provider_invocation(
-    lineage: u64,
-    base: u64,
-    length: u64,
-    provider_plan: u64,
-    invocation: u64,
-) -> (ProgramStorageRootInput, psi_extents::ExtentProviderIssuance) {
-    fn extent_id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExtentDiagnostic>) -> T {
-        constructor(identity).expect("normalized extent identity")
-    }
-
-    let issuance_base = lineage * 16;
-    let provider_issuance = psi_extents::ExtentProviderIssuance::from_normalized_identities([
-        issuance_base + 1,
-        issuance_base + 2,
-        provider_plan + 1000,
-        issuance_base + 4,
-        issuance_base + 5,
-        issuance_base + 6,
-        issuance_base + 7,
-        issuance_base + 8,
-        provider_plan,
-        invocation,
-        issuance_base + 11,
-        issuance_base + 12,
-        issuance_base + 13,
-    ])
-    .expect("normalized physical-provider issuance");
-    (
-        ProgramStorageRootInput::new(
-            ExtentRootGrant::from_admitted_provider(
-                provider_issuance,
-                extent_id(lineage, ExtentLineageId::from_normalized_identity),
-                extent_id(100, AddressSpaceId::from_normalized_identity),
-                ExtentRights::none(),
-                extent_id(101, ExtentProvenanceId::from_normalized_identity),
-                extent_id(102, MappingEraId::from_normalized_identity),
-            ),
-            base,
-            length,
-        ),
-        provider_issuance,
-    )
-}
-
-fn provider_for_program_storage_binding(
-    binding: &omega_program_storage::ProgramStorageEntryPlanBinding,
-) -> ProgramStorageSelectedProviderPlan {
-    let entry_claims = (0..2)
-        .map(
-            |parameter_index| omega_effects::provider_plan::ServiceEntryClaim {
-                parameter_index,
-                carrier_identity: "named(name(Extent))".into(),
-                domain: "Extent::Granted".into(),
-                predicate_body: psi_language_semantics::DomainPredicateBody::Present,
-                effective_carry: psi_language_semantics::CarryPolicy::STRICT,
-                authority_flow: omega_effects::provider_plan::ServiceEntryAuthorityFlow::Accepts,
-            },
-        )
-        .collect();
-    ProgramStorageSelectedProviderPlan {
-        identity: omega_external_roots::ProviderPlanId::from_normalized_identity(90)
-            .expect("selected provider identity"),
-        schema: omega_effects::provider_plan::ServiceSchema {
-            trait_name: "UefiApplication".into(),
-            trait_package_identity: None,
-            methods: vec![omega_effects::provider_plan::ServiceMethod {
-                name: "enter".into(),
-                requirement_owner: "ProgramStorageEntry".into(),
-                requirement_owner_package_identity: None,
-                requirement_identity: binding.requirement_identity().into(),
-                parameter_count: 2,
-                parameter_type_identities: vec![
-                    binding.image().parameter_type_identity().into(),
-                    binding.initial_storage().parameter_type_identity().into(),
-                ],
-                entry_claims,
-                has_result: false,
-                result_type_identity: None,
-                result_claims: Vec::new(),
-                service_reach: Vec::new(),
-                synchronous_invocations: Vec::new(),
-                may_suspend: false,
-                may_block: false,
-                terminates_guarantee: false,
-                termination_premises: Vec::new(),
-                calling_plan_fingerprint: Some(binding.boundary_contract_fingerprint()),
-            }],
-        },
-    }
-}
-
-fn emitted_program_storage_bridge(
-    binding: omega_program_storage::ProgramStorageEntryPlanBinding,
-    selected_provider: Option<ProgramStorageSelectedProviderPlan>,
-) -> omega_program_storage::ProgramStorageEntryNativeBridgePlan {
-    let continuation_key = omega_control_flow::StateKey {
-        machine: psi_symbols::SymbolHandle::from_arena_index(1),
-        state: psi_symbols::SymbolHandle::from_arena_index(2),
-        segment_index: 0,
-    };
-    let mut object =
-        omega_object_file::ObjectPlan::with_capacity(omega_target::NativeTarget::host(), 0, 1);
-    let entry = object.layout.symbols.insert(omega_object_file::SymbolPlan {
-        name: "program_storage_test_entry".into(),
-        section: omega_object_file::SymbolSection::Section(omega_object_file::SectionKind::Text),
-        offset: 32,
-        size: 8,
-        kind: omega_object_file::SymbolKind::Function,
-        import_library: String::new(),
-    });
-    object.layout.entry_symbol = entry;
-    object
-        .layout
-        .function_symbols
-        .insert(omega_object_file::FunctionSymbolPlan {
-            identity: omega_control_flow::MachineFunctionIdentity::source(continuation_key),
-            symbol: entry,
-        });
-    let mut encoded = omega_machine_bytes::EncodedMachinePlan::default();
-    encoded
-        .code
-        .functions
-        .insert(omega_machine_bytes::EncodedMachineFunction {
-            symbol: std::sync::Arc::from("program_storage_test_entry"),
-            identity: omega_control_flow::MachineFunctionIdentity::source(continuation_key),
-            byte_offset: 32,
-            byte_count: 8,
-            instructions: psi_arena::HandleSpan::empty(),
-        });
-    let boundary_fingerprint = binding.boundary_contract_fingerprint();
-    bind_emitted_program_storage_entry_native_bridge(
-        binding,
-        selected_provider,
-        "synthetic_physical_entry".into(),
-        &object,
-        &encoded,
-        continuation_key,
-        Some(boundary_fingerprint),
-        "Boot::launch".into(),
-        "launch".into(),
-    )
-    .expect("synthetic emitted bridge should retain exact continuation identity")
 }
 
 #[test]
