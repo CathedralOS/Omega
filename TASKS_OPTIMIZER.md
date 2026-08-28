@@ -1185,11 +1185,16 @@ dependency.
   literal constant fact and an accepted-obligation fact; independent replay
   reconstructs the exact operation, type, literal definition, obligation row,
   substitution, accounting, provenance, and fuel. The active obligation
-  reference disappears while the accepted catalog remains immutable. Candidate
-  v22, optimization-unit identity v10, the named v2 pass, prephysical manifest
-  v15, and projection validator v16 bind the current meaning; ledger v4 already
-  represents the relocations. Runtime policy events, other live proof-bearing
-  identities, and physical check recognition remain open.
+  reference disappears while the accepted catalog remains immutable. A third
+  rule, `live-proof-certified-integer-divide-by-one-elimination.v1`, applies the
+  same proof and custody contract to `x / 1 -> x` for exact, wrapping, and
+  saturating integer division. It requires a direct typed literal-one fact and
+  the exact verifier-accepted obligation; a missing fact declines the rewrite
+  while a mismatched or corrupted fact rejects during independent replay.
+  Candidate v23, optimization-unit identity v10, the named v3 pass, prephysical
+  manifest v16, and projection validator v17 bind the current meaning; ledger
+  v4 already represents the relocations. Runtime policy events, other live
+  proof-bearing identities, and physical check recognition remain open.
 
 - **OPT-INITIAL-PIPELINE — complete for the current verified Psi vocabulary.**
   Define the canonical target-neutral schedule for
@@ -1604,11 +1609,16 @@ dependency.
   anchors, and canonical future flexible uses. It positively classifies only
   the current cleanup-free non-address u64 literal source; every unsupported
   victim gets an exact no-admitted-recovery reason, never an inferred spill.
-  The classification identity and replay grant no strategy, code mutation,
-  fuel movement, storage, frame, emission, or publication authority. The
-  separately validated allocator-availability boundary now
-  supplies that production pressure vertical without misusing reservation
-  overlays: retaining only `rax` on x86-64 or `x0` on AArch64 makes a leaf RHS
+  The classification identity and replay alone grant no strategy or mutation
+  authority. The exact
+  `SelectedActiveResidentImmediateU64BeforeSingleFutureFlexibleUseV1` consumer
+  now retains an active resident's original materialization and fuel, inserts
+  one zero-fuel value-lineage reconstruction before its sole future flexible
+  use, rewrites only that operand, and reaches fresh independently replayed
+  two-view homes. It grants no implicit loop, storage, frame, emission, or
+  publication authority. The separately validated allocator-availability
+  boundary now supplies that production pressure vertical without misusing
+  reservation overlays: retaining only `rax` on x86-64 or `x0` on AArch64 makes a leaf RHS
   literal the deterministic incoming victim on both targets, while fixed views
   outside the flexible allowlist remain exact and legal. The separate add and
   subtract policies consume only matching incoming, single-use, immediately
@@ -1671,6 +1681,19 @@ dependency.
   rematerialization candidate. It records the incoming-versus-active role,
   original instruction/value/provenance/fuel anchors, and future use demands.
   Eligibility does not select, move, duplicate, or charge an instruction.
+
+  `SelectedActiveResidentImmediateU64BeforeSingleFutureFlexibleUseV1` is the
+  first exact rematerialization policy. It consumes a sealed active-resident
+  victim/classification with one local range, exactly one later same-block
+  flexible use, and no later fixed use. The original `MaterializeI64` and its
+  provenance/fuel remain unchanged for the already-executed segment. One fresh
+  VReg and zero-logical-fuel `MaterializeI64` carrying only the source-value
+  lineage are inserted immediately before that sole future use, and only that
+  operand is rewritten. A strict v1 codec and structurally independent
+  validator replay the complete rooted recipe; fresh liveness, range,
+  interference, legality, and homes evidence proves that the admitted two-view
+  pressure point closes. This policy grants no memory spill, frame, loop,
+  emission, or general rematerialization authority.
 
   `SelectedIncomingU12ExactAddImmediateV1` and
   `SelectedIncomingU12ExactSubtractImmediateV1` each close one physical-form
@@ -1926,12 +1949,18 @@ dependency.
   displacement exists; pre-layout and resolved-layout custody now consume the
   symbolic disposition, elide the compare to a zero-byte roster row, and emit a
   validated four-byte CBNZ row with decoded X-register/PC effects and no NZCV
-  dependency. The optimizer still owns no emission, relocation, image, or
-  publication authority. The root build vocabulary is explicit and default-
-  off, and the compiler continues to reject selected native output without
-  installation. Remaining here includes joining this layout to the emission
-  boundary, general redundant move/spill/reload rules, and additional
-  independently validated target combines.
+  dependency. Direct and selected-lowering physical-pipeline routes now
+  complete an owning function-relative realization: they retain homes,
+  selected machine, symbolic fusion, baseline and fused encoding/layout roots,
+  and CBNZ-aware whole-function exit custody. Function-relative manifest/codec
+  v4 and whole-function exit identity v3 independently replay the zero-byte
+  compare row, four-byte shrink, canonical CBNZ bytes/effects, and exact post-
+  allocation selection. The root build vocabulary remains explicit and
+  default-off, and the compiler still rejects selected native output because
+  this carrier grants no emission, relocation, installation, or publication
+  authority. Remaining here includes consuming the completed realization at
+  that later boundary, general redundant move/spill/reload rules, and
+  additional independently validated target combines.
 
 - **OPT-BLOCK-LAYOUT.** Select deterministic function/block layout and
   fallthrough edges from static or admitted profile weights.

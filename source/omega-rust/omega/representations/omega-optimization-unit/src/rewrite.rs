@@ -457,10 +457,10 @@ pub struct DeadScalarNodeRewrite {
     pub scalar_type: ScalarType,
 }
 
-/// The closed exact-integer identities whose verifier-accepted obligation
-/// permits the operation to disappear while its live result is replaced by an
-/// existing operand. Exact operation identity is never reclassified as a
-/// wrapping policy.
+/// The closed integer identities whose verifier-accepted obligation permits
+/// the operation to disappear while its live result is replaced by an
+/// existing operand. Exact, wrapping, and saturating operation identities are
+/// never reclassified across policies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ProofCertifiedScalarIdentityKind {
     ExactIntegerAddZeroLeft,
@@ -470,11 +470,14 @@ pub enum ProofCertifiedScalarIdentityKind {
     ExactIntegerMultiplyOneRight,
     ExactIntegerShiftLeftZeroCount,
     ExactIntegerShiftRightZeroCount,
+    ExactIntegerDivideOneRight,
+    WrappingIntegerDivideOneRight,
+    SaturatingIntegerDivideOneRight,
 }
 
-/// Remove one proof-certified exact integer identity and replace every use of
-/// its live result with the non-identity operand. The removed occurrence and
-/// fuel remain realized at the next co-executed node.
+/// Remove one proof-certified integer identity and replace every use of its
+/// live result with the equivalent existing operand. The removed occurrence
+/// and fuel remain realized at the next co-executed node.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProofCertifiedScalarIdentityRewrite {
     pub location: NodeLocation,
@@ -1792,7 +1795,7 @@ fn encode_candidate(
     patch: &PsiRewritePatch,
 ) -> Vec<u8> {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v22\0");
+    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v23\0");
     bytes.extend_from_slice(&input.bytes());
     bytes.extend_from_slice(&contract.encode());
     match decision_point {
@@ -2045,6 +2048,9 @@ fn encode_candidate(
                 ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyOneRight => 5,
                 ProofCertifiedScalarIdentityKind::ExactIntegerShiftLeftZeroCount => 6,
                 ProofCertifiedScalarIdentityKind::ExactIntegerShiftRightZeroCount => 7,
+                ProofCertifiedScalarIdentityKind::ExactIntegerDivideOneRight => 8,
+                ProofCertifiedScalarIdentityKind::WrappingIntegerDivideOneRight => 9,
+                ProofCertifiedScalarIdentityKind::SaturatingIntegerDivideOneRight => 10,
             });
         }
     }
@@ -2405,5 +2411,67 @@ mod tests {
         )
         .unwrap();
         assert_ne!(candidate.identity(), changed.identity());
+    }
+
+    #[test]
+    fn proof_certified_divide_by_one_candidate_identity_binds_policy_kind() {
+        let machine = MachineId::new(601).unwrap();
+        let block = BlockId::new(602).unwrap();
+        let location = NodeLocation {
+            machine,
+            block,
+            node: 1,
+        };
+        let contract = OptimizationRuleContract::new(
+            OptimizationRuleIdentity::from_canonical_bytes(b"divide-one-rule"),
+            omega_optimization_core::OptimizationPassIdentity::from_canonical_bytes(
+                b"divide-one-pass",
+            ),
+            1,
+            AnalysisSet::default(),
+            AnalysisInvalidationSet::default(),
+            OptimizationSafetyClass::ProofCertified,
+        )
+        .unwrap();
+        let source_operation = OperationId::new(603).unwrap();
+        let source = PsiProvenance::Operation(source_operation);
+        let provenance = vec![ProvenanceRewrite {
+            input: PsiRealizationSite::Node(location),
+            disposition: ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(location)),
+            sources: vec![source],
+            fuel: vec![FuelSettlement {
+                site: source,
+                units: 1,
+            }],
+        }];
+        let identities = [
+            ProofCertifiedScalarIdentityKind::ExactIntegerDivideOneRight,
+            ProofCertifiedScalarIdentityKind::WrappingIntegerDivideOneRight,
+            ProofCertifiedScalarIdentityKind::SaturatingIntegerDivideOneRight,
+        ]
+        .map(|identity| {
+            PsiRewriteCandidate::new_proof_certified_scalar_identity(
+                OptimizationUnitIdentity::from_canonical_bytes(b"divide-one-input"),
+                contract,
+                vec![block],
+                provenance.clone(),
+                ScalarConstantFactIdentity::from_canonical_bytes(b"divide-one-literal"),
+                AcceptedObligationFactIdentity::from_canonical_bytes(b"divide-one-proof"),
+                -1,
+                ProofCertifiedScalarIdentityRewrite {
+                    location,
+                    source_operation,
+                    result: ValueId::new(604).unwrap(),
+                    replacement: ValueId::new(605).unwrap(),
+                    scalar_type: IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+                    identity,
+                },
+            )
+            .unwrap()
+            .identity()
+        });
+        assert_ne!(identities[0], identities[1]);
+        assert_ne!(identities[0], identities[2]);
+        assert_ne!(identities[1], identities[2]);
     }
 }

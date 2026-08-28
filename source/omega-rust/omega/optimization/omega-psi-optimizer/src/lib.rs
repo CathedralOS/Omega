@@ -43,6 +43,7 @@ pub use rules::{
     IntegerBitwiseAndConstantsRule, IntegerBitwiseNotConstantsRule, IntegerBitwiseOrConstantsRule,
     IntegerBitwiseXorConstantsRule, IntegerEqualConstantsRule, IntegerLessOrEqualConstantsRule,
     IntegerLessThanConstantsRule, IntegerWidenConstantsRule, LinearEmptyBlockThreadRule,
+    LiveProofCertifiedIntegerDivideByOneEliminationRule,
     LiveProofCertifiedIntegerIdentityEliminationRule, NonAdjacentBlockMergeRule,
     PhiTranslatedObligationFreeScalarGvnRule, PhiTranslatedProofCertifiedScalarGvnRule,
     ProofCertifiedDeadScalarEliminationRule, RedundantBlockParameterRule,

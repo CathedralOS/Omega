@@ -16,12 +16,14 @@ use crate::{
     OptimizedPostAllocationMachineOptimizationError, OptimizedPostAllocationMachinePipelineError,
     OptimizedPostCopyRegisterHomeCustodyError, OptimizedPostSelectedLoweringHomeCustodyError,
     OptimizedRegisterHomeCustodyError, OptimizedSelectedReanalysisError,
-    OptimizedSelectionPipelineError, StagedFunctionRelativeLayoutOptimizationRealization,
-    StagedOptimizedAarch64CbnzFusion, StagedOptimizedPostAllocationMachinePlan,
-    StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterFixedViewCopies,
-    StagedOptimizedRegisterHomesAfterSelectedLowering,
+    OptimizedSelectionPipelineError, StagedAarch64CbnzFunctionRelativeRealization,
+    StagedFunctionRelativeLayoutOptimizationRealization, StagedOptimizedAarch64CbnzFusion,
+    StagedOptimizedPostAllocationMachinePlan, StagedOptimizedRegisterHomes,
+    StagedOptimizedRegisterHomesAfterFixedViewCopies,
+    StagedSelectedLoweringAarch64CbnzFunctionRelativeRealization,
     StagedSelectedLoweringFunctionRelativeRealization,
     ValidatedFunctionRelativeOptimizationRealizationManifest, run_selected_lowering_optimizations,
+    stage_aarch64_cbnz_function_relative_realization,
     stage_function_relative_layout_optimization_realization, stage_optimized_aarch64_cbnz_fusion,
     stage_optimized_aarch64_cbnz_fusion_after_selected_lowering,
     stage_optimized_allocation_legality, stage_optimized_allocation_legality_for_frameless_leaf,
@@ -32,6 +34,7 @@ use crate::{
     stage_optimized_post_allocation_machine_plan_after_selected_lowering,
     stage_optimized_register_homes, stage_optimized_register_homes_after_fixed_view_copies,
     stage_optimized_register_homes_after_selected_lowering, stage_optimized_selected_reanalysis,
+    stage_selected_lowering_aarch64_cbnz_function_relative_realization,
     stage_selected_lowering_function_relative_realization,
 };
 
@@ -45,14 +48,10 @@ pub enum StagedOptimizedVerifiedPhysicalPipeline {
         machine: StagedOptimizedPostAllocationMachinePlan,
     },
     PostAllocationMachine {
-        homes: StagedOptimizedRegisterHomes,
-        machine: StagedOptimizedPostAllocationMachinePlan,
-        optimization: StagedOptimizedAarch64CbnzFusion,
+        realization: StagedAarch64CbnzFunctionRelativeRealization,
     },
     SelectedLoweringPostAllocationMachine {
-        homes: StagedOptimizedRegisterHomesAfterSelectedLowering,
-        machine: StagedOptimizedPostAllocationMachinePlan,
-        optimization: StagedOptimizedAarch64CbnzFusion,
+        realization: StagedSelectedLoweringAarch64CbnzFunctionRelativeRealization,
     },
     AllocationRecovery {
         homes: StagedOptimizedRegisterHomesAfterFixedViewCopies,
@@ -77,7 +76,8 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
                 .optimized_target()
                 .optimized()
                 .pre_physical_manifest(),
-            Self::PostAllocationMachine { homes, .. } => homes
+            Self::PostAllocationMachine { realization } => realization
+                .homes()
                 .legality_stage()
                 .live_range_stage()
                 .liveness_stage()
@@ -85,7 +85,8 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
                 .optimized_target()
                 .optimized()
                 .pre_physical_manifest(),
-            Self::SelectedLoweringPostAllocationMachine { homes, .. } => homes
+            Self::SelectedLoweringPostAllocationMachine { realization } => realization
+                .homes()
                 .selected_lowering_run()
                 .source_legality_stage()
                 .live_range_stage()
@@ -129,9 +130,11 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
     pub const fn post_allocation_manifest(&self) -> &ValidatedPostAllocationOptimizationManifest {
         match self {
             Self::PsiOnly { homes, .. } => homes.post_allocation_manifest(),
-            Self::PostAllocationMachine { homes, .. } => homes.post_allocation_manifest(),
-            Self::SelectedLoweringPostAllocationMachine { homes, .. } => {
-                homes.post_allocation_manifest()
+            Self::PostAllocationMachine { realization } => {
+                realization.homes().post_allocation_manifest()
+            }
+            Self::SelectedLoweringPostAllocationMachine { realization } => {
+                realization.homes().post_allocation_manifest()
             }
             Self::AllocationRecovery { homes, .. } => homes.post_allocation_manifest(),
             Self::FunctionRelativeLayout { realization } => {
@@ -146,9 +149,9 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
     pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachinePlan {
         match self {
             Self::PsiOnly { machine, .. } => machine,
-            Self::PostAllocationMachine { machine, .. }
-            | Self::SelectedLoweringPostAllocationMachine { machine, .. }
-            | Self::AllocationRecovery { machine, .. } => machine,
+            Self::PostAllocationMachine { realization } => realization.machine(),
+            Self::SelectedLoweringPostAllocationMachine { realization } => realization.machine(),
+            Self::AllocationRecovery { machine, .. } => machine,
             Self::FunctionRelativeLayout { realization } => realization.machine(),
             Self::SelectedLowering { realization } => realization.machine(),
         }
@@ -171,10 +174,11 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
         &self,
     ) -> Option<&ValidatedFunctionRelativeOptimizationRealizationManifest> {
         match self {
-            Self::PsiOnly { .. }
-            | Self::PostAllocationMachine { .. }
-            | Self::SelectedLoweringPostAllocationMachine { .. }
-            | Self::AllocationRecovery { .. } => None,
+            Self::PsiOnly { .. } | Self::AllocationRecovery { .. } => None,
+            Self::PostAllocationMachine { realization } => Some(realization.manifest()),
+            Self::SelectedLoweringPostAllocationMachine { realization } => {
+                Some(realization.manifest())
+            }
             Self::FunctionRelativeLayout { realization } => Some(realization.manifest()),
             Self::SelectedLowering { realization } => Some(realization.manifest()),
         }
@@ -191,9 +195,11 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
                 .optimized()
                 .selections()
                 .identity(),
-            Self::PostAllocationMachine { optimization, .. }
-            | Self::SelectedLoweringPostAllocationMachine { optimization, .. } => {
-                optimization.custody().selections()
+            Self::PostAllocationMachine { realization } => {
+                realization.fusion().custody().selections()
+            }
+            Self::SelectedLoweringPostAllocationMachine { realization } => {
+                realization.fusion().custody().selections()
             }
             Self::AllocationRecovery { homes, .. } => homes
                 .reanalysis_stage()
@@ -232,9 +238,13 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
             | Self::PostAllocationMachine { .. }
             | Self::AllocationRecovery { .. }
             | Self::FunctionRelativeLayout { .. } => None,
-            Self::SelectedLoweringPostAllocationMachine { homes, .. } => {
-                Some(homes.selected_lowering_run().custody().identity())
-            }
+            Self::SelectedLoweringPostAllocationMachine { realization } => Some(
+                realization
+                    .homes()
+                    .selected_lowering_run()
+                    .custody()
+                    .identity(),
+            ),
             Self::SelectedLowering { realization } => Some(
                 realization
                     .homes()
@@ -249,9 +259,9 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
         &self,
     ) -> Option<&StagedOptimizedAarch64CbnzFusion> {
         match self {
-            Self::PostAllocationMachine { optimization, .. }
-            | Self::SelectedLoweringPostAllocationMachine { optimization, .. } => {
-                Some(optimization)
+            Self::PostAllocationMachine { realization } => Some(realization.fusion()),
+            Self::SelectedLoweringPostAllocationMachine { realization } => {
+                Some(realization.fusion())
             }
             Self::PsiOnly { .. }
             | Self::AllocationRecovery { .. }
@@ -389,12 +399,11 @@ pub fn stage_optimized_verified_physical_pipeline_with_provider_executions(
             let optimization = stage_optimized_aarch64_cbnz_fusion(&homes, &machine).map_err(
                 OptimizedVerifiedPhysicalPipelineError::PostAllocationMachineOptimization,
             )?;
+            let realization =
+                stage_aarch64_cbnz_function_relative_realization(homes, machine, optimization)
+                    .map_err(OptimizedVerifiedPhysicalPipelineError::FunctionRelativeRealization)?;
             return Ok(
-                StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine {
-                    homes,
-                    machine,
-                    optimization,
-                },
+                StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization },
             );
         }
         let legality = stage_optimized_allocation_legality_for_frameless_leaf(ranges)
@@ -409,11 +418,15 @@ pub fn stage_optimized_verified_physical_pipeline_with_provider_executions(
             &homes, &machine,
         )
         .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachineOptimization)?;
+        let realization = stage_selected_lowering_aarch64_cbnz_function_relative_realization(
+            homes,
+            machine,
+            optimization,
+        )
+        .map_err(OptimizedVerifiedPhysicalPipelineError::FunctionRelativeRealization)?;
         return Ok(
             StagedOptimizedVerifiedPhysicalPipeline::SelectedLoweringPostAllocationMachine {
-                homes,
-                machine,
-                optimization,
+                realization,
             },
         );
     }

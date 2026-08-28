@@ -64,14 +64,22 @@ pub use function_relative_realization::{
     FunctionRelativeOptimizationRealizationManifestDecodeError,
     FunctionRelativeOptimizationRealizationScope, FunctionRelativeOptimizationRealizationStage,
     FunctionRelativeOptimizationRealizationStatistics, FunctionRelativeOptimizationUnavailableData,
+    StagedAarch64CbnzFunctionRelativeRealization,
+    StagedAarch64CbnzFunctionRelativeRealizationCustodyReceipt,
     StagedFunctionRelativeLayoutOptimizationRealization,
     StagedFunctionRelativeLayoutOptimizationRealizationCustodyReceipt,
+    StagedSelectedLoweringAarch64CbnzFunctionRelativeRealization,
+    StagedSelectedLoweringAarch64CbnzFunctionRelativeRealizationCustodyReceipt,
     StagedSelectedLoweringFunctionRelativeRealization,
     StagedSelectedLoweringFunctionRelativeRealizationCustodyReceipt,
     ValidatedFunctionRelativeOptimizationRealizationManifest,
+    stage_aarch64_cbnz_function_relative_realization,
     stage_function_relative_layout_optimization_realization,
+    stage_selected_lowering_aarch64_cbnz_function_relative_realization,
     stage_selected_lowering_function_relative_realization,
+    validate_aarch64_cbnz_function_relative_realization_custody,
     validate_function_relative_layout_optimization_realization_custody,
+    validate_selected_lowering_aarch64_cbnz_function_relative_realization_custody,
     validate_selected_lowering_function_relative_realization_custody,
 };
 pub use literal_fold_homes::{
@@ -191,8 +199,10 @@ pub use whole_function_exit_contract::{
     TerminalWholeFunctionExitPolicy, TerminalWholeFunctionHardeningPolicy,
     TerminalWholeFunctionReturnEvidence, TerminalWholeFunctionReturnMechanism,
     ValidatedTerminalWholeFunctionExitContract, stage_terminal_whole_function_exit_contract,
+    stage_terminal_whole_function_exit_contract_after_aarch64_cbnz_fusion,
     stage_terminal_whole_function_exit_contract_after_x86_branch_relaxation,
     validate_terminal_whole_function_exit_contract,
+    validate_terminal_whole_function_exit_contract_after_aarch64_cbnz_fusion,
     validate_terminal_whole_function_exit_contract_after_x86_branch_relaxation,
 };
 pub use x86_branch_relaxation::{
@@ -6201,12 +6211,12 @@ mod tests {
                 Err(FunctionRelativeOptimizationRealizationManifestDecodeError::WrongMagic)
             );
             let mut wrong_version = encoded.clone();
-            wrong_version[8..12].copy_from_slice(&4_u32.to_le_bytes());
+            wrong_version[8..12].copy_from_slice(&5_u32.to_le_bytes());
             assert_eq!(
                 FunctionRelativeOptimizationRealizationManifest::decode(&wrong_version),
                 Err(
                     FunctionRelativeOptimizationRealizationManifestDecodeError::UnsupportedVersion(
-                        4
+                        5
                     )
                 )
             );
@@ -6235,7 +6245,8 @@ mod tests {
             let content_offset = 8 + 4 + 32;
             let selected_lowering_completion_status_offset = content_offset + 1 + 2 * 32;
             let x86_branch_relaxation_status_offset =
-                selected_lowering_completion_status_offset + 1 + 32 + 9 * 32;
+                selected_lowering_completion_status_offset + 1 + 32 + 11 * 32;
+            let aarch64_cbnz_fusion_status_offset = x86_branch_relaxation_status_offset + 1;
             let mut unknown_stage = encoded.clone();
             unknown_stage[content_offset] = 9;
             assert_eq!(
@@ -6258,7 +6269,15 @@ mod tests {
                 ),
                 Err(FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownX86BranchRelaxationStatus(9))
             );
-            let target_offset = x86_branch_relaxation_status_offset + 1 + 32;
+            let mut unknown_aarch64_cbnz_fusion = encoded.clone();
+            unknown_aarch64_cbnz_fusion[aarch64_cbnz_fusion_status_offset] = 9;
+            assert_eq!(
+                FunctionRelativeOptimizationRealizationManifest::decode(
+                    &unknown_aarch64_cbnz_fusion
+                ),
+                Err(FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownAarch64CbnzFusionStatus(9))
+            );
+            let target_offset = aarch64_cbnz_fusion_status_offset + 1 + 32;
             let mut unknown_architecture = encoded.clone();
             unknown_architecture[target_offset] = 9;
             assert_eq!(
@@ -6702,23 +6721,68 @@ mod tests {
                 .unwrap(),
         )
         .unwrap();
-        let staged = stage_optimized_verified_physical_pipeline_with_provider_executions(
+        let mut staged = stage_optimized_verified_physical_pipeline_with_provider_executions(
             optimized,
             target,
             &[],
         )
         .unwrap();
-        let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine {
-            homes,
-            machine,
-            optimization,
-        } = &staged
+        let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } =
+            &staged
         else {
             panic!("the exact post-allocation phase must use its symbolic machine route")
         };
+        let homes = realization.homes();
+        let machine = realization.machine();
+        let optimization = realization.fusion();
         assert_eq!(staged.selections(), selections.identity());
         assert_eq!(staged.selected_lowering_completion(), None);
-        assert!(staged.function_relative_manifest().is_none());
+        assert_eq!(
+            staged.function_relative_manifest(),
+            Some(realization.manifest())
+        );
+        assert_eq!(
+            validate_aarch64_cbnz_function_relative_realization_custody(realization).unwrap(),
+            *realization.custody()
+        );
+        let manifest = realization.manifest().record();
+        assert_eq!(
+            manifest.post_allocation_machine_selections,
+            selections.identity()
+        );
+        assert_eq!(
+            manifest.function_relative_layout_selections,
+            OptimizationSelections::default().identity()
+        );
+        assert_eq!(
+            manifest.baseline_pre_layout,
+            realization.baseline_encoding().identity()
+        );
+        assert_eq!(manifest.pre_layout, realization.encoding().identity());
+        assert_eq!(
+            manifest.baseline_resolved_layout,
+            realization.baseline_layout().identity()
+        );
+        assert_eq!(manifest.resolved_layout, realization.layout().identity());
+        assert_eq!(
+            manifest.aarch64_cbnz_fusion,
+            Some(realization.fusion().fusion().receipt().identity())
+        );
+        assert_eq!(manifest.x86_branch_relaxation, None);
+        assert!(matches!(
+            realization.exit_contract().contract().layout_custody,
+            TerminalWholeFunctionExitLayoutCustody::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 { fusion }
+                if fusion == realization.fusion().fusion().receipt().identity()
+        ));
+        assert_eq!(
+            FunctionRelativeOptimizationRealizationManifest::decode(&manifest.encode()),
+            Ok(manifest.clone())
+        );
+        assert!(
+            optimization_pipeline_report(&staged)
+                .function_relative()
+                .is_some()
+        );
         assert_eq!(optimization.fusion().receipt().action_count(), 1);
         assert_eq!(
             validate_optimized_aarch64_cbnz_fusion_custody(homes, machine, optimization).unwrap(),
@@ -6832,6 +6896,21 @@ mod tests {
             &fused_layout,
         )
         .unwrap();
+        assert!(matches!(
+            validate_terminal_whole_function_exit_contract(
+                selected_stage.selected(),
+                machine,
+                physical,
+                &fused_encoding,
+                &fused_layout,
+                realization.exit_contract(),
+            ),
+            Err(TerminalWholeFunctionExitContractError::Layout(
+                OptimizedResolvedSelectedFormLayoutError::PreLayout(
+                    OptimizedSelectedFormEncodingError::ArtifactMismatch
+                )
+            ))
+        ));
 
         let mut corrupt_encoding = fused_encoding.clone();
         let branch_disposition = &mut corrupt_encoding
@@ -6892,6 +6971,39 @@ mod tests {
             ),
             Err(omega_machine_optimizer::TerminalAarch64CbnzFusionError::ArtifactMismatch)
         );
+
+        let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } =
+            &mut staged
+        else {
+            unreachable!()
+        };
+        let original_layout = realization.manifest().record().resolved_layout;
+        realization.manifest_mut().record_mut().resolved_layout =
+            realization.baseline_layout().identity();
+        assert_eq!(
+            validate_aarch64_cbnz_function_relative_realization_custody(realization),
+            Err(FunctionRelativeOptimizationRealizationError::RootMismatch)
+        );
+        realization.manifest_mut().record_mut().resolved_layout = original_layout;
+        let original_custody = realization.exit_contract().contract().layout_custody;
+        realization
+            .exit_contract_mut()
+            .contract_mut()
+            .layout_custody = TerminalWholeFunctionExitLayoutCustody::BaselineNearLayoutV1;
+        assert!(matches!(
+            validate_aarch64_cbnz_function_relative_realization_custody(realization),
+            Err(FunctionRelativeOptimizationRealizationError::ExitContract(
+                TerminalWholeFunctionExitContractError::ArtifactMismatch
+            ))
+        ));
+        realization
+            .exit_contract_mut()
+            .contract_mut()
+            .layout_custody = original_custody;
+        assert_eq!(
+            validate_aarch64_cbnz_function_relative_realization_custody(realization).unwrap(),
+            *realization.custody()
+        );
     }
 
     #[test]
@@ -6918,19 +7030,39 @@ mod tests {
         )
         .unwrap();
         let StagedOptimizedVerifiedPhysicalPipeline::SelectedLoweringPostAllocationMachine {
-            homes,
-            machine,
-            optimization,
+            realization,
         } = &staged
         else {
             panic!("selected lowering must retain custody before post-allocation fusion")
         };
+        let homes = realization.homes();
+        let machine = realization.machine();
+        let optimization = realization.fusion();
         assert_eq!(staged.selections(), selections.identity());
         assert_eq!(
             staged.selected_lowering_completion(),
             Some(homes.selected_lowering_run().custody().identity())
         );
         assert_eq!(optimization.fusion().receipt().action_count(), 1);
+        assert_eq!(
+            staged.function_relative_manifest(),
+            Some(realization.manifest())
+        );
+        assert_eq!(
+            validate_selected_lowering_aarch64_cbnz_function_relative_realization_custody(
+                realization
+            )
+            .unwrap(),
+            *realization.custody()
+        );
+        assert_eq!(
+            realization.manifest().record().selected_lowering_completion,
+            staged.selected_lowering_completion()
+        );
+        assert_eq!(
+            realization.manifest().record().aarch64_cbnz_fusion,
+            Some(optimization.fusion().receipt().identity())
+        );
         assert_eq!(
             validate_optimized_aarch64_cbnz_fusion_after_selected_lowering_custody(
                 homes,
