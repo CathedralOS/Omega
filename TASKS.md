@@ -1048,8 +1048,16 @@ Remaining:
   mints only one lineage. That same installed source root now rejects
   recomposition with a provider-issued extent even when numeric lineage,
   geometry, rights, provenance, mapping era, and address space coincide; both
-  origins and their custody return unchanged. Add source, terminal, artifact,
-  and installation canaries for a finite multi-instance aggregate. The former
+  origins and their custody return unchanged. A finite multi-instance canary
+  now lowers one real source-owned producer schema into one verified Terminal
+  catalog, installs the same artifact as two distinct `InstalledCode`
+  occurrences, and composes their exact installation-derived snapshots across
+  two live eras. Both rows retain the common artifact, Terminal schema,
+  symbolic per-occurrence capacity, and cardinality one while preserving their
+  distinct installed-code and lifecycle identities; omission and same-instance
+  substitution reject. This covers source, Terminal, artifact, and
+  installation identity without fabricating a second target slot or reducing
+  the two rows to an authored total. The former
   `unbounded installation shape` request does not yet name a representable
   threat: every current source projection, Terminal catalog, target slot
   roster, cohort, and lifecycle ceiling is explicitly finite. Specify whether
