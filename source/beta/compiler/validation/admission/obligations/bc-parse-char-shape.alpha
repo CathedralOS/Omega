@@ -22,38 +22,49 @@ parse_char_require_shape:
 
 parse_char_shape_blocks:
         imm r20, 256
-        imm r21, 37528
-        call exact_require_block_pc
+        imm r21, 56
+        imm r22, 0
+        call exact_block_identity_pc
         imm r20, 257
-        imm r21, 37597
-        call exact_require_block_pc
+        imm r21, 56
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 258
-        imm r21, 37729
-        call exact_require_block_pc
+        imm r21, 56
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 259
-        imm r21, 37898
-        call exact_require_block_pc
+        imm r21, 56
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 260
-        imm r21, 37936
-        call exact_require_block_pc
+        imm r21, 56
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 261
-        imm r21, 38068
-        call exact_require_block_pc
+        imm r21, 56
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 262
-        imm r21, 38106
-        call exact_require_block_pc
+        imm r21, 56
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 263
-        imm r21, 38238
-        call exact_require_block_pc
+        imm r21, 56
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 264
-        imm r21, 38276
-        call exact_require_block_pc
+        imm r21, 56
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 265
-        imm r21, 38408
-        call exact_require_block_pc
+        imm r21, 56
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 266
-        imm r21, 38446
-        call exact_require_block_pc
+        imm r21, 56
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 256
         imm r21, 266
         imm r22, 56
@@ -71,148 +82,126 @@ parse_char_require_transitions:
         imm r21, 257
         imm r22, 1
         imm r23, 258
-        imm r24, 37701              ; first byte is backslash
-        call exact_require_transition
+        call exact_transition_identity_pc              ; first byte is backslash
         imm r20, 198
         imm r21, 257
         imm r22, 0
         imm r23, 266
-        imm r24, 37720              ; ordinary/default byte
-        call exact_require_transition
+        call exact_transition_identity_pc              ; ordinary/default byte
         imm r20, 199
         imm r21, 258
         imm r22, 1
         imm r23, 259
-        imm r24, 37870              ; escaped n
-        call exact_require_transition
+        call exact_transition_identity_pc              ; escaped n
         imm r20, 200
         imm r21, 258
         imm r22, 0
         imm r23, 260
-        imm r24, 37889
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 201
         imm r21, 259
         imm r22, 0
         imm r23, 266
-        imm r24, 37927
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 202
         imm r21, 260
         imm r22, 1
         imm r23, 261
-        imm r24, 38040              ; escaped t
-        call exact_require_transition
+        call exact_transition_identity_pc              ; escaped t
         imm r20, 203
         imm r21, 260
         imm r22, 0
         imm r23, 262
-        imm r24, 38059
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 204
         imm r21, 261
         imm r22, 0
         imm r23, 266
-        imm r24, 38097
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 205
         imm r21, 262
         imm r22, 1
         imm r23, 263
-        imm r24, 38210              ; escaped r
-        call exact_require_transition
+        call exact_transition_identity_pc              ; escaped r
         imm r20, 206
         imm r21, 262
         imm r22, 0
         imm r23, 264
-        imm r24, 38229
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 207
         imm r21, 263
         imm r22, 0
         imm r23, 266
-        imm r24, 38267
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 208
         imm r21, 264
         imm r22, 1
         imm r23, 265
-        imm r24, 38380              ; escaped zero
-        call exact_require_transition
+        call exact_transition_identity_pc              ; escaped zero
         imm r20, 209
         imm r21, 264
         imm r22, 0
         imm r23, 266
-        imm r24, 38399              ; unrecognized escape
-        call exact_require_transition
+        call exact_transition_identity_pc              ; unrecognized escape
         imm r20, 210
         imm r21, 265
         imm r22, 0
         imm r23, 266
-        imm r24, 38437
-        call exact_require_transition
+        call exact_transition_identity_pc
+        ret
+
+; Source block/arity/target procedure in r21..r23.
+parse_char_require_call:
+        mov r24, r23
+        imm r23, 0
+        imm r20, 56                    ; parse_char owning procedure identity
+        call summary_require_call_fallthrough_identity
+        ret
+
+; As above, with occurrence/cardinality in r24/r25 for a repeated complete key.
+parse_char_require_nth_call:
+        mov r26, r25
+        mov r25, r24
+        mov r24, r23
+        imm r23, 0
+        imm r20, 56                    ; parse_char owning procedure identity
+        call summary_require_nth_call_fallthrough_identity
         ret
 
 parse_char_require_events:
-        imm r20, 414
         imm r21, 256
-        imm r22, 37560
-        imm r23, 0
-        imm r24, 0
-        imm r25, 1939               ; opening adv
-        imm r26, 37569
-        call summary_require_call_site
-        imm r20, 415
+        imm r22, 0
+        imm r23, 5                     ; opening adv
+        call parse_char_require_call
         imm r21, 256
-        imm r22, 37569
-        imm r23, 0
-        imm r24, 0
-        imm r25, 1609               ; first cbyte
-        imm r26, 37578
-        call summary_require_call_site
-        imm r20, 416
+        imm r22, 0
+        imm r23, 4                     ; first cbyte
+        call parse_char_require_call
         imm r21, 258
-        imm r22, 37729
-        imm r23, 0
-        imm r24, 0
-        imm r25, 1939               ; proven-backslash adv
-        imm r26, 37738
-        call summary_require_call_site
-        imm r20, 417
+        imm r22, 0
+        imm r23, 5                     ; proven-backslash adv
+        call parse_char_require_call
         imm r21, 258
-        imm r22, 37738
-        imm r23, 0
-        imm r24, 0
-        imm r25, 1609               ; escaped cbyte
-        imm r26, 37747
-        call summary_require_call_site
-        imm r20, 418
+        imm r22, 0
+        imm r23, 4                     ; escaped cbyte
+        call parse_char_require_call
         imm r21, 266
-        imm r22, 38446
-        imm r23, 0
+        imm r22, 0
+        imm r23, 5                     ; unchecked tail adv one
         imm r24, 0
-        imm r25, 1939               ; unchecked tail adv one
-        imm r26, 38455
-        call summary_require_call_site
-        imm r20, 419
+        imm r25, 2
+        call parse_char_require_nth_call
         imm r21, 266
-        imm r22, 38455
-        imm r23, 0
-        imm r24, 0
-        imm r25, 1939               ; unchecked tail adv two
-        imm r26, 38464              ; checked second tail continuation
-        call summary_require_call_site
-        imm r20, 420
+        imm r22, 0
+        imm r23, 5                     ; unchecked tail adv two
+        imm r24, 1
+        imm r25, 2
+        call parse_char_require_nth_call
+        imm r20, 56
         imm r21, 266
-        imm r22, 5
-        imm r23, 38502              ; explicit return v
-        call exact_require_event
-        imm r20, 38483
-        imm r21, 38502
-        call exact_require_epilogue
-        imm r20, 38503
-        imm r21, 38522
-        call exact_require_epilogue
+        call exact_require_event_epilogue
+        imm r20, 57                    ; next procedure identifies synthetic ret
+        call exact_require_preentry_epilogue
         ret
 
 parse_char_require_locals:
@@ -220,74 +209,62 @@ parse_char_require_locals:
         imm r21, 256
         imm r22, 2
         imm r23, 0
-        imm r24, 37578              ; first cbyte into v
-        call transfer_require_local
+        call exact_local_identity_pc              ; first cbyte into v
         imm r20, 156
         imm r21, 257
         imm r22, 1
         imm r23, 0
-        imm r24, 37597
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 157
         imm r21, 258
         imm r22, 2
         imm r23, 0
-        imm r24, 37747              ; escaped cbyte into v
-        call transfer_require_local
+        call exact_local_identity_pc              ; escaped cbyte into v
         imm r20, 158
         imm r21, 258
         imm r22, 1
         imm r23, 0
-        imm r24, 37766
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 159
         imm r21, 259
         imm r22, 2
         imm r23, 0
-        imm r24, 37908              ; n -> 10
-        call transfer_require_local
+        call exact_local_identity_pc              ; n -> 10
         imm r20, 160
         imm r21, 260
         imm r22, 1
         imm r23, 0
-        imm r24, 37936
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 161
         imm r21, 261
         imm r22, 2
         imm r23, 0
-        imm r24, 38078              ; t -> 9
-        call transfer_require_local
+        call exact_local_identity_pc              ; t -> 9
         imm r20, 162
         imm r21, 262
         imm r22, 1
         imm r23, 0
-        imm r24, 38106
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 163
         imm r21, 263
         imm r22, 2
         imm r23, 0
-        imm r24, 38248              ; r -> 13
-        call transfer_require_local
+        call exact_local_identity_pc              ; r -> 13
         imm r20, 164
         imm r21, 264
         imm r22, 1
         imm r23, 0
-        imm r24, 38276
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 165
         imm r21, 265
         imm r22, 2
         imm r23, 0
-        imm r24, 38418              ; zero escape -> 0
-        call transfer_require_local
+        call exact_local_identity_pc              ; zero escape -> 0
         imm r20, 166
         imm r21, 266
         imm r22, 1
         imm r23, 0
-        imm r24, 38464              ; returned v
-        call transfer_require_local
+        call exact_local_identity_pc              ; returned v
         ret
 
 parse_char_require_primitives:
@@ -295,109 +272,90 @@ parse_char_require_primitives:
         imm r21, 257
         imm r22, 3
         imm r23, 10
-        imm r24, 37642              ; v==backslash
-        call transfer_require_primitive
+        call exact_primitive_identity_pc              ; v==backslash
         imm r20, 609
         imm r21, 257
         imm r22, 1
         imm r23, 92
-        imm r24, 37632
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 610
         imm r21, 258
         imm r22, 3
         imm r23, 10
-        imm r24, 37811              ; v=='n'
-        call transfer_require_primitive
+        call exact_primitive_identity_pc              ; v=='n'
         imm r20, 611
         imm r21, 258
         imm r22, 1
         imm r23, 110
-        imm r24, 37801
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 612
         imm r21, 259
         imm r22, 1
         imm r23, 10
-        imm r24, 37898
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 613
         imm r21, 260
         imm r22, 3
         imm r23, 10
-        imm r24, 37981              ; v=='t'
-        call transfer_require_primitive
+        call exact_primitive_identity_pc              ; v=='t'
         imm r20, 614
         imm r21, 260
         imm r22, 1
         imm r23, 116
-        imm r24, 37971
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 615
         imm r21, 261
         imm r22, 1
         imm r23, 9
-        imm r24, 38068
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 616
         imm r21, 262
         imm r22, 3
         imm r23, 10
-        imm r24, 38151              ; v=='r'
-        call transfer_require_primitive
+        call exact_primitive_identity_pc              ; v=='r'
         imm r20, 617
         imm r21, 262
         imm r22, 1
         imm r23, 114
-        imm r24, 38141
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 618
         imm r21, 263
         imm r22, 1
         imm r23, 13
-        imm r24, 38238
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 619
         imm r21, 264
         imm r22, 3
         imm r23, 10
-        imm r24, 38321              ; v=='0'
-        call transfer_require_primitive
+        call exact_primitive_identity_pc              ; v=='0'
         imm r20, 620
         imm r21, 264
         imm r22, 1
         imm r23, 48
-        imm r24, 38311
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 621
         imm r21, 265
         imm r22, 1
         imm r23, 0
-        imm r24, 38408
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         ret
 
 parse_char_require_pushes:
         imm r20, 178
         imm r21, 257
-        imm r23, 37616
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 179
         imm r21, 258
-        imm r23, 37785
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 180
         imm r21, 260
-        imm r23, 37955
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 181
         imm r21, 262
-        imm r23, 38125
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 182
         imm r21, 264
-        imm r23, 38295
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         ret
 
 parse_char_require_censuses:
@@ -423,8 +381,10 @@ parse_char_require_censuses:
         imm r28, 389
         imm r29, 389                 ; exact empty store-address interval
         call summary_require_expr_census
-        imm r20, 37528
-        imm r21, 38523
+        imm r20, 56                    ; parse_char procedure identity
+        call exact_proc_entry_r20
+        imm r21, 57                    ; gen_term procedure identity / end
+        call exact_proc_entry_r21
         imm r22, 6                   ; four adv plus two cbyte calls
         imm r23, 2                   ; parse_char explicit and synthetic return
         imm r24, 12                  ; prologue/local/binary stores

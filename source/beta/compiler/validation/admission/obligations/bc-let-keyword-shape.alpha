@@ -37,31 +37,38 @@ let_keyword_shape_is_let_frame:
 
 let_keyword_shape_blocks:
         imm r20, 47
-        imm r21, 5634
-        call exact_require_block_pc
+        imm r21, 13
+        imm r22, 0
+        call exact_block_identity_pc
         imm r20, 47
         imm r21, 47
         imm r22, 13
         call exact_require_proc_blocks
 
         imm r20, 48
-        imm r21, 5846
-        call exact_require_block_pc
+        imm r21, 14
+        imm r22, 0
+        call exact_block_identity_pc
         imm r20, 49
-        imm r21, 5865
-        call exact_require_block_pc
+        imm r21, 14
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 50
-        imm r21, 6012
-        call exact_require_block_pc
+        imm r21, 14
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 51
-        imm r21, 6197
-        call exact_require_block_pc
+        imm r21, 14
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 52
-        imm r21, 6382
-        call exact_require_block_pc
+        imm r21, 14
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 53
-        imm r21, 6567
-        call exact_require_block_pc
+        imm r21, 14
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 48
         imm r21, 53
         imm r22, 14
@@ -77,109 +84,69 @@ let_keyword_require_transitions:
         imm r21, 49
         imm r22, 1
         imm r23, 50
-        imm r24, 5963               ; checked is_let length guard
-        call exact_require_transition
+        call exact_transition_identity_pc ; checked is_let length guard
         imm r20, 37
         imm r21, 50
         imm r22, 1
         imm r23, 51
-        imm r24, 6148
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 38
         imm r21, 51
         imm r22, 1
         imm r23, 52
-        imm r24, 6333
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 39
         imm r21, 52
         imm r22, 1
         imm r23, 53
-        imm r24, 6518
-        call exact_require_transition
+        call exact_transition_identity_pc
+        ret
+
+; Source block/arity/target procedure in r21..r23.
+let_keyword_require_call:
+        mov r24, r23
+        imm r23, 0
+        imm r20, 14                    ; is_let owning procedure identity
+        call summary_require_call_fallthrough_identity
         ret
 
 let_keyword_require_events:
-        imm r20, 37
+        imm r20, 13
         imm r21, 47
-        imm r22, 5
-        imm r23, 5825
-        call exact_require_event
-        imm r20, 5806
-        imm r21, 5825
-        call exact_require_epilogue
-        imm r20, 5826
-        imm r21, 5845
-        call exact_require_epilogue
+        call exact_require_event_epilogue
+        imm r20, 14                    ; next procedure identifies synthetic ret
+        call exact_require_preentry_epilogue
 
-        imm r20, 39
         imm r21, 50
-        imm r22, 6054
-        imm r23, 1
-        imm r24, 0
-        imm r25, 5634
-        imm r26, 6063               ; checked let[0] continuation
-        call summary_require_call_site
-        imm r20, 41
+        imm r22, 1
+        imm r23, 13                    ; id_char procedure identity
+        call let_keyword_require_call
         imm r21, 51
-        imm r22, 6239
-        imm r23, 1
-        imm r24, 0
-        imm r25, 5634
-        imm r26, 6248               ; checked let[1] continuation
-        call summary_require_call_site
-        imm r20, 43
+        imm r22, 1
+        imm r23, 13                    ; id_char procedure identity
+        call let_keyword_require_call
         imm r21, 52
-        imm r22, 6424
-        imm r23, 1
-        imm r24, 0
-        imm r25, 5634
-        imm r26, 6433               ; checked let[2] continuation
-        call summary_require_call_site
+        imm r22, 1
+        imm r23, 13                    ; id_char procedure identity
+        call let_keyword_require_call
 
-        imm r20, 38
+        imm r20, 14
         imm r21, 49
-        imm r22, 5
-        imm r23, 6011
-        call exact_require_event
-        imm r20, 40
+        call exact_require_event_epilogue
+        imm r20, 14
         imm r21, 50
-        imm r22, 5
-        imm r23, 6196
-        call exact_require_event
-        imm r20, 42
+        call exact_require_event_epilogue
+        imm r20, 14
         imm r21, 51
-        imm r22, 5
-        imm r23, 6381
-        call exact_require_event
-        imm r20, 44
+        call exact_require_event_epilogue
+        imm r20, 14
         imm r21, 52
-        imm r22, 5
-        imm r23, 6566
-        call exact_require_event
-        imm r20, 45
+        call exact_require_event_epilogue
+        imm r20, 14
         imm r21, 53
-        imm r22, 5
-        imm r23, 6596
-        call exact_require_event
-        imm r20, 5992
-        imm r21, 6011
-        call exact_require_epilogue
-        imm r20, 6177
-        imm r21, 6196
-        call exact_require_epilogue
-        imm r20, 6362
-        imm r21, 6381
-        call exact_require_epilogue
-        imm r20, 6547
-        imm r21, 6566
-        call exact_require_epilogue
-        imm r20, 6577
-        imm r21, 6596
-        call exact_require_epilogue
-        imm r20, 6597
-        imm r21, 6616
-        call exact_require_epilogue
+        call exact_require_event_epilogue
+        imm r20, 15                    ; next procedure identifies synthetic ret
+        call exact_require_preentry_epilogue
         ret
 
 let_keyword_require_data:
@@ -188,192 +155,173 @@ let_keyword_require_data:
         imm r21, 47
         imm r22, 1
         imm r23, 0
-        imm r24, 5762
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 21
         imm r21, 47
         imm r22, 1
         imm r23, 1
-        imm r24, 5803
-        call transfer_require_memory
+        call exact_memory_identity_pc
+        mov r39, r0                    ; byte[SRC+IDOFF+k]
+        imm r20, 98                    ; final address addition
+        imm r21, 47
+        imm r22, 2
+        imm r23, 3
+        call exact_primitive_identity_pc
+        mov r38, r0
+        imm r20, 98
+        call exact_expr_primitive_extent
+        jeq r0, r38, let_keyword_memory_start_rejoined
+        jmp reject
+let_keyword_memory_start_rejoined:
+        jeq r1, r39, let_keyword_memory_rejoined
+        jmp reject
+let_keyword_memory_rejoined:
         imm r20, 22
         imm r21, 47
-        imm r22, 1
-        imm r23, 8
-        imm r24, 5721
-        call transfer_require_memory
+        imm r25, 97
+        imm r26, 2097120             ; checked id_char IDOFF
+        call exact_memory_load_pc
         imm r20, 23
         imm r21, 49
-        imm r22, 1
-        imm r23, 8
-        imm r24, 5875
-        call transfer_require_memory
+        imm r25, 99
+        imm r26, 2097112             ; checked is_let IDLEN
+        call exact_memory_load_pc
 
         imm r20, 95
         imm r21, 47
         imm r22, 1
         imm r23, 2097152             ; SRC base
-        imm r24, 5685
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 96
         imm r21, 47
         imm r22, 2
         imm r23, 3                   ; base+IDOFF
-        imm r24, 5724
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 97
         imm r21, 47
         imm r22, 1
         imm r23, 2097120             ; checked id_char IDOFF
-        imm r24, 5711
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 98
         imm r21, 47
         imm r22, 2
         imm r23, 3                   ; +k
-        imm r24, 5781
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
 
         ; is_let length and byte comparisons, including every return literal.
         imm r20, 99
         imm r21, 49
         imm r22, 1
         imm r23, 2097112             ; checked is_let IDLEN
-        imm r24, 5865
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 100
         imm r21, 49
         imm r22, 3
         imm r23, 10
-        imm r24, 5904
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 101
         imm r21, 49
         imm r22, 1
         imm r23, 3
-        imm r24, 5894
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 102
         imm r21, 49
         imm r22, 1
         imm r23, 0
-        imm r24, 5982
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 103
         imm r21, 50
         imm r22, 1
         imm r23, 0                   ; checked let index zero
-        imm r24, 6012
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 104
         imm r21, 50
         imm r22, 3
         imm r23, 10
-        imm r24, 6089
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 105
         imm r21, 50
         imm r22, 1
         imm r23, 108                 ; 'l'
-        imm r24, 6079
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 106
         imm r21, 50
         imm r22, 1
         imm r23, 0
-        imm r24, 6167
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 107
         imm r21, 51
         imm r22, 1
         imm r23, 1                   ; checked let index one
-        imm r24, 6197
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 108
         imm r21, 51
         imm r22, 3
         imm r23, 10
-        imm r24, 6274
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 109
         imm r21, 51
         imm r22, 1
         imm r23, 101                 ; 'e'
-        imm r24, 6264
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 110
         imm r21, 51
         imm r22, 1
         imm r23, 0
-        imm r24, 6352
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 111
         imm r21, 52
         imm r22, 1
         imm r23, 2                   ; checked let index two
-        imm r24, 6382
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 112
         imm r21, 52
         imm r22, 3
         imm r23, 10
-        imm r24, 6459
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 113
         imm r21, 52
         imm r22, 1
         imm r23, 116                 ; 't'
-        imm r24, 6449
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 114
         imm r21, 52
         imm r22, 1
         imm r23, 0
-        imm r24, 6537
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 115
         imm r21, 53
         imm r22, 1
         imm r23, 1
-        imm r24, 6567
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
 
         imm r20, 27
         imm r21, 47
-        imm r23, 5695
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 28
         imm r21, 47
-        imm r23, 5746
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 29
         imm r21, 49
-        imm r23, 5878
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 30
         imm r21, 50
-        imm r23, 6063
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 31
         imm r21, 51
-        imm r23, 6248
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 32
         imm r21, 52
-        imm r23, 6433
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 242
         imm r21, 50
-        imm r23, 6022               ; checked let[0] argument
-        call exact_require_argument_push
+        call exact_require_argument_push_identity               ; checked let[0] argument
         imm r20, 243
         imm r21, 51
-        imm r23, 6207               ; checked let[1] argument
-        call exact_require_argument_push
+        call exact_require_argument_push_identity               ; checked let[1] argument
         imm r20, 244
         imm r21, 52
-        imm r23, 6392               ; checked let[2] argument
-        call exact_require_argument_push
+        call exact_require_argument_push_identity               ; checked let[2] argument
         ret
 
 let_keyword_require_censuses:
@@ -410,13 +358,17 @@ let_keyword_require_censuses:
         imm r28, 0
         imm r29, 0
         call summary_require_expr_census
-        imm r20, 5634
-        imm r21, 5846
+        imm r20, 13                    ; id_char procedure identity
+        call exact_proc_entry_r20
+        imm r21, 14                    ; is_let procedure identity / end
+        call exact_proc_entry_r21
         imm r22, 0
         imm r23, 2
         call skip_scan_call_region
-        imm r20, 5846
-        imm r21, 6617
+        imm r20, 14                    ; is_let procedure identity
+        call exact_proc_entry_r20
+        imm r21, 15                    ; is_return procedure identity / end
+        call exact_proc_entry_r21
         imm r22, 3
         imm r23, 6
         call skip_scan_call_region
