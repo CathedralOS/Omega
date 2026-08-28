@@ -498,7 +498,7 @@ conclusion nor a case-membership fact; structural return rebases the complete
 implication to the caller result. One optional selected-evidence
 binding may now retain the exact guarded case, row position, obligation, public
 selector, atomic proposition, callee term/interface, distinct caller-local term,
-and result-root validity intersection. Format 32 / vocabulary 34 encode those
+and result-root validity intersection. Format 33 / vocabulary 35 encode those
 coordinates. Validation requires the exact named callee row and producer
 provenance and rejects identity/interface/dependency drift, duplicate output,
 or unconditional/projection reuse. Omission remains fact-only, and the selected
@@ -567,7 +567,23 @@ specialization fingerprint, which includes every concrete type, `const`,
 static-machine, and closed conformance selection. The proof row therefore
 cannot alias another application that happens to retain the same post-
 specialization callable shape. The proof row adds no operation or fuel beyond
-that ordinary call. Outcome
+that ordinary call.
+
+For the first attached static trait-requirement proof call, the public target
+is the requirement's normalized callable identity rather than the concrete machine.
+A separate private dispatch row retains the caller-owned closed-conformance
+application, exact declaring trait/requirement/realization row, and emitted
+Unit callee. The selected output has no satisfier callee-term or forwarding
+coordinate: its requirement proposition and public selector authorize one
+fresh caller-local opaque term. Representation validation rejoins the public
+identity to the canonical row, the row to the owner-scoped application, and
+the private realization to the ordinary `CallUnit`; it rejects missing
+dispatch, identity or fingerprint drift, private forwarding/provenance leakage,
+and reuse of an input or prior output term. Codec format 33 / vocabulary 35
+preserve this split. Erasing the proof rows leaves runtime parameter/result
+shape, storage, operations, and fixed fuel unchanged.
+
+Outcome
 guards expose selectors only in applicable arms.
 A selected generic conformance is already closed before Terminal Psi: its
 identity retains the declared package-scoped name, complete normalized
@@ -1774,7 +1790,7 @@ common-field leaf equalities in declaration order followed by one
 source-ordered disjunction whose arms contain matching membership for both
 roots and the selected case's supported payload-leaf equalities. Inequality is
 that complete equality proposition implying falsehood. Whole-root Unit calls
-independently rebase both operands, while codec format 32 / vocabulary 34,
+independently rebase both operands, while codec format 33 / vocabulary 35,
 verifier, fixed-fuel, interpreter, and installation format 40 preserve and
 replay the exact common-field, case, and payload-field identities. Nested or
 projected mixed values, recursive cycles, address and erased payload equality,

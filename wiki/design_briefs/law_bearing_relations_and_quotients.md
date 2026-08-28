@@ -736,6 +736,23 @@ lifetimes, subject, trait application, and normalized row map. Expected
 subject/trait shape validates this closed selection but does not infer its
 non-lifetime arguments; visibility and ambient uniqueness never participate.
 
+The first executable static requirement-call carrier is intentionally smaller
+than that general model. An attached caller's explicit proof-static binder may
+be specialized to one concrete named conformance whose direct requirement and realization are
+non-generic one-state Unit callables. The requirement owns exactly one
+subjectless named input and one subjectless unconditional named output.
+Specialization retains the exact closed application and row before rewriting
+the executable target. Checked call composition imports only requirement-owned
+facts, and proof-output selection uses the requirement's proposition,
+interface, lane, and public selector. The caller receives a fresh opaque term;
+the satisfier's local alias, appended strengthening, forwarded term, and
+producer provenance remain private. Terminal retains the normalized public
+requirement separately from the owner-scoped application and concrete runtime
+callee, and verification rejoins all three without adding evidence arguments,
+storage, operations, or fuel. Free callers, defaults, inherited requirement
+rows, generic public surfaces, subject-bearing or wider named lanes, direct
+conformance-name calls, scalar results, and dynamic dispatch remain closed.
+
 Proof-only evaluation, when a transparent body is actually
 needed, uses the ordinary gated build-time evaluator: semantic eligibility
 requires the complete checked invocation contract and ordinary termination.

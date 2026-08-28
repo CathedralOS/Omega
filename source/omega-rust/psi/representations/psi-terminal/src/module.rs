@@ -27,7 +27,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        34
+        35
     }
 }
 
@@ -174,6 +174,9 @@ pub struct ClosedConformanceParameterBinding {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ClosedConformanceRow {
     pub declaring_trait_identity: String,
+    /// Canonical normalized overload identity of the public requirement.
+    pub public_requirement_identity: String,
+    /// Declaration path retained separately for exact row-map replay.
     pub requirement_identity: String,
     pub realization_identity: String,
 }
@@ -217,6 +220,7 @@ pub fn closed_conformance_application_fingerprint(
     bytes.extend((application.rows.len() as u64).to_le_bytes());
     for row in &application.rows {
         push(&mut bytes, &row.declaring_trait_identity);
+        push(&mut bytes, &row.public_requirement_identity);
         push(&mut bytes, &row.requirement_identity);
         push(&mut bytes, &row.realization_identity);
     }
@@ -687,6 +691,11 @@ pub struct ProofOutputCall {
     pub ordinal: u32,
     /// Canonical checked callable identity, never a diagnostic display path.
     pub target_machine_identity: String,
+    /// Exact private realization selected for a static trait-requirement call.
+    /// The public target above remains the requirement callable identity; this
+    /// row binds it to one closed conformance application and its emitted
+    /// runtime realization without exposing the satisfier's evidence term.
+    pub static_requirement_dispatch: Option<StaticRequirementDispatch>,
     /// Declared execution shape, independent of the operation link so a
     /// missing or spurious link is verifier-visible. `None` is erased proof
     /// construction; `Unit` and `Scalar` each require one ordinary call.
@@ -697,6 +706,21 @@ pub struct ProofOutputCall {
     pub evidence_arguments: Vec<ProofOutputEvidenceArgument>,
     /// Complete canonical proof-output set, ordered by callee lane.
     pub outputs: Vec<ProofOutput>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StaticRequirementDispatch {
+    /// Exact application owned by `ProofOutputCall::caller`.
+    pub conformance_application_fingerprint: u64,
+    /// Canonical public requirement overload exposed to the caller. This is
+    /// deliberately distinct from the selected row's declaration path.
+    pub public_requirement_identity: String,
+    /// Exact selected row within that closed application.
+    pub declaring_trait_identity: String,
+    pub requirement_identity: String,
+    pub realization_identity: String,
+    /// Artifact-local machine emitted for the selected realization.
+    pub realization: MachineId,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

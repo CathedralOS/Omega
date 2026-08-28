@@ -731,9 +731,25 @@ Current ownership is:
   lane cardinality/order, normalized proposition, and evidence interface stay
   exact; outgoing selectors are pinned, with authored strengthening appended
   after the inherited prefix. The inherited machine-state facts point to the
-  satisfier's exact checked terms and lane positions. Generic substitution,
-  defaults, requirement calls, dispatch, Terminal publication, and package
-  exposure remain conservative fences. A
+  satisfier's exact checked terms and lane positions. The first static
+  requirement-call carrier is deliberately narrower than general dispatch:
+  specialization of an attached caller's explicit proof-static conformance
+  binder retains one
+  call-local closed application and its exact public-requirement/private-
+  realization row. The admitted requirement and realization are concrete,
+  non-generic, one-state Unit callables, and the requirement owns one
+  subjectless named input plus one subjectless unconditional named output.
+  Checked contract-call facts and proof-output terms are sourced from the
+  requirement signature, not the satisfier. The ordinary call still targets
+  the concrete realization, while a captured output mints a distinct
+  caller-local requirement witness even when the satisfier forwards a private
+  input. Concrete strengthening stays visible only to direct concrete calls.
+  Generic substitution on the public trait/requirement/satisfier surface,
+  inherited rows, defaults, scalar results, subject-bearing or wider public
+  lanes, direct named-conformance calls, and dynamic dispatch remain
+  conservative fences. Package review already owns the declaration-level lane
+  compatibility surface; this private call-site carrier adds no package
+  schema. A
   proof-static `term.member` binder argument resolves in its named-contract
   scope to the exact checked evidence-term handle and one unambiguous direct or
   inherited requirement row. The row retains the declaring trait's normalized
