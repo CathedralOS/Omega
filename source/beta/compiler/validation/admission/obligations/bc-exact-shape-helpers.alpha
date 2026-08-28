@@ -473,6 +473,39 @@ exact_require_block_pc:
         jeq r2, r21, exact_shape_ok
         jmp reject
 
+; Canonical source-row identity to checked artifact-PC resolvers. The caller
+; supplies a source-owned row and every non-coordinate identity field; the
+; untrusted witness contributes only the PC after the independently rebuilt
+; tables agree on that identity. Each resolver rejects an out-of-range row and
+; clobbers only r0..r5.
+
+; Block row/procedure/kind in r20..r22; return artifact PC in r0.
+exact_block_identity_pc:
+        mov r5, r20
+        imm r1, 524320                 ; independently scanned block count
+        load r1, r1
+        jlt r5, r1, exact_block_identity_proc
+        jmp reject
+exact_block_identity_proc:
+        imm r1, 8
+        mul r5, r1
+        imm r1, 3145728
+        add r1, r5
+        load r2, r1
+        jeq r2, r21, exact_block_identity_kind
+        jmp reject
+exact_block_identity_kind:
+        imm r1, 3178496
+        add r1, r5
+        load r2, r1
+        jeq r2, r22, exact_block_identity_load
+        jmp reject
+exact_block_identity_load:
+        imm r1, 3235840
+        add r1, r5
+        load r0, r1
+        ret
+
 ; Resolve independently scanned source procedure ID r0 to its unique entry-block
 ; artifact PC. The untrusted witness supplies block locations, but it cannot
 ; select this identity: source procedure ownership and entry kind are checked in
@@ -584,6 +617,40 @@ exact_transition_pc:
         jeq r2, r24, exact_shape_ok
         jmp reject
 
+; Transition row/source-block/guarded/target-block in r20..r23; return the
+; checked control-instruction PC in r0.
+exact_transition_identity_pc:
+        mov r5, r20
+        imm r1, 524328                 ; independently scanned transition count
+        load r1, r1
+        jlt r5, r1, exact_transition_identity_source
+        jmp reject
+exact_transition_identity_source:
+        imm r1, 8
+        mul r5, r1
+        imm r1, 3215360
+        add r1, r5
+        load r2, r1
+        jeq r2, r21, exact_transition_identity_guard
+        jmp reject
+exact_transition_identity_guard:
+        imm r1, 3227648
+        add r1, r5
+        load r2, r1
+        jeq r2, r22, exact_transition_identity_target
+        jmp reject
+exact_transition_identity_target:
+        imm r1, 3231744
+        add r1, r5
+        load r2, r1
+        jeq r2, r23, exact_transition_identity_load
+        jmp reject
+exact_transition_identity_load:
+        imm r1, 3239936
+        add r1, r5
+        load r0, r1
+        ret
+
 ; Event row/block/kind/pc in r20..r23.
 exact_require_event:
         mov r25, r20
@@ -606,6 +673,59 @@ exact_event_pc:
         load r2, r1
         jeq r2, r23, exact_shape_ok
         jmp reject
+
+; Event row/source-block/kind in r20..r22; return artifact PC in r0.
+exact_event_identity_pc:
+        mov r5, r20
+        imm r1, 524456                 ; independently scanned event count
+        load r1, r1
+        jlt r5, r1, exact_event_identity_block
+        jmp reject
+exact_event_identity_block:
+        imm r1, 8
+        mul r5, r1
+        imm r1, 7077888
+        add r1, r5
+        load r2, r1
+        jeq r2, r21, exact_event_identity_kind
+        jmp reject
+exact_event_identity_kind:
+        imm r1, 7086080
+        add r1, r5
+        load r2, r1
+        jeq r2, r22, exact_event_identity_load
+        jmp reject
+exact_event_identity_load:
+        imm r1, 7135232
+        add r1, r5
+        load r0, r1
+        ret
+
+; A source return event identifies the return instruction. Reconstruct its
+; canonical epilogue start relative to that event instead of pinning either PC.
+; Inputs are event row/block/kind in r20..r22.
+exact_require_event_epilogue:
+        call exact_event_identity_pc
+        mov r21, r0
+        mov r20, r0
+        imm r1, 19
+        sub r20, r1
+        call exact_require_epilogue
+        ret
+
+; The next source procedure identity in r20 identifies the byte after a
+; synthetic return. Reconstruct that return and its epilogue relatively.
+exact_require_preentry_epilogue:
+        mov r0, r20
+        call exact_proc_entry_pc
+        mov r21, r0
+        imm r1, 1
+        sub r21, r1
+        mov r20, r21
+        imm r1, 19
+        sub r20, r1
+        call exact_require_epilogue
+        ret
 
 ; Exact 19-byte canonical epilogue at [r20,r21], with r21=r20+19.
 exact_require_epilogue:
@@ -1016,6 +1136,46 @@ summary_require_call_site:
         call exact_require_call
         ret
 
+; Rejoin an ordinary source call without accepting artifact coordinates from
+; the semantic consumer. Inputs are event row/block/arity/ambient/target-proc
+; in r20..r24 and continuation transition row/source/guard/target in r25..r28.
+; Event kind one and the target procedure entry are part of this fixed call
+; identity; the checked event/transition tables supply call and continuation
+; PCs only after all source identities match.
+summary_require_call_identity:
+        mov r30, r20
+        mov r31, r21
+        mov r33, r22
+        mov r34, r23
+        mov r35, r24
+        mov r37, r25
+        mov r38, r26
+        mov r39, r27
+        mov r40, r28
+        mov r20, r30
+        mov r21, r31
+        imm r22, 1
+        call exact_event_identity_pc
+        mov r32, r0
+        mov r20, r37
+        mov r21, r38
+        mov r22, r39
+        mov r23, r40
+        call exact_transition_identity_pc
+        mov r36, r0
+        mov r0, r35
+        call exact_proc_entry_pc
+        mov r35, r0
+        mov r20, r30
+        mov r21, r31
+        mov r22, r32
+        mov r23, r33
+        mov r24, r34
+        mov r25, r35
+        mov r26, r36
+        call summary_require_call_site
+        ret
+
 ; Canonical selected-row decoder family. These helpers rejoin values already
 ; reconstructed into the exact local, memory, primitive, and push tables; they
 ; do not accept a producer-selected subject or construct another witness.
@@ -1054,6 +1214,40 @@ transfer_require_local:
         mov r21, r25
         mov r22, r29
         call transfer_require_cell
+        ret
+
+; Local row/block/kind/slot in r20..r23; return its checked artifact PC in r0.
+; The row is bounded by the independently reconstructed local-access count.
+exact_local_identity_pc:
+        mov r5, r20
+        imm r1, 524608
+        load r1, r1
+        jlt r5, r1, exact_local_identity_block
+        jmp reject
+exact_local_identity_block:
+        imm r1, 8
+        mul r5, r1
+        imm r1, 7168000
+        add r1, r5
+        load r2, r1
+        jeq r2, r21, exact_local_identity_kind
+        jmp reject
+exact_local_identity_kind:
+        imm r1, 7176192
+        add r1, r5
+        load r2, r1
+        jeq r2, r22, exact_local_identity_slot
+        jmp reject
+exact_local_identity_slot:
+        imm r1, 7184384
+        add r1, r5
+        load r2, r1
+        jeq r2, r23, exact_local_identity_load
+        jmp reject
+exact_local_identity_load:
+        imm r1, 7192576
+        add r1, r5
+        load r0, r1
         ret
 
 ; memory row/block/kind/width/pc in r20..r24.
@@ -1106,6 +1300,40 @@ transfer_require_primitive:
         call transfer_require_cell
         ret
 
+; Primitive row/block/kind/value-or-opcode in r20..r23; return its checked
+; artifact PC in r0.
+exact_primitive_identity_pc:
+        mov r5, r20
+        imm r1, 524696
+        load r1, r1
+        jlt r5, r1, exact_primitive_identity_block
+        jmp reject
+exact_primitive_identity_block:
+        imm r1, 8
+        mul r5, r1
+        imm r1, 8388608
+        add r1, r5
+        load r2, r1
+        jeq r2, r21, exact_primitive_identity_kind
+        jmp reject
+exact_primitive_identity_kind:
+        imm r1, 8396800
+        add r1, r5
+        load r2, r1
+        jeq r2, r22, exact_primitive_identity_value
+        jmp reject
+exact_primitive_identity_value:
+        imm r1, 8404992
+        add r1, r5
+        load r2, r1
+        jeq r2, r23, exact_primitive_identity_load
+        jmp reject
+exact_primitive_identity_load:
+        imm r1, 8413184
+        add r1, r5
+        load r0, r1
+        ret
+
 ; push row/block/kind/pc in r20..r23.
 transfer_require_push:
         mov r25, r20
@@ -1124,6 +1352,33 @@ transfer_require_push:
         mov r21, r25
         mov r22, r28
         call transfer_require_cell
+        ret
+
+; Push row/source-block/kind in r20..r22; return its checked artifact PC in r0.
+exact_push_identity_pc:
+        mov r5, r20
+        imm r1, 524752
+        load r1, r1
+        jlt r5, r1, exact_push_identity_block
+        jmp reject
+exact_push_identity_block:
+        imm r1, 8
+        mul r5, r1
+        imm r1, 9437184
+        add r1, r5
+        load r2, r1
+        jeq r2, r21, exact_push_identity_kind
+        jmp reject
+exact_push_identity_kind:
+        imm r1, 9445376
+        add r1, r5
+        load r2, r1
+        jeq r2, r22, exact_push_identity_load
+        jmp reject
+exact_push_identity_load:
+        imm r1, 9453568
+        add r1, r5
+        load r0, r1
         ret
 
 exact_require_cell:
