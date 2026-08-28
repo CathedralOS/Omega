@@ -929,7 +929,7 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
     let main_path = write_program(
         "program-storage-entry",
         include_str!(
-            "../../../../../../tests/canaries/pass/build/uefi_program_entry_storage_roots/main.omg"
+            "../../../../../../tests/omega/pass/build/uefi_program_entry_storage_roots/main.omg"
         ),
     );
     let checked = compile_to_checked(&main_path, None)
@@ -1866,7 +1866,7 @@ fn receiver_free_whole_root_authority_binds_exact_continuation_abi() {
     let _ = fs::remove_dir_all(&directory);
     fs::create_dir_all(&directory).expect("create free program-storage project");
     let source = include_str!(
-        "../../../../../../tests/canaries/pass/build/uefi_program_entry_storage_roots/main.omg"
+        "../../../../../../tests/omega/pass/build/uefi_program_entry_storage_roots/main.omg"
     );
     let prefix = source
         .split_once("data Boot {")

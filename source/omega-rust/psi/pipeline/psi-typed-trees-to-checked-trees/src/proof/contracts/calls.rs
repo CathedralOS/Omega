@@ -20,18 +20,25 @@ pub(crate) fn build_contract_call_facts(
                 continue;
             };
 
+            let call_site = crate::find_call_site(
+                program,
+                state.machine_symbol,
+                state.state_symbol,
+                call.statement_index,
+                call.call_ordinal,
+            );
+            let contract_target = call_site
+                .as_ref()
+                .and_then(crate::CallSite::static_requirement_dispatch)
+                .map(|dispatch| (dispatch.declaring_trait, dispatch.requirement))
+                .unwrap_or((target_machine_symbol, target_state_symbol));
             append_contract_call(
                 contract_facts,
                 &mut fact_refs,
                 &mut calls,
-                crate::find_call_site(
-                    program,
-                    state.machine_symbol,
-                    state.state_symbol,
-                    call.statement_index,
-                    call.call_ordinal,
-                )
-                .is_some_and(|site| !crate::call_site_evidence_arguments(&site).is_empty()),
+                call_site
+                    .as_ref()
+                    .is_some_and(|site| !crate::call_site_evidence_arguments(site).is_empty()),
                 ContractCallSite {
                     caller_machine_symbol: state.machine_symbol,
                     caller_state_symbol: state.state_symbol,
@@ -39,6 +46,8 @@ pub(crate) fn build_contract_call_facts(
                     call_ordinal: call.call_ordinal,
                     target_machine_symbol,
                     target_state_symbol,
+                    contract_machine_symbol: contract_target.0,
+                    contract_state_symbol: contract_target.1,
                 },
             );
         }
@@ -55,6 +64,8 @@ struct ContractCallSite {
     call_ordinal: usize,
     target_machine_symbol: SymbolHandle,
     target_state_symbol: SymbolHandle,
+    contract_machine_symbol: SymbolHandle,
+    contract_state_symbol: SymbolHandle,
 }
 
 fn append_contract_call(
@@ -67,15 +78,15 @@ fn append_contract_call(
     let requires = append_contract_fact_refs(
         contract_facts,
         fact_refs,
-        site.target_machine_symbol,
-        Some(site.target_state_symbol),
+        site.contract_machine_symbol,
+        Some(site.contract_state_symbol),
         ContractProofFactKind::Requires,
     );
     let ensures = append_contract_fact_refs(
         contract_facts,
         fact_refs,
-        site.target_machine_symbol,
-        Some(site.target_state_symbol),
+        site.contract_machine_symbol,
+        Some(site.contract_state_symbol),
         ContractProofFactKind::Ensures,
     );
 

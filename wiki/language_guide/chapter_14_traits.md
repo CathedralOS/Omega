@@ -1099,6 +1099,18 @@ witness. Satisfier-private producer conformances and proof identities remain
 hidden behind the declared evidence interface. This abstraction adds no runtime
 field, dictionary entry, calling-plan argument, allocation, cleanup, or fuel.
 
+The current compiler implements the first static form through an attached
+caller's explicit proof-static conformance binder. The selected trait,
+requirement, conformance, and one-state Unit realization must be concrete and
+non-generic; the public requirement is limited to one subjectless named input
+and one subjectless unconditional named output. The call exposes the
+requirement selector and a fresh opaque witness even if the realization
+forwards its local input or publishes stronger direct-call outputs. Free
+callers, defaults, direct calls through a conformance name, inherited
+requirement rows, wider or subject-bearing public lanes, scalar results, and
+dynamic named-witness calls remain unavailable until their complete carriers
+land.
+
 Value-wide facts belong to the carrier's default domain: field constraints and
 the data signature's `where` facts. Algebraic laws remain resultless theorem
 requirements with `ensures`. Invariant windows remain compiler-derived proof

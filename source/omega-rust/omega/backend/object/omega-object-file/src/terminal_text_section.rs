@@ -10,7 +10,7 @@ use psi_core::{FuelScheduleIdentity, MachineId};
 use psi_terminal::TerminalPsiIdentity;
 use sha2::{Digest, Sha256};
 
-const TEXT_SECTION_SCHEMA: &[u8] = b"omega.terminal.relocation-free-text-section.v1";
+const TEXT_SECTION_SCHEMA: &[u8] = b"omega.terminal.relocation-free-text-section.v2";
 
 /// Exact deterministic placement used by the first clean Terminal text-section boundary.
 ///
@@ -160,6 +160,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: TerminalMachineAlternati
         TerminalMachineAlternativeFamily::ConditionalBranchNonZero => 6,
         TerminalMachineAlternativeFamily::ReturnI64 => 7,
         TerminalMachineAlternativeFamily::ExactSubtractI64Immediate => 8,
+        TerminalMachineAlternativeFamily::ReturnUnit => 9,
     }]);
     hasher.update(alternative.variant.to_le_bytes());
 }

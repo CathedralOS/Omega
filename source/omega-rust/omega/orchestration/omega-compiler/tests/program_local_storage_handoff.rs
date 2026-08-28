@@ -261,6 +261,10 @@ fn extent_provider_issuance(seed: u64) -> ExtentProviderIssuance {
 }
 
 fn installed_code(entry: EntryStubId) -> InstalledCode {
+    installed_code_with_identity(entry, 300)
+}
+
+fn installed_code_with_identity(entry: EntryStubId, installed_code_identity: u64) -> InstalledCode {
     let constraints = placement_constraints();
     let artifact = Artifact::from_canonical_decode(
         install_id(1, ArtifactId::from_normalized_identity),
@@ -340,7 +344,10 @@ fn installed_code(entry: EntryStubId) -> InstalledCode {
     let validated = validate_final_placement(frozen, &certificate).expect("validated placement");
     let authority = InstallAuthority::from_admitted_provider(&validated);
     let receipt = InstallationReceipt::from_provider(
-        install_id(300, InstalledCodeId::from_normalized_identity),
+        install_id(
+            installed_code_identity,
+            InstalledCodeId::from_normalized_identity,
+        ),
         &validated,
         true,
         WxEnforcement::HardwareEnforced,
@@ -737,7 +744,7 @@ fn compiled_receiver_free_bridge(
     let directory = temp_directory(&format!("compiled-{label}"));
     fs::create_dir_all(&directory).expect("create compiled entry project");
     let source = include_str!(
-        "../../../../../../tests/canaries/pass/build/uefi_program_entry_storage_roots/main.omg"
+        "../../../../../../tests/omega/pass/build/uefi_program_entry_storage_roots/main.omg"
     );
     let prefix = source
         .split_once("data Boot {")
@@ -1695,6 +1702,206 @@ fn source_derived_two_root_snapshots_compose_across_two_live_eras() {
     assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
     assert_eq!(lifecycle.program_local_root_authority_holds(20), Some(0));
     fs::remove_dir_all(compiled_directory).expect("remove compiled coexistence fixture");
+}
+
+#[test]
+fn source_derived_finite_artifact_instances_compose_exact_aggregate_rows() {
+    let source_directory = temp_directory("source-finite-artifact-instances");
+    fs::create_dir_all(&source_directory).expect("create finite-instance source directory");
+    let (catalog, terminal) = verified_one_root_terminal(&source_directory);
+    let [schema] = catalog.schemas() else {
+        panic!("the source call must derive exactly one program-local root schema")
+    };
+    let requirement_identity = schema.boundary_requirement_identity().to_owned();
+    let qualification_identity = schema.qualification_identity().to_owned();
+    let schema_identity = schema.schema().identity;
+    let capacity = schema.schema().capacity.clone();
+
+    let entry = EntryStubId::from_normalized_identity(1).expect("entry identity");
+    let mut first_code = installed_code_with_identity(entry, 300);
+    let mut second_code = installed_code_with_identity(entry, 301);
+    let first_code_identity = first_code.identity();
+    let second_code_identity = second_code.identity();
+    assert_ne!(first_code_identity, second_code_identity);
+    assert_eq!(
+        first_code.artifact(),
+        second_code.artifact(),
+        "two installation occurrences retain the same source-derived artifact"
+    );
+    let installed_artifact = first_code.artifact();
+
+    let (mut first_root_ledger, first_root) = install_one_program_entry_root(
+        &mut first_code,
+        entry,
+        &requirement_identity,
+        &qualification_identity,
+    );
+    let mut first_installation = first_root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("first program-local installation ledger");
+    let [first_prebinding] = first_installation
+        .prebind(&catalog, &terminal, &first_root)
+        .expect("first source-derived prebinding")
+        .try_into()
+        .expect("one first source-derived prebinding");
+
+    let (mut second_root_ledger, second_root) = install_one_program_entry_root(
+        &mut second_code,
+        entry,
+        &requirement_identity,
+        &qualification_identity,
+    );
+    let mut second_installation = second_root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("second program-local installation ledger");
+    let [second_prebinding] = second_installation
+        .prebind(&catalog, &terminal, &second_root)
+        .expect("second source-derived prebinding")
+        .try_into()
+        .expect("one second source-derived prebinding");
+
+    assert_eq!(first_prebinding.terminal_psi(), catalog.terminal_psi());
+    assert_eq!(second_prebinding.terminal_psi(), catalog.terminal_psi());
+    assert_eq!(first_prebinding.artifact(), installed_artifact);
+    assert_eq!(second_prebinding.artifact(), installed_artifact);
+    assert_eq!(
+        first_prebinding.identity().schema_identity(),
+        schema_identity
+    );
+    assert_eq!(
+        second_prebinding.identity().schema_identity(),
+        schema_identity
+    );
+    assert_eq!(
+        first_prebinding.identity().installed_code(),
+        first_code_identity
+    );
+    assert_eq!(
+        second_prebinding.identity().installed_code(),
+        second_code_identity
+    );
+    assert_ne!(first_prebinding.identity(), second_prebinding.identity());
+
+    let mut lifecycle = lifecycle(
+        first_code_identity.normalized_identity(),
+        &requirement_identity,
+    );
+    let first_lease = lifecycle
+        .acquire_program_local_root_epoch_lease(
+            ProgramLocalRootEpochLeaseId::from_normalized_identity(880)
+                .expect("first instance lease identity"),
+            10,
+            &requirement_identity,
+        )
+        .expect("first instance epoch lease");
+    let first_cohort = first_installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                first_prebinding.identity(),
+                &first_root,
+                first_lease,
+            )],
+        )
+        .expect("first source-derived instance cohort");
+    let first_snapshot = first_cohort.aggregate_snapshot();
+
+    publish_lifecycle_era(
+        &mut lifecycle,
+        20,
+        second_code_identity.normalized_identity(),
+        &requirement_identity,
+        120,
+        true,
+    );
+    let second_lease = lifecycle
+        .acquire_program_local_root_epoch_lease(
+            ProgramLocalRootEpochLeaseId::from_normalized_identity(881)
+                .expect("second instance lease identity"),
+            20,
+            &requirement_identity,
+        )
+        .expect("second instance epoch lease");
+    let second_cohort = second_installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                second_prebinding.identity(),
+                &second_root,
+                second_lease,
+            )],
+        )
+        .expect("second source-derived instance cohort");
+    let second_snapshot = second_cohort.aggregate_snapshot();
+
+    assert_eq!(
+        first_snapshot.identity().installed_code(),
+        first_code_identity
+    );
+    assert_eq!(
+        second_snapshot.identity().installed_code(),
+        second_code_identity
+    );
+    let missing = compose_program_local_root_coexistence_report(&lifecycle, [&first_snapshot])
+        .expect_err("one finite artifact instance cannot be omitted");
+    assert!(missing.0.contains("omits or adds a live lifecycle epoch"));
+    let duplicate = compose_program_local_root_coexistence_report(
+        &lifecycle,
+        [&first_snapshot, &first_snapshot, &second_snapshot],
+    )
+    .expect_err("one finite artifact instance cannot substitute another");
+    assert!(duplicate.0.contains("repeats one lifecycle epoch"));
+
+    let report = compose_program_local_root_coexistence_report(
+        &lifecycle,
+        [&second_snapshot, &first_snapshot],
+    )
+    .expect("both exact source-derived artifact instances compose");
+    let rows = report
+        .aggregates()
+        .map(|(epoch, aggregate)| {
+            let [occurrence] = aggregate.occurrence_identities().collect::<Vec<_>>()[..] else {
+                panic!("each installed instance contributes one exact occurrence")
+            };
+            assert_eq!(aggregate.terminal_psi(), catalog.terminal_psi());
+            assert_eq!(aggregate.artifact(), installed_artifact);
+            assert_eq!(aggregate.schema_identity(), schema_identity);
+            assert_eq!(aggregate.per_occurrence_capacity(), &capacity);
+            assert_eq!(aggregate.cardinality().get(), 1);
+            (
+                epoch,
+                occurrence.prebinding().installed_code(),
+                aggregate.schema_identity(),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        rows,
+        vec![
+            (10, first_code_identity, schema_identity),
+            (20, second_code_identity, schema_identity),
+        ]
+    );
+
+    let [first_occurrence] = first_cohort
+        .into_runtime()
+        .cancel()
+        .try_into()
+        .expect("one first installed occurrence");
+    first_installation
+        .retire(first_occurrence, &mut lifecycle)
+        .expect("retire first installed occurrence");
+    let [second_occurrence] = second_cohort
+        .into_runtime()
+        .cancel()
+        .try_into()
+        .expect("one second installed occurrence");
+    second_installation
+        .retire(second_occurrence, &mut lifecycle)
+        .expect("retire second installed occurrence");
+    assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
+    assert_eq!(lifecycle.program_local_root_authority_holds(20), Some(0));
+    fs::remove_dir_all(&source_directory).expect("remove finite-instance source fixture");
 }
 
 #[test]

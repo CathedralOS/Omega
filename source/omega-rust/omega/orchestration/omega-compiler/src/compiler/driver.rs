@@ -110,14 +110,12 @@ fn native_report(
     checked: crate::pipeline::CheckedCompilation,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
     let source_file_count = checked.source_file_count();
-    let entry_machine = checked
-        .selected_program_entry_machine()
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "native-artifact production requires one exact selected program entry",
-            )]
-        })?
-        .to_owned();
+    let selected_program_entry = checked.selected_program_entry().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "native-artifact production requires one exact selected program entry",
+        )]
+    })?;
+    let entry_machine = selected_program_entry.machine_name().to_owned();
     let target = checked.selected_native_target().ok_or_else(|| {
         vec![Diagnostic::error(
             "native-artifact production requires one exact selected native target",
@@ -140,14 +138,25 @@ fn native_report(
                     "native-artifact Terminal production failed: {error}"
                 ))]
             })?;
+    let calling_plans = selected_program_entry
+        .calling_plans()
+        .map(|plans| (&plans.semantic_boundary_entry_plan, &plans.storage_entry));
+    let program_entry =
+        omega_terminal_native_realization::TerminalNativeProgramEntrySettlement::new(
+            selected_program_entry.source_signature(),
+            calling_plans,
+        );
     let native_artifact = omega_terminal_native_realization::realize_terminal_native_artifact(
         artifact,
-        target,
-        checked.subsystem(),
-        &request.terminal_admission_profile,
-        checked.optimization_selections(),
-        checked.selected_provider_plans(),
-        &[],
+        omega_terminal_native_realization::TerminalNativeRealizationRequest {
+            target,
+            subsystem: checked.subsystem(),
+            profile: &request.terminal_admission_profile,
+            program_entry,
+            optimization_selections: checked.optimization_selections(),
+            selected_provider_plans: checked.selected_provider_plans(),
+            settlements: &[],
+        },
     )?;
     CompileReport::from_retained_native_artifact(
         request.options.root_path,

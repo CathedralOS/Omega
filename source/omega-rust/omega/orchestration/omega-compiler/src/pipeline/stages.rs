@@ -543,6 +543,7 @@ pub data Optimization {
     case SelectedIncomingU12ExactSubtractImmediate;
     case Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1;
     case SharedEntryFixedViewCopyAfterCompareBeforeBranchV1;
+    case ActiveResidentImmediateU64MultiUseRematerializationV1;
 }
 pub data Optimizations {
     human_report: u8 in Trapping;
@@ -557,6 +558,7 @@ pub data Optimizations {
     selected_incoming_u12_exact_subtract_immediate: u8 in Trapping;
     aarch64_fuse_compare_i64_zero_branch_nonzero_to_cbnz_v1: u8 in Trapping;
     shared_entry_fixed_view_copy_after_compare_before_branch_v1: u8 in Trapping;
+    active_resident_immediate_u64_multi_use_rematerialization_v1: u8 in Trapping;
 }
 pub data Build {
     subsystem: Subsystem;
@@ -590,6 +592,7 @@ pub machine Optimizations::enable(&mut self, optimization: Optimization) {
         Optimization::SelectedIncomingU12ExactSubtractImmediate -> selected_incoming_u12_exact_subtract_immediate()
         Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 -> aarch64_fuse_compare_i64_zero_branch_nonzero_to_cbnz_v1()
         Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1 -> shared_entry_fixed_view_copy_after_compare_before_branch_v1()
+        Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1 -> active_resident_immediate_u64_multi_use_rematerialization_v1()
     }
 
     state control_flow_cleanup(&mut self) {
@@ -635,6 +638,10 @@ pub machine Optimizations::enable(&mut self, optimization: Optimization) {
     state shared_entry_fixed_view_copy_after_compare_before_branch_v1(&mut self) {
         self.shared_entry_fixed_view_copy_after_compare_before_branch_v1 = self.shared_entry_fixed_view_copy_after_compare_before_branch_v1 + 1;
     }
+
+    state active_resident_immediate_u64_multi_use_rematerialization_v1(&mut self) {
+        self.active_resident_immediate_u64_multi_use_rematerialization_v1 = self.active_resident_immediate_u64_multi_use_rematerialization_v1 + 1;
+    }
 }
 pub machine Optimizations::emit_report(&mut self) {
     self.human_report = self.human_report + 1;
@@ -661,6 +668,7 @@ pub data Optimization {
     case SelectedIncomingU12ExactSubtractImmediate;
     case Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1;
     case SharedEntryFixedViewCopyAfterCompareBeforeBranchV1;
+    case ActiveResidentImmediateU64MultiUseRematerializationV1;
 }
 pub data Optimizations {
     human_report: u8 in Trapping;
@@ -675,6 +683,7 @@ pub data Optimizations {
     selected_incoming_u12_exact_subtract_immediate: u8 in Trapping;
     aarch64_fuse_compare_i64_zero_branch_nonzero_to_cbnz_v1: u8 in Trapping;
     shared_entry_fixed_view_copy_after_compare_before_branch_v1: u8 in Trapping;
+    active_resident_immediate_u64_multi_use_rematerialization_v1: u8 in Trapping;
 }
 pub data BuildSource {
 }
@@ -715,6 +724,7 @@ pub machine Optimizations::enable(&mut self, optimization: Optimization) {
         Optimization::SelectedIncomingU12ExactSubtractImmediate -> selected_incoming_u12_exact_subtract_immediate()
         Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 -> aarch64_fuse_compare_i64_zero_branch_nonzero_to_cbnz_v1()
         Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1 -> shared_entry_fixed_view_copy_after_compare_before_branch_v1()
+        Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1 -> active_resident_immediate_u64_multi_use_rematerialization_v1()
     }
 
     state control_flow_cleanup(&mut self) {
@@ -759,6 +769,10 @@ pub machine Optimizations::enable(&mut self, optimization: Optimization) {
 
     state shared_entry_fixed_view_copy_after_compare_before_branch_v1(&mut self) {
         self.shared_entry_fixed_view_copy_after_compare_before_branch_v1 = self.shared_entry_fixed_view_copy_after_compare_before_branch_v1 + 1;
+    }
+
+    state active_resident_immediate_u64_multi_use_rematerialization_v1(&mut self) {
+        self.active_resident_immediate_u64_multi_use_rematerialization_v1 = self.active_resident_immediate_u64_multi_use_rematerialization_v1 + 1;
     }
 }
 pub machine BuildSource::resolve<'path>(&self, relative: &'path [u8] in Path) -> &'path [u8] in Path {
@@ -1203,6 +1217,7 @@ mod tests {
                     "SelectedIncomingU12ExactSubtractImmediate",
                     "Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1",
                     "SharedEntryFixedViewCopyAfterCompareBeforeBranchV1",
+                    "ActiveResidentImmediateU64MultiUseRematerializationV1",
                 ]
             );
             let optimizations = syntax_trees
@@ -1241,6 +1256,7 @@ mod tests {
                     "selected_incoming_u12_exact_subtract_immediate",
                     "aarch64_fuse_compare_i64_zero_branch_nonzero_to_cbnz_v1",
                     "shared_entry_fixed_view_copy_after_compare_before_branch_v1",
+                    "active_resident_immediate_u64_multi_use_rematerialization_v1",
                 ]
             );
             let build = syntax_trees

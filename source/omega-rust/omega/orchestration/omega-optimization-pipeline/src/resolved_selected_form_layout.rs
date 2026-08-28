@@ -35,13 +35,14 @@ use crate::{
     validate_optimized_layout_independent_selected_form_encoding_after_aarch64_cbnz_fusion,
 };
 
-const LAYOUT_SCHEMA: &[u8] = b"omega.terminal.resolved-selected-form-layout.v2";
+const LAYOUT_SCHEMA: &[u8] = b"omega.terminal.resolved-selected-form-layout.v4";
 
 /// Required-stage baseline layout for the currently admitted three-block
 /// conditional. This is a visible policy identity, not an optimization level.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalSelectedFunctionLayoutPolicy {
     EntryThenZeroFallthroughThenNonzeroV1,
+    SingleEntryBlockV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -308,6 +309,7 @@ fn compute<S: ValidatedTerminalSelectedAnalysis>(
         return Err(OptimizedResolvedSelectedFormLayoutError::RootMismatch);
     }
 
+    let policy = selected_layout_policy(selected_plan)?;
     let mut pre_rows = pre_layout.rows().iter();
     let mut functions = Vec::with_capacity(selected_plan.functions.len());
     for (function, machine_function) in selected_plan.functions.iter().zip(&machine_plan.functions)
@@ -357,7 +359,6 @@ fn compute<S: ValidatedTerminalSelectedAnalysis>(
     let machine_root = machine.machine().receipt().identity();
     let pre_layout_root = pre_layout.identity();
     let target = selected_plan.target;
-    let policy = TerminalSelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1;
     let identity = layout_identity(
         selected_root,
         machine_root,
@@ -390,6 +391,16 @@ fn layout_function(
     physical: &ValidatedPhysicalRegisterModel,
     fusion: Option<&StagedOptimizedAarch64CbnzFusion>,
 ) -> Result<TerminalResolvedSelectedFunctionLayout, OptimizedResolvedSelectedFormLayoutError> {
+    if function.blocks.len() == 1 {
+        return layout_single_block(
+            architecture,
+            function,
+            pre_rows,
+            machine_rows,
+            physical,
+            fusion,
+        );
+    }
     if function.blocks.len() != 3 {
         return Err(
             OptimizedResolvedSelectedFormLayoutError::UnsupportedFunctionShape(function.machine),
@@ -500,6 +511,117 @@ fn layout_function(
         machine: function.machine,
         byte_count: function_size,
         blocks,
+    })
+}
+
+fn selected_layout_policy(
+    selected: &omega_terminal_selected_instructions::TerminalSelectedInstructionPlan,
+) -> Result<TerminalSelectedFunctionLayoutPolicy, OptimizedResolvedSelectedFormLayoutError> {
+    let is_single_entry = |function: &TerminalSelectedFunction| {
+        let [block] = function.blocks.as_slice() else {
+            return false;
+        };
+        function.entry_block == block.id
+            && matches!(block.terminator, TerminalSelectedTerminator::Return { .. })
+    };
+    let single_entry_count = selected
+        .functions
+        .iter()
+        .filter(|function| is_single_entry(function))
+        .count();
+    if single_entry_count == selected.functions.len() {
+        Ok(TerminalSelectedFunctionLayoutPolicy::SingleEntryBlockV1)
+    } else if single_entry_count == 0 {
+        Ok(TerminalSelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1)
+    } else {
+        Err(
+            OptimizedResolvedSelectedFormLayoutError::UnsupportedFunctionShape(
+                selected.functions[single_entry_count].machine,
+            ),
+        )
+    }
+}
+
+fn layout_single_block(
+    architecture: Architecture,
+    function: &TerminalSelectedFunction,
+    pre_rows: &BTreeMap<TerminalSelectedInstructionId, &TerminalSelectedFormEncodingRow>,
+    machine_rows: &BTreeMap<
+        TerminalSelectedInstructionId,
+        &TerminalPostAllocationMachineInstruction,
+    >,
+    physical: &ValidatedPhysicalRegisterModel,
+    fusion: Option<&StagedOptimizedAarch64CbnzFusion>,
+) -> Result<TerminalResolvedSelectedFunctionLayout, OptimizedResolvedSelectedFormLayoutError> {
+    let [block] = function.blocks.as_slice() else {
+        return Err(
+            OptimizedResolvedSelectedFormLayoutError::UnsupportedFunctionShape(function.machine),
+        );
+    };
+    if function.entry_block != block.id
+        || !matches!(block.terminator, TerminalSelectedTerminator::Return { .. })
+        || fusion.is_some()
+    {
+        return Err(
+            OptimizedResolvedSelectedFormLayoutError::UnsupportedFunctionShape(function.machine),
+        );
+    }
+    let mut offset = 0_u64;
+    let mut instructions = Vec::new();
+    let block_offsets = BTreeMap::from([(block.id, 0)]);
+    for instruction in block_instructions(block) {
+        let pre = pre_rows
+            .get(&instruction.id)
+            .ok_or(OptimizedResolvedSelectedFormLayoutError::MissingInstruction(instruction.id))?;
+        let machine = machine_rows
+            .get(&instruction.id)
+            .ok_or(OptimizedResolvedSelectedFormLayoutError::MissingInstruction(instruction.id))?;
+        if machine.alternative.key != pre.alternative {
+            return Err(
+                OptimizedResolvedSelectedFormLayoutError::AlternativeMismatch(instruction.id),
+            );
+        }
+        let (bytes, branch) = resolve_instruction(
+            architecture,
+            function.machine,
+            block,
+            instruction,
+            offset,
+            &block_offsets,
+            machine,
+            pre,
+            physical,
+            None,
+        )?;
+        if branch.is_some() {
+            return Err(
+                OptimizedResolvedSelectedFormLayoutError::UnsupportedFunctionShape(
+                    function.machine,
+                ),
+            );
+        }
+        let byte_count = u64::try_from(bytes.len())
+            .map_err(|_| OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
+        instructions.push(TerminalResolvedSelectedFormRow {
+            instruction: instruction.id,
+            alternative: pre.alternative,
+            offset,
+            bytes,
+            branch: None,
+        });
+        offset = offset
+            .checked_add(byte_count)
+            .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
+    }
+    Ok(TerminalResolvedSelectedFunctionLayout {
+        machine: function.machine,
+        byte_count: offset,
+        blocks: vec![TerminalResolvedSelectedBlockLayout {
+            block: block.id,
+            offset: 0,
+            byte_count: offset,
+            instructions,
+        }],
     })
 }
 
@@ -933,6 +1055,7 @@ fn layout_identity(
     hasher.update((target.pointer_alignment as u64).to_le_bytes());
     hasher.update([match policy {
         TerminalSelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1 => 0,
+        TerminalSelectedFunctionLayoutPolicy::SingleEntryBlockV1 => 1,
     }]);
     hasher.update((functions.len() as u64).to_le_bytes());
     for function in functions {
@@ -991,6 +1114,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: TerminalMachineAlternati
         Family::ConditionalBranchNonZero => 6,
         Family::ReturnI64 => 7,
         Family::ExactSubtractI64Immediate => 8,
+        Family::ReturnUnit => 9,
     }]);
     hasher.update(alternative.variant.to_le_bytes());
 }

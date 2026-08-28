@@ -1,3 +1,0 @@
-# compute the answer
-a = 6 * 7   # 42
-c = a        # exit with it

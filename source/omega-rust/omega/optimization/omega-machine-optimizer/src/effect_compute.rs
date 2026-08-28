@@ -13,6 +13,7 @@ use omega_terminal_selected_instructions::{
 use crate::{
     TerminalBlockMachineEffects, TerminalFunctionMachineEffects, TerminalInstructionMachineEffects,
     TerminalMachineEffectError, TerminalPreAllocationMachineEffectPlan,
+    TerminalStructuralUnitCallMachineEffects, TerminalStructuralUnitFunctionMachineEffects,
     terminal_pre_allocation_machine_effect_identity,
 };
 
@@ -66,6 +67,24 @@ pub(crate) fn compute_terminal_pre_allocation_machine_effects<
             blocks,
         });
     }
+    let mut structural_unit_functions = Vec::with_capacity(source.structural_unit_functions.len());
+    for function in &source.structural_unit_functions {
+        let call = function
+            .call
+            .as_ref()
+            .map(|call| compute_structural_call(function.machine, call, constraints, catalog))
+            .transpose()?;
+        let return_instruction =
+            compute_instruction(&function.terminator.instruction, constraints, catalog)?;
+        structural_unit_functions.push(TerminalStructuralUnitFunctionMachineEffects {
+            machine: function.machine,
+            block: function.entry_block,
+            call,
+            return_instruction,
+            return_effect: function.terminator.effect,
+            return_ownership: function.terminator.ownership.clone(),
+        });
+    }
     let mut plan = TerminalPreAllocationMachineEffectPlan {
         identity: crate::TerminalPreAllocationMachineEffectIdentity::from_bytes([0; 32]),
         selected: selected.selected_identity(),
@@ -76,9 +95,52 @@ pub(crate) fn compute_terminal_pre_allocation_machine_effects<
         register_constraints: constraints.identity(),
         machine_effect_catalog: catalog.identity(),
         functions,
+        structural_unit_functions,
     };
     plan.identity = terminal_pre_allocation_machine_effect_identity(&plan);
     Ok(plan)
+}
+
+fn compute_structural_call(
+    machine: psi_core::MachineId,
+    call: &omega_terminal_selected_instructions::TerminalSelectedStructuralUnitCallInstruction,
+    constraints: &ValidatedRegisterConstraintCatalog,
+    catalog: &ValidatedTerminalMachineEffectCatalog,
+) -> Result<TerminalStructuralUnitCallMachineEffects, TerminalMachineEffectError> {
+    let constraint = constraints
+        .catalog()
+        .constraints
+        .iter()
+        .find(|row| row.key == call.constraint)
+        .ok_or(TerminalMachineEffectError::StructuralCallMismatch { machine })?;
+    let declaration = catalog
+        .catalog()
+        .structural_unit_call
+        .ok_or(TerminalMachineEffectError::StructuralCallMismatch { machine })?;
+    if constraint.operands.is_empty()
+        && call.implicit_uses == constraint.implicit_uses
+        && call.implicit_defs == constraint.implicit_defs
+        && call.clobbers == constraint.clobbers
+        && declaration.constraint == call.constraint
+    {
+        Ok(TerminalStructuralUnitCallMachineEffects {
+            instruction: call.id,
+            operation: call.operation,
+            callee: call.callee,
+            constraint: call.constraint,
+            unit_uses: call.implicit_uses.clone(),
+            unit_defs: call.implicit_defs.clone(),
+            unit_clobbers: call.clobbers.clone(),
+            layout: call.layout,
+            effect: call.effect,
+            ownership: call.ownership.clone(),
+            claim_transfers: call.claim_transfers.clone(),
+            provenance: call.provenance.clone(),
+            declaration,
+        })
+    } else {
+        Err(TerminalMachineEffectError::StructuralCallMismatch { machine })
+    }
 }
 
 fn validate_catalog_roots(
@@ -103,6 +165,7 @@ fn terminal_selected_keys(
     keys: TargetRegisterEnvironmentConstraintKeys,
 ) -> TerminalSelectedConstraintKeys {
     TerminalSelectedConstraintKeys {
+        structural_unit_call: keys.structural_unit_call,
         materialize_i64: keys.materialize_i64,
         copy_i64: keys.copy_i64,
         add_i64: keys.add_i64,
@@ -112,6 +175,7 @@ fn terminal_selected_keys(
         compare_i64_zero: keys.compare_i64_zero,
         conditional_branch: keys.conditional_branch,
         return_i64: keys.return_i64,
+        return_unit: keys.return_unit,
     }
 }
 
@@ -202,5 +266,6 @@ fn semantic(kind: TerminalSelectedInstructionKind) -> TerminalMachineSemanticKin
             TerminalMachineSemanticKind::ConditionalBranchNonZero
         }
         TerminalSelectedInstructionKind::ReturnI64 => TerminalMachineSemanticKind::ReturnI64,
+        TerminalSelectedInstructionKind::ReturnUnit => TerminalMachineSemanticKind::ReturnUnit,
     }
 }

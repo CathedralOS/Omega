@@ -750,7 +750,215 @@ operation requirement identities separate from these value-type identities.
 - Tempting but wrong: expose `Uncommitted` on the decisive result merely because
   one larger runtime layout would be convenient.
 
-## Q16 — Strict SSH trust and credential authority
+## Q16 — Authoritative Delta v1 language and resource semantics
+
+### Context
+
+The bootstrap decisions require Delta to be an independent, robust
+compiler-host language whose nonoptimizing lower-rung meaning elaborates to
+Gamma. The canonical compiler source currently lives in
+`source/delta/compiler/main.alp`, and the Rust-free implementation of the
+meaning route lives in `source/delta/meaning/delta2gamma.beta`. Publication can
+already bind exact source and repeated emitted assembly, but its V1 receipt
+deliberately does not claim that the translator implements all Delta semantics.
+
+No authoritative Delta language document currently fixes the compositional
+grammar, static and dynamic judgments, allocation/exhaustion behavior, sealed
+byte I/O, process termination, or observation profile. Historical comments in
+the translator instead describe the retired Omega-subset bridge model, which
+conflicts with the ratified decision that Delta is an independent language. An
+implementation and its current accepted corpus cannot select their own semantic
+subject for checked refinement.
+
+### Problem statement
+
+The canonical Delta compiler artifact cannot acquire source-to-artifact
+authority until a checker can reconstruct the intended Delta meaning from an
+independently fixed contract. It is presently ambiguous which fixed storage
+limits are Delta semantics versus replaceable implementation bounds, which
+allocation facilities a robust compiler host guarantees, and which source
+forms are compositional language facilities rather than accidents of the
+single canonical source. Treating `delta2gamma.beta`, the sample corpus, or the
+artifact's behavior as the specification would make the refinement circular.
+
+### Proposed direction
+
+Ratify one `source/delta/LANGUAGE.md` contract for a small C-like deterministic
+compiler host, independent of Omega spelling. Specify the source grammar and
+name/type/control judgments used by the complete canonical compiler; finite
+records, sums, arrays and bounded views; checked arithmetic; deterministic
+storage/allocation with explicit exhaustion; sealed byte input, artifact and
+diagnostic output, and termination; exact resource parameters; and the
+observable result used by refinement. Classify each fixed capacity in the
+current implementation as either a contract input/bound or private storage,
+and require unsupported forms and exhaustion to reject deterministically.
+Then validate the Beta-written Delta-to-Gamma elaboration against that contract
+and keep optimization outside the meaning edge.
+
+This decision need not make Delta valid Omega, add Omega's proof or package
+surface, or prescribe the native compiler's internal representation. Assembly
+reproducibility, strict target-dialect validation, executable reconstruction,
+and ordinary-Omega frontend implementation may continue while the semantic
+contract is settled; only checked Delta source-to-artifact authority is blocked.
+
+### Alternates
+
+- Acceptable: use a smaller explicitly parameterized allocation model backed by
+  one fixed arena, provided exhaustion and lifetime behavior are compositional
+  and sufficient for the complete compiler source.
+- Acceptable: admit additional C-like modules, allocation, or aggregate
+  facilities when they materially reduce total compiler and assurance cost,
+  provided their semantics are fixed independently of the implementation.
+- Tempting but wrong: declare the current translator or canonical source corpus
+  to be the language specification.
+- Tempting but wrong: revive Delta as a named subset of Omega or infer its
+  semantics from similar Omega spelling.
+- Tempting but wrong: publish compiler authority from two byte-identical
+  executions without checking the artifact against an independently selected
+  source meaning.
+
+## Q17 — Physical UEFI bootstrap mapping for ProgramEntry
+
+### Context
+
+Omega already distinguishes a target-owned `ProgramEntry` source signature
+from its physical platform slot. The current UEFI x64 slot fixes the firmware
+surface as `(EfiImageHandle, &EfiSystemTable) -> EfiStatus`, while the selected
+semantic entry requires two qualified structural roots—Image `Extent in
+Granted` and InitialStorage `Extent in Granted`—and returns Unit. The existing
+program-storage bridge constructs only the inner semantic wrapper that forwards
+those roots to the selected source. Repository artifacts intentionally record
+that the physical shell is not emitted and the bootstrap is not invoked.
+
+### Problem statement
+
+No authoritative target/runtime contract explains how the firmware handle and
+system table establish the two semantic extents, which storage and permission
+facts the bootstrap may create, how their lifetimes and cleanup are owned, or
+how normal Unit completion and each admitted failure route map to `EfiStatus`.
+Consequently an optimized Unit object may acquire exact semantic
+ProgramStorage-wrapper custody, but it cannot truthfully claim to be a UEFI
+firmware entry, native image, installation, or publication artifact. Treating
+the current planned wrapper recipe or convenient register values as that
+contract would let backend code invent language-visible roots and outcome
+semantics.
+
+Hosted targets do not currently provide an alternate escape hatch: their
+program-entry slots leave the physical boundary and calling contract
+unspecified.
+
+### Proposed direction
+
+Ratify a target/runtime-owned UEFI bootstrap contract that names the exact
+construction of Image and InitialStorage extents from the firmware inputs,
+including provenance, bounds, `Granted` authority, lifetime, aliasing, and
+cleanup. Define which bootstrap failures are observable, whether the semantic
+Unit entry may return normally after them, and the complete deterministic
+mapping from normal/crash outcomes to `EfiStatus`. Bind the physical shell's
+calling convention, stack/hardening obligations, wrapper bytes, and imported
+firmware services to that contract under an independently replayable identity.
+
+The optimizer may meanwhile implement and validate the receiver-free Unit
+selected shape, source-signature join, and semantic ProgramStorage wrapper
+object. Explicit optimized builds must remain fail-closed and install nothing
+until the physical contract, image validation, installation, and publication
+carriers join that semantic custody.
+
+### Alternates
+
+- Acceptable: make the physical bootstrap a separately authored and verified
+  target-runtime component whose checked postcondition supplies the two exact
+  semantic roots before calling the generated inner wrapper.
+- Acceptable: revise the public semantic `ProgramEntry` signature to receive
+  explicit opaque firmware values, provided Omega then defines how ordinary
+  code obtains the required Image/InitialStorage capabilities rather than
+  silently treating handles as extents.
+- Acceptable: define one fixed successful `EfiStatus` for normal Unit return and
+  a closed failure mapping, if every admitted crash/bootstrap outcome is still
+  represented and independently validated.
+- Tempting but wrong: pass the raw firmware registers directly to the semantic
+  entry because both current shapes happen to use two indirect arguments.
+- Tempting but wrong: fabricate null, zero-length, or ambiently granted extents
+  inside the machine-code wrapper.
+- Tempting but wrong: label the existing semantic wrapper symbol as the UEFI
+  entry or publish an image while `physical_shell_emitted` and
+  `bootstrap_invoked` remain false.
+
+## Q18 — Guarded simulation judgment for Beta compiler admission
+
+### Context
+
+The Beta admission owner independently reconstructs the exact `bc.beta` source,
+persisted Alpha tape, source and artifact transition systems, typed resource
+outcomes, and maximal observations for the finite `B_bc1` input profile. Its
+canonical ROOT executable checks matching termination, output, rejection,
+resource exhaustion, and coinductive divergence. The accepted Alpha-owned
+derivation checker is built below `bc`, but its current calculus has no encoded
+Alpha/Beta simulation relation or coinduction rule capable of stating that ROOT
+claim.
+
+The executable conjunction is strong evidence and already prevents the
+candidate compiler from selecting its own subject or obligation. It is not a
+certificate in the accepted calculus, and running it successfully cannot be
+relabelled as a derivation.
+
+### Problem statement
+
+The checker needs an exact rule for cyclic operational refinement before it can
+admit the Beta compiler edge. Induction over finite executions covers terminal
+and resource outcomes but does not establish matching divergence. Fuel-bounded
+prefix agreement is likewise not coinduction: exhausting a chosen bound proves
+neither an infinite run nor a greatest-fixed-point relation.
+
+The open choice is the public proof-kernel judgment and certificate shape. It
+must bind two independently reconstructed transition systems and their
+observation profile, require every terminal observation to agree, and permit a
+cyclic proof reference only after observable progress. It must remain small
+enough for each checker implementation and must not introduce artifact-specific
+verification policy into the generic kernel.
+
+### Proposed direction
+
+Ratify one versioned guarded simulation/bisimulation judgment over finite
+descriptions of deterministic labelled transition systems. A certificate names
+a finite relation of paired states. Each row proves one of:
+
+- matching terminal outcomes under the exact observation profile; or
+- one matching observable/internal step plus successor membership in the same
+  relation.
+
+A back-reference is admissible only after at least one checked paired step, so
+an unguarded cyclic certificate cannot prove itself. The artifact-aware Beta
+owner, not the compiler or kernel, reconstructs the exact Alpha and Beta
+systems, initial-state relation, `B_bc1` input quantification, resource outcomes,
+and observation labels. The generic checker validates only the guarded
+relation rules against those exact premises.
+
+Require implementations in the accepted Beta checker and independent Gamma
+checker, exact encoding/version identity, positive finite and divergent seams,
+and negative controls for an unguarded cycle, missing successor, mismatched
+output, changed resource result, swapped subject, and weakened observation
+profile before using the judgment for compiler admission.
+
+### Alternates
+
+- Acceptable: ratify a one-way forward simulation plus a separate determinism
+  theorem when that composition proves exactly the required maximal-observation
+  equality, including divergence.
+- Acceptable: use a structurally recursive proof of all finite prefixes plus a
+  separately checked productivity theorem, if the combined judgment is no
+  weaker than guarded coinduction and has a finite certificate.
+- Acceptable: initially scope the rule to deterministic finitely described
+  systems and the exact `B_bc1` profile, while keeping the judgment generic
+  rather than naming Beta or Alpha opcodes.
+- Tempting but wrong: accept the ROOT executable's status as a proof-kernel
+  premise or add a rule that trusts a verifier-selected Boolean.
+- Tempting but wrong: infer divergence from a large fuel bound, repeated fixed
+  points, compiler self-hosting, DDC, or agreement between implementations.
+- Tempting but wrong: let `bc`, its witness mapper, or its emitted artifact
+  choose the relation, observation profile, or terminal cases it must satisfy.
+
+## Q19 — Strict SSH trust and credential authority
 
 ### Context
 

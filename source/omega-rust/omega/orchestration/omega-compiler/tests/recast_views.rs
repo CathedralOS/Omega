@@ -37,7 +37,7 @@ fn compile_pass_to_checked(main: &Path) -> CheckedCompilation {
 
 fn compile_and_run(canary_rel: &str, tag: &str) -> std::process::Output {
     let profile = omega_target::TargetProfile::host();
-    let canary = repo_root().join("tests/canaries/pass").join(canary_rel);
+    let canary = repo_root().join("tests/omega/pass").join(canary_rel);
     let build_dir = std::env::temp_dir().join(format!("omega-{tag}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
 
@@ -73,7 +73,7 @@ fn assert_exit_70(canary_rel: &str, tag: &str) {
 }
 
 fn compile_for_cross_targets(canary_rel: &str, tag: &str) {
-    let canary = repo_root().join("tests/canaries/pass").join(canary_rel);
+    let canary = repo_root().join("tests/omega/pass").join(canary_rel);
     for target in ["windows_x64", "linux_arm64"] {
         let cross_dir =
             std::env::temp_dir().join(format!("omega-{tag}-{target}-{}", std::process::id()));
@@ -108,7 +108,7 @@ fn compile_for_cross_targets(canary_rel: &str, tag: &str) {
 
 fn fail_diagnostics(canary_rel: &str) -> String {
     let canary = repo_root()
-        .join("tests/canaries/fail")
+        .join("tests/omega/fail")
         .join(canary_rel)
         .join("main.omg");
     compile_to_checked(&canary, None)
@@ -204,7 +204,7 @@ fn record_recast_execution_canaries_run() {
     }
 
     let array_canary =
-        repo_root().join("tests/canaries/pass/recast/runtime_record_array_view_mutable_write_exit");
+        repo_root().join("tests/omega/pass/recast/runtime_record_array_view_mutable_write_exit");
     let checked = compile_pass_to_checked(&array_canary.join("main.omg"));
     assert_eq!(
         interpret(&checked, &[]).exit_code,
@@ -223,7 +223,7 @@ fn fixed_array_recast_execution_and_fact_fence() {
     assert_exit_70(canary, "fixed-array-mutable-view");
 
     let main = repo_root()
-        .join("tests/canaries/pass")
+        .join("tests/omega/pass")
         .join(canary)
         .join("main.omg");
     let checked = compile_pass_to_checked(&main);
@@ -248,7 +248,7 @@ fn slice_recast_execution_tiling_and_fact_fences() {
     assert_exit_70(canary, "slice-mutable-view");
 
     let main = repo_root()
-        .join("tests/canaries/pass")
+        .join("tests/omega/pass")
         .join(canary)
         .join("main.omg");
     let checked = compile_pass_to_checked(&main);
@@ -278,7 +278,7 @@ fn interior_slice_recasts_preserve_dynamic_tail_geometry() {
     assert_exit_70(canary, "interior-slice-mutable-view");
 
     let main = repo_root()
-        .join("tests/canaries/pass")
+        .join("tests/omega/pass")
         .join(canary)
         .join("main.omg");
     let checked = compile_pass_to_checked(&main);
@@ -308,7 +308,7 @@ fn aggregate_slice_recasts_compose_leaf_representation_sets() {
     assert_exit_70(canary, "aggregate-slice-representation-recast");
 
     let main = repo_root()
-        .join("tests/canaries/pass")
+        .join("tests/omega/pass")
         .join(canary)
         .join("main.omg");
     let checked = compile_pass_to_checked(&main);

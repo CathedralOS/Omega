@@ -139,7 +139,7 @@ the compiler source are defined and kept distinct in
 [`source/omega/README.md`](source/omega/README.md) describes the product-source side;
 the proof kernel is Alpha-owned checker infrastructure, not another language rung.
 
-## Samples And Canaries
+## Samples And Language Cases
 
 Samples are language pressure tests. They may be pseudocode-ish if the language is still being shaped.
 Each sample is a copyable mini-project with its own `.gitignore`; local compiler output belongs in the ignored `build/` directory beside the entrypoint.
@@ -150,17 +150,18 @@ Current samples:
 - `samples/gui/`: windowed host/UI experiments, including the software-rendered calculator.
 - `samples/uefi/`: firmware-targeted samples.
 
-Canaries are not samples. They isolate one compiler capability at a time.
-They live under `tests/canaries/pass/<feature>/main.omg` when the compiler should accept them and `tests/canaries/fail/<feature>/main.omg` plus `expected.txt` when the compiler should reject them.
-Future executable behavior canaries live under `tests/canaries/run/<feature>/` with small input/output expectation files.
+Language cases are not samples. They isolate one compiler capability at a time.
+They live under `tests/omega/pass/<feature>/main.omg` when the compiler should accept them and `tests/omega/fail/<feature>/main.omg` plus `expected.txt` when the compiler should reject them.
+Executable behavior cases live under `tests/omega/run/<feature>/` with small input/output expectation files.
 
-Canary names should describe the compiler behavior being pinned down, not the sample that exposed it. A dungeon crawler blocker should become a feature canary such as `runtime_text_builder`, not `dungeon_step_04`.
+Case names should describe the compiler behavior being pinned down, not the sample that exposed it. A dungeon crawler blocker should become a focused case such as `runtime_text_builder`, not `dungeon_step_04`.
 
-Generated canary `build/` directories are ignored. Permanent expectations belong in small checked-in files, not preserved build artifacts.
+Generated case `build/` directories are ignored. Permanent expectations belong in small checked-in files, not preserved build artifacts.
 
 ## Bundled Omega Packages
 
-Imports beginning with `omega::` resolve to bundled Omega source packages under `omega/`.
+Imports beginning with `omega::` resolve to bundled Omega source packages under
+`source/library/`.
 
 Package paths can resolve to either `name.omg` or `name/mod.omg`, so larger packages such as `omega::host::targets::windows` can live in folders and shard their contracts by domain.
 
@@ -210,7 +211,7 @@ Compile a sample on macOS ARM64:
 cargo run -p omega-cli -- --target macos_arm64 samples/cli/basics/cli_mvp/main.omg
 ```
 
-Inspect canaries:
+Run focused compiler acceptance groups:
 
 ```bash
 cargo test -p omega-compiler --test canary_suite entry_and_abi::pass_canaries_compile

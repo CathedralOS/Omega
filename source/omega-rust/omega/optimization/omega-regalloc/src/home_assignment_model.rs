@@ -9,7 +9,7 @@ use crate::{
 };
 
 const REGISTER_HOME_MAGIC: &[u8; 8] = b"OMGRAH\0\0";
-const REGISTER_HOME_VERSION: u32 = 5;
+const REGISTER_HOME_VERSION: u32 = 6;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TerminalRegisterHomeIdentity(pub(crate) [u8; 32]);
@@ -34,6 +34,7 @@ pub struct TerminalRegisterHomePlan {
     pub register_environment: TargetRegisterEnvironmentIdentity,
     pub allocator_availability: TerminalAllocatorAvailabilityIdentity,
     pub functions: Vec<TerminalFunctionRegisterHomes>,
+    pub structural_unit_functions: Vec<TerminalFunctionRegisterHomes>,
 }
 
 impl TerminalRegisterHomePlan {
@@ -89,6 +90,30 @@ impl TerminalRegisterHomePlan {
                 assignments,
             });
         }
+        let structural_unit_function_count = cursor.length()?;
+        let mut structural_unit_functions =
+            Vec::with_capacity(structural_unit_function_count.min(cursor.remaining()));
+        for _ in 0..structural_unit_function_count {
+            let raw_machine = u64::from_le_bytes(cursor.array()?);
+            let machine = MachineId::new(raw_machine).ok_or(
+                TerminalRegisterHomeDecodeError::InvalidMachineId(raw_machine),
+            )?;
+            let assignment_count = cursor.length()?;
+            let mut assignments = Vec::with_capacity(assignment_count.min(cursor.remaining()));
+            for _ in 0..assignment_count {
+                assignments.push(TerminalVirtualRegisterHome {
+                    virtual_register: TerminalVirtualRegisterId(u32::from_le_bytes(
+                        cursor.array()?,
+                    )),
+                    class: RegisterClassId(u16::from_le_bytes(cursor.array()?)),
+                    view: RegisterViewId(u16::from_le_bytes(cursor.array()?)),
+                });
+            }
+            structural_unit_functions.push(TerminalFunctionRegisterHomes {
+                machine,
+                assignments,
+            });
+        }
         if cursor.remaining() != 0 {
             return Err(TerminalRegisterHomeDecodeError::TrailingBytes);
         }
@@ -98,6 +123,7 @@ impl TerminalRegisterHomePlan {
             register_environment,
             allocator_availability,
             functions,
+            structural_unit_functions,
         };
         if terminal_register_home_identity(&plan) != identity {
             return Err(TerminalRegisterHomeDecodeError::IdentityMismatch);
@@ -127,6 +153,7 @@ pub struct TerminalRegisterHomeValidationReceipt {
     pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
     pub(crate) allocator_availability: TerminalAllocatorAvailabilityIdentity,
     pub(crate) function_count: usize,
+    pub(crate) structural_unit_function_count: usize,
     pub(crate) assignment_count: usize,
     pub(crate) tied_pair_count: usize,
     pub(crate) tied_component_count: usize,
@@ -151,6 +178,9 @@ impl TerminalRegisterHomeValidationReceipt {
     }
     pub const fn function_count(self) -> usize {
         self.function_count
+    }
+    pub const fn structural_unit_function_count(self) -> usize {
+        self.structural_unit_function_count
     }
     pub const fn assignment_count(self) -> usize {
         self.assignment_count

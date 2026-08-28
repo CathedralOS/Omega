@@ -1,0 +1,13 @@
+; Final publication for the independent full-Word emit_dec theorem.
+; Recheck exact shape and every signed-domain/trace/terminal join before
+; publishing DECW.  This file deliberately imports neither bounded DECS nor any
+; WSTR/expect/bounded-emitter theorem.
+
+emit_dec_word_publication_init:
+        call emit_dec_word_require_stack_root
+        call emit_dec_require_shape
+        call emit_dec_word_publish_relation
+        imm r20, 532560
+        imm r21, 1464026436            ; final publication self-consumed
+        call exact_require_cell
+        jmp scan_owned_effects_init

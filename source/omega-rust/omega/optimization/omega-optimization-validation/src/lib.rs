@@ -9,23 +9,24 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omega_optimization_core::{
-    AnalysisKind, OptimizationCandidateIdentity, OptimizationRuleIdentity, OptimizationSafetyClass,
-    OptimizationUnitIdentity, OptimizationValidatorIdentity,
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationCandidateIdentity,
+    OptimizationRuleIdentity, OptimizationSafetyClass, OptimizationUnitIdentity,
+    OptimizationValidatorIdentity,
 };
 use omega_optimization_unit::{
     AdjacentBlockMergeRewrite, BlockParameterIncomingBinding, BooleanConstantRewrite,
     ConstantConditionalRewrite, DeadScalarNodeRewrite, IntegerConstantRewrite,
     IntegerEvaluationWitness, LocalScalarCommonSubexpressionRewrite, NodeLocation,
-    NonAdjacentBlockMergeRewrite, OptimizationEdge, OptimizationFact, OwnershipEvent,
-    OwnershipFrontierFact, OwnershipFrontierLiveClaim, OwnershipFrontierOwnedPlace,
+    NonAdjacentBlockMergeRewrite, ObservationKnowledge, OptimizationEdge, OptimizationFact,
+    OwnershipEvent, OwnershipFrontierFact, OwnershipFrontierLiveClaim, OwnershipFrontierOwnedPlace,
     OwnershipFrontierPartialCustody, OwnershipFrontierSite, OwnershipFrontierSnapshot,
     PhiTranslatedScalarGvnRewrite, PhiTranslatedScalarIncoming, ProofCertifiedScalarIdentityKind,
-    ProofCertifiedScalarIdentityRewrite, ProvenanceDisposition, PsiNodeObservation,
-    PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, PsiRealizationSite,
-    PsiRewriteCandidate, PsiRewritePatch, RedundantBlockParameterRewrite, ScalarConstantValue,
-    ScalarSubstitution, SccpBlockRow, SccpEdgeRow, SccpEdgeState, SccpMachineSnapshot,
-    SccpValueRow, SccpValueState, SharedTerminalJumpFusionRewrite, ValueDefinition,
-    ValueDefinitionSite, ValueUse, canonical_ownership_frontier_snapshot,
+    ProofCertifiedScalarIdentityRewrite, ProvenanceDisposition, ProvenanceRewrite,
+    PsiNodeObservation, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
+    PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, RedundantBlockParameterRewrite,
+    ScalarConstantValue, ScalarSubstitution, SccpBlockRow, SccpEdgeRow, SccpEdgeState,
+    SccpMachineSnapshot, SccpValueRow, SccpValueState, SharedTerminalJumpFusionRewrite,
+    ValueDefinition, ValueDefinitionSite, ValueUse, canonical_ownership_frontier_snapshot,
     derived_sccp_scalar_constant_fact_identity, literal_scalar_constant_fact_identity,
     recompute_psi_optimization_unit_identity, reconstruct_psi_closed_region_observation,
     reconstruct_psi_observation_model,
@@ -1408,11 +1409,745 @@ pub fn validate_integer_evaluation_candidate(
     })
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ProofCertifiedSameOperandIntegerConstantLaw {
+    ExactSubtractZero,
+    SelfRemainderZero,
+    SelfDivideOne,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct IndependentSameOperandIntegerConstant {
+    psi_operation: OperationId,
+    obligation: psi_core::ObligationId,
+    result: ValueId,
+    scalar_type: IntegerType,
+    operand: ValueId,
+}
+
+fn independent_same_operand_integer_constant(
+    operation: &O,
+    law: ProofCertifiedSameOperandIntegerConstantLaw,
+) -> Option<IndependentSameOperandIntegerConstant> {
+    let (psi_operation, obligation, result, scalar_type, left, right) = match (law, operation) {
+        (
+            ProofCertifiedSameOperandIntegerConstantLaw::ExactSubtractZero,
+            O::ExactIntegerSubtract {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                left,
+                right,
+            },
+        ) => (
+            *psi_operation,
+            *obligation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+        ),
+        (
+            ProofCertifiedSameOperandIntegerConstantLaw::SelfRemainderZero,
+            O::ExactIntegerRemainder {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                left,
+                right,
+            }
+            | O::WrappingIntegerRemainder {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                left,
+                right,
+            }
+            | O::SaturatingIntegerRemainder {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                left,
+                right,
+            },
+        ) => (
+            *psi_operation,
+            *obligation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+        ),
+        (
+            ProofCertifiedSameOperandIntegerConstantLaw::SelfDivideOne,
+            O::ExactIntegerDivide {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                left,
+                right,
+            }
+            | O::WrappingIntegerDivide {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                left,
+                right,
+            }
+            | O::SaturatingIntegerDivide {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                left,
+                right,
+            },
+        ) if scalar_type.carrier() == IntegerCarrier::Fixed
+            && !(scalar_type.sign() == IntegerSign::Signed && scalar_type.bits() == 1) =>
+        {
+            (
+                *psi_operation,
+                *obligation,
+                *result,
+                *scalar_type,
+                *left,
+                *right,
+            )
+        }
+        _ => return None,
+    };
+    (left == right).then_some(IndependentSameOperandIntegerConstant {
+        psi_operation,
+        obligation,
+        result,
+        scalar_type,
+        operand: left,
+    })
+}
+
+/// Independently validate and materialize the exact symbolic law `x - x = 0`.
+pub fn validate_proof_certified_exact_integer_self_subtract_candidate(
+    input: &PsiOptimizationUnit,
+    candidate: &PsiRewriteCandidate,
+) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
+    validate_proof_certified_same_operand_integer_constant_candidate(
+        input,
+        candidate,
+        ProofCertifiedSameOperandIntegerConstantLaw::ExactSubtractZero,
+        b"omega.psi-rule.live-proof-certified-exact-integer-self-subtract-elimination.v1",
+        b"omega.validator.live-proof-certified-exact-integer-self-subtract-elimination.v1",
+    )
+}
+
+/// Independently validate the defined remainder laws `x % x = 0` for exact,
+/// wrapping, and saturating fixed-width integers. The accepted obligation is
+/// required because it is the capability proving the authored divisor is
+/// legal; no operand constant or range fact is inferred.
+pub fn validate_proof_certified_integer_self_remainder_candidate(
+    input: &PsiOptimizationUnit,
+    candidate: &PsiRewriteCandidate,
+) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
+    validate_proof_certified_same_operand_integer_constant_candidate(
+        input,
+        candidate,
+        ProofCertifiedSameOperandIntegerConstantLaw::SelfRemainderZero,
+        b"omega.psi-rule.live-proof-certified-integer-self-remainder-elimination.v1",
+        b"omega.validator.live-proof-certified-integer-self-remainder-elimination.v1",
+    )
+}
+
+/// Independently validate the defined division laws `x / x = 1` for exact,
+/// wrapping, and saturating fixed-width integers. The accepted obligation is
+/// the capability proving that the authored divisor is nonzero (and that the
+/// signed overflow case is absent). Signed one-bit integers are excluded
+/// because typed positive one is not representable.
+pub fn validate_proof_certified_integer_self_divide_candidate(
+    input: &PsiOptimizationUnit,
+    candidate: &PsiRewriteCandidate,
+) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
+    validate_proof_certified_same_operand_integer_constant_candidate(
+        input,
+        candidate,
+        ProofCertifiedSameOperandIntegerConstantLaw::SelfDivideOne,
+        b"omega.psi-rule.live-proof-certified-integer-self-divide-elimination.v1",
+        b"omega.validator.live-proof-certified-integer-self-divide-elimination.v1",
+    )
+}
+
+/// Validate only the shared in-place constant custody. The operation-law
+/// selector remains validation-local and closed, so adding one producer rule
+/// cannot broaden another rule's accepted policy vocabulary.
+fn validate_proof_certified_same_operand_integer_constant_candidate(
+    input: &PsiOptimizationUnit,
+    candidate: &PsiRewriteCandidate,
+    law: ProofCertifiedSameOperandIntegerConstantLaw,
+    expected_rule_domain: &[u8],
+    validator_domain: &[u8],
+) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
+    validate_psi_optimization_unit(input)?;
+    if candidate.input() != input.identity {
+        return Err(OptimizationUnitValidationError::CandidateInputMismatch);
+    }
+    let expected_rule = OptimizationRuleIdentity::from_canonical_bytes(expected_rule_domain);
+    if candidate.rule() != expected_rule
+        || candidate.required_analyses()
+            != AnalysisSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries])
+        || candidate.invalidated_analyses()
+            != AnalysisInvalidationSet::new([
+                AnalysisKind::UseDefinition,
+                AnalysisKind::EffectSummaries,
+            ])
+        || candidate.safety_class() != OptimizationSafetyClass::ProofCertified
+        || !candidate.substitutions().is_empty()
+        || candidate.predicted_cost_delta() != -1
+    {
+        return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
+    }
+    let PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch) = candidate.patch() else {
+        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    };
+    if candidate.node_decision_point() != Some(patch.location)
+        || candidate.affected_blocks() != [patch.location.block]
+    {
+        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    }
+    let function = input
+        .functions
+        .iter()
+        .find(|function| function.machine == patch.location.machine)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let block = function
+        .blocks
+        .iter()
+        .find(|block| block.id == patch.location.block)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let node = block
+        .nodes
+        .get(
+            usize::try_from(patch.location.node)
+                .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?,
+        )
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let shape = independent_same_operand_integer_constant(&node.operation, law)
+        .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
+    if patch.source_operation != shape.psi_operation
+        || patch.result != shape.result
+        || patch.scalar_type != shape.scalar_type
+        || patch.constant
+            != match law {
+                ProofCertifiedSameOperandIntegerConstantLaw::ExactSubtractZero
+                | ProofCertifiedSameOperandIntegerConstantLaw::SelfRemainderZero => {
+                    independent_integer_zero(shape.scalar_type)
+                }
+                ProofCertifiedSameOperandIntegerConstantLaw::SelfDivideOne => {
+                    independent_integer_one(shape.scalar_type)
+                }
+            }
+        || node.definitions
+            != [ValueDefinition {
+                value: shape.result,
+                scalar_type: ScalarType::Integer(shape.scalar_type),
+                site: ValueDefinitionSite::Node {
+                    block: patch.location.block,
+                    node: patch.location.node,
+                },
+            }]
+    {
+        return Err(OptimizationUnitValidationError::CandidateEvaluationMismatch);
+    }
+    let input_observation = observation_at(input, patch.location)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    if !input_observation.events.is_empty()
+        || !input_observation.successors.is_empty()
+        || !input_observation.ownership.is_empty()
+        || input_observation.crash != ObservationKnowledge::No
+        || input_observation.suspension != ObservationKnowledge::No
+    {
+        return Err(OptimizationUnitValidationError::CandidateObservationMismatch);
+    }
+    let input_live = reconstruct_closed_scalar_node_boundary(input, patch.location)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    if !input_live.live_in.contains(&shape.operand) || !input_live.live_out.contains(&shape.result)
+    {
+        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    }
+    let expected_fact = independently_accepted_operation_fact(
+        input,
+        function,
+        shape.psi_operation,
+        shape.obligation,
+    )
+    .ok_or(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch)?;
+    if candidate.accepted_obligation_witness() != Some(expected_fact) {
+        return Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch);
+    }
+    let site = PsiRealizationSite::Node(patch.location);
+    let expected_provenance = [ProvenanceRewrite {
+        input: site,
+        disposition: ProvenanceDisposition::RealizedAt(site),
+        sources: node.provenance.clone(),
+        fuel: node.fuel.clone(),
+    }];
+    if candidate.provenance() != expected_provenance {
+        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
+    }
+
+    let accepted_catalog = input.accepted_obligation_facts.clone();
+    let mut output = input.clone();
+    let output_function = output
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == patch.location.machine)
+        .expect("candidate source function exists");
+    let output_block = output_function
+        .blocks
+        .iter_mut()
+        .find(|block| block.id == patch.location.block)
+        .expect("candidate source block exists");
+    let output_node = &mut output_block.nodes[patch.location.node as usize];
+    output_node.operation = O::IntegerConstant {
+        psi_operation: shape.psi_operation,
+        result: shape.result,
+        scalar_type: ScalarType::Integer(shape.scalar_type),
+        value: patch.constant,
+    };
+    output_node.definitions = vec![ValueDefinition {
+        value: shape.result,
+        scalar_type: ScalarType::Integer(shape.scalar_type),
+        site: ValueDefinitionSite::Node {
+            block: patch.location.block,
+            node: patch.location.node,
+        },
+    }];
+    output_node.uses.clear();
+    output_node.successors.clear();
+    output_node.ownership.clear();
+    output_function.facts = reconstruct_fact_index(output_function);
+    output.identity = recompute_psi_optimization_unit_identity(&output);
+    if output.accepted_obligation_facts != accepted_catalog {
+        return Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch);
+    }
+    validate_psi_optimization_unit(&output)?;
+    let output_observation = observation_at(&output, patch.location)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    if !same_closed_scalar_observation(&input_observation, &output_observation) {
+        return Err(OptimizationUnitValidationError::CandidateObservationMismatch);
+    }
+    let output_live = reconstruct_closed_scalar_node_boundary(&output, patch.location)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    if input_live.live_out != output_live.live_out
+        || output_live
+            .live_in
+            .iter()
+            .any(|value| !input_live.live_in.contains(value))
+    {
+        return Err(OptimizationUnitValidationError::CandidateLiveBoundaryMismatch);
+    }
+    Ok(ValidatedPsiRewrite {
+        unit: output,
+        candidate: candidate.identity(),
+        validator: OptimizationValidatorIdentity::from_canonical_bytes(validator_domain),
+        provenance: expected_provenance.into(),
+    })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct IndependentRemainderUnitConstant {
+    psi_operation: OperationId,
+    obligation: psi_core::ObligationId,
+    result: ValueId,
+    scalar_type: IntegerType,
+    left: ValueId,
+    right: ValueId,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum IndependentRemainderUnitDivisor {
+    PositiveOne,
+    SignedNegativeOne,
+}
+
+impl IndependentRemainderUnitDivisor {
+    fn value(self, scalar_type: IntegerType) -> Option<IntegerValue> {
+        match self {
+            Self::PositiveOne => Some(independent_integer_one(scalar_type)),
+            Self::SignedNegativeOne if scalar_type.sign() == IntegerSign::Signed => {
+                Some(IntegerValue::Signed(-1))
+            }
+            Self::SignedNegativeOne => None,
+        }
+    }
+}
+
+fn independent_remainder_unit_constant(
+    operation: &O,
+    divisor: IndependentRemainderUnitDivisor,
+) -> Option<IndependentRemainderUnitConstant> {
+    let (psi_operation, obligation, result, scalar_type, left, right) = match operation {
+        O::ExactIntegerRemainder {
+            psi_operation,
+            obligation,
+            result,
+            scalar_type,
+            left,
+            right,
+        }
+        | O::WrappingIntegerRemainder {
+            psi_operation,
+            obligation,
+            result,
+            scalar_type,
+            left,
+            right,
+        }
+        | O::SaturatingIntegerRemainder {
+            psi_operation,
+            obligation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } if scalar_type.carrier() == IntegerCarrier::Fixed && left != right => (
+            *psi_operation,
+            *obligation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+        ),
+        _ => return None,
+    };
+    divisor.value(scalar_type)?;
+    Some(IndependentRemainderUnitConstant {
+        psi_operation,
+        obligation,
+        result,
+        scalar_type,
+        left,
+        right,
+    })
+}
+
+/// Independently validate the defined integer laws `x % 1 = 0` for exact,
+/// wrapping, and saturating fixed-width integers. The right operand must be a
+/// direct typed literal, and the authored operation must retain its exact
+/// verifier-accepted obligation even though the literal also establishes that
+/// the divisor is nonzero.
+pub fn validate_proof_certified_integer_remainder_by_one_candidate(
+    input: &PsiOptimizationUnit,
+    candidate: &PsiRewriteCandidate,
+) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
+    validate_proof_certified_integer_remainder_by_unit_candidate(
+        input,
+        candidate,
+        IndependentRemainderUnitDivisor::PositiveOne,
+        b"omega.psi-rule.live-proof-certified-integer-remainder-by-one-elimination.v1",
+        b"omega.validator.live-proof-certified-integer-remainder-by-one-elimination.v1",
+    )
+}
+
+/// Independently validate the defined signed integer laws `x % -1 = 0` for
+/// exact, wrapping, and saturating fixed-width integers. The right operand must
+/// be a direct typed literal, and the authored operation must retain its exact
+/// verifier-accepted obligation. For exact arithmetic that accepted obligation
+/// proves the otherwise exceptional signed-minimum input is unreachable.
+pub fn validate_proof_certified_signed_integer_remainder_by_negative_one_candidate(
+    input: &PsiOptimizationUnit,
+    candidate: &PsiRewriteCandidate,
+) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
+    validate_proof_certified_integer_remainder_by_unit_candidate(
+        input,
+        candidate,
+        IndependentRemainderUnitDivisor::SignedNegativeOne,
+        b"omega.psi-rule.live-proof-certified-signed-integer-remainder-by-negative-one-elimination.v1",
+        b"omega.validator.live-proof-certified-signed-integer-remainder-by-negative-one-elimination.v1",
+    )
+}
+
+fn validate_proof_certified_integer_remainder_by_unit_candidate(
+    input: &PsiOptimizationUnit,
+    candidate: &PsiRewriteCandidate,
+    divisor: IndependentRemainderUnitDivisor,
+    rule_domain: &[u8],
+    validator_domain: &[u8],
+) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
+    validate_psi_optimization_unit(input)?;
+    if candidate.input() != input.identity {
+        return Err(OptimizationUnitValidationError::CandidateInputMismatch);
+    }
+    let expected_rule = OptimizationRuleIdentity::from_canonical_bytes(rule_domain);
+    if candidate.rule() != expected_rule
+        || candidate.required_analyses()
+            != AnalysisSet::new([
+                AnalysisKind::ScalarConstants,
+                AnalysisKind::UseDefinition,
+                AnalysisKind::EffectSummaries,
+            ])
+        || candidate.invalidated_analyses()
+            != AnalysisInvalidationSet::new([
+                AnalysisKind::UseDefinition,
+                AnalysisKind::EffectSummaries,
+            ])
+        || candidate.safety_class() != OptimizationSafetyClass::ProofCertified
+        || !candidate.substitutions().is_empty()
+        || candidate.predicted_cost_delta() != -1
+    {
+        return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
+    }
+    let PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch) = candidate.patch() else {
+        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    };
+    if candidate.node_decision_point() != Some(patch.location)
+        || candidate.affected_blocks() != [patch.location.block]
+    {
+        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    }
+    let function = input
+        .functions
+        .iter()
+        .find(|function| function.machine == patch.location.machine)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let block = function
+        .blocks
+        .iter()
+        .find(|block| block.id == patch.location.block)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let node = block
+        .nodes
+        .get(
+            usize::try_from(patch.location.node)
+                .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?,
+        )
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let shape = independent_remainder_unit_constant(&node.operation, divisor)
+        .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
+    if patch.source_operation != shape.psi_operation
+        || patch.result != shape.result
+        || patch.scalar_type != shape.scalar_type
+        || patch.constant != independent_integer_zero(shape.scalar_type)
+        || node.definitions
+            != [ValueDefinition {
+                value: shape.result,
+                scalar_type: ScalarType::Integer(shape.scalar_type),
+                site: ValueDefinitionSite::Node {
+                    block: patch.location.block,
+                    node: patch.location.node,
+                },
+            }]
+    {
+        return Err(OptimizationUnitValidationError::CandidateEvaluationMismatch);
+    }
+
+    let right_definition = scalar_value_definition(function, shape.right)
+        .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
+    if right_definition.scalar_type != ScalarType::Integer(shape.scalar_type) {
+        return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
+    }
+    let ValueDefinitionSite::Node {
+        block: literal_block,
+        node: literal_node,
+    } = right_definition.site
+    else {
+        return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
+    };
+    let literal = function
+        .blocks
+        .iter()
+        .find(|block| block.id == literal_block)
+        .and_then(|block| {
+            usize::try_from(literal_node)
+                .ok()
+                .and_then(|node| block.nodes.get(node))
+        })
+        .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
+    let O::IntegerConstant {
+        psi_operation: literal_support,
+        result: literal_result,
+        scalar_type: literal_type,
+        value: literal_value,
+    } = literal.operation
+    else {
+        return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
+    };
+    let expected_one = divisor
+        .value(shape.scalar_type)
+        .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
+    if literal_result != shape.right
+        || literal_type != ScalarType::Integer(shape.scalar_type)
+        || literal_value != expected_one
+        || !shape.scalar_type.admits(expected_one)
+        || !function.facts.iter().any(|fact| {
+            matches!(fact, OptimizationFact::IntegerConstant { value, constant, support }
+                if *value == shape.right
+                    && *constant == expected_one
+                    && *support == literal_support)
+        })
+    {
+        return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
+    }
+    let expected_constant_fact = literal_scalar_constant_fact_identity(
+        input.identity,
+        function.machine,
+        right_definition,
+        ScalarConstantValue::Integer(expected_one),
+        literal_support,
+    )
+    .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
+    let expected_obligation_fact = independently_accepted_operation_fact(
+        input,
+        function,
+        shape.psi_operation,
+        shape.obligation,
+    )
+    .ok_or(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch)?;
+    let Some((constant_fact, obligation_fact)) =
+        candidate.proof_certified_scalar_identity_witness()
+    else {
+        return Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch);
+    };
+    if constant_fact != expected_constant_fact {
+        return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
+    }
+    if obligation_fact != expected_obligation_fact {
+        return Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch);
+    }
+
+    let input_observation = observation_at(input, patch.location)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    if !input_observation.events.is_empty()
+        || !input_observation.successors.is_empty()
+        || !input_observation.ownership.is_empty()
+        || input_observation.crash != ObservationKnowledge::No
+        || input_observation.suspension != ObservationKnowledge::No
+    {
+        return Err(OptimizationUnitValidationError::CandidateObservationMismatch);
+    }
+    let input_live = reconstruct_closed_scalar_node_boundary(input, patch.location)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    if !input_live.live_in.contains(&shape.left)
+        || !input_live.live_in.contains(&shape.right)
+        || !input_live.live_out.contains(&shape.result)
+    {
+        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    }
+    let site = PsiRealizationSite::Node(patch.location);
+    let expected_provenance = [ProvenanceRewrite {
+        input: site,
+        disposition: ProvenanceDisposition::RealizedAt(site),
+        sources: node.provenance.clone(),
+        fuel: node.fuel.clone(),
+    }];
+    if candidate.provenance() != expected_provenance {
+        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
+    }
+
+    let accepted_catalog = input.accepted_obligation_facts.clone();
+    let mut output = input.clone();
+    let output_function = output
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == patch.location.machine)
+        .expect("candidate source function exists");
+    let output_block = output_function
+        .blocks
+        .iter_mut()
+        .find(|block| block.id == patch.location.block)
+        .expect("candidate source block exists");
+    let output_node = &mut output_block.nodes[patch.location.node as usize];
+    output_node.operation = O::IntegerConstant {
+        psi_operation: shape.psi_operation,
+        result: shape.result,
+        scalar_type: ScalarType::Integer(shape.scalar_type),
+        value: patch.constant,
+    };
+    output_node.definitions = vec![ValueDefinition {
+        value: shape.result,
+        scalar_type: ScalarType::Integer(shape.scalar_type),
+        site: ValueDefinitionSite::Node {
+            block: patch.location.block,
+            node: patch.location.node,
+        },
+    }];
+    output_node.uses.clear();
+    output_node.successors.clear();
+    output_node.ownership.clear();
+    output_function.facts = reconstruct_fact_index(output_function);
+    output.identity = recompute_psi_optimization_unit_identity(&output);
+    if output.accepted_obligation_facts != accepted_catalog {
+        return Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch);
+    }
+    validate_psi_optimization_unit(&output)?;
+    let output_observation = observation_at(&output, patch.location)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    if !same_closed_scalar_observation(&input_observation, &output_observation) {
+        return Err(OptimizationUnitValidationError::CandidateObservationMismatch);
+    }
+    let output_live = reconstruct_closed_scalar_node_boundary(&output, patch.location)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    if input_live.live_out != output_live.live_out
+        || output_live
+            .live_in
+            .iter()
+            .any(|value| !input_live.live_in.contains(value))
+    {
+        return Err(OptimizationUnitValidationError::CandidateLiveBoundaryMismatch);
+    }
+    Ok(ValidatedPsiRewrite {
+        unit: output,
+        candidate: candidate.identity(),
+        validator: OptimizationValidatorIdentity::from_canonical_bytes(validator_domain),
+        provenance: expected_provenance.into(),
+    })
+}
+
 /// Dispatch one typed scalar-constant candidate to its independent validator.
 pub fn validate_scalar_evaluation_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
+    if candidate.rule()
+        == OptimizationRuleIdentity::from_canonical_bytes(
+            b"omega.psi-rule.live-proof-certified-exact-integer-self-subtract-elimination.v1",
+        )
+    {
+        return validate_proof_certified_exact_integer_self_subtract_candidate(input, candidate);
+    }
+    if candidate.rule()
+        == OptimizationRuleIdentity::from_canonical_bytes(
+            b"omega.psi-rule.live-proof-certified-integer-self-remainder-elimination.v1",
+        )
+    {
+        return validate_proof_certified_integer_self_remainder_candidate(input, candidate);
+    }
+    if candidate.rule()
+        == OptimizationRuleIdentity::from_canonical_bytes(
+            b"omega.psi-rule.live-proof-certified-integer-self-divide-elimination.v1",
+        )
+    {
+        return validate_proof_certified_integer_self_divide_candidate(input, candidate);
+    }
+    if candidate.rule()
+        == OptimizationRuleIdentity::from_canonical_bytes(
+            b"omega.psi-rule.live-proof-certified-integer-remainder-by-one-elimination.v1",
+        )
+    {
+        return validate_proof_certified_integer_remainder_by_one_candidate(input, candidate);
+    }
+    if candidate.rule()
+        == OptimizationRuleIdentity::from_canonical_bytes(
+            b"omega.psi-rule.live-proof-certified-signed-integer-remainder-by-negative-one-elimination.v1",
+        )
+    {
+        return validate_proof_certified_signed_integer_remainder_by_negative_one_candidate(
+            input, candidate,
+        );
+    }
     match candidate.patch() {
         PsiRewritePatch::ReplaceIntegerOperationWithConstant(_) => {
             validate_integer_evaluation_candidate(input, candidate)
@@ -3540,9 +4275,19 @@ enum IndependentProofScalarExpressionKey {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum IndependentCompatiblePolicyScalarExpressionKey {
+    ShiftLeft(IntegerType, IntegerType, ValueId, ValueId),
+    ShiftRight(IntegerType, IntegerType, ValueId, ValueId),
+    Add(IntegerType, ValueId, ValueId),
+    Subtract(IntegerType, ValueId, ValueId),
+    Multiply(IntegerType, ValueId, ValueId),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum IndependentScalarExpressionKey {
     ObligationFree(IndependentTotalScalarExpressionKey),
     ProofCertified(IndependentProofScalarExpressionKey),
+    CompatiblePolicy(IndependentCompatiblePolicyScalarExpressionKey),
 }
 
 fn independent_pair(left: ValueId, right: ValueId) -> (ValueId, ValueId) {
@@ -4056,6 +4801,235 @@ fn independent_proof_scalar_expression(
     })
 }
 
+fn independent_compatible_policy_scalar_leader(
+    operation: &O,
+) -> Option<(
+    IndependentScalarExpressionKey,
+    OperationId,
+    ValueId,
+    ScalarType,
+    Option<psi_core::ObligationId>,
+)> {
+    let row = match operation {
+        O::WrappingIntegerShiftLeft {
+            psi_operation,
+            result,
+            value_type,
+            count_type,
+            value,
+            count,
+        } => (
+            IndependentCompatiblePolicyScalarExpressionKey::ShiftLeft(
+                *value_type,
+                *count_type,
+                *value,
+                *count,
+            ),
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*value_type),
+        ),
+        O::WrappingIntegerShiftRight {
+            psi_operation,
+            result,
+            value_type,
+            count_type,
+            value,
+            count,
+        } => (
+            IndependentCompatiblePolicyScalarExpressionKey::ShiftRight(
+                *value_type,
+                *count_type,
+                *value,
+                *count,
+            ),
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*value_type),
+        ),
+        O::WrappingIntegerAdd {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        }
+        | O::SaturatingIntegerAdd {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => {
+            let (left, right) = independent_pair(*left, *right);
+            (
+                IndependentCompatiblePolicyScalarExpressionKey::Add(*scalar_type, left, right),
+                *psi_operation,
+                *result,
+                ScalarType::Integer(*scalar_type),
+            )
+        }
+        O::WrappingIntegerSubtract {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        }
+        | O::SaturatingIntegerSubtract {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            IndependentCompatiblePolicyScalarExpressionKey::Subtract(*scalar_type, *left, *right),
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*scalar_type),
+        ),
+        O::WrappingIntegerMultiply {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        }
+        | O::SaturatingIntegerMultiply {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => {
+            let (left, right) = independent_pair(*left, *right);
+            (
+                IndependentCompatiblePolicyScalarExpressionKey::Multiply(*scalar_type, left, right),
+                *psi_operation,
+                *result,
+                ScalarType::Integer(*scalar_type),
+            )
+        }
+        _ => return None,
+    };
+    Some((
+        IndependentScalarExpressionKey::CompatiblePolicy(row.0),
+        row.1,
+        row.2,
+        row.3,
+        None,
+    ))
+}
+
+fn independent_compatible_policy_scalar_redundant(
+    operation: &O,
+) -> Option<(
+    IndependentScalarExpressionKey,
+    OperationId,
+    ValueId,
+    ScalarType,
+    Option<psi_core::ObligationId>,
+)> {
+    let row = match operation {
+        O::ExactIntegerShiftLeft {
+            psi_operation,
+            obligation,
+            result,
+            value_type,
+            count_type,
+            value,
+            count,
+        } => (
+            IndependentCompatiblePolicyScalarExpressionKey::ShiftLeft(
+                *value_type,
+                *count_type,
+                *value,
+                *count,
+            ),
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*value_type),
+            *obligation,
+        ),
+        O::ExactIntegerShiftRight {
+            psi_operation,
+            obligation,
+            result,
+            value_type,
+            count_type,
+            value,
+            count,
+        } => (
+            IndependentCompatiblePolicyScalarExpressionKey::ShiftRight(
+                *value_type,
+                *count_type,
+                *value,
+                *count,
+            ),
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*value_type),
+            *obligation,
+        ),
+        O::ExactIntegerAdd {
+            psi_operation,
+            obligation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => {
+            let (left, right) = independent_pair(*left, *right);
+            (
+                IndependentCompatiblePolicyScalarExpressionKey::Add(*scalar_type, left, right),
+                *psi_operation,
+                *result,
+                ScalarType::Integer(*scalar_type),
+                *obligation,
+            )
+        }
+        O::ExactIntegerSubtract {
+            psi_operation,
+            obligation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            IndependentCompatiblePolicyScalarExpressionKey::Subtract(*scalar_type, *left, *right),
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*scalar_type),
+            *obligation,
+        ),
+        O::ExactIntegerMultiply {
+            psi_operation,
+            obligation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => {
+            let (left, right) = independent_pair(*left, *right);
+            (
+                IndependentCompatiblePolicyScalarExpressionKey::Multiply(*scalar_type, left, right),
+                *psi_operation,
+                *result,
+                ScalarType::Integer(*scalar_type),
+                *obligation,
+            )
+        }
+        _ => return None,
+    };
+    Some((
+        IndependentScalarExpressionKey::CompatiblePolicy(row.0),
+        row.1,
+        row.2,
+        row.3,
+        Some(row.4),
+    ))
+}
+
 fn independent_cse_expression(
     operation: &O,
     value_types: &BTreeMap<ValueId, ScalarType>,
@@ -4090,6 +5064,7 @@ fn independent_cse_expression(
                 Some(obligation),
             ))
         }
+        ScalarCseProofClass::CompatiblePolicy => None,
     }
 }
 
@@ -4142,7 +5117,8 @@ pub fn validate_dominating_scalar_common_subexpression_candidate(
     validate_scalar_common_subexpression_candidate(input, candidate, ScalarCseScope::Dominating)
 }
 
-/// Independently validate one obligation-free or proof-certified scalar
+/// Independently validate one obligation-free, proof-certified, or
+/// proof-certified compatible-policy scalar
 /// expression translated through every incoming binding of an acyclic join.
 /// The redundant result identity becomes a new join parameter; every incoming
 /// edge supplies the canonical available leader for its translated expression.
@@ -4165,12 +5141,20 @@ pub fn validate_phi_translated_scalar_common_subexpression_candidate(
         )
     {
         ScalarCseProofClass::ProofCertified
+    } else if candidate.rule()
+        == OptimizationRuleIdentity::from_canonical_bytes(
+            b"omega.psi-rule.phi-translated-proof-certified-compatible-policy-scalar-gvn.v1",
+        )
+    {
+        ScalarCseProofClass::CompatiblePolicy
     } else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     };
     let expected_safety = match proof_class {
         ScalarCseProofClass::ObligationFree => OptimizationSafetyClass::ExactOperationSemantics,
-        ScalarCseProofClass::ProofCertified => OptimizationSafetyClass::ProofCertified,
+        ScalarCseProofClass::ProofCertified | ScalarCseProofClass::CompatiblePolicy => {
+            OptimizationSafetyClass::ProofCertified
+        }
     };
     if !candidate
         .required_analyses()
@@ -4247,8 +5231,13 @@ pub fn validate_phi_translated_scalar_common_subexpression_candidate(
         }))
         .collect::<BTreeMap<_, _>>();
     let (_, redundant_operation, redundant_result, redundant_type, redundant_obligation) =
-        independent_cse_expression(&redundant.operation, &value_types, proof_class)
-            .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
+        match proof_class {
+            ScalarCseProofClass::CompatiblePolicy => {
+                independent_compatible_policy_scalar_redundant(&redundant.operation)
+            }
+            _ => independent_cse_expression(&redundant.operation, &value_types, proof_class),
+        }
+        .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
     if redundant_operation != patch.redundant_operation
         || redundant_result != patch.redundant_result
         || redundant_type != patch.scalar_type
@@ -4286,7 +5275,10 @@ pub fn validate_phi_translated_scalar_common_subexpression_candidate(
             }
             None
         }
-        (ScalarCseProofClass::ProofCertified, Some(obligation)) => {
+        (
+            ScalarCseProofClass::ProofCertified | ScalarCseProofClass::CompatiblePolicy,
+            Some(obligation),
+        ) => {
             let fact = independently_accepted_operation_fact(
                 input,
                 function,
@@ -4322,14 +5314,19 @@ pub fn validate_phi_translated_scalar_common_subexpression_candidate(
             for (parameter, binding) in join.parameters.iter().zip(&edge.bindings) {
                 if binding.parameter != parameter.value
                     || binding.scalar_type != parameter.scalar_type
+                    || value_types.get(&binding.argument) != Some(&binding.scalar_type)
                 {
                     return Err(OptimizationUnitValidationError::CandidateIncomingBindingMismatch);
                 }
                 rewrite_scalar_value_uses(&mut translated, parameter.value, binding.argument);
             }
-            let (translated_key, _, _, translated_type, _) =
-                independent_cse_expression(&translated, &value_types, proof_class)
-                    .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
+            let (translated_key, _, _, translated_type, _) = match proof_class {
+                ScalarCseProofClass::CompatiblePolicy => {
+                    independent_compatible_policy_scalar_redundant(&translated)
+                }
+                _ => independent_cse_expression(&translated, &value_types, proof_class),
+            }
+            .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
             let mut available_leaders = Vec::new();
             let mut missing_leader_evidence = false;
             for leader_block in &function.blocks {
@@ -4344,9 +5341,13 @@ pub fn validate_phi_translated_scalar_common_subexpression_candidate(
                     if !available {
                         continue;
                     }
-                    let Some((key, operation, result, scalar_type, obligation)) =
-                        independent_cse_expression(&node.operation, &value_types, proof_class)
-                    else {
+                    let Some((key, operation, result, scalar_type, obligation)) = (match proof_class
+                    {
+                        ScalarCseProofClass::CompatiblePolicy => {
+                            independent_compatible_policy_scalar_leader(&node.operation)
+                        }
+                        _ => independent_cse_expression(&node.operation, &value_types, proof_class),
+                    }) else {
                         continue;
                     };
                     let admitted = match (proof_class, obligation) {
@@ -4363,11 +5364,16 @@ pub fn validate_phi_translated_scalar_common_subexpression_candidate(
                             )
                             .is_some()
                         }
+                        (ScalarCseProofClass::CompatiblePolicy, None) => !function
+                            .facts
+                            .iter()
+                            .any(|fact| matches!(fact, OptimizationFact::OperationObligationReference { support, .. } if *support == operation)),
                         _ => false,
                     };
                     if !admitted
-                        && proof_class == ScalarCseProofClass::ProofCertified
-                        && obligation.is_some()
+                        && ((proof_class == ScalarCseProofClass::ProofCertified
+                            && obligation.is_some())
+                            || proof_class == ScalarCseProofClass::CompatiblePolicy)
                         && key == translated_key
                         && scalar_type == translated_type
                     {
@@ -4537,6 +5543,9 @@ pub fn validate_phi_translated_scalar_common_subexpression_candidate(
             ScalarCseProofClass::ProofCertified => {
                 b"omega.validator.phi-translated-proof-certified-total-scalar-gvn.v1"
             }
+            ScalarCseProofClass::CompatiblePolicy => {
+                b"omega.validator.phi-translated-proof-certified-compatible-policy-scalar-gvn.v1"
+            }
         }),
         provenance: accepted_provenance,
     })
@@ -4552,6 +5561,7 @@ enum ScalarCseScope {
 enum ScalarCseProofClass {
     ObligationFree,
     ProofCertified,
+    CompatiblePolicy,
 }
 
 fn validate_scalar_common_subexpression_candidate(
@@ -4596,11 +5606,29 @@ fn validate_scalar_common_subexpression_candidate(
         {
             ScalarCseProofClass::ProofCertified
         }
+        (ScalarCseScope::SameBlock, rule)
+            if rule
+                == OptimizationRuleIdentity::from_canonical_bytes(
+                    b"omega.psi-rule.same-block-proof-certified-compatible-policy-scalar-cse.v1",
+                ) =>
+        {
+            ScalarCseProofClass::CompatiblePolicy
+        }
+        (ScalarCseScope::Dominating, rule)
+            if rule
+                == OptimizationRuleIdentity::from_canonical_bytes(
+                    b"omega.psi-rule.dominator-proof-certified-compatible-policy-scalar-gvn.v1",
+                ) =>
+        {
+            ScalarCseProofClass::CompatiblePolicy
+        }
         _ => return Err(OptimizationUnitValidationError::CandidatePatchMismatch),
     };
     let expected_safety = match proof_class {
         ScalarCseProofClass::ObligationFree => OptimizationSafetyClass::ExactOperationSemantics,
-        ScalarCseProofClass::ProofCertified => OptimizationSafetyClass::ProofCertified,
+        ScalarCseProofClass::ProofCertified | ScalarCseProofClass::CompatiblePolicy => {
+            OptimizationSafetyClass::ProofCertified
+        }
     };
     if !candidate
         .required_analyses()
@@ -4720,7 +5748,12 @@ fn validate_scalar_common_subexpression_candidate(
         }))
         .collect::<BTreeMap<_, _>>();
     let admitted_expression = |operation: &O| {
-        let row = independent_cse_expression(operation, &value_types, proof_class)?;
+        let row = match proof_class {
+            ScalarCseProofClass::CompatiblePolicy => {
+                independent_compatible_policy_scalar_leader(operation)?
+            }
+            _ => independent_cse_expression(operation, &value_types, proof_class)?,
+        };
         match (proof_class, row.4) {
             (ScalarCseProofClass::ObligationFree, None) => Some(row),
             (ScalarCseProofClass::ProofCertified, Some(obligation))
@@ -4729,20 +5762,38 @@ fn validate_scalar_common_subexpression_candidate(
             {
                 Some(row)
             }
+            (ScalarCseProofClass::CompatiblePolicy, None)
+                if !function.facts.iter().any(|fact| {
+                    matches!(fact, OptimizationFact::OperationObligationReference { support, .. }
+                        if *support == row.1)
+                }) =>
+            {
+                Some(row)
+            }
             _ => None,
         }
     };
     let (leader_key, leader_operation, leader_result, leader_type, leader_obligation) =
-        independent_cse_expression(&leader.operation, &value_types, proof_class)
-            .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
+        match proof_class {
+            ScalarCseProofClass::CompatiblePolicy => {
+                independent_compatible_policy_scalar_leader(&leader.operation)
+            }
+            _ => independent_cse_expression(&leader.operation, &value_types, proof_class),
+        }
+        .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
     let (
         redundant_key,
         redundant_operation,
         redundant_result,
         redundant_type,
         redundant_obligation,
-    ) = independent_cse_expression(&redundant.operation, &value_types, proof_class)
-        .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
+    ) = match proof_class {
+        ScalarCseProofClass::CompatiblePolicy => {
+            independent_compatible_policy_scalar_redundant(&redundant.operation)
+        }
+        _ => independent_cse_expression(&redundant.operation, &value_types, proof_class),
+    }
+    .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
     if leader_key != redundant_key
         || leader_operation != patch.leader_operation
         || redundant_operation != patch.redundant_operation
@@ -4791,6 +5842,29 @@ fn validate_scalar_common_subexpression_candidate(
                 );
             }
             Some((leader_fact, redundant_fact))
+        }
+        (ScalarCseProofClass::CompatiblePolicy, None, Some(redundant)) => {
+            if function.facts.iter().any(|fact| {
+                matches!(fact, OptimizationFact::OperationObligationReference { support, .. }
+                    if *support == leader_operation)
+            }) {
+                return Err(
+                    OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch,
+                );
+            }
+            let redundant_fact = independently_accepted_operation_fact(
+                input,
+                function,
+                redundant_operation,
+                redundant,
+            )
+            .ok_or(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch)?;
+            if candidate.accepted_obligation_witness() != Some(redundant_fact) {
+                return Err(
+                    OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch,
+                );
+            }
+            None
         }
         _ => {
             return Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch);
@@ -4990,6 +6064,12 @@ fn validate_scalar_common_subexpression_candidate(
                 }
                 (ScalarCseScope::Dominating, ScalarCseProofClass::ProofCertified) => {
                     b"omega.validator.dominator-proof-certified-total-scalar-gvn.v1"
+                }
+                (ScalarCseScope::SameBlock, ScalarCseProofClass::CompatiblePolicy) => {
+                    b"omega.validator.same-block-proof-certified-compatible-policy-scalar-cse.v1"
+                }
+                (ScalarCseScope::Dominating, ScalarCseProofClass::CompatiblePolicy) => {
+                    b"omega.validator.dominator-proof-certified-compatible-policy-scalar-gvn.v1"
                 }
             },
         ),
@@ -10173,6 +11253,7 @@ mod tests {
             proof_output_calls: Vec::new(),
             evidence_contract_lanes: Vec::new(),
             closed_conformance_applications: Vec::new(),
+            quotient_correspondences: Vec::new(),
             machines: vec![TerminalMachine {
                 id: id(101, MachineId::new),
                 attachment: None,

@@ -1,14 +1,14 @@
 #!/usr/bin/env sh
 # Loader for the platform-independent checker tape constructed below Beta.
-# Source tools/bootstrap/paths.sh first.
+# Source tools/lattice/paths.sh first.
 
-[ -n "${OMEGA_PATH_PROOF_KERNEL:-}" ] && [ -n "${OMEGA_PATH_ALPHA:-}" ] || {
-  echo "checker artifact: source tools/bootstrap/paths.sh first" >&2
+[ -n "${OMEGA_PATH_ALPHA_CHECKER:-}" ] && [ -n "${OMEGA_PATH_ALPHA:-}" ] || {
+  echo "checker artifact: source tools/lattice/paths.sh first" >&2
   return 2 2>/dev/null || exit 2
 }
 
 . "$OMEGA_PATH_ALPHA/seed_env.sh"
-PROOF_CHECKER_TAPE="$OMEGA_PATH_PROOF_KERNEL/artifacts/check.tape"
+PROOF_CHECKER_TAPE="$OMEGA_PATH_ALPHA_CHECKER/artifacts/check.tape"
 export PROOF_CHECKER_TAPE
 
 stamp_proof_checker() {

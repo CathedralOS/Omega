@@ -1,4 +1,4 @@
-# Psi/Omega toolchain
+# Omega product toolchain
 
 [Lattice overview](bootstrap_lattice.md) | [Delta](rungs/delta.md) |
 [Compiler source profile](compiler_source_profile.md)

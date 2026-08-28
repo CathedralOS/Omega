@@ -1,5 +1,5 @@
 use omega_optimization_core::{AcceptedObligationFactIdentity, OptimizationUnitIdentity};
-use omega_optimization_unit::{FuelSettlement, PsiProvenance};
+use omega_optimization_unit::{EffectLink, FuelSettlement, OwnershipEvent, PsiProvenance};
 use omega_register_model::{
     RegisterConstraintCatalogIdentity, RegisterConstraintFamily, RegisterConstraintKey,
     RegisterUnitId, TargetRegisterEnvironmentIdentity,
@@ -15,19 +15,25 @@ use omega_terminal_selected_instructions::{
     TerminalMachineMemoryEffect, TerminalMachineSizeKnowledge, TerminalMachineTrapBehavior,
     TerminalSelectedBlockId, TerminalSelectedInstructionId, TerminalSelectedInstructionKind,
     TerminalSelectedInstructionPlanIdentity, TerminalSelectedInstructionProvenance,
+    TerminalSelectedMicrosoftX64OwnedIndirectPairLayout,
+    TerminalSelectedStructuralUnitIndirectBinding, TerminalStructuralUnitCallBarrier,
+    TerminalStructuralUnitCallEffect, TerminalStructuralUnitCallEffectDeclaration,
+    TerminalStructuralUnitCallFrameEffect, TerminalStructuralUnitCallMemoryEffect,
 };
 use psi_core::{
-    EdgeId, FuelScheduleIdentity, IntegerValue, MachineId, ObligationId, OperationId, ValueId,
+    ClaimId, EdgeId, FuelScheduleIdentity, IntegerValue, MachineId, ObligationId, OperationId,
+    PlaceId, StructuralTypeId, ValueId,
 };
 
 use crate::{
     TerminalBlockMachineEffects, TerminalFunctionMachineEffects, TerminalInstructionMachineEffects,
     TerminalPreAllocationMachineEffectIdentity, TerminalPreAllocationMachineEffectPlan,
+    TerminalStructuralUnitCallMachineEffects, TerminalStructuralUnitFunctionMachineEffects,
     terminal_pre_allocation_machine_effect_identity,
 };
 
 const MAGIC: &[u8; 8] = b"OMGMFX\0\0";
-const VERSION: u32 = 4;
+const VERSION: u32 = 6;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalPreAllocationMachineEffectDecodeError {
@@ -104,6 +110,12 @@ pub(crate) fn decode_terminal_pre_allocation_machine_effect_plan(
         }
         functions.push(TerminalFunctionMachineEffects { machine, blocks });
     }
+    let structural_count = cursor.length()?;
+    let mut structural_unit_functions =
+        Vec::with_capacity(structural_count.min(cursor.remaining()));
+    for _ in 0..structural_count {
+        structural_unit_functions.push(decode_structural_function(&mut cursor)?);
+    }
     if cursor.remaining() != 0 {
         return Err(TerminalPreAllocationMachineEffectDecodeError::TrailingBytes);
     }
@@ -117,11 +129,192 @@ pub(crate) fn decode_terminal_pre_allocation_machine_effect_plan(
         register_constraints,
         machine_effect_catalog,
         functions,
+        structural_unit_functions,
     };
     if plan.identity != terminal_pre_allocation_machine_effect_identity(&plan) {
         return Err(TerminalPreAllocationMachineEffectDecodeError::InvalidIdentity);
     }
     Ok(plan)
+}
+
+fn decode_structural_function(
+    cursor: &mut Cursor<'_>,
+) -> Result<
+    TerminalStructuralUnitFunctionMachineEffects,
+    TerminalPreAllocationMachineEffectDecodeError,
+> {
+    let machine = decode_machine(cursor)?;
+    let block = TerminalSelectedBlockId(cursor.u32()?);
+    let call = match cursor.byte()? {
+        0 => None,
+        1 => Some(decode_structural_call(cursor)?),
+        _ => return Err(TerminalPreAllocationMachineEffectDecodeError::InvalidField),
+    };
+    let return_instruction = decode_instruction(cursor)?;
+    let return_effect = decode_effect_link(cursor)?;
+    let return_ownership = decode_ownership(cursor)?;
+    Ok(TerminalStructuralUnitFunctionMachineEffects {
+        machine,
+        block,
+        call,
+        return_instruction,
+        return_effect,
+        return_ownership,
+    })
+}
+
+pub(crate) fn decode_structural_call(
+    cursor: &mut Cursor<'_>,
+) -> Result<TerminalStructuralUnitCallMachineEffects, TerminalPreAllocationMachineEffectDecodeError>
+{
+    let instruction = TerminalSelectedInstructionId(cursor.u32()?);
+    let operation = OperationId::new(cursor.u64()?)
+        .ok_or(TerminalPreAllocationMachineEffectDecodeError::InvalidField)?;
+    let callee = decode_machine(cursor)?;
+    let constraint = decode_constraint_key(cursor)?;
+    let unit_uses = decode_units(cursor)?;
+    let unit_defs = decode_units(cursor)?;
+    let unit_clobbers = decode_units(cursor)?;
+    let layout = decode_structural_layout(cursor)?;
+    let effect = decode_effect_link(cursor)?;
+    let ownership = decode_ownership(cursor)?;
+    let transfer_count = cursor.length()?;
+    let mut claim_transfers = Vec::with_capacity(transfer_count.min(cursor.remaining()));
+    for _ in 0..transfer_count {
+        claim_transfers.push(psi_terminal::ClaimTransfer {
+            claim: ClaimId::new(cursor.u64()?)
+                .ok_or(TerminalPreAllocationMachineEffectDecodeError::InvalidField)?,
+            argument_index: cursor.u32()?,
+        });
+    }
+    let provenance = decode_provenance(cursor)?;
+    let declaration = decode_structural_declaration(cursor)?;
+    Ok(TerminalStructuralUnitCallMachineEffects {
+        instruction,
+        operation,
+        callee,
+        constraint,
+        unit_uses,
+        unit_defs,
+        unit_clobbers,
+        layout,
+        effect,
+        ownership,
+        claim_transfers,
+        provenance,
+        declaration,
+    })
+}
+
+fn decode_structural_layout(
+    cursor: &mut Cursor<'_>,
+) -> Result<
+    TerminalSelectedMicrosoftX64OwnedIndirectPairLayout,
+    TerminalPreAllocationMachineEffectDecodeError,
+> {
+    let shadow_byte_count = cursor.u32()?;
+    let outgoing_frame_byte_count = cursor.u32()?;
+    let pre_call_stack_alignment = cursor.u16()?;
+    let mut bindings = Vec::with_capacity(2);
+    for _ in 0..2 {
+        bindings.push(TerminalSelectedStructuralUnitIndirectBinding {
+            parameter_index: usize::try_from(cursor.u64()?)
+                .map_err(|_| TerminalPreAllocationMachineEffectDecodeError::InvalidField)?,
+            pointer: decode_machine_register(cursor)?,
+            copy_stack_byte_offset: cursor.u32()?,
+            byte_count: cursor.u16()?,
+            alignment: cursor.u16()?,
+        });
+    }
+    Ok(TerminalSelectedMicrosoftX64OwnedIndirectPairLayout {
+        shadow_byte_count,
+        outgoing_frame_byte_count,
+        pre_call_stack_alignment,
+        bindings: bindings
+            .try_into()
+            .map_err(|_| TerminalPreAllocationMachineEffectDecodeError::InvalidField)?,
+    })
+}
+
+fn decode_machine_register(
+    cursor: &mut Cursor<'_>,
+) -> Result<
+    omega_terminal_target_operations::MachineRegister,
+    TerminalPreAllocationMachineEffectDecodeError,
+> {
+    use omega_terminal_target_operations::MachineRegister as R;
+    Ok(match cursor.byte()? {
+        0 => R::X86Rax,
+        1 => R::X86Rcx,
+        2 => R::X86Rdx,
+        3 => R::X86Rbx,
+        4 => R::X86Rsp,
+        5 => R::X86Rbp,
+        6 => R::X86Rsi,
+        7 => R::X86Rdi,
+        8 => R::X86R8,
+        9 => R::X86R9,
+        10 => R::X86R10,
+        11 => R::X86R11,
+        12 => R::X86R12,
+        13 => R::X86R13,
+        14 => R::X86R14,
+        15 => R::X86R15,
+        16 => R::X86Xmm(cursor.byte()?),
+        17 => R::Aarch64X(cursor.byte()?),
+        18 => R::Aarch64V(cursor.byte()?),
+        _ => return Err(TerminalPreAllocationMachineEffectDecodeError::InvalidField),
+    })
+}
+
+pub(crate) fn decode_effect_link(
+    cursor: &mut Cursor<'_>,
+) -> Result<EffectLink, TerminalPreAllocationMachineEffectDecodeError> {
+    Ok(EffectLink {
+        input: cursor.u64()?,
+        output: cursor.u64()?,
+    })
+}
+
+fn decode_structural_declaration(
+    cursor: &mut Cursor<'_>,
+) -> Result<
+    TerminalStructuralUnitCallEffectDeclaration,
+    TerminalPreAllocationMachineEffectDecodeError,
+> {
+    let constraint = decode_constraint_key(cursor)?;
+    let memory = match cursor.byte()? {
+        1 => TerminalStructuralUnitCallMemoryEffect::ReadOwnedIndirectPairWriteCallerCopiesV1 {
+            root_byte_count: cursor.u16()?,
+            copy_stack_byte_offsets: [cursor.u32()?, cursor.u32()?],
+        },
+        _ => return Err(TerminalPreAllocationMachineEffectDecodeError::InvalidField),
+    };
+    let frame = match cursor.byte()? {
+        1 => TerminalStructuralUnitCallFrameEffect::BalancedCallerFrameV1 {
+            frame_byte_count: cursor.u32()?,
+            shadow_byte_count: cursor.u32()?,
+            pre_call_stack_alignment: cursor.u16()?,
+        },
+        _ => return Err(TerminalPreAllocationMachineEffectDecodeError::InvalidField),
+    };
+    let trap = match cursor.byte()? {
+        0 => TerminalMachineTrapBehavior::NeverV1,
+        1 => TerminalMachineTrapBehavior::MayArchitecturalFaultV1,
+        _ => return Err(TerminalPreAllocationMachineEffectDecodeError::InvalidField),
+    };
+    if cursor.byte()? != 1 || cursor.byte()? != 1 || cursor.byte()? != 0 {
+        return Err(TerminalPreAllocationMachineEffectDecodeError::InvalidField);
+    }
+    Ok(TerminalStructuralUnitCallEffectDeclaration {
+        constraint,
+        memory,
+        frame,
+        trap,
+        barrier: TerminalStructuralUnitCallBarrier::CallV1,
+        call: TerminalStructuralUnitCallEffect::DirectInternalUnitV1,
+        cleanup: TerminalMachineCleanupEffect::NoneV1,
+    })
 }
 
 fn decode_instruction(
@@ -196,6 +389,7 @@ fn decode_kind(
             obligation: decode_obligation(cursor)?,
             accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
         },
+        9 => TerminalSelectedInstructionKind::ReturnUnit,
         _ => return Err(TerminalPreAllocationMachineEffectDecodeError::InvalidField),
     })
 }
@@ -210,7 +404,7 @@ fn decode_integer(
     }
 }
 
-fn decode_provenance(
+pub(crate) fn decode_provenance(
     cursor: &mut Cursor<'_>,
 ) -> Result<TerminalSelectedInstructionProvenance, TerminalPreAllocationMachineEffectDecodeError> {
     let operations = decode_ids(cursor, OperationId::new)?;
@@ -260,6 +454,7 @@ pub(crate) fn decode_alternative(
         6 => TerminalMachineAlternativeFamily::ConditionalBranchNonZero,
         7 => TerminalMachineAlternativeFamily::ReturnI64,
         8 => TerminalMachineAlternativeFamily::ExactSubtractI64Immediate,
+        9 => TerminalMachineAlternativeFamily::ReturnUnit,
         _ => return Err(TerminalPreAllocationMachineEffectDecodeError::InvalidField),
     };
     let key = TerminalMachineAlternativeKey {
@@ -452,6 +647,116 @@ fn decode_ids<T>(
         );
     }
     Ok(values)
+}
+
+fn decode_machine(
+    cursor: &mut Cursor<'_>,
+) -> Result<MachineId, TerminalPreAllocationMachineEffectDecodeError> {
+    MachineId::new(cursor.u64()?).ok_or(TerminalPreAllocationMachineEffectDecodeError::InvalidField)
+}
+
+pub(crate) fn decode_ownership(
+    cursor: &mut Cursor<'_>,
+) -> Result<Vec<OwnershipEvent>, TerminalPreAllocationMachineEffectDecodeError> {
+    let count = cursor.length()?;
+    let mut ownership = Vec::with_capacity(count.min(cursor.remaining()));
+    for _ in 0..count {
+        let event = match cursor.byte()? {
+            1 => OwnershipEvent::ClaimTransfer(decode_claim_ids(cursor)?),
+            2 => OwnershipEvent::ClaimCompletion(decode_claim_ids(cursor)?),
+            3 => {
+                let action_count = cursor.length()?;
+                let mut actions = Vec::with_capacity(action_count.min(cursor.remaining()));
+                for _ in 0..action_count {
+                    actions.push(decode_cleanup(cursor)?);
+                }
+                OwnershipEvent::Cleanup(actions)
+            }
+            4 => OwnershipEvent::StructuralReturn(decode_claim_ids(cursor)?),
+            5 => OwnershipEvent::CrashFrontier(decode_claim_ids(cursor)?),
+            _ => return Err(TerminalPreAllocationMachineEffectDecodeError::InvalidField),
+        };
+        ownership.push(event);
+    }
+    Ok(ownership)
+}
+
+fn decode_claim_ids(
+    cursor: &mut Cursor<'_>,
+) -> Result<Vec<ClaimId>, TerminalPreAllocationMachineEffectDecodeError> {
+    decode_ids(cursor, ClaimId::new)
+}
+
+fn decode_cleanup(
+    cursor: &mut Cursor<'_>,
+) -> Result<psi_terminal::TerminalAffineCleanupAction, TerminalPreAllocationMachineEffectDecodeError>
+{
+    Ok(match cursor.byte()? {
+        1 => psi_terminal::TerminalAffineCleanupAction::DiscardRoot(decode_place(cursor)?),
+        2 => psi_terminal::TerminalAffineCleanupAction::DiscardResidual(
+            psi_terminal::StructuralAffineDiscard {
+                place: decode_place(cursor)?,
+                path: decode_path(cursor)?,
+                structural_type: decode_structural_type(cursor)?,
+            },
+        ),
+        3 => {
+            let place = decode_place(cursor)?;
+            let structural_type = decode_structural_type(cursor)?;
+            let cleanup_machine = decode_machine(cursor)?;
+            let cleanup_receiver = match cursor.byte()? {
+                0 => None,
+                1 => Some(decode_place(cursor)?),
+                _ => return Err(TerminalPreAllocationMachineEffectDecodeError::InvalidField),
+            };
+            let requirement_obligations = decode_ids(cursor, ObligationId::new)?;
+            psi_terminal::TerminalAffineCleanupAction::InvokeNominal(
+                psi_terminal::NominalAffineCleanup {
+                    place,
+                    structural_type,
+                    cleanup_machine,
+                    cleanup_receiver,
+                    requirement_obligations,
+                },
+            )
+        }
+        _ => return Err(TerminalPreAllocationMachineEffectDecodeError::InvalidField),
+    })
+}
+
+fn decode_path(
+    cursor: &mut Cursor<'_>,
+) -> Result<Vec<psi_terminal::StructuralPathSegment>, TerminalPreAllocationMachineEffectDecodeError>
+{
+    let count = cursor.length()?;
+    let mut path = Vec::with_capacity(count.min(cursor.remaining()));
+    for _ in 0..count {
+        path.push(match cursor.byte()? {
+            1 => {
+                let length = cursor.length()?;
+                let bytes = cursor.take(length)?;
+                let name = std::str::from_utf8(bytes)
+                    .map_err(|_| TerminalPreAllocationMachineEffectDecodeError::InvalidField)?;
+                psi_terminal::StructuralPathSegment::Field(name.to_owned())
+            }
+            2 => psi_terminal::StructuralPathSegment::FixedIndex(cursor.u64()?),
+            _ => return Err(TerminalPreAllocationMachineEffectDecodeError::InvalidField),
+        });
+    }
+    Ok(path)
+}
+
+fn decode_place(
+    cursor: &mut Cursor<'_>,
+) -> Result<PlaceId, TerminalPreAllocationMachineEffectDecodeError> {
+    PlaceId::new(cursor.u64()?).ok_or(TerminalPreAllocationMachineEffectDecodeError::InvalidField)
+}
+
+fn decode_structural_type(
+    cursor: &mut Cursor<'_>,
+) -> Result<StructuralTypeId, TerminalPreAllocationMachineEffectDecodeError> {
+    StructuralTypeId::new(cursor.u64()?)
+        .ok_or(TerminalPreAllocationMachineEffectDecodeError::InvalidField)
 }
 
 fn decode_obligation(
@@ -659,7 +964,99 @@ mod tests {
                     }],
                 }],
             }],
+            structural_unit_functions: Vec::new(),
         };
+        let return_instruction = TerminalInstructionMachineEffects {
+            instruction: TerminalSelectedInstructionId(1),
+            kind: TerminalSelectedInstructionKind::ReturnUnit,
+            constraint: RegisterConstraintKey {
+                family: RegisterConstraintFamily::Return,
+                variant: 3,
+            },
+            unit_uses: vec![RegisterUnitId(4)],
+            unit_defs: vec![RegisterUnitId(4), RegisterUnitId(5)],
+            unit_clobbers: Vec::new(),
+            memory: TerminalMachineMemoryEffect::NoneV1,
+            trap: TerminalMachineTrapBehavior::NeverV1,
+            barrier: TerminalMachineBarrier::ControlFlow,
+            call: TerminalMachineCallEffect::NoneV1,
+            cleanup: TerminalMachineCleanupEffect::NoneV1,
+            provenance: TerminalSelectedInstructionProvenance::default(),
+            alternatives: Vec::new(),
+        };
+        let call_constraint = RegisterConstraintKey {
+            family: RegisterConstraintFamily::Call,
+            variant: 2,
+        };
+        plan.structural_unit_functions
+            .push(TerminalStructuralUnitFunctionMachineEffects {
+                machine: MachineId::new(6).unwrap(),
+                block: TerminalSelectedBlockId(0),
+                call: Some(TerminalStructuralUnitCallMachineEffects {
+                    instruction: TerminalSelectedInstructionId(0),
+                    operation: OperationId::new(7).unwrap(),
+                    callee: MachineId::new(8).unwrap(),
+                    constraint: call_constraint,
+                    unit_uses: vec![RegisterUnitId(1), RegisterUnitId(2)],
+                    unit_defs: vec![RegisterUnitId(3)],
+                    unit_clobbers: vec![RegisterUnitId(4)],
+                    layout: TerminalSelectedMicrosoftX64OwnedIndirectPairLayout {
+                        shadow_byte_count: 32,
+                        outgoing_frame_byte_count: 72,
+                        pre_call_stack_alignment: 16,
+                        bindings: [
+                            TerminalSelectedStructuralUnitIndirectBinding {
+                                parameter_index: 0,
+                                pointer: omega_terminal_target_operations::MachineRegister::X86Rcx,
+                                copy_stack_byte_offset: 32,
+                                byte_count: 16,
+                                alignment: 8,
+                            },
+                            TerminalSelectedStructuralUnitIndirectBinding {
+                                parameter_index: 1,
+                                pointer: omega_terminal_target_operations::MachineRegister::X86Rdx,
+                                copy_stack_byte_offset: 48,
+                                byte_count: 16,
+                                alignment: 8,
+                            },
+                        ],
+                    },
+                    effect: EffectLink { input: 9, output: 10 },
+                    ownership: vec![
+                        OwnershipEvent::ClaimTransfer(vec![ClaimId::new(11).unwrap()]),
+                        OwnershipEvent::Cleanup(Vec::new()),
+                    ],
+                    claim_transfers: vec![psi_terminal::ClaimTransfer {
+                        claim: ClaimId::new(11).unwrap(),
+                        argument_index: 0,
+                    }],
+                    provenance: TerminalSelectedInstructionProvenance {
+                        operations: vec![OperationId::new(7).unwrap()],
+                        ..Default::default()
+                    },
+                    declaration: TerminalStructuralUnitCallEffectDeclaration {
+                        constraint: call_constraint,
+                        memory: TerminalStructuralUnitCallMemoryEffect::ReadOwnedIndirectPairWriteCallerCopiesV1 {
+                            root_byte_count: 16,
+                            copy_stack_byte_offsets: [32, 48],
+                        },
+                        frame: TerminalStructuralUnitCallFrameEffect::BalancedCallerFrameV1 {
+                            frame_byte_count: 72,
+                            shadow_byte_count: 32,
+                            pre_call_stack_alignment: 16,
+                        },
+                        trap: TerminalMachineTrapBehavior::MayArchitecturalFaultV1,
+                        barrier: TerminalStructuralUnitCallBarrier::CallV1,
+                        call: TerminalStructuralUnitCallEffect::DirectInternalUnitV1,
+                        cleanup: TerminalMachineCleanupEffect::NoneV1,
+                    },
+                }),
+                return_instruction,
+                return_effect: EffectLink { input: 10, output: 11 },
+                return_ownership: vec![OwnershipEvent::StructuralReturn(vec![
+                    ClaimId::new(12).unwrap(),
+                ])],
+            });
         plan.identity = terminal_pre_allocation_machine_effect_identity(&plan);
         plan
     }
@@ -719,5 +1116,33 @@ mod tests {
             TerminalPreAllocationMachineEffectPlan::decode(&trailing),
             Err(TerminalPreAllocationMachineEffectDecodeError::TrailingBytes)
         );
+    }
+
+    #[test]
+    fn structural_call_content_is_authenticated_and_closed() {
+        let source = plan();
+        let mut substituted = source.clone();
+        substituted.structural_unit_functions[0]
+            .call
+            .as_mut()
+            .unwrap()
+            .callee = MachineId::new(99).unwrap();
+        assert_ne!(
+            terminal_pre_allocation_machine_effect_identity(&substituted),
+            source.identity
+        );
+        assert_eq!(
+            TerminalPreAllocationMachineEffectPlan::decode(&substituted.encode()),
+            Err(TerminalPreAllocationMachineEffectDecodeError::InvalidIdentity)
+        );
+
+        let mut invalid_declaration_tag = source.encode();
+        let declaration_tag = invalid_declaration_tag.len() - 58;
+        invalid_declaration_tag[declaration_tag] = u8::MAX;
+        assert!(matches!(
+            TerminalPreAllocationMachineEffectPlan::decode(&invalid_declaration_tag),
+            Err(TerminalPreAllocationMachineEffectDecodeError::InvalidField)
+                | Err(TerminalPreAllocationMachineEffectDecodeError::InvalidIdentity)
+        ));
     }
 }

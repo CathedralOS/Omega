@@ -13,8 +13,8 @@ use psi_terminal::{
     FloatProjectionInputId, InstallationReachDependency, ProofOnlyValueType, ProofOutput,
     ProofOutputCall, ProofOutputEvidenceArgument, ProofOutputRuntimeCall, ProofOutputRuntimeResult,
     ProofPropositionId, ProofValueDeclaration, ProofValueId, ServiceDeclaration,
-    StructuralContentProjection, StructuralDomainDeclaration, TerminalModule,
-    TerminalRootServiceReach, VocabularyMarker,
+    StaticRequirementDispatch, StructuralContentProjection, StructuralDomainDeclaration,
+    TerminalModule, TerminalRootServiceReach, VocabularyMarker,
 };
 
 use super::content_wire::{decode_content_algebra, encode_content_algebra};
@@ -24,6 +24,9 @@ use super::proof_declaration_wire::{
     encode_evidence_interface, encode_proposition_application, encode_proposition_declaration,
 };
 use super::provider_candidate_wire::{decode_provider_candidate, encode_provider_candidate};
+use super::quotient_correspondence_wire::{
+    decode_quotient_correspondence, encode_quotient_correspondence,
+};
 use super::scalar_wire::{decode_scalar_type, encode_scalar_type};
 use super::structural_signature_wire::{
     decode_boundary_machine, decode_content_projection_expression, encode_boundary_machine,
@@ -171,6 +174,27 @@ pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
             "proof-output target machine identity",
             &invocation.target_machine_identity,
         )?;
+        writer.boolean(invocation.static_requirement_dispatch.is_some());
+        if let Some(dispatch) = &invocation.static_requirement_dispatch {
+            writer.u64(dispatch.conformance_application_fingerprint);
+            writer.string(
+                "static public requirement identity",
+                &dispatch.public_requirement_identity,
+            )?;
+            writer.string(
+                "static requirement declaring trait identity",
+                &dispatch.declaring_trait_identity,
+            )?;
+            writer.string(
+                "static requirement identity",
+                &dispatch.requirement_identity,
+            )?;
+            writer.string(
+                "static requirement realization identity",
+                &dispatch.realization_identity,
+            )?;
+            writer.id(dispatch.realization);
+        }
         writer.boolean(invocation.runtime_result.is_some());
         if let Some(runtime_result) = invocation.runtime_result {
             writer.boolean(matches!(
@@ -256,6 +280,10 @@ pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
                 &row.declaring_trait_identity,
             )?;
             writer.string(
+                "closed conformance row public requirement identity",
+                &row.public_requirement_identity,
+            )?;
+            writer.string(
                 "closed conformance row requirement identity",
                 &row.requirement_identity,
             )?;
@@ -265,6 +293,13 @@ pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
             )?;
         }
         writer.u64(application.fingerprint);
+    }
+    writer.len(
+        "quotient correspondences",
+        module.quotient_correspondences.len(),
+    )?;
+    for correspondence in &module.quotient_correspondences {
+        encode_quotient_correspondence(&mut writer, correspondence)?;
     }
     writer.len("machines", module.machines.len())?;
     for machine in &module.machines {
@@ -392,6 +427,22 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
             caller: reader.id("MachineId")?,
             ordinal: reader.u32()?,
             target_machine_identity: reader.string("proof-output target machine identity")?,
+            static_requirement_dispatch: reader
+                .boolean()?
+                .then(|| {
+                    Ok(StaticRequirementDispatch {
+                        conformance_application_fingerprint: reader.u64()?,
+                        public_requirement_identity: reader
+                            .string("static public requirement identity")?,
+                        declaring_trait_identity: reader
+                            .string("static requirement declaring trait identity")?,
+                        requirement_identity: reader.string("static requirement identity")?,
+                        realization_identity: reader
+                            .string("static requirement realization identity")?,
+                        realization: reader.id("MachineId")?,
+                    })
+                })
+                .transpose()?,
             runtime_result: reader
                 .boolean()?
                 .then(|| {
@@ -473,6 +524,8 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
                 Ok(ClosedConformanceRow {
                     declaring_trait_identity: reader
                         .string("closed conformance row declaring trait identity")?,
+                    public_requirement_identity: reader
+                        .string("closed conformance row public requirement identity")?,
                     requirement_identity: reader
                         .string("closed conformance row requirement identity")?,
                     realization_identity: reader
@@ -482,6 +535,7 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
             fingerprint: reader.u64()?,
         })
     })?;
+    let quotient_correspondences = decode_counted(reader, decode_quotient_correspondence)?;
     let machine_count = reader.count()?;
     let mut machines = Vec::new();
     for _ in 0..machine_count {
@@ -507,6 +561,7 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         evidence_contract_lanes,
         proof_output_calls,
         closed_conformance_applications,
+        quotient_correspondences,
         machines,
     })
 }

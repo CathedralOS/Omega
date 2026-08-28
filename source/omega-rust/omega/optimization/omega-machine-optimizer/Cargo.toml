@@ -15,7 +15,9 @@ omega-regalloc = { path = "../omega-regalloc" }
 omega-register-model = { path = "../../representations/omega-register-model" }
 omega-target = { path = "../../foundation/omega-target" }
 omega-terminal-selected-instructions = { path = "../../representations/omega-terminal-selected-instructions" }
+omega-terminal-target-operations = { path = "../../representations/omega-terminal-target-operations" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
+psi-terminal = { path = "../../../psi/representations/psi-terminal" }
 sha2 = "0.10.9"
 
 [dev-dependencies]

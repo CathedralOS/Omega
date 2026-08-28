@@ -55,6 +55,14 @@ fn checked_compilation_retains_the_exact_selected_program_entry() {
         .expect("explicit entry canary should reach checked semantics");
 
     assert_eq!(checked.selected_program_entry_machine(), Some("launch"));
+    let selected = checked
+        .selected_program_entry()
+        .expect("checked compilation must retain the complete selected entry");
+    assert_eq!(selected.source_signature().machine_name(), "launch");
+    assert!(
+        selected.calling_plans().is_none(),
+        "hosted ProgramEntry has no two-surface storage calling plan"
+    );
     let outcome = psi_checked_interpreter::interpret_entry(
         &checked,
         checked
@@ -63,6 +71,43 @@ fn checked_compilation_retains_the_exact_selected_program_entry() {
         &[],
     );
     assert_eq!(outcome.error, None);
+}
+
+#[test]
+fn checked_uefi_compilation_retains_source_and_two_surface_entry_custody() {
+    let canary = pass_canary("build/uefi_program_entry_storage_roots");
+    let checked = compile_to_checked(&canary.join("main.omg"), Some("uefi_x64"))
+        .expect("UEFI entry canary should retain its complete typed settlement");
+    let selected = checked
+        .selected_program_entry()
+        .expect("UEFI checked compilation must retain its selected entry");
+    let source = selected.source_signature();
+    let plans = selected
+        .calling_plans()
+        .expect("UEFI entry must retain semantic and physical calling plans");
+
+    assert_eq!(
+        source.target_slot().owner,
+        omega_target::TargetProfile::UefiX64
+    );
+    assert_eq!(source.machine_name(), "Boot::launch");
+    assert_eq!(source.visible_parameters().len(), 2);
+    assert_eq!(
+        source.visible_parameters()[0].role(),
+        omega_program_storage::ProgramStorageEntryRootRole::Image
+    );
+    assert_eq!(
+        source.visible_parameters()[1].role(),
+        omega_program_storage::ProgramStorageEntryRootRole::InitialStorage
+    );
+    assert!(
+        plans.storage_entry.physical_contract().is_some(),
+        "the retained semantic storage plan must keep its distinct physical contract"
+    );
+    assert_eq!(
+        plans.semantic_boundary_entry_plan.call.policy,
+        omega_calling_conventions::CallingPolicy::MicrosoftX64
+    );
 }
 
 #[test]

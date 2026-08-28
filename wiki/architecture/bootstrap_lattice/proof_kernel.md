@@ -1,13 +1,14 @@
 # Proof kernel
 
-[Lattice overview](bootstrap_lattice.md) | [Psi/Omega toolchain](omega_toolchain.md) | [Terminal Psi](../pipeline/terminal_psi.md)
+[Lattice overview](bootstrap_lattice.md) | [Omega product toolchain](omega_toolchain.md) | [Terminal Psi](../pipeline/terminal_psi.md)
 
 > **Status: ROOTED BETA CHECKER; SOUNDNESS BRIDGE OPEN.** Beta and Gamma
 > implementations accept valid certificates, reject invalid ones, and are
 > exercised by logical, equality, operational-seam, fuzz, and
 > cross-implementation gates. The accepted Beta checker tape is constructed by
 > the Alpha-written cold compiler below `bc`; encoding and discharging the full
-> compiler-simulation/coinduction claim in its calculus remains open.
+> compiler-simulation/coinduction claim in its calculus is blocked on
+> [`OWNER_QUESTIONS.md`](../../../OWNER_QUESTIONS.md) Q18.
 
 The proof kernel is deliberately not a language rung. Programs do not elaborate
 through it, and it adds no stage between Gamma and Delta. It is an Alpha-owned

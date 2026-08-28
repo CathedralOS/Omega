@@ -1,0 +1,87 @@
+// CERTIFYING COMPUTATION, third form — a program proves its OWN array-bounds
+// obligation. Given a 2D access a[i][j] into an m-by-n array (row-major index
+// i*n + j, total size m*n), the safety condition is  i*n + j < m*n. This program
+// reads i, n, j, m, computes the witness w = m*n - (i*n+j) - 1, and emits a delta
+// certificate of the bound WITH THE INDEXING ARITHMETIC LEFT SYMBOLIC:
+//   (Exists (= (p (p (m I N) J) (s (v 0))) (m M N))) (wit ... W (refl (m M N)))
+// i.e. exists k. (i*n + j) + (k+1) = m*n. The trust anchor reduces i*n+j+w+1 and m*n
+// and checks they agree -- so it verifies the actual indexing expression is in bounds,
+// not a pre-computed constant. This is the array-bounds VC an Omega compiler discharges
+// at every indexed access, here emitted by a program and machine-checked.
+//   printf '2 5 3 4' | certify-bounds | check.exe  ->  accept   (13 < 20, witness 6)
+// Contract: i*n + j < m*n (e.g. i<m and j<n). Naturals are unary; + is p, * is m.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+    machine write_byte(b: i32);
+    machine read_byte() -> i32;
+}
+data Main {
+    console: Console;
+    buf: [u8; 64]; n: i32; pos: i32; c: i32;
+    nums: [i32; 4]; ni: i32; cur: i32; w: i32; uv: i32;
+}
+machine Main::emit_nat(&mut self, v: i32) {
+    self.uv = v;
+    transition 0 { _ -> uo() }
+    state uo()   { transition self.uv == 0 { true -> uz()  false -> uo2() } }
+    state uo2()  { write_byte(40); write_byte(115); write_byte(32); self.uv = self.uv - 1; transition 0 { _ -> uo() } }
+    state uz()   { write_byte(122); self.uv = v; transition 0 { _ -> uc() } }
+    state uc()   { transition self.uv == 0 { true -> ud()  false -> uc2() } }
+    state uc2()  { write_byte(41); self.uv = self.uv - 1; transition 0 { _ -> uc() } }
+    state ud()   {}
+}
+// the proposition body  (= (p (p (m I N) J) (s (v 0))) (m M N))  -- reads nums[]
+// because the current Delta ABI caps a call at 3 args.
+machine Main::emit_body(&mut self) {
+    write_byte(40); write_byte(61); write_byte(32); write_byte(40); write_byte(112); write_byte(32);
+    write_byte(40); write_byte(112); write_byte(32); write_byte(40); write_byte(109); write_byte(32); // "(= (p (p (m "
+    self.emit_nat(self.nums[0]);
+    write_byte(32);                                                                                   // " "
+    self.emit_nat(self.nums[1]);
+    write_byte(41); write_byte(32);                                                                   // ") "
+    self.emit_nat(self.nums[2]);
+    write_byte(41); write_byte(32); write_byte(40); write_byte(115); write_byte(32); write_byte(40);
+    write_byte(118); write_byte(32); write_byte(48); write_byte(41); write_byte(41); write_byte(41);
+    write_byte(32); write_byte(40); write_byte(109); write_byte(32);                                   // ") (s (v 0))) (m "
+    self.emit_nat(self.nums[3]);
+    write_byte(32);                                                                                   // " "
+    self.emit_nat(self.nums[1]);
+    write_byte(41); write_byte(41);                                                                   // "))"  close (m M N), close (=
+}
+machine Main::main(&mut self) {
+    self.n = 0;
+    transition 0 { _ -> rd() }
+    state rd()    { self.c = read_byte(); transition self.c < 0 { true -> go()  false -> store() } }
+    state store() { self.buf[self.n] = self.c; self.n = self.n + 1; transition 0 { _ -> rd() } }
+    // parse up to 4 numbers into nums[]
+    state go()    { self.pos = 0; self.ni = 0; transition 0 { _ -> nxt() } }
+    state nxt()   { transition self.ni < 4 { true -> skipnd()  false -> compute() } }
+    state skipnd(){ transition self.pos < self.n { true -> sndck()  false -> compute() } }
+    state sndck() { transition self.buf[self.pos] < 48 { true -> snda()  false -> sndHi() } }
+    state sndHi() { transition self.buf[self.pos] > 57 { true -> snda()  false -> pnum() } }
+    state snda()  { self.pos = self.pos + 1; transition 0 { _ -> skipnd() } }
+    state pnum()  { self.cur = 0; transition 0 { _ -> pd() } }
+    state pd()    { transition self.buf[self.pos] < 48 { true -> psave()  false -> pdHi() } }
+    state pdHi()  { transition self.buf[self.pos] > 57 { true -> psave()  false -> pacc() } }
+    state pacc()  { self.cur = self.cur * 10 + (self.buf[self.pos] - 48); self.pos = self.pos + 1; transition 0 { _ -> pd() } }
+    state psave() { self.nums[self.ni] = self.cur; self.ni = self.ni + 1; transition 0 { _ -> nxt() } }
+    // witness for (i*n + j) < (m*n)
+    state compute(){ self.w = self.nums[3] * self.nums[1] - (self.nums[0] * self.nums[1] + self.nums[2]) - 1; transition 0 { _ -> emit() } }
+    state emit() {
+        write_byte(40); write_byte(69); write_byte(120); write_byte(105); write_byte(115);
+        write_byte(116); write_byte(115); write_byte(32);                         // "(Exists "
+        self.emit_body();
+        write_byte(41); write_byte(32);                                           // ") "  close Exists
+        write_byte(40); write_byte(119); write_byte(105); write_byte(116); write_byte(32); // "(wit "
+        self.emit_body();
+        write_byte(32);                                                           // " "
+        self.emit_nat(self.w);
+        write_byte(32); write_byte(40); write_byte(114); write_byte(101); write_byte(102);
+        write_byte(108); write_byte(32); write_byte(40); write_byte(109); write_byte(32);  // " (refl (m "
+        self.emit_nat(self.nums[3]);
+        write_byte(32);                                                           // " "
+        self.emit_nat(self.nums[1]);
+        write_byte(41); write_byte(41); write_byte(41);                           // ")))"  close (m M N), refl, wit
+        self.console.exit_process(0)
+    }
+}

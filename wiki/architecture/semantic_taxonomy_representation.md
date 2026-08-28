@@ -431,7 +431,7 @@ orthogonal. The selected target owns required-slot completeness, so a
 cross-profile binding, duplicate binding, or missing required build-bound slot
 rejects.
 
-The Rust on-ramp exposes that completeness surface as a closed
+The Rust product implementation exposes that completeness surface as a closed
 `TargetRequiredRootSlotDeclaration` schema catalog behind an exact-size
 iterator; its public type does not encode the current catalog cardinality.
 Build selection validates named rows against the owning profile and requires

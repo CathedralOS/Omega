@@ -455,7 +455,7 @@ complete.
   classify-then-pathname-reopen gap. It does not make the complete
   capture atomic, exclude a hostile same-user mutator, or close handle-relative
   cache publication, native confinement, or resource quotas. Strict SSH trust
-  and credential custody is separately blocked on OWNER Q16.
+  and credential custody is separately blocked on OWNER Q19.
 
   Milestone 2026-08-27: Git and local cache-custody validation now acquires the
   canonical cache root through a component-by-component no-follow walk and
@@ -895,7 +895,7 @@ complete.
   remains on the broad-read profile and cannot enter production requests. Git
   cache policy v19 prevents reuse of HTTPS state fetched under the broader
   policy. This does not establish TLS trust/custody, and discovery plus SSH
-  fetch remain broad; Q16 separately blocks strict SSH authority.
+  fetch remain broad; Q19 separately blocks strict SSH authority.
 
   Follow-up 2026-08-28: macOS HTTPS transport discovery now receives one
   separately validated exact working read root. File-content reads are confined
@@ -907,7 +907,7 @@ complete.
   real `ls-remote`, fetch, authentication, and publication under the narrowed
   policies. Git cache policy v20 prevents reuse of state discovered under the
   broader policy. The only remaining broad macOS file-content reads are SSH
-  discovery/fetch, whose trust and credential authority is blocked on Q16.
+  discovery/fetch, whose trust and credential authority is blocked on Q19.
 
   Follow-up 2026-08-28: every discovery/fetch endpoint route now shares one
   compiler-owned whole-resolution bidirectional transfer budget across all
@@ -991,7 +991,7 @@ complete.
   exact-revision public GitHub audit pass with discovery and fetch both narrowed.
   `FilesystemReadsConfined` is now `Enforced` for every non-SSH macOS resolver
   phase; SSH discovery/fetch deliberately remain `Unavailable` and broad pending
-  OWNER Q16. Native policy schema 12 and Git cache policy v25 prevent reuse of
+  OWNER Q19. Native policy schema 12 and Git cache policy v25 prevent reuse of
   HTTPS state fetched under broad metadata authority.
 
   Follow-up 2026-08-28: bounded Git commands now reserve process-container
@@ -1870,6 +1870,17 @@ complete.
   the context-free adapter still rejects and fetched Git snapshots can never
   escape. Deriving the context from the accepted lock and additional protocol
   adapters remain.
+
+  Milestone 2026-08-28: the diagnostic source-closure observer now sends every
+  declared application or package root through this custody path, including a
+  root with zero dependency rows. Its v4 observation joins the complete
+  canonical `CanonicalSourceClosureSubject` bytes and fingerprint to every
+  compiler-loaded source's exact package identity, package-relative path,
+  byte length, and content hash. A companion-free focused source remains
+  explicitly standalone. This is ruling-neutral closure/census scaffolding:
+  it does not run the final checked build, retain generated-source handoff or
+  build-host observations, identify an emitted artifact, issue an accepted
+  lock, or claim package admission.
 
 ## P3 — Compiler-derived package evidence
 

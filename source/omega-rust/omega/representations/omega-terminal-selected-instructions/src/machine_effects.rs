@@ -37,10 +37,11 @@ pub enum TerminalMachineSemanticKind {
     ExactSubtractI64Immediate,
     ConditionalBranchNonZero,
     ReturnI64,
+    ReturnUnit,
 }
 
 impl TerminalMachineSemanticKind {
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 10] = [
         Self::CompareI64Zero,
         Self::MaterializeI64,
         Self::CopyI64,
@@ -50,6 +51,7 @@ impl TerminalMachineSemanticKind {
         Self::ExactSubtractI64Immediate,
         Self::ConditionalBranchNonZero,
         Self::ReturnI64,
+        Self::ReturnUnit,
     ];
 }
 
@@ -64,6 +66,7 @@ pub enum TerminalMachineAlternativeFamily {
     ExactSubtractI64Immediate,
     ConditionalBranchNonZero,
     ReturnI64,
+    ReturnUnit,
 }
 
 impl From<TerminalMachineSemanticKind> for TerminalMachineAlternativeFamily {
@@ -80,6 +83,7 @@ impl From<TerminalMachineSemanticKind> for TerminalMachineAlternativeFamily {
             }
             TerminalMachineSemanticKind::ConditionalBranchNonZero => Self::ConditionalBranchNonZero,
             TerminalMachineSemanticKind::ReturnI64 => Self::ReturnI64,
+            TerminalMachineSemanticKind::ReturnUnit => Self::ReturnUnit,
         }
     }
 }
@@ -129,6 +133,7 @@ pub enum TerminalMachineMemoryEffect {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalMachineTrapBehavior {
     NeverV1,
+    MayArchitecturalFaultV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -145,6 +150,49 @@ pub enum TerminalMachineCallEffect {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalMachineCleanupEffect {
     NoneV1,
+}
+
+/// Structural memory footprint of the bounded Microsoft-x64 Unit call pseudo.
+/// This is semantic/pre-allocation custody, not an emitted load/store recipe.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalStructuralUnitCallMemoryEffect {
+    ReadOwnedIndirectPairWriteCallerCopiesV1 {
+        root_byte_count: u16,
+        copy_stack_byte_offsets: [u32; 2],
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalStructuralUnitCallFrameEffect {
+    BalancedCallerFrameV1 {
+        frame_byte_count: u32,
+        shadow_byte_count: u32,
+        pre_call_stack_alignment: u16,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalStructuralUnitCallBarrier {
+    CallV1,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalStructuralUnitCallEffect {
+    DirectInternalUnitV1,
+}
+
+/// Target-applicable semantic machine effects for the atomic structural call.
+/// Keeping this outside the ordinary alternative roster prevents this stage
+/// from claiming an encoding, displacement, symbol, or object relocation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalStructuralUnitCallEffectDeclaration {
+    pub constraint: RegisterConstraintKey,
+    pub memory: TerminalStructuralUnitCallMemoryEffect,
+    pub frame: TerminalStructuralUnitCallFrameEffect,
+    pub trap: TerminalMachineTrapBehavior,
+    pub barrier: TerminalStructuralUnitCallBarrier,
+    pub call: TerminalStructuralUnitCallEffect,
+    pub cleanup: TerminalMachineCleanupEffect,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -258,6 +306,7 @@ pub struct TerminalMachineEffectCatalog {
     pub target: NativeTarget,
     pub register_constraints: RegisterConstraintCatalogIdentity,
     pub selected_keys: TerminalSelectedConstraintKeys,
+    pub structural_unit_call: Option<TerminalStructuralUnitCallEffectDeclaration>,
     pub declarations: Vec<TerminalMachineEffectDeclaration>,
 }
 
@@ -292,6 +341,7 @@ pub enum TerminalMachineEffectCatalogValidationError {
     InvalidEncodedEffects(TerminalMachineSemanticKind),
     InvalidSizeKnowledge(TerminalMachineSemanticKind),
     BarrierMismatch(TerminalMachineSemanticKind),
+    StructuralCallDeclarationMismatch,
 }
 
 impl std::fmt::Display for TerminalMachineEffectCatalogValidationError {
@@ -339,6 +389,7 @@ pub fn validate_terminal_machine_effect_catalog(
     {
         return Err(TerminalMachineEffectCatalogValidationError::DeclarationRosterMismatch);
     }
+    validate_structural_unit_call(constraints, &catalog)?;
     for declaration in &catalog.declarations {
         let row = constraints
             .catalog()
@@ -356,6 +407,54 @@ pub fn validate_terminal_machine_effect_catalog(
     Ok(ValidatedTerminalMachineEffectCatalog { catalog, identity })
 }
 
+fn validate_structural_unit_call(
+    constraints: &ValidatedRegisterConstraintCatalog,
+    catalog: &TerminalMachineEffectCatalog,
+) -> Result<(), TerminalMachineEffectCatalogValidationError> {
+    let (Some(key), Some(declaration)) = (
+        catalog.selected_keys.structural_unit_call,
+        catalog.structural_unit_call,
+    ) else {
+        return if catalog.selected_keys.structural_unit_call.is_none()
+            && catalog.structural_unit_call.is_none()
+        {
+            Ok(())
+        } else {
+            Err(TerminalMachineEffectCatalogValidationError::StructuralCallDeclarationMismatch)
+        };
+    };
+    let row = constraints
+        .catalog()
+        .constraints
+        .iter()
+        .find(|row| row.key == key)
+        .ok_or(TerminalMachineEffectCatalogValidationError::StructuralCallDeclarationMismatch)?;
+    if declaration.constraint != key
+        || !row.operands.is_empty()
+        || row.implicit_uses.is_empty()
+        || row.implicit_defs.is_empty()
+        || row.clobbers.is_empty()
+        || declaration.memory
+            != (TerminalStructuralUnitCallMemoryEffect::ReadOwnedIndirectPairWriteCallerCopiesV1 {
+                root_byte_count: 16,
+                copy_stack_byte_offsets: [32, 48],
+            })
+        || declaration.frame
+            != (TerminalStructuralUnitCallFrameEffect::BalancedCallerFrameV1 {
+                frame_byte_count: 72,
+                shadow_byte_count: 32,
+                pre_call_stack_alignment: 16,
+            })
+        || declaration.trap != TerminalMachineTrapBehavior::MayArchitecturalFaultV1
+        || declaration.barrier != TerminalStructuralUnitCallBarrier::CallV1
+        || declaration.call != TerminalStructuralUnitCallEffect::DirectInternalUnitV1
+        || declaration.cleanup != TerminalMachineCleanupEffect::NoneV1
+    {
+        return Err(TerminalMachineEffectCatalogValidationError::StructuralCallDeclarationMismatch);
+    }
+    Ok(())
+}
+
 fn validate_declaration(
     constraint: &RegisterInstructionConstraint,
     declaration: &TerminalMachineEffectDeclaration,
@@ -365,6 +464,7 @@ fn validate_declaration(
         semantic,
         TerminalMachineSemanticKind::ConditionalBranchNonZero
             | TerminalMachineSemanticKind::ReturnI64
+            | TerminalMachineSemanticKind::ReturnUnit
     ) {
         TerminalMachineBarrier::ControlFlow
     } else {
@@ -638,18 +738,22 @@ fn validate_applicability(
 }
 
 impl TerminalSelectedConstraintKeys {
-    pub const fn in_identity_order(self) -> [RegisterConstraintKey; 9] {
-        [
-            self.materialize_i64,
-            self.copy_i64,
-            self.add_i64,
-            self.add_i64_immediate,
-            self.subtract_i64,
-            self.subtract_i64_immediate,
-            self.compare_i64_zero,
-            self.conditional_branch,
-            self.return_i64,
-        ]
+    pub fn in_identity_order(self) -> Vec<RegisterConstraintKey> {
+        self.structural_unit_call
+            .into_iter()
+            .chain([
+                self.materialize_i64,
+                self.copy_i64,
+                self.add_i64,
+                self.add_i64_immediate,
+                self.subtract_i64,
+                self.subtract_i64_immediate,
+                self.compare_i64_zero,
+                self.conditional_branch,
+                self.return_i64,
+                self.return_unit,
+            ])
+            .collect()
     }
 
     pub const fn for_semantic(
@@ -666,6 +770,7 @@ impl TerminalSelectedConstraintKeys {
             TerminalMachineSemanticKind::ExactSubtractI64Immediate => self.subtract_i64_immediate,
             TerminalMachineSemanticKind::ConditionalBranchNonZero => self.conditional_branch,
             TerminalMachineSemanticKind::ReturnI64 => self.return_i64,
+            TerminalMachineSemanticKind::ReturnUnit => self.return_unit,
         }
     }
 }

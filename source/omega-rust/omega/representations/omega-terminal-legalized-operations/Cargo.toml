@@ -9,6 +9,7 @@ name = "omega_terminal_legalized_operations"
 path = "src/lib.rs"
 
 [dependencies]
+omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
 omega-optimization-core = { path = "../../foundation/omega-optimization-core" }
 omega-optimization-unit = { path = "../omega-optimization-unit" }
 omega-target = { path = "../../foundation/omega-target" }

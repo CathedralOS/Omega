@@ -12,26 +12,31 @@ omega₀ + the same C → omega
 ```
 
 `C` is the production compiler source closure, deliberately written with a
-compositional subset of ordinary Omega. There is no separately named bridge compiler
-between Delta and `omega₀`.
+compositional subset of ordinary Omega. There is no separately named bridge
+compiler between Delta and `omega₀`.
 
 ## Contents
 
-- [`samples/`](samples/) contains the executable Delta corpus and current
-  canonical compiler source experiment.
+- [`compiler/`](compiler/) contains the canonical Delta-written compiler source.
+- [`tests/`](tests/) contains the executable Delta language corpus.
 - [`meaning/`](meaning/) contains the lower-rung Delta-to-Gamma elaboration and
   its byte transport helpers.
-- [`build/`](build/) contains provisional artifacts. They are inputs to
-  reconstruction, never authorities.
-- [`source-closures/`](source-closures/) contains the exact canonical compiler
-  source and tool manifests.
+- [`compiler/validation/`](compiler/validation/) contains the compiler's exact
+  source-closure records, lower-rung publication verifier and driver, artifact
+  custody checks, and their focused tests.
 - [`FEATURE_LEDGER.md`](FEATURE_LEDGER.md) tracks Delta-language facilities
   justified by the compiler stage and the ordinary-Omega surface used by `C`.
 
-[`samples/lowermachine.alp`](samples/lowermachine.alp) is the current canonical
-Delta compiler source experiment. Its fixed storage and host I/O choices are
+[`compiler/main.alp`](compiler/main.alp) is the current canonical Delta compiler
+source. Its fixed storage and host I/O choices are
 implementation/resource commitments only where the Delta contract explicitly
 retains them.
+
+The retired `build/delta{0,1,2}.exe` files had no live consumer and were not
+members of the canonical source closure. Git history retains them. A published
+compiler artifact belongs under `compiler/artifacts/` only after its exact
+producer edge and custody receipt exist; publication machinery belongs beside
+it under `compiler/validation/`.
 
 ## Boundaries
 
@@ -39,6 +44,8 @@ retains them.
 - The Delta-produced compiler may lower conservatively, but accepted source
   retains exact ordinary Omega meaning.
 - Unsupported input and resource exhaustion reject before publication.
+- An ambient assembler/linker result may receive an exact custody receipt, but
+  it gains no compiler authority without separately checked direct refinement.
 - Shell and Python files may drive tests or verify recorded receipts. They are
   not semantic compiler stages and must be replaceable by direct invocation of
   the compiler artifacts they coordinate.

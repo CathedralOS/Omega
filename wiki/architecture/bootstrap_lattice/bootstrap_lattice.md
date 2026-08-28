@@ -11,14 +11,20 @@ Let `C` be the exact source closure of the Omega-written compiler. It is
 ordinary Omega deliberately authored with a conservative subset of features:
 
 ```text
-Alpha → Beta → Gamma → Delta-produced compiler
-Delta-produced compiler + C → omega₀
-omega₀ + the same C            → omega
+audited Alpha seed
+  → Alpha assembler + Alpha-written Beta cold start → bc
+  → bc-built canonical Gamma evaluator/type checker
+  → canonical Gamma evaluation of Delta compiler source → delta
+  → delta + C → omega₀
+  → omega₀ + the same C → omega
 ```
 
 The chain has no separate hosted bridge compiler. `omega₀` is the first product
 compiler artifact. Rebuilding the same `C` closes the ordinary self-hosting
 edge; it does not introduce another language or compiler generation.
+Gamma contributes canonical evaluation, not a required separately published
+“Gamma compiler” binary. The executable artifact and source/meaning role at
+each arrow must be named exactly rather than inferred from the rung label.
 
 ## Trust by checking, not pedigree
 
@@ -45,8 +51,8 @@ not enter the semantic verdict.
 ## Five roles often confused as “the bottom”
 
 1. **Seed execution** runs the first audited Alpha artifacts.
-2. **Language semantics** define what Alpha, Beta, Gamma, Delta, Psi, and Omega
-   programs mean.
+2. **Language semantics** define what Alpha, Beta, Gamma, Delta, and Omega
+   programs mean. Terminal Psi has an internal IR contract, not a rung.
 3. **Compiler construction** produces the next artifact in the chain.
 4. **Proof checking** validates derivations independently of their producers.
 5. **Admissions** disclose the irreducible claims about hardware, firmware,
@@ -62,10 +68,10 @@ No implementation gains authority by occupying more than one of these roles.
 | [Beta](rungs/beta.md) | small structured systems language | Alpha-rooted compiler and checked whole-artifact refinement |
 | [Gamma](rungs/gamma.md) | safe definitional computation and typing | Beta-written reference interpreter/type checker |
 | [Delta](rungs/delta.md) | deterministic compiler-host language | Delta→Gamma elaboration and Gamma execution; publication open |
-| [Psi/Omega](omega_toolchain.md) | target-neutral product compiler then target realization | Omega-written source; direct Delta and self-build edges open |
+| [Omega](omega_toolchain.md) | product compiler: target-neutral Psi phases then target realization | Omega-written source; direct Delta and self-build edges open |
 
 The Alpha-owned [proof kernel](proof_kernel.md) is universal checker
-infrastructure, not a fifth Greek rung. The feature subset used by `C` is an
+infrastructure, not another rung. The feature subset used by `C` is an
 incidental source property, not another language. The current Rust compiler in
 `source/omega-rust/` is an implementation/comparator, not a rung.
 
@@ -102,13 +108,22 @@ verified merely because a producer or parent package accepted them.
 
 ## Orchestration is replaceable
 
-`tools/bootstrap/` may run stages, provide diagnostics, and compare artifacts.
+`tools/lattice/` may run stages, provide diagnostics, and compare artifacts.
 Shell and other scaffolding are permissible while convenient. They are not
 semantic owners. Source discovery, parsing, lowering, evidence construction,
 and trust decisions belong to compiler or checker stages named above.
 
 Deleting or rewriting a runner may change ergonomics; it must not change what
 the chain means.
+
+## No diversified-compilation stage
+
+Diversified double compilation (DDC) is not a rung, gate, or release
+requirement in this architecture. The audited seed and the checked exact
+source-to-artifact refinement at every edge address the compiler-corruption
+question directly across the whole chain. Independently written compilers and
+checkers remain valuable regression oracles, but agreement supplies diagnostic
+evidence only and cannot replace the checked refinement proposition.
 
 ## Open work
 

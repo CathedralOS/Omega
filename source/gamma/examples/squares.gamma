@@ -1,7 +1,0 @@
-# print the squares 1..5
-a = 1
-while a < 6 {
-  b = a * a
-  print b
-  a = a + 1
-}

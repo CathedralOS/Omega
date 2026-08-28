@@ -19,8 +19,9 @@ pub use pipeline::checked_entry::{
     compile_to_checked_with_packages_in_sponsored_build_dir, compile_to_checked_with_replay_record,
 };
 pub use pipeline::source_inspection::{
-    SOURCE_CLOSURE_SNAPSHOT_SCHEMA, SourceClosureSnapshot, SourceClosureSnapshotEntry,
-    SourceInspectionRoot, inspect_source_closure, inspect_source_closure_with_packages,
+    PackageSourceClosureCustodySnapshot, SOURCE_CLOSURE_SNAPSHOT_SCHEMA, SourceClosureSnapshot,
+    SourceClosureSnapshotEntry, SourceClosureSnapshotFingerprint, SourceInspectionRoot,
+    inspect_source_closure, inspect_source_closure_with_packages,
 };
 pub(crate) use psi_source as source;
 pub(crate) use psi_source_files_to_tokens as lexer;

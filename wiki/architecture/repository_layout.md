@@ -9,9 +9,10 @@ The pipeline-specific semantic rules live in
 [Pipeline Architecture](pipeline/pipeline.md).
 
 How Omega reaches its hosted compiler—the trust architecture and the exact
-`Alpha → Beta → Gamma → Delta` language spine—is a separate ownership domain described by
-[The Bootstrap Lattice](bootstrap_lattice/bootstrap_lattice.md) and its
-[target repository structure](bootstrap_lattice/repository_structure.md).
+`Alpha → Beta → Gamma → Delta` language spine—is a build-graph property
+described by [The Bootstrap Lattice](bootstrap_lattice/bootstrap_lattice.md)
+and its [target repository structure](bootstrap_lattice/repository_structure.md).
+It is not a separate source ownership domain.
 
 ## Design Bias
 
@@ -28,7 +29,8 @@ Legend:
 - `[CRATE]` means a Cargo workspace package.
 - Unprefixed folders are ordinary source/module boundaries inside a crate.
 
-This tree is a conceptual placement map anchored in the current Rust on-ramp;
+This tree is a conceptual placement map anchored in the current Rust product
+implementation;
 it is not an exhaustive generated inventory of Cargo workspace members. Some
 sub-areas named in the placement prose are not yet separate crates, while small
 implementation crates may appear in the workspace before this map names them.
@@ -44,7 +46,7 @@ packages.
 > target-neutral half under `source/omega/psi/`; the
 > live Psi lexical slice has landed while later phases remain open.
 > Bootstrap gates resolve cross-owner locations through the
-> role manifest in `tools/bootstrap/paths.sh`; new cross-owner sibling-relative paths
+> role manifest in `tools/lattice/paths.sh`; new cross-owner sibling-relative paths
 > are rejected. The tree below documents the current Cargo/product structure;
 > the canonical bootstrap inventory is documented in the
 > [bootstrap repository structure](bootstrap_lattice/repository_structure.md),
@@ -186,7 +188,10 @@ Omega/
 |   |-- beta/                                              # Beta language, reference meaning, and gates.
 |   |   `-- compiler/                                      # Compiler source, artifact, cold start, and validation.
 |   |-- gamma/                                             # Gamma language, interpreter, and type checker.
-|   |-- delta/                                             # Delta language, compiler, and canonical artifacts.
+|   |-- delta/                                             # Delta language, compiler, meaning, tests, and artifacts.
+|   |   |-- compiler/                                     # Canonical compiler source, validation, and admitted artifacts.
+|   |   |-- meaning/                                      # Lower-rung Delta-to-Gamma elaboration.
+|   |   `-- tests/                                        # Delta language cases.
 |   |-- library/                                           # Core, allocation, and standard library source.
 |   |   |-- core/                                          # Always-available language package.
 |   |   |-- alloc/                                         # Allocation facilities.
@@ -198,7 +203,7 @@ Omega/
 |   `-- omega-rust/                                        # Current Rust product implementation and comparator.
 |
 |-- tests/lattice/corpus/                                  # Shared stable lattice inputs.
-|-- tools/bootstrap/                                       # Lattice orchestration and path gates.
+|-- tools/lattice/                                         # Lattice orchestration and path gates.
 |
 |-- samples/
 |   |-- cli_mvp/                                        # Smallest console program.
@@ -206,9 +211,9 @@ Omega/
 |   `-- README.md                                       # Notes for sample expectations and local build output.
 |
 |-- tests/
-|   |-- canaries/
-|   |   |-- pass/                                       # Tiny feature canaries expected to check.
-|   |   `-- fail/                                       # Tiny negative canaries with expected diagnostics.
+|   |-- omega/
+|   |   |-- pass/                                       # Focused Omega cases expected to check.
+|   |   `-- fail/                                       # Focused Omega cases expected to reject.
 |   `-- fixtures/packages/                              # Package-shaped integration fixtures.
 |
 |-- tools/                                              # Repository maintenance tools.
@@ -230,8 +235,8 @@ source/alpha/checker/                  root derivation checking
 source/beta/compiler/                  Beta compiler and its admission evidence
 source/omega-rust/                     current Rust product implementation and comparator
 tests/lattice/                         shared lattice corpora and cache manifests
-tests/{canaries,fixtures}/             language and package integration tests
-tools/bootstrap/                       lattice orchestration and path gates
+tests/{omega,fixtures}/                language and package integration tests
+tools/lattice/                         lattice orchestration and path gates
 tools/                                 other repository maintenance scripts
 ```
 
@@ -239,7 +244,9 @@ Each rung remains the semantic owner of its language and lattice-built
 artifacts. A Rust producer nested beneath that rung is tooling for the same
 concept, not a second semantic owner. The root proof checker belongs to Alpha.
 Validation belongs beside the artifact it admits, so the Beta compiler's
-source/artifact reconstruction lives under `source/beta/compiler/validation/`.
+source/artifact reconstruction lives under `source/beta/compiler/validation/`
+and Delta publication/custody lives under
+`source/delta/compiler/validation/`.
 
 The package library now lives at `source/library/`. The relocation deliberately
 has no compatibility symlink. Package-manager P8 still owns removal of the
@@ -413,6 +420,6 @@ move; the final implementation resolves std through the package graph.
 
 - Public crate roots should explain exports, not hide implementation.
 - Tests should not live in giant `lib.rs` files.
-- Language canaries live only under `tests/canaries/`; a root-level `canaries/`
-  tree is relocation residue and must not be recreated.
+- Omega language cases live only under `tests/omega/`; generic `canaries/`
+  trees obscure the language owner and must not be recreated.
 - `mod.rs` and `lib.rs` declare boundaries; they are not junk drawers.

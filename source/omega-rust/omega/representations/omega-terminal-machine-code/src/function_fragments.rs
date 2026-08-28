@@ -17,7 +17,7 @@ use psi_core::{
 use psi_terminal::TerminalPsiIdentity;
 use sha2::{Digest, Sha256};
 
-const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v1";
+const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v2";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalFunctionFragmentEmissionPlan {
@@ -283,6 +283,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: TerminalMachineAlternati
         TerminalMachineAlternativeFamily::ConditionalBranchNonZero => 6,
         TerminalMachineAlternativeFamily::ReturnI64 => 7,
         TerminalMachineAlternativeFamily::ExactSubtractI64Immediate => 8,
+        TerminalMachineAlternativeFamily::ReturnUnit => 9,
     }]);
     hasher.update(alternative.variant.to_le_bytes());
 }

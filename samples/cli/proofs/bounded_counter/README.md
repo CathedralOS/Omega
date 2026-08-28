@@ -13,4 +13,4 @@ Companion to `samples/vending_machine` (the case-payload showcase). This one
 deliberately drives state with scalar arguments rather than threading a
 by-value case parameter into a self-writing sub-machine — that combination is
 a known native miscompile tracked by
-`tests/canaries/pending/calls/by_value_case_param_self_write_lost`.
+`tests/omega/pending/calls/by_value_case_param_self_write_lost`.

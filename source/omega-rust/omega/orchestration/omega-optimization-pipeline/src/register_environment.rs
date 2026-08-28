@@ -9,8 +9,9 @@ use omega_register_model::{
 };
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_isa_aarch64::{
-    AARCH64_AAPCS64_RETURN, AARCH64_ADD_I64, AARCH64_ADD_I64_IMMEDIATE, AARCH64_COMPARE_I64_ZERO,
-    AARCH64_CONDITIONAL_BRANCH, AARCH64_COPY_I64, AARCH64_DARWIN_RETURN, AARCH64_MATERIALIZE_I64,
+    AARCH64_AAPCS64_RETURN, AARCH64_AAPCS64_RETURN_UNIT, AARCH64_ADD_I64,
+    AARCH64_ADD_I64_IMMEDIATE, AARCH64_COMPARE_I64_ZERO, AARCH64_CONDITIONAL_BRANCH,
+    AARCH64_COPY_I64, AARCH64_DARWIN_RETURN, AARCH64_DARWIN_RETURN_UNIT, AARCH64_MATERIALIZE_I64,
     AARCH64_SUBTRACT_I64, AARCH64_SUBTRACT_I64_IMMEDIATE,
     Aarch64RegisterConstraintCatalogValidationError, aarch64_fixed_register_view,
     aarch64_physical_register_model, aarch64_register_constraint_catalog,
@@ -18,8 +19,9 @@ use omega_terminal_isa_aarch64::{
 };
 use omega_terminal_isa_x86_64::{
     X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_COMPARE_I64_ZERO, X86_64_CONDITIONAL_BRANCH,
-    X86_64_COPY_I64, X86_64_MATERIALIZE_I64, X86_64_MICROSOFT_RETURN, X86_64_SUBTRACT_I64,
-    X86_64_SUBTRACT_I64_IMMEDIATE, X86_64_SYSTEM_V_RETURN,
+    X86_64_COPY_I64, X86_64_MATERIALIZE_I64, X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR,
+    X86_64_MICROSOFT_RETURN, X86_64_MICROSOFT_RETURN_UNIT, X86_64_SUBTRACT_I64,
+    X86_64_SUBTRACT_I64_IMMEDIATE, X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT,
     X86_64RegisterConstraintCatalogValidationError, validate_x86_64_register_constraint_catalog,
     x86_64_fixed_register_view, x86_64_physical_register_model, x86_64_register_constraint_catalog,
 };
@@ -230,6 +232,7 @@ const fn selected_environment_keys(
     keys: TerminalSelectedConstraintKeys,
 ) -> TargetRegisterEnvironmentConstraintKeys {
     TargetRegisterEnvironmentConstraintKeys {
+        structural_unit_call: keys.structural_unit_call,
         materialize_i64: keys.materialize_i64,
         copy_i64: keys.copy_i64,
         add_i64: keys.add_i64,
@@ -239,12 +242,14 @@ const fn selected_environment_keys(
         compare_i64_zero: keys.compare_i64_zero,
         conditional_branch: keys.conditional_branch,
         return_i64: keys.return_i64,
+        return_unit: keys.return_unit,
     }
 }
 
 fn selected_constraint_keys(target: NativeTarget) -> Option<TerminalSelectedConstraintKeys> {
     match (target.architecture, target.object_format) {
         (Architecture::X86_64, ObjectFormat::Elf) => Some(TerminalSelectedConstraintKeys {
+            structural_unit_call: None,
             materialize_i64: X86_64_MATERIALIZE_I64,
             copy_i64: X86_64_COPY_I64,
             add_i64: X86_64_ADD_I64,
@@ -254,8 +259,10 @@ fn selected_constraint_keys(target: NativeTarget) -> Option<TerminalSelectedCons
             compare_i64_zero: X86_64_COMPARE_I64_ZERO,
             conditional_branch: X86_64_CONDITIONAL_BRANCH,
             return_i64: X86_64_SYSTEM_V_RETURN,
+            return_unit: X86_64_SYSTEM_V_RETURN_UNIT,
         }),
         (Architecture::X86_64, ObjectFormat::Coff) => Some(TerminalSelectedConstraintKeys {
+            structural_unit_call: Some(X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR),
             materialize_i64: X86_64_MATERIALIZE_I64,
             copy_i64: X86_64_COPY_I64,
             add_i64: X86_64_ADD_I64,
@@ -265,8 +272,10 @@ fn selected_constraint_keys(target: NativeTarget) -> Option<TerminalSelectedCons
             compare_i64_zero: X86_64_COMPARE_I64_ZERO,
             conditional_branch: X86_64_CONDITIONAL_BRANCH,
             return_i64: X86_64_MICROSOFT_RETURN,
+            return_unit: X86_64_MICROSOFT_RETURN_UNIT,
         }),
         (Architecture::Aarch64, ObjectFormat::Elf) => Some(TerminalSelectedConstraintKeys {
+            structural_unit_call: None,
             materialize_i64: AARCH64_MATERIALIZE_I64,
             copy_i64: AARCH64_COPY_I64,
             add_i64: AARCH64_ADD_I64,
@@ -276,8 +285,10 @@ fn selected_constraint_keys(target: NativeTarget) -> Option<TerminalSelectedCons
             compare_i64_zero: AARCH64_COMPARE_I64_ZERO,
             conditional_branch: AARCH64_CONDITIONAL_BRANCH,
             return_i64: AARCH64_AAPCS64_RETURN,
+            return_unit: AARCH64_AAPCS64_RETURN_UNIT,
         }),
         (Architecture::Aarch64, ObjectFormat::MachO) => Some(TerminalSelectedConstraintKeys {
+            structural_unit_call: None,
             materialize_i64: AARCH64_MATERIALIZE_I64,
             copy_i64: AARCH64_COPY_I64,
             add_i64: AARCH64_ADD_I64,
@@ -287,6 +298,7 @@ fn selected_constraint_keys(target: NativeTarget) -> Option<TerminalSelectedCons
             compare_i64_zero: AARCH64_COMPARE_I64_ZERO,
             conditional_branch: AARCH64_CONDITIONAL_BRANCH,
             return_i64: AARCH64_DARWIN_RETURN,
+            return_unit: AARCH64_DARWIN_RETURN_UNIT,
         }),
         _ => None,
     }
@@ -378,6 +390,27 @@ mod tests {
             assert!(environment.constraint(expected_add).is_some());
             assert!(environment.constraint(expected_add_immediate).is_some());
             assert!(environment.constraint(expected_subtract).is_some());
+            let expected_structural_call = matches!(
+                (target.architecture, target.object_format),
+                (Architecture::X86_64, ObjectFormat::Coff)
+            )
+            .then_some(X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR);
+            assert_eq!(
+                environment.selected_keys().structural_unit_call,
+                expected_structural_call
+            );
+            assert_eq!(
+                environment
+                    .allocation_constraint_keys()
+                    .structural_unit_call,
+                expected_structural_call
+            );
+            if let Some(key) = expected_structural_call {
+                let row = environment
+                    .constraint(key)
+                    .expect("applicable structural Unit call row is catalog-owned");
+                assert!(row.operands.is_empty());
+            }
         }
     }
 

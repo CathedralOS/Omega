@@ -1,8 +1,8 @@
 use crate::pipeline::stages::source_files_to_syntax_trees_for_engine;
 use crate::pipeline::timing::CompileTimings;
 pub use omega_source_profile::{
-    SOURCE_CLOSURE_SNAPSHOT_SCHEMA, SourceClosureSnapshot, SourceClosureSnapshotEntry,
-    SourceInspectionRoot,
+    PackageSourceClosureCustodySnapshot, SOURCE_CLOSURE_SNAPSHOT_SCHEMA, SourceClosureSnapshot,
+    SourceClosureSnapshotEntry, SourceClosureSnapshotFingerprint, SourceInspectionRoot,
 };
 use psi_diagnostics::Diagnostic;
 use psi_source::SourceOrigin;
@@ -90,16 +90,41 @@ fn inspect_source_closure_inner(
                 parsed.source_id.0
             ))]);
         };
-        let identity = logical_source_identity(
-            &repository_root,
-            &source.path,
-            source.origin,
-            &identity_roots,
-        )?;
         let bytes = source.source.as_bytes();
+        let package_identity = source
+            .package_identity
+            .map(|identity| encode_hex(&identity.digest()));
+        let package_relative_path = match source.package_identity {
+            Some(_) => Some(
+                source
+                    .path
+                    .strip_prefix(&source.package_root)
+                    .ok()
+                    .and_then(canonical_relative_path)
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(format!(
+                            "inspected package source {} has no canonical path beneath {}",
+                            source.path.display(),
+                            source.package_root.display()
+                        ))]
+                    })?,
+            ),
+            None => None,
+        };
+        let identity = match (&package_identity, &package_relative_path) {
+            (Some(package), Some(relative)) => format!("package:{package}/{relative}"),
+            _ => logical_source_identity(
+                &repository_root,
+                &source.path,
+                source.origin,
+                &identity_roots,
+            )?,
+        };
         sources.push(SourceClosureSnapshotEntry {
             source_id: source.source_id.0,
             identity,
+            package_identity,
+            package_relative_path,
             origin: match source.origin {
                 SourceOrigin::User => "repository",
                 SourceOrigin::Toolchain if source.path.to_string_lossy().starts_with('<') => {
@@ -112,15 +137,46 @@ fn inspect_source_closure_inner(
         });
     }
     sources.sort_by(|left, right| left.identity.cmp(&right.identity));
+    if let Some(duplicate) = sources
+        .windows(2)
+        .find(|pair| pair[0].identity == pair[1].identity)
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "source inspection produced duplicate canonical identity `{}`",
+            duplicate[0].identity
+        ))]);
+    }
 
     Ok(SourceClosureSnapshot {
         schema: SOURCE_CLOSURE_SNAPSHOT_SCHEMA,
         entry_source,
+        package_source_closure: None,
         selected_target: target_name.map(str::to_owned),
         native_provider_substitution: native,
         sources,
         syntax: assembled.syntax_trees.snapshot(),
     })
+}
+
+fn canonical_relative_path(path: &Path) -> Option<String> {
+    let mut components = Vec::new();
+    for component in path.components() {
+        let std::path::Component::Normal(component) = component else {
+            return None;
+        };
+        components.push(component.to_str()?.to_owned());
+    }
+    (!components.is_empty()).then(|| components.join("/"))
+}
+
+fn encode_hex(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut output = String::with_capacity(bytes.len().saturating_mul(2));
+    for byte in bytes {
+        output.push(char::from(HEX[usize::from(byte >> 4)]));
+        output.push(char::from(HEX[usize::from(byte & 0x0f)]));
+    }
+    output
 }
 
 fn logical_source_identity(

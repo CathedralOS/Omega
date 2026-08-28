@@ -58,7 +58,7 @@ fn representation_crates_do_not_depend_on_frontend_crates() {
         for crate_name in forbidden {
             assert!(
                 !has_dependency(&contents, crate_name),
-                "{} must not depend on early-phase crate `{crate_name}`; put transform edges under the Omega on-ramp pipeline instead",
+                "{} must not depend on early-phase crate `{crate_name}`; put transform edges under the Rust product pipeline instead",
                 cargo_toml.display()
             );
         }

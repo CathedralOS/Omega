@@ -114,6 +114,72 @@ const ARGUMENTED_PROOF_OUTPUT_SOURCE: &str = r#"
     }
 "#;
 
+const STATIC_REQUIREMENT_PROOF_OUTPUT_SOURCE: &str = r#"
+    trait Evidence {}
+    proposition ready() evidence Evidence;
+
+    trait Producer {
+        machine Self::produce(&self)
+        requires public_in: ready()
+        ensures public_out: ready();
+    }
+
+    data Token {}
+
+    TokenProducer: Token satisfies Producer {
+        machine produce(&self)
+        requires local_in: ready()
+        ensures public_out: ready()
+        ensures private_out: ready()
+        {
+            public_out = local_in;
+            private_out = local_in;
+        }
+    }
+
+    data Root {}
+
+    machine Root::invoke<Element, Order: Element satisfies Producer>(
+        &self,
+        value: &Element
+    )
+    requires incoming: ready()
+    {
+        let (; public_out: result) = Order::produce(value; incoming);
+    }
+
+    machine Root::caller(&self, value: &Token)
+    requires incoming: ready()
+    {
+        self.invoke<Token, TokenProducer>(value; incoming);
+    }
+"#;
+
+const STATIC_REQUIREMENT_RUNTIME_BASELINE_SOURCE: &str = r#"
+    trait Producer {
+        machine Self::produce(&self);
+    }
+
+    data Token {}
+
+    TokenProducer: Token satisfies Producer {
+        machine produce(&self) {}
+    }
+
+    data Root {}
+
+    machine Root::invoke<Element, Order: Element satisfies Producer>(
+        &self,
+        value: &Element
+    ) {
+        Order::produce(value);
+    }
+
+    machine Root::caller(&self, value: &Token) {
+        self.invoke<Token, TokenProducer>(value);
+    }
+"#;
+
 const DUPLICATE_ARGUMENTED_PROOF_OUTPUT_SOURCE: &str = r#"
     trait Evidence {}
     proposition ready() evidence Evidence;
@@ -1255,6 +1321,304 @@ fn runtime_unit_proof_output_links_and_executes_its_ordinary_call() {
     missing_link.proof_output_calls[0].runtime_call = None;
     assert!(matches!(
         psi_terminal_verifier::validate_module_representation(&missing_link),
+        Err(psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. })
+    ));
+}
+
+#[test]
+fn static_requirement_proof_output_keeps_public_identity_and_private_dispatch_separate() {
+    let checked = check(STATIC_REQUIREMENT_PROOF_OUTPUT_SOURCE);
+    let invocation = checked
+        .facts
+        .proof
+        .proof_output_calls
+        .iter()
+        .find_map(|(_, invocation)| {
+            invocation
+                .static_requirement_dispatch
+                .as_ref()
+                .map(|_| invocation)
+        })
+        .expect("one checked static requirement proof-output call");
+    let machine_name = checked
+        .facts
+        .flow
+        .terminal_machines
+        .machines
+        .iter()
+        .find_map(|selection| {
+            (selection.machine == invocation.caller_machine_symbol)
+                .then_some(selection.name.clone())
+        })
+        .expect("the specialized requirement caller is terminal-selected");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, &machine_name)
+        .expect("static requirement proof output should cross terminal Psi");
+    let baseline_checked = check(STATIC_REQUIREMENT_RUNTIME_BASELINE_SOURCE);
+    let baseline_machine_name = baseline_checked
+        .facts
+        .flow
+        .terminal_machines
+        .machines
+        .iter()
+        .find_map(|selection| {
+            baseline_checked
+                .machine_specializations
+                .iter()
+                .find(|specialization| {
+                    specialization.instance == selection.machine
+                        && !specialization.conformance_applications.is_empty()
+                })
+                .map(|_| selection.name.clone())
+        })
+        .expect("the baseline specialized requirement caller is terminal-selected");
+    let baseline =
+        psi_checked_trees_to_terminal::lower_machine(&baseline_checked, &baseline_machine_name)
+            .expect("matching runtime-only static requirement call should lower");
+    let [invocation] = lowered.semantic_module.proof_output_calls.as_slice() else {
+        panic!("one static requirement proof-output invocation expected")
+    };
+    let dispatch = invocation
+        .static_requirement_dispatch
+        .as_ref()
+        .expect("the private static realization remains explicit");
+    let [argument] = invocation.evidence_arguments.as_slice() else {
+        panic!("one public requirement input expected")
+    };
+    let [output] = invocation.outputs.as_slice() else {
+        panic!("one public requirement output expected")
+    };
+    assert_eq!(
+        invocation.target_machine_identity,
+        dispatch.public_requirement_identity
+    );
+    assert_ne!(
+        invocation.target_machine_identity, dispatch.realization_identity,
+        "the public requirement identity must not become its private realization"
+    );
+    assert_eq!(output.output_field, "public_out");
+    assert!(
+        invocation
+            .outputs
+            .iter()
+            .all(|output| output.output_field != "private_out"),
+        "the strengthening-only satisfier selector must stay private"
+    );
+    assert_eq!(output.forwarded_input_position, None);
+    assert_eq!(
+        output.callee_output, None,
+        "no satisfier or requirement callee term identity crosses the static abstraction"
+    );
+    assert_ne!(output.output, Some(argument.source));
+    assert_eq!(
+        invocation.runtime_result,
+        Some(psi_terminal::ProofOutputRuntimeResult::Unit)
+    );
+    assert_eq!(
+        invocation.runtime_call.map(|call| call.callee),
+        Some(dispatch.realization)
+    );
+    let application = lowered
+        .semantic_module
+        .closed_conformance_applications
+        .iter()
+        .find(|application| {
+            application.owner == invocation.caller
+                && application.fingerprint == dispatch.conformance_application_fingerprint
+        })
+        .expect("the dispatch rejoins its exact closed application");
+    assert_eq!(
+        application.trait_identity,
+        dispatch.declaring_trait_identity
+    );
+    assert!(application.rows.iter().any(|row| {
+        row.declaring_trait_identity == dispatch.declaring_trait_identity
+            && row.requirement_identity == dispatch.requirement_identity
+            && row.realization_identity == dispatch.realization_identity
+    }));
+    assert!(
+        lowered.proof_bundle.evidence_producers.is_empty(),
+        "the satisfier's private forwarded producer must not escape"
+    );
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("named static entry");
+    let baseline_entry = baseline
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == baseline.semantic_module.entry)
+        .expect("runtime baseline entry");
+    assert_eq!(entry.parameters, baseline_entry.parameters);
+    assert_eq!(
+        entry.structural_parameters,
+        baseline_entry.structural_parameters
+    );
+    assert_eq!(entry.result, baseline_entry.result);
+    assert_eq!(entry.structural_places, baseline_entry.structural_places);
+    let operation_kinds = |machine: &psi_terminal::TerminalMachine| {
+        machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .map(|operation| std::mem::discriminant(&operation.kind))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(operation_kinds(entry), operation_kinds(baseline_entry));
+    assert_eq!(
+        lowered.semantic_module.machines.len(),
+        baseline.semantic_module.machines.len(),
+        "named proof lanes do not change the executable closure"
+    );
+    for (machine, baseline_machine) in lowered
+        .semantic_module
+        .machines
+        .iter()
+        .zip(&baseline.semantic_module.machines)
+    {
+        assert_eq!(machine.parameters, baseline_machine.parameters);
+        assert_eq!(
+            machine.structural_parameters,
+            baseline_machine.structural_parameters
+        );
+        assert_eq!(machine.result, baseline_machine.result);
+        assert_eq!(
+            machine.structural_places,
+            baseline_machine.structural_places
+        );
+        assert_eq!(machine.blocks, baseline_machine.blocks);
+    }
+
+    let bytes = encode_module(&lowered.semantic_module).expect("static dispatch module encodes");
+    assert_eq!(decode_module(&bytes), Ok(lowered.semantic_module.clone()));
+    let verified = psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("the exact public/private dispatch split verifies");
+    let baseline_verified = psi_terminal_verifier::verify_module(
+        &baseline.semantic_module,
+        &baseline.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("the matching runtime-only static call verifies");
+    assert_eq!(
+        derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+            .expect("named static call has fixed fuel")
+            .ceiling_units(),
+        derive_fixed_entry_fuel(&baseline_verified, baseline.semantic_module.entry)
+            .expect("baseline static call has fixed fuel")
+            .ceiling_units(),
+        "erased named lanes add no runtime fuel"
+    );
+
+    let rejects = |mut module: psi_terminal::TerminalModule,
+                   mutate: fn(&mut psi_terminal::StaticRequirementDispatch)| {
+        mutate(
+            module.proof_output_calls[0]
+                .static_requirement_dispatch
+                .as_mut()
+                .expect("static dispatch"),
+        );
+        assert!(matches!(
+            psi_terminal_verifier::validate_module_representation(&module),
+            Err(psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. })
+        ));
+    };
+    rejects(lowered.semantic_module.clone(), |dispatch| {
+        dispatch.conformance_application_fingerprint ^= 1;
+    });
+    rejects(lowered.semantic_module.clone(), |dispatch| {
+        dispatch.public_requirement_identity.push_str("::forged");
+    });
+    rejects(lowered.semantic_module.clone(), |dispatch| {
+        dispatch.declaring_trait_identity.push_str("::forged");
+    });
+    rejects(lowered.semantic_module.clone(), |dispatch| {
+        dispatch.requirement_identity.push_str("::forged");
+    });
+    rejects(lowered.semantic_module.clone(), |dispatch| {
+        dispatch.realization_identity.push_str("::forged");
+    });
+    rejects(lowered.semantic_module.clone(), |dispatch| {
+        dispatch.realization = psi_core::MachineId::new(999).unwrap();
+    });
+    let mut deleted_dispatch = lowered.semantic_module.clone();
+    deleted_dispatch.proof_output_calls[0].static_requirement_dispatch = None;
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&deleted_dispatch),
+        Err(psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. })
+    ));
+    let mut leaked_input = lowered.semantic_module.clone();
+    let input_source = leaked_input.proof_output_calls[0].evidence_arguments[0].source;
+    leaked_input.proof_output_calls[0].outputs[0].output = Some(input_source);
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&leaked_input),
+        Err(psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. })
+    ));
+    let mut exposed_callee = lowered.semantic_module.clone();
+    exposed_callee.proof_output_calls[0].outputs[0].callee_output = Some(input_source);
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&exposed_callee),
+        Err(psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. })
+    ));
+    let mut renamed_row = lowered.semantic_module.clone();
+    let renamed_entry = renamed_row.entry;
+    let application = renamed_row
+        .closed_conformance_applications
+        .iter_mut()
+        .find(|application| application.owner == renamed_entry)
+        .expect("entry closed application");
+    application.rows[0]
+        .public_requirement_identity
+        .push_str("::forged");
+    application.fingerprint = psi_terminal::closed_conformance_application_fingerprint(application);
+    renamed_row.proof_output_calls[0]
+        .static_requirement_dispatch
+        .as_mut()
+        .expect("static dispatch")
+        .conformance_application_fingerprint = application.fingerprint;
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&renamed_row),
+        Err(psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. })
+    ));
+    let mut deleted_row = lowered.semantic_module.clone();
+    let deleted_entry = deleted_row.entry;
+    let application = deleted_row
+        .closed_conformance_applications
+        .iter_mut()
+        .find(|application| application.owner == deleted_entry)
+        .expect("entry closed application");
+    application.rows.clear();
+    application.fingerprint = psi_terminal::closed_conformance_application_fingerprint(application);
+    deleted_row.proof_output_calls[0]
+        .static_requirement_dispatch
+        .as_mut()
+        .expect("static dispatch")
+        .conformance_application_fingerprint = application.fingerprint;
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&deleted_row),
+        Err(psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. })
+    ));
+    let mut widened_application = lowered.semantic_module.clone();
+    let widened_entry = widened_application.entry;
+    let application = widened_application
+        .closed_conformance_applications
+        .iter_mut()
+        .find(|application| application.owner == widened_entry)
+        .expect("entry closed application");
+    application.trait_arguments.push("forged".to_owned());
+    application.fingerprint = psi_terminal::closed_conformance_application_fingerprint(application);
+    widened_application.proof_output_calls[0]
+        .static_requirement_dispatch
+        .as_mut()
+        .expect("static dispatch")
+        .conformance_application_fingerprint = application.fingerprint;
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&widened_application),
         Err(psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. })
     ));
 }

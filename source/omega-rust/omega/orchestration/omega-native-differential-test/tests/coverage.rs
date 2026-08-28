@@ -768,7 +768,7 @@ machine Main::main(&mut self) -> i32 {
 /// encoding is distinct from a `[u8; N]` repeated field (packed per-element
 /// varints). Native byte-slice wire decode landed (#46/#47, `ReadWireByteSlice`
 /// on both x86_64 and aarch64), so the round trip now also runs natively
-/// (tests/canaries/pass/wire/runtime_wire_decode_byte_slice_exit, oracle-matched);
+/// (tests/omega/pass/wire/runtime_wire_decode_byte_slice_exit, oracle-matched);
 /// this interpreter coverage pins the reference semantics.
 ///
 /// `{ bytes: [72, 105] }` encodes to 5 bytes: era 0 (0x00), tag 0 (0x00),

@@ -530,6 +530,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "proofs/higher_order_machine_schema_compile",
     "proofs/machine_parameterized_data_compile",
     "proofs/named_witness_concrete_lane_compile",
+    "proofs/named_witness_static_trait_call_compile",
     "proofs/proof_constant_arithmetic_identity",
     "proofs/proof_order_transitivity",
     "proofs/proof_linear_range_sum",
@@ -2571,11 +2572,11 @@ fn sample_project(path: &str) -> PathBuf {
 }
 
 fn pass_canary(path: &str) -> PathBuf {
-    repo_root().join("tests/canaries/pass").join(path)
+    repo_root().join("tests/omega/pass").join(path)
 }
 
 fn fail_canary(path: &str) -> PathBuf {
-    repo_root().join("tests/canaries/fail").join(path)
+    repo_root().join("tests/omega/fail").join(path)
 }
 
 fn hosted_main_program_entry_build(target: &str) -> String {
@@ -2639,11 +2640,11 @@ fn native_hosted_target() -> &'static str {
 }
 
 fn pending_canary(path: &str) -> PathBuf {
-    repo_root().join("tests/canaries/pending").join(path)
+    repo_root().join("tests/omega/pending").join(path)
 }
 
 fn run_canary(path: &str) -> PathBuf {
-    repo_root().join("tests/canaries/run").join(path)
+    repo_root().join("tests/omega/run").join(path)
 }
 
 fn copy_dir_recursive(from: &Path, to: &Path) -> std::io::Result<()> {

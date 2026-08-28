@@ -1,0 +1,210 @@
+# Delta lower-rooted assembly publication receipt, version 1
+
+This contract defines the exact evidence join for a candidate publication of
+the canonical Delta compiler's deterministic Darwin ARM64 **assembly stream**.
+It is not executable-Mach-O publication, compiler authority, a Delta language
+freeze, or permission to use an ambient assembler, linker, or retired producer.
+
+No receipt exists until the lower-rooted translator elaborates the canonical
+source once and the canonical Gamma interpreter executes the exact closed
+program twice. The generator has no default evidence paths and emits nothing
+on rejection. No artifact extent or digest is frozen before those executions.
+
+## Antecedents and transformations
+
+The join reconstructs `delta.compiler.current.v1`'s exact canonical LF image.
+It binds exact bytes for:
+
+- the written Alpha VM semantics, hand-authored macOS-arm64 VM source,
+  committed audited host seed, and tape-stamping source under role
+  `audited_alpha_macos_arm64_host_seed`;
+- the Alpha-written assembler source, committed host artifact, and supplied
+  deterministic persisted assembler tape, under role
+  `canonical_alpha_written_assembler_artifact`;
+- `bc.beta` and the repository's persisted fixed-point `bc.tape`, under role
+  `persisted_alpha_rooted_beta_compiler_fixed_point`;
+- `delta2gamma.beta` and its Beta-built Alpha tape;
+- `interp.beta` and its Beta-built Alpha tape; and
+- the canonical packed-input encoder and structured-output decoder sources.
+
+The two construction roles refer to the already-established Alpha/Beta
+publication boundaries. This receipt rebinds the exact host-seed semantics,
+source, committed binary, and their source/tape inputs; it does not claim to
+re-prove those boundaries or infer tool correctness from a hash. Ad-hoc signing
+of stamped staging executables remains OS installation metadata. The committed
+host seed is the stable Alpha-boundary identity; the deterministic tape bytes
+are the identity of each program stamped into it.
+
+One canonical elaboration observation records status zero, empty diagnostics,
+the exact source image, toolchain, and emitted Gamma template. That observation
+is evidence of the source-to-template execution relation, not a theorem that
+the translator implements all Delta semantics. The join then independently
+reruns the versioned packed-input transformation over the template and exact LF
+image and requires byte equality with the supplied closed Gamma program. A
+caller-supplied closed-Gamma hash alone is insufficient.
+
+Each Gamma execution supplies both the interpreter's raw structured stdout and
+the assembly bytes decoded from it. The join independently decodes the exact
+`(Pair status stdout)` observation, requires semantic status zero, compares the
+decoded bytes with the supplied assembly, and applies the strict Darwin ARM64
+assembly validator. Thus neither a raw Gamma-output hash nor an assembly hash
+alone establishes the result.
+
+## Observations and resources
+
+The canonical schemas are:
+
+```text
+omega.delta-gamma-elaboration-observation.v1
+omega.delta-gamma-execution-observation.v1
+```
+
+Objects are key-sorted canonical JSON with two-space indentation and one final
+LF. Elaboration and both execution observations recompute all file extents and
+SHA-256 identities. Execution ordinals are exactly 0 and 1. Process status and
+the decoded Delta status are both zero. Diagnostic stderr is exactly empty.
+Elapsed milliseconds are retained as diagnostics and may differ between runs.
+
+The execution observation binds the interpreter's concrete canonical profile:
+
+```text
+Gamma source bytes              4,194,304
+evaluator argument scratch      512 values
+evaluator fuel                  50,000,000
+stable-address heap arena       41,943,040 bytes
+heap mark/allocation map         5,242,880 bytes
+Alpha return-stack reserve       1,048,576 bytes
+```
+
+These are checked against the exact `interp.beta` source identity and are not
+summarized by a free resource-profile string. The observation states the actual
+zero status and empty diagnostics. It makes no claim about elapsed time as
+semantic identity and does not turn successful finite execution into a general
+termination proof.
+
+Documents are bounded at 65,536 bytes, the Gamma template at 1 MiB, the closed
+Gamma program at 4 MiB, and each deterministic Alpha tape at 262,140 bytes.
+The raw structured Gamma observation is bounded at 256 MiB because it renders
+the byte list structurally. Assembly retains the separate 16 MiB, 500,000-line,
+512-byte-line validator profile. Malformed/cross-paired evidence returns 251;
+resource overflow returns 252. Rejection publishes no stdout bytes.
+
+The assembly profile is the bounded spelling emitted by the canonical
+`source/delta/compiler/main.alp`, not a general AArch64 assembler grammar. In particular, its
+four-operand arithmetic forms are immediate `lsl #12` and the full-width array
+address form `add Xd, Xn, Xm, lsl #3`. Standalone register shifts preserve one
+register width; the emitted sign-fill immediates are exactly `asr Wd, Wn, #31`
+and `asr Xd, Xn, #63`; compare-immediate uses `lsl #12`, while wide-immediate
+moves use `lsl #16`. Other shifted-register arithmetic, mixed-width shifts, and
+neighboring shift amounts are outside this profile and reject. These syntax
+constraints describe artifact validation only and add no Delta language
+decision.
+
+## Receipt
+
+The receipt schema is
+`omega.delta-lower-rooted-assembly-publication.v1`; its publication ID is
+`delta.compiler.darwin-arm64-assembly.v1`, and its deliberately narrow claim is
+`candidate_lower_rooted_assembly_only`. It binds source snapshot/image,
+toolchain, template, closed Gamma, elaboration observation, two execution
+observations, common assembly, target `darwin_arm64`, configuration
+`conservative`, ABI `darwin-arm64-assembly-v1`, and validation profile
+`delta.darwin-arm64-assembly.strict-v1`.
+
+The executions must agree byte-for-byte on raw Gamma stdout and decoded
+assembly, as well as every semantic identity. Only elapsed diagnostics may
+differ. `receipt_sha256` is SHA-256 over the domain
+`omega.delta-lower-rooted-assembly-publication.v1\0`, the u64 little-endian
+compact-projection length, and canonical compact JSON with the receipt digest
+field omitted.
+
+`lower-rooted-assembly-publication-v1.sh` verifies an already-generated receipt
+and requires every execution product explicitly. Missing evidence returns 2;
+there is no placeholder that can pass. Even a green receipt closes only this
+candidate assembly join. Separate lower-rooted assembly/Mach-O reconstruction
+and direct refinement are required before the result is a runnable canonical
+Delta compiler artifact or compiler authority.
+
+## Responsibility-local attempt driver
+
+`lower_rooted_assembly_publication_v1_driver.py` is replaceable orchestration
+for this exact join. Its public lifecycle is:
+
+```text
+prepare ABSOLUTE_NEW_EVIDENCE_DIRECTORY
+status  ABSOLUTE_EVIDENCE_DIRECTORY
+finalize ABSOLUTE_EVIDENCE_DIRECTORY
+```
+
+`prepare` reconstructs the short-lived Beta compiler installation, extracts
+the assembler tape from the committed Alpha assembler artifact, builds the
+exact `delta2gamma.beta` and `interp.beta` tapes, stamps attempt-local Darwin
+executables, materializes the canonical LF image, and writes four explicit
+runner scripts. It does not elaborate the compiler or start either long Gamma
+execution. Ad-hoc-signed executable hashes are attempt-local mutation guards;
+they are never publication identities.
+
+Attempt-plan and stage-input identity reads reuse already-declared owner
+ceilings: 524,288 bytes for the canonical LF source image, 262,140 bytes for
+each Alpha tape, 1 MiB for committed or seed-stamped Alpha host executables,
+1 MiB for the generated template, 4 MiB for closed Gamma, and 65,536 bytes for
+the source-closure manifest, location sidecar, attempt plan, and stage markers.
+These limits apply at plan construction/replay and stage start/replay through
+the same bounded one-descriptor read used for stage outputs. Compiler,
+interpreter, and verifier source files have exact digest custody but no
+independently declared byte ceiling; their plan map therefore retains explicit
+unbounded entries instead of assigning an orchestration policy.
+
+The four scripts are `run-elaboration.sh`, `run-packing.sh`,
+`run-execution-0.sh`, and `run-execution-1.sh`. Each states its actual
+executable arguments and file redirections literally: the translator reads the
+canonical LF image and writes the Gamma template; the versioned packer injects
+that same image into the template and writes the closed Gamma program; and each
+interpreter reads that closed program and writes one raw structured result.
+There is no private driver action which selects or conceals those compiler
+commands. In particular, packing is an independently runnable transport step,
+not a second compiler action hidden inside the elaboration runner.
+
+The scripts call the public `stage-start` and `stage-finish` custody operations
+around each literal command. A separate `stage-watch` observes only the
+attempt-local process identifier, emits a heartbeat every 60 seconds, and
+enforces the declared wall-time ceiling; it does not choose an executable,
+arguments, inputs, outputs, or redirections. Elaboration precedes packing; the
+two execution scripts may then run independently. Each stage gets a fresh
+exclusive start marker and finish marker bound to the attempt token,
+preparation epoch, exact input/output identities, process status, elapsed
+diagnostic, and time ceiling. Before a finish marker can retain output, the
+driver applies the same 1 MiB template, 4 MiB closed-Gamma, 256 MiB raw Gamma
+observation, and 65,536-byte diagnostic ceilings reconstructed by finalization.
+Each limited output is read once from one open descriptor, for at most its
+ceiling plus one byte, with descriptor extent checked before and after and the
+current path rejoined afterward. Thus growth after the first extent check
+cannot trigger an unbounded read; `+1` returns resource status 252 without a
+finish marker. A stage is never resumed into an existing output or marker. A
+timeout receives its own token- and epoch-bound marker and status 124; an
+unsubstantiated status 124 rejects.
+
+`status` is read-only. Missing stages are pending, a start without a matching
+finish is running (or timed-out once a valid timeout marker exists), and a
+coherent nonzero process status is failed. A marker from another token or
+preparation epoch, a finish or timeout without its start, changed
+inputs/outputs, future timestamps, or a start/finish cross-pair is malformed
+251 rather than reusable evidence. Status zero means all four stages are
+complete; status 3 means a coherent attempt is not complete.
+
+`finalize` starts no lower-rung process. It requires all four exact stage
+records, invokes only the frozen independent output decoder and V1 evidence
+reconstruction, applies the strict assembly validator, and writes the receipt
+last. Existing observations, decoded assemblies, or receipt make finalization
+fail closed rather than overwrite evidence. This lifecycle does not add a
+semantic stage, target authority, assembler/linker admission, or publication
+claim beyond the V1 receipt.
+
+## Next custody boundary
+
+[`DELTA_LOWER_ROOTED_ARTIFACT_CUSTODY_V1.md`](DELTA_LOWER_ROOTED_ARTIFACT_CUSTODY_V1.md)
+defines the separate fail-closed join from this fully reconstructed receipt to
+one exact unsigned Darwin ARM64 Mach-O image. That join binds artifact and
+ambient realization-tool identities but deliberately retains semantic
+refinement as open; it does not widen this assembly receipt or make the ambient
+assembler/linker authoritative.

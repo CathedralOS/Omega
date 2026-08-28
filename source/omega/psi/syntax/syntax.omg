@@ -30,10 +30,36 @@ pub data DataField [copy] {
     source_span: SourceSpan;
 }
 
+pub data DataCase [copy] {
+    name: IdentifierSpan;
+    source_span: SourceSpan;
+}
+
+pub data DataMemberKind [copy] {
+    case Field;
+    case Case;
+}
+
+pub data DataMember [copy] {
+    kind: DataMemberKind;
+    item_index: u64 in Trapping;
+    source_span: SourceSpan;
+}
+
+pub data DataMultiplicity [copy] {
+    case Affine;
+    case Unrestricted;
+}
+
 pub data DataItem [copy] {
     name: IdentifierSpan;
+    first_member: u64 in Trapping;
+    member_count: u64 in Trapping;
     first_field: u64 in Trapping;
     field_count: u64 in Trapping;
+    first_case: u64 in Trapping;
+    case_count: u64 in Trapping;
+    multiplicity: DataMultiplicity;
     is_public: bool;
     source_span: SourceSpan;
 }
@@ -68,6 +94,12 @@ pub data ParseDiagnosticCode [copy] {
     case DataCapacityExceeded;
     case DataFieldCapacityExceeded;
     case TypeReferenceCapacityExceeded;
+    case ExpectedDataProperty;
+    case ExpectedDataPropertyEnd;
+    case ExpectedDataCaseName;
+    case ExpectedDataCaseEnd;
+    case DataMemberCapacityExceeded;
+    case DataCaseCapacityExceeded;
 }
 
 pub data ParseDiagnostic [copy] {
@@ -86,6 +118,10 @@ pub data SyntaxTrees {
     data_count: u64 [0..=256];
     fields: [DataField; 1024] in Trapping;
     field_count: u64 [0..=1024];
+    data_members: [DataMember; 1024] in Trapping;
+    data_member_count: u64 [0..=1024];
+    cases: [DataCase; 512] in Trapping;
+    case_count: u64 [0..=512];
     type_references: [TypeReference; 1024] in Trapping;
     type_reference_count: u64 [0..=1024];
     diagnostic: ParseDiagnostic;
@@ -98,6 +134,8 @@ pub machine SyntaxTrees::clear(&mut self, source: SourceId) {
     self.member_count = 0;
     self.data_count = 0;
     self.field_count = 0;
+    self.data_member_count = 0;
+    self.case_count = 0;
     self.type_reference_count = 0;
     self.accepted = true;
     self.diagnostic.code = ParseDiagnosticCode::None;

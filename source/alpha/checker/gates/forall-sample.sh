@@ -22,20 +22,20 @@
 OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
   OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
-  while [ ! -f "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh" ]; do
+  while [ ! -f "$OMEGA_REPO_ROOT/tools/lattice/paths.sh" ]; do
     OMEGA_PATH_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
     if [ "$OMEGA_PATH_PARENT" = "$OMEGA_REPO_ROOT" ]; then
-      echo "bootstrap paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
+      echo "lattice paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
       exit 2
     fi
     OMEGA_REPO_ROOT=$OMEGA_PATH_PARENT
   done
   unset OMEGA_PATH_PARENT
 fi
-. "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh" || exit $?
+. "$OMEGA_REPO_ROOT/tools/lattice/paths.sh" || exit $?
 . "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh" || exit $?
-. "$OMEGA_PATH_PROOF_KERNEL/artifact_env.sh" || exit $?
-cd "$OMEGA_PATH_PROOF_KERNEL"
+. "$OMEGA_PATH_ALPHA_CHECKER/artifact_env.sh" || exit $?
+cd "$OMEGA_PATH_ALPHA_CHECKER"
 command -v python3 >/dev/null 2>&1 || { echo "forall-sample: skipped (python3 absent)"; exit 0; }
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
@@ -45,7 +45,7 @@ stamp_beta_compiler "$T/bc.exe" >/dev/null
 b() { "$T/bc.exe" < "$1" > "$T/x.asm" 2>/dev/null && "$ASM" < "$T/x.asm" > "$T/x.tape" 2>/dev/null && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
 stamp_proof_checker "$T/check.exe" >/dev/null || { echo "checker artifact unavailable"; exit 1; }
 b "${OMEGA_PATH_GAMMA}"/interp.beta "$T/interp.exe" || { echo "forall-sample FAIL — build interp.beta"; exit 1; }
-DEFS=$(cat "${OMEGA_PATH_PROOF_KERNEL}"/implementations/gamma/checker.gamma)
+DEFS=$(cat "${OMEGA_PATH_ALPHA_CHECKER}"/implementations/gamma/checker.gamma)
 thmok=1
 
 # verify3 LABEL ELAB PERTURB-SED : theorem accepted by all three checkers, perturbation rejected by beta+ref
@@ -53,7 +53,7 @@ verify3() {
   cert=$(python3 tools/elab.py < "$2" 2>/dev/null)
   vb=$(printf '%s' "$cert" | "$T/check.exe" 2>/dev/null)
   vr=$(printf '%s' "$cert" | python3 implementations/reference/check_ref.py 2>/dev/null)
-  vg=$(printf '%s\n%s\n' "$DEFS" "$(printf '%s' "$cert" | python3 "${OMEGA_PATH_PROOF_KERNEL}"/tools/refcert_to_gamma.py 2>/dev/null)" | perl -e 'alarm 40; exec @ARGV' "$T/interp.exe" >/dev/null 2>&1; r=$?; [ "$r" = 1 ] && echo accept || { [ "$r" = 0 ] && echo reject || echo undecided; })
+  vg=$(printf '%s\n%s\n' "$DEFS" "$(printf '%s' "$cert" | python3 "${OMEGA_PATH_ALPHA_CHECKER}"/tools/refcert_to_gamma.py 2>/dev/null)" | perl -e 'alarm 40; exec @ARGV' "$T/interp.exe" >/dev/null 2>&1; r=$?; [ "$r" = 1 ] && echo accept || { [ "$r" = 0 ] && echo reject || echo undecided; })
   neg=$(sed "$3" "$2" | python3 tools/elab.py 2>/dev/null)
   nb=$(printf '%s' "$neg" | "$T/check.exe" 2>/dev/null); nr=$(printf '%s' "$neg" | python3 implementations/reference/check_ref.py 2>/dev/null)
   nok=no; { [ "$nb" != accept ] && [ "$nr" != accept ]; } && nok=yes
@@ -67,7 +67,7 @@ verify3 "sqsum-forall  (sqfold(xs,n)=sumSq(xs)+n; sumSq adds each element's SQUA
 
 # ---- tie: real sample loops discharged for EVERY input ----
 cov=0; miss=0
-for f in "${OMEGA_PATH_CORPUS}"/*/main.omg; do
+for f in "${OMEGA_PATH_LATTICE_CORPUS}"/*/main.omg; do
   s=$(basename "$(dirname "$f")")
   # (a) slice COUNT fold: a machine NAME(&mut self, x: &[..]) recursing NAME(x[1..], acc + 1) under x.len > 0
   rec=$(grep -oE '[a-z_]+\([a-z_]+\[1\.\.\], *[a-z_]+ \+ 1\)' "$f" 2>/dev/null | head -1)

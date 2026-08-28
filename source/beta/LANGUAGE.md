@@ -79,5 +79,6 @@ assembly mnemonics) without spelling every byte. `"..."` escapes: `\n \t \r \0 \
 
 These are rung boundaries, not unfinished Gamma or Delta features. The
 self-hosting compiler is [`bc.beta`](compiler/bc.beta); its
-fixed-point and language corpus are gated by `source/beta/selfhost.sh`
+fixed-point and language corpus are gated by
+`source/beta/compiler/validation/selfhost.sh`
 and `source/beta/test.sh`.

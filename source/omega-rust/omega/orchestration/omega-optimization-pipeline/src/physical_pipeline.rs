@@ -1,35 +1,52 @@
 use omega_lowering_optimizer::{
     ValidatedOptimizedAbstractPlan, lower_optimized_to_target_operations_with_provider_executions,
 };
-use omega_optimization_core::{OptimizationExecutionPhase, OptimizationSelectionIdentity};
+use omega_optimization_core::{
+    Optimization, OptimizationExecutionPhase, OptimizationSelectionIdentity,
+};
 use omega_optimization_validation::ValidatedPrePhysicalOptimizationManifest;
-use omega_regalloc::{TerminalFixedViewCopyPolicy, ValidatedPostAllocationOptimizationManifest};
+use omega_regalloc::{
+    TerminalFixedViewCopyPolicy, TerminalPressureRematerializationPolicy,
+    TerminalRecoveryClassificationPolicy, TerminalSpillChoicePolicy,
+    ValidatedPostAllocationOptimizationManifest,
+};
 use omega_target::NativeTarget;
 use omega_terminal_abstract_operations_to_target_operations::{
     AdmittedTerminalBoundarySettlement, LoweringError,
 };
 
 use crate::{
-    FunctionRelativeOptimizationRealizationError, OptimizedAllocationLegalityCustodyError,
-    OptimizedFixedViewCopyCustodyError, OptimizedLiteralFoldCustodyError,
-    OptimizedLiveRangeCustodyError, OptimizedLivenessCustodyError,
-    OptimizedPostAllocationMachineOptimizationError, OptimizedPostAllocationMachinePipelineError,
-    OptimizedPostCopyRegisterHomeCustodyError, OptimizedPostSelectedLoweringHomeCustodyError,
-    OptimizedRegisterHomeCustodyError, OptimizedSelectedReanalysisError,
-    OptimizedSelectionPipelineError, StagedAarch64CbnzFunctionRelativeRealization,
+    FunctionRelativeOptimizationRealizationError, OptimizedActiveResidentRematerializationError,
+    OptimizedActiveResidentRematerializationFunctionRelativeRealizationError,
+    OptimizedActiveResidentRematerializationResolvedSelectedFormLayoutError,
+    OptimizedActiveResidentRematerializationSelectedFormEncodingError,
+    OptimizedAllocationLegalityCustodyError, OptimizedFixedViewCopyCustodyError,
+    OptimizedLiteralFoldCustodyError, OptimizedLiveRangeCustodyError,
+    OptimizedLivenessCustodyError, OptimizedPostAllocationMachineOptimizationError,
+    OptimizedPostAllocationMachinePipelineError, OptimizedPostCopyRegisterHomeCustodyError,
+    OptimizedPostSelectedLoweringHomeCustodyError, OptimizedRegisterHomeCustodyError,
+    OptimizedSelectedReanalysisError, OptimizedSelectionPipelineError,
+    StagedAarch64CbnzFunctionRelativeRealization,
     StagedFunctionRelativeLayoutOptimizationRealization, StagedOptimizedAarch64CbnzFusion,
-    StagedOptimizedPostAllocationMachinePlan, StagedOptimizedRegisterHomes,
-    StagedOptimizedRegisterHomesAfterFixedViewCopies,
+    StagedOptimizedActiveResidentRematerializationFunctionRelativeRealization,
+    StagedOptimizedLiveRanges, StagedOptimizedPostAllocationMachinePlan,
+    StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterFixedViewCopies,
     StagedSelectedLoweringAarch64CbnzFunctionRelativeRealization,
     StagedSelectedLoweringFunctionRelativeRealization,
     ValidatedFunctionRelativeOptimizationRealizationManifest, run_selected_lowering_optimizations,
     stage_aarch64_cbnz_function_relative_realization,
     stage_function_relative_layout_optimization_realization, stage_optimized_aarch64_cbnz_fusion,
     stage_optimized_aarch64_cbnz_fusion_after_selected_lowering,
-    stage_optimized_allocation_legality, stage_optimized_allocation_legality_for_frameless_leaf,
-    stage_optimized_fixed_view_copies, stage_optimized_instruction_selection,
-    stage_optimized_live_ranges, stage_optimized_liveness,
+    stage_optimized_active_resident_rematerialization,
+    stage_optimized_active_resident_rematerialization_function_relative_realization,
+    stage_optimized_active_resident_rematerialization_resolved_selected_form_layout,
+    stage_optimized_active_resident_rematerialization_selected_form_encoding,
+    stage_optimized_allocation_legality,
+    stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1,
+    stage_optimized_allocation_legality_for_frameless_leaf, stage_optimized_fixed_view_copies,
+    stage_optimized_instruction_selection, stage_optimized_live_ranges, stage_optimized_liveness,
     stage_optimized_post_allocation_machine_plan,
+    stage_optimized_post_allocation_machine_plan_after_active_resident_rematerialization,
     stage_optimized_post_allocation_machine_plan_after_fixed_view_copies,
     stage_optimized_post_allocation_machine_plan_after_selected_lowering,
     stage_optimized_register_homes, stage_optimized_register_homes_after_fixed_view_copies,
@@ -56,6 +73,9 @@ pub enum StagedOptimizedVerifiedPhysicalPipeline {
     AllocationRecovery {
         homes: StagedOptimizedRegisterHomesAfterFixedViewCopies,
         machine: StagedOptimizedPostAllocationMachinePlan,
+    },
+    ActiveResidentRematerialization {
+        realization: Box<StagedOptimizedActiveResidentRematerializationFunctionRelativeRealization>,
     },
     FunctionRelativeLayout {
         realization: StagedFunctionRelativeLayoutOptimizationRealization,
@@ -105,6 +125,17 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
                 .optimized_target()
                 .optimized()
                 .pre_physical_manifest(),
+            Self::ActiveResidentRematerialization { realization } => realization
+                .source()
+                .pre_layout()
+                .source()
+                .source()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target()
+                .optimized()
+                .pre_physical_manifest(),
             Self::FunctionRelativeLayout { realization } => realization
                 .homes()
                 .legality_stage()
@@ -137,6 +168,11 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
                 realization.homes().post_allocation_manifest()
             }
             Self::AllocationRecovery { homes, .. } => homes.post_allocation_manifest(),
+            Self::ActiveResidentRematerialization { realization } => realization
+                .source()
+                .pre_layout()
+                .source()
+                .post_allocation_manifest(),
             Self::FunctionRelativeLayout { realization } => {
                 realization.homes().post_allocation_manifest()
             }
@@ -152,6 +188,9 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
             Self::PostAllocationMachine { realization } => realization.machine(),
             Self::SelectedLoweringPostAllocationMachine { realization } => realization.machine(),
             Self::AllocationRecovery { machine, .. } => machine,
+            Self::ActiveResidentRematerialization { realization } => {
+                realization.source().pre_layout().machine()
+            }
             Self::FunctionRelativeLayout { realization } => realization.machine(),
             Self::SelectedLowering { realization } => realization.machine(),
         }
@@ -165,6 +204,7 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
             | Self::PostAllocationMachine { .. }
             | Self::SelectedLoweringPostAllocationMachine { .. }
             | Self::AllocationRecovery { .. }
+            | Self::ActiveResidentRematerialization { .. }
             | Self::FunctionRelativeLayout { .. } => None,
             Self::SelectedLowering { realization } => Some(realization),
         }
@@ -175,6 +215,7 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
     ) -> Option<&ValidatedFunctionRelativeOptimizationRealizationManifest> {
         match self {
             Self::PsiOnly { .. } | Self::AllocationRecovery { .. } => None,
+            Self::ActiveResidentRematerialization { realization } => Some(realization.manifest()),
             Self::PostAllocationMachine { realization } => Some(realization.manifest()),
             Self::SelectedLoweringPostAllocationMachine { realization } => {
                 Some(realization.manifest())
@@ -212,6 +253,18 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
                 .optimized()
                 .selections()
                 .identity(),
+            Self::ActiveResidentRematerialization { realization } => realization
+                .source()
+                .pre_layout()
+                .source()
+                .source()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target()
+                .optimized()
+                .selections()
+                .identity(),
             Self::FunctionRelativeLayout { realization } => realization
                 .homes()
                 .legality_stage()
@@ -237,6 +290,7 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
             Self::PsiOnly { .. }
             | Self::PostAllocationMachine { .. }
             | Self::AllocationRecovery { .. }
+            | Self::ActiveResidentRematerialization { .. }
             | Self::FunctionRelativeLayout { .. } => None,
             Self::SelectedLoweringPostAllocationMachine { realization } => Some(
                 realization
@@ -265,8 +319,18 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
             }
             Self::PsiOnly { .. }
             | Self::AllocationRecovery { .. }
+            | Self::ActiveResidentRematerialization { .. }
             | Self::FunctionRelativeLayout { .. }
             | Self::SelectedLowering { .. } => None,
+        }
+    }
+
+    pub const fn active_resident_rematerialization_function_relative_realization(
+        &self,
+    ) -> Option<&StagedOptimizedActiveResidentRematerializationFunctionRelativeRealization> {
+        match self {
+            Self::ActiveResidentRematerialization { realization } => Some(realization),
+            _ => None,
         }
     }
 }
@@ -286,8 +350,62 @@ pub enum OptimizedVerifiedPhysicalPipelineError {
     FixedViewCopies(OptimizedFixedViewCopyCustodyError),
     SelectedReanalysis(OptimizedSelectedReanalysisError),
     PostCopyRegisterHomes(OptimizedPostCopyRegisterHomeCustodyError),
+    ActiveResidentRematerialization(OptimizedActiveResidentRematerializationError),
+    ActiveResidentRematerializationEncoding(
+        OptimizedActiveResidentRematerializationSelectedFormEncodingError,
+    ),
+    ActiveResidentRematerializationLayout(
+        OptimizedActiveResidentRematerializationResolvedSelectedFormLayoutError,
+    ),
+    ActiveResidentRematerializationFunctionRelative(
+        OptimizedActiveResidentRematerializationFunctionRelativeRealizationError,
+    ),
     UnsupportedPhysicalPhaseComposition,
     FunctionRelativeRealization(FunctionRelativeOptimizationRealizationError),
+}
+
+#[inline(never)]
+fn stage_active_resident_rematerialization_pipeline(
+    ranges: StagedOptimizedLiveRanges,
+) -> Result<
+    Box<StagedOptimizedActiveResidentRematerializationFunctionRelativeRealization>,
+    OptimizedVerifiedPhysicalPipelineError,
+> {
+    let budget = ranges
+        .liveness_stage()
+        .selected_stage()
+        .optimized_target()
+        .optimized()
+        .budget_per_pass();
+    let legality = stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1(ranges)
+        .map_err(OptimizedVerifiedPhysicalPipelineError::AllocationLegality)?;
+    let rematerialization = stage_optimized_active_resident_rematerialization(
+        legality,
+        TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+        TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+        TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
+        budget,
+    )
+    .map_err(OptimizedVerifiedPhysicalPipelineError::ActiveResidentRematerialization)?;
+    let machine =
+        stage_optimized_post_allocation_machine_plan_after_active_resident_rematerialization(
+            &rematerialization,
+        )
+        .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)?;
+    let encoding = stage_optimized_active_resident_rematerialization_selected_form_encoding(
+        rematerialization,
+        machine,
+    )
+    .map_err(OptimizedVerifiedPhysicalPipelineError::ActiveResidentRematerializationEncoding)?;
+    let layout = stage_optimized_active_resident_rematerialization_resolved_selected_form_layout(
+        encoding,
+    )
+    .map_err(OptimizedVerifiedPhysicalPipelineError::ActiveResidentRematerializationLayout)?;
+    stage_optimized_active_resident_rematerialization_function_relative_realization(layout)
+        .map(Box::new)
+        .map_err(
+            OptimizedVerifiedPhysicalPipelineError::ActiveResidentRematerializationFunctionRelative,
+        )
 }
 
 impl std::fmt::Display for OptimizedVerifiedPhysicalPipelineError {
@@ -306,6 +424,67 @@ impl std::error::Error for OptimizedVerifiedPhysicalPipelineError {}
 /// retained build suite; callers cannot request or skip selected-lowering work
 /// independently.
 pub fn stage_optimized_verified_physical_pipeline_with_provider_executions(
+    optimized: ValidatedOptimizedAbstractPlan,
+    target: NativeTarget,
+    settlements: &[AdmittedTerminalBoundarySettlement<'_>],
+) -> Result<StagedOptimizedVerifiedPhysicalPipeline, OptimizedVerifiedPhysicalPipelineError> {
+    let allocation_recovery = optimized
+        .selections()
+        .for_phase(OptimizationExecutionPhase::AllocationRecovery);
+    if allocation_recovery.as_slice()
+        == [Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1]
+    {
+        if !optimized
+            .selections()
+            .for_phase(OptimizationExecutionPhase::SelectedLowering)
+            .is_empty()
+            || !optimized
+                .selections()
+                .for_phase(OptimizationExecutionPhase::FunctionRelativeLayout)
+                .is_empty()
+            || !optimized
+                .selections()
+                .for_phase(OptimizationExecutionPhase::PostAllocationMachine)
+                .is_empty()
+        {
+            return Err(
+                OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition,
+            );
+        }
+        let ranges =
+            stage_active_resident_rematerialization_live_ranges(optimized, target, settlements)?;
+        let realization = stage_active_resident_rematerialization_pipeline(ranges)?;
+        return Ok(
+            StagedOptimizedVerifiedPhysicalPipeline::ActiveResidentRematerialization {
+                realization,
+            },
+        );
+    }
+    stage_non_active_resident_rematerialization_physical_pipeline(optimized, target, settlements)
+}
+
+#[inline(never)]
+fn stage_active_resident_rematerialization_live_ranges(
+    optimized: ValidatedOptimizedAbstractPlan,
+    target: NativeTarget,
+    settlements: &[AdmittedTerminalBoundarySettlement<'_>],
+) -> Result<StagedOptimizedLiveRanges, OptimizedVerifiedPhysicalPipelineError> {
+    let target = lower_optimized_to_target_operations_with_provider_executions(
+        optimized,
+        target,
+        settlements,
+    )
+    .map_err(OptimizedVerifiedPhysicalPipelineError::TargetLowering)?;
+    let selected = stage_optimized_instruction_selection(target)
+        .map_err(OptimizedVerifiedPhysicalPipelineError::Selection)?;
+    let liveness = stage_optimized_liveness(selected)
+        .map_err(OptimizedVerifiedPhysicalPipelineError::Liveness)?;
+    stage_optimized_live_ranges(liveness)
+        .map_err(OptimizedVerifiedPhysicalPipelineError::LiveRanges)
+}
+
+#[inline(never)]
+fn stage_non_active_resident_rematerialization_physical_pipeline(
     optimized: ValidatedOptimizedAbstractPlan,
     target: NativeTarget,
     settlements: &[AdmittedTerminalBoundarySettlement<'_>],
@@ -366,21 +545,33 @@ pub fn stage_optimized_verified_physical_pipeline_with_provider_executions(
             .optimized_target()
             .optimized()
             .budget_per_pass();
-        let legality = stage_optimized_allocation_legality(ranges)
-            .map_err(OptimizedVerifiedPhysicalPipelineError::AllocationLegality)?;
-        let copies = stage_optimized_fixed_view_copies(
-            legality,
-            TerminalFixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1,
-            budget,
-        )
-        .map_err(OptimizedVerifiedPhysicalPipelineError::FixedViewCopies)?;
-        let reanalysis = stage_optimized_selected_reanalysis(copies)
-            .map_err(OptimizedVerifiedPhysicalPipelineError::SelectedReanalysis)?;
-        let homes = stage_optimized_register_homes_after_fixed_view_copies(reanalysis)
-            .map_err(OptimizedVerifiedPhysicalPipelineError::PostCopyRegisterHomes)?;
-        let machine = stage_optimized_post_allocation_machine_plan_after_fixed_view_copies(&homes)
-            .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)?;
-        return Ok(StagedOptimizedVerifiedPhysicalPipeline::AllocationRecovery { homes, machine });
+        match allocation_recovery.as_slice() {
+            [Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1] => {
+                let legality = stage_optimized_allocation_legality(ranges)
+                    .map_err(OptimizedVerifiedPhysicalPipelineError::AllocationLegality)?;
+                let copies = stage_optimized_fixed_view_copies(
+                    legality,
+                    TerminalFixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1,
+                    budget,
+                )
+                .map_err(OptimizedVerifiedPhysicalPipelineError::FixedViewCopies)?;
+                let reanalysis = stage_optimized_selected_reanalysis(copies)
+                    .map_err(OptimizedVerifiedPhysicalPipelineError::SelectedReanalysis)?;
+                let homes = stage_optimized_register_homes_after_fixed_view_copies(reanalysis)
+                    .map_err(OptimizedVerifiedPhysicalPipelineError::PostCopyRegisterHomes)?;
+                let machine =
+                    stage_optimized_post_allocation_machine_plan_after_fixed_view_copies(&homes)
+                        .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)?;
+                return Ok(
+                    StagedOptimizedVerifiedPhysicalPipeline::AllocationRecovery { homes, machine },
+                );
+            }
+            _ => {
+                return Err(
+                    OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition,
+                );
+            }
+        }
     }
 
     if !post_allocation_machine.is_empty() {

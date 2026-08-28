@@ -365,8 +365,9 @@ pub fn fold_terminal_selected_incoming_literal<S: ValidatedTerminalSelectedAnaly
 }
 
 /// Insert one value-lineage-only, zero-fuel rematerialization immediately
-/// before the sole future flexible use of an already-classified active
-/// resident. The semantic source materialization and its charge remain intact.
+/// before either the sole future flexible use or the first use of an exact
+/// multiple-use suffix of an already-classified active resident. The semantic
+/// source materialization and its charge remain intact.
 #[allow(clippy::too_many_arguments)]
 pub fn rematerialize_terminal_selected_active_resident<S: ValidatedTerminalSelectedAnalysis>(
     selected: &S,

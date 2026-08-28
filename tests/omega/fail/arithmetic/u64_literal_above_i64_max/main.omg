@@ -1,0 +1,18 @@
+// FAIL canary: a u64-magnitude literal into a NON-u64-classed place is rejected
+// with a CLEAR diagnostic. Since D14 (anonymous literals) the literal PARSES and
+// a direct store into a u64/addr place is ACCEPTED (see
+// tests/omega/pass/arithmetic/runtime_u64_max_literal_exit); every other position
+// -- here an i64 target, whose 8-byte slot would silently reinterpret the bit
+// pattern as negative -- must still reject at the literal-width gate
+// (psi-validation/src/literals.rs), naming the accepted alternative.
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    count: i64 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.count = 18446744073709551615; // u64::MAX into an i64 slot -- rejected
+    self.console.exit_process(0);
+}

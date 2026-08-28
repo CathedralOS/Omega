@@ -71,6 +71,7 @@ fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
             target_symbol: outer_symbol,
             receiver: Default::default(),
             target: Identifier::generated("outer"),
+            static_requirement_dispatch: None,
             machine_arguments: Box::default(),
             arguments: outer_arguments,
             evidence_arguments: Box::default(),

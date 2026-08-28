@@ -3343,14 +3343,14 @@ fn runtime_threaded_mut_arg_interrupt_soak_exit_canary_runs() {
 #[test]
 fn named_integer_conversion_prng_cohort_reaches_checked_trees() {
     for relative in [
-        "tests/canaries/pass/arithmetic/runtime_contained_range_write",
-        "tests/canaries/pass/arithmetic/runtime_unsigned_modulo_call_argument_exit",
-        "tests/canaries/pass/calls/runtime_call_enum_sequence",
-        "tests/canaries/pass/calls/runtime_nested_named_conversion_alias_exit",
-        "tests/canaries/pass/control_flow/runtime_branching_helper_local_guard_value",
-        "tests/canaries/pass/dungeon/runtime_nested_value_call_caller_local_guard_exit",
-        "tests/canaries/pass/rewards/runtime_contained_reward_table_roll_item",
-        "tests/canaries/pass/rewards/runtime_reward_table_roll_item_shape",
+        "tests/omega/pass/arithmetic/runtime_contained_range_write",
+        "tests/omega/pass/arithmetic/runtime_unsigned_modulo_call_argument_exit",
+        "tests/omega/pass/calls/runtime_call_enum_sequence",
+        "tests/omega/pass/calls/runtime_nested_named_conversion_alias_exit",
+        "tests/omega/pass/control_flow/runtime_branching_helper_local_guard_value",
+        "tests/omega/pass/dungeon/runtime_nested_value_call_caller_local_guard_exit",
+        "tests/omega/pass/rewards/runtime_contained_reward_table_roll_item",
+        "tests/omega/pass/rewards/runtime_reward_table_roll_item_shape",
     ] {
         let main_path = repo_root().join(relative).join("main.omg");
         compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
@@ -3365,24 +3365,24 @@ fn named_integer_conversion_prng_cohort_reaches_checked_trees() {
 #[test]
 fn named_integer_conversion_filesystem_decode_cohort_reaches_checked_trees() {
     for relative in [
-        "tests/canaries/pass/calls/runtime_value_call_struct_payload_cast_field_exit",
-        "tests/canaries/pass/filesystem/native_copy_preserve",
-        "tests/canaries/pass/filesystem/native_filetype",
-        "tests/canaries/pass/filesystem/native_fs_workflow",
-        "tests/canaries/pass/filesystem/native_fstat",
-        "tests/canaries/pass/filesystem/native_metadata_blocks",
-        "tests/canaries/pass/filesystem/native_metadata_ctime_dev",
-        "tests/canaries/pass/filesystem/native_metadata_ino",
-        "tests/canaries/pass/filesystem/native_metadata_modified",
-        "tests/canaries/pass/filesystem/native_metadata_nlink",
-        "tests/canaries/pass/filesystem/native_metadata_readonly",
-        "tests/canaries/pass/filesystem/native_metadata_times",
-        "tests/canaries/pass/filesystem/native_open_create",
-        "tests/canaries/pass/filesystem/native_set_times",
-        "tests/canaries/pass/filesystem/native_stat",
-        "tests/canaries/pass/filesystem/native_symlink_metadata",
-        "tests/canaries/pass/time/runtime_fs_mtime_interop_windows_exit",
-        "tests/canaries/pass/time/runtime_fs_mtime_system_time_interop_exit",
+        "tests/omega/pass/calls/runtime_value_call_struct_payload_cast_field_exit",
+        "tests/omega/pass/filesystem/native_copy_preserve",
+        "tests/omega/pass/filesystem/native_filetype",
+        "tests/omega/pass/filesystem/native_fs_workflow",
+        "tests/omega/pass/filesystem/native_fstat",
+        "tests/omega/pass/filesystem/native_metadata_blocks",
+        "tests/omega/pass/filesystem/native_metadata_ctime_dev",
+        "tests/omega/pass/filesystem/native_metadata_ino",
+        "tests/omega/pass/filesystem/native_metadata_modified",
+        "tests/omega/pass/filesystem/native_metadata_nlink",
+        "tests/omega/pass/filesystem/native_metadata_readonly",
+        "tests/omega/pass/filesystem/native_metadata_times",
+        "tests/omega/pass/filesystem/native_open_create",
+        "tests/omega/pass/filesystem/native_set_times",
+        "tests/omega/pass/filesystem/native_stat",
+        "tests/omega/pass/filesystem/native_symlink_metadata",
+        "tests/omega/pass/time/runtime_fs_mtime_interop_windows_exit",
+        "tests/omega/pass/time/runtime_fs_mtime_system_time_interop_exit",
     ] {
         let main_path = repo_root().join(relative).join("main.omg");
         compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
@@ -3393,7 +3393,7 @@ fn named_integer_conversion_filesystem_decode_cohort_reaches_checked_trees() {
         });
     }
 
-    let windows_relative = "tests/canaries/pass/filesystem/windows_set_file_time_exit";
+    let windows_relative = "tests/omega/pass/filesystem/windows_set_file_time_exit";
     let windows_main = repo_root().join(windows_relative).join("main.omg");
     compile_to_checked(&windows_main, None).unwrap_or_else(|diagnostics| {
         panic!(

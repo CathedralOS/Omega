@@ -4,6 +4,8 @@
 //! planning, and native bridge construction.
 
 mod artifacts;
+mod optimized_semantic_entry;
+mod optimized_semantic_wrapper;
 #[path = "entry_physical.rs"]
 mod program_entry_physical;
 #[path = "local_storage_custody.rs"]
@@ -43,6 +45,8 @@ mod source_signature;
 pub use artifacts::{
     PROGRAM_STORAGE_INSTALLATION_ARTIFACT, program_storage_installation_record_json,
 };
+pub use optimized_semantic_entry::*;
+pub use optimized_semantic_wrapper::*;
 pub use program_entry_physical::*;
 pub use program_local_storage_custody::*;
 pub use program_storage_continuation_inbound::*;
@@ -64,8 +68,8 @@ pub use selected_provider::ProgramStorageSelectedProviderPlan;
 pub use source_signature::{
     ProgramEntrySourceExtentFieldLayout, ProgramEntrySourceExtentFieldRole,
     ProgramEntrySourceExtentValueLayout, ProgramEntrySourceReceiverSignature,
-    ProgramEntrySourceResultSignature, ProgramEntrySourceVisibleParameterSignature,
-    SelectedProgramEntrySourceSignature,
+    ProgramEntrySourceResultSignature, ProgramEntrySourceSignatureIdentity,
+    ProgramEntrySourceVisibleParameterSignature, SelectedProgramEntrySourceSignature,
 };
 
 mod provider_plans {

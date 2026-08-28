@@ -118,10 +118,21 @@ impl SourceStorage {
         if let Some(toolchain_root) = &self.toolchain_root
             && path.starts_with(toolchain_root)
         {
-            let package_root = ["core", "std"]
+            // The bundled packages now live directly under `source/library`.
+            // Retain the former `language/<package>` recognition while
+            // migrated trees and cached fixtures drain, but always choose the
+            // deepest matching package root so exact toolchain provenance is
+            // independent of the surrounding library directory.
+            let package_root = ["core", "std", "alloc"]
                 .into_iter()
-                .map(|name| toolchain_root.join(name))
-                .find(|root| path.starts_with(root))
+                .flat_map(|name| {
+                    [
+                        toolchain_root.join(name),
+                        toolchain_root.join("language").join(name),
+                    ]
+                })
+                .filter(|root| path.starts_with(root))
+                .max_by_key(|root| root.components().count())
                 .unwrap_or_else(|| toolchain_root.clone());
             return (package_root, None, SourceOrigin::Toolchain);
         }
@@ -143,4 +154,31 @@ impl SourceStorage {
 
 fn normalize_directory(path: PathBuf) -> PathBuf {
     path.canonicalize().unwrap_or(path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn direct_and_legacy_toolchain_packages_keep_their_deepest_roots() {
+        let storage = SourceStorage::for_compilation(
+            PathBuf::from("workspace/application"),
+            PathBuf::from("toolchain"),
+        );
+        for (source, expected_root) in [
+            ("toolchain/std/targets/uefi_x64/entry.omg", "toolchain/std"),
+            ("toolchain/core/targets/common.omg", "toolchain/core"),
+            (
+                "toolchain/language/std/targets/legacy.omg",
+                "toolchain/language/std",
+            ),
+            ("toolchain/shared/prelude.omg", "toolchain"),
+        ] {
+            let (root, package, origin) = storage.source_metadata(Path::new(source), None);
+            assert_eq!(root, PathBuf::from(expected_root));
+            assert_eq!(package, None);
+            assert_eq!(origin, SourceOrigin::Toolchain);
+        }
+    }
 }

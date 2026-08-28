@@ -9,7 +9,7 @@ use crate::{
 
 pub fn terminal_live_range_identity(plan: &TerminalLiveRangePlan) -> TerminalLiveRangeIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-live-range-fragments.v4\0");
+    bytes.extend_from_slice(b"omega.terminal-live-range-fragments.v8\0");
     bytes.extend_from_slice(&plan.selected.bytes());
     bytes.extend_from_slice(&plan.liveness.bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
@@ -25,104 +25,106 @@ pub fn terminal_live_range_identity(plan: &TerminalLiveRangePlan) -> TerminalLiv
     });
     bytes.extend_from_slice(&(plan.target.pointer_size as u64).to_le_bytes());
     bytes.extend_from_slice(&(plan.target.pointer_alignment as u64).to_le_bytes());
-    encode_len(&mut bytes, plan.functions.len());
-    for function in &plan.functions {
-        bytes.extend_from_slice(&function.machine.get().to_le_bytes());
-        encode_len(&mut bytes, function.block_domains.len());
-        for block in &function.block_domains {
-            bytes.extend_from_slice(&block.block.0.to_le_bytes());
-            bytes.extend_from_slice(&block.source_block.get().to_le_bytes());
-            bytes.extend_from_slice(&block.start.0.to_le_bytes());
-            bytes.extend_from_slice(&block.end.0.to_le_bytes());
-        }
-        encode_len(&mut bytes, function.virtual_registers.len());
-        for register in &function.virtual_registers {
-            bytes.extend_from_slice(&register.virtual_register.0.to_le_bytes());
-            bytes.extend_from_slice(&register.class.0.to_le_bytes());
-            encode_len(&mut bytes, register.occurrences.len());
-            for occurrence in &register.occurrences {
-                bytes.extend_from_slice(&occurrence.position.0.to_le_bytes());
-                bytes.extend_from_slice(&occurrence.point.0.to_le_bytes());
-                bytes.extend_from_slice(&occurrence.instruction.0.to_le_bytes());
-                bytes.extend_from_slice(&occurrence.operand.to_le_bytes());
-                bytes.push(access_tag(occurrence.access));
+    for functions in [&plan.functions, &plan.structural_unit_functions] {
+        encode_len(&mut bytes, functions.len());
+        for function in functions {
+            bytes.extend_from_slice(&function.machine.get().to_le_bytes());
+            encode_len(&mut bytes, function.block_domains.len());
+            for block in &function.block_domains {
+                bytes.extend_from_slice(&block.block.0.to_le_bytes());
+                bytes.extend_from_slice(&block.source_block.get().to_le_bytes());
+                bytes.extend_from_slice(&block.start.0.to_le_bytes());
+                bytes.extend_from_slice(&block.end.0.to_le_bytes());
             }
-            encode_len(&mut bytes, register.fixed_constraints.len());
-            for constraint in &register.fixed_constraints {
-                match constraint.site {
-                    TerminalVirtualFixedConstraintSite::Entry => bytes.push(0),
-                    TerminalVirtualFixedConstraintSite::Operand {
-                        position,
-                        point,
-                        instruction,
-                        operand,
-                        access,
-                    } => {
-                        bytes.push(1);
-                        bytes.extend_from_slice(&position.0.to_le_bytes());
-                        bytes.extend_from_slice(&point.0.to_le_bytes());
-                        bytes.extend_from_slice(&instruction.0.to_le_bytes());
-                        bytes.extend_from_slice(&operand.to_le_bytes());
-                        bytes.push(access_tag(access));
-                    }
+            encode_len(&mut bytes, function.virtual_registers.len());
+            for register in &function.virtual_registers {
+                bytes.extend_from_slice(&register.virtual_register.0.to_le_bytes());
+                bytes.extend_from_slice(&register.class.0.to_le_bytes());
+                encode_len(&mut bytes, register.occurrences.len());
+                for occurrence in &register.occurrences {
+                    bytes.extend_from_slice(&occurrence.position.0.to_le_bytes());
+                    bytes.extend_from_slice(&occurrence.point.0.to_le_bytes());
+                    bytes.extend_from_slice(&occurrence.instruction.0.to_le_bytes());
+                    bytes.extend_from_slice(&occurrence.operand.to_le_bytes());
+                    bytes.push(access_tag(occurrence.access));
                 }
-                bytes.extend_from_slice(&constraint.view.0.to_le_bytes());
+                encode_len(&mut bytes, register.fixed_constraints.len());
+                for constraint in &register.fixed_constraints {
+                    match constraint.site {
+                        TerminalVirtualFixedConstraintSite::Entry => bytes.push(0),
+                        TerminalVirtualFixedConstraintSite::Operand {
+                            position,
+                            point,
+                            instruction,
+                            operand,
+                            access,
+                        } => {
+                            bytes.push(1);
+                            bytes.extend_from_slice(&position.0.to_le_bytes());
+                            bytes.extend_from_slice(&point.0.to_le_bytes());
+                            bytes.extend_from_slice(&instruction.0.to_le_bytes());
+                            bytes.extend_from_slice(&operand.to_le_bytes());
+                            bytes.push(access_tag(access));
+                        }
+                    }
+                    bytes.extend_from_slice(&constraint.view.0.to_le_bytes());
+                }
+                encode_fragments(&mut bytes, &register.fragments);
+                encode_connectors(&mut bytes, &register.edge_connectors);
             }
-            encode_fragments(&mut bytes, &register.fragments);
-            encode_connectors(&mut bytes, &register.edge_connectors);
-        }
-        encode_len(&mut bytes, function.tied_pairs.len());
-        for tie in &function.tied_pairs {
-            bytes.extend_from_slice(&tie.block.0.to_le_bytes());
-            bytes.extend_from_slice(&tie.position.0.to_le_bytes());
-            bytes.extend_from_slice(&tie.instruction.0.to_le_bytes());
-            bytes.extend_from_slice(&tie.use_operand.to_le_bytes());
-            bytes.extend_from_slice(&tie.use_virtual_register.0.to_le_bytes());
-            bytes.extend_from_slice(&tie.use_point.0.to_le_bytes());
-            bytes.extend_from_slice(&tie.def_operand.to_le_bytes());
-            bytes.extend_from_slice(&tie.def_virtual_register.0.to_le_bytes());
-            bytes.extend_from_slice(&tie.def_point.0.to_le_bytes());
-            bytes.extend_from_slice(&tie.class.0.to_le_bytes());
-        }
-        encode_len(&mut bytes, function.early_clobbers.len());
-        for early in &function.early_clobbers {
-            bytes.extend_from_slice(&early.block.0.to_le_bytes());
-            bytes.extend_from_slice(&early.position.0.to_le_bytes());
-            bytes.extend_from_slice(&early.instruction.0.to_le_bytes());
-            bytes.extend_from_slice(&early.early_point.0.to_le_bytes());
-            bytes.extend_from_slice(&early.def_operand.to_le_bytes());
-            bytes.extend_from_slice(&early.def_virtual_register.0.to_le_bytes());
-            bytes.extend_from_slice(&early.def_class.0.to_le_bytes());
-            bytes.extend_from_slice(&early.def_point.0.to_le_bytes());
-            encode_len(&mut bytes, early.uses.len());
-            for used in &early.uses {
-                bytes.extend_from_slice(&used.operand.to_le_bytes());
-                bytes.extend_from_slice(&used.virtual_register.0.to_le_bytes());
-                bytes.extend_from_slice(&used.class.0.to_le_bytes());
+            encode_len(&mut bytes, function.tied_pairs.len());
+            for tie in &function.tied_pairs {
+                bytes.extend_from_slice(&tie.block.0.to_le_bytes());
+                bytes.extend_from_slice(&tie.position.0.to_le_bytes());
+                bytes.extend_from_slice(&tie.instruction.0.to_le_bytes());
+                bytes.extend_from_slice(&tie.use_operand.to_le_bytes());
+                bytes.extend_from_slice(&tie.use_virtual_register.0.to_le_bytes());
+                bytes.extend_from_slice(&tie.use_point.0.to_le_bytes());
+                bytes.extend_from_slice(&tie.def_operand.to_le_bytes());
+                bytes.extend_from_slice(&tie.def_virtual_register.0.to_le_bytes());
+                bytes.extend_from_slice(&tie.def_point.0.to_le_bytes());
+                bytes.extend_from_slice(&tie.class.0.to_le_bytes());
             }
-        }
-        encode_len(&mut bytes, function.architectural_units.len());
-        for unit in &function.architectural_units {
-            bytes.extend_from_slice(&unit.unit.0.to_le_bytes());
-            encode_len(&mut bytes, unit.actions.len());
-            for action in &unit.actions {
-                bytes.extend_from_slice(&action.block.0.to_le_bytes());
-                bytes.extend_from_slice(&action.position.0.to_le_bytes());
-                bytes.extend_from_slice(&action.point.0.to_le_bytes());
-                bytes.extend_from_slice(&action.instruction.0.to_le_bytes());
-                bytes.push(match action.kind {
-                    TerminalArchitecturalUnitActionKind::Use => 0,
-                    TerminalArchitecturalUnitActionKind::Def => 1,
-                    TerminalArchitecturalUnitActionKind::Clobber => 2,
-                });
+            encode_len(&mut bytes, function.early_clobbers.len());
+            for early in &function.early_clobbers {
+                bytes.extend_from_slice(&early.block.0.to_le_bytes());
+                bytes.extend_from_slice(&early.position.0.to_le_bytes());
+                bytes.extend_from_slice(&early.instruction.0.to_le_bytes());
+                bytes.extend_from_slice(&early.early_point.0.to_le_bytes());
+                bytes.extend_from_slice(&early.def_operand.to_le_bytes());
+                bytes.extend_from_slice(&early.def_virtual_register.0.to_le_bytes());
+                bytes.extend_from_slice(&early.def_class.0.to_le_bytes());
+                bytes.extend_from_slice(&early.def_point.0.to_le_bytes());
+                encode_len(&mut bytes, early.uses.len());
+                for used in &early.uses {
+                    bytes.extend_from_slice(&used.operand.to_le_bytes());
+                    bytes.extend_from_slice(&used.virtual_register.0.to_le_bytes());
+                    bytes.extend_from_slice(&used.class.0.to_le_bytes());
+                }
             }
-            encode_fragments(&mut bytes, &unit.fragments);
-            encode_connectors(&mut bytes, &unit.edge_connectors);
-        }
-        encode_len(&mut bytes, function.interference.len());
-        for pair in &function.interference {
-            bytes.extend_from_slice(&pair.lower.0.to_le_bytes());
-            bytes.extend_from_slice(&pair.higher.0.to_le_bytes());
+            encode_len(&mut bytes, function.architectural_units.len());
+            for unit in &function.architectural_units {
+                bytes.extend_from_slice(&unit.unit.0.to_le_bytes());
+                encode_len(&mut bytes, unit.actions.len());
+                for action in &unit.actions {
+                    bytes.extend_from_slice(&action.block.0.to_le_bytes());
+                    bytes.extend_from_slice(&action.position.0.to_le_bytes());
+                    bytes.extend_from_slice(&action.point.0.to_le_bytes());
+                    bytes.extend_from_slice(&action.instruction.0.to_le_bytes());
+                    bytes.push(match action.kind {
+                        TerminalArchitecturalUnitActionKind::Use => 0,
+                        TerminalArchitecturalUnitActionKind::Def => 1,
+                        TerminalArchitecturalUnitActionKind::Clobber => 2,
+                    });
+                }
+                encode_fragments(&mut bytes, &unit.fragments);
+                encode_connectors(&mut bytes, &unit.edge_connectors);
+            }
+            encode_len(&mut bytes, function.interference.len());
+            for pair in &function.interference {
+                bytes.extend_from_slice(&pair.lower.0.to_le_bytes());
+                bytes.extend_from_slice(&pair.higher.0.to_le_bytes());
+            }
         }
     }
     TerminalLiveRangeIdentity(Sha256::digest(bytes).into())
@@ -276,6 +278,31 @@ mod tests {
                     higher: TerminalVirtualRegisterId(1),
                 }],
             }],
+            structural_unit_functions: vec![TerminalFunctionLiveRanges {
+                machine: MachineId::new(2).unwrap(),
+                block_domains: vec![TerminalBlockPointDomain {
+                    block: TerminalSelectedBlockId(0),
+                    source_block: BlockId::new(2).unwrap(),
+                    start: TerminalLiveRangePoint(0),
+                    end: TerminalLiveRangePoint(4),
+                }],
+                virtual_registers: Vec::new(),
+                tied_pairs: Vec::new(),
+                early_clobbers: Vec::new(),
+                architectural_units: vec![TerminalArchitecturalUnitLiveRange {
+                    unit: RegisterUnitId(2),
+                    actions: vec![TerminalArchitecturalUnitAction {
+                        block: TerminalSelectedBlockId(0),
+                        position: TerminalLivenessPosition(0),
+                        point: TerminalLiveRangePoint(0),
+                        instruction: TerminalSelectedInstructionId(0),
+                        kind: TerminalArchitecturalUnitActionKind::Clobber,
+                    }],
+                    fragments: vec![fragment],
+                    edge_connectors: Vec::new(),
+                }],
+                interference: Vec::new(),
+            }],
         }
     }
 
@@ -284,6 +311,16 @@ mod tests {
         let original = plan();
         let identity = terminal_live_range_identity(&original);
         let mut mutations = Vec::new();
+        let mut changed = original.clone();
+        changed.structural_unit_functions.clear();
+        mutations.push(changed);
+        let mut changed = original.clone();
+        changed.structural_unit_functions[0].machine = MachineId::new(3).unwrap();
+        mutations.push(changed);
+        let mut changed = original.clone();
+        changed.structural_unit_functions[0].architectural_units[0].actions[0].kind =
+            TerminalArchitecturalUnitActionKind::Def;
+        mutations.push(changed);
 
         let mut changed = original.clone();
         changed.selected =

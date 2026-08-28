@@ -1,20 +1,28 @@
+use omega_calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
 use omega_optimization_unit::{
-    AcceptedObligationFact, FuelSettlement, OptimizationFact, PsiOptimizationUnit, PsiProvenance,
+    AcceptedObligationFact, FuelSettlement, OptimizationFact, OwnershipEvent, PsiOptimizationUnit,
+    PsiProvenance,
 };
 use omega_terminal_abstract_operations::{
     TerminalAbstractOperation, TerminalAbstractOperationPlan,
 };
 use omega_terminal_legalized_operations::{
     TerminalLegalizationRecipe, TerminalLegalizationTheorem,
+    TerminalLegalizedActiveResidentExactAddChain as SourceActiveResidentExactAddChain,
+    TerminalLegalizedCallUnit, TerminalLegalizedCallUnitArgument,
+    TerminalLegalizedCallUnitParameter, TerminalLegalizedExactAdd as SourceExactAdd,
     TerminalLegalizedFunction as SourceFunction, TerminalLegalizedImmediate as SourceImmediate,
     TerminalLegalizedLeaf as SourceLeaf, TerminalLegalizedLeafValue as SourceLeafValue,
-    TerminalLegalizedTemporaryId,
+    TerminalLegalizedStructuralUnitFunction as SourceStructuralUnitFunction,
+    TerminalLegalizedTemporaryId, TerminalLegalizedUnitFunction as SourceUnitFunction,
 };
 use omega_terminal_target_operations::{
     TerminalPsiProvenance, TerminalScalarParameterLocation, TerminalTargetIntegerControl,
     TerminalTargetIntegerExpression, TerminalTargetOperation, TerminalTargetOperationPlan,
+    TerminalTargetUnitOperation,
 };
-use psi_core::{EdgeId, IntegerSign, OperationId, ScalarType};
+use psi_core::{EdgeId, IntegerSign, OperationId, ScalarType, StructuralPlaceKind};
+use psi_terminal::StructuralPlaceDeclaration;
 
 use crate::{TerminalLegalizationError, TerminalLegalizationError as Error};
 
@@ -41,6 +49,9 @@ pub(crate) fn derive_source_functions(
         .zip(&abstract_plan.functions)
         .zip(&unit.functions)
         .enumerate()
+        .filter(|(_, ((target, _), _))| {
+            !matches!(target.operation, TerminalTargetOperation::UnitBody(_))
+        })
         .map(|(index, ((target, abstracted), optimized))| {
             derive_source_function(
                 index,
@@ -69,6 +80,624 @@ pub(crate) fn derive_source_functions(
         return Err(Error::SourceCustodyMismatch);
     }
     Ok(functions)
+}
+
+pub(crate) fn derive_source_unit_functions(
+    target: &TerminalTargetOperationPlan,
+    abstract_plan: &TerminalAbstractOperationPlan,
+    unit: &PsiOptimizationUnit,
+) -> Result<Vec<SourceUnitFunction>, TerminalLegalizationError> {
+    if omega_optimization_validation::validate_psi_optimization_unit(unit).is_err()
+        || target.terminal_psi != abstract_plan.terminal_psi
+        || target.terminal_psi != unit.terminal_psi
+        || target.entry != abstract_plan.entry
+        || target.entry != unit.entry
+        || target.functions.len() != abstract_plan.functions.len()
+        || target.functions.len() != unit.functions.len()
+        || omega_optimization_unit::recompute_psi_optimization_unit_identity(unit) != unit.identity
+    {
+        return Err(Error::SourceCustodyMismatch);
+    }
+    target
+        .functions
+        .iter()
+        .zip(&abstract_plan.functions)
+        .zip(&unit.functions)
+        .enumerate()
+        .filter(|(_, ((target, abstracted), optimized))| {
+            is_plain_unit_function(target, abstracted, optimized)
+        })
+        .map(|(index, ((target, abstracted), optimized))| {
+            derive_source_unit_function(index, target, abstracted, optimized)
+        })
+        .collect()
+}
+
+pub(crate) fn derive_source_structural_unit_functions(
+    target: &TerminalTargetOperationPlan,
+    abstract_plan: &TerminalAbstractOperationPlan,
+    unit: &PsiOptimizationUnit,
+) -> Result<Vec<SourceStructuralUnitFunction>, TerminalLegalizationError> {
+    if omega_optimization_validation::validate_psi_optimization_unit(unit).is_err()
+        || target.terminal_psi != abstract_plan.terminal_psi
+        || target.terminal_psi != unit.terminal_psi
+        || target.entry != abstract_plan.entry
+        || target.entry != unit.entry
+        || target.functions.len() != abstract_plan.functions.len()
+        || target.functions.len() != unit.functions.len()
+        || omega_optimization_unit::recompute_psi_optimization_unit_identity(unit) != unit.identity
+    {
+        return Err(Error::SourceCustodyMismatch);
+    }
+
+    target
+        .functions
+        .iter()
+        .enumerate()
+        .filter_map(|(index, target_function)| {
+            let abstract_matches = abstract_plan
+                .functions
+                .iter()
+                .filter(|candidate| candidate.machine == target_function.machine)
+                .collect::<Vec<_>>();
+            let optimized_matches = unit
+                .functions
+                .iter()
+                .filter(|candidate| candidate.machine == target_function.machine)
+                .collect::<Vec<_>>();
+            let ([abstracted], [optimized]) =
+                (abstract_matches.as_slice(), optimized_matches.as_slice())
+            else {
+                return Some(Err(Error::SourceCustodyMismatch));
+            };
+            matches!(
+                target_function.operation,
+                TerminalTargetOperation::UnitBody(_)
+            )
+            .then_some((index, target_function, *abstracted, *optimized))
+            .filter(|(_, target_function, abstracted, optimized)| {
+                !is_plain_unit_function(target_function, abstracted, optimized)
+            })
+            .map(|(index, target_function, abstracted, optimized)| {
+                derive_source_structural_unit_function(
+                    index,
+                    target_function,
+                    abstracted,
+                    optimized,
+                    target,
+                    abstract_plan,
+                    unit,
+                )
+            })
+        })
+        .collect()
+}
+
+fn is_plain_unit_function(
+    target: &omega_terminal_target_operations::TerminalTargetFunction,
+    abstracted: &omega_terminal_abstract_operations::TerminalAbstractFunction,
+    optimized: &omega_optimization_unit::PsiOptimizationFunction,
+) -> bool {
+    let TerminalTargetOperation::UnitBody(body) = &target.operation else {
+        return false;
+    };
+    body.parameters.is_empty()
+        && abstracted.structural_parameters.is_empty()
+        && optimized.structural_parameters.is_empty()
+        && abstracted.entry_claims.is_empty()
+        && optimized.entry_claim_declarations.is_empty()
+        && optimized.entry_claims.is_empty()
+        && optimized.declared_places.is_empty()
+        && abstracted.published_service_ceiling.is_empty()
+        && optimized.published_service_ceiling.is_empty()
+        && matches!(
+            body.operations.as_slice(),
+            [TerminalTargetUnitOperation::Return { .. }]
+        )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn derive_source_structural_unit_function(
+    function: usize,
+    target: &omega_terminal_target_operations::TerminalTargetFunction,
+    abstracted: &omega_terminal_abstract_operations::TerminalAbstractFunction,
+    optimized: &omega_optimization_unit::PsiOptimizationFunction,
+    target_plan: &TerminalTargetOperationPlan,
+    abstract_plan: &TerminalAbstractOperationPlan,
+    unit: &PsiOptimizationUnit,
+) -> Result<SourceStructuralUnitFunction, TerminalLegalizationError> {
+    let TerminalTargetOperation::UnitBody(body) = &target.operation else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let [abstract_entry] = abstracted.block_entries.as_slice() else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let [optimized_block] = optimized.blocks.as_slice() else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let (
+        target_call,
+        target_return,
+        abstract_call,
+        abstract_return,
+        optimized_call,
+        optimized_return,
+    ) = match (
+        body.operations.as_slice(),
+        abstracted.operations.as_slice(),
+        optimized_block.nodes.as_slice(),
+    ) {
+        (
+            [target_return @ TerminalTargetUnitOperation::Return { .. }],
+            [abstract_return @ TerminalAbstractOperation::ReturnUnit { .. }],
+            [optimized_return],
+        ) => (
+            None,
+            target_return,
+            None,
+            abstract_return,
+            None,
+            optimized_return,
+        ),
+        (
+            [
+                target_call @ TerminalTargetUnitOperation::Call { .. },
+                target_return @ TerminalTargetUnitOperation::Return { .. },
+            ],
+            [
+                abstract_call @ TerminalAbstractOperation::CallUnit { .. },
+                abstract_return @ TerminalAbstractOperation::ReturnUnit { .. },
+            ],
+            [optimized_call, optimized_return],
+        ) => (
+            Some(target_call),
+            target_return,
+            Some(abstract_call),
+            abstract_return,
+            Some(optimized_call),
+            optimized_return,
+        ),
+        _ => return Err(Error::UnsupportedSourceShape { function }),
+    };
+    let TerminalTargetUnitOperation::Return {
+        psi_edge,
+        cleanup_actions,
+    } = target_return
+    else {
+        unreachable!()
+    };
+    let expected_provenance = TerminalPsiProvenance {
+        operations: abstract_call
+            .and_then(|operation| match operation {
+                TerminalAbstractOperation::CallUnit { psi_operation, .. } => Some(*psi_operation),
+                _ => None,
+            })
+            .into_iter()
+            .collect(),
+        edges: vec![*psi_edge],
+    };
+    let expected_return_effect_input = u64::from(abstract_call.is_some());
+    if target.machine != abstracted.machine
+        || target.machine != optimized.machine
+        || target.attachment != abstracted.attachment
+        || target.attachment != optimized.attachment
+        || target.provenance != expected_provenance
+        || abstracted.result
+            != omega_terminal_abstract_operations::TerminalAbstractFunctionResult::Unit
+        || optimized.result != abstracted.result
+        || !abstracted.parameters.is_empty()
+        || !optimized.parameters.is_empty()
+        || body.structural_types != abstract_plan.structural_types
+        || body.structural_types != unit.structural_types
+        || abstracted.structural_parameters != optimized.structural_parameters
+        || abstracted.entry_claims != optimized.entry_claim_declarations
+        || abstracted.published_service_ceiling != optimized.published_service_ceiling
+        || abstracted.entry != abstract_entry.block
+        || optimized.entry != abstract_entry.block
+        || optimized_block.id != abstract_entry.block
+        || abstract_entry.operation_offset != 0
+        || !abstract_entry.parameters.is_empty()
+        || !optimized_block.parameters.is_empty()
+        || !cleanup_actions.is_empty()
+        || abstract_return != &optimized_return.operation
+        || !matches!(abstract_return, TerminalAbstractOperation::ReturnUnit { psi_edge: edge, cleanup_actions } if edge == psi_edge && cleanup_actions.is_empty())
+        || optimized_return.provenance != [PsiProvenance::Edge(*psi_edge)]
+        || optimized_return.effect.input != expected_return_effect_input
+        || optimized_return.effect.output != expected_return_effect_input + 1
+        || !optimized_return.definitions.is_empty()
+        || !optimized_return.uses.is_empty()
+        || !optimized_return.successors.is_empty()
+        || optimized_return.ownership != [OwnershipEvent::Cleanup(Vec::new())]
+        || body.parameters.len() != abstracted.structural_parameters.len()
+    {
+        return Err(Error::UnsupportedSourceShape { function });
+    }
+
+    let parameters = abstracted
+        .structural_parameters
+        .iter()
+        .zip(&body.parameters)
+        .map(|(semantic, target)| {
+            (semantic.place == target.place
+                && semantic.structural_type == target.structural_type
+                && semantic.multiplicity == target.multiplicity
+                && semantic.access == target.access)
+                .then(|| TerminalLegalizedCallUnitParameter {
+                    semantic: semantic.clone(),
+                    target: target.clone(),
+                })
+                .ok_or(Error::UnsupportedSourceShape { function })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let expected_call_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(target_plan.target),
+        &CallSignature {
+            parameters: body
+                .parameters
+                .iter()
+                .map(|parameter| parameter.shape)
+                .collect(),
+            result: None,
+        },
+    )
+    .map_err(|_| Error::UnsupportedSourceShape { function })?;
+    if body.call_plan != expected_call_plan {
+        return Err(Error::UnsupportedSourceShape { function });
+    }
+    let structural_places = synthesized_parameter_places(&abstracted.structural_parameters);
+    let expected_places = abstracted
+        .structural_parameters
+        .iter()
+        .map(|parameter| parameter.place)
+        .collect::<std::collections::BTreeSet<_>>();
+    let expected_claim_ids = abstracted
+        .entry_claims
+        .iter()
+        .map(|claim| claim.claim)
+        .collect::<std::collections::BTreeSet<_>>();
+    if optimized.declared_places != expected_places
+        || optimized.entry_claims != expected_claim_ids
+        || abstracted
+            .entry_claims
+            .iter()
+            .any(|claim| !claim.path.is_empty() || !expected_places.contains(&claim.input))
+    {
+        return Err(Error::UnsupportedSourceShape { function });
+    }
+
+    let call = match (target_call, abstract_call, optimized_call) {
+        (None, None, None) => None,
+        (Some(target_call), Some(abstract_call), Some(optimized_call)) => {
+            Some(derive_structural_call(
+                function,
+                target_call,
+                abstract_call,
+                optimized_call,
+                &parameters,
+                &abstracted.entry_claims,
+                target_plan,
+                abstract_plan,
+                unit,
+            )?)
+        }
+        _ => return Err(Error::UnsupportedSourceShape { function }),
+    };
+
+    Ok(SourceStructuralUnitFunction {
+        machine: target.machine,
+        attachment: target.attachment,
+        provenance: target.provenance.clone(),
+        structural_types: body.structural_types.clone(),
+        call_plan: body.call_plan.clone(),
+        parameters,
+        structural_places,
+        entry_claims: abstracted.entry_claims.clone(),
+        published_service_ceiling: abstracted.published_service_ceiling.clone(),
+        entry_block: optimized_block.id,
+        call,
+        return_edge: *psi_edge,
+        return_fuel: optimized_return.fuel.clone(),
+        return_effect: optimized_return.effect,
+        return_ownership: optimized_return.ownership.clone(),
+    })
+}
+
+fn synthesized_parameter_places(
+    parameters: &[psi_terminal::StructuralParameterDeclaration],
+) -> Vec<StructuralPlaceDeclaration> {
+    parameters
+        .iter()
+        .map(|parameter| StructuralPlaceDeclaration {
+            id: parameter.place,
+            kind: StructuralPlaceKind::Parameter {
+                position: parameter.position,
+                is_self: parameter.is_self,
+            },
+        })
+        .collect()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn derive_structural_call(
+    function: usize,
+    target_call: &TerminalTargetUnitOperation,
+    abstract_call: &TerminalAbstractOperation,
+    optimized_call: &omega_optimization_unit::OptimizationNode,
+    caller_parameters: &[TerminalLegalizedCallUnitParameter],
+    caller_claims: &[psi_terminal::EntryClaim],
+    target_plan: &TerminalTargetOperationPlan,
+    abstract_plan: &TerminalAbstractOperationPlan,
+    unit: &PsiOptimizationUnit,
+) -> Result<TerminalLegalizedCallUnit, TerminalLegalizationError> {
+    let TerminalTargetUnitOperation::Call {
+        psi_operation: target_operation,
+        callee: target_callee,
+        arguments: target_arguments,
+        claim_transfers: target_transfers,
+    } = target_call
+    else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let TerminalAbstractOperation::CallUnit {
+        psi_operation,
+        callee,
+        structural_arguments,
+        claim_transfers,
+    } = abstract_call
+    else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    if target_operation != psi_operation
+        || target_callee != callee
+        || target_transfers != claim_transfers
+        || optimized_call.operation != *abstract_call
+        || optimized_call.provenance != [PsiProvenance::Operation(*psi_operation)]
+        || optimized_call.ownership
+            != [OwnershipEvent::ClaimTransfer(
+                claim_transfers
+                    .iter()
+                    .map(|transfer| transfer.claim)
+                    .collect(),
+            )]
+        || optimized_call.effect.input != 0
+        || optimized_call.effect.output != 1
+        || !optimized_call.definitions.is_empty()
+        || !optimized_call.uses.is_empty()
+        || !optimized_call.successors.is_empty()
+        || structural_arguments.len() != target_arguments.len()
+    {
+        return Err(Error::UnsupportedSourceShape { function });
+    }
+    let arguments = structural_arguments
+        .iter()
+        .zip(target_arguments)
+        .map(|(semantic, target)| {
+            let source = caller_parameters
+                .iter()
+                .find(|parameter| parameter.semantic.place == semantic.place)
+                .ok_or(Error::UnsupportedSourceShape { function })?;
+            (semantic.access == target.access
+                && semantic.place == target.place
+                && semantic.path.is_empty()
+                && target.path.is_empty()
+                && target.root_structural_type == source.semantic.structural_type
+                && target.structural_type == source.semantic.structural_type
+                && target.shape == source.target.shape
+                && target.source_byte_offset == 0
+                && target.fixed_array_length.is_none()
+                && target.element_stride.is_none()
+                && target.source == source.target.placement)
+                .then(|| TerminalLegalizedCallUnitArgument {
+                    semantic: semantic.clone(),
+                    target: target.clone(),
+                })
+                .ok_or(Error::UnsupportedSourceShape { function })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    validate_callee_alpha_match(
+        function,
+        *callee,
+        &arguments,
+        claim_transfers,
+        caller_claims,
+        target_plan,
+        abstract_plan,
+        unit,
+    )?;
+    Ok(TerminalLegalizedCallUnit {
+        operation: *psi_operation,
+        callee: *callee,
+        arguments,
+        claim_transfers: claim_transfers.clone(),
+        fuel: optimized_call.fuel.clone(),
+        effect: optimized_call.effect,
+        ownership: optimized_call.ownership.clone(),
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_callee_alpha_match(
+    function: usize,
+    callee: psi_core::MachineId,
+    arguments: &[TerminalLegalizedCallUnitArgument],
+    transfers: &[psi_terminal::ClaimTransfer],
+    caller_claims: &[psi_terminal::EntryClaim],
+    target_plan: &TerminalTargetOperationPlan,
+    abstract_plan: &TerminalAbstractOperationPlan,
+    unit: &PsiOptimizationUnit,
+) -> Result<(), TerminalLegalizationError> {
+    let target_matches = target_plan
+        .functions
+        .iter()
+        .filter(|candidate| candidate.machine == callee)
+        .collect::<Vec<_>>();
+    let abstract_matches = abstract_plan
+        .functions
+        .iter()
+        .filter(|candidate| candidate.machine == callee)
+        .collect::<Vec<_>>();
+    let optimized_matches = unit
+        .functions
+        .iter()
+        .filter(|candidate| candidate.machine == callee)
+        .collect::<Vec<_>>();
+    let ([target_callee], [abstract_callee], [optimized_callee]) = (
+        target_matches.as_slice(),
+        abstract_matches.as_slice(),
+        optimized_matches.as_slice(),
+    ) else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let TerminalTargetOperation::UnitBody(target_body) = &target_callee.operation else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    if abstract_callee.result
+        != omega_terminal_abstract_operations::TerminalAbstractFunctionResult::Unit
+        || optimized_callee.result != abstract_callee.result
+        || !abstract_callee.parameters.is_empty()
+        || !optimized_callee.parameters.is_empty()
+        || abstract_callee.structural_parameters != optimized_callee.structural_parameters
+        || abstract_callee.entry_claims != optimized_callee.entry_claim_declarations
+        || target_body.parameters.len() != abstract_callee.structural_parameters.len()
+        || arguments.len() != abstract_callee.structural_parameters.len()
+    {
+        return Err(Error::UnsupportedSourceShape { function });
+    }
+    let expected_callee_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(target_plan.target),
+        &CallSignature {
+            parameters: target_body
+                .parameters
+                .iter()
+                .map(|parameter| parameter.shape)
+                .collect(),
+            result: None,
+        },
+    )
+    .map_err(|_| Error::UnsupportedSourceShape { function })?;
+    if target_body.call_plan != expected_callee_plan {
+        return Err(Error::UnsupportedSourceShape { function });
+    }
+    for ((argument, semantic_parameter), target_parameter) in arguments
+        .iter()
+        .zip(&abstract_callee.structural_parameters)
+        .zip(&target_body.parameters)
+    {
+        if argument.semantic.access != semantic_parameter.access
+            || argument.target.structural_type != semantic_parameter.structural_type
+            || argument.target.shape != target_parameter.shape
+            || argument.target.destination != target_parameter.placement
+            || semantic_parameter.place != target_parameter.place
+            || semantic_parameter.structural_type != target_parameter.structural_type
+            || semantic_parameter.multiplicity != target_parameter.multiplicity
+            || semantic_parameter.access != target_parameter.access
+        {
+            return Err(Error::UnsupportedSourceShape { function });
+        }
+    }
+    if transfers.len() != abstract_callee.entry_claims.len() {
+        return Err(Error::UnsupportedSourceShape { function });
+    }
+    for (transfer, callee_claim) in transfers.iter().zip(&abstract_callee.entry_claims) {
+        let argument_index = usize::try_from(transfer.argument_index)
+            .map_err(|_| Error::UnsupportedSourceShape { function })?;
+        let Some(argument) = arguments.get(argument_index) else {
+            return Err(Error::UnsupportedSourceShape { function });
+        };
+        let Some(callee_parameter) = abstract_callee.structural_parameters.get(argument_index)
+        else {
+            return Err(Error::UnsupportedSourceShape { function });
+        };
+        let caller_claim_matches = caller_claims
+            .iter()
+            .filter(|claim| claim.claim == transfer.claim)
+            .collect::<Vec<_>>();
+        let [caller_claim] = caller_claim_matches.as_slice() else {
+            return Err(Error::UnsupportedSourceShape { function });
+        };
+        if caller_claim.input != argument.semantic.place
+            || !caller_claim.path.is_empty()
+            || callee_claim.input != callee_parameter.place
+            || !callee_claim.path.is_empty()
+        {
+            return Err(Error::UnsupportedSourceShape { function });
+        }
+    }
+    Ok(())
+}
+
+fn derive_source_unit_function(
+    function: usize,
+    target: &omega_terminal_target_operations::TerminalTargetFunction,
+    abstracted: &omega_terminal_abstract_operations::TerminalAbstractFunction,
+    optimized: &omega_optimization_unit::PsiOptimizationFunction,
+) -> Result<SourceUnitFunction, TerminalLegalizationError> {
+    let TerminalTargetOperation::UnitBody(body) = &target.operation else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let [target_return] = body.operations.as_slice() else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let omega_terminal_target_operations::TerminalTargetUnitOperation::Return {
+        psi_edge,
+        cleanup_actions,
+    } = target_return
+    else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let [abstract_entry] = abstracted.block_entries.as_slice() else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let [abstract_return] = abstracted.operations.as_slice() else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let [optimized_block] = optimized.blocks.as_slice() else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let [optimized_return] = optimized_block.nodes.as_slice() else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    if target.machine != abstracted.machine
+        || target.machine != optimized.machine
+        || target.attachment != abstracted.attachment
+        || !matches!(
+            abstracted.result,
+            omega_terminal_abstract_operations::TerminalAbstractFunctionResult::Unit
+        )
+        || !abstracted.parameters.is_empty()
+        || !optimized.parameters.is_empty()
+        // The current Unit vocabulary carries no structural ABI or ownership
+        // rows. Reject them here instead of silently projecting them away; a
+        // later ProgramStorage wrapper form must retain these fields exactly.
+        || !body.parameters.is_empty()
+        || !abstracted.structural_parameters.is_empty()
+        || !optimized.structural_parameters.is_empty()
+        || !abstracted.entry_claims.is_empty()
+        || !optimized.entry_claim_declarations.is_empty()
+        || !optimized.entry_claims.is_empty()
+        || !optimized.declared_places.is_empty()
+        || !abstracted.published_service_ceiling.is_empty()
+        || !optimized.published_service_ceiling.is_empty()
+        || abstracted.entry != abstract_entry.block
+        || optimized.entry != abstract_entry.block
+        || optimized_block.id != abstract_entry.block
+        || abstract_entry.operation_offset != 0
+        || !abstract_entry.parameters.is_empty()
+        || !optimized_block.parameters.is_empty()
+        || !cleanup_actions.is_empty()
+        || abstract_return != &optimized_return.operation
+        || !matches!(abstract_return, TerminalAbstractOperation::ReturnUnit { psi_edge: edge, cleanup_actions } if edge == psi_edge && cleanup_actions.is_empty())
+    {
+        return Err(Error::UnsupportedSourceShape { function });
+    }
+    Ok(SourceUnitFunction {
+        machine: target.machine,
+        attachment: target.attachment,
+        provenance: target.provenance.clone(),
+        entry_block: optimized_block.id,
+        return_edge: *psi_edge,
+        return_fuel: optimized_return.fuel.clone(),
+    })
 }
 
 fn derive_source_function(
@@ -284,6 +913,16 @@ fn derive_source_function(
                 )
             )
     );
+    let active_resident_chain = matches!(
+        (when_true.control.as_ref(), when_false.control.as_ref()),
+        (
+            TerminalTargetIntegerControl::Return { expression, .. },
+            TerminalTargetIntegerControl::Return {
+                expression: TerminalTargetIntegerExpression::Immediate { .. },
+                ..
+            }
+        ) if is_active_resident_exact_add_chain(expression)
+    );
     let expected_offsets = if constant_leaves {
         [0, 1, 3]
     } else if parameter_leaves {
@@ -292,17 +931,21 @@ fn derive_source_function(
         [0, 1, 5]
     } else if widened_u8_exact_add_leaves || widened_u8_exact_subtract_leaves {
         [0, 1, 6]
+    } else if active_resident_chain {
+        [0, 1, 8]
     } else {
         return Err(Error::UnsupportedSourceShape { function });
     };
-    let (expected_operation_count, expected_leaf_node_count) = if constant_leaves {
-        (5, 2)
+    let (expected_operation_count, expected_leaf_node_counts) = if constant_leaves {
+        (5, [2, 2])
     } else if parameter_leaves {
-        (3, 1)
+        (3, [1, 1])
     } else if widened_u8_exact_add_leaves || widened_u8_exact_subtract_leaves {
-        (11, 5)
+        (11, [5, 5])
+    } else if active_resident_chain {
+        (10, [7, 2])
     } else {
-        (9, 4)
+        (9, [4, 4])
     };
     let expected_parameter_count = if parameter_leaves { 2 } else { 1 };
     if abstracted.operations.len() != expected_operation_count
@@ -313,8 +956,8 @@ fn derive_source_function(
             .iter()
             .zip(expected_offsets)
             .any(|(entry, offset)| entry.operation_offset != offset)
-        || optimized.blocks[1].nodes.len() != expected_leaf_node_count
-        || optimized.blocks[2].nodes.len() != expected_leaf_node_count
+        || optimized.blocks[1].nodes.len() != expected_leaf_node_counts[0]
+        || optimized.blocks[2].nodes.len() != expected_leaf_node_counts[1]
     {
         return Err(Error::UnsupportedSourceShape { function });
     }
@@ -450,6 +1093,8 @@ fn derive_source_function(
             TerminalLegalizationRecipe::ReturnU64WidenedU8ExactAddImmediateConditionalV1
         } else if widened_u8_exact_subtract_leaves {
             TerminalLegalizationRecipe::ReturnU64WidenedU8ExactSubtractImmediateConditionalV1
+        } else if active_resident_chain {
+            TerminalLegalizationRecipe::ReturnU64ActiveResidentExactAddChainConditionalV1
         } else {
             TerminalLegalizationRecipe::ReturnU64ExactSubtractImmediateConditionalV1
         },
@@ -754,12 +1399,12 @@ fn derive_leaf(
             };
             (&nodes[4], value)
         }
-        TerminalTargetIntegerExpression::ExactAdd {
+        expression @ TerminalTargetIntegerExpression::ExactAdd {
             psi_operation,
             obligation,
             left,
             right,
-        } => {
+        } if !is_active_resident_exact_add_chain(expression) => {
             if nodes.len() != 4 {
                 return Err(Error::UnsupportedSourceShape { function });
             }
@@ -818,6 +1463,95 @@ fn derive_leaf(
                     left,
                     right,
                 },
+            )
+        }
+        expression if is_active_resident_exact_add_chain(expression) => {
+            if nodes.len() != 7 {
+                return Err(Error::UnsupportedSourceShape { function });
+            }
+            let TerminalTargetIntegerExpression::ExactAdd {
+                psi_operation: result_operation,
+                obligation: result_obligation,
+                left: result_left,
+                right: result_right,
+            } = expression
+            else {
+                unreachable!("shape predicate admitted only exact addition")
+            };
+            let TerminalTargetIntegerExpression::ExactAdd {
+                psi_operation: middle_operation,
+                obligation: middle_obligation,
+                left: middle_left,
+                right: middle_right,
+            } = result_right.as_ref()
+            else {
+                unreachable!("shape predicate admitted the middle addition")
+            };
+            let TerminalTargetIntegerExpression::ExactAdd {
+                psi_operation: inner_operation,
+                obligation: inner_obligation,
+                left: inner_left,
+                right: inner_right,
+            } = middle_right.as_ref()
+            else {
+                unreachable!("shape predicate admitted the inner addition")
+            };
+            let resident = derive_immediate(function, arm_edge, result_left, &nodes[0], u64_type)?;
+            let second_resident =
+                derive_immediate(function, arm_edge, middle_left, &nodes[0], u64_type)?;
+            if resident != second_resident {
+                return Err(Error::UnsupportedSourceShape { function });
+            }
+            let left = derive_immediate(function, arm_edge, inner_left, &nodes[1], u64_type)?;
+            let right = derive_immediate(function, arm_edge, inner_right, &nodes[2], u64_type)?;
+            let inner = derive_exact_add(
+                function,
+                optimized,
+                accepted_obligation_facts,
+                &nodes[3],
+                *inner_operation,
+                *inner_obligation,
+                left.source_value,
+                right.source_value,
+                u64_integer_type,
+            )?;
+            let middle = derive_exact_add(
+                function,
+                optimized,
+                accepted_obligation_facts,
+                &nodes[4],
+                *middle_operation,
+                *middle_obligation,
+                resident.source_value,
+                inner.source_value,
+                u64_integer_type,
+            )?;
+            let result = derive_exact_add(
+                function,
+                optimized,
+                accepted_obligation_facts,
+                &nodes[5],
+                *result_operation,
+                *result_obligation,
+                resident.source_value,
+                middle.source_value,
+                u64_integer_type,
+            )?;
+            if result.source_value != *source_value {
+                return Err(Error::UnsupportedSourceShape { function });
+            }
+            (
+                &nodes[6],
+                SourceLeafValue::ActiveResidentExactAddChain(Box::new(
+                    SourceActiveResidentExactAddChain {
+                        resident,
+                        left,
+                        right,
+                        inner,
+                        middle,
+                        result,
+                    },
+                )),
             )
         }
         TerminalTargetIntegerExpression::ExactSubtract {
@@ -968,7 +1702,117 @@ fn source_operations(value: &SourceLeafValue) -> Vec<OperationId> {
             *subtract_operation,
             *widen_operation,
         ],
+        SourceLeafValue::ActiveResidentExactAddChain(chain) => vec![
+            chain.resident.constant_operation,
+            chain.left.constant_operation,
+            chain.right.constant_operation,
+            chain.inner.operation,
+            chain.middle.operation,
+            chain.result.operation,
+        ],
     }
+}
+
+fn is_active_resident_exact_add_chain(expression: &TerminalTargetIntegerExpression) -> bool {
+    let TerminalTargetIntegerExpression::ExactAdd {
+        left: result_left,
+        right: result_right,
+        ..
+    } = expression
+    else {
+        return false;
+    };
+    let TerminalTargetIntegerExpression::Immediate {
+        source_value: result_resident,
+        ..
+    } = result_left.as_ref()
+    else {
+        return false;
+    };
+    let TerminalTargetIntegerExpression::ExactAdd {
+        left: middle_left,
+        right: middle_right,
+        ..
+    } = result_right.as_ref()
+    else {
+        return false;
+    };
+    let TerminalTargetIntegerExpression::Immediate {
+        source_value: middle_resident,
+        ..
+    } = middle_left.as_ref()
+    else {
+        return false;
+    };
+    matches!(
+        middle_right.as_ref(),
+        TerminalTargetIntegerExpression::ExactAdd { left, right, .. }
+            if matches!(left.as_ref(), TerminalTargetIntegerExpression::Immediate { .. })
+                && matches!(right.as_ref(), TerminalTargetIntegerExpression::Immediate { .. })
+                && result_resident == middle_resident
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn derive_exact_add(
+    function: usize,
+    optimized: &omega_optimization_unit::PsiOptimizationFunction,
+    accepted_obligation_facts: &[AcceptedObligationFact],
+    node: &omega_optimization_unit::OptimizationNode,
+    operation: OperationId,
+    obligation: psi_core::ObligationId,
+    left: psi_core::ValueId,
+    right: psi_core::ValueId,
+    scalar_type: psi_core::IntegerType,
+) -> Result<SourceExactAdd, TerminalLegalizationError> {
+    let TerminalAbstractOperation::ExactIntegerAdd {
+        psi_operation,
+        obligation: abstract_obligation,
+        result,
+        scalar_type: abstract_type,
+        left: abstract_left,
+        right: abstract_right,
+    } = &node.operation
+    else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    if *psi_operation != operation
+        || *abstract_obligation != obligation
+        || *abstract_type != scalar_type
+        || *abstract_left != left
+        || *abstract_right != right
+        || node.definitions.len() != 1
+        || node.definitions[0].value != *result
+        || node.provenance != vec![PsiProvenance::Operation(operation)]
+    {
+        return Err(Error::UnsupportedSourceShape { function });
+    }
+    let Some(accepted_fact) = accepted_obligation_facts.iter().find(|fact| {
+        fact.machine == optimized.machine
+            && fact.operation == operation
+            && fact.obligation == obligation
+    }) else {
+        return Err(Error::SourceCustodyMismatch);
+    };
+    if !optimized.facts.iter().any(|fact| {
+        matches!(
+            fact,
+            OptimizationFact::OperationObligationReference {
+                obligation: referenced_obligation,
+                support,
+            } if *referenced_obligation == obligation && *support == operation
+        )
+    }) {
+        return Err(Error::SourceCustodyMismatch);
+    }
+    Ok(SourceExactAdd {
+        source_value: *result,
+        obligation,
+        accepted_fact: accepted_fact.identity,
+        operation,
+        definition_site: node.definitions[0].site,
+        fuel: exact_operation_fuel(node, operation, function)?,
+    })
 }
 
 fn derive_immediate(

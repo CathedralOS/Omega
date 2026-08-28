@@ -353,7 +353,7 @@ The same rule applies to `Vec`: a `Vec` mutation or reallocation
 (`push`, `pop`, or anything that may move the backing storage) must reject while
 a slice view derived from that `Vec` is still active, because the view may be
 invalidated by the reallocation. This is the borrow-conflict rule for `Vec`; its
-canary is parked under `tests/canaries/pending/borrow/vec_view_invalidated_by_push`
+canary is parked under `tests/omega/pending/borrow/vec_view_invalidated_by_push`
 until the `Vec` runtime/lowering is ready to exercise it end to end.
 
 ## Lifetime Parameters

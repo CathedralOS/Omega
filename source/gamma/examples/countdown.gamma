@@ -1,6 +1,0 @@
-# count down from 5, printing each except 3
-a = 5
-while a >= 1 {
-  if a != 3 { print a }
-  a = a - 1
-}

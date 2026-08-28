@@ -64,6 +64,7 @@ pub struct StagedOptimizedAllocationLegalityCustodyReceipt {
     ranges: omega_regalloc::TerminalLiveRangeIdentity,
     legality: TerminalAllocationLegalityIdentity,
     function_count: usize,
+    structural_unit_function_count: usize,
     virtual_register_count: usize,
     point_count: usize,
     candidate_count: usize,
@@ -118,6 +119,9 @@ impl StagedOptimizedAllocationLegalityCustodyReceipt {
     pub const fn function_count(self) -> usize {
         self.function_count
     }
+    pub const fn structural_unit_function_count(self) -> usize {
+        self.structural_unit_function_count
+    }
     pub const fn virtual_register_count(self) -> usize {
         self.virtual_register_count
     }
@@ -139,6 +143,7 @@ pub enum OptimizedAllocationLegalityCustodyError {
     Analysis(TerminalAllocationLegalityError),
     Revalidation(TerminalAllocationLegalityError),
     UnsupportedFramelessLeafConvention,
+    MissingRequiredActiveResidentRematerializationView(&'static str),
     ReceiptMismatch,
 }
 
@@ -223,6 +228,57 @@ pub fn stage_optimized_allocation_legality_for_frameless_leaf(
     )
     .map_err(OptimizedAllocationLegalityCustodyError::Availability)?;
     stage_optimized_allocation_legality_with_availability(ranges, availability)
+}
+
+/// Restrict unconstrained allocation to the exact two caller-saved views used
+/// by the v1 active-resident immediate-u64 multi-use rematerialization policy.
+/// This deliberately creates the closed pressure case the policy is defined
+/// to recover; it is not a general allocator cost or availability policy.
+pub fn stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1(
+    ranges: StagedOptimizedLiveRanges,
+) -> Result<StagedOptimizedAllocationLegality, OptimizedAllocationLegalityCustodyError> {
+    let environment = ranges
+        .liveness_stage()
+        .selected_stage()
+        .register_environment();
+    let views = active_resident_immediate_u64_multi_use_rematerialization_v1_views(
+        environment.target().architecture,
+        environment.physical().model(),
+    )?;
+    let availability = materialize_terminal_allocator_availability(
+        environment.identity(),
+        environment.target(),
+        environment.physical(),
+        environment.constraints(),
+        environment.reservations(),
+        environment.allocation_constraint_keys(),
+        TerminalAllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 { views },
+    )
+    .map_err(OptimizedAllocationLegalityCustodyError::Availability)?;
+    stage_optimized_allocation_legality_with_availability(ranges, availability)
+}
+
+fn active_resident_immediate_u64_multi_use_rematerialization_v1_views(
+    architecture: omega_target::Architecture,
+    model: &omega_register_model::PhysicalRegisterModel,
+) -> Result<Vec<omega_register_model::RegisterViewId>, OptimizedAllocationLegalityCustodyError> {
+    let names = match architecture {
+        omega_target::Architecture::X86_64 => ["rax", "rcx"],
+        omega_target::Architecture::Aarch64 => ["x0", "x1"],
+    };
+    names
+        .into_iter()
+        .map(|name| {
+            model
+                .view_named(name)
+                .map(|view| view.id)
+                .ok_or(
+                    OptimizedAllocationLegalityCustodyError::MissingRequiredActiveResidentRematerializationView(
+                        name,
+                    ),
+                )
+        })
+        .collect()
 }
 
 pub fn stage_optimized_allocation_legality_with_availability(
@@ -352,9 +408,33 @@ fn custody_receipt(
         ranges: upstream.ranges(),
         legality: legality.identity(),
         function_count: legality.function_count(),
+        structural_unit_function_count: legality.structural_unit_function_count(),
         virtual_register_count: legality.virtual_register_count(),
         point_count: legality.point_count(),
         candidate_count: legality.candidate_count(),
         entry_transition_count: legality.entry_transition_count(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn active_resident_two_view_policy_reports_the_exact_missing_required_view() {
+        let mut model = omega_terminal_isa_x86_64::x86_64_physical_register_model();
+        model.views.retain(|view| view.name != "rcx");
+
+        assert_eq!(
+            active_resident_immediate_u64_multi_use_rematerialization_v1_views(
+                omega_target::Architecture::X86_64,
+                &model,
+            ),
+            Err(
+                OptimizedAllocationLegalityCustodyError::MissingRequiredActiveResidentRematerializationView(
+                    "rcx",
+                ),
+            )
+        );
     }
 }

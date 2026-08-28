@@ -115,7 +115,7 @@ fn repo_root() -> PathBuf {
 
 fn compile_run(canary: &str) -> (Option<i32>, String) {
     let source_dir = repo_root()
-        .join("tests/canaries/pass/filesystem")
+        .join("tests/omega/pass/filesystem")
         .join(canary);
     let build_dir =
         std::env::temp_dir().join(format!("omega-fscanary-{}-{}", canary, std::process::id()));
@@ -554,7 +554,7 @@ fn native_wrapper_try_exists_passes() {
 }
 // `Filesystem::metadata_path -> MetadataResult::Ok { meta }` with the PAYLOAD
 // destructured and USED (`meta.len == 5`). Promoted 2026-07-08 from
-// tests/canaries/run/filesystem/wrapper_metadata_repro after the awaited real
+// tests/omega/run/filesystem/wrapper_metadata_repro after the awaited real
 // macOS/aarch64 run confirmed PASS — pins the two 2026-07-06 selection fixes
 // (straight-line-defers-with-leaf; cast-field convert arm) natively on darwin.
 #[test]
@@ -631,7 +631,7 @@ fn sample_note_vault_exits_14() {
 // host-argument scratch retains its FLOAT register class. It returns 4.
 #[test]
 fn native_float_arg_exits_4() {
-    let main_path = repo_root().join("tests/canaries/pass/float/native_float_arg/main.omg");
+    let main_path = repo_root().join("tests/omega/pass/float/native_float_arg/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-floatarg-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -658,7 +658,7 @@ fn native_float_arg_exits_4() {
 // verify the bits. sqrt(16.0) -> 4.0 -> round 4 -> exit 4.
 #[test]
 fn native_float_return_exits_4() {
-    let main_path = repo_root().join("tests/canaries/pass/float/native_float_return/main.omg");
+    let main_path = repo_root().join("tests/omega/pass/float/native_float_return/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-floatret-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -685,7 +685,7 @@ fn native_float_return_exits_4() {
 // hypot(3.0 + 0.0, 4.0 + 0.0) -> 5.0, then round_nearest -> exit 5.
 #[test]
 fn native_float_two_args_exits_5() {
-    let main_path = repo_root().join("tests/canaries/pass/float/native_float_two_args/main.omg");
+    let main_path = repo_root().join("tests/omega/pass/float/native_float_two_args/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-float2-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -710,7 +710,7 @@ fn native_float_two_args_exits_5() {
 #[test]
 fn returning_foreign_call_restores_canonical_float_control_state() {
     let main_path =
-        repo_root().join("tests/canaries/pass/float/foreign_control_state_restore/main.omg");
+        repo_root().join("tests/omega/pass/float/foreign_control_state_restore/main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-float-control-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
@@ -740,7 +740,7 @@ fn returning_foreign_call_restores_canonical_float_control_state() {
 // yields cls==0 (exit 1) or aborts at dyld load (non-7 exit) — both caught here.
 #[test]
 fn objc_get_class_exits_7() {
-    let main_path = repo_root().join("tests/canaries/pass/objc/objc_get_class/main.omg");
+    let main_path = repo_root().join("tests/omega/pass/objc/objc_get_class/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-objcclass-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -765,7 +765,7 @@ fn objc_get_class_exits_7() {
 // non-null instance -> exit 7. recv->x0, sel->x1, id result->x0.
 #[test]
 fn objc_alloc_exits_7() {
-    let main_path = repo_root().join("tests/canaries/pass/objc/objc_alloc/main.omg");
+    let main_path = repo_root().join("tests/omega/pass/objc/objc_alloc/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-objcalloc-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -792,7 +792,7 @@ fn objc_alloc_exits_7() {
 // (setActivationPolicy: int, activateIgnoringOtherApps: BOOL).
 #[test]
 fn objc_msgsend_scalar_exits_8() {
-    let main_path = repo_root().join("tests/canaries/pass/objc/objc_msgsend_scalar/main.omg");
+    let main_path = repo_root().join("tests/omega/pass/objc/objc_msgsend_scalar/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-objcscalar-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -819,7 +819,7 @@ fn objc_msgsend_scalar_exits_8() {
 // AppKit loads cleanly from a bare CLI mach-o (no .app bundle).
 #[test]
 fn framework_classes_exits_9() {
-    let main_path = repo_root().join("tests/canaries/pass/objc/framework_classes/main.omg");
+    let main_path = repo_root().join("tests/omega/pass/objc/framework_classes/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-fwclasses-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -844,7 +844,7 @@ fn framework_classes_exits_9() {
 // loads: NSString alloc/initWithUTF8String:"hello", [str length] == 5 -> exit 5.
 #[test]
 fn nsstring_length_exits_5() {
-    let main_path = repo_root().join("tests/canaries/pass/objc/nsstring_length/main.omg");
+    let main_path = repo_root().join("tests/omega/pass/objc/nsstring_length/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-nsstrlen-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -871,7 +871,7 @@ fn nsstring_length_exits_5() {
 // bindable as a directly-called framework (no objc).
 #[test]
 fn cgrect_hfa_exits_6() {
-    let main_path = repo_root().join("tests/canaries/pass/objc/cgrect_hfa/main.omg");
+    let main_path = repo_root().join("tests/omega/pass/objc/cgrect_hfa/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-cgrect-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -899,7 +899,7 @@ fn cgrect_hfa_exits_6() {
 // both files are placed right. Headless-safe (never ordered on-screen). -> exit 3.
 #[test]
 fn nswindow_init_exits_3() {
-    let main_path = repo_root().join("tests/canaries/pass/objc/nswindow_init/main.omg");
+    let main_path = repo_root().join("tests/omega/pass/objc/nswindow_init/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-nswin-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -926,7 +926,7 @@ fn nswindow_init_exits_3() {
 // CGImage whose width reads back as 4 -> exit 4.
 #[test]
 fn cgimage_blit_exits_4() {
-    let main_path = repo_root().join("tests/canaries/pass/objc/cgimage_blit/main.omg");
+    let main_path = repo_root().join("tests/omega/pass/objc/cgimage_blit/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-blit-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -954,7 +954,7 @@ fn cgimage_blit_exits_4() {
 // Headless-safe: the assert is on the object graph, not on-screen visibility.
 #[test]
 fn present_frame_exits_5() {
-    let main_path = repo_root().join("tests/canaries/pass/objc/present_frame/main.omg");
+    let main_path = repo_root().join("tests/omega/pass/objc/present_frame/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-present-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -982,7 +982,7 @@ fn present_frame_exits_5() {
 // with a deadline and fails loudly instead of hanging the suite. -> exit 6.
 #[test]
 fn event_pump_exits_6() {
-    let main_path = repo_root().join("tests/canaries/pass/objc/event_pump/main.omg");
+    let main_path = repo_root().join("tests/omega/pass/objc/event_pump/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-pump-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -1022,7 +1022,7 @@ fn event_pump_exits_6() {
 // remaining integration gap is provider wiring (boundary Gui trait -> this).
 #[test]
 fn gui_backend_valuecall_exits_7() {
-    let main_path = repo_root().join("tests/canaries/pass/objc/gui_backend_valuecall/main.omg");
+    let main_path = repo_root().join("tests/omega/pass/objc/gui_backend_valuecall/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-vcgui-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -1051,7 +1051,7 @@ fn gui_backend_valuecall_exits_7() {
 // ever regressed to blocking, so the test spawns with a deadline. -> exit 4.
 #[test]
 fn native_gui_loop_exits_4() {
-    let main_path = repo_root().join("tests/canaries/pass/objc/native_gui_loop/main.omg");
+    let main_path = repo_root().join("tests/omega/pass/objc/native_gui_loop/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-guiloop-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -1092,7 +1092,7 @@ fn native_gui_loop_exits_4() {
 // sample's boundary Gui field with this provider on darwin.
 #[test]
 fn gui_impl_through_field_exits_7() {
-    let main_path = repo_root().join("tests/canaries/pass/objc/gui_impl_through_field/main.omg");
+    let main_path = repo_root().join("tests/omega/pass/objc/gui_impl_through_field/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-tfgui-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -1120,7 +1120,7 @@ fn gui_impl_through_field_exits_7() {
 // Non-null window -> exit 8. The hardest Gui op proven in its true sample shape.
 #[test]
 fn gui_window_i32_args_exits_8() {
-    let main_path = repo_root().join("tests/canaries/pass/objc/gui_window_i32_args/main.omg");
+    let main_path = repo_root().join("tests/omega/pass/objc/gui_window_i32_args/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-i32gui-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -1154,7 +1154,7 @@ fn gui_window_i32_args_exits_8() {
 // window is real, so a stuck run is killed rather than hanging CI.
 #[test]
 fn macos_gui_module_exits_3() {
-    let main_path = repo_root().join("tests/canaries/pass/objc/macos_gui_module/main.omg");
+    let main_path = repo_root().join("tests/omega/pass/objc/macos_gui_module/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-macgui-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -1196,7 +1196,7 @@ fn macos_gui_module_exits_3() {
 // enough to catch a 1000x units error either direction.
 #[test]
 fn clock_sleep_poll_milliseconds_exits_6() {
-    let main_path = repo_root().join("tests/canaries/pass/objc/clock_sleep/main.omg");
+    let main_path = repo_root().join("tests/omega/pass/objc/clock_sleep/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-clocksleep-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -1230,7 +1230,7 @@ fn clock_sleep_poll_milliseconds_exits_6() {
 // with 7.
 #[test]
 fn gui_provider_substitution_exits_7() {
-    let main_path = repo_root().join("tests/canaries/pass/objc/gui_provider_substitution/main.omg");
+    let main_path = repo_root().join("tests/omega/pass/objc/gui_provider_substitution/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-guisubst-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {
@@ -1325,7 +1325,7 @@ fn sample_window_demo_runs_natively_exits_0() {
 #[test]
 fn input_provider_substitution_exits_4() {
     let main_path =
-        repo_root().join("tests/canaries/pass/objc/input_provider_substitution/main.omg");
+        repo_root().join("tests/omega/pass/objc/input_provider_substitution/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-inputsubst-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
@@ -1400,7 +1400,7 @@ fn sample_window_app_renders_natively() {
 #[test]
 fn saturating_divide_native_exits_7() {
     let main_path =
-        repo_root().join("tests/canaries/pass/arithmetic/saturating_divide_native/main.omg");
+        repo_root().join("tests/omega/pass/arithmetic/saturating_divide_native/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-satdiv-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions {

@@ -1,8 +1,0 @@
-; Checker-D continuation after the shared absolute stack-potential theorem.
-; The full-Word emit_dec summary consumes the stable common-prefix contract
-; before claiming shape or signed meaning.
-bc_post_stack_potential:
-        imm r1, 531840
-        imm r2, 1481003091             ; SPFX
-        store r1, r2
-        jmp emit_dec_word_summary_init

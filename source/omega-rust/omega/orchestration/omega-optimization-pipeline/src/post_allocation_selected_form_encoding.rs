@@ -1,27 +1,39 @@
+use omega_calling_conventions::MachineRegister;
 use omega_machine_optimizer::{
     TerminalAarch64CbnzFusionIdentity, TerminalAarch64CbnzInstructionDisposition,
     TerminalPostAllocationMachineIdentity, TerminalPostAllocationMachineInstruction,
+    TerminalPostAllocationStructuralUnitFunction, TerminalStructuralUnitCallMachineEffects,
+    TerminalStructuralUnitFunctionMachineEffects,
 };
 use omega_optimization_core::OptimizationSelectionIdentity;
 use omega_regalloc::ValidatedTerminalSelectedAnalysis;
-use omega_register_model::{RegisterUnitId, RegisterViewId, ValidatedPhysicalRegisterModel};
-use omega_target::Architecture;
+use omega_register_model::{
+    RegisterUnitId, RegisterViewId, ValidatedPhysicalRegisterModel,
+    ValidatedRegisterConstraintCatalog,
+};
+use omega_target::{Architecture, NativeTarget};
 use omega_terminal_isa_aarch64::{
     Aarch64SelectedFormEncodingError, encode_aarch64_terminal_selected_form,
 };
 use omega_terminal_isa_x86_64::{
-    X86_64SelectedFormEncodingError, encode_x86_64_terminal_selected_form,
+    ValidatedX86_64SelectedStructuralUnitCallTemplate, X86_64SelectedFormEncodingError,
+    X86_64SelectedStructuralUnitCallFootprint, X86_64StructuralUnitCallTemplateError,
+    X86_64StructuralUnitInternalControlFixup, encode_x86_64_terminal_selected_form,
+    encode_x86_64_terminal_selected_structural_unit_call_template,
+    validate_x86_64_register_constraint_catalog, x86_64_register_constraint_catalog,
 };
 use omega_terminal_selected_instructions::{
     TerminalMachineAlternativeFamily, TerminalMachineAlternativeKey, TerminalMachineEncodedEffects,
     TerminalMachineSizeKnowledge, TerminalSelectedInstruction, TerminalSelectedInstructionId,
-    TerminalSelectedInstructionKind, TerminalSelectedTerminator,
+    TerminalSelectedInstructionKind, TerminalSelectedStructuralUnitCallInstruction,
+    TerminalSelectedStructuralUnitFunction, TerminalSelectedTerminator,
 };
+use psi_core::{MachineId, OperationId};
 use sha2::{Digest, Sha256};
 
 use crate::{StagedOptimizedAarch64CbnzFusion, StagedOptimizedPostAllocationMachinePlan};
 
-const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v3";
+const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v5";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TerminalSelectedFormEncodingIdentity([u8; 32]);
@@ -69,6 +81,34 @@ pub struct TerminalSelectedFormEncodingRow {
     pub state: TerminalSelectedFormEncodingState,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalSelectedStructuralUnitCallEncodingRow {
+    pub instruction: TerminalSelectedInstructionId,
+    pub operation: OperationId,
+    pub callee: MachineId,
+    pub bytes: Vec<u8>,
+    pub footprint: Box<X86_64SelectedStructuralUnitCallFootprint>,
+    pub fixup: X86_64StructuralUnitInternalControlFixup,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalSelectedStructuralUnitFunctionEncoding {
+    pub machine: MachineId,
+    pub block: omega_terminal_selected_instructions::TerminalSelectedBlockId,
+    pub call: Option<TerminalSelectedStructuralUnitCallEncodingRow>,
+    pub return_instruction: TerminalSelectedFormEncodingRow,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TerminalSelectedFormEncodingCounts {
+    pub ordinary_encoded: u64,
+    pub ordinary_deferred_control: u64,
+    pub structural_encoded_call_templates: u64,
+    pub structural_encoded_returns: u64,
+    pub structural_deferred_internal_control: u64,
+    pub structural_internal_fixups: u64,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TerminalSelectedFormMachineOptimizationCustody {
     selections: OptimizationSelectionIdentity,
@@ -97,6 +137,8 @@ pub struct StagedOptimizedSelectedFormEncoding {
     machine_optimization: Option<TerminalSelectedFormMachineOptimizationCustody>,
     identity: TerminalSelectedFormEncodingIdentity,
     rows: Vec<TerminalSelectedFormEncodingRow>,
+    structural_unit_functions: Vec<TerminalSelectedStructuralUnitFunctionEncoding>,
+    counts: TerminalSelectedFormEncodingCounts,
 }
 
 impl StagedOptimizedSelectedFormEncoding {
@@ -124,9 +166,31 @@ impl StagedOptimizedSelectedFormEncoding {
         &self.rows
     }
 
+    pub fn structural_unit_functions(&self) -> &[TerminalSelectedStructuralUnitFunctionEncoding] {
+        &self.structural_unit_functions
+    }
+
+    pub const fn counts(&self) -> TerminalSelectedFormEncodingCounts {
+        self.counts
+    }
+
     #[cfg(test)]
     pub(crate) fn rows_mut(&mut self) -> &mut [TerminalSelectedFormEncodingRow] {
         &mut self.rows
+    }
+
+    #[cfg(test)]
+    #[allow(dead_code)]
+    pub(crate) fn structural_unit_functions_mut(
+        &mut self,
+    ) -> &mut [TerminalSelectedStructuralUnitFunctionEncoding] {
+        &mut self.structural_unit_functions
+    }
+
+    #[cfg(test)]
+    #[allow(dead_code)]
+    pub(crate) fn counts_mut(&mut self) -> &mut TerminalSelectedFormEncodingCounts {
+        &mut self.counts
     }
 }
 
@@ -137,10 +201,16 @@ pub enum OptimizedSelectedFormEncodingError {
     FunctionRosterMismatch,
     BlockRosterMismatch,
     InstructionRosterMismatch,
+    StructuralFunctionRosterMismatch,
+    StructuralConstraintCatalogMismatch,
+    StructuralCallRosterMismatch(TerminalSelectedInstructionId),
+    StructuralReturnRosterMismatch(TerminalSelectedInstructionId),
     OperandFootprintMismatch(TerminalSelectedInstructionId),
     ImplicitFootprintMismatch(TerminalSelectedInstructionId),
     SizeDeclarationMismatch(TerminalSelectedInstructionId),
+    CountOverflow,
     X86_64(X86_64SelectedFormEncodingError),
+    X86_64Structural(X86_64StructuralUnitCallTemplateError),
     Aarch64(Aarch64SelectedFormEncodingError),
     ArtifactMismatch,
 }
@@ -323,16 +393,251 @@ fn compute<S: ValidatedTerminalSelectedAnalysis>(
             }
         }
     }
+    let effect_plan = staged.effects().effects().plan();
+    if selected_plan.structural_unit_functions.len() != machine.structural_unit_functions.len()
+        || selected_plan.structural_unit_functions.len()
+            != effect_plan.structural_unit_functions.len()
+    {
+        return Err(OptimizedSelectedFormEncodingError::StructuralFunctionRosterMismatch);
+    }
+    let structural_constraints = if selected_plan.structural_unit_functions.is_empty() {
+        None
+    } else {
+        if selected_plan.target.architecture != Architecture::X86_64 {
+            return Err(OptimizedSelectedFormEncodingError::StructuralFunctionRosterMismatch);
+        }
+        let constraints = validate_x86_64_register_constraint_catalog(
+            x86_64_register_constraint_catalog(physical),
+            physical,
+        )
+        .map_err(|_| OptimizedSelectedFormEncodingError::StructuralConstraintCatalogMismatch)?;
+        if constraints.identity() != machine.register_constraints
+            || constraints.identity() != effect_plan.register_constraints
+        {
+            return Err(OptimizedSelectedFormEncodingError::StructuralConstraintCatalogMismatch);
+        }
+        Some(constraints)
+    };
+    let mut structural_unit_functions =
+        Vec::with_capacity(selected_plan.structural_unit_functions.len());
+    for ((selected_function, machine_function), effect_function) in selected_plan
+        .structural_unit_functions
+        .iter()
+        .zip(&machine.structural_unit_functions)
+        .zip(&effect_plan.structural_unit_functions)
+    {
+        structural_unit_functions.push(encode_structural_function(
+            selected_plan.target,
+            selected_plan,
+            selected_function,
+            machine_function,
+            effect_function,
+            physical,
+            structural_constraints
+                .as_ref()
+                .ok_or(OptimizedSelectedFormEncodingError::StructuralConstraintCatalogMismatch)?,
+        )?);
+    }
+    let counts = encoding_counts(&rows, &structural_unit_functions)?;
     let selected_root = selected.selected_identity();
     let machine_root = staged.machine().receipt().identity();
-    let identity = encoding_identity(selected_root, machine_root, machine_optimization, &rows);
+    let identity = encoding_identity(
+        selected_root,
+        machine_root,
+        machine_optimization,
+        &rows,
+        &structural_unit_functions,
+        counts,
+    );
     Ok(StagedOptimizedSelectedFormEncoding {
         selected: selected_root,
         machine: machine_root,
         machine_optimization,
         identity,
         rows,
+        structural_unit_functions,
+        counts,
     })
+}
+
+fn encode_structural_function(
+    target: NativeTarget,
+    selected_plan: &omega_terminal_selected_instructions::TerminalSelectedInstructionPlan,
+    selected: &TerminalSelectedStructuralUnitFunction,
+    machine: &TerminalPostAllocationStructuralUnitFunction,
+    effects: &TerminalStructuralUnitFunctionMachineEffects,
+    physical: &ValidatedPhysicalRegisterModel,
+    constraints: &ValidatedRegisterConstraintCatalog,
+) -> Result<TerminalSelectedStructuralUnitFunctionEncoding, OptimizedSelectedFormEncodingError> {
+    if selected.machine != machine.machine
+        || selected.machine != effects.machine
+        || selected.entry_block != machine.block
+        || selected.entry_block != effects.block
+    {
+        return Err(OptimizedSelectedFormEncodingError::StructuralFunctionRosterMismatch);
+    }
+    if machine.call != effects.call
+        || machine.return_effect != effects.return_effect
+        || machine.return_ownership != effects.return_ownership
+    {
+        return Err(OptimizedSelectedFormEncodingError::StructuralFunctionRosterMismatch);
+    }
+    let call = match (&selected.call, &machine.call) {
+        (None, None) => None,
+        (Some(selected_call), Some(machine_call)) => Some(encode_structural_call(
+            target,
+            selected_plan,
+            selected_call,
+            machine_call,
+            physical,
+            constraints,
+        )?),
+        (Some(selected_call), None) => {
+            return Err(
+                OptimizedSelectedFormEncodingError::StructuralCallRosterMismatch(selected_call.id),
+            );
+        }
+        (None, Some(machine_call)) => {
+            return Err(
+                OptimizedSelectedFormEncodingError::StructuralCallRosterMismatch(
+                    machine_call.instruction,
+                ),
+            );
+        }
+    };
+    let selected_return = &selected.terminator.instruction;
+    if selected_return.id != machine.return_instruction.instruction
+        || selected_return.id != effects.return_instruction.instruction
+        || selected_return.kind != effects.return_instruction.kind
+        || selected_return.provenance != machine.return_provenance
+        || selected_return.provenance != effects.return_instruction.provenance
+        || selected.terminator.effect != machine.return_effect
+        || selected.terminator.ownership != machine.return_ownership
+        || selected.terminator.effect != effects.return_effect
+        || selected.terminator.ownership != effects.return_ownership
+        || !effects
+            .return_instruction
+            .alternatives
+            .contains(&machine.return_instruction.alternative)
+    {
+        return Err(
+            OptimizedSelectedFormEncodingError::StructuralReturnRosterMismatch(selected_return.id),
+        );
+    }
+    let return_instruction = encode_row(
+        target.architecture,
+        selected_return,
+        &machine.return_instruction,
+        physical,
+        TerminalAarch64CbnzInstructionDisposition::RetainedV1,
+    )?;
+    if !matches!(
+        return_instruction.state,
+        TerminalSelectedFormEncodingState::Encoded { ref bytes, .. } if bytes.as_slice() == [0xc3]
+    ) {
+        return Err(
+            OptimizedSelectedFormEncodingError::StructuralReturnRosterMismatch(selected_return.id),
+        );
+    }
+    Ok(TerminalSelectedStructuralUnitFunctionEncoding {
+        machine: selected.machine,
+        block: selected.entry_block,
+        call,
+        return_instruction,
+    })
+}
+
+fn encode_structural_call(
+    target: NativeTarget,
+    selected_plan: &omega_terminal_selected_instructions::TerminalSelectedInstructionPlan,
+    selected: &TerminalSelectedStructuralUnitCallInstruction,
+    machine: &TerminalStructuralUnitCallMachineEffects,
+    physical: &ValidatedPhysicalRegisterModel,
+    constraints: &ValidatedRegisterConstraintCatalog,
+) -> Result<TerminalSelectedStructuralUnitCallEncodingRow, OptimizedSelectedFormEncodingError> {
+    if machine.instruction != selected.id
+        || machine.operation != selected.operation
+        || machine.callee != selected.callee
+        || machine.constraint != selected.constraint
+        || machine.unit_uses != selected.implicit_uses
+        || machine.unit_defs != selected.implicit_defs
+        || machine.unit_clobbers != selected.clobbers
+        || machine.layout != selected.layout
+        || machine.effect != selected.effect
+        || machine.ownership != selected.ownership
+        || machine.claim_transfers != selected.claim_transfers
+        || machine.provenance != selected.provenance
+        || selected_plan
+            .structural_unit_functions
+            .iter()
+            .filter(|function| function.machine == selected.callee)
+            .count()
+            != 1
+    {
+        return Err(OptimizedSelectedFormEncodingError::StructuralCallRosterMismatch(selected.id));
+    }
+    let encoded = encode_x86_64_terminal_selected_structural_unit_call_template(
+        target,
+        physical,
+        constraints,
+        selected,
+        machine.declaration,
+    )
+    .map_err(OptimizedSelectedFormEncodingError::X86_64Structural)?;
+    Ok(structural_call_encoding_row(selected, encoded))
+}
+
+fn structural_call_encoding_row(
+    selected: &TerminalSelectedStructuralUnitCallInstruction,
+    encoded: ValidatedX86_64SelectedStructuralUnitCallTemplate,
+) -> TerminalSelectedStructuralUnitCallEncodingRow {
+    TerminalSelectedStructuralUnitCallEncodingRow {
+        instruction: selected.id,
+        operation: selected.operation,
+        callee: selected.callee,
+        bytes: encoded.bytes().to_vec(),
+        footprint: Box::new(encoded.footprint().clone()),
+        fixup: encoded.fixup(),
+    }
+}
+
+fn encoding_counts(
+    rows: &[TerminalSelectedFormEncodingRow],
+    structural: &[TerminalSelectedStructuralUnitFunctionEncoding],
+) -> Result<TerminalSelectedFormEncodingCounts, OptimizedSelectedFormEncodingError> {
+    let mut counts = TerminalSelectedFormEncodingCounts::default();
+    for row in rows {
+        let count = match row.state {
+            TerminalSelectedFormEncodingState::Encoded { .. } => &mut counts.ordinary_encoded,
+            TerminalSelectedFormEncodingState::DeferredControl { .. } => {
+                &mut counts.ordinary_deferred_control
+            }
+        };
+        *count = count
+            .checked_add(1)
+            .ok_or(OptimizedSelectedFormEncodingError::CountOverflow)?;
+    }
+    for function in structural {
+        counts.structural_encoded_returns = counts
+            .structural_encoded_returns
+            .checked_add(1)
+            .ok_or(OptimizedSelectedFormEncodingError::CountOverflow)?;
+        if function.call.is_some() {
+            counts.structural_encoded_call_templates = counts
+                .structural_encoded_call_templates
+                .checked_add(1)
+                .ok_or(OptimizedSelectedFormEncodingError::CountOverflow)?;
+            counts.structural_deferred_internal_control = counts
+                .structural_deferred_internal_control
+                .checked_add(1)
+                .ok_or(OptimizedSelectedFormEncodingError::CountOverflow)?;
+            counts.structural_internal_fixups = counts
+                .structural_internal_fixups
+                .checked_add(1)
+                .ok_or(OptimizedSelectedFormEncodingError::CountOverflow)?;
+        }
+    }
+    Ok(counts)
 }
 
 fn terminator_instruction(terminator: &TerminalSelectedTerminator) -> &TerminalSelectedInstruction {
@@ -538,6 +843,8 @@ fn encoding_identity(
     machine: TerminalPostAllocationMachineIdentity,
     machine_optimization: Option<TerminalSelectedFormMachineOptimizationCustody>,
     rows: &[TerminalSelectedFormEncodingRow],
+    structural_unit_functions: &[TerminalSelectedStructuralUnitFunctionEncoding],
+    counts: TerminalSelectedFormEncodingCounts,
 ) -> TerminalSelectedFormEncodingIdentity {
     let mut hasher = Sha256::new();
     hasher.update(ENCODER_SCHEMA);
@@ -554,29 +861,124 @@ fn encoding_identity(
     }
     hasher.update((rows.len() as u64).to_le_bytes());
     for row in rows {
-        hasher.update(row.instruction.0.to_le_bytes());
-        encode_alternative(&mut hasher, row.alternative);
-        encode_machine_disposition(&mut hasher, &row.machine_disposition);
-        match &row.state {
-            TerminalSelectedFormEncodingState::Encoded { bytes, footprint } => {
-                hasher.update([0]);
-                hasher.update((bytes.len() as u64).to_le_bytes());
-                hasher.update(bytes);
-                encode_views(&mut hasher, &footprint.register_reads);
-                encode_views(&mut hasher, &footprint.register_writes);
-                encode_units(&mut hasher, &footprint.implicit_defs);
-                encode_units(&mut hasher, &footprint.implicit_clobbers);
-                encode_effects(&mut hasher, &footprint.encoded);
-            }
-            TerminalSelectedFormEncodingState::DeferredControl { reason } => {
+        encode_encoding_row(&mut hasher, row);
+    }
+    hasher.update((structural_unit_functions.len() as u64).to_le_bytes());
+    for function in structural_unit_functions {
+        hasher.update(function.machine.get().to_le_bytes());
+        hasher.update(function.block.0.to_le_bytes());
+        match &function.call {
+            None => hasher.update([0]),
+            Some(call) => {
                 hasher.update([1]);
-                hasher.update([match reason {
-                    DeferredTerminalControlEncodingReason::RequiresResolvedBranchLayout => 0,
-                }]);
+                hasher.update(call.instruction.0.to_le_bytes());
+                hasher.update(call.operation.get().to_le_bytes());
+                hasher.update(call.callee.get().to_le_bytes());
+                hasher.update((call.bytes.len() as u64).to_le_bytes());
+                hasher.update(&call.bytes);
+                encode_structural_footprint(&mut hasher, &call.footprint);
+                encode_structural_fixup(&mut hasher, call.fixup);
             }
         }
+        encode_encoding_row(&mut hasher, &function.return_instruction);
     }
+    encode_counts(&mut hasher, counts);
     TerminalSelectedFormEncodingIdentity(hasher.finalize().into())
+}
+
+fn encode_encoding_row(hasher: &mut Sha256, row: &TerminalSelectedFormEncodingRow) {
+    hasher.update(row.instruction.0.to_le_bytes());
+    encode_alternative(hasher, row.alternative);
+    encode_machine_disposition(hasher, &row.machine_disposition);
+    match &row.state {
+        TerminalSelectedFormEncodingState::Encoded { bytes, footprint } => {
+            hasher.update([0]);
+            hasher.update((bytes.len() as u64).to_le_bytes());
+            hasher.update(bytes);
+            encode_views(hasher, &footprint.register_reads);
+            encode_views(hasher, &footprint.register_writes);
+            encode_units(hasher, &footprint.implicit_defs);
+            encode_units(hasher, &footprint.implicit_clobbers);
+            encode_effects(hasher, &footprint.encoded);
+        }
+        TerminalSelectedFormEncodingState::DeferredControl { reason } => {
+            hasher.update([1]);
+            hasher.update([match reason {
+                DeferredTerminalControlEncodingReason::RequiresResolvedBranchLayout => 0,
+            }]);
+        }
+    }
+}
+
+fn encode_structural_footprint(
+    hasher: &mut Sha256,
+    footprint: &X86_64SelectedStructuralUnitCallFootprint,
+) {
+    encode_units(hasher, &footprint.implicit_unit_uses);
+    encode_units(hasher, &footprint.implicit_unit_defs);
+    encode_units(hasher, &footprint.implicit_unit_clobbers);
+    for read in footprint.root_reads {
+        encode_machine_register(hasher, read.root);
+        hasher.update(read.byte_offset.to_le_bytes());
+        hasher.update(read.byte_count.to_le_bytes());
+    }
+    for write in footprint.caller_copy_writes {
+        hasher.update(write.stack_byte_offset.to_le_bytes());
+        hasher.update(write.byte_count.to_le_bytes());
+    }
+    for register in footprint.scratch_register_writes {
+        encode_machine_register(hasher, register);
+    }
+    for write in footprint.argument_pointer_writes {
+        encode_machine_register(hasher, write.register);
+        hasher.update(write.stack_byte_offset.to_le_bytes());
+    }
+    hasher.update([u8::from(footprint.writes_rflags)]);
+    hasher.update(footprint.frame_byte_count.to_le_bytes());
+    hasher.update(footprint.shadow_byte_count.to_le_bytes());
+    hasher.update(footprint.pre_call_stack_alignment.to_le_bytes());
+    hasher.update([u8::from(footprint.frame_is_balanced)]);
+    hasher.update([match footprint.trap {
+        omega_terminal_selected_instructions::TerminalMachineTrapBehavior::NeverV1 => 0,
+        omega_terminal_selected_instructions::TerminalMachineTrapBehavior::MayArchitecturalFaultV1 => 1,
+    }]);
+    hasher.update([match footprint.barrier {
+        omega_terminal_selected_instructions::TerminalStructuralUnitCallBarrier::CallV1 => 0,
+    }]);
+    hasher.update([match footprint.call {
+        omega_terminal_selected_instructions::TerminalStructuralUnitCallEffect::DirectInternalUnitV1 => 0,
+    }]);
+    hasher.update([match footprint.cleanup {
+        omega_terminal_selected_instructions::TerminalMachineCleanupEffect::NoneV1 => 0,
+    }]);
+}
+
+fn encode_structural_fixup(hasher: &mut Sha256, fixup: X86_64StructuralUnitInternalControlFixup) {
+    hasher.update([match fixup.kind {
+        omega_terminal_isa_x86_64::X86_64StructuralUnitInternalControlFixupKind::Relative32FromNextInstructionToInternalMachineV1 => 0,
+    }]);
+    hasher.update([match fixup.state {
+        omega_terminal_isa_x86_64::X86_64StructuralUnitInternalControlFixupState::UnresolvedZeroFieldV1 => 0,
+    }]);
+    hasher.update(fixup.callee.get().to_le_bytes());
+    hasher.update(fixup.opcode_byte_offset.to_le_bytes());
+    hasher.update(fixup.field_byte_offset.to_le_bytes());
+    hasher.update(fixup.next_instruction_byte_offset.to_le_bytes());
+    hasher.update([fixup.field_byte_width]);
+    hasher.update(fixup.addend.to_le_bytes());
+}
+
+fn encode_counts(hasher: &mut Sha256, counts: TerminalSelectedFormEncodingCounts) {
+    for count in [
+        counts.ordinary_encoded,
+        counts.ordinary_deferred_control,
+        counts.structural_encoded_call_templates,
+        counts.structural_encoded_returns,
+        counts.structural_deferred_internal_control,
+        counts.structural_internal_fixups,
+    ] {
+        hasher.update(count.to_le_bytes());
+    }
 }
 
 fn validate_fusion_roots<S: ValidatedTerminalSelectedAnalysis>(
@@ -706,6 +1108,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: TerminalMachineAlternati
         TerminalMachineAlternativeFamily::ConditionalBranchNonZero => 6,
         TerminalMachineAlternativeFamily::ReturnI64 => 7,
         TerminalMachineAlternativeFamily::ExactSubtractI64Immediate => 8,
+        TerminalMachineAlternativeFamily::ReturnUnit => 9,
     }]);
     hasher.update(alternative.variant.to_le_bytes());
 }
@@ -722,4 +1125,29 @@ fn encode_units(hasher: &mut Sha256, units: &[RegisterUnitId]) {
     for unit in units {
         hasher.update(unit.0.to_le_bytes());
     }
+}
+
+fn encode_machine_register(hasher: &mut Sha256, register: MachineRegister) {
+    let (tag, index) = match register {
+        MachineRegister::X86Rax => (1, 0),
+        MachineRegister::X86Rcx => (2, 0),
+        MachineRegister::X86Rdx => (3, 0),
+        MachineRegister::X86Rbx => (4, 0),
+        MachineRegister::X86Rsp => (5, 0),
+        MachineRegister::X86Rbp => (6, 0),
+        MachineRegister::X86Rsi => (7, 0),
+        MachineRegister::X86Rdi => (8, 0),
+        MachineRegister::X86R8 => (9, 0),
+        MachineRegister::X86R9 => (10, 0),
+        MachineRegister::X86R10 => (11, 0),
+        MachineRegister::X86R11 => (12, 0),
+        MachineRegister::X86R12 => (13, 0),
+        MachineRegister::X86R13 => (14, 0),
+        MachineRegister::X86R14 => (15, 0),
+        MachineRegister::X86R15 => (16, 0),
+        MachineRegister::X86Xmm(index) => (17, index),
+        MachineRegister::Aarch64X(index) => (18, index),
+        MachineRegister::Aarch64V(index) => (19, index),
+    };
+    hasher.update([tag, index]);
 }

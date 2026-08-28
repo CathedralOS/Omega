@@ -10,11 +10,9 @@ path = "src/lib.rs"
 
 [dependencies]
 psi-core = { path = "../../foundation/psi-core" }
+psi-language-semantics = { path = "../../foundation/psi-language-semantics" }
 psi-proof-admission = { path = "../psi-proof-admission" }
 psi-terminal = { path = "../../representations/psi-terminal" }
 psi-terminal-semantics = { path = "../psi-terminal-semantics" }
 psi-terminal-verifier = { path = "../psi-terminal-verifier" }
 sha2 = "0.10"
-
-[dev-dependencies]
-psi-language-semantics = { path = "../../foundation/psi-language-semantics" }

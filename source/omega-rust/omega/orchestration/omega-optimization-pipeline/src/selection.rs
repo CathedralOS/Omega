@@ -254,16 +254,28 @@ pub fn validate_optimized_selection_custody(
     {
         return Err(OptimizedSelectionCustodyError::FuelScheduleMismatch);
     }
-    if target.functions.len() != plan.functions.len()
-        || target
-            .functions
-            .iter()
-            .zip(&plan.functions)
-            .any(|(target, selected)| {
-                target.machine != selected.machine
-                    || target.attachment != selected.attachment
-                    || target.provenance != selected.provenance
-            })
+    if target.functions.len() != plan.functions.len() + plan.structural_unit_functions.len()
+        || target.functions.iter().any(|target| {
+            let ordinary_matches = plan
+                .functions
+                .iter()
+                .filter(|selected| {
+                    target.machine == selected.machine
+                        && target.attachment == selected.attachment
+                        && target.provenance == selected.provenance
+                })
+                .count();
+            let structural_matches = plan
+                .structural_unit_functions
+                .iter()
+                .filter(|selected| {
+                    target.machine == selected.machine
+                        && target.attachment == selected.attachment
+                        && target.provenance == selected.provenance
+                })
+                .count();
+            ordinary_matches + structural_matches != 1
+        })
     {
         return Err(OptimizedSelectionCustodyError::FunctionRosterMismatch);
     }
@@ -284,7 +296,7 @@ pub fn validate_optimized_selection_custody(
         legalized: legalized.receipt().identity(),
         legalization_validator: legalized.receipt().validator(),
         selected: selected.receipt().identity(),
-        function_count: plan.functions.len(),
+        function_count: plan.functions.len() + plan.structural_unit_functions.len(),
     })
 }
 

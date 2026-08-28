@@ -9,7 +9,7 @@ level; no large span arithmetic enters the Gamma meaning or its claim encoder.
 Entirely zero subtrees collapse to ``ZeroTree``; the exact byte length makes
 word padding unobservable.
 
-This is invocation transport, not Gamma syntax.  ``omega2gamma.beta`` also
+This is invocation transport, not Gamma syntax.  ``delta2gamma.beta`` also
 retains its historical ``Cons`` input interpretation for small fixtures.
 """
 
@@ -82,7 +82,7 @@ def encode_cons(raw: bytes) -> str:
 
 
 def inject(template: bytes, raw: bytes, *, legacy_cons: bool = False) -> bytes:
-    """Close one omega2gamma template with the exact packed carrier."""
+    """Close one Delta-to-Gamma template with the exact packed carrier."""
 
     count = template.count(PLACEHOLDER)
     if count != 1:

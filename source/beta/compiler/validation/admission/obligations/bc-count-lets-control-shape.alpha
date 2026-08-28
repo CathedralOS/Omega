@@ -1,0 +1,285 @@
+; Exact control/effect shape for count_lets().
+;
+; This module owns procedure 39's frame, eleven blocks, seventeen transitions,
+; ten ordinary calls, source and synthetic returns/epilogues, exhaustive effect
+; row intervals, and decoded-region call/return census. Local, memory, primitive,
+; and push row payloads are separated into bc-count-lets-data-shape.alpha.
+
+count_lets_require_control_shape:
+        imm r20, 7151616
+        imm r21, 39
+        imm r22, 0
+        call transfer_require_cell
+        imm r20, 7159808
+        imm r21, 39
+        imm r22, 4
+        call transfer_require_cell
+        imm r20, 39
+        call call_bounds_frame_bytes
+        imm r1, 40
+        jeq r0, r1, count_lets_shape_blocks
+        jmp reject
+
+count_lets_shape_blocks:
+        imm r20, 193
+        imm r21, 27433
+        call exact_require_block_pc
+        imm r20, 194
+        imm r21, 27555
+        call exact_require_block_pc
+        imm r20, 195
+        imm r21, 27687
+        call exact_require_block_pc
+        imm r20, 196
+        imm r21, 28521
+        call exact_require_block_pc
+        imm r20, 197
+        imm r21, 28559
+        call exact_require_block_pc
+        imm r20, 198
+        imm r21, 28577
+        call exact_require_block_pc
+        imm r20, 199
+        imm r21, 28595
+        call exact_require_block_pc
+        imm r20, 200
+        imm r21, 28699
+        call exact_require_block_pc
+        imm r20, 201
+        imm r21, 28803
+        call exact_require_block_pc
+        imm r20, 202
+        imm r21, 28934
+        call exact_require_block_pc
+        imm r20, 203
+        imm r21, 29029
+        call exact_require_block_pc
+        imm r20, 193
+        imm r21, 203
+        imm r22, 39
+        call exact_require_proc_blocks
+        call count_lets_require_transitions
+        call count_lets_require_events
+        call count_lets_require_control_census
+        ret
+
+count_lets_require_transitions:
+        imm r20, 146
+        imm r21, 194
+        imm r22, 1
+        imm r23, 195
+        imm r24, 27659              ; checked positive-depth guard
+        call exact_require_transition
+        imm r20, 147
+        imm r21, 194
+        imm r22, 0
+        imm r23, 203
+        imm r24, 27678
+        call exact_require_transition
+
+        imm r20, 148
+        imm r21, 195
+        imm r22, 1
+        imm r23, 196
+        imm r24, 27828              ; checked cbyte zero guard
+        call exact_require_transition
+        imm r20, 149
+        imm r21, 195
+        imm r22, 1
+        imm r23, 197
+        imm r24, 27951              ; checked character quote guard
+        call exact_require_transition
+        imm r20, 150
+        imm r21, 195
+        imm r22, 1
+        imm r23, 198
+        imm r24, 28074              ; checked string quote guard
+        call exact_require_transition
+        imm r20, 151
+        imm r21, 195
+        imm r22, 1
+        imm r23, 199
+        imm r24, 28197              ; checked open-brace guard
+        call exact_require_transition
+        imm r20, 152
+        imm r21, 195
+        imm r22, 1
+        imm r23, 200
+        imm r24, 28320              ; checked close-brace guard
+        call exact_require_transition
+        imm r20, 153
+        imm r21, 195
+        imm r22, 1
+        imm r23, 201
+        imm r24, 28484              ; checked alpha guard
+        call exact_require_transition
+        imm r20, 154
+        imm r21, 195
+        imm r22, 0
+        imm r23, 194
+        imm r24, 28512
+        call exact_require_transition
+
+        imm r20, 155
+        imm r21, 196
+        imm r22, 0
+        imm r23, 194
+        imm r24, 28550
+        call exact_require_transition
+        imm r20, 156
+        imm r21, 197
+        imm r22, 0
+        imm r23, 194
+        imm r24, 28568
+        call exact_require_transition
+        imm r20, 157
+        imm r21, 198
+        imm r22, 0
+        imm r23, 194
+        imm r24, 28586
+        call exact_require_transition
+        imm r20, 158
+        imm r21, 199
+        imm r22, 0
+        imm r23, 194
+        imm r24, 28690
+        call exact_require_transition
+        imm r20, 159
+        imm r21, 200
+        imm r22, 0
+        imm r23, 194
+        imm r24, 28794
+        call exact_require_transition
+        imm r20, 160
+        imm r21, 201
+        imm r22, 1
+        imm r23, 202
+        imm r24, 28906              ; checked exact is_let guard
+        call exact_require_transition
+        imm r20, 161
+        imm r21, 201
+        imm r22, 0
+        imm r23, 194
+        imm r24, 28925
+        call exact_require_transition
+        imm r20, 162
+        imm r21, 202
+        imm r22, 0
+        imm r23, 194
+        imm r24, 29020
+        call exact_require_transition
+        ret
+
+count_lets_require_events:
+        imm r20, 297
+        imm r21, 195
+        imm r22, 27687
+        imm r23, 0
+        imm r24, 0
+        imm r25, 4277
+        imm r26, 27696              ; checked skip_ws continuation
+        call summary_require_call_site
+        imm r20, 298
+        imm r21, 195
+        imm r22, 27696
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1609
+        imm r26, 27705
+        call summary_require_call_site
+        imm r20, 299
+        imm r21, 195
+        imm r22, 28390
+        imm r23, 1
+        imm r24, 0
+        imm r25, 2470
+        imm r26, 28399              ; checked is_alpha continuation
+        call summary_require_call_site
+        imm r20, 300
+        imm r21, 195
+        imm r22, 28503
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1939
+        imm r26, 28512
+        call summary_require_call_site
+        imm r20, 301
+        imm r21, 197
+        imm r22, 28559
+        imm r23, 0
+        imm r24, 0
+        imm r25, 26687
+        imm r26, 28568              ; checked character skipper continuation
+        call summary_require_call_site
+        imm r20, 302
+        imm r21, 198
+        imm r22, 28577
+        imm r23, 0
+        imm r24, 0
+        imm r25, 26923
+        imm r26, 28586              ; checked string skipper continuation
+        call summary_require_call_site
+        imm r20, 303
+        imm r21, 199
+        imm r22, 28681
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1939
+        imm r26, 28690
+        call summary_require_call_site
+        imm r20, 304
+        imm r21, 200
+        imm r22, 28785
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1939
+        imm r26, 28794
+        call summary_require_call_site
+        imm r20, 305
+        imm r21, 201
+        imm r22, 28803
+        imm r23, 0
+        imm r24, 0
+        imm r25, 5217
+        imm r26, 28812
+        call summary_require_call_site
+        imm r20, 306
+        imm r21, 201
+        imm r22, 28812
+        imm r23, 0
+        imm r24, 0
+        imm r25, 5846
+        imm r26, 28821              ; checked is_let continuation
+        call summary_require_call_site
+        imm r20, 307
+        imm r21, 203
+        imm r22, 5
+        imm r23, 29131
+        call exact_require_event
+        imm r20, 29112
+        imm r21, 29131
+        call exact_require_epilogue
+        imm r20, 29132
+        imm r21, 29151
+        call exact_require_epilogue
+        ret
+
+count_lets_require_control_census:
+        imm r20, 193
+        imm r21, 203
+        imm r22, 98
+        imm r23, 118                 ; checked exclusive count local row
+        imm r24, 52
+        imm r25, 54
+        imm r26, 146
+        imm r27, 163                 ; checked exclusive count transition row
+        imm r28, 297
+        imm r29, 308                 ; checked exclusive count event row
+        call exact_require_effect_census
+        imm r20, 27433
+        imm r21, 40                    ; emit_dec procedure identity
+        call exact_proc_entry_r21
+        imm r22, 10
+        imm r23, 2
+        call skip_scan_call_region
+        ret

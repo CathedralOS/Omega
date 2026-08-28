@@ -1,0 +1,237 @@
+; Exact source/artifact shape for parse_number() procedure33.
+;
+; This module owns the three blocks, digit-loop split, two cbyte calls,
+; is_digit/adv calls, explicit/synthetic returns, one local slot, exact
+; wrapping arithmetic lowering, stack pushes, and exhaustive decoded/table
+; censuses. The adjacent meaning module owns the digit-slice induction.
+
+parse_number_require_shape:
+        imm r20, 7151616
+        imm r21, 33
+        imm r22, 0                    ; no parameters
+        call transfer_require_cell
+        imm r20, 7159808
+        imm r21, 33
+        imm r22, 1                    ; local v
+        call transfer_require_cell
+        imm r20, 33
+        call call_bounds_frame_bytes
+        imm r1, 16
+        jeq r0, r1, parse_number_shape_blocks
+        jmp reject
+
+parse_number_shape_blocks:
+        imm r20, 167
+        imm r21, 23672
+        call exact_require_block_pc
+        imm r20, 168
+        imm r21, 23733
+        call exact_require_block_pc
+        imm r20, 169
+        imm r21, 23926
+        call exact_require_block_pc
+        imm r20, 167
+        imm r21, 169
+        imm r22, 33
+        call exact_require_proc_blocks
+        call parse_number_require_transitions
+        call parse_number_require_events
+        call parse_number_require_locals
+        call parse_number_require_primitives
+        call parse_number_require_pushes
+        call parse_number_require_censuses
+        ret
+
+parse_number_require_transitions:
+        imm r20, 126
+        imm r21, 168
+        imm r22, 1
+        imm r23, 169
+        imm r24, 23868              ; checked digit-true guard
+        call exact_require_transition
+        imm r20, 127
+        imm r21, 169
+        imm r22, 0
+        imm r23, 168
+        imm r24, 24116              ; checked body backedge
+        call exact_require_transition
+        ret
+
+parse_number_require_events:
+        ; Source nesting records is_digit before its cbyte argument.
+        imm r20, 269
+        imm r21, 168
+        imm r22, 23733
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1609               ; cbyte
+        imm r26, 23742
+        call summary_require_call_site
+        imm r20, 268
+        imm r21, 168
+        imm r22, 23774
+        imm r23, 1
+        imm r24, 0
+        imm r25, 2084               ; is_digit
+        imm r26, 23783
+        call summary_require_call_site
+        imm r20, 270
+        imm r21, 168
+        imm r22, 5
+        imm r23, 23925              ; explicit return v
+        call exact_require_event
+        imm r20, 271
+        imm r21, 169
+        imm r22, 24009
+        imm r23, 0
+        imm r24, 1                  ; outer addition left is live
+        imm r25, 1609               ; cbyte
+        imm r26, 24018
+        call summary_require_call_site
+        imm r20, 272
+        imm r21, 169
+        imm r22, 24107
+        imm r23, 0
+        imm r24, 0
+        imm r25, 1939               ; adv
+        imm r26, 24116
+        call summary_require_call_site
+        imm r20, 23906
+        imm r21, 23925
+        call exact_require_epilogue
+        imm r20, 24125
+        imm r21, 24144
+        call exact_require_epilogue
+        ret
+
+parse_number_require_locals:
+        imm r20, 66
+        imm r21, 167
+        imm r22, 2
+        imm r23, 0
+        imm r24, 23714              ; v=0
+        call transfer_require_local
+        imm r20, 67
+        imm r21, 168
+        imm r22, 1
+        imm r23, 0
+        imm r24, 23887              ; returned v
+        call transfer_require_local
+        imm r20, 68
+        imm r21, 169
+        imm r22, 2
+        imm r23, 0
+        imm r24, 24088              ; updated v
+        call transfer_require_local
+        imm r20, 69
+        imm r21, 169
+        imm r22, 1
+        imm r23, 0
+        imm r24, 23926              ; prior v
+        call transfer_require_local
+        ret
+
+parse_number_require_primitives:
+        imm r20, 424
+        imm r21, 167
+        imm r22, 1
+        imm r23, 0
+        imm r24, 23704              ; initial v
+        call transfer_require_primitive
+        imm r20, 425
+        imm r21, 168
+        imm r22, 3
+        imm r23, 10                 ; is_digit result == 1
+        imm r24, 23809
+        call transfer_require_primitive
+        imm r20, 426
+        imm r21, 168
+        imm r22, 1
+        imm r23, 1
+        imm r24, 23799
+        call transfer_require_primitive
+        imm r20, 427
+        imm r21, 169
+        imm r22, 2
+        imm r23, 5                  ; wrapping v*10
+        imm r24, 23971
+        call transfer_require_primitive
+        imm r20, 428
+        imm r21, 169
+        imm r22, 1
+        imm r23, 10
+        imm r24, 23961
+        call transfer_require_primitive
+        imm r20, 429
+        imm r21, 169
+        imm r22, 2
+        imm r23, 3                  ; wrapping addition
+        imm r24, 24066
+        call transfer_require_primitive
+        imm r20, 430
+        imm r21, 169
+        imm r22, 2
+        imm r23, 4                  ; byte-'0'
+        imm r24, 24044
+        call transfer_require_primitive
+        imm r20, 431
+        imm r21, 169
+        imm r22, 1
+        imm r23, 48
+        imm r24, 24034
+        call transfer_require_primitive
+        ret
+
+parse_number_require_pushes:
+        imm r20, 108
+        imm r21, 168
+        imm r23, 23783              ; classifier result
+        call exact_require_binary_push
+        imm r20, 109
+        imm r21, 169
+        imm r23, 23945              ; prior v
+        call exact_require_binary_push
+        imm r20, 110
+        imm r21, 169
+        imm r23, 23993              ; second cbyte result
+        call exact_require_binary_push
+        imm r20, 111
+        imm r21, 169
+        imm r23, 24018              ; wrapped product
+        call exact_require_binary_push
+        imm r20, 314
+        imm r21, 168
+        imm r23, 23742              ; cbyte-to-is_digit argument
+        call exact_require_argument_push
+        ret
+
+parse_number_require_censuses:
+        imm r20, 167
+        imm r21, 169
+        imm r22, 66
+        imm r23, 70                  ; exclusive local row
+        imm r24, 37
+        imm r25, 37                  ; no raw-memory rows
+        imm r26, 126
+        imm r27, 128                 ; exclusive transition row
+        imm r28, 268
+        imm r29, 273                 ; exclusive event row
+        call exact_require_effect_census
+        imm r20, 167
+        imm r21, 169
+        imm r22, 424
+        imm r23, 432                 ; exclusive primitive row
+        imm r24, 108
+        imm r25, 112                 ; exclusive binary-push row
+        imm r26, 314
+        imm r27, 315                 ; exclusive argument-push row
+        imm r28, 0
+        imm r29, 0
+        call summary_require_expr_census
+        imm r20, 23672
+        imm r21, 24145
+        imm r22, 4                   ; cbyte/is_digit/cbyte/adv
+        imm r23, 2                   ; parse_number explicit and synthetic return
+        imm r24, 8                   ; prologue/local/argument/binary stores
+        call exact_quiet_scan_region
+        ret

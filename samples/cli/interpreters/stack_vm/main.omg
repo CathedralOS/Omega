@@ -29,7 +29,7 @@
 // transition AFTER `self.vm.sp = new_sp` overwrote the field, so try_push1's
 // guard `new_sp == 1` saw the doubly-incremented value and took the wrong arm.
 // The fix keeps the captured `new_sp` slot instead of re-folding. Regression
-// test: tests/canaries/pass/control_flow/runtime_captured_local_remutated_field_exit.)
+// test: tests/omega/pass/control_flow/runtime_captured_local_remutated_field_exit.)
 //
 // Expected exit: 70.
 

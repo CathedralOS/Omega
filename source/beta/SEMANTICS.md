@@ -186,9 +186,9 @@ stream admitted by `B_bc1`.
 - `reference/beta-io-exhaust.sh` exhausts all 256 single-byte inputs for its
   admitted programs;
 - `source-exhaustion.sh` pins `B_bc1` resource boundaries;
-- `source/beta/compiler/validation/bc-artifact-structure.sh` checks the
+- `source/beta/compiler/validation/admission/bc-artifact-structure.sh` checks the
   exact artifact's reachable instruction framing and direct targets below `bc`.
-- `source/beta/compiler/validation/bc-block-control.sh` reconstructs one
+- `source/beta/compiler/validation/admission/bc-block-control.sh` reconstructs one
   canonical exact-source/exact-artifact obligation and checks its component
   Alpha programs through the final ROOT maximal-observation conjunction.
 

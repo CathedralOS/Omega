@@ -638,5 +638,5 @@ themselves make the resolver admissible. Linux/Windows strict isolation,
 hostile same-user and Windows ACL cache custody, non-Windows aggregate and all
 during-write resource ceilings, cross-platform endpoint confinement, explicit
 SSH trust/credential
-custody (OWNER Q16),
+custody (OWNER Q19),
 and the opaque receipt remain open.

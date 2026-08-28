@@ -42,7 +42,7 @@ its detailed execution queue lives in
 [`TASKS_OPTIMIZER.md`](TASKS_OPTIMIZER.md). Keep the product-compiler ownership
 task here; do not duplicate optimizer pass milestones in both queues.
 
-## Omega-written hosted product compiler
+## Omega-written product compiler
 
 Remaining:
 
@@ -52,15 +52,15 @@ Remaining:
   `source/omega/{build.omg,main.omg}`. Preserve the Psi/Omega ownership
   firewall: Psi owns parsing and target-neutral semantics through terminal Psi;
   Omega owns provider installation, optimization, target realization, and
-  artifact emission. The current implementation under
-  `source/omega-rust/` is a migration/reference producer, not the
+  artifact emission. The maintained implementation under
+  `source/omega-rust/` is a differential producer, not the
   source tree for this task.
 
   Acceptance: the exact Omega source tree builds a compiler that implements the
   full Omega specification, including the production optimizer and lowering
   pipeline, passes the applicable product compiler and language suites, and
   contains no Rust implementation under the
-  reserved product roots. "Full" governs accepted Omega and emitted-artifact
+  reserved product root. "Full" governs accepted Omega and emitted-artifact
   meaning; it does not require standalone interpreters, REPLs, proof explorers,
   viewers, debuggers, or other adjacent tools unless the compiler executable
   imports them. Publish a deterministic manifest of every transitive compiler
@@ -100,10 +100,11 @@ Remaining:
   Deriving the exact surface used by `C`, extending the Delta-produced compiler,
   and validating the direct build remain in `TASKS_BOOTSTRAP.md`; do not duplicate
   product Psi/Omega implementation tasks there. The exact manifest is closure
-  evidence, not permission for the bridge to recognize particular files or AST
-  permutations. Terminal-Psi representation and lowering modules linked into
-  the compiler remain ordinary source dependencies; standalone interpreters,
-  viewers, REPLs, proof explorers, and debuggers do not.
+  evidence, not permission for the Delta-produced compiler to recognize
+  particular files or AST permutations. Terminal-Psi representation and
+  lowering modules linked into the compiler remain ordinary source
+  dependencies; standalone interpreters, viewers, REPLs, proof explorers, and
+  debuggers do not.
 
   Deliver this incrementally through coherent live source slices, each of which
   passes the applicable product suites. Historical `checkpoint-000001`
@@ -113,15 +114,73 @@ Remaining:
   `source/omega/psi/` plus the product entrypoint currently reaches source/span
   custody, tokens, Unicode tables, lexing, and fail-closed whole-file parsing
   for ordinary
-  `use path::member;` roots plus basic `[pub] data` records whose fields have
-  bare named types. The parser retains ordered source spans in owner-local
-  bounded syntax and type-reference tables and rejects every unsupported root
-  or richer declaration form; remaining declaration grammar, resolution,
-  checking, terminal Psi, and all later Psi/Omega phases remain open. Extend
-  this as live grammar/semantic slices, not checkpoint dialects, private bridge
-  IRs, or file-shape allowlists.
+  `use path::member;` roots plus basic `[pub] data` declarations with optional
+  `[copy]`, bare named field types, and payload-free `case Name;` members. The
+  parser retains exact mixed field/case order and source spans in owner-local
+  bounded syntax and type-reference tables; explicit discriminants, case
+  payloads, other properties, richer types, and every unsupported root reject
+  fail closed. Remaining declaration grammar, resolution, checking, terminal
+  Psi, and all later Psi/Omega phases remain open. Extend this as live
+  grammar/semantic slices, not checkpoint dialects, private bridge IRs, or
+  file-shape allowlists.
+  The first parser state machine is now split into owner/facade, scalar token
+  access, root sequencing, and data-declaration modules under
+  `source/omega/psi/parse/`. One flat parser owner retains the only token and
+  syntax tables; the hosted AArch64 backend cannot yet address the resulting
+  1.76 MiB nested aggregate or lower a second arena ownership transfer, so the
+  physical tables deliberately remain flat while behavior is modular. The 45
+  black-box parser cases passed against the last emitted product artifact. A
+  fresh current compiler now reaches checked product source in about 24 seconds,
+  but explicit-target artifact emission rejects because `Main::main` has no
+  checked transitive machine plan. The parser gate requires both the exact fresh
+  CLI and an explicit target profile; it selects neither a cached CLI nor an
+  ambient host target. Restore the lowering path and rerun all 45 cases against
+  that same explicitly selected fresh CLI before extending the parser.
+  This is not a missing lookup or artifact-report switch. `Main::main` has two
+  real backedges, while the current structural-control producer, Terminal
+  verifier, ownership-frontier replay, and fixed-fuel path accept only acyclic
+  control. Close that general resource-bounded cyclic-control slice first with
+  retained rank/invariant evidence through codec, verifier, reconstruction,
+  interpreter, fuel, Omega lowering, native execution, and artifact custody.
+  The first vertical acceptance case is a structural Unit machine with one
+  unsigned scalar countdown parameter, a `remaining > 0` guard, and a backedge
+  carrying `remaining - 1`. Extend the checked control plan with only the
+  scalar expression forms that case requires; retain a canonical ranked-SCC
+  component naming the header, rank parameter, bounds, and covered cyclic
+  edges; and reconstruct invariant establishment/preservation, strict descent,
+  and subtraction safety from the actual operation and successor-argument
+  graph. Cyclic ownership-frontier replay must converge rather than depend on a
+  topological order, and fixed fuel must derive the all-input ceiling from the
+  verified rank bound and exact exit/cycle costs. Preserve the same identity
+  through Terminal encoding, abstract/target operations, selection, allocation,
+  both supported ISA encoders, backward-edge relocation, object/image checks,
+  installation, and native fuel custody. Interpreter execution at an exact
+  initial value must agree with native execution and the derived schedule. A
+  mutation that forwards the original rank instead of the subtraction result
+  must reject as a non-decreasing ranked edge; removing rank evidence must
+  retain the existing unranked-cycle rejection. Do not broaden this first slice
+  to the product `Main` receiver, mixed operations, or boundary calls.
+  Later product-required slices must then add persistent mutable receiver and
+  subplace custody, mixed operations in multi-state blocks, structural-result
+  boundary calls and payload cases, nested field/index reads and writes, and
+  Darwin realizations for `read_byte`, `write_byte`, and `exit_process`. Do not
+  bypass Terminal Psi, revive the legacy backend, or route around the failure
+  in report/artifact policy.
+  Do not recover speed by duplicating token access, generating state
+  permutations, or enabling unconsumed viewers/debug output.
   Freeze the exact manifest and feature census only for the complete compiler
   closure at the Delta-to-Omega join.
+
+  The diagnostic v4 source-closure observer now resolves every declared
+  application/package root through package custody even when it has no
+  dependencies. It retains the package system's complete canonical closure
+  subject beside package-qualified, package-relative identities and hashes for
+  the source units actually loaded by compiler discovery. This is reusable
+  scaffolding, not frozen `C`: final closure publication must come from the
+  complete checked product build and additionally bind generated/compile-time
+  source, build inputs and observations, imported build tools, target
+  acceptance, and emitted-artifact custody. Do not promote an earlier
+  discovery snapshot merely because its package graph is exact.
 
   The product build directly selects the complete `ConsoleNativeProvider`
   through the normative
@@ -174,7 +233,7 @@ Remaining:
   making Rust agreement or availability a correctness, bootstrap, or release
   condition. Rust-specific maintenance stays in the explicit
   `source/omega-rust/` owner and never
-  moves into `source/omega/{psi,omega}/`.
+  moves into `source/omega/`.
 
 ## Execution order
 
@@ -857,7 +916,7 @@ Remaining:
   first provide the canonical requirement-position, qualification, projection/
   algebra, capacity/family-instance, and artifact-scope schema; installation can
   then join exact slot occurrences, cardinality, artifact instance, and epoch.
-  The Rust on-ramp now publishes and independently replays the first portable
+  The Rust product implementation now publishes and independently replays the first portable
   producer-schema slice: one exact static boundary requirement and authored
   parameter position, its exact qualified carrier and normalized domain
   identity, the owner-unique content projection and closed algebra, normalized
@@ -874,7 +933,7 @@ Remaining:
   catalog constructible only from a successfully verified Terminal module. It
   retains the exact Terminal identity and entry plus each resolved requirement,
   qualification, carrier, and producer schema, while deliberately carrying no
-  occurrence, cardinality, lifecycle, lineage, or grant state. The Rust on-ramp
+  occurrence, cardinality, lifecycle, lineage, or grant state. The Rust product implementation
   accepts only that catalog for non-authoritative installation prebinding, then
   replays the exact native object bytes/architecture/entry and binds the
   admitted provider execution, installed code/artifact, root, slot, owner, and
@@ -1023,8 +1082,16 @@ Remaining:
   mints only one lineage. That same installed source root now rejects
   recomposition with a provider-issued extent even when numeric lineage,
   geometry, rights, provenance, mapping era, and address space coincide; both
-  origins and their custody return unchanged. Add source, terminal, artifact,
-  and installation canaries for a finite multi-instance aggregate. The former
+  origins and their custody return unchanged. A finite multi-instance canary
+  now lowers one real source-owned producer schema into one verified Terminal
+  catalog, installs the same artifact as two distinct `InstalledCode`
+  occurrences, and composes their exact installation-derived snapshots across
+  two live eras. Both rows retain the common artifact, Terminal schema,
+  symbolic per-occurrence capacity, and cardinality one while preserving their
+  distinct installed-code and lifecycle identities; omission and same-instance
+  substitution reject. This covers source, Terminal, artifact, and
+  installation identity without fabricating a second target slot or reducing
+  the two rows to an authored total. The former
   `unbounded installation shape` request does not yet name a representable
   threat: every current source projection, Terminal catalog, target slot
   roster, cohort, and lifecycle ceiling is explicitly finite. Specify whether
@@ -2719,8 +2786,8 @@ Remaining:
   whole-root Unit-call rebasing, and semantic codec, verifier, fixed-fuel, and
   interpreter replay reject redirected or reordered structure. Nested or
   projected mixed values, recursive cycles, address and erased payload equality,
-  and runtime sum layout remain fenced. Semantic codec format 31 / vocabulary
-  33, proof-bundle v19, and installation-record v40 retain the structural
+  and runtime sum layout remain fenced. Semantic codec format 33 / vocabulary
+  35, proof-bundle v19, and installation-record v40 retain the structural
   shapes, case-payload paths, and proposition. Continue with those fenced
   nested/projected mixed, recursive, and erased aggregate cases. Concrete
   machine/state contracts plus domain/data predicates and trait requirement signatures,
@@ -7548,14 +7615,30 @@ Owners:
   require widening the report to retain the whole final certificate, or adding
   a redundant hash minted from the same copied values. Remaining callback work
   stays on the separately listed resource, body, lease, cross-target, and
-  private-relocation frontiers. Resource-ceiling aggregation currently stops at
-  the checked-envelope boundary: the realized callback envelope has no checked
-  stack/fuel/state resource carrier, while the existing three-column rows are
-  installation-owned external-root evidence and cannot be promoted backward
-  into callback admission. Add and validate the checked resource representation
-  first; then bind its exact receipt through callback placement. This does not
-  relax the private-placement decision or infer resources from
-  `BoundaryEntryPlan`. Callback thunk body lowering separately stops on multi-
+  private-relocation frontiers. The checked resource-representation
+  prerequisite and its first callback-placement receipt are now live. Every
+  concrete machine retains one declaration-ordered row per exact entry. Each
+  row independently binds the machine, entry, and realized contract identity
+  to three distinct downstream derivation obligations: Terminal-plus-target
+  stack closure, Terminal control under an explicit fuel schedule, and
+  selected-instruction machine-state footprint. A boundary callback use now
+  retains the exact selected row's machine, entry, actual-contract identity,
+  three axis identities, and envelope identity beside its calling-plan join
+  key. Target planning independently rejoins that receipt to the current
+  checked roster before carrying it in the bound placement and complete
+  placement identity; thunk/root/manifest replay and the existing callback
+  identity summary therefore reject a substituted checked resource anchor.
+  Structural replay rejects a missing, duplicate, reordered, cross-entry,
+  cross-machine, cross-contract, fused-axis, or fingerprint-drifted row. These
+  are compilation-local derivation anchors and carriage receipts, not numeric
+  ceilings, realized demands, backend footprints, provider receipts, or
+  installation authority. Resource-ceiling aggregation still stops after this
+  identity carriage: next join each axis to its independently derived Terminal,
+  target, and backend evidence. The
+  existing three-column external-root rows remain installation-owned and cannot
+  be promoted backward into callback admission. This does not relax the private-
+  placement decision or infer resources from `BoundaryEntryPlan`. Callback
+  thunk body lowering separately stops on multi-
   root activation planning: instruction selection currently emits one process-
   entry Source function over one root runtime-flow/dispatch/storage activation,
   while internal-call operations carry no ABI bridge. Add per-entry root
@@ -8587,8 +8670,8 @@ Remaining N6/N8 work:
   live on this exact bounded call shape. One optional binding names the
   exact guarded callee case, dense row position, obligation, public selector,
   atomic proposition, callee term/interface, distinct caller-local output term,
-  and source-handle-free result-root validity intersection. Codec format 31 /
-  vocabulary 33 retain those coordinates canonically. Validation rejects an
+  and source-handle-free result-root validity intersection. Codec format 33 /
+  vocabulary 35 retain those coordinates canonically. Validation rejects an
   unnamed or nonmatching row, identity/interface/dependency drift, missing
   producer provenance, duplicate output, and any unconditional contract-lane or
   evidence-projection reuse of the guarded output. Omission remains fact-only,
@@ -8644,10 +8727,31 @@ Remaining N6/N8 work:
   and evidence-interface identity. Concrete output strengthening may append
   rows only after that pinned prefix. Inherited checked facts now reuse the
   exact satisfier evidence terms, including their lane positions, rather than
-  dropping term custody. Generic trait/requirement/satisfier or proposition
-  telescopes, defaults, requirement calls, dispatch, Terminal publication, and
-  package exposure remain fail closed. Next extend defaults, static calls, and
-  runtime trait dispatch. A satisfying machine must assign every inherited
+  dropping term custody. The first static-call rung is also live. An attached
+  generic caller may select one exact concrete named conformance through an explicit
+  proof-static binder and call its direct concrete, non-generic, one-state Unit
+  requirement when that public requirement owns exactly one subjectless named
+  `requires` lane and one subjectless unconditional named `ensures` lane.
+  Monomorphization retains the call-local closed application and exact
+  requirement-to-realization row instead of replacing public proof identity
+  with the executable satisfier. Checked call composition imports only the
+  requirement contract, while the runtime call still targets the private
+  realization. The captured output is a fresh opaque requirement-level term:
+  satisfier-local input aliases, concrete strengthening selectors, forwarding
+  identity, and producer provenance do not escape. Terminal codec format 33 /
+  vocabulary 35 retain the normalized public requirement plus an independently
+  replayed owner-scoped closed-conformance/runtime realization link. The
+  verifier rejects row, application, identity, runtime-callee, or freshness
+  drift, and differential coverage keeps ABI, storage, operation shape, and
+  fixed fuel unchanged. Existing package review already publishes the exact
+  requirement lanes: incoming alias renames are compatible and outgoing
+  selector renames are breaking, while private call-site dispatch remains
+  implementation content. Generic trait/requirement/satisfier or proposition
+  telescopes, inherited requirement rows, defaults, direct named-conformance
+  calls, scalar results, subject-bearing lanes, additional unnamed or wider
+  public contract rows, free callers, and dynamic dispatch remain fail closed.
+  Next extend defaults, broader static
+  calls, and runtime trait dispatch. A satisfying machine must assign every inherited
   output on each applicable ordinary exit and may not omit, rename, weaken, or
   replace it. Direct concrete calls may retain authored strengthening; calls
   through the requirement expose only the pinned requirement surface.
@@ -8860,24 +8964,28 @@ Remaining N6/N8 work:
   canonical theorem identity and replay evidence. Ambient domain linking,
   visibility search, or an opaque solver verdict cannot supply that authority.
 
-  One deliberately non-executable stage-4 preparation seam is now live for
-  the narrow total direct `define` case. A separate all-or-nothing validation
-  API erases source handles into package-qualified callable/type identities,
-  parameter ordinals, contract-fact coordinates, the exact positional
-  relations and theorem expansion, eligibility certificates, and the direct
-  result edge. It admits only monomorphic one-state operations with empty
-  static telescopes, empty public/representative preconditions, no theorem
-  legality premises, immutable non-attached parameters, complete checked
-  purity/termination/crash evidence, and an exact direct result. Standalone
-  Terminal-Psi retention binds that aggregate with an exact length-delimited
-  canonical identity, and the independent verifier reconstructs the theorem
-  parameters, relation premises, representative applications, conclusion,
-  runtime correspondence, and result flow. The aggregate is intentionally
-  absent from `TerminalModule`, its codec, checked facts, and every executable
-  lane; ordinary validation still rejects every quotient request, and one
-  unsupported request prevents returning a partial batch. This closes a
-  source-erasure/replay prerequisite only: stage 3 is still incomplete at Q9,
-  while executable stage-4 admission and lowering remain open.
+  The deliberately non-executable stage-4 preparation seam is now module
+  canonical for the narrow total direct `define` case. A separate
+  all-or-nothing validation API erases source handles into package-qualified
+  callable/type identities, parameter ordinals, contract-fact coordinates,
+  the exact positional relations and theorem expansion, eligibility
+  certificates, and the direct result edge. It admits only monomorphic
+  one-state operations with empty static telescopes, empty public/
+  representative preconditions, no theorem legality premises, immutable
+  non-attached parameters, complete checked purity/termination/crash evidence,
+  and an exact direct result. `TerminalModule` owns the strictly ordered
+  retained rows; the canonical codec binds every certificate and rederives its
+  canonical identity on decode, and normal representation validation
+  independently reconstructs the theorem parameters, relation premises,
+  representative applications, conclusion, runtime correspondence, result
+  flow, row identity, uniqueness, and order. The explicit proof-only Terminal
+  producer attachment consumes only the complete extractor batch and is not an
+  ordinary `lower_machine` path. Ordinary validation still rejects every
+  quotient request, one unsupported request prevents returning a partial
+  batch, and no row owns a Terminal machine or executable operation. This
+  closes the module-retention prerequisite only: stage 3 is still incomplete
+  at Q9, while checked executable authorization and stage-4 operation/result
+  lowering remain open.
 
   Every request intentionally remains non-executable. Complete admission in
   bounded stages:
@@ -9680,7 +9788,7 @@ checked-result arithmetic decision listed below.
   - implement a durable deployment journal with `Prepared`, `Activated`, and
     `Finalized` restart reconciliation. The journal retains accepting envelope,
     evidence, admissions, slot history, and live-era state; it is not assumed
-    atomic with in-memory publication. The Rust on-ramp now owns the canonical
+    atomic with in-memory publication. The Rust product implementation now owns the canonical
     versioned journal record and typed `Prepared` -> `Activated` -> `Finalized`
     transitions. It retains exact slot/era/artifact, entry-plan/admission,
     accepting-envelope, disclosed-admission, and canonical installation

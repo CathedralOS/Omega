@@ -20,6 +20,7 @@ psi-symbols = { path = "../../foundation/psi-symbols" }
 psi-terminal = { path = "../../representations/psi-terminal" }
 psi-terminal-codec = { path = "../../semantics/psi-terminal-codec" }
 psi-terminal-verifier = { path = "../../semantics/psi-terminal-verifier" }
+psi-validation = { path = "../../semantics/psi-validation" }
 
 [dev-dependencies]
 psi-source-files-to-tokens = { path = "../psi-source-files-to-tokens" }
@@ -29,4 +30,5 @@ psi-terminal-fuel = { path = "../../semantics/psi-terminal-fuel" }
 psi-terminal-fixed-fuel = { path = "../../semantics/psi-terminal-fixed-fuel" }
 psi-terminal-interpreter = { path = "../../semantics/psi-terminal-interpreter" }
 psi-tokens-to-syntax-trees = { path = "../psi-tokens-to-syntax-trees" }
+psi-typed-trees = { path = "../../representations/psi-typed-trees" }
 psi-typed-trees-to-checked-trees = { path = "../psi-typed-trees-to-checked-trees" }

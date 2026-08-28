@@ -35,6 +35,9 @@ pub struct TerminalLiveRangePlan {
     pub fuel_schedule: FuelScheduleIdentity,
     pub target: NativeTarget,
     pub functions: Vec<TerminalFunctionLiveRanges>,
+    /// Structural-signature Unit functions remain distinct from the ordinary
+    /// VReg roster while retaining their exact architectural live ranges.
+    pub structural_unit_functions: Vec<TerminalFunctionLiveRanges>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -49,9 +52,10 @@ pub struct TerminalFunctionLiveRanges {
 }
 
 /// One exact instruction phase where a definition writes at the before point
-/// while all listed virtual inputs must still be readable. This is allocation
-/// hazard evidence and does not make the definition semantically live before
-/// its ordinary after-point definition.
+/// while all listed unrelated virtual inputs must still be readable. A tied
+/// source is represented only by [`TerminalDistinctUseDefTie`] and is not
+/// duplicated in `uses`. This is allocation hazard evidence and does not make
+/// the definition semantically live before its ordinary after-point definition.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TerminalEarlyClobberConstraint {
     pub block: TerminalSelectedBlockId,
@@ -188,6 +192,7 @@ pub struct TerminalLiveRangeValidationReceipt {
     pub(crate) optimization_unit: OptimizationUnitIdentity,
     pub(crate) fuel_schedule: FuelScheduleIdentity,
     pub(crate) function_count: usize,
+    pub(crate) structural_unit_function_count: usize,
     pub(crate) block_count: usize,
     pub(crate) virtual_register_count: usize,
     pub(crate) virtual_occurrence_count: usize,
@@ -223,6 +228,9 @@ impl TerminalLiveRangeValidationReceipt {
     }
     pub const fn function_count(self) -> usize {
         self.function_count
+    }
+    pub const fn structural_unit_function_count(self) -> usize {
+        self.structural_unit_function_count
     }
     pub const fn block_count(self) -> usize {
         self.block_count

@@ -532,6 +532,7 @@ fn call_with_arguments(
         receiver: ExpressionHandle::invalid(),
         target_symbol: SymbolHandle::invalid(),
         target: Identifier::generated_static("lift"),
+        static_requirement_dispatch: None,
         machine_arguments: Box::default(),
         quotient_operation: None,
         private_layout_operation: None,
@@ -1344,6 +1345,7 @@ fn selected_theorem_schema_fixture(
                     representative.state_symbol
                 },
                 target: Identifier::generated_static("representative"),
+                static_requirement_dispatch: None,
                 machine_arguments: vec![selected_carrier.clone()].into_boxed_slice(),
                 quotient_operation: None,
                 private_layout_operation: None,

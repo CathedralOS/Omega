@@ -105,7 +105,7 @@ fn layer_of(manifest_path: &str) -> Option<&'static str> {
     let m = |needle: &str| p.contains(needle);
 
     // Order matters: the most specific backend sub-groups are checked before
-    // the generic Omega on-ramp `backend/` catch-all.
+    // the generic Rust product `backend/` catch-all.
     if p.ends_with("/source/omega-rust/omega/Cargo.toml") {
         Some("product")
     } else if m("/source/omega-rust/omega/foundation/") || m("/source/omega-rust/psi/foundation/") {
@@ -132,7 +132,7 @@ fn layer_of(manifest_path: &str) -> Option<&'static str> {
     } else if m("/source/omega-rust/omega/backend/") {
         Some("backend")
     } else {
-        // This crate itself lives under the Omega on-ramp architecture/ and is not part
+        // This crate itself lives under the Rust product architecture/ and is not part
         // of the governed graph; ditto anything else unrecognised.
         None
     }
@@ -1699,16 +1699,16 @@ fn optimizer_register_models_remain_on_the_clean_terminal_isa_lane() {
 }
 
 #[test]
-fn language_canaries_remain_under_tests() {
+fn omega_language_cases_remain_under_tests() {
     let root = workspace_root();
     assert!(
         !root.join("canaries").exists(),
-        "language canaries belong under tests/canaries; do not recreate a root-level canaries tree"
+        "Omega language cases belong under tests/omega; do not recreate a generic root test tree"
     );
     for lane in ["pass", "fail"] {
         assert!(
-            root.join("tests/canaries").join(lane).is_dir(),
-            "tests/canaries/{lane} must remain the canonical {lane}-canary lane"
+            root.join("tests/omega").join(lane).is_dir(),
+            "tests/omega/{lane} must remain the canonical Omega {lane} lane"
         );
     }
 }
