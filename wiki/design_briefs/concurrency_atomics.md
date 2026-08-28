@@ -268,9 +268,11 @@ the exact success/failure orderings and permission axis preserved through
 access-plan authorization. Source admission for the single-attempt form is not
 implemented yet: the checked/source trees do not have its three-arm closed
 result carrier, so mapping it to the decisive prior-value carrier would lose
-`Uncommitted`. Until that engineering prerequisite exists, both the checked
-interpreter and the legacy native state-graph boundary reject any forged
-single-attempt operation before execution or lowering.
+`Uncommitted`. The case shapes are settled, but the public nominal result-type
+identities and case-qualification paths remain an owner language-design
+question. Until that identity is settled and the carrier is implemented, both
+the checked interpreter and the legacy native state-graph boundary reject any
+forged single-attempt operation before execution or lowering.
 It does not yet constitute the formal memory model: the language relations,
 their global-order axioms, and proofs that each target mapping refines them
 remain required.
