@@ -1513,6 +1513,18 @@ complete.
   closes that exported-boundary slice; the other visibility-dependent nested
   positions below remain.
 
+  Follow-up 2026-08-28: every source-backed right-hand constituent of a
+  transparent domain alias now contributes an exact `StaticPathSegment`
+  authored-selection row under the alias declaration's public/private
+  exposure. The row binds the resolved domain symbol and complete authored path
+  span; compiler `Carry::*` atoms remain outside nominal package selection.
+  A root-middle-leaf canary rejects a public alias of a transitive-only public
+  domain and accepts it after direct admission while retaining the exact public
+  row. This closes the domain-alias constituent slice; trait parents/requirements,
+  attached carriers, `satisfies` traits, quotient paths, establishment routes,
+  and nominal machine-parameter requirements remain separate exact-symbol
+  audits.
+
   This is deliberately not yet total admission. Toolchain-authored bodies are
   outside package admission. Capture now covers private state-body expression
   forms, nominal type references on public/private declaration surfaces,

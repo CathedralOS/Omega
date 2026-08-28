@@ -113,26 +113,56 @@ pub(crate) fn lower_domain_definition(
     domain: &resolved::domain::DomainDefinition,
 ) -> Result<typed::domain::DomainDefinition, Diagnostic> {
     let facts = lower_proof_facts(lowerer, domain.facts)?;
-    let alias = domain.alias.as_ref().map(|alias| {
+    let alias = if let Some(alias) = domain.alias.as_ref() {
         let constituents = alias
             .constituents
             .iter()
-            .map(|constituent| {
+            .map(|constituent| -> Result<_, Diagnostic> {
                 let mut path = HandleSpan::empty();
-                for member in lowerer.source_trees.domain_path_members(constituent.domain) {
+                let members = lowerer.source_trees.domain_path_members(constituent.domain);
+                let authored = members.iter().filter(|member| member.is_source_backed()).collect::<Vec<_>>();
+                if constituent.domain_symbol.is_valid()
+                    && let (Some(first), Some(last)) = (authored.first(), authored.last())
+                    && first.source_span().source_id == last.source_span().source_id
+                {
+                    let source_span = psi_source::SourceSpan::new(
+                        first.source_span().source_id,
+                        psi_source::Span::new(
+                            first.source_span().span.start,
+                            last.source_span().span.end,
+                        ),
+                    );
+                    lowerer
+                        .typed_trees
+                        .record_resolved_authored_declaration_selection_once(
+                            source_span,
+                            lowerer.type_reference_exposure,
+                            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::StaticPathSegment,
+                            constituent.domain_symbol,
+                        )
+                        .map_err(|error| {
+                            Diagnostic::error(format!(
+                                "failed to retain authored domain-alias selection: {error:?}"
+                            ))
+                            .with_source_span(source_span)
+                        })?;
+                }
+                for member in members {
                     lowerer
                         .typed_trees
                         .domain_path_members
                         .append_to_span(&mut path, lower_name(member));
                 }
-                typed::domain::DomainAliasConstituent {
+                Ok(typed::domain::DomainAliasConstituent {
                     domain: path,
                     domain_symbol: constituent.domain_symbol,
-                }
+                })
             })
-            .collect();
-        typed::domain::DomainAliasDefinition { constituents }
-    });
+            .collect::<Result<Vec<_>, _>>()?;
+        Some(typed::domain::DomainAliasDefinition { constituents })
+    } else {
+        None
+    };
     let mut typed_domain = typed::domain::DomainDefinition {
         symbol: domain.symbol,
         name: lower_name(&domain.name),
