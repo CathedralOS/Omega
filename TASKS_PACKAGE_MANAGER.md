@@ -678,9 +678,10 @@ complete.
   Successful Git resolution retains one observation per configured command
   rather than collapsing different roots or executable sets into a phase
   summary. Adversarial review found that Apple's imported `system.sb` grants
-  special-file writes and local socket access. The filesystem, network, and executable-path guarantee rows therefore
-  remain unavailable despite narrower canaries; only exact inherited rlimit
-  rows are currently enforced on macOS. This observation is configuration
+  special-file writes and local socket access. The importing phases'
+  filesystem, network, and executable-path guarantee rows therefore remain
+  unavailable despite narrower canaries; only exact inherited rlimit rows were
+  enforced at this milestone. This observation is configuration
   provenance, not proof of execution or the future source receipt. Exact
   executable content, environment/protocol sealing, command outcome,
   endpoint/credential trust, object authentication, snapshot publication, and
@@ -704,10 +705,12 @@ complete.
   noncanonical filenames, and known first-class or reflective routes to
   `import`; direct imports are found independent of line layout. The accepted
   subset requires exactly the direct edge `system.sb -> dyld-support.sb` and no
-  direct import in `dyld-support.sb`. Syntax outside that subset rejects. This
-  removes the line-matching assumption but does not claim a complete Seatbelt
+  direct import in `dyld-support.sb`. Noncanonical direct imports and known
+  indirect routes reject. This removes the line-matching assumption but does
+  not claim a complete Seatbelt
   parser or semantic proof that no dynamically constructed import exists;
-  strict filesystem/network/exec claims remain unavailable.
+  strict filesystem/network/exec claims for importing profiles remain
+  unavailable.
 
   Follow-up 2026-08-28: successful Git resolution now requires the retained
   policy-observation count to equal the bounded launch count and requires each
@@ -742,6 +745,17 @@ complete.
   closes the final successful-result join without pretending unavailable
   containment, endpoint/credential trust, transfer/resource accounting, or
   strict receipt acceptance exists.
+
+  Follow-up 2026-08-28: repository inspection no longer imports a mutable host
+  profile on macOS. Its compiler-generated default-deny Seatbelt policy admits
+  broad reads, the exact selected executable set, and write-data only to the
+  fixed `/dev/null` sink; it grants neither network nor ordinary filesystem
+  mutation. The inspection filesystem-write, network-denial, and executable-
+  path rows are now enforced. Native canaries prove the generated policy has no
+  import, deny ordinary writes and loopback TCP, reject unlisted executables,
+  and admit only the fixed null sink; a real exact-commit Git resolution proves
+  the complete inspection command vocabulary still works. Discovery,
+  initialization, and fetch retain their conservative imported-profile rows.
 
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build

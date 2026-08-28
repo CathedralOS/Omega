@@ -50,9 +50,10 @@ establish a required guarantee, strict resolution rejects; it never degrades to
 "best effort."
 
 The current macOS engineering floor now selects a fixed Seatbelt launcher and
-closed resolver phase; it is described below. It is deliberately narrower than
-the strict contract: reads remain broad and network authority is not yet bound
-to an endpoint. Linux and Windows do not yet have equivalent strict backends.
+closed resolver phase; it is described below. Repository inspection has no
+host-profile import and confines writes, network, and executable paths, but
+reads remain broad. Network phases do not bind outbound authority to an
+endpoint. Linux and Windows do not yet have equivalent strict backends.
 
 Network destination authority should eventually be brokered. SSH additionally
 requires a pinned client, explicit known-host evidence, empty user
@@ -110,24 +111,25 @@ package layer's exact executable content observations, environment/protocol
 sealing, endpoint and credential trust, bounded command result, object
 authentication, snapshot identity, and final publication verdict.
 
-The macOS profile imports Apple's mutable `system.sb`, which itself imports
-`dyld-support.sb` and currently grants special-file writes plus local syslog
-socket access. The backend now opens both exact root-owned regular files,
+The macOS discovery, initialization, and fetch profiles import Apple's mutable
+`system.sb`, which itself imports `dyld-support.sb` and currently grants
+special-file writes plus local syslog socket access. The backend opens both
+exact root-owned regular files,
 checks mode/ancestry/ACL custody, hashes their bounded bytes, and revalidates all
 facts around command construction. A bounded syntax scanner balances every
 list, ignores strings plus line and nested block comments, rejects ambiguous
 escaped/case-folded identifiers, nonliteral imports, and known first-class or
 reflective routes to `import`, and finds direct imports independent of line
 layout. It accepts exactly the direct edge `system.sb -> dyld-support.sb` and no
-direct import in `dyld-support.sb`; syntax outside that accepted subset rejects,
-and both content identities enter canonical backend observation. This is not a
-complete parser or semantic proof that no dynamically constructed import exists.
-The ordinary write,
-remote-network, and descendant-exec canaries remain useful enforcement tests,
-but filesystem, network, and executable-path strict guarantees remain
-unavailable because exact profile identity is not semantic proof that those
-grants are strict. Only the exact compiler-owned rlimit rows are presently
-`Enforced` on macOS.
+direct import in `dyld-support.sb`; noncanonical direct imports and known
+indirect routes reject, and both content identities enter canonical backend
+observation. This is not a complete parser or semantic proof that no dynamically
+constructed import exists. Repository inspection imports neither profile. Its
+compiler-generated default-deny policy grants broad reads, exact selected
+executables, and write-data only to `/dev/null`, so its filesystem-write,
+network-denial, and executable-path rows are `Enforced`. Those rows remain
+`Unavailable` in importing phases; the exact compiler-owned rlimit rows are
+`Enforced` throughout macOS.
 Before a successful Git result is issued, the package layer also requires the
 number of retained policy observations to equal the bounded launch count and
 requires every observation's executable path set to equal the paths backed by
@@ -424,12 +426,13 @@ extended-ACL allow entries, binds its content hash and file identity, and
 rechecks that identity before constructing each command. Compiler-fixed policy
 adds outbound network only during discovery and fetch, quarantine mutation
 during initialization and fetch, and exact process-exec paths for the verified
-Git/helper chain. Canaries prove the corresponding ordinary-path behavior on
-the tested host. The imported `system.sb` policy also permits broad reads,
-special-file writes, and local syslog socket access. Its exact closed two-file
-content graph is custody- and identity-bound, but this does not turn those
-semantics into strict confinement. Network phases also permit all outbound
-destinations rather than brokering the requested endpoint.
+Git/helper chain. Inspection imports no host profile and admits write-data only
+to `/dev/null`; real Git resolution and native canaries exercise that policy.
+The other phases import `system.sb`, which permits broad reads, special-file
+writes, and local syslog socket access. The accepted direct-import subset and
+exact two-file content identities are custody-bound, but this does not turn
+those imported semantics into strict confinement. Network phases also permit
+all outbound destinations rather than brokering the requested endpoint.
 `/usr/bin/sandbox-exec` is deprecated, so this is a concrete current-host floor,
 not a durable macOS backend promise. Failure to establish or revalidate the
 launcher rejects on macOS.

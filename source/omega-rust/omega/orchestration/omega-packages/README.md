@@ -244,14 +244,19 @@ Seatbelt write/network/exec canaries, inherited Unix rlimits, and opaque bounded
 policy observations issued from the same inputs as each native command.
 Successful Git resolutions retain every configured-command row, including the
 generated policy hash, exact numeric ceilings, normalized executable path set,
-and mutable root. The exact root-owned `system.sb`/`dyld-support.sb` bytes and
-accepted direct-import syntax now enter backend identity and are revalidated. A
+and mutable root. Repository inspection uses a host-profile-free default-deny
+policy with broad reads, exact selected executables, and write-data only to
+`/dev/null`; its write/network/exec rows are enforced. The other macOS phases
+still import the exact root-owned `system.sb`/`dyld-support.sb` bytes. Their
+identities and accepted direct-import syntax enter backend identity and are
+revalidated. A
 bounded scanner balances lists, excludes strings/comments, rejects ambiguous
 identifier and argument forms, discovers direct imports independent of line
 layout, and rejects known first-class and reflective routes to `import`. This
 is a fail-closed accepted syntax subset, not a complete Seatbelt semantics
-proof. The profiles' known special grants still leave filesystem/network/exec
-rows unavailable rather than overstated, and strict checking rejects them.
+proof. The imported profiles' known special grants leave those phases'
+filesystem/network/exec rows unavailable rather than overstated, and strict
+checking rejects them.
 Before returning a successful resolution, the package layer requires one observation
 per bounded launch and exact equality between every observed allowlist path and
 the verified content identities for Git, the selected transport, and fixed
