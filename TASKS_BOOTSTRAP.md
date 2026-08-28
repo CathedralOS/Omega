@@ -101,23 +101,27 @@ do not become additional lattice steps.
   `admission/witnesses/`, and optional generated refinement in `stress/`.
 - [ ] Collapse the remaining Beta validator obligation explosion into one
   canonical data format and small responsibility-specific modules. The current
-  188 fragments total 64,329 lines after replacing nine private instruction
+  188 fragments total 64,432 lines after replacing nine private instruction
   scans with shared exact effect-census logic and merging the duplicate
   selected-row decoders into the canonical exact-table helper. Push, pop,
   saved-frame prologue, optional frame allocation, parameter store, and
   epilogue bytes now have one responsibility-neutral exact decoder consumed by
   frame, effect, memory, expression, and stack-table checks; this reduced the
   ROOT tape from 79,124 to 77,889 bytes without changing either admitted
-  subject. Continue replacing shape/control/data/publication permutations with
-  data decoded by common checks; do not recreate cached viewers or debug-only
-  publication paths. In particular, reconstruct one canonical exact
-  instruction table that gives stable procedure/block/event identities to
-  artifact PCs. Semantic modules must consume those decoded identities and
-  shape facts rather than embedding copied byte offsets or instruction
-  sequences. Acceptance includes changing one shared compiler macro without
-  mechanically editing unrelated semantic fragments; the artifact-aware
-  decoder and the one relevant shape owner should expose the change to all
-  consumers.
+  subject. A shared fail-closed resolver now maps independently reconstructed
+  source procedure IDs to unique checked entry-block PCs; the expression family
+  consumes it instead of embedding 31 copied procedure-entry offsets. That
+  structural decoupling brings the current ROOT to 78,206 bytes and leaves 48
+  selected entry-PC literals outside the migrated family. Continue replacing
+  shape/control/data/publication permutations with data decoded by common
+  checks; do not recreate cached viewers or debug-only publication paths. In
+  particular, finish one canonical exact instruction table that gives stable
+  procedure/block/event identities to artifact PCs. Semantic modules must
+  consume those decoded identities and shape facts rather than embedding copied
+  byte offsets or instruction sequences. Acceptance includes changing one
+  shared compiler macro without mechanically editing unrelated semantic
+  fragments; the artifact-aware decoder and the one relevant shape owner should
+  expose the change to all consumers.
 - [x] Keep fuzzing, alternate checkers, large corpora, and exhaustive mutation
   campaigns as optional stress suites. The default lattice path must build each
   compiler and run only the bounded admission gates required for that edge.
@@ -156,8 +160,11 @@ and are not blocked on this ruling.
   existing Darwin ARM64 artifact-custody verifier now requires the exact Mach-O
   header policy, a closed load-command vocabulary, bounded dyld/symbol/link-edit
   ranges, ordered nonoverlapping segments, terminal `__LINKEDIT`, and the exact
-  dynamic dependency closure. It still has no canonical-execution artifact to
-  bind and deliberately grants no source-refinement authority.
+  dynamic dependency closure. Section custody is also closed over the reviewed
+  compiler/linker vocabulary with exact flags, zero final-image relocations,
+  ARM64 stub/pointer metadata, nonoverlap, and separation from load commands.
+  It still has no canonical-execution artifact to bind and deliberately grants
+  no source-refinement authority.
 - [x] Once no exact publication attempt is live, move Delta compiler admission
   documentation, receipts, drivers, and tests from the flat `source/delta/`
   root into `source/delta/compiler/validation/`. Keep the semantic elaboration
@@ -193,7 +200,12 @@ and are not blocked on this ruling.
   runs. The reordered seed is now adopted: handler source and disassembled
   handler tails remain byte-identical, Alpha provenance/conformance/assembler
   reproduction, seed diamonds/fuzzing, eighteen representative checker gates,
-  and all six principal Gamma gates pass.
+  and all six principal Gamma gates pass. The same audited seed now issues the
+  two adjacent operand-byte loads independently in the hot `mov`, `add`, `sub`,
+  `load`, and `store` handlers before advancing the program counter once. Seven
+  alternating million-call runs improved from a 2.497-second baseline mean to
+  2.287 seconds, about 8.4%, with unchanged result and Alpha semantics; the full
+  Alpha, seed-diamond/fuzz, checker, and six Gamma gate set passes.
   A bounds-checked 21-row branch-table prototype
   passed all Alpha gates and improved a synthetic two-opcode loop from
   4.28–4.29 seconds to 3.66 seconds, but regressed a representative million-call
@@ -293,6 +305,11 @@ of compiler modules that do not exercise target selection.
 - [x] Name the optional runner by the compiler lattice (`tools/lattice/`) and
   the product-language cases by their owner (`tests/omega/`); do not recreate
   generic `bootstrap/` or `canaries/` repository buckets.
+- [x] Keep checker and admission code beside its owner: the root checker under
+  `source/alpha/checker/`, Beta admission under
+  `source/beta/compiler/validation/`, and Delta publication/custody under
+  `source/delta/compiler/validation/`. Do not introduce a generic `assurance/`
+  or `refinement/` layer between compiler rungs.
 
 ## External contract dependencies
 
