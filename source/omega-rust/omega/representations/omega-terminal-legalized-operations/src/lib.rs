@@ -80,6 +80,20 @@ pub struct TerminalLegalizedOperationPlan {
     pub target: NativeTarget,
     pub entry: MachineId,
     pub functions: Vec<TerminalLegalizedFunction>,
+    /// Exact straight-line Unit functions admitted independently from the
+    /// scalar conditional recipe inventory. Keeping this roster distinct
+    /// prevents a value-less return from acquiring a fabricated scalar leaf.
+    pub unit_functions: Vec<TerminalLegalizedUnitFunction>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalLegalizedUnitFunction {
+    pub machine: MachineId,
+    pub attachment: Option<psi_core::StructuralTypeId>,
+    pub provenance: TerminalPsiProvenance,
+    pub entry_block: BlockId,
+    pub return_edge: EdgeId,
+    pub return_fuel: Vec<FuelSettlement>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -216,7 +230,7 @@ pub fn terminal_legalized_operation_plan_identity(
     plan: &TerminalLegalizedOperationPlan,
 ) -> TerminalLegalizedOperationPlanIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v4\0");
+    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v5\0");
     bytes.extend_from_slice(plan.terminal_psi.program_fingerprint.as_bytes());
     bytes.extend_from_slice(&plan.terminal_psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
@@ -266,6 +280,29 @@ pub fn terminal_legalized_operation_plan_identity(
         encode_bindings(&mut bytes, &function.branch_false_bindings);
         encode_leaf(&mut bytes, &function.when_true);
         encode_leaf(&mut bytes, &function.when_false);
+    }
+    encode_len(&mut bytes, plan.unit_functions.len());
+    for function in &plan.unit_functions {
+        bytes.extend_from_slice(&function.machine.get().to_le_bytes());
+        encode_option_id(
+            &mut bytes,
+            function.attachment.map(|attachment| attachment.get()),
+        );
+        encode_ids(
+            &mut bytes,
+            function
+                .provenance
+                .operations
+                .iter()
+                .map(|operation| operation.get()),
+        );
+        encode_ids(
+            &mut bytes,
+            function.provenance.edges.iter().map(|edge| edge.get()),
+        );
+        bytes.extend_from_slice(&function.entry_block.get().to_le_bytes());
+        bytes.extend_from_slice(&function.return_edge.get().to_le_bytes());
+        encode_fuel(&mut bytes, &function.return_fuel);
     }
     TerminalLegalizedOperationPlanIdentity::from_canonical_bytes(&bytes)
 }

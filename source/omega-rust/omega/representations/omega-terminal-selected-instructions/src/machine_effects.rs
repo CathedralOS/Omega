@@ -37,10 +37,11 @@ pub enum TerminalMachineSemanticKind {
     ExactSubtractI64Immediate,
     ConditionalBranchNonZero,
     ReturnI64,
+    ReturnUnit,
 }
 
 impl TerminalMachineSemanticKind {
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 10] = [
         Self::CompareI64Zero,
         Self::MaterializeI64,
         Self::CopyI64,
@@ -50,6 +51,7 @@ impl TerminalMachineSemanticKind {
         Self::ExactSubtractI64Immediate,
         Self::ConditionalBranchNonZero,
         Self::ReturnI64,
+        Self::ReturnUnit,
     ];
 }
 
@@ -64,6 +66,7 @@ pub enum TerminalMachineAlternativeFamily {
     ExactSubtractI64Immediate,
     ConditionalBranchNonZero,
     ReturnI64,
+    ReturnUnit,
 }
 
 impl From<TerminalMachineSemanticKind> for TerminalMachineAlternativeFamily {
@@ -80,6 +83,7 @@ impl From<TerminalMachineSemanticKind> for TerminalMachineAlternativeFamily {
             }
             TerminalMachineSemanticKind::ConditionalBranchNonZero => Self::ConditionalBranchNonZero,
             TerminalMachineSemanticKind::ReturnI64 => Self::ReturnI64,
+            TerminalMachineSemanticKind::ReturnUnit => Self::ReturnUnit,
         }
     }
 }
@@ -365,6 +369,7 @@ fn validate_declaration(
         semantic,
         TerminalMachineSemanticKind::ConditionalBranchNonZero
             | TerminalMachineSemanticKind::ReturnI64
+            | TerminalMachineSemanticKind::ReturnUnit
     ) {
         TerminalMachineBarrier::ControlFlow
     } else {
@@ -638,7 +643,7 @@ fn validate_applicability(
 }
 
 impl TerminalSelectedConstraintKeys {
-    pub const fn in_identity_order(self) -> [RegisterConstraintKey; 9] {
+    pub const fn in_identity_order(self) -> [RegisterConstraintKey; 10] {
         [
             self.materialize_i64,
             self.copy_i64,
@@ -649,6 +654,7 @@ impl TerminalSelectedConstraintKeys {
             self.compare_i64_zero,
             self.conditional_branch,
             self.return_i64,
+            self.return_unit,
         ]
     }
 
@@ -666,6 +672,7 @@ impl TerminalSelectedConstraintKeys {
             TerminalMachineSemanticKind::ExactSubtractI64Immediate => self.subtract_i64_immediate,
             TerminalMachineSemanticKind::ConditionalBranchNonZero => self.conditional_branch,
             TerminalMachineSemanticKind::ReturnI64 => self.return_i64,
+            TerminalMachineSemanticKind::ReturnUnit => self.return_unit,
         }
     }
 }

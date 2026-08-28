@@ -28,7 +28,7 @@ use crate::{
 };
 
 const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
-const VERSION: u32 = 3;
+const VERSION: u32 = 4;
 
 impl TerminalFixedViewCopyPlan {
     /// Canonical self-authenticating artifact. Decoding returns plain content;
@@ -478,6 +478,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: TerminalSelectedInstructionKind) {
         TerminalSelectedInstructionKind::ExactAddI64Immediate { .. } => 6,
         TerminalSelectedInstructionKind::ExactSubtractI64 { .. } => 7,
         TerminalSelectedInstructionKind::ExactSubtractI64Immediate { .. } => 8,
+        TerminalSelectedInstructionKind::ReturnUnit => 9,
     };
     bytes.push(tag);
     match kind {
@@ -548,6 +549,7 @@ fn decode_kind(
                 cursor.array()?,
             ),
         },
+        9 => TerminalSelectedInstructionKind::ReturnUnit,
         tag => {
             return Err(TerminalFixedViewCopyDecodeError::UnknownInstructionKind(
                 tag,
@@ -1097,10 +1099,10 @@ mod tests {
             Err(TerminalFixedViewCopyDecodeError::WrongMagic)
         );
         let mut wrong_version = encoded.clone();
-        wrong_version[8..12].copy_from_slice(&4_u32.to_le_bytes());
+        wrong_version[8..12].copy_from_slice(&5_u32.to_le_bytes());
         assert_eq!(
             TerminalFixedViewCopyPlan::decode(&wrong_version),
-            Err(TerminalFixedViewCopyDecodeError::UnsupportedVersion(4))
+            Err(TerminalFixedViewCopyDecodeError::UnsupportedVersion(5))
         );
         let mut policy_tag = encoded.clone();
         let policy_offset = 8 + 4 + 32 + (5 * 32);
@@ -1142,8 +1144,8 @@ mod tests {
             Err(TerminalFixedViewCopyDecodeError::UnknownFixedSite(9))
         );
         assert_eq!(
-            decode_kind(&mut Cursor::new(&[9])),
-            Err(TerminalFixedViewCopyDecodeError::UnknownInstructionKind(9))
+            decode_kind(&mut Cursor::new(&[10])),
+            Err(TerminalFixedViewCopyDecodeError::UnknownInstructionKind(10))
         );
     }
 }

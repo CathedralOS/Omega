@@ -15,8 +15,9 @@ use omega_terminal_selected_instructions::{
 
 use crate::{
     X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_COMPARE_I64_ZERO, X86_64_CONDITIONAL_BRANCH,
-    X86_64_COPY_I64, X86_64_MATERIALIZE_I64, X86_64_MICROSOFT_RETURN, X86_64_SUBTRACT_I64,
-    X86_64_SUBTRACT_I64_IMMEDIATE, X86_64_SYSTEM_V_RETURN,
+    X86_64_COPY_I64, X86_64_MATERIALIZE_I64, X86_64_MICROSOFT_RETURN, X86_64_MICROSOFT_RETURN_UNIT,
+    X86_64_SUBTRACT_I64, X86_64_SUBTRACT_I64_IMMEDIATE, X86_64_SYSTEM_V_RETURN,
+    X86_64_SYSTEM_V_RETURN_UNIT,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -89,6 +90,13 @@ fn selected_keys(
             return Err(X86_64TerminalMachineEffectCatalogValidationError::UnsupportedTargetAbi);
         }
     };
+    let return_unit = match target.object_format {
+        ObjectFormat::Elf => X86_64_SYSTEM_V_RETURN_UNIT,
+        ObjectFormat::Coff => X86_64_MICROSOFT_RETURN_UNIT,
+        ObjectFormat::MachO => {
+            return Err(X86_64TerminalMachineEffectCatalogValidationError::UnsupportedTargetAbi);
+        }
+    };
     Ok(TerminalSelectedConstraintKeys {
         materialize_i64: X86_64_MATERIALIZE_I64,
         copy_i64: X86_64_COPY_I64,
@@ -99,6 +107,7 @@ fn selected_keys(
         compare_i64_zero: X86_64_COMPARE_I64_ZERO,
         conditional_branch: X86_64_CONDITIONAL_BRANCH,
         return_i64,
+        return_unit,
     })
 }
 
@@ -171,6 +180,7 @@ fn declaration(
             semantic,
             TerminalMachineSemanticKind::ConditionalBranchNonZero
                 | TerminalMachineSemanticKind::ReturnI64
+                | TerminalMachineSemanticKind::ReturnUnit
         ) {
             TerminalMachineBarrier::ControlFlow
         } else {
@@ -228,7 +238,8 @@ fn encoded_effects(
         TerminalMachineSemanticKind::ExactSubtractI64 if variant == 0 => (vec![], vec![2]),
         TerminalMachineSemanticKind::ExactSubtractI64 => (vec![0, 1], vec![2]),
         TerminalMachineSemanticKind::ConditionalBranchNonZero
-        | TerminalMachineSemanticKind::ReturnI64 => (vec![], vec![]),
+        | TerminalMachineSemanticKind::ReturnI64
+        | TerminalMachineSemanticKind::ReturnUnit => (vec![], vec![]),
     };
     let (implicit_uses, implicit_defs, implicit_clobbers, memory, stack, trap, control) =
         match semantic {
@@ -265,7 +276,7 @@ fn encoded_effects(
                     TerminalMachineEncodedControlEffect::ConditionalRelativeBranchV1,
                 )
             }
-            TerminalMachineSemanticKind::ReturnI64 => {
+            TerminalMachineSemanticKind::ReturnI64 | TerminalMachineSemanticKind::ReturnUnit => {
                 let stack_pointer = view("rsp");
                 let mut defs = units("rsp");
                 defs.extend(units("rip"));
@@ -338,7 +349,9 @@ fn size(semantic: TerminalMachineSemanticKind) -> TerminalMachineSizeKnowledge {
                 maximum_bytes: Some(6),
             }
         }
-        TerminalMachineSemanticKind::ReturnI64 => TerminalMachineSizeKnowledge::ExactBytes(1),
+        TerminalMachineSemanticKind::ReturnI64 | TerminalMachineSemanticKind::ReturnUnit => {
+            TerminalMachineSizeKnowledge::ExactBytes(1)
+        }
         TerminalMachineSemanticKind::ExactSubtractI64 => {
             unreachable!("subtraction declares alias-dependent alternatives")
         }
@@ -433,12 +446,28 @@ mod tests {
                         row.semantic,
                         TerminalMachineSemanticKind::ConditionalBranchNonZero
                             | TerminalMachineSemanticKind::ReturnI64
+                            | TerminalMachineSemanticKind::ReturnUnit
                     ) {
                         TerminalMachineBarrier::ControlFlow
                     } else {
                         TerminalMachineBarrier::None
                     }
             }));
+            let return_unit = catalog
+                .declarations
+                .iter()
+                .find(|row| row.semantic == TerminalMachineSemanticKind::ReturnUnit)
+                .unwrap();
+            assert!(
+                constraints
+                    .catalog()
+                    .constraints
+                    .iter()
+                    .find(|row| row.key == return_unit.constraint)
+                    .unwrap()
+                    .operands
+                    .is_empty()
+            );
             assert!(
                 validate_x86_64_terminal_machine_effect_catalog(target, &constraints, catalog)
                     .is_ok()

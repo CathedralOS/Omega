@@ -21,7 +21,7 @@ use sha2::{Digest, Sha256};
 
 use crate::{StagedOptimizedAarch64CbnzFusion, StagedOptimizedPostAllocationMachinePlan};
 
-const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v3";
+const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v4";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TerminalSelectedFormEncodingIdentity([u8; 32]);
@@ -706,6 +706,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: TerminalMachineAlternati
         TerminalMachineAlternativeFamily::ConditionalBranchNonZero => 6,
         TerminalMachineAlternativeFamily::ReturnI64 => 7,
         TerminalMachineAlternativeFamily::ExactSubtractI64Immediate => 8,
+        TerminalMachineAlternativeFamily::ReturnUnit => 9,
     }]);
     hasher.update(alternative.variant.to_le_bytes());
 }

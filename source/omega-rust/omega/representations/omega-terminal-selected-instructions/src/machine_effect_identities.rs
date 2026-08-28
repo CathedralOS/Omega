@@ -14,7 +14,7 @@ pub fn terminal_machine_effect_catalog_identity(
     catalog: &TerminalMachineEffectCatalog,
 ) -> TerminalMachineEffectCatalogIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v2\0");
+    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v3\0");
     encode_target(&mut bytes, catalog.target);
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
     for key in catalog.selected_keys.in_identity_order() {
@@ -229,6 +229,7 @@ pub(crate) const fn semantic_kind_tag(kind: TerminalMachineSemanticKind) -> u8 {
         TerminalMachineSemanticKind::ConditionalBranchNonZero => 6,
         TerminalMachineSemanticKind::ReturnI64 => 7,
         TerminalMachineSemanticKind::ExactSubtractI64Immediate => 8,
+        TerminalMachineSemanticKind::ReturnUnit => 9,
     }
 }
 
@@ -243,6 +244,7 @@ pub(crate) const fn alternative_family_tag(family: TerminalMachineAlternativeFam
         TerminalMachineAlternativeFamily::ConditionalBranchNonZero => 6,
         TerminalMachineAlternativeFamily::ReturnI64 => 7,
         TerminalMachineAlternativeFamily::ExactSubtractI64Immediate => 8,
+        TerminalMachineAlternativeFamily::ReturnUnit => 9,
     }
 }
 
@@ -290,6 +292,10 @@ mod tests {
                 family: RegisterConstraintFamily::Return,
                 variant: 0,
             },
+            return_unit: RegisterConstraintKey {
+                family: RegisterConstraintFamily::Return,
+                variant: 1,
+            },
         }
     }
 
@@ -305,6 +311,7 @@ mod tests {
                 semantic,
                 TerminalMachineSemanticKind::ConditionalBranchNonZero
                     | TerminalMachineSemanticKind::ReturnI64
+                    | TerminalMachineSemanticKind::ReturnUnit
             ) {
                 TerminalMachineBarrier::ControlFlow
             } else {

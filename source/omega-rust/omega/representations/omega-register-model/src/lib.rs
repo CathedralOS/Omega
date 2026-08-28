@@ -199,6 +199,7 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     pub compare_i64_zero: RegisterConstraintKey,
     pub conditional_branch: RegisterConstraintKey,
     pub return_i64: RegisterConstraintKey,
+    pub return_unit: RegisterConstraintKey,
 }
 
 /// Dataflow access performed by an explicit instruction operand.
@@ -1603,6 +1604,7 @@ mod tests {
             compare_i64_zero: instruction_key(2),
             conditional_branch: instruction_key(3),
             return_i64: instruction_key(4),
+            return_unit: instruction_key(5),
         };
         let identity = target_register_environment_identity(
             target,
@@ -1687,6 +1689,10 @@ mod tests {
             },
             TargetRegisterEnvironmentConstraintKeys {
                 return_i64: instruction_key(14),
+                ..keys
+            },
+            TargetRegisterEnvironmentConstraintKeys {
+                return_unit: instruction_key(15),
                 ..keys
             },
         ] {
