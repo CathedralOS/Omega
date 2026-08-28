@@ -41,7 +41,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::{Duration, Instant, SystemTime};
 
-const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v16";
+const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v17";
 const GIT_CACHE_METADATA: &str = "source.identity";
 const GIT_CACHE_REPOSITORY: &str = "repository";
 const GIT_CACHE_SNAPSHOTS: &str = "snapshots";
@@ -8822,17 +8822,28 @@ fn sealed_git_command_with_route(
     };
     let network_transport =
         network_phase.then(|| executor.execution_transport.resolver_network_transport());
-    let (mut command, execution_policy_observation) = executor
-        .execution_backend
-        .command_with_endpoint_route_observation(
-            &executor.identity.path,
-            &helper_executables,
-            phase,
-            network_transport,
-            endpoint_route,
-            mutable_root,
-        )
-        .map_err(|error| SourceResolveError::GitExecutionBoundaryInvalid {
+    let command_result = if phase == ResolverExecutionPhase::RepositoryInspection {
+        executor
+            .execution_backend
+            .command_with_inspection_read_root_observation(
+                &executor.identity.path,
+                &helper_executables,
+                working_directory,
+            )
+    } else {
+        executor
+            .execution_backend
+            .command_with_endpoint_route_observation(
+                &executor.identity.path,
+                &helper_executables,
+                phase,
+                network_transport,
+                endpoint_route,
+                mutable_root,
+            )
+    };
+    let (mut command, execution_policy_observation) =
+        command_result.map_err(|error| SourceResolveError::GitExecutionBoundaryInvalid {
             message: error.to_string(),
         })?;
     executor

@@ -16,8 +16,12 @@ text or containment claims.
 ## Current enforcement
 
 - macOS uses compiler-fixed, self-contained Seatbelt profiles with no host-
-  profile imports. Every phase admits broad reads, the exact compiler-selected
-  executable set, and write-data to the fixed `/dev/null` sink. Initialization
+  profile imports. Initialization, discovery, and fetch admit broad reads.
+  Inspection instead admits broad metadata reads but confines file-content
+  reads to the exact retained bare repository, the selected executable set,
+  `/dev/null`, and the literal filesystem-root directory entry required by the
+  native process runtime. Every phase admits the exact compiler-selected
+  executable set and write-data to the fixed `/dev/null` sink. Initialization
   and fetch additionally admit writes only beneath the exact mutable quarantine
   root. Discovery and fetch require one explicit closed HTTPS or SSH authority
   and admit outbound network. Only SSH receives the OpenDirectory libinfo
@@ -43,8 +47,9 @@ text or containment claims.
   observation binding the backend, phase, closed network transport when
   applicable, sealed endpoint route when applicable, generated policy hash,
   numeric resource ceilings, primary executable path, normalized bounded
-  descendant-executable path set, mutable root, and every closed native guarantee as
-  `Enforced`, `Unavailable`, or `NotRequired`. There is no public constructor
+  descendant-executable path set, inspection content-read root when applicable,
+  mutable root, and every closed native guarantee as `Enforced`, `Unavailable`,
+  or `NotRequired`. There is no public constructor
   or decoder. This describes configuration, not execution or executable
   content identity; `require_strict` rejects the current backends.
 
@@ -62,7 +67,9 @@ compiler-authored environment fields carry the broker and target authorities,
 so package locator text never becomes shell syntax.
 
 This is engineering enforcement and one input to a future package-source
-receipt, not that accepted receipt. macOS still permits broad file reads in
-every phase; aggregate resource quotas and Linux/Windows endpoint confinement
-and strict backends remain package-manager tasks. See
+receipt, not that accepted receipt. macOS still permits broad reads outside
+inspection and broad metadata reads during inspection, so complete filesystem-
+read confinement remains unavailable. Aggregate resource quotas and
+Linux/Windows endpoint confinement and strict backends remain package-manager
+tasks. See
 [`SOURCE_RESOLVER_SECURITY.md`](../omega-packages/SOURCE_RESOLVER_SECURITY.md).

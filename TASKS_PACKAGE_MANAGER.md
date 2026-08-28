@@ -857,6 +857,19 @@ complete.
   descendant denial, not process-count or aggregate descendant-resource
   confinement for network phases.
 
+  Follow-up 2026-08-28: macOS repository inspection now requires an explicit
+  exact retained-repository read root. Its generated policy retains broad
+  metadata reads but confines file-content reads to that root, the exact
+  selected executable set, `/dev/null`, and the literal filesystem-root
+  directory entry empirically required by native process startup. The root is
+  validated separately from mutable authority and enters native policy-
+  observation schema 6. Canaries prove inside-root content succeeds while an
+  adjacent file and an in-root symlink escaping to it both fail; the supported
+  real Git inspection commands continue to pass. Git cache policy v17 prevents
+  reuse of repositories inspected under the broader policy. This is content-
+  read confinement for one phase, not complete `FilesystemReadsConfined`:
+  inspection metadata remains broad and the other phases retain broad reads.
+
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build
   machine may execute. Resolver custody is freshly revalidated first; the
