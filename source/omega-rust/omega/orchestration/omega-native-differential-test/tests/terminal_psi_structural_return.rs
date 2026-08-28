@@ -587,6 +587,43 @@ fn nominal_boolean_convergence_has_one_physical_cleanup_tail_on_all_targets() {
     let entry_machine = lowered.semantic_module.entry;
     let abstract_plan = lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
         .expect("shared convergence crosses Omega boundary");
+    let terminal_observations = terminal_entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match operation.kind {
+            OperationKind::BooleanStructuralField { source, field } => Some((source, field)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let optimizer_input =
+        lower_artifact_sections_for_optimization(&semantics, &proof, &AdmissionProfile::default())
+            .expect("shared convergence verifies for optimizer admission");
+    let verified_unit = build_verified_psi_optimization_unit(
+        optimizer_input,
+        TerminalFuelSchedule::CURRENT.identity(),
+    )
+    .expect("shared convergence retains its optimizer unit");
+    validate_verified_psi_optimization_unit(&verified_unit)
+        .expect("shared convergence satisfies optimizer structural-field replay");
+    let optimizer_entry = verified_unit
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == entry_machine)
+        .expect("optimizer unit retains the shared-convergence entry");
+    let optimizer_observations = optimizer_entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .filter_map(|node| match node.operation {
+            TerminalAbstractOperation::BooleanStructuralField { source, field, .. } => {
+                Some((source, field))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(optimizer_observations, terminal_observations);
 
     for case in target_cases() {
         let target_plan = lower_to_target_operations(&abstract_plan, case.target)

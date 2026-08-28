@@ -147,6 +147,20 @@ pub enum OptimizationUnitValidationError {
     StructuralCatalogMismatch {
         machine: Option<MachineId>,
     },
+    DuplicateStructuralPlaceRoot {
+        machine: MachineId,
+        kind: StructuralPlaceKind,
+    },
+    InvalidBooleanStructuralField {
+        machine: MachineId,
+        block: BlockId,
+        node: u32,
+    },
+    StructuralReturnSourceContractMismatch {
+        machine: MachineId,
+        block: BlockId,
+        node: u32,
+    },
     ScalarOperationContractMismatch {
         machine: MachineId,
         block: BlockId,
@@ -1330,6 +1344,7 @@ pub fn validate_psi_optimization_unit(
     for function in &unit.functions {
         validate_function(
             function,
+            unit.entry,
             &machines,
             &boundary_machines,
             &services,
@@ -1490,22 +1505,12 @@ fn boundary_structural_signature_matches(
     types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
     domains: &BTreeMap<StructuralDomainId, &psi_terminal::StructuralDomainDeclaration>,
 ) -> bool {
-    let mut places = BTreeSet::new();
-    boundary
-        .structural_parameters
-        .iter()
-        .enumerate()
-        .all(|(position, parameter)| {
-            u32::try_from(position).ok() == Some(parameter.position)
-                && places.insert(parameter.place)
-                && types.contains_key(&parameter.structural_type)
-                && structural_qualifications_match(
-                    parameter.structural_type,
-                    &parameter.qualifications,
-                    domains,
-                )
-        })
-        && boundary.requires.windows(2).all(|pair| pair[0] < pair[1])
+    structural_signature_matches(
+        &boundary.structural_parameters,
+        boundary.attachment,
+        types,
+        domains,
+    ) && boundary.requires.windows(2).all(|pair| pair[0] < pair[1])
         && boundary.requires.iter().all(|requirement| {
             boundary
                 .structural_parameters
@@ -1516,6 +1521,41 @@ fn boundary_structural_signature_matches(
                         .is_some_and(|domain| domain.carrier == parameter.structural_type)
                 })
         })
+}
+
+/// Replay Terminal's exact attachment/self half of a structural signature.
+/// An attachment need not have a runtime `self` parameter (provider-backed
+/// specializations deliberately do not), but every retained `self` must be the
+/// unique parameter whose type is that attachment.
+fn structural_signature_matches(
+    parameters: &[psi_terminal::StructuralParameterDeclaration],
+    attachment: Option<StructuralTypeId>,
+    types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
+    domains: &BTreeMap<StructuralDomainId, &psi_terminal::StructuralDomainDeclaration>,
+) -> bool {
+    if attachment.is_some_and(|attachment| !types.contains_key(&attachment)) {
+        return false;
+    }
+    let mut places = BTreeSet::new();
+    let mut saw_self = false;
+    parameters.iter().enumerate().all(|(position, parameter)| {
+        let self_matches = if parameter.is_self {
+            let matches = !saw_self && attachment == Some(parameter.structural_type);
+            saw_self = true;
+            matches
+        } else {
+            true
+        };
+        u32::try_from(position).ok() == Some(parameter.position)
+            && places.insert(parameter.place)
+            && types.contains_key(&parameter.structural_type)
+            && self_matches
+            && structural_qualifications_match(
+                parameter.structural_type,
+                &parameter.qualifications,
+                domains,
+            )
+    })
 }
 
 /// Independently check and construct one integer-evaluation rewrite.
@@ -10349,6 +10389,45 @@ fn validate_structural_type_graph(
     Ok(())
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum ValidatorStructuralRootKey {
+    Parameter(u32),
+    Result,
+    OperationResult(OperationId),
+    ByteSequenceLiteral(u32),
+    ProviderAttachment(
+        StructuralTypeId,
+        psi_core::StructuralFieldId,
+        BoundaryMachineId,
+    ),
+    TrivialAffineLocal(u32),
+}
+
+fn structural_root_key(kind: StructuralPlaceKind) -> ValidatorStructuralRootKey {
+    match kind {
+        StructuralPlaceKind::Parameter { position, .. } => {
+            ValidatorStructuralRootKey::Parameter(position)
+        }
+        StructuralPlaceKind::Result => ValidatorStructuralRootKey::Result,
+        StructuralPlaceKind::OperationResult { producer, .. } => {
+            ValidatorStructuralRootKey::OperationResult(producer)
+        }
+        StructuralPlaceKind::ByteSequenceLiteral {
+            declaration_ordinal,
+            ..
+        } => ValidatorStructuralRootKey::ByteSequenceLiteral(declaration_ordinal),
+        StructuralPlaceKind::ProviderAttachment {
+            attachment,
+            field,
+            boundary,
+        } => ValidatorStructuralRootKey::ProviderAttachment(attachment, field, boundary),
+        StructuralPlaceKind::TrivialAffineLocal {
+            declaration_ordinal,
+            ..
+        } => ValidatorStructuralRootKey::TrivialAffineLocal(declaration_ordinal),
+    }
+}
+
 fn validate_function_structural_catalog(
     function: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
@@ -10369,6 +10448,14 @@ fn validate_function_structural_catalog(
     let mismatch = || OptimizationUnitValidationError::StructuralCatalogMismatch {
         machine: Some(function.machine),
     };
+    if !structural_signature_matches(
+        &function.structural_parameters,
+        function.attachment,
+        types,
+        domains,
+    ) {
+        return Err(mismatch());
+    }
     let mut parameter_places = BTreeSet::new();
     for (position, parameter) in function.structural_parameters.iter().enumerate() {
         if parameter.position != u32::try_from(position).map_err(|_| mismatch())?
@@ -11060,6 +11147,7 @@ fn resolve_structural_path(
 
 fn validate_function(
     function: &PsiOptimizationFunction,
+    unit_entry: MachineId,
     functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
     boundary_machines: &BTreeMap<BoundaryMachineId, &psi_terminal::BoundaryMachineDeclaration>,
     services: &BTreeMap<ServiceId, &psi_terminal::ServiceDeclaration>,
@@ -11074,6 +11162,7 @@ fn validate_function(
     let (byte_sequence_literals, trivial_affine_locals) =
         validate_function_structural_catalog(function, structural_types, structural_domains)?;
     validate_provider_attachment_specialization(function, boundary_machines, structural_types)?;
+    validate_structural_root_uniqueness(function)?;
     let indexed_entry_claims = function
         .entry_claim_declarations
         .iter()
@@ -11231,6 +11320,7 @@ fn validate_function(
     validate_byte_sequence_literal_witnesses(function, &byte_sequence_literals)?;
     validate_trivial_affine_local_witnesses(function, &trivial_affine_locals)?;
     validate_structural_place_availability(function, &blocks, &predecessor)?;
+    validate_structural_root_operations(function, unit_entry, structural_types)?;
 
     validate_provenance_fuel_effects(function)?;
     validate_fact_index(function)?;
@@ -11245,6 +11335,23 @@ fn validate_function(
         structural_domains,
     )?;
     validate_places_and_claims(function)?;
+    Ok(())
+}
+
+fn validate_structural_root_uniqueness(
+    function: &PsiOptimizationFunction,
+) -> Result<(), OptimizationUnitValidationError> {
+    let mut roots = BTreeSet::new();
+    for place in &function.structural_places {
+        if !roots.insert(structural_root_key(place.kind)) {
+            return Err(
+                OptimizationUnitValidationError::DuplicateStructuralPlaceRoot {
+                    machine: function.machine,
+                    kind: place.kind,
+                },
+            );
+        }
+    }
     Ok(())
 }
 
@@ -11463,6 +11570,218 @@ fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
         _ => {}
     }
     inputs
+}
+
+/// Validate the closed root roles of structural observations and structural
+/// returns. This is deliberately independent of the later full ownership walk:
+/// it establishes which catalog roots may participate and replays every
+/// observation invariant still representable after Terminal-to-Omega lowering.
+fn validate_structural_root_operations(
+    function: &PsiOptimizationFunction,
+    unit_entry: MachineId,
+    structural_types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
+) -> Result<(), OptimizationUnitValidationError> {
+    let place_kinds = function
+        .structural_places
+        .iter()
+        .map(|place| (place.id, place.kind))
+        .collect::<BTreeMap<_, _>>();
+    let observations = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .filter_map(|node| match node.operation {
+            O::BooleanStructuralField { source, field, .. } => Some((source, field)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    for block in &function.blocks {
+        for (node_index, node) in block.nodes.iter().enumerate() {
+            let node_index = u32::try_from(node_index).expect("unit node index fits u32");
+            match &node.operation {
+                O::BooleanStructuralField { source, field, .. } => {
+                    let valid = function.machine == unit_entry
+                        && observations
+                            .iter()
+                            .all(|candidate| candidate == &(*source, *field))
+                        && function.content_entry_claims.is_empty()
+                        && function
+                            .parameters
+                            .iter()
+                            .any(|parameter| parameter.scalar_type == ScalarType::Boolean)
+                        && function
+                            .entry_claim_declarations
+                            .iter()
+                            .all(|claim| claim.input != *source)
+                        && matches!(
+                            place_kinds.get(source),
+                            Some(StructuralPlaceKind::Parameter { .. })
+                        )
+                        && function
+                            .structural_parameters
+                            .iter()
+                            .find(|parameter| parameter.place == *source)
+                            .is_some_and(|parameter| {
+                                parameter.multiplicity
+                                    == psi_terminal::StructuralMultiplicity::Affine
+                                    && parameter.qualifications.is_empty()
+                                    && parameter.access
+                                        != psi_terminal::StructuralAccess::WriteOnlyBorrow
+                                    && function.structural_places.iter().any(|place| {
+                                        place.id == parameter.place
+                                            && matches!(
+                                                place.kind,
+                                                StructuralPlaceKind::Parameter {
+                                                    position,
+                                                    is_self,
+                                                } if position == parameter.position
+                                                    && is_self == parameter.is_self
+                                            )
+                                    })
+                                    && structural_types
+                                        .get(&parameter.structural_type)
+                                        .is_some_and(|declaration| {
+                                            let psi_terminal::StructuralTypeShape::Record {
+                                                fields,
+                                            } = &declaration.shape
+                                            else {
+                                                return false;
+                                            };
+                                            fields.iter().any(|candidate| {
+                                                candidate.id == *field
+                                                    && !candidate.relevance.is_erased()
+                                                    && candidate.field_type
+                                                        == psi_terminal::StructuralFieldType::Scalar(
+                                                            ScalarType::Boolean,
+                                                        )
+                                            })
+                                        })
+                            })
+                        && every_scalar_return_nominally_cleans(function, *source);
+                    if !valid {
+                        return Err(
+                            OptimizationUnitValidationError::InvalidBooleanStructuralField {
+                                machine: function.machine,
+                                block: block.id,
+                                node: node_index,
+                            },
+                        );
+                    }
+                }
+                O::ReturnStructural { source, .. } => {
+                    let Some(signature) = function.result.structural() else {
+                        return Err(
+                            OptimizationUnitValidationError::StructuralReturnSourceContractMismatch {
+                                machine: function.machine,
+                                block: block.id,
+                                node: node_index,
+                            },
+                        );
+                    };
+                    let source_contract = function
+                        .structural_parameters
+                        .iter()
+                        .find(|parameter| {
+                            parameter.place == *source
+                                && matches!(
+                                    place_kinds.get(source),
+                                    Some(StructuralPlaceKind::Parameter { position, is_self })
+                                        if *position == parameter.position
+                                            && *is_self == parameter.is_self
+                                )
+                        })
+                        .map(|parameter| {
+                            (
+                                parameter.structural_type,
+                                parameter.multiplicity,
+                                parameter.qualifications.as_slice(),
+                            )
+                        })
+                        .or_else(|| {
+                            let Some(StructuralPlaceKind::OperationResult {
+                                producer,
+                                structural_type,
+                            }) = place_kinds.get(source).copied()
+                            else {
+                                return None;
+                            };
+                            function
+                                .blocks
+                                .iter()
+                                .flat_map(|block| &block.nodes)
+                                .find_map(|node| match &node.operation {
+                                    O::CallStructural {
+                                        psi_operation,
+                                        result,
+                                        ..
+                                    } if *psi_operation == producer
+                                        && result.place == *source
+                                        && result.structural_type == structural_type =>
+                                    {
+                                        Some((
+                                            result.structural_type,
+                                            result.multiplicity,
+                                            result.qualifications.as_slice(),
+                                        ))
+                                    }
+                                    _ => None,
+                                })
+                        });
+                    if source_contract.is_none_or(
+                        |(structural_type, multiplicity, qualifications)| {
+                            structural_type != signature.structural_type
+                                || multiplicity != signature.multiplicity
+                                || qualifications != signature.qualifications.as_slice()
+                        },
+                    ) {
+                        return Err(
+                            OptimizationUnitValidationError::StructuralReturnSourceContractMismatch {
+                                machine: function.machine,
+                                block: block.id,
+                                node: node_index,
+                            },
+                        );
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    Ok(())
+}
+
+fn every_scalar_return_nominally_cleans(
+    function: &PsiOptimizationFunction,
+    source: PlaceId,
+) -> bool {
+    let mut saw_return = false;
+    for operation in function
+        .blocks
+        .iter()
+        .filter_map(|block| block.nodes.last().map(|node| &node.operation))
+    {
+        match operation {
+            O::Return {
+                cleanup_actions, ..
+            } => {
+                saw_return = true;
+                if !cleanup_actions.iter().any(|action| {
+                    matches!(
+                        action,
+                        psi_terminal::TerminalAffineCleanupAction::InvokeNominal(cleanup)
+                            if cleanup.place == source
+                    )
+                }) {
+                    return false;
+                }
+            }
+            O::ReturnUnit { .. } | O::ReturnStructural { .. } => return false,
+            O::Jump { .. } | O::Conditional { .. } | O::Crash { .. } => {}
+            _ => return false,
+        }
+    }
+    saw_return
 }
 
 fn reconstruct_fact_index(function: &PsiOptimizationFunction) -> Vec<OptimizationFact> {
@@ -13992,6 +14311,97 @@ mod tests {
             .unwrap()
     }
 
+    fn boolean_structural_field_unit() -> PsiOptimizationUnit {
+        let machine = id(4_700, MachineId::new);
+        let block = id(4_701, BlockId::new);
+        let place = id(4_702, PlaceId::new);
+        let structural_type = id(4_703, StructuralTypeId::new);
+        let field = id(4_704, psi_core::StructuralFieldId::new);
+        let scalar_parameter = id(4_705, ValueId::new);
+        let result = id(4_706, ValueId::new);
+        reconstruct_psi_optimization_unit_seed(
+            &TerminalAbstractOperationPlan {
+                terminal_psi: TerminalPsiIdentity {
+                    vocabulary_marker: VocabularyMarker::CURRENT,
+                    program_fingerprint: SemanticFingerprint::from_bytes([47; 32]),
+                },
+                entry: machine,
+                structural_types: vec![psi_terminal::StructuralTypeDeclaration {
+                    id: structural_type,
+                    identity: "validation::observed-affine-record".into(),
+                    shape: psi_terminal::StructuralTypeShape::Record {
+                        fields: vec![psi_terminal::StructuralFieldDeclaration {
+                            id: field,
+                            identity: "ready".into(),
+                            relevance: psi_terminal::BindingRelevance::Relevant,
+                            field_type: psi_terminal::StructuralFieldType::Scalar(
+                                ScalarType::Boolean,
+                            ),
+                        }],
+                    },
+                }],
+                boundary_machines: Vec::new(),
+                provider_candidates: Vec::new(),
+                functions: vec![TerminalAbstractFunction {
+                    machine,
+                    attachment: None,
+                    entry: block,
+                    parameters: vec![TerminalAbstractParameter {
+                        value: scalar_parameter,
+                        scalar_type: ScalarType::Boolean,
+                    }],
+                    structural_parameters: vec![psi_terminal::StructuralParameterDeclaration {
+                        place,
+                        position: 0,
+                        is_self: false,
+                        structural_type,
+                        multiplicity: psi_terminal::StructuralMultiplicity::Affine,
+                        access: psi_terminal::StructuralAccess::Owned,
+                        qualifications: Vec::new(),
+                    }],
+                    result: TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
+                        value: result,
+                        scalar_type: ScalarType::Boolean,
+                    }),
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![TerminalAbstractBlockEntry {
+                        block,
+                        parameters: Vec::new(),
+                        operation_offset: 0,
+                    }],
+                    operations: vec![
+                        TerminalAbstractOperation::BooleanStructuralField {
+                            psi_operation: id(4_707, OperationId::new),
+                            result,
+                            source: place,
+                            field,
+                        },
+                        TerminalAbstractOperation::Return {
+                            psi_edge: id(4_708, EdgeId::new),
+                            result,
+                            value: result,
+                            scalar_type: ScalarType::Boolean,
+                            cleanup_actions: vec![
+                                psi_terminal::TerminalAffineCleanupAction::InvokeNominal(
+                                    psi_terminal::NominalAffineCleanup {
+                                        place,
+                                        structural_type,
+                                        cleanup_machine: id(4_709, MachineId::new),
+                                        cleanup_receiver: None,
+                                        requirement_obligations: Vec::new(),
+                                    },
+                                ),
+                            ],
+                        },
+                    ],
+                }],
+            },
+            FuelScheduleIdentity::new(1).expect("nonzero schedule"),
+        )
+        .expect("Boolean structural-field fixture")
+    }
+
     fn content_entry_claim(claim: ClaimId, root: PlaceId) -> psi_terminal::ContentEntryClaim {
         let algebra = psi_core::ContentAlgebra {
             kind: psi_core::ContentAlgebraKind::CountedQuantity,
@@ -14351,6 +14761,23 @@ mod tests {
         let structural_type = id(354, psi_core::StructuralTypeId::new);
         let callee_result = id(355, PlaceId::new);
         let call_result = id(356, PlaceId::new);
+        let caller_input = id(360, PlaceId::new);
+        let callee_input = id(361, PlaceId::new);
+        let claim = id(1, ClaimId::new);
+        let parameter = |place| psi_terminal::StructuralParameterDeclaration {
+            place,
+            position: 0,
+            is_self: false,
+            structural_type,
+            multiplicity: psi_terminal::StructuralMultiplicity::Linear,
+            access: psi_terminal::StructuralAccess::Owned,
+            qualifications: Vec::new(),
+        };
+        let entry_claim = |input| psi_terminal::EntryClaim {
+            claim,
+            input,
+            path: Vec::new(),
+        };
         let plan = TerminalAbstractOperationPlan {
             terminal_psi: TerminalPsiIdentity {
                 vocabulary_marker: VocabularyMarker::CURRENT,
@@ -14372,9 +14799,9 @@ mod tests {
                     attachment: None,
                     entry: caller_block,
                     parameters: Vec::new(),
-                    structural_parameters: Vec::new(),
+                    structural_parameters: vec![parameter(caller_input)],
                     result: TerminalAbstractFunctionResult::Unit,
-                    entry_claims: Vec::new(),
+                    entry_claims: vec![entry_claim(caller_input)],
                     published_service_ceiling: Vec::new(),
                     block_entries: vec![TerminalAbstractBlockEntry {
                         block: caller_block,
@@ -14387,14 +14814,29 @@ mod tests {
                             result: psi_terminal::StructuralOperationResult {
                                 place: call_result,
                                 structural_type,
-                                multiplicity: psi_terminal::StructuralMultiplicity::Unrestricted,
+                                multiplicity: psi_terminal::StructuralMultiplicity::Linear,
                                 qualifications: Vec::new(),
-                                claims: Vec::new(),
+                                claims: vec![psi_terminal::StructuralResultClaimBinding {
+                                    claim,
+                                    path: Vec::new(),
+                                }],
                             },
                             callee,
-                            structural_arguments: Vec::new(),
-                            claim_transfers: Vec::new(),
-                            returned_claim_transfers: Vec::new(),
+                            structural_arguments: vec![psi_terminal::StructuralArgument {
+                                place: caller_input,
+                                path: Vec::new(),
+                                access: psi_terminal::StructuralAccess::Owned,
+                            }],
+                            claim_transfers: vec![psi_terminal::ClaimTransfer {
+                                claim,
+                                argument_index: 0,
+                            }],
+                            returned_claim_transfers: vec![
+                                psi_terminal::StructuralResultClaimTransfer {
+                                    callee_claim: claim,
+                                    caller_claim: claim,
+                                },
+                            ],
                         },
                         TerminalAbstractOperation::ReturnUnit {
                             psi_edge: id(358, EdgeId::new),
@@ -14407,16 +14849,16 @@ mod tests {
                     attachment: None,
                     entry: callee_block,
                     parameters: Vec::new(),
-                    structural_parameters: Vec::new(),
+                    structural_parameters: vec![parameter(callee_input)],
                     result: TerminalAbstractFunctionResult::Structural(
                         psi_terminal::StructuralResultDeclaration {
                             place: callee_result,
                             structural_type,
-                            multiplicity: psi_terminal::StructuralMultiplicity::Unrestricted,
+                            multiplicity: psi_terminal::StructuralMultiplicity::Linear,
                             qualifications: Vec::new(),
                         },
                     ),
-                    entry_claims: Vec::new(),
+                    entry_claims: vec![entry_claim(callee_input)],
                     published_service_ceiling: Vec::new(),
                     block_entries: vec![TerminalAbstractBlockEntry {
                         block: callee_block,
@@ -14425,8 +14867,8 @@ mod tests {
                     }],
                     operations: vec![TerminalAbstractOperation::ReturnStructural {
                         psi_edge: id(359, EdgeId::new),
-                        source: callee_result,
-                        returned_claims: Vec::new(),
+                        source: callee_input,
+                        returned_claims: vec![claim],
                         trivial_affine_locals: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     }],
@@ -15043,24 +15485,54 @@ mod tests {
         let callee_result = id(379, PlaceId::new);
         let caller_result = id(380, PlaceId::new);
         let call_result = id(381, PlaceId::new);
+        let caller_input = id(389, PlaceId::new);
+        let callee_input = id(390, PlaceId::new);
+        let claim = id(1, ClaimId::new);
+        let parameter = |place| psi_terminal::StructuralParameterDeclaration {
+            place,
+            position: 0,
+            is_self: false,
+            structural_type,
+            multiplicity: psi_terminal::StructuralMultiplicity::Linear,
+            access: psi_terminal::StructuralAccess::Owned,
+            qualifications: Vec::new(),
+        };
+        let entry_claim = |input| psi_terminal::EntryClaim {
+            claim,
+            input,
+            path: Vec::new(),
+        };
         let call = || TerminalAbstractOperation::CallStructural {
             psi_operation: id(382, OperationId::new),
             result: psi_terminal::StructuralOperationResult {
                 place: call_result,
                 structural_type,
-                multiplicity: psi_terminal::StructuralMultiplicity::Unrestricted,
+                multiplicity: psi_terminal::StructuralMultiplicity::Linear,
                 qualifications: Vec::new(),
-                claims: Vec::new(),
+                claims: vec![psi_terminal::StructuralResultClaimBinding {
+                    claim,
+                    path: Vec::new(),
+                }],
             },
             callee,
-            structural_arguments: Vec::new(),
-            claim_transfers: Vec::new(),
-            returned_claim_transfers: Vec::new(),
+            structural_arguments: vec![psi_terminal::StructuralArgument {
+                place: caller_input,
+                path: Vec::new(),
+                access: psi_terminal::StructuralAccess::Owned,
+            }],
+            claim_transfers: vec![psi_terminal::ClaimTransfer {
+                claim,
+                argument_index: 0,
+            }],
+            returned_claim_transfers: vec![psi_terminal::StructuralResultClaimTransfer {
+                callee_claim: claim,
+                caller_claim: claim,
+            }],
         };
         let return_result = |edge| TerminalAbstractOperation::ReturnStructural {
             psi_edge: edge,
             source: call_result,
-            returned_claims: Vec::new(),
+            returned_claims: vec![claim],
             trivial_affine_locals: Vec::new(),
             trivial_affine_discards: Vec::new(),
         };
@@ -15195,16 +15667,16 @@ mod tests {
                         value: condition,
                         scalar_type: ScalarType::Boolean,
                     }],
-                    structural_parameters: Vec::new(),
+                    structural_parameters: vec![parameter(caller_input)],
                     result: TerminalAbstractFunctionResult::Structural(
                         psi_terminal::StructuralResultDeclaration {
                             place: caller_result,
                             structural_type,
-                            multiplicity: psi_terminal::StructuralMultiplicity::Unrestricted,
+                            multiplicity: psi_terminal::StructuralMultiplicity::Linear,
                             qualifications: Vec::new(),
                         },
                     ),
-                    entry_claims: Vec::new(),
+                    entry_claims: vec![entry_claim(caller_input)],
                     published_service_ceiling: Vec::new(),
                     block_entries,
                     operations,
@@ -15214,16 +15686,16 @@ mod tests {
                     attachment: None,
                     entry: callee_block,
                     parameters: Vec::new(),
-                    structural_parameters: Vec::new(),
+                    structural_parameters: vec![parameter(callee_input)],
                     result: TerminalAbstractFunctionResult::Structural(
                         psi_terminal::StructuralResultDeclaration {
                             place: callee_result,
                             structural_type,
-                            multiplicity: psi_terminal::StructuralMultiplicity::Unrestricted,
+                            multiplicity: psi_terminal::StructuralMultiplicity::Linear,
                             qualifications: Vec::new(),
                         },
                     ),
-                    entry_claims: Vec::new(),
+                    entry_claims: vec![entry_claim(callee_input)],
                     published_service_ceiling: Vec::new(),
                     block_entries: vec![TerminalAbstractBlockEntry {
                         block: callee_block,
@@ -15232,8 +15704,8 @@ mod tests {
                     }],
                     operations: vec![TerminalAbstractOperation::ReturnStructural {
                         psi_edge: id(388, EdgeId::new),
-                        source: callee_result,
-                        returned_claims: Vec::new(),
+                        source: callee_input,
+                        returned_claims: vec![claim],
                         trivial_affine_locals: Vec::new(),
                         trivial_affine_discards: Vec::new(),
                     }],
@@ -16974,6 +17446,340 @@ mod tests {
     }
 
     #[test]
+    fn structural_signatures_replay_attachment_and_unique_self_legality() {
+        let mut attached = structural_call_unit();
+        let structural_type = attached.structural_types[0].id;
+        attached.functions[0].attachment = Some(structural_type);
+        attached.functions[0].structural_parameters[0].is_self = true;
+        let StructuralPlaceKind::Parameter { is_self, .. } =
+            &mut attached.functions[0].structural_places[0].kind
+        else {
+            panic!("fixture retains its parameter root")
+        };
+        *is_self = true;
+        refresh_identity(&mut attached);
+        validate_psi_optimization_unit(&attached)
+            .expect("one attachment-typed self parameter is canonical");
+
+        let mut self_without_attachment = attached.clone();
+        self_without_attachment.functions[0].attachment = None;
+        refresh_identity(&mut self_without_attachment);
+        assert!(matches!(
+            validate_psi_optimization_unit(&self_without_attachment),
+            Err(OptimizationUnitValidationError::StructuralCatalogMismatch { machine: Some(_) })
+        ));
+
+        let mut mismatched_self = attached.clone();
+        let alternate = id(4_710, StructuralTypeId::new);
+        mismatched_self
+            .structural_types
+            .push(psi_terminal::StructuralTypeDeclaration {
+                id: alternate,
+                identity: "validation::alternate-attachment".into(),
+                shape: psi_terminal::StructuralTypeShape::Record { fields: Vec::new() },
+            });
+        mismatched_self.functions[0].attachment = Some(alternate);
+        refresh_identity(&mut mismatched_self);
+        assert!(matches!(
+            validate_psi_optimization_unit(&mismatched_self),
+            Err(OptimizationUnitValidationError::StructuralCatalogMismatch { machine: Some(_) })
+        ));
+
+        let mut duplicate_self = attached.clone();
+        let mut second = duplicate_self.functions[0].structural_parameters[0].clone();
+        second.place = id(4_711, PlaceId::new);
+        second.position = 1;
+        duplicate_self.functions[0]
+            .structural_parameters
+            .push(second.clone());
+        duplicate_self.functions[0].structural_places.push(
+            psi_terminal::StructuralPlaceDeclaration {
+                id: second.place,
+                kind: StructuralPlaceKind::Parameter {
+                    position: 1,
+                    is_self: true,
+                },
+            },
+        );
+        refresh_identity(&mut duplicate_self);
+        assert!(matches!(
+            validate_psi_optimization_unit(&duplicate_self),
+            Err(OptimizationUnitValidationError::StructuralCatalogMismatch { machine: Some(_) })
+        ));
+
+        let mut unknown_function_attachment = structural_call_unit();
+        unknown_function_attachment.functions[0].attachment =
+            Some(id(4_799, StructuralTypeId::new));
+        refresh_identity(&mut unknown_function_attachment);
+        assert!(matches!(
+            validate_psi_optimization_unit(&unknown_function_attachment),
+            Err(OptimizationUnitValidationError::StructuralCatalogMismatch { machine: Some(_) })
+        ));
+
+        let mut boundary_self = byte_literal_boundary_unit();
+        let boundary_type =
+            boundary_self.boundary_machines[0].structural_parameters[0].structural_type;
+        boundary_self.boundary_machines[0].attachment = Some(boundary_type);
+        boundary_self.boundary_machines[0].structural_parameters[0].is_self = true;
+        refresh_identity(&mut boundary_self);
+        validate_psi_optimization_unit(&boundary_self)
+            .expect("boundary self uses the exact known attachment type");
+
+        boundary_self.boundary_machines[0].attachment = Some(id(4_798, StructuralTypeId::new));
+        refresh_identity(&mut boundary_self);
+        assert_eq!(
+            validate_psi_optimization_unit(&boundary_self),
+            Err(OptimizationUnitValidationError::StructuralCatalogMismatch { machine: None })
+        );
+    }
+
+    #[test]
+    fn logical_structural_roots_are_unique_beyond_place_identity() {
+        let mut duplicate = structural_result_call_unit();
+        let first_call = duplicate.functions[0].blocks[0].nodes[0].clone();
+        let (psi_operation, result_type) = match &first_call.operation {
+            O::CallStructural {
+                psi_operation,
+                result,
+                ..
+            } => (*psi_operation, result.structural_type),
+            _ => panic!("fixture begins with one structural call"),
+        };
+        let duplicate_place = id(4_712, PlaceId::new);
+        let mut duplicate_call = first_call;
+        let O::CallStructural {
+            result: duplicate_result,
+            ..
+        } = &mut duplicate_call.operation
+        else {
+            unreachable!()
+        };
+        duplicate_result.place = duplicate_place;
+        duplicate.functions[0].blocks[0]
+            .nodes
+            .insert(1, duplicate_call);
+        duplicate.functions[0]
+            .structural_places
+            .push(psi_terminal::StructuralPlaceDeclaration {
+                id: duplicate_place,
+                kind: StructuralPlaceKind::OperationResult {
+                    producer: psi_operation,
+                    structural_type: result_type,
+                },
+            });
+        refresh_function_derivatives(&mut duplicate, 0);
+        assert!(matches!(
+            validate_psi_optimization_unit(&duplicate),
+            Err(
+                OptimizationUnitValidationError::DuplicateStructuralPlaceRoot {
+                    machine: _,
+                    kind: StructuralPlaceKind::OperationResult { .. },
+                }
+            )
+        ));
+    }
+
+    #[test]
+    fn boolean_structural_field_replays_terminal_root_and_cleanup_contract() {
+        let baseline = boolean_structural_field_unit();
+        validate_psi_optimization_unit(&baseline)
+            .expect("exact affine readable Boolean observation validates");
+        let invalid = |mut candidate: PsiOptimizationUnit| {
+            refresh_identity(&mut candidate);
+            assert!(matches!(
+                validate_psi_optimization_unit(&candidate),
+                Err(OptimizationUnitValidationError::InvalidBooleanStructuralField { .. })
+            ));
+        };
+
+        let mut non_entry = baseline.clone();
+        non_entry.entry = id(4_799, MachineId::new);
+        invalid(non_entry);
+
+        let mut unrestricted = baseline.clone();
+        unrestricted.functions[0].structural_parameters[0].multiplicity =
+            psi_terminal::StructuralMultiplicity::Unrestricted;
+        invalid(unrestricted);
+
+        let mut write_only = baseline.clone();
+        write_only.functions[0].structural_parameters[0].access =
+            psi_terminal::StructuralAccess::WriteOnlyBorrow;
+        invalid(write_only);
+
+        let mut qualified = baseline.clone();
+        let domain = id(1, StructuralDomainId::new);
+        qualified.structural_domains =
+            vec![structural_domain(1, 1, qualified.structural_types[0].id)].into();
+        qualified.functions[0].structural_parameters[0]
+            .qualifications
+            .push(domain);
+        invalid(qualified);
+
+        let mut claimed = baseline.clone();
+        let claim = id(1, ClaimId::new);
+        let source = claimed.functions[0].structural_parameters[0].place;
+        claimed.functions[0]
+            .entry_claim_declarations
+            .push(psi_terminal::EntryClaim {
+                claim,
+                input: source,
+                path: Vec::new(),
+            });
+        claimed.functions[0].entry_claims.insert(claim);
+        invalid(claimed);
+
+        let mut content_claimed = baseline.clone();
+        install_content_owner(&mut content_claimed);
+        content_claimed.functions[0]
+            .content_entry_claims
+            .push(content_entry_claim(claim, source));
+        invalid(content_claimed);
+
+        let mut no_boolean_parameter = baseline.clone();
+        no_boolean_parameter.functions[0].parameters.clear();
+        invalid(no_boolean_parameter);
+
+        let mut missing_cleanup = baseline.clone();
+        let O::Return {
+            cleanup_actions, ..
+        } = &mut missing_cleanup.functions[0].blocks[0].nodes[1].operation
+        else {
+            panic!("fixture ends in a scalar return")
+        };
+        cleanup_actions.clear();
+        refresh_node_derivatives(&mut missing_cleanup, 0, 0, 1);
+        invalid(missing_cleanup);
+
+        let mut wrong_field = baseline.clone();
+        let O::BooleanStructuralField { field, .. } =
+            &mut wrong_field.functions[0].blocks[0].nodes[0].operation
+        else {
+            panic!("fixture begins with its observation")
+        };
+        *field = id(4_799, psi_core::StructuralFieldId::new);
+        refresh_node_derivatives(&mut wrong_field, 0, 0, 0);
+        invalid(wrong_field);
+
+        let mut non_boolean_field = baseline.clone();
+        let psi_terminal::StructuralTypeShape::Record { fields } =
+            &mut non_boolean_field.structural_types[0].shape
+        else {
+            unreachable!()
+        };
+        fields[0].field_type = psi_terminal::StructuralFieldType::Scalar(ScalarType::Integer(
+            IntegerType::new(IntegerSign::Unsigned, 8).expect("u8"),
+        ));
+        invalid(non_boolean_field);
+
+        let mut differing_observation = baseline;
+        let mut second = differing_observation.functions[0].blocks[0].nodes[0].clone();
+        let second_field = id(4_713, psi_core::StructuralFieldId::new);
+        let O::BooleanStructuralField {
+            psi_operation,
+            result,
+            field,
+            ..
+        } = &mut second.operation
+        else {
+            unreachable!()
+        };
+        *psi_operation = id(4_714, OperationId::new);
+        *result = id(4_715, ValueId::new);
+        *field = second_field;
+        let psi_terminal::StructuralTypeShape::Record { fields } =
+            &mut differing_observation.structural_types[0].shape
+        else {
+            unreachable!()
+        };
+        fields.push(psi_terminal::StructuralFieldDeclaration {
+            id: second_field,
+            identity: "validation::other-ready".into(),
+            relevance: psi_terminal::BindingRelevance::Relevant,
+            field_type: psi_terminal::StructuralFieldType::Scalar(ScalarType::Boolean),
+        });
+        differing_observation.functions[0].blocks[0]
+            .nodes
+            .insert(1, second);
+        refresh_function_derivatives(&mut differing_observation, 0);
+        invalid(differing_observation);
+    }
+
+    #[test]
+    fn structural_returns_reject_non_source_roots_and_signature_drift() {
+        let mut result_root = structural_result_call_unit();
+        let result_place = result_root.functions[1]
+            .result
+            .structural()
+            .expect("structural result")
+            .place;
+        let return_node = result_root.functions[1].blocks[0].nodes.len() - 1;
+        let O::ReturnStructural { source, .. } =
+            &mut result_root.functions[1].blocks[0].nodes[return_node].operation
+        else {
+            panic!("fixture returns structurally")
+        };
+        *source = result_place;
+        refresh_node_derivatives(&mut result_root, 1, 0, return_node);
+        assert!(matches!(
+            validate_psi_optimization_unit(&result_root),
+            Err(OptimizationUnitValidationError::StructuralReturnSourceContractMismatch { .. })
+        ));
+
+        let mut literal_root = structural_result_call_unit();
+        let literal_type = psi_terminal::StructuralTypeDeclaration {
+            id: id(4_716, StructuralTypeId::new),
+            identity: "validation::return-source-literal".into(),
+            shape: psi_terminal::StructuralTypeShape::ByteSequence(
+                psi_terminal::ByteSequenceCarrier::BorrowedView,
+            ),
+        };
+        let literal = psi_terminal::StructuralPlaceDeclaration {
+            id: id(4_717, PlaceId::new),
+            kind: StructuralPlaceKind::ByteSequenceLiteral {
+                declaration_ordinal: 0,
+                structural_type: literal_type.id,
+            },
+        };
+        literal_root.structural_types.push(literal_type.clone());
+        literal_root.functions[1].structural_places.push(literal);
+        let establishment_node = literal_root.functions[1].blocks[0].nodes[0].clone();
+        literal_root.functions[1].blocks[0]
+            .nodes
+            .insert(0, establishment_node);
+        literal_root.functions[1].blocks[0].nodes[0].operation = O::EstablishByteSequenceLiteral {
+            psi_operation: id(4_718, OperationId::new),
+            place: literal,
+            structural_type: literal_type,
+            bytes: b"return-source".to_vec(),
+        };
+        let O::ReturnStructural { source, .. } =
+            &mut literal_root.functions[1].blocks[0].nodes[1].operation
+        else {
+            unreachable!()
+        };
+        *source = literal.id;
+        refresh_function_derivatives(&mut literal_root, 1);
+        assert!(matches!(
+            validate_psi_optimization_unit(&literal_root),
+            Err(OptimizationUnitValidationError::StructuralReturnSourceContractMismatch { .. })
+        ));
+
+        let mut wrong_signature =
+            operation_result_cfg_unit(OperationResultCfgShape::DominatingNonTopological);
+        let O::CallStructural { result, .. } =
+            &mut wrong_signature.functions[0].blocks[3].nodes[0].operation
+        else {
+            panic!("non-topological fixture stores its call in the entry block")
+        };
+        result.multiplicity = psi_terminal::StructuralMultiplicity::Affine;
+        refresh_node_derivatives(&mut wrong_signature, 0, 3, 0);
+        assert!(matches!(
+            validate_psi_optimization_unit(&wrong_signature),
+            Err(OptimizationUnitValidationError::StructuralReturnSourceContractMismatch { .. })
+        ));
+    }
+
+    #[test]
     fn provider_attachment_specialization_replays_exact_roots_calls_and_nonuse() {
         let baseline = provider_attachment_specialization_unit();
         validate_psi_optimization_unit(&baseline)
@@ -17771,7 +18577,7 @@ mod tests {
     fn rejects_structural_call_result_signature_and_claim_interface_corruption() {
         let baseline = structural_result_call_unit();
         validate_psi_optimization_unit(&baseline)
-            .expect("exact payloadless structural result should validate");
+            .expect("exact linear structural result should validate");
 
         let mut wrong_type = baseline.clone();
         let alternate = id(360, psi_core::StructuralTypeId::new);
@@ -17789,12 +18595,18 @@ mod tests {
         else {
             panic!("fixture begins with a structural-result call")
         };
+        let result_place = result.place;
         result.structural_type = alternate;
         let StructuralPlaceKind::OperationResult {
             structural_type, ..
-        } = &mut wrong_type.functions[0].structural_places[0].kind
+        } = &mut wrong_type.functions[0]
+            .structural_places
+            .iter_mut()
+            .find(|place| place.id == result_place)
+            .expect("caller retains its operation-result place")
+            .kind
         else {
-            panic!("caller retains its operation-result place")
+            unreachable!("call result has its operation-result root kind")
         };
         *structural_type = alternate;
         refresh_node_derivatives(&mut wrong_type, 0, 0, 0);
