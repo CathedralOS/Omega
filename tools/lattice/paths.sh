@@ -24,7 +24,7 @@ OMEGA_PATH_DELTA=$OMEGA_PATH_SOURCE_ROOT/delta
 OMEGA_PATH_DELTA_MEANING=$OMEGA_PATH_DELTA/meaning
 OMEGA_PATH_OMEGA=$OMEGA_PATH_SOURCE_ROOT/omega
 OMEGA_PATH_OMEGA_PSI=$OMEGA_PATH_OMEGA/psi
-OMEGA_PATH_PROOF_KERNEL=$OMEGA_PATH_ALPHA/checker
+OMEGA_PATH_ALPHA_CHECKER=$OMEGA_PATH_ALPHA/checker
 OMEGA_PATH_CORPUS=$OMEGA_PATH_LATTICE_TEST_ROOT/corpus
 
 export OMEGA_REPO_ROOT OMEGA_PATH_SOURCE_ROOT
@@ -34,7 +34,7 @@ export OMEGA_PATH_BETA_COMPILER OMEGA_PATH_BETA_REFERENCE
 export OMEGA_PATH_BETA_VALIDATION OMEGA_PATH_GAMMA
 export OMEGA_PATH_DELTA OMEGA_PATH_DELTA_MEANING
 export OMEGA_PATH_OMEGA OMEGA_PATH_OMEGA_PSI
-export OMEGA_PATH_PROOF_KERNEL OMEGA_PATH_CORPUS
+export OMEGA_PATH_ALPHA_CHECKER OMEGA_PATH_CORPUS
 
 # lattice_path ROLE
 # Print one canonical role path. The function name belongs to the runner; it
@@ -44,7 +44,7 @@ lattice_path() {
     lattice-tools) printf '%s\n' "$OMEGA_PATH_LATTICE_TOOLS_ROOT" ;;
     alpha) printf '%s\n' "$OMEGA_PATH_ALPHA" ;;
     alpha-assembler) printf '%s\n' "$OMEGA_PATH_ALPHA_ASSEMBLER" ;;
-    alpha-checker) printf '%s\n' "$OMEGA_PATH_PROOF_KERNEL" ;;
+    alpha-checker) printf '%s\n' "$OMEGA_PATH_ALPHA_CHECKER" ;;
     beta-compiler) printf '%s\n' "$OMEGA_PATH_BETA_COMPILER" ;;
     beta-validation) printf '%s\n' "$OMEGA_PATH_BETA_VALIDATION" ;;
     gamma) printf '%s\n' "$OMEGA_PATH_GAMMA" ;;

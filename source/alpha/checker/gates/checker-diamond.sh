@@ -33,8 +33,8 @@ if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
 fi
 . "$OMEGA_REPO_ROOT/tools/lattice/paths.sh" || exit $?
 . "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh" || exit $?
-. "$OMEGA_PATH_PROOF_KERNEL/artifact_env.sh" || exit $?
-cd "$OMEGA_PATH_PROOF_KERNEL"
+. "$OMEGA_PATH_ALPHA_CHECKER/artifact_env.sh" || exit $?
+cd "$OMEGA_PATH_ALPHA_CHECKER"
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
@@ -44,7 +44,7 @@ stamp_beta_compiler "$T/bc.exe" >/dev/null
 bcc() { "$T/bc.exe" < "$1" > "$T/a.asm" && "$ASM" < "$T/a.asm" > "$T/a.tape" && stamp_seed "$T/a.tape" "$SEED" "$2" >/dev/null 2>&1; }
 stamp_proof_checker "$T/check.exe" >/dev/null || { echo "checker artifact unavailable"; exit 1; }
 bcc "${OMEGA_PATH_GAMMA}"/interp.beta "$T/interp.exe" || { echo "build interp.beta failed"; exit 1; }
-DEFS=$(cat "${OMEGA_PATH_PROOF_KERNEL}"/implementations/gamma/checker.gamma)
+DEFS=$(cat "${OMEGA_PATH_ALPHA_CHECKER}"/implementations/gamma/checker.gamma)
 # Third oracle: the TYPE-CHECKED checker (implementations/gamma/checker_typed.gamma, the artifact typeck.beta
 # accepts), mechanically type-erased to the untyped surface interp runs. Agreement here
 # means the checker gamma's type system validates is the SAME checker that's behaviorally
@@ -56,7 +56,7 @@ DEFS=$(cat "${OMEGA_PATH_PROOF_KERNEL}"/implementations/gamma/checker.gamma)
 # helper where the two representations actually diverge. No case is skipped.
 TPASS=0; TFAIL=0; HAVE_TYPED=0
 if command -v python3 >/dev/null 2>&1; then
-  if python3 "${OMEGA_PATH_PROOF_KERNEL}"/tools/erase-gamma-types.py < "${OMEGA_PATH_PROOF_KERNEL}"/implementations/gamma/checker_typed.gamma > "$T/erased.gamma"; then
+  if python3 "${OMEGA_PATH_ALPHA_CHECKER}"/tools/erase-gamma-types.py < "${OMEGA_PATH_ALPHA_CHECKER}"/implementations/gamma/checker_typed.gamma > "$T/erased.gamma"; then
     TDEFS=$(cat "$T/erased.gamma"); HAVE_TYPED=1
   fi
 fi
@@ -71,7 +71,7 @@ dia() {
   else FAIL=$((FAIL+1)); echo "  FAIL $1 : beta=$vb gamma=$gv expect=$4"; fi
   if [ "$HAVE_TYPED" = 1 ]; then
     case "$3" in
-      *Fapp*|*Frule*) t3=$(printf '%s' "$3" | python3 "${OMEGA_PATH_PROOF_KERNEL}"/tools/frule_to_flat.py) ;;  # wrapper rules -> flat
+      *Fapp*|*Frule*) t3=$(printf '%s' "$3" | python3 "${OMEGA_PATH_ALPHA_CHECKER}"/tools/frule_to_flat.py) ;;  # wrapper rules -> flat
       *) t3=$3 ;;
     esac
     printf '%s\n%s\n' "$TDEFS" "$t3" | "$T/interp.exe" >/dev/null; vt=$?

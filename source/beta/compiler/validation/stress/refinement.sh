@@ -28,7 +28,7 @@ fi
 cd "$OMEGA_GATE_DIR"
 command -v python3 >/dev/null 2>&1 || { echo "refinement: skipped (python3 absent)"; exit 0; }
 . "${OMEGA_PATH_BETA_COMPILER}"/artifact_env.sh
-. "${OMEGA_PATH_PROOF_KERNEL}"/artifact_env.sh
+. "${OMEGA_PATH_ALPHA_CHECKER}"/artifact_env.sh
 SEED="${OMEGA_PATH_ALPHA}/$ALPHA_SEED"
 ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT

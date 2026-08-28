@@ -33,7 +33,7 @@ BETA_REFERENCE = os.environ.get(
     os.path.join(REPO_ROOT, 'source', 'beta', 'reference'))
 BETA_STRESS = HERE
 PROOF_KERNEL = os.environ.get(
-    'OMEGA_PATH_PROOF_KERNEL',
+    'OMEGA_PATH_ALPHA_CHECKER',
     os.path.join(REPO_ROOT, 'source', 'alpha', 'checker'))
 ALPHA = os.environ.get(
     'OMEGA_PATH_ALPHA', os.path.join(REPO_ROOT, 'source', 'alpha'))
