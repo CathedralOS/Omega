@@ -1315,6 +1315,7 @@ mod tests {
             proof_output_calls: Vec::new(),
             evidence_contract_lanes: Vec::new(),
             closed_conformance_applications: Vec::new(),
+            quotient_correspondences: Vec::new(),
             machines: vec![TerminalMachine {
                 id: MachineId::new(401).unwrap(),
                 attachment: None,
@@ -1413,6 +1414,7 @@ mod tests {
             proof_output_calls: Vec::new(),
             evidence_contract_lanes: Vec::new(),
             closed_conformance_applications: Vec::new(),
+            quotient_correspondences: Vec::new(),
             machines: vec![TerminalMachine {
                 id: machine,
                 attachment: None,

@@ -382,6 +382,7 @@ impl ReplayIdentityWriter {
 
 #[cfg(test)]
 mod tests {
+    use psi_core::{BlockId, ContractId, EdgeId, MachineId};
     use psi_language_semantics::quotient_correspondence::{
         CanonicalQuotientCorrespondence, QuotientCallableIdentity, QuotientContractFactCoordinate,
         QuotientContractOwner, QuotientCorrespondenceOperationKind, QuotientCrashCertificate,
@@ -392,7 +393,10 @@ mod tests {
         QuotientTheoremCorrespondence, QuotientTheoremEligibility, QuotientTheoremParameter,
         QuotientTheoremParameterRole, QuotientTheoremRelationPremise,
     };
-    use psi_terminal::retain_non_executable_quotient_correspondence;
+    use psi_terminal::{
+        Block, MachineContract, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
+        VocabularyMarker, retain_non_executable_quotient_correspondence,
+    };
 
     use super::*;
 
@@ -508,6 +512,61 @@ mod tests {
         replay_non_executable_quotient_correspondence(
             &retain_non_executable_quotient_correspondence(certificate),
         )
+    }
+
+    fn module_with(
+        quotient_correspondences: Vec<RetainedQuotientCorrespondence>,
+    ) -> TerminalModule {
+        let machine = MachineId::new(1).unwrap();
+        TerminalModule {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            entry: machine,
+            structural_types: Vec::new(),
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            root_service_reach: Default::default(),
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            float_meaning_projections: Vec::new(),
+            float_meaning_equalities: Vec::new(),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            evidence_terms: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
+            proof_output_calls: Vec::new(),
+            closed_conformance_applications: Vec::new(),
+            quotient_correspondences,
+            machines: vec![TerminalMachine {
+                id: machine,
+                attachment: None,
+                structural_parameters: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                parameters: Vec::new(),
+                result: TerminalMachineResult::Unit,
+                structural_places: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: BlockId::new(1).unwrap(),
+                blocks: vec![Block {
+                    id: BlockId::new(1).unwrap(),
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::ReturnUnit {
+                        edge: EdgeId::new(1).unwrap(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                }],
+                contract: MachineContract {
+                    id: ContractId::new(1).unwrap(),
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    ensures: Vec::new(),
+                    outcome_specific_ensures: Vec::new(),
+                },
+            }],
+        }
     }
 
     #[test]
@@ -635,5 +694,59 @@ mod tests {
         shifted.public_operation.overload.remove(0);
         let shifted = retain_non_executable_quotient_correspondence(shifted);
         assert_ne!(first.identity, shifted.identity);
+    }
+
+    #[test]
+    fn module_representation_replays_rows_but_execution_rejects_them() {
+        let module = module_with(vec![retain_non_executable_quotient_correspondence(
+            certificate(),
+        )]);
+        assert_eq!(crate::validate_module_representation(&module), Ok(()));
+        assert_eq!(
+            crate::validate_module(&module).unwrap_err(),
+            crate::ModuleError::NonExecutableQuotientCorrespondence
+        );
+
+        let mut tampered = module;
+        tampered.quotient_correspondences[0].identity.0.push(0);
+        assert!(matches!(
+            crate::validate_module_representation(&tampered),
+            Err(crate::ModuleError::InvalidQuotientCorrespondence {
+                error: QuotientCorrespondenceReplayError::IdentityMismatch { .. },
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn module_representation_rejects_order_uniqueness_and_owner_collisions() {
+        let first = retain_non_executable_quotient_correspondence(certificate());
+        let duplicate = module_with(vec![first.clone(), first.clone()]);
+        assert_eq!(
+            crate::validate_module_representation(&duplicate),
+            Err(crate::ModuleError::DuplicateQuotientCorrespondenceIdentity)
+        );
+
+        let mut second_certificate = certificate();
+        second_certificate.public_operation = callable("Public::other");
+        let second = retain_non_executable_quotient_correspondence(second_certificate);
+        let mut ordered = vec![first.clone(), second];
+        ordered.sort_by(|left, right| left.identity.cmp(&right.identity));
+        let mut reversed = ordered;
+        reversed.reverse();
+        assert_eq!(
+            crate::validate_module_representation(&module_with(reversed)),
+            Err(crate::ModuleError::NonCanonicalQuotientCorrespondenceOrder)
+        );
+
+        let mut collision_certificate = certificate();
+        collision_certificate.result_flow.statement_position += 1;
+        let collision = retain_non_executable_quotient_correspondence(collision_certificate);
+        let mut collided = vec![first, collision];
+        collided.sort_by(|left, right| left.identity.cmp(&right.identity));
+        assert_eq!(
+            crate::validate_module_representation(&module_with(collided)),
+            Err(crate::ModuleError::DuplicateQuotientCorrespondenceOwner)
+        );
     }
 }

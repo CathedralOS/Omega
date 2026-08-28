@@ -1548,6 +1548,7 @@ fn program_local_root_module() -> TerminalModule {
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        quotient_correspondences: Vec::new(),
         machines: vec![psi_terminal::TerminalMachine {
             id: entry,
             attachment: None,

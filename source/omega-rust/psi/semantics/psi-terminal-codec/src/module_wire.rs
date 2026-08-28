@@ -24,6 +24,9 @@ use super::proof_declaration_wire::{
     encode_evidence_interface, encode_proposition_application, encode_proposition_declaration,
 };
 use super::provider_candidate_wire::{decode_provider_candidate, encode_provider_candidate};
+use super::quotient_correspondence_wire::{
+    decode_quotient_correspondence, encode_quotient_correspondence,
+};
 use super::scalar_wire::{decode_scalar_type, encode_scalar_type};
 use super::structural_signature_wire::{
     decode_boundary_machine, decode_content_projection_expression, encode_boundary_machine,
@@ -266,6 +269,13 @@ pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
         }
         writer.u64(application.fingerprint);
     }
+    writer.len(
+        "quotient correspondences",
+        module.quotient_correspondences.len(),
+    )?;
+    for correspondence in &module.quotient_correspondences {
+        encode_quotient_correspondence(&mut writer, correspondence)?;
+    }
     writer.len("machines", module.machines.len())?;
     for machine in &module.machines {
         encode_machine(&mut writer, machine)?;
@@ -482,6 +492,7 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
             fingerprint: reader.u64()?,
         })
     })?;
+    let quotient_correspondences = decode_counted(reader, decode_quotient_correspondence)?;
     let machine_count = reader.count()?;
     let mut machines = Vec::new();
     for _ in 0..machine_count {
@@ -507,6 +518,7 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         evidence_contract_lanes,
         proof_output_calls,
         closed_conformance_applications,
+        quotient_correspondences,
         machines,
     })
 }

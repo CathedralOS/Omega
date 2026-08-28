@@ -177,6 +177,17 @@ selection to interpret its meaning. It contains:
 - fingerprinted contracts, obligation schemas, authorized admission sites,
   trust attribution, and work identities.
 
+The first quotient correspondence carrier is proof-only. `TerminalModule`
+retains a strictly identity-ordered table for the narrow monomorphic, total,
+direct faithful `define` certificate. The codec serializes the complete
+source-free certificate and rederives its retained identity on decode;
+representation validation independently reconstructs its theorem,
+correspondence, eligibility, and direct-result shape. A nonempty table is still
+rejected by execution validation, owns no Terminal machine or operation, and
+does not authorize a representative call. The explicit producer attachment is
+therefore a canonical-retention prerequisite, not executable quotient
+lowering.
+
 Nominal static-machine callback bindings survive as explicit call-use rows.
 Each row names the registration call and operation, static-machine argument
 ordinal, selected machine and satisfaction row, exact canonical callback
@@ -487,7 +498,7 @@ conclusion nor a case-membership fact; structural return rebases the complete
 implication to the caller result. One optional selected-evidence
 binding may now retain the exact guarded case, row position, obligation, public
 selector, atomic proposition, callee term/interface, distinct caller-local term,
-and result-root validity intersection. Format 31 / vocabulary 33 encode those
+and result-root validity intersection. Format 32 / vocabulary 34 encode those
 coordinates. Validation requires the exact named callee row and producer
 provenance and rejects identity/interface/dependency drift, duplicate output,
 or unconditional/projection reuse. Omission remains fact-only, and the selected
@@ -1763,7 +1774,7 @@ common-field leaf equalities in declaration order followed by one
 source-ordered disjunction whose arms contain matching membership for both
 roots and the selected case's supported payload-leaf equalities. Inequality is
 that complete equality proposition implying falsehood. Whole-root Unit calls
-independently rebase both operands, while codec format 31 / vocabulary 33,
+independently rebase both operands, while codec format 32 / vocabulary 34,
 verifier, fixed-fuel, interpreter, and installation format 40 preserve and
 replay the exact common-field, case, and payload-field identities. Nested or
 projected mixed values, recursive cycles, address and erased payload equality,

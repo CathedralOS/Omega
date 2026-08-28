@@ -22,6 +22,7 @@ mod proof_declaration_wire;
 mod proposition_wire;
 mod provider_candidate_wire;
 mod publication;
+mod quotient_correspondence_wire;
 mod scalar_term_wire;
 mod scalar_wire;
 mod structural_field_wire;
@@ -90,7 +91,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 31;
+const FORMAT_MARKER: u16 = 32;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;

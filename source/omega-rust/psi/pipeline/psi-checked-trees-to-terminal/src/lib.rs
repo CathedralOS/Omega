@@ -106,6 +106,7 @@ mod nonzero_divisor_certificate;
 mod operation_emission;
 mod payloadless_case_return;
 mod payloadless_guarded_call_return;
+mod quotient_correspondence;
 mod scalar_call_closure;
 mod scalar_graph_lowering;
 mod scalar_graph_module;
@@ -159,6 +160,7 @@ use operation_emission::{
 };
 use payloadless_case_return::lower_payloadless_case_return_machine;
 use payloadless_guarded_call_return::lower_payloadless_guarded_call_return_machine;
+pub use quotient_correspondence::install_non_executable_quotient_correspondences;
 use scalar_call_closure::{checked_scalar_call_closure, lower_scalar_call_closure};
 use scalar_graph_lowering::{
     KnownDirectScalar, contains_short_circuit, direct_expression_contains_short_circuit,
@@ -1190,6 +1192,7 @@ pub enum LoweringError {
     InvalidDebugMap(psi_terminal_codec::DebugMapError),
     InvalidTerminalModule(psi_terminal_verifier::ModuleError),
     InvalidFloatMeaningProjection(FloatMeaningProjectionLoweringError),
+    InvalidQuotientCorrespondence(Vec<String>),
     OperationProofUnavailable(ObligationId),
     Unsupported(&'static str),
     InvalidPsiIntegerType,

@@ -17,6 +17,7 @@ use psi_typed_trees_to_checked_trees::lower_typed_trees;
 
 mod attached_unit_cases;
 mod content_conservation;
+mod quotient_correspondence;
 mod scalar_graph;
 mod structural_control_cases;
 mod structural_return_cases;
@@ -715,7 +716,7 @@ fn payloadless_sum_equality_lowers_to_case_membership_equivalence() {
         .expect("case-membership equality validates");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
         .expect("case-membership module encodes");
-    assert_eq!(&bytes[8..10], &31_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &32_u16.to_le_bytes());
     assert_eq!(
         psi_terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())
@@ -796,7 +797,7 @@ fn payload_bearing_sum_equality_uses_exact_case_payload_paths() {
         .expect("exact case-payload paths validate");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
         .expect("payload-bearing sum module encodes");
-    assert_eq!(&bytes[8..10], &31_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &32_u16.to_le_bytes());
     assert_eq!(
         psi_terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())
