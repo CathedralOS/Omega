@@ -4,10 +4,11 @@ use omega_package_compilation::{
     PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
 };
 use omega_package_review::{
-    PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION,
-    PackageReviewArithmeticDomain, PackageReviewByteSequencePredicate, PackageReviewCallableRole,
-    PackageReviewCallableSupply, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
-    PackageReviewCastForm, PackageReviewCheckedServiceReach, PackageReviewConformanceSubject,
+    CheckedPackageReviewProjection, PACKAGE_REVIEW_ENCODING_VERSION,
+    PACKAGE_REVIEW_ROW_ENCODING_VERSION, PackageReviewArithmeticDomain,
+    PackageReviewByteSequencePredicate, PackageReviewCallableRole, PackageReviewCallableSupply,
+    PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCastForm,
+    PackageReviewCheckedServiceReach, PackageReviewConformanceSubject,
     PackageReviewContractBinaryOperator, PackageReviewContractExpression,
     PackageReviewContractFact, PackageReviewContractKind, PackageReviewContractOperatorMeaning,
     PackageReviewContractStaticArgument, PackageReviewCrashInterface, PackageReviewCrashRouteGuard,
@@ -1732,7 +1733,11 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
             .iter()
             .find(|candidate| candidate.identity() == supply.callable())
             .expect("public external leaf callable");
-        assert_eq!(callable_row.operator_realizations(), [operator.clone()]);
+        let [realization] = callable_row.operator_realizations() else {
+            panic!("one exact external operator realization")
+        };
+        assert_eq!(realization.coordinate(), operator);
+        assert_eq!(realization.alias(), None);
     }
 }
 
@@ -2526,8 +2531,8 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 75);
-    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 33);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 76);
+    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 34);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -5663,7 +5668,99 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         .iter()
         .find(|shape| shape.coordinate().identity().path() == "CheckedMath::identity")
         .expect("public operator declaration row");
-    assert_eq!(realization, declaration.coordinate());
+    assert_eq!(realization.coordinate(), declaration.coordinate());
+    assert_eq!(realization.alias(), None);
+}
+
+#[test]
+fn review_projects_and_encodes_aliased_checked_operator_realization() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let build = r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#;
+    let project = |alias: &str| {
+        let package = TempPackage::new();
+        package.write(
+            "main.omg",
+            &format!(
+                r#"pub data CheckedMath {{}}
+pub operator CheckedMath::identity(value: i32) -> i32;
+
+pub machine provide_identity(input: i32) -> i32
+satisfies CheckedMath::identity as {alias}
+{{
+    input
+}}
+"#,
+            ),
+        );
+        package.write("build.omg", build);
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("aliased checked operator realization fixture should check");
+        project_checked_package_review(&checked)
+            .expect("aliased checked operator realization should project exactly")
+    };
+
+    let selected = project("Selected");
+    let alternate = project("Alternate");
+    let selected_callable = selected
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "provide_identity")
+        .expect("selected provider callable row");
+    let alternate_callable = alternate
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "provide_identity")
+        .expect("alternate provider callable row");
+    let [selected_realization] = selected_callable.operator_realizations() else {
+        panic!("one selected operator realization")
+    };
+    let [alternate_realization] = alternate_callable.operator_realizations() else {
+        panic!("one alternate operator realization")
+    };
+    assert_eq!(selected_realization.alias(), Some("Selected"));
+    assert_eq!(alternate_realization.alias(), Some("Alternate"));
+    assert_eq!(
+        selected_realization.coordinate(),
+        alternate_realization.coordinate()
+    );
+
+    let callable_rows = |review: &CheckedPackageReviewProjection| {
+        review
+            .canonical_rows()
+            .expect("aliased operator realization rows")
+            .into_iter()
+            .filter(|row| row.kind() == PackageReviewCanonicalRowKind::Callable)
+            .collect::<Vec<_>>()
+    };
+    let selected_rows = callable_rows(&selected);
+    let alternate_rows = callable_rows(&alternate);
+    assert_eq!(selected_rows.len(), alternate_rows.len());
+    assert!(
+        selected_rows
+            .iter()
+            .zip(&alternate_rows)
+            .all(|(left, right)| left.key_bytes() == right.key_bytes())
+    );
+    assert_eq!(
+        selected_rows
+            .iter()
+            .zip(&alternate_rows)
+            .filter(|(left, right)| left.canonical_bytes() != right.canonical_bytes())
+            .count(),
+        1,
+        "changing only the alias must change only its callable value"
+    );
 }
 
 #[test]
@@ -5719,7 +5816,8 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         declaration.spelling(),
         Some(psi_language_core::OperatorSpelling::Subtract)
     );
-    assert_eq!(realization, declaration.coordinate());
+    assert_eq!(realization.coordinate(), declaration.coordinate());
+    assert_eq!(realization.alias(), None);
 }
 
 #[test]
@@ -5774,7 +5872,8 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     let [realization] = callable.operator_realizations() else {
         panic!("one exact boundary operator realization")
     };
-    assert_eq!(realization, declaration.coordinate());
+    assert_eq!(realization.coordinate(), declaration.coordinate());
+    assert_eq!(realization.alias(), None);
 
     let [provider] = review.selected_providers() else {
         panic!("one selected boundary operator provider")
@@ -5867,7 +5966,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         panic!("one exact public boundary operator realization")
     };
     assert!(overloads.iter().any(|operator| {
-        operator.coordinate() == public_realization
+        operator.coordinate() == public_realization.coordinate()
             && operator.coordinate().parameter_dispatch().contains("i32")
     }));
     assert!(
@@ -6195,16 +6294,6 @@ satisfies CheckedMath::identity
 { input }
 "#,
             "realizes non-public operator",
-        ),
-        (
-            "aliased",
-            r#"pub data CheckedMath {}
-pub operator CheckedMath::identity(value: i32) -> i32;
-pub machine provide_identity(input: i32) -> i32
-satisfies CheckedMath::identity as Selected
-{ input }
-"#,
-            "through an alias not yet represented",
         ),
         (
             "external",
