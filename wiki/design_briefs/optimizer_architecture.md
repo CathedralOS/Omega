@@ -1220,9 +1220,11 @@ The exact `GlobalValueNumbering` suite expands in canonical order to
 `phi-translated-obligation-free-total-scalar-gvn.v1`, and
 `phi-translated-proof-certified-total-scalar-gvn.v1`, followed by
 `same-block-proof-certified-compatible-policy-scalar-cse.v1` and
-`dominator-proof-certified-compatible-policy-scalar-gvn.v1`. Each local rule
-scans a block in node order and replaces a later equivalent result with the
-earliest admitted leader. The obligation-free vocabulary contains literals,
+`dominator-proof-certified-compatible-policy-scalar-gvn.v1`, then
+`phi-translated-proof-certified-compatible-policy-scalar-gvn.v1`. Each local
+rule scans a block in node order and replaces a later equivalent result with
+the earliest admitted leader. The obligation-free vocabulary contains
+literals,
 Boolean operations,
 integer comparisons/bitwise/widening, wrapping shifts, and wrapping or
 saturating add/subtract/multiply. The proof-certified vocabulary contains exact
@@ -1230,7 +1232,7 @@ integer casts, shifts, add/subtract/multiply/divide/remainder, and wrapping or
 saturating divide/remainder. Calls, structural work, boundary/service work, and
 control operations remain excluded.
 
-The two compatible-policy rules are directional equal-value joins. A redundant
+The three compatible-policy rules are directional equal-value joins. A redundant
 proof-certified exact add, subtract, or multiply may reuse an earlier
 obligation-free wrapping or saturating operation with the same signed/unsigned
 fixed-width family, domain, and operands. A redundant proof-certified exact
@@ -1240,9 +1242,9 @@ and remainder are excluded because their proof-bearing leaders require a
 different two-fact contract, and the reverse obligation-free-to-exact rewrite
 is not admitted. The redundant exact operation must retain its own active
 accepted obligation, which the rewrite consumes without mutating the historical
-accepted-fact catalog. Leader selection, dominance, substitution, and forward
-provenance/fuel settlement are otherwise identical to the corresponding local
-or dominator rule and are independently reconstructed.
+accepted-fact catalog. Local/dominator leader selection, dominance,
+substitution, and forward provenance/fuel settlement are otherwise identical
+to the corresponding same-policy rule and are independently reconstructed.
 
 An expression key binds the exact operation family and policy, all literal
 payload, complete source/result/count integer domains, and operand identities.
@@ -1301,8 +1303,8 @@ edge custody, definitions/uses, dense effects, facts/places, and provenance
 relocation before acceptance. Corruption tests cover reordered incoming rows
 and detached leaders; a verified Terminal diamond exercises publication
 projection with both appended bindings. Candidate encoding v24,
-optimization-unit content identity v10, the named v6 pass, prephysical
-manifest v22, and optimized-plan projection validation v23 bind the current
+optimization-unit content identity v10, the named v7 pass, prephysical
+manifest v23, and optimized-plan projection validation v24 bind the current
 meaning; ledger v4 already represents both node relocation and edge custody.
 The proof-certified phi rule uses the same closed proof-bearing scalar
 vocabulary as proof-certified local and dominator GVN. Every translated arm
@@ -1313,6 +1315,23 @@ reference. Independent replay rejects a foreign redundant witness and any
 missing exact leader fact. Partial redundancy elimination and cyclic-CFG GVN
 remain separate future rules; current admitted optimization units reject
 control cycles.
+
+The compatible-policy phi rule applies the same directional equality at an
+acyclic join. The redundant exact add/subtract/multiply/left-shift/right-shift
+must reference at least one typed join parameter and retain its own active
+verifier-accepted obligation. Every incoming translation must find the
+canonical available obligation-free compatible leader before the source
+terminator or in a strict dominator: wrapping or saturating for arithmetic and
+wrapping for the same shift direction. Arm policies may differ because the
+redundant exact operation's proof certifies their common exact value.
+Add/multiply canonicalize swapped operands; subtraction and shifts retain
+order. The existing phi rewrite appends the redundant result as a join
+parameter and every leader binding, removes the computation without global
+substitution, moves custody forward, and consumes only the redundant active
+reference. Independent validation reconstructs the compatible relation,
+complete translated incoming set, canonical leader choice, proof fact, edge
+bindings, provenance/fuel, and immutable accepted catalog. Division/remainder
+and the reverse obligation-free-to-exact relation remain excluded.
 
 ### Proof-certified dead scalar work
 
