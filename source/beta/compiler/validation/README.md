@@ -108,7 +108,13 @@ exact subjects, SHA-256
 `gen_emit`'s three identical newline events now use checker-owned exact
 cardinality and lexical occurrence rather than source rows. An eighth control
 swaps the first two valid witness PCs and is rejected by the label-emitter
-owner's artifact-order rejoin.
+owner's artifact-order rejoin. The following memory consumers now resolve
+their load/store sites through the same checked identities: `cmp_op`,
+`count_lets`, `declare`, and `emit_ident`. Expression call/leaf/`gen_expr` and
+fixed-keyword procedure boundaries use procedure, call-fallthrough, and
+epilogue identities. Label/reference and statement-emitter modules derive
+their helper/literal layout from checked emit events instead of retaining a
+second absolute layout.
 
 Historical focus modes, per-mutation checker-source permutations, local green
 receipt caches, and mutation-only mapper outputs were removed. Git history is
