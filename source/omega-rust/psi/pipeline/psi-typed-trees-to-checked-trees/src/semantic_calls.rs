@@ -22,6 +22,18 @@ pub(crate) enum CallSite<'program> {
     },
 }
 
+impl CallSite<'_> {
+    pub(crate) fn static_requirement_dispatch(
+        &self,
+    ) -> Option<&psi_typed_trees::typed_trees::StaticRequirementDispatch> {
+        match self {
+            Self::Statement(call) => call.static_requirement_dispatch.as_ref(),
+            Self::Expression { call, .. } => call.static_requirement_dispatch.as_ref(),
+            Self::TransitionNamed { .. } => None,
+        }
+    }
+}
+
 pub(crate) fn find_call_site<'program>(
     program: &'program psi_typed_trees::TypedTrees,
     machine_symbol: SymbolHandle,

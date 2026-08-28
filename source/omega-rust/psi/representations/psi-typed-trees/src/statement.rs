@@ -172,6 +172,7 @@ impl StatementTable {
                         target_symbol: call.target_symbol,
                         receiver,
                         target: call.target.clone(),
+                        static_requirement_dispatch: call.static_requirement_dispatch.clone(),
                         machine_arguments: call.machine_arguments.clone(),
                         arguments,
                         evidence_arguments: call.evidence_arguments.clone(),
@@ -506,6 +507,9 @@ pub struct TableCall {
     pub target_symbol: SymbolHandle,
     pub receiver: HandleSpan<Identifier>,
     pub target: Identifier,
+    /// Public requirement identity plus private closed realization retained
+    /// when static conformance dispatch rewrites `target_symbol`.
+    pub static_requirement_dispatch: Option<crate::typed_trees::StaticRequirementDispatch>,
     pub machine_arguments: Box<[crate::expression::StaticMachineArgument]>,
     pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
     pub evidence_arguments: Box<[Identifier]>,
@@ -527,6 +531,7 @@ impl Default for TableCall {
             target_symbol: SymbolHandle::invalid(),
             receiver: HandleSpan::empty(),
             target: Identifier::default(),
+            static_requirement_dispatch: None,
             machine_arguments: Box::default(),
             arguments: HandleSpan::empty(),
             evidence_arguments: Box::default(),

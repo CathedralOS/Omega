@@ -2593,6 +2593,7 @@ fn distinct_generic_conformance_applications_specialize_distinct_selected_rows()
         }
         data Card {}
         data Token {}
+        data Root {}
 
         FieldOrder<Element>: Element satisfies Ranked {
             machine before(&self, other: &Element) -> bool { true }
@@ -3106,6 +3107,246 @@ fn explicit_conformance_binder_rewrites_a_procedure_requirement_call() {
                     )
                 })
         })
+    }));
+}
+
+#[test]
+fn static_named_witness_requirement_call_keeps_public_lanes_and_private_dispatch_separate() {
+    let source = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+
+        trait Producer {
+            machine Self::produce(&self)
+            requires public_in: ready()
+            ensures public_out: ready();
+        }
+
+        data Token {}
+
+        TokenProducer: Token satisfies Producer {
+            machine produce(&self)
+            requires local_in: ready()
+            ensures public_out: ready()
+            ensures private_out: ready()
+            {
+                public_out = local_in;
+                private_out = local_in;
+            }
+        }
+
+        machine Root::invoke<Element, Order: Element satisfies Producer>(
+            &self,
+            value: &Element
+        )
+        requires incoming: ready()
+        {
+            let (; public_out: result) = Order::produce(value; incoming);
+        }
+
+        machine Root::caller(&self, value: &Token)
+        requires incoming: ready()
+        {
+            self.invoke<Token, TokenProducer>(value; incoming);
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked =
+        lower_typed_trees(typed).expect("one exact static requirement witness call should check");
+
+    let invocations = checked
+        .facts
+        .proof
+        .proof_output_calls
+        .iter()
+        .filter_map(|(_, invocation)| {
+            invocation
+                .static_requirement_dispatch
+                .as_ref()
+                .map(|dispatch| (invocation, dispatch))
+        })
+        .collect::<Vec<_>>();
+    let [(invocation, dispatch)] = invocations.as_slice() else {
+        panic!("one exact static requirement proof-output call")
+    };
+    assert_eq!(
+        invocation.target_machine_symbol,
+        dispatch.realization_machine
+    );
+    assert_eq!(invocation.target_state_symbol, dispatch.realization_state);
+    assert_ne!(dispatch.application_fingerprint, 0);
+
+    let [argument] = invocation.evidence_arguments.as_slice() else {
+        panic!("one public requirement input")
+    };
+    let [output] = invocation.outputs.as_slice() else {
+        panic!("private satisfier strengthening must not widen the requirement output lane")
+    };
+    let input_declaration = checked
+        .facts
+        .proof
+        .evidence_terms
+        .get(argument.callee_input);
+    let output_declaration = checked.facts.proof.evidence_terms.get(output.callee_output);
+    let public_owner = psi_checked_trees::ContractProofFactOwner::StateSignature {
+        owner_symbol: dispatch.declaring_trait,
+        state_symbol: dispatch.requirement,
+    };
+    assert_eq!(input_declaration.owner, public_owner);
+    assert_eq!(output_declaration.owner, public_owner);
+    assert_eq!(input_declaration.name, "public_in");
+    assert_eq!(output_declaration.name, "public_out");
+    let caller_output = output.output.expect("selected public output is retained");
+    assert_ne!(caller_output, argument.source);
+    assert_ne!(caller_output, output.callee_output);
+
+    assert!(
+        checked
+            .facts
+            .proof
+            .evidence_forwardings
+            .iter()
+            .any(|(_, forwarding)| {
+                forwarding.machine_symbol == dispatch.realization_machine
+                    && matches!(
+                        forwarding.source,
+                        psi_checked_trees::EvidenceAssignmentSource::Forwarded { .. }
+                    )
+            })
+    );
+
+    let contract_calls = checked
+        .facts
+        .proof
+        .contract_calls
+        .iter()
+        .filter_map(|(_, call)| {
+            (call.target_state_symbol == dispatch.realization_state).then_some(call)
+        })
+        .collect::<Vec<_>>();
+    let [contract_call] = contract_calls.as_slice() else {
+        panic!("one exact ordinary call link for the static requirement dispatch")
+    };
+    for refs in [contract_call.requires, contract_call.ensures] {
+        let [fact_ref] = checked.facts.proof.contract_fact_refs.span_or_empty(refs) else {
+            panic!("one pinned public contract row per lane")
+        };
+        assert_eq!(
+            checked.facts.proof.contract_facts.get(fact_ref.fact).owner,
+            public_owner,
+            "ordinary call facts must not expose satisfier strengthening",
+        );
+    }
+
+    assert_eq!(
+        invocation
+            .runtime_call
+            .expect("the static proof-output dispatch retains its Unit call")
+            .statement_index,
+        contract_call.statement_index,
+    );
+}
+
+#[test]
+fn static_named_witness_requirement_call_hides_satisfier_strengthening_selector() {
+    let source = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        trait Producer {
+            machine Self::produce(&self)
+            requires public_in: ready()
+            ensures public_out: ready();
+        }
+        data Token {}
+        TokenProducer: Token satisfies Producer {
+            machine produce(&self)
+            requires local_in: ready()
+            ensures public_out: ready()
+            ensures private_out: ready()
+            {
+                public_out = local_in;
+                private_out = local_in;
+            }
+        }
+        machine invoke<Element, Order: Element satisfies Producer>(value: &Element)
+        requires incoming: ready()
+        {
+            let (; private_out: leaked) = Order::produce(value; incoming);
+        }
+        machine caller(value: &Token)
+        requires incoming: ready()
+        {
+            invoke<Token, TokenProducer>(value; incoming);
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let diagnostics = lower_typed_trees(typed)
+        .expect_err("a static requirement call must hide private satisfier strengthening");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("publishes no proof-output selector `private_out`")
+    }));
+}
+
+#[test]
+fn static_named_witness_requirement_call_fences_wider_public_lanes() {
+    let source = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        trait Producer {
+            machine Self::produce(&self)
+            requires first: ready()
+            requires second: ready()
+            ensures public_out: ready();
+        }
+        data Token {}
+        TokenProducer: Token satisfies Producer {
+            machine produce(&self)
+            requires local_first: ready()
+            requires local_second: ready()
+            ensures public_out: ready()
+            { public_out = local_first; }
+        }
+        machine invoke<Element, Order: Element satisfies Producer>(value: &Element)
+        requires incoming_first: ready()
+        requires incoming_second: ready()
+        {
+            let (; public_out: result) =
+                Order::produce(value; incoming_first, incoming_second);
+        }
+        machine caller(value: &Token)
+        requires incoming_first: ready()
+        requires incoming_second: ready()
+        {
+            invoke<Token, TokenProducer>(value; incoming_first, incoming_second);
+        }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let diagnostics = lower_typed_trees(typed)
+        .expect_err("the first static requirement rung must reject wider public lanes");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "must own exactly one named requires input and one unconditional named ensures output",
+        )
     }));
 }
 

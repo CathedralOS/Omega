@@ -1147,6 +1147,7 @@ fn resolve_leaf_caller_local_initializer_names(
                     receiver,
                     target_symbol: call.target_symbol,
                     target: call.target.clone(),
+                    static_requirement_dispatch: call.static_requirement_dispatch.clone(),
                     machine_arguments: call.machine_arguments.clone(),
                     quotient_operation: call.quotient_operation.clone(),
                     private_layout_operation: call.private_layout_operation.clone(),
