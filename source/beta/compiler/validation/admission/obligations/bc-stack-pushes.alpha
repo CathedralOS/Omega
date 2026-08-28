@@ -250,7 +250,7 @@ scan_stack_push_artifact_count:
         imm r1, 524784
         load r2, r1
         imm r3, 407
-        jeq r2, r3, composition_scan_init
+        jeq r2, r3, build_expr_census_prefix_init
         jmp reject
 
 ; Compact exact-shape adapters keep the push-kind proposition explicit while

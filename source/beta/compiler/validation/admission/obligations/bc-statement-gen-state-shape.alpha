@@ -52,7 +52,7 @@ statement_gen_state_require_events:
         imm r23, 64                   ; emit_state_label
         call statement_gen_state_require_call
         imm r21, 317
-        imm r22, statement_gen_state_literal_label_suffix
+        imm r22, statement_label_suffix_literal
         imm r23, 2
         call statement_gen_state_require_emit
         imm r21, 317
@@ -156,6 +156,3 @@ statement_gen_state_require_decoded:
         imm r24, 5
         call exact_quiet_scan_region
         ret
-
-statement_gen_state_literal_label_suffix:
-        db ":\n"

@@ -84,14 +84,15 @@ Canonical subjects:
   memory, stack, effect, ranged-store, and meaning modules may share canonical
   decoded facts and structural indexes; they must retain separate semantic
   theorems.
-- [ ] Make repeated structural queries O(1) only where the source tables admit
+- [x] Make repeated structural queries O(1) only where the source tables admit
   a proved canonical index. The procedure-span inventory is complete: all 53
   endpoint binders are constant-time and the remaining 44 block identities
   either return a consumed PC or retain an explicit relational boundary. The
-  next candidate is a four-family expression-census prefix inventory over the
-  already checked primitive/push tables. Preserve the existing query contract,
-  add one mutation tooth per prefix family, and do not move primitive or push
-  semantic ownership into the index.
+  47 expression-census callers now use four checked boundary-prefix tables
+  instead of rescanning all 1,236 primitive/push rows. Each family has an
+  internal mutation tooth; primitive and push meaning remains with its existing
+  owner. A literal census rejected generic pooling across semantic owners and
+  retained only one statement-family-local label-suffix literal.
 - [ ] **BLOCKED — OWNER Q18:** ratify the generic guarded
   simulation/coinduction judgment and finite certificate shape. Then reconstruct
   the exact compiler proposition below `bc` and check it with the Alpha-owned

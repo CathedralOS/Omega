@@ -443,90 +443,95 @@ exact_push_extent:
         add r3, r4
         ret
 
-; Exhaust all expression primitive/push rows for selected blocks [r20,r21].
-; The four supplied half-open row intervals must contain every matching row
-; and no row owned by another block.
+; Bind the exact expression primitive/push intervals for blocks [r20,r21] to
+; the canonical boundary-prefix index.  Preserve the historical r20..r29 ABI:
+; block bounds, primitive rows, binary rows, argument rows, and store rows.
 summary_require_expr_census:
-        mov r30, r20
-        mov r31, r21
-        mov r32, r22
-        mov r33, r23
-        mov r34, r24
-        mov r35, r25
-        mov r36, r26
-        mov r37, r27
-        mov r38, r28
-        mov r39, r29
-        imm r10, 0
-        imm r11, 0
-summary_primitive_census_loop:
-        imm r1, 829                  ; exact expression primitive-row universe
-        jlt r10, r1, summary_primitive_census_row
-        mov r2, r33
-        sub r2, r32
-        jeq r11, r2, summary_push_census_init
-        jmp reject
-summary_primitive_census_row:
-        mov r2, r10
-        imm r1, 8
-        mul r2, r1
-        imm r1, 8388608
-        add r1, r2
-        load r3, r1
-        jlt r3, r30, summary_primitive_census_next
-        jlt r31, r3, summary_primitive_census_next
-        jlt r10, r32, reject
-        jlt r10, r33, summary_primitive_census_count
-        jmp reject
-summary_primitive_census_count:
+        call exact_expr_census_prefix_matches
         imm r1, 1
-        add r11, r1
-summary_primitive_census_next:
-        imm r1, 1
-        add r10, r1
-        jmp summary_primitive_census_loop
+        jeq r0, r1, exact_shape_ok
+        jmp reject
 
-summary_push_census_init:
-        imm r10, 0
-        imm r11, 0
-summary_push_census_loop:
-        imm r1, 407                  ; exact expression push-row universe
-        jlt r10, r1, summary_push_census_row
-        mov r2, r35
-        sub r2, r34
-        mov r4, r37
-        sub r4, r36
-        add r2, r4
-        mov r4, r39
-        sub r4, r38
-        add r2, r4
-        jeq r11, r2, exact_shape_ok
-        jmp reject
-summary_push_census_row:
-        mov r2, r10
+; Boolean form used both by the rejecting adapter and the owner's four private
+; mutation teeth.  It consumes no semantic row content.
+exact_expr_census_prefix_matches:
+        mov r34, r22
+        mov r35, r23
+        mov r36, r24
+        mov r37, r25
+        mov r38, r26
+        mov r39, r27
+        mov r42, r28
+        mov r43, r29
+        imm r1, 0
+        jlt r20, r1, exact_expr_census_prefix_no
+        jlt r21, r20, exact_expr_census_prefix_no
+        imm r1, 359
+        jlt r21, r1, exact_expr_census_prefix_offsets
+        jmp exact_expr_census_prefix_no
+exact_expr_census_prefix_offsets:
+        mov r30, r20
         imm r1, 8
-        mul r2, r1
-        imm r1, 9437184
-        add r1, r2
-        load r3, r1
-        jlt r3, r30, summary_push_census_next
-        jlt r31, r3, summary_push_census_next
-        jlt r10, r34, summary_push_census_argument
-        jlt r10, r35, summary_push_census_count
-summary_push_census_argument:
-        jlt r10, r36, summary_push_census_store
-        jlt r10, r37, summary_push_census_count
-summary_push_census_store:
-        jlt r10, r38, reject
-        jlt r10, r39, summary_push_census_count
-        jmp reject
-summary_push_census_count:
+        mul r30, r1
+        mov r31, r21
         imm r1, 1
-        add r11, r1
-summary_push_census_next:
+        add r31, r1
+        imm r1, 8
+        mul r31, r1
+        mov r32, r34
+        mov r33, r35
+        imm r1, 17039360
+        call exact_expr_census_prefix_pair
         imm r1, 1
-        add r10, r1
-        jmp summary_push_census_loop
+        jeq r0, r1, exact_expr_census_prefix_binary
+        ret
+exact_expr_census_prefix_binary:
+        mov r32, r36
+        mov r33, r37
+        imm r1, 17043456
+        call exact_expr_census_prefix_pair
+        imm r1, 1
+        jeq r0, r1, exact_expr_census_prefix_argument
+        ret
+exact_expr_census_prefix_argument:
+        mov r32, r38
+        mov r33, r39
+        imm r1, 17047552
+        call exact_expr_census_prefix_pair
+        imm r1, 1
+        jeq r0, r1, exact_expr_census_prefix_store
+        ret
+exact_expr_census_prefix_store:
+        mov r32, r42
+        mov r33, r43
+        imm r1, 17051648
+        call exact_expr_census_prefix_pair
+        ret
+
+; Array base in r1, byte offsets in r30/r31, expected pair in r32/r33.
+; Preserve the established empty-family convention: when the canonical prefix
+; endpoints are equal, any caller-supplied empty half-open interval is valid.
+exact_expr_census_prefix_pair:
+        mov r2, r1
+        add r2, r30
+        load r2, r2                  ; canonical start
+        add r1, r31
+        load r3, r1                  ; canonical end
+        jeq r2, r32, exact_expr_census_prefix_pair_start
+        jmp exact_expr_census_prefix_pair_empty
+exact_expr_census_prefix_pair_start:
+        jeq r3, r33, exact_expr_census_prefix_yes
+exact_expr_census_prefix_pair_empty:
+        jeq r2, r3, exact_expr_census_prefix_expected_empty
+        jmp exact_expr_census_prefix_no
+exact_expr_census_prefix_expected_empty:
+        jeq r32, r33, exact_expr_census_prefix_yes
+exact_expr_census_prefix_no:
+        imm r0, 0
+        ret
+exact_expr_census_prefix_yes:
+        imm r0, 1
+        ret
 
 ; Block row/PC in r20/r21.
 exact_require_block_pc:
