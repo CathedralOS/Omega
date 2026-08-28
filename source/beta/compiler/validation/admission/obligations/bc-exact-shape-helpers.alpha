@@ -389,44 +389,64 @@ exact_proc_block_next:
         add r10, r1
         jmp exact_proc_block_loop
 
-; Exact decoded census for [r20,r21), rejecting I/O, halt, byte memory,
-; division, and remainder. r22/r23/r24 are call/ret/store totals.
+; Compatibility entry for regions with no direct output or raw byte access.
+; Inputs r20..r24 are start/end/call/ret/store totals.
 exact_quiet_scan_region:
-        mov r25, r20
-        mov r26, r21
-        mov r27, r22
-        mov r28, r23
-        mov r29, r24
+        mov r25, r24
+        imm r24, 0                   ; no direct writes
+        imm r26, 0                   ; reject loadb/storeb
+        call exact_effect_scan_region
+        ret
+
+; Canonical decoded effect census for [r20,r21). Inputs r22..r25 are exact
+; call/ret/write/store totals. r26 is zero to reject raw byte access or one to
+; admit it; halt, division, remainder, and input are always rejected. The
+; shared instruction-start and opcode tables keep this checker independent of
+; responsibility-specific source-shape data.
+exact_effect_scan_region:
+        mov r27, r20
+        mov r28, r21
+        mov r29, r22
+        mov r30, r23
+        mov r31, r24
+        mov r32, r25
+        mov r33, r26
         imm r10, 0
         imm r11, 0
         imm r12, 0
-exact_quiet_scan_loop:
-        jlt r25, r26, exact_quiet_scan_pc
-        jeq r10, r27, exact_quiet_scan_rets
+        imm r13, 0
+exact_effect_scan_loop:
+        jlt r27, r28, exact_effect_scan_pc
+        jeq r10, r29, exact_effect_scan_rets
         jmp reject
-exact_quiet_scan_rets:
-        jeq r11, r28, exact_quiet_scan_stores
+exact_effect_scan_rets:
+        jeq r11, r30, exact_effect_scan_writes
         jmp reject
-exact_quiet_scan_stores:
-        jeq r12, r29, exact_shape_ok
+exact_effect_scan_writes:
+        jeq r12, r31, exact_effect_scan_stores
         jmp reject
-exact_quiet_scan_pc:
+exact_effect_scan_stores:
+        jeq r13, r32, exact_shape_ok
+        jmp reject
+exact_effect_scan_pc:
         imm r1, 4194304
-        add r1, r25
+        add r1, r27
         loadb r2, r1
         imm r3, 1
-        jeq r2, r3, exact_quiet_scan_start
-        jmp exact_quiet_scan_next
-exact_quiet_scan_start:
+        jeq r2, r3, exact_effect_scan_start
+        jmp exact_effect_scan_next
+exact_effect_scan_start:
         imm r1, 2097152
-        add r1, r25
+        add r1, r27
         loadb r2, r1
         imm r3, 19
-        jeq r2, r3, exact_quiet_scan_call
+        jeq r2, r3, exact_effect_scan_call
         imm r3, 20
-        jeq r2, r3, exact_quiet_scan_ret
+        jeq r2, r3, exact_effect_scan_ret
+        imm r3, 18
+        jeq r2, r3, exact_effect_scan_write
         imm r3, 11
-        jeq r2, r3, exact_quiet_scan_store
+        jeq r2, r3, exact_effect_scan_store
         imm r3, 0
         jeq r2, r3, reject
         imm r3, 6
@@ -434,29 +454,35 @@ exact_quiet_scan_start:
         imm r3, 7
         jeq r2, r3, reject
         imm r3, 8
-        jeq r2, r3, reject
+        jeq r2, r3, exact_effect_scan_raw
         imm r3, 9
-        jeq r2, r3, reject
+        jeq r2, r3, exact_effect_scan_raw
         imm r3, 17
         jeq r2, r3, reject
-        imm r3, 18
-        jeq r2, r3, reject
-        jmp exact_quiet_scan_next
-exact_quiet_scan_call:
+        jmp exact_effect_scan_next
+exact_effect_scan_raw:
+        imm r3, 1
+        jeq r33, r3, exact_effect_scan_next
+        jmp reject
+exact_effect_scan_call:
         imm r1, 1
         add r10, r1
-        jmp exact_quiet_scan_next
-exact_quiet_scan_ret:
+        jmp exact_effect_scan_next
+exact_effect_scan_ret:
         imm r1, 1
         add r11, r1
-        jmp exact_quiet_scan_next
-exact_quiet_scan_store:
+        jmp exact_effect_scan_next
+exact_effect_scan_write:
         imm r1, 1
         add r12, r1
-exact_quiet_scan_next:
+        jmp exact_effect_scan_next
+exact_effect_scan_store:
         imm r1, 1
-        add r25, r1
-        jmp exact_quiet_scan_loop
+        add r13, r1
+exact_effect_scan_next:
+        imm r1, 1
+        add r27, r1
+        jmp exact_effect_scan_loop
 
 ; Require the call at r20 to target r21 and have exact fallthrough r22.
 ; This was originally private to the main/slurp bridge, but its contract and
