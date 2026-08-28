@@ -101,7 +101,7 @@ do not become additional lattice steps.
   `admission/witnesses/`, and optional generated refinement in `stress/`.
 - [ ] Collapse the remaining Beta validator obligation explosion into one
   canonical data format and small responsibility-specific modules. The current
-  188 fragments total 64,739 lines after replacing nine private instruction
+  188 fragments total 64,605 lines after replacing nine private instruction
   scans with shared exact effect-census logic and merging the duplicate
   selected-row decoders into the canonical exact-table helper. Push, pop,
   saved-frame prologue, optional frame allocation, parameter store, and
@@ -116,9 +116,12 @@ do not become additional lattice steps.
   transition, event, local-access, primitive, push, call-continuation, and
   epilogue resolvers now join source-owned identities to checked artifact PCs;
   `emit_dec` is the first complete consumer and no longer embeds its 32 raw PC
-  occurrences. A targeted fifth negative control proves a mutated witness event
-  PC cannot redefine that identity. This structural decoupling brings the
-  current ROOT to 79,460 bytes. Continue replacing
+  occurrences. Fixed decimal/prelude emitters removed another 56 checked
+  coordinates, and `gen_stmt` now derives all 126 of its former artifact
+  coordinates from source identities and relative macro shape. These two
+  tranches were net-negative by 126 lines. A targeted fifth negative control
+  proves a mutated witness event PC cannot redefine that identity. The current
+  ROOT is 79,565 bytes. Continue replacing
   shape/control/data/publication permutations with data decoded by common
   checks; do not recreate cached viewers or debug-only publication paths. In
   particular, finish one canonical exact instruction table that gives stable
@@ -145,7 +148,12 @@ come from the exact full-source execution; it does not manufacture the missing
 compiler artifact. Stage completion and retained-marker replay now apply the
 same explicit template, closed-Gamma, raw-observation, and diagnostic ceilings
 as final verification, reject size drift, and never retain a marker after
-resource rejection. The 2026-08-28 exact attempt was stopped after both parallel
+resource rejection. Attempt-plan and stage-start/replay identity reads likewise
+apply every already-authoritative Alpha artifact/tape, source-image, template,
+closed-Gamma, and document ceiling with bounded drift-checked reads; source
+classes without an independently declared ceiling remain explicitly unbounded
+rather than acquiring an orchestration-invented limit. The 2026-08-28 exact
+attempt was stopped after both parallel
 executions reached 9,660 seconds with zero output; it produced no receipt and
 grants no publication authority.
 
@@ -219,7 +227,10 @@ and are not blocked on this ruling.
   eight-byte immediate independently before one exact PC advance. Five
   alternating two-million-call pairs averaged 4.708 seconds before and 4.658
   seconds after (about 1.1%), all with status 42; the same complete gate set
-  passes.
+  passes. A fresh bounded sample of the exact canonical Delta publication input
+  spent 31,178 of 34,913 samples (89.3%) in comparison dispatch; no remaining
+  handler exceeded 4.3%. Elaboration took 1.269 seconds and packing 109 ms, so
+  preparation and an isolated native handler are not the next bottleneck.
   A bounds-checked 21-row branch-table prototype
   passed all Alpha gates and improved a synthetic two-opcode loop from
   4.28–4.29 seconds to 3.66 seconds, but regressed a representative million-call
@@ -236,14 +247,17 @@ and are not blocked on this ruling.
   adopted because the semantic admission bundle duplicated old macro shapes
   and byte PCs throughout its 188 fragments; its first failure was the
   `emit_dec Word` canonical smoke. Shared macro-shape decoding has now landed,
-  all selected procedure-entry uses resolve by identity, and `emit_dec` now
-  resolves its r13-sensitive coordinates by source identity. Adjacent ready and
-  fixed-emitter summaries still contain three uses of the next procedure entry,
-  while the fixed-decimal shape retains fifty raw coordinates; broader macro,
-  call, block, transition, and event consumers remain coupled. Finish the
-  canonical decoded identity-to-PC refactor above, then reapply and admit this
-  compiler change without a mechanical obligation rewrite before attempting
-  another dispatch mechanism or speculative Gamma rewrite.
+  all selected procedure-entry uses resolve by identity, and the emit-dec,
+  fixed-emitter, and `gen_stmt` tranches now derive their coordinates from
+  source identities. A current direct r13 projection still changes canonical
+  source-event rows from 617 to 611 and moves nearly every artifact coordinate;
+  93 obligation modules retain matching literals. Centralize macro extents and
+  successors for prologue, pop, push, parameter-store, and epilogue consumers,
+  then replace row-number event identity with a checker-scanned semantic key.
+  Reapply and admit the compiler change only when it changes `bc.beta`, the
+  centralized mapper/shape/ABI owners, generated identities, and adjacent
+  manifests rather than dozens of semantic obligations. Do that before another
+  dispatch mechanism or speculative Gamma rewrite.
   Reduce the cost without changing Alpha or Gamma meaning, hiding a compiler
   stage, or weakening the
   exact evidence join. The 12-hour safety ceiling is not an acceptable normal
