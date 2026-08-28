@@ -875,9 +875,7 @@ fn git_network_transfer_observation(
     {
         for event in endpoint.events() {
             if event.outcome() == ResolverExecutionEndpointOutcome::TransferCeilingReached {
-                return Err(SourceResolveError::GitExecutionBoundaryInvalid {
-                    message: "Git endpoint route reached its network-transfer ceiling".to_owned(),
-                });
+                return Err(SourceResolveError::GitResolutionNetworkTransferCeiling { ceiling });
             }
             uploaded = uploaded
                 .checked_add(event.uploaded_bytes())
@@ -1253,6 +1251,9 @@ pub enum SourceResolveError {
         ceiling: u64,
         attempted: u64,
     },
+    GitResolutionNetworkTransferCeiling {
+        ceiling: u64,
+    },
     GitCleanupFailed {
         operation: String,
         message: String,
@@ -1396,6 +1397,10 @@ impl fmt::Display for SourceResolveError {
             Self::GitResolutionCapturedOutputLimit { ceiling, attempted } => write!(
                 output,
                 "Git source resolution attempted to capture {attempted} bytes across all commands, exceeding its {ceiling}-byte cumulative output ceiling"
+            ),
+            Self::GitResolutionNetworkTransferCeiling { ceiling } => write!(
+                output,
+                "Git source resolution reached its {ceiling}-byte broker-routed network-transfer ceiling"
             ),
             Self::GitCleanupFailed { operation, message } => write!(
                 output,
@@ -8505,9 +8510,13 @@ where
         .map_err(|error| SourceResolveError::GitExecutionBoundaryInvalid {
             message: format!("compiler-owned endpoint route failed: {error}"),
         });
+    let endpoint_validation = endpoint_result
+        .as_ref()
+        .map_err(Clone::clone)
+        .and_then(|observation| validate_network_transfer_outcome(observation.as_ref()));
     let output = reconcile_git_command_endpoint_result(
         result,
-        endpoint_result.as_ref().map(|_| ()).map_err(Clone::clone),
+        endpoint_validation,
         executor.verify(),
         executor.verify_budget(),
     )?;
@@ -8515,6 +8524,24 @@ where
         endpoint_result.expect("successful reconciliation checked endpoint result");
     executor.record_command_execution(phase, command_identity, &output, endpoint_observation)?;
     Ok(output)
+}
+
+fn validate_network_transfer_outcome(
+    observation: Option<&ResolverExecutionEndpointObservation>,
+) -> Result<(), SourceResolveError> {
+    let Some(observation) = observation else {
+        return Ok(());
+    };
+    if observation
+        .events()
+        .iter()
+        .any(|event| event.outcome() == ResolverExecutionEndpointOutcome::TransferCeilingReached)
+    {
+        return Err(SourceResolveError::GitResolutionNetworkTransferCeiling {
+            ceiling: observation.route().transfer_byte_ceiling(),
+        });
+    }
+    Ok(())
 }
 
 fn reconcile_git_command_endpoint_result<T>(
@@ -12336,6 +12363,22 @@ mod tests {
         assert!(matches!(
             reconcile_git_command_result(result, Ok(()), budget),
             Err(SourceResolveError::GitCleanupFailed { .. })
+        ));
+    }
+
+    #[test]
+    fn network_transfer_ceiling_outranks_ordinary_git_failure() {
+        let operation = Err(SourceResolveError::Git {
+            operation: "command".to_owned(),
+            status: Some(1),
+            stderr: "connection closed".to_owned(),
+        });
+        let endpoint =
+            Err(SourceResolveError::GitResolutionNetworkTransferCeiling { ceiling: 1024 });
+
+        assert!(matches!(
+            reconcile_git_command_endpoint_result::<()>(operation, endpoint, Ok(()), Ok(())),
+            Err(SourceResolveError::GitResolutionNetworkTransferCeiling { ceiling: 1024 })
         ));
     }
 

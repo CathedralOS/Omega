@@ -919,7 +919,9 @@ complete.
   and the checked sum of all retained events. Native policy schema 8 binds the
   route ceiling, final observation schema/domain 4 binds directional aggregate
   evidence, and Git cache policy v21 prevents reuse of state fetched without
-  this floor. Native tests cover directional counts, shared-route exhaustion,
+  this floor. A ceiling event becomes a typed package-layer transfer failure
+  before an ordinary Git transport error can hide it; process-container cleanup
+  failure still outranks both. Native tests cover directional counts, shared-route exhaustion,
   canonical sensitivity, and concurrent non-overshoot; all 157 source-resolver
   tests pass. This is a strict broker-routed quota, not a universal network
   guarantee: macOS endpoint confinement prevents direct child egress, while
