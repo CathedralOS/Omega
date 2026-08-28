@@ -266,7 +266,7 @@ fs_store_mark_unique:
 fs_store_mark_now:
         storeb r1, r21
         imm r1, 525360
-        call fs_increment
+        call exact_increment_cell
         imm r1, 1
         jeq r21, r1, fs_store_count_saved
         imm r1, 2
@@ -280,23 +280,23 @@ fs_store_mark_now:
         jmp reject
 fs_store_count_saved:
         imm r1, 525368
-        call fs_increment
+        call exact_increment_cell
         ret
 fs_store_count_push:
         imm r1, 525376
-        call fs_increment
+        call exact_increment_cell
         ret
 fs_store_count_local:
         imm r1, 525384
-        call fs_increment
+        call exact_increment_cell
         ret
 fs_store_count_raw:
         imm r1, 525392
-        call fs_increment
+        call exact_increment_cell
         ret
 fs_store_count_param:
         imm r1, 525400
-        call fs_increment
+        call exact_increment_cell
         ret
 
 ; Used only by the focused gate's omitted-owner diagnostic.
@@ -308,13 +308,6 @@ fs_store_skip_first_saved:
         imm r1, 96
         jeq r20, r1, fs_store_skip_mark
         jmp fs_store_mark
-
-fs_increment:
-        load r2, r1
-        imm r3, 1
-        add r2, r3
-        store r1, r2
-        ret
 
 fs_store_counts:
         imm r1, 525360
@@ -393,7 +386,7 @@ fs_store_scan_require_owner:
         imm r3, 0
         jeq r2, r3, reject
         imm r1, 525408
-        call fs_increment
+        call exact_increment_cell
 fs_store_scan_next:
         imm r1, 1
         add r10, r1
@@ -935,7 +928,7 @@ fs_ret_saved:
         jmp reject
 fs_ret_count:
         imm r1, 525352
-        call fs_increment
+        call exact_increment_cell
         jmp fs_scan_next
 
 fs_next2:
