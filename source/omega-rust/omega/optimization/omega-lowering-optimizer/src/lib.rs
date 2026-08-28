@@ -822,6 +822,74 @@ mod tests {
         )
     }
 
+    fn compatible_policy_local_cse_verified() -> VerifiedPsiOptimizationUnit {
+        let machine = MachineId::new(1_401).unwrap();
+        let block = BlockId::new(1_402).unwrap();
+        let left = ValueId::new(1_403).unwrap();
+        let right = ValueId::new(1_404).unwrap();
+        let leader = ValueId::new(1_405).unwrap();
+        let redundant = ValueId::new(1_406).unwrap();
+        let result = ValueId::new(1_407).unwrap();
+        let redundant_operation = OperationId::new(1_409).unwrap();
+        let redundant_obligation = ObligationId::new(1_411).unwrap();
+        let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+        let declaration = |id| ValueDeclaration { id, scalar_type };
+        let module = module_with_blocks(
+            machine,
+            block,
+            TerminalMachineResult::Scalar(declaration(result)),
+            vec![Block {
+                id: block,
+                parameters: Vec::new(),
+                operations: vec![
+                    Operation {
+                        id: OperationId::new(1_413).unwrap(),
+                        result: OperationResult::Scalar(declaration(left)),
+                        kind: OperationKind::IntegerConstant {
+                            value: IntegerValue::Unsigned(7),
+                        },
+                    },
+                    Operation {
+                        id: OperationId::new(1_414).unwrap(),
+                        result: OperationResult::Scalar(declaration(right)),
+                        kind: OperationKind::IntegerConstant {
+                            value: IntegerValue::Unsigned(8),
+                        },
+                    },
+                    Operation {
+                        id: OperationId::new(1_408).unwrap(),
+                        result: OperationResult::Scalar(declaration(leader)),
+                        kind: OperationKind::SaturatingIntegerAdd { left, right },
+                    },
+                    Operation {
+                        id: redundant_operation,
+                        result: OperationResult::Scalar(declaration(redundant)),
+                        kind: OperationKind::ExactIntegerAdd {
+                            left: right,
+                            right: left,
+                            obligation: redundant_obligation,
+                        },
+                    },
+                ],
+                terminator: Terminator::Return {
+                    edge: EdgeId::new(1_412).unwrap(),
+                    value: redundant,
+                    cleanup_actions: Vec::new(),
+                },
+            }],
+        );
+        verified(
+            module,
+            ProofBundle {
+                evidence_producers: Vec::new(),
+                evidence: vec![ObligationEvidence {
+                    obligation: redundant_obligation,
+                    route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
+                }],
+            },
+        )
+    }
+
     fn dominator_gvn_verified() -> VerifiedPsiOptimizationUnit {
         let machine = MachineId::new(1_361).unwrap();
         let child = BlockId::new(1_362).unwrap();
@@ -2284,6 +2352,60 @@ mod tests {
             ]
         );
         assert_eq!(optimized.transformation_ledger().records().len(), 1);
+    }
+
+    #[test]
+    fn compatible_policy_gvn_projects_and_lowers_with_exact_fact_custody() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let selections =
+                OptimizationSelections::new([Optimization::GlobalValueNumbering]).unwrap();
+            let optimized =
+                project_optimization_run(run(compatible_policy_local_cse_verified(), selections))
+                    .unwrap();
+            let leader = ValueId::new(1_405).unwrap();
+            let redundant_operation = OperationId::new(1_409).unwrap();
+            let redundant_fact = optimized
+                .unit()
+                .accepted_obligation_facts
+                .iter()
+                .find(|fact| fact.operation == redundant_operation)
+                .unwrap()
+                .identity;
+
+            assert_eq!(optimized.commits().len(), 1);
+            assert_eq!(optimized.plan().functions[0].operations.len(), 4);
+            assert!(matches!(
+                optimized.plan().functions[0].operations[2],
+                TerminalAbstractOperation::SaturatingIntegerAdd { result, .. } if result == leader
+            ));
+            assert!(matches!(
+                optimized.plan().functions[0].operations[3],
+                TerminalAbstractOperation::Return { value, .. } if value == leader
+            ));
+            assert_eq!(
+                optimized.unit().functions[0]
+                    .facts
+                    .iter()
+                    .filter(|fact| matches!(
+                        fact,
+                        omega_optimization_unit::OptimizationFact::OperationObligationReference { .. }
+                    ))
+                    .count(),
+                0
+            );
+            assert_eq!(optimized.unit().accepted_obligation_facts.len(), 1);
+            assert_eq!(
+                optimized.pass_manifests()[0].decisions()[0].consumed_facts(),
+                &[
+                    omega_optimization_core::OptimizationFactReference::AcceptedObligation(
+                        redundant_fact
+                    )
+                ]
+            );
+            let lowered = lower_optimized_to_target_operations(optimized, target).unwrap();
+            assert_eq!(lowered.target(), target);
+            assert_eq!(lowered.target_operations().functions.len(), 1);
+        }
     }
 
     #[test]
