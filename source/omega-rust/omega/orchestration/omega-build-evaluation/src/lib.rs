@@ -84,6 +84,8 @@ pub const BUILD_OUTPUT_ROOT_IDENTITY: BuildMachineFilesystemGrantRootIdentity =
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildMachineFilesystemScope {
     source_root: PathBuf,
+    canonical_source_metadata: Option<psi_checked_interpreter::CanonicalFilesystemMetadataIndex>,
+    canonical_source_metadata_required: bool,
     build_dir: PathBuf,
     sponsor: Option<BuildMachineFilesystemSponsor>,
     replay: Option<psi_checked_interpreter::FilesystemReplay>,
@@ -102,6 +104,24 @@ impl BuildMachineFilesystemScope {
             .unwrap_or_else(|| PathBuf::from("."));
         Self {
             source_root,
+            canonical_source_metadata: None,
+            canonical_source_metadata_required: false,
+            build_dir,
+            sponsor,
+            replay: None,
+        }
+    }
+
+    pub(crate) fn for_package_root(
+        source_root: PathBuf,
+        build_dir: PathBuf,
+        sponsor: Option<BuildMachineFilesystemSponsor>,
+        metadata: Option<psi_checked_interpreter::CanonicalFilesystemMetadataIndex>,
+    ) -> Self {
+        Self {
+            source_root,
+            canonical_source_metadata: metadata,
+            canonical_source_metadata_required: true,
             build_dir,
             sponsor,
             replay: None,
@@ -121,11 +141,15 @@ impl BuildMachineFilesystemScope {
         if let Some(replay) = &self.replay {
             return BuildMachineFilesystemAccess::ReplayFilesystem(replay.clone());
         }
+        let mut source_root = BuildMachineFilesystemGrantRoot::new(
+            BUILD_SOURCE_ROOT_IDENTITY,
+            self.source_root.clone(),
+        );
+        if let Some(metadata) = &self.canonical_source_metadata {
+            source_root = source_root.with_canonical_metadata(metadata.clone());
+        }
         let grants = BuildMachineFilesystemGrants {
-            read_roots: vec![BuildMachineFilesystemGrantRoot::new(
-                BUILD_SOURCE_ROOT_IDENTITY,
-                self.source_root.clone(),
-            )],
+            read_roots: vec![source_root],
             write_roots: vec![BuildMachineFilesystemGrantRoot::new(
                 BUILD_OUTPUT_ROOT_IDENTITY,
                 self.build_dir.clone(),
@@ -183,6 +207,27 @@ impl BuildMachineFilesystemScope {
                 self.build_dir.display()
             ))]
         })
+    }
+
+    fn ensure_canonical_source_metadata(&self) -> Result<(), Vec<Diagnostic>> {
+        if self.canonical_source_metadata_required && self.canonical_source_metadata.is_none() {
+            return Err(vec![Diagnostic::error(
+                "package-aware build filesystem access requires compiler-validated canonical Source metadata",
+            )]);
+        }
+        Ok(())
+    }
+
+    const fn canonical_source_metadata_identity(
+        &self,
+    ) -> Option<BuildCanonicalSourceMetadataIdentity> {
+        match &self.canonical_source_metadata {
+            Some(metadata) => Some(BuildCanonicalSourceMetadataIdentity {
+                policy_version: metadata.policy_version(),
+                source_content_commitment: *metadata.source_content_commitment(),
+            }),
+            None => None,
+        }
     }
 
     fn sponsor_diagnostic(
@@ -254,7 +299,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 24;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 25;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -281,6 +326,31 @@ pub enum BuildFilesystemProvider {
     RealUnscoped,
     /// Real filesystem constrained by compiler-supplied path grants.
     RealScoped,
+}
+
+/// Exact immutable-source coordinate governing canonical build-visible
+/// metadata. This is compiler sponsorship, not package admission evidence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuildCanonicalSourceMetadataIdentity {
+    policy_version: u32,
+    source_content_commitment: [u8; 32],
+}
+
+impl BuildCanonicalSourceMetadataIdentity {
+    pub(crate) const fn new(policy_version: u32, source_content_commitment: [u8; 32]) -> Self {
+        Self {
+            policy_version,
+            source_content_commitment,
+        }
+    }
+
+    pub const fn policy_version(self) -> u32 {
+        self.policy_version
+    }
+
+    pub const fn source_content_commitment(self) -> [u8; 32] {
+        self.source_content_commitment
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -973,6 +1043,7 @@ pub struct BuildObservationSummary {
     realized: BuildObservationClass,
     filesystem_operation_schema_version: u32,
     filesystem_operation_attempts: Vec<BuildFilesystemOperationAttempt>,
+    canonical_source_metadata_identity: Option<BuildCanonicalSourceMetadataIdentity>,
     source_inputs_replay_verified: bool,
     operation_replay_verified: bool,
     staged_output_tree: Option<BuildStagedOutputTree>,
@@ -993,6 +1064,12 @@ impl BuildObservationSummary {
 
     pub const fn filesystem_operation_schema_version(&self) -> u32 {
         self.filesystem_operation_schema_version
+    }
+
+    pub const fn canonical_source_metadata_identity(
+        &self,
+    ) -> Option<BuildCanonicalSourceMetadataIdentity> {
+        self.canonical_source_metadata_identity
     }
 
     pub const fn staged_output_tree(&self) -> Option<&BuildStagedOutputTree> {
@@ -2527,6 +2604,7 @@ pub fn compute_build_config(
         };
         let filesystem = if filesystem_reachable {
             filesystem_scope.ensure_write_roots()?;
+            filesystem_scope.ensure_canonical_source_metadata()?;
             filesystem_scope.filesystem_access()
         } else {
             BuildMachineFilesystemAccess::Virtual
@@ -3045,6 +3123,8 @@ pub fn compute_build_config(
             realized: realized_observation,
             filesystem_operation_schema_version,
             filesystem_operation_attempts,
+            canonical_source_metadata_identity: filesystem_scope
+                .canonical_source_metadata_identity(),
             source_inputs_replay_verified,
             operation_replay_verified,
             staged_output_tree,
@@ -3493,9 +3573,11 @@ mod tests {
         BuildConfig, BuildMachineFilesystemScope, RootBinding, SelectedCompilerProgramEntry,
         select_compiler_program_entry, selected_program_entry_machine,
     };
+    use psi_build_time_evaluation::BuildMachineFilesystemAccess;
     use psi_checked_interpreter::{FilesystemSponsor, FilesystemSponsorLimits};
     use std::{
         fs,
+        path::PathBuf,
         sync::atomic::{AtomicU64, Ordering},
     };
 
@@ -3625,6 +3707,51 @@ mod tests {
         assert!(diagnostics[0].to_string().contains("entry limit 1"));
 
         fs::remove_dir_all(session_root).expect("remove session root");
+    }
+
+    #[test]
+    fn build_scope_attaches_canonical_metadata_only_to_source() {
+        let metadata = psi_checked_interpreter::CanonicalFilesystemMetadataIndex::version_1(
+            [0x5a; 32],
+            [
+                psi_checked_interpreter::CanonicalFilesystemMetadataRow::new(
+                    Vec::new(),
+                    psi_checked_interpreter::CanonicalFilesystemMetadataRowKind::Directory,
+                ),
+            ],
+        )
+        .expect("construct canonical source metadata");
+        let scope = BuildMachineFilesystemScope::for_package_root(
+            PathBuf::from("source"),
+            PathBuf::from("build"),
+            None,
+            Some(metadata.clone()),
+        );
+
+        let BuildMachineFilesystemAccess::RealScoped(grants) = scope.filesystem_access() else {
+            panic!("unsponsored build scope must use scoped real filesystem grants")
+        };
+        assert_eq!(grants.read_roots.len(), 1);
+        assert_eq!(grants.write_roots.len(), 1);
+        assert_eq!(grants.read_roots[0].canonical_metadata(), Some(&metadata));
+        assert!(grants.write_roots[0].canonical_metadata().is_none());
+    }
+
+    #[test]
+    fn package_build_scope_rejects_filesystem_authority_without_canonical_source_metadata() {
+        let scope = BuildMachineFilesystemScope::for_package_root(
+            PathBuf::from("package-root"),
+            PathBuf::from("build"),
+            None,
+            None,
+        );
+
+        let diagnostics = scope
+            .ensure_canonical_source_metadata()
+            .expect_err("package filesystem access must not fall back to physical metadata");
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].message.contains("canonical Source metadata"));
+        assert_eq!(scope.source_root, PathBuf::from("package-root"));
     }
 
     #[test]

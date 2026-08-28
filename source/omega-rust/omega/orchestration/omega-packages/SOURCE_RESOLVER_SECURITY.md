@@ -172,6 +172,43 @@ locks, metadata reads, staging, publication, invalidation, or macOS ACL
 inspection handle-relative, and it does not claim exclusion of an actively
 hostile same-user process.
 
+Compilation handoff now captures and revalidates the root package of each
+package compilation again, then asks the compiler to independently recapture
+that same root into one closed canonical Source-metadata index bound to its
+compiler-owned full-content commitment.
+Indexes for reachable dependencies are not retained in that compilation; when
+review re-roots to a dependency, it receives its own freshly derived root
+index. The index
+contains raw root-relative paths, directory/file/symlink kind, executable bits,
+ordinary-file lengths, symlink-target spelling lengths, and an implicit root
+directory. It is bounded to 65,537 rows including the root and 16 MiB of
+aggregate path bytes. Build-time `stat`, `lstat`, and `fstat` on Source obtain
+mode, length, and a fixed timestamp from this index; followed `stat` selects the
+resolved target row, `lstat` selects the authored leaf, and an open handle keeps
+its selected row for `fstat`. A path absent from the complete index rejects
+rather than falling back to physical checkout metadata. Source directories are
+`040555`, files are `100444` or `100555`, symlinks are `120777`, directory size
+is zero, and the canonical timestamp is exactly 1,000,000,000 seconds after the
+Unix epoch. The writable Output grant continues to expose physical staging
+metadata. Package-aware filesystem execution rejects an absent root index and
+anchors Source to the exact package root, not the selected entry file's parent.
+Callers cannot supply package index rows or their commitment. The compiler
+captures canonical shape, mode, length, and full file/symlink content itself
+under a 512 MiB aggregate-content ceiling; input construction independently
+recaptures the complete physical root and requires exact index equality. The
+compiler repeats the content check at compilation entry and immediately before
+returning checked evidence or publishing a legacy result.
+Non-root dependency indexes reject rather than accumulating across the closure.
+The package layer still performs its stronger resolver-policy revalidation and
+source-resolution binding immediately before compiler capture. Replay records
+bind the metadata policy version and compiler-owned full-content commitment,
+and package-aware no-host replay rejects a mismatch with the current root
+index. The provider also checks that the host object kind agrees with the
+indexed kind;
+this detects ordinary drift but does not defeat the same-user race described
+above. The index is compiler sponsorship, not a source-resolution receipt and
+does not add authority to persisted metadata.
+
 Transport erasure now retains the original file, byte, and depth limits beside
 each package snapshot. Review orchestration checks canonical read-only modes
 and re-hashes every transitive snapshot under those limits immediately before

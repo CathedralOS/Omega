@@ -31,7 +31,6 @@ pub(crate) use crate::compiler::{
     CompileOptions, CompileOutputKind, CompileReport, ExecutablePublicationDestination,
     ExecutablePublicationReceipt,
 };
-
 pub(crate) use artifacts::write_checked_snapshot;
 pub(crate) use checked_entry::CheckedCompilation;
 pub(crate) use compile_policy::ExecutableTcbBuildPolicy;
