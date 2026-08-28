@@ -2626,9 +2626,15 @@ operation, structural arguments, completion evidence, root claims, provider
 callee, and the provider body's two ordered settlement rows. It then prefixes
 the 90-byte compiler-owned wrapper and resolves its private continuation into a
 181-byte three-symbol zero-relocation composite. The wrapper symbol has no
-`MachineId`; both copied child symbols retain theirs. Remaining acceptance is
-the explicit negative provider/type-domain/claim substitution matrix; source-
-entry identity substitution already rejects before composition. This is not a
+`MachineId`; both copied child symbols retain theirs. A diagnostic-only pure
+replay now accepts the retained opaque installation, a borrowed selected plan,
+and the semantic entry without returning any authority. The checked-source
+matrix mutates cloned evidence and rejects provider/candidate identity,
+installed/authored source kind, structural access and qualification/domain,
+semantic call arguments, completion sources and receipts, entry claims,
+callee/function rosters, and provider settlement claims/order/count while the
+unmodified evidence continues through wrapper composition. Source-entry
+identity substitution still rejects before composition. This is not a
 language-design question.
 The scalar-result conditional fixture above remains an ordinary callable. The
 eventual semantic wrapper is not yet an authoritative firmware/process entry:

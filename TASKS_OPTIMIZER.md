@@ -2666,7 +2666,7 @@ dependency.
   the independent encoding receipt.
 
 - **OPT-PROGRAM-STORAGE-WRAPPER-OBJECT — checked installed-provider composite
-  landed; substitution matrix remains open.** The owning semantic-entry join in
+  and substitution matrix landed.** The owning semantic-entry join in
   `omega-terminal-native-realization` consumes by value one replayed native
   ProgramEntry settlement, the exact canonical optimized Terminal object for
   that settlement, and the selected compact semantic-wrapper encoding. It
@@ -2696,19 +2696,20 @@ dependency.
 
   Landed coverage independently replays the composition and codecs and rejects
   object/manifest identity drift, child-text drift, and any attempt to classify
-  the compiler wrapper as a Terminal machine. Remaining acceptance: settlement,
-  target, Terminal-Psi, entry, type/domain, claim,
-  encoding, child-object, symbol, interval, displacement, and identity
-  substitution tests fail closed; independent replay reconstructs the entire
-  composite object and its custody manifest; the wrapper symbol is
-  compiler-owned rather than `MachineId`-rooted. The positive checked-source
-  test now uses the same claim-consuming continuation through canonical object
-  custody rather than pairing the synthetic leaf with a real `BoundaryCall`
-  receipt; an independently valid but identity-substituted source entry is
-  rejected before composition. Remaining here is the explicit negative
-  integration matrix for provider/type-domain/claim substitutions and the
-  downstream physical bridge/image/publication work. This task grants no Q17
-  physical bridge, executable-image installation, or publication authority.
+  the compiler wrapper as a Terminal machine. A diagnostic-only independent
+  replay now compares cloned selected evidence with the retained opaque
+  installation without granting carrier authority. The checked-source
+  integration matrix rejects provider/candidate identity, installed/authored
+  source kind, owned/borrowed access, parameter qualification/domain, semantic
+  call argument, completion-source claim/place/order, receipt claim/order,
+  entry-claim order, callee, entry/provider-function roster, and provider-body
+  settlement claim/order/count substitutions. The unmodified evidence still
+  reaches the same 181-byte composite. Existing outer-join coverage rejects
+  source-entry identity before composition and independently replays object,
+  symbol, interval, displacement, container, and manifest custody. The wrapper
+  symbol remains compiler-owned rather than `MachineId`-rooted. This task grants
+  no Q17 physical bridge, executable-image installation, or publication
+  authority.
 
 - **OPT-PRE-RA-MACHINE.** Add machine copy propagation, cheap rematerialization
   hints, and instruction-alternative selection before allocation.

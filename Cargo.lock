@@ -1170,6 +1170,7 @@ dependencies = [
  "omega-terminal-native-artifact",
  "omega-terminal-native-realization",
  "omega-terminal-psi-to-abstract-operations",
+ "omega-terminal-selected-instructions",
  "omega-terminal-target-operations",
  "omega-terminal-target-operations-to-assigned-target-operations",
  "omega-x86-encoding",
