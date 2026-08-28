@@ -35,7 +35,8 @@ use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
 use psi_core::{
     BlockId, BoundaryMachineId, ClaimId, ContentProjectionExpression, ContentProjectionScalar,
     EdgeId, IntegerCarrier, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
-    PlaceId, ScalarType, StructuralDomainId, StructuralPlaceKind, StructuralTypeId, ValueId,
+    PlaceId, ScalarType, ServiceId, StructuralDomainId, StructuralPlaceKind, StructuralTypeId,
+    ValueId,
 };
 use psi_terminal_fuel::TerminalFuelSchedule;
 
@@ -69,6 +70,29 @@ pub enum OptimizationUnitValidationError {
     PrunedEntryMachine(MachineId),
     PrunedProviderMachine(MachineId),
     DuplicateBoundaryMachine(BoundaryMachineId),
+    DuplicateService(ServiceId),
+    InvalidServiceIdentity(ServiceId),
+    InvalidServiceParent {
+        service: ServiceId,
+        parent: ServiceId,
+    },
+    NonCanonicalServiceParents(ServiceId),
+    RecursiveServiceHierarchy(ServiceId),
+    IncompleteServiceParentClosure {
+        service: ServiceId,
+        ancestor: ServiceId,
+    },
+    InvalidFunctionServiceCeiling(MachineId),
+    InvalidBoundaryServiceCeiling(BoundaryMachineId),
+    InvalidProviderServiceRefinement {
+        boundary: BoundaryMachineId,
+        candidate: MachineId,
+    },
+    OperationServiceContractMismatch {
+        machine: MachineId,
+        block: BlockId,
+        node: u32,
+    },
     DuplicateStructuralType(StructuralTypeId),
     NonCanonicalStructuralTypeOrder,
     InvalidStructuralTypeIdentity(StructuralTypeId),
@@ -1287,8 +1311,14 @@ pub fn validate_psi_optimization_unit(
             ));
         }
     }
+    let services = index_service_catalog(unit)?;
     let (structural_types, structural_domains) = index_structural_catalogs(unit)?;
     for boundary in &unit.boundary_machines {
+        if !valid_service_ceiling(&boundary.published_service_ceiling, &services) {
+            return Err(
+                OptimizationUnitValidationError::InvalidBoundaryServiceCeiling(boundary.id),
+            );
+        }
         if !boundary_structural_signature_matches(boundary, &structural_types, &structural_domains)
         {
             return Err(OptimizationUnitValidationError::StructuralCatalogMismatch {
@@ -1296,11 +1326,13 @@ pub fn validate_psi_optimization_unit(
             });
         }
     }
+    validate_provider_service_refinements(unit, &machines, &boundary_machines)?;
     for function in &unit.functions {
         validate_function(
             function,
             &machines,
             &boundary_machines,
+            &services,
             &structural_types,
             &structural_domains,
         )?;
@@ -1320,6 +1352,135 @@ pub fn validate_psi_optimization_unit(
         return Err(OptimizationUnitValidationError::MissingEntryMachine(
             unit.entry,
         ));
+    }
+    Ok(())
+}
+
+fn index_service_catalog(
+    unit: &PsiOptimizationUnit,
+) -> Result<BTreeMap<ServiceId, &psi_terminal::ServiceDeclaration>, OptimizationUnitValidationError>
+{
+    let mut services = BTreeMap::new();
+    let mut identities = BTreeSet::new();
+    for declaration in unit.services.iter() {
+        if services.insert(declaration.id, declaration).is_some() {
+            return Err(OptimizationUnitValidationError::DuplicateService(
+                declaration.id,
+            ));
+        }
+        if declaration.identity.is_empty() || !identities.insert(declaration.identity.as_str()) {
+            return Err(OptimizationUnitValidationError::InvalidServiceIdentity(
+                declaration.id,
+            ));
+        }
+    }
+    for declaration in unit.services.iter() {
+        let mut parents = BTreeSet::new();
+        for parent in &declaration.parents {
+            if *parent == declaration.id
+                || !parents.insert(*parent)
+                || !services.contains_key(parent)
+            {
+                return Err(OptimizationUnitValidationError::InvalidServiceParent {
+                    service: declaration.id,
+                    parent: *parent,
+                });
+            }
+        }
+        if declaration
+            .parents
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+        {
+            return Err(OptimizationUnitValidationError::NonCanonicalServiceParents(
+                declaration.id,
+            ));
+        }
+    }
+
+    fn visit(
+        id: ServiceId,
+        services: &BTreeMap<ServiceId, &psi_terminal::ServiceDeclaration>,
+        active: &mut BTreeSet<ServiceId>,
+        complete: &mut BTreeSet<ServiceId>,
+    ) -> Result<(), OptimizationUnitValidationError> {
+        if complete.contains(&id) {
+            return Ok(());
+        }
+        if !active.insert(id) {
+            return Err(OptimizationUnitValidationError::RecursiveServiceHierarchy(
+                id,
+            ));
+        }
+        for parent in &services[&id].parents {
+            visit(*parent, services, active, complete)?;
+        }
+        active.remove(&id);
+        complete.insert(id);
+        Ok(())
+    }
+
+    let mut active = BTreeSet::new();
+    let mut complete = BTreeSet::new();
+    for id in services.keys().copied() {
+        visit(id, &services, &mut active, &mut complete)?;
+    }
+    for declaration in services.values() {
+        for parent in &declaration.parents {
+            if let Some(ancestor) = services[parent]
+                .parents
+                .iter()
+                .find(|ancestor| !declaration.parents.contains(ancestor))
+            {
+                return Err(
+                    OptimizationUnitValidationError::IncompleteServiceParentClosure {
+                        service: declaration.id,
+                        ancestor: *ancestor,
+                    },
+                );
+            }
+        }
+    }
+    Ok(services)
+}
+
+fn valid_service_ceiling(
+    ceiling: &[ServiceId],
+    services: &BTreeMap<ServiceId, &psi_terminal::ServiceDeclaration>,
+) -> bool {
+    let mut seen = BTreeSet::new();
+    ceiling.iter().all(|service| {
+        seen.insert(*service)
+            && services.get(service).is_some_and(|declaration| {
+                declaration
+                    .parents
+                    .iter()
+                    .all(|parent| ceiling.contains(parent))
+            })
+    }) && ceiling.windows(2).all(|pair| pair[0] < pair[1])
+}
+
+fn validate_provider_service_refinements(
+    unit: &PsiOptimizationUnit,
+    functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
+    boundaries: &BTreeMap<BoundaryMachineId, &psi_terminal::BoundaryMachineDeclaration>,
+) -> Result<(), OptimizationUnitValidationError> {
+    for provider in &unit.provider_candidates {
+        let invalid = || OptimizationUnitValidationError::InvalidProviderServiceRefinement {
+            boundary: provider.boundary,
+            candidate: provider.candidate,
+        };
+        let candidate = functions.get(&provider.candidate).ok_or_else(invalid)?;
+        let boundary = boundaries.get(&provider.boundary).ok_or_else(invalid)?;
+        if provider.refinement.realized_service_ceiling != candidate.published_service_ceiling
+            || provider
+                .refinement
+                .realized_service_ceiling
+                .iter()
+                .any(|service| !boundary.published_service_ceiling.contains(service))
+        {
+            return Err(invalid());
+        }
     }
     Ok(())
 }
@@ -9571,6 +9732,7 @@ fn attach_verified_structural_context(
     module: &psi_terminal::TerminalModule,
 ) -> Result<(), OptimizationUnitValidationError> {
     unit.structural_domains = module.structural_domains.clone().into();
+    unit.services = module.services.clone().into();
     for function in &mut unit.functions {
         let source = module
             .machines
@@ -9690,6 +9852,7 @@ fn same_immutable_signature_custody(
         && seed.structural_types == unit.structural_types
         && structural_domain_catalog_identity(seed.structural_domains.as_ref())
             == structural_domain_catalog_identity(unit.structural_domains.as_ref())
+        && seed.services == unit.services
         && seed.boundary_machines == unit.boundary_machines
         && seed.provider_candidates == unit.provider_candidates
         && source_roster_partition_is_exact(seed, unit)
@@ -10899,9 +11062,15 @@ fn validate_function(
     function: &PsiOptimizationFunction,
     functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
     boundary_machines: &BTreeMap<BoundaryMachineId, &psi_terminal::BoundaryMachineDeclaration>,
+    services: &BTreeMap<ServiceId, &psi_terminal::ServiceDeclaration>,
     structural_types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
     structural_domains: &BTreeMap<StructuralDomainId, &psi_terminal::StructuralDomainDeclaration>,
 ) -> Result<(), OptimizationUnitValidationError> {
+    if !valid_service_ceiling(&function.published_service_ceiling, services) {
+        return Err(
+            OptimizationUnitValidationError::InvalidFunctionServiceCeiling(function.machine),
+        );
+    }
     let (byte_sequence_literals, trivial_affine_locals) =
         validate_function_structural_catalog(function, structural_types, structural_domains)?;
     validate_provider_attachment_specialization(function, boundary_machines, structural_types)?;
@@ -11071,6 +11240,7 @@ fn validate_function(
         &predecessor,
         functions,
         boundary_machines,
+        services,
         structural_types,
         structural_domains,
     )?;
@@ -11606,6 +11776,7 @@ fn validate_values_and_bindings(
     predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
     functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
     boundary_machines: &BTreeMap<BoundaryMachineId, &psi_terminal::BoundaryMachineDeclaration>,
+    services: &BTreeMap<ServiceId, &psi_terminal::ServiceDeclaration>,
     structural_types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
     structural_domains: &BTreeMap<StructuralDomainId, &psi_terminal::StructuralDomainDeclaration>,
 ) -> Result<(), OptimizationUnitValidationError> {
@@ -11713,6 +11884,21 @@ fn validate_values_and_bindings(
                     },
                 );
             }
+            if !operation_service_contract_matches(
+                function,
+                &node.operation,
+                functions,
+                boundary_machines,
+                services,
+            ) {
+                return Err(
+                    OptimizationUnitValidationError::OperationServiceContractMismatch {
+                        machine: function.machine,
+                        block: block.id,
+                        node: u32::try_from(node_index).expect("unit node index fits u32"),
+                    },
+                );
+            }
             for edge in &node.successors {
                 let target = blocks.get(&edge.target).expect("successor validated");
                 if edge.bindings.len() != target.parameters.len() {
@@ -11740,6 +11926,35 @@ fn validate_values_and_bindings(
         }
     }
     Ok(())
+}
+
+fn operation_service_contract_matches(
+    caller: &PsiOptimizationFunction,
+    operation: &O,
+    functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
+    boundaries: &BTreeMap<BoundaryMachineId, &psi_terminal::BoundaryMachineDeclaration>,
+    services: &BTreeMap<ServiceId, &psi_terminal::ServiceDeclaration>,
+) -> bool {
+    let reached_is_published = |reached: &[ServiceId]| {
+        reached
+            .iter()
+            .all(|service| caller.published_service_ceiling.contains(service))
+    };
+    match operation {
+        O::Call { callee, .. }
+        | O::CallUnit { callee, .. }
+        | O::CallStructuralScalar { callee, .. }
+        | O::CallStructural { callee, .. } => functions
+            .get(callee)
+            .is_some_and(|callee| reached_is_published(&callee.published_service_ceiling)),
+        O::BoundaryCall { boundary, .. } => boundaries
+            .get(boundary)
+            .is_some_and(|boundary| reached_is_published(&boundary.published_service_ceiling)),
+        O::PortWrite { service, .. } => {
+            services.contains_key(service) && caller.published_service_ceiling.contains(service)
+        }
+        _ => true,
+    }
 }
 
 /// Independently reconstruct the structural half of every call contract from
@@ -13888,6 +14103,123 @@ mod tests {
     ) -> PsiOptimizationUnit {
         let mut candidate = unit();
         candidate.structural_types = structural_types;
+        refresh_identity(&mut candidate);
+        candidate
+    }
+
+    fn service_declarations() -> Vec<psi_terminal::ServiceDeclaration> {
+        let root = id(701, ServiceId::new);
+        let middle = id(702, ServiceId::new);
+        let leaf = id(703, ServiceId::new);
+        vec![
+            psi_terminal::ServiceDeclaration {
+                id: root,
+                identity: "validation::service-root".into(),
+                parents: Vec::new(),
+            },
+            psi_terminal::ServiceDeclaration {
+                id: middle,
+                identity: "validation::service-middle".into(),
+                parents: vec![root],
+            },
+            psi_terminal::ServiceDeclaration {
+                id: leaf,
+                identity: "validation::service-leaf".into(),
+                parents: vec![root, middle],
+            },
+        ]
+    }
+
+    fn install_service_catalog(unit: &mut PsiOptimizationUnit) {
+        let services = service_declarations();
+        let ceiling = services
+            .iter()
+            .map(|service| service.id)
+            .collect::<Vec<_>>();
+        unit.services = services.into();
+        for function in &mut unit.functions {
+            function.published_service_ceiling = ceiling.clone();
+        }
+        for boundary in &mut unit.boundary_machines {
+            boundary.published_service_ceiling = ceiling.clone();
+        }
+        refresh_identity(unit);
+    }
+
+    fn service_effect_unit() -> PsiOptimizationUnit {
+        let mut candidate = unit();
+        install_service_catalog(&mut candidate);
+        let block = candidate.functions[0].blocks[0].id;
+        let mut node = candidate.functions[0].blocks[0].nodes[0].clone();
+        node.operation = TerminalAbstractOperation::PortWrite {
+            psi_operation: id(704, OperationId::new),
+            service: id(703, ServiceId::new),
+            port: 0x3f8,
+            value: 0x41,
+        };
+        node.provenance = expected_provenance(&node.operation);
+        node.fuel = node
+            .provenance
+            .iter()
+            .copied()
+            .map(|site| omega_optimization_unit::FuelSettlement { site, units: 1 })
+            .collect();
+        node.definitions = expected_definitions(&node.operation, block, 1);
+        node.uses = expected_uses(&node.operation, block, 1);
+        node.successors = expected_edges(&node.operation);
+        node.ownership = expected_ownership(&node.operation);
+        candidate.functions[0].blocks[0].nodes.insert(1, node);
+        for index in 0..candidate.functions[0].blocks[0].nodes.len() {
+            let operation = candidate.functions[0].blocks[0].nodes[index]
+                .operation
+                .clone();
+            let node = &mut candidate.functions[0].blocks[0].nodes[index];
+            node.effect.input = index as u64;
+            node.effect.output = index as u64 + 1;
+            node.provenance = expected_provenance(&operation);
+            node.fuel = node
+                .provenance
+                .iter()
+                .copied()
+                .map(|site| omega_optimization_unit::FuelSettlement { site, units: 1 })
+                .collect();
+            node.definitions = expected_definitions(&operation, block, index as u32);
+            node.uses = expected_uses(&operation, block, index as u32);
+            node.successors = expected_edges(&operation);
+            node.ownership = expected_ownership(&operation);
+        }
+        candidate.functions[0].facts = reconstruct_fact_index(&candidate.functions[0]);
+        refresh_identity(&mut candidate);
+        candidate
+    }
+
+    fn provider_service_unit() -> PsiOptimizationUnit {
+        let mut candidate = provider_attachment_specialization_unit();
+        install_service_catalog(&mut candidate);
+        let boundary = candidate.boundary_machines[0].id;
+        let requirement_identity = candidate.boundary_machines[0].identity.clone();
+        let callee = candidate.functions[0].machine;
+        let ceiling = service_declarations()
+            .iter()
+            .map(|service| service.id)
+            .collect::<Vec<_>>();
+        candidate
+            .provider_candidates
+            .push(psi_terminal::ProviderCandidateConformance {
+                boundary,
+                requirement_identity,
+                provider_identity: "validation::service-provider".into(),
+                candidate_identity: "validation::service-provider-candidate".into(),
+                candidate: callee,
+                signature: psi_terminal::ProviderUnitSignature {
+                    parameters: Vec::new(),
+                },
+                refinement: psi_terminal::ProviderUnitRefinement {
+                    positional_parameters: Vec::new(),
+                    required_domains: Vec::new(),
+                    realized_service_ceiling: ceiling,
+                },
+            });
         refresh_identity(&mut candidate);
         candidate
     }
@@ -17504,6 +17836,297 @@ mod tests {
     }
 
     #[test]
+    fn replays_service_catalog_hierarchy_ceilings_and_concrete_effects() {
+        let baseline = service_effect_unit();
+        validate_psi_optimization_unit(&baseline)
+            .expect("complete service closure and published PortWrite should validate");
+        let root = id(701, ServiceId::new);
+        let middle = id(702, ServiceId::new);
+        let leaf = id(703, ServiceId::new);
+        let unknown = id(799, ServiceId::new);
+
+        let mut duplicate_id = baseline.clone();
+        duplicate_id.services = duplicate_id
+            .services
+            .iter()
+            .cloned()
+            .chain(std::iter::once(duplicate_id.services[0].clone()))
+            .collect::<Vec<_>>()
+            .into();
+        refresh_identity(&mut duplicate_id);
+        assert_eq!(
+            validate_psi_optimization_unit(&duplicate_id),
+            Err(OptimizationUnitValidationError::DuplicateService(root))
+        );
+
+        let mut empty_identity = baseline.clone();
+        let mut services = empty_identity.services.to_vec();
+        services[0].identity.clear();
+        empty_identity.services = services.into();
+        refresh_identity(&mut empty_identity);
+        assert_eq!(
+            validate_psi_optimization_unit(&empty_identity),
+            Err(OptimizationUnitValidationError::InvalidServiceIdentity(
+                root
+            ))
+        );
+
+        let mut duplicate_identity = baseline.clone();
+        let mut services = duplicate_identity.services.to_vec();
+        services[1].identity = services[0].identity.clone();
+        duplicate_identity.services = services.into();
+        refresh_identity(&mut duplicate_identity);
+        assert_eq!(
+            validate_psi_optimization_unit(&duplicate_identity),
+            Err(OptimizationUnitValidationError::InvalidServiceIdentity(
+                middle
+            ))
+        );
+
+        for (parents, expected) in [
+            (
+                vec![leaf],
+                OptimizationUnitValidationError::InvalidServiceParent {
+                    service: leaf,
+                    parent: leaf,
+                },
+            ),
+            (
+                vec![unknown],
+                OptimizationUnitValidationError::InvalidServiceParent {
+                    service: leaf,
+                    parent: unknown,
+                },
+            ),
+            (
+                vec![root, root],
+                OptimizationUnitValidationError::InvalidServiceParent {
+                    service: leaf,
+                    parent: root,
+                },
+            ),
+            (
+                vec![middle, root],
+                OptimizationUnitValidationError::NonCanonicalServiceParents(leaf),
+            ),
+        ] {
+            let mut candidate = baseline.clone();
+            let mut services = candidate.services.to_vec();
+            services[2].parents = parents;
+            candidate.services = services.into();
+            refresh_identity(&mut candidate);
+            assert_eq!(validate_psi_optimization_unit(&candidate), Err(expected));
+        }
+
+        let mut cycle = baseline.clone();
+        let mut services = cycle.services.to_vec();
+        services[0].parents = vec![leaf];
+        cycle.services = services.into();
+        refresh_identity(&mut cycle);
+        assert_eq!(
+            validate_psi_optimization_unit(&cycle),
+            Err(OptimizationUnitValidationError::RecursiveServiceHierarchy(
+                root
+            ))
+        );
+
+        let mut incomplete = baseline.clone();
+        let mut services = incomplete.services.to_vec();
+        services[2].parents = vec![middle];
+        incomplete.services = services.into();
+        refresh_identity(&mut incomplete);
+        assert_eq!(
+            validate_psi_optimization_unit(&incomplete),
+            Err(
+                OptimizationUnitValidationError::IncompleteServiceParentClosure {
+                    service: leaf,
+                    ancestor: root,
+                }
+            )
+        );
+
+        for ceiling in [
+            vec![unknown],
+            vec![root, root],
+            vec![leaf, middle, root],
+            vec![leaf],
+        ] {
+            let mut candidate = baseline.clone();
+            candidate.functions[0].published_service_ceiling = ceiling;
+            refresh_identity(&mut candidate);
+            assert_eq!(
+                validate_psi_optimization_unit(&candidate),
+                Err(
+                    OptimizationUnitValidationError::InvalidFunctionServiceCeiling(
+                        candidate.functions[0].machine
+                    )
+                )
+            );
+        }
+
+        let mut unknown_effect = baseline.clone();
+        let TerminalAbstractOperation::PortWrite { service, .. } =
+            &mut unknown_effect.functions[0].blocks[0].nodes[1].operation
+        else {
+            panic!("service fixture contains PortWrite")
+        };
+        *service = unknown;
+        refresh_node_derivatives(&mut unknown_effect, 0, 0, 1);
+        assert!(matches!(
+            validate_psi_optimization_unit(&unknown_effect),
+            Err(OptimizationUnitValidationError::OperationServiceContractMismatch { node: 1, .. })
+        ));
+
+        let mut outside_ceiling = baseline;
+        outside_ceiling.functions[0].published_service_ceiling = vec![root, middle];
+        refresh_identity(&mut outside_ceiling);
+        assert!(matches!(
+            validate_psi_optimization_unit(&outside_ceiling),
+            Err(OptimizationUnitValidationError::OperationServiceContractMismatch { node: 1, .. })
+        ));
+
+        let mut invalid_boundary = scalar_boundary_call_unit();
+        install_service_catalog(&mut invalid_boundary);
+        invalid_boundary.boundary_machines[0].published_service_ceiling = vec![leaf];
+        refresh_identity(&mut invalid_boundary);
+        assert_eq!(
+            validate_psi_optimization_unit(&invalid_boundary),
+            Err(
+                OptimizationUnitValidationError::InvalidBoundaryServiceCeiling(
+                    invalid_boundary.boundary_machines[0].id
+                )
+            )
+        );
+    }
+
+    #[test]
+    fn replays_every_call_reach_lane_and_provider_service_refinement() {
+        let root = id(701, ServiceId::new);
+        let middle = id(702, ServiceId::new);
+
+        let mut scalar = scalar_call_unit();
+        install_service_catalog(&mut scalar);
+        scalar.functions[0].published_service_ceiling = vec![root, middle];
+        refresh_identity(&mut scalar);
+        assert!(matches!(
+            validate_psi_optimization_unit(&scalar),
+            Err(OptimizationUnitValidationError::OperationServiceContractMismatch { .. })
+        ));
+
+        let mut structural_unit = structural_call_unit();
+        install_service_catalog(&mut structural_unit);
+        structural_unit.functions[0].published_service_ceiling = vec![root, middle];
+        refresh_identity(&mut structural_unit);
+        assert!(matches!(
+            validate_psi_optimization_unit(&structural_unit),
+            Err(OptimizationUnitValidationError::OperationServiceContractMismatch { .. })
+        ));
+
+        let mut structural_result = structural_result_call_unit();
+        install_service_catalog(&mut structural_result);
+        structural_result.functions[0].published_service_ceiling = vec![root, middle];
+        refresh_identity(&mut structural_result);
+        assert!(matches!(
+            validate_psi_optimization_unit(&structural_result),
+            Err(OptimizationUnitValidationError::OperationServiceContractMismatch { .. })
+        ));
+
+        let functions = scalar
+            .functions
+            .iter()
+            .map(|function| (function.machine, function))
+            .collect::<BTreeMap<_, _>>();
+        let services = scalar
+            .services
+            .iter()
+            .map(|service| (service.id, service))
+            .collect::<BTreeMap<_, _>>();
+        let caller = &scalar.functions[0];
+        let callee = scalar.functions[1].machine;
+        let dummy_result = TerminalAbstractResult {
+            value: id(706, ValueId::new),
+            scalar_type: ScalarType::Boolean,
+        };
+        let dummy_structural_result = psi_terminal::StructuralOperationResult {
+            place: id(707, PlaceId::new),
+            structural_type: id(708, StructuralTypeId::new),
+            multiplicity: psi_terminal::StructuralMultiplicity::Unrestricted,
+            qualifications: Vec::new(),
+            claims: Vec::new(),
+        };
+        let calls = [
+            TerminalAbstractOperation::Call {
+                psi_operation: id(709, OperationId::new),
+                result: dummy_result.value,
+                scalar_type: dummy_result.scalar_type,
+                callee,
+                arguments: Vec::new(),
+            },
+            TerminalAbstractOperation::CallUnit {
+                psi_operation: id(710, OperationId::new),
+                callee,
+                structural_arguments: Vec::new(),
+                claim_transfers: Vec::new(),
+            },
+            TerminalAbstractOperation::CallStructuralScalar {
+                psi_operation: id(711, OperationId::new),
+                result: dummy_result,
+                callee,
+                structural_arguments: Vec::new(),
+                claim_transfers: Vec::new(),
+            },
+            TerminalAbstractOperation::CallStructural {
+                psi_operation: id(712, OperationId::new),
+                result: dummy_structural_result,
+                callee,
+                structural_arguments: Vec::new(),
+                claim_transfers: Vec::new(),
+                returned_claim_transfers: Vec::new(),
+            },
+        ];
+        for call in &calls {
+            assert!(!operation_service_contract_matches(
+                caller,
+                call,
+                &functions,
+                &BTreeMap::new(),
+                &services,
+            ));
+        }
+
+        let mut boundary = scalar_boundary_call_unit();
+        install_service_catalog(&mut boundary);
+        boundary.functions[0].published_service_ceiling = vec![root, middle];
+        refresh_identity(&mut boundary);
+        assert!(matches!(
+            validate_psi_optimization_unit(&boundary),
+            Err(OptimizationUnitValidationError::OperationServiceContractMismatch { .. })
+        ));
+
+        let provider = provider_service_unit();
+        validate_psi_optimization_unit(&provider)
+            .expect("provider realized reach exactly refines its boundary");
+        let mut mismatched = provider.clone();
+        mismatched.provider_candidates[0]
+            .refinement
+            .realized_service_ceiling
+            .pop();
+        refresh_identity(&mut mismatched);
+        assert!(matches!(
+            validate_psi_optimization_unit(&mismatched),
+            Err(OptimizationUnitValidationError::InvalidProviderServiceRefinement { .. })
+        ));
+
+        let mut outside = provider;
+        outside.boundary_machines[0].published_service_ceiling = vec![root, middle];
+        refresh_identity(&mut outside);
+        assert!(matches!(
+            validate_psi_optimization_unit(&outside),
+            Err(OptimizationUnitValidationError::InvalidProviderServiceRefinement { .. })
+        ));
+    }
+
+    #[test]
     fn stale_stored_content_identity_is_rejected_before_structural_validation() {
         let mut stale = unit();
         stale.functions[0].blocks[0].nodes[0].effect.output += 1;
@@ -17607,6 +18230,21 @@ mod tests {
         forged.push(unit);
 
         let mut unit = verified.unit().clone();
+        unit.services = vec![psi_terminal::ServiceDeclaration {
+            id: service,
+            identity: "forged-service".into(),
+            parents: Vec::new(),
+        }]
+        .into();
+        forged.push(unit);
+
+        let mut unit = verified.unit().clone();
+        unit.services = vec![psi_terminal::ServiceDeclaration {
+            id: service,
+            identity: "forged-service".into(),
+            parents: Vec::new(),
+        }]
+        .into();
         unit.functions[0].published_service_ceiling.push(service);
         forged.push(unit);
 
@@ -17633,6 +18271,9 @@ mod tests {
                     Err(
                         OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch
                     ) | Err(OptimizationUnitValidationError::StructuralCatalogMismatch { .. })
+                        | Err(
+                            OptimizationUnitValidationError::InvalidProviderServiceRefinement { .. }
+                        )
                 ),
                 "forgery class {index} returned {result:?}"
             );

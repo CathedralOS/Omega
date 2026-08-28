@@ -23,9 +23,9 @@ use psi_core::{
 };
 use psi_terminal::{
     BoundaryMachineDeclaration, ContentEntryClaim, EntryClaim, ProviderCandidateConformance,
-    StructuralDomainDeclaration, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralPlaceDeclaration, StructuralTypeDeclaration,
-    TerminalAffineCleanupAction, TerminalPsiIdentity,
+    ServiceDeclaration, StructuralDomainDeclaration, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralTypeDeclaration, TerminalAffineCleanupAction, TerminalPsiIdentity,
 };
 
 mod identity;
@@ -473,6 +473,10 @@ pub struct PsiOptimizationUnit {
     /// Exact verifier-owned qualification-domain catalog. Bare lowering seeds
     /// leave this empty; optimizer admission attaches it before rewrites run.
     pub structural_domains: Arc<[StructuralDomainDeclaration]>,
+    /// Exact verifier-owned boundary-service hierarchy. Bare lowering seeds
+    /// leave this empty; optimizer admission attaches the complete catalog so
+    /// call reach and concrete service effects remain independently replayable.
+    pub services: Arc<[ServiceDeclaration]>,
     pub boundary_machines: Vec<BoundaryMachineDeclaration>,
     pub provider_candidates: Vec<ProviderCandidateConformance>,
     pub accepted_obligation_facts: Vec<AcceptedObligationFact>,
@@ -649,6 +653,7 @@ pub fn reconstruct_psi_optimization_unit_seed(
         entry: plan.entry,
         structural_types: plan.structural_types.clone(),
         structural_domains: Arc::new([]),
+        services: Arc::new([]),
         boundary_machines: plan.boundary_machines.clone(),
         provider_candidates: plan.provider_candidates.clone(),
         accepted_obligation_facts: Vec::new(),

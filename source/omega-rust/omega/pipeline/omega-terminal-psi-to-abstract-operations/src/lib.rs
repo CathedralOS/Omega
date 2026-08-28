@@ -127,6 +127,7 @@ pub fn build_verified_psi_optimization_unit(
     )?;
     let context = input.context();
     seed.structural_domains = context.terminal_module().structural_domains.clone().into();
+    seed.services = context.terminal_module().services.clone().into();
     for function in &mut seed.functions {
         let source = context
             .terminal_module()

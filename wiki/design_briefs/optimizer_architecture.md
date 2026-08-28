@@ -722,13 +722,14 @@ Each function contains:
 - optional target-independent cost features that do not affect validity.
 
 The reconstructible unit owns the exact verified module declarations needed
-after the full Terminal module is discarded: structural types and domains,
-boundary machines, and the complete checked provider-candidate catalog. A
+after the full Terminal module is discarded: structural types and domains, the
+complete service declaration graph, boundary machines, and the complete
+checked provider-candidate catalog. A
 function's immutable signature and structural custody are likewise exact,
 including nominal attachment, ordered scalar and structural parameters,
 Unit/scalar/structural result shape, the complete structural-place catalog,
 ordinary and content entry claims, and the normalized published service
-ceiling. These are not optimizer summaries. Unit content identity v11 encodes
+ceiling. These are not optimizer summaries. Unit content identity v12 encodes
 every field, transformed-revision validation compares them with an independent
 projection of the immutable verified input, and abstract-plan projection reads
 them from the unit before an independent round-trip check. Passes may inspect
@@ -816,9 +817,21 @@ nonempty parameter, canonical naturals, bounded recursive scalar grammar,
 Record-only field-identity paths ending in Scalar leaves, and canonical
 fingerprint. Retained content-entry claims must reference that exact owner
 identity and algebra; forged or unknown owners reject before pass execution.
+The service catalog is likewise immutable verifier-owned authority. Independent
+validation requires unique service IDs and nonempty identities, strict known
+parent order, an acyclic graph, and each declaration's complete transitive
+parent closure. Function and boundary service ceilings must be canonical,
+known, and parent-closed. Every scalar, unit, structural, and structural-scalar
+internal call plus every boundary call must stay within the caller's ceiling;
+`PortWrite` must name a declared service in that ceiling. Provider realized
+ceilings must exactly equal the candidate function ceiling and refine the
+declared boundary ceiling. Verified-input projection rejects replacement
+catalogs even when locally self-consistent, while the source-derived Console
+canary proves frontend catalog, ceiling, call, and provider custody.
 Remaining root-kind legality, ownership/custody replay, exact
-payloadless-callee classification, and the wider crash/requirement/effect
-vocabulary remain explicit unfinished validator layers. It
+payloadless-callee classification, root-service reach, and the wider
+crash/requirement and remaining effect vocabulary remain explicit unfinished
+validator layers. It
 also rechecks the complete current
 Terminal-Psi CFG contract—parameter-free entry, closed edges, total
 reachability, and acyclicity—before any rule may inspect the unit. When Terminal
@@ -1186,7 +1199,7 @@ unit antichain check rejects any sequentially executable duplicate. Later nodes
 whose dense effects shift are also accounted for. Corruption tests reject
 forged node and fanout realization sites, and full artifact tests replay the
 ledger to exact one-block and three-block prephysical projections. Candidate
-v20, optimization-unit content identity v11, `ControlFlowCleanup` v11,
+v20, optimization-unit content identity v12, `ControlFlowCleanup` v11,
 prephysical manifest v14, and optimized-plan projection validation v15 bind this
 admission meaning; ledger v4 expresses both the many-to-one move and one-to-many
 fanout. Direct terminal fusion retains the terminal edge and removed jump edge
@@ -1428,7 +1441,7 @@ edge custody, definitions/uses, dense effects, facts/places, and provenance
 relocation before acceptance. Corruption tests cover reordered incoming rows
 and detached leaders; a verified Terminal diamond exercises publication
 projection with both appended bindings. Candidate encoding v24,
-optimization-unit content identity v11, the named v7 pass, prephysical
+optimization-unit content identity v12, the named v7 pass, prephysical
 manifest v23, and optimized-plan projection validation v24 bind the current
 meaning; ledger v4 already represents both node relocation and edge custody.
 The proof-certified phi rule uses the same closed proof-bearing scalar
@@ -1555,8 +1568,8 @@ keeps ownership of `-1 % -1`. Independent replay reconstructs the type,
 operator policy, operands, facts, observation/liveness boundary, provenance,
 fuel, accounting, and output. Verified projection and x86-64/AArch64 lowering
 retain the typed-zero realization.
-Candidate schema remains v24. Optimization-unit identity v11 intentionally
-rekeys revision-bound candidate identities because the retained structural
+Candidate schema remains v24. Optimization-unit identity v12 intentionally
+rekeys revision-bound candidate identities because the retained service
 catalog is now part of the input revision; deterministic tie breaks between
 otherwise equivalent candidates can therefore change at this schema migration.
 The named v11 pass, prephysical manifest identity v26, and optimized-plan
