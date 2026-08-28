@@ -110,6 +110,11 @@ class PublicationJoinTests(unittest.TestCase):
         self.assertEqual(generated.returncode, 0, generated.stderr)
         receipt = json.loads(generated.stdout)
         self.assertEqual(receipt["claim"], publication.CLAIM)
+        self.assertEqual(receipt["toolchain"]["alpha_vm"]["host"], "macos_arm64")
+        self.assertEqual(
+            receipt["toolchain"]["alpha_vm"]["authority_role"],
+            "audited_alpha_macos_arm64_host_seed",
+        )
         self.assertEqual(receipt["receipt_sha256"], publication.receipt_digest(receipt))
         self.assertNotEqual(
             receipt["executions"][0]["elapsed_milliseconds"],

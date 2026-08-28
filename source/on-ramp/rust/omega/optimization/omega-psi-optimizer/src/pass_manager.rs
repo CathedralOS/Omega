@@ -785,8 +785,8 @@ mod tests {
             boolean_unit, constant_conditional_same_target_unit, dead_exact_add_unit,
             dead_wrapping_add_unit, dependent_exact_chain_unit, diamond_dominator_gvn_unit,
             dominator_gvn_unit, exact_add_unit, linear_empty_block_unit, local_cse_unit,
-            non_adjacent_merge_unit, propagated_block_parameter_unit, randomized_sccp_registries,
-            redundant_block_parameter_unit, wrapping_add_unit,
+            non_adjacent_merge_unit, propagated_block_parameter_unit,
+            randomized_built_in_registries, redundant_block_parameter_unit, wrapping_add_unit,
         },
     };
 
@@ -1384,22 +1384,42 @@ mod tests {
     }
 
     #[test]
-    fn shuffled_builtin_registration_constructs_identical_sccp_runs() {
-        let selections =
-            OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
-                .unwrap();
-        let expected_registry = built_in_psi_registry(&selections).unwrap();
-        let expected =
-            run_unit(dependent_exact_chain_unit(), &expected_registry, budget(8)).unwrap();
+    fn shuffled_builtin_registration_constructs_identical_multi_rule_runs() {
+        for (optimization, unit) in [
+            (
+                Optimization::SparseConditionalConstantPropagation,
+                dependent_exact_chain_unit(),
+            ),
+            (
+                Optimization::ControlFlowCleanup,
+                propagated_block_parameter_unit(true),
+            ),
+            (
+                Optimization::GlobalValueNumbering,
+                diamond_dominator_gvn_unit(),
+            ),
+            (
+                Optimization::DeadPureScalarElimination,
+                dead_wrapping_add_unit(),
+            ),
+        ] {
+            let selections = OptimizationSelections::new([optimization]).unwrap();
+            let expected_registry = built_in_psi_registry(&selections).unwrap();
+            let expected = run_unit(unit.clone(), &expected_registry, budget(8)).unwrap();
 
-        for registry in randomized_sccp_registries() {
-            let actual = run_unit(dependent_exact_chain_unit(), &registry, budget(8)).unwrap();
-            assert_eq!(actual.0, expected.0);
-            assert_eq!(actual.1, expected.1);
-            assert_eq!(actual.2, expected.2);
-            assert_eq!(actual.3, expected.3);
-            assert_eq!(actual.4, expected.4);
-            assert_eq!(actual.5, expected.5);
+            for (seed, registry) in randomized_built_in_registries(optimization)
+                .into_iter()
+                .enumerate()
+            {
+                let actual = run_unit(unit.clone(), &registry, budget(8)).unwrap();
+                let context = format!("{optimization:?} registration seed {}", seed + 1);
+                assert_eq!(actual.0, expected.0, "final unit differs for {context}");
+                assert_eq!(actual.1, expected.1, "commits differ for {context}");
+                assert_eq!(actual.2, expected.2, "usage differs for {context}");
+                assert_eq!(actual.3, expected.3, "decisions differ for {context}");
+                assert_eq!(actual.4, expected.4, "manifest differs for {context}");
+                assert_eq!(actual.5, expected.5, "ledger differs for {context}");
+            }
         }
     }
 

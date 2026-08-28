@@ -27,6 +27,11 @@ DECODER_SOURCE = REPOSITORY / "source/on-ramp/omega-bootstrap/meaning/decode-gam
 BETA_COMPILER_SOURCE = REPOSITORY / "source/beta/bc.beta"
 BETA_COMPILER_TAPE = REPOSITORY / "source/beta/artifacts/bc.tape"
 ALPHA_ASSEMBLER_SOURCE = REPOSITORY / "source/alpha/assembler/assembler.alpha"
+ALPHA_VM_SEMANTICS = REPOSITORY / "source/alpha/SEMANTICS.md"
+ALPHA_VM_SOURCE = REPOSITORY / "source/alpha/alpha_arm64_macos.s"
+ALPHA_VM_SEED = REPOSITORY / "source/alpha/alpha_arm64_macos"
+ALPHA_STAMPING_SOURCE = REPOSITORY / "source/alpha/seed_env.sh"
+ALPHA_ASSEMBLER_HOST_ARTIFACT = REPOSITORY / "source/alpha/assembler/beta_arm64_macos"
 
 ELABORATION_SCHEMA = "omega.delta-gamma-elaboration-observation.v1"
 EXECUTION_SCHEMA = "omega.delta-gamma-execution-observation.v1"
@@ -143,7 +148,20 @@ def toolchain_identity(
 ) -> dict:
     validate_interpreter_profile()
     return {
+        "alpha_vm": {
+            "artifact": file_identity(ALPHA_VM_SEED, "alpha_vm_committed_host_seed", 1024 * 1024),
+            "authority_role": "audited_alpha_macos_arm64_host_seed",
+            "host": "macos_arm64",
+            "semantics": file_identity(ALPHA_VM_SEMANTICS, "alpha_vm_written_semantics"),
+            "source": file_identity(ALPHA_VM_SOURCE, "alpha_vm_host_source"),
+            "stamping": file_identity(ALPHA_STAMPING_SOURCE, "alpha_vm_tape_stamping_source"),
+        },
         "alpha_assembler": {
+            "artifact": file_identity(
+                ALPHA_ASSEMBLER_HOST_ARTIFACT,
+                "alpha_assembler_committed_host_artifact",
+                1024 * 1024,
+            ),
             "authority_role": "canonical_alpha_written_assembler_artifact",
             "source": file_identity(ALPHA_ASSEMBLER_SOURCE, "alpha_assembler_source"),
             "tape": file_identity(assembler_tape, "alpha_assembler_persisted_selfhost_tape", MAX_TAPE),
