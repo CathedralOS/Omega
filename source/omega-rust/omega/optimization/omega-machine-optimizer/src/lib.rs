@@ -6,6 +6,11 @@
 //! publication authority. Its sealed inputs are already validated selected
 //! plans, and its output is a sidecar over those immutable instructions.
 
+mod aarch64_cbnz_codec;
+mod aarch64_cbnz_compute;
+mod aarch64_cbnz_identity;
+mod aarch64_cbnz_model;
+mod aarch64_cbnz_validate;
 mod alternative_codec;
 mod alternative_compute;
 mod alternative_identity;
@@ -17,6 +22,10 @@ mod effect_identity;
 mod effect_model;
 mod effect_validate;
 
+pub use aarch64_cbnz_codec::TerminalAarch64CbnzFusionDecodeError;
+pub use aarch64_cbnz_identity::terminal_aarch64_cbnz_fusion_identity;
+pub use aarch64_cbnz_model::*;
+pub use aarch64_cbnz_validate::validate_aarch64_cbnz_fusion;
 pub use alternative_codec::TerminalPostAllocationMachineDecodeError;
 pub use alternative_identity::terminal_post_allocation_machine_identity;
 pub use alternative_model::*;
@@ -109,4 +118,19 @@ pub fn analyze_terminal_post_allocation_machine_plan<
         constraints,
         plan,
     )
+}
+
+/// Apply the exact named AArch64 `CMP Xn, #0; B.NE` to `CBNZ Xn` symbolic
+/// transformation. The result carries no branch displacement or bytes.
+pub fn optimize_aarch64_compare_i64_zero_branch_nonzero_to_cbnz<
+    S: omega_regalloc::ValidatedTerminalSelectedAnalysis,
+>(
+    selected: &S,
+    liveness: &omega_regalloc::ValidatedTerminalLiveness,
+    source: &ValidatedTerminalPostAllocationMachinePlan,
+    physical: &omega_register_model::ValidatedPhysicalRegisterModel,
+    budget: omega_optimization_core::OptimizationWorkBudget,
+) -> Result<ValidatedTerminalAarch64CbnzFusion, TerminalAarch64CbnzFusionError> {
+    let plan = aarch64_cbnz_compute::compute(selected, liveness, source, physical, budget)?;
+    validate_aarch64_cbnz_fusion(selected, liveness, source, physical, plan)
 }

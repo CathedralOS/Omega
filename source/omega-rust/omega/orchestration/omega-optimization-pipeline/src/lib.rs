@@ -30,6 +30,7 @@ mod liveness;
 mod machine_effects;
 mod physical_pipeline;
 mod post_allocation_machine_effects;
+mod post_allocation_machine_optimizations;
 mod post_allocation_selected_form_encoding;
 mod register_environment;
 mod register_homes;
@@ -129,6 +130,13 @@ pub use post_allocation_machine_effects::{
     validate_optimized_post_allocation_machine_plan_after_literal_fold_custody,
     validate_optimized_post_allocation_machine_plan_after_selected_lowering_custody,
     validate_optimized_post_allocation_machine_plan_custody,
+};
+pub use post_allocation_machine_optimizations::{
+    OptimizedPostAllocationMachineOptimizationError, StagedOptimizedAarch64CbnzFusion,
+    StagedOptimizedAarch64CbnzFusionCustodyReceipt, stage_optimized_aarch64_cbnz_fusion,
+    stage_optimized_aarch64_cbnz_fusion_after_selected_lowering,
+    validate_optimized_aarch64_cbnz_fusion_after_selected_lowering_custody,
+    validate_optimized_aarch64_cbnz_fusion_custody,
 };
 pub use post_allocation_selected_form_encoding::{
     DeferredTerminalControlEncodingReason, OptimizedSelectedFormEncodingError,
@@ -6614,6 +6622,117 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn compiler_facing_physical_pipeline_runs_only_the_named_aarch64_cbnz_fusion() {
+        let target = NativeTarget::linux_arm64();
+        let (semantic, proof) = conditional_exact_binary_artifact(false);
+        let selections = OptimizationSelections::new([
+            Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
+        ])
+        .unwrap();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            ExplicitOptimizationRequest::new(selections.clone(), selected_lowering_budget())
+                .unwrap(),
+        )
+        .unwrap();
+        let staged = stage_optimized_verified_physical_pipeline_with_provider_executions(
+            optimized,
+            target,
+            &[],
+        )
+        .unwrap();
+        let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine {
+            homes,
+            machine,
+            optimization,
+        } = &staged
+        else {
+            panic!("the exact post-allocation phase must use its symbolic machine route")
+        };
+        assert_eq!(staged.selections(), selections.identity());
+        assert_eq!(staged.selected_lowering_completion(), None);
+        assert!(staged.function_relative_manifest().is_none());
+        assert_eq!(optimization.fusion().receipt().action_count(), 1);
+        assert_eq!(
+            validate_optimized_aarch64_cbnz_fusion_custody(homes, machine, optimization).unwrap(),
+            optimization.custody()
+        );
+        assert_eq!(
+            optimization.custody().post_allocation_machine_selections(),
+            selections.identity()
+        );
+
+        let ranges = homes.legality_stage().live_range_stage();
+        let selected_stage = ranges.liveness_stage().selected_stage();
+        let physical = selected_stage.register_environment().physical();
+        let mut rehashed_corruption = optimization.fusion().plan().clone();
+        rehashed_corruption.actions[0].source_read.view =
+            physical.model().view_named("x2").unwrap().id;
+        rehashed_corruption.identity =
+            omega_machine_optimizer::terminal_aarch64_cbnz_fusion_identity(&rehashed_corruption);
+        assert_eq!(
+            omega_machine_optimizer::validate_aarch64_cbnz_fusion(
+                selected_stage.selected(),
+                ranges.liveness_stage().liveness(),
+                machine.machine(),
+                physical,
+                rehashed_corruption,
+            ),
+            Err(omega_machine_optimizer::TerminalAarch64CbnzFusionError::ArtifactMismatch)
+        );
+    }
+
+    #[test]
+    fn aarch64_cbnz_fusion_composes_after_exact_selected_lowering() {
+        let target = NativeTarget::linux_arm64();
+        let (semantic, proof) = conditional_exact_binary_artifact(false);
+        let selections = OptimizationSelections::new([
+            Optimization::SelectedIncomingU12ExactAddImmediate,
+            Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
+        ])
+        .unwrap();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            ExplicitOptimizationRequest::new(selections.clone(), selected_lowering_budget())
+                .unwrap(),
+        )
+        .unwrap();
+        let staged = stage_optimized_verified_physical_pipeline_with_provider_executions(
+            optimized,
+            target,
+            &[],
+        )
+        .unwrap();
+        let StagedOptimizedVerifiedPhysicalPipeline::SelectedLoweringPostAllocationMachine {
+            homes,
+            machine,
+            optimization,
+        } = &staged
+        else {
+            panic!("selected lowering must retain custody before post-allocation fusion")
+        };
+        assert_eq!(staged.selections(), selections.identity());
+        assert_eq!(
+            staged.selected_lowering_completion(),
+            Some(homes.selected_lowering_run().custody().identity())
+        );
+        assert_eq!(optimization.fusion().receipt().action_count(), 1);
+        assert_eq!(
+            validate_optimized_aarch64_cbnz_fusion_after_selected_lowering_custody(
+                homes,
+                machine,
+                optimization,
+            )
+            .unwrap(),
+            optimization.custody()
+        );
     }
 
     #[test]

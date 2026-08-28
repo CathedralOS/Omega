@@ -124,6 +124,7 @@ fn enable_calls_project_the_exact_canonical_named_set() {
     builder.optimizations.enable(Optimization::SelectedIncomingU12ExactAddImmediate);
     builder.optimizations.enable(Optimization::X86RelaxConditionalBranchesToRel8V1);
     builder.optimizations.enable(Optimization::SelectedIncomingU12ExactSubtractImmediate);
+    builder.optimizations.enable(Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1);
 }
 "#,
         ),
@@ -139,6 +140,7 @@ fn enable_calls_project_the_exact_canonical_named_set() {
             Optimization::SelectedIncomingU12ExactAddImmediate,
             Optimization::X86RelaxConditionalBranchesToRel8V1,
             Optimization::SelectedIncomingU12ExactSubtractImmediate,
+            Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
         ]
     );
     assert_eq!(
@@ -334,6 +336,57 @@ fn x86_rel8_relaxation_selection_round_trips_but_remains_default_off() {
         diagnostics[0]
             .message
             .contains("`X86RelaxConditionalBranchesToRel8V1`")
+    );
+    assert!(diagnostics[0].message.contains("no output was installed"));
+    assert!(!build_dir.join("omega-program").exists());
+    assert!(!build_dir.join("omega-program.exe").exists());
+}
+
+#[test]
+fn aarch64_cbnz_fusion_selection_round_trips_but_remains_default_off() {
+    let absent = project("aarch64-cbnz-default-off", None);
+    let checked = compile_to_checked(&absent.join("main.omg"), None)
+        .expect("an absent build must leave AArch64 CBNZ fusion disabled");
+    assert!(
+        !checked
+            .optimization_selections()
+            .contains(Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1)
+    );
+
+    let selected = project(
+        "aarch64-cbnz-selected",
+        Some(
+            r#"machine build(builder: &mut Build) {
+    builder.application("optimizer-aarch64-cbnz-selected");
+    builder.optimizations.enable(Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1);
+}
+"#,
+        ),
+    );
+    let checked = compile_to_checked(&selected.join("main.omg"), None)
+        .expect("the named post-allocation machine selection should evaluate");
+    assert_eq!(
+        checked.optimization_selections().as_slice(),
+        &[Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1]
+    );
+    assert_eq!(
+        checked.optimization_selection_identity(),
+        checked.optimization_selections().identity()
+    );
+
+    let build_dir = selected.join("build");
+    let diagnostics = compile(CompileOptions {
+        root_path: selected.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect_err("the build-visible machine selection must remain publication-gated");
+    assert_eq!(diagnostics.len(), 1);
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("`Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1`")
     );
     assert!(diagnostics[0].message.contains("no output was installed"));
     assert!(!build_dir.join("omega-program").exists());

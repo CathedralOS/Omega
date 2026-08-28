@@ -139,6 +139,92 @@ fn branch_word_displacement(
     Ok(words as i32)
 }
 
+/// Encode the layout-resolved AArch64 realization selected by
+/// `Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1`. The displacement is
+/// measured from the `CBNZ` instruction address and scaled by four bytes.
+pub fn encode_aarch64_terminal_fused_compare_i64_zero_branch_nonzero_to_cbnz_form(
+    physical: &ValidatedPhysicalRegisterModel,
+    source: RegisterViewId,
+    byte_displacement_from_instruction: i64,
+) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    let register = validate_cbnz_request(physical, source)?;
+    let word_displacement = branch_word_displacement(byte_displacement_from_instruction)?;
+    let word = 0xb500_0000 | (((word_displacement as u32) & 0x7ffff) << 5) | u32::from(register);
+    validate_aarch64_terminal_fused_compare_i64_zero_branch_nonzero_to_cbnz_form(
+        physical,
+        source,
+        byte_displacement_from_instruction,
+        &word.to_le_bytes(),
+    )
+}
+
+/// Independently decode and validate the exact 64-bit `CBNZ` realization.
+pub fn validate_aarch64_terminal_fused_compare_i64_zero_branch_nonzero_to_cbnz_form(
+    physical: &ValidatedPhysicalRegisterModel,
+    source: RegisterViewId,
+    byte_displacement_from_instruction: i64,
+    bytes: &[u8],
+) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    let register = validate_cbnz_request(physical, source)?;
+    branch_word_displacement(byte_displacement_from_instruction)?;
+    let word = bytes
+        .try_into()
+        .ok()
+        .map(u32::from_le_bytes)
+        .filter(|word| word & 0xff00_0000 == 0xb500_0000)
+        .ok_or(Aarch64SelectedFormEncodingError::MalformedEncoding)?;
+    if word & 0x1f != u32::from(register) {
+        return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+    }
+    let encoded_imm19 = ((word >> 5) & 0x7ffff) as i32;
+    let decoded_words = (encoded_imm19 << 13) >> 13;
+    if i64::from(decoded_words) * 4 != byte_displacement_from_instruction {
+        return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+    }
+    Ok(ValidatedAarch64SelectedFormEncoding {
+        bytes: bytes.to_vec(),
+        footprint: cbnz_footprint(source),
+    })
+}
+
+fn validate_cbnz_request(
+    physical: &ValidatedPhysicalRegisterModel,
+    source: RegisterViewId,
+) -> Result<u8, Aarch64SelectedFormEncodingError> {
+    if physical.model() != &aarch64_physical_register_model() {
+        return Err(Aarch64SelectedFormEncodingError::NonCanonicalPhysicalModel);
+    }
+    let registers = resolve_registers(physical, &[source])?;
+    registers
+        .first()
+        .copied()
+        .ok_or(Aarch64SelectedFormEncodingError::OperandCountMismatch)
+}
+
+fn cbnz_footprint(source: RegisterViewId) -> Aarch64SelectedFormFootprint {
+    let physical = aarch64_physical_register_model();
+    let pc = physical.view_named("pc").unwrap().units.clone();
+    Aarch64SelectedFormFootprint {
+        register_reads: vec![source],
+        register_writes: vec![],
+        writes_nzcv: false,
+        encoded: TerminalMachineEncodedEffects {
+            // The selected branch has no operand zero. The optimizer artifact
+            // separately qualifies this read by the compare instruction and
+            // operand that own it.
+            external_operand_reads: vec![],
+            external_operand_writes: vec![],
+            implicit_unit_uses: pc.clone(),
+            implicit_unit_defs: pc,
+            implicit_unit_clobbers: vec![],
+            memory: TerminalMachineEncodedMemoryEffect::NoneV1,
+            stack: TerminalMachineEncodedStackEffect::UnchangedV1,
+            trap: TerminalMachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+            control: TerminalMachineEncodedControlEffect::ConditionalRelativeBranchV1,
+        },
+    }
+}
+
 pub fn encode_aarch64_terminal_selected_form(
     physical: &ValidatedPhysicalRegisterModel,
     kind: TerminalSelectedInstructionKind,
@@ -876,6 +962,78 @@ mod tests {
                 alternative,
                 0,
                 &[1, 0, 0, 0, 0]
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn fused_cbnz_is_exact_rejects_nearby_opcodes_and_does_not_read_nzcv() {
+        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        let x0 = physical.model().view_named("x0").unwrap();
+        let x30 = physical.model().view_named("x30").unwrap();
+        let pc = physical.model().view_named("pc").unwrap();
+        let nzcv = physical.model().view_named("nzcv").unwrap();
+
+        for (source, register) in [(x0.id, 0_u8), (x30.id, 30_u8)] {
+            for displacement in [-1_048_576, -4, 0, 4, 1_048_572] {
+                let encoded =
+                    encode_aarch64_terminal_fused_compare_i64_zero_branch_nonzero_to_cbnz_form(
+                        &physical,
+                        source,
+                        displacement,
+                    )
+                    .unwrap();
+                assert_eq!(encoded.bytes().len(), 4);
+                assert_eq!(encoded.bytes()[0] & 0x1f, register);
+                assert_eq!(encoded.footprint().register_reads, [source]);
+                assert!(encoded.footprint().register_writes.is_empty());
+                assert!(!encoded.footprint().writes_nzcv);
+                assert_eq!(encoded.footprint().encoded.external_operand_reads, []);
+                assert_eq!(encoded.footprint().encoded.implicit_unit_uses, pc.units);
+                assert_eq!(encoded.footprint().encoded.implicit_unit_defs, pc.units);
+                assert!(
+                    encoded
+                        .footprint()
+                        .encoded
+                        .implicit_unit_uses
+                        .iter()
+                        .all(|unit| !nzcv.units.contains(unit))
+                );
+            }
+        }
+
+        for displacement in [-1_048_580, 1_048_576, 2] {
+            assert!(
+                encode_aarch64_terminal_fused_compare_i64_zero_branch_nonzero_to_cbnz_form(
+                    &physical,
+                    x0.id,
+                    displacement,
+                )
+                .is_err()
+            );
+        }
+        for word in [
+            0xb400_0000_u32, // 64-bit CBZ
+            0x3500_0000_u32, // 32-bit CBNZ
+            0xb500_001e_u32, // wrong source register
+        ] {
+            assert!(
+                validate_aarch64_terminal_fused_compare_i64_zero_branch_nonzero_to_cbnz_form(
+                    &physical,
+                    x0.id,
+                    0,
+                    &word.to_le_bytes(),
+                )
+                .is_err()
+            );
+        }
+        assert!(
+            validate_aarch64_terminal_fused_compare_i64_zero_branch_nonzero_to_cbnz_form(
+                &physical,
+                x0.id,
+                0,
+                &[0, 0, 0, 0, 0],
             )
             .is_err()
         );
