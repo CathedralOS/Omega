@@ -93,6 +93,37 @@ pub trait TerminalProviderExecutionEvidence: std::fmt::Debug {
     fn boundary_contract_fingerprint(&self) -> u64;
 }
 
+/// Exact caller-local claim source retained by one admitted installed-provider
+/// Unit call. This mirrors terminal abstract custody without making the
+/// installation evidence crate depend on an Omega lowering representation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalInstalledProviderCompletionClaimSource {
+    pub claim: psi_core::ClaimId,
+    pub entry: Option<psi_terminal::EntryClaim>,
+    pub content: Option<psi_terminal::ContentEntryClaim>,
+}
+
+/// Read-only projection of one boundary occurrence admitted as a call to an
+/// exact checked provider machine.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalInstalledProviderUnitCallEvidence {
+    pub caller: psi_core::MachineId,
+    pub psi_operation: psi_core::OperationId,
+    pub boundary: psi_core::BoundaryMachineId,
+    pub provider: psi_terminal::ProviderCandidateConformance,
+    pub structural_arguments: Vec<psi_terminal::StructuralArgument>,
+    pub completion_claim_sources: Vec<TerminalInstalledProviderCompletionClaimSource>,
+    pub completion_receipts: Vec<psi_terminal::CompletionReceipt>,
+}
+
+/// Dependency-light view of an opaque provider installation admitted against
+/// one exact terminal-Psi artifact. Returning owned projections exposes no
+/// mutable installation map or construction authority.
+pub trait TerminalProviderInstallationEvidence: std::fmt::Debug {
+    fn terminal_psi(&self) -> psi_terminal::TerminalPsiIdentity;
+    fn installed_provider_unit_calls(&self) -> Vec<TerminalInstalledProviderUnitCallEvidence>;
+}
+
 /// Read-only projection of one opaque, installation-owned component progress
 /// acceptance. These compact identities enter the terminal installation
 /// record and artifact fingerprint, but never substitute for the retained

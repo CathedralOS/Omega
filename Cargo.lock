@@ -2048,6 +2048,7 @@ version = "0.1.0"
 dependencies = [
  "omega-optimization-unit",
  "omega-terminal-abstract-operations",
+ "omega-terminal-installation-evidence",
  "psi-core",
  "psi-proof-admission",
  "psi-terminal",

@@ -10,7 +10,9 @@ use psi_terminal::{
     StructuralMultiplicity,
 };
 
-use super::structural_signature_wire::encode_service_ceiling;
+use super::structural_signature_wire::{
+    decode_structural_access, encode_service_ceiling, encode_structural_access,
+};
 use super::wire::{Reader, Writer};
 use super::{CodecError, decode_counted, decode_ids};
 
@@ -39,6 +41,7 @@ pub(super) fn encode_provider_candidate(
             StructuralMultiplicity::Affine => 2,
             StructuralMultiplicity::Linear => 3,
         });
+        encode_structural_access(writer, parameter.access);
         writer.len(
             "provider signature qualifications",
             parameter.qualifications.len(),
@@ -89,6 +92,7 @@ pub(super) fn decode_provider_candidate(
             is_self,
             structural_type,
             multiplicity,
+            access: decode_structural_access(reader)?,
             qualifications: decode_ids(reader, "StructuralDomainId")?,
         })
     })?;

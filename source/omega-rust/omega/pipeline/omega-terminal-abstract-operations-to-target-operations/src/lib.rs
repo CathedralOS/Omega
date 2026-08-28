@@ -14,6 +14,10 @@ use omega_terminal_abstract_operations::{
     TerminalAbstractFunction, TerminalAbstractFunctionResult, TerminalAbstractOperation,
     TerminalAbstractOperationPlan, TerminalAbstractParameter, TerminalAbstractResult,
 };
+use omega_terminal_installation_evidence::{
+    TerminalInstalledProviderCompletionClaimSource, TerminalInstalledProviderUnitCallEvidence,
+    TerminalProviderInstallationEvidence,
+};
 use omega_terminal_target_operations::{
     MachineRegister, TerminalBoundaryByteSequenceArgument, TerminalBoundaryRealization,
     TerminalBoundaryScalarArgument, TerminalBoundarySettlementBinding, TerminalPsiProvenance,
@@ -71,6 +75,24 @@ pub fn lower_to_target_operations_with_provider_executions(
     target: NativeTarget,
     settlements: &[AdmittedTerminalBoundarySettlement<'_>],
 ) -> Result<TerminalTargetOperationPlan, LoweringError> {
+    lower_to_target_operations_with_provider_executions_and_installation(
+        plan,
+        target,
+        settlements,
+        None,
+    )
+}
+
+/// Lower with optional checked-provider installation evidence and any
+/// remaining external boundary settlements. Installed provider occurrences
+/// are exact in-module Unit calls and cannot also consume an external
+/// settlement for the same boundary.
+pub fn lower_to_target_operations_with_provider_executions_and_installation(
+    plan: &TerminalAbstractOperationPlan,
+    target: NativeTarget,
+    settlements: &[AdmittedTerminalBoundarySettlement<'_>],
+    installation: Option<&dyn TerminalProviderInstallationEvidence>,
+) -> Result<TerminalTargetOperationPlan, LoweringError> {
     let bindings = settlements
         .iter()
         .map(|settlement| {
@@ -115,13 +137,32 @@ pub fn lower_to_target_operations_with_provider_executions(
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
-    lower_to_target_operations_with_settlements(plan, target, &bindings)
+    lower_to_target_operations_with_settlements_and_installation(
+        plan,
+        target,
+        &bindings,
+        installation,
+    )
 }
 
 fn lower_to_target_operations_with_settlements(
     plan: &TerminalAbstractOperationPlan,
     target: NativeTarget,
     settlement_bindings: &[TerminalBoundarySettlementBinding],
+) -> Result<TerminalTargetOperationPlan, LoweringError> {
+    lower_to_target_operations_with_settlements_and_installation(
+        plan,
+        target,
+        settlement_bindings,
+        None,
+    )
+}
+
+fn lower_to_target_operations_with_settlements_and_installation(
+    plan: &TerminalAbstractOperationPlan,
+    target: NativeTarget,
+    settlement_bindings: &[TerminalBoundarySettlementBinding],
+    installation: Option<&dyn TerminalProviderInstallationEvidence>,
 ) -> Result<TerminalTargetOperationPlan, LoweringError> {
     if !plan
         .functions
@@ -161,14 +202,115 @@ fn lower_to_target_operations_with_settlements(
             return Err(LoweringError::UnknownBoundarySettlement(binding.boundary));
         }
     }
-    let required_settlements = plan
+    let installed_calls = installation
+        .map(|installation| {
+            if installation.terminal_psi() != plan.terminal_psi {
+                return Err(LoweringError::ProviderInstallationIdentityMismatch);
+            }
+            Ok(installation.installed_provider_unit_calls())
+        })
+        .transpose()?
+        .unwrap_or_default();
+    let mut installed_by_call = BTreeMap::new();
+    for installed in installed_calls {
+        let key = (
+            installed.caller,
+            installed.psi_operation,
+            installed.boundary,
+        );
+        if installed_by_call.insert(key, installed).is_some() {
+            return Err(LoweringError::DuplicateInstalledProviderCall {
+                machine: key.0,
+                operation: key.1,
+                boundary: key.2,
+            });
+        }
+    }
+    let boundary_calls = plan
         .functions
         .iter()
-        .flat_map(|function| &function.operations)
-        .filter_map(|operation| match operation {
-            TerminalAbstractOperation::BoundaryCall { boundary, .. } => Some(*boundary),
-            _ => None,
+        .flat_map(|function| {
+            function
+                .operations
+                .iter()
+                .filter_map(move |operation| match operation {
+                    TerminalAbstractOperation::BoundaryCall {
+                        psi_operation,
+                        boundary,
+                        ..
+                    } => Some(((function.machine, *psi_operation, *boundary), operation)),
+                    _ => None,
+                })
         })
+        .collect::<BTreeMap<_, _>>();
+    for (key, installed) in &installed_by_call {
+        let Some(TerminalAbstractOperation::BoundaryCall {
+            result,
+            arguments,
+            structural_arguments,
+            completion_claim_sources,
+            completion_receipts,
+            ..
+        }) = boundary_calls.get(key).copied()
+        else {
+            return Err(LoweringError::UnknownInstalledProviderCall {
+                machine: key.0,
+                operation: key.1,
+                boundary: key.2,
+            });
+        };
+        let exact_sources = completion_claim_sources
+            .iter()
+            .map(|source| TerminalInstalledProviderCompletionClaimSource {
+                claim: source.claim,
+                entry: source.entry.clone(),
+                content: source.content.clone(),
+            })
+            .collect::<Vec<_>>();
+        if result.is_some()
+            || !arguments.is_empty()
+            || installed.structural_arguments != *structural_arguments
+            || installed.completion_claim_sources != exact_sources
+            || installed.completion_receipts != *completion_receipts
+            || installed.provider.boundary != key.2
+            || !plan
+                .provider_candidates
+                .iter()
+                .any(|candidate| candidate == &installed.provider)
+        {
+            return Err(LoweringError::InstalledProviderCallEvidenceMismatch {
+                machine: key.0,
+                operation: key.1,
+                boundary: key.2,
+            });
+        }
+    }
+    let installed_boundaries = installed_by_call
+        .keys()
+        .map(|(_, _, boundary)| *boundary)
+        .collect::<BTreeSet<_>>();
+    if let Some(boundary) = settlements_by_boundary
+        .keys()
+        .find(|boundary| installed_boundaries.contains(boundary))
+    {
+        return Err(LoweringError::BoundarySettlementOverlapsInstalledProvider(
+            *boundary,
+        ));
+    }
+    if let Some((machine, operation, boundary)) = boundary_calls
+        .keys()
+        .find(|key| installed_boundaries.contains(&key.2) && !installed_by_call.contains_key(key))
+        .copied()
+    {
+        return Err(LoweringError::PartialInstalledProviderBoundary {
+            machine,
+            operation,
+            boundary,
+        });
+    }
+    let required_settlements = boundary_calls
+        .keys()
+        .filter_map(|key| (!installed_by_call.contains_key(key)).then_some(key.2))
         .collect::<BTreeSet<_>>();
     for boundary in &required_settlements {
         if !settlements_by_boundary.contains_key(boundary) {
@@ -196,6 +338,7 @@ fn lower_to_target_operations_with_settlements(
                     &structural_types,
                     &boundary_machines,
                     &settlements_by_boundary,
+                    &installed_by_call,
                 )
             })
             .collect::<Result<Vec<_>, _>>()?,
@@ -209,6 +352,10 @@ fn lower_function(
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     boundary_machines: &BTreeMap<BoundaryMachineId, &psi_terminal::BoundaryMachineDeclaration>,
     settlements: &BTreeMap<BoundaryMachineId, TerminalBoundarySettlementBinding>,
+    installed_calls: &BTreeMap<
+        (MachineId, OperationId, BoundaryMachineId),
+        TerminalInstalledProviderUnitCallEvidence,
+    >,
 ) -> Result<TerminalTargetFunction, LoweringError> {
     if let Some(lowered) =
         lower_linux_exit_group_i32(function, target, boundary_machines, settlements)?
@@ -257,6 +404,7 @@ fn lower_function(
             structural_types,
             boundary_machines,
             settlements,
+            installed_calls,
         );
     };
     let mut values = BTreeMap::new();
@@ -2386,6 +2534,10 @@ fn lower_unit_function(
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     boundary_machines: &BTreeMap<BoundaryMachineId, &psi_terminal::BoundaryMachineDeclaration>,
     settlements: &BTreeMap<BoundaryMachineId, TerminalBoundarySettlementBinding>,
+    installed_calls: &BTreeMap<
+        (MachineId, OperationId, BoundaryMachineId),
+        TerminalInstalledProviderUnitCallEvidence,
+    >,
 ) -> Result<TerminalTargetFunction, LoweringError> {
     if !function.parameters.is_empty() {
         return Err(LoweringError::UnitFunctionHasScalarParameters(
@@ -2702,6 +2854,182 @@ fn lower_unit_function(
                 completion_claim_sources,
                 completion_receipts,
             } => {
+                if let Some(installed) =
+                    installed_calls.get(&(function.machine, *psi_operation, *boundary))
+                {
+                    let callee = functions
+                        .get(&installed.provider.candidate)
+                        .copied()
+                        .ok_or(LoweringError::UnknownCallTarget(
+                            installed.provider.candidate,
+                        ))?;
+                    let declaration = boundary_machines
+                        .get(boundary)
+                        .copied()
+                        .ok_or(LoweringError::UnknownBoundarySettlement(*boundary))?;
+                    if result.is_some()
+                        || !arguments.is_empty()
+                        || callee.result != TerminalAbstractFunctionResult::Unit
+                        || !callee.parameters.is_empty()
+                        || structural_arguments.len() != callee.structural_parameters.len()
+                        || declaration.structural_parameters.len()
+                            != callee.structural_parameters.len()
+                        || installed.provider.signature.parameters.len()
+                            != callee.structural_parameters.len()
+                    {
+                        return Err(LoweringError::InstalledProviderCallShapeMismatch {
+                            machine: function.machine,
+                            operation: *psi_operation,
+                            boundary: *boundary,
+                        });
+                    }
+                    let callee_shapes = callee
+                        .structural_parameters
+                        .iter()
+                        .map(|parameter| {
+                            structural_shape(
+                                parameter.structural_type,
+                                structural_types,
+                                &mut shape_cache,
+                                &mut active,
+                            )
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let callee_plan = evaluate_call_plan(
+                        CallingPolicy::native_for_target(target),
+                        &CallSignature {
+                            parameters: callee_shapes.clone(),
+                            result: None,
+                        },
+                    )
+                    .map_err(LoweringError::AbiPlan)?;
+                    let mut target_arguments = Vec::with_capacity(structural_arguments.len());
+                    for (index, (((argument, boundary_parameter), callee_parameter), signature)) in
+                        structural_arguments
+                            .iter()
+                            .zip(&declaration.structural_parameters)
+                            .zip(&callee.structural_parameters)
+                            .zip(&installed.provider.signature.parameters)
+                            .enumerate()
+                    {
+                        let source = parameters_by_place.get(&argument.place).copied().ok_or(
+                            LoweringError::UnknownStructuralArgumentPlace {
+                                machine: function.machine,
+                                place: argument.place,
+                            },
+                        )?;
+                        let caller_parameter = function
+                            .structural_parameters
+                            .iter()
+                            .find(|parameter| parameter.place == argument.place)
+                            .ok_or(LoweringError::UnknownStructuralArgumentPlace {
+                                machine: function.machine,
+                                place: argument.place,
+                            })?;
+                        if !argument.path.is_empty()
+                            || argument.access != psi_terminal::StructuralAccess::Owned
+                            || source.access != psi_terminal::StructuralAccess::Owned
+                            || boundary_parameter.access != psi_terminal::StructuralAccess::Owned
+                            || callee_parameter.access != psi_terminal::StructuralAccess::Owned
+                            || boundary_parameter.position != index as u32
+                            || callee_parameter.position != index as u32
+                            || signature.position != index as u32
+                            || boundary_parameter.is_self
+                            || callee_parameter.is_self
+                            || signature.is_self
+                            || source.structural_type != boundary_parameter.structural_type
+                            || source.structural_type != callee_parameter.structural_type
+                            || source.structural_type != signature.structural_type
+                            || source.multiplicity != boundary_parameter.multiplicity
+                            || source.multiplicity != callee_parameter.multiplicity
+                            || source.multiplicity != signature.multiplicity
+                            || source.access != signature.access
+                            || source.structural_type
+                                != callee.structural_parameters[index].structural_type
+                            || source.placement.shape != callee_shapes[index]
+                            || source.placement.shape != callee_plan.parameters[index].shape
+                            || caller_parameter.qualifications.iter().any(|qualification| {
+                                !boundary_parameter.qualifications.contains(qualification)
+                                    || !callee_parameter.qualifications.contains(qualification)
+                                    || !signature.qualifications.contains(qualification)
+                            })
+                            || caller_parameter.qualifications != boundary_parameter.qualifications
+                            || caller_parameter.qualifications != callee_parameter.qualifications
+                            || caller_parameter.qualifications != signature.qualifications
+                        {
+                            return Err(LoweringError::InstalledProviderCallShapeMismatch {
+                                machine: function.machine,
+                                operation: *psi_operation,
+                                boundary: *boundary,
+                            });
+                        }
+                        target_arguments.push(TerminalTargetStructuralArgument {
+                            place: argument.place,
+                            access: argument.access,
+                            path: Vec::new(),
+                            root_structural_type: source.structural_type,
+                            structural_type: source.structural_type,
+                            shape: source.shape,
+                            source_byte_offset: 0,
+                            fixed_array_length: None,
+                            element_stride: None,
+                            source: source.placement.clone(),
+                            destination: callee_plan.parameters[index].clone(),
+                        });
+                    }
+                    let claim_transfers = completion_receipts
+                        .iter()
+                        .map(|receipt| psi_terminal::ClaimTransfer {
+                            claim: receipt.claim,
+                            argument_index: receipt.argument_index,
+                        })
+                        .collect::<Vec<_>>();
+                    if completion_receipts.len() != callee.entry_claims.len()
+                        || callee.entry_claims.iter().any(|entry| {
+                            let Some(index) = callee
+                                .structural_parameters
+                                .iter()
+                                .position(|parameter| parameter.place == entry.input)
+                            else {
+                                return true;
+                            };
+                            let Some(receipt) = completion_receipts
+                                .iter()
+                                .find(|receipt| receipt.argument_index as usize == index)
+                            else {
+                                return true;
+                            };
+                            let Some(source) = completion_claim_sources
+                                .iter()
+                                .find(|source| source.claim == receipt.claim)
+                            else {
+                                return true;
+                            };
+                            source.entry.as_ref().is_none_or(|source| {
+                                source.input != structural_arguments[index].place
+                                    || source.path != entry.path
+                            })
+                        })
+                    {
+                        return Err(LoweringError::InstalledProviderClaimTransferMismatch {
+                            machine: function.machine,
+                            operation: *psi_operation,
+                            boundary: *boundary,
+                        });
+                    }
+                    operations.push(TerminalTargetUnitOperation::InstalledProviderCall {
+                        psi_operation: *psi_operation,
+                        boundary: *boundary,
+                        provider: installed.provider.clone(),
+                        source_arguments: structural_arguments.clone(),
+                        arguments: target_arguments,
+                        claim_transfers,
+                        completion_claim_sources: completion_claim_sources.clone(),
+                        completion_receipts: completion_receipts.clone(),
+                    });
+                    provenance.operations.push(*psi_operation);
+                    continue;
+                }
                 if result.is_some() {
                     return Err(
                         LoweringError::ResultBearingBoundarySettlementRequiresNativeRealization {
@@ -4341,6 +4669,38 @@ fn conditional_provenance(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
     EntryFunctionMissing(MachineId),
+    ProviderInstallationIdentityMismatch,
+    DuplicateInstalledProviderCall {
+        machine: MachineId,
+        operation: OperationId,
+        boundary: BoundaryMachineId,
+    },
+    UnknownInstalledProviderCall {
+        machine: MachineId,
+        operation: OperationId,
+        boundary: BoundaryMachineId,
+    },
+    InstalledProviderCallEvidenceMismatch {
+        machine: MachineId,
+        operation: OperationId,
+        boundary: BoundaryMachineId,
+    },
+    InstalledProviderCallShapeMismatch {
+        machine: MachineId,
+        operation: OperationId,
+        boundary: BoundaryMachineId,
+    },
+    InstalledProviderClaimTransferMismatch {
+        machine: MachineId,
+        operation: OperationId,
+        boundary: BoundaryMachineId,
+    },
+    BoundarySettlementOverlapsInstalledProvider(BoundaryMachineId),
+    PartialInstalledProviderBoundary {
+        machine: MachineId,
+        operation: OperationId,
+        boundary: BoundaryMachineId,
+    },
     DuplicateBoundarySettlement(BoundaryMachineId),
     UnknownBoundarySettlement(BoundaryMachineId),
     MissingBoundarySettlement(BoundaryMachineId),

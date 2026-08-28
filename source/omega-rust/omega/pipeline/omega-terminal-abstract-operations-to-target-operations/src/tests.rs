@@ -1943,6 +1943,230 @@ fn identity() -> TerminalPsiIdentity {
     }
 }
 
+#[derive(Debug)]
+struct InstalledProviderFixture {
+    terminal_psi: TerminalPsiIdentity,
+    calls: Vec<TerminalInstalledProviderUnitCallEvidence>,
+}
+
+impl TerminalProviderInstallationEvidence for InstalledProviderFixture {
+    fn terminal_psi(&self) -> TerminalPsiIdentity {
+        self.terminal_psi
+    }
+
+    fn installed_provider_unit_calls(&self) -> Vec<TerminalInstalledProviderUnitCallEvidence> {
+        self.calls.clone()
+    }
+}
+
+fn installed_provider_plan() -> (
+    TerminalAbstractOperationPlan,
+    InstalledProviderFixture,
+    BoundaryMachineId,
+    OperationId,
+) {
+    let caller = MachineId::new(950).unwrap();
+    let callee = MachineId::new(951).unwrap();
+    let boundary = BoundaryMachineId::new(950).unwrap();
+    let operation = OperationId::new(950).unwrap();
+    let structural_type = StructuralTypeId::new(950).unwrap();
+    let caller_place = PlaceId::new(950).unwrap();
+    let boundary_place = PlaceId::new(951).unwrap();
+    let callee_place = PlaceId::new(952).unwrap();
+    let claim = psi_core::ClaimId::new(950).unwrap();
+    let parameter = |place| StructuralParameterDeclaration {
+        place,
+        position: 0,
+        is_self: false,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Linear,
+        access: StructuralAccess::Owned,
+        qualifications: Vec::new(),
+    };
+    let argument = StructuralArgument {
+        place: caller_place,
+        access: StructuralAccess::Owned,
+        path: Vec::new(),
+    };
+    let entry_source = psi_terminal::EntryClaim {
+        claim,
+        input: caller_place,
+        path: Vec::new(),
+    };
+    let receipt = psi_terminal::CompletionReceipt {
+        claim,
+        argument_index: 0,
+    };
+    let provider = psi_terminal::ProviderCandidateConformance {
+        boundary,
+        requirement_identity: "ProgramEntry::enter".into(),
+        provider_identity: "ProgramProvider".into(),
+        candidate_identity: "ProgramProvider::enter".into(),
+        candidate: callee,
+        signature: psi_terminal::ProviderUnitSignature {
+            parameters: vec![psi_terminal::ProviderSignatureParameter {
+                position: 0,
+                is_self: false,
+                structural_type,
+                multiplicity: StructuralMultiplicity::Linear,
+                access: StructuralAccess::Owned,
+                qualifications: Vec::new(),
+            }],
+        },
+        refinement: psi_terminal::ProviderUnitRefinement {
+            positional_parameters: vec![psi_terminal::ProviderParameterRefinement {
+                boundary_index: 0,
+                candidate_index: 0,
+            }],
+            required_domains: Vec::new(),
+            realized_service_ceiling: Vec::new(),
+        },
+    };
+    let block_entry = |machine: MachineId| TerminalAbstractBlockEntry {
+        block: BlockId::new(machine.get()).unwrap(),
+        parameters: Vec::new(),
+        operation_offset: 0,
+    };
+    let plan = TerminalAbstractOperationPlan {
+        terminal_psi: identity(),
+        entry: caller,
+        structural_types: vec![StructuralTypeDeclaration {
+            id: structural_type,
+            identity: "Extent".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: StructuralFieldId::new(950).unwrap(),
+                    identity: "length".into(),
+                    relevance: psi_terminal::BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                    )),
+                }],
+            },
+        }],
+        boundary_machines: vec![BoundaryMachineDeclaration {
+            id: boundary,
+            identity: "ProgramEntry::enter".into(),
+            attachment: None,
+            scalar_parameters: Vec::new(),
+            structural_parameters: vec![parameter(boundary_place)],
+            result: None,
+            requires: Vec::new(),
+            program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
+            published_service_ceiling: Vec::new(),
+        }],
+        provider_candidates: vec![provider.clone()],
+        functions: vec![
+            TerminalAbstractFunction {
+                machine: caller,
+                attachment: None,
+                entry: BlockId::new(caller.get()).unwrap(),
+                parameters: Vec::new(),
+                structural_parameters: vec![parameter(caller_place)],
+                result: TerminalAbstractFunctionResult::Unit,
+                entry_claims: vec![entry_source.clone()],
+                published_service_ceiling: Vec::new(),
+                block_entries: vec![block_entry(caller)],
+                operations: vec![
+                    TerminalAbstractOperation::BoundaryCall {
+                        psi_operation: operation,
+                        result: None,
+                        boundary,
+                        arguments: Vec::new(),
+                        structural_arguments: vec![argument.clone()],
+                        completion_claim_sources: vec![
+                            omega_terminal_abstract_operations::TerminalCompletionClaimSource {
+                                claim,
+                                entry: Some(entry_source.clone()),
+                                content: None,
+                            },
+                        ],
+                        completion_receipts: vec![receipt],
+                    },
+                    TerminalAbstractOperation::ReturnUnit {
+                        psi_edge: EdgeId::new(950).unwrap(),
+                        cleanup_actions: Vec::new(),
+                    },
+                ],
+            },
+            TerminalAbstractFunction {
+                machine: callee,
+                attachment: Some(structural_type),
+                entry: BlockId::new(callee.get()).unwrap(),
+                parameters: Vec::new(),
+                structural_parameters: vec![parameter(callee_place)],
+                result: TerminalAbstractFunctionResult::Unit,
+                entry_claims: vec![psi_terminal::EntryClaim {
+                    claim: psi_core::ClaimId::new(951).unwrap(),
+                    input: callee_place,
+                    path: Vec::new(),
+                }],
+                published_service_ceiling: Vec::new(),
+                block_entries: vec![block_entry(callee)],
+                operations: vec![TerminalAbstractOperation::ReturnUnit {
+                    psi_edge: EdgeId::new(951).unwrap(),
+                    cleanup_actions: Vec::new(),
+                }],
+            },
+        ],
+    };
+    let installation = InstalledProviderFixture {
+        terminal_psi: plan.terminal_psi,
+        calls: vec![TerminalInstalledProviderUnitCallEvidence {
+            caller,
+            psi_operation: operation,
+            boundary,
+            provider,
+            structural_arguments: vec![argument],
+            completion_claim_sources: vec![TerminalInstalledProviderCompletionClaimSource {
+                claim,
+                entry: Some(entry_source),
+                content: None,
+            }],
+            completion_receipts: vec![receipt],
+        }],
+    };
+    (plan, installation, boundary, operation)
+}
+
+#[test]
+fn admitted_structural_provider_projects_to_distinct_target_call() {
+    let (plan, installation, boundary, operation) = installed_provider_plan();
+    assert_eq!(
+        lower_to_target_operations(&plan, NativeTarget::uefi_x64()),
+        Err(LoweringError::MissingBoundarySettlement(boundary))
+    );
+    let lowered = lower_to_target_operations_with_provider_executions_and_installation(
+        &plan,
+        NativeTarget::uefi_x64(),
+        &[],
+        Some(&installation),
+    )
+    .expect("installed provider call lowers without an external settlement");
+    let TerminalTargetOperation::UnitBody(body) = &lowered.functions[0].operation else {
+        panic!("caller remains a Unit body")
+    };
+    assert!(matches!(
+        &body.operations[0],
+        TerminalTargetUnitOperation::InstalledProviderCall {
+            psi_operation,
+            boundary: actual_boundary,
+            provider,
+            arguments,
+            claim_transfers,
+            completion_receipts,
+            ..
+        } if *psi_operation == operation
+            && *actual_boundary == boundary
+            && provider == &installation.calls[0].provider
+            && arguments.len() == 1
+            && arguments[0].access == StructuralAccess::Owned
+            && claim_transfers.len() == 1
+            && completion_receipts.len() == 1
+    ));
+}
+
 #[test]
 fn linux_exit_group_i32_requires_exact_literal_shape_and_stays_fail_closed_elsewhere() {
     let machine = MachineId::new(901).unwrap();

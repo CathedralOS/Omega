@@ -2534,16 +2534,31 @@ lowering preserves two linear owned `Extent in Granted` roots, two entry claims,
 and completion receipts while expressing its handoff as `BoundaryCall`. It must
 not be misrepresented as the positive compiler-private `CallUnit` wrapper
 fixture, and the synthetic leaf must not be paired with that receipt. Provider
-catalog construction and Terminal verification now admit and exactly replay a
+catalog construction and Terminal verification admit and exactly replay a
 linear, owned, domain-qualified structural provider signature, its positional
-and domain refinement, and its checked claim-consuming provider body. This
-removes the stale zero-structural-argument catalog restriction only: it does not
-select or execute the provider, and the source operation remains a canonical
-`BoundaryCall`. The first positive three-way settlement/object/wrapper test
-therefore still waits for the same checked claim-consuming continuation to reach
-canonical object custody through an admitted structural installed-provider call
-and concrete provider/native realization. That is an implementation
-prerequisite, not a language-design question, and does not add an owner question.
+and domain refinement, and its checked claim-consuming provider body. Structural
+access is part of that canonical signature as of Terminal vocabulary 36; owned
+and borrowed candidates are therefore not interchangeable catalog rows.
+
+Provider selection produces an opaque Omega-owned installation carrier only
+after replaying the exact artifact, abstract plan, full candidate conformance
+row, structural signature, and claim correspondence. The Psi reference
+interpreter uses that admission to execute the provider through the same
+structural Unit-call transition as an authored call, including ownership
+transfer and completion of both ProgramStorage roots. The canonical source
+operation nevertheless remains `BoundaryCall`. Installation-aware target
+lowering instead emits the distinct target-only `InstalledProviderCall`, which
+retains the boundary occurrence, complete provider row, original and physical
+arguments, caller completion sources and receipts, and their exact claim-
+transfer interpretation. It rejects external-settlement overlap, partial
+installation, and identity or structural substitution. This is not permission
+to relabel the occurrence as source-authored `CallUnit`.
+
+The first positive three-way settlement/object/wrapper test still waits for
+legalization, selection, and a concrete provider/native realization to carry
+that installed call and its claim-completion custody into the canonical object
+lane. That is an implementation prerequisite, not a language-design question,
+and does not add an owner question.
 The scalar-result conditional fixture above remains an ordinary callable. The
 eventual semantic wrapper is not yet an authoritative firmware/process entry:
 the UEFI surface is explicitly planned and non-invoked, and no target/runtime

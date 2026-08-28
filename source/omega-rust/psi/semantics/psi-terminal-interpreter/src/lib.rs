@@ -615,6 +615,92 @@ impl TerminalExecution {
         self.live_affine_frontier.iter()
     }
 
+    /// Enter one structural Unit callee after the operation-specific argument
+    /// checks have succeeded. Ordinary calls and admitted provider dispatch
+    /// share this exact ownership and continuation transition.
+    fn begin_unit_call(
+        &mut self,
+        callee_id: MachineId,
+        structural_arguments: &[StructuralArgument],
+        resolved_arguments: &[TerminalStructuralValue],
+        claim_transfers: &[ClaimTransfer],
+    ) -> Result<(), TerminalInterpretError> {
+        let callee = self
+            .machines
+            .get(&callee_id)
+            .cloned()
+            .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee_id))?;
+        if callee.result != TerminalMachineResult::Unit || !callee.parameters.is_empty() {
+            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+        }
+        let structural_values =
+            bind_structural_arguments(&callee.structural_parameters, resolved_arguments)?;
+        let callee_affine_frontier =
+            bind_affine_frontier(&callee.structural_parameters, &structural_values)?;
+        let (remaining_claims, live_claims) = transfer_claims(
+            &self.live_claims,
+            &self.structural_values,
+            structural_arguments,
+            claim_transfers,
+            &callee.structural_parameters,
+            &callee.entry_claims,
+            &callee.content_entry_claims,
+            &structural_values,
+        )?;
+        self.next_operation += 1;
+        self.live_claims = remaining_claims;
+        let mut caller_affine_frontier = std::mem::take(&mut self.live_affine_frontier);
+        for (argument, parameter) in structural_arguments
+            .iter()
+            .zip(&callee.structural_parameters)
+        {
+            if parameter.multiplicity == StructuralMultiplicity::Affine {
+                consume_affine_projection(
+                    &self.structural_types,
+                    &self.structural_values,
+                    &mut caller_affine_frontier,
+                    argument,
+                )?;
+            }
+        }
+        let mut caller_structural_values = std::mem::take(&mut self.structural_values);
+        for (argument, _parameter) in structural_arguments
+            .iter()
+            .zip(&callee.structural_parameters)
+            .filter(|(argument, parameter)| {
+                argument.path.is_empty()
+                    && parameter.multiplicity != StructuralMultiplicity::Unrestricted
+            })
+        {
+            if caller_structural_values.remove(&argument.place).is_none() {
+                return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
+                    argument.place,
+                ));
+            }
+        }
+        self.call_stack.push(SuspendedCall {
+            blocks: std::mem::take(&mut self.blocks),
+            values: std::mem::take(&mut self.values),
+            structural_values: caller_structural_values,
+            payloadless_case_values: std::mem::take(&mut self.payloadless_case_values),
+            live_affine_frontier: caller_affine_frontier,
+            live_claims: std::mem::take(&mut self.live_claims),
+            current_machine: self.current_machine,
+            current: self.current,
+            next_operation: self.next_operation,
+            result: SuspendedCallResult::Unit,
+        });
+        self.blocks = callee.blocks;
+        self.values = BTreeMap::new();
+        self.structural_values = structural_values;
+        self.live_affine_frontier = callee_affine_frontier;
+        self.live_claims = live_claims;
+        self.current_machine = callee_id;
+        self.current = callee.entry;
+        self.next_operation = 0;
+        Ok(())
+    }
+
     pub fn resume_with_effect_handler(
         &mut self,
         meter: &mut TerminalFuelMeter,
@@ -762,95 +848,17 @@ impl TerminalExecution {
                         if !matches!(operation.result, psi_terminal::OperationResult::Unit) {
                             return Err(TerminalInterpretError::VerifiedOperationMalformed);
                         }
-                        let callee_id = callee;
-                        let callee =
-                            self.machines.get(&callee_id).cloned().ok_or(
-                                TerminalInterpretError::VerifiedCallTargetMissing(callee_id),
-                            )?;
-                        if callee.result != TerminalMachineResult::Unit
-                            || !callee.parameters.is_empty()
-                        {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
                         let arguments = resolve_structural_arguments(
                             &self.structural_types,
                             &self.structural_values,
                             &structural_arguments,
                         )?;
-                        let structural_values =
-                            bind_structural_arguments(&callee.structural_parameters, &arguments)?;
-                        let callee_affine_frontier = bind_affine_frontier(
-                            &callee.structural_parameters,
-                            &structural_values,
-                        )?;
-                        let (remaining_claims, live_claims) = transfer_claims(
-                            &self.live_claims,
-                            &self.structural_values,
+                        self.begin_unit_call(
+                            callee,
                             &structural_arguments,
+                            &arguments,
                             &claim_transfers,
-                            &callee.structural_parameters,
-                            &callee.entry_claims,
-                            &callee.content_entry_claims,
-                            &structural_values,
                         )?;
-                        self.next_operation += 1;
-                        self.live_claims = remaining_claims;
-                        let mut caller_affine_frontier =
-                            std::mem::take(&mut self.live_affine_frontier);
-                        for (argument, parameter) in structural_arguments
-                            .iter()
-                            .zip(&callee.structural_parameters)
-                        {
-                            if parameter.multiplicity == StructuralMultiplicity::Affine {
-                                consume_affine_projection(
-                                    &self.structural_types,
-                                    &self.structural_values,
-                                    &mut caller_affine_frontier,
-                                    argument,
-                                )?;
-                            }
-                        }
-                        let mut caller_structural_values =
-                            std::mem::take(&mut self.structural_values);
-                        for (argument, _parameter) in structural_arguments
-                            .iter()
-                            .zip(&callee.structural_parameters)
-                            .filter(|(argument, parameter)| {
-                                argument.path.is_empty()
-                                    && parameter.multiplicity
-                                        != StructuralMultiplicity::Unrestricted
-                            })
-                        {
-                            if caller_structural_values.remove(&argument.place).is_none() {
-                                return Err(
-                                    TerminalInterpretError::VerifiedStructuralPlaceMissing(
-                                        argument.place,
-                                    ),
-                                );
-                            }
-                        }
-                        self.call_stack.push(SuspendedCall {
-                            blocks: std::mem::take(&mut self.blocks),
-                            values: std::mem::take(&mut self.values),
-                            structural_values: caller_structural_values,
-                            payloadless_case_values: std::mem::take(
-                                &mut self.payloadless_case_values,
-                            ),
-                            live_affine_frontier: caller_affine_frontier,
-                            live_claims: std::mem::take(&mut self.live_claims),
-                            current_machine: self.current_machine,
-                            current: self.current,
-                            next_operation: self.next_operation,
-                            result: SuspendedCallResult::Unit,
-                        });
-                        self.blocks = callee.blocks;
-                        self.values = BTreeMap::new();
-                        self.structural_values = structural_values;
-                        self.live_affine_frontier = callee_affine_frontier;
-                        self.live_claims = live_claims;
-                        self.current_machine = callee_id;
-                        self.current = callee.entry;
-                        self.next_operation = 0;
                         continue;
                     }
                     OperationKind::CallStructuralScalar {
@@ -1107,56 +1115,6 @@ impl TerminalExecution {
                             &boundary_declaration.scalar_parameters,
                             &scalar_arguments,
                         )?;
-                        if self.provider_candidates.contains(&boundary) {
-                            if !scalar_argument_ids.is_empty()
-                                || !boundary_declaration.scalar_parameters.is_empty()
-                                || !structural_arguments.is_empty()
-                                || !completion_receipts.is_empty()
-                            {
-                                return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                            }
-                            let callee_id =
-                                self.provider_installation.get(&boundary).copied().ok_or(
-                                    TerminalInterpretError::ProviderInstallationMissing(boundary),
-                                )?;
-                            let callee = self.machines.get(&callee_id).cloned().ok_or(
-                                TerminalInterpretError::VerifiedCallTargetMissing(callee_id),
-                            )?;
-                            if callee.result != TerminalMachineResult::Unit
-                                || !callee.parameters.is_empty()
-                                || !callee.structural_parameters.is_empty()
-                                || !callee.entry_claims.is_empty()
-                                || !callee.content_entry_claims.is_empty()
-                            {
-                                return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                            }
-                            self.next_operation += 1;
-                            self.call_stack.push(SuspendedCall {
-                                blocks: std::mem::take(&mut self.blocks),
-                                values: std::mem::take(&mut self.values),
-                                structural_values: std::mem::take(&mut self.structural_values),
-                                payloadless_case_values: std::mem::take(
-                                    &mut self.payloadless_case_values,
-                                ),
-                                live_affine_frontier: std::mem::take(
-                                    &mut self.live_affine_frontier,
-                                ),
-                                live_claims: std::mem::take(&mut self.live_claims),
-                                current_machine: self.current_machine,
-                                current: self.current,
-                                next_operation: self.next_operation,
-                                result: SuspendedCallResult::Unit,
-                            });
-                            self.blocks = callee.blocks;
-                            self.values = BTreeMap::new();
-                            self.structural_values = BTreeMap::new();
-                            self.live_affine_frontier = BTreeSet::new();
-                            self.live_claims = BTreeMap::new();
-                            self.current_machine = callee_id;
-                            self.current = callee.entry;
-                            self.next_operation = 0;
-                            continue;
-                        }
                         let arguments = resolve_structural_arguments(
                             &self.structural_types,
                             &self.structural_values,
@@ -1167,6 +1125,32 @@ impl TerminalExecution {
                             &arguments,
                         )?;
                         validate_boundary_requirements(boundary_declaration, &arguments)?;
+                        if self.provider_candidates.contains(&boundary) {
+                            if !matches!(operation.result, psi_terminal::OperationResult::Unit)
+                                || !scalar_argument_ids.is_empty()
+                                || !boundary_declaration.scalar_parameters.is_empty()
+                            {
+                                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                            }
+                            let callee_id =
+                                self.provider_installation.get(&boundary).copied().ok_or(
+                                    TerminalInterpretError::ProviderInstallationMissing(boundary),
+                                )?;
+                            let claim_transfers = completion_receipts
+                                .iter()
+                                .map(|receipt| ClaimTransfer {
+                                    claim: receipt.claim,
+                                    argument_index: receipt.argument_index,
+                                })
+                                .collect::<Vec<_>>();
+                            self.begin_unit_call(
+                                callee_id,
+                                &structural_arguments,
+                                &arguments,
+                                &claim_transfers,
+                            )?;
+                            continue;
+                        }
                         let remaining_claims = complete_claims(
                             &self.live_claims,
                             &structural_arguments,
