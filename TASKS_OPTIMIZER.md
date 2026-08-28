@@ -255,7 +255,7 @@ These facts constrain the work below.
   postallocation-machine to v4/codec v3. Fixed-copy codec v4,
   selected-form encoding v5, resolved-layout v5,
   whole-function exit v5, function-relative manifest v7, fragment manifest
-  v4, text manifest v3, fragment vocabulary v3, and x86
+  v4, text manifest v4, fragment vocabulary v3, text-section vocabulary v3, and x86
   relaxation/revision v2 all
   reject older detached vocabulary. The ordinary-callable record/manifest
   codec is v2 because it closes over the expanded exit-policy vocabulary while
@@ -361,10 +361,16 @@ These facts constrain the work below.
   of silently dropping the structural roster. Target-owned x86 resolution now
   computes and independently replays checked signed rel32 fields, including the
   canonical caller-at-zero/callee-at-90 displacement of `+5`. The next backend
-  milestone is to invoke that resolver only at whole-text placement where
-  caller and callee section offsets are both known.
-  Only then can an applicable object and MachineId-rooted private continuation
-  symbol be joined to the settlement, semantic contract, and wrapper plan. The compiler-
+  milestone has now landed: two-pass dense placement constructs the complete
+  `MachineId` offset map, independently reconstructs the target template,
+  resolves the caller to the canonical `+5` displacement, and publishes
+  `OMGTSP` v4 with one source fixup, one resolution, and zero remaining fixups.
+  Text-section schema v3 identity-binds the patched bytes and complete
+  resolution coordinates. The unchanged zero-relocation object path then emits
+  exact caller/callee private symbols at `0/90` and `90/1` with no fabricated
+  object relocation. The next milestone is to join that applicable object and
+  MachineId-rooted private continuation symbol to the settlement, semantic
+  contract, and wrapper plan. The compiler-
   private wrapper itself receives no fabricated Terminal `MachineId`. The
   checked-source ProgramStorage fixture currently lowers its generic two-root
   handoff as `BoundaryCall`, not this compiler-private `CallUnit`, and therefore
@@ -2392,8 +2398,9 @@ dependency.
   fuel. The architecture-neutral rematerialization source kind replays its
   complete owning carrier and requires the exact singleton allocation-recovery
   projection. It retains baseline `JNE rel32` or `B.NE imm19` branch evidence;
-  it cannot claim rel8 or CBNZ execution. A strict `OMGFFE` v3 manifest binds
-  the closed four-kind source vocabulary, including the Unit baseline, source
+  it cannot claim rel8 or CBNZ execution. A strict `OMGFFE` v4 manifest binds
+  the closed five-kind source vocabulary, including Unit baseline and
+  structural-Unit-call custody, source
   realization, selections,
   selected/post-allocation/layout/exit roots, target, fragment identity, and
   exact statistics. Independent replay reconstructs source custody, offsets,
@@ -2410,8 +2417,8 @@ dependency.
   without inventing an object/process entry symbol. An exhaustive current-
   alternative check proves that fallthrough/scalar/return forms embed no target
   and every relative conditional branch is already resolved within its owned
-  function. The strict `OMGTSP` v3 manifest includes the rematerialization and
-  Unit-baseline source-kind tags, and independent replay binds every source,
+  function. The strict `OMGTSP` v4 manifest includes rematerialization,
+  Unit-baseline, and structural-Unit-call source-kind tags, and independent replay binds every source,
   layout, exit, and fragment root, aggregate byte, statistic, placement
   coordinate, and the closed no-relocation conclusion. Symbols, object
   container/serialization, external entry bridge, executable image,
