@@ -1191,10 +1191,17 @@ dependency.
   saturating integer division. It requires a direct typed literal-one fact and
   the exact verifier-accepted obligation; a missing fact declines the rewrite
   while a mismatched or corrupted fact rejects during independent replay.
-  Candidate v23, optimization-unit identity v10, the named v3 pass, prephysical
-  manifest v16, and projection validator v17 bind the current meaning; ledger
-  v4 already represents the relocations. Runtime policy events, other live
-  proof-bearing identities, and physical check recognition remain open.
+  The fourth rule,
+  `live-proof-certified-exact-integer-multiply-by-zero-elimination.v1`, rewrites
+  `0 * x` or `x * 0` to the existing direct typed zero operand for exact fixed-
+  width signed/unsigned multiplication only; `0 * 0` canonically chooses the
+  left operand. It requires the matching accepted obligation, excludes
+  obligation-free wrapping/saturating multiplication and floats, and uses the
+  same independent substitution and custody replay. Candidate v24,
+  optimization-unit identity v10, the named v4 pass, prephysical manifest v17,
+  and projection validator v18 bind the current meaning; ledger v4 already
+  represents the relocations. Runtime policy events, other live proof-bearing
+  identities, and physical check recognition remain open.
 
 - **OPT-INITIAL-PIPELINE — complete for the current verified Psi vocabulary.**
   Define the canonical target-neutral schedule for
@@ -2046,6 +2053,21 @@ dependency.
   Acceptance: baseline output is unchanged when decisions are merely recorded;
   raw paths, authored names, pointer addresses, arena order, and debug strings
   are absent from features.
+
+  Current slice: every nonempty validated Psi choice is now projected after
+  ordinary policy selection into a strict v1 external decision point. The log
+  roots the source unit, complete and Psi-phase selection identities, explicit
+  target-neutral context, ordered rule set, and structural cost-model identity.
+  Each point binds its input revision, rule, canonical candidate-identity/cost
+  feature rows, and the finite action set consisting of those candidates plus
+  explicit skip. The codec recomputes point/log identities and rejects framing,
+  ordering, duplicate, illegal-action, context, and trailing-data corruption.
+  Projection independently reconstructs the trace from the unchanged baseline
+  decision log and pass manifests; a detached but internally valid trace
+  rejects. The baseline log remains the identity-bundle authority, proving that
+  merely recording this surface changes no choice or executable output. This
+  closes the schema for current Psi choices; allocation, layout, and machine
+  policy schemas remain open. External action replay is the separate next task.
 
 - **OPT-DECISION-REPLAY.** Replay a canonical external decision log.
 

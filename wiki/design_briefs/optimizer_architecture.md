@@ -1316,11 +1316,17 @@ catalog remains immutable history. The third rule,
 `x / 1 -> x` for exact, wrapping, and saturating integer division. It requires
 the direct typed literal-one fact and the exact accepted-obligation identity;
 absence declines the candidate, while mismatched or corrupted evidence fails
-independent validation. Candidate v23, optimization-unit content identity v10,
-the named v3 pass, prephysical manifest v16, and optimized-plan projection
-validation v17 bind the current meaning; ledger v4 already represents the
-relocation. Runtime policy events, other live proof-bearing identities, and
-physical checks not represented by these exact Psi contracts remain open.
+independent validation. The fourth rule,
+`live-proof-certified-exact-integer-multiply-by-zero-elimination.v1`, rewrites
+`0 * x` or `x * 0` to the existing direct typed zero operand for exact fixed-
+width signed/unsigned multiplication only, with canonical left selection for
+`0 * 0`. Wrapping/saturating multiplication is obligation-free and deliberately
+not hidden under `ProofCheckElision`; float multiplication remains outside this
+exact law. Candidate v24, optimization-unit content identity v10, the named v4
+pass, prephysical manifest v17, and optimized-plan projection validation v18
+bind the current meaning; ledger v4 already represents the relocation. Runtime
+policy events, other live proof-bearing identities, and physical checks not
+represented by these exact Psi contracts remain open.
 
 Baseline choice lives in `omega-optimization-policy`, outside rule and
 validator crates. The pass manager first obtains independently constructed
@@ -1995,6 +2001,20 @@ may later emit a decision log, which the ordinary compiler replays. Every
 resulting rewrite still passes the same validators. Models do not load into the
 compiler by default, do not define legality, do not enter the proof kernel, and
 do not become runtime dependencies.
+
+The first external schema now records current Psi decision points without
+consulting them. Its v1 context roots the source optimization unit, full and
+Psi-phase selections, explicit target-neutral identity, ordered rule set, and
+structural cost model. A point contains only its input revision, rule identity,
+canonical candidate identities with signed cost deltas, and the selected member
+of the finite candidate-or-skip action set. Those types cannot represent raw
+paths, authored names, pointers, arena order, diagnostics, or debug strings.
+The strict codec recomputes every point and log identity. Optimized-plan
+projection independently derives the expected trace from the ordinary baseline
+log and pass manifests and rejects a detached valid trace. The baseline log,
+not this recording, remains in the optimization identity bundle, so recording
+does not change policy or output. Other compiler phases need their own schemas,
+and consuming an external action log remains a separate replay boundary.
 
 Training/evaluation records use a clear functional shape:
 
