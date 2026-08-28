@@ -774,10 +774,13 @@ Mixed declarations also replay canonical per-namespace field/case ID order,
 unique nonempty identities, nonempty case sets, and Terminal's closed
 field-relevance/carrier matrix. A relevant opaque field is legal only with an
 exact retained Record provider-attachment field witness; payloadless cases and
-independent field namespaces remain legal. Remaining top-level structural
-carrier/roster semantics, full provider-attachment specialization replay, and
-domain/content-projection graph validation; path-sensitive availability of
-operation-result and local roots; exact payloadless-callee classification; and
+independent field namespaces remain legal. Top-level structural type and domain
+rosters require canonical ID order and unique nonempty identities; domain
+semantic identities are independently unique, carrier references are closed,
+shared carriers remain legal, first-class byte sequences are borrowed views,
+and fixed arrays are nonempty. Full provider-attachment specialization replay,
+structural-domain content-projection validation, path-sensitive availability of
+operation-result and local roots, exact payloadless-callee classification, and
 the wider crash/requirement/effect vocabulary remain explicit unfinished
 validator layers. It
 also rechecks the complete current
