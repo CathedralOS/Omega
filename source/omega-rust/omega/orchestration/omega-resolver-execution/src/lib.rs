@@ -18,7 +18,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const RESOLVER_EXECUTION_OBSERVATION_SCHEMA_VERSION: u32 = 2;
+const RESOLVER_EXECUTION_OBSERVATION_SCHEMA_VERSION: u32 = 3;
 const RESOLVER_EXECUTION_ADDITIONAL_EXECUTABLE_LIMIT: usize = 32;
 const RESOLVER_EXECUTION_PATH_BYTE_LIMIT: usize = 32 * 1024;
 const RESOLVER_EXECUTION_CANONICAL_BYTE_LIMIT: usize = 2 * 1024 * 1024;
@@ -75,6 +75,22 @@ impl ResolverExecutionPhase {
             Self::RepositoryInitialization => 2,
             Self::Fetch => 3,
             Self::RepositoryInspection => 4,
+        }
+    }
+}
+
+/// Closed transport authority selected for a networked resolver phase.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResolverExecutionNetworkTransport {
+    Https,
+    Ssh,
+}
+
+impl ResolverExecutionNetworkTransport {
+    const fn tag(self) -> u8 {
+        match self {
+            Self::Https => 1,
+            Self::Ssh => 2,
         }
     }
 }
@@ -181,6 +197,7 @@ impl ResolverExecutionGuaranteeRow {
 pub struct ResolverExecutionPolicyObservation {
     backend: ResolverExecutionBackendIdentity,
     phase: ResolverExecutionPhase,
+    network_transport: Option<ResolverExecutionNetworkTransport>,
     generated_policy_sha256: Option<String>,
     resource_ceilings: ResolverExecutionResourceCeilings,
     executable: PathBuf,
@@ -196,6 +213,10 @@ impl ResolverExecutionPolicyObservation {
 
     pub const fn phase(&self) -> ResolverExecutionPhase {
         self.phase
+    }
+
+    pub const fn network_transport(&self) -> Option<ResolverExecutionNetworkTransport> {
+        self.network_transport
     }
 
     pub fn generated_policy_sha256(&self) -> Option<&str> {
@@ -243,6 +264,13 @@ impl ResolverExecutionPolicyObservation {
         bytes.extend_from_slice(&RESOLVER_EXECUTION_OBSERVATION_SCHEMA_VERSION.to_le_bytes());
         encode_backend_identity(&mut bytes, &self.backend);
         bytes.push(self.phase.tag());
+        match self.network_transport {
+            Some(transport) => {
+                bytes.push(1);
+                bytes.push(transport.tag());
+            }
+            None => bytes.push(0),
+        }
         match &self.generated_policy_sha256 {
             Some(identity) => {
                 bytes.push(1);
@@ -414,6 +442,7 @@ impl ResolverExecutionBackend {
     fn policy_observation(
         &self,
         phase: ResolverExecutionPhase,
+        network_transport: Option<ResolverExecutionNetworkTransport>,
         generated_policy_sha256: Option<String>,
         executable: &Path,
         additional_executables: &[PathBuf],
@@ -428,6 +457,7 @@ impl ResolverExecutionBackend {
         Ok(ResolverExecutionPolicyObservation {
             backend: self.identity.clone(),
             phase,
+            network_transport,
             generated_policy_sha256,
             resource_ceilings: configured_resource_ceilings(),
             executable: executable.to_path_buf(),
@@ -474,8 +504,17 @@ impl ResolverExecutionBackend {
         phase: ResolverExecutionPhase,
         mutable_root: Option<&Path>,
     ) -> io::Result<Command> {
-        self.command_with_observation(executable, additional_executables, phase, mutable_root)
-            .map(|(command, _observation)| command)
+        let network_transport = phase
+            .permits_network()
+            .then_some(ResolverExecutionNetworkTransport::Ssh);
+        self.command_with_observation(
+            executable,
+            additional_executables,
+            phase,
+            network_transport,
+            mutable_root,
+        )
+        .map(|(command, _observation)| command)
     }
 
     /// Construct one command and its opaque policy observation from the same
@@ -485,6 +524,7 @@ impl ResolverExecutionBackend {
         executable: &Path,
         additional_executables: &[PathBuf],
         phase: ResolverExecutionPhase,
+        network_transport: Option<ResolverExecutionNetworkTransport>,
         mutable_root: Option<&Path>,
     ) -> io::Result<(Command, ResolverExecutionPolicyObservation)> {
         self.verify()?;
@@ -504,6 +544,21 @@ impl ResolverExecutionBackend {
         additional_executables.retain(|helper| helper != executable);
         additional_executables.sort();
         additional_executables.dedup();
+        match (phase.permits_network(), network_transport) {
+            (true, Some(_)) | (false, None) => {}
+            (true, None) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "networked resolver phase has no closed transport authority",
+                ));
+            }
+            (false, Some(_)) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "nonnetwork resolver phase received transport authority",
+                ));
+            }
+        }
         match (phase.requires_mutable_root(), mutable_root) {
             (true, Some(root)) => {
                 require_absolute(root, "resolver mutable root")?;
@@ -525,8 +580,13 @@ impl ResolverExecutionBackend {
         }
 
         #[cfg(target_os = "macos")]
-        let (mut command, generated_policy_sha256) =
-            self.macos_command(executable, &additional_executables, phase, mutable_root)?;
+        let (mut command, generated_policy_sha256) = self.macos_command(
+            executable,
+            &additional_executables,
+            phase,
+            network_transport,
+            mutable_root,
+        )?;
         #[cfg(not(target_os = "macos"))]
         let mut command = Command::new(executable);
         #[cfg(not(target_os = "macos"))]
@@ -535,6 +595,7 @@ impl ResolverExecutionBackend {
         configure_child_resource_limits(&mut command)?;
         let observation = self.policy_observation(
             phase,
+            network_transport,
             generated_policy_sha256,
             executable,
             &additional_executables,
@@ -549,6 +610,7 @@ impl ResolverExecutionBackend {
         executable: &Path,
         additional_executables: &[PathBuf],
         phase: ResolverExecutionPhase,
+        network_transport: Option<ResolverExecutionNetworkTransport>,
         mutable_root: Option<&Path>,
     ) -> io::Result<(Command, Option<String>)> {
         let ResolverExecutionBackendIdentity::MacosSeatbelt {
@@ -570,10 +632,10 @@ impl ResolverExecutionBackend {
             profile.push_str(&format!(" (literal (param \"EXECUTABLE_{}\"))", index + 1));
         }
         profile.push(')');
-        if phase.permits_network() {
+        if network_transport.is_some() {
             profile.push_str(" (allow network-outbound)");
         }
-        if phase.permits_network() {
+        if network_transport == Some(ResolverExecutionNetworkTransport::Ssh) {
             profile.push_str(&format!(
                 " (allow mach-lookup (global-name \"{MACOS_DIRECTORY_LOOKUP_SERVICE}\")) \
                  (allow sysctl-read (sysctl-name \"{MACOS_HOSTNAME_SYSCTL}\"))"
@@ -953,7 +1015,8 @@ mod tests {
     use super::CHILD_OPEN_FILE_LIMIT;
     use super::{
         RESOLVER_EXECUTION_ADDITIONAL_EXECUTABLE_LIMIT, ResolverExecutionBackend,
-        ResolverExecutionGuarantee, ResolverExecutionGuaranteeDisposition, ResolverExecutionPhase,
+        ResolverExecutionGuarantee, ResolverExecutionGuaranteeDisposition,
+        ResolverExecutionNetworkTransport, ResolverExecutionPhase,
     };
     use std::path::Path;
     #[cfg(target_os = "macos")]
@@ -1001,6 +1064,7 @@ mod tests {
                 &[],
                 ResolverExecutionPhase::RepositoryInspection,
                 None,
+                None,
             )
             .expect("issue inspection policy observation");
         let (_, fetch) = backend
@@ -1008,9 +1072,39 @@ mod tests {
                 executable,
                 &[],
                 ResolverExecutionPhase::Fetch,
+                Some(ResolverExecutionNetworkTransport::Ssh),
                 Some(&mutable_root),
             )
             .expect("issue fetch policy observation");
+        assert_eq!(inspection.network_transport(), None);
+        assert_eq!(
+            fetch.network_transport(),
+            Some(ResolverExecutionNetworkTransport::Ssh)
+        );
+        assert!(
+            backend
+                .command_with_observation(
+                    executable,
+                    &[],
+                    ResolverExecutionPhase::TransportDiscovery,
+                    None,
+                    None,
+                )
+                .is_err(),
+            "networked phases require explicit transport authority"
+        );
+        assert!(
+            backend
+                .command_with_observation(
+                    executable,
+                    &[],
+                    ResolverExecutionPhase::RepositoryInspection,
+                    Some(ResolverExecutionNetworkTransport::Https),
+                    None,
+                )
+                .is_err(),
+            "nonnetwork phases reject transport authority"
+        );
 
         assert_eq!(inspection.guarantees().len(), 13);
         assert!(
@@ -1026,6 +1120,7 @@ mod tests {
                     executable,
                     &[],
                     ResolverExecutionPhase::RepositoryInspection,
+                    None,
                     None,
                 )
                 .expect("reissue inspection policy observation")
@@ -1084,6 +1179,7 @@ mod tests {
                 &[second.clone(), first.clone(), second.clone()],
                 ResolverExecutionPhase::RepositoryInspection,
                 None,
+                None,
             )
             .expect("construct normalized policy observation");
         let (_, right) = backend
@@ -1091,6 +1187,7 @@ mod tests {
                 executable,
                 &[first.clone(), second.clone()],
                 ResolverExecutionPhase::RepositoryInspection,
+                None,
                 None,
             )
             .expect("reconstruct normalized policy observation");
@@ -1112,6 +1209,7 @@ mod tests {
                     &excessive,
                     ResolverExecutionPhase::RepositoryInspection,
                     None,
+                    None,
                 )
                 .is_err()
         );
@@ -1131,6 +1229,7 @@ mod tests {
                 &[],
                 ResolverExecutionPhase::RepositoryInspection,
                 None,
+                None,
             )
             .expect("issue inspection policy observation");
         let (initialization_command, initialization) = backend
@@ -1138,6 +1237,7 @@ mod tests {
                 executable,
                 &[],
                 ResolverExecutionPhase::RepositoryInitialization,
+                None,
                 Some(&mutable_root),
             )
             .expect("issue initialization policy observation");
@@ -1146,14 +1246,25 @@ mod tests {
                 executable,
                 &[],
                 ResolverExecutionPhase::TransportDiscovery,
+                Some(ResolverExecutionNetworkTransport::Ssh),
                 None,
             )
             .expect("issue discovery policy observation");
+        let (https_discovery_command, https_discovery) = backend
+            .command_with_observation(
+                executable,
+                &[],
+                ResolverExecutionPhase::TransportDiscovery,
+                Some(ResolverExecutionNetworkTransport::Https),
+                None,
+            )
+            .expect("issue HTTPS discovery policy observation");
         let (fetch_command, fetch) = backend
             .command_with_observation(
                 executable,
                 &[],
                 ResolverExecutionPhase::Fetch,
+                Some(ResolverExecutionNetworkTransport::Ssh),
                 Some(&mutable_root),
             )
             .expect("issue fetch policy observation");
@@ -1164,6 +1275,14 @@ mod tests {
         assert_ne!(
             inspection.generated_policy_sha256(),
             fetch.generated_policy_sha256()
+        );
+        assert_ne!(
+            discovery.generated_policy_sha256(),
+            https_discovery.generated_policy_sha256()
+        );
+        assert_ne!(
+            discovery.canonical_bytes(),
+            https_discovery.canonical_bytes()
         );
 
         let profile = |command: &std::process::Command| {
@@ -1206,6 +1325,10 @@ mod tests {
         ));
         assert!(discovery_profile.contains("(allow sysctl-read (sysctl-name \"kern.hostname\"))"));
         assert!(!discovery_profile.contains("(allow sysctl-read)"));
+        let https_discovery_profile = profile(&https_discovery_command);
+        assert!(https_discovery_profile.contains("network-outbound"));
+        assert!(!https_discovery_profile.contains("mach-lookup"));
+        assert!(!https_discovery_profile.contains("sysctl-read"));
         let fetch_profile = profile(&fetch_command);
         assert!(!fetch_profile.contains("(import"));
         assert!(fetch_profile.contains("network-outbound"));

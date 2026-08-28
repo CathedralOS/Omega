@@ -17,7 +17,8 @@ use cap_std::{
 };
 use command_group::{CommandGroup, GroupChild};
 use omega_resolver_execution::{
-    ResolverExecutionBackend, ResolverExecutionPhase, ResolverExecutionPolicyObservation,
+    ResolverExecutionBackend, ResolverExecutionNetworkTransport, ResolverExecutionPhase,
+    ResolverExecutionPolicyObservation,
 };
 use sha1_checked::Sha1 as CheckedSha1;
 use sha2::{Digest, Sha256};
@@ -36,7 +37,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::{Duration, Instant, SystemTime};
 
-const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v13";
+const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v14";
 const GIT_CACHE_METADATA: &str = "source.identity";
 const GIT_CACHE_REPOSITORY: &str = "repository";
 const GIT_CACHE_SNAPSHOTS: &str = "snapshots";
@@ -175,6 +176,15 @@ impl GitExecutionTransport {
         match transport {
             GitTransport::Https => Self::Https,
             GitTransport::SshUrl | GitTransport::ScpLike => Self::Ssh,
+        }
+    }
+
+    fn resolver_network_transport(self) -> ResolverExecutionNetworkTransport {
+        match self {
+            Self::Ssh => ResolverExecutionNetworkTransport::Ssh,
+            Self::Https => ResolverExecutionNetworkTransport::Https,
+            #[cfg(test)]
+            Self::File => ResolverExecutionNetworkTransport::Https,
         }
     }
 
@@ -7201,6 +7211,14 @@ impl GitExecutor {
                 observation.phase(),
                 ResolverExecutionPhase::TransportDiscovery | ResolverExecutionPhase::Fetch
             );
+            let expected_network_transport =
+                network_phase.then(|| self.execution_transport.resolver_network_transport());
+            if observation.network_transport() != expected_network_transport {
+                return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+                    message: "native policy observation transport authority does not match the validated source transport"
+                        .to_owned(),
+                });
+            }
             let mut expected = BTreeSet::new();
             if network_phase {
                 for executable in self
@@ -8574,12 +8592,15 @@ fn sealed_git_command(
         ResolverExecutionPhase::TransportDiscovery
         | ResolverExecutionPhase::RepositoryInspection => None,
     };
+    let network_transport =
+        network_phase.then(|| executor.execution_transport.resolver_network_transport());
     let (mut command, execution_policy_observation) = executor
         .execution_backend
         .command_with_observation(
             &executor.identity.path,
             &helper_executables,
             phase,
+            network_transport,
             mutable_root,
         )
         .map_err(|error| SourceResolveError::GitExecutionBoundaryInvalid {
