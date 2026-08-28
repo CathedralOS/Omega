@@ -1346,10 +1346,25 @@ dependency.
   representable-one domain, accepted fact, constant, accounting, and output;
   only the active operation reference leaves while the accepted catalog stays
   byte-identical.
+  The tenth rule,
+  `live-proof-certified-integer-remainder-by-one-elimination.v1`, replaces a
+  live fixed-width signed/unsigned `x % 1` node in place with typed zero for
+  exact, wrapping, and saturating remainder. The right operand must be a direct
+  typed literal-one definition; a propagated constant fact is deliberately not
+  enough. The candidate consumes that literal fact and the exact accepted
+  operation obligation, preserves result identity, location, provenance, fuel,
+  and the immutable accepted catalog, and rebuilds the literal-zero fact under
+  the original operation. It explicitly declines `left == right`, leaving the
+  overlapping `1 % 1` shape to the earlier self-remainder rule so registry
+  extension does not change established candidate ownership. Independent
+  replay reconstructs the operator policy, direct literal support, both fact
+  identities, live/observation boundary, constant, accounting, and output;
+  missing or foreign evidence declines or rejects fail-closed. Verified
+  projection and both native lowering targets retain the zero realization.
   Candidate schema remains v24 so adding the new closed identity tags cannot
   rehash or retie-break existing candidates; optimization-unit identity remains
-  v10. The named v9 pass, prephysical manifest identity v24, and projection
-  validator v25 bind the expanded nine-rule schedule;
+  v10. The named v10 pass, prephysical manifest identity v25, and projection
+  validator v26 bind the expanded ten-rule schedule;
   ledger v4 already
   represents the relocations. Runtime policy events, other live proof-bearing
   identities, and physical check recognition remain open.
