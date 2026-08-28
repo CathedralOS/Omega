@@ -1,0 +1,40 @@
+[package]
+name = "omega-architecture-test"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+publish = false
+
+# Repository-wide architecture checks live under the repository-wide test root,
+# not among the compiler's production crates.
+
+[[test]]
+name = "layering"
+path = "layering.rs"
+
+[[test]]
+name = "semantic_taxonomy_inventory"
+path = "semantic_taxonomy_inventory.rs"
+
+[[test]]
+name = "validation_integration"
+path = "validation_integration.rs"
+
+[dev-dependencies]
+omega-control-flow = { path = "../../source/omega-rust/omega/representations/omega-control-flow" }
+psi-arena = { path = "../../source/omega-rust/psi/foundation/psi-arena" }
+psi-symbols = { path = "../../source/omega-rust/psi/foundation/psi-symbols" }
+omega-effects = { path = "../../source/omega-rust/omega/representations/omega-effects" }
+psi-diagnostics = { path = "../../source/omega-rust/psi/foundation/psi-diagnostics" }
+psi-effects = { path = "../../source/omega-rust/psi/representations/psi-effects" }
+psi-language-core = { path = "../../source/omega-rust/psi/foundation/psi-language-core" }
+psi-language-semantics = { path = "../../source/omega-rust/psi/foundation/psi-language-semantics" }
+psi-source-files-to-tokens = { path = "../../source/omega-rust/psi/pipeline/psi-source-files-to-tokens" }
+psi-symbol-resolved-trees-to-typed-trees = { path = "../../source/omega-rust/psi/pipeline/psi-symbol-resolved-trees-to-typed-trees" }
+psi-syntax-trees = { path = "../../source/omega-rust/psi/representations/psi-syntax-trees" }
+psi-syntax-trees-to-symbol-resolved-trees = { path = "../../source/omega-rust/psi/pipeline/psi-syntax-trees-to-symbol-resolved-trees" }
+psi-tokens-to-syntax-trees = { path = "../../source/omega-rust/psi/pipeline/psi-tokens-to-syntax-trees" }
+psi-typed-trees = { path = "../../source/omega-rust/psi/representations/psi-typed-trees" }
+psi-typed-trees-to-checked-trees = { path = "../../source/omega-rust/psi/pipeline/psi-typed-trees-to-checked-trees" }
+psi-validation = { path = "../../source/omega-rust/psi/semantics/psi-validation" }
+serde_json = "1.0"

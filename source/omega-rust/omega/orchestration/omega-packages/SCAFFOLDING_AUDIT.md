@@ -47,9 +47,9 @@ and
 | removed `src/install.rs` | Deleted | The fabricated-manifest install planner was removed. Only the future transaction rule survives in governing documentation: resolve, compile, admit, then atomically edit `build.omg` and lock. |
 | removed `src/update.rs` | Deleted | The target-only update planner that could overlook transitive changes was removed. Replacement work is graph-wide baseline comparison, source triage, and exact row resolution. |
 | `src/source_commands.rs` | Rewrite | Diagnostic rendering is useful. Explicit `local`/`git` adapter selection has replaced locator guessing, but execution still uses the unhardened resolver. Keep marked unhardened until the remaining resolver P0 work lands. |
-| removed `src/commands.rs` | Deleted | The test-only manifest/lock/plan/review command facade was removed after production routing had already been quarantined. Source diagnostics remain separately in `source_commands.rs`. |
+| removed `src/commands.rs` | Deleted | The test-only manifest/lock/plan/review command facade and its production name gates were removed. Source diagnostics remain separately in `source_commands.rs`. |
 | `src/lib.rs` | Rewrite | Superseded manifest, lock, receipt, install, update, diff, command, and graph-audit modules are deleted. The arbitrary `PackageInstance`/compiler-fingerprint constructor was removed. Production orchestration must instead receive opaque compiler/resolver evidence; the crate remains experimental until those replacements exist. |
-| `omega/src/main.rs` package command routing | Deleted/quarantined | Direct install/update and manifest-based audit, review, plan, and lock names fail closed at dispatch before compiler parsing, resolution, or mutation. Their unreachable implementation bodies and argument parsers are deleted; only the rejecting name gates remain until corrected commands exist. Ordinary `.omg` filenames using those words remain compiler inputs. |
+| `omega` package command routing | Deleted | Direct install/update and manifest-based audit, review, plan, and lock commands, parsers, and rejecting name gates are absent. Ordinary `.omg` filenames using those words remain compiler inputs. Correct package operations must enter through the future compiler-evidence path rather than reviving the prototype surface. |
 
 ## Trust-path findings
 

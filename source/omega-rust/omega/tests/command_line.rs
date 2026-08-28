@@ -28,49 +28,6 @@ fn temp_path(name: &str) -> PathBuf {
     ))
 }
 
-fn assert_quarantined(output: &Output) {
-    assert_eq!(output.status.code(), Some(2));
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("quarantined"), "stderr was: {stderr}");
-    assert!(stderr.contains("accepted package admission is not implemented"));
-    assert!(stderr.contains("compiler-issued evidence"));
-}
-
-#[test]
-fn manifest_based_package_commands_are_unavailable() {
-    assert_quarantined(&omega(&["audit", "packages"]));
-    assert_quarantined(&omega(&["plan", "install"]));
-    assert_quarantined(&omega(&["plan", "update"]));
-    assert_quarantined(&omega(&["review", "capability-change"]));
-}
-
-#[test]
-fn install_and_update_are_quarantined_before_project_mutation() {
-    let project = temp_path("install-update");
-    std::fs::create_dir(&project).expect("create package command project");
-    let build_path = project.join("build.omg");
-    let lock_path = project.join("omega.lock");
-    std::fs::write(&build_path, b"original build bytes\n").expect("write build sentinel");
-    std::fs::write(&lock_path, b"original lock bytes\n").expect("write lock sentinel");
-
-    assert_quarantined(&omega_in(
-        &project,
-        &["install", "https://example.invalid/package.git"],
-    ));
-    assert_quarantined(&omega_in(&project, &["update", "dependency"]));
-
-    assert_eq!(
-        std::fs::read(&build_path).expect("read build sentinel"),
-        b"original build bytes\n"
-    );
-    assert_eq!(
-        std::fs::read(&lock_path).expect("read lock sentinel"),
-        b"original lock bytes\n"
-    );
-    assert!(!project.join("build").exists());
-    let _ = std::fs::remove_dir_all(project);
-}
-
 #[test]
 fn package_command_words_do_not_reserve_ordinary_source_filenames() {
     let project = temp_path("install-source");
@@ -88,24 +45,6 @@ fn package_command_words_do_not_reserve_ordinary_source_filenames() {
         );
     }
     let _ = std::fs::remove_dir_all(project);
-}
-
-#[test]
-fn prototype_lock_command_cannot_write_omega_lock() {
-    let output_path = temp_path("omega-lock");
-    let output = omega(&[
-        "lock",
-        "assemble",
-        "--root-package",
-        "root",
-        "--manifest",
-        "attacker.json",
-        "--out",
-        output_path.to_str().expect("UTF-8 temp path"),
-    ]);
-
-    assert_quarantined(&output);
-    assert!(!output_path.exists());
 }
 
 #[test]
