@@ -890,6 +890,18 @@ identity; any other stale or forged closure fails total validation. This keeps
 future effect elimination honest without freezing the original over-approximate
 closure forever. Real ordinary-boundary and installation-bound source canaries
 cover the concrete and installation axes.
+Total validation now also runs a private current-CFG claim automaton. It starts
+from the exact ordinary/content entry-claim union, consumes internal-call
+transfers and boundary completions before establishing structural-result
+claims, requires exact claim state at every join, rejects live linear claims at
+scalar or Unit returns, checks the exact structural-return claim set and empty
+remainder, and requires each crash lower bound to equal the current live claim
+roster. Replay reads current operation payloads and signatures only; neither
+cached `OwnershipEvent` metadata nor immutable source-frontier rows can make a
+forged transition valid. The acyclic current vocabulary is traversed in a
+canonical topological order. Current owned-place, partial-custody, and cleanup
+state replay remains the next ownership rung.
+
 The bounded retained-ownership rung also preserves every Jump and Conditional
 successor's exact ordered trivial-affine discard vector. Unit identity binds
 both the executable operation and projected edge rows; independent validation
@@ -900,10 +912,10 @@ the selected edge's vector. Empty-block threading, block merge, and shared-
 terminal fusion currently decline nonempty removed-edge cleanup until
 composition has an admitted proof. Target lowering names the already verified
 ownership-only erasure explicitly and emits no runtime instruction. This is
-exact source-site retention and replay, not yet a current-CFG ownership solver.
-Remaining current-CFG ownership/claim/cleanup replay, proof-derived
-current-region range facts, and the wider crash/requirement and remaining
-effect vocabulary remain explicit unfinished
+exact source-site retention plus current claim replay, not yet a complete
+current-CFG owned-place/partial-custody/cleanup solver. Remaining current-state
+place and cleanup replay, proof-derived current-region range facts, and the
+wider crash/requirement and remaining effect vocabulary remain explicit unfinished
 validator layers. It
 also rechecks the complete current
 Terminal-Psi CFG contract—parameter-free entry, closed edges, total

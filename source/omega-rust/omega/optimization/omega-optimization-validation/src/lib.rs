@@ -41,6 +41,7 @@ use psi_core::{
 };
 use psi_terminal_fuel::TerminalFuelSchedule;
 
+mod current_ownership;
 mod prephysical_manifest;
 mod projection;
 
@@ -301,6 +302,40 @@ pub enum OptimizationUnitValidationError {
     UnknownClaim {
         machine: MachineId,
         claim: ClaimId,
+    },
+    CurrentClaimJoinMismatch {
+        machine: MachineId,
+        block: BlockId,
+    },
+    CurrentClaimNotLive {
+        machine: MachineId,
+        block: BlockId,
+        node: u32,
+        claim: ClaimId,
+    },
+    CurrentClaimAlreadyLive {
+        machine: MachineId,
+        block: BlockId,
+        node: u32,
+        claim: ClaimId,
+    },
+    CurrentLinearClaimAtReturn {
+        machine: MachineId,
+        block: BlockId,
+        claim: ClaimId,
+    },
+    CurrentStructuralReturnClaimSetMismatch {
+        machine: MachineId,
+        block: BlockId,
+    },
+    CurrentClaimLiveAfterStructuralReturn {
+        machine: MachineId,
+        block: BlockId,
+        claim: ClaimId,
+    },
+    CurrentCrashClaimFrontierMismatch {
+        machine: MachineId,
+        block: BlockId,
     },
     TerminalIdentityMismatch,
     ProofFingerprintMismatch,
@@ -11879,6 +11914,7 @@ fn validate_function(
         structural_domains,
     )?;
     validate_places_and_claims(function)?;
+    current_ownership::validate_current_claim_frontier(function, &blocks, &successors)?;
     Ok(())
 }
 
@@ -15206,6 +15242,203 @@ mod tests {
             .unwrap()
     }
 
+    fn affine_claim_transfer_unit() -> PsiOptimizationUnit {
+        let mut unit = structural_call_unit();
+        let claim = id(1, ClaimId::new);
+        for function in &mut unit.functions {
+            function.structural_parameters[0].multiplicity =
+                psi_terminal::StructuralMultiplicity::Affine;
+            function
+                .entry_claim_declarations
+                .push(psi_terminal::EntryClaim {
+                    claim,
+                    input: function.structural_parameters[0].place,
+                    path: Vec::new(),
+                });
+            function.entry_claims.insert(claim);
+        }
+        let TerminalAbstractOperation::CallUnit {
+            claim_transfers, ..
+        } = &mut unit.functions[0].blocks[0].nodes[0].operation
+        else {
+            panic!("fixture begins with a structural Unit call")
+        };
+        claim_transfers.push(psi_terminal::ClaimTransfer {
+            claim,
+            argument_index: 0,
+        });
+        let callee_place = unit.functions[1].structural_parameters[0].place;
+        let TerminalAbstractOperation::ReturnUnit {
+            cleanup_actions, ..
+        } = &mut unit.functions[1].blocks[0].nodes[0].operation
+        else {
+            panic!("callee fixture returns Unit")
+        };
+        cleanup_actions.push(psi_terminal::TerminalAffineCleanupAction::DiscardRoot(
+            callee_place,
+        ));
+        refresh_node_derivatives(&mut unit, 0, 0, 0);
+        refresh_node_derivatives(&mut unit, 1, 0, 0);
+        unit
+    }
+
+    fn affine_claim_join_unit(settle_false_arm: bool) -> PsiOptimizationUnit {
+        let machine = id(4_800, MachineId::new);
+        let entry_block = id(4_801, BlockId::new);
+        let true_block = id(4_802, BlockId::new);
+        let false_block = id(4_803, BlockId::new);
+        let join_block = id(4_804, BlockId::new);
+        let boundary = id(4_805, BoundaryMachineId::new);
+        let structural_type = id(4_806, StructuralTypeId::new);
+        let root = id(4_807, PlaceId::new);
+        let boundary_root = id(4_808, PlaceId::new);
+        let condition = id(4_809, ValueId::new);
+        let claim = id(1, ClaimId::new);
+        let parameter = |place| psi_terminal::StructuralParameterDeclaration {
+            place,
+            position: 0,
+            is_self: false,
+            structural_type,
+            multiplicity: psi_terminal::StructuralMultiplicity::Affine,
+            access: psi_terminal::StructuralAccess::Owned,
+            qualifications: Vec::new(),
+        };
+        let entry_claim = psi_terminal::EntryClaim {
+            claim,
+            input: root,
+            path: Vec::new(),
+        };
+        let completion = |psi_operation| TerminalAbstractOperation::BoundaryCall {
+            psi_operation,
+            result: None,
+            boundary,
+            arguments: Vec::new(),
+            structural_arguments: vec![psi_terminal::StructuralArgument {
+                place: root,
+                path: Vec::new(),
+                access: psi_terminal::StructuralAccess::Owned,
+            }],
+            completion_claim_sources: vec![
+                omega_terminal_abstract_operations::TerminalCompletionClaimSource {
+                    claim,
+                    entry: Some(entry_claim.clone()),
+                    content: None,
+                },
+            ],
+            completion_receipts: vec![psi_terminal::CompletionReceipt {
+                claim,
+                argument_index: 0,
+            }],
+        };
+        let mut operations = vec![
+            TerminalAbstractOperation::BooleanConstant {
+                psi_operation: id(4_810, OperationId::new),
+                result: condition,
+                value: true,
+            },
+            TerminalAbstractOperation::Conditional {
+                condition,
+                when_true: omega_terminal_abstract_operations::TerminalAbstractSuccessor {
+                    psi_edge: id(4_811, EdgeId::new),
+                    target: true_block,
+                    bindings: Vec::new(),
+                    trivial_affine_discards: Vec::new(),
+                },
+                when_false: omega_terminal_abstract_operations::TerminalAbstractSuccessor {
+                    psi_edge: id(4_812, EdgeId::new),
+                    target: false_block,
+                    bindings: Vec::new(),
+                    trivial_affine_discards: Vec::new(),
+                },
+            },
+        ];
+        let true_offset = operations.len();
+        operations.extend([
+            completion(id(4_813, OperationId::new)),
+            TerminalAbstractOperation::Jump {
+                psi_edge: id(4_814, EdgeId::new),
+                target: join_block,
+                bindings: Vec::new(),
+                trivial_affine_discards: Vec::new(),
+            },
+        ]);
+        let false_offset = operations.len();
+        if settle_false_arm {
+            operations.push(completion(id(4_815, OperationId::new)));
+        }
+        operations.push(TerminalAbstractOperation::Jump {
+            psi_edge: id(4_816, EdgeId::new),
+            target: join_block,
+            bindings: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+        });
+        let join_offset = operations.len();
+        operations.push(TerminalAbstractOperation::ReturnUnit {
+            psi_edge: id(4_817, EdgeId::new),
+            cleanup_actions: Vec::new(),
+        });
+        let plan = TerminalAbstractOperationPlan {
+            terminal_psi: TerminalPsiIdentity {
+                vocabulary_marker: VocabularyMarker::CURRENT,
+                program_fingerprint: SemanticFingerprint::from_bytes([48; 32]),
+            },
+            entry: machine,
+            structural_types: vec![psi_terminal::StructuralTypeDeclaration {
+                id: structural_type,
+                identity: "validation::affine-claim-join".into(),
+                shape: psi_terminal::StructuralTypeShape::Record { fields: Vec::new() },
+            }],
+            boundary_machines: vec![psi_terminal::BoundaryMachineDeclaration {
+                id: boundary,
+                identity: "validation::affine-claim-settlement".into(),
+                attachment: None,
+                scalar_parameters: Vec::new(),
+                structural_parameters: vec![parameter(boundary_root)],
+                result: None,
+                requires: Vec::new(),
+                program_local_root_introductions: Vec::new(),
+                content_guarantees: Vec::new(),
+                published_service_ceiling: Vec::new(),
+            }],
+            provider_candidates: Vec::new(),
+            functions: vec![TerminalAbstractFunction {
+                machine,
+                attachment: None,
+                entry: entry_block,
+                parameters: Vec::new(),
+                structural_parameters: vec![parameter(root)],
+                result: TerminalAbstractFunctionResult::Unit,
+                entry_claims: vec![entry_claim],
+                published_service_ceiling: Vec::new(),
+                block_entries: vec![
+                    TerminalAbstractBlockEntry {
+                        block: entry_block,
+                        parameters: Vec::new(),
+                        operation_offset: 0,
+                    },
+                    TerminalAbstractBlockEntry {
+                        block: true_block,
+                        parameters: Vec::new(),
+                        operation_offset: true_offset,
+                    },
+                    TerminalAbstractBlockEntry {
+                        block: false_block,
+                        parameters: Vec::new(),
+                        operation_offset: false_offset,
+                    },
+                    TerminalAbstractBlockEntry {
+                        block: join_block,
+                        parameters: Vec::new(),
+                        operation_offset: join_offset,
+                    },
+                ],
+                operations,
+            }],
+        };
+        reconstruct_psi_optimization_unit_seed(&plan, FuelScheduleIdentity::new(1).unwrap())
+            .unwrap()
+    }
+
     fn boolean_structural_field_unit() -> PsiOptimizationUnit {
         let machine = id(4_700, MachineId::new);
         let block = id(4_701, BlockId::new);
@@ -15693,6 +15926,7 @@ mod tests {
         let structural_type = id(354, psi_core::StructuralTypeId::new);
         let callee_result = id(355, PlaceId::new);
         let call_result = id(356, PlaceId::new);
+        let caller_result = id(362, PlaceId::new);
         let caller_input = id(360, PlaceId::new);
         let callee_input = id(361, PlaceId::new);
         let claim = id(1, ClaimId::new);
@@ -15732,7 +15966,14 @@ mod tests {
                     entry: caller_block,
                     parameters: Vec::new(),
                     structural_parameters: vec![parameter(caller_input)],
-                    result: TerminalAbstractFunctionResult::Unit,
+                    result: TerminalAbstractFunctionResult::Structural(
+                        psi_terminal::StructuralResultDeclaration {
+                            place: caller_result,
+                            structural_type,
+                            multiplicity: psi_terminal::StructuralMultiplicity::Linear,
+                            qualifications: Vec::new(),
+                        },
+                    ),
                     entry_claims: vec![entry_claim(caller_input)],
                     published_service_ceiling: Vec::new(),
                     block_entries: vec![TerminalAbstractBlockEntry {
@@ -15773,9 +16014,12 @@ mod tests {
                             crash_continuations: Vec::new(),
                             selected_evidence: None,
                         },
-                        TerminalAbstractOperation::ReturnUnit {
+                        TerminalAbstractOperation::ReturnStructural {
                             psi_edge: id(358, EdgeId::new),
-                            cleanup_actions: Vec::new(),
+                            source: call_result,
+                            returned_claims: vec![claim],
+                            trivial_affine_locals: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
                         },
                     ],
                 },
@@ -19309,31 +19553,8 @@ mod tests {
 
     #[test]
     fn rejects_self_consistent_internal_claim_transfer_and_boundary_completion_corruption() {
-        let mut internal = structural_call_unit();
+        let internal = affine_claim_transfer_unit();
         let claim = id(1, ClaimId::new);
-        for function in &mut internal.functions {
-            function.structural_parameters[0].multiplicity =
-                psi_terminal::StructuralMultiplicity::Linear;
-            function
-                .entry_claim_declarations
-                .push(psi_terminal::EntryClaim {
-                    claim,
-                    input: function.structural_parameters[0].place,
-                    path: Vec::new(),
-                });
-            function.entry_claims.insert(claim);
-        }
-        let TerminalAbstractOperation::CallUnit {
-            claim_transfers, ..
-        } = &mut internal.functions[0].blocks[0].nodes[0].operation
-        else {
-            panic!("fixture begins with a structural Unit call")
-        };
-        claim_transfers.push(psi_terminal::ClaimTransfer {
-            claim,
-            argument_index: 0,
-        });
-        refresh_node_derivatives(&mut internal, 0, 0, 0);
         validate_psi_optimization_unit(&internal)
             .expect("exact ordinary claim correspondence should validate");
 
@@ -19353,7 +19574,7 @@ mod tests {
 
         let mut boundary = structural_call_unit();
         boundary.functions[0].structural_parameters[0].multiplicity =
-            psi_terminal::StructuralMultiplicity::Linear;
+            psi_terminal::StructuralMultiplicity::Affine;
         let entry = psi_terminal::EntryClaim {
             claim,
             input: boundary.functions[0].structural_parameters[0].place,
@@ -19365,7 +19586,7 @@ mod tests {
         boundary.functions[0].entry_claims.insert(claim);
         let boundary_id = id(345, BoundaryMachineId::new);
         let mut parameter = boundary.functions[1].structural_parameters[0].clone();
-        parameter.multiplicity = psi_terminal::StructuralMultiplicity::Linear;
+        parameter.multiplicity = psi_terminal::StructuralMultiplicity::Affine;
         boundary
             .boundary_machines
             .push(psi_terminal::BoundaryMachineDeclaration {
@@ -19426,6 +19647,108 @@ mod tests {
         assert!(matches!(
             validate_psi_optimization_unit(&boundary),
             Err(OptimizationUnitValidationError::StructuralCallContractMismatch { node: 0, .. })
+        ));
+    }
+
+    #[test]
+    fn current_claim_replay_rejects_double_transfer_stale_crash_and_invalid_returns() {
+        let claim = id(1, ClaimId::new);
+        validate_psi_optimization_unit(&affine_claim_join_unit(true))
+            .expect("equal current claim settlement on both arms joins exactly");
+        assert!(matches!(
+            validate_psi_optimization_unit(&affine_claim_join_unit(false)),
+            Err(OptimizationUnitValidationError::CurrentClaimJoinMismatch { .. })
+        ));
+
+        let baseline = affine_claim_transfer_unit();
+        validate_psi_optimization_unit(&baseline).expect("one affine claim transfer is live");
+
+        let mut double_transfer = baseline.clone();
+        let mut repeated = double_transfer.functions[0].blocks[0].nodes[0].clone();
+        let TerminalAbstractOperation::CallUnit { psi_operation, .. } = &mut repeated.operation
+        else {
+            unreachable!("fixture starts with a Unit call")
+        };
+        *psi_operation = id(341, OperationId::new);
+        double_transfer.functions[0].blocks[0]
+            .nodes
+            .insert(1, repeated);
+        refresh_function_derivatives(&mut double_transfer, 0);
+        assert!(matches!(
+            validate_psi_optimization_unit(&double_transfer),
+            Err(OptimizationUnitValidationError::CurrentClaimNotLive {
+                node: 1,
+                claim: actual,
+                ..
+            }) if actual == claim
+        ));
+
+        let mut stale_crash = baseline;
+        let return_node = stale_crash.functions[0].blocks[0].nodes.len() - 1;
+        let psi_edge = match stale_crash.functions[0].blocks[0].nodes[return_node].operation {
+            TerminalAbstractOperation::ReturnUnit { psi_edge, .. } => psi_edge,
+            _ => unreachable!("fixture returns Unit"),
+        };
+        stale_crash.functions[0].blocks[0].nodes[return_node].operation =
+            TerminalAbstractOperation::Crash {
+                psi_edge,
+                cause: psi_terminal::CrashCause::Trap,
+                site_guard: Vec::new(),
+                frontier_lower_bound: vec![claim],
+            };
+        refresh_node_derivatives(&mut stale_crash, 0, 0, return_node);
+        assert!(matches!(
+            validate_psi_optimization_unit(&stale_crash),
+            Err(OptimizationUnitValidationError::CurrentCrashClaimFrontierMismatch { .. })
+        ));
+
+        let baseline = structural_result_call_unit();
+        let mut missing_return = baseline.clone();
+        let return_node = missing_return.functions[0].blocks[0].nodes.len() - 1;
+        let TerminalAbstractOperation::ReturnStructural {
+            returned_claims, ..
+        } = &mut missing_return.functions[0].blocks[0].nodes[return_node].operation
+        else {
+            unreachable!("fixture returns the structural call result")
+        };
+        returned_claims.clear();
+        refresh_node_derivatives(&mut missing_return, 0, 0, return_node);
+        assert!(matches!(
+            validate_psi_optimization_unit(&missing_return),
+            Err(OptimizationUnitValidationError::CurrentStructuralReturnClaimSetMismatch { .. })
+        ));
+
+        let mut linear_unit_return = baseline;
+        let result_place = linear_unit_return.functions[0]
+            .result
+            .structural()
+            .expect("fixture has a structural result")
+            .place;
+        linear_unit_return.functions[0].result = TerminalAbstractFunctionResult::Unit;
+        linear_unit_return.functions[0]
+            .structural_places
+            .retain(|place| place.id != result_place);
+        linear_unit_return.functions[0]
+            .declared_places
+            .remove(&result_place);
+        let return_node = linear_unit_return.functions[0].blocks[0].nodes.len() - 1;
+        let psi_edge = match linear_unit_return.functions[0].blocks[0].nodes[return_node].operation
+        {
+            TerminalAbstractOperation::ReturnStructural { psi_edge, .. } => psi_edge,
+            _ => unreachable!("fixture returns structurally"),
+        };
+        linear_unit_return.functions[0].blocks[0].nodes[return_node].operation =
+            TerminalAbstractOperation::ReturnUnit {
+                psi_edge,
+                cleanup_actions: Vec::new(),
+            };
+        refresh_node_derivatives(&mut linear_unit_return, 0, 0, return_node);
+        assert!(matches!(
+            validate_psi_optimization_unit(&linear_unit_return),
+            Err(OptimizationUnitValidationError::CurrentLinearClaimAtReturn {
+                claim: actual,
+                ..
+            }) if actual == claim
         ));
     }
 
@@ -19666,6 +19989,12 @@ mod tests {
             unreachable!("call result has its operation-result root kind")
         };
         *structural_type = alternate;
+        let TerminalAbstractFunctionResult::Structural(result) =
+            &mut wrong_type.functions[0].result
+        else {
+            unreachable!("fixture has a structural result")
+        };
+        result.structural_type = alternate;
         refresh_node_derivatives(&mut wrong_type, 0, 0, 0);
         assert!(matches!(
             validate_psi_optimization_unit(&wrong_type),
@@ -19677,6 +20006,12 @@ mod tests {
             &mut wrong_multiplicity.functions[0].blocks[0].nodes[0].operation
         else {
             panic!("fixture begins with a structural-result call")
+        };
+        result.multiplicity = psi_terminal::StructuralMultiplicity::Affine;
+        let TerminalAbstractFunctionResult::Structural(result) =
+            &mut wrong_multiplicity.functions[0].result
+        else {
+            unreachable!("fixture has a structural result")
         };
         result.multiplicity = psi_terminal::StructuralMultiplicity::Affine;
         refresh_node_derivatives(&mut wrong_multiplicity, 0, 0, 0);
