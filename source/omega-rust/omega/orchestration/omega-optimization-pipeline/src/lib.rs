@@ -7271,7 +7271,7 @@ mod tests {
             panic!("rel8 must complete its direct function-relative realization")
         };
         let mut emitted = stage_optimized_function_fragment_emission(
-            StagedOptimizedFunctionFragmentEmissionSource::X86Rel8Direct(realization),
+            StagedOptimizedFunctionFragmentEmissionSource::X86Rel8Direct(Box::new(realization)),
         )
         .unwrap();
         assert_eq!(
@@ -7421,7 +7421,7 @@ mod tests {
             panic!("CBNZ must complete its direct function-relative realization")
         };
         let mut emitted = stage_optimized_function_fragment_emission(
-            StagedOptimizedFunctionFragmentEmissionSource::Aarch64CbnzDirect(realization),
+            StagedOptimizedFunctionFragmentEmissionSource::Aarch64CbnzDirect(Box::new(realization)),
         )
         .unwrap();
         let function = &emitted.fragments().functions[0];
@@ -7504,9 +7504,9 @@ mod tests {
             panic!("combined x86 suite must retain selected-lowering custody")
         };
         let x86 = stage_optimized_function_fragment_emission(
-            StagedOptimizedFunctionFragmentEmissionSource::X86Rel8AfterSelectedLowering(
+            StagedOptimizedFunctionFragmentEmissionSource::X86Rel8AfterSelectedLowering(Box::new(
                 realization,
-            ),
+            )),
         )
         .unwrap();
         assert_eq!(
@@ -7540,7 +7540,7 @@ mod tests {
         };
         let arm = stage_optimized_function_fragment_emission(
             StagedOptimizedFunctionFragmentEmissionSource::Aarch64CbnzAfterSelectedLowering(
-                realization,
+                Box::new(realization),
             ),
         )
         .unwrap();
@@ -7577,7 +7577,7 @@ mod tests {
         assert!(matches!(
             stage_optimized_function_fragment_emission(
                 StagedOptimizedFunctionFragmentEmissionSource::X86Rel8AfterSelectedLowering(
-                    realization,
+                    Box::new(realization),
                 ),
             ),
             Err(FunctionFragmentEmissionError::MissingX86Rel8Realization)

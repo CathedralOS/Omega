@@ -35,10 +35,12 @@ const MANIFEST_VERSION: u32 = 1;
 
 #[derive(Debug)]
 pub enum StagedOptimizedFunctionFragmentEmissionSource {
-    X86Rel8Direct(StagedFunctionRelativeLayoutOptimizationRealization),
-    X86Rel8AfterSelectedLowering(StagedSelectedLoweringFunctionRelativeRealization),
-    Aarch64CbnzDirect(StagedAarch64CbnzFunctionRelativeRealization),
-    Aarch64CbnzAfterSelectedLowering(StagedSelectedLoweringAarch64CbnzFunctionRelativeRealization),
+    X86Rel8Direct(Box<StagedFunctionRelativeLayoutOptimizationRealization>),
+    X86Rel8AfterSelectedLowering(Box<StagedSelectedLoweringFunctionRelativeRealization>),
+    Aarch64CbnzDirect(Box<StagedAarch64CbnzFunctionRelativeRealization>),
+    Aarch64CbnzAfterSelectedLowering(
+        Box<StagedSelectedLoweringAarch64CbnzFunctionRelativeRealization>,
+    ),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -712,9 +714,11 @@ fn control_provenance(
 fn statistics(
     fragments: &TerminalFunctionFragmentEmissionPlan,
 ) -> Result<FunctionFragmentEmissionStatistics, FunctionFragmentEmissionError> {
-    let mut result = FunctionFragmentEmissionStatistics::default();
-    result.functions = u64::try_from(fragments.functions.len())
-        .map_err(|_| FunctionFragmentEmissionError::StatisticsOverflow)?;
+    let mut result = FunctionFragmentEmissionStatistics {
+        functions: u64::try_from(fragments.functions.len())
+            .map_err(|_| FunctionFragmentEmissionError::StatisticsOverflow)?,
+        ..FunctionFragmentEmissionStatistics::default()
+    };
     for function in &fragments.functions {
         result.bytes = result
             .bytes
