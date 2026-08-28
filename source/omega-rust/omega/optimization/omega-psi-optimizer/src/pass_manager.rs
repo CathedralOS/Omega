@@ -10,7 +10,9 @@ use omega_optimization_core::{
 };
 use omega_optimization_policy::{
     BaselineDecisionLog, BaselineDecisionLogDecodeError, BaselineDecisionOutcome, BaselinePolicy,
-    ValidatedCandidateSummary,
+    ExternalDecisionContext, ExternalDecisionLog, ExternalDecisionPoint,
+    ExternalDecisionSchemaError, ValidatedCandidateSummary,
+    external_psi_decision_schema_v1_identity, psi_target_neutral_decision_target_v1_identity,
 };
 use omega_optimization_unit::{
     InvalidPsiTransformationLedger, ProvenanceRewrite, PsiOptimizationUnit, PsiRewriteCandidate,
@@ -100,6 +102,10 @@ pub struct OptimizationRun {
     pub commits: Vec<PsiOptimizationCommit>,
     pub usage: OptimizationRunUsage,
     pub decisions: BaselineDecisionLog,
+    /// Typed, versioned policy surface recorded after ordinary candidate
+    /// validation. It is not consulted by the baseline run and therefore does
+    /// not alter selection, commits, manifests, ledgers, or executable output.
+    pub external_decisions: ExternalDecisionLog,
     pub pass_manifests: Vec<OptimizationPassManifestRecord>,
     pub transformation_ledger: PsiTransformationLedger,
     pub identity_bundle: OptimizationIdentityBundle,
@@ -132,6 +138,10 @@ impl OptimizationRun {
 
     pub const fn decisions(&self) -> &BaselineDecisionLog {
         &self.decisions
+    }
+
+    pub const fn external_decisions(&self) -> &ExternalDecisionLog {
+        &self.external_decisions
     }
 
     pub fn pass_manifests(&self) -> &[OptimizationPassManifestRecord] {
@@ -172,6 +182,8 @@ pub enum OptimizationRunError {
     InvalidManifest(InvalidOptimizationManifestRecord),
     InvalidTransformationLedger(InvalidPsiTransformationLedger),
     DecisionLogReplay(BaselineDecisionLogDecodeError),
+    ExternalDecisionSchema(ExternalDecisionSchemaError),
+    ExternalDecisionManifestMismatch,
     WorkUsageOverflow,
     MissingPassManifest,
     DuplicatePipelineRule,
@@ -244,6 +256,7 @@ fn run_registries(
     let mut commits = Vec::new();
     let mut usage = OptimizationRunUsage::default();
     let mut pass_logs = Vec::with_capacity(registries.len());
+    let mut external_points = Vec::new();
     let mut pass_manifests = Vec::with_capacity(registries.len());
     for registry in registries {
         let (output, pass_commits, pass_usage, pass_decisions, pass_manifest, _pass_ledger) =
@@ -251,11 +264,30 @@ fn run_registries(
         unit = output;
         commits.extend(pass_commits);
         usage = add_usage(usage, pass_usage)?;
+        let pass_manifest = pass_manifest.ok_or(OptimizationRunError::MissingPassManifest)?;
+        let manifest_decisions = pass_manifest.decisions().iter().collect::<Vec<_>>();
+        external_points.extend(external_points_from_manifest_decisions(
+            &pass_decisions,
+            &manifest_decisions,
+        )?);
         pass_logs.push(pass_decisions);
-        pass_manifests.push(pass_manifest.ok_or(OptimizationRunError::MissingPassManifest)?);
+        pass_manifests.push(pass_manifest);
     }
     let decisions = BaselineDecisionLog::concatenate(&pass_logs)
         .map_err(OptimizationRunError::DecisionLogReplay)?;
+    let external_decisions = ExternalDecisionLog::new(
+        ExternalDecisionContext::new(
+            external_psi_decision_schema_v1_identity(),
+            initial_identity,
+            selections.identity(),
+            psi_selections.identity(),
+            psi_target_neutral_decision_target_v1_identity(),
+            ordered_rule_set,
+            baseline_psi_cost_model_identity(),
+        ),
+        external_points,
+    )
+    .map_err(OptimizationRunError::ExternalDecisionSchema)?;
     let transformation_ledger = PsiTransformationLedger::new(
         terminal_psi,
         fuel_schedule,
@@ -294,6 +326,7 @@ fn run_registries(
         commits,
         usage,
         decisions,
+        external_decisions,
         pass_manifests,
         transformation_ledger,
         identity_bundle,
@@ -326,6 +359,100 @@ fn add_usage(
             .checked_add(right.iterations)
             .ok_or(OptimizationRunError::WorkUsageOverflow)?,
     })
+}
+
+fn external_points_from_manifest_decisions(
+    decisions: &BaselineDecisionLog,
+    manifest_decisions: &[&OptimizationDecisionRecord],
+) -> Result<Vec<ExternalDecisionPoint>, OptimizationRunError> {
+    let mut points = Vec::with_capacity(decisions.records.len());
+    for record in &decisions.records {
+        let mut rule = None;
+        for candidate in &record.considered {
+            let matching = manifest_decisions
+                .iter()
+                .copied()
+                .filter(|decision| {
+                    decision.input() == record.input && decision.candidate() == candidate.candidate
+                })
+                .collect::<Vec<_>>();
+            let [decision] = matching.as_slice() else {
+                return Err(OptimizationRunError::ExternalDecisionManifestMismatch);
+            };
+            if let Some(expected) = rule {
+                if decision.rule() != expected {
+                    return Err(OptimizationRunError::ExternalDecisionManifestMismatch);
+                }
+            } else {
+                rule = Some(decision.rule());
+            }
+            let expected_verdict = match record.outcome {
+                BaselineDecisionOutcome::Choose(chosen) if chosen == candidate.candidate => {
+                    OptimizationCandidateVerdict::Applied
+                }
+                BaselineDecisionOutcome::Choose(_) => {
+                    OptimizationCandidateVerdict::Skipped(OptimizationReasonCode::Superseded)
+                }
+                BaselineDecisionOutcome::Skip(reason) => {
+                    OptimizationCandidateVerdict::Skipped(reason)
+                }
+            };
+            if decision.verdict() != expected_verdict {
+                return Err(OptimizationRunError::ExternalDecisionManifestMismatch);
+            }
+        }
+        points.push(
+            ExternalDecisionPoint::new(
+                record.input,
+                rule.ok_or(OptimizationRunError::ExternalDecisionManifestMismatch)?,
+                record.considered.iter().copied(),
+                record.outcome.into(),
+            )
+            .map_err(OptimizationRunError::ExternalDecisionSchema)?,
+        );
+    }
+    Ok(points)
+}
+
+/// Reconstruct the recorded external policy surface from the ordinary
+/// baseline log and independently validated pass manifests. This validator is
+/// intentionally separate from recording and derives no field from the
+/// recorded points.
+pub fn validate_external_decision_recording(
+    run: &OptimizationRun,
+) -> Result<(), OptimizationRunError> {
+    let ordered_rules = run
+        .pass_manifests()
+        .iter()
+        .flat_map(|manifest| manifest.ordered_rules().iter().copied())
+        .collect::<Vec<_>>();
+    let ordered_rule_set = OptimizationRuleSetIdentity::from_ordered_rules(&ordered_rules)
+        .map_err(|_| OptimizationRunError::DuplicatePipelineRule)?;
+    let manifest_decisions = run
+        .pass_manifests()
+        .iter()
+        .flat_map(|manifest| manifest.decisions())
+        .collect::<Vec<_>>();
+    let points = external_points_from_manifest_decisions(run.decisions(), &manifest_decisions)?;
+    let expected = ExternalDecisionLog::new(
+        ExternalDecisionContext::new(
+            external_psi_decision_schema_v1_identity(),
+            run.transformation_ledger().input(),
+            run.selections().identity(),
+            run.psi_selections().identity(),
+            psi_target_neutral_decision_target_v1_identity(),
+            ordered_rule_set,
+            baseline_psi_cost_model_identity(),
+        ),
+        points,
+    )
+    .map_err(OptimizationRunError::ExternalDecisionSchema)?;
+    let decoded = ExternalDecisionLog::decode(&run.external_decisions().encode())
+        .map_err(OptimizationRunError::ExternalDecisionSchema)?;
+    if decoded != expected {
+        return Err(OptimizationRunError::ExternalDecisionManifestMismatch);
+    }
+    Ok(())
 }
 
 type OptimizationRunOutput = (
@@ -402,15 +529,14 @@ fn run_unit(
             if validated.is_empty() {
                 continue;
             }
-            let outcome = policy.choose(
-                unit.identity,
-                validated
-                    .iter()
-                    .map(|(candidate, _)| ValidatedCandidateSummary {
-                        candidate: candidate.identity(),
-                        predicted_cost_delta: candidate.predicted_cost_delta(),
-                    }),
-            );
+            let summaries = validated
+                .iter()
+                .map(|(candidate, _)| ValidatedCandidateSummary {
+                    candidate: candidate.identity(),
+                    predicted_cost_delta: candidate.predicted_cost_delta(),
+                })
+                .collect::<Vec<_>>();
+            let outcome = policy.choose(unit.identity, summaries.iter().copied());
             for (candidate, accepted) in &validated {
                 let verdict = match outcome {
                     BaselineDecisionOutcome::Choose(chosen) if chosen == candidate.identity() => {
@@ -1795,6 +1921,15 @@ mod tests {
             run_psi_registry(verified_empty_unit(), &selections, &registry, budget(2)).unwrap();
         assert!(run.commits.is_empty());
         assert!(run.pass_manifests.is_empty());
+        assert!(run.external_decisions().points().is_empty());
+        assert_eq!(
+            ExternalDecisionLog::decode(&run.external_decisions().encode()),
+            Ok(run.external_decisions().clone())
+        );
+        assert_eq!(
+            run.external_decisions().context().source(),
+            run.transformation_ledger.input()
+        );
         assert!(run.transformation_ledger.records().is_empty());
         assert_eq!(run.identity_bundle.selections(), selections.identity());
         assert_eq!(
@@ -1825,6 +1960,15 @@ mod tests {
         assert!(run.commits.is_empty());
         assert!(run.pass_manifests.is_empty());
         assert!(run.decisions.records.is_empty());
+        assert!(run.external_decisions().points().is_empty());
+        assert_eq!(
+            run.external_decisions().context().selections(),
+            selections.identity()
+        );
+        assert_eq!(
+            run.external_decisions().context().phase_selections(),
+            run.psi_selections().identity()
+        );
         assert!(run.transformation_ledger.records().is_empty());
         assert_eq!(run.usage, OptimizationRunUsage::default());
         assert_eq!(
@@ -1852,6 +1996,45 @@ mod tests {
         assert_eq!(run.identity_bundle.rule_set(), registry.identity());
         assert_eq!(run.pass_manifests.len(), 1);
         assert_eq!(run.commits.len(), 1);
+        assert_eq!(run.external_decisions().points().len(), 1);
+        let external = &run.external_decisions().points()[0];
+        let baseline = &run.decisions().records[0];
+        assert_eq!(external.input(), baseline.input);
+        assert_eq!(external.action(), baseline.outcome.into());
+        assert_eq!(external.legal_candidates().len(), baseline.considered.len());
+        assert_eq!(external.rule(), run.pass_manifests[0].decisions()[0].rule());
+        assert_eq!(
+            run.identity_bundle.decision_log(),
+            Some(run.decisions().identity)
+        );
+        assert_ne!(
+            run.external_decisions().identity(),
+            run.decisions().identity
+        );
+        assert_eq!(
+            ExternalDecisionLog::decode(&run.external_decisions().encode()),
+            Ok(run.external_decisions().clone())
+        );
+    }
+
+    #[test]
+    fn external_decision_recording_rejects_detached_valid_context() {
+        let selections =
+            OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
+                .unwrap();
+        let mut run = run_psi_pipeline(verified_exact_add_unit(), &selections, budget(8)).unwrap();
+        let empty = run_psi_pipeline(
+            verified_empty_unit(),
+            &OptimizationSelections::default(),
+            budget(2),
+        )
+        .unwrap();
+        run.external_decisions = empty.external_decisions;
+
+        assert_eq!(
+            validate_external_decision_recording(&run),
+            Err(OptimizationRunError::ExternalDecisionManifestMismatch)
+        );
     }
 
     #[test]
