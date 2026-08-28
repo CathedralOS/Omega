@@ -16,7 +16,9 @@
 ; the root establishes an absolute B_bc1 address.  The later potential lift must
 ; discharge those assumptions.
 ;
-; Maps indexed by tape PC:
+; The retained per-PC frame state is the canonical product for later phases;
+; consumers must rejoin it through fs_require_visited/fs_require_depth rather
+; than recompute a weaker local fixed point.  Maps indexed by tape PC:
 ;   store family 13516800, visited 13778944, depth 14041088,
 ;   fp kind 16138240, saved-fp token 16400384.
 
@@ -513,6 +515,32 @@ fs_proc_skip_block:
         jmp fs_proc_scan_loop
 fs_proc_done:
         jmp ranged_transfer_init
+
+; Checked accessors for consumers of the completed whole-artifact product.
+; Input r20 is the canonical tape PC; fs_require_depth also takes the expected
+; relative depth in r21.  An unreachable PC is never assigned a default depth.
+fs_require_visited:
+        imm r1, 13778944
+        add r1, r20
+        loadb r2, r1
+        imm r3, 1
+        jeq r2, r3, fs_require_visited_ok
+        jmp reject
+fs_require_visited_ok:
+        ret
+
+fs_require_depth:
+        mov r22, r20
+        call fs_require_visited
+        imm r1, 8
+        mul r22, r1
+        imm r1, 14041088
+        add r1, r22
+        load r2, r1
+        jeq r2, r21, fs_require_depth_ok
+        jmp reject
+fs_require_depth_ok:
+        ret
 
 fs_fixedpoint:
 fs_fixedpoint_again:

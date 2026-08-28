@@ -89,9 +89,9 @@ admission, and optional stress evidence stay under the same compiler owner.
 
 - [ ] Collapse the remaining Beta admission explosion into one canonical exact
   instruction/event/memory identity format plus small responsibility-specific
-  semantic modules. The current bounded admission consists of 189 Alpha modules
-  and 61,764 lines; Checker A is 1,020,887 source bytes and the checker ROOT is
-  80,581 bytes. Shape, control, data, and
+  semantic modules. The current bounded admission consists of 190 Alpha modules
+  and 61,386 lines; Checker A is 1,011,674 source bytes and the checker ROOT is
+  80,974 bytes. Shape, control, data, and
   publication modules must consume common decoded facts rather than repeat byte
   offsets, macro bodies, or equivalent verification permutations. The first
   procedure-custody tranche centralizes the canonical parameter/slot/frame
@@ -100,8 +100,17 @@ admission, and optional stress evidence stay under the same compiler owner.
   eight binding teeth. The next tranche replaces five family-private witness-PC
   ingestion loops with one bounded exact-table owner, removing another 193
   lines and 3,482 bytes while leaving each family parser and semantic validator
-  independent. Continue upward from those common owners into per-procedure
-  inventories rather than adding another parallel shape vocabulary.
+  independent. A third tranche makes the whole-artifact frame summary's retained
+  per-PC state canonical for ranged-store transfer, deleting that consumer's
+  weaker duplicate fixed-point engine (474 lines and 12,231 bytes) while
+  preserving its separate operand/value theorem and the exact ROOT observation.
+  One live-count-derived procedure-span inventory now proves the total ordered
+  71-procedure/359-block partition over the already checked block tables.
+  Procedure-entry and inclusive block-range queries consume it in constant time
+  without adding a witness or semantic token. Next remove census-only block
+  listings family by family while retaining every PC-producing identity call.
+  Keep frame, effect, memory, stack, ranged-store, and meaning theorems separate
+  rather than turning the inventory into another mega-checker.
 - [x] Finish identity localization before changing the shared compiler frame
   macros. Procedure, block, transition, event, local, primitive, push,
   continuation, epilogue, and shared macro identities are centralized. The r13
@@ -197,8 +206,18 @@ Delta.
   to 2.840 seconds (3.89%) and retired 3.52% fewer native instructions. On the
   exact closed input, the diagnostic virtual interpreter advanced through
   15,989,175 rather than 15,094,364 evaluator calls in the same 15 seconds
-  (5.93% more semantic progress). This does not substitute for the required
-  exact execution.
+  (5.93% more semantic progress). Finally, variable expressions now perform a
+  cached-slot hot read directly in the evaluator after their first complete
+  frame-local lookup. The representative loop retired 2.32% fewer native
+  instructions (57,187,216,060 versus 58,542,718,558), and the exact-input
+  diagnostic cost fell from about 550.87 to 540.75 Alpha steps per evaluator
+  call (1.84%). Direct canonical-u32 encode/decode paths then removed the hot
+  `mk_int`/`get_int` calls while retaining boxed and constructor fallbacks. Six
+  interleaved million-tail pairs improved from 1.790 to 1.583 seconds (11.55%),
+  all pairs won, and a fixed 15-second exact-input profile completed 7.4% more
+  evaluator work with 18.1% fewer helper calls. Explicit tests pin zero, one,
+  both u32 edges, boxed negative/overflow arithmetic, comparisons, and both
+  condition branches. This does not substitute for the required exact execution.
 - [x] Retain the canonical evaluator input and output explicitly at the Delta
   producer edge, and retain evaluator/type-checker source and build-artifact
   identities at the `bc` → Gamma edge. The Delta publication evaluates an

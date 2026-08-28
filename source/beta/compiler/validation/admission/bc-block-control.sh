@@ -108,6 +108,7 @@ emit_stack_checker_prefix() {
   cat "$OBLIGATION_DIR/bc-block-control.alpha" \
     "$OBLIGATION_DIR/bc-effect-sites.alpha" \
     "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
+    "$OBLIGATION_DIR/bc-procedure-inventory.alpha" \
     "$OBLIGATION_DIR/bc-event-identity.alpha" \
     "$OBLIGATION_DIR/bc-frame-shape.alpha" \
     "$OBLIGATION_DIR/bc-local-access.alpha" \
@@ -268,6 +269,7 @@ emit_expression_table_prefix() {
   cat "$OBLIGATION_DIR/bc-block-control.alpha" \
     "$OBLIGATION_DIR/bc-effect-sites.alpha" \
     "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
+    "$OBLIGATION_DIR/bc-procedure-inventory.alpha" \
     "$OBLIGATION_DIR/bc-event-identity.alpha" \
     "$OBLIGATION_DIR/bc-frame-shape.alpha" \
     "$OBLIGATION_DIR/bc-local-access.alpha" \
@@ -1008,6 +1010,12 @@ establish_root_observation_canonical() {
 }
 
 bc_timing_start canonical-prerequisites
+procedure_inventory_module_bytes=$(wc -c \
+  < "$OBLIGATION_DIR/bc-procedure-inventory.alpha" | tr -d ' ')
+if [ "$procedure_inventory_module_bytes" -ge 20000 ]; then
+  echo "bc block control FAIL — bc-procedure-inventory.alpha is ${procedure_inventory_module_bytes} bytes (20KB module cap)" >&2
+  exit 1
+fi
 build_emit_dec_word_checker
 smoke_emit_dec_word_checker
 build_label_emitters_checker
@@ -1022,6 +1030,7 @@ bc_timing_start checker-a-canonical
 cat "$OBLIGATION_DIR/bc-block-control.alpha" \
   "$OBLIGATION_DIR/bc-effect-sites.alpha" \
   "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
+  "$OBLIGATION_DIR/bc-procedure-inventory.alpha" \
   "$OBLIGATION_DIR/bc-event-identity.alpha" \
   "$OBLIGATION_DIR/bc-frame-shape.alpha" \
   "$OBLIGATION_DIR/bc-local-access.alpha" \

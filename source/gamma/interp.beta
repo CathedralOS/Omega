@@ -1028,7 +1028,7 @@ proc eval_tail(expr, fuel) {
         return eval_positive(expr, fuel)
     }
     state arena_exhausted { return 14684256 }
-    state exhausted { return mk_int(0) }
+    state exhausted { return 0 - 2 }
     state tail_let {
         let lv = eval_positive(word[expr + 16], fuel)
         env_push(word[expr + 8], lv)
@@ -1036,7 +1036,17 @@ proc eval_tail(expr, fuel) {
         to loop
     }
     state tail_if {
-        to tail_then when (get_int(eval_positive(word[expr + 8], fuel)) != 0)
+        let cond = eval_positive(word[expr + 8], fuel)
+        to tail_if_immediate when (cond < 0 - 1)
+        to tail_if_boxed
+    }
+    state tail_if_immediate {
+        to tail_then when (cond != 0 - 2)
+        expr = word[expr + 24]
+        to loop
+    }
+    state tail_if_boxed {
+        to tail_then when (get_int(cond) != 0)
         expr = word[expr + 24]
         to loop
     }
@@ -1050,7 +1060,7 @@ proc eval_tail(expr, fuel) {
         expr = chosen
         to loop
     }
-    state tail_no_match { return mk_int(0) }
+    state tail_no_match { return 0 - 2 }
     state tail_call {
         let values = word[2097096]
         eval_scratch_args(word[expr + 16], fuel)
@@ -1289,41 +1299,109 @@ proc eval_positive(expr, fuel) {
         to t_int when (tag == 0)
         to t1
     }
-    state t_int { return mk_int(word[expr + 8]) }          ; INT literal -> VINT
+    state t_int {                                          ; INT literal -> VINT
+        ; Mirror mk_int's canonical immediate range locally on this hot path.
+        ; Focused boundary tests pin -1, both u32 bounds, and boxed fallbacks.
+        let n = word[expr + 8]
+        to t_int_negative when (n < 0)
+        to t_int_high
+    }
+    state t_int_negative {
+        to t_int_minus_one when (n == 0 - 1)
+        return alloc2(100, n)
+    }
+    state t_int_minus_one { return 14684288 }
+    state t_int_high {
+        to t_int_boxed when (n > 4294967295)
+        return 0 - n - 2
+    }
+    state t_int_boxed { return alloc2(100, n) }
     state t1 { to t_var when (tag == 1)  to t2 }
-    state t_var { return resolve_var(expr) }                ; VAR -> value pointer
+    state t_var {
+        ; After the first lookup, the immutable AST word is `-slot-1` relative
+        ; to the current function frame. Keep the hot read in the evaluator;
+        ; unresolved and unbound names retain the complete fallback.
+        let ref = word[expr + 8]
+        to t_var_cached when (ref < 0)
+        return resolve_var(expr)
+    }
+    state t_var_cached {
+        let slot = 0 - ref - 1
+        return word[7340032 + (word[2097104] + slot) * 16 + 8]
+    }
     state t2 { to t_prim when (tag == 2)  to t3 }
     state t_prim {                   ; PRIM op a b (on integers)
-        let a = get_int(eval_positive(word[expr + 16], fuel))
-        let b = get_int(eval_positive(word[expr + 24], fuel))
+        let av = eval_positive(word[expr + 16], fuel)
+        let a = 0
+        let b = 0
+        to prim_a_immediate when (av < 0 - 1)
+        to prim_a_boxed
+    }
+    state prim_a_immediate {
+        a = 0 - av - 2
+        to prim_b_eval
+    }
+    state prim_a_boxed {
+        a = get_int(av)
+        to prim_b_eval
+    }
+    state prim_b_eval {
+        let bv = eval_positive(word[expr + 24], fuel)
+        to prim_b_immediate when (bv < 0 - 1)
+        to prim_b_boxed
+    }
+    state prim_b_immediate {
+        b = 0 - bv - 2
+        to prim_dispatch
+    }
+    state prim_b_boxed {
+        b = get_int(bv)
+        to prim_dispatch
+    }
+    state prim_dispatch {
         let op = word[expr + 8]
         to p_add when (op == '+')
         to p1
     }
-    state p_add { return mk_int(a + b) }
+    state p_add { a = a + b  to p_pack }
     state p1 { to p_sub when (op == '-')  to p2 }
-    state p_sub { return mk_int(a - b) }
+    state p_sub { a = a - b  to p_pack }
     state p2 { to p_mul when (op == '*')  to p3 }
-    state p_mul { return mk_int(a * b) }
+    state p_mul { a = a * b  to p_pack }
     state p3 { to p_div when (op == '/')  to p4 }
-    state p_div { return mk_int(a / b) }
+    state p_div { a = a / b  to p_pack }
     state p4 { to p_mod when (op == '%')  to p5 }
-    state p_mod { return mk_int(a % b) }
+    state p_mod { a = a % b  to p_pack }
+    state p_pack { to p_pack_boxed when (a < 0)  to p_pack_high }
+    state p_pack_high {
+        to p_pack_boxed when (a > 4294967295)
+        return 0 - a - 2
+    }
+    state p_pack_boxed { return mk_int(a) }
     state p5 { to p_eq when (op == 'e')  to p6 }
     state p_eq {
         to p_eq1 when (a == b)
-        return mk_int(0)
+        return 0 - 2
     }
-    state p_eq1 { return mk_int(1) }
-    state p6 { to p_lt when (op == 'l')  return mk_int(0) }
+    state p_eq1 { return 0 - 3 }
+    state p6 { to p_lt when (op == 'l')  return 0 - 2 }
     state p_lt {
         to p_lt1 when (a < b)
-        return mk_int(0)
+        return 0 - 2
     }
-    state p_lt1 { return mk_int(1) }
+    state p_lt1 { return 0 - 3 }
     state t3 { to t_if when (tag == 3)  to t4 }
     state t_if {                     ; IF c t e
-        to if_then when (get_int(eval_positive(word[expr + 8], fuel)) != 0)
+        let cond = eval_positive(word[expr + 8], fuel)
+        to if_immediate when (cond < 0 - 1)
+        to if_boxed
+    }
+    state if_immediate {
+        to if_then when (cond != 0 - 2)
+        return eval_positive(word[expr + 24], fuel)
+    }
+    state if_boxed {
+        to if_then when (get_int(cond) != 0)
         return eval_positive(word[expr + 24], fuel)
     }
     state if_then { return eval_positive(word[expr + 16], fuel) }
