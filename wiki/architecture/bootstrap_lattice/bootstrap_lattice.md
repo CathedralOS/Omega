@@ -51,8 +51,8 @@ not enter the semantic verdict.
 ## Five roles often confused as “the bottom”
 
 1. **Seed execution** runs the first audited Alpha artifacts.
-2. **Language semantics** define what Alpha, Beta, Gamma, Delta, Psi, and Omega
-   programs mean.
+2. **Language semantics** define what Alpha, Beta, Gamma, Delta, and Omega
+   programs mean. Terminal Psi has an internal IR contract, not a rung.
 3. **Compiler construction** produces the next artifact in the chain.
 4. **Proof checking** validates derivations independently of their producers.
 5. **Admissions** disclose the irreducible claims about hardware, firmware,
@@ -68,10 +68,10 @@ No implementation gains authority by occupying more than one of these roles.
 | [Beta](rungs/beta.md) | small structured systems language | Alpha-rooted compiler and checked whole-artifact refinement |
 | [Gamma](rungs/gamma.md) | safe definitional computation and typing | Beta-written reference interpreter/type checker |
 | [Delta](rungs/delta.md) | deterministic compiler-host language | Delta→Gamma elaboration and Gamma execution; publication open |
-| [Psi/Omega](omega_toolchain.md) | target-neutral product compiler then target realization | Omega-written source; direct Delta and self-build edges open |
+| [Omega](omega_toolchain.md) | product compiler: target-neutral Psi phases then target realization | Omega-written source; direct Delta and self-build edges open |
 
 The Alpha-owned [proof kernel](proof_kernel.md) is universal checker
-infrastructure, not a fifth Greek rung. The feature subset used by `C` is an
+infrastructure, not another rung. The feature subset used by `C` is an
 incidental source property, not another language. The current Rust compiler in
 `source/omega-rust/` is an implementation/comparator, not a rung.
 
