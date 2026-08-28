@@ -61,6 +61,8 @@ pub struct StagedOptimizedPostAllocationMachineCustodyReceipt {
     source: StagedOptimizedPostAllocationMachineSourceCustodyReceipt,
     effects: omega_machine_optimizer::TerminalPreAllocationMachineEffectIdentity,
     machine: TerminalPostAllocationMachineIdentity,
+    function_count: usize,
+    structural_unit_function_count: usize,
     instruction_count: usize,
     operand_count: usize,
     unit_action_count: usize,
@@ -77,6 +79,12 @@ impl StagedOptimizedPostAllocationMachineCustodyReceipt {
     }
     pub const fn machine(&self) -> TerminalPostAllocationMachineIdentity {
         self.machine
+    }
+    pub const fn function_count(&self) -> usize {
+        self.function_count
+    }
+    pub const fn structural_unit_function_count(&self) -> usize {
+        self.structural_unit_function_count
     }
     pub const fn instruction_count(&self) -> usize {
         self.instruction_count
@@ -562,6 +570,8 @@ fn custody(
         source,
         effects: effects.receipt().identity(),
         machine: machine.receipt().identity(),
+        function_count: machine.plan().functions.len(),
+        structural_unit_function_count: machine.plan().structural_unit_functions.len(),
         instruction_count: machine.receipt().instruction_count(),
         operand_count: machine.receipt().operand_count(),
         unit_action_count: machine.receipt().unit_action_count(),

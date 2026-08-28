@@ -4930,6 +4930,7 @@ mod tests {
             let legality = stage_optimized_allocation_legality(ranges).unwrap();
             assert_eq!(legality.custody().entry_transition_count(), 0);
             assert_eq!(legality.custody().function_count(), 1);
+            assert_eq!(legality.custody().structural_unit_function_count(), 0);
             let homes = stage_optimized_register_homes(legality).unwrap();
             assert_eq!(homes.custody().assignment_count(), 7);
             let selected_stage = homes
@@ -10919,6 +10920,7 @@ mod tests {
 
             let liveness = stage_optimized_liveness(selected).unwrap();
             assert_eq!(liveness.custody().function_count(), 2);
+            assert_eq!(liveness.custody().structural_unit_function_count(), 0);
             assert_eq!(liveness.custody().block_count(), 6);
             assert_eq!(liveness.custody().virtual_register_count(), 6);
             assert_eq!(liveness.custody().instruction_count(), 12);
@@ -10953,6 +10955,7 @@ mod tests {
 
             let ranges = stage_optimized_live_ranges(liveness).unwrap();
             assert_eq!(ranges.custody().function_count(), 2);
+            assert_eq!(ranges.custody().structural_unit_function_count(), 0);
             assert_eq!(ranges.custody().block_count(), 6);
             assert_eq!(ranges.custody().virtual_register_count(), 6);
             assert_eq!(ranges.custody().interference_count(), 0);
@@ -10987,6 +10990,7 @@ mod tests {
 
             let legality = stage_optimized_allocation_legality(ranges).unwrap();
             assert_eq!(legality.custody().function_count(), 2);
+            assert_eq!(legality.custody().structural_unit_function_count(), 0);
             assert_eq!(legality.custody().virtual_register_count(), 6);
             let range_stage = legality.live_range_stage();
             let environment = range_stage
@@ -11011,6 +11015,7 @@ mod tests {
 
             let homes = stage_optimized_register_homes(legality).unwrap();
             assert_eq!(homes.custody().function_count(), 2);
+            assert_eq!(homes.custody().structural_unit_function_count(), 0);
             assert_eq!(homes.custody().assignment_count(), 6);
             assert_eq!(
                 homes
@@ -11109,7 +11114,7 @@ mod tests {
     }
 
     #[test]
-    fn structural_unit_call_reaches_selected_liveness_and_machine_effect_custody() {
+    fn structural_unit_call_reaches_post_allocation_machine_custody() {
         let (semantic, proof) = structural_extent_call_unit_artifact();
         let optimized = optimize_artifact_sections(
             &semantic,
@@ -11294,6 +11299,9 @@ mod tests {
 
         let liveness = stage_optimized_liveness(selected)
             .expect("zero-VReg structural functions must retain architectural liveness");
+        assert_eq!(liveness.custody().function_count(), 0);
+        assert_eq!(liveness.custody().structural_unit_function_count(), 2);
+        assert!(liveness.liveness().plan().functions.is_empty());
         assert_eq!(
             liveness.liveness().plan().structural_unit_functions.len(),
             2
@@ -11305,6 +11313,169 @@ mod tests {
         assert_eq!(
             live_caller.blocks[0].instructions[0].unit_uses,
             selected_call_uses
+        );
+
+        let ranges = stage_optimized_live_ranges(liveness)
+            .expect("structural architectural flow must reach zero-VReg ranges");
+        assert_eq!(ranges.custody().function_count(), 0);
+        assert_eq!(ranges.custody().structural_unit_function_count(), 2);
+        assert!(ranges.ranges().plan().functions.is_empty());
+        assert_eq!(ranges.ranges().plan().structural_unit_functions.len(), 2);
+        let range_caller = &ranges.ranges().plan().structural_unit_functions[0];
+        assert!(range_caller.virtual_registers.is_empty());
+        assert!(range_caller.tied_pairs.is_empty());
+        assert!(range_caller.early_clobbers.is_empty());
+        assert!(range_caller.interference.is_empty());
+        assert!(!range_caller.architectural_units.is_empty());
+        assert!(
+            range_caller
+                .architectural_units
+                .iter()
+                .any(|unit| !unit.actions.is_empty())
+        );
+        let mut corrupted = ranges.ranges().plan().clone();
+        corrupted.structural_unit_functions[0].architectural_units[0]
+            .actions
+            .clear();
+        assert!(
+            validate_terminal_live_ranges(
+                ranges.liveness_stage().selected_stage().selected(),
+                ranges.liveness_stage().liveness(),
+                corrupted,
+            )
+            .is_err()
+        );
+
+        let legality = stage_optimized_allocation_legality(ranges)
+            .expect("zero-VReg structural functions must require no candidate homes");
+        assert_eq!(legality.custody().function_count(), 0);
+        assert_eq!(legality.custody().structural_unit_function_count(), 2);
+        assert!(legality.legality().plan().functions.is_empty());
+        assert_eq!(
+            legality.legality().plan().structural_unit_functions.len(),
+            2
+        );
+        assert!(
+            legality
+                .legality()
+                .plan()
+                .structural_unit_functions
+                .iter()
+                .all(|function| function.virtual_registers.is_empty())
+        );
+        let mut corrupted = legality.legality().plan().clone();
+        corrupted.structural_unit_functions.swap(0, 1);
+        let range_stage = legality.live_range_stage();
+        let environment = range_stage
+            .liveness_stage()
+            .selected_stage()
+            .register_environment();
+        assert!(
+            validate_terminal_allocation_legality(
+                range_stage.ranges(),
+                legality.allocator_availability(),
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                environment.allocation_constraint_keys(),
+                corrupted,
+            )
+            .is_err()
+        );
+
+        let homes = stage_optimized_register_homes(legality)
+            .expect("structural functions must receive exact empty home rosters");
+        assert_eq!(homes.custody().function_count(), 0);
+        assert_eq!(homes.custody().structural_unit_function_count(), 2);
+        assert!(homes.homes().plan().functions.is_empty());
+        assert_eq!(homes.homes().plan().structural_unit_functions.len(), 2);
+        assert!(
+            homes
+                .homes()
+                .plan()
+                .structural_unit_functions
+                .iter()
+                .all(|function| function.assignments.is_empty())
+        );
+        assert_eq!(
+            homes
+                .post_allocation_manifest()
+                .record()
+                .statistics
+                .functions,
+            0
+        );
+        assert_eq!(
+            homes
+                .post_allocation_manifest()
+                .record()
+                .statistics
+                .structural_unit_functions,
+            2
+        );
+        let mut corrupted = homes.homes().plan().clone();
+        corrupted.structural_unit_functions.swap(0, 1);
+        let legality_stage = homes.legality_stage();
+        let range_stage = legality_stage.live_range_stage();
+        let environment = range_stage
+            .liveness_stage()
+            .selected_stage()
+            .register_environment();
+        assert!(
+            validate_terminal_register_homes(
+                legality_stage.legality(),
+                range_stage.ranges(),
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                environment.allocation_constraint_keys(),
+                corrupted,
+            )
+            .is_err()
+        );
+
+        let post = stage_optimized_post_allocation_machine_plan(&homes)
+            .expect("structural call must reach post-allocation machine custody");
+        assert!(post.machine().plan().functions.is_empty());
+        assert_eq!(post.machine().plan().structural_unit_functions.len(), 2);
+        assert!(
+            post.machine().plan().structural_unit_functions[0]
+                .call
+                .is_some()
+        );
+        assert!(
+            post.machine().plan().structural_unit_functions[1]
+                .call
+                .is_none()
+        );
+        assert_eq!(post.custody().function_count(), 0);
+        assert_eq!(post.custody().structural_unit_function_count(), 2);
+        assert_eq!(post.machine().receipt().function_count(), 2);
+        assert_eq!(post.machine().receipt().instruction_count(), 3);
+        assert_eq!(post.machine().receipt().operand_count(), 0);
+        let mut corrupted = post.machine().plan().clone();
+        corrupted.structural_unit_functions[0]
+            .call
+            .as_mut()
+            .unwrap()
+            .unit_uses
+            .clear();
+        assert!(
+            omega_machine_optimizer::validate_terminal_post_allocation_machine_plan(
+                range_stage.liveness_stage().selected_stage().selected(),
+                post.effects().effects(),
+                range_stage.ranges(),
+                legality_stage.legality(),
+                homes.homes(),
+                homes.post_allocation_manifest(),
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                corrupted,
+            )
+            .is_err()
         );
     }
 
@@ -11374,6 +11545,7 @@ mod tests {
 
             let liveness = stage_optimized_liveness(selected).unwrap();
             assert_eq!(liveness.custody().function_count(), 1);
+            assert_eq!(liveness.custody().structural_unit_function_count(), 0);
             assert_eq!(liveness.custody().block_count(), 1);
             assert_eq!(liveness.custody().virtual_register_count(), 0);
             assert_eq!(liveness.custody().instruction_count(), 1);
@@ -11404,6 +11576,7 @@ mod tests {
 
             let ranges = stage_optimized_live_ranges(liveness).unwrap();
             assert_eq!(ranges.custody().function_count(), 1);
+            assert_eq!(ranges.custody().structural_unit_function_count(), 0);
             assert_eq!(ranges.custody().block_count(), 1);
             assert_eq!(ranges.custody().virtual_register_count(), 0);
             assert_eq!(ranges.custody().virtual_occurrence_count(), 0);
@@ -11422,6 +11595,7 @@ mod tests {
 
             let legality = stage_optimized_allocation_legality(ranges).unwrap();
             assert_eq!(legality.custody().function_count(), 1);
+            assert_eq!(legality.custody().structural_unit_function_count(), 0);
             assert_eq!(legality.custody().virtual_register_count(), 0);
             assert_eq!(legality.custody().point_count(), 0);
             assert_eq!(legality.custody().candidate_count(), 0);
@@ -11449,6 +11623,7 @@ mod tests {
 
             let homes = stage_optimized_register_homes(legality).unwrap();
             assert_eq!(homes.custody().function_count(), 1);
+            assert_eq!(homes.custody().structural_unit_function_count(), 0);
             assert_eq!(homes.custody().assignment_count(), 0);
             assert!(homes.homes().plan().functions[0].assignments.is_empty());
             assert!(

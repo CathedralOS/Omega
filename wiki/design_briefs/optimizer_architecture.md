@@ -191,7 +191,9 @@ canonical Terminal Psi semantic + proof sections
           -> address-free semantic ProgramStorage wrapper plan
           -> claim-preserving call-aware Unit legalization
           -> atomic Unit-call selection + pre-allocation effects/liveness
-          -> zero-VReg allocation legality, encoding, and object/private-symbol join (next)
+          -> zero-VReg ranges/legality/empty homes + post-allocation effects
+          -> typed internal-call fixup encoding and whole-section resolution (next)
+          -> object/private-symbol join
           -> semantic ProgramStorage wrapper object
        (physical process entry, native image, install, and publication closed)
     -> encoding, relocation, image, installation
@@ -2431,14 +2433,24 @@ caller-saved clobbers, claim transfers, effects, ownership, and provenance.
 Effect-catalog v4 declares this pseudo separately from ordinary encoded
 alternatives. Preallocation-effect v5/`OMGMFX` v6 retains a parallel structural
 machine-effect roster, and liveness v8 retains its architectural unit uses,
-defs, and clobbers without fabricating VRegs. Live-range and post-allocation
-analysis reject nonempty structural rosters explicitly, establishing the
-current fail-closed boundary before allocation and encoding.
+defs, and clobbers without fabricating VRegs. Live-range v8 retains exact block
+domains and architectural actions while proving the structural roster has no
+virtual ranges, ties, early clobbers, or interference. Allocation-legality v5
+and register-home v6 retain exact empty structural rows. Postallocation-
+manifest v6 reports structural and ordinary functions separately, and
+postallocation-machine v4/`OMGPMX` v3 rejoins the exact call effects and
+selected `ReturnUnit` alternative under empty-home and MachineId custody.
 
-The next implementation boundary carries the atomic form through zero-VReg
-live-range legality, empty homes, post-allocation structural effects, target
-encoding, and an applicable realized object/private continuation symbol, then
-joins those facts with the settlement, semantic contract, and wrapper plan.
+The target-owned x86 encoder produces and independently decodes the canonical
+89-byte call template, including root reads, four caller-copy writes, argument
+pointer rebinding, balanced frame, flags, scratch register, fault, and call
+effects. Its zero `E8` displacement is explicitly owned by a typed unresolved
+internal-Machine fixup at opcode offset 80/field 81/next-IP 85; it is not
+executable-byte authority. The next implementation boundary retains that
+template and fixup through layout-independent encoding, resolves the signed
+rel32 only at whole-text placement where both MachineId offsets are known, and
+then joins the resulting object/private continuation symbol with the
+settlement, semantic contract, and wrapper plan.
 The wrapper identity remains distinct from every Terminal `MachineId`; only
 the internal continuation is MachineId-rooted. The checked-source
 ProgramStorage regression also establishes that the existing generic source

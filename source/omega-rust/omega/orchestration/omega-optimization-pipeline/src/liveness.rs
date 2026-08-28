@@ -53,6 +53,7 @@ pub struct StagedOptimizedLivenessCustodyReceipt {
     selected: TerminalSelectedInstructionPlanIdentity,
     liveness: TerminalLivenessIdentity,
     function_count: usize,
+    structural_unit_function_count: usize,
     block_count: usize,
     virtual_register_count: usize,
     instruction_count: usize,
@@ -108,6 +109,10 @@ impl StagedOptimizedLivenessCustodyReceipt {
 
     pub const fn function_count(self) -> usize {
         self.function_count
+    }
+
+    pub const fn structural_unit_function_count(self) -> usize {
+        self.structural_unit_function_count
     }
 
     pub const fn block_count(self) -> usize {
@@ -174,6 +179,7 @@ pub fn stage_optimized_liveness(
         selected: upstream.selected(),
         liveness: validation.identity(),
         function_count: validation.function_count(),
+        structural_unit_function_count: validation.structural_unit_function_count(),
         block_count: validation.block_count(),
         virtual_register_count: validation.virtual_register_count(),
         instruction_count: validation.instruction_count(),
@@ -216,6 +222,7 @@ pub fn validate_optimized_liveness_custody(
         selected: upstream.selected(),
         liveness: validation.identity(),
         function_count: validation.function_count(),
+        structural_unit_function_count: validation.structural_unit_function_count(),
         block_count: validation.block_count(),
         virtual_register_count: validation.virtual_register_count(),
         instruction_count: validation.instruction_count(),

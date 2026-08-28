@@ -249,9 +249,11 @@ These facts constrain the work below.
   selection route landed with legalized-plan and legalization-replay v5,
   while the structural Unit roster below advances both to v6; structural-call
   selection advances selected-plan to v9, register-environment to v6,
-  liveness to v8, effect-catalog to v4, and preallocation-effect to v5/codec
-  v6. Postallocation-machine remains v3/codec v2,
-  fixed-copy codec v4, selected-form encoding v4, resolved-layout v4,
+  liveness to v8, live ranges to v8, allocation legality to v5, register homes
+  and their codec to v6, postallocation manifest and codec to v6,
+  effect-catalog to v4, preallocation-effect to v5/codec v6, and
+  postallocation-machine to v4/codec v3. Fixed-copy codec v4,
+  selected-form encoding v4, resolved-layout v4,
   whole-function exit v4, function-relative manifest v6, fragment/text
   manifests v3, fragment vocabulary v3, and x86 relaxation/revision v2 all
   reject older detached vocabulary. A dedicated baseline carrier now proves
@@ -325,19 +327,27 @@ These facts constrain the work below.
   Effect-catalog v4 declares the structural call separately from ordinary
   encoded alternatives. Preallocation-effect v5/codec v6 and liveness v8 carry
   the parallel structural roster through independent replay; the latter records
-  architectural unit flow without inventing VRegs. Live-range analysis and
-  post-allocation machine analysis reject the roster explicitly, so this new
-  state cannot be erased by the older allocation/encoding route.
+  architectural unit flow without inventing VRegs. Live-range v8 retains the
+  exact block domains and architectural actions while proving zero virtual
+  ranges, ties, early clobbers, and interference. Allocation-legality v5 and
+  register-home v6 carry exact empty structural rows; postallocation-manifest
+  v6 reports them separately from ordinary functions. Postallocation-machine
+  v4/codec v3 rejoins the call effects and selected `ReturnUnit` alternative,
+  requiring exact MachineId custody and empty assignments.
 
-  The next backend milestone is to extend this ProgramStorage-neutral atomic
-  form through zero-VReg live-range legality, empty register homes,
-  post-allocation structural effects, and target encoding before joining an
-  applicable object and MachineId-rooted private continuation symbol to the
-  settlement, semantic contract, and wrapper plan. The compiler-private
-  wrapper itself receives no fabricated Terminal `MachineId`. The checked-
-  source ProgramStorage fixture currently lowers its generic two-root handoff
-  as `BoundaryCall`, not this compiler-private `CallUnit`, and therefore is
-  receipt evidence rather than a positive wrapper fixture.
+  The target-owned x86 encoder now also produces and independently decodes the
+  canonical 89-byte structural-call template. Its `E8` displacement remains an
+  explicit typed internal-Machine fixup (opcode 80, field 81, next-IP 85,
+  signed width four, addend zero), so zero placeholder bytes are not executable
+  authority. The next backend milestone is to retain this template/fixup in the
+  layout-independent selected-form carrier and resolve it only at whole-text
+  placement, where caller and callee section offsets are both known. Only then
+  can an applicable object and MachineId-rooted private continuation symbol be
+  joined to the settlement, semantic contract, and wrapper plan. The compiler-
+  private wrapper itself receives no fabricated Terminal `MachineId`. The
+  checked-source ProgramStorage fixture currently lowers its generic two-root
+  handoff as `BoundaryCall`, not this compiler-private `CallUnit`, and therefore
+  is receipt evidence rather than a positive wrapper fixture.
 
   A separate
   `StagedOptimizedAssignedOperations` carrier
@@ -2466,12 +2476,15 @@ dependency.
   x64 COFF route now selects the call as one atomic zero-VReg pseudo, retains
   its exact register constraint, frame/copy layout, effects, ownership, and
   provenance through selected-plan replay, and carries its architectural unit
-  flow through preallocation machine effects and liveness. Live ranges and
-  post-allocation analysis remain explicitly closed for this parallel roster.
-  The next boundary must carry that atomic form through allocation legality,
-  empty homes, post-allocation effects, encoding, and an applicable object and
-  private continuation symbol, join those facts with the settlement, contract,
-  and wrapper plan, then construct the semantic
+  flow through preallocation machine effects, liveness, live ranges, zero-row
+  allocation legality, empty homes, an explicit allocation-manifest statistic,
+  and post-allocation machine replay. The target-owned encoder produces an
+  independently decoded canonical 89-byte template with one typed unresolved
+  internal-Machine rel32 fixup; it does not misclassify the zero field as a
+  resolved call. The next boundary must retain and resolve that fixup through
+  whole-section layout, encoding, and an applicable object/private continuation
+  symbol, join those facts with the settlement, contract, and wrapper plan,
+  then construct the semantic
   `ProgramStorageEntry` wrapper object. The scalar-
   result conditional fixture used by the callable classifier remains
   intentionally ineligible. The current UEFI surface explicitly calls its
