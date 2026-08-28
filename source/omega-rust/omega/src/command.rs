@@ -36,7 +36,10 @@ pub(crate) fn run() {
             .unwrap_or_else(|| PathBuf::from("samples"));
         refresh_samples(&samples_root);
     }
-    if first_argument.as_deref().is_some_and(|first| first == "run") {
+    if first_argument
+        .as_deref()
+        .is_some_and(|first| first == "run")
+    {
         probe::run(raw_arguments);
     }
     if first_argument
@@ -53,16 +56,6 @@ pub(crate) fn run() {
         audit(raw_arguments);
         return;
     }
-    if first_argument.as_deref().is_some_and(|first| {
-        first == "install"
-            || first == "update"
-            || first == "review"
-            || first == "plan"
-            || first == "lock"
-    }) {
-        quarantined_package_command();
-    }
-
     let Some(arguments) = parse_arguments() else {
         eprintln!(
             "usage: omega [--check] [--output-only] [--build-dir <dir>] [--target <name>] <root.omg>\n       omega run [--both] [--keep] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source --kind <local|git> <locator> [--rev <rev>] [--cache-dir <dir>]\n       omega audit source-cache-policy --kind <local|git> <locator> [--rev <rev>] [--cache-dir <dir>] [--out <record.json>]\n       omega refresh-samples [samples-dir]"
@@ -206,9 +199,6 @@ fn audit(arguments: impl Iterator<Item = std::ffi::OsString>) {
         audit_source_cache_policy(arguments);
         return;
     }
-    if subcommand == "packages" {
-        quarantined_package_command();
-    }
     eprintln!("unknown audit command `{}`", subcommand.to_string_lossy());
     eprintln!(
         "usage: omega audit source --kind <local|git> <locator> [--rev <rev>] [--cache-dir <dir>]"
@@ -293,20 +283,6 @@ fn audit_source_cache_policy(arguments: impl Iterator<Item = std::ffi::OsString>
             std::process::exit(1);
         }
     }
-}
-
-fn quarantined_package_command() -> ! {
-    print_package_prototype_quarantine();
-    std::process::exit(2);
-}
-
-fn print_package_prototype_quarantine() {
-    eprintln!(
-        "error: accepted package admission is not implemented; package \
-         install/update and the former manifest/lock/review prototype are \
-         quarantined and unavailable from the production omega CLI until \
-         compiler-issued evidence can be independently rechecked"
-    );
 }
 
 fn warn_unhardened_source_resolver() {
