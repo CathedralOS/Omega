@@ -758,7 +758,7 @@ The bootstrap decisions require Delta to be an independent, robust
 compiler-host language whose nonoptimizing lower-rung meaning elaborates to
 Gamma. The canonical compiler source currently lives in
 `source/delta/samples/lowermachine.alp`, and the Rust-free implementation of the
-meaning route lives in `source/delta/meaning/omega2gamma.beta`. Publication can
+meaning route lives in `source/delta/meaning/delta2gamma.beta`. Publication can
 already bind exact source and repeated emitted assembly, but its V1 receipt
 deliberately does not claim that the translator implements all Delta semantics.
 
@@ -778,7 +778,7 @@ independently fixed contract. It is presently ambiguous which fixed storage
 limits are Delta semantics versus replaceable implementation bounds, which
 allocation facilities a robust compiler host guarantees, and which source
 forms are compositional language facilities rather than accidents of the
-single canonical source. Treating `omega2gamma.beta`, the sample corpus, or the
+single canonical source. Treating `delta2gamma.beta`, the sample corpus, or the
 artifact's behavior as the specification would make the refinement circular.
 
 ### Proposed direction
