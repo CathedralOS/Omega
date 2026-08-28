@@ -162,9 +162,13 @@ arguments, inputs, outputs, or redirections. Elaboration precedes packing; the
 two execution scripts may then run independently. Each stage gets a fresh
 exclusive start marker and finish marker bound to the attempt token,
 preparation epoch, exact input/output identities, process status, elapsed
-diagnostic, and time ceiling. A stage is never resumed into an existing output
-or marker. A timeout receives its own token- and epoch-bound marker and status
-124; an unsubstantiated status 124 rejects.
+diagnostic, and time ceiling. Before a finish marker can retain output, the
+driver applies the same 1 MiB template, 4 MiB closed-Gamma, 256 MiB raw Gamma
+observation, and 65,536-byte diagnostic ceilings reconstructed by finalization.
+It checks extent before reading and rechecks after the identity read; `+1`
+returns resource status 252 without a finish marker. A stage is never resumed
+into an existing output or marker. A timeout receives its own token- and
+epoch-bound marker and status 124; an unsubstantiated status 124 rejects.
 
 `status` is read-only. Missing stages are pending, a start without a matching
 finish is running (or timed-out once a valid timeout marker exists), and a

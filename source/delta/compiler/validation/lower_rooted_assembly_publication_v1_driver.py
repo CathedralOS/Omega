@@ -6,9 +6,10 @@ lower-rooted tools and writes explicit runner scripts; it does not elaborate or
 execute the compiler.  Those scripts state the translator, transport, and
 interpreter commands literally.  Public ``stage-start``/``stage-finish``
 commands only keep custody markers around those commands, while ``stage-watch``
-enforces the declared wall-time ceiling.  ``status`` is read-only.  ``finalize``
-performs only the independent decoding/reconstruction already owned by the V1
-verifier.
+enforces the declared wall-time ceiling.  Stage finish/replay applies each
+output's declared byte ceiling before hashing it into custody.  ``status`` is
+read-only.  ``finalize`` performs only the independent decoding/reconstruction
+already owned by the V1 verifier.
 """
 
 from __future__ import annotations
@@ -55,6 +56,12 @@ STAGE_CEILINGS = {
     "execution-0": 43_200,
     "execution-1": 43_200,
 }
+STAGE_OUTPUT_CEILINGS = {
+    "elaboration": (publication.MAX_TEMPLATE, publication.MAX_DOCUMENT),
+    "packing": (publication.MAX_CLOSED_GAMMA, publication.MAX_DOCUMENT),
+    "execution-0": (publication.MAX_GAMMA_OBSERVATION, publication.MAX_DOCUMENT),
+    "execution-1": (publication.MAX_GAMMA_OBSERVATION, publication.MAX_DOCUMENT),
+}
 
 
 class DriverError(Exception):
@@ -85,8 +92,15 @@ def canonical_json(value: object) -> bytes:
     return publication.canonical_json(value, pretty=True)
 
 
-def identity(path: Path, role: str) -> dict:
+def identity(path: Path, role: str, limit: int | None = None) -> dict:
+    extent = path.stat().st_size
+    if limit is not None and extent > limit:
+        raise DriverResourceError(f"{role} byte ceiling")
     raw = path.read_bytes()
+    if len(raw) != extent:
+        fail(f"{role} changed while reading")
+    if limit is not None and len(raw) > limit:
+        raise DriverResourceError(f"{role} byte ceiling")
     return {
         "byte_length": len(raw),
         "role": role,
@@ -402,8 +416,16 @@ def stage_paths(root: Path, stage: str) -> tuple[list[Path], list[Path]]:
     fail("stage")
 
 
-def marker_identity(paths: list[Path], prefix: str) -> list[dict]:
-    return [identity(path, f"{prefix}_{index}") for index, path in enumerate(paths)]
+def marker_identity(
+    paths: list[Path], prefix: str, limits: tuple[int | None, ...] | None = None
+) -> list[dict]:
+    selected_limits = limits if limits is not None else (None,) * len(paths)
+    if len(selected_limits) != len(paths):
+        fail("stage identity ceiling shape")
+    return [
+        identity(path, f"{prefix}_{index}", selected_limits[index])
+        for index, path in enumerate(paths)
+    ]
 
 
 def marker_path(root: Path, stage: str, suffix: str) -> Path:
@@ -524,7 +546,9 @@ def finish_stage(root: Path, stage: str, token: str, status: int) -> None:
         "elapsed_milliseconds": elapsed_ms,
         "finish_epoch_ns": finish_epoch,
         "inputs": started["inputs"],
-        "outputs": marker_identity(outputs, f"{stage}_output"),
+        "outputs": marker_identity(
+            outputs, f"{stage}_output", STAGE_OUTPUT_CEILINGS[stage]
+        ),
         "prepared_epoch_ns": plan["prepared_epoch_ns"],
         "schema": MARKER_SCHEMA,
         "stage": stage,
@@ -596,7 +620,9 @@ def validate_stage(root: Path, plan: dict, stage: str) -> dict:
         }
     finished = load_canonical(finished_path, f"{stage} finish")
     strict(finished, FINISHED_KEYS, f"{stage} finish")
-    expected_outputs = marker_identity(outputs, f"{stage}_output")
+    expected_outputs = marker_identity(
+        outputs, f"{stage}_output", STAGE_OUTPUT_CEILINGS[stage]
+    )
     for key in STARTED_KEYS:
         if finished[key] != started[key]:
             fail(f"{stage} start/finish cross-pair")

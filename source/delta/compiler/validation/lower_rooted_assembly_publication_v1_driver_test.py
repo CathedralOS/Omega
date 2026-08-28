@@ -44,7 +44,9 @@ def write_marker(root: Path, stage: str, *, token: str | None = None,
         **started,
         "elapsed_milliseconds": 10 + len(stage),
         "finish_epoch_ns": start + 1,
-        "outputs": driver.marker_identity(outputs, f"{stage}_output"),
+        "outputs": driver.marker_identity(
+            outputs, f"{stage}_output", driver.STAGE_OUTPUT_CEILINGS[stage]
+        ),
         "status": status,
     }
     (root / f"{stage}.started.json").write_bytes(driver.canonical_json(started))
@@ -274,6 +276,43 @@ class DriverTests(unittest.TestCase):
             "stage-finish", "elaboration", plan["attempt_id"], "124"
         )
         self.assertEqual(timeout_without_marker.returncode, 251)
+        self.assertFalse((self.root / "elaboration.finished.json").exists())
+
+    def test_stage_output_byte_ceiling_is_adjacent_and_inclusive(self) -> None:
+        plan = driver.load_plan(self.root)
+        started = self.run_cli("stage-start", "elaboration", plan["attempt_id"])
+        self.assertEqual(started.returncode, 0, started.stderr)
+        (self.root / "template.gamma").write_bytes(
+            b"x" * publication.MAX_TEMPLATE
+        )
+        (self.root / "elaboration.stderr").write_bytes(b"")
+        finished = self.run_cli(
+            "stage-finish", "elaboration", plan["attempt_id"], "0"
+        )
+        self.assertEqual(finished.returncode, 0, finished.stderr)
+        marker = json.loads((self.root / "elaboration.finished.json").read_bytes())
+        self.assertEqual(
+            marker["outputs"][0]["byte_length"], publication.MAX_TEMPLATE
+        )
+        with (self.root / "template.gamma").open("r+b") as stream:
+            stream.truncate(publication.MAX_TEMPLATE + 1)
+        replayed = self.run_cli("status")
+        self.assertEqual(replayed.returncode, 252, replayed.stderr)
+        self.assertEqual(replayed.stdout, b"")
+
+        self.root = Path(self.temporary.name) / "oversized-output"
+        shutil.copytree(self.base, self.root)
+        plan = driver.load_plan(self.root)
+        started = self.run_cli("stage-start", "elaboration", plan["attempt_id"])
+        self.assertEqual(started.returncode, 0, started.stderr)
+        with (self.root / "template.gamma").open("wb") as stream:
+            stream.truncate(publication.MAX_TEMPLATE + 1)
+        (self.root / "elaboration.stderr").write_bytes(b"")
+        rejected = self.run_cli(
+            "stage-finish", "elaboration", plan["attempt_id"], "0"
+        )
+        self.assertEqual(rejected.returncode, 252, rejected.stderr)
+        self.assertEqual(rejected.stdout, b"")
         self.assertFalse((self.root / "elaboration.finished.json").exists())
 
     def test_orphan_timeout_marker_is_malformed_not_pending(self) -> None:
