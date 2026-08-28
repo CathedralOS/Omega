@@ -48,7 +48,11 @@ metadata and leaves source name resolution, argument evaluation, fuel, and
 observable values unchanged. Exhausting the canonical
 interpreter's private source, argument, or node capacities is a fail-closed host
 outcome and never publishes a partial Gamma value. Parsed syntax is pinned for
-the evaluation. Runtime values may be reclaimed by a stable-address,
+the evaluation. A parsed variable expression may likewise cache its resolved
+slot relative to the current function frame: Gamma has no closures, lookup does
+not cross that frame, and the slot is fixed by the expression's lexical
+position, so repeated calls and recursive re-entry still read the current
+binding. Runtime values may be reclaimed by a stable-address,
 representation-aware conservative collector: candidate roots must decode to
 exact live allocation starts, so conservative retention cannot change values,
 matching, evaluation order, or printed constructor trees. Exhausting the
