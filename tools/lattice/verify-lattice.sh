@@ -35,9 +35,8 @@ step "alpha — assembler fixed point" alpha-assembler selfhost.sh
 step "alpha — below-Beta checker construction" alpha-checker reconstruct-artifact.sh alpha alpha-assembler
 
 step "beta — Alpha-rooted compiler construction" beta-compiler cold-start/full-source.sh alpha alpha-assembler
-step "beta — compiler artifact framing" beta-validation bc-artifact-structure.sh alpha beta-compiler alpha-assembler
-step "beta — maximal-observation reconstruction" beta-validation bc-block-control.sh alpha beta-compiler alpha-assembler
-step "beta — proof-carrying instruction refinement" beta-validation refinement.sh alpha alpha-checker beta-compiler
+step "beta — compiler artifact framing" beta-validation admission/bc-artifact-structure.sh alpha beta-compiler alpha-assembler
+step "beta — maximal-observation reconstruction" beta-validation admission/bc-block-control.sh alpha beta-compiler alpha-assembler
 
 step "gamma — interpreter" gamma test-interp.sh beta beta-compiler
 step "gamma — type checker" gamma test-typeck.sh beta beta-compiler

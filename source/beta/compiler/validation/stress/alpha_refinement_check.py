@@ -18,7 +18,7 @@ def find_repo_root(start):
     """Find the manifest root when this helper is invoked outside a gate script."""
     current = start
     while True:
-        if os.path.isfile(os.path.join(current, 'tools', 'bootstrap', 'paths.sh')):
+        if os.path.isfile(os.path.join(current, 'tools', 'lattice', 'paths.sh')):
             return current
         parent = os.path.dirname(current)
         if parent == current:
@@ -31,9 +31,7 @@ if not REPO_ROOT:
 BETA_REFERENCE = os.environ.get(
     'OMEGA_PATH_BETA_REFERENCE',
     os.path.join(REPO_ROOT, 'source', 'beta', 'reference'))
-BETA_REFINEMENT = os.environ.get(
-    'OMEGA_PATH_BETA_VALIDATION',
-    os.path.join(REPO_ROOT, 'source', 'beta', 'compiler', 'validation'))
+BETA_STRESS = HERE
 PROOF_KERNEL = os.environ.get(
     'OMEGA_PATH_PROOF_KERNEL',
     os.path.join(REPO_ROOT, 'source', 'alpha', 'checker'))
@@ -41,7 +39,7 @@ ALPHA = os.environ.get(
     'OMEGA_PATH_ALPHA', os.path.join(REPO_ROOT, 'source', 'alpha'))
 sys.path.insert(0, HERE)
 sys.path.insert(0, BETA_REFERENCE)
-sys.path.insert(0, BETA_REFINEMENT)
+sys.path.insert(0, BETA_STRESS)
 import alpha_symbolic as S
 import beta_symbolic as B                              # source-side symbolic evaluator (the auto-derived meaning)
 import beta_interp                                     # concrete Beta interpreter (pins the source meaning)

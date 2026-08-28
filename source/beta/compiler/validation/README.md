@@ -1,21 +1,22 @@
 # Beta compiler validation
 
 This directory owns validation of the exact `bc.beta` source and persisted
-`artifacts/bc.tape`. It contains three independently runnable layers:
+`artifacts/bc.tape`. Its responsibilities are physically separate:
 
-| command | role |
+| path | role |
 | --- | --- |
-| `sh bc-artifact-structure.sh` | Alpha-rooted instruction framing, reachable direct targets, procedure regions, call/return shape, and seed payload bounds |
-| `sh bc-block-control.sh` | canonical whole-source/artifact maximal-observation reconstruction for `B_bc1` |
-| `sh refinement.sh` | proof-carrying instruction refinement for the supported symbolic program families |
+| `admission/bc-artifact-structure.sh` | Alpha-rooted instruction framing, reachable direct targets, procedure regions, call/return shape, and seed payload bounds |
+| `admission/bc-block-control.sh` | canonical whole-source/artifact maximal-observation reconstruction for `B_bc1` |
+| `admission/obligations/` | Alpha modules used to assemble the bounded exact-subject checkers |
+| `admission/witnesses/` | untrusted witness producers; these cannot select or replace either admitted subject |
+| `stress/` | curated/generated instruction-refinement and differential suites; useful evidence, never another lattice rung |
 
-`refinement-cert-diamond.sh`, `symbolic-loops.sh`, and `ownership-test.sh`
-provide bounded independent cross-checks. They are not additional compiler
-stages.
+Only the two commands under `admission/` run on the default Beta lattice edge.
+The commands under `stress/` are directly runnable optional cross-checks.
 
 ## Canonical whole-compiler obligation
 
-`bc-block-control.sh` has one mode and one input format:
+`admission/bc-block-control.sh` has one mode and one input format:
 
 ```text
 u32_le source_length
@@ -51,7 +52,7 @@ host state.
 Run it directly from any working directory:
 
 ```sh
-sh source/beta/compiler/validation/bc-block-control.sh
+sh source/beta/compiler/validation/admission/bc-block-control.sh
 ```
 
 ## Authority and limits
@@ -65,10 +66,10 @@ settled coinduction rule. Accordingly the short chain manifest continues to
 disclose complete Beta source/artifact admission as open rather than promoting
 this executable reconstruction by pedigree.
 
-`refinement.sh` separately derives Beta and Alpha symbolic meanings for curated
-and generated program families and asks the rooted checker to validate their
-equivalence. See [`REFINEMENT.md`](REFINEMENT.md) for that narrower claim and
-its exact unsupported cases.
+`stress/refinement.sh` separately derives Beta and Alpha symbolic meanings for
+curated and generated program families and asks the rooted checker to validate
+their equivalence. See [`stress/REFINEMENT.md`](stress/REFINEMENT.md) for that
+narrower claim and its exact unsupported cases.
 
 The shared parser and concrete reference interpreter live under
 `source/beta/reference/`. Validation may consume them as untrusted
