@@ -108,6 +108,7 @@ emit_stack_checker_prefix() {
   cat "$OBLIGATION_DIR/bc-block-control.alpha" \
     "$OBLIGATION_DIR/bc-effect-sites.alpha" \
     "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
+    "$OBLIGATION_DIR/bc-event-identity.alpha" \
     "$OBLIGATION_DIR/bc-frame-shape.alpha" \
     "$OBLIGATION_DIR/bc-local-access.alpha" \
     "$OBLIGATION_DIR/bc-memory-sites.alpha" \
@@ -267,6 +268,7 @@ emit_expression_table_prefix() {
   cat "$OBLIGATION_DIR/bc-block-control.alpha" \
     "$OBLIGATION_DIR/bc-effect-sites.alpha" \
     "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
+    "$OBLIGATION_DIR/bc-event-identity.alpha" \
     "$OBLIGATION_DIR/bc-frame-shape.alpha" \
     "$OBLIGATION_DIR/bc-local-access.alpha" \
     "$OBLIGATION_DIR/bc-memory-sites.alpha" \
@@ -1020,6 +1022,7 @@ bc_timing_start checker-a-canonical
 cat "$OBLIGATION_DIR/bc-block-control.alpha" \
   "$OBLIGATION_DIR/bc-effect-sites.alpha" \
   "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
+  "$OBLIGATION_DIR/bc-event-identity.alpha" \
   "$OBLIGATION_DIR/bc-frame-shape.alpha" \
   "$OBLIGATION_DIR/bc-local-access.alpha" \
   "$OBLIGATION_DIR/bc-memory-sites.alpha" \
@@ -1089,6 +1092,11 @@ cat "$OBLIGATION_DIR/bc-block-control.alpha" \
   "$OBLIGATION_DIR/bc-fixed-keyword-data-shape.alpha" \
   "$OBLIGATION_DIR/bc-fixed-keyword-cases.alpha" \
   "$OBLIGATION_DIR/bc-fixed-keyword-summary.alpha" > "$T/control-check.alpha"
+checker_a_source_bytes=$(wc -c < "$T/control-check.alpha" | tr -d ' ')
+if [ "$checker_a_source_bytes" -gt 1048576 ]; then
+  echo "bc block control FAIL — Checker A source is ${checker_a_source_bytes} bytes (1048576-byte assembler input limit)" >&2
+  exit 1
+fi
 "$ASM" < "$T/control-check.alpha" > "$T/control-check.tape"
 checker_a_tape_bytes=$(wc -c < "$T/control-check.tape" | tr -d ' ')
 checker_a_seed_payload_limit=$((HOLE_SIZE - 4))
@@ -1125,7 +1133,7 @@ establish_parse_proc_canonical
 establish_root_observation_canonical
 bc_timing_finish
 
-# Five format/identity-level teeth retain fail-closed input binding without
+# Six format/identity-level teeth retain fail-closed input binding without
 # generating checker-source permutations. The canonical ROOT executable
 # decides each one. The selected event-PC mutation specifically proves that a
 # witness coordinate cannot redefine emit_dec's source-owned call identity.
@@ -1148,6 +1156,17 @@ emit_dec_call_pc_offset=$((control_witness_offset + 4 * (28 + 359 + 293 + 308)))
 cp "$T/control.bundle" "$T/wrong-event-pc.bundle"
 printf '\377' | dd of="$T/wrong-event-pc.bundle" bs=1 seek="$emit_dec_call_pc_offset" conv=notrunc status=none
 
+# These two emit_param_store calls have the same complete semantic key. Swap
+# their otherwise valid witness PCs: exact-cardinality occurrence selection
+# must retain their distinct ordered continuations rather than aliasing them.
+emit_param_first_pc_offset=$((control_witness_offset + 4 * (28 + 359 + 293 + 328)))
+emit_param_second_pc_offset=$((control_witness_offset + 4 * (28 + 359 + 293 + 332)))
+cp "$T/control.bundle" "$T/swapped-event-occurrence.bundle"
+dd if="$T/swapped-event-occurrence.bundle" of="$T/first-event-pc" bs=1 skip="$emit_param_first_pc_offset" count=4 status=none
+dd if="$T/swapped-event-occurrence.bundle" of="$T/second-event-pc" bs=1 skip="$emit_param_second_pc_offset" count=4 status=none
+dd if="$T/second-event-pc" of="$T/swapped-event-occurrence.bundle" bs=1 seek="$emit_param_first_pc_offset" conv=notrunc status=none
+dd if="$T/first-event-pc" of="$T/swapped-event-occurrence.bundle" bs=1 seek="$emit_param_second_pc_offset" conv=notrunc status=none
+
 root_case_run() {
   set +e
   "$T/root-observation" < "$2" > "$T/stdout"
@@ -1163,7 +1182,8 @@ root_case_run wrong-tape "$T/wrong-tape.bundle"
 root_case_run truncated-witness "$T/truncated.bundle"
 root_case_run wrong-length "$T/wrong-length.bundle"
 root_case_run wrong-event-pc "$T/wrong-event-pc.bundle"
+root_case_run swapped-event-occurrence "$T/swapped-event-occurrence.bundle"
 
 root_tape_bytes=$(wc -c < "$T/root-observation.tape" | tr -d ' ')
 root_tape_sha256=$(shasum -a 256 "$T/root-observation.tape" | cut -d ' ' -f 1)
-echo "bc admission: exact B_bc1 maximal observation + 5 format/identity-binding teeth passed (${root_tape_bytes}-byte ROOT tape, sha256 ${root_tape_sha256})"
+echo "bc admission: exact B_bc1 maximal observation + 6 format/identity-binding teeth passed (${root_tape_bytes}-byte ROOT tape, sha256 ${root_tape_sha256})"

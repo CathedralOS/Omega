@@ -69,23 +69,21 @@ emit_dec_require_transitions:
         ret
 
 emit_dec_require_events:
-        imm r20, 308
-        imm r21, 206
+        imm r20, 40                  ; owning procedure identity
+        imm r21, 206                 ; rec source block identity
         imm r22, 1                   ; q argument
         imm r23, 0                   ; no ambient temporary
-        imm r24, 40                  ; recursive emit_dec identity
+        imm r24, 40                  ; recursive emit_dec target identity
         imm r25, 165                 ; continuation transition identity
         imm r26, 206
         imm r27, 0
         imm r28, 207
         call summary_require_call_identity
-        imm r20, 309
+        imm r20, 40
         imm r21, 207
-        imm r22, 3
-        call exact_event_identity_pc ; checked direct digit write
-        imm r20, 310
+        call exact_unique_write_event_identity ; checked direct digit write
+        imm r20, 40
         imm r21, 207
-        imm r22, 5
         call exact_require_event_epilogue ; explicit return zero
         imm r20, 41                  ; next procedure identifies synthetic ret
         call exact_require_preentry_epilogue

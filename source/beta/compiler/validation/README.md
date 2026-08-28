@@ -59,31 +59,43 @@ procedure resolver likewise maps independently scanned source procedure IDs to
 the unique checked entry-block PC. All semantic consumers now use that identity
 for the selected `emit_dec`, `emit_pop_into`, `emit_push`, `gen_sum`,
 `gen_expr`, `gen_stmts`, and `parse_proc` entries and adjacent procedure
-boundaries instead of pinning those 79 entry PCs. Intra-procedure block, event,
-and call-site identity decoding now has one reusable fail-closed owner: a
-consumer fixes the source row plus its procedure/block/kind payload, and the
-checked table supplies the artifact PC. `emit_dec` and the adjacent
+boundaries instead of pinning those 79 entry PCs. Intra-procedure block and
+call-site identity decoding has one reusable fail-closed owner. Event identity
+is now source-row-free: the checker scans its independently reconstructed event
+table for procedure, block, kind, exact ordinary-call target name, arity,
+checker-owned ambient height, and exact decoded emit bytes. A unique lookup must
+find exactly one complete key; an ambiguous lookup additionally requires an
+exact same-key cardinality and lexical occurrence. Neither discriminator comes
+from the witness, and the full scan must finish before its already-validated PC
+can be selected. Reserved read/write/emit/return kinds are reconstructed only
+after their exact source identifiers match. `emit_dec` and the adjacent
 `emit_proc_prologue`/`emit_param_store` fixed-decimal family are complete
 consumers: their block, transition, call, local, primitive, push,
 explicit-return, synthetic-return, and region-boundary checks no longer repeat
-82 artifact-PC literals. Call continuations come from an identified transition
-or the canonical nine-byte call fallthrough, and epilogues are reconstructed
-relative to an identified return event or next procedure entry. The
-`emit_prelude` and `main.ready` consumers likewise resolve the former procedure
-41 entry pins by identity. `gen_stmt` is the next complete control/effect
+82 artifact-PC literals or source event rows. The two identical `emit_dec`
+calls and newline emits in `emit_param_store` are selected as occurrences zero
+and one of exact cardinality two. Call continuations come from an identified
+transition or the canonical nine-byte call fallthrough, and epilogues are
+reconstructed relative to a row-free return identity or next procedure entry.
+The `emit_prelude` ordered trace likewise uses five unique literal keys rather
+than rows; `main.ready` resolves the former procedure 41 entry pins by identity.
+`gen_stmt` is the next complete control/effect
 consumer: its 16 blocks, 14 transitions, 27 calls, nine explicit returns, and
 synthetic return now remove another 126 artifact-coordinate occurrences in
-favor of source rows, procedure identities, canonical call fallthroughs, and
-return-relative epilogues. Its coupled data and meaning modules required no
-coordinate change. Primitive composition similarly obtains literal or binary
+favor of procedure/block identities, canonical call fallthroughs, and
+return-relative epilogues; its calls and returns no longer accept event rows.
+Its coupled data and meaning modules required no coordinate change. Primitive
+composition similarly obtains literal or binary
 extents from the primitive-row owner; binary extents compose the shared pop
 successor with the local opcode tail rather than repeating total macro widths.
 Other intra-procedure consumers remain to migrate. A fifth
 negative control mutates `emit_dec`'s witness event PC while retaining the exact
 source and artifact and proves that witness coordinates cannot select semantic
-identity. The final ROOT tape is 79,894 bytes for the current
+identity. A sixth swaps the two valid same-key `emit_param_store` call PCs and
+proves that exact-cardinality occurrence identity retains ordered continuation
+custody. The final ROOT tape is 81,940 bytes for the current
 exact subjects, SHA-256
-`8c8756b0df7d8116e2943e11aa03e6be575b271bdb549a2c7c86304f04328f88`.
+`31a09b73275765af165ccb12b5693f964368751bccd96868e85f66cd25e1acd6`.
 
 Historical focus modes, per-mutation checker-source permutations, local green
 receipt caches, and mutation-only mapper outputs were removed. Git history is
