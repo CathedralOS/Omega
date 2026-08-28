@@ -2679,9 +2679,11 @@ machine Main::main(&mut self) { }
 
 #[test]
 fn integer_at_retains_total_write_evidence_for_a_bounded_carrier() {
-    let canary = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(
-        "../../../../../../tests/canaries/pass/layouts/runtime_plan_laid_integer_at_total_write_exit/main.omg",
-    );
+    let canary = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(5)
+        .expect("compiler crate should live below the repository root")
+        .join("tests/canaries/pass/layouts/runtime_plan_laid_integer_at_total_write_exit/main.omg");
     let mut checked =
         compile_to_checked(&canary, None).expect("total-write canary should typecheck");
     let recorded_index = checked
