@@ -5,7 +5,7 @@ a statically-allocated region. Locals, parameters, and call results are *frame
 slots* in a single `omega_runtime_frame_storage` data region, each assigned an
 absolute byte offset by `stack_runtime_storage_by_call_context` in the current
 Rust on-ramp
-(`source/on-ramp/rust/omega/orchestration/omega-backend-pipeline/src/builder.rs`).
+(`source/omega-rust/omega/orchestration/omega-backend-pipeline/src/builder.rs`).
 
 When a runtime value is wrong but you can't tell *which slot* holds it, you need a
 map from a logical slot (machine / state / param / local name) to its runtime byte

@@ -1,9 +1,0 @@
-use omega_std::console::Console;
-
-data Main {
-    console: Console;
-}
-
-machine Main::main(&mut self) {
-    self.console.exit_process(70);
-}

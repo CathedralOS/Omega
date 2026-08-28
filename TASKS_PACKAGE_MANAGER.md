@@ -144,7 +144,7 @@ complete.
   unverified caller-constructed security artifact.
 
   Completed 2026-08-23: the file-by-file and trust-path classification is in
-  [`omega-packages/SCAFFOLDING_AUDIT.md`](source/on-ramp/rust/omega/orchestration/omega-packages/SCAFFOLDING_AUDIT.md).
+  [`omega-packages/SCAFFOLDING_AUDIT.md`](source/omega-rust/omega/orchestration/omega-packages/SCAFFOLDING_AUDIT.md).
 
   Cleanup 2026-08-25: the name-keyed manifest/lock, Rust-`Debug` diff,
   free-form receipt, fabricated install/update, legacy audit, and test-only
@@ -170,7 +170,7 @@ complete.
   hostile-input boundary.
 
   The production helper/snapshot/receipt contract is recorded in
-  [`SOURCE_RESOLVER_SECURITY.md`](source/on-ramp/rust/omega/orchestration/omega-packages/SOURCE_RESOLVER_SECURITY.md).
+  [`SOURCE_RESOLVER_SECURITY.md`](source/omega-rust/omega/orchestration/omega-packages/SOURCE_RESOLVER_SECURITY.md).
 
   Progress 2026-08-23: diagnostic source commands now require an explicit
   `local` or `git` adapter; unknown URLs are no longer guessed to be Git. Local

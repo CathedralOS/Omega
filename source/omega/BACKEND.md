@@ -2,9 +2,8 @@
 
 This root owns the Omega-written target-lowering, optimization, and
 artifact-emission half of the production compiler; implementation remains open.
-Its source closure is constrained to `Ωself` and compiled by
-`omega-bootstrap`; those
-product passes are not duplicated in the bridge.
+Its source closure is constrained to `Ωself` and compiled directly by the
+published Delta-produced compiler.
 
 The source-profile constraint does not narrow the resulting compiler: this half
 still implements full Omega optimization and target lowering. An optional
@@ -12,7 +11,7 @@ self-rebuild may optimize the compiler executable itself, but is not another
 language rung or required bootstrap edge.
 
 The current Rust implementation is explicitly transitional and lives at
-`source/on-ramp/rust/omega/`. Do not place new Rust crates here.
+`source/omega-rust/omega/`. Do not place new Rust crates here.
 
 The optimizer's durable architecture is
 [`optimizer_architecture.md`](../../wiki/design_briefs/optimizer_architecture.md),

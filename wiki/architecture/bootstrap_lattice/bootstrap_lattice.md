@@ -1,473 +1,124 @@
 # The Bootstrap Lattice
 
-> **Status: DIRECTION + a working vertical slice.** The audited bootstrap spine is
-> `Alpha → Beta → Gamma → Delta`; the language-capability progression then reaches
-> full `Omega`. The concrete build path continues through the non-language
-> compiler artifact `omega-bootstrap (accepts Ωself) → omega (implements full
-> Ω)`. Alpha through Gamma exist on the audited
-> lineage; the Delta rung's native corpus, self-hosting compiler, and meaning
-> diamond exist while the full Rust-free hosting path remains under construction.
-> The proof kernel is a cross-cutting assurance service, independently
-> implemented in Beta and Gamma, rather than a language rung. One command checks
-> the current construction: `sh tools/bootstrap/verify-lattice.sh`.
->
-> **Live build status + onboarding for a fresh agent:**
-> [TASKS_BOOTSTRAP.md](../../../TASKS_BOOTSTRAP.md). Target ownership and paths:
-> [Bootstrap repository structure](repository_structure.md).
+> **Status: direction plus working lower rungs.** The fixed language spine is
+> `Alpha → Beta → Gamma → Delta → Omega`. Alpha through Gamma exist on the
+> audited lineage. Delta's complete lower-rooted publication and the direct
+> Omega product builds remain open.
 
-This is the architecture for how the Psi/Omega toolchain is rebuilt from a tiny
-hand-audited seed through increasingly capable languages. Keep the language and
-artifact views distinct:
+## The chain
+
+Let `C` be the exact source closure of the Omega-written compiler, constrained
+to the ordinary-Omega profile `Ωself`:
 
 ```text
-language capability: Alpha → Beta → Gamma → Delta → Omega
-build artifacts:     Alpha → Beta → Gamma → Delta → omega-bootstrap
-                     → omega (full Ω; conservative binary)
-                     [→ omega (same compiler; optimized binary)]
+Alpha → Beta → Gamma → Delta-produced compiler
+Delta-produced compiler + C → omega₀
+omega₀ + the same C            → omega
 ```
 
-`omega-bootstrap` is a Delta-written compiler artifact, not a language between
-Delta and Omega. The bracketed second `omega` is the same production compiler
-source rebuilt by production `omega`; it is not a second Omega language or a
-new compiler generation. The capability arrows mean “the lower construction
-can realize the next stage,” not “the earlier language is a syntactic subset of
-the later one”; Delta remains independent of Omega. Delta builds the
-profile-limited bridge compiler; that compiler builds the full-spec Omega
-compiler, including its optimizer and advanced lowering, from deliberately
-constrained Omega source. Only the optional final Omega-to-Omega rebuild is
-strict self-hosting. The construction is separate
-from two things it is easy to confuse it with:
+The chain has no separate hosted bridge compiler. `omega₀` is the first product
+compiler artifact. Rebuilding the same `C` closes the ordinary self-hosting
+edge; it does not introduce another language or compiler generation.
 
-- **What Omega means** — the language semantics. Owned by the
-  [language guide](../../language_guide/language_guide.md) and the
-  [design briefs](../../design_briefs/). The lattice must *preserve* that
-  meaning; it does not define it.
-- **How Omega compiles today** — the current Rust implementation under
-  `source/on-ramp/rust/psi/` and the product package rooted at
-  `source/on-ramp/rust/omega/`. Owned by
-  [Repository Layout](../repository_layout.md) and
-  [Pipeline Architecture](../pipeline/pipeline.md). In this architecture
-  the product compiler is a *role*, not a rival (see
-  [How today's work fits](#how-todays-work-fits)).
+## Trust by checking, not pedigree
 
-## The one idea: trust by checking, not by pedigree
+A compiler being built by an earlier compiler establishes provenance and
+dependency closure. It does not establish correctness: a bad compiler can
+reproduce its defect indefinitely.
 
-There are exactly two ways anything becomes trustworthy.
-
-- **Trust by pedigree** — "this is good because a good thing made it." Layer 0 is
-  audited; layer 0 built layer 1; layer 1 built layer 2. This is what ordinary
-  bootstrapping (and our current rung-climbing) does. Its fatal flaw for a
-  *security* language: a good pedigree does not make a thing **correct**. A
-  backdoored compiler that compiles itself has a perfect pedigree and reproduces
-  its backdoor forever — that is the Thompson attack exactly. Pedigree buys "I
-  know where this came from," never "this is right."
-- **Trust by checking** — "this is good because I checked it, and I do not care
-  who made it." The producer can be a vast LLM-grown compiler, or malware, or
-  Rust — irrelevant *to whether the output is correct* — because it must hand over
-  **evidence** that its output is correct, and a deliberately small verification
-  base validates both the required claims and their derivations. Bad evidence is
-  rejected. The producer is not trusted; the artifact verifier, proof kernel,
-  canonical semantics, and disclosed admissions are. ("Irrelevant to correctness"
-  does not make Rust a required dependency — see
-  [Two roles for Rust](#two-roles-for-rust-and-where-it-exits).)
-
-The asymmetry is the whole game:
-
-- Pedigree: you must trust *everything that ever touched the artifact*.
-- Checking: you must trust *one small verification stack plus the meaning it
-  checks against*. The compiler, the build host, the supply chain, and the
-  producer's implementation language may be hostile and the result is still
-  sound.
-
-A stored verification result is therefore never authority. It is a cache of a
-re-derivable fact: the consumer retains the exact source and artifact subjects,
-canonical obligation-semantics identity, reconstructed obligations, and exact
-certificates needed to repeat the check. Producer and verifier verdict strings
-have no standing. Certificate identity and proof route remain derivation
-provenance rather than semantic compatibility identity.
-
-This rule is transitive. Each dependency subject retains the obligation-
-semantics/schema version under which it was checked. Discharged obligations
-compose upward; open obligations also compose upward and are decided by every
-consumer. An upstream record that its producer admitted one remains review
-provenance, not a downstream decision. A producer cannot launder an assumption
-by accepting it locally. Schema reuse across versions requires a checked delta;
-unknown or reinterpreted classes are reconstructed rather than presumed stable.
-
-Tooling must render checked results, locally accepted admissions, and producer
-pedigree in distinct sections. Compiler hashes, toolchain closures,
-reproducibility receipts, signatures, and audit records remain valuable
-operational metadata, but none may appear as support inside a verification
-verdict.
-
-Trust-by-checking is a single answer to every threat we care about: **Thompson**
-(the backdoored self-hoster's output fails the check), **supply-chain** (a
-poisoned dependency yields artifacts that do not check), **layer-2-depending-on-
-layer-6** (layer 2 is trusted because the checker validated it, not because
-layer 6 produced it, so layer 6 can be garbage), and **the Rust lineage** (Rust
-becomes a mere producer whose output is checked — outside the *soundness* base,
-though [it still exits the required build](#two-roles-for-rust-and-where-it-exits)).
-
-The historical reason almost nobody does this is that it demands writing the
-meaning down formally and making producers emit proofs — brutal human labor (a
-verified C compiler was ~6 person-years). **That labor is exactly what LLMs and
-unlimited time dissolve.** This project is positioned to make trust-by-checking
-the default rather than a heroic stunt.
-
-## Five roles that masquerade as "the bottom"
-
-Most confusion in this space comes from one word ("the trust root", "rung 0")
-standing for five different jobs. Keep them apart:
-
-1. **Executor** — physically runs instructions. A CPU; our tape VM. Dumb muscle.
-2. **Meaning** — a precise *written* description of what programs do. Not code; a
-   spec. It never runs; it is the truth running is measured against.
-3. **Checker** — given an artifact and a claim, answers yes/no. Produces nothing;
-   it judges.
-4. **Translator** (compiler) — turns a higher representation into a lower one.
-5. **Axioms** — the handful of things you cannot check and must accept: the chip
-   obeys its manual, logic holds, the human who read the smallest seed understood
-   it.
-
-`alpha` is only role #1, an executor. It is **not** the meaning, the checker, or
-the axioms. "Is alpha the trust root?" is malformed in the way "is the engine the
-car?" is malformed. The checker (role #3) exists in this architecture — but it
-is a cross-cutting program rather than a rung (see the
-[proof kernel](proof_kernel.md)).
-
-## Two kinds of minimality
-
-These are different budgets and must be tracked separately.
-
-- **Native minimality** — how much *architecture-specific* code must exist? Ideal:
-  one `alpha` interpreter per ISA, a loader, a minimal I/O boundary. This is the
-  hand-inspected native seed. Keep it tiny.
-- **Semantic minimality** — how much material ultimately *participates in
-  deciding correctness*? This is larger: the Alpha and Beta written small-step
-  semantics, Gamma's reference interpreter, the lower-rung elaboration routes,
-  the proof kernel, and the certificates. But it is **not** all hand-written
-  assembly — it accumulates gradually in increasingly readable, safer
-  languages, and **freezes** as each rung is finished.
-
-The trustworthy core grows, but its lower layers stay frozen and comprehensible.
-
-## Two stacks, joined by artifact verification
-
-Build two parallel stacks.
-
-- The **meaning stack** is what programs *mean* — fixed by each rung's canonical
-  written semantics or lower-rung evaluator route (see next section). Slow and
-  auditable, it is the spine of truth.
-- The **machine stack** is the actual stuff: source text, the real (untrusted)
-  compiler, real bytes, real silicon.
-
-They touch through two deliberately separate checks. An **artifact verifier**
-reads the canonical artifact and independently reconstructs the exact claims
-that artifact must establish. The **proof kernel** then checks the supplied
-derivations of those claims. A producer emits output plus evidence, but it does
-not choose which claims count as sufficient; only fully verified output ships.
+For each compiler edge, Omega instead fixes and checks:
 
 ```text
-   MEANING (reference route, slow)        MACHINE (fast, untrusted)
-   ------------------------------         -------------------------
-   what a program means     <—— verify artifact + check proofs —— output + evidence
-        |                                          |
-   ...defined by canonical semantics          ...produced by any tooling
-        |                                          |
-   alpha small-step semantics                 native bytes
-        |                                          |
-   formal ISA model            <—— gap ——     real silicon
+exact source subject + exact artifact subject
+  + canonical semantics + observation profile
+  + target-semantics dependencies
+  + reconstructed obligations + certificates
+  + disclosed admissions
+  → checked refinement claim
 ```
 
-At the very bottom the meaning stack ends at *a formal model of the chip*; the
-machine stack ends at *the actual chip*. The gap between them — does silicon
-truly obey its own manual — is the one thing software can never close. That is
-the irreducible axiom. It is represented as a disclosed deployment admission,
-not hidden inside artifact verification. An artifact seal ends at the formal
-target model and remains reusable; installing or running it on a physical
-platform adds the admission that this silicon realizes that model.
+The producer does not choose the obligation set, semantics, or observation
+profile. A verifier's result is a re-derivable cache, not authority in itself.
+Producer identity and reproducibility remain useful operational metadata but do
+not enter the semantic verdict.
 
-Artifact correctness is never profile-free. The verifier reconstructs the
-exact observable behavior from canonical source and target semantics,
-boundary/component contracts, and consumer deployment policy. The producer
-cannot choose a weaker observation profile. A verdict therefore identifies the
-source and artifact subjects, semantics versions, observation profile, checked
-bridges, and disclosed admissions.
+## Five roles often confused as “the bottom”
 
-## Meaning follows a canonical semantic route; compilers are checked realizations
+1. **Seed execution** runs the first audited Alpha artifacts.
+2. **Language semantics** define what Alpha, Beta, Gamma, Delta, Psi, and Omega
+   programs mean.
+3. **Compiler construction** produces the next artifact in the chain.
+4. **Proof checking** validates derivations independently of their producers.
+5. **Admissions** disclose the irreducible claims about hardware, firmware,
+   foreign systems, and human-controlled release policy.
 
-The rungs do not all use the same form of semantic authority. Alpha and Beta
-have written small-step semantics. Gamma is defined by its fuel-bounded
-reference interpreter written in Beta. Delta has a structural, nonoptimizing
-elaboration into Gamma and then uses that interpreter:
+No implementation gains authority by occupying more than one of these roles.
 
-```text
-Alpha source/artifact  ──▶ Alpha written small-step semantics
-Beta source            ──▶ Beta written small-step semantics
-Gamma source           ──▶ Gamma reference interpreter written in Beta
-Delta source           ──▶ Delta-to-Gamma elaboration ──▶ Gamma interpreter
-```
+## The fixed language spine
 
-A compiler is a realization checked against the applicable route; it never
-defines its source language by compiling it. The nested route may be absurdly
-slow, and that is fine: it is the semantic spine, not the production path:
+| Rung | Responsibility | Canonical meaning/status |
+| --- | --- | --- |
+| [Alpha](rungs/alpha.md) | minimal deterministic tape execution | written small-step semantics; audited native realizations |
+| [Beta](rungs/beta.md) | small structured systems language | Alpha-rooted compiler and checked whole-artifact refinement |
+| [Gamma](rungs/gamma.md) | safe definitional computation and typing | Beta-written reference interpreter/type checker |
+| [Delta](rungs/delta.md) | deterministic compiler-host language | Delta→Gamma elaboration and Gamma execution; publication open |
+| [Psi/Omega](omega_toolchain.md) | target-neutral product compiler then target realization | Omega-written source; direct Delta and self-build edges open |
 
-```text
-omega-bootstrap hosted in Delta
-  full Omega compiler built by omega-bootstrap from Ωself source
-  Delta meaning elaborated to Gamma
-  Gamma interpreted by a Beta program
-  Beta compiled to Alpha
-  Alpha executed by the native seed
-```
+The [proof kernel](proof_kernel.md) is cross-cutting, not a fifth Greek rung.
+`Ωself` is a source profile, not another language. The current Rust compiler in
+`source/omega-rust/` is an implementation/comparator, not a rung.
 
-**Semantic authority is not native code.** A new capability arrives as a program
-the lower spine already understands, not as more native kernel machinery. To
-Alpha, a proof object is just a byte sequence processed by another Alpha program;
-Alpha has no idea what “proof” means.
+## Meaning routes and compilation routes
 
-## Why this is a lattice rather than a pedigree chain
+The executable route and semantic route deliberately differ. Delta artifacts
+are produced by compilation, while Delta meaning is independently available
+through Delta→Gamma elaboration and Gamma's Beta-written interpreter. The join
+checks the artifact rather than trusting the producer.
 
-The concrete build path (`Alpha → Beta → Gamma → Delta → omega-bootstrap → omega`)
-gives staged comprehensibility. The language-capability progression omits the
-bridge artifact and is `Alpha → Beta → Gamma → Delta → Omega`. It
-does not become trustworthy merely by extending that pedigree. The **lattice**
-comes from joining each build edge to canonical meaning and artifact checking:
+The same discipline reaches Omega: product source and product artifacts are
+different subjects. Terminal Psi splits target-neutral semantics from target
+realization, and target-dependent obligations first arise at realization.
 
-```text
-source ──────────────── canonical meaning
-  │                            │
-  │ untrusted compiler         │ reconstructed refinement obligation
-  ▼                            ▼
-artifact ─────────────── proof/semantic checker
-```
+## Proof subjects
 
-- **Vertical build edges add expressiveness and self-sufficiency.**
-- **Meaning and checking edges add authority.**
-- **Reference comparisons and independent implementations expose bugs, but do
-  not replace a checked refinement claim.**
+All obligations ultimately serve a claim about execution, but mathematical
+lemmas may live in intended mathematical models and provider contracts may be
+proved at stronger model-theoretic consequence. Every crossing between subjects
+is explicit and proved. Source markers such as `embed` and `satisfies` identify
+bridge applications; they do not prove the bridge by themselves.
 
-Cross-implementation comparisons remain useful engineering tests where cheap,
-but they are not trust edges and do not define the repository structure.
-[D5](decisions.md#d5--direct-checked-refinement-closes-compiler-provenance)
-records why direct checked refinement is the provenance rule.
+Matching logic or another compact kernel language may eventually encode these
+judgments. That choice cannot erase the distinctions among semantic subjects,
+observation profiles, target closure, and admissions.
 
-## The irreducible trust ledger
+## Irreducible trust ledger
 
-You cannot reach zero trust. The honest, finite list:
+The final formal target-machine-to-physical-machine correspondence remains an
+admission. So do opaque foreign behavior and owner release policy where no
+formal edge closes them. Admissions are scoped to exact subjects, compose
+transitively, and remain re-decidable by every consumer. They never become
+verified merely because a producer or parent package accepted them.
 
-1. **Logic itself.**
-2. **The hardware assumption** — "these alpha bytes, on this physical ISA, execute
-   per the alpha specification." Shrink the risk with direct inspection,
-   conformance testing, a formal ISA model, reproducible builds, and additional
-   platform realizations where useful. Alpha does **not** authenticate itself
-   merely by being small or multiply implemented.
-3. **A short, frozen semantic/checking base** — the Alpha VM and written
-   semantics, Beta's written semantics and checked realization, Gamma's
-   reference interpreter, the lower-rung elaboration routes, and the proof
-   kernel. Implementations are cross-checked against shared corpora and semantic
-   seams while the formal soundness bridges mature. The audit burden shrinks
-   going up, as lower tooling helps check each next artifact.
+## Orchestration is replaceable
 
-The craft is making this set as small, as explicit, and as independently
-re-verified as possible — then deriving or checking *everything else*.
+`tools/bootstrap/` may run stages, provide diagnostics, and compare artifacts.
+Shell and other scaffolding are permissible while convenient. They are not
+semantic owners. Source discovery, parsing, lowering, evidence construction,
+and trust decisions belong to compiler or checker stages named above.
 
-## The fixed language spine, bridge, and one hosted production build
+Deleting or rewriting a runner may change ergonomics; it must not change what
+the chain means.
 
-The language names and order are fixed by [D6](decisions.md). Each small
-bootstrap rung adds **one coherent idea** and is implemented in the rung below.
+## Open work
 
-| Rung | Adds (one idea) | Lower-rooted realization | Meaning defined by | Status |
-| --- | --- | --- | --- | --- |
-| [alpha](rungs/alpha.md) | raw computation: bytes, fixed-width arithmetic, bounded memory, load/store, branch, byte I/O, trap | native (hand-written per ISA); Alpha assembler written in Alpha | the VM's own small-step semantics ([`SEMANTICS.md`](../../../source/alpha/SEMANTICS.md)) | **EXISTS** — 21-opcode tape VM, audited x64/arm64 realizations, written semantics, conformance suite, and self-hosting Alpha assembler |
-| [beta](rungs/beta.md) | names + structure: a small structured systems language (procedures, locals, control flow, memory) | Alpha-rooted cold start; steady-state `bc.beta` self-host | Beta's written small-step semantics ([`SEMANTICS.md`](../../../source/beta/SEMANTICS.md)) | **EXISTS + SELF-HOSTS + REFINES** — the Alpha-rooted artifact is used downstream and its complete `B_bc1` maximal observable is checked below `bc` |
-| [gamma](rungs/gamma.md) | safe definitional computation: algebraic data, pattern matching, pure functions, fuel-bounded evaluation, a simple type system | beta | a Gamma reference interpreter written in Beta ([`interp.beta`](../../../source/gamma/interp.beta)) | **EXISTS** — fuel-bounded functional core, ADTs, pattern matching, and a static type checker; also hosts an independent proof-kernel implementation ([`checker.gamma`](../../../source/proof-kernel/implementations/gamma/checker.gamma)) |
-| [delta](rungs/delta.md) | a robust deterministic compiler-host surface justified by the complete canonical Delta-compiler and `omega-bootstrap` source closures | execute the Delta-written compiler through Delta-to-Gamma elaboration and Gamma's interpreter; later self-rebuilds are optional evidence | Delta-to-Gamma elaboration plus the Gamma reference interpreter | **WORKING RUNG** — native corpus, self-hosting compiler, and meaning diamond exist; complete elaborator coverage and Rust-free publication of the final compiler remain open |
+The ordered implementation work is in
+[`TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRAP.md). The principal open edges are:
 
-The [proof kernel](proof_kernel.md) and the [Psi/Omega toolchain](omega_toolchain.md)
-are connected nodes in the architecture, not additional rungs in this table.
-Selection of small bootstrap-language rungs stops at Delta; the capability
-progression still reaches full Omega. Between Delta and Omega, the required
-build contains compiler artifacts and hosted compilation edges rather than a
-hidden Epsilon/Omega0 language.
+- publish the complete canonical Delta compiler from the lower rungs;
+- make that compiler accept the frozen, compositional `Ωself` profile;
+- close the exact product source graph `C`;
+- build `omega₀` from `C` with checked refinement; and
+- rebuild the same `C` with `omega₀` and check the resulting product artifact.
 
-The build continues through a bridge compiler and the production compiler:
-
-```text
-Alpha → Beta → Gamma → Delta
-Delta compiler source ──[Delta→Gamma elaboration + Gamma execution]──▶ delta compiler
-Delta bridge source ──[delta compiler]───────────────────▶ omega-bootstrap
-Ωself product source ──[omega-bootstrap]──────────────▶ omega (full Ω; conservative binary)
-same Ωself product source ──[optional omega rebuild]──▶ omega (same compiler; optimized binary)
-```
-
-The added compiler-publication line is the concrete `Gamma → Delta` edge. A
-Beta-built elaborator maps the Delta-written compiler into Gamma; Gamma's
-Beta-written interpreter executes it on the exact compiler source and emits the
-native Delta compiler artifact. No Rust producer is required in the completed
-path. A Delta self-rebuild can check reproducibility, but it neither creates
-authority nor replaces the lower-rung publication/refinement join.
-
-Delta is independent rather than an Omega subset. `Ωself` is not another
-language rung: it is a mechanically enforced, compositional subset of ordinary
-Omega under which the exact production compiler source closure must fit. The
-source manifest proves closure; it is not a whitelist or a set of hard-coded
-AST shapes. `omega-bootstrap` may reject every Omega program outside that
-profile, but accepted programs keep exact Omega semantics. The production
-compiler source uses `Ωself` while implementing the complete language for users.
-
-The bridge binary may itself be slow and may lower the production compiler
-conservatively. It compiles the `Ωself` source that implements the product
-optimizer and advanced lowering rather than duplicating those passes. A further
-production `omega` → `omega` self-rebuild can optimize the compiler binary and
-is optional. The required bridge → product edge is a cross-language hosted
-build, not that self-rebuild. See
-[`compiler_source_profile.md`](compiler_source_profile.md).
-
-## How today's work fits
-
-This architecture does not demote the existing docs; it assigns roles.
-
-- **Language docs** (`language_guide/`, `design_briefs/`) own **meaning**. The
-  lattice preserves it. Authoritative, unchanged.
-- **`source/on-ramp/rust/{psi,omega}/`** (`pipeline/`, `repository_layout`) forms
-  the **current fast, untrusted producer** and today's executable reference for the language. In this
-  architecture it sits on the *machine* side; it is progressively replaced by
-  lattice-built rungs and, in the end-state, its output is *checked* rather than
-  trusted. Its pipeline docs stay valid — they describe a real working artifact.
-- [`alpha_language.md`](../../design_briefs/alpha_language.md) records the
-  tape-VM execution substrate and explicitly retires the former “Alpha as an
-  Omega subset/compiler” design.
-- [`proof_engine_north_star.md`](../../design_briefs/proof_engine_north_star.md)
-  and [`cathedral_alignment.md`](../../cathedral_alignment.md) already name the
-  endpoint (a tiny kernel + automation + a verified translation; trust bottoms
-  out at {seed, checker, specs, hardware}). This doc is the *construction* that
-  reaches it.
-
-## Two roles for Rust (and where it exits)
-
-Trust-by-checking says the producer's implementation language is irrelevant *to
-the soundness of a checked artifact*. That is true and liberating — but it is
-**not** "Rust may remain required forever." Two different guarantees are in
-play, and a required Rust dependency threatens one of them regardless of
-checking:
-
-- **Semantic correctness of an artifact** — given a sound artifact verifier and
-  proof kernel, independent of the producer. A Rust-built Omega compiler whose
-  output is checked can at worst produce output that *fails* verification; it
-  cannot choose an easier obligation or forge a derivation the kernel accepts.
-  For this, Rust-as-producer is genuinely irrelevant.
-- **Bootstrappability / self-sufficiency** — that the whole toolchain traces to an
-  audited seed with no external unaudited dependency. Checking does nothing for
-  this. A checked artifact built by an unaudited Rust+LLVM blob is sound but not
-  self-sufficient — you still *need* that blob. For an OS aiming at bare-metal
-  reproducibility, that dependency is exactly the thing being killed.
-
-So Rust exits every required trust, bootstrap, and release role; that does not
-require deleting a useful parallel implementation from the repository.
-Checking sets the **order**, because Rust plays two different roles:
-
-- **Rust as the artifact verifier, proof kernel, or meaning implementation** is
-  part of the trusted base. The generic proof kernel already has Beta and Gamma
-  implementations on the audited-seed lineage. Terminal-Psi obligation
-  reconstruction is defined by a total low-rung semantic-ledger generator over
-  canonical bytes; direct low evaluation or a checked derivation of that same
-  result is authoritative. Until that route lands, every Rust verifier,
-  reduction family, and denotation rule it supplies is named explicitly as a
-  versioned trusted dependency.
-- **Rust as the producer** (`source/on-ramp/rust/{psi,omega}/`) is, once a
-  complete verifier-plus-kernel route exists, *outside the soundness base*. It
-  must become omittable for self-sufficiency, but its removal from the repository
-  is unnecessary. It may remain a maintained, non-authoritative differential
-  comparator while its bug-finding value justifies the cost; a verified,
-  Rust-built compiler output is also a fine interim state.
-
-**Where the repo is today:** the low proof kernel exists in Beta and Gamma. The
-current terminal-Psi artifact verifier, terminal interpreter, source proof
-engine, and production compiler are still Rust. Rust therefore remains in the
-explicit trusted path until canonical semantic-ledger reconstruction and
-execution have audited closures. Its current status is recorded rather than
-being implied by successful kernel checks. Removing Rust as a required producer
-remains necessary for self-sufficiency; deleting the parallel comparator is not.
-
-## Honest edges
-
-The places this architecture glides over real cost. Build with eyes open.
-
-1. **A reference interpreter gives operational meaning, not logical meaning.**
-   "What the interpreter does" tells you what programs *do* (perfect for checking
-   a compiler preserves behavior). It does not give a theory to *prove things
-   about* programs. Connecting a subject-qualified proof judgment through its
-   checked intended-model/global-theory bridges to what programs actually do
-   per the reference interpreter is a family of **soundness theorems** at the
-   proof/meaning seam. That bridge graph is the hard core of the proof ambition;
-   the reference interpreter is only half of "meaning."
-2. **Cross-implementation agreement is evidence, not authority.** It can catch
-   bugs but cannot establish source-to-artifact correctness. Every compiler edge
-   still needs the checked refinement shape described above.
-3. **The trusted base is a sequence of audited programs, not just alpha.** See
-   the [trust ledger](#the-irreducible-trust-ledger). Say it out loud rather than
-   implying only alpha is inspected.
-4. **Totality is not free; it reshapes every interpreter.** A *total* gamma cannot
-   contain a plain interpreter for a Turing-complete language (it would loop on
-   looping input). Reference interpreters become fuel-bounded
-   (`interp(program, fuel) -> Result | OutOfFuel`) — which makes the slow route's
-   slowness *bounded and explicit*, and is exactly
-   [`totality_and_bounded_computation.md`](../../design_briefs/totality_and_bounded_computation.md).
-   Thread fuel through the whole spine deliberately.
-5. **"Alpha never grows" is true for computation, false for hardware.** Static
-   features (ownership, regions, effects, types) are checked then erased and never
-   touch alpha. But an OS needs a runtime and hardware access — allocator,
-   atomics, memory fences, MMIO, interrupt entry. Those either reduce to alpha's
-   existing ops or form a **second native boundary** that grows with hardware
-   targets (Cathedral already needs atomics-as-real-LOCK). Freeze the
-   computational core; deliberately manage a separate hardware-interface surface.
-
-## Implementation and research frontiers
-
-These are execution work under the standing decisions, not unresolved owner
-architecture questions:
-
-- **Operational vs written semantics** — when (if ever) do we add a separately-
-  written mathematical semantics alongside the reference interpreters, and prove
-  the interpreters refine it? (Honest edge #1.)
-- **Alpha conformance depth** — strengthen written semantics, boundary tests,
-  and formal ISA correspondence; add platform realizations when portability or
-  concrete fault isolation justifies their audit and maintenance cost.
-- **Terminal-Psi semantic-ledger realization** — the placement is settled: one
-  total low-rung definition consumes canonical bytes and produces the complete
-  ordered semantic ledger; deployment establishes its result by direct
-  evaluation or a checked reconstruction derivation. The open engineering
-  question is whether current Gamma expresses that definition readably and at
-  acceptable reference-route cost. The spike must measure schema/audit size,
-  decoding, denotation, control-flow availability, and execution cost rather
-  than merely demonstrate that a toy traversal compiles.
-- **Certificate coverage** — continue extending the shared, versioned
-  proposition and derivation shape without changing the kernel/artifact-verifier
-  responsibility split.
-- **Delta sufficiency** — complete the canonical Delta compiler and bridge,
-  prune Delta to the lowest-total-cost robust compiler-host language justified
-  by both complete source closures, then freeze and prove those closures against
-  the resulting v1 contract. Fewer features are not a win when their absence
-  makes either required program brittle or much larger.
-- **Omega product-compiler source profile** — derive and enforce `Ωself` from
-  the exact production compiler dependency manifest, with explicit exclusions
-  and negative gates.
-- **Hosted product build** — use `omega-bootstrap` once to build and validate
-  the full-spec compiler containing the optimizer and advanced lowering from
-  `Ωself`-constrained Omega source. Its own binary may remain conservatively
-  lowered until an optional rebuild.
-
-## Rung Questions
-
-Every rung document answers:
-
-- **Adds** — the one coherent idea this rung introduces.
-- **Written in** — how the rung's implementation is rooted in the rung below.
-- **Meaning** — the rung's canonical semantic authority: written small-step
-  semantics for Alpha/Beta, Gamma's reference interpreter, or Delta's
-  nonoptimizing elaboration into Gamma.
-- **Must not contain** — what belongs higher, kept out to keep the rung small and
-  the trust argument clean.
-- **Current repo reality** — where the actual repository is versus this target.
-- **Implementation frontiers.**
+Architecture documents define the chain. They must not grow a parallel task
+queue or freeze temporary checkpoint identities as permanent stages.

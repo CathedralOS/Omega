@@ -31,7 +31,7 @@ repeat milestone history.
 The repository currently has two backend lanes.
 
 - The installed-output compatibility path in
-  `source/on-ramp/rust/omega/` still lowers `CheckedTrees -> StateGraph ->
+  `source/omega-rust/omega/` still lowers `CheckedTrees -> StateGraph ->
   ControlFlowPlan -> AbstractOperations`. Its state-value planner performs
   useful expression substitution and constant folding, but it still consumes
   checked-tree expression handles. The retained-native product no longer uses
@@ -1154,29 +1154,41 @@ represents the many-to-one moves.
 
 ### Local and dominator common-subexpression elimination
 
-The exact `GlobalValueNumbering` suite expands first to
-`same-block-obligation-free-total-scalar-cse.v1` and then to
-`dominator-obligation-free-total-scalar-gvn.v1`. The local rule scans each block in node
-order and replaces every later equivalent result with the earliest leader.
-The closed vocabulary is the complete obligation-free total scalar set:
-literals, Boolean operations, integer comparisons/bitwise/widening, wrapping
-shifts, and wrapping or saturating add/subtract/multiply. Exact and other
-proof-bearing operations, divide/remainder, calls, structural work,
-boundary/service work, and control operations are excluded.
+The exact `GlobalValueNumbering` suite expands in canonical order to
+`same-block-obligation-free-total-scalar-cse.v1`,
+`same-block-proof-certified-total-scalar-cse.v1`,
+`dominator-obligation-free-total-scalar-gvn.v1`, and
+`dominator-proof-certified-total-scalar-gvn.v1`. Each local rule scans a block
+in node order and replaces a later equivalent result with the earliest admitted
+leader. The obligation-free vocabulary contains literals, Boolean operations,
+integer comparisons/bitwise/widening, wrapping shifts, and wrapping or
+saturating add/subtract/multiply. The proof-certified vocabulary contains exact
+integer casts, shifts, add/subtract/multiply/divide/remainder, and wrapping or
+saturating divide/remainder. Calls, structural work, boundary/service work, and
+control operations remain excluded.
 
 An expression key binds the exact operation family and policy, all literal
 payload, complete source/result/count integer domains, and operand identities.
 Only operations whose exact semantics are commutative canonicalize their two
-operands: Boolean and integer equality, bitwise and/or/xor, and wrapping or
-saturating add/multiply. Ordered comparisons, shifts, widening, and subtraction
-retain operand order. The local rule requires use-definition and effect
-summaries. The cross-block rule additionally requires the CFG and dominators,
-selects the earliest outer expression in a strictly dominating block, and
-proves the selected result dominates every rewritten use. It never substitutes
-canonical BlockId roster order for execution dominance. The validators
-independently reconstruct the key, reachable CFG/dominator sets, exact typed definitions,
-the redundant result's uses, absence of obligation references, and the one
-redundant-to-leader substitution.
+operands: Boolean and integer equality, bitwise and/or/xor, wrapping or
+saturating add/multiply, and proof-certified exact add/multiply. Ordered
+comparisons, casts, shifts, widening, subtraction, division, and remainder
+retain operand order. Each proof-bearing leader and redundant operation must
+independently match an active operation-obligation reference and verifier-owned
+accepted fact. The candidate names only the redundant fact as consumed
+transformation authority; the leader fact remains active and the whole accepted
+catalog remains immutable historical custody. Missing evidence makes an
+expression ineligible. A proposed candidate with a foreign redundant fact or a
+leader whose fact is absent fails independent replay.
+
+The local rules require use-definition and effect summaries. The cross-block
+rules additionally require the CFG and dominators, select the earliest admitted
+outer expression in a strictly dominating block, and prove the selected result
+dominates every rewritten use. They never substitute canonical BlockId roster
+order for execution dominance. The validators independently reconstruct the
+closed key vocabulary, proof facts, reachable CFG/dominator sets, exact typed
+definitions, the redundant result's uses, and the one redundant-to-leader
+substitution.
 
 The redundant node's provenance and fuel move forward to the next co-executed
 node, never backward to the leader. Rebuilding rewrites scalar operands,
@@ -1186,15 +1198,18 @@ by edge identity. Definitions, uses, dense effects, fact/place indexes, unit
 identity, and affected-region custody are reconstructed independently. A
 parameter-fed wrapping-add fixture admits swapped commutative operands, removes
 one add, rewrites its integer comparison consumer, and reaches a ledger fixed
-point. A separately verified Terminal artifact proves return-use substitution
-and optimized-plan projection when the dominating leader appears later in the
-serialized block roster. A diamond fixture rejects sibling-only equivalence and
-reaches a two-rewrite cascading fixed point at its join. Candidate v19,
-optimization-unit content identity v10, the named v2 pass, prephysical manifest
-v13, and optimized-plan projection validation v14 bind this meaning; ledger v4
-already represents the relocation and substitution. Phi translation, partial
-redundancy elimination, and cyclic-CFG GVN remain separate future rules;
-current admitted optimization units reject control cycles.
+point. Exact-add fixtures prove the same behavior locally and across a
+non-topological dominator boundary while retaining both accepted facts and
+manifesting only the redundant fact as consumed. A separately verified
+Terminal artifact proves return-use substitution and optimized-plan projection
+when the dominating leader appears later in the serialized block roster. A
+diamond fixture rejects sibling-only equivalence and reaches a two-rewrite
+cascading fixed point at its join. Candidate v19, optimization-unit content
+identity v10, the named v3 pass, prephysical manifest v13, and optimized-plan
+projection validation v14 bind this meaning; ledger v4 already represents the
+relocation and substitution. Phi translation, partial redundancy elimination,
+and cyclic-CFG GVN remain separate future rules; current admitted optimization
+units reject control cycles.
 
 ### Proof-certified dead scalar work
 
@@ -1630,7 +1645,7 @@ has an effect, trap, fuel charge, cleanup, or observable state transition.
 
 The first implemented machine layer is deliberately a sidecar over the sealed
 selected CFG, not a second mutable instruction IR. Target-owned catalogs name
-all eight currently admitted selected semantics and bind each to its exact
+all nine currently admitted selected semantics and bind each to its exact
 register-constraint row, explicit effect classifications, control-barrier
 status, ordered target alternatives, and size/latency knowledge. The generic
 structural validator checks roster and applicability closure; x86-64 and
@@ -1700,7 +1715,20 @@ distinction is material: x86's XOR-zero subtraction reads no external source
 operand even though it realizes a semantic subtraction, while a return's ABI
 result remains live in RAX/X0 even though the return opcode does not read that
 operand. Catalog, pre-allocation, and post-allocation identities bind this
-contract; the strict pre-allocation codec is v3 for the same reason.
+contract; the strict pre-allocation codec is v4 after exact-subtract immediate
+selection joined the encoded-realization vocabulary.
+
+The post-allocation sidecar crosses a durable boundary through a distinct
+strict v1 codec. Its framed content binds all joined roots, the named choice
+rule, the complete selected roster, chosen alternatives, physical views and
+access-qualified footprints, and canonical unit actions. The decoder rejects
+unknown closed-vocabulary tags, invalid machine identities, truncation,
+trailing bytes, and stale content identities. It returns only a plain unchecked
+plan: content authentication proves which bytes were stored, not that their
+machine claims are legal. Orchestration therefore independently reconstructs
+decoded plans against selected instructions, effects, allocation facts, homes,
+the register model, and target catalogs on both x86-64 and AArch64. Even a
+tampered plan with a freshly recomputed content identity is rejected by replay.
 
 Orchestration reconstructs this sidecar for ordinary selected homes,
 fixed-view-copy output, an explicit literal-fold sequence, and named selected-
@@ -2054,7 +2082,7 @@ source/omega/
 ```
 
 During the Rust migration/reference phase, mirror responsibility rather than
-files under `source/on-ramp/rust/omega/`:
+files under `source/omega-rust/omega/`:
 
 ```text
 omega/

@@ -37,7 +37,7 @@ object/linker/image writers remain placement intent rather than current
 packages.
 
 > **Ownership boundary.** The current Cargo implementation is explicitly an
-> external-language producer under `source/on-ramp/rust/`. Its `psi/`
+> external-language producer under `source/omega-rust/`. Its `psi/`
 > half implements parsing and target-neutral semantics through terminal Psi;
 > its `omega/` half implements provider, ABI, target, artifact, and execution
 > machinery. `source/{psi,omega}/` owns Omega-written product source; the
@@ -59,7 +59,7 @@ packages.
 Omega/
 |-- Cargo.toml
 |-- README.md
-|-- source/on-ramp/rust/
+|-- source/omega-rust/
 |   |-- psi/                                         # Psi owns target-neutral semantics through terminal Psi.
 |   |   |-- foundation/
 |   |   |   |-- [CRATE] psi-access-plans/               # Normalized placed-view access semantics.
@@ -195,11 +195,9 @@ Omega/
 |   |   `-- source-checkpoints/                            # Exact product closures and provisional Ωself censuses.
 |   |-- proof-kernel/                                      # Cross-cutting proof checking.
 |   |-- refinement/                                        # Explicit checked joins between semantic owners.
-|   `-- on-ramp/                                           # Replaceable external or bridge implementations.
-|       |-- rust/                                          # Current Rust producers, including CLI and compiler.
-|       `-- omega-bootstrap/                               # Delta-written hosted-build bridge.
+|   `-- omega-rust/                                        # Current Rust product implementation and comparator.
 |
-|-- tests/lattice/{corpus,lattice-cache-deps}/             # Shared lattice inputs and cache manifests.
+|-- tests/lattice/corpus/                                  # Shared stable lattice inputs.
 |-- tools/bootstrap/                                       # Lattice orchestration and path gates.
 |
 |-- samples/
@@ -229,8 +227,7 @@ source/library/                        core, allocation, and standard libraries
 source/{psi,omega}/                    Omega-written product compiler halves
 source/proof-kernel/                   cross-cutting proof checking
 source/refinement/                     explicit cross-owner refinement joins
-source/on-ramp/rust/                   current Rust producers
-source/on-ramp/omega-bootstrap/        Delta-written hosted-build bridge
+source/omega-rust/                     current Rust product implementation and comparator
 tests/lattice/                         shared lattice corpora and cache manifests
 tests/{canaries,fixtures}/             language and package integration tests
 tools/bootstrap/                       lattice orchestration and path gates
@@ -255,7 +252,7 @@ move; the final implementation resolves std through the package graph.
 
 - Product entrypoints stay thin. `source/omega/{build.omg,main.omg}` owns the
   hosted product entrypoint; the current Rust product package and command are
-  rooted directly at `source/on-ramp/rust/omega/`. The language-server and
+  rooted directly at `source/omega-rust/omega/`. The language-server and
   docs-generator are not separate products.
 - `orchestration/` sequences phases, owns artifacts and the top-level
   check/build API (`omega-compiler`, `omega-backend-pipeline`, `omega-artifacts`,
@@ -290,7 +287,7 @@ move; the final implementation resolves std through the package graph.
 
 - The Psi role owns Omega-file parsing and all target-neutral language meaning
   through terminal Psi. Its current Rust realization is
-  `source/on-ramp/rust/psi/`. Psi crates must not depend on Omega
+  `source/omega-rust/psi/`. Psi crates must not depend on Omega
   crates; the architecture test enforces that firewall.
 - Existing target-neutral `omega-*` crates are migration inputs, not a second
   permanent frontend. Move or rename them under Psi ownership as terminal
@@ -298,7 +295,7 @@ move; the final implementation resolves std through the package graph.
 - The Omega backend role begins its long-term semantic consumption at terminal
   Psi and owns provider installation, ABI/storage realization, optimization,
   target lowering, and native execution machinery. Its current Rust realization
-  is `source/on-ramp/rust/omega/`. Psi owns both transitional
+  is `source/omega-rust/omega/`. Psi owns both transitional
   checked-tree reference execution and canonical terminal-Psi interpretation;
   Omega contains only the cross-layer native differential-test harness. That
   harness keeps shared artifact decoding, verified lowering, and native image
