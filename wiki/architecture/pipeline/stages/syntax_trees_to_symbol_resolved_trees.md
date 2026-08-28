@@ -99,7 +99,7 @@ Must not own:
 ## Implementation Map
 
 The Psi product role owns this stage and its hosted source belongs under
-`source/omega/psi/`. The current Rust implementation stays split by identity
+`source/psi/`. The current Rust implementation stays split by identity
 task:
 
 - `source/omega-rust/psi/pipeline/psi-syntax-trees-to-symbol-resolved-trees` contains the

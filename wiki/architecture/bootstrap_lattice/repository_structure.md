@@ -29,10 +29,10 @@ source/
       validation/        exact delta producer-edge verification and custody
     meaning/             canonical Delta-to-Gamma elaboration
     tests/               Delta language cases
-  omega/                 one complete Omega-written product compiler source C
+  psi/                   target-neutral package through terminal Psi
+  omega/                 Terminal-Psi consumer and product root of C
     main.omg             product compiler entry
     build.omg            product build selection
-    psi/                 target-neutral phases through terminal Psi
   library/               core, allocation, and standard-library source
   omega-rust/            maintained Rust product implementation/comparator
 
@@ -41,9 +41,10 @@ tools/lattice/            replaceable convenience orchestration
 ```
 
 Names in this tree identify source owners, not build generations. In
-particular, `omega₀` and `omega` are two outputs from `source/omega/`; neither
-gets a source directory. The unsuffixed `source/omega/` is the canonical
-Omega-written implementation. The `-rust` suffix exists precisely because
+particular, `omega₀` and `omega` are two outputs from the source closure rooted
+at `source/omega/build.omg`; neither gets a source directory. The sibling
+`source/{psi,omega}/` packages are the canonical Omega-written implementation.
+The `-rust` suffix exists precisely because
 `source/omega-rust/` is a parallel implementation written in another language.
 Likewise, `bootstrap`, `assurance`, `refinement`, and `canaries` are not semantic
 owners and do not get generic repository buckets. Evidence stays beside the
@@ -55,10 +56,10 @@ artifact it admits; product-language cases stay under `tests/omega/`.
   meaning, and artifacts.
 - `source/delta/meaning/` owns the lower-rung elaboration needed to publish the
   Delta compiler. It is not a separate compiler stage.
-- `source/omega/` owns the complete Omega-written product compiler. Its
-  `psi/` subtree ends at terminal Psi; the rest consumes terminal Psi and owns
-  target realization. Psi is a compiler phase boundary, not a repository-level
-  language rung.
+- `source/psi/` owns target-neutral processing through terminal Psi;
+  `source/omega/` consumes terminal Psi and owns target realization and product
+  composition. Psi is a compiler phase and package boundary, not a language
+  rung.
 - `source/omega-rust/` is a maintained implementation and migration aid. Its
   location grants no bootstrap or semantic authority.
 - `source/alpha/checker/` owns the universal derivation checker. It is part of
@@ -103,7 +104,7 @@ a rebuild of one compiler, not an untracked generation change.
 | --- | --- |
 | language rungs | `source/{alpha,beta,gamma,delta}/` |
 | Delta lower-rung meaning | `source/delta/meaning/` |
-| Omega-written compiler | `source/omega/` |
+| Omega-written compiler | `source/{psi,omega}/` |
 | current Rust comparator | `source/omega-rust/` |
 | root proof checking | `source/alpha/checker/` |
 | Beta compiler and its admission | `source/beta/compiler/` |

@@ -14,8 +14,8 @@ delta/          Delta language
   compiler/     canonical compiler source/artifact and adjacent validation
   meaning/      canonical Delta-to-Gamma meaning route
 library/        core, allocation, and standard library source
-omega/          complete Omega-written product compiler
-  psi/          target-neutral phases through terminal Psi
+psi/            Omega-written target-neutral phases through terminal Psi
+omega/          Omega-written Terminal-Psi consumer and product root
 omega-rust/     replaceable Rust development implementation and comparator
 ```
 
@@ -28,8 +28,8 @@ an artifact. Repository-wide lattice convenience orchestration lives under
 There is deliberately no `bootstrap/`, `omega-bootstrap/`, `assurance/`, or
 generic `canaries/` source owner. A compiler, checker, meaning route, artifact,
 or validation rule lives with the language or artifact whose responsibility it
-implements. `omega₀` and `omega` are two builds of `source/omega/`, not two
-source trees.
+implements. `omega₀` and `omega` are two builds of the same source closure
+rooted at `source/omega/build.omg`, not two source trees.
 
 The Alpha checker is a separate binary from the Alpha VM/assembler and remains
 under `alpha/checker/` because it is part of the trust floor. It does not build

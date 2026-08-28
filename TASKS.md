@@ -46,21 +46,21 @@ task here; do not duplicate optimizer pass milestones in both queues.
 
 Remaining:
 
-- **OMEGA-PRODUCT-COMPILER-SOURCE.** Establish the production compiler as one
-  Omega source tree under `source/omega/`, with target-neutral phases under
-  `source/omega/psi/` and the hosted product entrypoints at
-  `source/omega/{build.omg,main.omg}`. Preserve the Psi/Omega ownership
+- **OMEGA-PRODUCT-COMPILER-SOURCE.** Establish the production compiler as two
+  sibling Omega packages: target-neutral phases under `source/psi/` and the
+  Terminal-Psi-consuming product under `source/omega/`, with hosted entrypoints
+  at `source/omega/{build.omg,main.omg}`. Preserve the Psi/Omega ownership
   firewall: Psi owns parsing and target-neutral semantics through terminal Psi;
   Omega owns provider installation, optimization, target realization, and
   artifact emission. The maintained implementation under
   `source/omega-rust/` is a differential producer, not the
   source tree for this task.
 
-  Acceptance: the exact Omega source tree builds a compiler that implements the
-  full Omega specification, including the production optimizer and lowering
+  Acceptance: the exact Omega source closure builds a compiler that implements
+  the full Omega specification, including the production optimizer and lowering
   pipeline, passes the applicable product compiler and language suites, and
-  contains no Rust implementation under the
-  reserved product root. "Full" governs accepted Omega and emitted-artifact
+  contains no Rust implementation under either reserved product owner.
+  "Full" governs accepted Omega and emitted-artifact
   meaning; it does not require standalone interpreters, REPLs, proof explorers,
   viewers, debuggers, or other adjacent tools unless the compiler executable
   imports them. Publish a deterministic manifest of every transitive compiler
@@ -111,7 +111,7 @@ Remaining:
   manifests and profiles were retired with `source/omega/source-checkpoints/`;
   they are not current closure evidence and must not be recreated as a bridge
   dialect or file allowlist. The live authored slice under
-  `source/omega/psi/` plus the product entrypoint currently reaches source/span
+  `source/psi/` plus the product entrypoint currently reaches source/span
   custody, tokens, Unicode tables, lexing, and fail-closed whole-file parsing
   for ordinary
   `use path::member;` roots plus basic `[pub] data` declarations with optional
@@ -125,7 +125,7 @@ Remaining:
   file-shape allowlists.
   The first parser state machine is now split into owner/facade, scalar token
   access, root sequencing, and data-declaration modules under
-  `source/omega/psi/parse/`. One flat parser owner retains the only token and
+  `source/psi/parse/`. One flat parser owner retains the only token and
   syntax tables; the hosted AArch64 backend cannot yet address the resulting
   1.76 MiB nested aggregate or lower a second arena ownership transfer, so the
   physical tables deliberately remain flat while behavior is modular. The 45

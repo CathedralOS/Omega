@@ -20,7 +20,7 @@ source shape without turning nested syntax into scattered heap objects.
 ## Implementation Map
 
 The Psi product role owns this stage; its hosted source belongs under
-`source/omega/psi/`. The current Rust realization is:
+`source/psi/`. The current Rust realization is:
 
 - `source/omega-rust/psi/representations/psi-syntax-trees` contains `SyntaxTrees`, its
   arena-backed tables, identity/snapshot materialization, and all source-shaped

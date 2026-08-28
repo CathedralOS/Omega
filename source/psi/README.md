@@ -1,7 +1,9 @@
 # Psi product source
 
-This subtree owns the Omega-written, target-neutral Psi half of the production
-compiler. The current live slice contains source/span and token
+This sibling package owns the Omega-written, target-neutral Psi half of the
+production compiler. `source/omega/` consumes it through the `psi` package
+identity; Omega does not own this source tree. The current live slice contains
+source/span and token
 representations, the Unicode-aware lexer, and a fail-closed whole-file parser
 for ordinary `use path::member;` roots and basic `[pub] data` declarations with
 an optional `[copy]` property, bare named field types, and payload-free
