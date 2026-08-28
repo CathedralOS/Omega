@@ -890,7 +890,9 @@ pub fn resolve_git_source(
         entry_lock.verify_path_identity()?;
 
         if cache_entry_existed {
-            let verification_result = verify_git_cache_entry(
+            let verification_result = VerifiedGitRepository::open(
+                entry_lock.parent(),
+                &entry_name,
                 &entry_root,
                 locator_identity,
                 requested_rev,
@@ -938,6 +940,8 @@ pub fn resolve_git_source(
         entry_lock.verify_path_identity()?;
         let result = resolve_verified_git_cache_entry(
             &executor,
+            entry_lock.parent(),
+            &entry_name,
             &entry_root,
             request.requested_locator(),
             locator_identity,
@@ -976,6 +980,8 @@ pub fn resolve_git_source(
 
 fn resolve_verified_git_cache_entry(
     executor: &GitExecutor,
+    cache_directory: &CapabilityDirectory,
+    entry_name: &OsStr,
     entry_root: &Path,
     requested_locator: &str,
     locator_identity: &str,
@@ -985,37 +991,31 @@ fn resolve_verified_git_cache_entry(
     limits: LocalSourceLimits,
     fetch_remote: bool,
 ) -> Result<ResolvedGitSource, SourceResolveError> {
-    verify_git_cache_entry(
+    let repository = VerifiedGitRepository::open(
+        cache_directory,
+        entry_name,
         entry_root,
         locator_identity,
         requested_rev,
         execution_transport,
         limits,
     )?;
-    let repository = entry_root.join(GIT_CACHE_REPOSITORY);
 
     if fetch_remote {
-        let canonical_config = read_canonical_git_config(&repository)?;
+        let canonical_config = repository.read_canonical_config()?;
         let arguments = bounded_git_fetch_arguments(fetch_locator, requested_rev, limits);
-        run_git(executor, &repository, arguments.iter())?;
-        restore_canonical_git_config(&repository, &canonical_config)?;
+        repository.run_git(executor, arguments.iter())?;
+        repository.restore_canonical_config(&canonical_config)?;
     }
-    verify_git_cache_entry(
-        entry_root,
-        locator_identity,
-        requested_rev,
-        execution_transport,
-        limits,
-    )?;
+    repository.verify_current(limits)?;
 
     let selected_revision = if fetch_remote {
         "FETCH_HEAD"
     } else {
         requested_rev
     };
-    let commit = run_git_stdout(
+    let commit = repository.run_git_stdout(
         executor,
-        &repository,
         [
             OsStr::new("rev-parse"),
             OsStr::new("--verify"),
@@ -1024,9 +1024,8 @@ fn resolve_verified_git_cache_entry(
     )?;
     let commit = commit.trim().to_owned();
     verify_exact_git_revision(requested_rev, &commit)?;
-    let tree = run_git_stdout(
+    let tree = repository.run_git_stdout(
         executor,
-        &repository,
         [
             OsStr::new("rev-parse"),
             OsStr::new("--verify"),
@@ -1034,24 +1033,13 @@ fn resolve_verified_git_cache_entry(
         ],
     )?;
     let tree = tree.trim().to_owned();
-    verify_git_cache_entry(
-        entry_root,
-        locator_identity,
-        requested_rev,
-        execution_transport,
-        limits,
-    )?;
+    repository.verify_current(limits)?;
     authenticate_git_commit(executor, &repository, &commit, &tree)?;
     let entries = inspect_git_tree(executor, &repository, &tree, limits)?;
+    repository.verify_current(limits)?;
     let (snapshot_root, local) =
         resolve_git_snapshot(executor, entry_root, &tree, entries, limits)?;
-    verify_git_cache_entry(
-        entry_root,
-        locator_identity,
-        requested_rev,
-        execution_transport,
-        limits,
-    )?;
+    repository.verify_current(limits)?;
     executor.verify()?;
     Ok(ResolvedGitSource {
         requested_locator: requested_locator.to_owned(),
@@ -1094,50 +1082,57 @@ fn bounded_git_fetch_arguments(
     ]
 }
 
-fn read_canonical_git_config(repository: &Path) -> Result<Vec<u8>, SourceResolveError> {
-    let config_path = repository.join("config");
-    let config = read_bounded_cache_record(
-        CacheCustodyKind::Git,
-        repository,
-        Path::new("config"),
-        GIT_CONFIG_SHA256.len(),
-    )?;
-    if config.as_slice() != GIT_CONFIG_SHA1 && config.as_slice() != GIT_CONFIG_SHA256 {
+fn replace_canonical_git_control_file(
+    entry: &CapabilityDirectory,
+    repository_name: &OsStr,
+    repository_path: &Path,
+    canonical_config: &[u8],
+) -> Result<(), SourceResolveError> {
+    let classified = entry
+        .symlink_metadata(repository_name)
+        .map_err(|error| io_error(repository_path, error))?;
+    if classified.file_type().is_symlink() || !classified.is_dir() {
         return Err(cache_invalid(
-            &config_path,
-            "local Git configuration is not the exact resolver-owned canonical file",
+            repository_path,
+            "Git repository is not a concrete directory",
         ));
     }
-    Ok(config)
+    let directory = entry
+        .open_dir_nofollow(repository_name)
+        .map_err(|error| cache_invalid(repository_path, error.to_string()))?;
+    let opened = directory
+        .dir_metadata()
+        .map_err(|error| io_error(repository_path, error))?;
+    if !same_capability_file_identity(&classified, &opened) {
+        return Err(cache_invalid(
+            repository_path,
+            "Git repository changed while opening it for configuration replacement",
+        ));
+    }
+    replace_canonical_git_control_file_from_open_repository(
+        &directory,
+        repository_path,
+        canonical_config,
+    )
 }
 
-fn restore_canonical_git_config(
-    repository: &Path,
+fn replace_canonical_git_control_file_from_open_repository(
+    repository: &CapabilityDirectory,
+    repository_path: &Path,
     canonical_config: &[u8],
 ) -> Result<(), SourceResolveError> {
-    debug_assert!(canonical_config == GIT_CONFIG_SHA1 || canonical_config == GIT_CONFIG_SHA256);
-    let config_path = repository.join("config");
-    require_regular_file(
-        &config_path,
-        "filtered Git fetch replaced the local configuration with a non-regular file",
-    )?;
-    replace_canonical_git_control_file(repository, &config_path, canonical_config)
-}
-
-fn replace_canonical_git_control_file(
-    repository: &Path,
-    config_path: &Path,
-    canonical_config: &[u8],
-) -> Result<(), SourceResolveError> {
-    let directory = open_absolute_directory_nofollow(repository)
-        .map_err(|error| io_error(repository, error))?;
-    let root =
-        RecordFileRoot::from_directory(directory, repository.to_path_buf()).map_err(|error| {
+    let config_path = repository_path.join("config");
+    let directory = repository
+        .try_clone()
+        .map_err(|error| io_error(repository_path, error))?;
+    let root = RecordFileRoot::from_directory(directory, repository_path.to_path_buf()).map_err(
+        |error| {
             cache_invalid(
-                repository,
+                repository_path,
                 format!("failed to bind Git configuration directory custody: {error:?}"),
             )
-        })?;
+        },
+    )?;
     root.replace_existing(
         Path::new("config"),
         canonical_config,
@@ -1147,7 +1142,7 @@ fn replace_canonical_git_control_file(
     )
     .map_err(|error| {
         cache_invalid(
-            config_path,
+            &config_path,
             format!("failed to atomically restore canonical Git configuration: {error:?}"),
         )
     })
@@ -1214,19 +1209,18 @@ struct AuthenticatedGitDirectory {
 
 fn inspect_git_tree(
     executor: &GitExecutor,
-    repository: &Path,
+    repository: &VerifiedGitRepository,
     tree: &str,
     limits: LocalSourceLimits,
 ) -> Result<Vec<GitTreeEntry>, SourceResolveError> {
     if !is_object_id(tree) {
         return Err(cache_invalid(
-            repository,
+            repository.path(),
             "Git returned an invalid tree object ID",
         ));
     }
-    let listing = run_git_bytes_stdout(
+    let listing = repository.run_git_bytes_stdout(
         executor,
-        repository,
         [
             OsStr::new("ls-tree"),
             OsStr::new("--full-tree"),
@@ -1237,7 +1231,7 @@ fn inspect_git_tree(
             OsStr::new(tree),
         ],
     )?;
-    let mut entries = parse_git_tree_entries(&listing, repository, limits)?;
+    let mut entries = parse_git_tree_entries(&listing, repository.path(), limits)?;
     read_git_blobs_batch(executor, repository, &mut entries, limits)?;
     Ok(entries)
 }
@@ -1257,13 +1251,12 @@ fn verify_exact_git_revision(
 
 fn authenticate_git_commit(
     executor: &GitExecutor,
-    repository: &Path,
+    repository: &VerifiedGitRepository,
     commit: &str,
     tree: &str,
 ) -> Result<(), SourceResolveError> {
-    let payload = run_git_bytes_stdout(
+    let payload = repository.run_git_bytes_stdout(
         executor,
-        repository,
         [
             OsStr::new("cat-file"),
             OsStr::new("commit"),
@@ -2492,6 +2485,17 @@ fn git_tree_invalid(path: impl AsRef<[u8]>, message: impl Into<String>) -> Sourc
 
 fn read_git_blobs_batch(
     executor: &GitExecutor,
+    repository: &VerifiedGitRepository,
+    entries: &mut [GitTreeEntry],
+    limits: LocalSourceLimits,
+) -> Result<(), SourceResolveError> {
+    repository.verify_identity()?;
+    let result = read_git_blobs_batch_from_path(executor, repository.path(), entries, limits);
+    reconcile_git_cache_operation_result(result, repository.verify_identity(), None)
+}
+
+fn read_git_blobs_batch_from_path(
+    executor: &GitExecutor,
     repository: &Path,
     entries: &mut [GitTreeEntry],
     limits: LocalSourceLimits,
@@ -3258,14 +3262,17 @@ fn create_git_cache_entry(
         pending.verify_ambient_path_identity(cache_dir),
         None,
     )?;
-    let config_path = repository.join("config");
     let canonical_config = match object_format {
         GitObjectIdAlgorithm::Sha1 => GIT_CONFIG_SHA1,
         GitObjectIdAlgorithm::Sha256 => GIT_CONFIG_SHA256,
     };
     pending.verify_ambient_path_identity(cache_dir)?;
-    let config_result =
-        replace_canonical_git_control_file(&repository, &config_path, canonical_config);
+    let config_result = replace_canonical_git_control_file(
+        pending.directory()?,
+        OsStr::new(GIT_CACHE_REPOSITORY),
+        &repository,
+        canonical_config,
+    );
     reconcile_git_cache_operation_result(
         config_result,
         pending.verify_ambient_path_identity(cache_dir),
@@ -3330,7 +3337,9 @@ fn create_git_cache_entry(
     }
 
     pending.verify_ambient_path_identity(cache_dir)?;
-    let verification_result = verify_git_cache_entry(
+    let verification_result = VerifiedGitRepository::open(
+        &pending.parent,
+        &pending.stage_name,
         &pending.root,
         locator_identity,
         requested_rev,
@@ -3408,62 +3417,441 @@ fn parse_git_remote_object_format(
     })
 }
 
-fn verify_git_cache_entry(
-    entry_root: &Path,
-    url: &str,
-    requested_rev: &str,
-    execution_transport: GitExecutionTransport,
-    limits: LocalSourceLimits,
-) -> Result<(), SourceResolveError> {
-    verify_git_cache_custody(entry_root, limits)?;
-    require_real_directory(entry_root, "cache entry root is not a real directory")?;
-    let expected_metadata = git_cache_metadata(url, requested_rev, execution_transport);
-    let actual_metadata = read_bounded_cache_record(
-        CacheCustodyKind::Git,
-        entry_root,
-        Path::new(GIT_CACHE_METADATA),
-        expected_metadata.len(),
-    )?;
-    if actual_metadata != expected_metadata {
-        return Err(cache_invalid(
+struct VerifiedGitRepository {
+    entry_root: PathBuf,
+    repository_path: PathBuf,
+    entry_name: OsString,
+    expected_metadata: Vec<u8>,
+    cache_parent: CapabilityDirectory,
+    entry: CapabilityDirectory,
+    repository: CapabilityDirectory,
+    objects: CapabilityDirectory,
+    entry_identity: CapabilityMetadata,
+    repository_identity: CapabilityMetadata,
+    objects_identity: CapabilityMetadata,
+}
+
+impl VerifiedGitRepository {
+    fn open(
+        cache_parent: &CapabilityDirectory,
+        entry_name: &OsStr,
+        entry_root: &Path,
+        url: &str,
+        requested_rev: &str,
+        execution_transport: GitExecutionTransport,
+        limits: LocalSourceLimits,
+    ) -> Result<Self, SourceResolveError> {
+        let (entry, entry_identity) = open_retained_git_directory(
+            cache_parent,
+            entry_name,
             entry_root,
-            "resolver metadata does not match the exact source locator and revision",
-        ));
+            "cache entry root is not a concrete directory",
+        )?;
+        let repository_path = entry_root.join(GIT_CACHE_REPOSITORY);
+        let (repository, repository_identity) = open_retained_git_directory(
+            &entry,
+            OsStr::new(GIT_CACHE_REPOSITORY),
+            &repository_path,
+            "repository is not a concrete directory",
+        )?;
+        let objects_path = repository_path.join("objects");
+        let (objects, objects_identity) = open_retained_git_directory(
+            &repository,
+            OsStr::new("objects"),
+            &objects_path,
+            "Git object directory is not a concrete directory",
+        )?;
+        let verified = Self {
+            entry_root: entry_root.to_path_buf(),
+            repository_path,
+            entry_name: entry_name.to_os_string(),
+            expected_metadata: git_cache_metadata(url, requested_rev, execution_transport),
+            cache_parent: cache_parent
+                .try_clone()
+                .map_err(|error| io_error(entry_root, error))?,
+            entry,
+            repository,
+            objects,
+            entry_identity,
+            repository_identity,
+            objects_identity,
+        };
+        verified.verify_current(limits)?;
+        Ok(verified)
     }
 
-    let repository = entry_root.join(GIT_CACHE_REPOSITORY);
-    require_real_directory(&repository, "repository is not a real directory")?;
-    require_real_directory(
-        &repository.join("objects"),
-        "Git object directory is not a real directory",
-    )?;
-    for forbidden in [
-        repository.join("objects/info/alternates"),
-        repository.join("objects/info/http-alternates"),
-        repository.join("commondir"),
-    ] {
-        if std::fs::symlink_metadata(&forbidden).is_ok() {
+    fn path(&self) -> &Path {
+        &self.repository_path
+    }
+
+    fn verify_identity(&self) -> Result<(), SourceResolveError> {
+        let cache_root = self.entry_root.parent().ok_or_else(|| {
+            cache_invalid(&self.entry_root, "Git cache entry has no retained parent")
+        })?;
+        verify_retained_cache_parent_path(CacheCustodyKind::Git, cache_root, &self.cache_parent)?;
+        verify_retained_git_directory_identity(
+            &self.cache_parent,
+            &self.entry_name,
+            &self.entry,
+            &self.entry_identity,
+            &self.entry_root,
+            "cache entry root no longer identifies the retained directory",
+        )?;
+        verify_retained_git_directory_identity(
+            &self.entry,
+            OsStr::new(GIT_CACHE_REPOSITORY),
+            &self.repository,
+            &self.repository_identity,
+            &self.repository_path,
+            "repository no longer identifies the retained directory",
+        )?;
+        verify_retained_git_directory_identity(
+            &self.repository,
+            OsStr::new("objects"),
+            &self.objects,
+            &self.objects_identity,
+            &self.repository_path.join("objects"),
+            "Git object directory no longer identifies the retained directory",
+        )
+    }
+
+    fn verify_current(&self, limits: LocalSourceLimits) -> Result<(), SourceResolveError> {
+        self.verify_identity()?;
+        verify_cache_custody_from_open_root(
+            &self.entry_root,
+            self.entry
+                .try_clone()
+                .map_err(|error| io_error(&self.entry_root, error))?,
+            CacheCustodyKind::Git,
+            git_cache_custody_byte_limit(limits),
+        )?;
+        let actual_metadata = read_bounded_cache_record_from_open_directory(
+            CacheCustodyKind::Git,
+            &self.entry,
+            &self.entry_root,
+            Path::new(GIT_CACHE_METADATA),
+            self.expected_metadata.len(),
+        )?;
+        if actual_metadata != self.expected_metadata {
             return Err(cache_invalid(
-                &forbidden,
-                "external Git object or directory indirection is forbidden",
+                &self.entry_root,
+                "resolver metadata does not match the exact source locator and revision",
             ));
         }
+        verify_git_repository_tree_from_open_root(&self.repository, &self.repository_path)?;
+        reject_retained_git_path(
+            &self.objects,
+            &self.repository_path.join("objects"),
+            &["info", "alternates"],
+        )?;
+        reject_retained_git_path(
+            &self.objects,
+            &self.repository_path.join("objects"),
+            &["info", "http-alternates"],
+        )?;
+        reject_retained_git_path(&self.repository, &self.repository_path, &["commondir"])?;
+        self.read_canonical_config()?;
+        self.verify_identity()
     }
 
-    let config_path = repository.join("config");
-    let config = read_bounded_cache_record(
-        CacheCustodyKind::Git,
-        &repository,
-        Path::new("config"),
-        GIT_CONFIG_SHA256.len(),
-    )?;
-    if config.as_slice() != GIT_CONFIG_SHA1 && config.as_slice() != GIT_CONFIG_SHA256 {
+    fn read_canonical_config(&self) -> Result<Vec<u8>, SourceResolveError> {
+        let config_path = self.repository_path.join("config");
+        let config = read_bounded_cache_record_from_open_directory(
+            CacheCustodyKind::Git,
+            &self.repository,
+            &self.repository_path,
+            Path::new("config"),
+            GIT_CONFIG_SHA256.len(),
+        )?;
+        if config.as_slice() != GIT_CONFIG_SHA1 && config.as_slice() != GIT_CONFIG_SHA256 {
+            return Err(cache_invalid(
+                &config_path,
+                "local Git configuration is not the exact resolver-owned canonical file",
+            ));
+        }
+        Ok(config)
+    }
+
+    fn restore_canonical_config(&self, canonical_config: &[u8]) -> Result<(), SourceResolveError> {
+        debug_assert!(canonical_config == GIT_CONFIG_SHA1 || canonical_config == GIT_CONFIG_SHA256);
+        self.verify_identity()?;
+        let result = replace_canonical_git_control_file_from_open_repository(
+            &self.repository,
+            &self.repository_path,
+            canonical_config,
+        );
+        reconcile_git_cache_operation_result(result, self.verify_identity(), None)
+    }
+
+    fn run_git<I, S>(&self, executor: &GitExecutor, args: I) -> Result<(), SourceResolveError>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        self.verify_identity()?;
+        let result = run_git(executor, &self.repository_path, args);
+        reconcile_git_cache_operation_result(result, self.verify_identity(), None)
+    }
+
+    fn run_git_stdout<I, S>(
+        &self,
+        executor: &GitExecutor,
+        args: I,
+    ) -> Result<String, SourceResolveError>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        self.verify_identity()?;
+        let result = run_git_stdout(executor, &self.repository_path, args);
+        reconcile_git_cache_operation_result(result, self.verify_identity(), None)
+    }
+
+    fn run_git_bytes_stdout<I, S>(
+        &self,
+        executor: &GitExecutor,
+        args: I,
+    ) -> Result<Vec<u8>, SourceResolveError>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        self.verify_identity()?;
+        let result = run_git_bytes_stdout(executor, &self.repository_path, args);
+        reconcile_git_cache_operation_result(result, self.verify_identity(), None)
+    }
+}
+
+fn open_retained_git_directory(
+    parent: &CapabilityDirectory,
+    name: &OsStr,
+    path: &Path,
+    message: &str,
+) -> Result<(CapabilityDirectory, CapabilityMetadata), SourceResolveError> {
+    let classified = parent
+        .symlink_metadata(name)
+        .map_err(|error| io_error(path, error))?;
+    if classified.file_type().is_symlink() || !classified.is_dir() {
+        return Err(cache_invalid(path, message));
+    }
+    let directory = parent
+        .open_dir_nofollow(name)
+        .map_err(|error| cache_invalid(path, error.to_string()))?;
+    let opened = directory
+        .dir_metadata()
+        .map_err(|error| io_error(path, error))?;
+    if !opened.is_dir() || !same_capability_file_identity(&classified, &opened) {
         return Err(cache_invalid(
-            &config_path,
-            "local Git configuration is not the exact resolver-owned canonical file",
+            path,
+            "Git directory changed between classification and no-follow open",
+        ));
+    }
+    Ok((directory, opened))
+}
+
+fn verify_retained_git_directory_identity(
+    parent: &CapabilityDirectory,
+    name: &OsStr,
+    retained: &CapabilityDirectory,
+    expected: &CapabilityMetadata,
+    path: &Path,
+    message: &str,
+) -> Result<(), SourceResolveError> {
+    let named = parent
+        .symlink_metadata(name)
+        .map_err(|error| io_error(path, error))?;
+    let opened = retained
+        .dir_metadata()
+        .map_err(|error| io_error(path, error))?;
+    if named.file_type().is_symlink()
+        || !named.is_dir()
+        || !opened.is_dir()
+        || !same_capability_file_identity(expected, &named)
+        || !same_capability_file_identity(expected, &opened)
+    {
+        return Err(cache_invalid(path, message));
+    }
+    Ok(())
+}
+
+fn verify_git_repository_tree_from_open_root(
+    repository: &CapabilityDirectory,
+    repository_path: &Path,
+) -> Result<(), SourceResolveError> {
+    let root_metadata = repository
+        .dir_metadata()
+        .map_err(|error| io_error(repository_path, error))?;
+    let mut pending = vec![(
+        PathBuf::new(),
+        repository_path.to_path_buf(),
+        root_metadata,
+        0usize,
+    )];
+    let mut observed = 0usize;
+    while let Some((relative_path, path, classified, depth)) = pending.pop() {
+        observed = observed
+            .checked_add(1)
+            .ok_or_else(|| cache_invalid(&path, "Git repository entry count overflowed"))?;
+        if observed > CACHE_CUSTODY_ENTRY_LIMIT {
+            return Err(cache_invalid(
+                repository_path,
+                format!("Git repository exceeds its {CACHE_CUSTODY_ENTRY_LIMIT}-entry ceiling"),
+            ));
+        }
+        let directory = open_cache_custody_directory(
+            repository,
+            &relative_path,
+            &path,
+            &classified,
+            CacheCustodyKind::Git,
+        )?;
+        for child in directory
+            .entries()
+            .map_err(|error| io_error(&path, error))?
+        {
+            let child = child.map_err(|error| io_error(&path, error))?;
+            let name = child.file_name();
+            let child_path = path.join(&name);
+            let metadata = directory
+                .symlink_metadata(&name)
+                .map_err(|error| io_error(&child_path, error))?;
+            if metadata.file_type().is_symlink() {
+                return Err(cache_invalid(
+                    &child_path,
+                    "symlinks are forbidden in the native Git repository",
+                ));
+            }
+            if metadata.is_file() {
+                verify_retained_git_regular_file(&directory, &name, &child_path, &metadata)?;
+                observed = observed.checked_add(1).ok_or_else(|| {
+                    cache_invalid(&child_path, "Git repository entry count overflowed")
+                })?;
+            } else if metadata.is_dir() {
+                let child_depth = depth
+                    .checked_add(1)
+                    .ok_or_else(|| cache_invalid(&child_path, "Git repository depth overflowed"))?;
+                if child_depth > CACHE_CUSTODY_DEPTH_LIMIT {
+                    return Err(cache_invalid(
+                        &child_path,
+                        format!(
+                            "Git repository exceeds its {CACHE_CUSTODY_DEPTH_LIMIT}-level depth ceiling"
+                        ),
+                    ));
+                }
+                pending.push((relative_path.join(&name), child_path, metadata, child_depth));
+            } else {
+                return Err(cache_invalid(
+                    &child_path,
+                    "native Git repository contains an unsupported filesystem entry kind",
+                ));
+            }
+            if observed
+                .checked_add(pending.len())
+                .is_none_or(|total| total > CACHE_CUSTODY_ENTRY_LIMIT)
+            {
+                return Err(cache_invalid(
+                    repository_path,
+                    format!("Git repository exceeds its {CACHE_CUSTODY_ENTRY_LIMIT}-entry ceiling"),
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn verify_retained_git_regular_file(
+    parent: &CapabilityDirectory,
+    name: &OsStr,
+    path: &Path,
+    classified: &CapabilityMetadata,
+) -> Result<(), SourceResolveError> {
+    let mut options = CapabilityOpenOptions::new();
+    options.read(true).follow(FollowSymlinks::No);
+    let file = parent
+        .open_with(name, &options)
+        .map_err(|error| cache_invalid(path, error.to_string()))?;
+    let opened = file.metadata().map_err(|error| io_error(path, error))?;
+    if !opened.is_file() || !same_capability_file_identity(classified, &opened) {
+        return Err(cache_invalid(
+            path,
+            "Git repository file changed between classification and no-follow open",
+        ));
+    }
+    verify_git_regular_file_link_count(path, &opened)
+}
+
+#[cfg(unix)]
+fn verify_git_regular_file_link_count(
+    path: &Path,
+    metadata: &CapabilityMetadata,
+) -> Result<(), SourceResolveError> {
+    use cap_fs_ext::OsMetadataExt;
+
+    if metadata.nlink() != 1 {
+        return Err(cache_invalid(
+            path,
+            "multiply-linked files are forbidden in the native Git repository",
         ));
     }
     Ok(())
+}
+
+#[cfg(not(unix))]
+fn verify_git_regular_file_link_count(
+    _path: &Path,
+    _metadata: &CapabilityMetadata,
+) -> Result<(), SourceResolveError> {
+    Ok(())
+}
+
+fn reject_retained_git_path(
+    root: &CapabilityDirectory,
+    root_path: &Path,
+    components: &[&str],
+) -> Result<(), SourceResolveError> {
+    let Some((leaf, parents)) = components.split_last() else {
+        return Err(cache_invalid(root_path, "forbidden Git path is empty"));
+    };
+    let mut directory = root
+        .try_clone()
+        .map_err(|error| io_error(root_path, error))?;
+    let mut path = root_path.to_path_buf();
+    for parent in parents {
+        path.push(parent);
+        let metadata = match directory.symlink_metadata(parent) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(error) => return Err(io_error(&path, error)),
+        };
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            return Err(cache_invalid(
+                &path,
+                "cannot prove forbidden Git path absent beneath a non-directory",
+            ));
+        }
+        let opened = directory
+            .open_dir_nofollow(parent)
+            .map_err(|error| cache_invalid(&path, error.to_string()))?;
+        let opened_metadata = opened
+            .dir_metadata()
+            .map_err(|error| io_error(&path, error))?;
+        if !same_capability_file_identity(&metadata, &opened_metadata) {
+            return Err(cache_invalid(
+                &path,
+                "Git directory changed while checking forbidden indirection",
+            ));
+        }
+        directory = opened;
+    }
+    path.push(leaf);
+    match directory.symlink_metadata(leaf) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(io_error(&path, error)),
+        Ok(_) => Err(cache_invalid(
+            &path,
+            "external Git object or directory indirection is forbidden",
+        )),
+    }
 }
 
 #[cfg(test)]
@@ -3576,14 +3964,6 @@ fn require_real_directory(path: &Path, message: &str) -> Result<(), SourceResolv
     Ok(())
 }
 
-fn require_regular_file(path: &Path, message: &str) -> Result<(), SourceResolveError> {
-    let metadata = std::fs::symlink_metadata(path).map_err(|error| io_error(path, error))?;
-    if metadata.file_type().is_symlink() || !metadata.is_file() {
-        return Err(cache_invalid(path, message));
-    }
-    Ok(())
-}
-
 #[derive(Debug, Clone, Copy)]
 enum CacheCustodyKind {
     Git,
@@ -3599,6 +3979,25 @@ fn read_bounded_cache_record(
     verify_cache_custody_root(root, kind)?;
     let directory = open_absolute_directory_nofollow(root)
         .map_err(|error| cache_custody_invalid(kind, root, error.to_string()))?;
+    read_bounded_cache_record_from_open_directory(
+        kind,
+        &directory,
+        root,
+        relative_path,
+        maximum_bytes,
+    )
+}
+
+fn read_bounded_cache_record_from_open_directory(
+    kind: CacheCustodyKind,
+    directory: &CapabilityDirectory,
+    root: &Path,
+    relative_path: &Path,
+    maximum_bytes: usize,
+) -> Result<Vec<u8>, SourceResolveError> {
+    let directory = directory
+        .try_clone()
+        .map_err(|error| io_error(root, error))?;
     let record_root =
         RecordFileRoot::from_directory(directory, root.to_path_buf()).map_err(|error| {
             cache_custody_invalid(
@@ -7201,6 +7600,48 @@ mod tests {
         ))
     }
 
+    fn open_verified_git_repository(
+        cache: &Path,
+        request: &GitSourceRequest,
+    ) -> VerifiedGitRepository {
+        let canonical_cache = cache.canonicalize().expect("canonicalize Git cache");
+        let cache_directory =
+            open_absolute_directory_nofollow(&canonical_cache).expect("retain Git cache parent");
+        let entry_root = git_cache_entry_root(&canonical_cache, request);
+        let entry_name = entry_root.file_name().expect("Git cache entry has a name");
+        VerifiedGitRepository::open(
+            &cache_directory,
+            entry_name,
+            &entry_root,
+            request.locator_identity(),
+            request.requested_revision(),
+            request.execution_transport(),
+            LocalSourceLimits::default(),
+        )
+        .expect("retain verified Git repository")
+    }
+
+    #[cfg(unix)]
+    fn first_regular_descendant(root: &Path) -> PathBuf {
+        let mut pending = vec![root.to_path_buf()];
+        while let Some(directory) = pending.pop() {
+            for entry in std::fs::read_dir(&directory).expect("read test directory") {
+                let path = entry.expect("read test entry").path();
+                let metadata = std::fs::symlink_metadata(&path).expect("classify test entry");
+                if metadata.is_file() {
+                    return path;
+                }
+                if metadata.is_dir() {
+                    pending.push(path);
+                }
+            }
+        }
+        panic!(
+            "test tree contains no regular file beneath {}",
+            root.display()
+        );
+    }
+
     #[cfg(unix)]
     fn shell_command(script: &str) -> Command {
         let mut command = Command::new("sh");
@@ -7484,8 +7925,13 @@ mod tests {
         )
         .expect("parse tree");
         let launches_before = executor.launches.get();
-        read_git_blobs_batch(&executor, &repo, &mut entries, LocalSourceLimits::default())
-            .expect("read all blobs in one batch");
+        read_git_blobs_batch_from_path(
+            &executor,
+            &repo,
+            &mut entries,
+            LocalSourceLimits::default(),
+        )
+        .expect("read all blobs in one batch");
 
         assert_eq!(entries.len(), 33);
         assert_eq!(executor.launches.get() - launches_before, 1);
@@ -8875,6 +9321,8 @@ mod tests {
         .expect("create quarantined Git cache entry");
         let error = resolve_verified_git_cache_entry(
             &executor,
+            &cache_directory,
+            entry_name,
             &entry_root,
             request.requested_locator(),
             request.locator_identity(),
@@ -9251,7 +9699,7 @@ mod tests {
                 bytes: GitBlobBytes::empty(),
             },
         }];
-        let error = read_git_blobs_batch(
+        let error = read_git_blobs_batch_from_path(
             &executor,
             &repository,
             &mut entries,
@@ -9738,6 +10186,135 @@ mod tests {
         assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
         assert!(!entry.join(GIT_CACHE_METADATA).exists());
         let _ = std::fs::remove_dir_all(&repo);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn verified_git_repository_rejects_replaced_repository_path() {
+        let (repo, _) = create_git_source("git-retained-repository-source");
+        let cache = temp_root("git-retained-repository-cache");
+        let request = local_git_request(&repo, "HEAD");
+        resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
+        let verified = open_verified_git_repository(&cache, &request);
+        let repository = verified.path().to_path_buf();
+        let displaced = repository.with_file_name("repository.displaced");
+        std::fs::rename(&repository, &displaced).expect("displace retained repository");
+        std::fs::create_dir_all(repository.join("objects")).expect("create replacement repository");
+
+        let error = verified
+            .verify_identity()
+            .expect_err("repository replacement must reject");
+        assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
+
+        let _ = std::fs::remove_dir_all(&repo);
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn verified_git_repository_rejects_replaced_objects_path() {
+        let (repo, _) = create_git_source("git-retained-objects-source");
+        let cache = temp_root("git-retained-objects-cache");
+        let request = local_git_request(&repo, "HEAD");
+        resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
+        let verified = open_verified_git_repository(&cache, &request);
+        let objects = verified.path().join("objects");
+        let displaced = verified.path().join("objects.displaced");
+        std::fs::rename(&objects, &displaced).expect("displace retained object store");
+        std::fs::create_dir(&objects).expect("create replacement object store");
+
+        let error = verified
+            .verify_identity()
+            .expect_err("object-store replacement must reject");
+        assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
+
+        let _ = std::fs::remove_dir_all(&repo);
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn git_cache_forbidden_record_probe_rejects_non_not_found_errors() {
+        let (repo, _) = create_git_source("git-forbidden-probe-source");
+        let cache = temp_root("git-forbidden-probe-cache");
+        let request = local_git_request(&repo, "HEAD");
+        resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
+        let entry = git_cache_entry_root(&cache, &request);
+        let info = entry.join(GIT_CACHE_REPOSITORY).join("objects/info");
+        std::fs::remove_dir(&info).expect("remove empty Git info directory");
+        std::fs::write(&info, b"not a directory").expect("replace info with a regular file");
+
+        let error = resolve_git_source(&request, &cache, LocalSourceLimits::default())
+            .expect_err("NotADirectory must not prove a forbidden record absent");
+        assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
+
+        let _ = std::fs::remove_dir_all(&repo);
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn git_cache_rejects_symlinks_in_owned_repository_namespaces() {
+        for relative in ["config", "FETCH_HEAD", "HEAD"] {
+            let (repo, _) = create_git_source(&format!("git-symlink-{relative}-source"));
+            let cache = temp_root(&format!("git-symlink-{relative}-cache"));
+            let request = local_git_request(&repo, "HEAD");
+            resolve_git_source(&request, &cache, LocalSourceLimits::default())
+                .expect("prime cache");
+            let entry = git_cache_entry_root(&cache, &request);
+            let repository = entry.join(GIT_CACHE_REPOSITORY);
+            let path = repository.join(relative);
+            let displaced = repository.join(format!("{relative}.displaced"));
+            std::fs::rename(&path, &displaced).expect("displace repository file");
+            std::os::unix::fs::symlink(&displaced, &path).expect("install repository symlink");
+
+            let error = resolve_git_source(&request, &cache, LocalSourceLimits::default())
+                .expect_err("repository symlink must reject");
+            assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
+
+            let _ = std::fs::remove_dir_all(&repo);
+            make_tree_owner_writable(&cache);
+            let _ = std::fs::remove_dir_all(&cache);
+        }
+
+        let (repo, _) = create_git_source("git-symlink-object-source");
+        let cache = temp_root("git-symlink-object-cache");
+        let request = local_git_request(&repo, "HEAD");
+        resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
+        let repository = git_cache_entry_root(&cache, &request).join(GIT_CACHE_REPOSITORY);
+        let object = first_regular_descendant(&repository.join("objects"));
+        let displaced = object.with_extension("displaced");
+        std::fs::rename(&object, &displaced).expect("displace object payload");
+        std::os::unix::fs::symlink(&displaced, &object).expect("install object symlink");
+
+        let error = resolve_git_source(&request, &cache, LocalSourceLimits::default())
+            .expect_err("object-store symlink must reject");
+        assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
+
+        let _ = std::fs::remove_dir_all(&repo);
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn git_cache_rejects_multiply_linked_regular_files() {
+        let (repo, _) = create_git_source("git-hardlink-source");
+        let cache = temp_root("git-hardlink-cache");
+        let request = local_git_request(&repo, "HEAD");
+        resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
+        let entry = git_cache_entry_root(&cache, &request);
+        let config = entry.join(GIT_CACHE_REPOSITORY).join("config");
+        std::fs::hard_link(&config, cache.join("config-alias"))
+            .expect("add external hard link to repository file");
+
+        let error = resolve_git_source(&request, &cache, LocalSourceLimits::default())
+            .expect_err("multiply-linked repository file must reject");
+        assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
+
+        let _ = std::fs::remove_dir_all(&repo);
+        make_tree_owner_writable(&cache);
         let _ = std::fs::remove_dir_all(&cache);
     }
 
