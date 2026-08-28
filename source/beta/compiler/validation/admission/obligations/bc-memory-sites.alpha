@@ -357,3 +357,26 @@ validate_memory_site_next:
         imm r1, 1
         add r10, r1
         jmp validate_memory_site_loop
+
+; Word loads rejoin address literals; stores rejoin pops into r1.
+exact_memory_load_pc:
+        imm r22, 1
+        imm r23, 8
+        call exact_memory_identity_pc
+        mov r30, r0
+        mov r20, r25
+        imm r22, 1
+        mov r23, r26
+        call exact_primitive_identity_pc
+        imm r1, 10
+        add r0, r1
+        jeq r0, r30, exact_shape_ok
+        jmp reject
+exact_memory_store_pc:
+        imm r22, 2
+        imm r23, 8
+        call exact_memory_identity_pc
+        mov r20, r0
+        imm r21, 1
+        call exact_require_pop_before
+        ret

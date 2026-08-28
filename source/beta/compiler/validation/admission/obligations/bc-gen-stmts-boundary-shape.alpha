@@ -208,65 +208,42 @@ gen_stmts_boundary_memory:
         imm r21, 308
         imm r25, 694
         imm r26, 2097064
-        call gen_stmts_boundary_memory_load
+        call exact_memory_load_pc
         imm r20, 65
         imm r21, 309
-        call gen_stmts_boundary_memory_store
+        call exact_memory_store_pc
         imm r20, 66
         imm r21, 310
-        call gen_stmts_boundary_memory_store
+        call exact_memory_store_pc
         imm r20, 67
         imm r21, 311
         imm r25, 703
         imm r26, 2097072
-        call gen_stmts_boundary_memory_load
+        call exact_memory_load_pc
         imm r20, 68
         imm r21, 311
-        call gen_stmts_boundary_memory_store
+        call exact_memory_store_pc
         imm r20, 69
         imm r21, 311
         imm r25, 709
         imm r26, 2097064
-        call gen_stmts_boundary_memory_load
+        call exact_memory_load_pc
         imm r20, 70
         imm r21, 313
-        call gen_stmts_boundary_memory_store
+        call exact_memory_store_pc
         imm r20, 71
         imm r21, 313
         imm r25, 716
         imm r26, 2097064
-        call gen_stmts_boundary_memory_load
+        call exact_memory_load_pc
         imm r20, 72
         imm r21, 314
-        call gen_stmts_boundary_memory_store
+        call exact_memory_store_pc
         imm r20, 73
         imm r21, 314
         imm r25, 721
         imm r26, 2097064
-        call gen_stmts_boundary_memory_load
-        ret
-
-; Loads rejoin their exact address literal; stores rejoin the shared pop macro.
-gen_stmts_boundary_memory_load:
-        imm r22, 1
-        imm r23, 8
-        call exact_memory_identity_pc
-        mov r30, r0
-        mov r20, r25
-        imm r22, 1
-        mov r23, r26
-        call exact_primitive_identity_pc
-        imm r1, 10
-        add r0, r1
-        jeq r0, r30, exact_shape_ok
-        jmp reject
-gen_stmts_boundary_memory_store:
-        imm r22, 2
-        imm r23, 8
-        call exact_memory_identity_pc
-        mov r20, r0
-        imm r21, 1
-        call exact_require_pop_before
+        call exact_memory_load_pc
         ret
 
 gen_stmts_boundary_primitives:
