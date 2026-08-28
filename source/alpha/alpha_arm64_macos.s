@@ -105,8 +105,11 @@ next:
     b.eq h_write
     udf  #0
 h_imm:
-    ldrb w9,  [x21], #1
-    ldr  x10, [x21], #8
+    // Decode the adjacent destination byte and unaligned immediate without a
+    // program-counter writeback dependency, then advance by the exact 9 bytes.
+    ldrb w9,  [x21]
+    ldr  x10, [x21, #1]
+    add  x21, x21, #9
     str  x10, [x19, w9, uxtw #3]
     b    next
 // Hot two-register handlers read the adjacent operand bytes independently,
