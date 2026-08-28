@@ -31,7 +31,11 @@ impl TerminalFixedViewCopyIdentity {
 /// transitions. This is a stable named transformation, not an allocator mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TerminalFixedViewCopyPolicy {
+    /// One copy immediately before each fixed leaf use.
     LeafLocalBeforeFixedUseV1,
+    /// One flag-transparent copy after the entry compare and immediately
+    /// before its conditional branch, shared by both return leaves.
+    SharedEntryAfterCompareBeforeBranchV1,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -48,7 +52,7 @@ pub struct TerminalFixedViewCopyPlan {
     pub transformed: TerminalSelectedInstructionPlan,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalFixedViewCopy {
     pub function: u32,
     pub machine: MachineId,
@@ -56,13 +60,24 @@ pub struct TerminalFixedViewCopy {
     pub source_value: ValueId,
     pub source_definition_site: ValueDefinitionSite,
     pub from_view: RegisterViewId,
-    pub destination_site: TerminalVirtualFixedConstraintSite,
+    /// Common destination view. Every destination row must repeat this view.
     pub to_view: RegisterViewId,
-    pub block: TerminalSelectedBlockId,
+    pub insertion_block: TerminalSelectedBlockId,
     pub before_instruction: TerminalSelectedInstructionId,
+    pub destinations: Vec<TerminalFixedViewCopyDestination>,
     pub copy_instruction: TerminalSelectedInstructionId,
     pub result_virtual_register: TerminalVirtualRegisterId,
     pub copy_constraint: RegisterConstraintKey,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalFixedViewCopyDestination {
+    /// Exact fixed-use site rewritten to the copy result.
+    pub site: TerminalVirtualFixedConstraintSite,
+    /// Leaf containing `site`.
+    pub block: TerminalSelectedBlockId,
+    /// Fixed view required by `site`; equal to the action-wide `to_view`.
+    pub view: RegisterViewId,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -164,6 +179,13 @@ pub enum TerminalFixedViewCopyError {
         instruction: u32,
     },
     NonLeafDestination {
+        function: usize,
+        instruction: u32,
+    },
+    UnsupportedSharedTransitionSet {
+        function: usize,
+    },
+    InvalidInsertionSite {
         function: usize,
         instruction: u32,
     },
