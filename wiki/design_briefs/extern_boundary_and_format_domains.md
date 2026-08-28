@@ -342,11 +342,22 @@ deterministic content-bound identity, and load-layout custody. It assigns no
 `e_shoff`, serializes no ELF or program header, mutates no `FinalImage`, and
 grants no runnable authority.
 
-Program/ELF header serialization and final section-header placement, internal
-`.dynamic` and procedure address-fixup application, optional `.gnu.hash`, image
-mutation, and independent final-byte replay remain open. Validated semantic
-tags, absolute geometry, and applied section-header bytes still grant no loader,
-publication, or runnable-image authority. An owned
+The internal `.dynamic` application carrier now consumes that placed-header
+owner, copies only indexed roster row ten, and resolves the exact seven
+`DT_PLTGOT`, `DT_HASH`, `DT_STRTAB`, `DT_SYMTAB`, `DT_JMPREL`, `DT_VERSYM`, and
+`DT_VERNEED` address obligations from their allocated section virtual
+addresses. It patches only the typed zero `d_un` fields as little-endian `u64`
+values. Independent replay rejoins the semantic tag plan, serialized fixups,
+indexed storage, target section identities, every literal/null and unchanged
+byte, deterministic identity, and the complete placed-header/load-layout
+custody chain. It does not resolve procedure/source relocations, serialize
+headers, mutate the image, or grant loader authority.
+
+Program/ELF header serialization and final section-header placement, procedure
+address-fixup application, optional `.gnu.hash`, image mutation, and independent
+final-byte replay remain open. Validated semantic tags, absolute geometry, and
+applied section-header/`.dynamic` bytes still grant no loader, publication, or
+runnable-image authority. An owned
 direct `[u8; N]` destination now contextually
 copies a quoted literal into an ordinary raw-byte array only when `N` is a
 resolved integer literal and the source byte count matches exactly; non-byte
