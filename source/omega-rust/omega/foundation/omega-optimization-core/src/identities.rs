@@ -126,6 +126,14 @@ canonical_identity!(
     b"omega.function-fragment-object-container-manifest-identity.v1\0"
 );
 canonical_identity!(
+    OptimizedTerminalObjectArtifactIdentity,
+    b"omega.optimized-terminal-object-artifact-identity.v1\0"
+);
+canonical_identity!(
+    OptimizedTerminalObjectArtifactManifestIdentity,
+    b"omega.optimized-terminal-object-artifact-manifest-identity.v1\0"
+);
+canonical_identity!(
     OptimizationDecisionIdentity,
     b"omega.optimization-decision-identity.v1\0"
 );
@@ -480,6 +488,8 @@ mod tests {
             TerminalRelocationFreeObjectPlanIdentity::from_canonical_bytes(b"same").bytes(),
             TerminalRelocationFreeObjectContainerIdentity::from_canonical_bytes(b"same").bytes(),
             FunctionFragmentObjectContainerManifestIdentity::from_canonical_bytes(b"same").bytes(),
+            OptimizedTerminalObjectArtifactIdentity::from_canonical_bytes(b"same").bytes(),
+            OptimizedTerminalObjectArtifactManifestIdentity::from_canonical_bytes(b"same").bytes(),
             OptimizationDecisionIdentity::from_canonical_bytes(b"same").bytes(),
             OptimizationDecisionSchemaIdentity::from_canonical_bytes(b"same").bytes(),
             OptimizationDecisionTargetIdentity::from_canonical_bytes(b"same").bytes(),
@@ -519,6 +529,8 @@ mod tests {
         round_trip!(TerminalRelocationFreeObjectPlanIdentity);
         round_trip!(TerminalRelocationFreeObjectContainerIdentity);
         round_trip!(FunctionFragmentObjectContainerManifestIdentity);
+        round_trip!(OptimizedTerminalObjectArtifactIdentity);
+        round_trip!(OptimizedTerminalObjectArtifactManifestIdentity);
         round_trip!(OptimizationDecisionIdentity);
         round_trip!(OptimizationDecisionSchemaIdentity);
         round_trip!(OptimizationDecisionTargetIdentity);
