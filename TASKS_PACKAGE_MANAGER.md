@@ -2585,8 +2585,8 @@ complete.
   otherwise contract-supplied machines, the checked operational summary remains
   the published may-ceiling by language design—it is not presented as a second
   observation that the retained body happened to be quiet. Current package
-  review v75/canonical row v33, conflict fingerprint v12, renderer V11, and
-  canonical-row recovery envelope v9 bind the appended roles; stale envelopes
+  review v75/canonical row v33, conflict fingerprint v13, renderer V12, and
+  canonical-row recovery envelope v10 bind the appended roles; stale envelopes
   reject rather than being reinterpreted. Remaining per-fact spans are
   incremental engineering work and require deliberate retention before typed
   lowering, not later source-text reconstruction.
@@ -2612,6 +2612,20 @@ complete.
   to be exactly `LIMIT` and `4`, preserve the role through recovery and conflict
   rendering, and prove that relocating identical semantics changes coordinates
   without changing canonical review identity.
+  Milestone 2026-08-27: transparent public propositions now retain the exact
+  semantic-token extent of their authored formula at the proposition parser
+  boundary. This occurs before typed application lowering can erase the
+  enclosing expression handle and before operator-root spans can narrow the
+  formula to one token. Syntax, symbol-resolved, and typed proposition
+  declarations carry that custody directly; a `PublicProposition` row emits it
+  under the closed `proposition_formula` role. Projection requires exactly one
+  formula location for a transparent proposition and none for primitive or
+  witness propositions. Recovery envelope v10, conflict fingerprint v13, and
+  renderer V12 bind the role and coordinates. Semantic package-review bytes
+  remain v75/canonical row v33: the normalized proposition body remains the
+  compatibility identity, while the formula location is explanatory custody.
+  Boolean and application-form canaries require the exact source slices and
+  reject missing or contradictory custody.
   Canonical recovery and root-project file custody are recorded below; none of
   these concerns requires nominal Chi or a new owner decision.
 

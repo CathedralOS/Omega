@@ -168,6 +168,8 @@ pub struct PropositionDefinition {
     pub is_public: bool,
     pub type_parameters: HandleSpan<TypeParameter>,
     pub parameters: HandleSpan<StateParameterHandle>,
+    /// Exact authored semantic-token extent of a transparent formula.
+    pub transparent_formula_source_span: Option<psi_source::SourceSpan>,
     pub body: PropositionBody,
 }
 

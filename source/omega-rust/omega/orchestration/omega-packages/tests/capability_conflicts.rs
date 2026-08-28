@@ -820,7 +820,7 @@ end_root_policy_resolution\n",
     let rendered = conflicts
         .render_bounded(1024 * 1024)
         .expect("render bounded conflict evidence");
-    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V11\n"));
+    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V12\n"));
     assert!(rendered.contains("change added\nkind public_proposition\nrisk blocking\n"));
     assert!(rendered.contains("candidate_location declaration package "));
     assert!(rendered.contains(" \"main.omg\"\n"));
@@ -1294,7 +1294,7 @@ fn public_const_changes_render_as_blocking_review_conflicts() {
     let rendered = conflicts
         .render_bounded(1024 * 1024)
         .expect("render public const conflict");
-    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V11\n"));
+    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V12\n"));
     assert!(rendered.contains("change changed\nkind public_const\nrisk blocking\n"));
     assert!(rendered.contains("baseline_location const_initializer package "));
     assert!(rendered.contains("candidate_location const_initializer package "));
@@ -1896,6 +1896,83 @@ pub machine invoke_leaf()
             .expect("render external executable-supply conflict")
             .contains("change changed\nkind external_executable_supply\nrisk opaque_blocking\n")
     );
+
+    let _ = std::fs::remove_dir_all(live);
+    let _ = std::fs::remove_dir_all(baseline_cache);
+    let _ = std::fs::remove_dir_all(candidate_cache);
+    let _ = std::fs::remove_dir_all(build_root);
+}
+
+#[test]
+fn transparent_proposition_changes_render_exact_formula_custody() {
+    let live = temp_root("transparent-proposition-live");
+    let baseline_cache = temp_root("transparent-proposition-baseline");
+    let candidate_cache = temp_root("transparent-proposition-candidate");
+    let build_root = temp_root("transparent-proposition-build");
+    let context = ExternalSourceContext::derive(b"transparent-proposition-conflict-test");
+
+    write_package(&live, "pub proposition ready() = true;\n");
+    let baseline_sources = resolve_external_local_package_closure(
+        &live,
+        context.clone(),
+        &baseline_cache,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve transparent proposition baseline");
+    let baseline_reviews =
+        compile_resolved_package_reviews(&baseline_sources, "windows_x64", &build_root)
+            .expect("compile transparent proposition baseline");
+
+    write_package(&live, "pub proposition ready() = false;\n");
+    let candidate_sources = resolve_external_local_package_closure(
+        &live,
+        context,
+        &candidate_cache,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve transparent proposition candidate");
+    let candidate_reviews =
+        compile_resolved_package_reviews(&candidate_sources, "windows_x64", &build_root)
+            .expect("compile transparent proposition candidate");
+
+    let conflicts = compare_review_only_capabilities(
+        &baseline_reviews,
+        &candidate_reviews,
+        &candidate_sources,
+        ReviewOnlyCapabilityConflictLimits::default(),
+    )
+    .expect("compare transparent proposition compatibility");
+    let [package] = conflicts.packages() else {
+        panic!("one changed package")
+    };
+    let [conflict] = package.conflicts() else {
+        panic!("one changed transparent proposition row")
+    };
+    assert_eq!(
+        conflict.kind(),
+        PackageReviewCanonicalRowKind::PublicProposition
+    );
+    for source in [conflict.baseline_source(), conflict.candidate_source()] {
+        assert!(
+            source
+                .and_then(PackageReviewCanonicalRowSource::authored_locations)
+                .unwrap()
+                .iter()
+                .any(|location| {
+                    location.role()
+                        == omega_compiler::PackageReviewSourceLocationRole::PropositionFormula
+                        && location.relative_path() == "main.omg"
+                })
+        );
+    }
+    let rendered = conflicts
+        .render_bounded(1024 * 1024)
+        .expect("render transparent proposition conflict");
+    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V12\n"));
+    assert!(rendered.contains("baseline_location proposition_formula package "));
+    assert!(rendered.contains("candidate_location proposition_formula package "));
 
     let _ = std::fs::remove_dir_all(live);
     let _ = std::fs::remove_dir_all(baseline_cache);

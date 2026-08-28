@@ -3330,13 +3330,11 @@ fn review_projects_unused_public_proposition_declarations_without_granting_facts
         return;
     };
     let package = TempPackage::new();
-    package.write(
-        "main.omg",
-        r#"pub proposition ready();
+    let source = r#"pub proposition ready();
 pub proposition reflexive(value: i32) = value == value;
 proposition hidden();
-"#,
-    );
+"#;
+    package.write("main.omg", source);
     package.write(
         "build.omg",
         r#"target windows_x64 { }
@@ -3382,15 +3380,55 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
             PackageReviewContractExpression::Binary { .. }
         ))
     ));
-    let proposition_rows = review
+    let rows = review
         .canonical_rows()
-        .expect("canonical public proposition rows")
-        .into_iter()
+        .expect("canonical public proposition rows");
+    let proposition_rows = rows
+        .iter()
         .filter(|row| row.kind() == PackageReviewCanonicalRowKind::PublicProposition)
         .count();
     assert_eq!(
         proposition_rows, 2,
         "private propositions stay out of public API rows"
+    );
+    let reflexive_row = rows
+        .iter()
+        .find(|row| {
+            row.kind() == PackageReviewCanonicalRowKind::PublicProposition
+                && row
+                    .key_bytes()
+                    .windows("reflexive".len())
+                    .any(|window| window == b"reflexive")
+        })
+        .expect("transparent proposition row");
+    let locations = reflexive_row
+        .source()
+        .authored_locations()
+        .expect("transparent proposition source custody");
+    let formula = locations
+        .iter()
+        .find(|location| location.role() == PackageReviewSourceLocationRole::PropositionFormula)
+        .expect("transparent proposition formula location");
+    let start = usize::try_from(formula.start_byte()).unwrap();
+    let end = usize::try_from(formula.end_byte()).unwrap();
+    assert_eq!(&source[start..end], "value == value");
+    let ready_row = rows
+        .iter()
+        .find(|row| {
+            row.kind() == PackageReviewCanonicalRowKind::PublicProposition
+                && row
+                    .key_bytes()
+                    .windows("ready".len())
+                    .any(|window| window == b"ready")
+        })
+        .expect("primitive proposition row");
+    assert!(
+        ready_row
+            .source()
+            .authored_locations()
+            .unwrap()
+            .iter()
+            .all(|location| location.role() != PackageReviewSourceLocationRole::PropositionFormula)
     );
 }
 
@@ -3861,6 +3899,28 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         project_checked_package_review(&direct_checked).expect("direct witness review");
     let aliased_review =
         project_checked_package_review(&compile(&aliased)).expect("aliased witness review");
+    let forwarded_row = aliased_review
+        .canonical_rows()
+        .expect("aliased proposition rows")
+        .into_iter()
+        .find(|row| {
+            row.kind() == PackageReviewCanonicalRowKind::PublicProposition
+                && row
+                    .key_bytes()
+                    .windows("forwarded".len())
+                    .any(|window| window == b"forwarded")
+        })
+        .expect("transparent proposition application row");
+    let forwarded_formula = forwarded_row
+        .source()
+        .authored_locations()
+        .unwrap()
+        .iter()
+        .find(|location| location.role() == PackageReviewSourceLocationRole::PropositionFormula)
+        .expect("transparent proposition application source");
+    let start = usize::try_from(forwarded_formula.start_byte()).unwrap();
+    let end = usize::try_from(forwarded_formula.end_byte()).unwrap();
+    assert_eq!(&aliased_source[start..end], "carries<Item>(value)");
     let consume = direct_review
         .callables()
         .iter()

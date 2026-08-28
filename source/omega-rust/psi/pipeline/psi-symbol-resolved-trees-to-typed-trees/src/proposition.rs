@@ -15,6 +15,7 @@ pub(crate) fn lower_proposition_definition(
         is_public: proposition.is_public,
         binders: Default::default(),
         parameters: Default::default(),
+        transparent_formula_source_span: proposition.transparent_formula_source_span,
         body: typed::proposition::PropositionBody::Primitive,
     };
 

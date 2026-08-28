@@ -2410,6 +2410,10 @@ pub enum PackageReviewSourceLocationRole {
     /// Exact initializer expression of one public const. This remains
     /// distinct from the declaration-name anchor after value substitution.
     ConstInitializer,
+    /// Exact source expression of one transparent public proposition. The
+    /// formula remains explanatory custody outside normalized proposition
+    /// identity.
+    PropositionFormula,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -4272,6 +4276,30 @@ fn project_public_propositions(
             continue;
         }
         let (binders, parameter_types) = project_proposition_signature(compilation, declaration)?;
+        let nested_source_locations = match (
+            &declaration.body,
+            declaration.transparent_formula_source_span,
+        ) {
+            (PropositionBody::Transparent { .. }, Some(source_span)) => {
+                vec![ProjectedNestedSourceLocation {
+                    source_span,
+                    role: PackageReviewSourceLocationRole::PropositionFormula,
+                }]
+            }
+            (PropositionBody::Primitive | PropositionBody::Witness { .. }, None) => Vec::new(),
+            (PropositionBody::Transparent { .. }, None) => {
+                return Err(vec![Diagnostic::error(format!(
+                    "public transparent proposition `{}` has no exact formula source custody",
+                    identity.path
+                ))]);
+            }
+            (PropositionBody::Primitive | PropositionBody::Witness { .. }, Some(_)) => {
+                return Err(vec![Diagnostic::error(format!(
+                    "public non-transparent proposition `{}` retains contradictory formula source custody",
+                    identity.path
+                ))]);
+            }
+        };
         let body = match &declaration.body {
             PropositionBody::Primitive | PropositionBody::Witness { .. } => {
                 let matching = compilation
@@ -4372,7 +4400,7 @@ fn project_public_propositions(
                 body,
             },
             declaration: declaration.symbol,
-            nested_source_locations: Vec::new(),
+            nested_source_locations,
         });
     }
     rows.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));
