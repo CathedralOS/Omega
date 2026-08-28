@@ -245,8 +245,10 @@ These facts constrain the work below.
   distinct `ReturnUnit` semantic, constraint, and alternative identities.
   Target-owned encoders and effect validators require canonical x86-64 `C3` or
   AArch64 `RET X30`, with no scalar result custody. The schema expansion is
-  explicit rather than backward-compatible guesswork: legalized-plan and
-  legalization-replay v5, selected-plan v8, effect-catalog v3,
+  explicit rather than backward-compatible guesswork: the original Unit
+  selection route landed with legalized-plan and legalization-replay v5,
+  while the structural Unit roster below advances both to v6; selected-plan
+  remains v8, effect-catalog v3,
   preallocation-effect v4/codec v5, postallocation-machine v3/codec v2,
   fixed-copy codec v4, selected-form encoding v4, resolved-layout v4,
   whole-function exit v4, function-relative manifest v6, fragment/text
@@ -301,17 +303,31 @@ These facts constrain the work below.
   symbol, emitted bytes, runtime values, bootstrap, image, installation, or
   publication authority.
 
-  The current zero-VReg Unit legalization is deliberately narrower than that
-  wrapper plan. Producer and independent replay now reject structural
-  parameters, entry claims, declared places, and published-service
-  custody because the closed Unit record cannot represent them. A regression
-  test proves a structurally parameterized bare `ReturnUnit` fails at
-  legalization instead of silently losing its ABI; a separate regression
-  proves that static attachment identity is retained without inventing a
-  receiver. The remaining semantic object path needs a distinct call-aware
-  Unit form that transfers both linear extents to the private Terminal symbol
-  before returning Unit, then binds that symbol and its span to the wrapper's
-  symbolic call requirement.
+  Legalized-plan and independent-replay v6 now add a distinct structural Unit
+  roster without weakening the zero-VReg Unit record. The admitted forms are
+  exactly a structural `ReturnUnit`, or one whole-root `CallUnit` followed by
+  `ReturnUnit`. The carrier retains structural declarations, paired semantic
+  and target parameters/arguments, caller and callee native call plans,
+  declared places, ordered entry claims, published-service ceiling,
+  provenance, fuel, effects, claim transfers, and cleanup ownership events.
+  Independent replay recomputes both call plans, resolves the roster by unique
+  `MachineId`, and rejects placement, plan, ordering, effect, ownership,
+  cleanup, and roster corruption. Static attachment identity remains retained
+  without inventing receiver custody. Instruction selection rejects a nonempty
+  structural roster explicitly, so no legacy selected record can erase this
+  state.
+
+  The next backend milestone is one atomic zero-VReg Microsoft-x64 structural
+  Unit-call selected pseudo plus the existing `ReturnUnit`, with exact indirect
+  `RCX`/`RDX` inputs, 32/48-byte copy slots, balanced 72-byte frame, direct
+  internal call, caller-saved clobbers, and structural memory/call effects. It
+  must remain ProgramStorage-neutral. A later join binds its applicable object
+  and MachineId-rooted private continuation symbol to the settlement, semantic
+  contract, and wrapper plan; the compiler-private wrapper itself receives no
+  fabricated Terminal `MachineId`. The checked-source ProgramStorage fixture
+  currently lowers its generic two-root handoff as `BoundaryCall`, not this
+  compiler-private `CallUnit`, and therefore is receipt evidence rather than a
+  positive wrapper fixture.
 
   A separate
   `StagedOptimizedAssignedOperations` carrier
@@ -2433,9 +2449,14 @@ dependency.
   non-invoked physical plan. A pure address-free wrapper plan now fixes the
   exact root-copy sequence, balanced 72-byte frame, private-continuation call
   slot, and function-relative `rel32` requirement without claiming symbols or
-  bytes. The next boundary must add the structural, claim-preserving call-aware
-  Unit backend form, join its applicable object and private symbol with the
-  settlement, contract, and wrapper plan, then construct the semantic
+  bytes. A distinct structural Unit legalized roster now retains one whole-root
+  `CallUnit` plus `ReturnUnit`, including exact paired ABI projections, call
+  plans, places, claims, service, provenance, fuel, effects, and ownership;
+  independent replay reconstructs both sides and instruction selection fails
+  closed instead of erasing the roster. The next boundary must select and
+  realize the atomic Microsoft-x64 structural call form, join its applicable
+  object and private continuation symbol with the settlement, contract, and
+  wrapper plan, then construct the semantic
   `ProgramStorageEntry` wrapper object. The scalar-
   result conditional fixture used by the callable classifier remains
   intentionally ineligible. The current UEFI surface explicitly calls its

@@ -189,7 +189,8 @@ canonical Terminal Psi semantic + proof sections
           -> checked-source signature / Terminal `MachineId` settlement
           -> validated declaration-only ProgramStorage semantic contract
           -> address-free semantic ProgramStorage wrapper plan
-          -> call-aware Unit object/private-symbol join (next)
+          -> claim-preserving call-aware Unit legalization
+          -> atomic Unit-call selection and object/private-symbol join (next)
           -> semantic ProgramStorage wrapper object
        (physical process entry, native image, install, and publication closed)
     -> encoding, relocation, image, installation
@@ -2344,9 +2345,10 @@ artifact. The final disposition remains
 `ExternalProcessEntryBridgeRequiredV1`.
 
 The clean backend now has an exact Unit-return vocabulary alongside the scalar
-callable vocabulary. Independent legalization replay admits only the current
-receiver-free, zero-VReg, one-block shape whose sole terminator is
-`ReturnUnit`. Selection uses distinct Unit semantic, constraint, and
+callable vocabulary. Its original baseline roster admits the receiver-free,
+zero-VReg, one-block shape whose sole terminator is `ReturnUnit`; the distinct
+v6 structural roster described below does not weaken that shape. Selection of
+the baseline uses distinct Unit semantic, constraint, and
 alternative identities; it does not encode Unit as a scalar return with a fake
 value. x86-64 owns canonical `C3` encoding/effects and AArch64 owns canonical
 `RET X30` encoding/effects. Because this changes closed replay vocabularies,
@@ -2408,18 +2410,29 @@ physical bootstrap. The distinct receiver-free, straight-line Unit selected
 shape, complete zero-VReg-to-object artifact route, retained target-owned
 `ProgramEntry` signature/calling plans, checked-source-to-Terminal entry
 settlement, declaration-only semantic ProgramStorage contract, and address-free
-wrapper plan now exist. The current Unit legalizer is intentionally not that
-wrapper: because its closed record has no structural ABI or ownership
-vocabulary, producer and independent replay reject structural parameters,
-entry claims, declared places, and published-service custody. A structurally
-parameterized bare `ReturnUnit` therefore fails rather than silently erasing
-its ABI, while static attachment identity remains admissible and retained
-without inventing receiver custody. The next implementation boundary adds the
-claim-preserving call-aware Unit form, then joins its applicable object and
-private symbol with the settlement, semantic contract, and wrapper plan to
-construct the semantic `ProgramStorageEntry` wrapper object. The scalar-result
-conditional fixture above is therefore correctly an
-ordinary callable and cannot serve as the positive Unit fixture. That semantic
+wrapper plan now exist. Legalized-plan and independent-replay v6 add a distinct
+structural Unit roster rather than weakening the original zero-VReg roster. It
+admits exactly a structural `ReturnUnit`, or one whole-root `CallUnit` followed
+by `ReturnUnit`, and retains the structural type closure, paired semantic and
+target parameter/argument declarations, native call plans, places, claims,
+service ceiling, provenance, fuel, effects, and ownership events. Replay
+recomputes both caller and callee call plans and resolves the raw roster by
+unique `MachineId`. Any placement, ordering, plan, effect, ownership, cleanup,
+or roster drift fails closed. Selection explicitly rejects this new roster, so
+legalization grants no instruction, register, frame, encoding, symbol, object,
+or publication authority.
+
+This is the generic claim-preserving backend vocabulary needed by the wrapper,
+not the ProgramStorage wrapper object itself. The next implementation boundary
+selects one atomic Microsoft-x64 structural Unit call pseudo plus `ReturnUnit`,
+then joins an applicable realized object and its compiler-private continuation
+symbol with the settlement, semantic contract, and wrapper plan. The wrapper
+identity remains distinct from every Terminal `MachineId`; only the internal
+continuation is MachineId-rooted. The checked-source ProgramStorage regression
+also establishes that the existing generic source lowering expresses its
+two-root handoff as `BoundaryCall`, so it must not be misrepresented as the
+positive compiler-private `CallUnit` wrapper fixture. The scalar-result
+conditional fixture above remains an ordinary callable. The eventual semantic
 wrapper is not yet an authoritative firmware/process entry: the UEFI surface is
 explicitly planned and non-invoked, and no target/runtime contract maps
 `(EfiImageHandle, &EfiSystemTable)` into those two semantic extents or maps Unit

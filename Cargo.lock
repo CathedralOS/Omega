@@ -2090,12 +2090,14 @@ dependencies = [
 name = "omega-terminal-target-operations-to-selected-instructions"
 version = "0.1.0"
 dependencies = [
+ "omega-calling-conventions",
  "omega-optimization-core",
  "omega-optimization-unit",
  "omega-optimization-validation",
  "omega-register-model",
  "omega-target",
  "omega-terminal-abstract-operations",
+ "omega-terminal-abstract-operations-to-target-operations",
  "omega-terminal-legalized-operations",
  "omega-terminal-selected-instructions",
  "omega-terminal-target-operations",
