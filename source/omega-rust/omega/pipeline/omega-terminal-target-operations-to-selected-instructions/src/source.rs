@@ -567,6 +567,17 @@ fn derive_boundary_settlement(
         .iter()
         .map(|(_, receipt)| *receipt)
         .collect::<Vec<_>>();
+    let expected_sources = caller_claims
+        .iter()
+        .cloned()
+        .map(
+            |entry| omega_terminal_abstract_operations::TerminalCompletionClaimSource {
+                claim: entry.claim,
+                entry: Some(entry),
+                content: None,
+            },
+        )
+        .collect::<Vec<_>>();
     let completed_claims = expected_receipts
         .iter()
         .map(|receipt| receipt.claim)
@@ -586,25 +597,11 @@ fn derive_boundary_settlement(
         || !declaration.content_guarantees.is_empty()
         || !declaration.published_service_ceiling.is_empty()
         || declaration.structural_parameters.len() != structural_arguments.len()
+        || declaration.requires.iter().any(|requirement| {
+            requirement.argument_index as usize >= declaration.structural_parameters.len()
+        })
         || completion_receipts != &expected_receipts
-        || completion_claim_sources
-            .windows(2)
-            .any(|pair| pair[0] >= pair[1])
-        || completion_claim_sources.iter().any(|source| {
-            let Some(entry) = &source.entry else {
-                return true;
-            };
-            source.content.is_some()
-                || entry.claim != source.claim
-                || caller_claims.iter().filter(|claim| *claim == entry).count() != 1
-        })
-        || expected_evidence.iter().any(|(expected_source, _)| {
-            completion_claim_sources
-                .iter()
-                .filter(|source| *source == expected_source)
-                .count()
-                != 1
-        })
+        || completion_claim_sources != &expected_sources
         || optimized.operation != *abstracted
         || optimized.provenance != [PsiProvenance::Operation(*psi_operation)]
         || optimized.effect.input != index as u64
@@ -625,6 +622,16 @@ fn derive_boundary_settlement(
                     return true;
                 };
                 let boundary_parameter = &declaration.structural_parameters[index];
+                let mut expected_qualifications = boundary_parameter.qualifications.clone();
+                expected_qualifications.extend(
+                    declaration
+                        .requires
+                        .iter()
+                        .filter(|requirement| requirement.argument_index as usize == index)
+                        .map(|requirement| requirement.domain),
+                );
+                expected_qualifications.sort_unstable();
+                expected_qualifications.dedup();
                 !argument.path.is_empty()
                     || argument.access != psi_terminal::StructuralAccess::Owned
                     || caller.semantic.multiplicity != psi_terminal::StructuralMultiplicity::Linear
@@ -633,7 +640,7 @@ fn derive_boundary_settlement(
                     || boundary_parameter.structural_type != caller.semantic.structural_type
                     || boundary_parameter.multiplicity != caller.semantic.multiplicity
                     || boundary_parameter.access != caller.semantic.access
-                    || boundary_parameter.qualifications != caller.semantic.qualifications
+                    || expected_qualifications != caller.semantic.qualifications
             })
     {
         return Err(Error::UnsupportedSourceShape { function });

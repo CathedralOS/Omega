@@ -35,8 +35,11 @@ use omega_terminal_abstract_operations::{
 use omega_terminal_abstract_operations_to_target_operations::{
     AdmittedTerminalBoundarySettlement, LoweringError, lower_to_target_operations,
     lower_to_target_operations_with_provider_executions,
+    lower_to_target_operations_with_provider_executions_and_installation,
 };
-use omega_terminal_psi_to_abstract_operations::VerifiedTerminalOptimizationInput;
+use omega_terminal_psi_to_abstract_operations::{
+    AdmittedTerminalProviderInstallation, VerifiedTerminalOptimizationInput,
+};
 use omega_terminal_target_operations::TerminalTargetOperationPlan;
 use psi_core::MachineId;
 
@@ -60,8 +63,8 @@ pub struct ValidatedOptimizedAbstractPlan {
 #[derive(Debug)]
 pub struct ValidatedOptimizedTargetOperations {
     optimized: ValidatedOptimizedAbstractPlan,
-    target: omega_target::NativeTarget,
     target_operations: TerminalTargetOperationPlan,
+    provider_installation: Option<Box<AdmittedTerminalProviderInstallation>>,
 }
 
 impl ValidatedOptimizedTargetOperations {
@@ -70,11 +73,18 @@ impl ValidatedOptimizedTargetOperations {
     }
 
     pub const fn target(&self) -> omega_target::NativeTarget {
-        self.target
+        self.target_operations.target
     }
 
     pub const fn target_operations(&self) -> &TerminalTargetOperationPlan {
         &self.target_operations
+    }
+
+    /// The exact opaque provider installation that authorized any projected
+    /// installed-provider calls. This remains borrowed so it cannot detach
+    /// from the optimized target plan it authorized.
+    pub fn provider_installation(&self) -> Option<&AdmittedTerminalProviderInstallation> {
+        self.provider_installation.as_deref()
     }
 }
 
@@ -85,8 +95,8 @@ pub fn lower_optimized_to_target_operations(
     let target_operations = lower_to_target_operations(optimized.plan(), target)?;
     Ok(ValidatedOptimizedTargetOperations {
         optimized,
-        target,
         target_operations,
+        provider_installation: None,
     })
 }
 
@@ -99,8 +109,31 @@ pub fn lower_optimized_to_target_operations_with_provider_executions(
         lower_to_target_operations_with_provider_executions(optimized.plan(), target, settlements)?;
     Ok(ValidatedOptimizedTargetOperations {
         optimized,
-        target,
         target_operations,
+        provider_installation: None,
+    })
+}
+
+/// Lower with one exact admitted checked-provider installation while retaining
+/// that opaque admission by value beside the target projection it authorized.
+/// Remaining bodyless boundaries may still be supplied as external provider
+/// executions; target lowering rejects overlap with installed boundaries.
+pub fn lower_optimized_to_target_operations_with_provider_executions_and_installation(
+    optimized: ValidatedOptimizedAbstractPlan,
+    target: omega_target::NativeTarget,
+    settlements: &[AdmittedTerminalBoundarySettlement<'_>],
+    installation: AdmittedTerminalProviderInstallation,
+) -> Result<ValidatedOptimizedTargetOperations, LoweringError> {
+    let target_operations = lower_to_target_operations_with_provider_executions_and_installation(
+        optimized.plan(),
+        target,
+        settlements,
+        Some(&installation),
+    )?;
+    Ok(ValidatedOptimizedTargetOperations {
+        optimized,
+        target_operations,
+        provider_installation: Some(Box::new(installation)),
     })
 }
 
@@ -2828,6 +2861,7 @@ mod tests {
         let target =
             lower_optimized_to_target_operations(optimized, NativeTarget::linux_x64()).unwrap();
         assert_eq!(target.target(), NativeTarget::linux_x64());
+        assert!(target.provider_installation().is_none());
         assert_eq!(target.optimized().commits().len(), 1);
         assert_eq!(target.target_operations().functions.len(), 1);
     }

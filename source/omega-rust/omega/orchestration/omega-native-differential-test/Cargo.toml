@@ -58,6 +58,10 @@ omega-effects = { path = "../../representations/omega-effects" }
 
 [dev-dependencies]
 omega-effects = { path = "../../representations/omega-effects" }
+omega-lowering-optimizer = { path = "../../optimization/omega-lowering-optimizer" }
+omega-optimization-core = { path = "../../foundation/omega-optimization-core" }
+omega-optimization-pipeline = { path = "../omega-optimization-pipeline" }
+omega-optimization-unit = { path = "../../representations/omega-optimization-unit" }
 psi-source-files-to-tokens = { path = "../../../psi/pipeline/psi-source-files-to-tokens" }
 psi-symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/psi-symbol-resolved-trees-to-typed-trees" }
 psi-syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/psi-syntax-trees-to-symbol-resolved-trees" }

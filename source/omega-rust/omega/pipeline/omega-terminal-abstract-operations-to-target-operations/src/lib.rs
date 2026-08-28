@@ -3568,6 +3568,9 @@ fn claim_completion_only_boundary_is_exact(
         || !declaration.published_service_ceiling.is_empty()
         || structural_arguments.is_empty()
         || structural_arguments.len() != declaration.structural_parameters.len()
+        || declaration.requires.iter().any(|requirement| {
+            requirement.argument_index as usize >= declaration.structural_parameters.len()
+        })
         || completion_receipts.is_empty()
         || completion_claim_sources
             .windows(2)
@@ -3594,6 +3597,16 @@ fn claim_completion_only_boundary_is_exact(
         else {
             return false;
         };
+        let mut expected_qualifications = boundary_parameter.qualifications.clone();
+        expected_qualifications.extend(
+            declaration
+                .requires
+                .iter()
+                .filter(|requirement| requirement.argument_index as usize == index)
+                .map(|requirement| requirement.domain),
+        );
+        expected_qualifications.sort_unstable();
+        expected_qualifications.dedup();
         if !argument.path.is_empty()
             || argument.access != psi_terminal::StructuralAccess::Owned
             || source.access != psi_terminal::StructuralAccess::Owned
@@ -3602,21 +3615,23 @@ fn claim_completion_only_boundary_is_exact(
             || boundary_parameter.multiplicity != psi_terminal::StructuralMultiplicity::Linear
             || boundary_parameter.position != index as u32
             || source.structural_type != boundary_parameter.structural_type
-            || caller_parameter.qualifications != boundary_parameter.qualifications
+            || caller_parameter.qualifications != expected_qualifications
         {
             return false;
         }
     }
 
-    let canonical_sources = completion_claim_sources.iter().all(|source| {
-        source.content.is_none()
-            && source.entry.as_ref().is_some_and(|entry| {
-                entry.claim == source.claim
-                    && entry.path.is_empty()
-                    && function.entry_claims.iter().any(|claim| claim == entry)
-            })
-    });
-    if !canonical_sources {
+    let canonical_sources = function
+        .entry_claims
+        .iter()
+        .cloned()
+        .map(|entry| TerminalCompletionClaimSource {
+            claim: entry.claim,
+            entry: Some(entry),
+            content: None,
+        })
+        .collect::<Vec<_>>();
+    if completion_claim_sources != canonical_sources {
         return false;
     }
 

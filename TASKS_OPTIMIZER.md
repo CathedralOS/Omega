@@ -449,10 +449,19 @@ These facts constrain the work below.
   every receipt must have one exact source. These rows own no selected
   instruction identifiers; the provider's `ReturnUnit` remains instruction 0.
   Pairing either synthetic fixture with the other's custody must still reject.
-  A positive three-way settlement/object/wrapper regression remains an
-  engineering prerequisite: the optimized target carrier must own the opaque
-  installation by value, then join both selected functions into object custody.
-  This does not require a new owner question.
+  The optimized target carrier now owns the opaque installation by value behind
+  a borrowed projection, and every selected/physical carrier retains that same
+  ownership transitively. The first honest checked-source ProgramStorage
+  regression opts into named copy propagation, lowers the installed provider
+  plus both settlements, and reaches independently replayed legalization and
+  selection with zero virtual registers and exactly three selected instructions
+  (the installed call and two Unit returns). The canonical settlement checks
+  derive parameter qualifications from both the declaration and `requires`,
+  retain the complete entry-claim source roster at each occurrence, and complete
+  only the receipt-selected claim. The remaining engineering prerequisite is to
+  join both selected functions and the retained installation into canonical
+  object custody, then compose that child object with the semantic wrapper. This
+  does not require a new owner question.
 
   A separate
   `StagedOptimizedAssignedOperations` carrier
@@ -2652,8 +2661,10 @@ dependency.
   and `ClaimCompletion` ownership. The provider body's two pure claim
   settlements now also have an exact zero-code target realization, ordered
   legalized/selected metadata custody, and legacy object/install custody. They
-  consume no selected instruction IDs. Remaining here is the installation-
-  owning optimized-target carrier and final object-custody join.
+  consume no selected instruction IDs. The optimized-target carrier now owns
+  the opaque installation and the positive checked-source regression reaches
+  selected custody with the installed call and both settlement rows intact.
+  Remaining here is the final object-custody join and wrapper composition.
 
   Landed coverage independently replays the composition and codecs and rejects
   object/manifest identity drift, child-text drift, and any attempt to classify

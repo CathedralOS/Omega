@@ -641,9 +641,13 @@ contract is admitted.
 The carrier exposes the projected abstract plan only by borrow while retaining
 the verified input and complete optimization run. A second optimized-only
 carrier lowers it to target operations while retaining the first carrier and
-exact target. This prevents an optimized consumer from obtaining either plan
-by consuming and discarding its evidence. The ordinary bare-plan lowering API
-remains for the empty-selection compatibility lane.
+exact target. When checked providers are installed, this carrier also owns the
+opaque admitted installation behind a borrowed projection; downstream selected
+and physical carriers retain it transitively rather than copying its facts into
+a detachable side channel. This prevents an optimized consumer from obtaining
+either plan or an installed-provider projection by consuming and discarding its
+evidence. The ordinary bare-plan lowering API remains for the empty-selection
+compatibility lane.
 
 A third opaque `StagedOptimizedAssignedOperations` carrier retains the complete
 optimized-target carrier beside the output of the current bounded
@@ -2581,10 +2585,20 @@ provider execution, fuel, sequential effect links, and `ClaimCompletion`
 ownership. The rows receive no selected instruction IDs; a settlement-only
 provider body selects only its `ReturnUnit`, numbered 0.
 
-The first positive three-way settlement/object/wrapper test still waits for
-orchestration to own the opaque installation alongside both selected functions
-through canonical object custody. That is an implementation prerequisite, not
-a language-design question, and does not add an owner question.
+The first honest checked-source ProgramStorage path now opts into the explicitly
+named copy-propagation pass, admits the opaque installation, lowers the
+installed call and both `ClaimCompletionOnly` settlements, and reaches
+independently replayed optimized legalization and selection. It retains the
+installation in the optimized-target carrier, both structural functions, the
+installed-call `ClaimCompletion`, both ordered settlement rows, zero virtual
+registers, and exactly three physical instructions (the call and two Unit
+returns). This regression also binds the canonical qualification union from a
+boundary parameter plus its `requires` domains and the full entry-claim source
+roster at each settlement while each receipt completes only its selected claim.
+The positive three-way object/wrapper join still waits for canonical object
+custody of both selected functions and that retained installation. That is an
+implementation prerequisite, not a language-design question, and does not add
+an owner question.
 The scalar-result conditional fixture above remains an ordinary callable. The
 eventual semantic wrapper is not yet an authoritative firmware/process entry:
 the UEFI surface is explicitly planned and non-invoked, and no target/runtime
