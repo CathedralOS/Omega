@@ -90,7 +90,7 @@ admission, and optional stress evidence stay under the same compiler owner.
 - [ ] Collapse the remaining Beta admission explosion into one canonical exact
   instruction/event/memory identity format plus small responsibility-specific
   semantic modules. The current bounded admission consists of 189 Alpha modules
-  and 64,990 lines; the checker ROOT is 82,172 bytes. Shape, control, data, and
+  and 64,881 lines; the checker ROOT is 82,314 bytes. Shape, control, data, and
   publication modules must consume common decoded facts rather than repeat byte
   offsets, macro bodies, or equivalent verification permutations.
 - [ ] Finish identity localization before changing the shared compiler frame
@@ -100,16 +100,16 @@ admission, and optional stress evidence stay under the same compiler owner.
   stable-row memory resolver has landed with the complete `gen_stmts` and
   `gen_expr` memory families plus a same-block swapped-PC tooth; 31 further
   modules must consume it.
-  The 27-module internal-site audit found only one missing shared owner:
-  synthetic `__write_str`. The other consumers can migrate through the existing
-  procedure/block/transition/event/local/memory/primitive/push/epilogue APIs and
-  checked relative emit layout; source rows `259` and `391` must not be mistaken
-  for shifting artifact PCs. The memory and internal-site consumer sets leave
-  46 modules in their remaining union. First centralize the helper extent and
-  remove its duplicate shape checks, then migrate existing-identity consumers,
-  procedure/epilogue consumers, and relative emit-layout consumers in that
-  order. Add a same-complete-key emit-occurrence swap tooth after the
-  net-negative centralization.
+  Synthetic `__write_str`, the sole missing shared owner found by the
+  internal-site audit, now resolves from the checked prelude successor; effect
+  custody owns its one exhaustive body check and the duplicate summary scan is
+  gone. All shared owners therefore exist. Thirty-one memory consumers and 24
+  internal-site consumers remain, spanning 44 modules. Next migrate the direct
+  identity/table group (`bc-counter-transfer`,
+  `bc-expression-call-data-shape`, `bc-expression-factor-rules`, and
+  `bc-name-eq-data-shape`), then the existing procedure/epilogue consumers and
+  relative emit-layout consumers. Source rows `259` and `391` are not artifact
+  PCs. Add a same-complete-key emit-occurrence swap tooth before applying r13.
 - [ ] Apply the r13 optimization only after that localization. Acceptance is a
   change to `bc.beta`, centralized identity/shape/ABI owners, generated exact
   identities, and adjacent manifests—not mechanical edits across unrelated
@@ -146,9 +146,12 @@ Delta.
   again before attempting another dispatch mechanism or speculative Gamma
   rewrite. Preparation is already sub-second-to-low-second work; prior sampling
   placed roughly 90% of the canonical execution in Alpha instruction dispatch.
-- [ ] Retain the canonical evaluator/type-checker inputs and outputs explicitly
-  at the Delta producer edge. Optional Python and alternate Gamma
-  implementations remain differential evidence only.
+- [x] Retain the canonical evaluator input and output explicitly at the Delta
+  producer edge, and retain evaluator/type-checker source and build-artifact
+  identities at the `bc` → Gamma edge. The Delta publication evaluates an
+  already elaborated closed Gamma program; inserting a separate type-checker
+  execution there would invent another semantic stage. Optional Python and
+  alternate Gamma implementations remain differential evidence only.
 
 ## 3. Gamma meaning route → `delta`
 
@@ -161,6 +164,10 @@ yet been published.
 
 The 2026-08-28 exact attempt was stopped after both parallel executions reached
 9,660 seconds with no output. It produced no receipt and grants no authority.
+That attempt predates the admitted Alpha dispatch reorder, hot-operand decode,
+and immediate decode changes, so it is not a current runtime estimate. Fresh
+preparation, elaboration, and packing take about 1.9, 1.25, and 0.11 seconds;
+the two already-parallel interpreter executions are the only material wait.
 
 - [ ] Execute the exact canonical Delta compiler source through the accepted
   Gamma route on the required V1 host, Darwin ARM64, using the four literal
@@ -174,7 +181,7 @@ The 2026-08-28 exact attempt was stopped after both parallel executions reached
   byte equality with the candidate, and re-snapshot all inputs afterward.
   Handcrafted Mach-O fixtures can test the container validator but cannot mint
   reconstruction-bearing receipts.
-- [ ] Bind source identity, target identity, assembly identity, replayed
+- [x] Bind source identity, target identity, assembly identity, replayed
   executable identity, reconstruction obligations, and disclosed target/host
   admissions in the eventual publication receipt. Preserve `OPEN_REFINEMENT`
   until the independently selected source-to-artifact proposition is checked.
