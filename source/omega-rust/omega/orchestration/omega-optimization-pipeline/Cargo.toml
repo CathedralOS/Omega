@@ -9,6 +9,7 @@ name = "omega_optimization_pipeline"
 path = "src/lib.rs"
 
 [dependencies]
+omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
 omega-lowering-optimizer = { path = "../../optimization/omega-lowering-optimizer" }
 omega-machine-optimizer = { path = "../../optimization/omega-machine-optimizer" }
 omega-object-file = { path = "../../backend/object/omega-object-file" }

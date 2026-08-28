@@ -4,8 +4,9 @@ use omega_regalloc::PostAllocationOptimizationManifest;
 use crate::{
     FunctionFragmentEmissionManifest, FunctionFragmentObjectContainerManifest,
     FunctionFragmentTextSectionManifest, FunctionRelativeOptimizationRealizationManifest,
-    OptimizedTerminalObjectArtifactManifest, StagedOptimizedVerifiedPhysicalPipeline,
-    StagedValidatedOptimizedTerminalObjectArtifact,
+    OptimizedTerminalObjectArtifactManifest, OptimizedTerminalOrdinaryCallableEntryManifest,
+    StagedOptimizedVerifiedPhysicalPipeline, StagedValidatedOptimizedTerminalObjectArtifact,
+    StagedValidatedOptimizedTerminalOrdinaryCallableEntry,
 };
 
 /// An auxiliary human projection request. This is deliberately independent of
@@ -36,6 +37,7 @@ pub struct OptimizationPipelineReport {
     text_section: Option<FunctionFragmentTextSectionManifest>,
     object_container: Option<FunctionFragmentObjectContainerManifest>,
     terminal_object_artifact: Option<OptimizedTerminalObjectArtifactManifest>,
+    ordinary_callable_entry: Option<OptimizedTerminalOrdinaryCallableEntryManifest>,
 }
 
 impl OptimizationPipelineReport {
@@ -71,6 +73,12 @@ impl OptimizationPipelineReport {
         self.terminal_object_artifact.as_ref()
     }
 
+    pub const fn ordinary_callable_entry(
+        &self,
+    ) -> Option<&OptimizedTerminalOrdinaryCallableEntryManifest> {
+        self.ordinary_callable_entry.as_ref()
+    }
+
     /// Project optional text after all semantic and physical decisions. The
     /// request cannot alter the structured carrier or the staged realization.
     pub fn render_human_text(&self, request: OptimizationReportRequest) -> Option<String> {
@@ -104,6 +112,13 @@ impl OptimizationPipelineReport {
                 artifact.identity
             ));
         }
+        if let Some(entry) = &self.ordinary_callable_entry {
+            report.push_str("\n[optimized Terminal ordinary callable entry]\n");
+            report.push_str(&format!(
+                "identity: {:?}\nexternal process entry bridge: required\nwrapper bytes: unavailable\nrelocations: unavailable\nexecutable image: unavailable\ninstallation: unavailable\npublication: unavailable\n",
+                entry.identity
+            ));
+        }
         Some(report)
     }
 }
@@ -124,6 +139,7 @@ pub fn optimization_pipeline_report(
         text_section: None,
         object_container: None,
         terminal_object_artifact: None,
+        ordinary_callable_entry: None,
     }
 }
 
@@ -142,5 +158,16 @@ pub fn optimization_pipeline_report_from_terminal_object_artifact(
         text_section: Some(text_stage.manifest().record().clone()),
         object_container: Some(object_stage.manifest().record().clone()),
         terminal_object_artifact: Some(staged.manifest().record().clone()),
+        ordinary_callable_entry: None,
     }
+}
+
+/// Project the callable-entry record only from its opaque carrier, which owns the complete source.
+pub fn optimization_pipeline_report_from_terminal_ordinary_callable_entry(
+    staged: &StagedValidatedOptimizedTerminalOrdinaryCallableEntry,
+) -> OptimizationPipelineReport {
+    let artifact = staged.source();
+    let mut report = optimization_pipeline_report_from_terminal_object_artifact(artifact);
+    report.ordinary_callable_entry = Some(staged.manifest().record().clone());
+    report
 }

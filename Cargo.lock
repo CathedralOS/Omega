@@ -1236,6 +1236,7 @@ dependencies = [
 name = "omega-optimization-pipeline"
 version = "0.1.0"
 dependencies = [
+ "omega-calling-conventions",
  "omega-lowering-optimizer",
  "omega-machine-optimizer",
  "omega-object-file",
