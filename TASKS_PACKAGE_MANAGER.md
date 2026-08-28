@@ -844,6 +844,19 @@ complete.
   TLS trust, SSH host trust, credential custody, transferred-byte or object-
   store quotas, or package admission.
 
+  Follow-up 2026-08-28: macOS repository initialization and inspection no
+  longer receive `process-fork`. Their fixed Git vocabulary (`init`,
+  `rev-parse`, `ls-tree`, and `cat-file`) completes in-process, while discovery
+  and fetch retain descendant creation for the verified transport chain. Native
+  policy-observation schema 5 marks `DescendantProcessesContained` enforced
+  only for those two nonnetwork phases. A native canary proves an explicitly
+  allowlisted executable still cannot be forked, and all 157 source-resolver
+  tests prove the supported Git built-ins continue to work. Git cache policy
+  v16 prevents reuse of repositories initialized under the broader policy.
+  This is phase-local
+  descendant denial, not process-count or aggregate descendant-resource
+  confinement for network phases.
+
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build
   machine may execute. Resolver custody is freshly revalidated first; the

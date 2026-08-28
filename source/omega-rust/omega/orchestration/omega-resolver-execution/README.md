@@ -27,8 +27,12 @@ text or containment claims.
   The child may connect only to the exact compiler-owned loopback broker port;
   the broker accepts only the typed requested host and port and records the
   effective connected peer. Initialization and inspection deny network and
-  reject any supplied transport authority or route. The applicable
-  filesystem-write, network-denial, and executable-path rows are enforced.
+  reject any supplied transport authority or route. They also omit
+  `process-fork`, so even an allowlisted executable cannot become a descendant;
+  discovery and fetch retain descendant creation for their verified transport
+  chains. The applicable
+  filesystem-write, network-denial, executable-path, and phase-applicable
+  descendant-containment rows are enforced.
 - Unix children intersect compiler CPU, core-file, single-file, and descriptor
   ceilings with stricter inherited limits. Linux and Android additionally
   apply an address-space ceiling.

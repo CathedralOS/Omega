@@ -126,9 +126,12 @@ receives the exact OpenDirectory libinfo lookup, `kern.hostname`, and
 connector; HTTPS receives none of them. Each network child may connect only to
 its exact loopback broker port, so macOS endpoint confinement is `Enforced`.
 Initialization and inspection deny network and reject a
-transport authority. Filesystem-write and executable-path rows are
+transport authority. They also omit process-fork authority entirely, so an
+allowlisted executable still cannot become a descendant in either nonnetwork
+phase. Filesystem-write and executable-path rows are
 `Enforced` for every phase, network denial is `Enforced` where applicable, and
-the exact compiler-owned rlimit rows are `Enforced` throughout macOS.
+descendant containment is `Enforced` for initialization and inspection. The
+exact compiler-owned rlimit rows are `Enforced` throughout macOS.
 Before a successful Git result is issued, the package layer also requires the
 number of retained policy observations to equal the bounded launch count and
 requires every observation's executable path set to equal the paths backed by
@@ -403,8 +406,9 @@ sealed SSH command receive the same identity, hash, custody, and ACL treatment;
 they do not grant execution of any unlisted descendant. Both transports recheck
 their executable identity around every Git launch, re-hash the canonical target
 at completion, and retain it separately. Drift rejects. The Git cache policy is
-v15, so a cache fetched before these executable-custody, cumulative-output,
-transport-authority, and endpoint-brokerage floors is not silently reused.
+v16, so a cache fetched before these executable-custody, cumulative-output,
+transport-authority, endpoint-brokerage, and nonnetwork descendant-denial floors
+is not silently reused.
 This identifies observed parent bytes and closes ordinary cross-user path
 ownership on Unix; it does not certify Git, the HTTPS helper, or SSH, bind
 other executable components, establish Windows ownership/DACL custody, protect

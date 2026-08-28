@@ -29,7 +29,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const RESOLVER_EXECUTION_OBSERVATION_SCHEMA_VERSION: u32 = 4;
+const RESOLVER_EXECUTION_OBSERVATION_SCHEMA_VERSION: u32 = 5;
 const RESOLVER_EXECUTION_ADDITIONAL_EXECUTABLE_LIMIT: usize = 32;
 const RESOLVER_EXECUTION_PATH_BYTE_LIMIT: usize = 32 * 1024;
 const RESOLVER_EXECUTION_CANONICAL_BYTE_LIMIT: usize = 2 * 1024 * 1024;
@@ -80,6 +80,10 @@ impl ResolverExecutionPhase {
 
     const fn requires_mutable_root(self) -> bool {
         matches!(self, Self::RepositoryInitialization | Self::Fetch)
+    }
+
+    const fn permits_descendant_processes(self) -> bool {
+        self.permits_network()
     }
 
     const fn tag(self) -> u8 {
@@ -705,12 +709,15 @@ impl ResolverExecutionBackend {
                 "macOS resolver selected a non-Seatbelt backend",
             ));
         };
-        let mut profile = format!(
-            "(version 1) (deny default) \
-             (allow process-fork) (allow signal) (allow file-read*) \
+        let mut profile = "(version 1) (deny default) ".to_owned();
+        if phase.permits_descendant_processes() {
+            profile.push_str("(allow process-fork) ");
+        }
+        profile.push_str(&format!(
+            "(allow signal) (allow file-read*) \
              (allow file-test-existence file-write-data (literal \"{MACOS_NULL_DEVICE}\")) \
              (allow process-exec (literal (param \"EXECUTABLE_0\"))"
-        );
+        ));
         for index in 0..additional_executables.len() {
             profile.push_str(&format!(" (literal (param \"EXECUTABLE_{}\"))", index + 1));
         }
@@ -780,10 +787,13 @@ fn guarantee_disposition(
             Enforced
         }
         FilesystemWritesConfined | ExecutablePathsConfined => Unavailable,
-        FilesystemReadsConfined
-        | DescendantProcessesContained
-        | ProcessCountConfined
-        | AggregateResourcesConfined => Unavailable,
+        FilesystemReadsConfined | ProcessCountConfined | AggregateResourcesConfined => Unavailable,
+        DescendantProcessesContained
+            if matches!(backend, MacosSeatbelt { .. }) && !phase.permits_descendant_processes() =>
+        {
+            Enforced
+        }
+        DescendantProcessesContained => Unavailable,
         NetworkDenied if matches!(backend, MacosSeatbelt { .. }) && !phase.permits_network() => {
             Enforced
         }
@@ -1500,6 +1510,7 @@ mod tests {
         assert!(!inspection_profile.contains("(import"));
         assert!(!inspection_profile.contains("network-outbound"));
         assert!(!inspection_profile.contains("file-write*"));
+        assert!(!inspection_profile.contains("process-fork"));
         assert!(
             inspection_profile
                 .contains("(allow file-test-existence file-write-data (literal \"/dev/null\"))")
@@ -1507,6 +1518,7 @@ mod tests {
         let initialization_profile = profile(&initialization_command);
         assert!(!initialization_profile.contains("(import"));
         assert!(!initialization_profile.contains("network-outbound"));
+        assert!(!initialization_profile.contains("process-fork"));
         assert!(
             initialization_profile
                 .contains("(allow file-write* (subpath (param \"MUTABLE_ROOT\")))")
@@ -1523,6 +1535,7 @@ mod tests {
         );
         assert!(!discovery_profile.contains("(allow network-outbound)"));
         assert!(!discovery_profile.contains("file-write*"));
+        assert!(discovery_profile.contains("(allow process-fork)"));
         assert!(discovery_profile.contains(
             "(allow mach-lookup (global-name \"com.apple.system.opendirectoryd.libinfo\"))"
         ));
@@ -1545,6 +1558,7 @@ mod tests {
                 .contains("(allow network-outbound (remote tcp (param \"BROKER_ENDPOINT\")))")
         );
         assert!(fetch_profile.contains("(allow file-write* (subpath (param \"MUTABLE_ROOT\")))"));
+        assert!(fetch_profile.contains("(allow process-fork)"));
         assert!(fetch_profile.contains(
             "(allow mach-lookup (global-name \"com.apple.system.opendirectoryd.libinfo\"))"
         ));
@@ -1570,6 +1584,7 @@ mod tests {
             ResolverExecutionGuarantee::FilesystemWritesConfined,
             ResolverExecutionGuarantee::NetworkDenied,
             ResolverExecutionGuarantee::ExecutablePathsConfined,
+            ResolverExecutionGuarantee::DescendantProcessesContained,
         ] {
             assert_eq!(
                 disposition(&initialization, guarantee),
@@ -1625,6 +1640,20 @@ mod tests {
                 ResolverExecutionGuarantee::ExecutablePathsConfined
             ),
             ResolverExecutionGuaranteeDisposition::Enforced
+        );
+        assert_eq!(
+            disposition(
+                &inspection,
+                ResolverExecutionGuarantee::DescendantProcessesContained
+            ),
+            ResolverExecutionGuaranteeDisposition::Enforced
+        );
+        assert_eq!(
+            disposition(
+                &discovery,
+                ResolverExecutionGuarantee::DescendantProcessesContained
+            ),
+            ResolverExecutionGuaranteeDisposition::Unavailable
         );
         assert_eq!(
             disposition(&fetch, ResolverExecutionGuarantee::NetworkDenied),
@@ -1855,13 +1884,22 @@ mod tests {
         let marker = output.join("marker");
         let backend = ResolverExecutionBackend::open().expect("open resolver backend");
         let helper_executables = [Path::new("/bin/bash").to_path_buf()];
+        let route = backend
+            .open_endpoint_route(
+                ResolverExecutionRequestedEndpoint::new("127.0.0.1", 9)
+                    .expect("construct executable-denial endpoint"),
+            )
+            .expect("open executable-denial route");
         let mut command = backend
-            .command(
+            .command_with_endpoint_route_observation(
                 Path::new("/bin/sh"),
                 &helper_executables,
-                ResolverExecutionPhase::RepositoryInitialization,
+                ResolverExecutionPhase::Fetch,
+                Some(ResolverExecutionNetworkTransport::Https),
+                Some(&route),
                 Some(&output),
             )
+            .map(|(command, _)| command)
             .expect("build closed-executable sandbox");
         let status = command
             .args(["-c", "/usr/bin/touch \"$1\"", "resolver-test"])
@@ -1870,7 +1908,31 @@ mod tests {
             .expect("attempt unlisted descendant execution");
         assert!(!status.success());
         assert!(!marker.exists());
+        route.finish().expect("finish executable-denial route");
         std::fs::remove_dir(output).expect("remove executable-denial root");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn seatbelt_denies_allowlisted_descendant_creation_during_inspection() {
+        let backend = ResolverExecutionBackend::open().expect("open resolver backend");
+        let helper_executables = [
+            Path::new("/bin/bash").to_path_buf(),
+            Path::new("/usr/bin/true").to_path_buf(),
+        ];
+        let mut command = backend
+            .command(
+                Path::new("/bin/sh"),
+                &helper_executables,
+                ResolverExecutionPhase::RepositoryInspection,
+                None,
+            )
+            .expect("build descendant-denial sandbox");
+        let status = command
+            .args(["-c", "/usr/bin/true & wait"])
+            .status()
+            .expect("attempt allowlisted descendant creation");
+        assert!(!status.success());
     }
 
     #[cfg(target_os = "macos")]
