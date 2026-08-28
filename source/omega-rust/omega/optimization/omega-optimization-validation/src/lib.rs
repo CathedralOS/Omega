@@ -3361,10 +3361,10 @@ pub fn validate_dominating_scalar_common_subexpression_candidate(
     validate_scalar_common_subexpression_candidate(input, candidate, ScalarCseScope::Dominating)
 }
 
-/// Independently validate one obligation-free scalar expression translated
-/// through every incoming binding of an acyclic join. The redundant result
-/// identity becomes a new join parameter; every incoming edge supplies the
-/// canonical available leader for its translated expression.
+/// Independently validate one obligation-free or proof-certified scalar
+/// expression translated through every incoming binding of an acyclic join.
+/// The redundant result identity becomes a new join parameter; every incoming
+/// edge supplies the canonical available leader for its translated expression.
 pub fn validate_phi_translated_scalar_common_subexpression_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
@@ -3373,13 +3373,27 @@ pub fn validate_phi_translated_scalar_common_subexpression_candidate(
     if candidate.input() != input.identity {
         return Err(OptimizationUnitValidationError::CandidateInputMismatch);
     }
-    let rule = OptimizationRuleIdentity::from_canonical_bytes(
-        b"omega.psi-rule.phi-translated-obligation-free-total-scalar-gvn.v1",
-    );
-    if candidate.rule() != rule
-        || !candidate
-            .required_analyses()
-            .contains(AnalysisKind::ControlFlowGraph)
+    let proof_class = if candidate.rule()
+        == OptimizationRuleIdentity::from_canonical_bytes(
+            b"omega.psi-rule.phi-translated-obligation-free-total-scalar-gvn.v1",
+        ) {
+        ScalarCseProofClass::ObligationFree
+    } else if candidate.rule()
+        == OptimizationRuleIdentity::from_canonical_bytes(
+            b"omega.psi-rule.phi-translated-proof-certified-total-scalar-gvn.v1",
+        )
+    {
+        ScalarCseProofClass::ProofCertified
+    } else {
+        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    };
+    let expected_safety = match proof_class {
+        ScalarCseProofClass::ObligationFree => OptimizationSafetyClass::ExactOperationSemantics,
+        ScalarCseProofClass::ProofCertified => OptimizationSafetyClass::ProofCertified,
+    };
+    if !candidate
+        .required_analyses()
+        .contains(AnalysisKind::ControlFlowGraph)
         || !candidate
             .required_analyses()
             .contains(AnalysisKind::Dominators)
@@ -3395,10 +3409,8 @@ pub fn validate_phi_translated_scalar_common_subexpression_candidate(
         || !candidate
             .invalidated_analyses()
             .contains(AnalysisKind::EffectSummaries)
-        || candidate.safety_class() != OptimizationSafetyClass::ExactOperationSemantics
+        || candidate.safety_class() != expected_safety
         || !candidate.substitutions().is_empty()
-        || candidate.accepted_obligation_witness().is_some()
-        || !candidate.consumed_facts().is_empty()
     {
         return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
     }
@@ -3453,8 +3465,8 @@ pub fn validate_phi_translated_scalar_common_subexpression_candidate(
             })
         }))
         .collect::<BTreeMap<_, _>>();
-    let (_, redundant_operation, redundant_result, redundant_type) =
-        independent_total_scalar_expression(&redundant.operation, &value_types)
+    let (_, redundant_operation, redundant_result, redundant_type, redundant_obligation) =
+        independent_cse_expression(&redundant.operation, &value_types, proof_class)
             .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
     if redundant_operation != patch.redundant_operation
         || redundant_result != patch.redundant_result
@@ -3476,13 +3488,42 @@ pub fn validate_phi_translated_scalar_common_subexpression_candidate(
             .flat_map(|block| &block.nodes)
             .flat_map(|node| &node.uses)
             .any(|use_site| use_site.value == redundant_result)
-        || function.facts.iter().any(|fact| {
-            matches!(fact, OptimizationFact::OperationObligationReference { support, .. }
-                if *support == redundant_operation)
-        })
     {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
+    let _redundant_fact = match (proof_class, redundant_obligation) {
+        (ScalarCseProofClass::ObligationFree, None) => {
+            if candidate.accepted_obligation_witness().is_some()
+                || function.facts.iter().any(|fact| {
+                    matches!(fact, OptimizationFact::OperationObligationReference { support, .. }
+                        if *support == redundant_operation)
+                })
+            {
+                return Err(
+                    OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch,
+                );
+            }
+            None
+        }
+        (ScalarCseProofClass::ProofCertified, Some(obligation)) => {
+            let fact = independently_accepted_operation_fact(
+                input,
+                function,
+                redundant_operation,
+                obligation,
+            )
+            .ok_or(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch)?;
+            if candidate.accepted_obligation_witness() != Some(fact) {
+                return Err(
+                    OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch,
+                );
+            }
+            Some(fact)
+        }
+        _ => {
+            return Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch);
+        }
+    };
 
     let dominators = independent_reachable_dominators(function);
     let mut expected_incoming = Vec::new();
@@ -3505,10 +3546,11 @@ pub fn validate_phi_translated_scalar_common_subexpression_candidate(
                 }
                 rewrite_scalar_value_uses(&mut translated, parameter.value, binding.argument);
             }
-            let (translated_key, _, _, translated_type) =
-                independent_total_scalar_expression(&translated, &value_types)
+            let (translated_key, _, _, translated_type, _) =
+                independent_cse_expression(&translated, &value_types, proof_class)
                     .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
             let mut available_leaders = Vec::new();
+            let mut missing_leader_evidence = false;
             for leader_block in &function.blocks {
                 for (node_index, node) in leader_block.nodes.iter().enumerate() {
                     let available = if leader_block.id == source.id {
@@ -3521,12 +3563,36 @@ pub fn validate_phi_translated_scalar_common_subexpression_candidate(
                     if !available {
                         continue;
                     }
-                    let Some((key, operation, result, scalar_type)) =
-                        independent_total_scalar_expression(&node.operation, &value_types)
+                    let Some((key, operation, result, scalar_type, obligation)) =
+                        independent_cse_expression(&node.operation, &value_types, proof_class)
                     else {
                         continue;
                     };
-                    if key == translated_key && scalar_type == translated_type {
+                    let admitted = match (proof_class, obligation) {
+                        (ScalarCseProofClass::ObligationFree, None) => !function
+                            .facts
+                            .iter()
+                            .any(|fact| matches!(fact, OptimizationFact::OperationObligationReference { support, .. } if *support == operation)),
+                        (ScalarCseProofClass::ProofCertified, Some(obligation)) => {
+                            independently_accepted_operation_fact(
+                                input,
+                                function,
+                                operation,
+                                obligation,
+                            )
+                            .is_some()
+                        }
+                        _ => false,
+                    };
+                    if !admitted
+                        && proof_class == ScalarCseProofClass::ProofCertified
+                        && obligation.is_some()
+                        && key == translated_key
+                        && scalar_type == translated_type
+                    {
+                        missing_leader_evidence = true;
+                    }
+                    if admitted && key == translated_key && scalar_type == translated_type {
                         available_leaders.push((
                             NodeLocation {
                                 machine: function.machine,
@@ -3537,13 +3603,14 @@ pub fn validate_phi_translated_scalar_common_subexpression_candidate(
                             },
                             operation,
                             result,
+                            obligation,
                         ));
                     }
                 }
             }
             let canonical = available_leaders
                 .into_iter()
-                .min_by_key(|(location, _, _)| {
+                .min_by_key(|(location, _, _, _)| {
                     (
                         dominators
                             .get(&location.block)
@@ -3551,15 +3618,11 @@ pub fn validate_phi_translated_scalar_common_subexpression_candidate(
                         *location,
                     )
                 })
-                .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
-            if function.facts.iter().any(|fact| {
-                matches!(fact, OptimizationFact::OperationObligationReference { support, .. }
-                    if *support == canonical.1)
-            }) {
-                return Err(
-                    OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch,
-                );
-            }
+                .ok_or(if missing_leader_evidence {
+                    OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch
+                } else {
+                    OptimizationUnitValidationError::CandidatePatchMismatch
+                })?;
             expected_incoming.push(PhiTranslatedScalarIncoming {
                 source: source.id,
                 edge: edge.psi_edge,
@@ -3686,9 +3749,14 @@ pub fn validate_phi_translated_scalar_common_subexpression_candidate(
     Ok(ValidatedPsiRewrite {
         unit: output,
         candidate: candidate.identity(),
-        validator: OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.phi-translated-obligation-free-total-scalar-gvn.v1",
-        ),
+        validator: OptimizationValidatorIdentity::from_canonical_bytes(match proof_class {
+            ScalarCseProofClass::ObligationFree => {
+                b"omega.validator.phi-translated-obligation-free-total-scalar-gvn.v1"
+            }
+            ScalarCseProofClass::ProofCertified => {
+                b"omega.validator.phi-translated-proof-certified-total-scalar-gvn.v1"
+            }
+        }),
         provenance: accepted_provenance,
     })
 }

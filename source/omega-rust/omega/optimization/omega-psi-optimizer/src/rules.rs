@@ -33,7 +33,7 @@ const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-clea
 const COPY_PROPAGATION_PASS_NAME: &[u8] = b"omega.psi-pass.copy-propagation.v1";
 const DEAD_PURE_SCALAR_PASS_NAME: &[u8] = b"omega.psi-pass.dead-pure-scalar-elimination.v2";
 const PROOF_CHECK_ELISION_PASS_NAME: &[u8] = b"omega.psi-pass.proof-check-elision.v1";
-const GLOBAL_VALUE_NUMBERING_PASS_NAME: &[u8] = b"omega.psi-pass.global-value-numbering.v4";
+const GLOBAL_VALUE_NUMBERING_PASS_NAME: &[u8] = b"omega.psi-pass.global-value-numbering.v5";
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ConstantConditionalFoldRule;
@@ -64,6 +64,9 @@ pub struct DominatorProofCertifiedScalarGvnRule;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct PhiTranslatedObligationFreeScalarGvnRule;
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PhiTranslatedProofCertifiedScalarGvnRule;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum TotalScalarExpressionKey {
@@ -209,6 +212,71 @@ enum ProofCertifiedScalarExpressionKey {
     WrappingRemainder(IntegerType, ValueId, ValueId),
     SaturatingDivide(IntegerType, ValueId, ValueId),
     SaturatingRemainder(IntegerType, ValueId, ValueId),
+}
+
+impl ProofCertifiedScalarExpressionKey {
+    fn references_any(self, values: &BTreeSet<ValueId>) -> bool {
+        match self {
+            Self::ExactCast(_, _, operand) => values.contains(&operand),
+            Self::ExactShiftLeft(_, _, left, right)
+            | Self::ExactShiftRight(_, _, left, right)
+            | Self::ExactAdd(_, left, right)
+            | Self::ExactSubtract(_, left, right)
+            | Self::ExactMultiply(_, left, right)
+            | Self::ExactDivide(_, left, right)
+            | Self::ExactRemainder(_, left, right)
+            | Self::WrappingDivide(_, left, right)
+            | Self::WrappingRemainder(_, left, right)
+            | Self::SaturatingDivide(_, left, right)
+            | Self::SaturatingRemainder(_, left, right) => {
+                values.contains(&left) || values.contains(&right)
+            }
+        }
+    }
+
+    fn translate(self, values: &BTreeMap<ValueId, ValueId>) -> Self {
+        let value = |operand: ValueId| values.get(&operand).copied().unwrap_or(operand);
+        match self {
+            Self::ExactCast(source_type, target_type, operand) => {
+                Self::ExactCast(source_type, target_type, value(operand))
+            }
+            Self::ExactShiftLeft(value_type, count_type, operand, count) => {
+                Self::ExactShiftLeft(value_type, count_type, value(operand), value(count))
+            }
+            Self::ExactShiftRight(value_type, count_type, operand, count) => {
+                Self::ExactShiftRight(value_type, count_type, value(operand), value(count))
+            }
+            Self::ExactAdd(scalar_type, left, right) => {
+                let (left, right) = canonical_pair(value(left), value(right));
+                Self::ExactAdd(scalar_type, left, right)
+            }
+            Self::ExactSubtract(scalar_type, left, right) => {
+                Self::ExactSubtract(scalar_type, value(left), value(right))
+            }
+            Self::ExactMultiply(scalar_type, left, right) => {
+                let (left, right) = canonical_pair(value(left), value(right));
+                Self::ExactMultiply(scalar_type, left, right)
+            }
+            Self::ExactDivide(scalar_type, left, right) => {
+                Self::ExactDivide(scalar_type, value(left), value(right))
+            }
+            Self::ExactRemainder(scalar_type, left, right) => {
+                Self::ExactRemainder(scalar_type, value(left), value(right))
+            }
+            Self::WrappingDivide(scalar_type, left, right) => {
+                Self::WrappingDivide(scalar_type, value(left), value(right))
+            }
+            Self::WrappingRemainder(scalar_type, left, right) => {
+                Self::WrappingRemainder(scalar_type, value(left), value(right))
+            }
+            Self::SaturatingDivide(scalar_type, left, right) => {
+                Self::SaturatingDivide(scalar_type, value(left), value(right))
+            }
+            Self::SaturatingRemainder(scalar_type, left, right) => {
+                Self::SaturatingRemainder(scalar_type, value(left), value(right))
+            }
+        }
+    }
 }
 
 fn canonical_pair(left: ValueId, right: ValueId) -> (ValueId, ValueId) {
@@ -1659,6 +1727,276 @@ impl PsiOptimizationRule for PhiTranslatedObligationFreeScalarGvnRule {
                         Self::contract(),
                         affected_blocks,
                         provenance,
+                        -1,
+                        PhiTranslatedScalarGvnRewrite {
+                            redundant: *redundant,
+                            redundant_operation: *redundant_operation,
+                            redundant_result: *redundant_result,
+                            scalar_type: *scalar_type,
+                            parameter_position,
+                            incoming,
+                        },
+                    )
+                    .map_err(RuleProposalError::InvalidCandidate)?,
+                );
+            }
+        }
+        Ok(candidates)
+    }
+}
+
+impl PhiTranslatedProofCertifiedScalarGvnRule {
+    pub fn contract() -> OptimizationRuleContract {
+        OptimizationRuleContract::new(
+            OptimizationRuleIdentity::from_canonical_bytes(
+                b"omega.psi-rule.phi-translated-proof-certified-total-scalar-gvn.v1",
+            ),
+            OptimizationPassIdentity::from_canonical_bytes(GLOBAL_VALUE_NUMBERING_PASS_NAME),
+            1,
+            AnalysisSet::new([
+                AnalysisKind::ControlFlowGraph,
+                AnalysisKind::Dominators,
+                AnalysisKind::UseDefinition,
+                AnalysisKind::EffectSummaries,
+            ]),
+            AnalysisInvalidationSet::new([
+                AnalysisKind::UseDefinition,
+                AnalysisKind::EffectSummaries,
+            ]),
+            OptimizationSafetyClass::ProofCertified,
+        )
+        .expect("built-in rule has nonzero version")
+    }
+}
+
+impl PsiOptimizationRule for PhiTranslatedProofCertifiedScalarGvnRule {
+    fn contract(&self) -> OptimizationRuleContract {
+        Self::contract()
+    }
+
+    fn propose(
+        &self,
+        unit: &PsiOptimizationUnit,
+        analyses: RuleAnalysisView<'_>,
+    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+        if analyses.get(AnalysisKind::ControlFlowGraph).is_none() {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::ControlFlowGraph,
+            ));
+        }
+        let Some(AnalysisProduct::Dominators(dominators)) = analyses.get(AnalysisKind::Dominators)
+        else {
+            return Err(RuleProposalError::MissingAnalysis(AnalysisKind::Dominators));
+        };
+        let Some(AnalysisProduct::UseDefinition(use_definitions)) =
+            analyses.get(AnalysisKind::UseDefinition)
+        else {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::UseDefinition,
+            ));
+        };
+        let Some(AnalysisProduct::EffectSummaries(effects)) =
+            analyses.get(AnalysisKind::EffectSummaries)
+        else {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::EffectSummaries,
+            ));
+        };
+
+        let mut candidates = Vec::new();
+        for function in &unit.functions {
+            let machine_dominators = dominators
+                .functions
+                .iter()
+                .find(|(machine, _)| *machine == function.machine)
+                .map(|(_, rows)| rows.as_slice())
+                .unwrap_or_default();
+            let value_types = function
+                .parameters
+                .iter()
+                .map(|row| (row.value, row.scalar_type))
+                .chain(function.blocks.iter().flat_map(|block| {
+                    block
+                        .parameters
+                        .iter()
+                        .map(|row| (row.value, row.scalar_type))
+                }))
+                .chain(function.blocks.iter().flat_map(|block| {
+                    block.nodes.iter().flat_map(|node| {
+                        node.definitions
+                            .iter()
+                            .map(|row| (row.value, row.scalar_type))
+                    })
+                }))
+                .collect::<BTreeMap<_, _>>();
+            let mut expressions = Vec::new();
+            for block in &function.blocks {
+                for (index, node) in block.nodes.iter().enumerate() {
+                    let node_index =
+                        u32::try_from(index).expect("optimization node index fits u32");
+                    let Some((key, operation, result, scalar_type)) =
+                        proof_certified_scalar_expression(&node.operation)
+                    else {
+                        continue;
+                    };
+                    let Some(obligation_fact) =
+                        accepted_obligation_fact(unit, function.machine, operation).ok()
+                    else {
+                        continue;
+                    };
+                    if exact_pure_scalar_effect(
+                        unit,
+                        effects,
+                        function.machine,
+                        block.id,
+                        node_index,
+                    ) {
+                        expressions.push((
+                            key,
+                            NodeLocation {
+                                machine: function.machine,
+                                block: block.id,
+                                node: node_index,
+                            },
+                            operation,
+                            result,
+                            scalar_type,
+                            obligation_fact,
+                        ));
+                    }
+                }
+            }
+
+            for (
+                key,
+                redundant,
+                redundant_operation,
+                redundant_result,
+                scalar_type,
+                obligation_fact,
+            ) in &expressions
+            {
+                let Some(block) = function
+                    .blocks
+                    .iter()
+                    .find(|block| block.id == redundant.block)
+                else {
+                    continue;
+                };
+                let parameter_values = block
+                    .parameters
+                    .iter()
+                    .map(|parameter| parameter.value)
+                    .collect::<BTreeSet<_>>();
+                if parameter_values.is_empty()
+                    || !key.references_any(&parameter_values)
+                    || !use_definitions.uses.iter().any(|(machine, use_site)| {
+                        *machine == function.machine && use_site.value == *redundant_result
+                    })
+                {
+                    continue;
+                }
+                let redundant_index = usize::try_from(redundant.node).expect("u32 fits usize");
+                let Some(redundant_node) = block.nodes.get(redundant_index) else {
+                    continue;
+                };
+                let Some(receiver) = block.nodes.get(redundant_index + 1) else {
+                    continue;
+                };
+                if receiver
+                    .provenance
+                    .iter()
+                    .any(|source| redundant_node.provenance.contains(source))
+                {
+                    continue;
+                }
+
+                let mut incoming = Vec::new();
+                let mut complete = true;
+                for source in &function.blocks {
+                    for (owner_index, owner) in source.nodes.iter().enumerate() {
+                        let owner_index =
+                            u32::try_from(owner_index).expect("optimization node index fits u32");
+                        for edge in owner
+                            .successors
+                            .iter()
+                            .filter(|edge| edge.target == block.id)
+                        {
+                            if edge.bindings.len() != block.parameters.len() {
+                                complete = false;
+                                continue;
+                            }
+                            let mut translation = BTreeMap::new();
+                            for (parameter, binding) in block.parameters.iter().zip(&edge.bindings)
+                            {
+                                if binding.parameter != parameter.value
+                                    || binding.scalar_type != parameter.scalar_type
+                                    || value_types.get(&binding.argument)
+                                        != Some(&binding.scalar_type)
+                                {
+                                    complete = false;
+                                    break;
+                                }
+                                translation.insert(parameter.value, binding.argument);
+                            }
+                            if !complete {
+                                continue;
+                            }
+                            let translated_key = key.translate(&translation);
+                            let leader = expressions
+                                .iter()
+                                .filter(|(candidate_key, location, _, _, candidate_type, _)| {
+                                    candidate_key == &translated_key
+                                        && candidate_type == scalar_type
+                                        && ((location.block == source.id
+                                            && location.node < owner_index)
+                                            || (location.block != source.id
+                                                && block_dominates(
+                                                    machine_dominators,
+                                                    location.block,
+                                                    source.id,
+                                                )))
+                                })
+                                .min_by_key(|(_, location, _, _, _, _)| {
+                                    let depth = machine_dominators
+                                        .iter()
+                                        .find(|(candidate, _)| *candidate == location.block)
+                                        .map_or(usize::MAX, |(_, rows)| rows.len());
+                                    (depth, *location)
+                                });
+                            let Some((_, leader, leader_operation, leader_result, _, _)) = leader
+                            else {
+                                complete = false;
+                                continue;
+                            };
+                            incoming.push(PhiTranslatedScalarIncoming {
+                                source: source.id,
+                                edge: edge.psi_edge,
+                                leader: *leader,
+                                leader_operation: *leader_operation,
+                                leader_result: *leader_result,
+                            });
+                        }
+                    }
+                }
+                if !complete || incoming.len() < 2 {
+                    continue;
+                }
+                incoming.sort_by_key(|row| (row.edge, row.source));
+                let Some((affected_blocks, provenance)) =
+                    phi_translated_cse_accounting(function, *redundant, &incoming)
+                else {
+                    continue;
+                };
+                let parameter_position = u32::try_from(block.parameters.len())
+                    .expect("optimization block parameter count fits u32");
+                candidates.push(
+                    PsiRewriteCandidate::new_proof_certified_phi_translated_scalar_common_subexpression(
+                        unit.identity,
+                        Self::contract(),
+                        affected_blocks,
+                        provenance,
+                        *obligation_fact,
                         -1,
                         PhiTranslatedScalarGvnRewrite {
                             redundant: *redundant,
@@ -6035,6 +6373,7 @@ fn built_in_rule_registrations(optimization: Optimization) -> Vec<BuiltInRuleReg
         register!(2, DominatorTotalScalarGvnRule);
         register!(3, DominatorProofCertifiedScalarGvnRule);
         register!(4, PhiTranslatedObligationFreeScalarGvnRule);
+        register!(5, PhiTranslatedProofCertifiedScalarGvnRule);
     }
     if optimization == Optimization::DeadPureScalarElimination {
         register!(0, DeadScalarLiteralEliminationRule);
@@ -7198,10 +7537,17 @@ pub(crate) mod tests {
     }
 
     pub(crate) fn phi_translated_gvn_unit() -> PsiOptimizationUnit {
-        phi_translated_gvn_fixture(PhiTranslatedRightArm::Matching)
+        phi_translated_gvn_fixture(PhiTranslatedRightArm::Matching, false)
     }
 
-    fn phi_translated_gvn_fixture(right_arm: PhiTranslatedRightArm) -> PsiOptimizationUnit {
+    pub(crate) fn proof_certified_phi_translated_gvn_unit() -> PsiOptimizationUnit {
+        phi_translated_gvn_fixture(PhiTranslatedRightArm::Matching, true)
+    }
+
+    fn phi_translated_gvn_fixture(
+        right_arm: PhiTranslatedRightArm,
+        proof_certified: bool,
+    ) -> PsiOptimizationUnit {
         let machine = id(1_701, MachineId::new);
         let join = id(1_702, BlockId::new);
         let left_block = id(1_703, BlockId::new);
@@ -7216,29 +7562,74 @@ pub(crate) mod tests {
         let right_leader = id(1_712, ValueId::new);
         let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
         let wide = IntegerType::new(IntegerSign::Unsigned, 16).unwrap();
-        let right_expression = match right_arm {
-            PhiTranslatedRightArm::Matching => TerminalAbstractOperation::IntegerBitwiseNot {
-                psi_operation: id(1_716, OperationId::new),
-                result: right_leader,
+        let redundant_expression = if proof_certified {
+            TerminalAbstractOperation::ExactIntegerAdd {
+                psi_operation: id(1_713, OperationId::new),
+                obligation: id(1_721, ObligationId::new),
+                result: redundant,
                 scalar_type: integer,
-                operand: right_input,
-            },
-            PhiTranslatedRightArm::Missing => TerminalAbstractOperation::WrappingIntegerAdd {
+                left: join_input,
+                right: join_input,
+            }
+        } else {
+            TerminalAbstractOperation::IntegerBitwiseNot {
+                psi_operation: id(1_713, OperationId::new),
+                result: redundant,
+                scalar_type: integer,
+                operand: join_input,
+            }
+        };
+        let left_expression = if proof_certified {
+            TerminalAbstractOperation::ExactIntegerAdd {
+                psi_operation: id(1_715, OperationId::new),
+                obligation: id(1_722, ObligationId::new),
+                result: left_leader,
+                scalar_type: integer,
+                left: left_input,
+                right: left_input,
+            }
+        } else {
+            TerminalAbstractOperation::IntegerBitwiseNot {
+                psi_operation: id(1_715, OperationId::new),
+                result: left_leader,
+                scalar_type: integer,
+                operand: left_input,
+            }
+        };
+        let right_expression = if proof_certified {
+            TerminalAbstractOperation::ExactIntegerAdd {
                 psi_operation: id(1_716, OperationId::new),
+                obligation: id(1_723, ObligationId::new),
                 result: right_leader,
                 scalar_type: integer,
                 left: right_input,
                 right: right_input,
-            },
-            PhiTranslatedRightArm::MismatchedType => TerminalAbstractOperation::IntegerWiden {
-                psi_operation: id(1_716, OperationId::new),
-                result: right_leader,
-                source_type: integer,
-                target_type: wide,
-                operand: right_input,
-            },
+            }
+        } else {
+            match right_arm {
+                PhiTranslatedRightArm::Matching => TerminalAbstractOperation::IntegerBitwiseNot {
+                    psi_operation: id(1_716, OperationId::new),
+                    result: right_leader,
+                    scalar_type: integer,
+                    operand: right_input,
+                },
+                PhiTranslatedRightArm::Missing => TerminalAbstractOperation::WrappingIntegerAdd {
+                    psi_operation: id(1_716, OperationId::new),
+                    result: right_leader,
+                    scalar_type: integer,
+                    left: right_input,
+                    right: right_input,
+                },
+                PhiTranslatedRightArm::MismatchedType => TerminalAbstractOperation::IntegerWiden {
+                    psi_operation: id(1_716, OperationId::new),
+                    result: right_leader,
+                    source_type: integer,
+                    target_type: wide,
+                    operand: right_input,
+                },
+            }
         };
-        reconstruct_psi_optimization_unit_seed(
+        let unit = reconstruct_psi_optimization_unit_seed(
             &TerminalAbstractOperationPlan {
                 terminal_psi: TerminalPsiIdentity {
                     vocabulary_marker: VocabularyMarker::CURRENT,
@@ -7299,12 +7690,7 @@ pub(crate) mod tests {
                         },
                     ],
                     operations: vec![
-                        TerminalAbstractOperation::IntegerBitwiseNot {
-                            psi_operation: id(1_713, OperationId::new),
-                            result: redundant,
-                            scalar_type: integer,
-                            operand: join_input,
-                        },
+                        redundant_expression,
                         TerminalAbstractOperation::Return {
                             psi_edge: id(1_714, EdgeId::new),
                             result: redundant,
@@ -7312,12 +7698,7 @@ pub(crate) mod tests {
                             scalar_type: ScalarType::Integer(integer),
                             cleanup_actions: Vec::new(),
                         },
-                        TerminalAbstractOperation::IntegerBitwiseNot {
-                            psi_operation: id(1_715, OperationId::new),
-                            result: left_leader,
-                            scalar_type: integer,
-                            operand: left_input,
-                        },
+                        left_expression,
                         TerminalAbstractOperation::Jump {
                             psi_edge: id(1_720, EdgeId::new),
                             target: join,
@@ -7355,7 +7736,12 @@ pub(crate) mod tests {
             },
             FuelScheduleIdentity::new(1).unwrap(),
         )
-        .unwrap()
+        .unwrap();
+        if proof_certified {
+            with_synthetic_accepted_obligations(unit)
+        } else {
+            unit
+        }
     }
 
     pub(crate) fn dead_wrapping_add_unit() -> PsiOptimizationUnit {
@@ -8839,7 +9225,7 @@ pub(crate) mod tests {
         assert_eq!(built_in_psi_registry(&copy).unwrap().len(), 1);
         let gvn = OptimizationSelections::new([Optimization::GlobalValueNumbering]).unwrap();
         let gvn = built_in_psi_registry(&gvn).unwrap();
-        assert_eq!(gvn.len(), 5);
+        assert_eq!(gvn.len(), 6);
         assert_eq!(
             gvn.contracts()
                 .map(|contract| contract.identity())
@@ -8850,6 +9236,7 @@ pub(crate) mod tests {
                 DominatorTotalScalarGvnRule::contract().identity(),
                 DominatorProofCertifiedScalarGvnRule::contract().identity(),
                 PhiTranslatedObligationFreeScalarGvnRule::contract().identity(),
+                PhiTranslatedProofCertifiedScalarGvnRule::contract().identity(),
             ]
         );
         assert!(gvn.contracts().all(|contract| {
@@ -10408,6 +10795,22 @@ pub(crate) mod tests {
             .unwrap()
     }
 
+    fn proof_certified_phi_translated_candidates(
+        unit: &PsiOptimizationUnit,
+    ) -> Vec<PsiRewriteCandidate> {
+        let contract = PhiTranslatedProofCertifiedScalarGvnRule::contract();
+        let mut manager = crate::AnalysisManager::new(unit);
+        let products = manager
+            .require_all(unit, contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        PhiTranslatedProofCertifiedScalarGvnRule
+            .propose(unit, RuleAnalysisView::new(&products))
+            .unwrap()
+    }
+
     #[test]
     fn phi_translated_gvn_preserves_result_identity_and_reaches_fixed_point() {
         let unit = phi_translated_gvn_unit();
@@ -10498,7 +10901,7 @@ pub(crate) mod tests {
             PhiTranslatedRightArm::Missing,
             PhiTranslatedRightArm::MismatchedType,
         ] {
-            let unit = phi_translated_gvn_fixture(right_arm);
+            let unit = phi_translated_gvn_fixture(right_arm, false);
             assert!(phi_translated_candidates(&unit).is_empty());
         }
     }
@@ -10523,6 +10926,116 @@ pub(crate) mod tests {
                 patch,
             ),
             Err(omega_optimization_unit::PsiRewriteCandidateError::PatchDecisionPointMismatch)
+        );
+    }
+
+    #[test]
+    fn proof_certified_phi_translation_consumes_only_redundant_evidence() {
+        let unit = proof_certified_phi_translated_gvn_unit();
+        assert!(phi_translated_candidates(&unit).is_empty());
+        let [candidate] = proof_certified_phi_translated_candidates(&unit)
+            .try_into()
+            .expect("all three exact-add operations retain accepted evidence");
+        let redundant_fact = unit
+            .accepted_obligation_facts
+            .iter()
+            .find(|fact| fact.operation == id(1_713, OperationId::new))
+            .unwrap()
+            .identity;
+        assert_eq!(
+            candidate.accepted_obligation_witness(),
+            Some(redundant_fact)
+        );
+        assert_eq!(
+            candidate.consumed_facts(),
+            [
+                omega_optimization_core::OptimizationFactReference::AcceptedObligation(
+                    redundant_fact,
+                ),
+            ]
+        );
+        let PsiRewritePatch::EliminatePhiTranslatedScalarCommonSubexpression(patch) =
+            candidate.patch()
+        else {
+            unreachable!()
+        };
+        assert_eq!(
+            patch
+                .incoming
+                .iter()
+                .map(|row| row.leader_operation)
+                .collect::<Vec<_>>(),
+            [id(1_716, OperationId::new), id(1_715, OperationId::new),]
+        );
+        let accepted =
+            validate_phi_translated_scalar_common_subexpression_candidate(&unit, &candidate)
+                .unwrap();
+        assert_eq!(
+            accepted.validator(),
+            omega_optimization_core::OptimizationValidatorIdentity::from_canonical_bytes(
+                b"omega.validator.phi-translated-proof-certified-total-scalar-gvn.v1",
+            )
+        );
+        assert_eq!(
+            accepted.unit().accepted_obligation_facts,
+            unit.accepted_obligation_facts
+        );
+        assert!(accepted.unit().functions[0].facts.iter().all(|fact| {
+            !matches!(fact, OptimizationFact::OperationObligationReference { support, .. }
+                if *support == id(1_713, OperationId::new))
+        }));
+        assert!(proof_certified_phi_translated_candidates(accepted.unit()).is_empty());
+
+        let foreign =
+            PsiRewriteCandidate::new_proof_certified_phi_translated_scalar_common_subexpression(
+                unit.identity,
+                PhiTranslatedProofCertifiedScalarGvnRule::contract(),
+                candidate.affected_blocks().to_vec(),
+                candidate.provenance().to_vec(),
+                omega_optimization_core::AcceptedObligationFactIdentity::from_canonical_bytes(
+                    b"foreign proof phi fact",
+                ),
+                candidate.predicted_cost_delta(),
+                patch,
+            )
+            .unwrap();
+        assert_eq!(
+            validate_phi_translated_scalar_common_subexpression_candidate(&unit, &foreign),
+            Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch)
+        );
+    }
+
+    #[test]
+    fn proof_certified_phi_translation_requires_every_leader_fact() {
+        let original = proof_certified_phi_translated_gvn_unit();
+        let [candidate] = proof_certified_phi_translated_candidates(&original)
+            .try_into()
+            .unwrap();
+        let PsiRewritePatch::EliminatePhiTranslatedScalarCommonSubexpression(patch) =
+            candidate.patch()
+        else {
+            unreachable!()
+        };
+        let redundant_fact = candidate.accepted_obligation_witness().unwrap();
+        let mut unit = original;
+        unit.accepted_obligation_facts
+            .retain(|fact| fact.operation != id(1_716, OperationId::new));
+        unit.identity = recompute_psi_optimization_unit_identity(&unit);
+        assert!(proof_certified_phi_translated_candidates(&unit).is_empty());
+        let detached_leader =
+            PsiRewriteCandidate::new_proof_certified_phi_translated_scalar_common_subexpression(
+                unit.identity,
+                PhiTranslatedProofCertifiedScalarGvnRule::contract(),
+                candidate.affected_blocks().to_vec(),
+                candidate.provenance().to_vec(),
+                redundant_fact,
+                candidate.predicted_cost_delta(),
+                patch,
+            )
+            .unwrap();
+        assert_eq!(
+            validate_phi_translated_scalar_common_subexpression_candidate(&unit, &detached_leader,),
+            Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch)
         );
     }
 

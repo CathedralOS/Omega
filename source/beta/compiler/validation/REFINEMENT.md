@@ -4,7 +4,7 @@
 > route (gamma) certifies what a program's SOURCE means; translation validation certifies each compilation's
 > RESULT; this reaches the bottom rung — the actual **machine code** the alpha VM executes — and certifies it
 > computes exactly the function its Beta source denotes, **for all inputs, without ever running it.** Gate:
-> [`refinement.sh`](refinement.sh), wired into `verify-lattice.sh`.
+> [`refinement.sh`](refinement.sh), available directly as an optional diagnostic.
 
 ## What it proves
 

@@ -89,7 +89,7 @@ Git history is their archive.
   Delete cached HTML viewers, duplicated generated programs, receipt matrices,
   and debug-only publication paths when no human or authoritative command
   consumes them.
-- [ ] Keep fuzzing, alternate checkers, large corpora, and exhaustive mutation
+- [x] Keep fuzzing, alternate checkers, large corpora, and exhaustive mutation
   campaigns as optional stress suites. The default lattice path must build each
   compiler and run only the bounded admission gates required for that edge.
 - [ ] State every admitted artifact, checker, exact input, exact output, and
@@ -162,13 +162,13 @@ compiler artifact.
 
 ### 6. Keep orchestration non-authoritative
 
-- [ ] Maintain one short optional runner that invokes the independently
+- [x] Maintain one short optional runner that invokes the independently
   executable gates in order.
 - [ ] Remove obsolete aliases, cache profiles, historical bridge formats, and
   path manifests when no current compiler invocation consumes them.
-- [ ] Every runner failure must name the exact compiler/gate command that can be
+- [x] Every runner failure must name the exact compiler/gate command that can be
   rerun manually.
-- [ ] No bootstrap claim may depend on the runner implementation, working
+- [x] No bootstrap claim may depend on the runner implementation, working
   directory, or availability of a particular shell.
 
 ## External contract dependencies
