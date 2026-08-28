@@ -98,6 +98,14 @@ canonical_identity!(
     b"omega.function-relative-optimization-realization-manifest-identity.v1\0"
 );
 canonical_identity!(
+    TerminalFunctionFragmentEmissionIdentity,
+    b"omega.terminal-function-fragment-emission-identity.v1\0"
+);
+canonical_identity!(
+    FunctionFragmentEmissionManifestIdentity,
+    b"omega.function-fragment-emission-manifest-identity.v1\0"
+);
+canonical_identity!(
     OptimizationDecisionIdentity,
     b"omega.optimization-decision-identity.v1\0"
 );
@@ -479,6 +487,8 @@ mod tests {
         round_trip!(PostAllocationOptimizationManifestIdentity);
         round_trip!(SelectedLoweringOptimizationCompletionIdentity);
         round_trip!(FunctionRelativeOptimizationRealizationManifestIdentity);
+        round_trip!(TerminalFunctionFragmentEmissionIdentity);
+        round_trip!(FunctionFragmentEmissionManifestIdentity);
         round_trip!(OptimizationDecisionIdentity);
         round_trip!(OptimizationDecisionSchemaIdentity);
         round_trip!(OptimizationDecisionTargetIdentity);
