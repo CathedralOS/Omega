@@ -1592,6 +1592,22 @@ complete.
   rejection. This closes establishment-route selections; nominal machine-
   parameter requirements remain the final exact-symbol audit in this slice.
 
+  Follow-up 2026-08-28: nominal callable machine-parameter contracts authored
+  as `where machine Selected satisfies Trait::requirement` now preserve their
+  complete source path alongside the exact signature-free trait and requirement
+  symbols until typed lowering records both selections. The trait path becomes
+  one exact `TypeReference` row and the requirement token one exact
+  `StaticPathSegment` row. The enclosing machine/type-parameter lowering
+  supplies public/private exposure, including exported boundary interfaces;
+  recursively nested nominal contracts use the same path. Overloaded
+  signature-free requirements still reject before this point. Root-middle-leaf
+  canaries reject transitive-only selection and admit a direct dependency,
+  while same-package canaries reject public/boundary exposure of a private
+  requirement and permit private implementation use. Package-review tests now
+  expect that visibility violation at compiler admission rather than as a later
+  projection error. This closes the nominal machine-parameter requirement
+  exact-symbol audit named above.
+
   This is deliberately not yet total admission. Toolchain-authored bodies are
   outside package admission. Capture now covers private state-body expression
   forms, nominal type references on public/private declaration surfaces,
@@ -1601,8 +1617,9 @@ complete.
   expression positions whose visibility is settled, named conformance
   selectors in callable and trait bounds, and exact `satisfies` trait,
   requirement, and operator coordinates, plus exact establishment-route trait
-  and requirement coordinates. Visibility-dependent nested positions are not
-  yet total. The package manager stays disabled until those gaps close.
+  and requirement coordinates and nominal callable machine-parameter
+  requirements. Visibility-dependent nested positions are not yet total. The
+  package manager stays disabled until those gaps close.
   The first exact carried-semantic-dependency carrier and its versioned
   canonical review projection have landed. Total coverage and accepted
   artifact/lock admission are not complete. Visibility implementation for all

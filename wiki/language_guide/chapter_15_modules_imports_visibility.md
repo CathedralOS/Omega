@@ -318,6 +318,14 @@ occurrence even when equivalent semantic alternatives normalize to one route.
 A public domain therefore cannot authorize a private trait or requirement;
 private same-package domains may use private routes normally.
 
+A nominal callable machine-parameter contract such as `where machine Selected
+satisfies Trait::requirement` likewise authors both exact selections. The
+complete trait path and requirement token inherit the enclosing declaration's
+interface exposure, including exported boundary machines, and each selected
+declaration must be directly authorized and visible there. Nested machine-
+parameter contracts follow the same rule; generic nesting does not hide a
+transitive or private requirement.
+
 A Unit-producing or explicitly discarded call statement follows exactly the
 same rule as a value-producing call expression. Its target token selects the
 callee declaration, each explicit static conformance argument selects its own

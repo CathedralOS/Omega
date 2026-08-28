@@ -832,6 +832,11 @@ and requirement coordinates at signature-free normalization, after uniqueness
 and subject authorization are proved. Each source occurrence inherits the
 domain's exposure even when the normalized semantic route set deduplicates an
 equivalent alternative.
+Nominal callable machine-parameter contracts preserve the complete authored
+`Trait::requirement` path after signature-free resolution. Typed lowering emits
+the exact trait and requirement selections under the enclosing declaration's
+exposure, including recursively nested contracts; transitive-only and private
+public-interface selections reject before package review.
 In particular, true nested machine static applications such as
 `consumer<family<Selected>>()` now reject during compiler validation, before
 checked lowering. Treating the argument as the uninstantiated `family`
