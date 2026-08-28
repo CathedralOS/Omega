@@ -883,6 +883,7 @@ fn lower_structural_scalar_return_machine_in_namespace(
             evidence_contract_lanes: Vec::new(),
             proof_output_calls: Vec::new(),
             closed_conformance_applications: Vec::new(),
+            quotient_correspondences: Vec::new(),
             machines: vec![machine],
         },
         proof_bundle: ProofBundle::default(),

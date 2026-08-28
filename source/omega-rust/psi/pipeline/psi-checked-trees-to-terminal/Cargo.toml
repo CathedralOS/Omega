@@ -20,6 +20,8 @@ psi-symbols = { path = "../../foundation/psi-symbols" }
 psi-terminal = { path = "../../representations/psi-terminal" }
 psi-terminal-codec = { path = "../../semantics/psi-terminal-codec" }
 psi-terminal-verifier = { path = "../../semantics/psi-terminal-verifier" }
+psi-typed-trees = { path = "../../representations/psi-typed-trees" }
+psi-validation = { path = "../../semantics/psi-validation" }
 
 [dev-dependencies]
 psi-source-files-to-tokens = { path = "../psi-source-files-to-tokens" }

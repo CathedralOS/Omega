@@ -1078,6 +1078,7 @@ pub(super) fn lower_attached_unit_closure_including(
             evidence_contract_lanes: Vec::new(),
             proof_output_calls: Vec::new(),
             closed_conformance_applications: Vec::new(),
+            quotient_correspondences: Vec::new(),
             machines,
         },
         proof_bundle: ProofBundle {

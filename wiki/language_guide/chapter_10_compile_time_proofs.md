@@ -915,12 +915,15 @@ similar proof machine.
 
 For the narrow total direct `define` shape, a separate proof-only preparation
 API can now erase the completed validation evidence into source-free canonical
-correspondence and replay it independently through a standalone Terminal-Psi
-carrier. This is not executable admission: the carrier is not part of a
-`TerminalModule` or its codec, normal validation still rejects the request, and
-no representative call is lowered. General `lift` implication—including the
+correspondence. `TerminalModule` retains the complete extracted batch in
+canonical identity order, its codec binds every certificate and rederives its
+identity, and normal representation validation independently reconstructs and
+replays each row. The explicit producer attachment is not an ordinary machine-
+lowering path. This is not executable admission: the rows name no Terminal
+machine or operation, normal validation still rejects the request, and no
+representative call is lowered. General `lift` implication—including the
 explicit transport authority still required for membership and opaque
-proposition families—and executable Terminal lowering remain open.
+proposition families—and checked executable Terminal lowering remain open.
 
 A quotient may retain an arbitrary representative unchanged at runtime and may
 therefore share its ABI without performing normalization. The representative

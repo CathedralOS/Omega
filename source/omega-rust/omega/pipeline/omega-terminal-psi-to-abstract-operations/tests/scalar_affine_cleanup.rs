@@ -67,6 +67,7 @@ fn omega_fences_verified_payloadless_case_materialization() {
         proof_output_calls: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(91),
             attachment: None,
@@ -252,6 +253,7 @@ fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
         proof_output_calls: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(1),
             attachment: None,
@@ -556,6 +558,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
         proof_output_calls: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(1),
             attachment: None,
@@ -818,6 +821,7 @@ fn contextual_mixed_scalar_cleanup_module() -> (TerminalModule, ProofBundle) {
         proof_output_calls: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
                 id: machine_id(1),

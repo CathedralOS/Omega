@@ -2719,8 +2719,8 @@ Remaining:
   whole-root Unit-call rebasing, and semantic codec, verifier, fixed-fuel, and
   interpreter replay reject redirected or reordered structure. Nested or
   projected mixed values, recursive cycles, address and erased payload equality,
-  and runtime sum layout remain fenced. Semantic codec format 31 / vocabulary
-  33, proof-bundle v19, and installation-record v40 retain the structural
+  and runtime sum layout remain fenced. Semantic codec format 32 / vocabulary
+  34, proof-bundle v19, and installation-record v40 retain the structural
   shapes, case-payload paths, and proposition. Continue with those fenced
   nested/projected mixed, recursive, and erased aggregate cases. Concrete
   machine/state contracts plus domain/data predicates and trait requirement signatures,
@@ -8587,8 +8587,8 @@ Remaining N6/N8 work:
   live on this exact bounded call shape. One optional binding names the
   exact guarded callee case, dense row position, obligation, public selector,
   atomic proposition, callee term/interface, distinct caller-local output term,
-  and source-handle-free result-root validity intersection. Codec format 31 /
-  vocabulary 33 retain those coordinates canonically. Validation rejects an
+  and source-handle-free result-root validity intersection. Codec format 32 /
+  vocabulary 34 retain those coordinates canonically. Validation rejects an
   unnamed or nonmatching row, identity/interface/dependency drift, missing
   producer provenance, duplicate output, and any unconditional contract-lane or
   evidence-projection reuse of the guarded output. Omission remains fact-only,
@@ -8860,24 +8860,28 @@ Remaining N6/N8 work:
   canonical theorem identity and replay evidence. Ambient domain linking,
   visibility search, or an opaque solver verdict cannot supply that authority.
 
-  One deliberately non-executable stage-4 preparation seam is now live for
-  the narrow total direct `define` case. A separate all-or-nothing validation
-  API erases source handles into package-qualified callable/type identities,
-  parameter ordinals, contract-fact coordinates, the exact positional
-  relations and theorem expansion, eligibility certificates, and the direct
-  result edge. It admits only monomorphic one-state operations with empty
-  static telescopes, empty public/representative preconditions, no theorem
-  legality premises, immutable non-attached parameters, complete checked
-  purity/termination/crash evidence, and an exact direct result. Standalone
-  Terminal-Psi retention binds that aggregate with an exact length-delimited
-  canonical identity, and the independent verifier reconstructs the theorem
-  parameters, relation premises, representative applications, conclusion,
-  runtime correspondence, and result flow. The aggregate is intentionally
-  absent from `TerminalModule`, its codec, checked facts, and every executable
-  lane; ordinary validation still rejects every quotient request, and one
-  unsupported request prevents returning a partial batch. This closes a
-  source-erasure/replay prerequisite only: stage 3 is still incomplete at Q9,
-  while executable stage-4 admission and lowering remain open.
+  The deliberately non-executable stage-4 preparation seam is now module
+  canonical for the narrow total direct `define` case. A separate
+  all-or-nothing validation API erases source handles into package-qualified
+  callable/type identities, parameter ordinals, contract-fact coordinates,
+  the exact positional relations and theorem expansion, eligibility
+  certificates, and the direct result edge. It admits only monomorphic
+  one-state operations with empty static telescopes, empty public/
+  representative preconditions, no theorem legality premises, immutable
+  non-attached parameters, complete checked purity/termination/crash evidence,
+  and an exact direct result. `TerminalModule` owns the strictly ordered
+  retained rows; the canonical codec binds every certificate and rederives its
+  canonical identity on decode, and normal representation validation
+  independently reconstructs the theorem parameters, relation premises,
+  representative applications, conclusion, runtime correspondence, result
+  flow, row identity, uniqueness, and order. The explicit proof-only Terminal
+  producer attachment consumes only the complete extractor batch and is not an
+  ordinary `lower_machine` path. Ordinary validation still rejects every
+  quotient request, one unsupported request prevents returning a partial
+  batch, and no row owns a Terminal machine or executable operation. This
+  closes the module-retention prerequisite only: stage 3 is still incomplete
+  at Q9, while checked executable authorization and stage-4 operation/result
+  lowering remain open.
 
   Every request intentionally remains non-executable. Complete admission in
   bounded stages:

@@ -27,7 +27,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        33
+        34
     }
 }
 
@@ -124,6 +124,11 @@ pub struct TerminalModule {
     /// retained machine closure. Rows are owned by the concrete terminal
     /// machine whose specialization selected the application.
     pub closed_conformance_applications: Vec<ClosedConformanceApplication>,
+    /// Canonical proof-only quotient correspondence, strictly ordered by its
+    /// independently replayable identity. The public operation's hermetic
+    /// identity is the semantic owner; these rows do not join an executable
+    /// Terminal machine or authorize a representative call.
+    pub quotient_correspondences: Vec<crate::RetainedQuotientCorrespondence>,
     pub machines: Vec<TerminalMachine>,
 }
 

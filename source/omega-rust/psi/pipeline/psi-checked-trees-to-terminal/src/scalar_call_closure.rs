@@ -149,6 +149,7 @@ pub(super) fn lower_scalar_call_closure(
             evidence_contract_lanes: Vec::new(),
             proof_output_calls: Vec::new(),
             closed_conformance_applications: Vec::new(),
+            quotient_correspondences: Vec::new(),
             machines,
         },
         proof_bundle: ProofBundle {

@@ -728,6 +728,7 @@ fn boundary_call_module() -> TerminalModule {
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(1),
             attachment: None,
@@ -870,6 +871,7 @@ fn call_module() -> TerminalModule {
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
                 id: machine_id(1),
@@ -1003,6 +1005,7 @@ fn payloadless_guarded_call_module() -> TerminalModule {
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
                 id: machine_id(1),
