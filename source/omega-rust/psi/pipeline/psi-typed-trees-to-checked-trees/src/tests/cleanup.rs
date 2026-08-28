@@ -288,7 +288,7 @@ fn bodyless_cleanup_requires_published_termination() {
     );
 
     let source = r#"
-        data Wrapper { value: i32; }
+        pub data Wrapper { value: i32; }
         boundary machine Wrapper::drop(&mut self) terminates; ensures true;
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");

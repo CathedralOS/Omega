@@ -71,14 +71,9 @@ pub(crate) fn derive_checked_operator_realization_contracts(
             {
                 continue;
             }
-            let Some(requirement) = conformance.requirement.as_ref() else {
-                continue;
-            };
-            let Some(operator) = psi_typed_trees::operator::resolve_satisfied_checked_operator(
+            let Some(operator) = psi_typed_trees::operator::declaration_by_symbol(
                 program,
-                machine,
-                conformance.name.as_str(),
-                requirement.as_str(),
+                conformance.requirement_symbol,
             ) else {
                 continue;
             };

@@ -806,12 +806,12 @@ fn aggregate_parameter_field_spelling_retains_float_operator_fact() {
     let source = r#"
         boundary operator + Float::add(left: f64, right: f64) -> f64;
 
-        data Pair {
+        pub data Pair {
             first: f64;
             second: f64;
         }
 
-        data Main { observed: f64; }
+        pub data Main { observed: f64; }
 
         boundary machine Main::main(&mut self, pair: Pair) -> i32 {
             self.observed = pair.first + pair.second;

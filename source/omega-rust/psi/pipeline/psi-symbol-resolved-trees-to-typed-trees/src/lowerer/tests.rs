@@ -412,6 +412,42 @@ fn retains_structured_external_binding_table_in_typed_trees() {
 }
 
 #[test]
+fn settles_satisfied_operator_to_its_exact_overload_symbol() {
+    use psi_language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionKind as Kind, AuthoredDeclarationSelectionTarget as Target,
+    };
+
+    let source = r#"
+        boundary operator Float::add(left: f32, right: f32) -> f32;
+        boundary operator Float::add(left: f64, right: f64) -> f64;
+
+        machine add32(left: f32, right: f32) -> f32
+        satisfies Float::add
+        via Binding::CompilerIntrinsic;
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "add32")
+        .expect("f32 operator satisfier");
+    let [conformance] = typed.machine_trait_conformances(machine) else {
+        panic!("one exact operator realization")
+    };
+    let operator =
+        psi_typed_trees::operator::declaration_by_symbol(&typed, conformance.requirement_symbol)
+            .expect("settled exact operator");
+    assert_eq!(typed.display_type_reference(operator.return_type), "f32");
+    assert!(typed.authored_declaration_selections().iter().any(|selection| {
+        selection.kind() == Kind::StaticPathSegment
+            && matches!(selection.target(), Target::Resolved(target) if target.selected_symbol() == operator.symbol)
+    }));
+}
+
+#[test]
 fn retains_exact_nominal_machine_parameter_identity_in_typed_trees() {
     let source = r#"
         boundary trait WindowProcedure {

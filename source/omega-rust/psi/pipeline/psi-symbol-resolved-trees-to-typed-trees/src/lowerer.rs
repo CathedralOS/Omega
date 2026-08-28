@@ -350,6 +350,7 @@ impl Lowerer<'_> {
 
     pub(crate) fn finish(mut self) -> Result<TypedTrees, Diagnostic> {
         self.typed_trees.symbols = self.source_trees.symbols.clone();
+        crate::machine::settle_satisfied_declarations(&mut self.typed_trees)?;
         crate::progress::normalize_progress_premises(&mut self.typed_trees)?;
         let TypedTrees {
             roots,

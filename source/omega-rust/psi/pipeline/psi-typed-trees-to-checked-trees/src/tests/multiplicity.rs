@@ -97,7 +97,7 @@ fn retains_canonical_semantic_permission_events() {
 fn method_form_by_value_self_records_terminal_consume() {
     let checked = checked(
         r#"
-        data Receipt [linear] { code: i32; }
+        pub data Receipt [linear] { code: i32; }
         boundary machine Receipt::complete(self) {}
         data Main {}
 
