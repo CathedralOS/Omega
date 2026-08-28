@@ -1372,30 +1372,45 @@ exact_local_identity_load:
         load r0, r1
         ret
 
-; memory row/block/kind/width/pc in r20..r24.
-transfer_require_memory:
-        mov r25, r20
-        mov r26, r21
-        mov r27, r22
-        mov r28, r23
-        mov r29, r24
-        imm r20, 7602176
-        mov r21, r25
-        mov r22, r26
-        call transfer_require_cell
-        imm r20, 7610368
-        mov r21, r25
-        mov r22, r27
-        call transfer_require_cell
-        imm r20, 7618560
-        mov r21, r25
-        mov r22, r28
-        call transfer_require_cell
-        imm r20, 7626752
-        mov r21, r25
-        mov r22, r29
-        call transfer_require_cell
+; Memory row/block/kind/width in r20..r23; return checked artifact PC in r0.
+exact_memory_identity_pc:
+        mov r5, r20
+        imm r1, 524648
+        load r1, r1
+        jlt r5, r1, exact_memory_identity_block
+        jmp reject
+exact_memory_identity_block:
+        imm r1, 8
+        mul r5, r1
+        imm r1, 7602176
+        add r1, r5
+        load r2, r1
+        jeq r2, r21, exact_memory_identity_kind
+        jmp reject
+exact_memory_identity_kind:
+        imm r1, 7610368
+        add r1, r5
+        load r2, r1
+        jeq r2, r22, exact_memory_identity_width
+        jmp reject
+exact_memory_identity_width:
+        imm r1, 7618560
+        add r1, r5
+        load r2, r1
+        jeq r2, r23, exact_memory_identity_load
+        jmp reject
+exact_memory_identity_load:
+        imm r1, 7626752
+        add r1, r5
+        load r0, r1
         ret
+
+; Compatibility adapter for memory row/block/kind/width/pc in r20..r24.
+transfer_require_memory:
+        mov r29, r24
+        call exact_memory_identity_pc
+        jeq r0, r29, exact_shape_ok
+        jmp reject
 
 ; primitive row/block/kind/value-or-opcode/pc in r20..r24.
 transfer_require_primitive:
