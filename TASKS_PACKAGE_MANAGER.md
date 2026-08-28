@@ -542,8 +542,21 @@ complete.
   open object, places an allow ACL on a replacement pathname, and proves the
   query remains on the retained object; an integration canary does the same for
   an opened cache root. Pre-open root/ancestry checks, symlink ACL inspection,
-  and executable ACL inspection remain path-based, and this still makes no
-  claim against an actively hostile same-user mutator.
+  and executable ACL inspection remained path-based at this milestone, and
+  this still made no claim against an actively hostile same-user mutator.
+
+  Milestone 2026-08-27: concrete macOS executable ACL observations now use
+  retained descriptors too. The selected Git executable and every concrete
+  HTTPS/SSH invocation entry and canonical target open no-follow beneath a
+  retained parent, preserve the file identity classified by the Unix custody
+  check, and query the open file. Every executable ancestry directory is
+  opened component-by-component no-follow, preserves its classified identity,
+  and is queried through that directory descriptor. A canary replaces a
+  classified executable before descriptor acquisition and proves the different
+  inode rejects rather than contributing an ACL fact. Symlink invocation
+  entries still use Darwin's path-oriented link ACL interface; executable
+  launch remains path-based and therefore does not prove loaded-image identity
+  or exclude a hostile same-user launch race.
 
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build
@@ -590,8 +603,8 @@ complete.
   ceilings. The local-repository route is explicitly test-only. Remaining P0
   work is native fetch/materialization confinement, effective endpoint and SSH
   credential custody, during-operation resource quotas, remaining
-  native-Git mutation confinement, remaining path-based ancestry/symlink/
-  executable ACL observations, and a locally reconstructed opaque strict
+  native-Git mutation confinement, remaining path-based cache-ancestry and
+  symlink ACL observations, and a locally reconstructed opaque strict
   receipt. Public requests now admit only HTTPS and
   SSH transports; the sealed executor grants only the request's selected
   `https` or `ssh` protocol, disables HTTP, unauthenticated `git://`, every
