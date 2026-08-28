@@ -1980,7 +1980,6 @@ version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
  "omega-effects",
- "omega-lowering-optimizer",
  "omega-object-file",
  "omega-optimization-core",
  "omega-optimization-pipeline",
@@ -1996,7 +1995,6 @@ dependencies = [
  "omega-terminal-psi-to-abstract-operations",
  "omega-terminal-selected-instructions",
  "omega-terminal-target-operations",
- "omega-terminal-target-operations-to-assigned-target-operations",
  "psi-checked-trees",
  "psi-checked-trees-to-terminal",
  "psi-core",

@@ -91,6 +91,7 @@ pub use assignment::{
     OptimizedAssignmentCustodyError, OptimizedAssignmentPipelineError,
     StagedOptimizedAssignedOperations, StagedOptimizedAssignmentCustodyReceipt,
     stage_optimized_assignment, stage_optimized_assignment_with_provider_executions,
+    stage_optimized_assignment_with_provider_executions_and_installation,
     validate_optimized_assignment_custody,
 };
 pub use fixed_view_copies::{
