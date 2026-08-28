@@ -20,6 +20,11 @@ pub fn validate_terminal_live_ranges(
     plan: TerminalLiveRangePlan,
 ) -> Result<ValidatedTerminalLiveRanges, TerminalLiveRangeError> {
     revalidate_liveness_custody(selected, liveness)?;
+    if !liveness.plan().structural_unit_functions.is_empty() {
+        return Err(TerminalLiveRangeError::UnsupportedStructuralUnitFunctions {
+            count: liveness.plan().structural_unit_functions.len(),
+        });
+    }
     if plan.selected != selected.selected_identity()
         || plan.liveness != liveness.receipt().identity()
         || plan.optimization_unit != selected.optimization_unit_identity()

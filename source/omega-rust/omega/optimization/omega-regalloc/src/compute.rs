@@ -8,7 +8,8 @@ use crate::model::{
 use omega_register_model::{RegisterOperandAccess, RegisterUnitId};
 use omega_terminal_selected_instructions::{
     TerminalSelectedBlock, TerminalSelectedFunction, TerminalSelectedInstruction,
-    TerminalSelectedTerminator, TerminalVirtualRegisterId, TerminalVirtualRegisterOrigin,
+    TerminalSelectedStructuralUnitFunction, TerminalSelectedTerminator, TerminalVirtualRegisterId,
+    TerminalVirtualRegisterOrigin,
 };
 
 pub(crate) fn compute_terminal_liveness(
@@ -21,12 +22,108 @@ pub(crate) fn compute_terminal_liveness(
         .enumerate()
         .map(|(index, function)| compute_function(index, function))
         .collect::<Result<Vec<_>, _>>()?;
+    let structural_unit_functions = plan
+        .structural_unit_functions
+        .iter()
+        .enumerate()
+        .map(|(index, function)| compute_structural_unit_function(index, function))
+        .collect::<Result<Vec<_>, _>>()?;
     Ok(TerminalLivenessPlan {
         selected: selected.selected_identity(),
         optimization_unit: selected.optimization_unit_identity(),
         fuel_schedule: selected.fuel_schedule_identity(),
         target: plan.target,
         functions,
+        structural_unit_functions,
+    })
+}
+
+pub(crate) fn compute_structural_unit_function(
+    function_index: usize,
+    function: &TerminalSelectedStructuralUnitFunction,
+) -> Result<TerminalFunctionLiveness, TerminalLivenessError> {
+    let mut instructions = Vec::with_capacity(usize::from(function.call.is_some()) + 1);
+    if let Some(call) = &function.call {
+        instructions.push(StructuralUnitInstructionFacts {
+            id: call.id,
+            uses: &call.implicit_uses,
+            defs: &call.implicit_defs,
+            clobbers: &call.clobbers,
+        });
+    }
+    let terminator = &function.terminator.instruction;
+    instructions.push(StructuralUnitInstructionFacts {
+        id: terminator.id,
+        uses: &terminator.implicit_uses,
+        defs: &terminator.implicit_defs,
+        clobbers: &terminator.clobbers,
+    });
+    compute_structural_unit_facts(
+        function_index,
+        function.machine,
+        function.entry_block,
+        function.source_entry_block,
+        &instructions,
+    )
+}
+
+#[derive(Clone, Copy)]
+struct StructuralUnitInstructionFacts<'a> {
+    id: omega_terminal_selected_instructions::TerminalSelectedInstructionId,
+    uses: &'a [RegisterUnitId],
+    defs: &'a [RegisterUnitId],
+    clobbers: &'a [RegisterUnitId],
+}
+
+fn compute_structural_unit_facts(
+    function_index: usize,
+    machine: psi_core::MachineId,
+    entry_block: omega_terminal_selected_instructions::TerminalSelectedBlockId,
+    source_entry_block: psi_core::BlockId,
+    instructions: &[StructuralUnitInstructionFacts<'_>],
+) -> Result<TerminalFunctionLiveness, TerminalLivenessError> {
+    let mut unit_live = BTreeSet::new();
+    let mut rows = Vec::with_capacity(instructions.len());
+    for (ordinal, instruction) in instructions.iter().enumerate().rev() {
+        let position = TerminalLivenessPosition(u32::try_from(ordinal).map_err(|_| {
+            TerminalLivenessError::NonDensePositions {
+                function: function_index,
+            }
+        })?);
+        let unit_live_out = sorted(&unit_live);
+        for unit in instruction.defs.iter().chain(instruction.clobbers) {
+            unit_live.remove(unit);
+        }
+        unit_live.extend(instruction.uses.iter().copied());
+        rows.push(TerminalInstructionLiveness {
+            position,
+            instruction: instruction.id,
+            virtual_uses: Vec::new(),
+            virtual_defs: Vec::new(),
+            virtual_live_in: Vec::new(),
+            virtual_live_out: Vec::new(),
+            unit_uses: instruction.uses.to_vec(),
+            unit_defs: instruction.defs.to_vec(),
+            unit_clobbers: instruction.clobbers.to_vec(),
+            unit_live_in: sorted(&unit_live),
+            unit_live_out,
+        });
+    }
+    rows.reverse();
+    Ok(TerminalFunctionLiveness {
+        machine,
+        entry_definitions: Vec::new(),
+        operand_positions: Vec::new(),
+        blocks: vec![TerminalBlockLiveness {
+            block: entry_block,
+            source_block: source_entry_block,
+            virtual_live_in: Vec::new(),
+            virtual_live_out: Vec::new(),
+            unit_live_in: sorted(&unit_live),
+            unit_live_out: Vec::new(),
+            instructions: rows,
+            successors: Vec::new(),
+        }],
     })
 }
 
@@ -507,6 +604,7 @@ fn sorted<T: Copy + Ord>(values: &BTreeSet<T>) -> Vec<T> {
 pub(crate) mod tests {
     use omega_register_model::{
         RegisterClassId, RegisterConstraintFamily, RegisterConstraintKey, RegisterOperandAccess,
+        RegisterUnitId,
     };
     use omega_terminal_selected_instructions::{
         TerminalSelectedBlock, TerminalSelectedBlockId, TerminalSelectedFunction,
@@ -516,8 +614,83 @@ pub(crate) mod tests {
     };
     use psi_core::{BlockId, EdgeId, MachineId};
 
-    use super::reject_unsupported_constraints;
+    use super::{
+        StructuralUnitInstructionFacts, compute_structural_unit_facts,
+        reject_unsupported_constraints,
+    };
     use crate::TerminalLivenessError;
+
+    #[test]
+    fn structural_unit_call_and_terminal_callee_retain_exact_unit_liveness() {
+        let caller_machine = MachineId::new(1).unwrap();
+        let callee_machine = MachineId::new(2).unwrap();
+        let block = TerminalSelectedBlockId(0);
+        let caller_source = BlockId::new(1).unwrap();
+        let callee_source = BlockId::new(2).unwrap();
+        let call_uses = [RegisterUnitId(1), RegisterUnitId(2)];
+        let call_defs = [RegisterUnitId(3)];
+        let call_clobbers = [RegisterUnitId(4)];
+        let return_uses = [RegisterUnitId(3)];
+        let caller = compute_structural_unit_facts(
+            0,
+            caller_machine,
+            block,
+            caller_source,
+            &[
+                StructuralUnitInstructionFacts {
+                    id: TerminalSelectedInstructionId(0),
+                    uses: &call_uses,
+                    defs: &call_defs,
+                    clobbers: &call_clobbers,
+                },
+                StructuralUnitInstructionFacts {
+                    id: TerminalSelectedInstructionId(1),
+                    uses: &return_uses,
+                    defs: &[],
+                    clobbers: &[],
+                },
+            ],
+        )
+        .unwrap();
+        assert!(caller.entry_definitions.is_empty());
+        assert!(caller.operand_positions.is_empty());
+        assert_eq!(caller.blocks[0].unit_live_in, call_uses);
+        assert!(caller.blocks[0].unit_live_out.is_empty());
+        assert_eq!(caller.blocks[0].instructions.len(), 2);
+        assert_eq!(
+            caller.blocks[0].instructions[0].position,
+            crate::TerminalLivenessPosition(0)
+        );
+        assert_eq!(caller.blocks[0].instructions[0].unit_live_out, return_uses);
+        assert_eq!(
+            caller.blocks[0].instructions[0].unit_clobbers,
+            call_clobbers
+        );
+        assert_eq!(
+            caller.blocks[0].instructions[1].instruction,
+            TerminalSelectedInstructionId(1)
+        );
+
+        let callee_uses = [RegisterUnitId(5)];
+        let callee_defs = [RegisterUnitId(6)];
+        let callee = compute_structural_unit_facts(
+            1,
+            callee_machine,
+            block,
+            callee_source,
+            &[StructuralUnitInstructionFacts {
+                id: TerminalSelectedInstructionId(0),
+                uses: &callee_uses,
+                defs: &callee_defs,
+                clobbers: &[],
+            }],
+        )
+        .unwrap();
+        assert_eq!(callee.machine, callee_machine);
+        assert_eq!(callee.blocks[0].instructions.len(), 1);
+        assert_eq!(callee.blocks[0].unit_live_in, callee_uses);
+        assert_eq!(callee.blocks[0].instructions[0].unit_defs, callee_defs);
+    }
 
     fn function_with_operand(access: RegisterOperandAccess) -> TerminalSelectedFunction {
         let key = RegisterConstraintKey {
