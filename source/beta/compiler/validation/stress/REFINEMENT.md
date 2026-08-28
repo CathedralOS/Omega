@@ -28,7 +28,7 @@ The certificate is a diamond with the trust anchor
       Beta source P ──beta_symbolic──▶  M = ⟦P⟧_Beta  (a closed-form term over the inputs)
             │                                   │
             │ bc + assembler                    │  prove  (= C M)  ∀ inputs
-            ▼                                   │  via proof-kernel/prover.py → check.beta
+            ▼                                   │  via Alpha checker tools/prover.py → check.beta
       alpha bytecode ──alpha_symbolic──▶ C = ⟦bc(P)⟧_alpha
             │                                   │
             └── pinned to alpha_ref.py          └── pinned to beta_interp.py
@@ -263,7 +263,7 @@ A symbolic trip count `n` can't be unrolled. Both sides recognize the loop and r
 | File | Role |
 | --- | --- |
 | `alpha_symbolic.py` | UNTRUSTED: symbolically executes an alpha tape → the compiled meaning `C`. Dual concrete-int / Peano-term values; concrete-addressed memory + call/ret; loop summarization. |
-| `../../../rungs/beta/reference/beta_parser.py` | UNTRUSTED: shared Beta source recognition used by the reference and refinement tools; it does not load a compiler backend. |
+| `../../../reference/beta_parser.py` | UNTRUSTED: shared Beta source recognition used by the reference and refinement tools; it does not load a compiler backend. |
 | `beta_symbolic.py` | UNTRUSTED: symbolically evaluates a Beta source → the source meaning `M`. The source-side dual; reuses the shared `beta_parser` syntax tree. |
 | `alpha_refinement_check.py` | The gate driver: derives `C`/`M`, differentially pins each, proves `(= C M)`. Curated samples + three fuzz spaces. |
 | `refinement_fuzz_gen.py` | random straight-line arithmetic programs |
@@ -271,13 +271,13 @@ A symbolic trip count `n` can't be unrolled. Both sides recognize the loop and r
 | `refinement_compose_gen.py` | random pre-loop + loop + post-loop compositions |
 | `refinement.sh` | stamps the below-Beta checker artifact and `bc`, then runs the driver; the lattice step |
 | `refinement-samples/*.beta` | curated end-to-end samples (muln, countn, tri, muln_le, …) |
-| `symbolic_loop_check.py` + `symbolic-loops.sh` | source-side soundness gate: `beta_symbolic`'s loop summaries pinned to `../../../rungs/beta/reference/beta_interp.py` over an input grid |
+| `symbolic_loop_check.py` + `symbolic-loops.sh` | source-side soundness gate: `beta_symbolic`'s loop summaries pinned to `../../../reference/beta_interp.py` over an input grid |
 
 ## Reference producers (never run in the trusted lineage)
 
 `alpha_ref.py` (the Alpha VM in Python) and `beta_interp.py` (the Beta
 interpreter) are untrusted executable differential references against which the
 two symbolic evaluators are pinned. They do not define either language's
-meaning. `proof-kernel/prover.py` searches for the equality proof;
+meaning. `source/alpha/checker/tools/prover.py` searches for the equality proof;
 `source/alpha/checker/implementations/beta/check.beta` (the trust
 anchor) validates it.
