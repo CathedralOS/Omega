@@ -11,8 +11,8 @@ acceptance authority. Compilation consumes a resolver-owned immutable snapshot,
 never a live local tree, Git working tree, or helper-produced claim.
 
 The intended strict production path has three custody stages. The current
-macOS floor now confines repository-initialization, inspection, and HTTPS-fetch
-file content but does not yet enforce read separation for discovery, SSH fetch,
+macOS floor now confines repository-initialization, inspection, and HTTPS
+discovery/fetch file content but does not yet enforce read separation for SSH
 or metadata:
 
 1. A fetch helper resolves transport into a fresh quarantined object store. In
@@ -54,12 +54,12 @@ establish a required guarantee, strict resolution rejects; it never degrades to
 The current macOS engineering floor now selects a fixed Seatbelt launcher and
 closed resolver phase; it is described below. Every phase uses a self-contained
 compiler-generated policy with no host-profile import and confines writes and
-executable paths; the nonnetwork phases also deny network. Discovery and SSH
-fetch reads remain broad. Initialization, inspection, and HTTPS fetch confine
-file-content reads to their exact mutable quarantine or retained repository and
-fixed runtime files while retaining broad metadata reads. HTTPS fetch also
-admits the fixed `/private/etc/ssl` system TLS configuration root. Each network
-phase confines its child to one compiler-owned
+executable paths; the nonnetwork phases also deny network. SSH discovery/fetch
+reads remain broad. Initialization, inspection, and HTTPS discovery/fetch
+confine file-content reads to their exact working, mutable-quarantine, or
+retained-repository root and fixed runtime files while retaining broad metadata
+reads. HTTPS discovery/fetch also admit the fixed `/private/etc/ssl` system TLS
+configuration root. Each network phase confines its child to one compiler-owned
 loopback broker port. The broker accepts only the normalized host and port derived from the
 validated locator and records the effective connected peer. Linux and Windows
 route selected helpers through the same broker but do not yet deny direct
@@ -109,8 +109,8 @@ The native execution crate now returns a narrower opaque policy observation
 with each command it constructs. It binds the verified backend, closed phase,
 generated policy hash, numeric compiler ceilings, primary executable path,
 normalized bounded descendant-executable path set, mutable root, sealed
-endpoint route where applicable, exact inspection content-read root where
-applicable, and a complete ordered guarantee vocabulary.
+endpoint route where applicable, exact discovery/inspection content-read roots
+where applicable, and a complete ordered guarantee vocabulary.
 Required guarantees are either `Enforced` or
 `Unavailable`; phase-inapplicable rows are `NotRequired`. There is no public
 constructor or decoder, path and helper counts are bounded, and
@@ -124,12 +124,12 @@ sealing, endpoint and credential trust, bounded command result, object
 authentication, snapshot identity, and final publication verdict.
 
 Every macOS phase uses a compiler-generated default-deny profile with no import.
-All grant exact selected executables and write-data to `/dev/null`. Discovery
-and SSH fetch grant broad reads. Initialization, inspection, and HTTPS fetch
-grant broad metadata reads but file-content reads only beneath the exact mutable
-quarantine or retained bare repository, from the exact executable set,
-`/dev/null`, and the literal filesystem-root directory entry required by the
-native process runtime. HTTPS fetch additionally admits `/private/etc/ssl`;
+All grant exact selected executables and write-data to `/dev/null`. SSH
+discovery/fetch grant broad reads. Initialization, inspection, and HTTPS
+discovery/fetch grant broad metadata reads but file-content reads only beneath
+the exact working, mutable-quarantine, or retained-bare-repository root, from
+the exact executable set, `/dev/null`, and the literal filesystem-root directory
+entry required by the native process runtime. HTTPS discovery/fetch additionally admit `/private/etc/ssl`;
 that fixed path is not evidence that TLS trust or custody was established.
 Initialization and fetch additionally grant writes only beneath the exact
 mutable quarantine root. Discovery and fetch require the already-validated
@@ -145,7 +145,7 @@ phase. Filesystem-write and executable-path rows are
 `Enforced` for every phase, network denial is `Enforced` where applicable, and
 descendant containment is `Enforced` for initialization and inspection. The
 exact compiler-owned rlimit rows are `Enforced` throughout macOS.
-Because metadata remains broad and discovery/SSH fetch retain broad content
+Because metadata remains broad and SSH discovery/fetch retain broad content
 reads, `FilesystemReadsConfined` remains `Unavailable`.
 Before a successful Git result is issued, the package layer also requires the
 number of retained policy observations to equal the bounded launch count and

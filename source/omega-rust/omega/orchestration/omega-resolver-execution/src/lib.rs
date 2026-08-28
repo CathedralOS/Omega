@@ -29,7 +29,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const RESOLVER_EXECUTION_OBSERVATION_SCHEMA_VERSION: u32 = 6;
+const RESOLVER_EXECUTION_OBSERVATION_SCHEMA_VERSION: u32 = 7;
 const RESOLVER_EXECUTION_ADDITIONAL_EXECUTABLE_LIMIT: usize = 32;
 const RESOLVER_EXECUTION_PATH_BYTE_LIMIT: usize = 32 * 1024;
 const RESOLVER_EXECUTION_CANONICAL_BYTE_LIMIT: usize = 2 * 1024 * 1024;
@@ -222,6 +222,7 @@ pub struct ResolverExecutionPolicyObservation {
     resource_ceilings: ResolverExecutionResourceCeilings,
     executable: PathBuf,
     additional_executables: Vec<PathBuf>,
+    discovery_read_root: Option<PathBuf>,
     inspection_read_root: Option<PathBuf>,
     mutable_root: Option<PathBuf>,
     guarantees: [ResolverExecutionGuaranteeRow; ResolverExecutionGuarantee::ALL.len()],
@@ -258,6 +259,10 @@ impl ResolverExecutionPolicyObservation {
 
     pub fn additional_executables(&self) -> &[PathBuf] {
         &self.additional_executables
+    }
+
+    pub fn discovery_read_root(&self) -> Option<&Path> {
+        self.discovery_read_root.as_deref()
     }
 
     pub fn inspection_read_root(&self) -> Option<&Path> {
@@ -319,6 +324,13 @@ impl ResolverExecutionPolicyObservation {
         bytes.extend_from_slice(&(self.additional_executables.len() as u64).to_le_bytes());
         for executable in &self.additional_executables {
             encode_path(&mut bytes, executable);
+        }
+        match &self.discovery_read_root {
+            Some(root) => {
+                bytes.push(1);
+                encode_path(&mut bytes, root);
+            }
+            None => bytes.push(0),
         }
         match &self.inspection_read_root {
             Some(root) => {
@@ -450,12 +462,14 @@ struct ResolverExecutionPolicyInputs<'a> {
     generated_policy_sha256: Option<String>,
     executable: &'a Path,
     additional_executables: &'a [PathBuf],
+    discovery_read_root: Option<&'a Path>,
     inspection_read_root: Option<&'a Path>,
     mutable_root: Option<&'a Path>,
 }
 
 #[derive(Clone, Copy)]
 struct ResolverExecutionAuthorityRoots<'a> {
+    discovery_read_root: Option<&'a Path>,
     inspection_read_root: Option<&'a Path>,
     mutable_root: Option<&'a Path>,
 }
@@ -533,6 +547,7 @@ impl ResolverExecutionBackend {
             resource_ceilings: configured_resource_ceilings(),
             executable: inputs.executable.to_path_buf(),
             additional_executables: inputs.additional_executables.to_vec(),
+            discovery_read_root: inputs.discovery_read_root.map(Path::to_path_buf),
             inspection_read_root: inputs.inspection_read_root.map(Path::to_path_buf),
             mutable_root: inputs.mutable_root.map(Path::to_path_buf),
             guarantees,
@@ -641,7 +656,32 @@ impl ResolverExecutionBackend {
             None,
             None,
             ResolverExecutionAuthorityRoots {
+                discovery_read_root: None,
                 inspection_read_root: Some(inspection_read_root),
+                mutable_root: None,
+            },
+        )
+    }
+
+    /// Construct one transport-discovery command bound to the exact working
+    /// root whose file contents may be read by a narrowed transport policy.
+    pub fn command_with_discovery_route_observation(
+        &self,
+        executable: &Path,
+        additional_executables: &[PathBuf],
+        network_transport: ResolverExecutionNetworkTransport,
+        endpoint_route: &ResolverExecutionEndpointRoute,
+        discovery_read_root: &Path,
+    ) -> io::Result<(Command, ResolverExecutionPolicyObservation)> {
+        self.command_with_authority_roots_observation(
+            executable,
+            additional_executables,
+            ResolverExecutionPhase::TransportDiscovery,
+            Some(network_transport),
+            Some(endpoint_route),
+            ResolverExecutionAuthorityRoots {
+                discovery_read_root: Some(discovery_read_root),
+                inspection_read_root: None,
                 mutable_root: None,
             },
         )
@@ -666,6 +706,7 @@ impl ResolverExecutionBackend {
             network_transport,
             endpoint_route,
             ResolverExecutionAuthorityRoots {
+                discovery_read_root: None,
                 inspection_read_root: None,
                 mutable_root,
             },
@@ -763,6 +804,25 @@ impl ResolverExecutionBackend {
             }
             (_, None) => {}
         }
+        match (phase, roots.discovery_read_root) {
+            (ResolverExecutionPhase::TransportDiscovery, Some(root)) => {
+                require_absolute(root, "resolver discovery read root")?;
+                require_canonical_bounded_path(root, "resolver discovery read root")?;
+            }
+            (ResolverExecutionPhase::TransportDiscovery, None) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "transport discovery has no read root",
+                ));
+            }
+            (_, Some(_)) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "nondiscovery resolver phase received a discovery read root",
+                ));
+            }
+            (_, None) => {}
+        }
 
         #[cfg(target_os = "macos")]
         let (mut command, generated_policy_sha256) = self.macos_command(
@@ -786,6 +846,7 @@ impl ResolverExecutionBackend {
             generated_policy_sha256,
             executable,
             additional_executables: &additional_executables,
+            discovery_read_root: roots.discovery_read_root,
             inspection_read_root: roots.inspection_read_root,
             mutable_root: roots.mutable_root,
         })?;
@@ -821,13 +882,15 @@ impl ResolverExecutionBackend {
             ResolverExecutionPhase::RepositoryInitialization
                 | ResolverExecutionPhase::RepositoryInspection
         ) || (phase == ResolverExecutionPhase::Fetch
-            && network_transport == Some(ResolverExecutionNetworkTransport::Https));
+            && network_transport == Some(ResolverExecutionNetworkTransport::Https))
+            || (phase == ResolverExecutionPhase::TransportDiscovery
+                && network_transport == Some(ResolverExecutionNetworkTransport::Https));
         if confines_content_reads {
             let read_root_parameter = match phase {
+                ResolverExecutionPhase::TransportDiscovery => "DISCOVERY_READ_ROOT",
                 ResolverExecutionPhase::RepositoryInspection => "INSPECTION_READ_ROOT",
                 ResolverExecutionPhase::RepositoryInitialization
                 | ResolverExecutionPhase::Fetch => "MUTABLE_ROOT",
-                ResolverExecutionPhase::TransportDiscovery => unreachable!(),
             };
             profile.push_str("(allow file-read-metadata) (allow file-read-data (subpath (param \"");
             profile.push_str(read_root_parameter);
@@ -835,8 +898,10 @@ impl ResolverExecutionBackend {
             for index in 0..additional_executables.len() {
                 profile.push_str(&format!(" (literal (param \"EXECUTABLE_{}\"))", index + 1));
             }
-            if phase == ResolverExecutionPhase::Fetch
-                && network_transport == Some(ResolverExecutionNetworkTransport::Https)
+            if matches!(
+                phase,
+                ResolverExecutionPhase::TransportDiscovery | ResolverExecutionPhase::Fetch
+            ) && network_transport == Some(ResolverExecutionNetworkTransport::Https)
             {
                 profile.push_str(&format!(" (subpath \"{MACOS_TLS_CONFIGURATION_ROOT}\")"));
             }
@@ -888,6 +953,11 @@ impl ResolverExecutionBackend {
             command
                 .arg("-D")
                 .arg(definition_argument("INSPECTION_READ_ROOT", root));
+        }
+        if let Some(root) = roots.discovery_read_root {
+            command
+                .arg("-D")
+                .arg(definition_argument("DISCOVERY_READ_ROOT", root));
         }
         if let Some(route) = endpoint_route {
             command.arg("-D").arg(format!(
@@ -1300,6 +1370,7 @@ mod tests {
                     None,
                     None,
                     ResolverExecutionAuthorityRoots {
+                        discovery_read_root: None,
                         inspection_read_root: Some(&inspection_root),
                         mutable_root: Some(Path::new("/tmp")),
                     },
@@ -1327,22 +1398,62 @@ mod tests {
         let route = loopback_route(&backend);
         let inspection_root = inspection_root();
 
+        let discovery = backend
+            .command_with_discovery_route_observation(
+                executable,
+                &[],
+                ResolverExecutionNetworkTransport::Https,
+                &route,
+                &mutable_root,
+            )
+            .expect("construct discovery policy")
+            .1;
+        assert_eq!(
+            discovery.discovery_read_root(),
+            Some(mutable_root.as_path())
+        );
+        let alternate_discovery_root = mutable_root.join("alternate");
+        let alternate_discovery = backend
+            .command_with_discovery_route_observation(
+                executable,
+                &[],
+                ResolverExecutionNetworkTransport::Https,
+                &route,
+                &alternate_discovery_root,
+            )
+            .expect("construct alternate discovery policy")
+            .1;
+        assert_ne!(
+            discovery.canonical_bytes(),
+            alternate_discovery.canonical_bytes()
+        );
+        assert!(
+            backend
+                .command_with_discovery_route_observation(
+                    executable,
+                    &[],
+                    ResolverExecutionNetworkTransport::Https,
+                    &route,
+                    Path::new("relative"),
+                )
+                .is_err()
+        );
+        assert!(
+            backend
+                .command_with_endpoint_route_observation(
+                    executable,
+                    &[],
+                    ResolverExecutionPhase::Fetch,
+                    Some(ResolverExecutionNetworkTransport::Https),
+                    Some(&route),
+                    Some(&mutable_root),
+                )
+                .is_ok()
+        );
         for (phase, mutable_root) in [
             (ResolverExecutionPhase::TransportDiscovery, None),
             (ResolverExecutionPhase::Fetch, Some(mutable_root.as_path())),
         ] {
-            assert!(
-                backend
-                    .command_with_endpoint_route_observation(
-                        executable,
-                        &[],
-                        phase,
-                        Some(ResolverExecutionNetworkTransport::Https),
-                        Some(&route),
-                        mutable_root,
-                    )
-                    .is_ok()
-            );
             assert!(
                 backend
                     .command_with_observation(
@@ -1371,6 +1482,7 @@ mod tests {
                         None,
                         Some(&route),
                         ResolverExecutionAuthorityRoots {
+                            discovery_read_root: None,
                             inspection_read_root: (phase
                                 == ResolverExecutionPhase::RepositoryInspection)
                                 .then_some(inspection_root.as_path()),
@@ -1413,6 +1525,7 @@ mod tests {
                     None,
                     None,
                     ResolverExecutionAuthorityRoots {
+                        discovery_read_root: None,
                         inspection_read_root: Some(&inspection_root),
                         mutable_root: Some(&inspection_root),
                     },
@@ -1493,6 +1606,7 @@ mod tests {
                     Some(ResolverExecutionNetworkTransport::Https),
                     None,
                     ResolverExecutionAuthorityRoots {
+                        discovery_read_root: None,
                         inspection_read_root: Some(&inspection_root),
                         mutable_root: None,
                     },
@@ -1509,6 +1623,7 @@ mod tests {
                     None,
                     Some(&fetch_route),
                     ResolverExecutionAuthorityRoots {
+                        discovery_read_root: None,
                         inspection_read_root: Some(&inspection_root),
                         mutable_root: None,
                     },
@@ -1654,24 +1769,22 @@ mod tests {
             .expect("issue initialization policy observation");
         let discovery_route = loopback_route(&backend);
         let (discovery_command, discovery) = backend
-            .command_with_endpoint_route_observation(
+            .command_with_discovery_route_observation(
                 executable,
                 &[],
-                ResolverExecutionPhase::TransportDiscovery,
-                Some(ResolverExecutionNetworkTransport::Ssh),
-                Some(&discovery_route),
-                None,
+                ResolverExecutionNetworkTransport::Ssh,
+                &discovery_route,
+                &mutable_root,
             )
             .expect("issue discovery policy observation");
         let https_discovery_route = loopback_route(&backend);
         let (https_discovery_command, https_discovery) = backend
-            .command_with_endpoint_route_observation(
+            .command_with_discovery_route_observation(
                 executable,
                 &[],
-                ResolverExecutionPhase::TransportDiscovery,
-                Some(ResolverExecutionNetworkTransport::Https),
-                Some(&https_discovery_route),
-                None,
+                ResolverExecutionNetworkTransport::Https,
+                &https_discovery_route,
+                &mutable_root,
             )
             .expect("issue HTTPS discovery policy observation");
         let fetch_route = loopback_route(&backend);
@@ -1714,6 +1827,10 @@ mod tests {
             https_discovery.canonical_bytes()
         );
         assert_ne!(fetch.canonical_bytes(), https_fetch.canonical_bytes());
+        assert_eq!(
+            discovery.discovery_read_root(),
+            Some(mutable_root.as_path())
+        );
 
         let profile = |command: &std::process::Command| {
             let arguments = command.get_args().collect::<Vec<_>>();
@@ -1784,6 +1901,13 @@ mod tests {
         );
         assert!(!https_discovery_profile.contains("mach-lookup"));
         assert!(!https_discovery_profile.contains("sysctl-read"));
+        assert!(!https_discovery_profile.contains("(allow file-read*)"));
+        assert!(https_discovery_profile.contains("(allow file-read-metadata)"));
+        assert!(
+            https_discovery_profile
+                .contains("(allow file-read-data (subpath (param \"DISCOVERY_READ_ROOT\"))")
+        );
+        assert!(https_discovery_profile.contains("(subpath \"/private/etc/ssl\")"));
         let fetch_profile = profile(&fetch_command);
         assert!(!fetch_profile.contains("(import"));
         assert!(
@@ -2205,6 +2329,76 @@ mod tests {
 
     #[cfg(target_os = "macos")]
     #[test]
+    fn seatbelt_https_discovery_confines_file_content_to_working_and_tls_roots() {
+        use std::os::unix::fs::symlink;
+        use std::sync::atomic::{AtomicU64, Ordering};
+
+        static SEQUENCE: AtomicU64 = AtomicU64::new(0);
+        let sequence = SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let parent = std::env::temp_dir().join(format!(
+            "omega-resolver-https-discovery-read-{}-{sequence}",
+            std::process::id()
+        ));
+        let discovery_root = parent.join("working");
+        std::fs::create_dir_all(&discovery_root).expect("create HTTPS discovery root");
+        let discovery_root = discovery_root
+            .canonicalize()
+            .expect("canonicalize HTTPS discovery root");
+        let inside = discovery_root.join("inside");
+        let sibling = parent.join("sibling");
+        let escaped_link = discovery_root.join("escaped-link");
+        std::fs::write(&inside, b"inside").expect("write inside canary");
+        std::fs::write(&sibling, b"sibling").expect("write sibling canary");
+        symlink(&sibling, &escaped_link).expect("create escaping symlink");
+
+        let backend = ResolverExecutionBackend::open().expect("open resolver backend");
+        let route = loopback_route(&backend);
+        let build_command = || {
+            let (mut command, _observation) = backend
+                .command_with_discovery_route_observation(
+                    Path::new("/bin/cat"),
+                    &[],
+                    ResolverExecutionNetworkTransport::Https,
+                    &route,
+                    &discovery_root,
+                )
+                .expect("build HTTPS discovery content sandbox");
+            command.current_dir(&discovery_root);
+            command
+        };
+
+        let output = build_command()
+            .arg(&inside)
+            .output()
+            .expect("read discovery-root content");
+        assert!(output.status.success());
+        assert_eq!(output.stdout, b"inside");
+        let output = build_command()
+            .arg("/private/etc/ssl/openssl.cnf")
+            .output()
+            .expect("read fixed TLS configuration");
+        assert!(output.status.success());
+        assert!(!output.stdout.is_empty());
+
+        for denied_path in [&sibling, &escaped_link] {
+            let output = build_command()
+                .arg(denied_path)
+                .output()
+                .expect("attempt escaped HTTPS discovery content read");
+            assert!(!output.status.success());
+            assert!(output.stdout.is_empty());
+        }
+        route.finish().expect("finish HTTPS discovery route");
+
+        std::fs::remove_file(escaped_link).expect("remove escaping symlink");
+        std::fs::remove_file(inside).expect("remove inside canary");
+        std::fs::remove_file(sibling).expect("remove sibling canary");
+        std::fs::remove_dir(discovery_root).expect("remove HTTPS discovery root");
+        std::fs::remove_dir(parent).expect("remove HTTPS discovery parent");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
     fn seatbelt_inspection_allows_only_the_fixed_null_write_sink() {
         use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -2422,14 +2616,14 @@ mod tests {
             )
             .expect("open endpoint route");
         let broker_port = route.policy().broker_endpoint().port();
+        let discovery_read_root = inspection_root.clone();
         let (mut allowed, _) = backend
-            .command_with_endpoint_route_observation(
+            .command_with_discovery_route_observation(
                 Path::new("/usr/bin/nc"),
                 &[],
-                ResolverExecutionPhase::TransportDiscovery,
-                Some(ResolverExecutionNetworkTransport::Https),
-                Some(&route),
-                None,
+                ResolverExecutionNetworkTransport::Https,
+                &route,
+                &discovery_read_root,
             )
             .expect("build network-enabled sandbox");
         let status = allowed
@@ -2440,13 +2634,12 @@ mod tests {
         assert!(status.success());
 
         let (mut direct, _) = backend
-            .command_with_endpoint_route_observation(
+            .command_with_discovery_route_observation(
                 Path::new("/usr/bin/nc"),
                 &[],
-                ResolverExecutionPhase::TransportDiscovery,
-                Some(ResolverExecutionNetworkTransport::Https),
-                Some(&route),
-                None,
+                ResolverExecutionNetworkTransport::Https,
+                &route,
+                &discovery_read_root,
             )
             .expect("build endpoint-confined sandbox");
         let status = direct

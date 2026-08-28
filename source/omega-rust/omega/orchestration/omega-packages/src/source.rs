@@ -41,7 +41,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::{Duration, Instant, SystemTime};
 
-const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v19";
+const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v20";
 const GIT_CACHE_METADATA: &str = "source.identity";
 const GIT_CACHE_REPOSITORY: &str = "repository";
 const GIT_CACHE_SNAPSHOTS: &str = "snapshots";
@@ -8822,25 +8822,35 @@ fn sealed_git_command_with_route(
     };
     let network_transport =
         network_phase.then(|| executor.execution_transport.resolver_network_transport());
-    let command_result = if phase == ResolverExecutionPhase::RepositoryInspection {
-        executor
+    let command_result = match phase {
+        ResolverExecutionPhase::RepositoryInspection => executor
             .execution_backend
             .command_with_inspection_read_root_observation(
                 &executor.identity.path,
                 &helper_executables,
                 working_directory,
-            )
-    } else {
-        executor
+            ),
+        ResolverExecutionPhase::TransportDiscovery => executor
             .execution_backend
-            .command_with_endpoint_route_observation(
+            .command_with_discovery_route_observation(
                 &executor.identity.path,
                 &helper_executables,
-                phase,
-                network_transport,
-                endpoint_route,
-                mutable_root,
-            )
+                network_transport.expect("discovery transport derived from the closed phase"),
+                endpoint_route.expect("discovery route opened from the validated request"),
+                working_directory,
+            ),
+        ResolverExecutionPhase::RepositoryInitialization | ResolverExecutionPhase::Fetch => {
+            executor
+                .execution_backend
+                .command_with_endpoint_route_observation(
+                    &executor.identity.path,
+                    &helper_executables,
+                    phase,
+                    network_transport,
+                    endpoint_route,
+                    mutable_root,
+                )
+        }
     };
     let (mut command, execution_policy_observation) =
         command_result.map_err(|error| SourceResolveError::GitExecutionBoundaryInvalid {
