@@ -58,6 +58,12 @@ pub fn validate_terminal_liveness(
         .flat_map(|function| &function.operand_positions)
         .filter(|operand| operand.tied_to.is_some())
         .count();
+    let early_clobber_count = plan
+        .functions
+        .iter()
+        .flat_map(|function| &function.operand_positions)
+        .filter(|operand| operand.early_clobber)
+        .count();
     let receipt = TerminalLivenessValidationReceipt {
         identity: terminal_liveness_identity(&plan),
         selected: plan.selected,
@@ -74,6 +80,7 @@ pub fn validate_terminal_liveness(
         instruction_count,
         successor_count,
         tied_pair_count,
+        early_clobber_count,
     };
     Ok(ValidatedTerminalLiveness { plan, receipt })
 }
@@ -461,26 +468,59 @@ fn reject_v1_unsupported(
     function: &TerminalSelectedFunction,
 ) -> Result<(), TerminalLivenessError> {
     let mut tied_registers = BTreeSet::new();
+    let mut early_registers = Vec::new();
+    let mut witnessed_early_instruction = false;
     for instruction in function.blocks.iter().flat_map(ordered_instructions) {
         for operand in &instruction.operands {
-            let error = if operand.access == RegisterOperandAccess::UseDef {
-                Some(TerminalLivenessError::UnsupportedUseDef {
+            if operand.access == RegisterOperandAccess::UseDef {
+                return Err(TerminalLivenessError::UnsupportedUseDef {
                     function: function_index,
                     instruction: instruction.id.0,
                     operand: operand.operand,
-                })
-            } else if operand.early_clobber {
-                Some(TerminalLivenessError::UnsupportedEarlyClobber {
-                    function: function_index,
-                    instruction: instruction.id.0,
-                    operand: operand.operand,
-                })
-            } else {
-                None
-            };
-            if let Some(error) = error {
-                return Err(error);
+                });
             }
+        }
+        let early = instruction
+            .operands
+            .iter()
+            .filter(|operand| operand.early_clobber)
+            .collect::<Vec<_>>();
+        if let Some(definition) = early.first().copied() {
+            let mut values = Vec::new();
+            for operand in &instruction.operands {
+                if values.contains(&operand.virtual_register) {
+                    return Err(TerminalLivenessError::UnsupportedEarlyClobber {
+                        function: function_index,
+                        instruction: instruction.id.0,
+                        operand: operand.operand,
+                    });
+                }
+                values.push(operand.virtual_register);
+            }
+            if witnessed_early_instruction
+                || early.len() != 1
+                || definition.access != RegisterOperandAccess::Def
+                || definition.tied_to.is_some()
+                || instruction.operands.len() < 2
+                || instruction.operands.iter().any(|operand| {
+                    operand.tied_to.is_some()
+                        || (operand.operand != definition.operand
+                            && operand.access != RegisterOperandAccess::Use)
+                })
+            {
+                return Err(TerminalLivenessError::UnsupportedEarlyClobber {
+                    function: function_index,
+                    instruction: instruction.id.0,
+                    operand: early.get(1).copied().unwrap_or(definition).operand,
+                });
+            }
+            witnessed_early_instruction = true;
+            early_registers.extend(
+                instruction
+                    .operands
+                    .iter()
+                    .map(|operand| (operand.virtual_register, instruction.id.0, operand.operand)),
+            );
         }
         let tied = instruction
             .operands
@@ -522,6 +562,16 @@ fn reject_v1_unsupported(
                 });
             }
         }
+    }
+    if let Some((_, instruction, operand)) = early_registers
+        .into_iter()
+        .find(|(register, _, _)| tied_registers.contains(register))
+    {
+        return Err(TerminalLivenessError::UnsupportedEarlyClobber {
+            function: function_index,
+            instruction,
+            operand,
+        });
     }
     Ok(())
 }
@@ -566,5 +616,17 @@ mod tests {
         let replayed = replay_function(0, &function).unwrap();
         assert_eq!(computed, replayed);
         assert_eq!(computed.operand_positions[1].tied_to, Some(0));
+    }
+
+    #[test]
+    fn independent_liveness_replay_accepts_exact_early_clobber() {
+        let function = crate::compute::tests::supported_early_clobber_function();
+        let computed = crate::compute::compute_function(0, &function).unwrap();
+        let replayed = replay_function(0, &function).unwrap();
+        assert_eq!(computed, replayed);
+        assert!(!computed.operand_positions[0].early_clobber);
+        assert!(computed.operand_positions[1].early_clobber);
+        assert_eq!(computed.blocks[0].instructions[0].virtual_uses.len(), 1);
+        assert_eq!(computed.blocks[0].instructions[0].virtual_defs.len(), 1);
     }
 }

@@ -10,9 +10,10 @@ use omega_register_model::{
 use crate::{
     TerminalAllocationLegalityError, TerminalAllocationLegalityPlan,
     TerminalEntryFixedViewTransition, TerminalFunctionAllocationLegality,
-    TerminalFunctionLiveRanges, TerminalLiveRangePoint, TerminalVirtualFixedConstraintSite,
-    TerminalVirtualPointLegality, TerminalVirtualRegisterAllocationLegality,
-    ValidatedTerminalAllocatorAvailability, ValidatedTerminalLiveRanges,
+    TerminalFunctionLiveRanges, TerminalLiveRangePoint, TerminalVirtualEarlyClobberPointLegality,
+    TerminalVirtualFixedConstraintSite, TerminalVirtualPointLegality,
+    TerminalVirtualRegisterAllocationLegality, ValidatedTerminalAllocatorAvailability,
+    ValidatedTerminalLiveRanges,
 };
 
 pub(crate) fn compute_terminal_allocation_legality(
@@ -192,11 +193,92 @@ fn compute_function(
                     });
                 }
             }
+            let mut early_clobber_points = Vec::new();
+            for early in function
+                .early_clobbers
+                .iter()
+                .filter(|early| early.def_virtual_register == register.virtual_register)
+            {
+                if early.def_class != register.class {
+                    return Err(TerminalAllocationLegalityError::UnknownClass {
+                        function: function_index,
+                        register: register.virtual_register.0,
+                        class: early.def_class.0,
+                    });
+                }
+                let fixed = fixed_view_for_early_clobber(function_index, register, early)?;
+                let mut candidates = class
+                    .views
+                    .iter()
+                    .copied()
+                    .filter(|view_id| available.binary_search(view_id).is_ok())
+                    .filter(|view_id| {
+                        physical
+                            .model()
+                            .views
+                            .get(usize::from(view_id.0))
+                            .is_some_and(|view| {
+                                view.id == *view_id
+                                    && view.allocatable
+                                    && !view_conflicts(
+                                        view,
+                                        early.block,
+                                        early.early_point,
+                                        function,
+                                        reservations,
+                                    )
+                            })
+                    })
+                    .collect::<Vec<_>>();
+                if let Some(fixed) = fixed {
+                    let Some(view) = physical.model().views.get(usize::from(fixed.0)) else {
+                        return Err(TerminalAllocationLegalityError::UnknownFixedView {
+                            function: function_index,
+                            register: register.virtual_register.0,
+                            view: fixed.0,
+                        });
+                    };
+                    if view.id != fixed || view.class != register.class {
+                        return Err(TerminalAllocationLegalityError::UnknownFixedView {
+                            function: function_index,
+                            register: register.virtual_register.0,
+                            view: fixed.0,
+                        });
+                    }
+                    if view_conflicts(view, early.block, early.early_point, function, reservations)
+                    {
+                        return Err(TerminalAllocationLegalityError::IllegalFixedView {
+                            function: function_index,
+                            register: register.virtual_register.0,
+                            view: fixed.0,
+                        });
+                    }
+                    candidates.clear();
+                    candidates.push(fixed);
+                }
+                if candidates.is_empty() {
+                    return Err(TerminalAllocationLegalityError::NoCandidateViews {
+                        function: function_index,
+                        register: register.virtual_register.0,
+                        block: early.block.0,
+                        point: early.early_point.0,
+                    });
+                }
+                early_clobber_points.push(TerminalVirtualEarlyClobberPointLegality {
+                    block: early.block,
+                    position: early.position,
+                    instruction: early.instruction,
+                    operand: early.def_operand,
+                    point: early.early_point,
+                    candidates,
+                });
+            }
             let entry_transitions = entry_transitions(register);
             Ok(TerminalVirtualRegisterAllocationLegality {
                 virtual_register: register.virtual_register,
                 class: register.class,
                 points,
+                early_clobber_points,
                 entry_transitions,
             })
         })
@@ -205,6 +287,40 @@ fn compute_function(
         machine: function.machine,
         virtual_registers,
     })
+}
+
+fn fixed_view_for_early_clobber(
+    function_index: usize,
+    register: &crate::TerminalVirtualLiveRange,
+    early: &crate::TerminalEarlyClobberConstraint,
+) -> Result<Option<RegisterViewId>, TerminalAllocationLegalityError> {
+    let fixed = register
+        .fixed_constraints
+        .iter()
+        .filter_map(|constraint| match constraint.site {
+            TerminalVirtualFixedConstraintSite::Operand {
+                position,
+                instruction,
+                operand,
+                access: omega_register_model::RegisterOperandAccess::Def,
+                ..
+            } if position == early.position
+                && instruction == early.instruction
+                && operand == early.def_operand =>
+            {
+                Some(constraint.view)
+            }
+            _ => None,
+        })
+        .collect::<BTreeSet<_>>();
+    if fixed.len() > 1 {
+        return Err(TerminalAllocationLegalityError::IllegalFixedView {
+            function: function_index,
+            register: register.virtual_register.0,
+            view: fixed.last().expect("two fixed views exist").0,
+        });
+    }
+    Ok(fixed.into_iter().next())
 }
 
 fn fixed_view_at_point(
