@@ -183,6 +183,7 @@ pub fn prepare_trust_lockfile(
     root_grants: &[String],
     provider_plans: &[omega_effects::provider_plan::ProviderPlan],
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
+    accepted_template_classifications: &crate::AcceptedTemplateClassifications,
     package_aware: bool,
 ) -> Result<PreparedTrustLock, Vec<Diagnostic>> {
     if package_aware {
@@ -239,11 +240,9 @@ pub fn prepare_trust_lockfile(
                 // can reuse it.
                 let machine =
                     accepted_machine(typed, symbol).map_err(|diagnostic| vec![diagnostic])?;
-                let identity =
-                    psi_typed_trees_to_checked_trees::generic_machine_template_fingerprint(
-                        typed,
-                        machine.symbol,
-                    )
+                let identity = accepted_template_classifications
+                    .for_machine(machine.symbol, machine.name.as_str())
+                    .map_err(|diagnostic| vec![diagnostic])?
                     .map(PreparedTrustIdentity::Ready)
                     .unwrap_or(PreparedTrustIdentity::AcceptedMachine(machine.symbol));
                 (
@@ -609,6 +608,7 @@ mod tests {
             &["proof::claim".to_owned()],
             &[],
             &omega_effects::SelectedProviderPlanFacts::default(),
+            &crate::AcceptedTemplateClassifications::capture(&typed),
             true,
         );
         let diagnostics = match result {

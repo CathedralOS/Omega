@@ -4,12 +4,12 @@ use psi_typed_trees::TypedTrees;
 
 /// Accepted-machine template identities captured before specialization can
 /// clone a template under fresh concrete symbols.
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AcceptedTemplateClassifications {
     rows: Vec<AcceptedTemplateClassification>,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct AcceptedTemplateClassification {
     machine: SymbolHandle,
     fingerprint: Option<u64>,

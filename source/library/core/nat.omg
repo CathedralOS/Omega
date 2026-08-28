@@ -29,7 +29,7 @@ use omega::language::core::algebra;
 // machine may induct over guarded unsigned `n - 1` while its recursive result
 // and contract stay in this structural Nat world. Wider fact-position operator
 // routing remains N3 work.
-data Nat {
+pub data Nat {
     case Zero;
     case Succ(prev: Nat);
 }
@@ -63,7 +63,7 @@ terminates by a;
     }
 }
 
-machine mul(a: Nat, b: Nat) -> Nat
+pub machine mul(a: Nat, b: Nat) -> Nat
 satisfies CommutativeSemiring::mul
 terminates by a;
 {

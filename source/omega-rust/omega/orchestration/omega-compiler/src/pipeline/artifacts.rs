@@ -329,7 +329,7 @@ pub(super) fn write_typed_snapshot(
     )
 }
 
-pub(super) fn write_checked_snapshot(
+pub(crate) fn write_checked_snapshot(
     options: &CompileOptions,
     checked: &psi_checked_trees::CheckedTrees,
     selected_entry_machine: Option<&str>,
