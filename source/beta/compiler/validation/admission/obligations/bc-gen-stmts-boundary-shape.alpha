@@ -22,27 +22,33 @@ gen_stmts_boundary_require_shape:
 
 gen_stmts_boundary_blocks:
         imm r20, 308
-        imm r21, 62                    ; gen_stmts procedure identity
-        call exact_proc_entry_r21
-        call exact_require_block_pc
+        imm r21, 62
+        imm r22, 0
+        call exact_block_identity_pc
         imm r20, 309
-        imm r21, 44130
-        call exact_require_block_pc
+        imm r21, 62
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 310
-        imm r21, 44338
-        call exact_require_block_pc
+        imm r21, 62
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 311
-        imm r21, 44468
-        call exact_require_block_pc
+        imm r21, 62
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 312
-        imm r21, 44843
-        call exact_require_block_pc
+        imm r21, 62
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 313
-        imm r21, 44983
-        call exact_require_block_pc
+        imm r21, 62
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 314
-        imm r21, 45119
-        call exact_require_block_pc
+        imm r21, 62
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 308
         imm r21, 314
         imm r22, 62
@@ -61,125 +67,85 @@ gen_stmts_boundary_transitions:
         imm r21, 309
         imm r22, 1
         imm r23, 310
-        imm r24, 44234              ; depth<64 guard
-        call exact_require_transition
+        call exact_transition_identity_pc ; depth<64 guard
         imm r20, 253
         imm r21, 310
         imm r22, 0
         imm r23, 311
-        imm r24, 44459
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 254
         imm r21, 311
         imm r22, 1
         imm r23, 314
-        imm r24, 44566              ; RESOURCE!=0 guard
-        call exact_require_transition
+        call exact_transition_identity_pc ; RESOURCE!=0 guard
         imm r20, 255
         imm r21, 311
         imm r22, 1
         imm r23, 312
-        imm r24, 44679              ; cbyte!='}' guard
-        call exact_require_transition
+        call exact_transition_identity_pc ; cbyte!='}' guard
         imm r20, 256
         imm r21, 312
         imm r22, 1
         imm r23, 313
-        imm r24, 44937              ; cbyte==0 guard
-        call exact_require_transition
+        call exact_transition_identity_pc ; cbyte==0 guard
         imm r20, 257
         imm r21, 312
         imm r22, 0
         imm r23, 311
-        imm r24, 44974              ; post-child loop backedge
-        call exact_require_transition
+        call exact_transition_identity_pc ; post-child loop backedge
         ret
 
 gen_stmts_boundary_events:
-        imm r20, 498
+        imm r20, 62
         imm r21, 309
-        imm r22, 5
-        imm r23, 44337
-        call exact_require_event
-        imm r20, 499
+        call exact_require_event_epilogue
+        imm r20, 62
         imm r21, 310
-        imm r22, 44450
+        imm r22, 0
         imm r23, 0
-        imm r24, 0
-        imm r25, 4277
-        imm r26, 44459
-        call summary_require_call_site
-        imm r20, 500
+        imm r24, 10
+        call summary_require_call_fallthrough_identity
+        imm r20, 62
         imm r21, 311
-        imm r22, 44585
+        imm r22, 0
         imm r23, 0
-        imm r24, 0
-        imm r25, 1609
-        imm r26, 44594
-        call summary_require_call_site
-        imm r20, 501
+        imm r24, 4
+        call summary_require_call_fallthrough_identity
+        imm r20, 62
         imm r21, 311
-        imm r22, 44698
+        imm r22, 0
         imm r23, 0
-        imm r24, 0
-        imm r25, 1939
-        imm r26, 44707
-        call summary_require_call_site
-        imm r20, 502
+        imm r24, 5
+        call summary_require_call_fallthrough_identity
+        imm r20, 62
         imm r21, 311
-        imm r22, 5
-        imm r23, 44842
-        call exact_require_event
-        imm r20, 503
+        call exact_require_event_epilogue
+        imm r20, 62
         imm r21, 312
-        imm r22, 44843
+        imm r22, 0
         imm r23, 0
-        imm r24, 0
-        imm r25, 1609
-        imm r26, 44852
-        call summary_require_call_site
-        imm r20, 504
+        imm r24, 4
+        call summary_require_call_fallthrough_identity
+        imm r20, 62
         imm r21, 312
-        imm r22, 44956
+        imm r22, 0
         imm r23, 0
-        imm r24, 0
-        imm r25, 51602
-        imm r26, 44965              ; checked but not executed by summary
-        call summary_require_call_site
-        imm r20, 505
+        imm r24, 70                  ; gen_item, not executed by summary
+        call summary_require_call_fallthrough_identity
+        imm r20, 62
         imm r21, 312
-        imm r22, 44965
+        imm r22, 0
         imm r23, 0
-        imm r24, 0
-        imm r25, 4277
-        imm r26, 44974
-        call summary_require_call_site
-        imm r20, 506
+        imm r24, 10
+        call summary_require_call_fallthrough_identity
+        imm r20, 62
         imm r21, 313
-        imm r22, 5
-        imm r23, 45118
-        call exact_require_event
-        imm r20, 507
+        call exact_require_event_epilogue
+        imm r20, 62
         imm r21, 314
-        imm r22, 5
-        imm r23, 45254
-        call exact_require_event
-
-        imm r20, 44318
-        imm r21, 44337
-        call exact_require_epilogue
-        imm r20, 44823
-        imm r21, 44842
-        call exact_require_epilogue
-        imm r20, 45099
-        imm r21, 45118
-        call exact_require_epilogue
-        imm r20, 45235
-        imm r21, 45254
-        call exact_require_epilogue
-        imm r20, 45255
-        imm r21, 45274
-        call exact_require_epilogue
+        call exact_require_event_epilogue
+        imm r20, 63
+        call exact_require_preentry_epilogue
         ret
 
 gen_stmts_boundary_locals:
@@ -187,20 +153,17 @@ gen_stmts_boundary_locals:
         imm r21, 308
         imm r22, 2
         imm r23, 0
-        imm r24, 44111
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 199
         imm r21, 309
         imm r22, 1
         imm r23, 0
-        imm r24, 44130
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 200
         imm r21, 310
         imm r22, 1
         imm r23, 0
-        imm r24, 44364
-        call transfer_require_local
+        call exact_local_identity_pc
         ret
 
 gen_stmts_boundary_memory:
@@ -251,213 +214,174 @@ gen_stmts_boundary_primitives:
         imm r21, 309
         imm r22, 3
         imm r23, 8
-        imm r24, 44175
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 696
         imm r21, 309
         imm r22, 1
         imm r23, 64
-        imm r24, 44165
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 697
         imm r21, 309
         imm r22, 1
         imm r23, 2097072
-        imm r24, 44253
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 698
         imm r21, 309
         imm r22, 1
         imm r23, 252
-        imm r24, 44279
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 699
         imm r21, 309
         imm r22, 1
         imm r23, 0
-        imm r24, 44308
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 700
         imm r21, 310
         imm r22, 1
         imm r23, 2097064
-        imm r24, 44338
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 701
         imm r21, 310
         imm r22, 2
         imm r23, 3
-        imm r24, 44409
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 702
         imm r21, 310
         imm r22, 1
         imm r23, 1
-        imm r24, 44399
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 704
         imm r21, 311
         imm r22, 3
         imm r23, 11
-        imm r24, 44507
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 705
         imm r21, 311
         imm r22, 1
         imm r23, 0
-        imm r24, 44497
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 706
         imm r21, 311
         imm r22, 3
         imm r23, 11
-        imm r24, 44620
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 707
         imm r21, 311
         imm r22, 1
         imm r23, 125
-        imm r24, 44610
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 708
         imm r21, 311
         imm r22, 1
         imm r23, 2097064
-        imm r24, 44707
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 710
         imm r21, 311
         imm r22, 2
         imm r23, 4
-        imm r24, 44772
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 711
         imm r21, 311
         imm r22, 1
         imm r23, 1
-        imm r24, 44762
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 712
         imm r21, 311
         imm r22, 1
         imm r23, 0
-        imm r24, 44813
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 713
         imm r21, 312
         imm r22, 3
         imm r23, 10
-        imm r24, 44878
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 714
         imm r21, 312
         imm r22, 1
         imm r23, 0
-        imm r24, 44868
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 715
         imm r21, 313
         imm r22, 1
         imm r23, 2097064
-        imm r24, 44983
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 717
         imm r21, 313
         imm r22, 2
         imm r23, 4
-        imm r24, 45048
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 718
         imm r21, 313
         imm r22, 1
         imm r23, 1
-        imm r24, 45038
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 719
         imm r21, 313
         imm r22, 1
         imm r23, 0
-        imm r24, 45089
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 720
         imm r21, 314
         imm r22, 1
         imm r23, 2097064
-        imm r24, 45119
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 722
         imm r21, 314
         imm r22, 2
         imm r23, 4
-        imm r24, 45184
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 723
         imm r21, 314
         imm r22, 1
         imm r23, 1
-        imm r24, 45174
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 724
         imm r21, 314
         imm r22, 1
         imm r23, 0
-        imm r24, 45225
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         ret
 
 gen_stmts_boundary_pushes:
         imm r20, 207
         imm r21, 309
-        imm r23, 44149
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 208
         imm r21, 310
-        imm r23, 44383
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 209
         imm r21, 311
-        imm r23, 44481
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 210
         imm r21, 311
-        imm r23, 44594
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 211
         imm r21, 311
-        imm r23, 44746
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 212
         imm r21, 312
-        imm r23, 44852
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 213
         imm r21, 313
-        imm r23, 45022
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 214
         imm r21, 314
-        imm r23, 45158
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 394
         imm r21, 309
-        imm r23, 44263
-        call exact_require_store_push
+        call exact_require_store_push_identity
         imm r20, 395
         imm r21, 310
-        imm r23, 44348
-        call exact_require_store_push
+        call exact_require_store_push_identity
         imm r20, 396
         imm r21, 311
-        imm r23, 44717
-        call exact_require_store_push
+        call exact_require_store_push_identity
         imm r20, 397
         imm r21, 313
-        imm r23, 44993
-        call exact_require_store_push
+        call exact_require_store_push_identity
         imm r20, 398
         imm r21, 314
-        imm r23, 45129
-        call exact_require_store_push
+        call exact_require_store_push_identity
         ret
 
 gen_stmts_boundary_censuses:
@@ -485,7 +409,8 @@ gen_stmts_boundary_censuses:
         call summary_require_expr_census
         imm r20, 62                    ; gen_stmts procedure identity
         call exact_proc_entry_r20
-        imm r21, 45275
+        imm r21, 63
+        call exact_proc_entry_r21
         imm r22, 6                   ; skip/cbyte/adv/cbyte/gen_item/skip
         imm r23, 5                   ; four source plus synthetic ret
         imm r24, 20                  ; prologue/local/push/raw stores

@@ -20,82 +20,70 @@ bounded_emitters_require_locals:
         imm r21, 213
         imm r22, 1
         imm r23, 0
-        imm r24, 31246
-        call transfer_require_local
+        call exact_local_identity_pc
 
         ; emit_mnemonic(op), one reload at each comparison state.
         imm r20, 133
         imm r21, 220
         imm r22, 1
         imm r23, 0
-        imm r24, 32485
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 134
         imm r21, 222
         imm r22, 1
         imm r23, 0
-        imm r24, 32688
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 135
         imm r21, 224
         imm r22, 1
         imm r23, 0
-        imm r24, 32891
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 136
         imm r21, 226
         imm r22, 1
         imm r23, 0
-        imm r24, 33094
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 137
         imm r21, 228
         imm r22, 1
         imm r23, 0
-        imm r24, 33297
-        call transfer_require_local
+        call exact_local_identity_pc
 
         ; emit_combine(op).
         imm r20, 138
         imm r21, 230
         imm r22, 1
         imm r23, 0
-        imm r24, 33786
-        call transfer_require_local
+        call exact_local_identity_pc
 
         ; emit_slot_addr(reg,slot): reg, slot, reg in lowering order.
         imm r20, 139
         imm r21, 231
         imm r22, 1
         imm r23, 0
-        imm r24, 34024
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 140
         imm r21, 231
         imm r22, 1
         imm r23, 1
-        imm r24, 34224
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 141
         imm r21, 231
         imm r22, 1
         imm r23, 0
-        imm r24, 34410
-        call transfer_require_local
+        call exact_local_identity_pc
 
         ; emit_load_slot / emit_store_slot.
         imm r20, 142
         imm r21, 232
         imm r22, 1
         imm r23, 0
-        imm r24, 34609
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 143
         imm r21, 233
         imm r22, 1
         imm r23, 0
-        imm r24, 34831
-        call transfer_require_local
+        call exact_local_identity_pc
         ret
 
 ; row/block/kind/value-or-opcode/PC.
@@ -105,20 +93,17 @@ bounded_emitters_require_primitives:
         imm r21, 148
         imm r22, 1
         imm r23, 40                  ; gen_read_byte open delimiter
-        imm r24, 21245
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 386
         imm r21, 148
         imm r22, 1
         imm r23, 41
-        imm r24, 21296
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 387
         imm r21, 148
         imm r22, 1
         imm r23, 0
-        imm r24, 21393
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         call bounded_emitters_require_mnemonic_primitives
         call bounded_emitters_require_slot_primitives
         ret
@@ -130,98 +115,82 @@ bounded_emitters_require_mnemonic_primitives:
         imm r21, 220
         imm r22, 3
         imm r23, 10
-        imm r24, 32530
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 551
         imm r21, 220
         imm r22, 1
         imm r23, 43                  ; plus Word
-        imm r24, 32520
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 552
         imm r21, 221
         imm r22, 1
         imm r23, 0
-        imm r24, 32658
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 553
         imm r21, 222
         imm r22, 3
         imm r23, 10
-        imm r24, 32733
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 554
         imm r21, 222
         imm r22, 1
         imm r23, 45
-        imm r24, 32723
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 555
         imm r21, 223
         imm r22, 1
         imm r23, 0
-        imm r24, 32861
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 556
         imm r21, 224
         imm r22, 3
         imm r23, 10
-        imm r24, 32936
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 557
         imm r21, 224
         imm r22, 1
         imm r23, 42
-        imm r24, 32926
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 558
         imm r21, 225
         imm r22, 1
         imm r23, 0
-        imm r24, 33064
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 559
         imm r21, 226
         imm r22, 3
         imm r23, 10
-        imm r24, 33139
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 560
         imm r21, 226
         imm r22, 1
         imm r23, 47
-        imm r24, 33129
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 561
         imm r21, 227
         imm r22, 1
         imm r23, 0
-        imm r24, 33267
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 562
         imm r21, 228
         imm r22, 3
         imm r23, 10
-        imm r24, 33342
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 563
         imm r21, 228
         imm r22, 1
         imm r23, 37
-        imm r24, 33332
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 564
         imm r21, 228
         imm r22, 1
         imm r23, 0
-        imm r24, 33420
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 565
         imm r21, 229
         imm r22, 1
         imm r23, 0
-        imm r24, 33491
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         ret
 
 bounded_emitters_require_slot_primitives:
@@ -230,117 +199,93 @@ bounded_emitters_require_slot_primitives:
         imm r21, 231
         imm r22, 1
         imm r23, 8
-        imm r24, 34172
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 567
         imm r21, 231
         imm r22, 2
         imm r23, 3                   ; exact offset add opcode
-        imm r24, 34265
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 568
         imm r21, 231
         imm r22, 1
         imm r23, 8
-        imm r24, 34198
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 569
         imm r21, 231
         imm r22, 2
         imm r23, 5                   ; exact offset multiply opcode
-        imm r24, 34243
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 570
         imm r21, 232
         imm r22, 1
         imm r23, 0                   ; emit_load_slot selector
-        imm r24, 34583
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 571
         imm r21, 233
         imm r22, 1
         imm r23, 1                   ; emit_store_slot selector
-        imm r24, 34805
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         ret
 
 ; row/block/kind/PC.
 bounded_emitters_require_pushes:
         imm r20, 306
         imm r21, 148
-        imm r23, 21255
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
         imm r20, 307
         imm r21, 148
-        imm r23, 21306
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
         imm r20, 321
         imm r21, 213
-        imm r23, 31265
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
 
         imm r20, 160
         imm r21, 220
-        imm r23, 32504
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 161
         imm r21, 222
-        imm r23, 32707
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 162
         imm r21, 224
-        imm r23, 32910
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 163
         imm r21, 226
-        imm r23, 33113
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 164
         imm r21, 228
-        imm r23, 33316
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 322
         imm r21, 230
-        imm r23, 33805
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
 
         imm r20, 165
         imm r21, 231
-        imm r23, 34182
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 166
         imm r21, 231
-        imm r23, 34208
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 323
         imm r21, 231
-        imm r23, 34043
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
         imm r20, 324
         imm r21, 231
-        imm r23, 34287               ; offset argument push
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
         imm r20, 325
         imm r21, 231
-        imm r23, 34429
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
 
         imm r20, 326
         imm r21, 232
-        imm r23, 34593
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
         imm r20, 327
         imm r21, 232
-        imm r23, 34628
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
         imm r20, 328
         imm r21, 233
-        imm r23, 34815
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
         imm r20, 329
         imm r21, 233
-        imm r23, 34850
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
         ret
 
 ; effect census: inclusive block interval followed by half-open local, memory,
@@ -557,52 +502,66 @@ bounded_emitters_require_source_censuses_tail:
 ; direct read/write, halt, division, and remainder; emitted opcode spellings
 ; are inline data and are not decoded instruction starts.
 bounded_emitters_require_decoded_censuses:
-        imm r20, 21226
-        imm r21, 21443
+        imm r20, 30                  ; gen_read_byte procedure identity
+        call exact_proc_entry_r20
+        imm r21, 31                  ; gen_write_byte procedure identity / end
+        call exact_proc_entry_r21
         imm r22, 3
         imm r23, 2
         imm r24, 3
         call exact_quiet_scan_region
         imm r20, 44                    ; emit_pop_into procedure identity
         call exact_proc_entry_r20
-        imm r21, 31465
+        imm r21, 45                  ; emit_ident_at procedure identity / end
+        call exact_proc_entry_r21
         imm r22, 5
         imm r23, 1
         imm r24, 3
         call exact_quiet_scan_region
         imm r20, 47                    ; emit_push procedure identity
         call exact_proc_entry_r20
-        imm r21, 32434
+        imm r21, 48                  ; emit_mnemonic procedure identity / end
+        call exact_proc_entry_r21
         imm r22, 3
         imm r23, 1
         imm r24, 1
         call exact_quiet_scan_region
-        imm r20, 32434
-        imm r21, 33541
+        imm r20, 48                  ; emit_mnemonic procedure identity
+        call exact_proc_entry_r20
+        imm r21, 49                  ; emit_combine procedure identity / end
+        call exact_proc_entry_r21
         imm r22, 5
         imm r23, 7                   ; emit_mnemonic returns
         imm r24, 7
         call exact_quiet_scan_region
-        imm r20, 33541
-        imm r21, 33911
+        imm r20, 49                  ; emit_combine procedure identity
+        call exact_proc_entry_r20
+        imm r21, 50                  ; emit_slot_addr procedure identity / end
+        call exact_proc_entry_r21
         imm r22, 6
         imm r23, 1
         imm r24, 3
         call exact_quiet_scan_region
-        imm r20, 33911
-        imm r21, 34532
+        imm r20, 50                  ; emit_slot_addr procedure identity
+        call exact_proc_entry_r20
+        imm r21, 51                  ; emit_load_slot procedure identity / end
+        call exact_proc_entry_r21
         imm r22, 9                   ; emit_slot_addr calls
         imm r23, 1
         imm r24, 8                   ; emit_slot_addr stores
         call exact_quiet_scan_region
-        imm r20, 34532
-        imm r21, 34754
+        imm r20, 51                  ; emit_load_slot procedure identity
+        call exact_proc_entry_r20
+        imm r21, 52                  ; emit_store_slot procedure identity / end
+        call exact_proc_entry_r21
         imm r22, 2
         imm r23, 1
         imm r24, 4
         call exact_quiet_scan_region
-        imm r20, 34754
-        imm r21, 34977
+        imm r20, 52                  ; emit_store_slot procedure identity
+        call exact_proc_entry_r20
+        imm r21, 53                  ; is_muldiv procedure identity / end
+        call exact_proc_entry_r21
         imm r22, 2
         imm r23, 1
         imm r24, 4
@@ -610,22 +569,26 @@ bounded_emitters_require_decoded_censuses:
 
         ; Independent disjoint-region partition: 3+5+27 calls,
         ; 2+1+12 returns, and 3+3+27 stores = exact family 35/15/33.
-        imm r20, 21226
-        imm r21, 21443
+        imm r20, 30                  ; gen_read_byte procedure identity
+        call exact_proc_entry_r20
+        imm r21, 31                  ; gen_write_byte procedure identity / end
+        call exact_proc_entry_r21
         imm r22, 3
         imm r23, 2
         imm r24, 3
         call exact_quiet_scan_region
         imm r20, 44                    ; emit_pop_into procedure identity
         call exact_proc_entry_r20
-        imm r21, 31465
+        imm r21, 45                  ; emit_ident_at procedure identity / end
+        call exact_proc_entry_r21
         imm r22, 5
         imm r23, 1
         imm r24, 3
         call exact_quiet_scan_region
         imm r20, 47                    ; emit_push procedure identity
         call exact_proc_entry_r20
-        imm r21, 34977
+        imm r21, 53                  ; is_muldiv procedure identity / end
+        call exact_proc_entry_r21
         imm r22, 27
         imm r23, 12
         imm r24, 27
