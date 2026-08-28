@@ -754,8 +754,19 @@ complete.
   path rows are now enforced. Native canaries prove the generated policy has no
   import, deny ordinary writes and loopback TCP, reject unlisted executables,
   and admit only the fixed null sink; a real exact-commit Git resolution proves
-  the complete inspection command vocabulary still works. Discovery,
-  initialization, and fetch retain their conservative imported-profile rows.
+  the complete inspection command vocabulary still works. At this milestone,
+  discovery, initialization, and fetch retained their conservative imported-
+  profile rows.
+
+  Follow-up 2026-08-28: repository initialization now uses the same self-
+  contained macOS policy floor. Its default-deny profile admits broad reads,
+  exact selected executables, `/dev/null`, and writes only beneath the exact
+  mutable quarantine root; it imports no host profile and grants no network.
+  Initialization's filesystem-write, network-denial, and executable-path rows
+  are enforced. Policy canaries prove inside-root writes succeed while outside
+  writes, loopback TCP, and unlisted execution fail. Real SHA-1 and SHA-256 Git
+  resolutions prove the production bare-repository initialization vocabulary
+  still works. Discovery and fetch remain conservative imported network phases.
 
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build
