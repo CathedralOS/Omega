@@ -31,7 +31,7 @@ use crate::{
 };
 
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGTSP\0\0";
-const MANIFEST_VERSION: u32 = 2;
+const MANIFEST_VERSION: u32 = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionFragmentTextSectionStage {
@@ -123,6 +123,7 @@ impl FunctionFragmentTextSectionManifest {
             1 => FunctionFragmentEmissionSourceKind::X86Rel8V1,
             2 => FunctionFragmentEmissionSourceKind::Aarch64CbnzV1,
             3 => FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1,
+            4 => FunctionFragmentEmissionSourceKind::UnitBaselineV1,
             tag => {
                 return Err(FunctionFragmentTextSectionManifestDecodeError::UnknownSourceKind(tag));
             }
@@ -740,6 +741,7 @@ fn encode_manifest_content(record: &FunctionFragmentTextSectionManifest) -> Vec<
         FunctionFragmentEmissionSourceKind::X86Rel8V1 => 1,
         FunctionFragmentEmissionSourceKind::Aarch64CbnzV1 => 2,
         FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1 => 3,
+        FunctionFragmentEmissionSourceKind::UnitBaselineV1 => 4,
     });
     bytes.extend_from_slice(&record.source_fragment_manifest.bytes());
     bytes.extend_from_slice(&record.source_realization.bytes());

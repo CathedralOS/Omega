@@ -47,6 +47,7 @@ mod selected_reanalysis;
 mod selection;
 mod terminal_object_artifact;
 mod terminal_object_callable_entry;
+mod unit_function_relative_realization;
 mod whole_function_exit_contract;
 mod x86_branch_relaxation;
 
@@ -287,13 +288,19 @@ pub use terminal_object_callable_entry::{
     stage_validated_optimized_terminal_ordinary_callable_entry,
     validate_optimized_terminal_ordinary_callable_entry,
 };
+pub use unit_function_relative_realization::{
+    OptimizedUnitFunctionRelativeRealizationError, StagedOptimizedUnitFunctionRelativeRealization,
+    StagedOptimizedUnitFunctionRelativeRealizationCustodyReceipt,
+    stage_optimized_unit_function_relative_realization,
+    validate_optimized_unit_function_relative_realization,
+};
 pub use whole_function_exit_contract::{
     TerminalWholeFunctionEntryAssumption, TerminalWholeFunctionExitContract,
     TerminalWholeFunctionExitContractError, TerminalWholeFunctionExitContractIdentity,
     TerminalWholeFunctionExitEvidence, TerminalWholeFunctionExitLayoutCustody,
     TerminalWholeFunctionExitPolicy, TerminalWholeFunctionHardeningPolicy,
     TerminalWholeFunctionReturnEvidence, TerminalWholeFunctionReturnMechanism,
-    ValidatedTerminalWholeFunctionExitContract,
+    TerminalWholeFunctionReturnValueEvidence, ValidatedTerminalWholeFunctionExitContract,
     stage_terminal_whole_function_exit_contract,
     stage_terminal_whole_function_exit_contract_after_aarch64_cbnz_fusion,
     stage_terminal_whole_function_exit_contract_after_x86_branch_relaxation,
@@ -835,7 +842,9 @@ mod tests {
         )
     }
 
-    fn staged_unit_return(target: NativeTarget) -> StagedOptimizedSelectedInstructions {
+    fn staged_unit_return(
+        target: NativeTarget,
+    ) -> (Vec<u8>, Vec<u8>, StagedOptimizedSelectedInstructions) {
         let (semantic, proof) = unit_return_artifact();
         let optimized = optimize_artifact_sections(
             &semantic,
@@ -847,7 +856,11 @@ mod tests {
         let target =
             omega_lowering_optimizer::lower_optimized_to_target_operations(optimized, target)
                 .unwrap();
-        stage_optimized_instruction_selection(target).unwrap()
+        (
+            semantic,
+            proof,
+            stage_optimized_instruction_selection(target).unwrap(),
+        )
     }
 
     fn conditional_forwarded_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
@@ -7600,12 +7613,12 @@ mod tests {
                 Err(FunctionRelativeOptimizationRealizationManifestDecodeError::WrongMagic)
             );
             let mut wrong_version = encoded.clone();
-            wrong_version[8..12].copy_from_slice(&6_u32.to_le_bytes());
+            wrong_version[8..12].copy_from_slice(&7_u32.to_le_bytes());
             assert_eq!(
                 FunctionRelativeOptimizationRealizationManifest::decode(&wrong_version),
                 Err(
                     FunctionRelativeOptimizationRealizationManifestDecodeError::UnsupportedVersion(
-                        6
+                        7
                     )
                 )
             );
@@ -9075,17 +9088,17 @@ mod tests {
 
             let record = emitted.manifest().record();
             let encoded = record.encode();
-            assert_eq!(&encoded[8..12], &2_u32.to_le_bytes());
+            assert_eq!(&encoded[8..12], &3_u32.to_le_bytes());
             assert_eq!(encoded[45], 3);
             assert_eq!(
                 FunctionFragmentEmissionManifest::decode(&encoded),
                 Ok(record.clone())
             );
             let mut unknown_source = encoded;
-            unknown_source[45] = 4;
+            unknown_source[45] = 5;
             assert_eq!(
                 FunctionFragmentEmissionManifest::decode(&unknown_source),
-                Err(FunctionFragmentEmissionManifestDecodeError::UnknownSourceKind(4))
+                Err(FunctionFragmentEmissionManifestDecodeError::UnknownSourceKind(5))
             );
 
             let original_fresh_byte = emitted.fragments().functions[0]
@@ -9142,7 +9155,7 @@ mod tests {
                 FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1
             );
             let text_encoded = placed.manifest().record().encode();
-            assert_eq!(&text_encoded[8..12], &2_u32.to_le_bytes());
+            assert_eq!(&text_encoded[8..12], &3_u32.to_le_bytes());
             assert_eq!(text_encoded[45], 3);
             assert_eq!(
                 FunctionFragmentTextSectionManifest::decode(&text_encoded),
@@ -10845,8 +10858,12 @@ mod tests {
 
     #[test]
     fn zero_vreg_unit_return_reaches_replayed_homes_and_machine_custody() {
-        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-            let selected = staged_unit_return(target);
+        for target in [
+            NativeTarget::linux_x64(),
+            NativeTarget::uefi_x64(),
+            NativeTarget::linux_arm64(),
+        ] {
+            let (semantic, proof, selected) = staged_unit_return(target);
             let selected_function = &selected.selected().plan().functions[0];
             assert!(selected_function.virtual_registers.is_empty());
             assert_eq!(selected_function.blocks.len(), 1);
@@ -10856,7 +10873,10 @@ mod tests {
             else {
                 panic!("Unit selection must end in the generic return terminator");
             };
-            assert_eq!(instruction.kind, TerminalSelectedInstructionKind::ReturnUnit);
+            assert_eq!(
+                instruction.kind,
+                TerminalSelectedInstructionKind::ReturnUnit
+            );
             assert!(instruction.operands.is_empty());
 
             let raw_liveness = analyze_terminal_liveness(selected.selected()).unwrap();
@@ -11007,6 +11027,103 @@ mod tests {
                 )
                 .is_err()
             );
+
+            let mut realization =
+                stage_optimized_unit_function_relative_realization(homes).unwrap();
+            assert_eq!(realization.manifest().record().statistics.functions, 1);
+            assert_eq!(realization.manifest().record().statistics.blocks, 1);
+            assert_eq!(realization.manifest().record().statistics.instructions, 1);
+            assert_eq!(
+                realization.manifest().record().statistics.bytes,
+                match target.architecture {
+                    omega_target::Architecture::X86_64 => 1,
+                    omega_target::Architecture::Aarch64 => 4,
+                }
+            );
+            let [function] = realization.exit_contract().contract().functions.as_slice() else {
+                panic!("Unit exit contract must retain one function");
+            };
+            let [returned] = function.returns.as_slice() else {
+                panic!("Unit exit contract must retain one return");
+            };
+            assert!(matches!(
+                returned.value,
+                whole_function_exit_contract::TerminalWholeFunctionReturnValueEvidence::UnitV1
+            ));
+            let receipt =
+                validate_optimized_unit_function_relative_realization(&realization).unwrap();
+            assert_eq!(receipt, *realization.custody());
+            assert_eq!(
+                FunctionRelativeOptimizationRealizationManifest::decode(
+                    &realization.manifest().record().encode()
+                ),
+                Ok(realization.manifest().record().clone())
+            );
+
+            realization.exit_contract_mut().contract_mut().functions[0].returns[0].value =
+                whole_function_exit_contract::TerminalWholeFunctionReturnValueEvidence::ScalarI64V1 {
+                    virtual_register: TerminalVirtualRegisterId(0),
+                    view: RegisterViewId(0),
+                    units: Vec::new(),
+                };
+            assert!(matches!(
+                validate_optimized_unit_function_relative_realization(&realization),
+                Err(OptimizedUnitFunctionRelativeRealizationError::Exit(
+                    TerminalWholeFunctionExitContractError::ArtifactMismatch
+                ))
+            ));
+            realization.exit_contract_mut().contract_mut().functions[0].returns[0].value =
+                TerminalWholeFunctionReturnValueEvidence::UnitV1;
+            validate_optimized_unit_function_relative_realization(&realization).unwrap();
+
+            let fragments = stage_optimized_function_fragment_emission(
+                StagedOptimizedFunctionFragmentEmissionSource::UnitBaseline(Box::new(realization)),
+            )
+            .unwrap();
+            assert_eq!(
+                fragments.manifest().record().source_kind,
+                FunctionFragmentEmissionSourceKind::UnitBaselineV1
+            );
+            assert_eq!(
+                FunctionFragmentEmissionManifest::decode(&fragments.manifest().record().encode()),
+                Ok(fragments.manifest().record().clone())
+            );
+            assert_eq!(fragments.fragments().functions.len(), 1);
+            assert_eq!(fragments.fragments().functions[0].blocks.len(), 1);
+            let emitted_bytes = fragments.fragments().functions[0].bytes.clone();
+            assert_eq!(
+                emitted_bytes.as_slice(),
+                match target.architecture {
+                    omega_target::Architecture::X86_64 => &[0xc3][..],
+                    omega_target::Architecture::Aarch64 => &[0xc0, 0x03, 0x5f, 0xd6][..],
+                }
+            );
+
+            let text = stage_optimized_relocation_free_text_section(fragments).unwrap();
+            assert_eq!(
+                text.manifest().record().source_kind,
+                FunctionFragmentEmissionSourceKind::UnitBaselineV1
+            );
+            assert_eq!(
+                FunctionFragmentTextSectionManifest::decode(&text.manifest().record().encode()),
+                Ok(text.manifest().record().clone())
+            );
+            assert_eq!(text.text_section().bytes, emitted_bytes);
+            let object = stage_optimized_relocation_free_terminal_object_container(text).unwrap();
+            let artifact = stage_validated_optimized_terminal_object_artifact(
+                canonical_terminal_artifact(&semantic, &proof),
+                object,
+            )
+            .unwrap();
+            assert_eq!(
+                artifact.artifact().semantic_entry,
+                MachineId::new(3_501).unwrap()
+            );
+            assert_eq!(
+                artifact.artifact().statistics.text_bytes,
+                emitted_bytes.len() as u64
+            );
+            assert_eq!(artifact.artifact().statistics.relocation_records, 0);
         }
     }
 

@@ -49,7 +49,7 @@ use crate::{
 };
 
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGFRM\0\0";
-const MANIFEST_VERSION: u32 = 5;
+const MANIFEST_VERSION: u32 = 6;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionRelativeOptimizationRealizationStage {
@@ -120,7 +120,7 @@ impl FunctionRelativeOptimizationRealizationManifest {
     pub fn recomputed_identity(&self) -> FunctionRelativeOptimizationRealizationManifestIdentity {
         let mut canonical = Vec::new();
         canonical
-            .extend_from_slice(b"omega.function-relative-optimization-realization-manifest.v5\0");
+            .extend_from_slice(b"omega.function-relative-optimization-realization-manifest.v6\0");
         canonical.extend_from_slice(&encode_manifest_content(self));
         FunctionRelativeOptimizationRealizationManifestIdentity::from_canonical_bytes(&canonical)
     }
@@ -222,6 +222,7 @@ impl FunctionRelativeOptimizationRealizationManifest {
         let target = decode_target(&mut cursor)?;
         let layout_policy = match cursor.byte()? {
             1 => TerminalSelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1,
+            2 => TerminalSelectedFunctionLayoutPolicy::SingleEntryBlockV1,
             tag => {
                 return Err(
                     FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownLayoutPolicy(
@@ -2300,6 +2301,7 @@ fn encode_manifest_content(manifest: &FunctionRelativeOptimizationRealizationMan
     encode_target(&mut canonical, manifest.target);
     canonical.push(match manifest.layout_policy {
         TerminalSelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1 => 1,
+        TerminalSelectedFunctionLayoutPolicy::SingleEntryBlockV1 => 2,
     });
     canonical.push(match manifest.scope {
         FunctionRelativeOptimizationRealizationScope::FunctionRelativeFragmentsWithValidatedWholeFunctionExitV1 => 1,

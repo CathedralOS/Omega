@@ -1465,10 +1465,20 @@ of `1 % 1`. Independent replay reconstructs the operator policy, direct literal
 definition and fact, accepted obligation, live/observation boundary, constant,
 accounting, provenance/fuel, and output. Verified projection and x86-64/AArch64
 lowering retain the resulting zero.
+The eleventh rule,
+`live-proof-certified-signed-integer-remainder-by-negative-one-elimination.v1`,
+replaces live fixed-width signed exact, wrapping, or saturating `x % -1` with
+typed zero. It requires the right operand's direct typed negative-one fact and
+the exact active verifier-accepted obligation, excludes unsigned and address
+carriers, and declines `left == right` so the established self-remainder rule
+keeps ownership of `-1 % -1`. Independent replay reconstructs the type,
+operator policy, operands, facts, observation/liveness boundary, provenance,
+fuel, accounting, and output. Verified projection and x86-64/AArch64 lowering
+retain the typed-zero realization.
 Candidate schema remains v24, so extending the closed identity-kind tags does
 not rehash or change tie breaks for existing candidates. Optimization-unit
-identity remains v10; the named v10 pass, prephysical manifest identity v25,
-and optimized-plan projection validation v26 bind the expanded ten-rule
+identity remains v10; the named v11 pass, prephysical manifest identity v26,
+and optimized-plan projection validation v27 bind the expanded eleven-rule
 schedule.
 Ledger v4 already represents the relocation. Runtime
 policy events, other live proof-bearing identities, and physical checks not
@@ -2069,10 +2079,10 @@ and CBNZ-aware whole-function exit custody. The compare remains in the
 instruction roster as a zero-byte row; the fused branch is target-encoded and
 independently decoded as `CBNZ`; source-register, successor, PC, and absent-NZCV
 effects are replayed; and the function shrinks by exactly four bytes. The
-function-relative manifest/codec v5 binds the exact post-allocation selection,
+function-relative manifest/codec v6 binds the exact post-allocation selection,
 an explicit allocation-recovery phase projection,
 baseline/final pre-layout identities, optional fusion identity, and both
-resolved layouts; whole-function exit identity v3 independently admits only
+resolved layouts; whole-function exit identity v4 independently admits only
 the exact elided-compare custody. Emission, relocation, image, installation,
 and publication remain later boundaries.
 
@@ -2244,9 +2254,10 @@ baseline `JNE rel32` or `B.NE imm19` branch rather than claiming rel8 or CBNZ.
 It never concatenates functions into a globally placed section. Production and
 an independently coded replay reconstruct source custody, offsets, row bytes,
 aggregate bytes, statistics, receipt, and the content identity. The strict
-`OMGFFE` v2 manifest binds the closed three-kind source vocabulary, source
-realization, and every selected, post-allocation, layout, exit, target, and
-fragment root while explicitly marking section placement, symbols, object
+`OMGFFE` v3 manifest binds the closed four-kind source vocabulary, including
+the Unit baseline, source realization, and every selected, post-allocation,
+layout, exit, target, and fragment root while explicitly marking section
+placement, symbols, object
 relocations, executable image, installation, and publication unavailable.
 
 The following required boundary places those fragments into one immutable
@@ -2262,7 +2273,7 @@ return forms contain no address-bearing target and every relative conditional
 branch is already resolved to blocks in its owned function. Production and a
 separately coded replay reconstruct the byte concatenation, coordinates,
 alignment, entry, statistics, and closed no-relocation conclusion. The strict
-`OMGTSP` v2 manifest binds the three-kind source vocabulary and all upstream
+`OMGTSP` v3 manifest binds the four-kind source vocabulary and all upstream
 roots while marking symbols, object container and serialization, external entry
 bridge, executable image,
 installation, and publication unavailable.
@@ -2320,7 +2331,7 @@ They retain the fresh nonempty `MaterializeI64` section span, transformed
 selected root and homes, sole `PressureRematerialization` ledger row, Terminal
 semantic/proof roots, private entry symbol, both return-edge result rows, and
 target ABI parameter/result registers through independent replay. The
-route-specific source tag remains authenticated by `OMGFFE`/`OMGTSP` v2;
+route-specific source tag remains authenticated by `OMGFFE`/`OMGTSP` v3;
 `OMGTRO`/`OMGTOM`, `OMGOTA`/`OMGOTM`, and `OMGOER`/`OMGOEM` remain v1 because
 their generic child-identity vocabularies did not change. Artifact reporting
 still omits callable metadata until the opaque callable carrier owns the
@@ -2335,9 +2346,16 @@ alternative identities; it does not encode Unit as a scalar return with a fake
 value. x86-64 owns canonical `C3` encoding/effects and AArch64 owns canonical
 `RET X30` encoding/effects. Because this changes closed replay vocabularies,
 the affected legalized, selected, effect, encoding, layout, fragment, text,
-and relaxation schemas advance and old records fail closed. This admission is
-not yet the complete liveness-through-object route and grants no wrapper or
-process-entry authority.
+and relaxation schemas advance and old records fail closed. Whole-function
+exit v4 distinguishes `UnitV1` from scalar-return evidence; resolved-layout v4
+owns `SingleEntryBlockV1`; function-relative v6 and fragment/text v3 bind the
+new route. A dedicated baseline carrier now proves the exact one-function Unit
+shape through zero-VReg liveness, ranges, legality, empty homes,
+post-allocation-machine replay, encoding/layout, Unit exit evidence,
+relocation-free fragments and text, private-symbol object serialization, and
+the canonical Terminal semantic/proof-to-object artifact on x86-64 and
+AArch64. It grants no ProgramStorage wrapper, process-entry, image,
+installation, or publication authority.
 
 The source-side join is no longer reduced to an entry machine name.
 `CheckedCompilation` retains the complete `SelectedCompilerProgramEntry`, and
@@ -2354,11 +2372,11 @@ runtime roots, bootstrap conversion, image construction, or publication.
 
 The entry path separates a design-settled semantic wrapper from an unsettled
 physical bootstrap. The distinct receiver-free, straight-line Unit selected
-shape and retained target-owned `ProgramEntry` signature/calling plans now
-exist. The next implementation boundary carries that form through the
-zero-VReg liveness, allocation, exit, fragment, text, object, and canonical
-artifact joins, then constructs the existing semantic `ProgramStorageEntry`
-wrapper that supplies
+shape, complete zero-VReg-to-object artifact route, and retained target-owned
+`ProgramEntry` signature/calling plans now exist. The next implementation
+boundary preserves the source-signature-to-`MachineId` association through
+Terminal production, then constructs a distinct semantic `ProgramStorageEntry`
+wrapper object that supplies
 the Image and InitialStorage `Extent in Granted` values to the private Terminal
 symbol. The scalar-result conditional fixture above is therefore correctly an
 ordinary callable and cannot serve as the positive Unit fixture. That semantic
@@ -2623,17 +2641,17 @@ projections.
 The pre-physical manifest's versioned standalone codec serializes that whole
 earlier record and strict nested codecs; the post-allocation record adds
 truthful home statistics while marking frame, emission, and publication
-unavailable. The function-relative v5 record then binds exact phase projections
+unavailable. The function-relative v6 record then binds exact phase projections
 and optional completions to the validated final selected CFG, machine effects,
 post-allocation machine, canonical encoding, baseline/final layout roots,
 optional layout-transform receipt, named layout policy, final code-size
 statistics, and the frameless whole-function exit contract. It explicitly
 marks frame, section, relocation, image, installation, and publication fields
-unavailable. The separate strict v2 function-fragment manifest additionally
-binds completed x86 rel8, AArch64 CBNZ, or active-resident rematerialization
-realization custody to relocation-free per-function bytes and exact span/
-provenance/fuel statistics while retaining the same later-boundary
-unavailability. The strict v2 text-section manifest then binds deterministic
+unavailable. The separate strict v3 function-fragment manifest additionally
+binds completed x86 rel8, AArch64 CBNZ, active-resident rematerialization, or
+Unit-baseline realization custody to relocation-free per-function bytes and
+exact span/provenance/fuel statistics while retaining the same later-boundary
+unavailability. The strict v3 text-section manifest then binds deterministic
 no-padding placement, section coordinates, aggregate bytes, the semantic-entry
 coordinate, and the independently proved absence of
 relocation requirements for the current inventory. It still declares symbols,
