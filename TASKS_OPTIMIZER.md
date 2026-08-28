@@ -533,15 +533,22 @@ These facts constrain the work below.
   admission. The retained structural-type catalog is also checked as a whole
   graph after unknown-target validation: Record, FixedArray, Sum, and both
   Mixed edge lanes must be acyclic even when a declaration is unused or lies
-  in a disconnected component. The verified builder additionally attaches
+  in a disconnected component. Nested Record, Sum, and Mixed declarations now
+  also replay Terminal's canonical per-namespace field/case ID order, unique
+  nonempty identities, nonempty case sets, and closed field-relevance/carrier
+  matrix. Relevant opaque fields require an exact Record-only provider-
+  attachment field witness; payloadless cases and independent field namespaces
+  remain legal. Full provider-attachment specialization replay remains a
+  separate validator layer. The verified builder additionally attaches
   a canonical immutable catalog of verifier-owned block-entry,
   operation-entry/exit, and edge-entry/available-edge-exit ownership snapshots.
   `OPT-UNIT-BUILDER` and `OPT-UNIT-VALIDATOR` remain open until verified
-  proof/range evidence, the remaining structural declaration semantics and
-  domain/content-projection graph validation, path-sensitive availability of
+  proof/range evidence, the remaining top-level structural carrier/roster
+  semantics, full provider-attachment specialization replay, and
+  domain/content-projection graph validation; path-sensitive availability of
   operation-result and local roots, exact payloadless-callee classification,
-  and the crash/requirement/effect vocabulary survive the Terminal-Psi lowering
-  boundary.
+  and the crash/requirement/effect vocabulary also remain across the
+  Terminal-Psi lowering boundary.
 - Proof-bearing integer casts, shifts, addition, subtraction, multiplication,
   division, and remainder now retain their exact obligation identities through
   Terminal abstract, target, and assigned-target operations. Exact add,
@@ -1193,10 +1200,15 @@ dependency.
   claims in the unified live-claim namespace while retaining separate ordinary
   and content declarations. It rejects recursive structural-type catalogs over
   every structural edge shape, including unused and disconnected cycles, after
-  unknown-target validation. Remaining structural declaration semantics and
-  domain/content-projection graph validation, path-sensitive availability of
-  operation-result and local roots, exact payloadless-callee classification,
-  and the remaining crash/requirement/effect vocabulary remain open.
+  unknown-target validation. Record, Sum, and Mixed field/case declarations
+  additionally require canonical per-namespace ID order, unique nonempty
+  identities, nonempty case sets, and Terminal's exact erasure/relevance
+  matrix, including the Record-only provider-attachment exception. Remaining
+  top-level structural carrier/roster semantics, full provider-attachment
+  specialization replay, and domain/content-projection graph validation;
+  path-sensitive availability of operation-result and local roots, exact
+  payloadless-callee classification, and the remaining crash/requirement/effect
+  vocabulary remain open.
 
 - **OPT-ANALYSIS-MANAGER.** Add deterministic revision-keyed analysis caching,
   dependency declaration, and precise invalidation.

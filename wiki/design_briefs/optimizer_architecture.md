@@ -769,11 +769,17 @@ claim. Focused internal/boundary corruption tests and one source-derived
 content-bearing admission canary cover that union. The retained structural-type
 catalog is independently traversed as a whole after unknown-target checks;
 Record, FixedArray, Sum, and both Mixed edge lanes must be acyclic even for
-unused declarations and disconnected graph components. Remaining structural
-declaration semantics and domain/content-projection graph validation,
-path-sensitive availability of operation-result and local roots, exact
-payloadless-callee classification, and the wider crash/requirement/effect
-vocabulary remain explicit unfinished validator layers. It
+unused declarations and disconnected graph components. Nested Record, Sum, and
+Mixed declarations also replay canonical per-namespace field/case ID order,
+unique nonempty identities, nonempty case sets, and Terminal's closed
+field-relevance/carrier matrix. A relevant opaque field is legal only with an
+exact retained Record provider-attachment field witness; payloadless cases and
+independent field namespaces remain legal. Remaining top-level structural
+carrier/roster semantics, full provider-attachment specialization replay, and
+domain/content-projection graph validation; path-sensitive availability of
+operation-result and local roots; exact payloadless-callee classification; and
+the wider crash/requirement/effect vocabulary remain explicit unfinished
+validator layers. It
 also rechecks the complete current
 Terminal-Psi CFG contract—parameter-free entry, closed edges, total
 reachability, and acyclicity—before any rule may inspect the unit. When Terminal
