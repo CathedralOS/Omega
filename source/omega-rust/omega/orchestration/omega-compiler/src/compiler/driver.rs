@@ -3,15 +3,9 @@ use psi_diagnostics::Diagnostic;
 
 /// Drive the one production route and stop at the requested product.
 ///
-/// Installed output is the sole remaining StateGraph compatibility branch.
 /// Check, Terminal Psi, and retained native artifacts share one checked-Psi
 /// frontend and differ only in how far the result proceeds.
 pub(super) fn compile(request: CompileRequest) -> Result<CompileReport, Vec<Diagnostic>> {
-    if request.requested_product == RequestedCompileProduct::InstalledOutput {
-        return crate::pipeline::legacy_driver::LegacyDriver::from_request(request)
-            .compile_installed_output();
-    }
-
     let checked = crate::pipeline::compile_to_checked_for_terminal(
         &request.options,
         request.package_inputs.as_ref(),
@@ -21,7 +15,6 @@ pub(super) fn compile(request: CompileRequest) -> Result<CompileReport, Vec<Diag
         RequestedCompileProduct::Check => checked_report(request, &checked),
         RequestedCompileProduct::TerminalArtifact => terminal_report(request, checked),
         RequestedCompileProduct::NativeArtifact => native_report(request, checked),
-        RequestedCompileProduct::InstalledOutput => unreachable!("handled before Psi checking"),
     }
 }
 

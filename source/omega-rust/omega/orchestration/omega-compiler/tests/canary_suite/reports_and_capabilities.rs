@@ -87,14 +87,13 @@ fn output_only_checks_suppress_artifacts_without_suppressing_wire_validation() {
 #[test]
 fn output_only_backend_compile_keeps_primary_image_and_certification() {
     let build_dir = unique_no_output_build_dir();
-    let report = omega_compiler::compile(
-        CompileRequest::new(CompileOptions {
+    let report = compile_harness(
+        CompileHarnessRequest::new(CompileOptions {
             root_path: pass_canary("build/explicit_program_entry_binding").join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: Some("windows_x64".into()),
             write_output: true,
         })
-        .with_requested_product(omega_compiler::RequestedCompileProduct::InstalledOutput)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
     )
     .expect("output-only backend compile should still certify and install its image");
