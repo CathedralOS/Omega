@@ -70,6 +70,10 @@ pub enum OptimizationUnitValidationError {
     PrunedProviderMachine(MachineId),
     DuplicateBoundaryMachine(BoundaryMachineId),
     DuplicateStructuralType(StructuralTypeId),
+    NonCanonicalStructuralTypeOrder,
+    InvalidStructuralTypeIdentity(StructuralTypeId),
+    InvalidStructuralArrayLength(StructuralTypeId),
+    UnknownStructuralType(StructuralTypeId),
     RecursiveStructuralType(StructuralTypeId),
     InvalidStructuralFieldIdentity {
         structural_type: StructuralTypeId,
@@ -90,6 +94,8 @@ pub enum OptimizationUnitValidationError {
         field: psi_core::StructuralFieldId,
     },
     DuplicateStructuralDomain(StructuralDomainId),
+    NonCanonicalStructuralDomainOrder,
+    InvalidStructuralDomainIdentity(StructuralDomainId),
     StructuralCatalogMismatch {
         machine: Option<MachineId>,
     },
@@ -9727,13 +9733,36 @@ fn index_structural_catalogs(
             ));
         }
         if declaration.identity.is_empty() || !type_names.insert(declaration.identity.as_str()) {
-            return Err(OptimizationUnitValidationError::StructuralCatalogMismatch {
-                machine: None,
-            });
+            return Err(
+                OptimizationUnitValidationError::InvalidStructuralTypeIdentity(declaration.id),
+            );
         }
+    }
+    if unit
+        .structural_types
+        .windows(2)
+        .any(|pair| pair[0].id >= pair[1].id)
+    {
+        return Err(OptimizationUnitValidationError::NonCanonicalStructuralTypeOrder);
+    }
+    for declaration in &unit.structural_types {
         match &declaration.shape {
-            psi_terminal::StructuralTypeShape::ByteSequence(_)
-            | psi_terminal::StructuralTypeShape::FixedArray { .. } => {}
+            psi_terminal::StructuralTypeShape::ByteSequence(
+                psi_terminal::ByteSequenceCarrier::BorrowedView,
+            ) => {}
+            psi_terminal::StructuralTypeShape::ByteSequence(
+                psi_terminal::ByteSequenceCarrier::BoundedOwned { .. },
+            ) => {
+                return Err(
+                    OptimizationUnitValidationError::InvalidStructuralTypeIdentity(declaration.id),
+                );
+            }
+            psi_terminal::StructuralTypeShape::FixedArray { length: 0, .. } => {
+                return Err(
+                    OptimizationUnitValidationError::InvalidStructuralArrayLength(declaration.id),
+                );
+            }
+            psi_terminal::StructuralTypeShape::FixedArray { .. } => {}
             psi_terminal::StructuralTypeShape::Record { fields } => {
                 validate_structural_fields(unit, declaration.id, None, fields, true)?;
             }
@@ -9756,14 +9785,7 @@ fn index_structural_catalogs(
                     _ => None,
                 })
                 .collect(),
-            psi_terminal::StructuralTypeShape::FixedArray { element, length } => {
-                if *length == 0 {
-                    return Err(OptimizationUnitValidationError::StructuralCatalogMismatch {
-                        machine: None,
-                    });
-                }
-                vec![*element]
-            }
+            psi_terminal::StructuralTypeShape::FixedArray { element, .. } => vec![*element],
             psi_terminal::StructuralTypeShape::Sum { cases } => cases
                 .iter()
                 .flat_map(|case| &case.fields)
@@ -9781,10 +9803,10 @@ fn index_structural_catalogs(
                 })
                 .collect(),
         };
-        if referenced.iter().any(|target| !types.contains_key(target)) {
-            return Err(OptimizationUnitValidationError::StructuralCatalogMismatch {
-                machine: None,
-            });
+        if let Some(target) = referenced.iter().find(|target| !types.contains_key(target)) {
+            return Err(OptimizationUnitValidationError::UnknownStructuralType(
+                *target,
+            ));
         }
     }
     validate_structural_type_graph(&types)?;
@@ -9800,12 +9822,28 @@ fn index_structural_catalogs(
         if declaration.identity.is_empty()
             || !names.insert(declaration.identity.as_str())
             || !semantic_domains.insert(declaration.semantic_domain)
-            || !types.contains_key(&declaration.carrier)
         {
-            return Err(OptimizationUnitValidationError::StructuralCatalogMismatch {
-                machine: None,
-            });
+            return Err(
+                OptimizationUnitValidationError::InvalidStructuralDomainIdentity(declaration.id),
+            );
         }
+    }
+    if unit
+        .structural_domains
+        .windows(2)
+        .any(|pair| pair[0].id >= pair[1].id)
+    {
+        return Err(OptimizationUnitValidationError::NonCanonicalStructuralDomainOrder);
+    }
+    if let Some(carrier) = unit
+        .structural_domains
+        .iter()
+        .map(|declaration| declaration.carrier)
+        .find(|carrier| !types.contains_key(carrier))
+    {
+        return Err(OptimizationUnitValidationError::UnknownStructuralType(
+            carrier,
+        ));
     }
     Ok((types, domains))
 }
@@ -12946,7 +12984,7 @@ mod tests {
                 id: structural_type,
                 identity: "validation::structural-call-argument".into(),
                 shape: psi_terminal::StructuralTypeShape::ByteSequence(
-                    psi_terminal::ByteSequenceCarrier::BoundedOwned { capacity: 8 },
+                    psi_terminal::ByteSequenceCarrier::BorrowedView,
                 ),
             }],
             boundary_machines: Vec::new(),
@@ -13082,6 +13120,20 @@ mod tests {
         candidate.structural_types = structural_types;
         refresh_identity(&mut candidate);
         candidate
+    }
+
+    fn structural_domain(
+        raw: u64,
+        semantic_raw: u64,
+        carrier: StructuralTypeId,
+    ) -> psi_terminal::StructuralDomainDeclaration {
+        psi_terminal::StructuralDomainDeclaration {
+            id: id(raw, StructuralDomainId::new),
+            semantic_domain: id(semantic_raw, psi_core::DomainSemanticId::new),
+            identity: format!("validation::domain-{raw}"),
+            carrier,
+            content_projection: None,
+        }
     }
 
     fn structural_result_call_unit() -> PsiOptimizationUnit {
@@ -13411,28 +13463,19 @@ mod tests {
 
     #[test]
     fn structural_type_graph_accepts_dag_shared_descendants_and_disconnected_components() {
-        let leaf = id(401, StructuralTypeId::new);
+        let root = id(401, StructuralTypeId::new);
         let left = id(402, StructuralTypeId::new);
         let right = id(403, StructuralTypeId::new);
-        let root = id(404, StructuralTypeId::new);
-        let disconnected_leaf = id(405, StructuralTypeId::new);
-        let disconnected_sum = id(406, StructuralTypeId::new);
+        let leaf = id(404, StructuralTypeId::new);
+        let disconnected_sum = id(405, StructuralTypeId::new);
+        let disconnected_leaf = id(406, StructuralTypeId::new);
         let mut candidate = unit();
         candidate.structural_types = vec![
             structural_type(
-                404,
+                401,
                 psi_terminal::StructuralTypeShape::Mixed {
                     fields: vec![structural_field(2, left)],
                     cases: vec![structural_case(1, vec![structural_field(3, right)])],
-                },
-            ),
-            structural_type(
-                406,
-                psi_terminal::StructuralTypeShape::Sum {
-                    cases: vec![structural_case(
-                        2,
-                        vec![structural_field(4, disconnected_leaf)],
-                    )],
                 },
             ),
             structural_type(
@@ -13470,12 +13513,6 @@ mod tests {
                 },
             ),
             structural_type(
-                405,
-                psi_terminal::StructuralTypeShape::ByteSequence(
-                    psi_terminal::ByteSequenceCarrier::BorrowedView,
-                ),
-            ),
-            structural_type(
                 403,
                 psi_terminal::StructuralTypeShape::FixedArray {
                     element: leaf,
@@ -13483,7 +13520,22 @@ mod tests {
                 },
             ),
             structural_type(
-                401,
+                404,
+                psi_terminal::StructuralTypeShape::ByteSequence(
+                    psi_terminal::ByteSequenceCarrier::BorrowedView,
+                ),
+            ),
+            structural_type(
+                405,
+                psi_terminal::StructuralTypeShape::Sum {
+                    cases: vec![structural_case(
+                        2,
+                        vec![structural_field(4, disconnected_leaf)],
+                    )],
+                },
+            ),
+            structural_type(
+                406,
                 psi_terminal::StructuralTypeShape::ByteSequence(
                     psi_terminal::ByteSequenceCarrier::BorrowedView,
                 ),
@@ -13499,7 +13551,7 @@ mod tests {
             "the mixed root precedes every structural target it references"
         );
         assert_eq!(
-            candidate.structural_types[1].id, disconnected_sum,
+            candidate.structural_types[4].id, disconnected_sum,
             "the disconnected sum precedes its structural target"
         );
     }
@@ -13595,7 +13647,198 @@ mod tests {
 
         assert_eq!(
             validate_psi_optimization_unit(&candidate),
-            Err(OptimizationUnitValidationError::StructuralCatalogMismatch { machine: None })
+            Err(OptimizationUnitValidationError::UnknownStructuralType(
+                unknown
+            ))
+        );
+    }
+
+    #[test]
+    fn top_level_structural_type_roster_is_canonical_and_identity_unique() {
+        let first = structural_type(
+            450,
+            psi_terminal::StructuralTypeShape::ByteSequence(
+                psi_terminal::ByteSequenceCarrier::BorrowedView,
+            ),
+        );
+        let second = structural_type(
+            451,
+            psi_terminal::StructuralTypeShape::ByteSequence(
+                psi_terminal::ByteSequenceCarrier::BorrowedView,
+            ),
+        );
+
+        let candidate = structural_catalog_unit(vec![second.clone(), first.clone()]);
+        assert_eq!(
+            validate_psi_optimization_unit(&candidate),
+            Err(OptimizationUnitValidationError::NonCanonicalStructuralTypeOrder)
+        );
+
+        let candidate = structural_catalog_unit(vec![first.clone(), first.clone()]);
+        assert_eq!(
+            validate_psi_optimization_unit(&candidate),
+            Err(OptimizationUnitValidationError::DuplicateStructuralType(
+                first.id
+            ))
+        );
+
+        let mut empty_identity = first.clone();
+        empty_identity.identity.clear();
+        let candidate = structural_catalog_unit(vec![empty_identity]);
+        assert_eq!(
+            validate_psi_optimization_unit(&candidate),
+            Err(OptimizationUnitValidationError::InvalidStructuralTypeIdentity(first.id))
+        );
+
+        let mut duplicate_identity = second;
+        duplicate_identity.identity = first.identity.clone();
+        let candidate = structural_catalog_unit(vec![first, duplicate_identity.clone()]);
+        assert_eq!(
+            validate_psi_optimization_unit(&candidate),
+            Err(
+                OptimizationUnitValidationError::InvalidStructuralTypeIdentity(
+                    duplicate_identity.id
+                )
+            )
+        );
+    }
+
+    #[test]
+    fn top_level_structural_carriers_are_exact_without_narrowing_field_carriers() {
+        let borrowed = id(460, StructuralTypeId::new);
+        let array = id(461, StructuralTypeId::new);
+        let record = id(462, StructuralTypeId::new);
+        let candidate = structural_catalog_unit(vec![
+            structural_type(
+                460,
+                psi_terminal::StructuralTypeShape::ByteSequence(
+                    psi_terminal::ByteSequenceCarrier::BorrowedView,
+                ),
+            ),
+            structural_type(
+                461,
+                psi_terminal::StructuralTypeShape::FixedArray {
+                    element: borrowed,
+                    length: 1,
+                },
+            ),
+            structural_type(
+                462,
+                psi_terminal::StructuralTypeShape::Record {
+                    fields: vec![structural_leaf_field(
+                        1,
+                        psi_terminal::BindingRelevance::Relevant,
+                        psi_terminal::StructuralFieldType::ByteSequence(
+                            psi_terminal::ByteSequenceCarrier::BoundedOwned { capacity: 8 },
+                        ),
+                    )],
+                },
+            ),
+        ]);
+        validate_psi_optimization_unit(&candidate).expect(
+            "BorrowedView and positive arrays are valid while field-level owned bytes stay legal",
+        );
+        assert_eq!(candidate.structural_types[2].id, record);
+
+        for capacity in [0, 8] {
+            let candidate = structural_catalog_unit(vec![structural_type(
+                460,
+                psi_terminal::StructuralTypeShape::ByteSequence(
+                    psi_terminal::ByteSequenceCarrier::BoundedOwned { capacity },
+                ),
+            )]);
+            assert_eq!(
+                validate_psi_optimization_unit(&candidate),
+                Err(OptimizationUnitValidationError::InvalidStructuralTypeIdentity(borrowed))
+            );
+        }
+
+        let candidate = structural_catalog_unit(vec![
+            structural_type(
+                460,
+                psi_terminal::StructuralTypeShape::ByteSequence(
+                    psi_terminal::ByteSequenceCarrier::BorrowedView,
+                ),
+            ),
+            structural_type(
+                461,
+                psi_terminal::StructuralTypeShape::FixedArray {
+                    element: borrowed,
+                    length: 0,
+                },
+            ),
+        ]);
+        assert_eq!(
+            validate_psi_optimization_unit(&candidate),
+            Err(OptimizationUnitValidationError::InvalidStructuralArrayLength(array))
+        );
+    }
+
+    #[test]
+    fn structural_domain_roster_is_canonical_unique_and_carrier_closed() {
+        let carrier = id(470, StructuralTypeId::new);
+        let types = vec![structural_type(
+            470,
+            psi_terminal::StructuralTypeShape::ByteSequence(
+                psi_terminal::ByteSequenceCarrier::BorrowedView,
+            ),
+        )];
+        let first = structural_domain(1, 11, carrier);
+        let second = structural_domain(2, 12, carrier);
+
+        let mut candidate = structural_catalog_unit(types.clone());
+        candidate.structural_domains = vec![first.clone(), second.clone()].into();
+        refresh_identity(&mut candidate);
+        validate_psi_optimization_unit(&candidate)
+            .expect("distinct canonical domains may share one exact carrier");
+
+        let mut candidate = structural_catalog_unit(types.clone());
+        candidate.structural_domains = vec![second.clone(), first.clone()].into();
+        refresh_identity(&mut candidate);
+        assert_eq!(
+            validate_psi_optimization_unit(&candidate),
+            Err(OptimizationUnitValidationError::NonCanonicalStructuralDomainOrder)
+        );
+
+        let mut candidate = structural_catalog_unit(types.clone());
+        candidate.structural_domains = vec![first.clone(), first.clone()].into();
+        refresh_identity(&mut candidate);
+        assert_eq!(
+            validate_psi_optimization_unit(&candidate),
+            Err(OptimizationUnitValidationError::DuplicateStructuralDomain(
+                first.id
+            ))
+        );
+
+        let mut invalid_identities = Vec::new();
+        let mut empty_identity = first.clone();
+        empty_identity.identity.clear();
+        invalid_identities.push((vec![empty_identity], first.id));
+        let mut duplicate_name = second.clone();
+        duplicate_name.identity = first.identity.clone();
+        invalid_identities.push((vec![first.clone(), duplicate_name], second.id));
+        let mut duplicate_semantic = second.clone();
+        duplicate_semantic.semantic_domain = first.semantic_domain;
+        invalid_identities.push((vec![first.clone(), duplicate_semantic], second.id));
+        for (domains, expected) in invalid_identities {
+            let mut candidate = structural_catalog_unit(types.clone());
+            candidate.structural_domains = domains.into();
+            refresh_identity(&mut candidate);
+            assert_eq!(
+                validate_psi_optimization_unit(&candidate),
+                Err(OptimizationUnitValidationError::InvalidStructuralDomainIdentity(expected))
+            );
+        }
+
+        let unknown = id(471, StructuralTypeId::new);
+        let mut candidate = structural_catalog_unit(types);
+        candidate.structural_domains = vec![structural_domain(1, 11, unknown)].into();
+        refresh_identity(&mut candidate);
+        assert_eq!(
+            validate_psi_optimization_unit(&candidate),
+            Err(OptimizationUnitValidationError::UnknownStructuralType(
+                unknown
+            ))
         );
     }
 
