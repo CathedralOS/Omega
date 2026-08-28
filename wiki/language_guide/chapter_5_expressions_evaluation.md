@@ -720,6 +720,12 @@ selects exact F32/F64 FMA-toward-zero/positive/negative satisfiers. Each
 directed ternary operation changes FPCR only around one scalar `FMADD`, while
 the interpreter consumes the corresponding directed `FloatSemantics` identity;
 half-ULP edges distinguish all three results and prove control restoration.
+Generic Linux x86-64 retains a separate baseline semantic-edge suite for 36
+exact nearest-arithmetic, comparison, classification, min/max, square-root,
+negate, and multiply-then-add plans. Every supported host builds its explicit
+Linux-x64 root twice and requires identical ELF bytes; only a Linux x86-64 host
+adds native execution evidence. FMA and directed operations are absent from
+that baseline suite, so its evidence cannot authorize either family.
 The cross-target directed cohorts supply F32/F64
 add/subtract/multiply/divide/square-root-toward-zero/positive/negative
 satisfiers on all four native targets. Each operation saves the complete

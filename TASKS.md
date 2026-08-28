@@ -9192,6 +9192,17 @@ extended-register and invalid-register coverage. These helpers grant no target
 feature admission and are not selected by generic FMA lowering; that still
 requires the feature-qualified provider or checked software realization above.
 
+The generic Linux x86-64 baseline now retains its first target-specific
+semantic-edge suite. The checked half pins the exact 36 nearest arithmetic,
+comparison, classification, min/max, square-root, negate, and separately
+rounded multiply-then-add plans; the artifact half builds the explicit
+`linux_x64` root twice and requires byte-identical ELF images under one retained
+suite identity. Native execution is a separate leg and runs only on a Linux
+x86-64 host. Directed and fused operations are deliberately absent, so this
+validation evidence grants no generic FMA or feature admission. The complete
+FMA/directed corpus and the other admitted target profiles remain under the
+open target-specific-evidence item above.
+
 Proof-only Exact float-to-integer cast admission now lives in a focused 399-
 line private owner. Finite expression intervals, declared range projection,
 all-incoming guard meets, strict next-float bounds, comparison polarity, and
@@ -9497,8 +9508,11 @@ checked-result arithmetic decision listed below.
   cohesive 191-line parent retains schema classification, derived-plan
   comparison, encode-obligation construction, and transactional installation;
   public APIs and the 107-function production inventory are unchanged.
-- Finish member reflection (`Self::fields` and field/case splices), constant
-  positions, and proof checking of generator-expanded bodies.
+- **MEMBER-REFLECTION — design blocked.** Settle `Self::fields`, field/case and
+  payload splices, their legal constant positions, and proof visibility of
+  generator-expanded bodies. The owning open-design note is
+  `wiki/language_guide/chapter_14_traits.md`'s `build-time-open` footnote;
+  implementation must not choose this surface or its expansion rules.
 - Complete the ordinary `Build` API/executor with exact dependency aliases,
   package-scoped providers, no ambient filesystem escape, and generated-source
   rechecking under consumer ceilings.
@@ -9639,6 +9653,9 @@ specifications:
   checked arithmetic.
 - **IMPORTED-CRASH-CAPSULES:** realization/import/certificate identity in
   `wiki/language_guide/appendix_open_questions.md`.
+- **MEMBER-REFLECTION:** source surface, constant-position rules, and proof
+  visibility in `wiki/language_guide/chapter_14_traits.md`'s
+  `build-time-open` footnote.
 
 ## Platform-gated verification
 
