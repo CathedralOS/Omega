@@ -926,9 +926,10 @@ terminal fusion currently decline nonempty removed-edge cleanup until
 composition has an admitted proof. Target lowering names the already verified
 ownership-only erasure explicitly and emits no runtime instruction. The
 independent current-CFG automaton now consumes these rows as executable cleanup,
-while immutable frontier facts remain source-site custody. Proof-derived
-current-region range facts and the wider crash/requirement and remaining effect
-vocabulary remain explicit unfinished validator layers. It
+while immutable frontier facts remain source-site custody. The first range-
+against-literal comparison consumer is admitted; the remaining range
+transformations and the wider crash/requirement and effect vocabulary remain
+explicit unfinished validator layers. It
 also rechecks the complete current
 Terminal-Psi CFG contract—parameter-free entry, closed edges, total
 reachability, and acyclicity—before any rule may inspect the unit. When Terminal
@@ -1001,12 +1002,19 @@ It exposes each immutable catalog row under its exact machine/source-site key
 and binds the view to the current optimization-unit revision. Because that
 revision is part of the analysis region, the manager always invalidates and
 rebinds the product across a commit, even when no rule declares a mutation of
-the underlying immutable catalog. It is not yet a current-CFG ownership solver,
-and no rewrite may broaden a source-site snapshot into a function-wide fact.
-The decision-manifest vocabulary has a separate typed ownership-frontier fact
-reference, allowing a future rule to retain the exact consumed capability and
-its domain-separated identity. This representational support does not itself
-make any ownership rewrite applicable.
+the underlying immutable catalog. It is not yet a general current-CFG
+ownership solver, and no rewrite may broaden a source-site snapshot into a
+function-wide fact.
+
+Adjacent single-predecessor block merge is the first rule to consume this
+authority. Its typed witness contains exactly the canonical
+`BlockEntry(target)`, `EdgeEntry(incoming)`, and `EdgeExit(incoming)` rows.
+The proposal requires current-revision facts with equal snapshots; the
+independent validator reconstructs the required site set and fact identities
+from the sealed unit before total current-ownership replay. Decision manifests
+retain all three domain-separated ownership fact references. An empty witness
+is accepted only for the pre-existing bare-unit fallback with no structural
+parameters, entry claims, declared places, or frontier catalog.
 
 Complete proof-question custody is likewise immutable source authority rather
 than an analysis conclusion. It preserves call and nominal-cleanup requirements,

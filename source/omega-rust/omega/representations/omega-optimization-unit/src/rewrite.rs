@@ -4,14 +4,16 @@ use omega_optimization_core::{
     AcceptedObligationFactIdentity, AnalysisInvalidationSet, AnalysisSet,
     OptimizationCandidateIdentity, OptimizationFactReference, OptimizationRuleContract,
     OptimizationRuleIdentity, OptimizationSafetyClass, OptimizationUnitIdentity,
-    ScalarConstantFactIdentity, ValueRangeFactIdentity,
+    OwnershipFrontierFactIdentity, ScalarConstantFactIdentity, ValueRangeFactIdentity,
 };
 use psi_core::{
     BlockId, EdgeId, IntegerCarrier, IntegerSign, IntegerType, IntegerValue, MachineId,
     OperationId, ScalarType, ValueId,
 };
 
-use crate::{FuelSettlement, PsiProvenance, ValueDefinition, ValueDefinitionSite};
+use crate::{
+    FuelSettlement, OwnershipFrontierSite, PsiProvenance, ValueDefinition, ValueDefinitionSite,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct NodeLocation {
@@ -449,6 +451,20 @@ pub struct AdjacentBlockMergeRewrite {
     pub target: BlockId,
 }
 
+/// One exact verifier-owned ownership fact consumed by an adjacent block
+/// merge. Rows are canonical in source-site order; the rule-specific
+/// validator reconstructs both the required site set and each fact identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct OwnershipFrontierWitnessRow {
+    pub site: OwnershipFrontierSite,
+    pub fact: OwnershipFrontierFactIdentity,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct OwnershipFrontierWitness {
+    pub rows: Vec<OwnershipFrontierWitnessRow>,
+}
+
 /// Merge a non-adjacent, single-predecessor target block into its
 /// unconditional predecessor. Unlike the adjacent form, this patch explicitly
 /// authorizes movement across intervening source-roster blocks; execution
@@ -623,6 +639,7 @@ enum PsiRewriteWitness {
         constant_fact: ScalarConstantFactIdentity,
         obligation_fact: AcceptedObligationFactIdentity,
     },
+    OwnershipFrontiers(OwnershipFrontierWitness),
     StructuralIdentity,
 }
 
@@ -655,6 +672,7 @@ pub enum PsiRewriteCandidateError {
     PatchDecisionPointMismatch,
     EmptyIncomingBindings,
     NonCanonicalIncomingBindings,
+    NonCanonicalOwnershipFrontierWitness,
     BlockParameterSubstitutionMismatch,
     ProofWitnessSafetyMismatch,
 }
@@ -879,16 +897,24 @@ impl PsiRewriteCandidate {
         affected_blocks: Vec<BlockId>,
         substitutions: Vec<ScalarSubstitution>,
         provenance: Vec<ProvenanceRewrite>,
+        ownership_witness: OwnershipFrontierWitness,
         predicted_cost_delta: i64,
         patch: AdjacentBlockMergeRewrite,
     ) -> Result<Self, PsiRewriteCandidateError> {
+        if ownership_witness
+            .rows
+            .windows(2)
+            .any(|pair| pair[0].site >= pair[1].site)
+        {
+            return Err(PsiRewriteCandidateError::NonCanonicalOwnershipFrontierWitness);
+        }
         Self::new(
             input,
             contract,
             affected_blocks,
             substitutions,
             provenance,
-            PsiRewriteWitness::StructuralIdentity,
+            PsiRewriteWitness::OwnershipFrontiers(ownership_witness),
             predicted_cost_delta,
             PsiRewritePatch::MergeAdjacentBlock(patch),
         )
@@ -1472,7 +1498,7 @@ impl PsiRewriteCandidate {
                                 .node()
                                 .is_some_and(|location| !affected_blocks.contains(&location.block))
                     })
-                    || !matches!(witness, PsiRewriteWitness::StructuralIdentity)
+                    || !matches!(witness, PsiRewriteWitness::OwnershipFrontiers(_))
                 {
                     return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
                 }
@@ -1770,6 +1796,7 @@ impl PsiRewriteCandidate {
             PsiRewriteWitness::RedundantBlockParameter(_)
             | PsiRewriteWitness::AcceptedObligation(_)
             | PsiRewriteWitness::ProofCertifiedScalarIdentity { .. }
+            | PsiRewriteWitness::OwnershipFrontiers(_)
             | PsiRewriteWitness::StructuralIdentity => None,
         }
     }
@@ -1780,6 +1807,7 @@ impl PsiRewriteCandidate {
             PsiRewriteWitness::RedundantBlockParameter(witness) => Some(witness),
             PsiRewriteWitness::AcceptedObligation(_) => None,
             PsiRewriteWitness::ProofCertifiedScalarIdentity { .. } => None,
+            PsiRewriteWitness::OwnershipFrontiers(_) => None,
             PsiRewriteWitness::StructuralIdentity => None,
         }
     }
@@ -1792,6 +1820,7 @@ impl PsiRewriteCandidate {
             } => Some(*obligation_fact),
             PsiRewriteWitness::ScalarEvaluation(_)
             | PsiRewriteWitness::RedundantBlockParameter(_)
+            | PsiRewriteWitness::OwnershipFrontiers(_)
             | PsiRewriteWitness::StructuralIdentity => None,
         }
     }
@@ -1807,7 +1836,15 @@ impl PsiRewriteCandidate {
             PsiRewriteWitness::ScalarEvaluation(_)
             | PsiRewriteWitness::RedundantBlockParameter(_)
             | PsiRewriteWitness::AcceptedObligation(_)
+            | PsiRewriteWitness::OwnershipFrontiers(_)
             | PsiRewriteWitness::StructuralIdentity => None,
+        }
+    }
+
+    pub fn ownership_frontier_witness(&self) -> Option<&OwnershipFrontierWitness> {
+        match &self.witness {
+            PsiRewriteWitness::OwnershipFrontiers(witness) => Some(witness),
+            _ => None,
         }
     }
 
@@ -1862,6 +1899,11 @@ impl PsiRewriteCandidate {
                 OptimizationFactReference::ScalarConstant(*constant_fact),
                 OptimizationFactReference::AcceptedObligation(*obligation_fact),
             ],
+            PsiRewriteWitness::OwnershipFrontiers(witness) => witness
+                .rows
+                .iter()
+                .map(|row| OptimizationFactReference::OwnershipFrontier(row.fact))
+                .collect(),
             PsiRewriteWitness::RedundantBlockParameter(_)
             | PsiRewriteWitness::StructuralIdentity => Vec::new(),
         };
@@ -2027,6 +2069,14 @@ fn encode_candidate(
             bytes.extend_from_slice(&constant_fact.bytes());
             bytes.extend_from_slice(&obligation_fact.bytes());
         }
+        PsiRewriteWitness::OwnershipFrontiers(witness) => {
+            bytes.push(6);
+            encode_len(&mut bytes, witness.rows.len());
+            for row in &witness.rows {
+                encode_ownership_frontier_site(&mut bytes, row.site);
+                bytes.extend_from_slice(&row.fact.bytes());
+            }
+        }
     }
     bytes.extend_from_slice(&predicted_cost_delta.to_le_bytes());
     match patch {
@@ -2183,6 +2233,18 @@ fn encode_location(bytes: &mut Vec<u8>, location: NodeLocation) {
     bytes.extend_from_slice(&location.machine.get().to_le_bytes());
     bytes.extend_from_slice(&location.block.get().to_le_bytes());
     bytes.extend_from_slice(&location.node.to_le_bytes());
+}
+
+fn encode_ownership_frontier_site(bytes: &mut Vec<u8>, site: OwnershipFrontierSite) {
+    let (tag, identity) = match site {
+        OwnershipFrontierSite::BlockEntry(id) => (1, id.get()),
+        OwnershipFrontierSite::OperationEntry(id) => (2, id.get()),
+        OwnershipFrontierSite::OperationExit(id) => (3, id.get()),
+        OwnershipFrontierSite::EdgeEntry(id) => (4, id.get()),
+        OwnershipFrontierSite::EdgeExit(id) => (5, id.get()),
+    };
+    bytes.push(tag);
+    bytes.extend_from_slice(&identity.to_le_bytes());
 }
 
 fn encode_realization_site(bytes: &mut Vec<u8>, site: PsiRealizationSite) {

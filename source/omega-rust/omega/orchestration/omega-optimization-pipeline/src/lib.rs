@@ -434,7 +434,8 @@ mod tests {
 
     use omega_calling_conventions::{IndirectPointerLocation, MachineRegister, ValueLocation};
     use omega_optimization_core::{
-        Optimization, OptimizationSelections, OptimizationWorkBudget, OptimizationWorkUsage,
+        Optimization, OptimizationFactReference, OptimizationSelections, OptimizationWorkBudget,
+        OptimizationWorkUsage,
     };
     use omega_optimization_unit::{
         FuelSettlement, OwnershipEvent, PsiProvenance, ValueDefinitionSite,
@@ -2886,6 +2887,18 @@ mod tests {
         );
         assert_eq!(first.fuel.len(), 2);
         assert_eq!(optimized.transformation_ledger().records().len(), 1);
+        assert_eq!(
+            optimized.pass_manifests()[0].decisions()[0]
+                .consumed_facts()
+                .len(),
+            3
+        );
+        assert!(
+            optimized.pass_manifests()[0].decisions()[0]
+                .consumed_facts()
+                .iter()
+                .all(|fact| matches!(fact, OptimizationFactReference::OwnershipFrontier(_)))
+        );
         assert_eq!(
             optimized.transformation_ledger().records()[0]
                 .provenance

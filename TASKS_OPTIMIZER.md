@@ -661,7 +661,9 @@ These facts constrain the work below.
   verifier question, including call, cleanup, and contract owners plus ordered
   premises and axioms, independently of this narrower operation-rule index.
   Proof-derived current-region integer ranges are reconstructed analysis rows,
-  not immutable unit catalog rows. Their rule-facing consumption remains open.
+  not immutable unit catalog rows. The first `IntegerLessThan` rule now
+  consumes an exact range plus direct-literal fact; the remaining ordered-
+  comparison family and wider range consumers remain open.
 - The clean artifact boundary now exposes a required
   `VerifiedTerminalOptimizationInput` for optimizer consumers. It retains the
   lowered plan beside the complete immutable Terminal module, exact proof
@@ -725,13 +727,16 @@ These facts constrain the work below.
   exposes exact source-site fact identities and snapshots, bound to the current
   unit revision, without treating them as timeless function-wide conclusions.
   The analysis manager always invalidates and rebinds this view at a revision
-  commit even though the underlying verifier catalog is immutable. No rewrite
-  consumes these facts yet; current-region/path applicability remains an open
-  semantic-analysis task rather than being inferred from a removed source site.
-  The manifest fact-reference codec has a distinct typed
-  `OwnershipFrontierFactIdentity` row, so a future borrow-aware rule can record
-  the exact capability it used without confusing it with a scalar or admitted
-  obligation fact.
+  commit even though the underlying verifier catalog is immutable. Adjacent
+  single-predecessor block merge is the first consumer: its candidate carries
+  the canonical `BlockEntry(target)`, `EdgeEntry(incoming)`, and
+  `EdgeExit(incoming)` fact identities; the decision manifest records all
+  three, and independent validation reconstructs the exact rows and equal
+  snapshots before replaying current ownership. The factless fallback remains
+  restricted to a bare unit with no structural parameters, entry claims, or
+  declared places. Wider current-region/path applicability remains an open
+  semantic-analysis task rather than being inferred from a removed source
+  site.
 - The Psi optimizer now also has immutable compilation-local rule registries.
   They preserve the pass manager's explicit schedule (never hash-sort it),
   reject duplicate rule identities, bind the exact order into a rule-set
@@ -1387,8 +1392,8 @@ dependency.
   paths/types, missing or malformed nominal targets, and live-linear Unit
   return. Content-custody, structural-result, partial-affine, fully-consumed,
   and nominal source programs cross admission. Proof-derived current-region
-  range evidence plus the crash/requirement and remaining effect vocabulary
-  remain open. The
+  range transformations beyond the first comparison consumer plus the
+  crash/requirement and remaining effect vocabulary remain open. The
   exact payloadless-callee classifier is complete: optimizer-only lowering
   retains the case producer and complete call/contract/evidence-lane surface,
   independent replay matches Terminal's bounded predicate, and ordinary and
@@ -1565,7 +1570,7 @@ dependency.
   location changes; and durably records the rejected edge plus every deleted
   node and its original scheduled fuel as independently proven unreachable and
   uncharged. Successor-edge custody and ledger v3 now distinguish the two
-  conditional arms directly. The v11 pass also includes exact linear empty-jump
+  conditional arms directly. The v12 pass also includes exact linear empty-jump
   threading plus `path-qualified-empty-block-thread.v1`: typed bindings are
   composed, ownership frontiers must be identical across each bypass, and the
   removed outgoing source is realized on every and only mutually exclusive
@@ -1574,8 +1579,11 @@ dependency.
   the block's sole conditional, or its exact return/crash terminal. It substitutes typed block parameters and
   realizes the removed edge at the first operation or across exactly the two
   mutually exclusive successor edges, without authorizing non-adjacent code
-  motion. Its v4 contract now proves replacements dominate every parameter use
-  and rewrites dominated successor blocks globally. Its fifth rule fuses one selected unconditional path into a shared,
+  motion. Its v5 contract proves replacements dominate every parameter use,
+  rewrites dominated successor blocks globally, and binds the three exact
+  ownership-frontier facts whose equal snapshots authorize the merge. Missing,
+  reordered, or forged custody fails independent validation; bare structurally
+  empty units retain a factless fallback. Its fifth rule fuses one selected unconditional path into a shared,
   terminal-only return/crash block while retaining that block for its other
   incoming paths. Terminal provenance and fuel fan out only across the exact
   no-successor CFG antichain, and typed substitutions affect only the clone.
@@ -1585,8 +1593,8 @@ dependency.
   non-adjacent unique-predecessor block merging in either roster direction,
   with explicit dominance/use-definition evidence, global typed substitution,
   moved-definition reconstruction, dense-effect accounting, and independent
-  replay. Candidate v20, optimization-unit identity v16, ledger v4,
-  prephysical manifest v14, and projection validator v15 bind the current
+  replay. Candidate v24, optimization-unit identity v16, ledger v4,
+  prephysical manifest v28, and projection validator v29 bind the current
   occurrence and function-roster replay.
 
   A standalone pass over blocks that are already unreachable has no admitted
