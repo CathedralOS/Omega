@@ -15,11 +15,11 @@ use psi_terminal::{
     BindingRelevance, BoundaryMachineDeclaration, ByteSequenceCarrier, ClaimContentProjection,
     ContentConservationGuarantee, CrashCause, CrashPredicateTerm, EntryClaim,
     ProgramLocalRootIntroductionSchema, ProviderCandidateConformance, StructuralAccess,
-    StructuralArgument, StructuralDomainRequirement, StructuralFieldDeclaration,
-    StructuralFieldType, StructuralMultiplicity, StructuralOperationResult,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
-    TerminalAffineCleanupAction,
+    StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalAffineCleanupAction,
 };
 
 use crate::{
@@ -29,7 +29,18 @@ use crate::{
     ValueDefinition, ValueDefinitionSite, ValueUse,
 };
 
-const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v10\0";
+const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v11\0";
+const STRUCTURAL_DOMAIN_CATALOG_IDENTITY_DOMAIN: &[u8] =
+    b"omega.psi-optimization-structural-domain-catalog.v1\0";
+
+pub fn structural_domain_catalog_identity(
+    domains: &[StructuralDomainDeclaration],
+) -> OptimizationUnitIdentity {
+    let mut bytes = CanonicalBytes::default();
+    bytes.bytes(STRUCTURAL_DOMAIN_CATALOG_IDENTITY_DOMAIN);
+    bytes.slice(domains, encode_structural_domain);
+    OptimizationUnitIdentity::from_canonical_bytes(&bytes.finish())
+}
 
 pub fn recompute_psi_optimization_unit_identity(
     unit: &PsiOptimizationUnit,
@@ -41,6 +52,7 @@ pub fn recompute_psi_optimization_unit_identity(
     bytes.u32(unit.fuel_schedule.marker());
     bytes.id(unit.entry);
     bytes.slice(&unit.structural_types, encode_structural_type);
+    bytes.slice(unit.structural_domains.as_ref(), encode_structural_domain);
     bytes.slice(&unit.boundary_machines, encode_boundary_machine);
     bytes.slice(&unit.provider_candidates, encode_provider_candidate);
     bytes.slice(&unit.accepted_obligation_facts, encode_accepted_fact);
@@ -187,12 +199,16 @@ fn encode_function(bytes: &mut CanonicalBytes, function: &PsiOptimizationFunctio
     bytes.id(function.entry);
     bytes.slice(&function.parameters, encode_definition);
     bytes.slice(&function.structural_parameters, encode_structural_parameter);
+    bytes.slice(&function.structural_places, |bytes, place| {
+        encode_place_declaration(bytes, *place)
+    });
     encode_function_result(bytes, &function.result);
     bytes.len(function.declared_places.len());
     for place in &function.declared_places {
         bytes.id(*place);
     }
     bytes.slice(&function.entry_claim_declarations, encode_entry_claim);
+    bytes.slice(&function.content_entry_claims, encode_content_entry_claim);
     bytes.len(function.entry_claims.len());
     for claim in &function.entry_claims {
         bytes.id(*claim);
@@ -1380,37 +1396,43 @@ fn encode_content_projection_expression(
 }
 
 fn encode_content_projection_scalar(bytes: &mut CanonicalBytes, scalar: &ContentProjectionScalar) {
-    match scalar {
-        ContentProjectionScalar::SubjectField(path)
-        | ContentProjectionScalar::RuntimeScalarEmbedding(path) => {
-            bytes.u8(
-                if matches!(scalar, ContentProjectionScalar::SubjectField(_)) {
-                    1
-                } else {
-                    2
-                },
-            );
-            bytes.slice(path, |bytes, segment| bytes.string(segment));
-        }
-        ContentProjectionScalar::Natural(value) => {
-            bytes.u8(3);
-            bytes.string(value);
-        }
-        ContentProjectionScalar::Successor(inner) => {
-            bytes.u8(4);
-            encode_content_projection_scalar(bytes, inner);
-        }
-        ContentProjectionScalar::Add(left, right)
-        | ContentProjectionScalar::Subtract(left, right)
-        | ContentProjectionScalar::Multiply(left, right) => {
-            bytes.u8(match scalar {
-                ContentProjectionScalar::Add(_, _) => 5,
-                ContentProjectionScalar::Subtract(_, _) => 6,
-                ContentProjectionScalar::Multiply(_, _) => 7,
-                _ => unreachable!(),
-            });
-            encode_content_projection_scalar(bytes, left);
-            encode_content_projection_scalar(bytes, right);
+    // Content expressions may be intentionally deep. Encode their canonical
+    // prefix form iteratively so retaining the verifier-owned domain catalog
+    // does not turn semantic nesting depth into native thread-stack usage.
+    let mut pending = vec![scalar];
+    while let Some(scalar) = pending.pop() {
+        match scalar {
+            ContentProjectionScalar::SubjectField(path)
+            | ContentProjectionScalar::RuntimeScalarEmbedding(path) => {
+                bytes.u8(
+                    if matches!(scalar, ContentProjectionScalar::SubjectField(_)) {
+                        1
+                    } else {
+                        2
+                    },
+                );
+                bytes.slice(path, |bytes, segment| bytes.string(segment));
+            }
+            ContentProjectionScalar::Natural(value) => {
+                bytes.u8(3);
+                bytes.string(value);
+            }
+            ContentProjectionScalar::Successor(inner) => {
+                bytes.u8(4);
+                pending.push(inner);
+            }
+            ContentProjectionScalar::Add(left, right)
+            | ContentProjectionScalar::Subtract(left, right)
+            | ContentProjectionScalar::Multiply(left, right) => {
+                bytes.u8(match scalar {
+                    ContentProjectionScalar::Add(_, _) => 5,
+                    ContentProjectionScalar::Subtract(_, _) => 6,
+                    ContentProjectionScalar::Multiply(_, _) => 7,
+                    _ => unreachable!(),
+                });
+                pending.push(right);
+                pending.push(left);
+            }
         }
     }
 }
@@ -1496,6 +1518,23 @@ fn encode_structural_type(bytes: &mut CanonicalBytes, declaration: &StructuralTy
             }
         }
     }
+}
+
+fn encode_structural_domain(bytes: &mut CanonicalBytes, declaration: &StructuralDomainDeclaration) {
+    bytes.id(declaration.id);
+    bytes.id(declaration.semantic_domain);
+    bytes.string(&declaration.identity);
+    bytes.id(declaration.carrier);
+    encode_optional(
+        bytes,
+        declaration.content_projection.as_ref(),
+        |bytes, projection| {
+            bytes.id(projection.identity.domain);
+            bytes.u64(projection.identity.projection_fingerprint);
+            encode_content_algebra(bytes, &projection.algebra);
+            encode_content_projection_expression(bytes, &projection.expression);
+        },
+    );
 }
 
 fn encode_structural_field(bytes: &mut CanonicalBytes, field: &StructuralFieldDeclaration) {

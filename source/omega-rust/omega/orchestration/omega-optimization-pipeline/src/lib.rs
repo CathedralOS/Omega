@@ -14244,41 +14244,50 @@ mod tests {
     #[test]
     fn ordinary_callable_entry_accepts_both_selected_lowering_compositions_and_reports_opaquely() {
         for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-            let staged = stage_validated_optimized_terminal_ordinary_callable_entry(
-                staged_callable_object_artifact(target, true),
-            )
-            .unwrap();
-            let artifact_identity = staged.source().artifact().identity;
-            let container_identity = staged.source().source().container().identity;
-            let container_bytes = staged.source().source().container().bytes.clone();
-            assert_eq!(
-                validate_optimized_terminal_ordinary_callable_entry(&staged).unwrap(),
-                staged.custody()
-            );
-            let prior = optimization_pipeline_report_from_terminal_object_artifact(staged.source());
-            assert!(prior.ordinary_callable_entry().is_none());
-            let report =
-                optimization_pipeline_report_from_terminal_ordinary_callable_entry(&staged);
-            assert_eq!(
-                report.ordinary_callable_entry(),
-                Some(staged.manifest().record())
-            );
-            assert!(
-                report
-                    .render_human_text(OptimizationReportRequest::Suppressed)
-                    .is_none()
-            );
-            let text = report
-                .render_human_text(OptimizationReportRequest::EmitHumanText)
+            std::thread::Builder::new()
+                .name("ordinary-callable-custody-replay".into())
+                .stack_size(4 * 1024 * 1024)
+                .spawn(move || {
+                    let staged = stage_validated_optimized_terminal_ordinary_callable_entry(
+                        staged_callable_object_artifact(target, true),
+                    )
+                    .unwrap();
+                    let artifact_identity = staged.source().artifact().identity;
+                    let container_identity = staged.source().source().container().identity;
+                    let container_bytes = staged.source().source().container().bytes.clone();
+                    assert_eq!(
+                        validate_optimized_terminal_ordinary_callable_entry(&staged).unwrap(),
+                        staged.custody()
+                    );
+                    let prior =
+                        optimization_pipeline_report_from_terminal_object_artifact(staged.source());
+                    assert!(prior.ordinary_callable_entry().is_none());
+                    let report =
+                        optimization_pipeline_report_from_terminal_ordinary_callable_entry(&staged);
+                    assert_eq!(
+                        report.ordinary_callable_entry(),
+                        Some(staged.manifest().record())
+                    );
+                    assert!(
+                        report
+                            .render_human_text(OptimizationReportRequest::Suppressed)
+                            .is_none()
+                    );
+                    let text = report
+                        .render_human_text(OptimizationReportRequest::EmitHumanText)
+                        .unwrap();
+                    assert!(text.contains("external process entry bridge: required"));
+                    assert!(text.contains("publication: unavailable"));
+                    assert_eq!(staged.source().artifact().identity, artifact_identity);
+                    assert_eq!(
+                        staged.source().source().container().identity,
+                        container_identity
+                    );
+                    assert_eq!(staged.source().source().container().bytes, container_bytes);
+                })
+                .unwrap()
+                .join()
                 .unwrap();
-            assert!(text.contains("external process entry bridge: required"));
-            assert!(text.contains("publication: unavailable"));
-            assert_eq!(staged.source().artifact().identity, artifact_identity);
-            assert_eq!(
-                staged.source().source().container().identity,
-                container_identity
-            );
-            assert_eq!(staged.source().source().container().bytes, container_bytes);
         }
     }
 

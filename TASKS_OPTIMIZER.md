@@ -515,16 +515,23 @@ These facts constrain the work below.
   cast/widen legality, fixed-carrier requirements, conditional and return
   types, and complete scalar arity/type/result signatures for internal and
   boundary calls. Function and boundary catalogs reject duplicate identities.
+  Content identity v11 additionally binds the verifier-owned structural-domain
+  catalog and each function's complete structural-place and content-entry-claim
+  catalogs; the verified builder carries those catalogs into the optimization
+  unit rather than attempting to infer them after Terminal Psi is discarded.
   Corruption tests refresh derived node metadata, fact indices, and the unit
   identity before validation, proving that self-consistent but semantically
-  ill-typed units still fail closed. The validator now also rejects structural
-  call argument-count drift and exact `Owned`/borrow access substitution across
+  ill-typed units still fail closed. Structural calls now independently replay
+  root/path/type legality, source and destination access, exclusive overlap,
+  multiplicity, qualifications, structural results, ordinary/content claim
+  transfers, and complete boundary source/completion correspondence across
   internal and boundary signatures. The verified builder additionally attaches
   a canonical immutable catalog of verifier-owned block-entry,
   operation-entry/exit, and edge-entry/available-edge-exit ownership snapshots.
   `OPT-UNIT-BUILDER` and `OPT-UNIT-VALIDATOR` remain open until verified
-  proof/range evidence and the complete structural place/path,
-  structural-call/result, claim-transfer, boundary-completion, and effect
+  proof/range evidence, full structural type/domain/content-projection graph
+  validation, path-sensitive availability of operation-result and local roots,
+  exact payloadless-callee classification, and the crash/requirement/effect
   vocabulary survive the Terminal-Psi lowering boundary.
 - Proof-bearing integer casts, shifts, addition, subtraction, multiplication,
   division, and remainder now retain their exact obligation identities through
@@ -836,7 +843,7 @@ These facts constrain the work below.
   replay two successive merges to a three-block fixed point and lower on both
   x64 and arm64. Candidate v20, `ControlFlowCleanup` v11, prephysical manifest
   v14, and optimized-plan projection validator v15 bind this admission;
-  optimization-unit identity v10 and ledger v4 already encode the output and
+  optimization-unit identity v11 and ledger v4 already encode the output and
   occurrence relation.
 - The first closed rewrite candidate is exact integer constant evaluation for
   proof-bearing add/subtract/multiply. The immutable candidate binds its input
@@ -1169,10 +1176,14 @@ dependency.
   each class independently. Current scalar slice is total and wildcard-free:
   operation/result/operand contracts and cross-function/boundary scalar
   signatures are independently reconstructed even when all cached metadata and
-  content identities have been refreshed. The first structural-call slice also
-  reconstructs argument arity and exact access against internal and boundary
-  declarations. Structural type/path, multiplicity, qualification, result,
-  place, claim-transfer, and completion contracts remain open under this task.
+  content identities have been refreshed. The retained structural slice now
+  reconstructs complete place and content-entry-claim catalogs plus structural
+  call arity, roots and paths, resolved types, source/destination access,
+  overlap, multiplicity, qualifications, results, internal claim transfers,
+  and boundary requirement/completion correspondence. Full structural
+  type/domain/content-projection graph validation, path-sensitive availability
+  of operation-result and local roots, exact payloadless-callee classification,
+  and the remaining crash/requirement/effect vocabulary remain open.
 
 - **OPT-ANALYSIS-MANAGER.** Add deterministic revision-keyed analysis caching,
   dependency declaration, and precise invalidation.
@@ -1345,7 +1356,7 @@ dependency.
   non-adjacent unique-predecessor block merging in either roster direction,
   with explicit dominance/use-definition evidence, global typed substitution,
   moved-definition reconstruction, dense-effect accounting, and independent
-  replay. Candidate v20, optimization-unit identity v10, ledger v4,
+  replay. Candidate v20, optimization-unit identity v11, ledger v4,
   prephysical manifest v14, and projection validator v15 bind the current
   occurrence and function-roster replay.
 
@@ -1437,7 +1448,7 @@ dependency.
   custody accounting. Redundant provenance/fuel moves forward to the next
   co-executed node, never backward to the leader; its active obligation
   reference disappears with the node. Candidate encoding v24,
-  optimization-unit identity v10, the named v7 pass, prephysical manifest v23,
+  optimization-unit identity v11, the named v7 pass, prephysical manifest v23,
   and projection v24 bind this meaning; ledger v4 already represents the
   relocation and substitution.
 
