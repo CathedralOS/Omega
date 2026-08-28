@@ -3,10 +3,13 @@
 ; Procedure 28 is one straight-line block.  It composes permissive expect and
 ; whitespace normalization, two new_label calls, eleven exact fixed-string
 ; helpers, four label references, emit_str_body, full-Word emit_dec, a final
-; permissive expect, and an explicit zero return.  This module binds their
-; source rows to exact artifact PCs, arguments, targets and continuations, the
-; three-slot frame, every local/literal/push row, both epilogues, and the whole
-; decoded-region footprint.  The adjacent summary owns values and trace order.
+; permissive expect, and an explicit zero return.  This module binds ordinary
+; calls and the remaining distinct fixed emits to exact artifact sites.  The
+; three same-key standalone newlines instead use checker-owned cardinality,
+; lexical occurrence, centralized helper extent, and relative artifact order.
+; It also owns the three-slot frame, every local/literal/push row, both
+; epilogues, and the whole decoded-region footprint.  The adjacent summary owns
+; values and trace order.
 ;
 ; Private publication cell: 536680 = GESH.
 
@@ -70,7 +73,7 @@ gen_emit_require_call:
         call summary_require_call_site
         ret
 
-; r20=row, r21=PC.  Pin both the source emit row and its exact helper call.
+; r20=row, r21=PC. Pin one remaining distinct source emit and its helper call.
 gen_emit_require_fixed:
         mov r30, r20
         mov r31, r21
@@ -87,7 +90,51 @@ gen_emit_require_fixed:
         call exact_require_call
         ret
 
+; The three standalone newlines have one complete semantic key. Select them by
+; checker-owned lexical occurrence at exact cardinality three, validate each
+; selected helper call against the centralized synthesized-helper extent, and
+; require that the selected artifact sites retain lexical order. r20 is the
+; occurrence; return its checked event PC in r0.
+gen_emit_resolve_newline_occurrence:
+        mov r47, r20
+        imm r20, 28                   ; gen_emit procedure identity
+        imm r21, 146                  ; sole source block
+        imm r22, gen_emit_literal_newline
+        imm r23, 1
+        mov r24, r47
+        imm r25, 3                    ; exact same-key cardinality
+        call exact_nth_emit_event_identity
+        mov r31, r0
+        call exact_require_write_str_extent
+        mov r20, r31
+        mov r21, r0
+        mov r22, r31
+        imm r1, 9
+        add r22, r1
+        call exact_require_call
+        mov r0, r31
+        ret
+
+gen_emit_require_newline_occurrences:
+        imm r20, 0
+        call gen_emit_resolve_newline_occurrence
+        mov r50, r0
+        imm r20, 1
+        call gen_emit_resolve_newline_occurrence
+        jlt r50, r0, gen_emit_newline_occurrence_one_ordered
+        jmp reject
+gen_emit_newline_occurrence_one_ordered:
+        mov r50, r0
+        imm r20, 2
+        call gen_emit_resolve_newline_occurrence
+        jlt r50, r0, gen_emit_newline_occurrences_ordered
+        jmp reject
+gen_emit_newline_occurrences_ordered:
+        ret
+
 gen_emit_require_events:
+        call gen_emit_require_newline_occurrences
+
         ; Opening delimiter and normalization.
         imm r20, 198
         imm r21, 19630
@@ -125,9 +172,6 @@ gen_emit_require_events:
         imm r23, 1366
         imm r24, 19806
         call gen_emit_require_call
-        imm r20, 204
-        imm r21, 19836                ; "\n"
-        call gen_emit_require_fixed
         imm r20, 205
         imm r21, 19896                ; emit_lref(slbl)
         imm r22, 1
@@ -167,9 +211,6 @@ gen_emit_require_events:
         imm r23, 1366
         imm r24, 20260
         call gen_emit_require_call
-        imm r20, 214
-        imm r21, 20290                ; "\n"
-        call gen_emit_require_fixed
         imm r20, 215
         imm r21, 20335                ; "imm r1,"
         call gen_emit_require_fixed
@@ -180,9 +221,6 @@ gen_emit_require_events:
         call exact_proc_entry_r23
         imm r24, 20404
         call gen_emit_require_call
-        imm r20, 217
-        imm r21, 20434                ; "\n"
-        call gen_emit_require_fixed
         imm r20, 218
         imm r21, 20489                ; "call __write_str\n"
         call gen_emit_require_fixed
@@ -365,3 +403,6 @@ gen_emit_require_decoded:
 
 gen_emit_shape_ok:
         ret
+
+gen_emit_literal_newline:
+        db "\n"
