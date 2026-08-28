@@ -2,11 +2,12 @@
 
 [Lattice overview](bootstrap_lattice.md) | [Psi/Omega toolchain](omega_toolchain.md) | [Terminal Psi](../pipeline/terminal_psi.md)
 
-> **Status: WORKING CHECKER IMPLEMENTATIONS; ROOTING OPEN.** Beta and Gamma
+> **Status: ROOTED BETA CHECKER; SOUNDNESS BRIDGE OPEN.** Beta and Gamma
 > implementations accept valid certificates, reject invalid ones, and are
 > exercised by logical, equality, operational-seam, fuzz, and
-> cross-implementation gates. The current Beta checker is compiled by `bc`, so
-> it cannot be the non-circular authority that admits `bc`.
+> cross-implementation gates. The accepted Beta checker tape is constructed by
+> the Alpha-written cold compiler below `bc`; encoding and discharging the full
+> compiler-simulation/coinduction claim in its calculus remains open.
 
 The proof kernel is deliberately not a language rung. Programs do not elaborate
 through it, and it adds no stage between Gamma and Delta. It is an Alpha-owned
@@ -53,9 +54,11 @@ They are separately written implementations of a shared calculus. Shared
 positive and negative corpora, cross-checks, fuzzers, and operational seams test
 that they decide the same judgments. Agreement is evidence while the formal
 soundness bridge matures; it does not grant either implementation
-authority over artifact-specific obligation reconstruction. Before checker
-acceptance can authorize the Beta compiler, one accepted checker artifact must
-be constructed or audited independently below that compiler.
+authority over artifact-specific obligation reconstruction. The accepted
+checker artifact is reconstructed independently below `bc`. Checker acceptance
+can authorize a compiler edge only after an artifact-aware producer
+reconstructs the exact proposition and supplies a derivation in the kernel's
+supported calculus.
 
 ## Proof checking is not artifact verification
 
