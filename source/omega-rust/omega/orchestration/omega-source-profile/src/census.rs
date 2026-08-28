@@ -14,7 +14,7 @@ use psi_syntax_trees::snapshot::{
 use serde::Serialize;
 use std::collections::BTreeMap;
 
-pub const SOURCE_FEATURE_CENSUS_SCHEMA: &str = "omega.omega-source-feature-census.v2";
+pub const SOURCE_FEATURE_CENSUS_SCHEMA: &str = "omega.omega-source-feature-census.v3";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SourceFeatureCount {
@@ -34,6 +34,9 @@ pub struct SourceResourceObservation {
 pub struct SourceFeatureCensus {
     pub schema: &'static str,
     pub feature_catalog: &'static str,
+    pub source_closure_schema: &'static str,
+    pub source_closure_fingerprint: String,
+    pub package_source_closure_fingerprint: Option<String>,
     pub entry_source: String,
     pub selected_target: Option<String>,
     pub native_provider_substitution: bool,
@@ -96,6 +99,12 @@ impl Census {
         SourceFeatureCensus {
             schema: SOURCE_FEATURE_CENSUS_SCHEMA,
             feature_catalog: SOURCE_FEATURE_CATALOG,
+            source_closure_schema: snapshot.schema,
+            source_closure_fingerprint: snapshot.fingerprint().to_hex(),
+            package_source_closure_fingerprint: snapshot
+                .package_source_closure
+                .as_ref()
+                .map(|custody| custody.subject_fingerprint.clone()),
             entry_source: snapshot.entry_source.clone(),
             selected_target: snapshot.selected_target.clone(),
             native_provider_substitution: snapshot.native_provider_substitution,

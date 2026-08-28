@@ -1,5 +1,6 @@
 use omega_compiler::{
-    SourceInspectionRoot, inspect_source_closure, inspect_source_closure_with_packages,
+    PackageSourceClosureCustodySnapshot, SourceInspectionRoot, inspect_source_closure,
+    inspect_source_closure_with_packages,
 };
 use std::path::PathBuf;
 
@@ -34,6 +35,13 @@ fn main() {
 fn inspect(
     arguments: &Arguments,
 ) -> Result<omega_compiler::SourceClosureSnapshot, Vec<psi_diagnostics::Diagnostic>> {
+    inspect_with_cache(arguments, local_source_cache_root())
+}
+
+fn inspect_with_cache(
+    arguments: &Arguments,
+    source_cache_root: PathBuf,
+) -> Result<omega_compiler::SourceClosureSnapshot, Vec<psi_diagnostics::Diagnostic>> {
     let project_root = arguments
         .root_path
         .parent()
@@ -47,21 +55,6 @@ fn inspect(
             !arguments.semantic_only,
         );
     }
-    let dependencies =
-        omega_packages::extract_dependency_projection(project_root).map_err(|error| {
-            vec![psi_diagnostics::Diagnostic::error(format!(
-                "cannot project inspected dependencies: {error}"
-            ))]
-        })?;
-    if dependencies.is_empty() {
-        return inspect_source_closure(
-            &arguments.repository_root,
-            &arguments.root_path,
-            arguments.target_name.as_deref(),
-            !arguments.semantic_only,
-        );
-    }
-
     let entry_relative = arguments
         .root_path
         .strip_prefix(project_root)
@@ -76,7 +69,7 @@ fn inspect(
     let closure = omega_packages::resolve_external_local_project_closure(
         project_root,
         omega_packages::ExternalSourceContext::derive(b"omega-source-inspection-v1"),
-        local_source_cache_root(),
+        source_cache_root,
         omega_packages::LocalSourceLimits::default(),
         omega_packages::PackageSourceClosureLimits::default(),
     )
@@ -96,6 +89,15 @@ fn inspect(
                 "cannot construct inspected compiler package graph: {errors:?}"
             ))]
         })?;
+    let closure_subject = omega_packages::CanonicalSourceClosureSubject::from_resolved(
+        &closure,
+        omega_packages::CanonicalSourceClosureSubjectLimits::default(),
+    )
+    .map_err(|error| {
+        vec![psi_diagnostics::Diagnostic::error(format!(
+            "cannot project inspected package closure: {error}"
+        ))]
+    })?;
     let identity_roots = closure
         .custodies()
         .iter()
@@ -109,14 +111,30 @@ fn inspect(
             _ => None,
         })
         .collect();
-    inspect_source_closure_with_packages(
+    let mut snapshot = inspect_source_closure_with_packages(
         &arguments.repository_root,
         &root_snapshot.join(entry_relative),
         arguments.target_name.as_deref(),
         !arguments.semantic_only,
         package_inputs,
         identity_roots,
-    )
+    )?;
+    snapshot.package_source_closure = Some(PackageSourceClosureCustodySnapshot {
+        subject_encoding_version: omega_packages::SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION,
+        subject_fingerprint: closure_subject.fingerprint().to_hex(),
+        canonical_subject_bytes_hex: encode_hex(closure_subject.canonical_bytes()),
+    });
+    Ok(snapshot)
+}
+
+fn encode_hex(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut output = String::with_capacity(bytes.len().saturating_mul(2));
+    for byte in bytes {
+        output.push(char::from(HEX[usize::from(byte >> 4)]));
+        output.push(char::from(HEX[usize::from(byte & 0x0f)]));
+    }
+    output
 }
 
 fn local_source_cache_root() -> PathBuf {
@@ -183,4 +201,69 @@ fn parse_arguments() -> Option<Arguments> {
         semantic_only,
         feature_census,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_root() -> PathBuf {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time follows Unix epoch")
+            .as_nanos();
+        std::env::temp_dir().join(format!(
+            "omega-source-snapshot-root-only-{}-{stamp}",
+            std::process::id()
+        ))
+    }
+
+    #[test]
+    fn root_only_application_still_retains_package_closure_custody() {
+        let root = temp_root();
+        std::fs::create_dir_all(&root).expect("create root-only application");
+        std::fs::write(
+            root.join("build.omg"),
+            concat!(
+                "machine build(builder: &mut Build) {\n",
+                "    builder.application(\"closure-observer\");\n",
+                "}\n",
+            ),
+        )
+        .expect("write root-only build entry");
+        std::fs::write(
+            root.join("main.omg"),
+            "data Main {}\nmachine Main::main(&mut self) {}\n",
+        )
+        .expect("write root-only source entry");
+        let arguments = Arguments {
+            repository_root: root.clone(),
+            root_path: root.join("main.omg"),
+            target_name: None,
+            semantic_only: true,
+            feature_census: false,
+        };
+
+        let cache = root.with_extension("cache");
+        let snapshot = inspect_with_cache(&arguments, cache.clone())
+            .expect("root-only package-aware source observation");
+
+        let custody = snapshot
+            .package_source_closure
+            .expect("declared application must retain package source custody");
+        assert_eq!(
+            custody.subject_encoding_version,
+            omega_packages::SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION
+        );
+        assert_eq!(custody.subject_fingerprint.len(), 64);
+        assert!(!custody.canonical_subject_bytes_hex.is_empty());
+        assert!(snapshot.sources.iter().any(|source| {
+            source.package_identity.is_some()
+                && source.package_relative_path.as_deref() == Some("main.omg")
+        }));
+
+        let _ = std::fs::remove_dir_all(root);
+        let _ = std::fs::remove_dir_all(cache);
+    }
 }
