@@ -202,12 +202,12 @@ fn artifacts(
         .liveness_stage()
         .selected_stage();
     let selections = selected_stage.optimized_target().optimized().selections();
+    let allocation_recovery = selections.for_phase(OptimizationExecutionPhase::AllocationRecovery);
     if !selections
         .for_phase(OptimizationExecutionPhase::SelectedLowering)
         .is_empty()
-        || !selections
-            .for_phase(OptimizationExecutionPhase::AllocationRecovery)
-            .is_empty()
+        || allocation_recovery.as_slice()
+            != [omega_optimization_core::Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1]
         || !selections
             .for_phase(OptimizationExecutionPhase::PostAllocationMachine)
             .is_empty()
@@ -293,6 +293,9 @@ fn expected_manifest(
         selections: selections.identity(),
         selected_lowering_selections: empty,
         selected_lowering_completion: None,
+        allocation_recovery_selections: selections
+            .for_phase(OptimizationExecutionPhase::AllocationRecovery)
+            .identity(),
         post_allocation_machine_selections: empty,
         function_relative_layout_selections: empty,
         pre_physical_manifest: source_custody.manifest(),
@@ -363,10 +366,8 @@ pub(crate) fn corrupt_active_resident_function_relative_exit_for_test(
 pub(crate) fn corrupt_active_resident_function_relative_manifest_for_test(
     staged: &mut StagedOptimizedActiveResidentRematerializationFunctionRelativeRealization,
 ) {
-    staged.manifest.record_mut().selected =
-        omega_terminal_selected_instructions::TerminalSelectedInstructionPlanIdentity::from_bytes(
-            [0x91; 32],
-        );
+    staged.manifest.record_mut().allocation_recovery_selections =
+        OptimizationSelections::default().identity();
 }
 
 #[cfg(test)]

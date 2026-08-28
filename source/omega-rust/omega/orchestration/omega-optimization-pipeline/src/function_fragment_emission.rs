@@ -1,7 +1,8 @@
 use omega_optimization_core::{
     FunctionFragmentEmissionManifestIdentity,
     FunctionRelativeOptimizationRealizationManifestIdentity, OptimizationSelectionIdentity,
-    PostAllocationOptimizationManifestIdentity, TerminalFunctionFragmentEmissionIdentity,
+    OptimizationSelections, PostAllocationOptimizationManifestIdentity,
+    TerminalFunctionFragmentEmissionIdentity,
 };
 use omega_regalloc::ValidatedTerminalSelectedAnalysis;
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
@@ -761,6 +762,8 @@ fn compute_from(
         || selected_plan.functions.len() != layout.functions().len()
         || source_manifest.selected != selected.selected_identity()
         || source_manifest.resolved_layout != layout.identity()
+        || source_manifest.allocation_recovery_selections
+            != OptimizationSelections::default().identity()
     {
         return Err(FunctionFragmentEmissionError::RootMismatch);
     }

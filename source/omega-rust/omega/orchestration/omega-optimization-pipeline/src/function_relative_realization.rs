@@ -49,7 +49,7 @@ use crate::{
 };
 
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGFRM\0\0";
-const MANIFEST_VERSION: u32 = 4;
+const MANIFEST_VERSION: u32 = 5;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionRelativeOptimizationRealizationStage {
@@ -86,6 +86,7 @@ pub struct FunctionRelativeOptimizationRealizationManifest {
     pub selections: OptimizationSelectionIdentity,
     pub selected_lowering_selections: OptimizationSelectionIdentity,
     pub selected_lowering_completion: Option<SelectedLoweringOptimizationCompletionIdentity>,
+    pub allocation_recovery_selections: OptimizationSelectionIdentity,
     pub post_allocation_machine_selections: OptimizationSelectionIdentity,
     pub function_relative_layout_selections: OptimizationSelectionIdentity,
     pub pre_physical_manifest: PrePhysicalOptimizationManifestIdentity,
@@ -119,7 +120,7 @@ impl FunctionRelativeOptimizationRealizationManifest {
     pub fn recomputed_identity(&self) -> FunctionRelativeOptimizationRealizationManifestIdentity {
         let mut canonical = Vec::new();
         canonical
-            .extend_from_slice(b"omega.function-relative-optimization-realization-manifest.v4\0");
+            .extend_from_slice(b"omega.function-relative-optimization-realization-manifest.v5\0");
         canonical.extend_from_slice(&encode_manifest_content(self));
         FunctionRelativeOptimizationRealizationManifestIdentity::from_canonical_bytes(&canonical)
     }
@@ -171,6 +172,8 @@ impl FunctionRelativeOptimizationRealizationManifest {
                 return Err(FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownSelectedLoweringCompletionStatus(tag));
             }
         };
+        let allocation_recovery_selections =
+            OptimizationSelectionIdentity::from_bytes(cursor.array()?);
         let post_allocation_machine_selections =
             OptimizationSelectionIdentity::from_bytes(cursor.array()?);
         let function_relative_layout_selections =
@@ -261,6 +264,7 @@ impl FunctionRelativeOptimizationRealizationManifest {
             selections,
             selected_lowering_selections,
             selected_lowering_completion,
+            allocation_recovery_selections,
             post_allocation_machine_selections,
             function_relative_layout_selections,
             pre_physical_manifest,
@@ -326,6 +330,12 @@ impl FunctionRelativeOptimizationRealizationManifest {
             .unwrap(),
             None => writeln!(output, "selected-lowering completion: not run").unwrap(),
         }
+        writeln!(
+            output,
+            "allocation-recovery suite: {}",
+            hex(&self.allocation_recovery_selections.bytes())
+        )
+        .unwrap();
         writeln!(
             output,
             "post-allocation-machine suite: {}",
@@ -1913,6 +1923,9 @@ fn expected_cbnz_manifest(
         selections: selections.identity(),
         selected_lowering_selections,
         selected_lowering_completion,
+        allocation_recovery_selections: selections
+            .for_phase(OptimizationExecutionPhase::AllocationRecovery)
+            .identity(),
         post_allocation_machine_selections: post_phase.identity(),
         function_relative_layout_selections: layout_phase.identity(),
         pre_physical_manifest,
@@ -2010,6 +2023,9 @@ fn expected_manifest(
         selections: selections.identity(),
         selected_lowering_selections,
         selected_lowering_completion: Some(completion.identity()),
+        allocation_recovery_selections: selections
+            .for_phase(OptimizationExecutionPhase::AllocationRecovery)
+            .identity(),
         post_allocation_machine_selections,
         function_relative_layout_selections,
         pre_physical_manifest: completion.source().manifest(),
@@ -2109,6 +2125,9 @@ fn expected_direct_manifest(
         selections: selections.identity(),
         selected_lowering_selections,
         selected_lowering_completion: None,
+        allocation_recovery_selections: selections
+            .for_phase(OptimizationExecutionPhase::AllocationRecovery)
+            .identity(),
         post_allocation_machine_selections,
         function_relative_layout_selections,
         pre_physical_manifest: source.manifest(),
@@ -2247,6 +2266,7 @@ fn encode_manifest_content(manifest: &FunctionRelativeOptimizationRealizationMan
         }
         None => canonical.push(0),
     }
+    canonical.extend_from_slice(&manifest.allocation_recovery_selections.bytes());
     for identity in [
         manifest.post_allocation_machine_selections.bytes(),
         manifest.function_relative_layout_selections.bytes(),

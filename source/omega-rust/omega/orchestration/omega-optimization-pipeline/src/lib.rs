@@ -80,6 +80,7 @@ pub use active_resident_selected_form_encoding::{
 pub use allocation_legality::{
     OptimizedAllocationLegalityCustodyError, StagedOptimizedAllocationLegality,
     StagedOptimizedAllocationLegalityCustodyReceipt, stage_optimized_allocation_legality,
+    stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1,
     stage_optimized_allocation_legality_for_frameless_leaf,
     stage_optimized_allocation_legality_with_availability,
     validate_optimized_allocation_legality_custody,
@@ -1794,7 +1795,10 @@ mod tests {
     ) -> StagedOptimizedSelectedInstructions {
         staged_active_resident_exact_add_chain_with_selections(
             target,
-            OptimizationSelections::new([Optimization::CopyPropagation]).unwrap(),
+            OptimizationSelections::new([
+                Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
+            ])
+            .unwrap(),
         )
     }
 
@@ -1821,7 +1825,10 @@ mod tests {
     ) -> StagedOptimizedAllocationLegality {
         staged_active_resident_two_view_legality_with_selections(
             target,
-            OptimizationSelections::new([Optimization::CopyPropagation]).unwrap(),
+            OptimizationSelections::new([
+                Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
+            ])
+            .unwrap(),
         )
     }
 
@@ -1836,29 +1843,8 @@ mod tests {
             .unwrap(),
         )
         .unwrap();
-        let environment = ranges
-            .liveness_stage()
-            .selected_stage()
-            .register_environment();
-        let names = match target.architecture {
-            omega_target::Architecture::X86_64 => ["rax", "rcx"],
-            omega_target::Architecture::Aarch64 => ["x0", "x1"],
-        };
-        let views = names
-            .into_iter()
-            .map(|name| environment.physical().model().view_named(name).unwrap().id)
-            .collect();
-        let availability = materialize_terminal_allocator_availability(
-            environment.identity(),
-            environment.target(),
-            environment.physical(),
-            environment.constraints(),
-            environment.reservations(),
-            environment.allocation_constraint_keys(),
-            TerminalAllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 { views },
-        )
-        .unwrap();
-        stage_optimized_allocation_legality_with_availability(ranges, availability).unwrap()
+        stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1(ranges)
+            .unwrap()
     }
 
     fn staged_active_resident_rematerialization_and_machine(
@@ -6160,12 +6146,15 @@ mod tests {
             let empty = OptimizationSelections::default().identity();
             assert_eq!(
                 manifest.selections,
-                OptimizationSelections::new([Optimization::CopyPropagation])
-                    .unwrap()
-                    .identity()
+                OptimizationSelections::new([
+                    Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
+                ])
+                .unwrap()
+                .identity()
             );
             assert_eq!(manifest.selected_lowering_selections, empty);
             assert_eq!(manifest.selected_lowering_completion, None);
+            assert_eq!(manifest.allocation_recovery_selections, manifest.selections);
             assert_eq!(manifest.post_allocation_machine_selections, empty);
             assert_eq!(manifest.function_relative_layout_selections, empty);
             assert_eq!(
@@ -6325,8 +6314,11 @@ mod tests {
             Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
             Optimization::X86RelaxConditionalBranchesToRel8V1,
         ] {
-            let selections =
-                OptimizationSelections::new([Optimization::CopyPropagation, later]).unwrap();
+            let selections = OptimizationSelections::new([
+                Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
+                later,
+            ])
+            .unwrap();
             let source = staged_active_resident_resolved_layout_with_selections(
                 NativeTarget::linux_x64(),
                 selections,
@@ -7530,12 +7522,12 @@ mod tests {
                 Err(FunctionRelativeOptimizationRealizationManifestDecodeError::WrongMagic)
             );
             let mut wrong_version = encoded.clone();
-            wrong_version[8..12].copy_from_slice(&5_u32.to_le_bytes());
+            wrong_version[8..12].copy_from_slice(&6_u32.to_le_bytes());
             assert_eq!(
                 FunctionRelativeOptimizationRealizationManifest::decode(&wrong_version),
                 Err(
                     FunctionRelativeOptimizationRealizationManifestDecodeError::UnsupportedVersion(
-                        5
+                        6
                     )
                 )
             );
@@ -7564,7 +7556,7 @@ mod tests {
             let content_offset = 8 + 4 + 32;
             let selected_lowering_completion_status_offset = content_offset + 1 + 2 * 32;
             let x86_branch_relaxation_status_offset =
-                selected_lowering_completion_status_offset + 1 + 32 + 11 * 32;
+                selected_lowering_completion_status_offset + 1 + 32 + 12 * 32;
             let aarch64_cbnz_fusion_status_offset = x86_branch_relaxation_status_offset + 1;
             let mut unknown_stage = encoded.clone();
             unknown_stage[content_offset] = 9;
@@ -8021,6 +8013,117 @@ mod tests {
                 .unwrap(),
                 machine.custody()
             );
+        }
+    }
+
+    #[test]
+    fn compiler_facing_physical_pipeline_runs_only_the_named_active_resident_rematerialization() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let (semantic, proof) = conditional_active_resident_exact_add_chain_artifact();
+            let selections = OptimizationSelections::new([
+                Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
+            ])
+            .unwrap();
+            let optimized = optimize_artifact_sections(
+                &semantic,
+                &proof,
+                &AdmissionProfile::default(),
+                ExplicitOptimizationRequest::new(selections.clone(), selected_lowering_budget())
+                    .unwrap(),
+            )
+            .unwrap();
+            let staged = stage_optimized_verified_physical_pipeline_with_provider_executions(
+                optimized,
+                target,
+                &[],
+            )
+            .unwrap();
+            let StagedOptimizedVerifiedPhysicalPipeline::ActiveResidentRematerialization {
+                realization,
+            } = &staged
+            else {
+                panic!("the exact rematerialization selection must use its owning realization")
+            };
+            let rematerialization = realization.source().pre_layout().source();
+            let manifest = realization.manifest().record();
+            let empty = OptimizationSelections::default().identity();
+            assert_eq!(staged.selections(), selections.identity());
+            assert_eq!(staged.selected_lowering_completion(), None);
+            assert!(staged.function_relative_realization().is_none());
+            assert_eq!(
+                staged
+                    .active_resident_rematerialization_function_relative_realization()
+                    .unwrap()
+                    .custody(),
+                realization.custody()
+            );
+            assert_eq!(
+                staged.function_relative_manifest(),
+                Some(realization.manifest())
+            );
+            assert!(staged.post_allocation_machine_optimization().is_none());
+            assert_eq!(
+                manifest.allocation_recovery_selections,
+                selections.identity()
+            );
+            assert_eq!(manifest.selected_lowering_selections, empty);
+            assert_eq!(manifest.post_allocation_machine_selections, empty);
+            assert_eq!(manifest.function_relative_layout_selections, empty);
+            assert_eq!(manifest.selected_lowering_completion, None);
+            assert_eq!(rematerialization.custody().applied_count(), 1);
+            assert_eq!(rematerialization.custody().rewritten_use_count(), 2);
+            assert_eq!(
+                staged
+                    .post_allocation_manifest()
+                    .record()
+                    .selected_transformations,
+                [
+                    PostAllocationSelectedTransformation::PressureRematerialization(
+                        rematerialization.rematerialization().receipt().identity(),
+                    )
+                ]
+            );
+            assert_eq!(
+                staged.machine().machine().receipt().selected(),
+                manifest.selected
+            );
+            assert_eq!(
+                manifest.publication,
+                FunctionRelativeOptimizationUnavailableData::Unavailable
+            );
+        }
+    }
+
+    #[test]
+    fn allocation_recovery_compositions_reject_instead_of_dispatching_a_hidden_policy() {
+        let (semantic, proof) = conditional_active_resident_exact_add_chain_artifact();
+        for selections in [
+            OptimizationSelections::new([
+                Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
+                Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
+            ])
+            .unwrap(),
+            OptimizationSelections::new([
+                Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
+                Optimization::SelectedIncomingU12ExactAddImmediate,
+            ])
+            .unwrap(),
+        ] {
+            let optimized = optimize_artifact_sections(
+                &semantic,
+                &proof,
+                &AdmissionProfile::default(),
+                ExplicitOptimizationRequest::new(selections, selected_lowering_budget()).unwrap(),
+            )
+            .unwrap();
+            assert!(matches!(
+                stage_optimized_verified_physical_pipeline_with_provider_executions(
+                    optimized,
+                    NativeTarget::linux_x64(),
+                    &[],
+                ),
+                Err(OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition)
+            ));
         }
     }
 
