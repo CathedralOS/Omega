@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import platform
 import struct
@@ -10,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 import lower_rooted_artifact_custody_v1 as custody
@@ -19,6 +21,56 @@ from publication_support_test import POSITIVE_ASSEMBLY
 
 
 HERE = Path(__file__).resolve().parent
+
+
+class ObservedPath:
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self.opens = 0
+
+    def open(self, mode: str):
+        self.opens += 1
+        return self.path.open(mode)
+
+    def stat(self):
+        return self.path.stat()
+
+
+class MutatingStream:
+    def __init__(self, path: Path, mutate) -> None:
+        self.stream = path.open("rb")
+        self.mutate = mutate
+        self.mutated = False
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, kind, value, traceback) -> None:
+        self.stream.close()
+
+    def fileno(self) -> int:
+        return self.stream.fileno()
+
+    def read(self, extent: int) -> bytes:
+        raw = self.stream.read(extent)
+        if not self.mutated:
+            self.mutated = True
+            self.mutate()
+        return raw
+
+
+class MutatingPath:
+    def __init__(self, path: Path, mutate) -> None:
+        self.path = path
+        self.mutate = mutate
+
+    def open(self, mode: str):
+        if mode != "rb":
+            raise AssertionError("bounded snapshot mode")
+        return MutatingStream(self.path, self.mutate)
+
+    def stat(self):
+        return self.path.stat()
 
 
 def padded_command(command: int, prefix: bytes, text: bytes) -> bytes:
@@ -211,6 +263,86 @@ class ArtifactCustodyTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, self.evidence.observation.read_bytes())
 
+    def test_bounded_identity_ceiling_is_inclusive(self) -> None:
+        path = self.evidence.stdout
+        with path.open("wb") as stream:
+            stream.truncate(custody.MAX_DOCUMENT)
+        identity = custody.file_identity(path, "bounded_document", custody.MAX_DOCUMENT)
+        self.assertEqual(identity["byte_length"], custody.MAX_DOCUMENT)
+
+        with path.open("r+b") as stream:
+            stream.truncate(custody.MAX_DOCUMENT + 1)
+        with self.assertRaises(custody.CustodyResourceError):
+            custody.file_identity(path, "bounded_document", custody.MAX_DOCUMENT)
+
+    def test_bounded_read_rejects_growth(self) -> None:
+        path = self.evidence.stdout
+        path.write_bytes(b"1234567")
+
+        def grow() -> None:
+            with path.open("ab") as stream:
+                stream.write(b"8")
+
+        with self.assertRaisesRegex(custody.CustodyError, "changed while reading"):
+            custody.bounded_read(MutatingPath(path, grow), "growing input", 8)
+
+    def test_bounded_read_rejects_path_replacement(self) -> None:
+        path = self.evidence.stdout
+        path.write_bytes(b"same bytes")
+        original_inode = path.stat().st_ino
+
+        def replace() -> None:
+            replacement = path.with_name("replacement")
+            replacement.write_bytes(b"same bytes")
+            replacement.replace(path)
+
+        with self.assertRaisesRegex(custody.CustodyError, "path changed while reading"):
+            custody.bounded_read(MutatingPath(path, replace), "replaced input", 32)
+        self.assertNotEqual(path.stat().st_ino, original_inode)
+
+    def test_observation_validates_and_identifies_the_same_snapshots(self) -> None:
+        assembly = ObservedPath(self.evidence.assembly)
+        artifact = ObservedPath(self.evidence.artifact)
+        seen_assembly: list[bytes] = []
+        seen_artifact: list[bytes] = []
+        validate_assembly = custody.support.validate_darwin_arm64_assembly
+        validate_artifact = custody.validate_macho
+
+        def capture_assembly(raw: bytes) -> None:
+            seen_assembly.append(raw)
+            validate_assembly(raw)
+
+        def capture_artifact(raw: bytes) -> dict:
+            seen_artifact.append(raw)
+            return validate_artifact(raw)
+
+        with (
+            mock.patch.object(
+                custody.support, "validate_darwin_arm64_assembly",
+                side_effect=capture_assembly,
+            ),
+            mock.patch.object(custody, "validate_macho", side_effect=capture_artifact),
+        ):
+            observation = custody.make_observation(
+                0, 23, assembly, artifact, self.evidence.stdout,
+                self.evidence.stderr, self.evidence.clang, self.evidence.linker,
+                self.evidence.sdk_settings, self.evidence.libsystem,
+                self.evidence.runtime,
+            )
+
+        self.assertEqual(assembly.opens, 1)
+        self.assertEqual(artifact.opens, 1)
+        self.assertEqual(len(seen_assembly), 1)
+        self.assertEqual(len(seen_artifact), 1)
+        self.assertEqual(
+            observation["assembly"]["sha256"],
+            hashlib.sha256(seen_assembly[0]).hexdigest(),
+        )
+        self.assertEqual(
+            observation["artifact"]["sha256"],
+            hashlib.sha256(seen_artifact[0]).hexdigest(),
+        )
+
     def test_parent_receipt_and_assembly_cross_pairs_reject(self) -> None:
         parent = json.loads(self.evidence.assembly_evidence.receipt.read_bytes())
         parent["receipt_sha256"] = "0" * 64
@@ -342,6 +474,15 @@ class ArtifactCustodyTests(unittest.TestCase):
             )
         with self.assertRaises(custody.CustodyResourceError):
             custody.validate_macho(b"x" * (custody.MAX_ARTIFACT_BYTES + 1))
+        with self.evidence.artifact.open("r+b") as stream:
+            stream.truncate(custody.MAX_ARTIFACT_BYTES + 1)
+        self.assert_rejects(
+            252, "observe", "0", "23", str(self.evidence.assembly),
+            str(self.evidence.artifact), str(self.evidence.stdout),
+            str(self.evidence.stderr), str(self.evidence.clang),
+            str(self.evidence.linker), str(self.evidence.sdk_settings),
+            str(self.evidence.libsystem), str(self.evidence.runtime),
+        )
 
     @unittest.skipUnless(platform.system() == "Darwin" and platform.machine() == "arm64", "Darwin arm64 integration")
     def test_command_profile_builds_a_real_unsigned_macho(self) -> None:

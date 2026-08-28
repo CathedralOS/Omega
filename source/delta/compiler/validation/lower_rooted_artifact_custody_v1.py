@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import struct
 import sys
 from pathlib import Path
@@ -117,10 +118,38 @@ def canonical_json(value: object, *, pretty: bool) -> bytes:
     return json.dumps(value, separators=(",", ":"), **options).encode()
 
 
-def load_json(path: Path, context: str) -> dict:
-    raw = path.read_bytes()
-    if len(raw) > MAX_DOCUMENT:
+def bounded_read(path: Path, context: str, limit: int) -> bytes:
+    """Capture one limited path without separating extent, bytes, or identity."""
+
+    with path.open("rb") as stream:
+        before = os.fstat(stream.fileno())
+        if before.st_size > limit:
+            resource(f"{context} byte ceiling")
+        raw = stream.read(min(before.st_size + 1, limit + 1))
+        after = os.fstat(stream.fileno())
+    if len(raw) > limit or after.st_size > limit:
         resource(f"{context} byte ceiling")
+    if (
+        before.st_dev != after.st_dev
+        or before.st_ino != after.st_ino
+        or before.st_size != after.st_size
+        or len(raw) != after.st_size
+    ):
+        fail(f"{context} changed while reading")
+    current = path.stat()
+    if current.st_size > limit:
+        resource(f"{context} byte ceiling")
+    if (
+        current.st_dev != after.st_dev
+        or current.st_ino != after.st_ino
+        or current.st_size != after.st_size
+    ):
+        fail(f"{context} path changed while reading")
+    return raw
+
+
+def load_json(path: Path, context: str) -> dict:
+    raw = bounded_read(path, context, MAX_DOCUMENT)
     try:
         value = json.loads(raw)
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
@@ -136,15 +165,16 @@ def strict(value: object, keys: set[str], context: str) -> dict:
     return value
 
 
-def file_identity(path: Path, role: str, limit: int | None = None) -> dict:
-    raw = path.read_bytes()
-    if limit is not None and len(raw) > limit:
-        resource(f"{role} byte ceiling")
+def bytes_identity(raw: bytes, role: str) -> dict:
     return {
         "byte_length": len(raw),
         "role": role,
         "sha256": hashlib.sha256(raw).hexdigest(),
     }
+
+
+def file_identity(path: Path, role: str, limit: int) -> dict:
+    return bytes_identity(bounded_read(path, role, limit), role)
 
 
 def empty_file(path: Path, role: str) -> dict:
@@ -529,19 +559,23 @@ def make_observation(
     compiler_runtime: Path,
 ) -> dict:
     validate_status_elapsed(status, elapsed_ms)
-    assembly_identity = file_identity(
-        assembly, "darwin_arm64_assembly_stdout", support.MAX_ASSEMBLY_BYTES
+    assembly_role = "darwin_arm64_assembly_stdout"
+    assembly_raw = bounded_read(
+        assembly, assembly_role, support.MAX_ASSEMBLY_BYTES
     )
+    assembly_identity = bytes_identity(assembly_raw, assembly_role)
     try:
-        support.validate_darwin_arm64_assembly(assembly.read_bytes())
+        support.validate_darwin_arm64_assembly(assembly_raw)
     except support.PublicationSupportResourceError as error:
         raise CustodyResourceError(str(error)) from error
     except support.PublicationSupportError as error:
         fail(str(error))
-    artifact_raw = artifact.read_bytes()
+    artifact_role = "unsigned_darwin_arm64_macho_executable"
+    artifact_raw = bounded_read(artifact, artifact_role, MAX_ARTIFACT_BYTES)
+    artifact_identity = bytes_identity(artifact_raw, artifact_role)
     target = validate_macho(artifact_raw)
     return {
-        "artifact": file_identity(artifact, "unsigned_darwin_arm64_macho_executable", MAX_ARTIFACT_BYTES),
+        "artifact": artifact_identity,
         "assembly": assembly_identity,
         "command_profile": COMMAND_PROFILE,
         "elapsed_milliseconds": elapsed_ms,
@@ -585,7 +619,7 @@ def receipt_digest(receipt: dict) -> str:
 
 
 def rederive_assembly_receipt(receipt_path: Path, join_arguments: list[str]) -> dict:
-    candidate = assembly_publication.load_json(receipt_path, "assembly receipt")
+    candidate = load_json(receipt_path, "assembly receipt")
     expected = assembly_publication.make_receipt(
         *assembly_publication.parse_join(join_arguments)
     )
