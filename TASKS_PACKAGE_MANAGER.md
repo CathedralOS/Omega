@@ -208,11 +208,12 @@ complete.
   also runs in a fresh Unix process group or Windows Job Object. Every exit
   path attempts termination, preventing ordinary helper/SSH descendants from
   surviving or holding capture pipes open in tested cases; overflow or timeout
-  rejects once cleanup returns. Cleanup and reaping receive a separate bounded
-  two-second deadline. A whole-resolution budget permits at most 64 launches,
-  independent of package file count, and ten minutes of ordinary elapsed
-  execution, including bounded cache-lock acquisition, and passes only the
-  smaller remaining interval to each command. Cleanup failure outranks ordinary
+  rejects once cleanup returns. Each command reserves cleanup and reaping inside
+  its existing deadline, capped at two seconds and one quarter of a smaller
+  budget. A whole-resolution budget permits at most 64 launches, independent of package
+  file count, and ten minutes of ordinary elapsed execution, including bounded
+  cache-lock acquisition, and passes only the smaller remaining interval to
+  each command. Cleanup failure outranks ordinary
   budget expiry; on Unix only `ESRCH`, not `EPERM`, proves that a process group
   is absent. One
   exactly framed `cat-file --batch` launch reads all validated blobs in tree
@@ -272,9 +273,10 @@ complete.
     retains only the existing process container. No backend yet enforces
     process-count, aggregate descendant CPU/memory, or during-write object-store
     ceilings. Process-container cleanup contains ordinary descendants but
-    not a hostile Unix process that deliberately changes session; its separate
-    two-second allowance means neither command nor whole-resolution timeout is
-    a strict wall-clock guarantee. Post-helper logical resident ceilings can
+    not a hostile Unix process that deliberately changes session. Cleanup is
+    now reserved within command and whole-resolution deadlines, but host
+    scheduling and uninterruptible kernel work still prevent a hard wall-clock
+    guarantee. Post-helper logical resident ceilings can
     reject oversized custody but cannot prevent temporary disk exhaustion;
   - SSH uses a content-observed absolute client and compiler-owned CONNECT
     companion with Unix custody checks, user configuration disabled, batch
@@ -991,6 +993,17 @@ complete.
   phase; SSH discovery/fetch deliberately remain `Unavailable` and broad pending
   OWNER Q16. Native policy schema 12 and Git cache policy v25 prevent reuse of
   HTTPS state fetched under broad metadata authority.
+
+  Follow-up 2026-08-28: bounded Git commands now reserve process-container
+  cleanup inside the command's existing deadline instead of granting cleanup a
+  separate two-second extension. Ordinary budgets reserve at most two seconds;
+  budgets below eight seconds reserve one quarter, preserving execution and
+  cleanup time. Every early failure, output overflow, timeout, normal parent exit, and
+  descendant-pipe path shares the same absolute deadline. Timeout/descendant
+  canaries pass, and all 159 source-resolver tests remain green. Git cache policy
+  v26 prevents reuse of state produced under the compiler-authored deadline
+  extension. This removes that known overrun but does not claim a hard kernel
+  wall-clock guarantee under scheduling stalls or uninterruptible operations.
 
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build

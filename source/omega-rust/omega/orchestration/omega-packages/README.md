@@ -383,10 +383,10 @@ as the parent Git executable and are rechecked around every launch and at
 completion. On macOS that floor also reads native extended ACLs for invocation
 entries, canonical targets, and every ancestor; any allow entry rejects even
 when ordinary mode bits appear safe. Deny-only entries do not broaden custody,
-and an unreadable ACL fails closed. Cache policy v25 separates entries
+and an unreadable ACL fails closed. Cache policy v26 separates entries
 predating this transport-executable, cumulative-output, endpoint-brokerage,
 network-transfer, nonnetwork descendant-denial, content-read, and nonnetwork-
-metadata/HTTPS-network-metadata floor. HTTPS receives
+metadata/HTTPS-network-metadata/deadline floor. HTTPS receives
 an exact command-scoped proxy. SSH uses the separately
 custodied `omega-resolver-connect` companion as a fixed ProxyCommand; compiler-
 authored environment fields carry the broker and normalized target without
@@ -404,9 +404,11 @@ does not prevent direct egress on an unconfining backend.
 Validated blobs use
 one exactly framed `cat-file --batch` launch; blob payloads are shared ranges
 over that bounded response and released before staged-source revalidation.
-Cleanup/reaping has a separate two-second
-deadline; the combined operation is therefore not a strict ten-minute
-wall-clock bound.
+Each command reserves cleanup/reaping within its existing deadline: at most two
+seconds for ordinary budgets and one quarter of a smaller budget. Cleanup
+therefore no longer receives a compiler-authored extension beyond either the
+command or whole-resolution interval. Host scheduling and uninterruptible
+kernel work are still not a hard wall-clock guarantee.
 Git, workspace-member, and external-local resolution now bind those pieces into
 a `ResolvedPackageSource`: declaration and identity come from the immutable
 snapshot and canonical source lineage, and canonical literal dependency rows
