@@ -15,8 +15,12 @@ on rejection. No artifact extent or digest is frozen before those executions.
 The join reconstructs `delta.compiler.current.v1`'s exact canonical LF image.
 It binds exact bytes for:
 
-- the Alpha-written assembler source and supplied deterministic persisted
-  assembler tape, under role `canonical_alpha_written_assembler_artifact`;
+- the written Alpha VM semantics, hand-authored macOS-arm64 VM source,
+  committed audited host seed, and tape-stamping source under role
+  `audited_alpha_macos_arm64_host_seed`;
+- the Alpha-written assembler source, committed host artifact, and supplied
+  deterministic persisted assembler tape, under role
+  `canonical_alpha_written_assembler_artifact`;
 - `bc.beta` and the repository's persisted fixed-point `bc.tape`, under role
   `persisted_alpha_rooted_beta_compiler_fixed_point`;
 - `omega2gamma.beta` and its Beta-built Alpha tape;
@@ -24,9 +28,12 @@ It binds exact bytes for:
 - the canonical packed-input encoder and structured-output decoder sources.
 
 The two construction roles refer to the already-established Alpha/Beta
-publication boundaries. This receipt rebinds their exact source/tape bytes; it
-does not claim to re-prove those boundaries or infer tool correctness from a
-hash.
+publication boundaries. This receipt rebinds the exact host-seed semantics,
+source, committed binary, and their source/tape inputs; it does not claim to
+re-prove those boundaries or infer tool correctness from a hash. Ad-hoc signing
+of stamped staging executables remains OS installation metadata. The committed
+host seed is the stable Alpha-boundary identity; the deterministic tape bytes
+are the identity of each program stamped into it.
 
 One canonical elaboration observation records status zero, empty diagnostics,
 the exact source image, toolchain, and emitted Gamma template. That observation
@@ -81,6 +88,17 @@ The raw structured Gamma observation is bounded at 256 MiB because it renders
 the byte list structurally. Assembly retains the separate 16 MiB, 500,000-line,
 512-byte-line validator profile. Malformed/cross-paired evidence returns 251;
 resource overflow returns 252. Rejection publishes no stdout bytes.
+
+The assembly profile is the bounded spelling emitted by the canonical
+`lowermachine.alp`, not a general AArch64 assembler grammar. In particular, its
+four-operand arithmetic forms are immediate `lsl #12` and the full-width array
+address form `add Xd, Xn, Xm, lsl #3`. Standalone register shifts preserve one
+register width; the emitted sign-fill immediates are exactly `asr Wd, Wn, #31`
+and `asr Xd, Xn, #63`; compare-immediate uses `lsl #12`, while wide-immediate
+moves use `lsl #16`. Other shifted-register arithmetic, mixed-width shifts, and
+neighboring shift amounts are outside this profile and reject. These syntax
+constraints describe artifact validation only and add no Delta language
+decision.
 
 ## Receipt
 
