@@ -3,7 +3,7 @@
 use psi_diagnostics::Diagnostic;
 use psi_symbols::SymbolHandle;
 
-pub(super) fn check_boundary_provider_approval(
+pub fn check_boundary_provider_approval(
     checked: &psi_checked_trees::CheckedTrees,
 ) -> Result<(), Vec<Diagnostic>> {
     let program = &checked.typed;

@@ -65,7 +65,7 @@ struct BoundaryValueField {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct MaterializedBoundarySignature {
+pub struct MaterializedBoundarySignature {
     shapes: Vec<BoundaryValueShape>,
     fields: Vec<BoundaryValueField>,
     parameters: Vec<u16>,
@@ -76,22 +76,22 @@ pub(crate) struct MaterializedBoundarySignature {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct BoundaryNativeParameter {
+pub struct BoundaryNativeParameter {
     identity: NativeParameterId,
     layout_data_symbol: psi_symbols::SymbolHandle,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct BoundaryCallbackBinder {
-    pub(crate) binder: StaticMachineBinderId,
-    pub(crate) requirement: CallbackRequirementId,
-    pub(crate) static_machine_ordinal: u32,
-    pub(crate) parameter_symbol: psi_symbols::SymbolHandle,
-    pub(crate) requirement_trait: psi_symbols::SymbolHandle,
-    pub(crate) requirement_machine: psi_symbols::SymbolHandle,
+pub struct BoundaryCallbackBinder {
+    pub binder: StaticMachineBinderId,
+    pub requirement: CallbackRequirementId,
+    pub static_machine_ordinal: u32,
+    pub parameter_symbol: psi_symbols::SymbolHandle,
+    pub requirement_trait: psi_symbols::SymbolHandle,
+    pub requirement_machine: psi_symbols::SymbolHandle,
 }
 
-pub(crate) fn evaluate_compatibility_boundary_entry_plan(
+pub fn evaluate_compatibility_boundary_entry_plan(
     typed: &TypedTrees,
     trait_name: &str,
     method_name: &str,
@@ -236,19 +236,19 @@ fn classified_boundary_shape(
 /// register, and stack choices stay beside the native/provider pipeline that
 /// consumes them.
 #[derive(Debug, Clone)]
-pub(crate) struct BoundaryCallingPlanRealization {
-    pub(crate) boundary_trait: psi_symbols::SymbolHandle,
-    pub(crate) boundary_arguments: Vec<TypeReferenceHandle>,
-    pub(crate) requirement_machine: psi_symbols::SymbolHandle,
-    pub(crate) fingerprint: u64,
-    pub(crate) boundary_entry_plan: BoundaryEntryPlan,
-    pub(crate) callback_binders: Vec<BoundaryCallbackBinder>,
-    pub(crate) callback_demands: Vec<NativeCallbackDemand>,
-    pub(crate) callback_context_closed: bool,
-    pub(crate) native_parameters: Vec<BoundaryNativeParameter>,
-    pub(crate) materialized_signature: MaterializedBoundarySignature,
-    pub(crate) policy_machine: String,
-    pub(crate) relationship_span: psi_source::SourceSpan,
+pub struct BoundaryCallingPlanRealization {
+    pub boundary_trait: psi_symbols::SymbolHandle,
+    pub boundary_arguments: Vec<TypeReferenceHandle>,
+    pub requirement_machine: psi_symbols::SymbolHandle,
+    pub fingerprint: u64,
+    pub boundary_entry_plan: BoundaryEntryPlan,
+    pub callback_binders: Vec<BoundaryCallbackBinder>,
+    pub callback_demands: Vec<NativeCallbackDemand>,
+    pub callback_context_closed: bool,
+    pub native_parameters: Vec<BoundaryNativeParameter>,
+    pub materialized_signature: MaterializedBoundarySignature,
+    pub policy_machine: String,
+    pub relationship_span: psi_source::SourceSpan,
 }
 
 fn validate_retained_callback_binders(
@@ -282,7 +282,7 @@ fn validate_retained_callback_binders(
 /// realization that produced its retained fingerprint. This runs before any
 /// backend lowering so a missing, duplicated, or changed placement recipe
 /// cannot silently fall back to a convention oracle.
-pub(crate) fn validate_nominal_callback_placement_bindings(
+pub fn validate_nominal_callback_placement_bindings(
     checked: &psi_checked_trees::CheckedTrees,
     realizations: &[BoundaryCallingPlanRealization],
 ) -> Result<Vec<omega_backend_plan::BoundNominalCallbackPlacement>, Vec<Diagnostic>> {
@@ -555,9 +555,9 @@ fn bound_private_callback_materialization(
 /// Discover concrete `Calling<C>` relationships, evaluate `C::plan` once for
 /// every method in the boundary service surface, and retain only canonical
 /// evaluated identities on the typed program.
-pub(crate) fn compute_boundary_calling_plans(
+pub fn compute_boundary_calling_plans(
     typed: &mut TypedTrees,
-    package_inputs: Option<&crate::pipeline::PackageCompilationInputs>,
+    package_inputs: Option<&omega_package_compilation::PackageCompilationInputs>,
 ) -> Result<Vec<BoundaryCallingPlanRealization>, Vec<Diagnostic>> {
     let Some(calling_policy_trait) = typed
         .traits()
@@ -760,11 +760,11 @@ pub(crate) fn compute_boundary_calling_plans(
 /// Re-evaluate outbound registrar policies only after the checked native
 /// layout pipeline has published its authoritative private-demand catalog.
 /// The target-neutral typed reports are deliberately not consulted here.
-pub(crate) fn close_outbound_callback_materializations(
+pub fn close_outbound_callback_materializations(
     checked: &mut psi_checked_trees::CheckedTrees,
     realizations: &mut [BoundaryCallingPlanRealization],
     native_target: NativeTarget,
-    package_inputs: Option<&crate::pipeline::PackageCompilationInputs>,
+    package_inputs: Option<&omega_package_compilation::PackageCompilationInputs>,
 ) -> Result<(), Vec<Diagnostic>> {
     let layout_plan = omega_layout::build_layout_plan(checked, native_target)
         .map_err(|diagnostic| vec![diagnostic])?;
@@ -1351,11 +1351,11 @@ fn value_shape_from_type(
 /// UEFI/Microsoft program-storage source schema. A future SysV/AAPCS source
 /// schema must retain and classify its own structural graph rather than
 /// passing this fence.
-pub(crate) fn selected_program_storage_source_extent_value_layout(
+pub fn selected_program_storage_source_extent_value_layout(
     typed: &TypedTrees,
     slot: omega_target::ProgramEntrySlotDeclaration,
     type_reference: TypeReferenceHandle,
-) -> Result<super::ProgramEntrySourceExtentValueLayout, String> {
+) -> Result<omega_program_storage::ProgramEntrySourceExtentValueLayout, String> {
     if slot.owner != omega_target::TargetProfile::UefiX64
         || slot.schema != omega_target::ProgramEntrySchema::ProgramStorageApplication
         || slot.visible_parameters
@@ -1444,7 +1444,7 @@ pub(crate) fn selected_program_storage_source_extent_value_layout(
         }
         Ok(ValueShape::integer(child.byte_size, child.alignment))
     };
-    super::ProgramEntrySourceExtentValueLayout::from_checked_record(
+    omega_program_storage::ProgramEntrySourceExtentValueLayout::from_checked_record(
         *data_symbol,
         base.symbol,
         base_field.byte_offset,
@@ -1717,7 +1717,7 @@ fn evaluate_materialized_calling_policy_plan(
     validate_materialized_boundary_plan_result(result, signature)
 }
 
-pub(crate) fn materialized_boundary_signature_from_abi(
+pub fn materialized_boundary_signature_from_abi(
     signature: &CallSignature,
 ) -> Result<MaterializedBoundarySignature, String> {
     let mut shapes = Vec::new();
@@ -3406,71 +3406,6 @@ mod tests {
         assert!(
             error.contains("requires HomogeneousFloatAggregate"),
             "{error}"
-        );
-    }
-
-    #[test]
-    fn stored_integer_boundary_shape_uses_validated_physical_width() {
-        let main = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(
-            "../../../../../tests/canaries/pass/layouts/runtime_plan_laid_integer_at_proved_write_exit/main.omg",
-        );
-        let checked = crate::compile_to_checked(&main, None)
-            .expect("stored-integer canary should compile to checked trees");
-        let layout = checked
-            .typed
-            .plan_laid_layouts
-            .iter()
-            .find(|layout| !layout.integer_fields.is_empty())
-            .expect("canary should retain one stored-integer layout");
-        let definition = checked
-            .typed
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.symbol == layout.data_symbol)
-            .expect("stored-integer layout should name its synthesized data");
-
-        let mut visiting = Vec::new();
-        let mut shapes = Vec::new();
-        let mut fields = Vec::new();
-        let (abi, root) = plain_data_value_shape(
-            &checked.typed,
-            definition.symbol,
-            definition.name.as_str(),
-            &[],
-            &mut visiting,
-            &mut shapes,
-            &mut fields,
-        )
-        .expect("validated stored integers should be classifiable by value");
-
-        assert_eq!(abi, ValueShape::integer(1, 1));
-        let BoundaryValueClass::Record {
-            first_field,
-            field_count,
-        } = shapes[usize::from(root)].class
-        else {
-            panic!("plan-laid data should remain a record boundary shape")
-        };
-        assert_eq!(field_count, 1);
-        let field = fields[usize::from(first_field)];
-        let stored = shapes[usize::from(field.shape)];
-        assert!(matches!(stored.class, BoundaryValueClass::Integer));
-        assert_eq!(stored.byte_size, 1);
-        assert_eq!(stored.alignment, 1);
-
-        let signature = MaterializedBoundarySignature {
-            shapes,
-            fields,
-            parameters: vec![root],
-            callback_binders: Vec::new(),
-            callback_demands: Vec::new(),
-            native_parameters: Vec::new(),
-            result: None,
-        };
-        assert_eq!(
-            classified_boundary_shape(&signature, root, CallingPolicy::SystemVAMD64)
-                .expect("physical stored-integer aggregate should classify for SysV"),
-            ValueShape::integer(1, 1)
         );
     }
 }

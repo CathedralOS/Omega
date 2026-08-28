@@ -4,13 +4,14 @@ use std::sync::Arc;
 /// Transactionally binds the selected provider projection to the checked
 /// phase result that carries it into backend planning. Complete projection is
 /// staged before the retained sidecar can change.
-pub(in crate::pipeline) fn settle_compiler_external_binding_rows(
-    checked: &mut crate::pipeline::stages::CheckedProgramSurface,
+pub fn settle_external_binding_rows(
+    retained: &mut Arc<[omega_calling_conventions::ExternalBindingRow]>,
+    typed: &psi_typed_trees::TypedTrees,
     selected_target: Option<&str>,
     native_target: omega_target::NativeTarget,
     selected_plans: &[omega_effects::provider_plan::ProviderPlan],
     boundary_calling_plan_realizations: &[
-        crate::pipeline::calling_policy_plans::BoundaryCallingPlanRealization
+        crate::calling_policy_plans::BoundaryCallingPlanRealization
     ],
 ) -> Result<(), Vec<Diagnostic>> {
     let rows = extract_external_binding_rows(
@@ -18,23 +19,23 @@ pub(in crate::pipeline) fn settle_compiler_external_binding_rows(
         native_target,
         selected_plans,
         boundary_calling_plan_realizations,
-        &checked.program.typed,
+        typed,
     )?;
-    if checked.external_binding_rows.as_ref() == rows.as_slice() {
+    if retained.as_ref() == rows.as_slice() {
         return Ok(());
     }
-    checked.external_binding_rows = Arc::from(rows);
+    *retained = Arc::from(rows);
     Ok(())
 }
 
 /// Extract bodyless external leaves into the calling-convention rows consumed
 /// by the freestanding ABI builder.
-pub(in crate::pipeline) fn extract_external_binding_rows(
+pub fn extract_external_binding_rows(
     selected_target: Option<&str>,
     native_target: omega_target::NativeTarget,
     selected_plans: &[omega_effects::provider_plan::ProviderPlan],
     boundary_calling_plan_realizations: &[
-        crate::pipeline::calling_policy_plans::BoundaryCallingPlanRealization
+        crate::calling_policy_plans::BoundaryCallingPlanRealization
     ],
     typed: &psi_typed_trees::TypedTrees,
 ) -> Result<Vec<omega_calling_conventions::ExternalBindingRow>, Vec<Diagnostic>> {
@@ -119,20 +120,25 @@ pub(in crate::pipeline) fn extract_external_binding_rows(
             };
             let boundary_entry_plan = match (boundary_entry_plan, compatibility_policy) {
                 (Some(plan), _) => Some(plan),
-                (None, Some(policy)) => crate::pipeline::calling_policy_plans::evaluate_compatibility_boundary_entry_plan(
-                    typed,
-                    &plan.schema.trait_name,
-                    &row.method,
-                    &row.requirement_identity,
-                    policy,
-                    usize::from(matches!(&binding, ExternalBindingKind::TableFunction { .. })),
-                )
-                .map_err(|reason| {
-                    vec![Diagnostic::error(format!(
-                        "cannot evaluate compatibility calling plan for `{}::{}`: {reason}",
-                        plan.schema.trait_name, row.method
-                    ))]
-                })?,
+                (None, Some(policy)) => {
+                    crate::calling_policy_plans::evaluate_compatibility_boundary_entry_plan(
+                        typed,
+                        &plan.schema.trait_name,
+                        &row.method,
+                        &row.requirement_identity,
+                        policy,
+                        usize::from(matches!(
+                            &binding,
+                            ExternalBindingKind::TableFunction { .. }
+                        )),
+                    )
+                    .map_err(|reason| {
+                        vec![Diagnostic::error(format!(
+                            "cannot evaluate compatibility calling plan for `{}::{}`: {reason}",
+                            plan.schema.trait_name, row.method
+                        ))]
+                    })?
+                }
                 (None, None) => None,
             };
             rows.push(ExternalBindingRow {
@@ -160,7 +166,7 @@ pub(in crate::pipeline) fn extract_external_binding_rows(
 fn selected_source_boundary_entry_plan(
     typed: &psi_typed_trees::TypedTrees,
     boundary_calling_plan_realizations: &[
-        crate::pipeline::calling_policy_plans::BoundaryCallingPlanRealization
+        crate::calling_policy_plans::BoundaryCallingPlanRealization
     ],
     plan: &omega_effects::provider_plan::ProviderPlan,
     trait_name: &str,

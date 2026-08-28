@@ -438,11 +438,8 @@ fn package_selection(
     boundary_package: psi_core::PackageKeyIdentity,
     provider_type: &str,
     provider_package: psi_core::PackageKeyIdentity,
-) -> crate::pipeline::build_config::ProviderSelection {
-    let mut selection = crate::pipeline::build_config::ProviderSelection::exact_for_test(
-        boundary_trait,
-        provider_type,
-    );
+) -> crate::ProviderSelection {
+    let mut selection = crate::ProviderSelection::exact_for_test(boundary_trait, provider_type);
     selection.boundary_trait.package = Some(boundary_package);
     selection.provider_type.package = Some(provider_package);
     selection
@@ -1622,12 +1619,10 @@ fn explicit_selection_resolves_covering_ambiguity_by_provider_type() {
         &plans,
         omega_target::NativeTarget::host(),
         &[],
-        &[
-            crate::pipeline::build_config::ProviderSelection::exact_for_test(
-                "Pair",
-                "SecondProvider",
-            ),
-        ],
+        &[crate::ProviderSelection::exact_for_test(
+            "Pair",
+            "SecondProvider",
+        )],
     )
     .expect("the build root owns the slot choice");
     assert_eq!(
@@ -1720,12 +1715,10 @@ fn selection_does_not_fall_back_to_a_boundary_slot_leaf() {
         &[first, second],
         omega_target::NativeTarget::host(),
         &[],
-        &[
-            crate::pipeline::build_config::ProviderSelection::exact_for_test(
-                "Pick",
-                "FirstProvider",
-            ),
-        ],
+        &[crate::ProviderSelection::exact_for_test(
+            "Pick",
+            "FirstProvider",
+        )],
     )
     .expect_err("a readable leaf is not a boundary identity");
     assert!(
@@ -1746,12 +1739,10 @@ fn exact_slot_identity_does_not_select_a_qualified_same_leaf_slot() {
         &[exact, qualified],
         omega_target::NativeTarget::host(),
         &[],
-        &[
-            crate::pipeline::build_config::ProviderSelection::exact_for_test(
-                "Pair",
-                "ExactProvider",
-            ),
-        ],
+        &[crate::ProviderSelection::exact_for_test(
+            "Pair",
+            "ExactProvider",
+        )],
     )
     .expect("only the exact canonical slot participates in the declaration");
     assert_eq!(
@@ -1770,7 +1761,10 @@ fn exact_provider_identity_does_not_select_a_qualified_same_leaf_provider() {
         &[exact, qualified],
         omega_target::NativeTarget::host(),
         &[],
-        &[crate::pipeline::build_config::ProviderSelection::exact_for_test("Pair", "exact-plan")],
+        &[crate::ProviderSelection::exact_for_test(
+            "Pair",
+            "exact-plan",
+        )],
     )
     .expect("only the exact canonical provider identity matches");
     assert_eq!(
@@ -1789,14 +1783,8 @@ fn canonical_slot_resolution_catches_duplicate_selection_spellings() {
         omega_target::NativeTarget::host(),
         &[],
         &[
-            crate::pipeline::build_config::ProviderSelection::exact_for_test(
-                "package::Pick",
-                "FirstProvider",
-            ),
-            crate::pipeline::build_config::ProviderSelection::exact_for_test(
-                "package::Pick",
-                "SecondProvider",
-            ),
+            crate::ProviderSelection::exact_for_test("package::Pick", "FirstProvider"),
+            crate::ProviderSelection::exact_for_test("package::Pick", "SecondProvider"),
         ],
     )
     .expect_err("one canonical slot cannot be selected twice through aliases");
@@ -1818,12 +1806,10 @@ fn target_default_does_not_fall_back_to_a_boundary_slot_leaf() {
     let diagnostics = select_provider_plans(
         &[first, second],
         omega_target::NativeTarget::host(),
-        &[
-            crate::pipeline::build_config::ProviderSelection::exact_for_test(
-                "Pick",
-                "FirstProvider",
-            ),
-        ],
+        &[crate::ProviderSelection::exact_for_test(
+            "Pick",
+            "FirstProvider",
+        )],
         &[],
     )
     .expect_err("a target default must name one canonical slot");
@@ -1847,12 +1833,10 @@ fn explicit_selection_refuses_partial_provider() {
         &plans,
         omega_target::NativeTarget::host(),
         &[],
-        &[
-            crate::pipeline::build_config::ProviderSelection::exact_for_test(
-                "Pair",
-                "PartialProvider",
-            ),
-        ],
+        &[crate::ProviderSelection::exact_for_test(
+            "Pair",
+            "PartialProvider",
+        )],
     )
     .expect_err("selection never manufactures missing rows");
     assert!(diagnostics[0].message.contains("is partial"));
@@ -1867,12 +1851,10 @@ fn target_default_resolves_covering_ambiguity() {
     let selected = select_provider_plans(
         &plans,
         omega_target::NativeTarget::host(),
-        &[
-            crate::pipeline::build_config::ProviderSelection::exact_for_test(
-                "Pair",
-                "FirstProvider",
-            ),
-        ],
+        &[crate::ProviderSelection::exact_for_test(
+            "Pair",
+            "FirstProvider",
+        )],
         &[],
     )
     .expect("the selected target package supplies the slot default");
@@ -1887,14 +1869,8 @@ fn duplicate_exact_target_defaults_do_not_conflict() {
     let mut plan = selection_plan("package-provider", &["first"], &["first"]);
     plan.provider_type = "package::FirstProvider".to_owned();
     let defaults = [
-        crate::pipeline::build_config::ProviderSelection::exact_for_test(
-            "Pair",
-            "package::FirstProvider",
-        ),
-        crate::pipeline::build_config::ProviderSelection::exact_for_test(
-            "Pair",
-            "package::FirstProvider",
-        ),
+        crate::ProviderSelection::exact_for_test("Pair", "package::FirstProvider"),
+        crate::ProviderSelection::exact_for_test("Pair", "package::FirstProvider"),
     ];
     let selected = select_provider_plans(
         &[plan.clone()],
@@ -1942,18 +1918,14 @@ fn build_override_wins_over_target_default() {
     let selected = select_provider_plans(
         &plans,
         omega_target::NativeTarget::host(),
-        &[
-            crate::pipeline::build_config::ProviderSelection::exact_for_test(
-                "Pair",
-                "FirstProvider",
-            ),
-        ],
-        &[
-            crate::pipeline::build_config::ProviderSelection::exact_for_test(
-                "Pair",
-                "SecondProvider",
-            ),
-        ],
+        &[crate::ProviderSelection::exact_for_test(
+            "Pair",
+            "FirstProvider",
+        )],
+        &[crate::ProviderSelection::exact_for_test(
+            "Pair",
+            "SecondProvider",
+        )],
     )
     .expect("the build root owns the final slot choice");
     assert_eq!(
@@ -1972,14 +1944,8 @@ fn conflicting_target_defaults_are_loud() {
         &plans,
         omega_target::NativeTarget::host(),
         &[
-            crate::pipeline::build_config::ProviderSelection::exact_for_test(
-                "Pair",
-                "FirstProvider",
-            ),
-            crate::pipeline::build_config::ProviderSelection::exact_for_test(
-                "Pair",
-                "SecondProvider",
-            ),
+            crate::ProviderSelection::exact_for_test("Pair", "FirstProvider"),
+            crate::ProviderSelection::exact_for_test("Pair", "SecondProvider"),
         ],
         &[],
     )

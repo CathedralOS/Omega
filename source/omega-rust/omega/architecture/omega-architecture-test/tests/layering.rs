@@ -650,6 +650,58 @@ fn build_output_custody_is_not_owned_or_reexported_by_the_compiler() {
 }
 
 #[test]
+fn provider_planning_is_not_owned_by_the_compiler() {
+    let root = workspace_root();
+    let compiler = root.join("source/omega-rust/omega/orchestration/omega-compiler");
+    let retired = compiler.join("src/pipeline/provider");
+    for file in [
+        "approval.rs",
+        "calling_policy_plans.rs",
+        "component_progress.rs",
+        "plans.rs",
+        "task_plans.rs",
+    ] {
+        assert!(
+            !retired.join(file).exists(),
+            "provider-planning domain ownership must not return to omega-compiler: {file}"
+        );
+    }
+
+    let owner =
+        root.join("source/omega-rust/omega/orchestration/omega-provider-planning/src/lib.rs");
+    assert!(
+        owner.is_file(),
+        "omega-provider-planning must own provider selection and realization"
+    );
+    let manifest = std::fs::read_to_string(
+        root.join("source/omega-rust/omega/orchestration/omega-provider-planning/Cargo.toml"),
+    )
+    .expect("read provider-planning manifest");
+    assert!(
+        !manifest.contains("omega-compiler"),
+        "provider planning must consume checked inputs without depending back on the compiler coordinator"
+    );
+}
+
+#[test]
+fn program_storage_source_contracts_are_not_owned_by_the_compiler() {
+    let root = workspace_root();
+    assert!(
+        !root
+            .join("source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/program_storage/entry_source_signature.rs")
+            .exists(),
+        "program-storage source signatures must not return to omega-compiler"
+    );
+    assert!(
+        root.join(
+            "source/omega-rust/omega/orchestration/omega-program-storage/src/source_signature.rs"
+        )
+        .is_file(),
+        "omega-program-storage must own the shared source-signature contract"
+    );
+}
+
+#[test]
 fn omega_product_entry_remains_a_tiny_dispatcher() {
     let root = workspace_root();
     let entry = root.join("source/omega-rust/omega/src/main.rs");
@@ -677,9 +729,8 @@ fn provider_approval_stays_in_omega_after_psi_checking() {
         "Psi semantic checking must not perform Omega provider admission"
     );
 
-    let omega_approval = root.join(
-        "source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/provider/approval.rs",
-    );
+    let omega_approval =
+        root.join("source/omega-rust/omega/orchestration/omega-provider-planning/src/approval.rs");
     let omega_source = std::fs::read_to_string(&omega_approval)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", omega_approval.display()));
     assert!(
@@ -1071,9 +1122,8 @@ fn retained_native_product_enters_only_terminal_realization() {
 #[test]
 fn admitted_external_root_entry_fact_cannot_detach_before_body_dispatch() {
     let root = workspace_root();
-    let path = root.join(
-        "source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/provider/plans.rs",
-    );
+    let path =
+        root.join("source/omega-rust/omega/orchestration/omega-provider-planning/src/plans.rs");
     let source = std::fs::read_to_string(&path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
 

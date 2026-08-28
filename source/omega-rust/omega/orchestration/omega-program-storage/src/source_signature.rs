@@ -7,7 +7,7 @@
 //! program-storage schema it also retains the exact address-free `Extent`
 //! record graph needed to distinguish its fields from a size-only lookalike.
 
-use super::program_storage_wrapper::ProgramStorageEntryRootRole;
+use crate::ProgramStorageEntryRootRole;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProgramEntrySourceReceiverSignature {
@@ -85,7 +85,7 @@ impl ProgramEntrySourceExtentValueLayout {
         &self.fields
     }
 
-    pub(super) fn from_checked_record(
+    pub fn from_checked_record(
         data_symbol: psi_symbols::SymbolHandle,
         base_symbol: psi_symbols::SymbolHandle,
         base_offset: u16,
@@ -139,7 +139,7 @@ impl ProgramEntrySourceExtentValueLayout {
         Ok(())
     }
 
-    pub(super) fn validate_backend_layout(
+    pub fn validate_backend_layout(
         &self,
         layouts: &omega_layout::LayoutPlan,
     ) -> Result<(), String> {
@@ -262,7 +262,7 @@ pub struct SelectedProgramEntrySourceSignature {
 }
 
 impl SelectedProgramEntrySourceSignature {
-    pub(super) fn from_checked_typed_entry(
+    pub fn from_checked_typed_entry(
         target_slot: omega_target::ProgramEntrySlotDeclaration,
         machine_symbol: psi_symbols::SymbolHandle,
         state_symbol: psi_symbols::SymbolHandle,
@@ -323,7 +323,7 @@ impl SelectedProgramEntrySourceSignature {
         self.result
     }
 
-    pub(super) fn validate_program_storage_binding(
+    pub fn validate_program_storage_binding(
         &self,
         selected_slot: omega_target::ProgramEntrySlotDeclaration,
         continuation_key: omega_control_flow::StateKey,
@@ -429,7 +429,7 @@ impl SelectedProgramEntrySourceSignature {
         Ok(())
     }
 
-    pub(super) fn visible_parameter(
+    pub fn visible_parameter(
         role: ProgramStorageEntryRootRole,
         visible_parameter_index: usize,
         normalized_type_identity: String,

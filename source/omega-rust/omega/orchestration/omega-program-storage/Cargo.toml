@@ -1,0 +1,21 @@
+[package]
+name = "omega-program-storage"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_program_storage"
+path = "src/lib.rs"
+
+[dependencies]
+omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
+omega-control-flow = { path = "../../representations/omega-control-flow" }
+omega-layout = { path = "../../backend/omega-layout" }
+omega-target = { path = "../../foundation/omega-target" }
+psi-arena = { path = "../../../psi/foundation/psi-arena" }
+psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }
+psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
+
+[dev-dependencies]
+psi-typed-trees = { path = "../../../psi/representations/psi-typed-trees" }

@@ -250,8 +250,9 @@ impl LegacyDriver {
         )?;
 
         let mut checked = typed_trees_to_checked_trees(typed, &mut timings)?;
-        crate::pipeline::provider_plans::settle_compiler_external_binding_rows(
-            &mut checked,
+        crate::pipeline::provider_plans::settle_external_binding_rows(
+            &mut checked.external_binding_rows,
+            &checked.program.typed,
             self.options.target_name.as_deref(),
             selected_native_target,
             &selected_provider_plans,
@@ -332,8 +333,10 @@ impl LegacyDriver {
             &mut checked.program,
             &checked.selected_provider_plans,
         )?;
-        crate::pipeline::task_plans::settle_compiler_task_activation_plans(
-            &mut checked,
+        crate::pipeline::task_plans::settle_task_activation_plans(
+            &mut checked.task_activations,
+            &checked.program,
+            &checked.selected_provider_plans,
             selected_native_target,
         )?;
         if emit_auxiliary_artifacts {
