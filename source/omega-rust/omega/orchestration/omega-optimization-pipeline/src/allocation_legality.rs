@@ -64,6 +64,7 @@ pub struct StagedOptimizedAllocationLegalityCustodyReceipt {
     ranges: omega_regalloc::TerminalLiveRangeIdentity,
     legality: TerminalAllocationLegalityIdentity,
     function_count: usize,
+    structural_unit_function_count: usize,
     virtual_register_count: usize,
     point_count: usize,
     candidate_count: usize,
@@ -117,6 +118,9 @@ impl StagedOptimizedAllocationLegalityCustodyReceipt {
     }
     pub const fn function_count(self) -> usize {
         self.function_count
+    }
+    pub const fn structural_unit_function_count(self) -> usize {
+        self.structural_unit_function_count
     }
     pub const fn virtual_register_count(self) -> usize {
         self.virtual_register_count
@@ -404,6 +408,7 @@ fn custody_receipt(
         ranges: upstream.ranges(),
         legality: legality.identity(),
         function_count: legality.function_count(),
+        structural_unit_function_count: legality.structural_unit_function_count(),
         virtual_register_count: legality.virtual_register_count(),
         point_count: legality.point_count(),
         candidate_count: legality.candidate_count(),

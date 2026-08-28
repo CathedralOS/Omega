@@ -53,6 +53,7 @@ pub struct StagedOptimizedLiveRangeCustodyReceipt {
     liveness: omega_regalloc::TerminalLivenessIdentity,
     ranges: TerminalLiveRangeIdentity,
     function_count: usize,
+    structural_unit_function_count: usize,
     block_count: usize,
     virtual_register_count: usize,
     virtual_occurrence_count: usize,
@@ -119,6 +120,10 @@ impl StagedOptimizedLiveRangeCustodyReceipt {
 
     pub const fn function_count(self) -> usize {
         self.function_count
+    }
+
+    pub const fn structural_unit_function_count(self) -> usize {
+        self.structural_unit_function_count
     }
 
     pub const fn block_count(self) -> usize {
@@ -245,6 +250,7 @@ fn custody_receipt(
         liveness: upstream.liveness(),
         ranges: ranges.identity(),
         function_count: ranges.function_count(),
+        structural_unit_function_count: ranges.structural_unit_function_count(),
         block_count: ranges.block_count(),
         virtual_register_count: ranges.virtual_register_count(),
         virtual_occurrence_count: ranges.virtual_occurrence_count(),
