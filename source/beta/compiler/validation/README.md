@@ -106,9 +106,12 @@ swaps two valid same-block word-load PCs and rejects. `gen_expr` now uses the
 same memory-owner rejoins for its complete memory family. The synthesized
 `__write_str` helper resolves from the exact main-prelude successor and mapper
 cell; effect custody owns its sole exhaustive body check, while event and
-summary consumers use its returned relative sites. The final ROOT tape is
-82,695 bytes for the current exact subjects, SHA-256
-`73c5cbcba706f02a0f4fa6877ff9f1a50325ff4ef740f81a3d39a462114eec80`.
+summary consumers use its returned relative sites. The final mechanical
+consolidation routes 26 summary reads through the existing exact-cell helper,
+uses one root-memory resolver for the identical build and expected records,
+and removes an unreachable historical mutation helper. The final ROOT tape is
+82,660 bytes for the current exact subjects, SHA-256
+`f4dde19077478e240c6aed629c1d25169d3210ad0d2ef2e3cc6a47d32a587867`.
 `gen_emit`'s three identical newline events now use checker-owned exact
 cardinality and lexical occurrence rather than source rows. An eighth control
 swaps the first two valid witness PCs and is rejected by the label-emitter

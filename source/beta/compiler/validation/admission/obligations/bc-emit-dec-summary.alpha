@@ -66,18 +66,6 @@ emit_dec_sweep_complete:
         store r1, r2
         ret
 
-; Induction-tooth projection only: those canaries assume the independently
-; exercised arithmetic layer so they fail at their selected phase join without
-; replaying 8,193 rows. The canonical checker never calls this entry.
-emit_dec_seed_arithmetic_sweep:
-        imm r1, 528328
-        imm r2, 1
-        store r1, r2
-        imm r1, 528504
-        imm r2, 8193
-        store r1, r2
-        ret
-
 emit_dec_sweep_row:
         mov r11, r10                 ; q=n/10
         imm r1, 10

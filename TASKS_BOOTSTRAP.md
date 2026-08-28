@@ -75,12 +75,12 @@ Canonical subjects:
 
 - `source/beta/compiler/bc.beta`: 32,605 bytes;
 - `source/beta/compiler/artifacts/bc.tape`: 40,693 bytes;
-- exact maximal-observation ROOT: 82,695 bytes,
-  `73c5cbcba706f02a0f4fa6877ff9f1a50325ff4ef740f81a3d39a462114eec80`.
+- exact maximal-observation ROOT: 82,660 bytes,
+  `f4dde19077478e240c6aed629c1d25169d3210ad0d2ef2e3cc6a47d32a587867`.
 
-- [ ] Reduce the remaining admission implementation without merging distinct
-  proof responsibilities. The bounded gate currently has 191 Alpha modules,
-  60,458 lines, and a 1,009,325-byte Checker A source. Shape, control, data,
+- [x] Reduce the remaining admission implementation without merging distinct
+  proof responsibilities. The bounded gate now has 191 Alpha modules,
+  60,429 lines, and a 1,008,382-byte Checker A source. Shape, control, data,
   memory, stack, effect, ranged-store, and meaning modules may share canonical
   decoded facts and structural indexes; they must retain separate semantic
   theorems. Owner-local cursor pooling has removed ten duplicate helper bodies
@@ -94,7 +94,13 @@ Canonical subjects:
   bytes while retaining separate arrays, terminal checks, and mutation teeth.
   Four more owner-local tails now rejoin identical cursor restoration, operand,
   target, and one-destination checks, removing 583 source bytes without merging
-  their memory, effect, transition, or stack classifications.
+  their memory, effect, transition, or stack classifications. The final
+  mechanical pass routes 26 summary reads through the existing exact-cell
+  helper, converges two identical root-memory resolvers, and removes one
+  unreachable historical mutation helper, saving another 1,168 source bytes
+  and 29 lines. The remaining parallel tables and helpers encode distinct
+  owners or obligations; further consolidation requires a newly measured
+  duplication or performance case rather than another unbounded sweep.
 - [x] Make repeated structural queries O(1) only where the source tables admit
   a proved canonical index. The procedure-span inventory is complete: all 53
   endpoint binders are constant-time and the remaining 44 block identities
