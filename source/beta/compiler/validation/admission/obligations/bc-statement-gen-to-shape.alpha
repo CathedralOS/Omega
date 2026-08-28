@@ -1,8 +1,8 @@
 ; Exact source/artifact shape for gen_to (procedure66).
+; The canonical procedure inventory owns its total block span and partition.
 
 statement_gen_to_require_shape:
         call statement_gen_to_require_proc
-        call statement_gen_to_require_blocks
         call statement_gen_to_require_transitions
         call statement_gen_to_require_events
         call statement_gen_to_require_data
@@ -17,29 +17,6 @@ statement_gen_to_require_proc:
         imm r23, 40
         call exact_require_proc_frame_identity
         jmp exact_shape_ok
-
-statement_gen_to_require_blocks:
-        imm r20, 318
-        imm r21, 66
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 319
-        imm r21, 66
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 320
-        imm r21, 66
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 321
-        imm r21, 66
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 318
-        imm r21, 321
-        imm r22, 66
-        call exact_require_proc_blocks
-        ret
 
 statement_gen_to_require_transitions:
         imm r20, 258

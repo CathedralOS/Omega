@@ -2,14 +2,14 @@
 ; gen_write_byte() (procedures25 and31).
 ;
 ; This module has no initialization edge and publishes no semantic token.  Its
-; single public entry rejoins procedure metadata, every block/transition/effect,
+; single public entry rejoins procedure metadata, every transition/effect,
 ; explicit and synthetic epilogues, local/expression rows, exhaustive table
-; censuses, and exact decoded-region totals.  Recursive child meaning belongs to
-; the adjacent expression induction.
+; censuses, and exact decoded-region totals. The canonical procedure inventory
+; owns both procedures' total block spans and partitions. Recursive child
+; meaning belongs to the adjacent expression induction.
 
 expression_leaf_require_shape:
         call expression_leaf_require_proc_meta
-        call expression_leaf_require_blocks
         call expression_leaf_require_transitions
         call expression_leaf_require_events
         call expression_leaf_require_data
@@ -33,37 +33,6 @@ expression_leaf_require_proc_meta:
         imm r22, 0
         imm r23, 8
         call expression_leaf_require_one_proc
-        ret
-
-expression_leaf_require_blocks:
-        imm r20, 132
-        imm r21, 25                    ; gen_load procedure identity
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 133
-        imm r21, 25
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 134
-        imm r21, 25
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 135
-        imm r21, 25
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 132
-        imm r21, 135
-        imm r22, 25
-        call exact_require_proc_blocks
-        imm r20, 149
-        imm r21, 31                    ; gen_write_byte procedure identity
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 149
-        imm r21, 149
-        imm r22, 31
-        call exact_require_proc_blocks
         ret
 
 expression_leaf_require_transitions:
