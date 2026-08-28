@@ -727,6 +727,76 @@ mod tests {
     }
 
     #[test]
+    fn isolated_tied_early_def_shares_source_home_and_avoids_unrelated_use() {
+        let physical = physical();
+        let mut legality = legality(&[(0, 0), (0, 0), (1, 1)]);
+        legality.virtual_registers[2].early_clobber_points =
+            vec![TerminalVirtualEarlyClobberPointLegality {
+                block: TerminalSelectedBlockId(0),
+                position: TerminalLivenessPosition(0),
+                instruction: TerminalSelectedInstructionId(0),
+                operand: 2,
+                point: TerminalLiveRangePoint(0),
+                candidates: vec![RegisterViewId(0), RegisterViewId(1)],
+            }];
+        let mut ranges = ranges(&[(0, 1)]);
+        ranges.tied_pairs.push(TerminalDistinctUseDefTie {
+            block: TerminalSelectedBlockId(0),
+            position: TerminalLivenessPosition(0),
+            instruction: TerminalSelectedInstructionId(0),
+            use_operand: 0,
+            use_virtual_register: TerminalVirtualRegisterId(0),
+            use_point: TerminalLiveRangePoint(0),
+            def_operand: 2,
+            def_virtual_register: TerminalVirtualRegisterId(2),
+            def_point: TerminalLiveRangePoint(1),
+            class: RegisterClassId(0),
+        });
+        ranges.early_clobbers.push(TerminalEarlyClobberConstraint {
+            block: TerminalSelectedBlockId(0),
+            position: TerminalLivenessPosition(0),
+            instruction: TerminalSelectedInstructionId(0),
+            early_point: TerminalLiveRangePoint(0),
+            def_operand: 2,
+            def_virtual_register: TerminalVirtualRegisterId(2),
+            def_class: RegisterClassId(0),
+            def_point: TerminalLiveRangePoint(1),
+            uses: vec![TerminalEarlyClobberUse {
+                operand: 1,
+                virtual_register: TerminalVirtualRegisterId(1),
+                class: RegisterClassId(0),
+            }],
+        });
+
+        let homes = compute_function(0, &legality, &ranges, &physical).unwrap();
+        assert_eq!(homes.assignments[0].view, homes.assignments[2].view);
+        assert_ne!(homes.assignments[1].view, homes.assignments[2].view);
+        assert_eq!(
+            crate::home_assignment_validate::replay_function(0, &legality, &ranges, &physical)
+                .unwrap(),
+            homes
+        );
+
+        for register in &mut legality.virtual_registers {
+            for point in &mut register.points {
+                point.candidates = vec![RegisterViewId(0)];
+            }
+            for point in &mut register.early_clobber_points {
+                point.candidates = vec![RegisterViewId(0)];
+            }
+        }
+        let expected = Err(TerminalRegisterHomeError::NoCompatibleHome {
+            function: 0,
+            register: 1,
+        });
+        assert_eq!(compute_function(0, &legality, &ranges, &physical), expected);
+        assert_eq!(
+            crate::home_assignment_validate::replay_function(0, &legality, &ranges, &physical),
+            expected
+        );
+    }
+
+    #[test]
     fn distinct_use_def_ties_allocate_as_one_bundle_and_replay_independently() {
         let physical = physical();
         let legality = legality(&[(1, 2), (3, 4), (0, 4)]);
