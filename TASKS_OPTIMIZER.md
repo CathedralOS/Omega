@@ -2751,9 +2751,11 @@ dependency.
   Acceptance: source acceptance, diagnostics, interpreter behavior, native
   observations, and requested output kind match the pre-optimizer baseline.
 
-- **OPT-CANARY-CORPUS.** Add focused `canaries/pass/optimizer`,
-  `canaries/fail/optimizer`, and executable differential cases. Every opt-in
-  canary owns a `build.omg` enabling the exact optimization(s) it exercises.
+- **OPT-OMEGA-CORPUS.** Add focused `tests/omega/pass/optimizer`,
+  `tests/omega/fail/optimizer`, and executable differential cases under
+  `tests/omega/run/optimizer`. Every opt-in case owns a `build.omg` enabling the
+  exact optimization(s) it exercises. Do not recreate a generic `canaries/`
+  source or test owner.
 
   Acceptance: the corpus covers each rule family plus float, trap, atomic,
   placed-memory, boundary, provider, cleanup, linear/affine, suspension,

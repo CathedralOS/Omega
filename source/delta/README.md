@@ -6,7 +6,7 @@ its lower-rung meaning, and its publication evidence.
 Delta is the final compiler stage before Omega:
 
 ```text
-Gamma builds/publishes the Delta-produced compiler
+Gamma evaluates the declared Delta meaning route → Delta compiler artifact
 Delta-produced compiler + C → omega₀
 omega₀ + the same C → omega
 ```

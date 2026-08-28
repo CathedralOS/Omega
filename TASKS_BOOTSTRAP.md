@@ -90,7 +90,7 @@ admission, and optional stress evidence stay under the same compiler owner.
 - [ ] Collapse the remaining Beta admission explosion into one canonical exact
   instruction/event/memory identity format plus small responsibility-specific
   semantic modules. The current bounded admission consists of 189 Alpha modules
-  and 64,605 lines; Checker A is 1,045,557 source bytes and the checker ROOT is
+  and 64,271 lines; Checker A is 1,041,389 source bytes and the checker ROOT is
   82,314 bytes. Shape, control, data, and
   publication modules must consume common decoded facts rather than repeat byte
   offsets, macro bodies, or equivalent verification permutations.
@@ -107,12 +107,12 @@ admission, and optional stress evidence stay under the same compiler owner.
   gone. All shared owners therefore exist. The direct identity/table group and
   the `bc-cursor-leaf-summary`/`bc-skip-ws-summary`/`bc-slurp-summary`
   procedure subgroup now consume existing owners, removing 290 raw artifact-PC
-  literals. Twenty-eight memory consumers and 17 internal-site consumers
-  remain, spanning 39 modules. Continue with the existing procedure/epilogue
-  consumers and relative emit-layout consumers. Source rows `259` and `391`
-  are not artifact PCs. `gen_emit`'s three identical newline events now use
-  exact-cardinality occurrence identity; an eighth tooth swaps two witness PCs
-  and rejects before r13.
+  literals. The next memory, procedure/epilogue, and emit-layout tranches are
+  also localized: 24 memory consumers and nine internal-site consumers remain,
+  spanning 29 modules. Source rows `259` and `391` are not artifact PCs.
+  `gen_emit`'s three identical newline events now use exact-cardinality
+  occurrence identity; an eighth tooth swaps two witness PCs and rejects before
+  r13.
 - [ ] Apply the r13 optimization only after that localization. Acceptance is a
   change to `bc.beta`, centralized identity/shape/ABI owners, generated exact
   identities, and adjacent manifests—not mechanical edits across unrelated

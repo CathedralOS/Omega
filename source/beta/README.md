@@ -97,6 +97,7 @@ the `db` directive itself.
 
 The Beta compiler has a Rust-free cold-start and steady-state execution path,
 and extensive lower-rooted reconstruction of its `B_bc1` source correspondence. It builds
-Gamma's canonical interpreter and type checker; Gamma in turn supplies Delta's meaning substrate. The proof kernel
-is a cross-cutting service with independent Beta and Gamma implementations, not
-a later language rung. No external Beta producer participates in the lineage.
+Gamma's canonical interpreter and type checker; Gamma in turn supplies Delta's
+meaning substrate. The Alpha-owned derivation checker has independent Beta and
+Gamma implementations, but it remains a trust-floor service rather than a
+later language rung. No external Beta producer participates in the lineage.
