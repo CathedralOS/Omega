@@ -471,13 +471,16 @@ mod tests {
     };
     use psi_core::{
         BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
-        ObligationId, OperationId, ScalarType, ValueId,
+        ObligationId, OperationId, PlaceId, ScalarType, StructuralFieldId, StructuralPlaceKind,
+        StructuralTypeId, ValueId,
     };
     use psi_proof_admission::{EvidenceRoute, PrimitiveJudgment};
     use psi_terminal::{
-        Block, MachineContract, Operation, OperationKind, OperationResult, SuccessorEdge,
-        TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
-        VocabularyMarker,
+        BindingRelevance, Block, MachineContract, Operation, OperationKind, OperationResult,
+        StructuralAccess, StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+        StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralTypeDeclaration,
+        StructuralTypeShape, SuccessorEdge, TerminalMachine, TerminalMachineResult, TerminalModule,
+        Terminator, ValueDeclaration, VocabularyMarker,
     };
     use psi_terminal_verifier::{ObligationEvidence, ProofBundle};
 
@@ -861,6 +864,45 @@ mod tests {
             proof,
             stage_optimized_instruction_selection(target).unwrap(),
         )
+    }
+
+    fn structurally_parameterized_unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
+        let (semantic, proof) = unit_return_artifact();
+        let mut module = psi_terminal_codec::decode_module(&semantic).unwrap();
+        let structural_type = StructuralTypeId::new(3_505).unwrap();
+        let place = PlaceId::new(3_506).unwrap();
+        module.structural_types.push(StructuralTypeDeclaration {
+            id: structural_type,
+            identity: "UnitStructuralInput".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: StructuralFieldId::new(1).unwrap(),
+                    identity: "value".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                    )),
+                }],
+            },
+        });
+        let entry = module.machines.first_mut().unwrap();
+        entry.structural_parameters = vec![StructuralParameterDeclaration {
+            place,
+            position: 0,
+            is_self: false,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::Owned,
+            qualifications: Vec::new(),
+        }];
+        entry.structural_places = vec![StructuralPlaceDeclaration {
+            id: place,
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        }];
+        (psi_terminal_codec::encode_module(&module).unwrap(), proof)
     }
 
     fn conditional_forwarded_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
@@ -10853,6 +10895,30 @@ mod tests {
                 )
                 .is_err()
             );
+        }
+    }
+
+    #[test]
+    fn unit_legalization_rejects_an_unrepresented_structural_abi() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let (semantic, proof) = structurally_parameterized_unit_return_artifact();
+            let optimized = optimize_artifact_sections(
+                &semantic,
+                &proof,
+                &AdmissionProfile::default(),
+                request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+            )
+            .unwrap();
+            let target =
+                omega_lowering_optimizer::lower_optimized_to_target_operations(optimized, target)
+                    .unwrap();
+
+            assert!(matches!(
+                stage_optimized_instruction_selection(target),
+                Err(OptimizedSelectionPipelineError::Legalization(
+                    TerminalLegalizationError::UnsupportedSourceShape { function: 0 }
+                ))
+            ));
         }
     }
 
