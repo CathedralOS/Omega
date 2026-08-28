@@ -1,6 +1,6 @@
 # Bootstrap lattice — active work
 
-Last pruned: 2026-08-26.
+Last pruned: 2026-08-27.
 
 This is the live bootstrap execution queue, not an architecture essay or a
 history of completed gates. Standing decisions live in
@@ -149,6 +149,20 @@ instead of being disguised by a Rust fallback.
   a property that the canonical artifact must satisfy.
 - [ ] Restore the downstream Delta/refinement portion of
   `tools/bootstrap/verify-lattice.sh` only after those gates are lower-rooted.
+
+Source-only lower-rung evidence restored on 2026-08-27: the default lattice now
+runs complete marker-free elaboration of the canonical compiler source, a
+bounded exact compiler execution through Gamma, state/tree/source/argument
+resource teeth, the proof-carrying certifier loop, and the path-independent
+source-closure snapshot. The obsolete native differential was removed rather
+than redirected to a hidden producer. Full compiler-on-self publication remains
+open for a measured engineering reason: copying the 168,560-byte canonical LF
+input through the generated depth-19 persistent carrier alone requires at least
+51,242,240 bytes of Node payload, before AST, compiler state, or artifact output,
+while canonical Gamma has a 47 MiB no-GC arena and correctly exits `254` without
+publication. Bounded input construction must also replace the naïve linear-depth
+`Cons` invocation before the next full-source attempt. This is not a Delta or
+Omega language-design blocker.
 
 Acceptance: the closed lattice constructs Delta without Cargo or an external
 Delta implementation; repository path checks contain no live Alpha/Beta/Delta
