@@ -2058,7 +2058,22 @@ machine substitution, and byte mutation fail closed. This advances no resolved
 layout, frame, section, emission, or publication authority and adds no durable
 schema.
 
-A separate immutable v1 artifact resolves those branch rows only after choosing
+A sibling owning carrier advances that exact route through required resolved
+layout. It first replays the entire rematerialization pre-layout wrapper, then
+derives the transformed selected plan, source-specific post-allocation machine,
+and physical model only from retained custody before invoking the generic
+`EntryThenZeroFallthroughThenNonzeroV1` resolver. Independent validation repeats
+the same full upstream replay before reconstructing offsets, branch bytes, and
+effects. Its receipt binds the upstream custody, selected, machine, pre-layout,
+physical-model, and resolved-layout roots, target, named policy, and exact
+function/block/instruction/byte/branch counts. Both ISA paths retain the fresh
+rematerialization row and resolve one branch; corruption at pre-layout bytes,
+resolved bytes, or receipt custody fails at its own layer. The generic layout
+identity remains v2 and no durable schema changes. Branch relaxation,
+whole-function exit, realization manifests, frame, emission, sections, objects,
+images, installation, and publication remain unavailable.
+
+A separate immutable v2 artifact resolves those branch rows only after choosing
 the explicit required-stage layout policy
 `EntryThenZeroFallthroughThenNonzeroV1`. For the admitted three-block diamond it
 orders entry, zero successor, then nonzero successor; independently proves that
