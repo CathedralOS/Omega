@@ -170,7 +170,7 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
         .expect("retained native payload must independently replay");
     assert_eq!(artifact.target(), omega_target::NativeTarget::linux_x64());
     assert_eq!(
-        artifact.artifact().manifest().semantic(),
+        artifact.psi_artifact().manifest().semantic(),
         artifact.object().psi()
     );
     assert_eq!(artifact.object().psi(), artifact.image().psi());
@@ -218,16 +218,16 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
         .retained_native_artifact()
         .expect("native report retains its canonical native realization");
     assert_eq!(
-        native_artifact.artifact().manifest(),
+        native_artifact.psi_artifact().manifest(),
         artifact.manifest(),
         "Terminal-only and native products must share the exact canonical handoff"
     );
     assert_eq!(
-        native_artifact.artifact().semantic_bytes(),
+        native_artifact.psi_artifact().semantic_bytes(),
         artifact.semantic_bytes()
     );
     assert_eq!(
-        native_artifact.artifact().proof_bytes(),
+        native_artifact.psi_artifact().proof_bytes(),
         artifact.proof_bytes()
     );
     assert!(

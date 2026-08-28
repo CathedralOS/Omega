@@ -27,8 +27,7 @@ use psi_terminal_interpreter::{
 };
 use psi_terminal_verifier::{ProofBundle, verify_module};
 
-const SCALAR_CALL_FIXTURE: &str =
-    include_str!("../../../../../../tests/fixtures/terminal-psi/scalar-call.hex");
+const SCALAR_CALL_FIXTURE: &str = include_str!("../../fixtures/terminal-psi/scalar-call.hex");
 
 #[test]
 fn frontend_generated_scalar_terminals_are_product_valid() {

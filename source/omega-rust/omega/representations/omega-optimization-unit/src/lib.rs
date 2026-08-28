@@ -2219,7 +2219,7 @@ mod tests {
         .unwrap();
         let machine = seed.functions[0].machine;
         let first = ProofQuestion::new(
-            seed.terminal_psi,
+            seed.psi,
             [5; 32],
             ProofQuestionOwner::Operation {
                 machine,
@@ -2233,7 +2233,7 @@ mod tests {
             true,
         );
         let second = ProofQuestion::new(
-            seed.terminal_psi,
+            seed.psi,
             [5; 32],
             ProofQuestionOwner::ContractEnsures {
                 machine,
