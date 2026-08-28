@@ -1163,23 +1163,24 @@ and every scalar definition's lattice state. The validation crate owns a second
 fixed-point implementation and reconstructs this snapshot without depending on
 the optimizer crate. A digest supplied by the optimizer is therefore only a
 claim; it becomes rewrite evidence only when the validator independently
-derives the identical snapshot and fact identity. The current thirty-one exact
+derives the identical snapshot and fact identity. The current thirty-four exact
 rules cover every evaluable Boolean and integer operation in the admitted
 verified-unit vocabulary. Structural-field and call results stay overdefined
 without immutable structural-version or call-summary facts. This is a
 current-vocabulary completion boundary, not permission to guess semantics for
 future float, trapping, or otherwise extended scalar operations.
 
-The thirty-first SCCP rule is the first proof-range consumer. For an
-`IntegerLessThan` with a proof-derived left interval and a direct integer
-literal on the right, it yields true only when `maximum < literal`, false only
-when `minimum >= literal`, and otherwise proposes nothing. Its proof-certified
-witness and decision manifest retain both the `ValueRangeFactIdentity` and
-`ScalarConstantFactIdentity`; the independent validator re-derives the range,
-SSA availability, operation-entry dominance, literal definition, and exact
-comparison result before commit. This extends decision schema v5 with a typed
-value-range reference and advances the SCCP pass identity to v2; it does not
-introduce a hidden optimization level or broaden the explicit build selection.
+Rules 31–34 are the proof-range ordered-comparison family. They cover
+`range < literal`, `literal < range`, `range <= literal`, and
+`literal <= range`. Each yields a Boolean only when the proof-derived closed
+interval establishes the result for every contained value; an overlap proposes
+nothing. Their proof-certified witnesses and decision manifests retain both
+the `ValueRangeFactIdentity` and `ScalarConstantFactIdentity`; the independent
+validator binds the exact rule identity to its operator and operand order, then
+re-derives the range, SSA availability, operation-entry dominance, literal
+definition, and comparison result before commit. This advances the SCCP pass
+identity to v3 without introducing a hidden optimization level or broadening
+the explicit build selection.
 
 The initial pass-manager skeleton has a public entry only from
 `VerifiedPsiOptimizationUnit`; a bare reconstructible seed cannot start a run.
@@ -1323,7 +1324,7 @@ validation v7 bind this admission meaning. Marking a reachable outgoing source
 CFG shapes still fails closed until target/selected/native custody supports the
 shape.
 
-The fourth rule, `adjacent-single-predecessor-block-merge.v4`, is the first
+The fourth rule, `adjacent-single-predecessor-block-merge.v5`, is the first
 nonempty redundant-jump elimination contract. It merges only the immediately
 following target block and only when the jump is its sole incoming edge. The
 target must begin with a real operation having no successor arms, consist of
@@ -1340,12 +1341,14 @@ provenance at that same node. For a conditional-first target, the incoming
 source is instead realized on both mutually exclusive successor edges; the
 unit antichain check rejects any sequentially executable duplicate. Later nodes
 whose dense effects shift are also accounted for. Corruption tests reject
-forged node and fanout realization sites, and full artifact tests replay the
-ledger to exact one-block and three-block prephysical projections. Candidate
-v20, optimization-unit content identity v16, `ControlFlowCleanup` v11,
-prephysical manifest v14, and optimized-plan projection validation v15 bind this
-admission meaning; ledger v4 expresses both the many-to-one move and one-to-many
-fanout. Direct terminal fusion retains the terminal edge and removed jump edge
+forged node, fanout, and ownership-fact realization sites, and full artifact
+tests replay the ledger to exact one-block and three-block prephysical
+projections. Candidate v20 and optimization-unit content identity v16 bind its
+rewrite shape; the v5 rule contract consumes the three exact ownership-frontier
+facts under `ControlFlowCleanup` v12. Current prephysical manifest v29 and
+optimized-plan projection validation v30 bind the resulting admission meaning;
+ledger v4 expresses both the many-to-one move and one-to-many fanout. Direct
+terminal fusion retains the terminal edge and removed jump edge
 at the fused node, so return, cleanup, structural-return, crash, and fuel work
 are not classified as empty. Nonadjacent merges and native publication
 for inherited node-edge custody remain fail-closed.

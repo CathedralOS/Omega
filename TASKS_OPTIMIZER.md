@@ -502,10 +502,11 @@ These facts constrain the work below.
   independently reconstructed propagated block-parameter facts and admitted
   operation-obligation facts consumed by proof-certified folds. The typed fact
   vocabulary can now also name an exact verifier-derived ownership-frontier
-  identity and a current-revision `ValueRangeFactIdentity`. The first range
-  comparison consumes the latter; no rule consumes the ownership capability
-  yet, and either reference remains bounded by its independently checked
-  validity region.
+  identity and a current-revision `ValueRangeFactIdentity`. The adjacent
+  single-predecessor merge consumes the exact edge-entry, edge-exit, and
+  target-entry ownership facts, while the ordered range-comparison rules
+  consume the latter range fact. Each reference remains bounded by its
+  independently checked validity region.
 - `omega-optimization-unit` now deterministically reconstructs explicit blocks,
   scalar definitions/uses, conservative effect links, structural roots,
   ownership events, literal facts, source provenance, and separately identified
@@ -661,9 +662,9 @@ These facts constrain the work below.
   verifier question, including call, cleanup, and contract owners plus ordered
   premises and axioms, independently of this narrower operation-rule index.
   Proof-derived current-region integer ranges are reconstructed analysis rows,
-  not immutable unit catalog rows. The first `IntegerLessThan` rule now
-  consumes an exact range plus direct-literal fact; the remaining ordered-
-  comparison family and wider range consumers remain open.
+  not immutable unit catalog rows. Four explicit `IntegerLessThan` and
+  `IntegerLessOrEqual` rules now consume an exact range plus direct-literal
+  fact in either operand order. Wider range consumers remain open.
 - The clean artifact boundary now exposes a required
   `VerifiedPsiOptimizationInput` for optimizer consumers. It retains the
   lowered plan beside the complete immutable Terminal module, exact proof
@@ -777,17 +778,19 @@ These facts constrain the work below.
   separately rebuilds scalar support or the canonical kernel proposition,
   intersects only direct value/literal conjunctions, recomputes dominance and
   SSA availability, and rejects stale, malformed, pre-anchor, or nondominating
-  use. A real guarded exact-right-shift source canary proves the resulting
-  unsigned `[0, 63]` interval and corruption fails closed. The first consumer,
-  `integer-less-than-range-constant.v1`, is the thirty-first explicitly ordered
-  SCCP rule. It folds only range-left/direct-literal-right comparisons: true
-  when `range.max < literal`, false when `range.min >= literal`, and otherwise
-  declines. Its proof-certified witness records the exact range and scalar-
-  constant identities; independent validation reconstructs both and rechecks
-  point-of-use applicability. A checked-source guarded-shift program exercises
-  `[0, 63] < 64`, commits `true`, and retains the range reference in decision
-  manifest v5. SCCP pass identity is v2, the optimized-plan projection
-  validator is v28, and the prephysical manifest identity is v27.
+  use. Real guarded exact-right-shift and exact-division source canaries prove
+  the resulting unsigned intervals and corruption fails closed. Rules 31–34
+  are the complete direct-literal ordered-comparison family: `range < literal`,
+  `literal < range`, `range <= literal`, and `literal <= range`. They fold only
+  when the closed interval proves a unique Boolean result and decline whenever
+  the range overlaps the comparison boundary. Each proof-certified witness
+  records the exact range and scalar-constant identities; independent
+  validation reconstructs both, binds the exact operator and operand order,
+  and rechecks point-of-use applicability. Checked-source canaries exercise
+  true, false, and overlap outcomes for every newly added orientation and
+  retain both fact references in applied decision manifest v5. SCCP pass
+  identity is v3, the optimized-plan projection validator is v30, and the
+  prephysical manifest identity is v29.
   The task reopens when the scalar vocabulary grows (including any future
   trapping or exact-float policy). Semantic analyses remain open for the wider
   proof/effect/ownership vocabulary and broader range-consuming rules.
@@ -923,7 +926,7 @@ These facts constrain the work below.
   this admission meaning. General native publication of these broader CFG
   shapes remains unavailable until their physical lowering vocabulary exists.
 - The fourth exact `ControlFlowCleanup` rule,
-  `adjacent-single-predecessor-block-merge.v4`, removes a genuinely redundant
+  `adjacent-single-predecessor-block-merge.v5`, removes a genuinely redundant
   jump and block boundary without treating the target as empty. Admission is
   limited to an immediately adjacent target with exactly one incoming edge.
   The target must begin with either a real operation having no successor arms,
@@ -936,11 +939,12 @@ These facts constrain the work below.
   is replayed. The removed jump-edge source/fuel is fused behind the first
   operation's direct provenance at its new node. For a conditional-first
   target, that source fans out onto exactly its two mutually exclusive
-  successor edges. Validator corruption tests reject forged node and fanout
-  occurrences, while verified artifact tests reach the exact one-block and
-  three-block projections. Candidate v13, optimization-unit identity v7, the
-  v9 pass, prephysical manifest v8, and optimized-plan projection v9 bind this
-  additional admission meaning; ledger v4 already represents both moves.
+  successor edges. Validator corruption tests reject forged node, fanout, and
+  ownership-fact occurrences, while verified artifact tests reach the exact
+  one-block and three-block projections. Its v5 contract consumes the three
+  exact ownership facts and is registered under `ControlFlowCleanup` v12; the
+  current prephysical manifest v29 and optimized-plan projection v30 bind that
+  admission meaning. Ledger v4 already represents both moves.
 - The fifth exact `ControlFlowCleanup` rule,
   `shared-terminal-jump-fusion.v1`, removes one unconditional jump into a
   shared terminal-only block without removing or mutating that target. The
@@ -1635,13 +1639,13 @@ alternate semantic handoff.
   block parameters. Float support waits for complete per-operation exact
   semantics and must never use host arithmetic as a shortcut.
 
-  Current slice: thirty-one exact rules cover every currently evaluable Boolean
+  Current slice: thirty-four exact rules cover every currently evaluable Boolean
   and integer leaf and consume literal or coupled-CFG propagated block-
-  parameter facts reconstructed by the independent validator. The thirty-first
-  rule consumes a proof-derived left interval plus an exact direct-literal
-  right operand for `IntegerLessThan`; it proves only the closed outcomes
-  `max < literal` and `min >= literal`, records both fact identities, and
-  declines overlapping ranges. Structural-field and call results remain
+  parameter facts reconstructed by the independent validator. Rules 31–34
+  consume a proof-derived interval plus an exact direct literal for all four
+  operand-order/operator forms of `<` and `<=`; they prove only closed-interval
+  outcomes, record both fact identities, and decline overlapping ranges.
+  Structural-field and call results remain
   overdefined because the input has no immutable
   structural version or call-summary constant fact. Float and trapping-policy
   wording is a future acceptance boundary, not an unimplemented current

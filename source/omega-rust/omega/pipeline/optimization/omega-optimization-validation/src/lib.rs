@@ -9033,7 +9033,7 @@ pub fn validate_boolean_evaluation_candidate(
         unit: output,
         candidate: candidate.identity(),
         validator: OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.boolean-evaluation.v2",
+            b"omega.validator.boolean-evaluation.v3",
         ),
         provenance: accepted_provenance,
     })
@@ -9117,10 +9117,9 @@ fn evaluate_boolean_operation(
             left,
             right,
         } => {
-            if let O::IntegerLessThan { .. } = node.operation
-                && let Some((range_fact, constant_fact)) = candidate
-                    .scalar_evaluation_witness()
-                    .and_then(IntegerEvaluationWitness::range_against_constant)
+            if let Some((range_fact, constant_fact)) = candidate
+                .scalar_evaluation_witness()
+                .and_then(IntegerEvaluationWitness::range_against_constant)
             {
                 if !candidate
                     .required_analyses()
@@ -9128,36 +9127,50 @@ fn evaluate_boolean_operation(
                 {
                     return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
                 }
-                let right_value =
-                    direct_literal_integer_fact(function, candidate.input(), right, constant_fact)
-                        .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
+                let kind = independently_validated_integer_range_comparison_kind(
+                    candidate.rule(),
+                    &node.operation,
+                )
+                .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
+                let (range_operand, constant_operand) = match kind {
+                    ValidatedIntegerRangeComparisonKind::RangeLessThanConstant
+                    | ValidatedIntegerRangeComparisonKind::RangeLessOrEqualConstant => {
+                        (left, right)
+                    }
+                    ValidatedIntegerRangeComparisonKind::ConstantLessThanRange
+                    | ValidatedIntegerRangeComparisonKind::ConstantLessOrEqualRange => {
+                        (right, left)
+                    }
+                };
+                let constant_value = direct_literal_integer_fact(
+                    function,
+                    candidate.input(),
+                    constant_operand,
+                    constant_fact,
+                )
+                .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
                 let range = current_value_ranges::independently_reconstruct_value_range_fact_at(
                     input,
                     range_fact,
                     function.machine,
-                    left,
+                    range_operand,
                     location.block,
                     location.node,
                 )
                 .ok_or(OptimizationUnitValidationError::CurrentValueRangeFactMismatch)?;
-                if validator_integer_value_type(function, right) != Some(range.scalar_type) {
+                if validator_integer_value_type(function, constant_operand)
+                    != Some(range.scalar_type)
+                {
                     return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
                 }
-                let constant = if range
-                    .scalar_type
-                    .compare(range.maximum, right_value)
-                    .is_some_and(|ordering| ordering.is_lt())
-                {
-                    true
-                } else if range
-                    .scalar_type
-                    .compare(range.minimum, right_value)
-                    .is_some_and(|ordering| !ordering.is_lt())
-                {
-                    false
-                } else {
-                    return Err(OptimizationUnitValidationError::CandidateEvaluationMismatch);
-                };
+                let constant = independently_evaluate_integer_range_comparison(
+                    kind,
+                    range.scalar_type,
+                    range.minimum,
+                    range.maximum,
+                    constant_value,
+                )
+                .ok_or(OptimizationUnitValidationError::CandidateEvaluationMismatch)?;
                 return Ok((
                     psi_operation,
                     result,
@@ -9197,6 +9210,88 @@ fn evaluate_boolean_operation(
             ))
         }
         _ => Err(OptimizationUnitValidationError::CandidatePatchMismatch),
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ValidatedIntegerRangeComparisonKind {
+    RangeLessThanConstant,
+    ConstantLessThanRange,
+    RangeLessOrEqualConstant,
+    ConstantLessOrEqualRange,
+}
+
+fn independently_validated_integer_range_comparison_kind(
+    rule: OptimizationRuleIdentity,
+    operation: &O,
+) -> Option<ValidatedIntegerRangeComparisonKind> {
+    let kind = if rule
+        == OptimizationRuleIdentity::from_canonical_bytes(
+            b"omega.psi-rule.integer-less-than-range-constant.v1",
+        ) {
+        ValidatedIntegerRangeComparisonKind::RangeLessThanConstant
+    } else if rule
+        == OptimizationRuleIdentity::from_canonical_bytes(
+            b"omega.psi-rule.integer-less-than-constant-range.v1",
+        )
+    {
+        ValidatedIntegerRangeComparisonKind::ConstantLessThanRange
+    } else if rule
+        == OptimizationRuleIdentity::from_canonical_bytes(
+            b"omega.psi-rule.integer-less-or-equal-range-constant.v1",
+        )
+    {
+        ValidatedIntegerRangeComparisonKind::RangeLessOrEqualConstant
+    } else if rule
+        == OptimizationRuleIdentity::from_canonical_bytes(
+            b"omega.psi-rule.integer-less-or-equal-constant-range.v1",
+        )
+    {
+        ValidatedIntegerRangeComparisonKind::ConstantLessOrEqualRange
+    } else {
+        return None;
+    };
+    match (kind, operation) {
+        (
+            ValidatedIntegerRangeComparisonKind::RangeLessThanConstant
+            | ValidatedIntegerRangeComparisonKind::ConstantLessThanRange,
+            O::IntegerLessThan { .. },
+        )
+        | (
+            ValidatedIntegerRangeComparisonKind::RangeLessOrEqualConstant
+            | ValidatedIntegerRangeComparisonKind::ConstantLessOrEqualRange,
+            O::IntegerLessOrEqual { .. },
+        ) => Some(kind),
+        _ => None,
+    }
+}
+
+fn independently_evaluate_integer_range_comparison(
+    kind: ValidatedIntegerRangeComparisonKind,
+    scalar_type: psi_core::IntegerType,
+    minimum: psi_core::IntegerValue,
+    maximum: psi_core::IntegerValue,
+    constant: psi_core::IntegerValue,
+) -> Option<bool> {
+    let minimum_to_constant = scalar_type.compare(minimum, constant)?;
+    let maximum_to_constant = scalar_type.compare(maximum, constant)?;
+    match kind {
+        ValidatedIntegerRangeComparisonKind::RangeLessThanConstant => maximum_to_constant
+            .is_lt()
+            .then_some(true)
+            .or_else(|| (!minimum_to_constant.is_lt()).then_some(false)),
+        ValidatedIntegerRangeComparisonKind::ConstantLessThanRange => minimum_to_constant
+            .is_gt()
+            .then_some(true)
+            .or_else(|| (!maximum_to_constant.is_gt()).then_some(false)),
+        ValidatedIntegerRangeComparisonKind::RangeLessOrEqualConstant => (!maximum_to_constant
+            .is_gt())
+        .then_some(true)
+        .or_else(|| minimum_to_constant.is_gt().then_some(false)),
+        ValidatedIntegerRangeComparisonKind::ConstantLessOrEqualRange => (!minimum_to_constant
+            .is_lt())
+        .then_some(true)
+        .or_else(|| maximum_to_constant.is_lt().then_some(false)),
     }
 }
 
