@@ -37,8 +37,8 @@ pub use manifest::{
 };
 
 const SELECTION_ENCODING_MAGIC: &[u8; 8] = b"OMGOPT\0\0";
-const SELECTION_ENCODING_VERSION: u32 = 5;
-const SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.optimization-selections.v5\0";
+const SELECTION_ENCODING_VERSION: u32 = 6;
+const SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.optimization-selections.v6\0";
 
 /// Closed execution phase for one explicitly named optimization. Phase
 /// projection routes a complete source-visible suite; it never replaces that
@@ -47,6 +47,7 @@ const SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.optimization-selections.v5\0";
 pub enum OptimizationExecutionPhase {
     Psi,
     SelectedLowering,
+    AllocationRecovery,
     PostAllocationMachine,
     FunctionRelativeLayout,
 }
@@ -69,10 +70,11 @@ pub enum Optimization {
     X86RelaxConditionalBranchesToRel8V1 = 8,
     SelectedIncomingU12ExactSubtractImmediate = 9,
     Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 = 10,
+    SharedEntryFixedViewCopyAfterCompareBeforeBranchV1 = 11,
 }
 
 impl Optimization {
-    pub const ALL: [Self; 10] = [
+    pub const ALL: [Self; 11] = [
         Self::ControlFlowCleanup,
         Self::SparseConditionalConstantPropagation,
         Self::CopyPropagation,
@@ -83,6 +85,7 @@ impl Optimization {
         Self::X86RelaxConditionalBranchesToRel8V1,
         Self::SelectedIncomingU12ExactSubtractImmediate,
         Self::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
+        Self::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
     ];
 
     pub const fn build_case_name(self) -> &'static str {
@@ -100,6 +103,9 @@ impl Optimization {
             }
             Self::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 => {
                 "Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1"
+            }
+            Self::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1 => {
+                "SharedEntryFixedViewCopyAfterCompareBeforeBranchV1"
             }
         }
     }
@@ -124,6 +130,9 @@ impl Optimization {
             Self::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 => {
                 "aarch64_fuse_compare_i64_zero_branch_nonzero_to_cbnz_v1"
             }
+            Self::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1 => {
+                "shared_entry_fixed_view_copy_after_compare_before_branch_v1"
+            }
         }
     }
 
@@ -144,6 +153,9 @@ impl Optimization {
             }
             Self::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 => {
                 OptimizationExecutionPhase::PostAllocationMachine
+            }
+            Self::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1 => {
+                OptimizationExecutionPhase::AllocationRecovery
             }
         }
     }
@@ -347,6 +359,7 @@ mod tests {
     #[test]
     fn selections_are_sorted_and_round_trip_canonically() {
         let selections = OptimizationSelections::new([
+            Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
             Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
             Optimization::X86RelaxConditionalBranchesToRel8V1,
             Optimization::ProofCheckElision,
@@ -362,6 +375,7 @@ mod tests {
                 Optimization::ProofCheckElision,
                 Optimization::X86RelaxConditionalBranchesToRel8V1,
                 Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
+                Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
             ]
         );
         let encoded = selections.encode();
@@ -409,10 +423,10 @@ mod tests {
         );
 
         let mut old_version = selections.encode();
-        old_version[8..12].copy_from_slice(&4_u32.to_le_bytes());
+        old_version[8..12].copy_from_slice(&5_u32.to_le_bytes());
         assert_eq!(
             OptimizationSelections::decode(&old_version),
-            Err(SelectionDecodeError::UnsupportedVersion(4))
+            Err(SelectionDecodeError::UnsupportedVersion(5))
         );
     }
 
@@ -429,6 +443,7 @@ mod tests {
     #[test]
     fn phase_projection_is_canonical_without_replacing_the_full_identity() {
         let selections = OptimizationSelections::new([
+            Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
             Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
             Optimization::X86RelaxConditionalBranchesToRel8V1,
             Optimization::SelectedIncomingU12ExactAddImmediate,
@@ -438,6 +453,12 @@ mod tests {
         ])
         .unwrap();
         let full_identity = selections.identity();
+        assert_eq!(
+            selections
+                .for_phase(OptimizationExecutionPhase::AllocationRecovery)
+                .as_slice(),
+            &[Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1]
+        );
         assert_eq!(
             selections
                 .for_phase(OptimizationExecutionPhase::PostAllocationMachine)
