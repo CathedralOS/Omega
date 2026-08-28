@@ -39,6 +39,10 @@ mod live_range_model;
 mod live_range_validate;
 mod model;
 mod post_allocation_manifest;
+mod pressure_rematerialization_compute;
+mod pressure_rematerialization_identity;
+mod pressure_rematerialization_model;
+mod pressure_rematerialization_validate;
 mod recovery_classification_compute;
 mod recovery_classification_identity;
 mod recovery_classification_model;
@@ -72,6 +76,9 @@ pub use live_range_validate::validate_terminal_live_ranges;
 pub use model::*;
 pub use omega_register_model::*;
 pub use post_allocation_manifest::*;
+pub use pressure_rematerialization_identity::terminal_pressure_rematerialization_identity;
+pub use pressure_rematerialization_model::*;
+pub use pressure_rematerialization_validate::validate_terminal_pressure_rematerialization;
 pub use recovery_classification_identity::terminal_recovery_classification_identity;
 pub use recovery_classification_model::*;
 pub use recovery_classification_validate::validate_terminal_recovery_classifications;
@@ -342,6 +349,56 @@ pub fn fold_terminal_selected_incoming_literal<S: ValidatedTerminalSelectedAnaly
         budget,
     )?;
     validate_terminal_literal_fold(
+        selected,
+        ranges,
+        legality,
+        spill_choices,
+        recovery,
+        availability,
+        register_environment,
+        physical,
+        constraints,
+        reservations,
+        selected_keys,
+        plan,
+    )
+}
+
+/// Insert one value-lineage-only, zero-fuel rematerialization immediately
+/// before the sole future flexible use of an already-classified active
+/// resident. The semantic source materialization and its charge remain intact.
+#[allow(clippy::too_many_arguments)]
+pub fn rematerialize_terminal_selected_active_resident<S: ValidatedTerminalSelectedAnalysis>(
+    selected: &S,
+    ranges: &ValidatedTerminalLiveRanges,
+    legality: &ValidatedTerminalAllocationLegality,
+    spill_choices: &ValidatedTerminalSpillChoices,
+    recovery: &ValidatedTerminalRecoveryClassifications,
+    availability: &ValidatedTerminalAllocatorAvailability,
+    register_environment: TargetRegisterEnvironmentIdentity,
+    physical: &ValidatedPhysicalRegisterModel,
+    constraints: &ValidatedRegisterConstraintCatalog,
+    reservations: &ValidatedRegisterReservationProfile,
+    selected_keys: TargetRegisterEnvironmentConstraintKeys,
+    policy: TerminalPressureRematerializationPolicy,
+    budget: omega_optimization_core::OptimizationWorkBudget,
+) -> Result<ValidatedTerminalPressureRematerialization, TerminalPressureRematerializationError> {
+    let plan = pressure_rematerialization_compute::compute_terminal_pressure_rematerialization(
+        selected,
+        ranges,
+        legality,
+        spill_choices,
+        recovery,
+        availability,
+        register_environment,
+        physical,
+        constraints,
+        reservations,
+        selected_keys,
+        policy,
+        budget,
+    )?;
+    validate_terminal_pressure_rematerialization(
         selected,
         ranges,
         legality,
