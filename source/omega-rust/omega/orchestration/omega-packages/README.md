@@ -247,9 +247,11 @@ generated policy hash, exact numeric ceilings, normalized executable path set,
 discovery/inspection content-read roots when applicable, and mutable root. Every macOS
 phase uses a host-profile-free default-deny policy with exact selected
 executables and write-data to `/dev/null`. SSH discovery/fetch retain broad
-reads; initialization, inspection, and HTTPS discovery/fetch permit broad
-metadata reads but confine file-content reads to their exact working, mutable-
-quarantine, or retained-bare-repository root and fixed runtime files. HTTPS
+reads; initialization and HTTPS discovery/fetch permit broad metadata reads but
+confine file-content reads to their exact working or mutable-quarantine root and
+fixed runtime files. Inspection confines metadata and content to its retained
+bare repository plus exact executable/runtime paths and required literal
+ancestors, and therefore marks its filesystem-read row enforced. HTTPS
 discovery/fetch additionally read the fixed `/private/etc/ssl` system TLS
 configuration root; this does not establish TLS trust or custody.
 Initialization and fetch additionally confine writes to the exact mutable
@@ -381,9 +383,10 @@ as the parent Git executable and are rechecked around every launch and at
 completion. On macOS that floor also reads native extended ACLs for invocation
 entries, canonical targets, and every ancestor; any allow entry rejects even
 when ordinary mode bits appear safe. Deny-only entries do not broaden custody,
-and an unreadable ACL fails closed. Cache policy v21 separates entries
+and an unreadable ACL fails closed. Cache policy v22 separates entries
 predating this transport-executable, cumulative-output, endpoint-brokerage,
-network-transfer, nonnetwork descendant-denial, and content-read floor. HTTPS receives
+network-transfer, nonnetwork descendant-denial, content-read, and inspection-
+metadata floor. HTTPS receives
 an exact command-scoped proxy. SSH uses the separately
 custodied `omega-resolver-connect` companion as a fixed ProxyCommand; compiler-
 authored environment fields carry the broker and normalized target without

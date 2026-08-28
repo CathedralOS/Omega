@@ -20,6 +20,8 @@ pub use network::{
 #[cfg(target_os = "macos")]
 use sha2::{Digest, Sha256};
 #[cfg(target_os = "macos")]
+use std::collections::BTreeSet;
+#[cfg(target_os = "macos")]
 use std::ffi::OsString;
 #[cfg(target_os = "macos")]
 use std::fs::File;
@@ -29,7 +31,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const RESOLVER_EXECUTION_OBSERVATION_SCHEMA_VERSION: u32 = 8;
+const RESOLVER_EXECUTION_OBSERVATION_SCHEMA_VERSION: u32 = 9;
 const RESOLVER_EXECUTION_ADDITIONAL_EXECUTABLE_LIMIT: usize = 32;
 const RESOLVER_EXECUTION_PATH_BYTE_LIMIT: usize = 32 * 1024;
 const RESOLVER_EXECUTION_CANONICAL_BYTE_LIMIT: usize = 2 * 1024 * 1024;
@@ -57,6 +59,8 @@ const MACOS_HOSTNAME_SYSCTL: &str = "kern.hostname";
 const MACOS_RUST_RUNTIME_PAGE_SIZE_SYSCTL: &str = "hw.pagesize_compat";
 #[cfg(target_os = "macos")]
 const MACOS_TLS_CONFIGURATION_ROOT: &str = "/private/etc/ssl";
+#[cfg(target_os = "macos")]
+const MACOS_METADATA_PATH_LIMIT: usize = 1024;
 
 /// One compiler-owned source-resolution phase.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -886,6 +890,21 @@ impl ResolverExecutionBackend {
             && network_transport == Some(ResolverExecutionNetworkTransport::Https))
             || (phase == ResolverExecutionPhase::TransportDiscovery
                 && network_transport == Some(ResolverExecutionNetworkTransport::Https));
+        let inspection_metadata_paths = if phase == ResolverExecutionPhase::RepositoryInspection {
+            let inspection_read_root = roots.inspection_read_root.ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "repository inspection requires its compiler-owned read root",
+                )
+            })?;
+            Some(macos_inspection_metadata_paths(
+                executable,
+                additional_executables,
+                inspection_read_root,
+            )?)
+        } else {
+            None
+        };
         if confines_content_reads {
             let read_root_parameter = match phase {
                 ResolverExecutionPhase::TransportDiscovery => "DISCOVERY_READ_ROOT",
@@ -893,7 +912,18 @@ impl ResolverExecutionBackend {
                 ResolverExecutionPhase::RepositoryInitialization
                 | ResolverExecutionPhase::Fetch => "MUTABLE_ROOT",
             };
-            profile.push_str("(allow file-read-metadata) (allow file-read-data (subpath (param \"");
+            if let Some(metadata_paths) = &inspection_metadata_paths {
+                profile.push_str(
+                    "(allow file-read-metadata (subpath (param \"INSPECTION_READ_ROOT\"))",
+                );
+                for index in 0..metadata_paths.len() {
+                    profile.push_str(&format!(" (literal (param \"METADATA_PATH_{index}\"))"));
+                }
+                profile.push_str(") ");
+            } else {
+                profile.push_str("(allow file-read-metadata) ");
+            }
+            profile.push_str("(allow file-read-data (subpath (param \"");
             profile.push_str(read_root_parameter);
             profile.push_str("\")) (literal (param \"EXECUTABLE_0\"))");
             for index in 0..additional_executables.len() {
@@ -960,6 +990,13 @@ impl ResolverExecutionBackend {
                 .arg("-D")
                 .arg(definition_argument("DISCOVERY_READ_ROOT", root));
         }
+        if let Some(metadata_paths) = &inspection_metadata_paths {
+            for (index, path) in metadata_paths.iter().enumerate() {
+                command
+                    .arg("-D")
+                    .arg(definition_argument(&format!("METADATA_PATH_{index}"), path));
+            }
+        }
         if let Some(route) = endpoint_route {
             command.arg("-D").arg(format!(
                 "BROKER_ENDPOINT=localhost:{}",
@@ -970,6 +1007,40 @@ impl ResolverExecutionBackend {
         command.arg("-p").arg(profile).arg(executable);
         Ok((command, Some(profile_sha256)))
     }
+}
+
+#[cfg(target_os = "macos")]
+fn macos_inspection_metadata_paths(
+    executable: &Path,
+    additional_executables: &[PathBuf],
+    inspection_read_root: &Path,
+) -> io::Result<Vec<PathBuf>> {
+    let mut paths = BTreeSet::new();
+    for path in std::iter::once(inspection_read_root)
+        .chain(std::iter::once(executable))
+        .chain(additional_executables.iter().map(PathBuf::as_path))
+        .chain(std::iter::once(Path::new(MACOS_NULL_DEVICE)))
+    {
+        for ancestor in path.ancestors() {
+            paths.insert(ancestor.to_path_buf());
+        }
+    }
+    if paths.len() > MACOS_METADATA_PATH_LIMIT {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "resolver inspection metadata path set exceeds compiler limit",
+        ));
+    }
+    let encoded_bytes = paths.iter().try_fold(0_usize, |total, path| {
+        total.checked_add(path.as_os_str().as_encoded_bytes().len())
+    });
+    if !matches!(encoded_bytes, Some(total) if total <= RESOLVER_EXECUTION_CANONICAL_BYTE_LIMIT) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "resolver inspection metadata paths exceed compiler byte limit",
+        ));
+    }
+    Ok(paths.into_iter().collect())
 }
 
 fn guarantee_disposition(
@@ -996,6 +1067,12 @@ fn guarantee_disposition(
             Enforced
         }
         FilesystemWritesConfined | ExecutablePathsConfined => Unavailable,
+        FilesystemReadsConfined
+            if matches!(backend, MacosSeatbelt { .. })
+                && phase == ResolverExecutionPhase::RepositoryInspection =>
+        {
+            Enforced
+        }
         FilesystemReadsConfined | ProcessCountConfined | AggregateResourcesConfined => Unavailable,
         DescendantProcessesContained
             if matches!(backend, MacosSeatbelt { .. }) && !phase.permits_descendant_processes() =>
@@ -1328,6 +1405,8 @@ fn format_sha256(digest: &[u8]) -> String {
 mod tests {
     #[cfg(unix)]
     use super::CHILD_OPEN_FILE_LIMIT;
+    #[cfg(target_os = "macos")]
+    use super::{MACOS_METADATA_PATH_LIMIT, macos_inspection_metadata_paths};
     use super::{
         RESOLVER_EXECUTION_ADDITIONAL_EXECUTABLE_LIMIT, ResolverExecutionAuthorityRoots,
         ResolverExecutionBackend, ResolverExecutionEndpointRoute, ResolverExecutionGuarantee,
@@ -1336,6 +1415,8 @@ mod tests {
         ResolverExecutionTransferBudget,
     };
     use std::path::Path;
+    #[cfg(target_os = "macos")]
+    use std::path::PathBuf;
     #[cfg(target_os = "macos")]
     use std::process::Stdio;
 
@@ -1547,6 +1628,49 @@ mod tests {
                 .is_err(),
             "inspection content-read roots must be absolute"
         );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn inspection_metadata_paths_are_derived_deduplicated_and_bounded() {
+        let additional = [
+            PathBuf::from("/bin/sh"),
+            PathBuf::from("/usr/bin/git"),
+            PathBuf::from("/usr/bin/git"),
+        ];
+        let paths = macos_inspection_metadata_paths(
+            Path::new("/usr/bin/git"),
+            &additional,
+            Path::new("/private/tmp/repository"),
+        )
+        .expect("derive metadata paths");
+        assert!(paths.windows(2).all(|pair| pair[0] < pair[1]));
+        for required in [
+            "/",
+            "/bin",
+            "/bin/sh",
+            "/dev",
+            "/dev/null",
+            "/private",
+            "/private/tmp",
+            "/private/tmp/repository",
+            "/usr",
+            "/usr/bin",
+            "/usr/bin/git",
+        ] {
+            assert!(paths.iter().any(|path| path == Path::new(required)));
+        }
+        assert!(
+            !paths
+                .iter()
+                .any(|path| path == Path::new("/private/tmp/sibling"))
+        );
+
+        let mut excessive = PathBuf::from("/");
+        for _ in 0..MACOS_METADATA_PATH_LIMIT {
+            excessive.push("a");
+        }
+        assert!(macos_inspection_metadata_paths(Path::new("/bin/sh"), &[], &excessive).is_err());
     }
 
     #[test]
@@ -1854,7 +1978,12 @@ mod tests {
         assert!(!inspection_profile.contains("file-write*"));
         assert!(!inspection_profile.contains("process-fork"));
         assert!(!inspection_profile.contains("(allow file-read*)"));
-        assert!(inspection_profile.contains("(allow file-read-metadata)"));
+        assert!(!inspection_profile.contains("(allow file-read-metadata)"));
+        assert!(
+            inspection_profile
+                .contains("(allow file-read-metadata (subpath (param \"INSPECTION_READ_ROOT\"))")
+        );
+        assert!(inspection_profile.contains("(literal (param \"METADATA_PATH_0\"))"));
         assert!(
             inspection_profile
                 .contains("(allow file-read-data (subpath (param \"INSPECTION_READ_ROOT\"))")
@@ -2000,7 +2129,7 @@ mod tests {
                 &inspection,
                 ResolverExecutionGuarantee::FilesystemReadsConfined
             ),
-            ResolverExecutionGuaranteeDisposition::Unavailable
+            ResolverExecutionGuaranteeDisposition::Enforced
         );
         assert_eq!(
             disposition(&inspection, ResolverExecutionGuarantee::NetworkDenied),
@@ -2491,6 +2620,80 @@ mod tests {
         std::fs::remove_file(escaped_link).expect("remove escaping symlink");
         std::fs::remove_file(inside).expect("remove inside canary");
         std::fs::remove_file(sibling).expect("remove sibling canary");
+        std::fs::remove_dir(repository).expect("remove inspection repository");
+        std::fs::remove_dir(parent).expect("remove inspection parent");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn seatbelt_inspection_confines_metadata_to_the_retained_repository() {
+        use std::os::unix::fs::symlink;
+        use std::sync::atomic::{AtomicU64, Ordering};
+
+        static SEQUENCE: AtomicU64 = AtomicU64::new(0);
+        let sequence = SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let parent = std::env::temp_dir().join(format!(
+            "omega-resolver-inspection-metadata-{}-{sequence}",
+            std::process::id()
+        ));
+        let repository = parent.join("repository");
+        let raw_inside = repository.join("inside");
+        let raw_sibling = parent.join("sibling");
+        let raw_escaped_link = repository.join("escaped-link");
+        std::fs::create_dir_all(&raw_inside).expect("create inspection repository metadata");
+        std::fs::create_dir(&raw_sibling).expect("create sibling metadata canary");
+        symlink(&raw_sibling, &raw_escaped_link).expect("create escaping metadata symlink");
+        let repository = repository
+            .canonicalize()
+            .expect("canonicalize inspection repository");
+        let inside = repository.join("inside");
+        let sibling = raw_sibling
+            .canonicalize()
+            .expect("canonicalize sibling metadata canary");
+        let escaped_link = repository.join("escaped-link");
+
+        let backend = ResolverExecutionBackend::open().expect("open resolver backend");
+        let run_stat = |arguments: &[&std::ffi::OsStr]| {
+            let mut command = backend
+                .command_with_inspection_read_root(Path::new("/usr/bin/stat"), &[], &repository)
+                .expect("build repository-metadata sandbox");
+            command
+                .args(arguments)
+                .output()
+                .expect("run metadata canary")
+        };
+
+        let inside_output = run_stat(&[
+            std::ffi::OsStr::new("-f"),
+            std::ffi::OsStr::new("%N"),
+            inside.as_os_str(),
+        ]);
+        assert!(
+            inside_output.status.success(),
+            "inside metadata failed: {}",
+            String::from_utf8_lossy(&inside_output.stderr)
+        );
+        let link_output = run_stat(&[
+            std::ffi::OsStr::new("-f"),
+            std::ffi::OsStr::new("%N"),
+            escaped_link.as_os_str(),
+        ]);
+        assert!(
+            link_output.status.success(),
+            "reading the in-root symlink entry must remain allowed"
+        );
+        let sibling_output = run_stat(&[
+            std::ffi::OsStr::new("-f"),
+            std::ffi::OsStr::new("%N"),
+            sibling.as_os_str(),
+        ]);
+        assert!(!sibling_output.status.success());
+        let escaped_output = run_stat(&[std::ffi::OsStr::new("-L"), escaped_link.as_os_str()]);
+        assert!(!escaped_output.status.success());
+
+        std::fs::remove_file(escaped_link).expect("remove escaping metadata symlink");
+        std::fs::remove_dir(inside).expect("remove inside metadata canary");
+        std::fs::remove_dir(sibling).expect("remove sibling metadata canary");
         std::fs::remove_dir(repository).expect("remove inspection repository");
         std::fs::remove_dir(parent).expect("remove inspection parent");
     }
