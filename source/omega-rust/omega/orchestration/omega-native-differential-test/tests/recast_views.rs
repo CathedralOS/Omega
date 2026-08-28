@@ -12,9 +12,7 @@ fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(5)
-        .expect(
-            "omega-native-differential-test lives under source/omega-rust/omega/orchestration",
-        )
+        .expect("omega-native-differential-test lives under source/omega-rust/omega/orchestration")
         .to_path_buf()
 }
 
