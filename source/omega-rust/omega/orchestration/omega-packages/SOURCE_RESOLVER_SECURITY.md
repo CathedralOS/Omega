@@ -167,10 +167,18 @@ descriptor per sibling; a fixed 260-level ceiling bounds reacquisition work.
 The same bounded walk serves Git cache entries and local snapshot publications.
 This prevents a directory leaf reclassified as a symlink or different concrete
 directory from redirecting the later traversal and keeps a walk bound to an
-already-opened root if its pathname is replaced. It does not yet make cache
-locks, metadata reads, staging, publication, invalidation, or macOS ACL
-inspection handle-relative, and it does not claim exclusion of an actively
-hostile same-user process.
+already-opened root if its pathname is replaced. Git cache-entry, Git snapshot,
+and local snapshot publication additionally open the canonical publication
+parent component-by-component no-follow, reduce both operands to validated
+direct-child names, and rename through that retained directory capability.
+The parent then confirms the published directory has the staged directory's
+file identity and synchronizes the retained parent handle. A replaced parent
+pathname therefore cannot redirect the publication operation. Cache lock
+opening and pathname confirmation, metadata reads, staging creation and
+cleanup, invalidation, and macOS ACL inspection are not yet fully
+handle-relative. Destination exclusion is cooperative rather than an atomic
+hostile-same-user no-replace primitive, so this still does not claim exclusion
+of an actively hostile same-user process.
 
 Compilation handoff now captures and revalidates the root package of each
 package compilation again, then asks the compiler to independently recapture
