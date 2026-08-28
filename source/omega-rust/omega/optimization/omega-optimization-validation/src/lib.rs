@@ -373,6 +373,66 @@ fn independent_proof_certified_scalar_identity(
             *count_type,
             independent_integer_zero(*count_type),
         ),
+        (
+            O::ExactIntegerDivide {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                left,
+                right,
+            },
+            ProofCertifiedScalarIdentityKind::ExactIntegerDivideOneRight,
+        ) => (
+            *psi_operation,
+            *obligation,
+            *result,
+            *left,
+            *right,
+            *scalar_type,
+            *scalar_type,
+            independent_integer_one(*scalar_type),
+        ),
+        (
+            O::WrappingIntegerDivide {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                left,
+                right,
+            },
+            ProofCertifiedScalarIdentityKind::WrappingIntegerDivideOneRight,
+        ) => (
+            *psi_operation,
+            *obligation,
+            *result,
+            *left,
+            *right,
+            *scalar_type,
+            *scalar_type,
+            independent_integer_one(*scalar_type),
+        ),
+        (
+            O::SaturatingIntegerDivide {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                left,
+                right,
+            },
+            ProofCertifiedScalarIdentityKind::SaturatingIntegerDivideOneRight,
+        ) => (
+            *psi_operation,
+            *obligation,
+            *result,
+            *left,
+            *right,
+            *scalar_type,
+            *scalar_type,
+            independent_integer_one(*scalar_type),
+        ),
         _ => return None,
     };
     Some(IndependentProofCertifiedScalarIdentity {
@@ -401,9 +461,9 @@ fn independent_integer_one(scalar_type: IntegerType) -> IntegerValue {
     }
 }
 
-/// Independently remove one live proof-certified exact integer identity.
+/// Independently remove one live proof-certified integer identity.
 /// Accepted proof and literal evidence are reconstructed from immutable input
-/// custody; the exact operation is deleted rather than reclassified.
+/// custody; the declared operation is deleted rather than reclassified.
 pub fn validate_proof_certified_scalar_identity_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
@@ -412,10 +472,13 @@ pub fn validate_proof_certified_scalar_identity_candidate(
     if candidate.input() != input.identity {
         return Err(OptimizationUnitValidationError::CandidateInputMismatch);
     }
-    let rule = OptimizationRuleIdentity::from_canonical_bytes(
+    let exact_identity_rule = OptimizationRuleIdentity::from_canonical_bytes(
         b"omega.psi-rule.live-proof-certified-integer-identity-elimination.v1",
     );
-    if candidate.rule() != rule
+    let divide_by_one_rule = OptimizationRuleIdentity::from_canonical_bytes(
+        b"omega.psi-rule.live-proof-certified-integer-divide-by-one-elimination.v1",
+    );
+    if ![exact_identity_rule, divide_by_one_rule].contains(&candidate.rule())
         || !candidate
             .required_analyses()
             .contains(AnalysisKind::ScalarConstants)
@@ -437,6 +500,33 @@ pub fn validate_proof_certified_scalar_identity_candidate(
     }
     let PsiRewritePatch::EliminateProofCertifiedScalarIdentity(patch) = candidate.patch() else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    };
+    let validator = match candidate.rule() {
+        rule if rule == exact_identity_rule
+            && matches!(
+                patch.identity,
+                ProofCertifiedScalarIdentityKind::ExactIntegerAddZeroLeft
+                    | ProofCertifiedScalarIdentityKind::ExactIntegerAddZeroRight
+                    | ProofCertifiedScalarIdentityKind::ExactIntegerSubtractZeroRight
+                    | ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyOneLeft
+                    | ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyOneRight
+                    | ProofCertifiedScalarIdentityKind::ExactIntegerShiftLeftZeroCount
+                    | ProofCertifiedScalarIdentityKind::ExactIntegerShiftRightZeroCount
+            ) =>
+        {
+            b"omega.validator.live-proof-certified-integer-identity-elimination.v1".as_slice()
+        }
+        rule if rule == divide_by_one_rule
+            && matches!(
+                patch.identity,
+                ProofCertifiedScalarIdentityKind::ExactIntegerDivideOneRight
+                    | ProofCertifiedScalarIdentityKind::WrappingIntegerDivideOneRight
+                    | ProofCertifiedScalarIdentityKind::SaturatingIntegerDivideOneRight
+            ) =>
+        {
+            b"omega.validator.live-proof-certified-integer-divide-by-one-elimination.v1".as_slice()
+        }
+        _ => return Err(OptimizationUnitValidationError::CandidatePatchMismatch),
     };
     if candidate.node_decision_point() != Some(patch.location)
         || candidate.substitutions()
@@ -648,9 +738,7 @@ pub fn validate_proof_certified_scalar_identity_candidate(
     Ok(ValidatedPsiRewrite {
         unit: output,
         candidate: candidate.identity(),
-        validator: OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.live-proof-certified-integer-identity-elimination.v1",
-        ),
+        validator: OptimizationValidatorIdentity::from_canonical_bytes(validator),
         provenance: accepted_provenance,
     })
 }
