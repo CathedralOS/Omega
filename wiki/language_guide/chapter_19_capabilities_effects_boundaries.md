@@ -938,6 +938,11 @@ coverage assertion; it does not create a slot for each application. Deriving
 the demand and coverage rows from verified artifacts and binding exact provider
 issuance occurrences at installation remain separate engineering steps, so
 this structural result alone grants no resident content or transfer authority.
+Native realization also retains the exact nonzero selected-closure identity
+beside its source-free provider-plan projection. Component-candidate replay
+requires both to match independently, preventing indexed coverage or
+resolved-reach drift from hiding behind unchanged plan rows without treating
+either identity as authority.
 
 This is the same proof shape as a library import:
 

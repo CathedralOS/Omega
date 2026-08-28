@@ -1593,7 +1593,11 @@ Owners:
   rejects unresolved or unused substitutions, schema/arity/plan drift, and
   incomplete exact coverage, and commits the selected closure, plan,
   applications, and coverage to one content-derived identity without minting
-  per-application slots.
+  per-application slots. Native realization now retains that exact nonzero
+  selected-closure identity beside the source-free provider-plan projection,
+  and component-candidate replay requires both to match independently. Thus a
+  coverage or resolved-reach change cannot hide behind unchanged selected plan
+  rows.
   Verifier-derived concrete/symbolic demand and coverage rows, final-
   composition wiring, and installation-bound exact issuance occurrences remain
   engineering rungs.

@@ -780,6 +780,7 @@ impl ProgressClosedTerminalComponentDeployment {
             terminal_artifact,
             object,
             image,
+            selected_provider_closure_identity,
             selected_provider_plans: native_selected_provider_plans,
             provider_executions,
         } = native_artifact.into_parts();
@@ -798,6 +799,7 @@ impl ProgressClosedTerminalComponentDeployment {
                                         terminal_artifact,
                                         object,
                                         image,
+                                        selected_provider_closure_identity,
                                         selected_provider_plans: native_selected_provider_plans,
                                         provider_executions,
                                     },
@@ -832,6 +834,7 @@ impl ProgressClosedTerminalComponentDeployment {
                                         terminal_artifact,
                                         object,
                                         image,
+                                        selected_provider_closure_identity,
                                         selected_provider_plans: native_selected_provider_plans,
                                         provider_executions,
                                     },

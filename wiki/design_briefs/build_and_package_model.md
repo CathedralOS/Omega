@@ -581,7 +581,12 @@ substitutions, schema/arity/plan drift, and missing exact-family members reject.
 The result retains the selected provider closure, plan, concrete applications,
 and complete coverage assertion, but it neither derives the demand or coverage
 total from verified artifacts nor binds an issuance occurrence. Those
-derivation, composition, and installation joins remain open.
+derivation, composition, and installation joins remain open. Terminal native
+realization commits the exact nonzero selected-closure identity next to the
+source-free provider-plan projection, and component-candidate replay requires
+both to match. Consequently indexed coverage or resolved-reach drift cannot
+pass merely because the selected plan rows are unchanged; this replay is still
+non-authorizing.
 
 Provider selection also determines executable TCB provenance. Static selection
 of an opaque in-process realization contributes a known executable entry even
