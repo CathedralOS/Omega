@@ -43,8 +43,33 @@ pub struct TerminalFunctionLiveRanges {
     pub block_domains: Vec<TerminalBlockPointDomain>,
     pub virtual_registers: Vec<TerminalVirtualLiveRange>,
     pub tied_pairs: Vec<TerminalDistinctUseDefTie>,
+    pub early_clobbers: Vec<TerminalEarlyClobberConstraint>,
     pub architectural_units: Vec<TerminalArchitecturalUnitLiveRange>,
     pub interference: Vec<TerminalVirtualInterference>,
+}
+
+/// One exact instruction phase where a definition writes at the before point
+/// while all listed virtual inputs must still be readable. This is allocation
+/// hazard evidence and does not make the definition semantically live before
+/// its ordinary after-point definition.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct TerminalEarlyClobberConstraint {
+    pub block: TerminalSelectedBlockId,
+    pub position: TerminalLivenessPosition,
+    pub instruction: TerminalSelectedInstructionId,
+    pub early_point: TerminalLiveRangePoint,
+    pub def_operand: u16,
+    pub def_virtual_register: TerminalVirtualRegisterId,
+    pub def_class: RegisterClassId,
+    pub def_point: TerminalLiveRangePoint,
+    pub uses: Vec<TerminalEarlyClobberUse>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct TerminalEarlyClobberUse {
+    pub operand: u16,
+    pub virtual_register: TerminalVirtualRegisterId,
+    pub class: RegisterClassId,
 }
 
 /// One exact same-home requirement between a distinct VReg use and definition.
@@ -175,6 +200,8 @@ pub struct TerminalLiveRangeValidationReceipt {
     pub(crate) architectural_edge_connector_count: usize,
     pub(crate) interference_count: usize,
     pub(crate) tied_pair_count: usize,
+    pub(crate) early_clobber_count: usize,
+    pub(crate) early_clobber_use_count: usize,
 }
 
 impl TerminalLiveRangeValidationReceipt {
@@ -231,6 +258,12 @@ impl TerminalLiveRangeValidationReceipt {
     }
     pub const fn tied_pair_count(self) -> usize {
         self.tied_pair_count
+    }
+    pub const fn early_clobber_count(self) -> usize {
+        self.early_clobber_count
+    }
+    pub const fn early_clobber_use_count(self) -> usize {
+        self.early_clobber_use_count
     }
 }
 
@@ -291,6 +324,9 @@ pub enum TerminalLiveRangeError {
         function: usize,
     },
     TiedPairMismatch {
+        function: usize,
+    },
+    EarlyClobberMismatch {
         function: usize,
     },
     NonCanonicalRows {

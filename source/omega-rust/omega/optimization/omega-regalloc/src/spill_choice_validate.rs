@@ -98,6 +98,14 @@ pub fn validate_terminal_spill_choices(
                 function: function_index,
             });
         }
+        if !ranges.plan().functions[function_index]
+            .early_clobbers
+            .is_empty()
+        {
+            return Err(TerminalSpillChoiceError::UnsupportedEarlyClobber {
+                function: function_index,
+            });
+        }
         let expected = replay_function(
             function_index,
             &legality.plan().functions[function_index],

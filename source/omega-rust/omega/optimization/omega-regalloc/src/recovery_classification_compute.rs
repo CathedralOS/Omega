@@ -600,6 +600,7 @@ mod tests {
                 })
                 .collect(),
             tied_pairs: Vec::new(),
+            early_clobbers: Vec::new(),
             architectural_units: Vec::new(),
             interference: [(0, 1), (0, 2), (1, 2)]
                 .into_iter()
@@ -622,6 +623,7 @@ mod tests {
                             candidates: vec![RegisterViewId(0), RegisterViewId(1)],
                         })
                         .collect(),
+                    early_clobber_points: Vec::new(),
                     entry_transitions: Vec::new(),
                 })
                 .collect(),

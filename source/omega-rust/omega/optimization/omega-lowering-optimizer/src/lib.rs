@@ -1484,6 +1484,67 @@ mod tests {
         )
     }
 
+    fn live_exact_zero_dividend_verified() -> VerifiedPsiOptimizationUnit {
+        let machine = MachineId::new(1_111).unwrap();
+        let block = BlockId::new(1_112).unwrap();
+        let zero = ValueId::new(1_113).unwrap();
+        let divisor = ValueId::new(1_114).unwrap();
+        let quotient = ValueId::new(1_115).unwrap();
+        let result = ValueId::new(1_116).unwrap();
+        let obligation = ObligationId::new(1_117).unwrap();
+        let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+        let declaration = |id| ValueDeclaration { id, scalar_type };
+        let module = module_with_blocks(
+            machine,
+            block,
+            TerminalMachineResult::Scalar(declaration(result)),
+            vec![Block {
+                id: block,
+                parameters: Vec::new(),
+                operations: vec![
+                    Operation {
+                        id: OperationId::new(1_118).unwrap(),
+                        result: OperationResult::Scalar(declaration(zero)),
+                        kind: OperationKind::IntegerConstant {
+                            value: IntegerValue::Unsigned(0),
+                        },
+                    },
+                    Operation {
+                        id: OperationId::new(1_119).unwrap(),
+                        result: OperationResult::Scalar(declaration(divisor)),
+                        kind: OperationKind::IntegerConstant {
+                            value: IntegerValue::Unsigned(1),
+                        },
+                    },
+                    Operation {
+                        id: OperationId::new(1_120).unwrap(),
+                        result: OperationResult::Scalar(declaration(quotient)),
+                        kind: OperationKind::ExactIntegerDivide {
+                            left: zero,
+                            right: divisor,
+                            obligation,
+                        },
+                    },
+                ],
+                terminator: Terminator::Return {
+                    cleanup_actions: Vec::new(),
+                    edge: EdgeId::new(1_121).unwrap(),
+                    value: quotient,
+                },
+            }],
+        );
+        verified(
+            module,
+            ProofBundle {
+                evidence_producers: Vec::new(),
+                evidence: vec![ObligationEvidence {
+                    obligation,
+                    route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
+                }],
+            },
+        )
+    }
+
     fn exact_add_verified_with_result(return_result: bool) -> VerifiedPsiOptimizationUnit {
         let machine = MachineId::new(1_011).unwrap();
         let block = BlockId::new(1_012).unwrap();
@@ -2297,7 +2358,7 @@ mod tests {
         assert_eq!(optimized.commits().len(), 1);
         assert_eq!(optimized.transformation_ledger().records().len(), 1);
         assert_eq!(optimized.pass_manifests().len(), 1);
-        assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 4);
+        assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 5);
         assert_eq!(optimized.plan().functions[0].operations.len(), 2);
         assert!(matches!(
             optimized.plan().functions[0].operations[1],
@@ -2331,7 +2392,7 @@ mod tests {
         assert_eq!(optimized.commits().len(), 1);
         assert_eq!(optimized.transformation_ledger().records().len(), 1);
         assert_eq!(optimized.pass_manifests().len(), 1);
-        assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 4);
+        assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 5);
         assert_eq!(
             optimized.pass_manifests()[0].ordered_rules()[2],
             omega_optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
@@ -2377,7 +2438,7 @@ mod tests {
         assert_eq!(optimized.commits().len(), 1);
         assert_eq!(optimized.transformation_ledger().records().len(), 1);
         assert_eq!(optimized.pass_manifests().len(), 1);
-        assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 4);
+        assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 5);
         assert_eq!(
             optimized.pass_manifests()[0].ordered_rules()[3],
             omega_optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
@@ -2411,6 +2472,57 @@ mod tests {
             .expect("the independently projected zero-product-free plan remains target lowerable");
         assert_eq!(lowered.target_operations().functions.len(), 1);
         assert_eq!(lowered.optimized().commits().len(), 1);
+    }
+
+    #[test]
+    fn proof_check_elision_projects_and_lowers_live_exact_zero_dividend() {
+        let selections = OptimizationSelections::new([Optimization::ProofCheckElision]).unwrap();
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let optimized = project_optimization_run(run(
+                live_exact_zero_dividend_verified(),
+                selections.clone(),
+            ))
+            .unwrap();
+
+            assert_eq!(optimized.commits().len(), 1);
+            assert_eq!(optimized.transformation_ledger().records().len(), 1);
+            assert_eq!(optimized.pass_manifests().len(), 1);
+            assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 5);
+            assert_eq!(
+                optimized.pass_manifests()[0].ordered_rules()[4],
+                omega_optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
+                    b"omega.psi-rule.live-proof-certified-integer-zero-dividend-elimination.v1"
+                )
+            );
+            assert_eq!(optimized.plan().functions[0].operations.len(), 3);
+            assert!(matches!(
+                optimized.plan().functions[0].operations[2],
+                TerminalAbstractOperation::Return { value, .. }
+                    if value == ValueId::new(1_113).unwrap()
+            ));
+            assert_eq!(optimized.unit().accepted_obligation_facts.len(), 1);
+            assert!(optimized.unit().functions[0].facts.iter().all(|fact| {
+                !matches!(
+                    fact,
+                    omega_optimization_unit::OptimizationFact::OperationObligationReference { .. }
+                )
+            }));
+            assert_eq!(
+                optimized.pass_manifests()[0].decisions()[0]
+                    .consumed_facts()
+                    .len(),
+                2
+            );
+            let terminal = &optimized.unit().functions[0].blocks[0].nodes[2];
+            assert_eq!(terminal.provenance.len(), 2);
+            assert_eq!(terminal.fuel.len(), 2);
+
+            let lowered = lower_optimized_to_target_operations(optimized, target)
+                .expect("the independently projected zero-dividend-free plan remains lowerable");
+            assert_eq!(lowered.target(), target);
+            assert_eq!(lowered.target_operations().functions.len(), 1);
+            assert_eq!(lowered.optimized().commits().len(), 1);
+        }
     }
 
     #[test]

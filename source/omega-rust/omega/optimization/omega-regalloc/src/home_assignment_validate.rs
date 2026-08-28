@@ -101,6 +101,12 @@ pub fn validate_terminal_register_homes(
             .iter()
             .map(|function| function.tied_pairs.len())
             .sum(),
+        early_clobber_count: ranges
+            .plan()
+            .functions
+            .iter()
+            .map(|function| function.early_clobbers.len())
+            .sum(),
     };
     Ok(ValidatedTerminalRegisterHomes { plan, receipt })
 }
@@ -196,7 +202,9 @@ pub(crate) fn replay_function(
                         .find(|view| view.id == entry.view)
                         .expect("previously validated home view remains present"),
                 )
-            });
+            }) || replay_early_clobber_blocks(
+                &members, view, &selected, legality, ranges, physical,
+            );
             if !blocked {
                 home = Some(candidate);
                 break;
@@ -268,7 +276,7 @@ fn replay_group(
         let (lower, upper) = replay_interval_bounds(function, register)?;
         start = Some(start.map_or(lower, |value: TerminalLiveRangePoint| value.min(lower)));
         end = Some(end.map_or(upper, |value: TerminalLiveRangePoint| value.max(upper)));
-        let candidates = register.points[0]
+        let mut candidates = register.points[0]
             .candidates
             .iter()
             .copied()
@@ -278,6 +286,9 @@ fn replay_group(
                     .all(|point| point.candidates.contains(candidate))
             })
             .collect::<BTreeSet<_>>();
+        for point in &register.early_clobber_points {
+            candidates.retain(|candidate| point.candidates.binary_search(candidate).is_ok());
+        }
         if let Some(existing) = &mut shared {
             existing.retain(|candidate| candidates.contains(candidate));
         } else {
@@ -304,6 +315,60 @@ fn replay_group(
         end.expect("replay group is nonempty"),
         shared.into_iter().collect(),
     ))
+}
+
+fn replay_early_clobber_blocks(
+    members: &[usize],
+    candidate: &RegisterView,
+    selected: &BTreeMap<TerminalVirtualRegisterId, RegisterViewId>,
+    legality: &crate::TerminalFunctionAllocationLegality,
+    ranges: &crate::TerminalFunctionLiveRanges,
+    physical: &ValidatedPhysicalRegisterModel,
+) -> bool {
+    for member in members {
+        let register = legality.virtual_registers[*member].virtual_register;
+        for early in &ranges.early_clobbers {
+            if register == early.def_virtual_register {
+                for used in &early.uses {
+                    if let Some(view) = selected.get(&used.virtual_register) {
+                        let used_view = physical
+                            .model()
+                            .views
+                            .iter()
+                            .find(|candidate| candidate.id == *view)
+                            .expect("selected input home was validated");
+                        if candidate
+                            .write_units
+                            .iter()
+                            .any(|unit| used_view.units.contains(unit))
+                        {
+                            return true;
+                        }
+                    }
+                }
+            } else if early
+                .uses
+                .iter()
+                .any(|used| used.virtual_register == register)
+                && let Some(view) = selected.get(&early.def_virtual_register)
+            {
+                let def_view = physical
+                    .model()
+                    .views
+                    .iter()
+                    .find(|candidate| candidate.id == *view)
+                    .expect("selected definition home was validated");
+                if def_view
+                    .write_units
+                    .iter()
+                    .any(|unit| candidate.units.contains(unit))
+                {
+                    return true;
+                }
+            }
+        }
+    }
+    false
 }
 
 fn replay_interval_bounds(

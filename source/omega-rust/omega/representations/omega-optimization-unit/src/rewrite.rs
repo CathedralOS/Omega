@@ -475,6 +475,12 @@ pub enum ProofCertifiedScalarIdentityKind {
     SaturatingIntegerDivideOneRight,
     ExactIntegerMultiplyZeroLeft,
     ExactIntegerMultiplyZeroRight,
+    ExactIntegerDivideZeroLeft,
+    WrappingIntegerDivideZeroLeft,
+    SaturatingIntegerDivideZeroLeft,
+    ExactIntegerRemainderZeroLeft,
+    WrappingIntegerRemainderZeroLeft,
+    SaturatingIntegerRemainderZeroLeft,
 }
 
 /// Remove one proof-certified integer identity and replace every use of its
@@ -891,6 +897,7 @@ impl PsiRewriteCandidate {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn new_proof_certified_scalar_identity(
         input: OptimizationUnitIdentity,
         contract: OptimizationRuleContract,
@@ -1797,6 +1804,9 @@ fn encode_candidate(
     patch: &PsiRewritePatch,
 ) -> Vec<u8> {
     let mut bytes = Vec::new();
+    // The version identifies this extensible tagged schema, not the current
+    // largest tag. Rehashing established candidates when a new tag is added
+    // would also change deterministic cost-tie decisions for unrelated rules.
     bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v24\0");
     bytes.extend_from_slice(&input.bytes());
     bytes.extend_from_slice(&contract.encode());
@@ -2055,6 +2065,12 @@ fn encode_candidate(
                 ProofCertifiedScalarIdentityKind::SaturatingIntegerDivideOneRight => 10,
                 ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyZeroLeft => 11,
                 ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyZeroRight => 12,
+                ProofCertifiedScalarIdentityKind::ExactIntegerDivideZeroLeft => 13,
+                ProofCertifiedScalarIdentityKind::WrappingIntegerDivideZeroLeft => 14,
+                ProofCertifiedScalarIdentityKind::SaturatingIntegerDivideZeroLeft => 15,
+                ProofCertifiedScalarIdentityKind::ExactIntegerRemainderZeroLeft => 16,
+                ProofCertifiedScalarIdentityKind::WrappingIntegerRemainderZeroLeft => 17,
+                ProofCertifiedScalarIdentityKind::SaturatingIntegerRemainderZeroLeft => 18,
             });
         }
     }
@@ -2454,6 +2470,12 @@ mod tests {
             ProofCertifiedScalarIdentityKind::SaturatingIntegerDivideOneRight,
             ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyZeroLeft,
             ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyZeroRight,
+            ProofCertifiedScalarIdentityKind::ExactIntegerDivideZeroLeft,
+            ProofCertifiedScalarIdentityKind::WrappingIntegerDivideZeroLeft,
+            ProofCertifiedScalarIdentityKind::SaturatingIntegerDivideZeroLeft,
+            ProofCertifiedScalarIdentityKind::ExactIntegerRemainderZeroLeft,
+            ProofCertifiedScalarIdentityKind::WrappingIntegerRemainderZeroLeft,
+            ProofCertifiedScalarIdentityKind::SaturatingIntegerRemainderZeroLeft,
         ]
         .map(|identity| {
             PsiRewriteCandidate::new_proof_certified_scalar_identity(
@@ -2476,6 +2498,6 @@ mod tests {
             .unwrap()
             .identity()
         });
-        assert_eq!(identities.into_iter().collect::<BTreeSet<_>>().len(), 5);
+        assert_eq!(identities.into_iter().collect::<BTreeSet<_>>().len(), 11);
     }
 }

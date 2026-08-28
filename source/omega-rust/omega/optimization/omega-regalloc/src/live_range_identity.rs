@@ -9,7 +9,7 @@ use crate::{
 
 pub fn terminal_live_range_identity(plan: &TerminalLiveRangePlan) -> TerminalLiveRangeIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-live-range-fragments.v2\0");
+    bytes.extend_from_slice(b"omega.terminal-live-range-fragments.v3\0");
     bytes.extend_from_slice(&plan.selected.bytes());
     bytes.extend_from_slice(&plan.liveness.bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
@@ -83,6 +83,23 @@ pub fn terminal_live_range_identity(plan: &TerminalLiveRangePlan) -> TerminalLiv
             bytes.extend_from_slice(&tie.def_virtual_register.0.to_le_bytes());
             bytes.extend_from_slice(&tie.def_point.0.to_le_bytes());
             bytes.extend_from_slice(&tie.class.0.to_le_bytes());
+        }
+        encode_len(&mut bytes, function.early_clobbers.len());
+        for early in &function.early_clobbers {
+            bytes.extend_from_slice(&early.block.0.to_le_bytes());
+            bytes.extend_from_slice(&early.position.0.to_le_bytes());
+            bytes.extend_from_slice(&early.instruction.0.to_le_bytes());
+            bytes.extend_from_slice(&early.early_point.0.to_le_bytes());
+            bytes.extend_from_slice(&early.def_operand.to_le_bytes());
+            bytes.extend_from_slice(&early.def_virtual_register.0.to_le_bytes());
+            bytes.extend_from_slice(&early.def_class.0.to_le_bytes());
+            bytes.extend_from_slice(&early.def_point.0.to_le_bytes());
+            encode_len(&mut bytes, early.uses.len());
+            for used in &early.uses {
+                bytes.extend_from_slice(&used.operand.to_le_bytes());
+                bytes.extend_from_slice(&used.virtual_register.0.to_le_bytes());
+                bytes.extend_from_slice(&used.class.0.to_le_bytes());
+            }
         }
         encode_len(&mut bytes, function.architectural_units.len());
         for unit in &function.architectural_units {
@@ -164,11 +181,11 @@ mod tests {
     use crate::{
         TerminalArchitecturalUnitAction, TerminalArchitecturalUnitActionKind,
         TerminalArchitecturalUnitLiveRange, TerminalBlockPointDomain, TerminalDistinctUseDefTie,
-        TerminalFunctionLiveRanges, TerminalLiveRangeEdgeConnector, TerminalLiveRangeFragment,
-        TerminalLiveRangePlan, TerminalLiveRangePoint, TerminalLivenessIdentity,
-        TerminalLivenessPosition, TerminalVirtualFixedConstraint,
-        TerminalVirtualFixedConstraintSite, TerminalVirtualInterference, TerminalVirtualLiveRange,
-        TerminalVirtualOccurrence,
+        TerminalEarlyClobberConstraint, TerminalEarlyClobberUse, TerminalFunctionLiveRanges,
+        TerminalLiveRangeEdgeConnector, TerminalLiveRangeFragment, TerminalLiveRangePlan,
+        TerminalLiveRangePoint, TerminalLivenessIdentity, TerminalLivenessPosition,
+        TerminalVirtualFixedConstraint, TerminalVirtualFixedConstraintSite,
+        TerminalVirtualInterference, TerminalVirtualLiveRange, TerminalVirtualOccurrence,
     };
 
     fn plan() -> TerminalLiveRangePlan {
@@ -226,6 +243,21 @@ mod tests {
                     def_virtual_register: TerminalVirtualRegisterId(1),
                     def_point: TerminalLiveRangePoint(1),
                     class: RegisterClassId(1),
+                }],
+                early_clobbers: vec![TerminalEarlyClobberConstraint {
+                    block: TerminalSelectedBlockId(0),
+                    position: TerminalLivenessPosition(0),
+                    instruction: TerminalSelectedInstructionId(0),
+                    early_point: TerminalLiveRangePoint(0),
+                    def_operand: 1,
+                    def_virtual_register: TerminalVirtualRegisterId(1),
+                    def_class: RegisterClassId(1),
+                    def_point: TerminalLiveRangePoint(1),
+                    uses: vec![TerminalEarlyClobberUse {
+                        operand: 0,
+                        virtual_register: TerminalVirtualRegisterId(0),
+                        class: RegisterClassId(1),
+                    }],
                 }],
                 architectural_units: vec![TerminalArchitecturalUnitLiveRange {
                     unit: RegisterUnitId(1),
@@ -305,6 +337,25 @@ mod tests {
         for mutate in tie_mutations {
             let mut changed = original.clone();
             mutate(&mut changed.functions[0].tied_pairs[0]);
+            mutations.push(changed);
+        }
+        let early_mutations: Vec<fn(&mut TerminalEarlyClobberConstraint)> = vec![
+            |row| row.block.0 += 1,
+            |row| row.position.0 += 1,
+            |row| row.instruction.0 += 1,
+            |row| row.early_point.0 += 1,
+            |row| row.def_operand += 1,
+            |row| row.def_virtual_register.0 += 1,
+            |row| row.def_class.0 += 1,
+            |row| row.def_point.0 += 1,
+            |row| row.uses[0].operand += 1,
+            |row| row.uses[0].virtual_register.0 += 1,
+            |row| row.uses[0].class.0 += 1,
+            |row| row.uses.clear(),
+        ];
+        for mutate in early_mutations {
+            let mut changed = original.clone();
+            mutate(&mut changed.functions[0].early_clobbers[0]);
             mutations.push(changed);
         }
         let mut changed = original.clone();

@@ -9,10 +9,11 @@ use omega_register_model::{
 use crate::{
     TerminalAllocationLegalityError, TerminalAllocationLegalityPlan,
     TerminalAllocationLegalityValidationReceipt, TerminalEntryFixedViewTransition,
-    TerminalLiveRangePoint, TerminalVirtualFixedConstraintSite, TerminalVirtualLiveRange,
-    TerminalVirtualPointLegality, TerminalVirtualRegisterAllocationLegality,
-    ValidatedTerminalAllocationLegality, ValidatedTerminalAllocatorAvailability,
-    ValidatedTerminalLiveRanges, terminal_allocation_legality_identity,
+    TerminalLiveRangePoint, TerminalVirtualEarlyClobberPointLegality,
+    TerminalVirtualFixedConstraintSite, TerminalVirtualLiveRange, TerminalVirtualPointLegality,
+    TerminalVirtualRegisterAllocationLegality, ValidatedTerminalAllocationLegality,
+    ValidatedTerminalAllocatorAvailability, ValidatedTerminalLiveRanges,
+    terminal_allocation_legality_identity,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -110,6 +111,19 @@ pub fn validate_terminal_allocation_legality(
             .iter()
             .flat_map(|function| &function.virtual_registers)
             .flat_map(|register| &register.points)
+            .map(|point| point.candidates.len())
+            .sum(),
+        early_clobber_point_count: plan
+            .functions
+            .iter()
+            .flat_map(|function| &function.virtual_registers)
+            .map(|register| register.early_clobber_points.len())
+            .sum(),
+        early_clobber_candidate_count: plan
+            .functions
+            .iter()
+            .flat_map(|function| &function.virtual_registers)
+            .flat_map(|register| &register.early_clobber_points)
             .map(|point| point.candidates.len())
             .sum(),
         entry_transition_count: plan
@@ -244,6 +258,108 @@ fn replay_register(
             )?);
         }
     }
+    let mut early_clobber_points = Vec::new();
+    for early in function
+        .early_clobbers
+        .iter()
+        .filter(|early| early.def_virtual_register == register.virtual_register)
+    {
+        if early.def_class != register.class {
+            return Err(TerminalAllocationLegalityError::UnknownClass {
+                function: function_index,
+                register: register.virtual_register.0,
+                class: early.def_class.0,
+            });
+        }
+        let fixed = register
+            .fixed_constraints
+            .iter()
+            .filter_map(|constraint| match constraint.site {
+                TerminalVirtualFixedConstraintSite::Operand {
+                    position,
+                    instruction,
+                    operand,
+                    access: omega_register_model::RegisterOperandAccess::Def,
+                    ..
+                } if position == early.position
+                    && instruction == early.instruction
+                    && operand == early.def_operand =>
+                {
+                    Some(constraint.view)
+                }
+                _ => None,
+            })
+            .collect::<BTreeSet<_>>();
+        if fixed.len() > 1 {
+            return Err(TerminalAllocationLegalityError::IllegalFixedView {
+                function: function_index,
+                register: register.virtual_register.0,
+                view: fixed.last().expect("two fixed views exist").0,
+            });
+        }
+        let occupied = occupied_units(function, early.block, early.early_point, reservations);
+        let mut candidates = class
+            .views
+            .iter()
+            .filter(|view_id| available.binary_search(view_id).is_ok())
+            .filter_map(|view_id| {
+                let view = physical
+                    .model()
+                    .views
+                    .iter()
+                    .find(|view| view.id == *view_id)?;
+                (view.allocatable
+                    && view
+                        .units
+                        .iter()
+                        .chain(&view.write_units)
+                        .all(|unit| !occupied.contains(unit)))
+                .then_some(*view_id)
+            })
+            .collect::<Vec<_>>();
+        if let Some(fixed) = fixed.into_iter().next() {
+            let fixed_view = physical
+                .model()
+                .views
+                .iter()
+                .find(|view| view.id == fixed)
+                .ok_or(TerminalAllocationLegalityError::UnknownFixedView {
+                    function: function_index,
+                    register: register.virtual_register.0,
+                    view: fixed.0,
+                })?;
+            if fixed_view.class != register.class
+                || fixed_view
+                    .units
+                    .iter()
+                    .chain(&fixed_view.write_units)
+                    .any(|unit| occupied.contains(unit))
+            {
+                return Err(TerminalAllocationLegalityError::IllegalFixedView {
+                    function: function_index,
+                    register: register.virtual_register.0,
+                    view: fixed.0,
+                });
+            }
+            candidates = vec![fixed];
+        }
+        if candidates.is_empty() {
+            return Err(TerminalAllocationLegalityError::NoCandidateViews {
+                function: function_index,
+                register: register.virtual_register.0,
+                block: early.block.0,
+                point: early.early_point.0,
+            });
+        }
+        early_clobber_points.push(TerminalVirtualEarlyClobberPointLegality {
+            block: early.block,
+            position: early.position,
+            instruction: early.instruction,
+            operand: early.def_operand,
+            point: early.early_point,
+            candidates,
+        });
+    }
     let entry = register.fixed_constraints.iter().find_map(|constraint| {
         matches!(constraint.site, TerminalVirtualFixedConstraintSite::Entry)
             .then_some(constraint.view)
@@ -269,6 +385,7 @@ fn replay_register(
         virtual_register: register.virtual_register,
         class: register.class,
         points,
+        early_clobber_points,
         entry_transitions,
     })
 }
@@ -307,6 +424,23 @@ fn validate_canonical(
         .windows(2)
         .any(|pair| (pair[0].block, pair[0].point) >= (pair[1].block, pair[1].point))
         || register.points.iter().any(|point| {
+            point.candidates.is_empty()
+                || point.candidates.windows(2).any(|pair| pair[0] >= pair[1])
+        })
+        || register.early_clobber_points.windows(2).any(|pair| {
+            (
+                pair[0].block,
+                pair[0].point,
+                pair[0].instruction,
+                pair[0].operand,
+            ) >= (
+                pair[1].block,
+                pair[1].point,
+                pair[1].instruction,
+                pair[1].operand,
+            )
+        })
+        || register.early_clobber_points.iter().any(|point| {
             point.candidates.is_empty()
                 || point.candidates.windows(2).any(|pair| pair[0] >= pair[1])
         })

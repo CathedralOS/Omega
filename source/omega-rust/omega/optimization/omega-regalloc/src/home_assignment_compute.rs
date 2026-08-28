@@ -200,17 +200,21 @@ pub(crate) fn compute_function(
                 candidate,
                 physical,
             )?;
-            let conflicts = active.iter().any(|entry| {
-                group.registers.iter().any(|register| {
-                    entry.registers.iter().any(|active_register| {
-                        interferes(
-                            register.virtual_register,
-                            *active_register,
-                            &ranges.interference,
-                        )
-                    })
-                }) && footprints_overlap(view, &physical.model().views[usize::from(entry.view.0)])
-            });
+            let conflicts =
+                active.iter().any(|entry| {
+                    group.registers.iter().any(|register| {
+                        entry.registers.iter().any(|active_register| {
+                            interferes(
+                                register.virtual_register,
+                                *active_register,
+                                &ranges.interference,
+                            )
+                        })
+                    }) && footprints_overlap(
+                        view,
+                        &physical.model().views[usize::from(entry.view.0)],
+                    )
+                }) || early_clobber_blocks(&group.registers, view, &homes, ranges, physical);
             if !conflicts {
                 selected = Some(candidate);
                 break;
@@ -352,6 +356,9 @@ fn common_candidates(
     for point in &register.points[1..] {
         common.retain(|candidate| point.candidates.binary_search(candidate).is_ok());
     }
+    for point in &register.early_clobber_points {
+        common.retain(|candidate| point.candidates.binary_search(candidate).is_ok());
+    }
     if common.is_empty() {
         return Err(TerminalRegisterHomeError::NoCommonCandidate {
             function: function_index,
@@ -359,6 +366,47 @@ fn common_candidates(
         });
     }
     Ok(common)
+}
+
+fn early_clobber_blocks(
+    current: &[&crate::TerminalVirtualRegisterAllocationLegality],
+    current_view: &RegisterView,
+    assigned: &BTreeMap<TerminalVirtualRegisterId, RegisterViewId>,
+    ranges: &crate::TerminalFunctionLiveRanges,
+    physical: &ValidatedPhysicalRegisterModel,
+) -> bool {
+    ranges.early_clobbers.iter().any(|early| {
+        current.iter().any(|register| {
+            if register.virtual_register == early.def_virtual_register {
+                early.uses.iter().any(|used| {
+                    assigned.get(&used.virtual_register).is_some_and(|view| {
+                        let used_view = &physical.model().views[usize::from(view.0)];
+                        early_write_overlaps_use(current_view, used_view)
+                    })
+                })
+            } else if early
+                .uses
+                .iter()
+                .any(|used| used.virtual_register == register.virtual_register)
+            {
+                assigned
+                    .get(&early.def_virtual_register)
+                    .is_some_and(|view| {
+                        let def_view = &physical.model().views[usize::from(view.0)];
+                        early_write_overlaps_use(def_view, current_view)
+                    })
+            } else {
+                false
+            }
+        })
+    })
+}
+
+fn early_write_overlaps_use(definition: &RegisterView, used: &RegisterView) -> bool {
+    definition
+        .write_units
+        .iter()
+        .any(|unit| used.units.contains(unit))
 }
 
 fn checked_view(
@@ -414,15 +462,16 @@ mod tests {
         validate_physical_register_model,
     };
     use omega_terminal_selected_instructions::{
-        TerminalSelectedBlockId, TerminalVirtualRegisterId,
+        TerminalSelectedBlockId, TerminalSelectedInstructionId, TerminalVirtualRegisterId,
     };
     use psi_core::MachineId;
 
     use super::*;
     use crate::{
-        TerminalDistinctUseDefTie, TerminalFunctionAllocationLegality, TerminalFunctionLiveRanges,
-        TerminalLivenessPosition, TerminalVirtualLiveRange, TerminalVirtualPointLegality,
-        TerminalVirtualRegisterAllocationLegality,
+        TerminalDistinctUseDefTie, TerminalEarlyClobberConstraint, TerminalEarlyClobberUse,
+        TerminalFunctionAllocationLegality, TerminalFunctionLiveRanges, TerminalLivenessPosition,
+        TerminalVirtualEarlyClobberPointLegality, TerminalVirtualLiveRange,
+        TerminalVirtualPointLegality, TerminalVirtualRegisterAllocationLegality,
     };
 
     fn physical() -> ValidatedPhysicalRegisterModel {
@@ -476,6 +525,7 @@ mod tests {
                                 candidates: vec![RegisterViewId(0), RegisterViewId(1)],
                             })
                             .collect(),
+                        early_clobber_points: Vec::new(),
                         entry_transitions: Vec::new(),
                     },
                 )
@@ -498,6 +548,7 @@ mod tests {
                 })
                 .collect(),
             tied_pairs: Vec::new(),
+            early_clobbers: Vec::new(),
             architectural_units: Vec::new(),
             interference: interference
                 .iter()
@@ -574,6 +625,81 @@ mod tests {
             class: RegisterClassId(0),
         });
         ranges
+    }
+
+    fn early_clobber_ranges() -> TerminalFunctionLiveRanges {
+        let mut ranges = ranges(&[]);
+        ranges.early_clobbers.push(TerminalEarlyClobberConstraint {
+            block: TerminalSelectedBlockId(0),
+            position: TerminalLivenessPosition(1),
+            instruction: TerminalSelectedInstructionId(1),
+            early_point: TerminalLiveRangePoint(2),
+            def_operand: 2,
+            def_virtual_register: TerminalVirtualRegisterId(2),
+            def_class: RegisterClassId(0),
+            def_point: TerminalLiveRangePoint(3),
+            uses: vec![
+                TerminalEarlyClobberUse {
+                    operand: 0,
+                    virtual_register: TerminalVirtualRegisterId(0),
+                    class: RegisterClassId(0),
+                },
+                TerminalEarlyClobberUse {
+                    operand: 1,
+                    virtual_register: TerminalVirtualRegisterId(1),
+                    class: RegisterClassId(0),
+                },
+            ],
+        });
+        ranges
+    }
+
+    #[test]
+    fn early_clobber_def_avoids_expired_input_homes_and_replay_agrees() {
+        let physical = physical();
+        let mut legality = legality(&[(0, 2), (0, 2), (3, 4)]);
+        legality.virtual_registers[2].early_clobber_points =
+            vec![TerminalVirtualEarlyClobberPointLegality {
+                block: TerminalSelectedBlockId(0),
+                position: TerminalLivenessPosition(1),
+                instruction: TerminalSelectedInstructionId(1),
+                operand: 2,
+                point: TerminalLiveRangePoint(2),
+                candidates: vec![RegisterViewId(0), RegisterViewId(1)],
+            }];
+        let ranges = early_clobber_ranges();
+        let homes = compute_function(0, &legality, &ranges, &physical).unwrap();
+        assert_eq!(
+            homes
+                .assignments
+                .iter()
+                .map(|assignment| assignment.view)
+                .collect::<Vec<_>>(),
+            vec![RegisterViewId(0), RegisterViewId(0), RegisterViewId(1)]
+        );
+        assert_eq!(
+            crate::home_assignment_validate::replay_function(0, &legality, &ranges, &physical)
+                .unwrap(),
+            homes
+        );
+
+        for register in &mut legality.virtual_registers {
+            for point in &mut register.points {
+                point.candidates = vec![RegisterViewId(0)];
+            }
+            for point in &mut register.early_clobber_points {
+                point.candidates = vec![RegisterViewId(0)];
+            }
+        }
+        let expected = Err(TerminalRegisterHomeError::NoCompatibleHome {
+            function: 0,
+            register: 2,
+        });
+        assert_eq!(compute_function(0, &legality, &ranges, &physical), expected);
+        assert_eq!(
+            crate::home_assignment_validate::replay_function(0, &legality, &ranges, &physical),
+            expected
+        );
     }
 
     #[test]
