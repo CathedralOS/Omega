@@ -94,13 +94,37 @@ def canonical_json(value: object) -> bytes:
 
 def identity(path: Path, role: str, limit: int | None = None) -> dict:
     extent = path.stat().st_size
-    if limit is not None and extent > limit:
-        raise DriverResourceError(f"{role} byte ceiling")
-    raw = path.read_bytes()
-    if len(raw) != extent:
-        fail(f"{role} changed while reading")
-    if limit is not None and len(raw) > limit:
-        raise DriverResourceError(f"{role} byte ceiling")
+    if limit is None:
+        raw = path.read_bytes()
+        if len(raw) != extent:
+            fail(f"{role} changed while reading")
+    else:
+        if extent > limit:
+            raise DriverResourceError(f"{role} byte ceiling")
+        with path.open("rb") as stream:
+            before = os.fstat(stream.fileno())
+            if before.st_size > limit:
+                raise DriverResourceError(f"{role} byte ceiling")
+            raw = stream.read(limit + 1)
+            after = os.fstat(stream.fileno())
+        if len(raw) > limit or after.st_size > limit:
+            raise DriverResourceError(f"{role} byte ceiling")
+        if (
+            before.st_dev != after.st_dev
+            or before.st_ino != after.st_ino
+            or before.st_size != after.st_size
+            or len(raw) != after.st_size
+        ):
+            fail(f"{role} changed while reading")
+        current = path.stat()
+        if current.st_size > limit:
+            raise DriverResourceError(f"{role} byte ceiling")
+        if (
+            current.st_dev != after.st_dev
+            or current.st_ino != after.st_ino
+            or current.st_size != after.st_size
+        ):
+            fail(f"{role} path changed while reading")
     return {
         "byte_length": len(raw),
         "role": role,
