@@ -9243,8 +9243,6 @@ Remaining F7 work:
 
 - provide feature-qualified x86-64 FMA or a checked binary32/binary64 software
   implementation, then select the generic x86 FMA slots;
-- retain equally target-specific semantic-edge evidence for every other
-  admitted hardware realization; and
 - complete the wider proof/`Real` connection under N6/N8.
 
 The mechanical x86-64 prerequisite is live: `omega-isa-x86_64` owns exact
@@ -9262,9 +9260,16 @@ ELF or PE/COFF images under retained host-independent identities; the Windows
 suite also replays the DOS/PE signature and AMD64 machine header. Native
 execution is a separate leg and runs only on a matching Linux or Windows x86-64
 host. Directed and fused operations are deliberately absent, so this validation
-evidence grants no generic FMA or feature admission. The complete FMA/directed
-corpus and the other admitted target profiles remain under the open
-target-specific-evidence item above.
+evidence grants no generic FMA or feature admission. Linux AArch64 now has its
+own comprehensive target receipt over the existing 56-plan semantic-edge twin,
+including nearest and directed arithmetic, directed and nearest FMA, and
+fused-versus-separately-rounded behavior. Its checked/interpreted half exits 70,
+two explicit `linux_arm64` roots produce byte-identical ELF images that name
+`EM_AARCH64`, and native execution is retained separately on a matching Linux
+AArch64 host. Together with the existing macOS AArch64 semantic-edge suite, all
+four currently admitted native profiles now carry target-specific evidence.
+This closes evidence coverage only; it does not authorize FMA on the generic
+SSE2 x86-64 baseline.
 
 Proof-only Exact float-to-integer cast admission now lives in a focused 399-
 line private owner. Finite expression intervals, declared range projection,

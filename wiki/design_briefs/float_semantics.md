@@ -386,6 +386,14 @@ makes format-as-data descriptive, not speculative.
    Hardware execution is retained separately and only on a matching x86-64
    host. Their corpora deliberately exclude directed and fused operations, so
    build success neither selects generic FMA nor widens target admission.
+   Linux AArch64 now retains its own comprehensive 56-plan semantic-edge
+   receipt, including nearest and directed arithmetic, nearest and directed
+   FMA, and fused-versus-separately-rounded behavior. Its checked/interpreted
+   half exits 70; two explicit `linux_arm64` roots produce byte-identical ELF
+   images naming `EM_AARCH64`; and native execution is retained only on a
+   matching Linux AArch64 host. Together with the existing macOS AArch64 suite,
+   the four currently admitted native profiles now have target-specific
+   executable evidence. This does not admit FMA on generic x86-64.
 7. **Engineering order.** Signed Rat -> `FloatMeaning` -> executable semantic
    functions -> policy adapters -> target conformances -> differential
    validation. Signed Rat belongs to the quotient/Real lane and is a hard F7
