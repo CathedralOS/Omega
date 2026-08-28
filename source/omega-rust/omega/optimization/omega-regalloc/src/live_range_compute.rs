@@ -186,7 +186,7 @@ pub(crate) fn derive_early_clobbers(
         })
         .collect::<Vec<_>>();
     let mut rows = Vec::with_capacity(early_definitions.len());
-    for definition in early_definitions {
+    for definition in &early_definitions {
         let operands = liveness
             .operand_positions
             .iter()
@@ -222,20 +222,20 @@ pub(crate) fn derive_early_clobbers(
                     && tied_source.is_none_or(|source| source.operand != operand.operand)
             })
             .collect::<Vec<_>>();
-        let tie_is_isolated = tied_source.is_none_or(|source| {
-            tied_edges
-                .iter()
-                .filter(|(left, right)| {
-                    *left == source.virtual_register
-                        || *right == source.virtual_register
-                        || *left == definition.virtual_register
-                        || *right == definition.virtual_register
-                })
-                .copied()
-                .eq(std::iter::once((
-                    source.virtual_register,
-                    definition.virtual_register,
-                )))
+        // SingleEarlyDefTiedComponentAgainstUntiedUsesV1 keeps the source in
+        // ordinary tie evidence and only unrelated Uses in this hazard row.
+        let tie_component_has_one_early_definition = tied_source.is_none_or(|source| {
+            let component = tied_component(source.virtual_register, &tied_edges);
+            tied_edges.contains(&(source.virtual_register, definition.virtual_register))
+                && component.contains(&definition.virtual_register)
+                && early_definitions
+                    .iter()
+                    .filter(|candidate| {
+                        candidate.tied_to.is_some()
+                            && component.contains(&candidate.virtual_register)
+                    })
+                    .count()
+                    == 1
         });
         let untied_definition_is_free = tied_source.is_some()
             || tied_edges.iter().all(|(left, right)| {
@@ -255,7 +255,7 @@ pub(crate) fn derive_early_clobbers(
                     && (operand.access != RegisterOperandAccess::Use || operand.tied_to.is_some()))
                     || !participants.insert(operand.virtual_register)
             })
-            || !tie_is_isolated
+            || !tie_component_has_one_early_definition
             || !untied_definition_is_free
             || unrelated.iter().any(|operand| {
                 tied_edges.iter().any(|(left, right)| {
@@ -304,6 +304,24 @@ pub(crate) fn derive_early_clobbers(
         });
     }
     Ok(rows)
+}
+
+fn tied_component(
+    seed: TerminalVirtualRegisterId,
+    edges: &[(TerminalVirtualRegisterId, TerminalVirtualRegisterId)],
+) -> BTreeSet<TerminalVirtualRegisterId> {
+    let mut component = BTreeSet::from([seed]);
+    loop {
+        let previous_len = component.len();
+        for (left, right) in edges {
+            if component.contains(left) || component.contains(right) {
+                component.extend([*left, *right]);
+            }
+        }
+        if component.len() == previous_len {
+            return component;
+        }
+    }
 }
 
 pub(crate) fn derive_tied_pairs(
@@ -865,6 +883,43 @@ mod tests {
             crate::compute::tests::supported_multiple_isolated_tied_early_clobber_function();
         let live = crate::compute::compute_function(0, &selected).unwrap();
         assert_eq!(derive_tied_pairs(0, &live).unwrap().len(), 2);
+        assert_eq!(derive_early_clobbers(0, &live).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn component_tied_early_clobber_keeps_transitive_ties_and_only_unrelated_hazards() {
+        let selected = crate::compute::tests::supported_component_tied_early_clobber_function();
+        let live = crate::compute::compute_function(0, &selected).unwrap();
+        let ties = derive_tied_pairs(0, &live).unwrap();
+        let rows = derive_early_clobbers(0, &live).unwrap();
+
+        assert_eq!(ties.len(), 2);
+        assert_eq!(
+            ties.iter()
+                .map(|tie| (tie.use_virtual_register, tie.def_virtual_register))
+                .collect::<Vec<_>>(),
+            vec![
+                (TerminalVirtualRegisterId(0), TerminalVirtualRegisterId(1)),
+                (TerminalVirtualRegisterId(1), TerminalVirtualRegisterId(3)),
+            ]
+        );
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].def_virtual_register, TerminalVirtualRegisterId(3));
+        assert_eq!(rows[0].early_point, TerminalLiveRangePoint(2));
+        assert_eq!(rows[0].def_point, TerminalLiveRangePoint(3));
+        assert_eq!(
+            rows[0]
+                .uses
+                .iter()
+                .map(|used| used.virtual_register)
+                .collect::<Vec<_>>(),
+            vec![TerminalVirtualRegisterId(2)]
+        );
+
+        let multiple =
+            crate::compute::tests::supported_multiple_component_tied_early_clobber_function();
+        let live = crate::compute::compute_function(0, &multiple).unwrap();
+        assert_eq!(derive_tied_pairs(0, &live).unwrap().len(), 4);
         assert_eq!(derive_early_clobbers(0, &live).unwrap().len(), 2);
     }
 

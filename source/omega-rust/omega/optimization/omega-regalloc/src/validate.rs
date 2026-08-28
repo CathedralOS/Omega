@@ -581,22 +581,32 @@ fn reject_v1_unsupported(
             tied_edges.push((use_operand.virtual_register, definition.virtual_register));
         }
     }
-    for (instruction, def_operand, definition, tied_source, unrelated) in early_rows {
-        let source_and_definition_form_one_edge = match tied_source {
+    let components = independently_merge_tied_components(&tied_edges);
+    // Independently replay SingleEarlyDefTiedComponentAgainstUntiedUsesV1.
+    for (instruction, def_operand, definition, tied_source, unrelated) in &early_rows {
+        let source_and_definition_share_one_early_component = match tied_source {
             None => tied_edges
                 .iter()
-                .all(|(left, right)| *left != definition && *right != definition),
+                .all(|(left, right)| left != definition && right != definition),
             Some(source) => {
-                let incident = tied_edges
+                let Some(component) = components
                     .iter()
-                    .filter(|(left, right)| {
-                        *left == source
-                            || *right == source
-                            || *left == definition
-                            || *right == definition
-                    })
-                    .collect::<Vec<_>>();
-                incident.len() == 1 && *incident[0] == (source, definition)
+                    .find(|component| component.contains(source) && component.contains(definition))
+                else {
+                    return Err(TerminalLivenessError::UnsupportedEarlyClobber {
+                        function: function_index,
+                        instruction: *instruction,
+                        operand: *def_operand,
+                    });
+                };
+                tied_edges.contains(&(*source, *definition))
+                    && early_rows
+                        .iter()
+                        .filter(|(_, _, candidate, candidate_source, _)| {
+                            candidate_source.is_some() && component.contains(candidate)
+                        })
+                        .count()
+                        == 1
             }
         };
         let related_unrelated_operand = unrelated.iter().find(|(register, _)| {
@@ -604,15 +614,49 @@ fn reject_v1_unsupported(
                 .iter()
                 .any(|(left, right)| left == register || right == register)
         });
-        if !source_and_definition_form_one_edge || related_unrelated_operand.is_some() {
+        if !source_and_definition_share_one_early_component || related_unrelated_operand.is_some() {
             return Err(TerminalLivenessError::UnsupportedEarlyClobber {
                 function: function_index,
-                instruction,
-                operand: related_unrelated_operand.map_or(def_operand, |(_, operand)| *operand),
+                instruction: *instruction,
+                operand: related_unrelated_operand.map_or(*def_operand, |(_, operand)| *operand),
             });
         }
     }
     Ok(())
+}
+
+fn independently_merge_tied_components(
+    edges: &[(TerminalVirtualRegisterId, TerminalVirtualRegisterId)],
+) -> Vec<BTreeSet<TerminalVirtualRegisterId>> {
+    let mut components = Vec::<BTreeSet<_>>::new();
+    for (left, right) in edges {
+        let left_component = components
+            .iter()
+            .position(|component| component.contains(left));
+        let right_component = components
+            .iter()
+            .position(|component| component.contains(right));
+        match (left_component, right_component) {
+            (None, None) => components.push(BTreeSet::from([*left, *right])),
+            (Some(component), None) => {
+                components[component].insert(*right);
+            }
+            (None, Some(component)) => {
+                components[component].insert(*left);
+            }
+            (Some(left_component), Some(right_component)) if left_component != right_component => {
+                let (keep, remove) = if left_component < right_component {
+                    (left_component, right_component)
+                } else {
+                    (right_component, left_component)
+                };
+                let removed = components.remove(remove);
+                components[keep].extend(removed);
+            }
+            (Some(_), Some(_)) => {}
+        }
+    }
+    components
 }
 
 fn ordered_instructions(block: &TerminalSelectedBlock) -> Vec<&TerminalSelectedInstruction> {
@@ -646,7 +690,12 @@ fn collect<T: Copy + Ord>(set: &BTreeSet<T>) -> Vec<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::replay_function;
+    use omega_register_model::{RegisterClassId, RegisterOperandAccess};
+    use omega_terminal_selected_instructions::{
+        TerminalSelectedOperand, TerminalVirtualRegisterId,
+    };
+
+    use super::{reject_v1_unsupported, replay_function};
 
     #[test]
     fn independent_liveness_replay_accepts_exact_distinct_tie() {
@@ -720,5 +769,54 @@ mod tests {
         );
         assert_eq!(computed.blocks[0].instructions[0].virtual_uses.len(), 2);
         assert_eq!(computed.blocks[0].instructions[0].virtual_defs.len(), 1);
+    }
+
+    #[test]
+    fn independent_liveness_replay_accepts_one_early_def_in_a_larger_tied_component() {
+        let function = crate::compute::tests::supported_component_tied_early_clobber_function();
+        let computed = crate::compute::compute_function(0, &function).unwrap();
+        let replayed = replay_function(0, &function).unwrap();
+        assert_eq!(computed, replayed);
+        assert_eq!(
+            computed
+                .operand_positions
+                .iter()
+                .filter(|operand| operand.tied_to.is_some())
+                .count(),
+            2
+        );
+        assert_eq!(
+            computed
+                .operand_positions
+                .iter()
+                .filter(|operand| operand.early_clobber)
+                .count(),
+            1
+        );
+
+        let multiple =
+            crate::compute::tests::supported_multiple_component_tied_early_clobber_function();
+        assert_eq!(
+            crate::compute::compute_function(0, &multiple).unwrap(),
+            replay_function(0, &multiple).unwrap()
+        );
+
+        let mut two_early = function;
+        two_early.blocks[0].instructions[0].operands[1].early_clobber = true;
+        two_early.blocks[0].instructions[0]
+            .operands
+            .push(TerminalSelectedOperand {
+                operand: 2,
+                virtual_register: TerminalVirtualRegisterId(4),
+                access: RegisterOperandAccess::Use,
+                class: RegisterClassId(0),
+                fixed_view: None,
+                tied_to: None,
+                early_clobber: false,
+            });
+        assert!(matches!(
+            reject_v1_unsupported(0, &two_early),
+            Err(crate::TerminalLivenessError::UnsupportedEarlyClobber { .. })
+        ));
     }
 }
