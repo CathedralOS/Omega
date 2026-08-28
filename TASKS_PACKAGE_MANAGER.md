@@ -482,6 +482,17 @@ complete.
   cannot redirect deletion into its target. Recursive staging cleanup and the
   remaining metadata reads are still pathname-based.
 
+  Milestone 2026-08-27: all resolver-owned cache control-record reads now use
+  the retained no-follow `RecordFileRoot` path: Git repository configuration,
+  Git entry `source.identity`, Git snapshot `snapshot.identity`, and local
+  snapshot `snapshot.identity`. Each read opens only a direct regular-file
+  child, proves handle/path identity, enforces the record's exact byte ceiling
+  while reading, rereads the retained handle, and confirms the leaf still names
+  that handle. This removes the check-one-inode/unbounded-read-another gap.
+  Oversized records and symlink leaves have explicit canaries. Other structural
+  metadata observations, staging creation/cleanup, and path-based macOS ACL
+  inspection remain separate work.
+
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build
   machine may execute. Resolver custody is freshly revalidated first; the
