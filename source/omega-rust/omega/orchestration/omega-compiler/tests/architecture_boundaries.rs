@@ -147,6 +147,34 @@ fn artifact_crates_do_not_depend_on_native_bridge() {
     }
 }
 
+#[test]
+fn canonical_terminal_native_route_does_not_reenter_legacy_storage_backend() {
+    let repo_root = repo_root();
+    let route = [
+        "omega-build-evaluation",
+        "omega-provider-planning",
+        "omega-terminal-native-realization",
+        "omega-program-entry-plan",
+    ];
+    let forbidden = ["omega-program-storage", "omega-backend-pipeline"];
+
+    for crate_name in route {
+        let cargo_toml = repo_root
+            .join("source/omega-rust/omega/orchestration")
+            .join(crate_name)
+            .join("Cargo.toml");
+        let contents = fs::read_to_string(&cargo_toml)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", cargo_toml.display()));
+        for forbidden in &forbidden {
+            assert!(
+                !has_dependency(&contents, forbidden),
+                "{} must not depend on legacy `{forbidden}` in the canonical Terminal-native route",
+                cargo_toml.display()
+            );
+        }
+    }
+}
+
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
