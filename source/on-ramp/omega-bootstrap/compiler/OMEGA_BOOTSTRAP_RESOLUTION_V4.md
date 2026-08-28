@@ -110,12 +110,12 @@ selecting OMGRSW4 by itself.
 
 ## 5. Focused evidence and non-expansion
 
-`../gates/delta-shared-byte-view-resolution-handoff.sh` checks native and
-self-built resolver agreement over a finite multi-unit OMGRSW4 source containing
-an imported record, inherited pure sum, exact machine and state shared-byte
-parameters, a role-3 call, and plain literals including braces. Its independent
-reference checks the exact V3-shaped envelope, kind-7 row, canonical full-`u8`
-payload, parameter type IDs, and source spans.
+The independent reference retains the finite multi-unit OMGRSW4 source with an
+imported record, inherited pure sum, exact machine/state shared-byte
+parameters, role-3 call, plain literals, V3-shaped envelope, kind-7 row,
+canonical full-`u8` payload, parameter type IDs, and source spans. The former
+handoff wrapper joined it to native/self resolver agreement; replay is
+suspended until canonical Delta publication.
 
 Controls retain byte-identical least OMGRSW1/2/3 identities, reject a literal
 without independent V4 type selection, accept empty and 32-byte V4 literals, select 252 at 33

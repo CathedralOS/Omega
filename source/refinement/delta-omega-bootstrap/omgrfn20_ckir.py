@@ -7,7 +7,7 @@ from pathlib import Path
 from omgrfn20_frame import RefinementError, RefinementResourceError
 
 HERE = Path(__file__).resolve().parent
-GATES = HERE.parents[3] / "source/on-ramp/omega-bootstrap/gates"
+GATES = HERE.parents[2] / "source/on-ramp/omega-bootstrap/gates"
 sys.path.insert(0, str(GATES))
 import checked_ir_v17_reference as reference  # noqa: E402
 

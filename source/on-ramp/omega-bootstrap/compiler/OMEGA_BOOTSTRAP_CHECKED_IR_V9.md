@@ -122,25 +122,13 @@ CKIR or ELF bytes.
 
 ## 5. Focused evidence
 
-The focused implementation evidence is:
-
-- `../gates/delta-resolved-to-ckir9.sh`: Delta-native and Delta-self-built
-  OMGLOWA production over least OMGRSW1/2/3, exact precedence, authored operand
-  and token correspondence, left-associated chain rejection, purity and type
-  negatives, no-upper-bound-fact evidence, inherited composition, and depth
-  8/9;
-- `../gates/delta-resolved-to-ckir9-meaning.sh`: persisted-Beta translation of
-  the actual Delta lowerer plus canonical Gamma observations of result,
-  semantic rejection, resource exhaustion, and exact publication;
-- `../gates/delta-checked-ir-v9-reference.sh`: independent decoding,
+The retained `../gates/delta-checked-ir-v9-reference.sh` owns independent decoding,
   validation, unsigned `u8`/`u32` truth rows, constrained compatibility,
   inherited-operation composition, result reconstruction, and isolated
-  mutations; and
-- `../gates/delta-checked-ir-v9-backend.sh`: Delta-native/self artifact
-  identity, pinned `SETA`/`SETAE` templates, and artifact mutations.
+  mutations. Producer, Gamma-meaning, backend, and same-frame replay are
+  suspended until canonical Delta publication.
 
-These gates establish the selected producer, independent CKIR meaning, and
-conservative backend. Same-frame persisted-Beta refinement remains a separate
-admission obligation. Nothing here admits excluded carriers or operands,
+This retained evidence establishes independent CKIR meaning only. Same-frame
+persisted-Beta refinement remains a separate admission obligation. Nothing here admits excluded carriers or operands,
 general ordered comparison, new transition facts, or the feature to final
 `Ωself`.

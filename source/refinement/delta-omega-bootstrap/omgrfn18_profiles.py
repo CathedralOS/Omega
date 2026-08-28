@@ -13,7 +13,7 @@ from omgrfn18_source import COUNT_NAMES, WIDTHS
 from omgrfn18_u64 import U64
 
 HERE = Path(__file__).resolve().parent
-REPO = HERE.parents[3]
+REPO = HERE.parents[2]
 GATES = REPO / "source/on-ramp/omega-bootstrap/gates"
 sys.path.insert(0, str(GATES))
 import shared_byte_view_resolution_fixture as shared  # noqa: E402

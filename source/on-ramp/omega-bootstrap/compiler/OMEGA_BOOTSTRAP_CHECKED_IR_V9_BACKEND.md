@@ -50,10 +50,11 @@ Focused evidence is split by responsibility:
   composition, schema/opcode isolation, malformed-row rejection, and inherited
   resource ceilings;
 - `../gates/delta-checked-ir-v9-backend-fixture.py` recognizes the exact
-  load/CMP/SETA-or-SETAE/MOVZX/store templates associated with each opcode; and
-- `../gates/delta-checked-ir-v9-backend.sh` checks Delta-native/self artifact
-  identity, result 70, condition-code mutation rejection, and no partial
-  artifact publication for rejected inputs.
+  load/CMP/SETA-or-SETAE/MOVZX/store templates associated with each opcode.
+
+The former producer-backed wrapper joined them to native/self artifact
+identity, result 70, condition-code mutation rejection, and empty rejected
+publication. Replay is suspended until canonical Delta publication.
 
 This is backend evidence only. It does not define a public Omega ABI, source
 syntax, source evaluation order, or transition-fact relation.

@@ -26,9 +26,9 @@ and `JA` for the upper bound. Store preserves the destination pointer in
 arguments are staged as qwords before the callee/target performs its range
 check; returns check the declared machine result before `leave; ret`.
 
-The focused gates are `delta-checked-ir-v16-reference.sh` and
-`delta-checked-ir-v16-backend.sh`. Their no-view positives cross both the low
-and high halves, exercise field storage, calls, true-edge narrowing, return and
-record-constructor custody, compare native and self-hosted backend artifacts,
-and tooth the exact qword comparison template. The backend gate also runs the
-CKIR15 reference and CKIR14 backend regression chains.
+The retained `delta-checked-ir-v16-reference.sh` owns the no-view positives
+across both halves, field storage, calls, true-edge narrowing, return, and
+record-constructor custody. The former backend wrapper joined those cases to
+native/self artifacts and the exact qword comparison template. Backend replay
+and its CKIR14/15 regression chain are suspended until canonical Delta
+publication.

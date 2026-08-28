@@ -1,5 +1,5 @@
 # Precise cache profile for OMGRFN18's independent owners and persisted-Beta
-# projections. Actual producer/backend evidence stays in the adjacent profile.
+# projections. Actual producer/backend replay is suspended until publication.
 script source/refinement/delta-omega-bootstrap/omgrfn18-reference.sh
 
 input tools/bootstrap/paths.sh

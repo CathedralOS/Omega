@@ -20,7 +20,7 @@ from omgrfn19_witness import decode
 
 
 HERE = Path(__file__).resolve().parent
-ROOT = HERE.parents[3]
+ROOT = HERE.parents[2]
 REFERENCE = ROOT / "source/on-ramp/omega-bootstrap/gates/omgrsw9_provider_plan_reference.py"
 
 

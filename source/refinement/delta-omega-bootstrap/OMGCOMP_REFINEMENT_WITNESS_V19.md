@@ -89,8 +89,6 @@ through both persisted `bc` and self-produced `bc`, requires identical
 assembly, accepts the canonical frame, rejects a locally owned mutation without
 stdout, and enforces the tape ceiling.
 
-`omgrfn19-same-frame-composite.sh` is deliberately separate. It counts only
-when actual native and self-produced resolver executions publish identical
-OMGRSW9 bytes and those exact bytes, without replacement by reference output,
-satisfy R1 through R5 in the same frame. A passing reference gate alone makes
-no producer claim.
+The former producer-dependent same-frame wrapper is retired until the
+canonical Delta compiler is published. A passing reference gate alone makes no
+producer claim; the persisted-Beta projections remain lower-rooted evidence.

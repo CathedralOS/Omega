@@ -144,7 +144,7 @@ instead of being disguised by a Rust fallback.
   source-to-artifact comparison, backend checks, contract discharge, and
   certifier checks. They must consume the canonical published artifact through
   one role, not build an implementation as a side effect.
-- [ ] Rewire or remove every suspended gate and cache profile that still names
+- [x] Rewire or remove every suspended gate and cache profile that still names
   the retired Rust Delta location or role. Retain a gate only when it specifies
   a property that the canonical artifact must satisfy.
 - [ ] Restore the downstream Delta/refinement portion of
@@ -163,6 +163,16 @@ while canonical Gamma has a 47 MiB no-GC arena and correctly exits `254` without
 publication. Bounded input construction must also replace the naïve linear-depth
 `Cons` invocation before the next full-source attempt. This is not a Delta or
 Omega language-design blocker.
+
+Retired-producer cleanup completed on 2026-08-27: 141 producer-dependent gate
+and refinement wrappers/composites and 33 mixed cache profiles were removed.
+Independent source-only meaning gates, deterministic reference carriers,
+persisted-Beta responsibilities, and 15 source/reference cache profiles remain.
+Path hygiene now rejects both the retired producer role and path throughout
+active bridge, refinement, cache, and bootstrap-tool custody. The deleted
+producer gates return only after the canonical artifact exists, by consuming
+that artifact through its single role rather than rebuilding it as a side
+effect.
 
 Acceptance: the closed lattice constructs Delta without Cargo or an external
 Delta implementation; repository path checks contain no live Alpha/Beta/Delta

@@ -10,7 +10,7 @@ from pathlib import Path
 from omgrfn6_bundle import HEADER, MAX_CKIR, MAX_ELF, MAX_FRAME, MAX_OMGCOMP, MAX_WITNESS
 
 HERE = Path(__file__).resolve().parent
-COMPILER = HERE.parents[3] / "source/on-ramp/omega-bootstrap/compiler"
+COMPILER = HERE.parents[2] / "source/on-ramp/omega-bootstrap/compiler"
 sys.path.insert(0, str(COMPILER))
 import omega_bootstrap_compilation as compilation  # noqa: E402
 

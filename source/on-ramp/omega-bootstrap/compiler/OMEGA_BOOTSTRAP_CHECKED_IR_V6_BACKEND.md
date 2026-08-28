@@ -30,16 +30,12 @@ three new instruction bytes without a separate text-size claim. Logical-not
 values consume the inherited four-byte scalar slots and all frame, text, ELF,
 operation, operand, and value ceilings remain unchanged.
 
-Focused evidence is split by responsibility:
-
-- `../gates/delta-checked-ir-v5-backend.sh` continues to own frozen CKIR4/5
-  artifact parity;
-- `../gates/delta-checked-ir-v6-backend-fixture.py` derives a backend-canonical
+The retained `../gates/delta-checked-ir-v6-backend-fixture.py` derives a backend-canonical
   result-70 carrier from the existing CKIR5 composition and makes one existing
-  Boolean value depend on opcode 15; and
-- `../gates/delta-checked-ir-v6-backend.sh` checks Delta-native/self exact ELF
-  identity, the load/XOR-one/store bytes, mutation rejection, and agreement
-  with the independent CKIR6 validator.
+  Boolean value depend on opcode 15. The former producer-backed wrappers joined
+  it to frozen CKIR4/5 parity, exact ELF identity, load/XOR-one/store bytes,
+  mutation rejection, and independent validation. Replay is suspended until
+  canonical Delta publication.
 
 This is private bootstrap evidence. It does not define a public Omega ABI,
 admit other unary operators, or optimize adjacent negations. The separate

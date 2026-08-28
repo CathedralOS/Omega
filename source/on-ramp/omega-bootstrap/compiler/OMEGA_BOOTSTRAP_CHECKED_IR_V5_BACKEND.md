@@ -35,11 +35,11 @@ The focused evidence is:
 
 - `../gates/delta-checked-ir-v5-backend-fixture.py`: a handcrafted product-
   shaped result-70 carrier plus isolated semantic and 4/5, 64/65, and 4,096/
-  4,097 resource controls;
-- `../gates/delta-checked-ir-v5-backend.sh`: bounded Delta-native and
-  Delta-self-built construction, native/self CKIR5 artifact identity, runtime-
-  tag/constructor template checks, independent CKIR5 meaning validation, and
-  frozen CKIR4 byte identity.
+  4,097 resource controls.
+
+The former producer-backed wrapper joined that fixture to native/self CKIR5
+artifact identity, template checks, independent meaning, and frozen CKIR4 byte
+identity. That replay is suspended until canonical Delta publication.
 
 This is private bootstrap evidence. It does not define a public Omega sum ABI,
 add sum constants or structural returns, or widen the source profile beyond the

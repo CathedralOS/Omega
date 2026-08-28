@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
-# Rust-free one-block SHA-256 known-answer observation. The broader vectors,
-# envelope fixture, resource boundary, and self-build live in delta-sha256.sh.
+# Rust-free one-block SHA-256 known-answer observation. Native compiler and
+# self-build comparisons remain suspended pending lower-rooted publication.
 set -eu
 
 GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)

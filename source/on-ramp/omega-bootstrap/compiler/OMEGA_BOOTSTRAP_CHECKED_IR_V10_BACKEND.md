@@ -32,9 +32,9 @@ frame slot, or ceiling is introduced.
 Focused responsibility is split between
 `../gates/delta-checked-ir-v10-reference.sh`, which owns independent schema and
 meaning checks; `../gates/delta-checked-ir-v10-backend-fixture.py`, which pins
-the exact instruction sequence; and
-`../gates/delta-checked-ir-v10-backend.sh`, which checks native/self artifact
-identity, 0/70/255, instruction mutation rejection, and empty rejected
+the exact instruction sequence. The former producer-backed wrapper joined them
+to native/self artifact identity, 0/70/255, instruction mutation rejection,
+and empty rejected publication. Replay is suspended until canonical Delta
 publication.
 
 This is backend evidence only. It does not define source syntax, a public ABI,

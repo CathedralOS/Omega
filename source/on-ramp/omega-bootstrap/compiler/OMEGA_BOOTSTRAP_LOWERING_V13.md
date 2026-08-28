@@ -51,9 +51,9 @@ literal byte select 252 without output. Publication begins only after complete
 preflight, including the exact selected guard, literal root, synthetic block,
 and all four CKIR12 operations.
 
-`../gates/delta-resolved-to-ckir12.sh` compiles the resolver and shared lowerer
-natively and through the Delta lowermachine, requires byte-identical results,
-and lowers deterministic one-byte and empty sources from
-`../gates/fixtures/ckir12-static-byte-view/`. The independent CKIR12 reference
-checks both paths return 70, exact opcode and synthetic-block shape, old/new
-cross-pairs, malformed surface controls, and status 251/252 nonpublication.
+Deterministic one-byte and empty sources remain under
+`../gates/fixtures/ckir12-static-byte-view/`, and the independent CKIR12
+reference retains exact opcode and synthetic-block shape. The former producer
+wrapper joined these to native/self resolver and lowerer byte identity,
+old/new cross-pairs, malformed surface controls, and status 251/252
+nonpublication. Replay is suspended until canonical Delta publication.

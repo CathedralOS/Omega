@@ -85,9 +85,9 @@ Declared source, expression, table, operation, operand, value, output, or
 fixed-point resource exhaustion selects 252. Failure publishes no partial
 CKIR bytes.
 
-Producer evidence is `../gates/delta-resolved-to-ckir16-fixture.py` and
-`../gates/fixtures/ckir16-u64-less/general.omg`. The focused gate requires
-native/self resolver and lowerer byte parity, exact OMGRSW8/OMGLOWH/CKIR16
-identities, two-word constants, kind-10-to-kind-8 mapping, borrow-bound true
-custody, storage/call/edge transport, and adjacent policy, carrier, literal,
-boundary, width, false-edge, and cross-version negatives.
+The frozen source carrier remains at
+`../gates/fixtures/ckir16-u64-less/general.omg`. Its producer-dependent fixture
+driver formerly joined native/self resolver/lowerer parity to exact
+OMGRSW8/OMGLOWH/CKIR16 identities, two-word constants, borrow-bound custody,
+transport, and adjacent negatives. Replay is suspended until canonical Delta
+publication.

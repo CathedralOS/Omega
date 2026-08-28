@@ -13,7 +13,7 @@ from omgrfn16_frame import RefinementError, RefinementResourceError, require
 
 
 HERE = Path(__file__).resolve().parent
-REPO = HERE.parents[3]
+REPO = HERE.parents[2]
 COMPILER = REPO / "source/on-ramp/omega-bootstrap/compiler"
 GATES = REPO / "source/on-ramp/omega-bootstrap/gates"
 sys.path[:0] = [str(COMPILER), str(GATES)]
