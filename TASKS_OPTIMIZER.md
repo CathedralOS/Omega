@@ -141,7 +141,31 @@ These facts constrain the work below.
   remaining transitions. A separate post-copy home carrier produces
   deterministic `RSI -> RAX` or `X1 -> X0` homes without weakening the direct
   transition rejection. Every new carrier remains custody-only and has no
-  emission or publication path. A separate
+  emission or publication path. The allocator core now also owns the separate
+  `SharedEntryAfterCompareBeforeBranchV1` policy for the same forwarded-u64
+  diamond. It places one flag-transparent copy in the entry block after
+  `CompareI64Zero` and before the conditional branch, rewrites both fixed-view
+  returns to one fresh VReg, and records both destination sites in canonical
+  order. Production and a separately coded replay require the exact diamond,
+  source, fixed views, insertion site, and target-owned flag-transparent copy
+  row. Its fixed-view-copy identity is v3. General orchestration still uses the
+  leaf-local policy until an explicit selection/scheduling contract chooses
+  between these two exact strategies.
+
+  The first post-allocation combine is also present as the exact build-visible,
+  default-off
+  `Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1` transformation. A new closed
+  `PostAllocationMachine` phase routes only that selection after independently
+  replayed homes and machine facts. The symbolic artifact elides adjacent
+  `CMP Xn, #0`, replaces its `B.NE` consumer with a qualified `CBNZ Xn`
+  disposition, proves NZCV dead after the branch, retains both selected source
+  instruction identities and edge custody, and owns no displacement or layout.
+  Target-owned AArch64 code independently encodes and decodes the exact 64-bit
+  CBNZ form. Orchestration binds the artifact to the full suite and supports it
+  alone or after selected lowering; compiler publication remains closed and
+  installs no output.
+
+  A separate
   `StagedOptimizedAssignedOperations` carrier
   retains the optimizer run, ledger, projection receipt, target plan, assigned
   plan, and independently reconstructed root/function provenance custody. This
@@ -1034,11 +1058,11 @@ dependency.
   semantics; potentially trapping, effectful, placed, atomic, or observation-
   dependent work is excluded unless its exact contract proves equivalence.
 
-  Current slice: the exact named `GlobalValueNumbering` selection owns five
+  Current slice: the exact named `GlobalValueNumbering` selection owns six
   rules in canonical order: obligation-free same-block CSE, proof-certified
   same-block CSE, obligation-free dominator GVN, and proof-certified dominator
-  GVN, followed by obligation-free phi-translated GVN. The obligation-free
-  rules cover literals, Boolean operations, integer
+  GVN, followed by obligation-free and proof-certified phi-translated GVN. The
+  obligation-free rules cover literals, Boolean operations, integer
   comparisons/bitwise/widening, wrapping shifts, and wrapping or saturating
   add/subtract/multiply. The proof-certified rules add exact integer casts,
   shifts, add/subtract/multiply/divide/remainder, plus wrapping or saturating
@@ -1062,15 +1086,16 @@ dependency.
   custody accounting. Redundant provenance/fuel moves forward to the next
   co-executed node, never backward to the leader; its active obligation
   reference disappears with the node. Candidate encoding v21,
-  optimization-unit identity v10, the named v4 pass, prephysical manifest v14,
+  optimization-unit identity v10, the named v5 pass, prephysical manifest v14,
   and projection v15 bind this meaning; ledger v4 already represents the
   relocation and substitution.
 
-  The fifth rule admits a join expression only when it references at least one
-  typed join parameter and every incoming edge translates that expression to
-  an exact, obligation-free total scalar leader available in the source block
-  or one of its strict dominators. For each arm it chooses the same canonical
-  outermost/depth-plus-location leader policy as dominator GVN. It preserves
+  The fifth and sixth rules admit a join expression only when it references at
+  least one typed join parameter and every incoming edge translates that
+  expression to an exact total scalar leader available in the source block or
+  one of its strict dominators. The fifth requires obligation-free leaders; the
+  sixth requires proof-certified leaders. For each arm they choose the same
+  canonical outermost/depth-plus-location leader policy as dominator GVN. Each preserves
   the redundant result `ValueId` as a newly appended join parameter, appends
   one exact typed leader binding to every incoming edge, and removes the join
   computation without a global substitution. The validator independently
@@ -1078,10 +1103,14 @@ dependency.
   existing binding positions, reconstructs canonical leaders and custody, and
   rejects missing arms, mismatched types, reordered or corrupted witnesses,
   and detached leaders. A verified Terminal diamond proves optimized-plan
-  projection retains the new parameter and both bindings. Proof-certified phi
-  translation, partial redundancy elimination, and cyclic-CFG GVN remain
-  outside these rules; current admitted optimization units reject control
-  cycles.
+  projection retains the new parameter and both bindings. The sixth rule uses
+  the same closed proof-bearing scalar vocabulary as proof-certified local and
+  dominator GVN. Every translated arm leader must retain its own exact active
+  accepted-obligation fact, while only the redundant join operation's fact is
+  consumed and the accepted catalog remains immutable. Independent replay
+  rejects foreign redundant evidence or any detached leader fact. Partial
+  redundancy elimination and cyclic-CFG GVN remain outside these rules;
+  current admitted optimization units reject control cycles.
 
 - **OPT-DEAD-SCALAR-WORK.** Remove unused pure and total scalar operations.
 
@@ -1595,9 +1624,12 @@ dependency.
   coalescing/peephole passes. Address-stable values are not illegally split
   across changing homes.
 
-  Current boundary: `LeafLocalBeforeFixedUseV1` is only the exact scalar-u64
-  entry-to-leaf-return base case. It does not close general fixed-use, call,
-  pressure, rematerialization, or address-stability splitting.
+  Current boundary: `LeafLocalBeforeFixedUseV1` and
+  `SharedEntryAfterCompareBeforeBranchV1` are two exact scalar-u64
+  entry-to-leaf-return base cases. The latter proves one shared
+  flag-transparent entry copy can serve both return arms, but is not yet chosen
+  by orchestration. Neither closes general fixed-use, call, pressure,
+  rematerialization, or address-stability splitting.
 
 - **OPT-SPILLS-RELOADS.** Insert typed spills/reloads and rematerialize cheap
   constants/addresses.
@@ -1859,6 +1891,22 @@ dependency.
 
   Acceptance: each rule has a concrete physical-state validator; no rule relies
   on undefined flags, partial-register folklore, or final branch displacement.
+
+  Current slice: the explicitly selected AArch64 rule
+  `Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1` recognizes only an adjacent
+  selected `CompareI64Zero` plus nonzero conditional branch whose allocated
+  source is one canonical 64-bit `X` view, whose compare carries no logical
+  fuel, and whose independently reconstructed unit liveness proves NZCV dead
+  beyond the branch. It publishes a bounded, content-addressed symbolic plan
+  with ordered attempts/actions, source-qualified physical read, compare
+  elision, fused-branch disposition, exact successor identities, and complete
+  replay. The target encoder separately validates canonical CBNZ bytes once a
+  displacement exists; the optimizer itself owns no displacement, layout,
+  emission, or publication authority. The root build vocabulary is explicit
+  and default-off, and the compiler continues to reject selected native output
+  without installation. Remaining here includes consuming this disposition in
+  resolved layout/emission, general redundant move/spill/reload rules, and
+  additional independently validated target combines.
 
 - **OPT-BLOCK-LAYOUT.** Select deterministic function/block layout and
   fallthrough edges from static or admitted profile weights.

@@ -170,9 +170,10 @@ pub fn analyze_terminal_allocation_legality(
     )
 }
 
-/// Materialize the exact named leaf-local fixed-view copy policy and then
-/// independently reconstruct its complete selected CFG. The result grants no
-/// allocation, emission, or publication authority.
+/// Materialize an explicitly selected, exact fixed-view copy policy and then
+/// independently reconstruct its complete selected CFG. No policy is selected
+/// implicitly; the result grants no allocation, emission, or publication
+/// authority.
 #[allow(clippy::too_many_arguments)]
 pub fn materialize_terminal_fixed_view_copies(
     selected: &ValidatedTerminalSelectedInstructions,

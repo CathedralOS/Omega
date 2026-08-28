@@ -12,7 +12,7 @@ pub fn terminal_fixed_view_copy_identity(
     plan: &TerminalFixedViewCopyPlan,
 ) -> TerminalFixedViewCopyIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-fixed-view-copies.v2\0");
+    bytes.extend_from_slice(b"omega.terminal-fixed-view-copies.v3\0");
     bytes.extend_from_slice(&plan.source_selected.bytes());
     bytes.extend_from_slice(&plan.source_ranges.bytes());
     bytes.extend_from_slice(&plan.source_legality.bytes());
@@ -20,6 +20,7 @@ pub fn terminal_fixed_view_copy_identity(
     bytes.extend_from_slice(&plan.allocator_availability.bytes());
     bytes.push(match plan.policy {
         TerminalFixedViewCopyPolicy::LeafLocalBeforeFixedUseV1 => 0,
+        TerminalFixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1 => 1,
     });
     bytes.extend_from_slice(&plan.budget.encode());
     bytes.extend_from_slice(&plan.usage.encode());
@@ -31,10 +32,15 @@ pub fn terminal_fixed_view_copy_identity(
         bytes.extend_from_slice(&copy.source_value.get().to_le_bytes());
         encode_definition_site(&mut bytes, copy.source_definition_site);
         bytes.extend_from_slice(&copy.from_view.0.to_le_bytes());
-        encode_fixed_site(&mut bytes, copy.destination_site);
         bytes.extend_from_slice(&copy.to_view.0.to_le_bytes());
-        bytes.extend_from_slice(&copy.block.0.to_le_bytes());
+        bytes.extend_from_slice(&copy.insertion_block.0.to_le_bytes());
         bytes.extend_from_slice(&copy.before_instruction.0.to_le_bytes());
+        encode_len(&mut bytes, copy.destinations.len());
+        for destination in &copy.destinations {
+            encode_fixed_site(&mut bytes, destination.site);
+            bytes.extend_from_slice(&destination.block.0.to_le_bytes());
+            bytes.extend_from_slice(&destination.view.0.to_le_bytes());
+        }
         bytes.extend_from_slice(&copy.copy_instruction.0.to_le_bytes());
         bytes.extend_from_slice(&copy.result_virtual_register.0.to_le_bytes());
         bytes.push(constraint_family(copy.copy_constraint.family));
@@ -123,9 +129,10 @@ mod tests {
 
     use super::*;
     use crate::{
-        TerminalAllocationLegalityIdentity, TerminalFixedViewCopy, TerminalFixedViewCopyPlan,
-        TerminalFixedViewCopyPolicy, TerminalLiveRangeIdentity, TerminalLiveRangePoint,
-        TerminalLivenessPosition, TerminalVirtualFixedConstraintSite,
+        TerminalAllocationLegalityIdentity, TerminalFixedViewCopy,
+        TerminalFixedViewCopyDestination, TerminalFixedViewCopyPlan, TerminalFixedViewCopyPolicy,
+        TerminalLiveRangeIdentity, TerminalLiveRangePoint, TerminalLivenessPosition,
+        TerminalVirtualFixedConstraintSite,
     };
 
     type Mutation = fn(&mut TerminalFixedViewCopyPlan);
@@ -155,16 +162,33 @@ mod tests {
                 source_value: ValueId::new(2).unwrap(),
                 source_definition_site: ValueDefinitionSite::FunctionParameter(1),
                 from_view: RegisterViewId(3),
-                destination_site: TerminalVirtualFixedConstraintSite::Operand {
-                    position: TerminalLivenessPosition(4),
-                    point: TerminalLiveRangePoint(5),
-                    instruction: TerminalSelectedInstructionId(6),
-                    operand: 0,
-                    access: RegisterOperandAccess::Use,
-                },
                 to_view: RegisterViewId(7),
-                block: TerminalSelectedBlockId(8),
+                insertion_block: TerminalSelectedBlockId(8),
                 before_instruction: TerminalSelectedInstructionId(6),
+                destinations: vec![
+                    TerminalFixedViewCopyDestination {
+                        site: TerminalVirtualFixedConstraintSite::Operand {
+                            position: TerminalLivenessPosition(4),
+                            point: TerminalLiveRangePoint(5),
+                            instruction: TerminalSelectedInstructionId(6),
+                            operand: 0,
+                            access: RegisterOperandAccess::Use,
+                        },
+                        block: TerminalSelectedBlockId(8),
+                        view: RegisterViewId(7),
+                    },
+                    TerminalFixedViewCopyDestination {
+                        site: TerminalVirtualFixedConstraintSite::Operand {
+                            position: TerminalLivenessPosition(9),
+                            point: TerminalLiveRangePoint(10),
+                            instruction: TerminalSelectedInstructionId(11),
+                            operand: 0,
+                            access: RegisterOperandAccess::Use,
+                        },
+                        block: TerminalSelectedBlockId(12),
+                        view: RegisterViewId(7),
+                    },
+                ],
                 copy_instruction: TerminalSelectedInstructionId(9),
                 result_virtual_register: TerminalVirtualRegisterId(10),
                 copy_constraint: RegisterConstraintKey {
@@ -213,14 +237,19 @@ mod tests {
                 plan.copies[0].source_definition_site = ValueDefinitionSite::FunctionParameter(2)
             },
             |plan| plan.copies[0].from_view.0 += 1,
-            |plan| plan.copies[0].destination_site = TerminalVirtualFixedConstraintSite::Entry,
             |plan| plan.copies[0].to_view.0 += 1,
-            |plan| plan.copies[0].block.0 += 1,
+            |plan| plan.policy = TerminalFixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1,
+            |plan| plan.copies[0].destinations[0].site = TerminalVirtualFixedConstraintSite::Entry,
+            |plan| plan.copies[0].destinations[0].view.0 += 1,
+            |plan| plan.copies[0].destinations[0].block.0 += 1,
+            |plan| plan.copies[0].destinations.swap(0, 1),
+            |plan| plan.copies[0].insertion_block.0 += 1,
             |plan| plan.copies[0].before_instruction.0 += 1,
             |plan| plan.copies[0].copy_instruction.0 += 1,
             |plan| plan.copies[0].result_virtual_register.0 += 1,
             |plan| plan.copies[0].copy_constraint.variant += 1,
             |plan| plan.copies.clear(),
+            |plan| plan.copies[0].destinations.clear(),
             |plan| plan.transformed.entry = MachineId::new(2).unwrap(),
         ];
         for mutate in mutations {

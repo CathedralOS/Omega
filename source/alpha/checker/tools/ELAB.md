@@ -77,7 +77,7 @@ python3 tools/elab.py --check ./check.exe < proof.elab   # elaborate, then run t
 
 ## Validation
 
-`gates/elab-test.sh` (under `verify-lattice.sh`) elaborates every `corpus/proofs/*.elab` and asserts the
+`gates/elab-test.sh` elaborates every `corpus/proofs/*.elab` and asserts the
 trusted `check.beta` accepts the result — so a regression in the elaborator surfaces as a
 rejected certificate. The sources in `corpus/proofs/` were checked to compile **byte-identically**
 to the corresponding hand-written gate certificates (`nat-add-zero`, `le-succ-mono`), and
