@@ -245,12 +245,14 @@ policy observations issued from the same inputs as each native command.
 Successful Git resolutions retain every configured-command row, including the
 generated policy hash, exact numeric ceilings, normalized executable path set,
 and mutable root. The exact root-owned `system.sb`/`dyld-support.sb` bytes and
-currently recognized canonical import lines now enter backend identity and are
-revalidated. The line recognizer is not a complete Seatbelt grammar parser;
-exact profile hashes bind host policy bytes but do not prove every possible
-import absent. Their known special grants still leave filesystem/network/exec
-rows unavailable rather than overstated; strict checking rejects them. Before
-returning a successful resolution, the package layer requires one observation
+accepted direct-import syntax now enter backend identity and are revalidated. A
+bounded scanner balances lists, excludes strings/comments, rejects ambiguous
+identifier and argument forms, discovers direct imports independent of line
+layout, and rejects known first-class and reflective routes to `import`. This
+is a fail-closed accepted syntax subset, not a complete Seatbelt semantics
+proof. The profiles' known special grants still leave filesystem/network/exec
+rows unavailable rather than overstated, and strict checking rejects them.
+Before returning a successful resolution, the package layer requires one observation
 per bounded launch and exact equality between every observed allowlist path and
 the verified content identities for Git, the selected transport, and fixed
 platform helpers; all helper identities remain in the result. Each completed

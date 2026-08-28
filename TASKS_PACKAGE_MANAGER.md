@@ -688,6 +688,18 @@ complete.
   safety: the known broad and special grants keep strict filesystem/network/
   exec rows unavailable.
 
+  Follow-up 2026-08-28: the import recognizer is now a bounded syntax-aware
+  scanner over the complete profile bytes. It balances every list, ignores
+  strings plus line and nested block comments, rejects unterminated syntax,
+  escaped/case-folded identifiers, nonliteral import arguments,
+  noncanonical filenames, and known first-class or reflective routes to
+  `import`; direct imports are found independent of line layout. The accepted
+  subset requires exactly the direct edge `system.sb -> dyld-support.sb` and no
+  direct import in `dyld-support.sb`. Syntax outside that subset rejects. This
+  removes the line-matching assumption but does not claim a complete Seatbelt
+  parser or semantic proof that no dynamically constructed import exists;
+  strict filesystem/network/exec claims remain unavailable.
+
   Follow-up 2026-08-28: successful Git resolution now requires the retained
   policy-observation count to equal the bounded launch count and requires each
   observation's executable path set to equal the paths backed by the verified

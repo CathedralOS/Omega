@@ -19,11 +19,12 @@ text or containment claims.
   `system.sb`, which grants special-file writes and local socket access, so
   these canaries are not reported as universal strict guarantees.
 - The exact root-owned `system.sb` and `dyld-support.sb` bytes, metadata, ACL
-  custody, and currently audited canonical import-line spellings are opened and
-  revalidated with the launcher and enter backend identity. The recognizer is
-  not a complete Seatbelt grammar parser; exact content identity is neither a
-  proof that every possible import is absent nor semantic proof that its grants
-  are safe.
+  custody, and accepted direct-import syntax are opened and revalidated with the
+  launcher and enter backend identity. A bounded scanner balances lists,
+  excludes strings/comments, rejects ambiguous import forms plus known
+  first-class/reflection routes, and accepts exactly the direct edge
+  `system.sb -> dyld-support.sb` with none in the latter. This fail-closed syntax
+  subset and exact content identity are not a complete Seatbelt semantics proof.
 - Unix children intersect compiler CPU, core-file, single-file, and descriptor
   ceilings with stricter inherited limits. Linux and Android additionally
   apply an address-space ceiling.

@@ -116,13 +116,16 @@ authentication, snapshot identity, and final publication verdict.
 The macOS profile imports Apple's mutable `system.sb`, which itself imports
 `dyld-support.sb` and currently grants special-file writes plus local syslog
 socket access. The backend now opens both exact root-owned regular files,
-checks mode/ancestry/ACL custody, hashes their bounded bytes, requires the
-currently audited canonical import-line spellings, and revalidates all facts
-around command construction. Changed recognized topology rejects and both
-content identities enter canonical backend observation. The line recognizer is
-not a complete parser for the Seatbelt grammar, so this is exact byte custody
-for the known host profiles rather than proof that every syntactically possible
-import is absent. The ordinary write,
+checks mode/ancestry/ACL custody, hashes their bounded bytes, and revalidates all
+facts around command construction. A bounded syntax scanner balances every
+list, ignores strings plus line and nested block comments, rejects ambiguous
+escaped/case-folded identifiers, nonliteral imports, and known first-class or
+reflective routes to `import`, and finds direct imports independent of line
+layout. It accepts exactly the direct edge `system.sb -> dyld-support.sb` and no
+direct import in `dyld-support.sb`; syntax outside that accepted subset rejects,
+and both content identities enter canonical backend observation. This is not a
+complete parser or semantic proof that no dynamically constructed import exists.
+The ordinary write,
 remote-network, and descendant-exec canaries remain useful enforcement tests,
 but filesystem, network, and executable-path strict guarantees remain
 unavailable because exact profile identity is not semantic proof that those
