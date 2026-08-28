@@ -1623,6 +1623,13 @@ carrier declaration and the package-scoped conformance. Machine and trait
 bounds inherit their enclosing declaration's exposure. This does not decide
 whether every selected declaration family is independently publishable.
 
+Trait composition is likewise authored authority. Header parents and body
+`requires` clauses normalize to one semantic edge, while every source-backed
+edge retains the exact resolved trait as a type-reference selection under the
+enclosing trait's public/private exposure. The direct-dependency gate consumes
+that row; the separate `trait_parent` source coordinate explains where the edge
+was authored but grants no authority by itself.
+
 The direct-dependency gate consumes only finalized authored-selection rows.
 Checked carried nominals, automatic cleanup, layout, and move/copy facts feed a
 separate exact semantic-dependency set with private/public disposition. They

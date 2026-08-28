@@ -547,6 +547,98 @@ fn transparent_domain_alias_constituents_require_direct_package_admission() {
 }
 
 #[test]
+fn trait_composition_requires_direct_package_admission() {
+    use psi_language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionExposure as Exposure, AuthoredDeclarationSelectionKind as Kind,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
+
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let middle = tree.package("middle");
+    let leaf = tree.package("leaf");
+    TempTree::write(
+        root.join("main.omg"),
+        r#"use middle::middle;
+pub trait HeaderComposition: LeafPolicy {
+}
+pub trait BodyComposition {
+    requires LeafPolicy;
+}
+trait PrivateComposition: LeafPolicy {
+}
+"#,
+    );
+    TempTree::write(
+        middle.join("middle.omg"),
+        "use leaf::leaf;\npub machine relay(value: u64) -> u64 { value }\n",
+    );
+    TempTree::write(leaf.join("leaf.omg"), "pub trait LeafPolicy {\n}\n");
+    let bindings = vec![
+        PackageSourceBinding::new(identity(1), "root", root.clone()),
+        PackageSourceBinding::new(identity(2), "middle", middle.clone()),
+        PackageSourceBinding::new(identity(3), "leaf", leaf.clone()),
+    ];
+    let transitive = PackageCompilationInputs::new(
+        identity(1),
+        bindings.clone(),
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("transitive trait-composition graph should close");
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, transitive)
+        .expect_err("trait composition may not select a transitive-only trait");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("direct dependency")),
+        "unexpected trait-composition diagnostics: {diagnostics:#?}"
+    );
+
+    let direct = PackageCompilationInputs::new(
+        identity(1),
+        bindings,
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(1), "leaf", identity(3)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("direct trait-composition graph should close");
+    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, direct)
+        .expect("direct admission should admit trait composition");
+    let leaf_selections = checked
+        .authored_declaration_selections()
+        .iter()
+        .filter(|selection| {
+            selection.kind() == Kind::TypeReference
+                && checked
+                    .symbols
+                    .source_file(selection.source_span())
+                    .is_some_and(|source| source.package_identity == Some(identity(1)))
+                && matches!(selection.target(), Target::Resolved(target) if checked.symbols.display_path(target.selected_symbol(), "::").contains("LeafPolicy"))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(leaf_selections.len(), 3);
+    assert_eq!(
+        leaf_selections
+            .iter()
+            .filter(|selection| selection.exposure() == Exposure::PublicInterface)
+            .count(),
+        2,
+    );
+    assert_eq!(
+        leaf_selections
+            .iter()
+            .filter(|selection| selection.exposure() == Exposure::PrivateImplementation)
+            .count(),
+        1,
+    );
+}
+
+#[test]
 fn package_compilation_rejects_authored_reserved_cleanup_selection() {
     let tree = TempTree::new();
     let root = tree.package("root");
