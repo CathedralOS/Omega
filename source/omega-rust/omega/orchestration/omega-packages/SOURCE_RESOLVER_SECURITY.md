@@ -501,7 +501,11 @@ confinement. Windows creates each command suspended and assigns it to a resolver
 owned Job Object before resume. That job kills on close and enforces 16 active
 processes, 2 GiB committed memory per process, 4 GiB aggregate committed memory,
 and 120 aggregate user-CPU seconds. It still lacks filesystem, executable, and
-network confinement. Native canaries exercise denied
+network confinement. Windows-native reduced-limit canaries pair below-limit
+controls with active-process, per-process memory, aggregate descendant memory,
+and aggregate CPU exhaustion and require the exact Job completion-port event
+plus active-process zero; they are cross-target checked but still await
+execution on a Windows worker. macOS native canaries exercise denied
 writes, denied unlisted descendant execution, denied inspection networking,
 and admitted discovery networking. Hermetic loopback canaries also exercise the
 selected production HTTPS helper and fixed shell/SSH executable chains through

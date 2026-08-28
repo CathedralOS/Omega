@@ -1018,11 +1018,16 @@ complete.
   and aggregate CPU/memory `Enforced`; filesystem, executable, address-space,
   file, descriptor, core, and endpoint rows remain unavailable. Policy schema
   13 and Git cache policy v27 bind the stronger backend. Windows-native normal-
-  completion and whole-job termination canaries are compiled; the resolver and
-  complete package crate cross-compile for `x86_64-pc-windows-msvc`, and the
-  resolver passes strict cross-target Clippy. Native limit-exhaustion execution
-  remains to be run on a Windows worker before treating platform coverage as
-  complete.
+  completion and whole-job termination canaries are compiled. Follow-up
+  2026-08-28 adds test-only reduced ceilings and self-hosted workers for active-
+  process, per-process committed-memory, aggregate descendant-memory, and
+  aggregate user-CPU exhaustion. Every negative case has a below-limit control,
+  requires the exact completion-port limit event, and still waits for active-
+  process zero. Production ceilings and policy identity are unchanged. The
+  complete Windows test surface passes cross-target `cargo check --tests` and
+  strict Clippy; this host lacks `link.exe`, so native execution of those four
+  exhaustion pairs remains required on a Windows worker before treating
+  platform coverage as complete.
 
   Follow-up 2026-08-28: Windows cache and selected-executable custody now use a
   narrow compiler-owned security-descriptor reader over already-open handles.
