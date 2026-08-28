@@ -42,6 +42,19 @@ OPEN_REFINEMENT = {
     "reason": "authoritative_delta_v1_semantics_subject_not_published",
     "status": "open",
 }
+RECONSTRUCTION_PROFILE = {
+    "id": "delta.lower-rooted-executable-reconstruction.v1",
+    "obligations": [
+        "complete_assembly_publication_rederived",
+        "source_and_lower_rung_inputs_rebound",
+        "published_assembly_cross_paired",
+        "realization_observation_rederived",
+        "literal_realization_command_replayed",
+        "replayed_executable_byte_equal",
+        "realization_inputs_stable_across_replay",
+    ],
+    "status": "checked",
+}
 
 MAX_DOCUMENT = 65_536
 MAX_ARTIFACT_BYTES = 64 * 1024 * 1024
@@ -741,6 +754,28 @@ def rederive_assembly_receipt(receipt_path: Path, join_arguments: list[str]) -> 
     return candidate
 
 
+def disclosed_admissions(parent: dict, observation: dict) -> dict:
+    """Retain exact admitted dependencies without widening their authority."""
+
+    return {
+        "hosts": {
+            "lower_rung": {
+                "scope": "assembly_publication_reconstruction_only",
+                "toolchain": parent["toolchain"],
+            },
+            "realization": {
+                "scope": "exact_identity_and_replay_only_not_tool_correctness",
+                "toolchain": observation["toolchain"],
+            },
+        },
+        "target": {
+            "assembly": parent["target"],
+            "executable": observation["target"],
+            "scope": "closed_dialect_and_container_validation_only_not_delta_refinement",
+        },
+    }
+
+
 def make_receipt(
     assembly_receipt_path: Path,
     observation_path: Path,
@@ -771,6 +806,7 @@ def make_receipt(
     reconstruction = replay_realization(
         assembly_raw, candidate_raw, clang, linker, sdk_settings
     )
+    reconstruction["profile"] = RECONSTRUCTION_PROFILE
     after_observation, after_assembly_raw, after_candidate_raw = capture_observation(
         observation.get("status"), observation.get("elapsed_milliseconds"),
         assembly, artifact, stdout, stderr, clang, linker, sdk_settings,
@@ -784,13 +820,16 @@ def make_receipt(
         fail("realization inputs changed during replay")
 
     receipt = {
+        "admissions": disclosed_admissions(parent, observation),
         "artifact": observation["artifact"],
         "assembly": observation["assembly"],
         "assembly_publication": {
+            "assembly": parent["assembly"],
             "publication_id": parent["publication_id"],
             "receipt_sha256": parent["receipt_sha256"],
             "source_image": parent["source_image"],
             "source_snapshot": parent["source_snapshot"],
+            "target": parent["target"],
         },
         "claim": CLAIM,
         "format_profile": FORMAT_PROFILE,

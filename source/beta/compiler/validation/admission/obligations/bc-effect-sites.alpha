@@ -374,12 +374,6 @@ validate_prelude:
         call exact_require_program_prelude
         mov r6, r2                   ; checked call start
         mov r7, r3                   ; checked halt start
-        mov r8, r4                   ; checked prelude successor
-        imm r1, 524512
-        load r2, r1
-        jeq r2, r8, prelude_own_call
-        jmp reject
-prelude_own_call:
         mov r0, r6
         call mark_effect_owner
         mov r0, r7
@@ -389,8 +383,10 @@ prelude_own_call:
 ; Exact 52-byte __write_str leaf.  This is a local output macro: if reached
 ; with the checked literal pointer/length, it emits those bytes in order.
 validate_emit_helper:
-        imm r1, 524512
-        load r6, r1                     ; helper pc
+        call exact_require_write_str_extent
+        mov r6, r0                       ; checked helper entry
+        mov r28, r3                      ; checked write start
+        mov r29, r8                      ; checked return start
         imm r1, 2097152
         add r1, r6                      ; tape pointer at helper
         loadb r2, r1
@@ -436,10 +432,7 @@ helper_jeq_target:
         imm r2, 1
         add r1, r2
         load r2, r1
-        mov r3, r6
-        imm r4, 51
-        add r3, r4
-        jeq r2, r3, helper_loadb
+        jeq r2, r29, helper_loadb
         jmp reject
 helper_loadb:
         imm r1, 2097173
@@ -560,13 +553,9 @@ helper_ret:
         jeq r2, r3, helper_own_effects
         jmp reject
 helper_own_effects:
-        mov r0, r6
-        imm r1, 24
-        add r0, r1
+        mov r0, r28
         call mark_effect_owner
-        mov r0, r6
-        imm r1, 51
-        add r0, r1
+        mov r0, r29
         call mark_effect_owner
         jmp validate_frame_shapes_init
 

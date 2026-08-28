@@ -81,16 +81,26 @@ label_core_require_events:
         imm r21, 1365
         call exact_require_epilogue
 
-        ; emit_lref first emits the exact inline literal, then calls emit_dec.
+        ; Resolve emit_lref's inline literal and helper call from its source
+        ; emit row. The WSTR owner supplies the relative lowering layout.
         imm r20, 5
-        imm r21, 6
-        imm r22, 4
-        imm r23, 1448
-        call exact_require_event
-        imm r20, 1448
-        imm r21, 31                   ; __write_str
-        imm r22, 1457
-        call exact_require_call
+        call write_str_require_emit_event_core
+        mov r30, r0                   ; checked literal pointer
+        imm r2, 2
+        jeq r1, r2, label_core_emit_lref_literal
+        jmp reject
+label_core_emit_lref_literal:
+        mov r20, r30
+        imm r21, 95                   ; '_'
+        call require_tape_byte
+        mov r20, r30
+        imm r1, 1
+        add r20, r1
+        imm r21, 76                   ; 'L'
+        call require_tape_byte
+
+        ; emit_dec remains row-identified; derive its fallthrough from the
+        ; canonical nine-byte ordinary-call layout.
         imm r20, 6
         imm r21, 6
         imm r22, 1508
@@ -98,25 +108,13 @@ label_core_require_events:
         imm r24, 0
         imm r25, 40                    ; emit_dec procedure identity
         call exact_proc_entry_r25
-        imm r26, 1517
+        mov r26, r22
+        imm r1, 9
+        add r26, r1
         call summary_require_call_site
         imm r20, 1517
         imm r21, 1536
         call exact_require_epilogue
-
-        ; Pin the jump-skipped two-byte literal independently of its event row.
-        imm r20, 1417
-        imm r21, 12                   ; jmp 1428
-        call require_tape_byte
-        imm r20, 1418
-        imm r21, 1428
-        call require_tape_word
-        imm r20, 1426
-        imm r21, 95                   ; '_'
-        call require_tape_byte
-        imm r20, 1427
-        imm r21, 76                   ; 'L'
-        call require_tape_byte
         ret
 
 label_core_require_locals:
@@ -144,8 +142,7 @@ label_core_require_locals:
         imm r21, 6
         imm r22, 1
         imm r23, 0
-        imm r24, 1457
-        call transfer_require_local
+        call exact_local_identity_pc
         ret
 
 label_core_require_memory:
@@ -203,8 +200,7 @@ label_core_require_pushes:
         call exact_require_store_push    ; fixed LBL store-address push
         imm r20, 237
         imm r21, 6
-        imm r23, 1476
-        call exact_require_argument_push    ; emit_dec argument push
+        call exact_require_argument_push_identity ; emit_dec argument push
         ret
 
 label_core_require_censuses:

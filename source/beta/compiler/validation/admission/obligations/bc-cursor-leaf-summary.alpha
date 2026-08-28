@@ -46,7 +46,8 @@ cursor_require_cbyte_shape:
         imm r22, 1
         call transfer_require_cell
         imm r20, 8
-        imm r21, 1609
+        imm r21, 4                    ; cbyte procedure identity
+        call exact_proc_entry_r21
         call exact_require_block_pc
         imm r20, 9
         imm r21, 1673
@@ -55,7 +56,8 @@ cursor_require_cbyte_shape:
         imm r21, 1829
         call exact_require_block_pc
         imm r20, 11
-        imm r21, 1939
+        imm r21, 5                    ; adv procedure identity / end
+        call exact_proc_entry_r21
         call exact_require_block_pc
         imm r20, 8
         imm r21, 10
@@ -152,27 +154,18 @@ cursor_require_cbyte_shape:
         imm r23, 1839
         call exact_require_binary_push
 
-        imm r20, 8
+        imm r20, 4                    ; cbyte procedure identity
         imm r21, 9
-        imm r22, 5
-        imm r23, 1828
-        call exact_require_event
-        imm r20, 9
+        call exact_require_event_epilogue
+        imm r20, 4
         imm r21, 10
-        imm r22, 5
-        imm r23, 1918
-        call exact_require_event
-        imm r20, 1809
-        imm r21, 1828
-        call exact_require_epilogue
-        imm r20, 1899
-        imm r21, 1918
-        call exact_require_epilogue
-        imm r20, 1919
-        imm r21, 1938
-        call exact_require_epilogue
-        imm r20, 1609
-        imm r21, 1939
+        call exact_require_event_epilogue
+        imm r20, 5                    ; adv identifies synthetic return
+        call exact_require_preentry_epilogue
+        imm r20, 4                    ; cbyte procedure identity / region start
+        call exact_proc_entry_r20
+        imm r21, 5                    ; adv procedure identity / region end
+        call exact_proc_entry_r21
         imm r22, 3
         call cursor_scan_quiet_region
         imm r20, 8
@@ -314,10 +307,12 @@ cursor_require_adv_shape:
         imm r22, 0
         call transfer_require_cell
         imm r20, 11
-        imm r21, 1939
+        imm r21, 5                    ; adv procedure identity
+        call exact_proc_entry_r21
         call exact_require_block_pc
         imm r20, 12
-        imm r21, 2084
+        imm r21, 6                    ; is_digit procedure identity / end
+        call exact_proc_entry_r21
         call exact_require_block_pc
         imm r20, 11
         imm r21, 11
@@ -368,11 +363,12 @@ cursor_require_adv_shape:
         imm r21, 11
         imm r23, 1968
         call exact_require_store_push
-        imm r20, 2064
-        imm r21, 2083
-        call exact_require_epilogue
-        imm r20, 1939
-        imm r21, 2084
+        imm r20, 6                    ; is_digit identifies synthetic return
+        call exact_require_preentry_epilogue
+        imm r20, 5                    ; adv procedure identity / region start
+        call exact_proc_entry_r20
+        imm r21, 6                    ; is_digit procedure identity / region end
+        call exact_proc_entry_r21
         imm r22, 1
         call cursor_scan_quiet_region
         imm r20, 11
@@ -448,7 +444,8 @@ cursor_require_space_shape:
         imm r22, 1
         call transfer_require_cell
         imm r20, 27
-        imm r21, 3627
+        imm r21, 9                    ; is_space procedure identity
+        call exact_proc_entry_r21
         call exact_require_block_pc
         imm r20, 28
         imm r21, 3678
@@ -466,7 +463,8 @@ cursor_require_space_shape:
         imm r21, 4227
         call exact_require_block_pc
         imm r20, 33
-        imm r21, 4277
+        imm r21, 10                   ; skip_ws procedure identity / end
+        call exact_proc_entry_r21
         call exact_require_block_pc
         imm r20, 27
         imm r21, 32
@@ -619,27 +617,18 @@ cursor_require_space_shape:
         imm r23, 4093
         call exact_require_binary_push
 
-        imm r20, 19
+        imm r20, 9                    ; is_space procedure identity
         imm r21, 31
-        imm r22, 5
-        imm r23, 4226
-        call exact_require_event
-        imm r20, 20
+        call exact_require_event_epilogue
+        imm r20, 9
         imm r21, 32
-        imm r22, 5
-        imm r23, 4256
-        call exact_require_event
-        imm r20, 4207
-        imm r21, 4226
-        call exact_require_epilogue
-        imm r20, 4237
-        imm r21, 4256
-        call exact_require_epilogue
-        imm r20, 4257
-        imm r21, 4276
-        call exact_require_epilogue
-        imm r20, 3627
-        imm r21, 4277
+        call exact_require_event_epilogue
+        imm r20, 10                   ; skip_ws identifies synthetic return
+        call exact_require_preentry_epilogue
+        imm r20, 9                    ; is_space identity / region start
+        call exact_proc_entry_r20
+        imm r21, 10                   ; skip_ws identity / region end
+        call exact_proc_entry_r21
         imm r22, 3
         call cursor_scan_quiet_region
         imm r20, 27

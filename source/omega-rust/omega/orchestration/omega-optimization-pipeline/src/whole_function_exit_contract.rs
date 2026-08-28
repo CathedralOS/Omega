@@ -12,6 +12,12 @@ use omega_register_model::{
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_isa_aarch64::aarch64_preservation_convention_for_target;
 use omega_terminal_isa_x86_64::x86_64_preservation_convention_for_target;
+use omega_terminal_isa_x86_64::{
+    X86_64_STRUCTURAL_UNIT_CALL_NEXT_INSTRUCTION_OFFSET, X86_64_STRUCTURAL_UNIT_CALL_OPCODE_OFFSET,
+    X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_OFFSET, X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_WIDTH,
+    X86_64_STRUCTURAL_UNIT_CALL_TEMPLATE_BYTE_COUNT, X86_64StructuralUnitInternalControlFixup,
+    X86_64StructuralUnitInternalControlFixupKind, X86_64StructuralUnitInternalControlFixupState,
+};
 use omega_terminal_selected_instructions::{
     TerminalMachineEncodedControlEffect, TerminalMachineEncodedEffects,
     TerminalMachineEncodedMemoryEffect, TerminalMachineEncodedStackEffect,
@@ -33,7 +39,7 @@ use crate::{
     validate_optimized_x86_branch_relaxation,
 };
 
-const CONTRACT_SCHEMA: &[u8] = b"omega.terminal.whole-function-exit-contract.v4\0";
+const CONTRACT_SCHEMA: &[u8] = b"omega.terminal.whole-function-exit-contract.v5\0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TerminalWholeFunctionExitContractIdentity([u8; 32]);
@@ -54,6 +60,10 @@ pub enum TerminalWholeFunctionExitPolicy {
     MicrosoftX64FramelessLeafV1,
     Aapcs64FramelessLeafV1,
     DarwinAapcs64FramelessLeafV1,
+    /// Exact Microsoft-x64 custody for one balanced structural Unit caller
+    /// and its Unit leaf. This is deliberately not a frameless-leaf policy:
+    /// the caller owns a canonical 72-byte outgoing frame around its call.
+    MicrosoftX64BalancedStructuralUnitCallV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -126,6 +136,39 @@ pub struct TerminalWholeFunctionExitEvidence {
     pub returns: Vec<TerminalWholeFunctionReturnEvidence>,
 }
 
+/// Whole-function evidence for the one atomic structural Unit call bundle.
+/// The rel32 remains a typed unresolved fixup until whole-text placement.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalWholeFunctionStructuralUnitCallEvidence {
+    pub block: TerminalSelectedBlockId,
+    pub instruction: TerminalSelectedInstructionId,
+    pub operation: psi_core::OperationId,
+    pub callee: MachineId,
+    pub offset: u64,
+    pub bytes: Vec<u8>,
+    pub fixup: X86_64StructuralUnitInternalControlFixup,
+    pub unit_uses: Vec<RegisterUnitId>,
+    pub unit_defs: Vec<RegisterUnitId>,
+    pub unit_clobbers: Vec<RegisterUnitId>,
+    pub frame_byte_count: u32,
+    pub shadow_byte_count: u32,
+    pub pre_call_stack_alignment: u16,
+    pub frame_is_balanced: bool,
+}
+
+/// Parallel custody for the bounded zero-VReg structural Unit roster. Keeping
+/// this distinct prevents its function-local instruction IDs from colliding
+/// with ordinary rows or with the other structural function.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalWholeFunctionStructuralUnitExitEvidence {
+    pub machine: MachineId,
+    pub entry_block: TerminalSelectedBlockId,
+    pub body_stack_delta: i64,
+    pub modified_callee_saved_units: Vec<RegisterUnitId>,
+    pub call: Option<TerminalWholeFunctionStructuralUnitCallEvidence>,
+    pub returned: TerminalWholeFunctionReturnEvidence,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalWholeFunctionExitContract {
     pub identity: TerminalWholeFunctionExitContractIdentity,
@@ -147,7 +190,12 @@ pub struct TerminalWholeFunctionExitContract {
     pub red_zone_bytes: u16,
     pub result_view: RegisterViewId,
     pub callee_saved_units: Vec<RegisterUnitId>,
-    pub functions: Vec<TerminalWholeFunctionExitEvidence>,
+    /// These rosters stay heap-owned because the validated contract is nested
+    /// in several owning pipeline carriers; adding structural evidence must
+    /// not inflate every ordinary carrier's stack frame.
+    pub functions: Box<Vec<TerminalWholeFunctionExitEvidence>>,
+    /// Parallel to `functions`; never merged by function-local instruction ID.
+    pub structural_unit_functions: Box<Vec<TerminalWholeFunctionStructuralUnitExitEvidence>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -181,6 +229,10 @@ pub enum TerminalWholeFunctionExitContractError {
     DuplicateInstruction(TerminalSelectedInstructionId),
     MissingInstruction(TerminalSelectedInstructionId),
     FunctionRosterMismatch(MachineId),
+    StructuralFunctionRosterMismatch(MachineId),
+    StructuralCallRosterMismatch(TerminalSelectedInstructionId),
+    StructuralCallTopologyMismatch,
+    StructuralCallLayoutMismatch(TerminalSelectedInstructionId),
     BlockRosterMismatch(TerminalSelectedBlockId),
     InstructionRosterMismatch(TerminalSelectedInstructionId),
     CalleeSavedWrite {
@@ -426,7 +478,7 @@ fn compute<S: ValidatedTerminalSelectedAnalysis>(
     }
 
     let target = machine.target;
-    let (policy, convention, stack_name, link_name, entry_assumption) =
+    let (ordinary_policy, convention, stack_name, link_name, entry_assumption) =
         target_contract_inputs(physical, target)?;
     if convention.result_views.len() != 1 || convention.stack_alignment == 0 {
         return Err(TerminalWholeFunctionExitContractError::InvalidConvention);
@@ -478,6 +530,61 @@ fn compute<S: ValidatedTerminalSelectedAnalysis>(
         .map(|name| view(physical, name).map(|view| view.units.iter().copied().collect()))
         .transpose()?
         .unwrap_or_default();
+
+    if !selected_plan.structural_unit_functions.is_empty() {
+        if ordinary_policy != TerminalWholeFunctionExitPolicy::MicrosoftX64FramelessLeafV1
+            || !selected_plan.functions.is_empty()
+            || !machine.functions.is_empty()
+            || !encoding.rows().is_empty()
+            || !layout.functions().is_empty()
+            || layout.policy()
+                != crate::TerminalSelectedFunctionLayoutPolicy::StructuralUnitCallThenReturnSingleEntryBlockV1
+            || layout_custody != TerminalWholeFunctionExitLayoutCustody::BaselineNearLayoutV1
+        {
+            return Err(TerminalWholeFunctionExitContractError::UnsupportedTargetPolicy);
+        }
+        let structural_unit_functions = validate_structural_unit_functions(
+            selected_plan,
+            machine,
+            encoding,
+            layout,
+            target,
+            stack_pointer,
+            result_view,
+            &callee_saved,
+            &link_units,
+        )?;
+        let mut contract = TerminalWholeFunctionExitContract {
+            identity: TerminalWholeFunctionExitContractIdentity([0; 32]),
+            selected: machine.selected,
+            post_allocation_manifest: machine.post_allocation_manifest,
+            post_allocation_machine: machine.identity,
+            register_environment: machine.register_environment,
+            physical_register_model: machine.physical_register_model,
+            pre_layout: encoding.identity(),
+            resolved_layout: layout.identity(),
+            layout_custody,
+            target,
+            policy: TerminalWholeFunctionExitPolicy::MicrosoftX64BalancedStructuralUnitCallV1,
+            hardening: TerminalWholeFunctionHardeningPolicy::NoAdditionalEntryExitHardeningV1,
+            entry_assumption,
+            stack_pointer,
+            stack_alignment: convention.stack_alignment,
+            red_zone_bytes: convention.red_zone_bytes,
+            result_view,
+            callee_saved_units: convention.callee_saved.clone(),
+            functions: Box::new(Vec::new()),
+            structural_unit_functions: Box::new(structural_unit_functions),
+        };
+        contract.identity = contract_identity(&contract);
+        return Ok(contract);
+    }
+    if !machine.structural_unit_functions.is_empty()
+        || !encoding.structural_unit_functions().is_empty()
+        || !layout.structural_unit_functions().is_empty()
+    {
+        return Err(TerminalWholeFunctionExitContractError::RootMismatch);
+    }
     let mut functions = Vec::with_capacity(selected_plan.functions.len());
     for function in &selected_plan.functions {
         let machine_function = machine_functions.get(&function.machine).ok_or(
@@ -562,6 +669,10 @@ fn compute<S: ValidatedTerminalSelectedAnalysis>(
                     instruction.id,
                 )?;
                 if let Some(psi_return_edge) = return_edge {
+                    let layout_block_end = resolved_block
+                        .offset
+                        .checked_add(resolved_block.byte_count)
+                        .ok_or(TerminalWholeFunctionExitContractError::OffsetOverflow)?;
                     returns.push(validate_return(
                         target,
                         stack_pointer,
@@ -572,8 +683,8 @@ fn compute<S: ValidatedTerminalSelectedAnalysis>(
                         instruction,
                         machine_instruction,
                         encoding_row,
-                        resolved_block,
                         resolved_row,
+                        layout_block_end,
                     )?);
                 } else {
                     if machine_instruction
@@ -622,7 +733,7 @@ fn compute<S: ValidatedTerminalSelectedAnalysis>(
         resolved_layout: layout.identity(),
         layout_custody,
         target,
-        policy,
+        policy: ordinary_policy,
         hardening: TerminalWholeFunctionHardeningPolicy::NoAdditionalEntryExitHardeningV1,
         entry_assumption,
         stack_pointer,
@@ -630,10 +741,357 @@ fn compute<S: ValidatedTerminalSelectedAnalysis>(
         red_zone_bytes: convention.red_zone_bytes,
         result_view,
         callee_saved_units: convention.callee_saved.clone(),
-        functions,
+        functions: Box::new(functions),
+        structural_unit_functions: Box::new(Vec::new()),
     };
     contract.identity = contract_identity(&contract);
     Ok(contract)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_structural_unit_functions(
+    selected: &omega_terminal_selected_instructions::TerminalSelectedInstructionPlan,
+    machine: &omega_machine_optimizer::TerminalPostAllocationMachinePlan,
+    encoding: &StagedOptimizedSelectedFormEncoding,
+    layout: &StagedOptimizedResolvedSelectedFormLayout,
+    target: NativeTarget,
+    stack_pointer: RegisterViewId,
+    result_view: RegisterViewId,
+    callee_saved: &BTreeSet<RegisterUnitId>,
+    link_units: &BTreeSet<RegisterUnitId>,
+) -> Result<
+    Vec<TerminalWholeFunctionStructuralUnitExitEvidence>,
+    TerminalWholeFunctionExitContractError,
+> {
+    if selected.structural_unit_functions.len() != 2
+        || machine.structural_unit_functions.len() != 2
+        || encoding.structural_unit_functions().len() != 2
+        || layout.structural_unit_functions().len() != 2
+    {
+        return Err(TerminalWholeFunctionExitContractError::StructuralCallTopologyMismatch);
+    }
+
+    let mut machine_functions = BTreeMap::new();
+    for function in &machine.structural_unit_functions {
+        if machine_functions
+            .insert(function.machine, function)
+            .is_some()
+        {
+            return Err(
+                TerminalWholeFunctionExitContractError::StructuralFunctionRosterMismatch(
+                    function.machine,
+                ),
+            );
+        }
+    }
+    let mut encoding_functions = BTreeMap::new();
+    for function in encoding.structural_unit_functions() {
+        if encoding_functions
+            .insert(function.machine, function)
+            .is_some()
+        {
+            return Err(
+                TerminalWholeFunctionExitContractError::StructuralFunctionRosterMismatch(
+                    function.machine,
+                ),
+            );
+        }
+    }
+    let mut layout_functions = BTreeMap::new();
+    for function in layout.structural_unit_functions() {
+        if layout_functions
+            .insert(function.machine, function)
+            .is_some()
+        {
+            return Err(
+                TerminalWholeFunctionExitContractError::StructuralFunctionRosterMismatch(
+                    function.machine,
+                ),
+            );
+        }
+    }
+
+    let mut selected_machines = BTreeSet::new();
+    let mut caller = None;
+    let mut leaf = None;
+    let mut evidence = Vec::with_capacity(2);
+    for selected_function in &selected.structural_unit_functions {
+        if !selected_machines.insert(selected_function.machine) {
+            return Err(
+                TerminalWholeFunctionExitContractError::StructuralFunctionRosterMismatch(
+                    selected_function.machine,
+                ),
+            );
+        }
+        let machine_function = machine_functions.get(&selected_function.machine).ok_or(
+            TerminalWholeFunctionExitContractError::StructuralFunctionRosterMismatch(
+                selected_function.machine,
+            ),
+        )?;
+        let encoding_function = encoding_functions.get(&selected_function.machine).ok_or(
+            TerminalWholeFunctionExitContractError::StructuralFunctionRosterMismatch(
+                selected_function.machine,
+            ),
+        )?;
+        let layout_function = layout_functions.get(&selected_function.machine).ok_or(
+            TerminalWholeFunctionExitContractError::StructuralFunctionRosterMismatch(
+                selected_function.machine,
+            ),
+        )?;
+        if selected_function.entry_block != machine_function.block
+            || selected_function.entry_block != encoding_function.block
+            || selected_function.entry_block != layout_function.block
+            || layout_function.offset != 0
+        {
+            return Err(
+                TerminalWholeFunctionExitContractError::StructuralFunctionRosterMismatch(
+                    selected_function.machine,
+                ),
+            );
+        }
+
+        let selected_return = &selected_function.terminator.instruction;
+        let expected_return_id =
+            TerminalSelectedInstructionId(if selected_function.call.is_some() {
+                1
+            } else {
+                0
+            });
+        if selected_return.id != expected_return_id
+            || selected_return.id != machine_function.return_instruction.instruction
+            || selected_return.id != encoding_function.return_instruction.instruction
+            || selected_return.id != layout_function.return_instruction.instruction
+            || selected_return.kind != TerminalSelectedInstructionKind::ReturnUnit
+            || selected_return.provenance != machine_function.return_provenance
+            || selected_function.terminator.effect != machine_function.return_effect
+            || selected_function.terminator.ownership != machine_function.return_ownership
+            || machine_function.return_instruction.alternative.key
+                != encoding_function.return_instruction.alternative
+            || machine_function.return_instruction.alternative.key
+                != layout_function.return_instruction.alternative
+        {
+            return Err(
+                TerminalWholeFunctionExitContractError::StructuralFunctionRosterMismatch(
+                    selected_function.machine,
+                ),
+            );
+        }
+        reject_preservation_writes(
+            &machine_function.return_instruction,
+            callee_saved,
+            link_units,
+            selected_return.id,
+        )?;
+
+        let call = match (
+            &selected_function.call,
+            &machine_function.call,
+            &encoding_function.call,
+            &layout_function.call,
+        ) {
+            (None, None, None, None) => {
+                if leaf.replace(selected_function.machine).is_some()
+                    || layout_function.byte_count != 1
+                    || layout_function.return_instruction.offset != 0
+                {
+                    return Err(
+                        TerminalWholeFunctionExitContractError::StructuralCallTopologyMismatch,
+                    );
+                }
+                None
+            }
+            (Some(selected_call), Some(machine_call), Some(encoding_call), Some(layout_call)) => {
+                if caller.replace(selected_function.machine).is_some()
+                    || selected_function.machine != selected.entry
+                    || selected_call.id != TerminalSelectedInstructionId(0)
+                    || selected_call.id != machine_call.instruction
+                    || selected_call.id != encoding_call.instruction
+                    || selected_call.id != layout_call.instruction
+                    || selected_call.operation != machine_call.operation
+                    || selected_call.operation != encoding_call.operation
+                    || selected_call.operation != layout_call.operation
+                    || selected_call.callee != machine_call.callee
+                    || selected_call.callee != encoding_call.callee
+                    || selected_call.callee != layout_call.callee
+                    || selected_call.constraint != machine_call.constraint
+                    || selected_call.implicit_uses != machine_call.unit_uses
+                    || selected_call.implicit_defs != machine_call.unit_defs
+                    || selected_call.clobbers != machine_call.unit_clobbers
+                    || selected_call.layout != machine_call.layout
+                    || selected_call.effect != machine_call.effect
+                    || selected_call.ownership != machine_call.ownership
+                    || selected_call.claim_transfers != machine_call.claim_transfers
+                    || selected_call.provenance != machine_call.provenance
+                    || encoding_call.bytes != layout_call.bytes
+                    || encoding_call.footprint != layout_call.footprint
+                    || encoding_call.fixup != layout_call.fixup
+                {
+                    return Err(
+                        TerminalWholeFunctionExitContractError::StructuralCallRosterMismatch(
+                            selected_call.id,
+                        ),
+                    );
+                }
+                validate_structural_call_layout(
+                    selected_call.id,
+                    selected_call.callee,
+                    machine_call,
+                    layout_call,
+                    callee_saved,
+                )?;
+                if layout_function.byte_count
+                    != u64::try_from(X86_64_STRUCTURAL_UNIT_CALL_TEMPLATE_BYTE_COUNT + 1)
+                        .map_err(|_| TerminalWholeFunctionExitContractError::OffsetOverflow)?
+                    || layout_function.return_instruction.offset
+                        != u64::try_from(X86_64_STRUCTURAL_UNIT_CALL_TEMPLATE_BYTE_COUNT)
+                            .map_err(|_| TerminalWholeFunctionExitContractError::OffsetOverflow)?
+                {
+                    return Err(
+                        TerminalWholeFunctionExitContractError::StructuralCallLayoutMismatch(
+                            selected_call.id,
+                        ),
+                    );
+                }
+                Some(TerminalWholeFunctionStructuralUnitCallEvidence {
+                    block: selected_function.entry_block,
+                    instruction: selected_call.id,
+                    operation: selected_call.operation,
+                    callee: selected_call.callee,
+                    offset: layout_call.offset,
+                    bytes: layout_call.bytes.clone(),
+                    fixup: layout_call.fixup,
+                    unit_uses: machine_call.unit_uses.clone(),
+                    unit_defs: machine_call.unit_defs.clone(),
+                    unit_clobbers: machine_call.unit_clobbers.clone(),
+                    frame_byte_count: layout_call.footprint.frame_byte_count,
+                    shadow_byte_count: layout_call.footprint.shadow_byte_count,
+                    pre_call_stack_alignment: layout_call.footprint.pre_call_stack_alignment,
+                    frame_is_balanced: layout_call.footprint.frame_is_balanced,
+                })
+            }
+            (Some(selected_call), _, _, _) => {
+                return Err(
+                    TerminalWholeFunctionExitContractError::StructuralCallRosterMismatch(
+                        selected_call.id,
+                    ),
+                );
+            }
+            (None, Some(machine_call), _, _) => {
+                return Err(
+                    TerminalWholeFunctionExitContractError::StructuralCallRosterMismatch(
+                        machine_call.instruction,
+                    ),
+                );
+            }
+            (None, None, Some(encoding_call), _) => {
+                return Err(
+                    TerminalWholeFunctionExitContractError::StructuralCallRosterMismatch(
+                        encoding_call.instruction,
+                    ),
+                );
+            }
+            (None, None, None, Some(layout_call)) => {
+                return Err(
+                    TerminalWholeFunctionExitContractError::StructuralCallRosterMismatch(
+                        layout_call.instruction,
+                    ),
+                );
+            }
+        };
+
+        let function_end = layout_function
+            .offset
+            .checked_add(layout_function.byte_count)
+            .ok_or(TerminalWholeFunctionExitContractError::OffsetOverflow)?;
+        let returned = validate_return(
+            target,
+            stack_pointer,
+            None,
+            Some(result_view),
+            selected_function.entry_block,
+            selected_function.terminator.psi_return_edge,
+            selected_return,
+            &machine_function.return_instruction,
+            &encoding_function.return_instruction,
+            &layout_function.return_instruction,
+            function_end,
+        )?;
+        evidence.push(TerminalWholeFunctionStructuralUnitExitEvidence {
+            machine: selected_function.machine,
+            entry_block: selected_function.entry_block,
+            body_stack_delta: 0,
+            modified_callee_saved_units: Vec::new(),
+            call,
+            returned,
+        });
+    }
+
+    let (Some(caller), Some(leaf)) = (caller, leaf) else {
+        return Err(TerminalWholeFunctionExitContractError::StructuralCallTopologyMismatch);
+    };
+    let caller_evidence = evidence
+        .iter()
+        .find(|function| function.machine == caller)
+        .and_then(|function| function.call.as_ref())
+        .ok_or(TerminalWholeFunctionExitContractError::StructuralCallTopologyMismatch)?;
+    if caller != selected.entry || caller_evidence.callee != leaf || caller == leaf {
+        return Err(TerminalWholeFunctionExitContractError::StructuralCallTopologyMismatch);
+    }
+    Ok(evidence)
+}
+
+fn validate_structural_call_layout(
+    instruction: TerminalSelectedInstructionId,
+    callee: MachineId,
+    machine: &omega_machine_optimizer::TerminalStructuralUnitCallMachineEffects,
+    layout: &crate::TerminalResolvedStructuralUnitCallLayout,
+    callee_saved: &BTreeSet<RegisterUnitId>,
+) -> Result<(), TerminalWholeFunctionExitContractError> {
+    let footprint = &layout.footprint;
+    let fixup = layout.fixup;
+    let rel32_start = usize::from(X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_OFFSET);
+    let rel32_end = rel32_start + usize::from(X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_WIDTH);
+    if layout.offset != 0
+        || layout.bytes.len() != X86_64_STRUCTURAL_UNIT_CALL_TEMPLATE_BYTE_COUNT
+        || layout
+            .bytes
+            .get(usize::from(X86_64_STRUCTURAL_UNIT_CALL_OPCODE_OFFSET))
+            != Some(&0xe8)
+        || layout.bytes.get(rel32_start..rel32_end) != Some(&[0, 0, 0, 0][..])
+        || footprint.implicit_unit_uses != machine.unit_uses
+        || footprint.implicit_unit_defs != machine.unit_defs
+        || footprint.implicit_unit_clobbers != machine.unit_clobbers
+        || footprint.frame_byte_count != 72
+        || footprint.shadow_byte_count != 32
+        || footprint.pre_call_stack_alignment != 16
+        || !footprint.frame_is_balanced
+        || machine.layout.outgoing_frame_byte_count != 72
+        || machine.layout.shadow_byte_count != 32
+        || machine.layout.pre_call_stack_alignment != 16
+        || fixup.kind
+            != X86_64StructuralUnitInternalControlFixupKind::Relative32FromNextInstructionToInternalMachineV1
+        || fixup.state != X86_64StructuralUnitInternalControlFixupState::UnresolvedZeroFieldV1
+        || fixup.callee != callee
+        || fixup.opcode_byte_offset != X86_64_STRUCTURAL_UNIT_CALL_OPCODE_OFFSET
+        || fixup.field_byte_offset != X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_OFFSET
+        || fixup.next_instruction_byte_offset
+            != X86_64_STRUCTURAL_UNIT_CALL_NEXT_INSTRUCTION_OFFSET
+        || fixup.field_byte_width != X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_WIDTH
+        || fixup.addend != 0
+    {
+        return Err(
+            TerminalWholeFunctionExitContractError::StructuralCallLayoutMismatch(instruction),
+        );
+    }
+    for unit in machine.unit_defs.iter().chain(&machine.unit_clobbers) {
+        if callee_saved.contains(unit) {
+            return Err(TerminalWholeFunctionExitContractError::CalleeSavedWrite {
+                instruction,
+                unit: *unit,
+            });
+        }
+    }
+    Ok(())
 }
 
 #[derive(Clone, Copy)]
@@ -642,13 +1100,13 @@ enum EntryAssumptionKind {
     LinkRegister,
 }
 
-fn target_contract_inputs<'model>(
-    physical: &'model ValidatedPhysicalRegisterModel,
+fn target_contract_inputs(
+    physical: &ValidatedPhysicalRegisterModel,
     target: NativeTarget,
 ) -> Result<
     (
         TerminalWholeFunctionExitPolicy,
-        &'model PreservationConvention,
+        &PreservationConvention,
         &'static str,
         Option<&'static str>,
         EntryAssumptionKind,
@@ -837,8 +1295,8 @@ fn validate_return(
     selected: &omega_terminal_selected_instructions::TerminalSelectedInstruction,
     machine: &TerminalPostAllocationMachineInstruction,
     encoding: &crate::TerminalSelectedFormEncodingRow,
-    layout_block: &crate::TerminalResolvedSelectedBlockLayout,
     layout: &crate::TerminalResolvedSelectedFormRow,
+    layout_block_end: u64,
 ) -> Result<TerminalWholeFunctionReturnEvidence, TerminalWholeFunctionExitContractError> {
     let value = match selected.kind {
         TerminalSelectedInstructionKind::ReturnI64 => {
@@ -901,11 +1359,7 @@ fn validate_return(
                 .map_err(|_| TerminalWholeFunctionExitContractError::OffsetOverflow)?,
         )
         .ok_or(TerminalWholeFunctionExitContractError::OffsetOverflow)?;
-    let block_end = layout_block
-        .offset
-        .checked_add(layout_block.byte_count)
-        .ok_or(TerminalWholeFunctionExitContractError::OffsetOverflow)?;
-    if end != block_end {
+    if end != layout_block_end {
         return Err(TerminalWholeFunctionExitContractError::ReturnPlacementMismatch(selected.id));
     }
     let mechanism = match target.architecture {
@@ -1016,7 +1470,7 @@ fn contract_identity(
     hasher.update(contract.result_view.0.to_le_bytes());
     encode_units(&mut hasher, &contract.callee_saved_units);
     hasher.update((contract.functions.len() as u64).to_le_bytes());
-    for function in &contract.functions {
+    for function in contract.functions.iter() {
         hasher.update(function.machine.get().to_le_bytes());
         hasher.update(function.entry_block.0.to_le_bytes());
         hasher.update(function.body_stack_delta.to_le_bytes());
@@ -1065,7 +1519,94 @@ fn contract_identity(
             }
         }
     }
+    hasher.update((contract.structural_unit_functions.len() as u64).to_le_bytes());
+    for function in contract.structural_unit_functions.iter() {
+        hasher.update(function.machine.get().to_le_bytes());
+        hasher.update(function.entry_block.0.to_le_bytes());
+        hasher.update(function.body_stack_delta.to_le_bytes());
+        encode_units(&mut hasher, &function.modified_callee_saved_units);
+        match &function.call {
+            None => hasher.update([0]),
+            Some(call) => {
+                hasher.update([1]);
+                hasher.update(call.block.0.to_le_bytes());
+                hasher.update(call.instruction.0.to_le_bytes());
+                hasher.update(call.operation.get().to_le_bytes());
+                hasher.update(call.callee.get().to_le_bytes());
+                hasher.update(call.offset.to_le_bytes());
+                hasher.update((call.bytes.len() as u64).to_le_bytes());
+                hasher.update(&call.bytes);
+                encode_structural_fixup(&mut hasher, call.fixup);
+                encode_units(&mut hasher, &call.unit_uses);
+                encode_units(&mut hasher, &call.unit_defs);
+                encode_units(&mut hasher, &call.unit_clobbers);
+                hasher.update(call.frame_byte_count.to_le_bytes());
+                hasher.update(call.shadow_byte_count.to_le_bytes());
+                hasher.update(call.pre_call_stack_alignment.to_le_bytes());
+                hasher.update([u8::from(call.frame_is_balanced)]);
+            }
+        }
+        encode_return(&mut hasher, &function.returned);
+    }
     TerminalWholeFunctionExitContractIdentity(hasher.finalize().into())
+}
+
+fn encode_return(hasher: &mut Sha256, returned: &TerminalWholeFunctionReturnEvidence) {
+    hasher.update(returned.block.0.to_le_bytes());
+    hasher.update(returned.psi_return_edge.get().to_le_bytes());
+    hasher.update(returned.instruction.0.to_le_bytes());
+    hasher.update(returned.offset.to_le_bytes());
+    hasher.update((returned.bytes.len() as u64).to_le_bytes());
+    hasher.update(&returned.bytes);
+    match &returned.value {
+        TerminalWholeFunctionReturnValueEvidence::UnitV1 => hasher.update([1]),
+        TerminalWholeFunctionReturnValueEvidence::ScalarI64V1 {
+            virtual_register,
+            view,
+            units,
+        } => {
+            hasher.update([2]);
+            hasher.update(virtual_register.0.to_le_bytes());
+            hasher.update(view.0.to_le_bytes());
+            encode_units(hasher, units);
+        }
+    }
+    hasher.update([1]);
+    match returned.mechanism {
+        TerminalWholeFunctionReturnMechanism::X86ActivationStackReturnV1 {
+            stack_pointer,
+            read_bytes,
+            pop_bytes,
+        } => {
+            hasher.update([1]);
+            hasher.update(stack_pointer.0.to_le_bytes());
+            hasher.update(read_bytes.to_le_bytes());
+            hasher.update(pop_bytes.to_le_bytes());
+        }
+        TerminalWholeFunctionReturnMechanism::Aarch64LinkRegisterReturnV1 {
+            stack_pointer,
+            link_register,
+        } => {
+            hasher.update([2]);
+            hasher.update(stack_pointer.0.to_le_bytes());
+            hasher.update(link_register.0.to_le_bytes());
+        }
+    }
+}
+
+fn encode_structural_fixup(hasher: &mut Sha256, fixup: X86_64StructuralUnitInternalControlFixup) {
+    hasher.update([match fixup.kind {
+        X86_64StructuralUnitInternalControlFixupKind::Relative32FromNextInstructionToInternalMachineV1 => 1,
+    }]);
+    hasher.update([match fixup.state {
+        X86_64StructuralUnitInternalControlFixupState::UnresolvedZeroFieldV1 => 1,
+    }]);
+    hasher.update(fixup.callee.get().to_le_bytes());
+    hasher.update(fixup.opcode_byte_offset.to_le_bytes());
+    hasher.update(fixup.field_byte_offset.to_le_bytes());
+    hasher.update(fixup.next_instruction_byte_offset.to_le_bytes());
+    hasher.update([fixup.field_byte_width]);
+    hasher.update(fixup.addend.to_le_bytes());
 }
 
 fn encode_target(hasher: &mut Sha256, target: NativeTarget) {
@@ -1088,6 +1629,7 @@ fn policy_tag(policy: TerminalWholeFunctionExitPolicy) -> u8 {
         TerminalWholeFunctionExitPolicy::MicrosoftX64FramelessLeafV1 => 2,
         TerminalWholeFunctionExitPolicy::Aapcs64FramelessLeafV1 => 3,
         TerminalWholeFunctionExitPolicy::DarwinAapcs64FramelessLeafV1 => 4,
+        TerminalWholeFunctionExitPolicy::MicrosoftX64BalancedStructuralUnitCallV1 => 5,
     }
 }
 
@@ -1131,7 +1673,8 @@ mod tests {
             red_zone_bytes: 128,
             result_view: RegisterViewId(1),
             callee_saved_units: Vec::new(),
-            functions: Vec::new(),
+            functions: Box::new(Vec::new()),
+            structural_unit_functions: Box::new(Vec::new()),
         };
         contract.identity = contract_identity(&contract);
         contract
@@ -1154,5 +1697,99 @@ mod tests {
 
         assert_ne!(baseline.identity, relaxed.identity);
         assert_ne!(relaxed.identity, another_relaxation.identity);
+    }
+
+    #[test]
+    fn structural_call_frame_fixup_and_returns_are_identity_bound() {
+        let caller = MachineId::new(1).unwrap();
+        let leaf = MachineId::new(2).unwrap();
+        let mut contract =
+            contract_with_custody(TerminalWholeFunctionExitLayoutCustody::BaselineNearLayoutV1);
+        contract.target = NativeTarget::uefi_x64();
+        contract.policy = TerminalWholeFunctionExitPolicy::MicrosoftX64BalancedStructuralUnitCallV1;
+        contract.red_zone_bytes = 0;
+        let mut call_bytes = vec![0; X86_64_STRUCTURAL_UNIT_CALL_TEMPLATE_BYTE_COUNT];
+        call_bytes[usize::from(X86_64_STRUCTURAL_UNIT_CALL_OPCODE_OFFSET)] = 0xe8;
+        let returned = |instruction, offset, edge| TerminalWholeFunctionReturnEvidence {
+            block: TerminalSelectedBlockId(0),
+            psi_return_edge: EdgeId::new(edge).unwrap(),
+            instruction: TerminalSelectedInstructionId(instruction),
+            offset,
+            bytes: vec![0xc3],
+            value: TerminalWholeFunctionReturnValueEvidence::UnitV1,
+            trap: TerminalMachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+            mechanism: TerminalWholeFunctionReturnMechanism::X86ActivationStackReturnV1 {
+                stack_pointer: contract.stack_pointer,
+                read_bytes: 8,
+                pop_bytes: 8,
+            },
+        };
+        *contract.structural_unit_functions = vec![
+            TerminalWholeFunctionStructuralUnitExitEvidence {
+                machine: caller,
+                entry_block: TerminalSelectedBlockId(0),
+                body_stack_delta: 0,
+                modified_callee_saved_units: Vec::new(),
+                call: Some(TerminalWholeFunctionStructuralUnitCallEvidence {
+                    block: TerminalSelectedBlockId(0),
+                    instruction: TerminalSelectedInstructionId(0),
+                    operation: psi_core::OperationId::new(3).unwrap(),
+                    callee: leaf,
+                    offset: 0,
+                    bytes: call_bytes,
+                    fixup: X86_64StructuralUnitInternalControlFixup {
+                        kind: X86_64StructuralUnitInternalControlFixupKind::Relative32FromNextInstructionToInternalMachineV1,
+                        state: X86_64StructuralUnitInternalControlFixupState::UnresolvedZeroFieldV1,
+                        callee: leaf,
+                        opcode_byte_offset: X86_64_STRUCTURAL_UNIT_CALL_OPCODE_OFFSET,
+                        field_byte_offset: X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_OFFSET,
+                        next_instruction_byte_offset:
+                            X86_64_STRUCTURAL_UNIT_CALL_NEXT_INSTRUCTION_OFFSET,
+                        field_byte_width: X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_WIDTH,
+                        addend: 0,
+                    },
+                    unit_uses: Vec::new(),
+                    unit_defs: Vec::new(),
+                    unit_clobbers: Vec::new(),
+                    frame_byte_count: 72,
+                    shadow_byte_count: 32,
+                    pre_call_stack_alignment: 16,
+                    frame_is_balanced: true,
+                }),
+                returned: returned(1, 89, 4),
+            },
+            TerminalWholeFunctionStructuralUnitExitEvidence {
+                machine: leaf,
+                entry_block: TerminalSelectedBlockId(0),
+                body_stack_delta: 0,
+                modified_callee_saved_units: Vec::new(),
+                call: None,
+                returned: returned(0, 0, 5),
+            },
+        ];
+        contract.identity = contract_identity(&contract);
+
+        let mut changed_frame = contract.clone();
+        changed_frame.structural_unit_functions[0]
+            .call
+            .as_mut()
+            .unwrap()
+            .frame_byte_count = 71;
+        changed_frame.identity = contract_identity(&changed_frame);
+        let mut changed_fixup = contract.clone();
+        changed_fixup.structural_unit_functions[0]
+            .call
+            .as_mut()
+            .unwrap()
+            .fixup
+            .field_byte_offset += 1;
+        changed_fixup.identity = contract_identity(&changed_fixup);
+        let mut changed_return = contract.clone();
+        changed_return.structural_unit_functions[0].returned.offset -= 1;
+        changed_return.identity = contract_identity(&changed_return);
+
+        assert_ne!(contract.identity, changed_frame.identity);
+        assert_ne!(contract.identity, changed_fixup.identity);
+        assert_ne!(contract.identity, changed_return.identity);
     }
 }

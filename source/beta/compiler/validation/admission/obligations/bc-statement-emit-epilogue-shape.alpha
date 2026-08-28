@@ -36,19 +36,13 @@ statement_emit_epilogue_require_block:
 
 ; Pin an emit row and its exact __write_str call. r20=row,r21=pc.
 statement_emit_epilogue_require_emit:
-        mov r30, r20
-        mov r31, r21
-        mov r20, r30
+        mov r10, r20                  ; source-row identity for literal bytes
+        mov r14, r21                  ; row-checked helper call
         imm r21, 217
         imm r22, 4
-        mov r23, r31
+        mov r23, r14
         call exact_require_event
-        mov r20, r31
-        imm r21, 31
-        mov r22, r31
-        imm r1, 9
-        add r22, r1
-        call exact_require_call
+        call check_emit_at_call
         ret
 
 statement_emit_epilogue_require_events:

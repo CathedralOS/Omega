@@ -234,6 +234,35 @@ class ArtifactCustodyTests(unittest.TestCase):
         self.assertEqual(result.returncode, status, result.stderr)
         self.assertEqual(result.stdout, b"")
 
+    def synthetic_reconstruction(self) -> dict:
+        observation = json.loads(self.evidence.observation.read_bytes())
+        return {
+            "artifact": custody.bytes_identity(
+                self.evidence.artifact.read_bytes(),
+                "replayed_unsigned_darwin_arm64_macho_executable",
+            ),
+            "assembly": custody.bytes_identity(
+                self.evidence.assembly.read_bytes(),
+                "replayed_darwin_arm64_assembly_input",
+            ),
+            "command_profile": custody.COMMAND_PROFILE,
+            "stderr": custody.bytes_identity(
+                b"", "replayed_apple_clang_diagnostic_stderr"
+            ),
+            "stdout": custody.bytes_identity(
+                b"", "replayed_apple_clang_diagnostic_stdout"
+            ),
+            "target": observation["target"],
+        }
+
+    def synthetic_receipt(self) -> dict:
+        with mock.patch.object(
+            custody, "replay_realization", return_value=self.synthetic_reconstruction()
+        ):
+            return custody.make_receipt(
+                *custody.parse_join(self.evidence.join_arguments())
+            )
+
     def test_handcrafted_container_cannot_mint_reconstruction_receipt(self) -> None:
         # The synthetic image remains a validator fixture.  Unlike the old
         # custody-only join, generate must now execute the supplied producer;
@@ -441,6 +470,111 @@ class ArtifactCustodyTests(unittest.TestCase):
         )
         self.evidence.observation.write_bytes(custody.canonical_json(observation, pretty=True))
         self.assert_rejects(251, "generate", *arguments)
+
+    def test_terminal_receipt_surfaces_exact_subjects_obligations_and_admissions(self) -> None:
+        receipt = self.synthetic_receipt()
+        parent = json.loads(self.evidence.assembly_evidence.receipt.read_bytes())
+        observation = json.loads(self.evidence.observation.read_bytes())
+
+        self.assertEqual(receipt["open_refinement"], custody.OPEN_REFINEMENT)
+        self.assertEqual(receipt["artifact"], observation["artifact"])
+        self.assertEqual(receipt["assembly"], parent["assembly"])
+        self.assertEqual(
+            receipt["assembly_publication"],
+            {
+                "assembly": parent["assembly"],
+                "publication_id": parent["publication_id"],
+                "receipt_sha256": parent["receipt_sha256"],
+                "source_image": parent["source_image"],
+                "source_snapshot": parent["source_snapshot"],
+                "target": parent["target"],
+            },
+        )
+        self.assertEqual(
+            receipt["reconstruction"]["artifact"]["sha256"],
+            observation["artifact"]["sha256"],
+        )
+        self.assertEqual(
+            receipt["reconstruction"]["profile"], custody.RECONSTRUCTION_PROFILE
+        )
+        self.assertEqual(
+            receipt["admissions"]["hosts"]["lower_rung"]["toolchain"],
+            parent["toolchain"],
+        )
+        self.assertEqual(
+            receipt["admissions"]["hosts"]["realization"]["toolchain"],
+            observation["toolchain"],
+        )
+        self.assertEqual(
+            receipt["admissions"]["target"]["executable"],
+            observation["target"],
+        )
+        self.assertEqual(receipt["receipt_sha256"], custody.receipt_digest(receipt))
+
+    def test_terminal_receipt_identity_and_admission_cross_pairs_reject(self) -> None:
+        expected = self.synthetic_receipt()
+        mutations = (
+            (
+                "source",
+                ("assembly_publication", "source_image", "sha256"),
+                "0" * 64,
+            ),
+            ("assembly", ("assembly", "sha256"), "0" * 64),
+            (
+                "replayed executable",
+                ("reconstruction", "artifact", "sha256"),
+                "0" * 64,
+            ),
+            (
+                "obligation profile",
+                ("reconstruction", "profile", "obligations", 0),
+                "unchecked_substitute",
+            ),
+            (
+                "lower-rung host admission",
+                (
+                    "admissions", "hosts", "lower_rung", "toolchain",
+                    "alpha_vm", "host",
+                ),
+                "substitute_host",
+            ),
+            (
+                "realization host admission",
+                (
+                    "admissions", "hosts", "realization", "toolchain",
+                    "clang_driver", "sha256",
+                ),
+                "0" * 64,
+            ),
+            (
+                "target admission",
+                ("admissions", "target", "executable", "minimum_macos"),
+                "12.0.0",
+            ),
+        )
+        for name, path, replacement in mutations:
+            with self.subTest(name=name):
+                candidate = json.loads(custody.canonical_json(expected, pretty=False))
+                retained = candidate
+                for key in path[:-1]:
+                    retained = retained[key]
+                retained[path[-1]] = replacement
+                candidate["receipt_sha256"] = custody.receipt_digest(candidate)
+                self.evidence.receipt.write_bytes(
+                    custody.canonical_json(candidate, pretty=True)
+                )
+                with mock.patch.object(
+                    custody,
+                    "replay_realization",
+                    return_value=self.synthetic_reconstruction(),
+                ):
+                    with self.assertRaisesRegex(
+                        custody.CustodyError, "artifact custody receipt"
+                    ):
+                        custody.main([
+                            "verify", str(self.evidence.receipt),
+                            *self.evidence.join_arguments(),
+                        ])
 
     def test_artifact_tool_and_observation_mutations_reject(self) -> None:
         raw = bytearray(self.evidence.artifact.read_bytes())

@@ -53,8 +53,8 @@ and emits a 3035-byte tape with SHA-256
 `6d892139f7e4153dbe30cb353e5eb498c7b1d5260a486470616dc684b55cd67f`.
 That checker accepts framing, reachable control-flow, procedure-region, and
 tape-capacity obligations only. The adjacent canonical maximal-observation
-reconstruction emits one 82,172-byte ROOT Alpha tape; its exact digest is
-`7e3675449da2af21bd43d5374f2f1c8300c87dfaa998fa9491dfd06b1e4c001b`.
+reconstruction emits one 82,314-byte ROOT Alpha tape; its exact digest is
+`e45032fa8095973892754e82ebc81af180cb6acab1a6e2292e8384b1ce18bbf9`.
 This is strong executable evidence, but it is not yet a derivation in the
 rooted checker calculus. Complete source/artifact admission is blocked on
 [`OWNER_QUESTIONS.md`](../../../OWNER_QUESTIONS.md) Q18's guarded-simulation
@@ -101,7 +101,10 @@ Its canonical LF image is 168560 bytes with SHA-256
 The lower-rung elaboration and publication verifier are present; the two exact
 full Gamma executions and their accepted publication receipt are still open.
 The adjacent artifact-custody verifier now independently replays the literal
-Darwin ARM64 realization command and requires byte identity with its candidate.
+Darwin ARM64 realization command, requires byte identity with its candidate,
+and binds the exact terminal subjects, reconstruction obligations, and scoped
+lower-rung host, realization-host, and target admissions. Semantic refinement
+remains explicitly open.
 No Delta compiler output is admitted by this manifest.
 
 ## Omega product edges

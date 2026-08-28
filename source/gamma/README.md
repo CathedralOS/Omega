@@ -3,12 +3,12 @@
 Gamma is the pure functional rung above Beta. It supplies algebraic data,
 pattern matching, recursion, fuel-bounded reference evaluation, and a small
 static type system. It is suitable for parsers, validators, interpreters, and an
-implementation of the cross-cutting proof kernel.
+alternate implementation of the Alpha-owned derivation checker.
 
 The reference evaluator implements proper tail calls and uses variable-size AST
 nodes, immediate nonnegative `u32` integers with a boxed fallback, and headerless
 two-word representations for ordinary `Cons` cells and the `Node` and `Chunks`
-constructors used by the bootstrap translator's bounded persistent-array
+constructors used by the Delta meaning elaborator's bounded persistent-array
 carrier. Its parsed AST is an immutable pinned heap prefix. Evaluation values
 occupy a stable-address 40 MiB heap with a separate byte-per-word allocation,
 representation-kind, and mark map. When that heap fills, a non-moving
