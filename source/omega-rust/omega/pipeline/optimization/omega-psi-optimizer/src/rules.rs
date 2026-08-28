@@ -32,7 +32,7 @@ use crate::{
     RuleRegistryError, ScalarConstant, ScalarConstantAnalysis, ValueRangeAnalysis,
 };
 
-const SCCP_PASS_NAME: &[u8] = b"omega.psi-pass.sparse-conditional-constant-propagation.v3";
+const SCCP_PASS_NAME: &[u8] = b"omega.psi-pass.sparse-conditional-constant-propagation.v4";
 const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-cleanup.v12";
 const COPY_PROPAGATION_PASS_NAME: &[u8] = b"omega.psi-pass.copy-propagation.v1";
 const DEAD_PURE_SCALAR_PASS_NAME: &[u8] = b"omega.psi-pass.dead-pure-scalar-elimination.v2";
@@ -7392,6 +7392,8 @@ boolean_evaluation_rule!(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum IntegerRangeComparisonKind {
+    RangeEqualConstant,
+    ConstantEqualRange,
     RangeLessThanConstant,
     ConstantLessThanRange,
     RangeLessOrEqualConstant,
@@ -7448,6 +7450,16 @@ macro_rules! integer_range_comparison_rule {
 }
 
 integer_range_comparison_rule!(
+    IntegerEqualRangeConstantRule,
+    b"omega.psi-rule.integer-equal-range-constant.v1",
+    IntegerRangeComparisonKind::RangeEqualConstant
+);
+integer_range_comparison_rule!(
+    IntegerEqualConstantRangeRule,
+    b"omega.psi-rule.integer-equal-constant-range.v1",
+    IntegerRangeComparisonKind::ConstantEqualRange
+);
+integer_range_comparison_rule!(
     IntegerLessThanRangeConstantRule,
     b"omega.psi-rule.integer-less-than-range-constant.v1",
     IntegerRangeComparisonKind::RangeLessThanConstant
@@ -7481,6 +7493,16 @@ fn propose_integer_range_comparison(
             for (node_index, node) in block.nodes.iter().enumerate() {
                 let (psi_operation, result, left, right) = match (kind, &node.operation) {
                     (
+                        IntegerRangeComparisonKind::RangeEqualConstant
+                        | IntegerRangeComparisonKind::ConstantEqualRange,
+                        O::IntegerEqual {
+                            psi_operation,
+                            result,
+                            left,
+                            right,
+                        },
+                    )
+                    | (
                         IntegerRangeComparisonKind::RangeLessThanConstant
                         | IntegerRangeComparisonKind::ConstantLessThanRange,
                         O::IntegerLessThan {
@@ -7503,9 +7525,11 @@ fn propose_integer_range_comparison(
                     _ => continue,
                 };
                 let (range_value, constant_operand) = match kind {
-                    IntegerRangeComparisonKind::RangeLessThanConstant
+                    IntegerRangeComparisonKind::RangeEqualConstant
+                    | IntegerRangeComparisonKind::RangeLessThanConstant
                     | IntegerRangeComparisonKind::RangeLessOrEqualConstant => (left, right),
-                    IntegerRangeComparisonKind::ConstantLessThanRange
+                    IntegerRangeComparisonKind::ConstantEqualRange
+                    | IntegerRangeComparisonKind::ConstantLessThanRange
                     | IntegerRangeComparisonKind::ConstantLessOrEqualRange => (right, left),
                 };
                 let Some((constant_value, constant_fact)) =
@@ -7597,6 +7621,11 @@ fn evaluate_integer_range_comparison(
     let minimum_to_constant = scalar_type.compare(minimum, constant)?;
     let maximum_to_constant = scalar_type.compare(maximum, constant)?;
     match kind {
+        IntegerRangeComparisonKind::RangeEqualConstant
+        | IntegerRangeComparisonKind::ConstantEqualRange => (minimum_to_constant.is_eq()
+            && maximum_to_constant.is_eq())
+        .then_some(true)
+        .or_else(|| (minimum_to_constant.is_gt() || maximum_to_constant.is_lt()).then_some(false)),
         IntegerRangeComparisonKind::RangeLessThanConstant => maximum_to_constant
             .is_lt()
             .then_some(true)
@@ -9023,6 +9052,8 @@ fn built_in_rule_registrations(optimization: Optimization) -> Vec<BuiltInRuleReg
         register!(31, IntegerLessThanConstantRangeRule);
         register!(32, IntegerLessOrEqualRangeConstantRule);
         register!(33, IntegerLessOrEqualConstantRangeRule);
+        register!(34, IntegerEqualRangeConstantRule);
+        register!(35, IntegerEqualConstantRangeRule);
     }
     if optimization == Optimization::ControlFlowCleanup {
         register!(0, ConstantConditionalFoldRule);
@@ -12238,7 +12269,7 @@ pub(crate) mod tests {
             OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
                 .unwrap();
         let registry = built_in_psi_registry(&selections).unwrap();
-        assert_eq!(registry.len(), 34);
+        assert_eq!(registry.len(), 36);
         let mut dispatched = 0usize;
         let mut candidates = Vec::new();
         for rule in registry.iter() {
@@ -12604,6 +12635,75 @@ pub(crate) mod tests {
                 AbstractOperation::BooleanConstant { value, .. } if value == expected
             ));
         }
+    }
+
+    #[test]
+    fn integer_range_equality_proves_singleton_outside_and_declines_overlap() {
+        let scalar_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        for kind in [
+            IntegerRangeComparisonKind::RangeEqualConstant,
+            IntegerRangeComparisonKind::ConstantEqualRange,
+        ] {
+            assert_eq!(
+                evaluate_integer_range_comparison(
+                    kind,
+                    scalar_type,
+                    IntegerValue::Unsigned(7),
+                    IntegerValue::Unsigned(7),
+                    IntegerValue::Unsigned(7),
+                ),
+                Some(true)
+            );
+            assert_eq!(
+                evaluate_integer_range_comparison(
+                    kind,
+                    scalar_type,
+                    IntegerValue::Unsigned(7),
+                    IntegerValue::Unsigned(9),
+                    IntegerValue::Unsigned(6),
+                ),
+                Some(false)
+            );
+            assert_eq!(
+                evaluate_integer_range_comparison(
+                    kind,
+                    scalar_type,
+                    IntegerValue::Unsigned(7),
+                    IntegerValue::Unsigned(9),
+                    IntegerValue::Unsigned(10),
+                ),
+                Some(false)
+            );
+            assert_eq!(
+                evaluate_integer_range_comparison(
+                    kind,
+                    scalar_type,
+                    IntegerValue::Unsigned(7),
+                    IntegerValue::Unsigned(9),
+                    IntegerValue::Unsigned(8),
+                ),
+                None
+            );
+        }
+    }
+
+    #[test]
+    fn sccp_registry_appends_both_integer_range_equality_orientations() {
+        let registry =
+            registry_for_optimization(Optimization::SparseConditionalConstantPropagation).unwrap();
+        let contracts = registry.contracts().collect::<Vec<_>>();
+        assert_eq!(contracts.len(), 36);
+        assert_eq!(
+            contracts[34].identity(),
+            IntegerEqualRangeConstantRule::contract().identity()
+        );
+        assert_eq!(
+            contracts[35].identity(),
+            IntegerEqualConstantRangeRule::contract().identity()
+        );
+        assert!(contracts.iter().all(|contract| {
+            contract.pass() == OptimizationPassIdentity::from_canonical_bytes(SCCP_PASS_NAME)
+        }));
     }
 
     #[test]

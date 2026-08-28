@@ -192,7 +192,10 @@ fn checked_source_survives_frontend_drop_as_verified_psi() {
                     },
                     AbstractBlockEntry {
                         block: BlockId::new(2).expect("return block"),
-                        parameters: Vec::new(),
+                        parameters: vec![AbstractParameter {
+                            value: ValueId::new(1).expect("block parameter"),
+                            scalar_type: ScalarType::Integer(i32_type),
+                        }],
                         operation_offset: 2,
                     },
                 ],

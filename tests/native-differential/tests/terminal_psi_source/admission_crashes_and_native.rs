@@ -873,7 +873,7 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         .expect("straight-line source module should have a fixed-fuel certificate");
     validate_fixed_entry_fuel(&verified, &fixed_fuel)
         .expect("source-independent consumer should recompute the certificate");
-    assert_eq!(fixed_fuel.psi(), original_identity);
+    assert_eq!(fixed_fuel.terminal_psi(), original_identity);
     assert_eq!(fixed_fuel.ceiling_units(), 4);
     let mut execution = start_verified_artifact(&verified, &[])
         .expect("verified source-produced terminal Psi should start");
@@ -1828,7 +1828,7 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
     assert!(matches!(
         stack_input.body_evidence(),
         omega_external_roots::StackLocalEvidence::TerminalEntry(binding)
-            if binding.entry() == object_artifact.entry()
+            if binding.entry() == entry_stub
                 && binding.installed_code() == installed_code.identity()
     ));
     assert_eq!(
