@@ -97,7 +97,8 @@ expression_gen_expr_require_sites:
         imm r21, 306
         imm r22, 43527
         imm r23, 0
-        imm r24, 38910                 ; gen_sum
+        imm r24, 58                    ; gen_sum procedure identity
+        call exact_proc_entry_r24
         imm r25, 43536
         call expression_gen_expr_require_site
         imm r20, 491
@@ -122,14 +123,16 @@ expression_gen_expr_require_sites:
         imm r21, 307
         imm r22, 43832
         imm r23, 0
-        imm r24, 32248                 ; emit_push
+        imm r24, 47                    ; emit_push procedure identity
+        call exact_proc_entry_r24
         imm r25, 43841
         call expression_gen_expr_require_site
         imm r20, 495
         imm r21, 307
         imm r22, 43841
         imm r23, 0
-        imm r24, 38910                 ; right gen_sum
+        imm r24, 58                    ; right gen_sum procedure identity
+        call exact_proc_entry_r24
         imm r25, 43850
         call expression_gen_expr_require_site
         imm r20, 496

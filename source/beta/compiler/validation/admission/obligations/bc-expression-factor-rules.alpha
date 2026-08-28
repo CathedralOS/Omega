@@ -112,7 +112,8 @@ expression_factor_prove_paren:
         imm r21, 245
         imm r22, 36091
         imm r23, 0
-        imm r24, 43134
+        imm r24, 61                    ; gen_expr procedure identity
+        call exact_proc_entry_r24
         imm r25, 36100
         call expression_factor_require_site
         imm r20, 387
@@ -257,7 +258,8 @@ expression_factor_prove_literals:
         imm r21, 254
         imm r22, 37228
         imm r23, 1
-        imm r24, 29152
+        imm r24, 40                    ; emit_dec procedure identity
+        call exact_proc_entry_r24
         imm r25, 37237
         call expression_factor_require_site
         imm r20, 407
@@ -279,7 +281,8 @@ expression_factor_prove_literals:
         imm r21, 255
         imm r22, 37430
         imm r23, 1
-        imm r24, 29152
+        imm r24, 40                    ; emit_dec procedure identity
+        call exact_proc_entry_r24
         imm r25, 37439
         call expression_factor_require_site
         imm r20, 412

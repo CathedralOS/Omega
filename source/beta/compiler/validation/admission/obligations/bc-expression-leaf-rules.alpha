@@ -55,7 +55,8 @@ expression_leaf_require_child_call:
         mov r22, r32
         imm r23, 0
         imm r24, 0
-        imm r25, 43134                 ; gen_expr
+        imm r25, 61                    ; gen_expr procedure identity
+        call exact_proc_entry_r25
         mov r26, r33
         call summary_require_call_site
         ret

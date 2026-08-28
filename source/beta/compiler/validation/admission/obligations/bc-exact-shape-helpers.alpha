@@ -473,6 +473,78 @@ exact_require_block_pc:
         jeq r2, r21, exact_shape_ok
         jmp reject
 
+; Resolve independently scanned source procedure ID r0 to its unique entry-block
+; artifact PC. The untrusted witness supplies block locations, but it cannot
+; select this identity: source procedure ownership and entry kind are checked in
+; the canonical block tables before the one matching PC is returned. Clobbers
+; only r0..r5.
+exact_proc_entry_pc:
+        mov r5, r0
+        imm r4, 0                      ; block row
+        imm r3, 0                      ; matching entries
+        imm r0, 0                      ; selected artifact PC
+exact_proc_entry_loop:
+        imm r1, 524320                 ; independently scanned block count
+        load r1, r1
+        jlt r4, r1, exact_proc_entry_row
+        imm r1, 1
+        jeq r3, r1, exact_proc_entry_done
+        jmp reject
+exact_proc_entry_row:
+        mov r2, r4
+        imm r1, 8
+        mul r2, r1
+        imm r1, 3145728
+        add r1, r2
+        load r1, r1
+        jeq r1, r5, exact_proc_entry_kind
+        jmp exact_proc_entry_next
+exact_proc_entry_kind:
+        imm r1, 3178496
+        add r1, r2
+        load r1, r1
+        imm r2, 0
+        jeq r1, r2, exact_proc_entry_match
+        jmp exact_proc_entry_next
+exact_proc_entry_match:
+        imm r1, 1
+        add r3, r1
+        mov r2, r4
+        imm r1, 8
+        mul r2, r1
+        imm r1, 3235840
+        add r1, r2
+        load r0, r1
+exact_proc_entry_next:
+        imm r1, 1
+        add r4, r1
+        jmp exact_proc_entry_loop
+exact_proc_entry_done:
+        ret
+
+; Destination adapters let semantic consumers replace an absolute entry PC
+; with one extra call while leaving their other reconstructed arguments intact.
+exact_proc_entry_r20:
+        mov r0, r20
+        call exact_proc_entry_pc
+        mov r20, r0
+        ret
+exact_proc_entry_r21:
+        mov r0, r21
+        call exact_proc_entry_pc
+        mov r21, r0
+        ret
+exact_proc_entry_r24:
+        mov r0, r24
+        call exact_proc_entry_pc
+        mov r24, r0
+        ret
+exact_proc_entry_r25:
+        mov r0, r25
+        call exact_proc_entry_pc
+        mov r25, r0
+        ret
+
 ; Transition row/source-block/guarded/target/control-pc in r20..r24.
 exact_require_transition:
         mov r25, r20

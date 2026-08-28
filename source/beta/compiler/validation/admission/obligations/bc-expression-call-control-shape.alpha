@@ -312,7 +312,8 @@ expression_call_control_require_events:
         imm r22, 22677
         imm r23, 0
         imm r24, 0
-        imm r25, 43134
+        imm r25, 61                    ; gen_expr procedure identity
+        call exact_proc_entry_r25
         imm r26, 22686
         call summary_require_call_site
         imm r20, 256
@@ -320,7 +321,8 @@ expression_call_control_require_events:
         imm r22, 22803
         imm r23, 0
         imm r24, 0
-        imm r25, 32248
+        imm r25, 47                    ; emit_push procedure identity
+        call exact_proc_entry_r25
         imm r26, 22812
         call summary_require_call_site
         imm r20, 257
@@ -373,7 +375,8 @@ expression_call_control_require_events:
         imm r22, 23411
         imm r23, 1
         imm r24, 0
-        imm r25, 31151
+        imm r25, 44                    ; emit_pop_into procedure identity
+        call exact_proc_entry_r25
         imm r26, 23420
         call summary_require_call_site
 

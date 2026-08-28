@@ -51,7 +51,8 @@ expression_levels_require_blocks:
         imm r22, 57
         call exact_require_proc_blocks
         imm r20, 270
-        imm r21, 38910
+        imm r21, 58                    ; gen_sum procedure identity
+        call exact_proc_entry_r21
         call exact_require_block_pc
         imm r20, 271
         imm r21, 38960
@@ -158,7 +159,8 @@ expression_levels_require_events:
         imm r21, 269
         imm r22, 38794
         imm r23, 0
-        imm r24, 32248
+        imm r24, 47                    ; emit_push procedure identity
+        call exact_proc_entry_r24
         imm r25, 38803
         call expression_levels_require_call
         imm r20, 429
@@ -236,7 +238,8 @@ expression_levels_require_sum_events:
         imm r21, 272
         imm r22, 39181
         imm r23, 0
-        imm r24, 32248
+        imm r24, 47                    ; emit_push procedure identity
+        call exact_proc_entry_r24
         imm r25, 39190
         call expression_levels_require_call
         imm r20, 440
@@ -414,12 +417,14 @@ expression_levels_require_censuses:
 
 expression_levels_require_regions:
         imm r20, 38523
-        imm r21, 38910
+        imm r21, 58                    ; gen_sum procedure identity / end
+        call exact_proc_entry_r21
         imm r22, 10
         imm r23, 2
         imm r24, 5
         call exact_quiet_scan_region
-        imm r20, 38910
+        imm r20, 58                    ; gen_sum procedure identity
+        call exact_proc_entry_r20
         imm r21, 39297
         imm r22, 10
         imm r23, 2

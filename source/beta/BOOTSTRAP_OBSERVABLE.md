@@ -92,9 +92,9 @@ The retained evidence is intentionally responsibility-specific:
   framing, direct targets, procedure regions, and call/return structure below
   `bc`;
 - `compiler/validation/admission/bc-block-control.sh` reconstructs the canonical
-  whole-source/artifact conjunction and its 77,889-byte ROOT maximal-observation
+  whole-source/artifact conjunction and its 78,206-byte ROOT maximal-observation
   checker (SHA-256
-  `c3d80a1f102bff26a8ed70e5a70f89b4f327afb41296d4d1815c59aa16849865`),
+  `be1198ed207cec4c94497f10e44e02f0c03acf84b97148f4d270224af1a48bf0`),
   then applies four fail-closed format-binding controls;
 - optional `compiler/validation/stress/refinement.sh` checks proof-carrying
   equivalence for its stated symbolic program families with the below-Beta
