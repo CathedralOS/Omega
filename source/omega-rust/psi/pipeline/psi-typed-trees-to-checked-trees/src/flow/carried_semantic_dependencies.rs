@@ -334,11 +334,10 @@ fn event_exposure(
     let psi_facts::PlaceRoot::Symbol(root_symbol) = root else {
         return Exposure::PrivateImplementation;
     };
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol && machine.is_public)
-    else {
+    let Some(machine) = program.machines().iter().find(|machine| {
+        machine.symbol == machine_symbol
+            && (machine.is_public || machine.supply_mode.is_boundary_declaration())
+    }) else {
         return Exposure::PrivateImplementation;
     };
     let Some(entry) = program.machine_states(machine).first() else {
@@ -358,11 +357,10 @@ fn event_exposure(
 }
 
 fn machine_signature_exposure(program: &TypedTrees, machine_symbol: SymbolHandle) -> Exposure {
-    if program
-        .machines()
-        .iter()
-        .any(|machine| machine.symbol == machine_symbol && machine.is_public)
-    {
+    if program.machines().iter().any(|machine| {
+        machine.symbol == machine_symbol
+            && (machine.is_public || machine.supply_mode.is_boundary_declaration())
+    }) {
         Exposure::PublicInterface
     } else {
         Exposure::PrivateImplementation

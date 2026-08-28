@@ -452,12 +452,38 @@ fn boundary_machine_signatures_are_public_package_selection_positions() {
     assert!(checked.authored_declaration_selections().iter().any(|selection| {
         selection.exposure()
             == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+            && checked
+                .symbols
+                .source_file(selection.source_span())
+                .is_some_and(|source| source.package_identity == Some(identity(1)))
             && matches!(
                 selection.target(),
                 psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target)
                     if checked.symbols.display_path(target.selected_symbol(), "::").contains("LeafValue")
             )
     }));
+
+    TempTree::write(
+        root.join("main.omg"),
+        "data PrivateValue { value: u64; }\nboundary machine expose_private(value: PrivateValue);\n",
+    );
+    let root_only = PackageCompilationInputs::new(
+        identity(1),
+        vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
+        Vec::new(),
+    )
+    .expect("root-only boundary-signature graph should validate structurally");
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, root_only)
+        .expect_err("a boundary signature may not expose a private same-package type");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("public interface selects private data")
+                && diagnostic.message.contains("PrivateValue")
+        }),
+        "unexpected private boundary-signature diagnostics: {diagnostics:#?}"
+    );
 }
 
 #[test]

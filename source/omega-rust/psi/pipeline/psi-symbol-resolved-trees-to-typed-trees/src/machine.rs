@@ -209,7 +209,13 @@ pub(crate) fn lower_machine(
             machine,
             state,
         ));
-        let exposure = if machine.is_public && state_index == 0 {
+        let publishes_entry_signature = machine.is_public
+            || matches!(
+                machine.supply_mode,
+                psi_language_semantics::MachineSupplyMode::Boundary
+                    | psi_language_semantics::MachineSupplyMode::Accepted
+            );
+        let exposure = if publishes_entry_signature && state_index == 0 {
             psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
         } else {
             psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
