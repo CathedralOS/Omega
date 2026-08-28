@@ -57,10 +57,16 @@ minimum deployment, `LC_MAIN` inside `__TEXT,__text`, the required
 `__DATA,__bss`, `/usr/lib/dyld`, and exactly
 `/usr/lib/libSystem.B.dylib`. It rejects UUIDs, code signatures, encrypted text,
 wrong targets, malformed command/section ranges, an implicit stack request,
-extra dynamic libraries, and artifacts over 64 MiB. SDK version is allowed to
-vary but is recorded in the validated target summary and the exact SDK settings
-identity is bound. Individual realization-tool inputs are bounded at 512 MiB;
-SDK settings and the libSystem stub are bounded at 64 MiB.
+extra dynamic libraries, unknown load commands, overlapping or out-of-order
+segments, link-edit payloads outside the terminal `__LINKEDIT` extent, and
+artifacts over 64 MiB. The closed V1 load-command vocabulary additionally
+permits the bounded symbol/dynamic-symbol tables, dyld-info, source-version,
+function-start, and data-in-code metadata emitted by the declared command
+profile; each permitted command has an exact structural check rather than an
+ignore path. SDK version is allowed to vary but is recorded in the validated
+target summary and the exact SDK settings identity is bound. Individual
+realization-tool inputs are bounded at 512 MiB; SDK settings and the libSystem
+stub are bounded at 64 MiB.
 
 Canonical observations and receipts are key-sorted JSON with two-space
 indentation and one final LF. Malformed or cross-paired evidence returns 251;
