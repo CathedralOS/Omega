@@ -84,16 +84,8 @@ root_resource_join_build_cleanup:
         imm r23, 2                      ; explicit plus synthetic returns
         imm r24, 0                      ; no stores, hence status/rho unchanged
         call exact_quiet_scan_region
-        imm r20, 20
-        imm r21, 51013
-        imm r22, 29                     ; exact root continuation after main
-        call exact_require_call
-        imm r20, 29
-        imm r21, 0                      ; exact halt opcode
-        call require_tape_byte
-        imm r20, 30
-        imm r21, 0                      ; halt r0
-        call require_tape_byte
+        imm r20, 69
+        call exact_require_program_prelude ; checked main call and root halt
 
         imm r20, 627000
         imm r2, 1                      ; cleanup constructor id

@@ -63,88 +63,50 @@ expression_gen_expr_require_imports:
         call exact_require_cell
         ret
 
-; r20=event,r21=block,r22=pc,r23=arity,r24=target,r25=continuation.
+; r21=source block, r22=arity, r23=target procedure identity.
 expression_gen_expr_require_site:
-        mov r30, r20
-        mov r31, r21
-        mov r32, r22
-        mov r33, r23
-        mov r34, r24
-        mov r35, r25
-        mov r20, r30
-        mov r21, r31
-        mov r22, r32
-        mov r23, r33
-        imm r24, 0
-        mov r25, r34
-        mov r26, r35
-        call summary_require_call_site
+        mov r24, r23
+        imm r23, 0
+        imm r20, 61                    ; gen_expr owning procedure identity
+        call summary_require_call_fallthrough_identity
         ret
 
 expression_gen_expr_require_return:
-        mov r23, r22
-        imm r22, 5
-        call exact_require_event
+        imm r20, 61                    ; gen_expr owning procedure identity
+        call exact_require_event_epilogue
         ret
 
 expression_gen_expr_require_sites:
         ; Early depth exit, no-comparison body, and comparison body.
-        imm r20, 489
         imm r21, 304
-        imm r22, 43405
         call expression_gen_expr_require_return
-        imm r20, 490
         imm r21, 306
-        imm r22, 43527
-        imm r23, 0
-        imm r24, 58                    ; gen_sum procedure identity
-        call exact_proc_entry_r24
-        imm r25, 43536
+        imm r22, 0
+        imm r23, 58                    ; gen_sum procedure identity
         call expression_gen_expr_require_site
-        imm r20, 491
         imm r21, 306
-        imm r22, 43536
-        imm r23, 0
-        imm r24, 4277                  ; skip_ws
-        imm r25, 43545
+        imm r22, 0
+        imm r23, 10                    ; skip_ws procedure identity
         call expression_gen_expr_require_site
-        imm r20, 492
         imm r21, 306
-        imm r22, 43545
-        imm r23, 0
-        imm r24, 39297                 ; cmp_op
-        imm r25, 43554
+        imm r22, 0
+        imm r23, 59                    ; cmp_op procedure identity
         call expression_gen_expr_require_site
-        imm r20, 493
         imm r21, 306
-        imm r22, 43831
         call expression_gen_expr_require_return
-        imm r20, 494
         imm r21, 307
-        imm r22, 43832
-        imm r23, 0
-        imm r24, 47                    ; emit_push procedure identity
-        call exact_proc_entry_r24
-        imm r25, 43841
+        imm r22, 0
+        imm r23, 47                    ; emit_push procedure identity
         call expression_gen_expr_require_site
-        imm r20, 495
         imm r21, 307
-        imm r22, 43841
-        imm r23, 0
-        imm r24, 58                    ; right gen_sum procedure identity
-        call exact_proc_entry_r24
-        imm r25, 43850
+        imm r22, 0
+        imm r23, 58                    ; right gen_sum procedure identity
         call expression_gen_expr_require_site
-        imm r20, 496
         imm r21, 307
-        imm r22, 43901
-        imm r23, 1
-        imm r24, 40739                 ; emit_cmp
-        imm r25, 43910
+        imm r22, 1
+        imm r23, 60                    ; emit_cmp procedure identity
         call expression_gen_expr_require_site
-        imm r20, 497
         imm r21, 307
-        imm r22, 44045
         call expression_gen_expr_require_return
         ret
 
@@ -159,24 +121,20 @@ expression_gen_expr_require_counter_flow:
         imm r21, 303
         imm r22, 2
         imm r23, 0
-        imm r24, 43179
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 675
         imm r21, 304
         imm r22, 1
         imm r23, 64
-        imm r24, 43233
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 674
         imm r21, 304
         imm r22, 3
         imm r23, 8
-        imm r24, 43243
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 202
         imm r21, 304
-        imm r23, 43217
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
 
         ; Accepted entry stores D+1 exactly once.
         imm r20, 59
@@ -186,18 +144,15 @@ expression_gen_expr_require_counter_flow:
         imm r21, 305
         imm r22, 1
         imm r23, 1
-        imm r24, 43467
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 680
         imm r21, 305
         imm r22, 2
         imm r23, 3
-        imm r24, 43477
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 203
         imm r21, 305
-        imm r23, 43451
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
 
         ; Both terminal branches subtract one and store D exactly once.
         imm r20, 60
@@ -207,18 +162,15 @@ expression_gen_expr_require_counter_flow:
         imm r21, 306
         imm r22, 1
         imm r23, 1
-        imm r24, 43751
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 686
         imm r21, 306
         imm r22, 2
         imm r23, 4
-        imm r24, 43761
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 205
         imm r21, 306
-        imm r23, 43735
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 62
         imm r21, 307
         call exact_memory_store_pc
@@ -226,18 +178,15 @@ expression_gen_expr_require_counter_flow:
         imm r21, 307
         imm r22, 1
         imm r23, 1
-        imm r24, 43965
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 691
         imm r21, 307
         imm r22, 2
         imm r23, 4
-        imm r24, 43975
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 206
         imm r21, 307
-        imm r23, 43949
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         ret
 
 ; Table row R, 48 bytes: R,D,child-R,complete,status cases,BCS9 live.
