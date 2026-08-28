@@ -169,7 +169,7 @@ of compiler modules that do not exercise target selection.
 
 - [x] Maintain one short optional runner that invokes the independently
   executable gates in order.
-- [ ] Remove obsolete aliases, cache profiles, historical bridge formats, and
+- [x] Remove obsolete aliases, cache profiles, historical bridge formats, and
   path manifests when no current compiler invocation consumes them.
 - [x] Every runner failure must name the exact compiler/gate command that can be
   rerun manually.
