@@ -1,7 +1,7 @@
 # Omega package scaffolding audit
 
 Status: refreshed complete inventory, 2026-08-24. This audit classifies the current Rust
-on-ramp against the corrected package identity and admission model. It does not
+product implementation against the corrected package identity and admission model. It does not
 authorize any listed API as a production trust input.
 
 The governing contracts are

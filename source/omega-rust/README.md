@@ -16,6 +16,6 @@ builds may use them, but they grant no authority; outputs gain authority only
 through meaning, refinement, and artifact checks. They are neither a bootstrap
 nor a release dependency.
 
-The eventual Omega-written implementations belong under `source/psi/` and
-`source/omega/`. This Rust producer may be omitted even if retained for
-cross-compiler bug finding.
+The Omega-written implementation belongs under `source/omega/`, with its
+target-neutral phases under `source/omega/psi/`. This Rust producer may be
+omitted even if retained for cross-compiler bug finding.
