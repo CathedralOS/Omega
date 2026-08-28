@@ -2107,6 +2107,13 @@ Remaining:
   task is subordinate to this join and must not restore its former private
   production fork. The selected continuation must replace the current bounded
   direct assignment when its machine/object metadata closure is complete.
+  `CompileReport` no longer retains the historical
+  `ProgramStorageEntryPlanBinding` / `ProgramStorageEntryNativeBridgePlan`
+  pair: the canonical driver had supplied `None` for both, but those dead
+  fields kept the legacy emitted-wrapper/backend closure in the ordinary
+  reporting API. The compiler-owned integration test that reconstructed and
+  installed that obsolete bridge was removed with the fields; program-entry
+  settlement now belongs to the canonical Terminal-native request and artifact.
 
   Restore the original mechanical split before doing further redesign:
 

@@ -389,7 +389,6 @@ fn boundary_trait_canary_reports_capability_use() {
     })
     .expect("boundary trait canary should compile with checked capability artifacts");
     assert!(!checked_compilation.wrote_output());
-    assert!(checked_compilation.program_storage_entry().is_none());
 
     let checked_manifest = fs::read_to_string(checked_dir.join("05_capability_manifest.json"))
         .expect("capability manifest should be written");
@@ -540,7 +539,6 @@ fn wire_cross_era_type_change_reports_requires_migration_verdict() {
     })
     .expect("cross-era type change canary should compile with a migration verdict, not an error");
     assert!(!compilation.wrote_output());
-    assert!(compilation.program_storage_entry().is_none());
 
     let report = fs::read_to_string(build_dir.join("04_wire_protocols.txt"))
         .expect("wire protocol compatibility report should be written");
@@ -583,7 +581,6 @@ fn wire_compatibility_demand_reports_directional_facts_and_migration_route() {
     })
     .expect("the declared rolling-channel demand should be satisfied");
     assert!(!compilation.wrote_output());
-    assert!(compilation.program_storage_entry().is_none());
 
     let report = fs::read_to_string(build_dir.join("04_wire_protocols.txt"))
         .expect("wire protocol compatibility report should be written");
@@ -1317,7 +1314,6 @@ fn capability_manifest_reports_authority_flow_verbs() {
             )
         });
         assert!(!compilation.wrote_output());
-        assert!(compilation.program_storage_entry().is_none());
 
         let manifest = fs::read_to_string(build_dir.join("05_capability_manifest.json"))
             .expect("capability manifest should be written");
@@ -1396,7 +1392,6 @@ fn capability_flows_retain_exact_direct_and_propagated_sites() {
             )
         });
         assert!(!compilation.wrote_output());
-        assert!(compilation.program_storage_entry().is_none());
 
         let boundary = fs::read_to_string(build_dir.join("10_boundary.html"))
             .expect("boundary report should be written");

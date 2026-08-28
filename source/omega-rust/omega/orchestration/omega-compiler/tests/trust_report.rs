@@ -13,7 +13,6 @@ fn compile(
     );
     let report = omega_compiler::compile(omega_compiler::CompileRequest::new(options))?;
     assert!(!report.wrote_output());
-    assert!(report.program_storage_entry().is_none());
     Ok(report)
 }
 

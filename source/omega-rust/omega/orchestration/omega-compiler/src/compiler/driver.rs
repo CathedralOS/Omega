@@ -65,8 +65,6 @@ fn checked_report(
         super::CompileOutputKind::CheckOnly,
         None,
         None,
-        None,
-        None,
         checked.build_evaluation_usage(),
         checked.build_observation_summary().cloned(),
     )
