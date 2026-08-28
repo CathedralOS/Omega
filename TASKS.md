@@ -128,10 +128,13 @@ Remaining:
   syntax tables; the hosted AArch64 backend cannot yet address the resulting
   1.76 MiB nested aggregate or lower a second arena ownership transfer, so the
   physical tables deliberately remain flat while behavior is modular. The 45
-  black-box parser cases pass, but the focused gate took 9m49s with one CPU
-  saturated. Treat that compile as a performance defect: profile state-machine
-  lowering/code generation, add large-offset AArch64 materialization, and avoid
-  regenerating unchanged module bodies before growing this parser further.
+  black-box parser cases passed against the last emitted product artifact. A
+  fresh current compiler now reaches checked product source in about 24 seconds,
+  but explicit-target artifact emission rejects because `Main::main` has no
+  checked transitive machine plan. Restore that engineering path and rerun all
+  45 cases against the same explicitly selected fresh CLI before extending the
+  parser; do not treat an arbitrary pre-existing `target/debug/omega` as current
+  acceptance evidence.
   Do not recover speed by duplicating token access, generating state
   permutations, or enabling unconsumed viewers/debug output.
   Freeze the exact manifest and feature census only for the complete compiler

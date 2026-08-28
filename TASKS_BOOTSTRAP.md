@@ -131,7 +131,8 @@ executable reconstruction, and frontend implementation remain engineering work
 and are not blocked on this ruling.
 
 - [ ] Execute the exact canonical Delta compiler source through the accepted
-  Gamma route for every required build host.
+  Gamma route on the current required V1 host, Darwin ARM64. Add another host
+  only when a separately declared publication profile requires it.
 - [ ] Bind source identity, target identity, emitted artifact identity, and the
   exact reconstruction custody needed by the eventual refinement edge.
 - [ ] Once no exact publication attempt is live, move Delta compiler admission
@@ -160,6 +161,11 @@ and are not blocked on this ruling.
   produce Delta and does not appear in the canonical artifact chain.
 
 ### 2. Make the Delta-produced compiler accept the surface used by `C`
+
+This section depends on the live product source becoming complete enough to
+measure `C`. That is an engineering dependency, not an unresolved language
+decision: Delta frontend work can proceed from ordinary completed slices, but
+the accepted surface cannot be frozen from today's partial compiler.
 
 - [ ] Derive the required input surface from the live resolved closure `C`, not
   from frozen vertical test cases or historical bridge formats.
