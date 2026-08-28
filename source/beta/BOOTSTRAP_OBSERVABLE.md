@@ -96,8 +96,9 @@ The retained evidence is intentionally responsibility-specific:
   checker (SHA-256
   `e45032fa8095973892754e82ebc81af180cb6acab1a6e2292e8384b1ce18bbf9`),
   then applies four fail-closed format controls, one source-identity/event-PC
-  mutation control, one same-key occurrence-order mutation control, and one
-  same-block memory-identity swap control;
+  mutation control, two same-key occurrence-order controls for
+  `emit_param_store` and `gen_emit`, and one same-block memory-identity swap
+  control;
 - optional `compiler/validation/stress/refinement.sh` checks proof-carrying
   equivalence for its stated symbolic program families with the below-Beta
   checker artifact;
