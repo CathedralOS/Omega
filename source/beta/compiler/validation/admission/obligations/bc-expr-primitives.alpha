@@ -309,79 +309,15 @@ validate_literal_primitive:
         jmp validate_expr_primitive_next
 
 validate_arithmetic_primitive:
-        ; mov r1,r0; load r0,r15; imm r5,8; add r15,r5; OP r0,r1
-        mov r20, r14
-        imm r21, 2
-        call require_tape_byte
-        mov r20, r14
+        call classify_expr_binary_macro
         imm r1, 1
-        add r20, r1
-        imm r21, 1
-        call require_tape_byte
-        mov r20, r14
-        imm r1, 2
-        add r20, r1
-        imm r21, 0
-        call require_tape_byte
-        mov r20, r14
-        imm r1, 3
-        add r20, r1
-        imm r21, 10
-        call require_tape_byte
-        mov r20, r14
-        imm r1, 4
-        add r20, r1
-        imm r21, 0
-        call require_tape_byte
-        mov r20, r14
-        imm r1, 5
-        add r20, r1
-        imm r21, 15
-        call require_tape_byte
-        mov r20, r14
-        imm r1, 6
-        add r20, r1
-        imm r21, 1
-        call require_tape_byte
-        mov r20, r14
-        imm r1, 7
-        add r20, r1
-        imm r21, 5
-        call require_tape_byte
-        mov r20, r14
-        imm r1, 8
-        add r20, r1
-        imm r21, 8
-        call require_tape_word
-        mov r20, r14
-        imm r1, 16
-        add r20, r1
-        imm r21, 3
-        call require_tape_byte
-        mov r20, r14
-        imm r1, 17
-        add r20, r1
-        imm r21, 15
-        call require_tape_byte
-        mov r20, r14
-        imm r1, 18
-        add r20, r1
-        imm r21, 5
-        call require_tape_byte
+        jeq r0, r1, validate_arithmetic_opcode
+        jmp reject
+validate_arithmetic_opcode:
         mov r20, r14
         imm r1, 19
         add r20, r1
         mov r21, r9
-        call require_tape_byte
-        mov r20, r14
-        imm r1, 20
-        add r20, r1
-        imm r21, 0
-        call require_tape_byte
-        mov r20, r14
-        imm r1, 21
-        add r20, r1
-        imm r21, 1
         call require_tape_byte
         jmp validate_expr_primitive_next
 
@@ -654,86 +590,36 @@ classify_expr_binary_macro:
         imm r1, 524296
         load r2, r1
         jlt r2, r20, classify_expr_binary_none
-        imm r20, 0
+        mov r20, r14
         imm r21, 2
-        call expr_tape_byte_matches
+        call exact_tape_byte_matches
         imm r1, 1
         jeq r0, r1, classify_expr_binary_b1
         jmp classify_expr_binary_none
 classify_expr_binary_b1:
-        imm r20, 1
+        mov r20, r14
+        imm r1, 1
+        add r20, r1
         imm r21, 1
-        call expr_tape_byte_matches
+        call exact_tape_byte_matches
         imm r1, 1
         jeq r0, r1, classify_expr_binary_b2
         jmp classify_expr_binary_none
 classify_expr_binary_b2:
-        imm r20, 2
+        mov r20, r14
+        imm r1, 2
+        add r20, r1
         imm r21, 0
-        call expr_tape_byte_matches
+        call exact_tape_byte_matches
         imm r1, 1
-        jeq r0, r1, classify_expr_binary_b3
+        jeq r0, r1, classify_expr_binary_pop
         jmp classify_expr_binary_none
-classify_expr_binary_b3:
-        imm r20, 3
-        imm r21, 10
-        call expr_tape_byte_matches
-        imm r1, 1
-        jeq r0, r1, classify_expr_binary_b4
-        jmp classify_expr_binary_none
-classify_expr_binary_b4:
-        imm r20, 4
+classify_expr_binary_pop:
+        mov r20, r14
+        imm r1, 3
+        add r20, r1
         imm r21, 0
-        call expr_tape_byte_matches
-        imm r1, 1
-        jeq r0, r1, classify_expr_binary_b5
-        jmp classify_expr_binary_none
-classify_expr_binary_b5:
-        imm r20, 5
-        imm r21, 15
-        call expr_tape_byte_matches
-        imm r1, 1
-        jeq r0, r1, classify_expr_binary_b6
-        jmp classify_expr_binary_none
-classify_expr_binary_b6:
-        imm r20, 6
-        imm r21, 1
-        call expr_tape_byte_matches
-        imm r1, 1
-        jeq r0, r1, classify_expr_binary_b7
-        jmp classify_expr_binary_none
-classify_expr_binary_b7:
-        imm r20, 7
-        imm r21, 5
-        call expr_tape_byte_matches
-        imm r1, 1
-        jeq r0, r1, classify_expr_binary_word
-        jmp classify_expr_binary_none
-classify_expr_binary_word:
-        imm r20, 8
-        imm r21, 8
-        call expr_tape_word_matches
-        imm r1, 1
-        jeq r0, r1, classify_expr_binary_b16
-        jmp classify_expr_binary_none
-classify_expr_binary_b16:
-        imm r20, 16
-        imm r21, 3
-        call expr_tape_byte_matches
-        imm r1, 1
-        jeq r0, r1, classify_expr_binary_b17
-        jmp classify_expr_binary_none
-classify_expr_binary_b17:
-        imm r20, 17
-        imm r21, 15
-        call expr_tape_byte_matches
-        imm r1, 1
-        jeq r0, r1, classify_expr_binary_b18
-        jmp classify_expr_binary_none
-classify_expr_binary_b18:
-        imm r20, 18
-        imm r21, 5
-        call expr_tape_byte_matches
+        call exact_match_pop
         imm r1, 1
         jeq r0, r1, classify_expr_binary_opcode
         jmp classify_expr_binary_none

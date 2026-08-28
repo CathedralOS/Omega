@@ -331,48 +331,8 @@ validate_memory_store:
         sub r6, r1
         ; exact pop of the evaluated address into r1
         mov r20, r6
-        imm r21, 10
-        call require_tape_byte
-        mov r20, r6
-        imm r1, 1
-        add r20, r1
         imm r21, 1
-        call require_tape_byte
-        mov r20, r6
-        imm r1, 2
-        add r20, r1
-        imm r21, 15
-        call require_tape_byte
-        mov r20, r6
-        imm r1, 3
-        add r20, r1
-        imm r21, 1
-        call require_tape_byte
-        mov r20, r6
-        imm r1, 4
-        add r20, r1
-        imm r21, 5
-        call require_tape_byte
-        mov r20, r6
-        imm r1, 5
-        add r20, r1
-        imm r21, 8
-        call require_tape_word
-        mov r20, r6
-        imm r1, 13
-        add r20, r1
-        imm r21, 3
-        call require_tape_byte
-        mov r20, r6
-        imm r1, 14
-        add r20, r1
-        imm r21, 15
-        call require_tape_byte
-        mov r20, r6
-        imm r1, 15
-        add r20, r1
-        imm r21, 5
-        call require_tape_byte
+        call exact_require_pop
         imm r1, 1
         jeq r9, r1, validate_memory_store_byte
         imm r1, 8

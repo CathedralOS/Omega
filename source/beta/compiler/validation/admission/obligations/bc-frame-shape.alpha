@@ -298,7 +298,7 @@ literal_let:
 validate_frame_shapes_init:
         imm r10, 0                     ; block index
         imm r11, 0                     ; procedure count
-        imm r26, 0                     ; total slots
+        imm r28, 0                     ; total slots
         imm r27, 0                     ; zero-slot procedures
 validate_frame_shapes_loop:
         imm r1, 359
@@ -327,7 +327,7 @@ validate_frame_entry:
         imm r1, 7159808
         add r1, r2
         load r9, r1                     ; total frame slots
-        add r26, r9
+        add r28, r9
         imm r1, 0
         jeq r9, r1, validate_frame_zero_slot
         jmp validate_frame_pc
@@ -340,99 +340,18 @@ validate_frame_pc:
         load r6, r1                     ; prologue pc cursor
 
         mov r20, r6
-        imm r21, 1
-        call require_tape_byte
-        mov r20, r6
-        imm r1, 1
-        add r20, r1
-        imm r21, 5
-        call require_tape_byte
-        mov r20, r6
-        imm r1, 2
-        add r20, r1
-        imm r21, 8
-        call require_tape_word
-        mov r20, r6
-        imm r1, 10
-        add r20, r1
-        imm r21, 4
-        call require_tape_byte
-        mov r20, r6
-        imm r1, 11
-        add r20, r1
-        imm r21, 15
-        call require_tape_byte
-        mov r20, r6
-        imm r1, 12
-        add r20, r1
-        imm r21, 5
-        call require_tape_byte
-        mov r20, r6
-        imm r1, 13
-        add r20, r1
-        imm r21, 11
-        call require_tape_byte
-        mov r20, r6
-        imm r1, 14
-        add r20, r1
-        imm r21, 15
-        call require_tape_byte
-        mov r20, r6
-        imm r1, 15
-        add r20, r1
-        imm r21, 14
-        call require_tape_byte
-        mov r20, r6
-        imm r1, 16
-        add r20, r1
-        imm r21, 2
-        call require_tape_byte
-        mov r20, r6
-        imm r1, 17
-        add r20, r1
-        imm r21, 14
-        call require_tape_byte
-        mov r20, r6
-        imm r1, 18
-        add r20, r1
-        imm r21, 15
-        call require_tape_byte
+        call exact_require_prologue
         imm r1, 19
         add r6, r1
         imm r1, 0
         jeq r9, r1, validate_param_stores_init
 
-        ; sub r15, slots*8 via r5
+        ; Optional frame allocation consumes the independently counted slots.
         mov r20, r6
-        imm r21, 1
-        call require_tape_byte
-        mov r20, r6
-        imm r1, 1
-        add r20, r1
-        imm r21, 5
-        call require_tape_byte
-        mov r20, r6
-        imm r1, 2
-        add r20, r1
         mov r21, r9
         imm r1, 8
         mul r21, r1
-        call require_tape_word
-        mov r20, r6
-        imm r1, 10
-        add r20, r1
-        imm r21, 4
-        call require_tape_byte
-        mov r20, r6
-        imm r1, 11
-        add r20, r1
-        imm r21, 15
-        call require_tape_byte
-        mov r20, r6
-        imm r1, 12
-        add r20, r1
-        imm r21, 5
-        call require_tape_byte
+        call exact_require_frame_allocation
         imm r1, 13
         add r6, r1
 
@@ -444,71 +363,9 @@ validate_param_store_loop:
         add r11, r1
         jmp validate_frame_next
 validate_param_store:
-        ; mov r5,r14
         mov r20, r6
-        imm r21, 2
-        call require_tape_byte
-        mov r20, r6
-        imm r1, 1
-        add r20, r1
-        imm r21, 5
-        call require_tape_byte
-        mov r20, r6
-        imm r1, 2
-        add r20, r1
-        imm r21, 14
-        call require_tape_byte
-        ; imm r4,8+8*k
-        mov r20, r6
-        imm r1, 3
-        add r20, r1
-        imm r21, 1
-        call require_tape_byte
-        mov r20, r6
-        imm r1, 4
-        add r20, r1
-        imm r21, 4
-        call require_tape_byte
-        mov r20, r6
-        imm r1, 5
-        add r20, r1
         mov r21, r7
-        imm r1, 1
-        add r21, r1
-        imm r1, 8
-        mul r21, r1
-        call require_tape_word
-        ; sub r5,r4; store r5,r<k>
-        mov r20, r6
-        imm r1, 13
-        add r20, r1
-        imm r21, 4
-        call require_tape_byte
-        mov r20, r6
-        imm r1, 14
-        add r20, r1
-        imm r21, 5
-        call require_tape_byte
-        mov r20, r6
-        imm r1, 15
-        add r20, r1
-        imm r21, 4
-        call require_tape_byte
-        mov r20, r6
-        imm r1, 16
-        add r20, r1
-        imm r21, 11
-        call require_tape_byte
-        mov r20, r6
-        imm r1, 17
-        add r20, r1
-        imm r21, 5
-        call require_tape_byte
-        mov r20, r6
-        imm r1, 18
-        add r20, r1
-        mov r21, r7
-        call require_tape_byte
+        call exact_require_parameter_store
         imm r1, 19
         add r6, r1
         imm r1, 1
@@ -525,7 +382,7 @@ validate_frame_shape_counts:
         jmp reject
 validate_frame_slot_total:
         imm r1, 79
-        jeq r26, r1, validate_frame_zero_total
+        jeq r28, r1, validate_frame_zero_total
         jmp reject
 validate_frame_zero_total:
         imm r1, 23
@@ -557,52 +414,9 @@ call_unstage_arity_ok:
         imm r1, 1
         sub r9, r1                      ; expected destination register
 call_unstage_loop:
-        ; load r<k>,r15
         mov r20, r7
-        imm r21, 10
-        call require_tape_byte
-        mov r20, r7
-        imm r1, 1
-        add r20, r1
         mov r21, r9
-        call require_tape_byte
-        mov r20, r7
-        imm r1, 2
-        add r20, r1
-        imm r21, 15
-        call require_tape_byte
-        ; imm r5,8
-        mov r20, r7
-        imm r1, 3
-        add r20, r1
-        imm r21, 1
-        call require_tape_byte
-        mov r20, r7
-        imm r1, 4
-        add r20, r1
-        imm r21, 5
-        call require_tape_byte
-        mov r20, r7
-        imm r1, 5
-        add r20, r1
-        imm r21, 8
-        call require_tape_word
-        ; add r15,r5
-        mov r20, r7
-        imm r1, 13
-        add r20, r1
-        imm r21, 3
-        call require_tape_byte
-        mov r20, r7
-        imm r1, 14
-        add r20, r1
-        imm r21, 15
-        call require_tape_byte
-        mov r20, r7
-        imm r1, 15
-        add r20, r1
-        imm r21, 5
-        call require_tape_byte
+        call exact_require_pop
         imm r1, 16
         add r7, r1
         imm r1, 0

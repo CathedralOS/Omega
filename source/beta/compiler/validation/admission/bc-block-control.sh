@@ -107,6 +107,7 @@ bc_timing_finish
 emit_stack_checker_prefix() {
   cat "$OBLIGATION_DIR/bc-block-control.alpha" \
     "$OBLIGATION_DIR/bc-effect-sites.alpha" \
+    "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
     "$OBLIGATION_DIR/bc-frame-shape.alpha" \
     "$OBLIGATION_DIR/bc-local-access.alpha" \
     "$OBLIGATION_DIR/bc-memory-sites.alpha" \
@@ -127,7 +128,6 @@ emit_name_eq_checker_prefix() {
   emit_stack_checker_prefix
   cat \
     "$OBLIGATION_DIR/bc-post-stack-name-eq.alpha" \
-    "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
     "$OBLIGATION_DIR/bc-name-table-domain.alpha" \
     "$OBLIGATION_DIR/bc-name-eq-control-shape.alpha" \
     "$OBLIGATION_DIR/bc-name-eq-data-shape.alpha" \
@@ -150,7 +150,6 @@ build_bounded_emitters_checker() {
   {
     emit_stack_checker_prefix
     cat "$OBLIGATION_DIR/bc-post-stack-bounded-emitters.alpha" \
-      "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
       "$OBLIGATION_DIR/bc-write-str-event-helper.alpha" \
       "$OBLIGATION_DIR/bc-write-str-summary.alpha" \
       "$OBLIGATION_DIR/bc-post-write-str-bounded-emitters.alpha" \
@@ -178,7 +177,6 @@ build_emit_dec_word_checker() {
   {
     emit_stack_checker_prefix
     cat "$OBLIGATION_DIR/bc-post-stack-emit-dec-word.alpha" \
-      "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
       "$OBLIGATION_DIR/bc-emit-dec-shape.alpha" \
       "$OBLIGATION_DIR/bc-emit-dec-word-domain.alpha" \
       "$OBLIGATION_DIR/bc-emit-dec-word-summary.alpha" \
@@ -220,7 +218,6 @@ build_label_emitters_checker() {
   {
     emit_stack_checker_prefix
     cat "$OBLIGATION_DIR/bc-post-stack-label-emitters.alpha" \
-      "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
       "$OBLIGATION_DIR/bc-write-str-event-helper.alpha" \
       "$OBLIGATION_DIR/bc-write-str-summary.alpha" \
       "$OBLIGATION_DIR/bc-post-write-str-label-emitters.alpha" \
@@ -269,6 +266,7 @@ build_label_emitters_checker() {
 emit_expression_table_prefix() {
   cat "$OBLIGATION_DIR/bc-block-control.alpha" \
     "$OBLIGATION_DIR/bc-effect-sites.alpha" \
+    "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
     "$OBLIGATION_DIR/bc-frame-shape.alpha" \
     "$OBLIGATION_DIR/bc-local-access.alpha" \
     "$OBLIGATION_DIR/bc-memory-sites.alpha" \
@@ -307,7 +305,6 @@ build_expression_family_shape_checker() {
   {
     emit_expression_table_prefix
     cat "$OBLIGATION_DIR/bc-expression-shape-root.alpha" \
-      "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
       "$OBLIGATION_DIR/bc-expression-leaf-shape.alpha" \
       "$OBLIGATION_DIR/bc-expression-call-control-shape.alpha" \
       "$OBLIGATION_DIR/bc-expression-call-data-shape.alpha" \
@@ -332,7 +329,6 @@ build_expression_family_semantic_checker() {
   {
     emit_expression_table_prefix
     cat "$OBLIGATION_DIR/bc-expression-root.alpha" \
-      "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
       "$OBLIGATION_DIR/bc-write-str-event-helper.alpha" \
       "$OBLIGATION_DIR/bc-write-str-summary.alpha" \
       "$OBLIGATION_DIR/bc-post-write-str-label-emitters.alpha" \
@@ -477,7 +473,6 @@ build_statement_family_shape_checker() {
   {
     emit_expression_table_prefix
     cat "$OBLIGATION_DIR/bc-statement-family-shape-root.alpha" \
-      "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
       "$OBLIGATION_DIR/bc-statement-emit-epilogue-shape.alpha" \
       "$OBLIGATION_DIR/bc-statement-gen-store-shape.alpha" \
       "$OBLIGATION_DIR/bc-gen-stmts-boundary-shape.alpha" \
@@ -510,7 +505,6 @@ build_statement_family_semantic_checker() {
   {
     emit_expression_table_prefix
     cat "$OBLIGATION_DIR/bc-statement-semantic-root.alpha" \
-      "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
       "$OBLIGATION_DIR/bc-statement-antecedents.alpha" \
       "$OBLIGATION_DIR/bc-write-str-event-helper.alpha" \
       "$OBLIGATION_DIR/bc-statement-emit-epilogue-shape.alpha" \
@@ -661,7 +655,6 @@ build_parse_body_checker() {
   {
     emit_expression_table_prefix
     cat "$OBLIGATION_DIR/bc-parse-body-root.alpha" \
-      "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
       "$OBLIGATION_DIR/bc-parse-body-antecedents.alpha" \
       "$OBLIGATION_DIR/bc-parse-body-shape.alpha" \
       "$OBLIGATION_DIR/bc-parse-body-rules.alpha"
@@ -742,7 +735,6 @@ build_resource_classification_checker() {
   {
     emit_expression_table_prefix
     cat "$OBLIGATION_DIR/bc-resource-classification-root.alpha" \
-      "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
       "$OBLIGATION_DIR/bc-resource-classification-shape.alpha" \
       "$OBLIGATION_DIR/bc-resource-classification-antecedents.alpha" \
       "$OBLIGATION_DIR/bc-resource-profile.alpha" \
@@ -816,7 +808,6 @@ build_declaration_budget_checker() {
   {
     emit_expression_table_prefix
     cat "$OBLIGATION_DIR/bc-declaration-budget-root.alpha" \
-      "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
       "$OBLIGATION_DIR/bc-declaration-budget-antecedents.alpha" \
       "$OBLIGATION_DIR/bc-declaration-budget-shape.alpha" \
       "$OBLIGATION_DIR/bc-declaration-budget-rules.alpha" \
@@ -885,7 +876,6 @@ build_parse_proc_checker() {
   {
     emit_expression_table_prefix
     cat "$OBLIGATION_DIR/bc-parse-proc-root.alpha" \
-      "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
       "$OBLIGATION_DIR/bc-parse-proc-antecedents.alpha" \
       "$OBLIGATION_DIR/bc-parse-proc-entry-shape.alpha" \
       "$OBLIGATION_DIR/bc-parse-proc-entry-semantics.alpha" \
@@ -958,7 +948,6 @@ build_root_observation_checker() {
   {
     emit_expression_table_prefix
     cat "$OBLIGATION_DIR/bc-root-observation-root.alpha" \
-      "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
       "$OBLIGATION_DIR/bc-root-observation-antecedents.alpha" \
       "$OBLIGATION_DIR/bc-root-observation-shape.alpha" \
       "$OBLIGATION_DIR/bc-root-observation-gfp.alpha" \
@@ -1030,6 +1019,7 @@ bc_timing_finish
 bc_timing_start checker-a-canonical
 cat "$OBLIGATION_DIR/bc-block-control.alpha" \
   "$OBLIGATION_DIR/bc-effect-sites.alpha" \
+  "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
   "$OBLIGATION_DIR/bc-frame-shape.alpha" \
   "$OBLIGATION_DIR/bc-local-access.alpha" \
   "$OBLIGATION_DIR/bc-memory-sites.alpha" \
@@ -1054,7 +1044,6 @@ cat "$OBLIGATION_DIR/bc-block-control.alpha" \
   "$OBLIGATION_DIR/bc-skip-ws-summary.alpha" \
   "$OBLIGATION_DIR/bc-main-ready-summary.alpha" \
   "$OBLIGATION_DIR/bc-summary-combinators.alpha" \
-  "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
   "$OBLIGATION_DIR/bc-main-loop-entry-summary.alpha" \
   "$OBLIGATION_DIR/bc-classifier-shape.alpha" \
   "$OBLIGATION_DIR/bc-classifier-summary.alpha" \
