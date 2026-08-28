@@ -269,7 +269,7 @@ publication history, and live-era state. Omega specifies the checkable record
 and linear lifecycle transitions; Cathedral selects rollback, roll-forward,
 cohort, scheduler, device-quiescence, and retention policy.
 
-The canonical Rust on-ramp record is deliberately non-authoritative when
+The canonical Rust product implementation record is deliberately non-authoritative when
 decoded: it can replay exact installation, slot, envelope, and admission
 identity, but cannot recreate live custody. `Prepared` publication failure
 returns every input, `Activated` finalization requires the exact retained live
