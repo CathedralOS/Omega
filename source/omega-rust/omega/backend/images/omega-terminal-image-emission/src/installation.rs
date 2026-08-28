@@ -1285,6 +1285,12 @@ fn validate_record_shape(
                 &function_unit_calls,
                 function.unit_affine_cleanup.as_ref(),
             );
+        let partially_consumed_affine_triple =
+            crate::fully_consumed_affine_pair::exact_partially_consumed_affine_triple(
+                &function.unit_parameter_homes,
+                &function_unit_calls,
+                function.unit_affine_cleanup.as_ref(),
+            );
         if function.byte_count == 0
             || function.text_offset != expected_text_offset
             || previous_function.is_some_and(|previous| previous >= function.machine)
@@ -1567,6 +1573,15 @@ fn validate_record_shape(
                             })
                             .map(|argument| (argument.path.as_slice(), argument.structural_type))
                             .collect::<Vec<_>>();
+                        let parameter_is_affine_triple = parameter_type.is_some_and(|root_type| {
+                            cleanup.structural_types.iter().any(|declaration| {
+                                declaration.id == root_type
+                                    && matches!(
+                                        declaration.shape,
+                                        StructuralTypeShape::FixedArray { length: 3, .. }
+                                    )
+                            })
+                        });
                         cleanup.actions.get(..discards.len()).is_none_or(|prefix| {
                             !prefix.iter().zip(&discards).all(|(action, place)| {
                                 matches!(action,
@@ -1599,6 +1614,8 @@ fn validate_record_shape(
                                     })
                                 })
                             || parameter_type.is_none()
+                            || (parameter_is_affine_triple
+                                && !partially_consumed_affine_triple)
                             || moved.is_empty()
                             || moved.iter().any(|(path, _)| {
                                 path.is_empty()
@@ -2514,7 +2531,7 @@ fn is_partial_cleanup_path(path: &[StructuralPathSegment]) -> bool {
         && path.iter().all(|segment| {
             matches!(segment, StructuralPathSegment::Field(identity) if !identity.is_empty())
         }))
-        || matches!(path, [StructuralPathSegment::FixedIndex(0 | 1)])
+        || matches!(path, [StructuralPathSegment::FixedIndex(0 | 1 | 2)])
 }
 
 fn validate_native_fuel_transfer_shape(

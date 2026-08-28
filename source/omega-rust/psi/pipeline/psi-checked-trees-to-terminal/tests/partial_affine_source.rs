@@ -82,6 +82,33 @@ const AFFINE_PAIR_SOURCE: &str = r#"
     }
 "#;
 
+const AFFINE_TRIPLE_SOURCE: &str = r#"
+    data Token { value: u64; }
+    data Sink {}
+    machine Sink::take(token: Token) {}
+    data Root {}
+    machine Root::middle(values: [Token; 3]) {
+        Sink::take(values[2]);
+        Sink::take(values[0]);
+    }
+    machine Root::last(values: [Token; 3]) {
+        Sink::take(values[0]);
+        Sink::take(values[1]);
+    }
+    machine Root::first(values: [Token; 3]) {
+        Sink::take(values[1]);
+        Sink::take(values[2]);
+    }
+    machine Root::one(values: [Token; 3]) {
+        Sink::take(values[0]);
+    }
+    machine Root::all(values: [Token; 3]) {
+        Sink::take(values[0]);
+        Sink::take(values[1]);
+        Sink::take(values[2]);
+    }
+"#;
+
 #[test]
 fn two_element_affine_array_cleanup_crosses_source_codec_verifier_and_interpreter() {
     let tokens = Lexer::new(AFFINE_PAIR_SOURCE).tokenize().expect("tokenize");
@@ -407,6 +434,294 @@ fn fully_consumed_affine_array_uses_two_calls_and_an_ordinary_return() {
             )
             .is_err(),
             "two moves cannot complete a wider array"
+        );
+    }
+}
+
+#[test]
+fn affine_triple_two_moves_leave_one_exact_residual_through_terminal_replay() {
+    let tokens = Lexer::new(AFFINE_TRIPLE_SOURCE)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+
+    assert!(psi_checked_trees_to_terminal::lower_machine(&checked, "Root::one").is_err());
+    assert!(psi_checked_trees_to_terminal::lower_machine(&checked, "Root::all").is_err());
+
+    for (machine, expected_paths, residual) in [
+        ("Root::middle", [2, 0], 1),
+        ("Root::last", [0, 1], 2),
+        ("Root::first", [1, 2], 0),
+    ] {
+        let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, machine)
+            .expect("two triple elements and the sole residual lower");
+        let entry = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .find(|candidate| candidate.id == lowered.semantic_module.entry)
+            .expect("entry machine");
+        let [root] = entry.structural_parameters.as_slice() else {
+            panic!("affine triple has one structural root")
+        };
+        let [block] = entry.blocks.as_slice() else {
+            panic!("affine triple has one block")
+        };
+        assert_eq!(
+            block
+                .operations
+                .iter()
+                .map(|operation| {
+                    let OperationKind::CallUnit {
+                        structural_arguments,
+                        claim_transfers,
+                        ..
+                    } = &operation.kind
+                    else {
+                        panic!("affine triple body retains only Unit calls")
+                    };
+                    assert!(claim_transfers.is_empty());
+                    let [StructuralPathSegment::FixedIndex(index)] =
+                        structural_arguments[0].path.as_slice()
+                    else {
+                        panic!("each triple call retains one literal index")
+                    };
+                    *index
+                })
+                .collect::<Vec<_>>(),
+            expected_paths
+        );
+        let Terminator::ReturnUnitPartialAffine {
+            edge,
+            trivial_affine_discards,
+            residual_affine_discards,
+        } = &block.terminator
+        else {
+            panic!("affine triple uses one partial-cleanup return")
+        };
+        assert!(trivial_affine_discards.is_empty());
+        let [discard] = residual_affine_discards.as_slice() else {
+            panic!("affine triple has one residual")
+        };
+        assert_eq!(discard.place, root.place);
+        assert_eq!(discard.path, [StructuralPathSegment::FixedIndex(residual)]);
+
+        psi_terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default(),
+        )
+        .expect("verifier reconstructs the sole triple residual");
+        let semantic = encode_module(&lowered.semantic_module).expect("module encodes");
+        assert_eq!(decode_module(&semantic).unwrap(), lowered.semantic_module);
+        let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encodes");
+        let argument_value = TerminalStructuralValue {
+            opaque_identity: 0x5452_4950,
+            structural_type: root.structural_type,
+            qualifications: root.qualifications.clone(),
+            path: Vec::new(),
+        };
+        let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[],
+            &[argument_value],
+        )
+        .expect("verified affine triple starts");
+        let mut meter = TerminalFuelMeter::with_allowance(4);
+        assert_eq!(
+            execution.resume(&mut meter).expect("execution suspends"),
+            TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
+                schedule: TerminalFuelSchedule::CURRENT.identity(),
+                site: FuelChargeSite::Edge(*edge),
+                required_units: 1,
+                remaining_units: 0,
+            })
+        );
+        assert_eq!(execution.live_affine_frontier().count(), 1);
+        meter.replenish(1).expect("replenish residual return edge");
+        assert_eq!(
+            execution.resume(&mut meter).expect("execution completes"),
+            TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+        );
+        assert!(execution.live_affine_frontier().next().is_none());
+        assert_eq!(meter.usage().total_units(), 5);
+
+        let mut duplicate = lowered.semantic_module.clone();
+        let entry = duplicate
+            .machines
+            .iter_mut()
+            .find(|candidate| candidate.id == duplicate.entry)
+            .unwrap();
+        let first_path = match &entry.blocks[0].operations[0].kind {
+            OperationKind::CallUnit {
+                structural_arguments,
+                ..
+            } => structural_arguments[0].path.clone(),
+            _ => unreachable!(),
+        };
+        let OperationKind::CallUnit {
+            structural_arguments,
+            ..
+        } = &mut entry.blocks[0].operations[1].kind
+        else {
+            unreachable!()
+        };
+        structural_arguments[0].path = first_path;
+        assert!(
+            psi_terminal_verifier::verify_module(
+                &duplicate,
+                &lowered.proof_bundle,
+                &AdmissionProfile::default(),
+            )
+            .is_err()
+        );
+
+        let mut wrong_length = lowered.semantic_module.clone();
+        let declaration = wrong_length
+            .structural_types
+            .iter_mut()
+            .find(|shape| shape.id == root.structural_type)
+            .unwrap();
+        let psi_terminal::StructuralTypeShape::FixedArray { length, .. } = &mut declaration.shape
+        else {
+            unreachable!()
+        };
+        *length = 2;
+        assert!(
+            psi_terminal_verifier::verify_module(
+                &wrong_length,
+                &lowered.proof_bundle,
+                &AdmissionProfile::default(),
+            )
+            .is_err()
+        );
+
+        let mut wrong_residual = lowered.semantic_module.clone();
+        let entry = wrong_residual
+            .machines
+            .iter_mut()
+            .find(|candidate| candidate.id == wrong_residual.entry)
+            .unwrap();
+        let Terminator::ReturnUnitPartialAffine {
+            residual_affine_discards,
+            ..
+        } = &mut entry.blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        residual_affine_discards[0].path =
+            vec![StructuralPathSegment::FixedIndex(expected_paths[0])];
+        assert!(
+            psi_terminal_verifier::verify_module(
+                &wrong_residual,
+                &lowered.proof_bundle,
+                &AdmissionProfile::default(),
+            )
+            .is_err()
+        );
+
+        let mut scalar_parameter = lowered.semantic_module.clone();
+        let entry = scalar_parameter
+            .machines
+            .iter_mut()
+            .find(|candidate| candidate.id == scalar_parameter.entry)
+            .unwrap();
+        entry.parameters.push(psi_terminal::ValueDeclaration {
+            id: psi_core::ValueId::new(1).unwrap(),
+            scalar_type: psi_core::ScalarType::Boolean,
+        });
+        assert!(
+            psi_terminal_verifier::verify_module(
+                &scalar_parameter,
+                &lowered.proof_bundle,
+                &AdmissionProfile::default(),
+            )
+            .is_err()
+        );
+
+        let mut missing_call = lowered.semantic_module.clone();
+        let entry = missing_call
+            .machines
+            .iter_mut()
+            .find(|candidate| candidate.id == missing_call.entry)
+            .unwrap();
+        entry.blocks[0].operations.remove(1);
+        assert!(
+            psi_terminal_verifier::verify_module(
+                &missing_call,
+                &lowered.proof_bundle,
+                &AdmissionProfile::default(),
+            )
+            .is_err()
+        );
+
+        let mut block_parameter = lowered.semantic_module.clone();
+        let entry = block_parameter
+            .machines
+            .iter_mut()
+            .find(|candidate| candidate.id == block_parameter.entry)
+            .unwrap();
+        entry.blocks[0]
+            .parameters
+            .push(psi_terminal::ValueDeclaration {
+                id: psi_core::ValueId::new(1).unwrap(),
+                scalar_type: psi_core::ScalarType::Boolean,
+            });
+        assert!(
+            psi_terminal_verifier::verify_module(
+                &block_parameter,
+                &lowered.proof_bundle,
+                &AdmissionProfile::default(),
+            )
+            .is_err()
+        );
+
+        let mut extra_block = lowered.semantic_module.clone();
+        let entry = extra_block
+            .machines
+            .iter_mut()
+            .find(|candidate| candidate.id == extra_block.entry)
+            .unwrap();
+        entry.blocks.push(entry.blocks[0].clone());
+        assert!(
+            psi_terminal_verifier::verify_module(
+                &extra_block,
+                &lowered.proof_bundle,
+                &AdmissionProfile::default(),
+            )
+            .is_err()
+        );
+
+        let mut callee_contract = lowered.semantic_module.clone();
+        let entry = callee_contract
+            .machines
+            .iter()
+            .find(|candidate| candidate.id == callee_contract.entry)
+            .unwrap();
+        let OperationKind::CallUnit { callee, .. } = &entry.blocks[0].operations[0].kind else {
+            unreachable!()
+        };
+        let callee = *callee;
+        callee_contract
+            .machines
+            .iter_mut()
+            .find(|candidate| candidate.id == callee)
+            .unwrap()
+            .contract
+            .requires
+            .push(psi_core::Proposition::Truth);
+        assert!(
+            psi_terminal_verifier::verify_module(
+                &callee_contract,
+                &lowered.proof_bundle,
+                &AdmissionProfile::default(),
+            )
+            .is_err()
         );
     }
 }

@@ -121,6 +121,13 @@ pub(super) fn validate_partial_affine_cleanup_shape(
     let [root] = machine.structural_parameters.as_slice() else {
         unreachable!()
     };
+    let fixed_array_root = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == root.structural_type)
+        .is_some_and(|declaration| {
+            matches!(declaration.shape, StructuralTypeShape::FixedArray { .. })
+        });
     if root.multiplicity != StructuralMultiplicity::Affine
         || !root.qualifications.is_empty()
         || !machine.structural_places.iter().any(|place| {
@@ -165,6 +172,7 @@ pub(super) fn validate_partial_affine_cleanup_shape(
             || callee_parameter.is_self
             || callee_parameter.access != StructuralAccess::Owned
             || !callee_parameter.qualifications.is_empty()
+            || (fixed_array_root && !exact_fixed_array_element_sink(callee, moved_type))
         {
             return Err(invalid(block.id));
         }
@@ -224,7 +232,19 @@ pub(super) fn validate_partial_affine_cleanup_shape(
     else {
         unreachable!()
     };
-    if expected_residuals.is_empty()
+    if (fixed_array_root
+        && (machine.blocks.len() != 1
+            || block.id != machine.entry
+            || !block.parameters.is_empty()
+            || !machine.parameters.is_empty()
+            || root.position != 0
+            || root.is_self
+            || root.access != StructuralAccess::Owned
+            || !machine.published_service_ceiling.is_empty()
+            || !machine.contract.requires.is_empty()
+            || !machine.contract.ensures.is_empty()
+            || !machine.contract.crash_routes.is_empty()))
+        || expected_residuals.is_empty()
         || !trivial_affine_discards.is_empty()
         || residual_affine_discards.len() != expected_residuals.len()
         || residual_affine_discards.iter().zip(expected_residuals).any(
@@ -238,6 +258,50 @@ pub(super) fn validate_partial_affine_cleanup_shape(
         return Err(invalid(block.id));
     }
     Ok(())
+}
+
+fn exact_fixed_array_element_sink(callee: &TerminalMachine, moved_type: StructuralTypeId) -> bool {
+    let [parameter] = callee.structural_parameters.as_slice() else {
+        return false;
+    };
+    let [place] = callee.structural_places.as_slice() else {
+        return false;
+    };
+    let [block] = callee.blocks.as_slice() else {
+        return false;
+    };
+    callee.result == TerminalMachineResult::Unit
+        && callee.parameters.is_empty()
+        && parameter.structural_type == moved_type
+        && parameter.multiplicity == StructuralMultiplicity::Affine
+        && parameter.position == 0
+        && !parameter.is_self
+        && parameter.access == StructuralAccess::Owned
+        && parameter.qualifications.is_empty()
+        && place.id == parameter.place
+        && place.kind
+            == StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            }
+        && callee.entry_claims.is_empty()
+        && callee.published_service_ceiling.is_empty()
+        && callee.content_entry_claims.is_empty()
+        && callee.content_identity_reshuffles.is_empty()
+        && callee.content_partition_compositions.is_empty()
+        && callee.entry == block.id
+        && block.parameters.is_empty()
+        && block.operations.is_empty()
+        && matches!(
+            &block.terminator,
+            Terminator::ReturnUnit {
+                trivial_affine_discards,
+                ..
+            } if trivial_affine_discards.as_slice() == [parameter.place]
+        )
+        && callee.contract.requires.is_empty()
+        && callee.contract.ensures.is_empty()
+        && callee.contract.crash_routes.is_empty()
 }
 
 pub(super) fn validate_nominal_affine_cleanup_shape(

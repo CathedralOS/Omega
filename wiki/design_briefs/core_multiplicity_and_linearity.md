@@ -269,6 +269,17 @@ object/image, and installation custody independently rederive the complete
 two-call set and preserve either authored order without treating either call
 alone as permission to discard the root.
 
+The next exact residual-bearing rung accepts `[T; 3]` under the same ownership,
+qualification, claim, element-shape, and nominal-cleanup restrictions. Exactly
+two distinct literal indices move through two projected Unit calls in authored
+order; the complement is one typed no-code residual on the caller return. The
+frontier, interpreter, target and machine lowering, and object/image and
+installation replay independently reconstruct that singleton complement,
+canonical length-three layout, element stride, offsets, and five closure fuel
+units. One move would leave two residuals and therefore remains Q5-blocked;
+three moves belong to a separate no-residual rung. Because this rung has only
+one live residual, it establishes no array cleanup ordering rule.
+
 An internal call may now continue that same whole-root result through one
 explicit terminal operation-result place. The checked slice is intentionally
 narrow: one final direct call, one whole linear qualified argument, one exact

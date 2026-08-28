@@ -94,6 +94,17 @@ const FORWARD_FULLY_CONSUMED_AFFINE_PAIR_SOURCE: &str = r#"
     }
 "#;
 
+const PARTIAL_AFFINE_TRIPLE_SOURCE: &str = r#"
+    data Token { value: u64; }
+    data Helper {}
+    machine Helper::take(token: Token) {}
+    data Root {}
+    machine Root::enter(values: [Token; 3]) {
+        Helper::take(values[2]);
+        Helper::take(values[0]);
+    }
+"#;
+
 const MIXED_SCALAR_PARTIAL_AFFINE_SOURCE: &str = r#"
     domain [u8; 3]::Utf8
     requires
@@ -409,6 +420,24 @@ fn fully_consumed_affine_pair_plan(
         .expect("encode fully consumed affine pair proof");
     lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
         .expect("verified fully consumed affine pair artifact enters Omega")
+}
+
+fn partial_affine_triple_plan() -> omega_terminal_abstract_operations::TerminalAbstractOperationPlan
+{
+    let tokens = Lexer::new(PARTIAL_AFFINE_TRIPLE_SOURCE)
+        .tokenize()
+        .expect("tokenize partial affine triple source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse partial affine triple source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve partial affine triple source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type partial affine triple source");
+    let checked = lower_typed_trees(typed).expect("check partial affine triple source");
+    let terminal = lower_machine(&checked, "Root::enter").expect("lower partial affine triple Psi");
+    let semantics =
+        encode_module(&terminal.semantic_module).expect("encode partial affine triple Psi");
+    let proof =
+        encode_proof_bundle(&terminal.proof_bundle).expect("encode partial affine triple proof");
+    lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
+        .expect("verified partial affine triple artifact enters Omega")
 }
 
 fn mixed_scalar_partial_affine_plan()
@@ -1174,6 +1203,318 @@ fn partial_affine_pair_cleanup_retains_exact_native_and_installed_projection_on_
             decode_terminal_installation_record(&bytes),
             Ok(installation)
         );
+    }
+}
+
+#[test]
+fn partial_affine_triple_retains_two_calls_and_one_installed_residual_on_all_targets() {
+    let plan = partial_affine_triple_plan();
+    let caller_machine = plan.entry;
+    let caller = plan
+        .functions
+        .iter()
+        .find(|function| function.machine == caller_machine)
+        .expect("entry caller remains present");
+    let root_place = caller.structural_parameters[0].place;
+    let root_type = caller.structural_parameters[0].structural_type;
+    let declaration = plan
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == root_type)
+        .expect("array declaration remains present");
+    let StructuralTypeShape::FixedArray {
+        element: element_type,
+        length: 3,
+    } = declaration.shape
+    else {
+        panic!("caller root remains an exact three-element array")
+    };
+    let residual = caller
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            omega_terminal_abstract_operations::TerminalAbstractOperation::ReturnUnit {
+                cleanup_actions,
+                ..
+            } => match cleanup_actions.as_slice() {
+                [TerminalAffineCleanupAction::DiscardResidual(residual)] => Some(residual.clone()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .expect("affine triple return retains one residual");
+    assert_eq!(residual.place, root_place);
+    assert_eq!(residual.path, [StructuralPathSegment::FixedIndex(1)]);
+    assert_eq!(residual.structural_type, element_type);
+
+    let mut missing_target_call = plan.clone();
+    missing_target_call
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == caller_machine)
+        .unwrap()
+        .operations
+        .remove(1);
+    assert!(lower_to_target_operations(&missing_target_call, NativeTarget::linux_x64()).is_err());
+
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let target_plan = lower_to_target_operations(&plan, target).unwrap();
+        let target_caller = target_plan
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .unwrap();
+        let TerminalTargetOperation::UnitBody(body) = &target_caller.operation else {
+            panic!("caller remains Unit")
+        };
+        assert_eq!(body.parameters[0].shape, ValueShape::integer(24, 8));
+        let assigned = assign_registers(&target_plan).unwrap();
+        let mut extra_assigned_call = assigned.clone();
+        let assigned_caller = extra_assigned_call
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller_machine)
+            .unwrap();
+        let omega_terminal_assigned_target_operations::TerminalAssignedOperation::UnitBody(
+            assigned_body,
+        ) = &mut assigned_caller.operation
+        else {
+            panic!("assigned caller remains Unit")
+        };
+        assigned_body
+            .operations
+            .insert(1, assigned_body.operations[0].clone());
+        assert!(emit_machine_code(&extra_assigned_call).is_err());
+        let machine = emit_machine_code(&assigned).unwrap();
+        let emitted = machine
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .expect("caller machine code exists");
+        let [first, second] = emitted.internal_unit_calls.as_slice() else {
+            panic!("affine triple retains exactly two calls")
+        };
+        let cleanup = emitted
+            .unit_affine_cleanup
+            .as_ref()
+            .expect("partial affine return retains its edge record");
+        assert_eq!(
+            emitted
+                .fuel_attribution
+                .iter()
+                .map(|attribution| attribution.operation_ordinal)
+                .collect::<Vec<_>>(),
+            [0, 1, 2]
+        );
+        assert!(matches!(
+            emitted.fuel_attribution.as_slice(),
+            [
+                omega_terminal_machine_code::TerminalNativeFuelAttribution {
+                    site: omega_terminal_machine_code::TerminalNativeFuelSite::Operation(first_site),
+                    ..
+                },
+                omega_terminal_machine_code::TerminalNativeFuelAttribution {
+                    site: omega_terminal_machine_code::TerminalNativeFuelSite::Operation(second_site),
+                    ..
+                },
+                omega_terminal_machine_code::TerminalNativeFuelAttribution {
+                    site: omega_terminal_machine_code::TerminalNativeFuelSite::Edge(return_edge),
+                    ..
+                },
+            ] if first.owner.operation() == Some(*first_site)
+                && second.owner.operation() == Some(*second_site)
+                && cleanup.psi_edge == *return_edge
+        ));
+        assert_eq!(
+            [
+                first.arguments[0].path.clone(),
+                second.arguments[0].path.clone()
+            ],
+            [
+                vec![StructuralPathSegment::FixedIndex(2)],
+                vec![StructuralPathSegment::FixedIndex(0)],
+            ]
+        );
+        assert_eq!(
+            [
+                first.arguments[0].source_byte_offset,
+                second.arguments[0].source_byte_offset,
+            ],
+            [16, 0]
+        );
+        for call in [first, second] {
+            let [argument] = call.arguments.as_slice() else {
+                panic!("each triple call retains one argument")
+            };
+            assert_eq!(argument.root_structural_type, root_type);
+            assert_eq!(argument.structural_type, element_type);
+            assert_eq!(argument.fixed_array_length, Some(3));
+            assert_eq!(argument.element_stride, Some(8));
+            assert!(call.claim_transfers.is_empty());
+        }
+        assert_eq!(
+            cleanup.actions,
+            [TerminalAffineCleanupAction::DiscardResidual(
+                residual.clone()
+            )]
+        );
+
+        let mut missing = machine.clone();
+        missing
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller_machine)
+            .unwrap()
+            .internal_unit_calls
+            .remove(1);
+        assert!(build_terminal_object_artifact(&missing).is_err());
+
+        let mut duplicate = machine.clone();
+        let caller = duplicate
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller_machine)
+            .unwrap();
+        caller.internal_unit_calls[1].arguments[0].path =
+            caller.internal_unit_calls[0].arguments[0].path.clone();
+        assert!(build_terminal_object_artifact(&duplicate).is_err());
+
+        let mut wrong_path = machine.clone();
+        wrong_path
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller_machine)
+            .unwrap()
+            .internal_unit_calls[1]
+            .arguments[0]
+            .path = vec![StructuralPathSegment::FixedIndex(3)];
+        assert!(build_terminal_object_artifact(&wrong_path).is_err());
+
+        let mut wrong_length = machine.clone();
+        wrong_length
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller_machine)
+            .unwrap()
+            .internal_unit_calls[1]
+            .arguments[0]
+            .fixed_array_length = Some(2);
+        assert!(build_terminal_object_artifact(&wrong_length).is_err());
+
+        let mut wrong_order = machine.clone();
+        wrong_order
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller_machine)
+            .unwrap()
+            .internal_unit_calls
+            .swap(0, 1);
+        assert!(build_terminal_object_artifact(&wrong_order).is_err());
+
+        let mut wrong_residual = machine.clone();
+        wrong_residual
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller_machine)
+            .unwrap()
+            .unit_affine_cleanup
+            .as_mut()
+            .unwrap()
+            .actions[0] =
+            TerminalAffineCleanupAction::DiscardResidual(psi_terminal::StructuralAffineDiscard {
+                path: vec![StructuralPathSegment::FixedIndex(0)],
+                ..residual.clone()
+            });
+        assert!(build_terminal_object_artifact(&wrong_residual).is_err());
+
+        let mut no_cleanup = machine.clone();
+        no_cleanup
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller_machine)
+            .unwrap()
+            .unit_affine_cleanup
+            .as_mut()
+            .unwrap()
+            .actions
+            .clear();
+        assert!(build_terminal_object_artifact(&no_cleanup).is_err());
+
+        let mut third_call = machine.clone();
+        let caller = third_call
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller_machine)
+            .unwrap();
+        caller
+            .internal_unit_calls
+            .push(caller.internal_unit_calls[0].clone());
+        assert!(build_terminal_object_artifact(&third_call).is_err());
+
+        let object = build_terminal_object_artifact(&machine).unwrap();
+        let image = emit_terminal_executable_image(&object, 3).unwrap();
+        let installation =
+            build_terminal_installation_record(&image, ProfileDecisionId::new(1).unwrap()).unwrap();
+        assert_eq!(
+            installation
+                .internal_unit_calls()
+                .iter()
+                .filter(|call| call.machine == caller_machine)
+                .count(),
+            2
+        );
+        assert_eq!(
+            installation
+                .functions()
+                .iter()
+                .find(|function| function.machine == caller_machine)
+                .unwrap()
+                .unit_affine_cleanup
+                .as_ref()
+                .unwrap()
+                .actions,
+            [TerminalAffineCleanupAction::DiscardResidual(
+                residual.clone()
+            )]
+        );
+        validate_terminal_installation_record(&installation, &image).unwrap();
+        let encoded = encode_terminal_installation_record(&installation).unwrap();
+        assert_eq!(
+            decode_terminal_installation_record(&encoded),
+            Ok(installation.clone())
+        );
+        let installed_second = &installation
+            .internal_unit_calls()
+            .iter()
+            .filter(|call| call.machine == caller_machine)
+            .nth(1)
+            .unwrap()
+            .custody
+            .arguments[0];
+        let mut projection = Vec::new();
+        projection.extend_from_slice(&installed_second.place.get().to_le_bytes());
+        projection.extend_from_slice(&1_u32.to_le_bytes());
+        projection.extend_from_slice(&1_u32.to_le_bytes());
+        projection.extend_from_slice(&[2, 0, 0, 0]);
+        projection.extend_from_slice(&0_u64.to_le_bytes());
+        projection.extend_from_slice(&installed_second.root_structural_type.get().to_le_bytes());
+        projection.extend_from_slice(&installed_second.structural_type.get().to_le_bytes());
+        projection.extend_from_slice(&[1, 0, 8, 0, 8, 0, 0, 0]);
+        projection.extend_from_slice(&installed_second.source_byte_offset.to_le_bytes());
+        let projection_offset = encoded
+            .windows(projection.len())
+            .position(|window| window == projection)
+            .expect("installation retains the second triple projection");
+        let mut duplicate_installed_path = encoded.clone();
+        duplicate_installed_path[projection_offset + 20..projection_offset + 28]
+            .copy_from_slice(&2_u64.to_le_bytes());
+        assert!(decode_terminal_installation_record(&duplicate_installed_path).is_err());
     }
 }
 

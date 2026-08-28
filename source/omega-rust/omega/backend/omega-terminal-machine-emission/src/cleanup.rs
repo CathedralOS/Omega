@@ -1069,16 +1069,17 @@ fn append_expected_partial_residuals(
     )>,
 ) -> Option<()> {
     if prefix.is_empty()
-        && let [(path, moved_type)] = moved
-        && let [psi_terminal::StructuralPathSegment::FixedIndex(index @ (0 | 1))] = *path
+        && moved
+            .iter()
+            .all(|(path, _)| matches!(path, [psi_terminal::StructuralPathSegment::FixedIndex(_)]))
     {
         let declaration = declarations.get(&structural_type)?;
-        let psi_terminal::StructuralTypeShape::FixedArray { element, length: 2 } =
-            declaration.shape
+        let psi_terminal::StructuralTypeShape::FixedArray { element, length } = declaration.shape
         else {
             return None;
         };
-        if *moved_type != element
+        if !matches!((length, moved.len()), (2, 1) | (3, 2))
+            || moved.iter().any(|(_, moved_type)| *moved_type != element)
             || !matches!(
                 declarations
                     .get(&element)
@@ -1088,8 +1089,26 @@ fn append_expected_partial_residuals(
         {
             return None;
         }
+        let moved_indexes = moved
+            .iter()
+            .filter_map(|(path, _)| match path {
+                [psi_terminal::StructuralPathSegment::FixedIndex(index)] if *index < length => {
+                    Some(*index)
+                }
+                _ => None,
+            })
+            .collect::<std::collections::BTreeSet<_>>();
+        if moved_indexes.len() != moved.len() {
+            return None;
+        }
+        let residual = (0..length)
+            .filter(|index| !moved_indexes.contains(index))
+            .collect::<Vec<_>>();
+        let [residual] = residual.as_slice() else {
+            return None;
+        };
         output.push((
-            vec![psi_terminal::StructuralPathSegment::FixedIndex(1 - index)],
+            vec![psi_terminal::StructuralPathSegment::FixedIndex(*residual)],
             element,
         ));
         return Some(());

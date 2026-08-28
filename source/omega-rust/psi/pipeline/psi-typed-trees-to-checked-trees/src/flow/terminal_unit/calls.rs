@@ -610,10 +610,10 @@ pub(super) fn ordinary_projected_call_is_supported(
         return false;
     }
 
-    let affine_pair_index_path = if allow_field_path_projection
+    let bounded_affine_array_index_path = if allow_field_path_projection
         && matches!(
             arguments[0].path.as_slice(),
-            [CheckedUnitStructuralPathSegment::FixedIndex(0 | 1)]
+            [CheckedUnitStructuralPathSegment::FixedIndex(0 | 1 | 2)]
         ) {
         let mut type_reference = caller_source_parameters[0].type_reference;
         loop {
@@ -628,7 +628,7 @@ pub(super) fn ordinary_projected_call_is_supported(
         matches!(
             program.type_reference_table.type_reference(type_reference),
             TypeReferenceNode::FixedArray {
-                length: psi_typed_trees::types::FixedArrayLength::Literal(2),
+                length: psi_typed_trees::types::FixedArrayLength::Literal(2 | 3),
                 ..
             }
         )
@@ -648,7 +648,7 @@ pub(super) fn ordinary_projected_call_is_supported(
             && caller_parameters[0].qualifications.is_empty();
     }
 
-    if field_path || affine_pair_index_path {
+    if field_path || bounded_affine_array_index_path {
         let [caller_parameter] = caller_parameters else {
             return false;
         };
@@ -1278,7 +1278,7 @@ fn structural_signature_with_affine_pair(
         let type_identity = if parameter.is_self {
             attachment_type_identity.clone()
         } else if allow_affine_pair {
-            shapes.add_partial_affine_pair_type(parameter.type_reference, binders)?
+            shapes.add_partial_affine_array_type(parameter.type_reference, binders)?
         } else {
             shapes.add_type(parameter.type_reference, binders, &[])?
         };
