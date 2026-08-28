@@ -1,6 +1,10 @@
 //! Structural control and boundary-machine construction.
 
 use super::*;
+use psi_checked_trees::{
+    CheckedStructuralRankedArgumentPlan, CheckedStructuralRankedGuardPlan,
+    CheckedStructuralRankedSccEdgePlan, CheckedStructuralRankedSccPlan,
+};
 
 pub(crate) fn build_checked_structural_unit_control_plans(
     program: &TypedTrees,
@@ -47,6 +51,13 @@ pub(super) fn build_structural_unit_control_machine(
     if states.len() < 2 {
         return None;
     }
+    let proven_ranked_sccs =
+        crate::checks::termination::proven_nat_countdown_sccs(program, machine)?;
+    let proven_ranked_scc = match proven_ranked_sccs.as_slice() {
+        [] => None,
+        [component] => Some(component),
+        _ => return None,
+    };
     let binders = machine_binders(program, machine);
     let mut signatures = Vec::with_capacity(states.len());
     let mut attachment_type_identity = None;
@@ -120,9 +131,11 @@ pub(super) fn build_structural_unit_control_machine(
                 else {
                     return None;
                 };
-                let target_index = states
-                    .iter()
-                    .position(|candidate| candidate.symbol == path.symbol)?;
+                let target_index = crate::checks::termination::named_transition_target_state_index(
+                    program,
+                    machine,
+                    path.symbol,
+                )?;
                 let (target_parameters, target_scalar_parameters) = &signatures[target_index];
                 let arguments = program.statement_table.expression_handles(*arguments);
                 if arguments.len() != target_parameters.len() + target_scalar_parameters.len() {
@@ -170,13 +183,21 @@ pub(super) fn build_structural_unit_control_machine(
                     .enumerate()
                     .map(|(target_index, target)| {
                         let argument_ordinal = target.source_position;
+                        let ranked_edge = proven_ranked_scc.and_then(|component| {
+                            component.covered_cyclic_edges.iter().find(|edge| {
+                                edge.source_state == state.symbol
+                                    && edge.target_state == states[target_index].symbol
+                                    && edge.statement_ordinal == 0
+                                    && edge.target_rank_parameter_position == argument_ordinal
+                            })
+                        });
                         let expression = facts.values.scalar_expressions.expression_at(
                             state.symbol,
                             0,
                             CheckedScalarExpressionRole::TransitionArgument { argument_ordinal },
-                        )?;
+                        );
                         let source_index = match expression {
-                            CheckedScalarExpression::Boolean(expression)
+                            Some(CheckedScalarExpression::Boolean(expression))
                                 if target.primitive_type == PrimitiveType::Bool =>
                             {
                                 let psi_checked_trees::CheckedBooleanExpression::Parameter {
@@ -187,10 +208,22 @@ pub(super) fn build_structural_unit_control_machine(
                                 };
                                 *position
                             }
-                            CheckedScalarExpression::Parameter {
+                            Some(CheckedScalarExpression::Parameter {
                                 position,
                                 primitive_type,
-                            } if *primitive_type == target.primitive_type => *position,
+                            }) if *primitive_type == target.primitive_type => *position,
+                            _ if ranked_edge.is_some()
+                                && proven_ranked_scc.is_some_and(|component| {
+                                    component.rank_primitive_type == target.primitive_type
+                                }) =>
+                            {
+                                source_scalar_parameters.iter().position(|source| {
+                                    ranked_edge.is_some_and(|edge| {
+                                        source.source_position
+                                            == edge.source_rank_parameter_position
+                                    })
+                                })?
+                            }
                             _ => return None,
                         };
                         if source_scalar_parameters
@@ -212,7 +245,7 @@ pub(super) fn build_structural_unit_control_machine(
                     state.symbol,
                     0,
                 )?;
-                if cleanup.target_state != path.symbol {
+                if cleanup.target_state != states[target_index].symbol {
                     return None;
                 }
                 let cleanup_sources = cleanup
@@ -257,9 +290,14 @@ pub(super) fn build_structural_unit_control_machine(
                     state.symbol,
                     0,
                     CheckedScalarExpressionRole::Guard,
-                )?;
+                );
+                let ranked_guard = proven_ranked_scc.and_then(|component| {
+                    component.covered_cyclic_edges.iter().find(|edge| {
+                        edge.source_state == state.symbol && edge.statement_ordinal == 0
+                    })
+                });
                 let guard_scalar_parameter_index = match guard_expression {
-                    CheckedScalarExpression::Boolean(expression)
+                    Some(CheckedScalarExpression::Boolean(expression))
                         if matches!(
                             expression.as_ref(),
                             psi_checked_trees::CheckedBooleanExpression::Parameter { .. }
@@ -274,6 +312,15 @@ pub(super) fn build_structural_unit_control_machine(
                         (parameter.primitive_type == PrimitiveType::Bool)
                             .then(|| u32::try_from(*position).ok())??
                     }
+                    _ if ranked_guard.is_some() => {
+                        let edge = ranked_guard?;
+                        let index = source_scalar_parameters.iter().position(|parameter| {
+                            parameter.source_position == edge.source_rank_parameter_position
+                        })?;
+                        let parameter = source_scalar_parameters.get(index)?;
+                        (proven_ranked_scc?.rank_primitive_type == parameter.primitive_type)
+                            .then(|| u32::try_from(index).ok())??
+                    }
                     _ => return None,
                 };
                 let build_successor =
@@ -286,9 +333,12 @@ pub(super) fn build_structural_unit_control_machine(
                         else {
                             return None;
                         };
-                        let target_index = states
-                            .iter()
-                            .position(|candidate| candidate.symbol == path.symbol)?;
+                        let target_index =
+                            crate::checks::termination::named_transition_target_state_index(
+                                program,
+                                machine,
+                                path.symbol,
+                            )?;
                         let (target_parameters, target_scalar_parameters) =
                             &signatures[target_index];
                         let arguments = program.statement_table.expression_handles(*arguments);
@@ -339,15 +389,24 @@ pub(super) fn build_structural_unit_control_machine(
                             .enumerate()
                             .map(|(target_index, target)| {
                                 let argument_ordinal = target.source_position;
+                                let ranked_edge = proven_ranked_scc.and_then(|component| {
+                                    component.covered_cyclic_edges.iter().find(|edge| {
+                                        edge.source_state == state.symbol
+                                            && edge.target_state == states[target_index].symbol
+                                            && edge.statement_ordinal == statement_ordinal
+                                            && edge.target_rank_parameter_position
+                                                == argument_ordinal
+                                    })
+                                });
                                 let expression = facts.values.scalar_expressions.expression_at(
                                     state.symbol,
                                     statement_ordinal,
                                     CheckedScalarExpressionRole::TransitionArgument {
                                         argument_ordinal,
                                     },
-                                )?;
+                                );
                                 let source_index = match expression {
-                                    CheckedScalarExpression::Boolean(expression)
+                                    Some(CheckedScalarExpression::Boolean(expression))
                                         if target.primitive_type == PrimitiveType::Bool =>
                                     {
                                         let psi_checked_trees::CheckedBooleanExpression::Parameter {
@@ -358,10 +417,22 @@ pub(super) fn build_structural_unit_control_machine(
                                         };
                                         *position
                                     }
-                                    CheckedScalarExpression::Parameter {
+                                    Some(CheckedScalarExpression::Parameter {
                                         position,
                                         primitive_type,
-                                    } if *primitive_type == target.primitive_type => *position,
+                                    }) if *primitive_type == target.primitive_type => *position,
+                                    _ if ranked_edge.is_some()
+                                        && proven_ranked_scc.is_some_and(|component| {
+                                            component.rank_primitive_type == target.primitive_type
+                                        }) =>
+                                    {
+                                        source_scalar_parameters.iter().position(|source| {
+                                            ranked_edge.is_some_and(|edge| {
+                                                source.source_position
+                                                    == edge.source_rank_parameter_position
+                                            })
+                                        })?
+                                    }
                                     _ => return None,
                                 };
                                 if source_scalar_parameters
@@ -387,7 +458,7 @@ pub(super) fn build_structural_unit_control_machine(
                             state.symbol,
                             statement_ordinal,
                         )?;
-                        if cleanup.target_state != path.symbol {
+                        if cleanup.target_state != states[target_index].symbol {
                             return None;
                         }
                         let cleanup_sources = cleanup
@@ -475,7 +546,9 @@ pub(super) fn build_structural_unit_control_machine(
             }
         }
     }
-    if predecessor_counts[0] != 0
+    if (predecessor_counts[0] != 0
+        && proven_ranked_scc
+            .is_none_or(|component| component.header_state != checked_states[0].state))
         || predecessor_counts
             .iter()
             .filter(|count| **count == 2)
@@ -484,10 +557,67 @@ pub(super) fn build_structural_unit_control_machine(
     {
         return None;
     }
+    let ranked_scc = if let Some(component) = proven_ranked_scc {
+        let header = checked_states
+            .iter()
+            .find(|state| state.state == component.header_state)?;
+        let rank_scalar_parameter_index =
+            header.scalar_parameters.iter().position(|parameter| {
+                parameter.source_position == component.header_rank_parameter_position
+                    && parameter.primitive_type == component.rank_primitive_type
+            })?;
+        let covered_cyclic_edges = component
+            .covered_cyclic_edges
+            .iter()
+            .map(|edge| {
+                let source = checked_states
+                    .iter()
+                    .find(|state| state.state == edge.source_state)?;
+                let target = checked_states
+                    .iter()
+                    .find(|state| state.state == edge.target_state)?;
+                let source_index = source.scalar_parameters.iter().position(|parameter| {
+                    parameter.source_position == edge.source_rank_parameter_position
+                        && parameter.primitive_type == component.rank_primitive_type
+                })?;
+                let target_index = target.scalar_parameters.iter().position(|parameter| {
+                    parameter.source_position == edge.target_rank_parameter_position
+                        && parameter.primitive_type == component.rank_primitive_type
+                })?;
+                Some(CheckedStructuralRankedSccEdgePlan {
+                    source_state: edge.source_state,
+                    target_state: edge.target_state,
+                    statement_ordinal: edge.statement_ordinal,
+                    guard: CheckedStructuralRankedGuardPlan::UnsignedParameterPositive {
+                        scalar_parameter_index: u32::try_from(source_index).ok()?,
+                        primitive_type: component.rank_primitive_type,
+                    },
+                    successor_argument:
+                        CheckedStructuralRankedArgumentPlan::UnsignedParameterMinusOne {
+                            argument_ordinal: edge.target_rank_parameter_position,
+                            source_scalar_parameter_index: u32::try_from(source_index).ok()?,
+                            target_scalar_parameter_index: u32::try_from(target_index).ok()?,
+                            primitive_type: component.rank_primitive_type,
+                        },
+                })
+            })
+            .collect::<Option<Vec<_>>>()?;
+        Some(CheckedStructuralRankedSccPlan {
+            header_state: component.header_state,
+            rank_scalar_parameter_index: u32::try_from(rank_scalar_parameter_index).ok()?,
+            rank_primitive_type: component.rank_primitive_type,
+            rank_lower_bound: component.rank_lower_bound,
+            rank_upper_bound: component.rank_upper_bound,
+            covered_cyclic_edges,
+        })
+    } else {
+        None
+    };
     Some(CheckedStructuralUnitControlMachinePlan {
         machine: machine.symbol,
         attachment_type_identity: attachment_type_identity?,
         states: checked_states,
+        ranked_scc,
     })
 }
 

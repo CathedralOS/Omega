@@ -13,6 +13,34 @@ use self::guards::{
 use super::patterns;
 use super::{DecreaseMeasure, DistanceOrientation};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct DirectCountdownEdge {
+    pub(super) source_parameter: psi_symbols::SymbolHandle,
+    pub(super) target_argument_index: usize,
+}
+
+/// Return the exact parameter/argument join for the first retained Terminal
+/// countdown shape. This is deliberately owned by the Nat ranking prover: a
+/// later checked-plan producer may project this judgment, but must not grow a
+/// second recognizer for `parameter > 0` and `parameter - 1`.
+pub(super) fn direct_countdown_edge(
+    program: &psi_typed_trees::TypedTrees,
+    source: &psi_typed_trees::state::State,
+    target: &psi_typed_trees::state::State,
+    guard: ExpressionHandle,
+    arguments: &[ExpressionHandle],
+    decreases: ExpressionHandle,
+) -> Option<DirectCountdownEdge> {
+    let (parameter, target_argument_index, argument) =
+        countdown_edge_parts(program, source, target, arguments, decreases)?;
+    (guard_is_positive_parameter(program, guard, parameter)
+        && argument_is_parameter_minus_one(program, argument, parameter))
+    .then_some(DirectCountdownEdge {
+        source_parameter: parameter.symbol,
+        target_argument_index,
+    })
+}
+
 pub(super) fn state_has_proven_self_loop(
     program: &psi_typed_trees::TypedTrees,
     state: &psi_typed_trees::state::State,
@@ -150,9 +178,31 @@ fn countdown_edge(
     arguments: &[ExpressionHandle],
     decreases: ExpressionHandle,
 ) -> bool {
-    let ExpressionNode::Name(decreases_path) = program.expression_table.expression(decreases)
+    let Some((parameter, _, argument)) =
+        countdown_edge_parts(program, source, target, arguments, decreases)
     else {
         return false;
+    };
+
+    (guard_is_positive_parameter(program, guard, parameter)
+        || declared_floor_at_least_one(program, parameter))
+        && argument_is_parameter_minus_one(program, argument, parameter)
+}
+
+fn countdown_edge_parts<'program>(
+    program: &'program psi_typed_trees::TypedTrees,
+    source: &'program psi_typed_trees::state::State,
+    target: &psi_typed_trees::state::State,
+    arguments: &'program [ExpressionHandle],
+    decreases: ExpressionHandle,
+) -> Option<(
+    &'program psi_typed_trees::signature::StateParameter,
+    usize,
+    ExpressionHandle,
+)> {
+    let ExpressionNode::Name(decreases_path) = program.expression_table.expression(decreases)
+    else {
+        return None;
     };
     let decrease_name = program
         .expression_table
@@ -168,19 +218,16 @@ fn countdown_edge(
             parameter.symbol == decreases_path.symbol || parameter.name.as_str() == decrease_name
         })
     else {
-        return false;
+        return None;
     };
     let Some(argument_index) = target_argument_index(program, target, parameter.name.as_str())
     else {
-        return false;
+        return None;
     };
     let Some(argument) = arguments.get(argument_index).copied() else {
-        return false;
+        return None;
     };
-
-    (guard_is_positive_parameter(program, guard, parameter)
-        || declared_floor_at_least_one(program, parameter))
-        && argument_is_parameter_minus_one(program, argument, parameter)
+    Some((parameter, argument_index, argument))
 }
 
 /// The parameter's DECLARED `[a..=b]` floor is >= 1 under an Exact (or

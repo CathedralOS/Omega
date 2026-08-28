@@ -25,6 +25,7 @@ fn install_structural_unit_control_fixture(checked: &mut CheckedTrees) {
             machines: vec![CheckedStructuralUnitControlMachinePlan {
                 machine: root,
                 attachment_type_identity: "example::Root".to_owned(),
+                ranked_scc: None,
                 states: vec![
                     psi_checked_trees::CheckedStructuralUnitControlStatePlan {
                         state: entry,
@@ -108,6 +109,7 @@ fn install_structural_unit_conditional_fixture(checked: &mut CheckedTrees) {
             machines: vec![CheckedStructuralUnitControlMachinePlan {
                 machine: root,
                 attachment_type_identity: "example::Root".to_owned(),
+                ranked_scc: None,
                 states: vec![
                     psi_checked_trees::CheckedStructuralUnitControlStatePlan {
                         state: entry,

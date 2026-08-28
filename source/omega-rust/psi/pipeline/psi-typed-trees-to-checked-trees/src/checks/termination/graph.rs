@@ -201,7 +201,7 @@ fn target_state_index(
 /// while transitions to subordinate states name the state symbol. Ranking and
 /// progress analysis must share this normalization so an entry back-edge is
 /// not mistaken for a nested machine invocation.
-pub(super) fn named_transition_target_state_index(
+pub(crate) fn named_transition_target_state_index(
     program: &psi_typed_trees::TypedTrees,
     machine: &psi_typed_trees::machine::Machine,
     target_symbol: psi_symbols::SymbolHandle,
