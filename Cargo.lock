@@ -1302,6 +1302,7 @@ dependencies = [
  "omega-optimization-unit",
  "omega-register-model",
  "omega-target",
+ "omega-terminal-abstract-operations",
  "omega-terminal-legalized-operations",
  "omega-terminal-selected-instructions",
  "omega-terminal-target-operations",
