@@ -645,6 +645,92 @@ fn nominal_callback_use_retains_exact_evaluated_placement_identity() {
     assert!(!actual.checked_may_suspend);
     assert!(!actual.checked_may_block);
     assert!(actual.capabilities.is_empty());
+    let resources = checked
+        .facts
+        .contract_plans
+        .resource_envelope(nominal_use.selected_machine, nominal_use.selected_entry)
+        .expect("selected callback checked resource anchor");
+    assert_eq!(resources.machine(), nominal_use.selected_machine);
+    assert_eq!(resources.entry(), nominal_use.selected_entry);
+    assert_eq!(
+        resources.contract_fingerprint(),
+        nominal_use.selected_actual_envelope.contract_fingerprint
+    );
+    assert_eq!(
+        resources.stack().derivation_obligation(),
+        psi_checked_trees::CheckedResourceDerivationObligation::TerminalAndTargetStackClosure
+    );
+    assert_eq!(
+        resources.logical_structural_work().derivation_obligation(),
+        psi_checked_trees::CheckedResourceDerivationObligation::TerminalControlAndFuelSchedule
+    );
+    assert_eq!(
+        resources.machine_state().derivation_obligation(),
+        psi_checked_trees::CheckedResourceDerivationObligation::SelectedInstructionMachineStateFootprint
+    );
+    checked
+        .facts
+        .contract_plans
+        .validate_resource_envelopes()
+        .expect("resource anchors must independently replay from exact contracts");
+}
+
+#[test]
+fn checked_resource_envelopes_cover_entries_in_declaration_order() {
+    let source = r#"
+        data Token { value: i32; }
+
+        machine route(first: Token, second: Token, choose_first: bool) -> i32
+        {
+            transition choose_first {
+                true -> keep_first(first)
+                _ -> keep_second(second)
+            }
+
+            state keep_first(first: Token) -> i32 { 1 }
+            state keep_second(second: Token) -> i32 { 2 }
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "route")
+        .expect("route machine");
+    let machine_symbol = machine.symbol;
+    let entries = typed
+        .machine_states(machine)
+        .iter()
+        .map(|entry| entry.symbol)
+        .collect::<Vec<_>>();
+
+    let checked = lower_typed_trees(typed).expect("multi-entry resource anchors should check");
+    let realized = checked
+        .facts
+        .contract_plans
+        .realized_envelope(machine_symbol)
+        .expect("route realized envelope");
+    assert_eq!(
+        realized
+            .resources
+            .iter()
+            .map(psi_checked_trees::CheckedEntryResourceEnvelope::entry)
+            .collect::<Vec<_>>(),
+        entries
+    );
+    for entry in entries {
+        let resource = checked
+            .facts
+            .contract_plans
+            .resource_envelope(machine_symbol, entry)
+            .expect("every owned entry has one resource anchor");
+        assert_eq!(resource.machine(), machine_symbol);
+        assert_eq!(resource.entry(), entry);
+        resource.validate().expect("entry anchor replays");
+    }
 }
 
 #[test]

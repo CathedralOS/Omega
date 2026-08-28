@@ -1424,6 +1424,13 @@ policy-or-provision/realization/evidence triples:
 The ledger and its report retain each applicable policy ceiling, installed
 provision, realized fact, and validation receipt. They never retain private
 ranking witnesses or codegen proof internals.
+Checked callback selection does not own these installed triples. Its narrower
+realized-machine envelope retains one exact per-entry derivation anchor naming
+all three required axes, while numeric stack demand, scheduled logical work,
+and emitted machine-state footprint remain absent until their respective
+Terminal, target, and backend derivations exist. A later callback-placement
+receipt must bind that exact entry anchor to those independent results; neither
+the anchor nor `BoundaryEntryPlan` grants resource or installation authority.
 Sharing this record shape does not fuse the three algebras or their identity
 rules: the evaluated `StatePlan` is published boundary identity, while stack and
 fuel figures normally belong to candidate admission and current provisioning.

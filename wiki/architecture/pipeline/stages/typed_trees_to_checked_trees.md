@@ -653,9 +653,19 @@ Current ownership is:
   invocation, transitive suspension and blocking, checked termination and
   crash evidence, mutation frames, and capability flows while preserving their
   independent provenance. Crash evidence is refreshed after path-conditioned
-  validation mutates that axis. Neither envelope changes the published
-  fingerprint or promotes inferred witnesses into caller facts; resource
-  ceilings remain separate until that checked representation exists.
+  validation mutates that axis. The realized envelope now also retains one
+  declaration-ordered resource-derivation row for every exact machine entry.
+  Each row binds its machine, entry, and realized contract identity separately
+  to the required Terminal-plus-target stack closure, Terminal control/fuel-
+  schedule proof, and selected-instruction machine-state footprint. Checked
+  replay proves complete owned-entry coverage and rejects axis fusion or
+  identity drift. The rows deliberately contain no numeric ceiling, realized
+  demand, target footprint, provider receipt, callback-placement receipt, or
+  installation authority; their fingerprints are compilation-local join
+  summaries only. Neither envelope changes the published fingerprint or
+  promotes inferred witnesses into caller facts. Callback resource admission
+  remains closed until placement binds the exact entry row to all three
+  independently derived downstream receipts.
   Published routes are removed
   only when the call evaluator proves them false; proved-true routes become
   unconditional, unknown routes are re-encoded in the caller's positional

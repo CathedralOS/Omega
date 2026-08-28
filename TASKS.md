@@ -7573,14 +7573,23 @@ Owners:
   require widening the report to retain the whole final certificate, or adding
   a redundant hash minted from the same copied values. Remaining callback work
   stays on the separately listed resource, body, lease, cross-target, and
-  private-relocation frontiers. Resource-ceiling aggregation currently stops at
-  the checked-envelope boundary: the realized callback envelope has no checked
-  stack/fuel/state resource carrier, while the existing three-column rows are
-  installation-owned external-root evidence and cannot be promoted backward
-  into callback admission. Add and validate the checked resource representation
-  first; then bind its exact receipt through callback placement. This does not
-  relax the private-placement decision or infer resources from
-  `BoundaryEntryPlan`. Callback thunk body lowering separately stops on multi-
+  private-relocation frontiers. The checked resource-representation
+  prerequisite is now live. Every concrete machine retains one declaration-
+  ordered row per exact entry. Each row independently binds the machine, entry,
+  and realized contract identity to three distinct downstream derivation
+  obligations: Terminal-plus-target stack closure, Terminal control under an
+  explicit fuel schedule, and selected-instruction machine-state footprint.
+  Structural replay rejects a missing, duplicate, reordered, cross-entry,
+  cross-machine, cross-contract, fused-axis, or fingerprint-drifted row. These
+  are compilation-local derivation anchors, not numeric ceilings, realized
+  demands, backend footprints, provider receipts, or installation authority.
+  Resource-ceiling aggregation still stops at this checked-envelope boundary:
+  next bind the exact per-entry resource receipt through callback placement,
+  then join each axis to its independently derived downstream evidence. The
+  existing three-column external-root rows remain installation-owned and cannot
+  be promoted backward into callback admission. This does not relax the private-
+  placement decision or infer resources from `BoundaryEntryPlan`. Callback
+  thunk body lowering separately stops on multi-
   root activation planning: instruction selection currently emits one process-
   entry Source function over one root runtime-flow/dispatch/storage activation,
   while internal-call operations carry no ABI bridge. Add per-entry root
