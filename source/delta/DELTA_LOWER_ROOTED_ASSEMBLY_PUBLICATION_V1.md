@@ -165,3 +165,12 @@ last. Existing observations, decoded assemblies, or receipt make finalization
 fail closed rather than overwrite evidence. This lifecycle does not add a
 semantic stage, target authority, assembler/linker admission, or publication
 claim beyond the V1 receipt.
+
+## Next custody boundary
+
+[`DELTA_LOWER_ROOTED_ARTIFACT_CUSTODY_V1.md`](DELTA_LOWER_ROOTED_ARTIFACT_CUSTODY_V1.md)
+defines the separate fail-closed join from this fully reconstructed receipt to
+one exact unsigned Darwin ARM64 Mach-O image. That join binds artifact and
+ambient realization-tool identities but deliberately retains semantic
+refinement as open; it does not widen this assembly receipt or make the ambient
+assembler/linker authoritative.
