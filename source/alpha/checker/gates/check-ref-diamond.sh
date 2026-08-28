@@ -31,15 +31,14 @@ if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
 fi
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh" || exit $?
 . "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh" || exit $?
+. "$OMEGA_PATH_PROOF_KERNEL/artifact_env.sh" || exit $?
 cd "$OMEGA_PATH_PROOF_KERNEL"
 command -v python3 >/dev/null 2>&1 || { echo "check-ref diamond: skipped (python3 absent)"; exit 0; }
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
-stamp_beta_compiler "$T/bc.exe" >/dev/null
-"$T/bc.exe" < implementations/beta/check.beta > "$T/c.asm" 2>/dev/null && "$ASM" < "$T/c.asm" > "$T/c.tape" 2>/dev/null \
-  && stamp_seed "$T/c.tape" "$SEED" "$T/check.exe" >/dev/null 2>&1 || { echo "check-ref diamond: implementations/beta/check.beta build failed"; exit 1; }
+stamp_proof_checker "$T/check.exe" >/dev/null || { echo "check-ref diamond: checker artifact unavailable"; exit 1; }
 
 if python3 corpus/fuzz/check-ref-fuzz.py "$T/check.exe" "${1:-200}" > "$T/out" 2>&1; then
   echo "trust-anchor diamond (independent implementations/reference/check_ref.py agrees with implementations/beta/check.beta on the COMPLETE rule set — logic, first-order, equality, induction, predicates, lemmas, TV certs): $(cat "$T/out")"

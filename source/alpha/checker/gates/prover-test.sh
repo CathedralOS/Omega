@@ -23,15 +23,14 @@ if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
 fi
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh" || exit $?
 . "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh" || exit $?
+. "$OMEGA_PATH_PROOF_KERNEL/artifact_env.sh" || exit $?
 cd "$OMEGA_PATH_PROOF_KERNEL"
 command -v python3 >/dev/null 2>&1 || { echo "prover-test: skipped (python3 absent)"; exit 0; }
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
-stamp_beta_compiler "$T/bc.exe" >/dev/null
-"$T/bc.exe" < implementations/beta/check.beta > "$T/x.asm" && "$ASM" < "$T/x.asm" > "$T/x.tape" \
-  && stamp_seed "$T/x.tape" "$SEED" "$T/check.exe" >/dev/null 2>&1 || { echo "build implementations/beta/check.beta failed"; exit 1; }
+stamp_proof_checker "$T/check.exe" >/dev/null || { echo "checker artifact unavailable"; exit 1; }
 CHECK="$T/check.exe"
 
 PASS=0; FAIL=0
