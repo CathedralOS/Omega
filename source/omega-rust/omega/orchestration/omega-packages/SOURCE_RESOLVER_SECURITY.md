@@ -195,8 +195,13 @@ the retained stage handle. The host
 cleanup primitive is not atomic against concurrent rename and is pathname-
 based on Windows, so cleanup remains best-effort under a hostile same-user
 process. The mutable Git object-cache stage remains pathname-visible to
-native Git and belongs to native process confinement; structural metadata
-observations and macOS ACL inspection are not yet fully handle-relative.
+native Git and belongs to native process confinement. Published Git/local
+snapshot mode and shape verification opens the publication and Source roots
+no-follow, traverses retained child handles with identity checks, and captures
+content from that same open Source root. Authenticated Git paths, kinds, and
+executable bits are compared with the captured tree rather than ambient
+metadata. Native Git object-cache observations and macOS ACL inspection are not
+yet fully handle-relative.
 Destination exclusion is cooperative rather than an atomic hostile-same-user
 no-replace primitive, so this still does not claim exclusion of an actively
 hostile same-user process.
