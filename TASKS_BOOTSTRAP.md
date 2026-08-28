@@ -69,6 +69,13 @@ Git history is their archive.
 
 ### 1. Publish the Delta-produced compiler from below
 
+Current lower-rung progress: the publication verifier binds the canonical
+source closure and tools, reconstructs the packed Gamma program, independently
+decodes repeated executions, requires byte-identical assembly, and validates
+the bounded target dialect. It remains fail-closed until those observations
+come from the exact full-source execution; it does not manufacture the missing
+compiler artifact.
+
 - [ ] Execute the exact canonical Delta compiler source through the accepted
   Gamma route for every required build host.
 - [ ] Bind source identity, Delta semantics/resources, target identity, emitted

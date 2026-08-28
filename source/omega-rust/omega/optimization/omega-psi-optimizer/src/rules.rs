@@ -5087,11 +5087,12 @@ pub(crate) mod tests {
         }
     }
 
-    pub(crate) fn randomized_sccp_registries() -> Vec<OrderedRuleRegistry> {
+    pub(crate) fn randomized_built_in_registries(
+        optimization: Optimization,
+    ) -> Vec<OrderedRuleRegistry> {
         (1..=32)
             .map(|seed| {
-                let mut registrations =
-                    built_in_rule_registrations(Optimization::SparseConditionalConstantPropagation);
+                let mut registrations = built_in_rule_registrations(optimization);
                 shuffle_built_in_registrations(&mut registrations, seed);
                 assemble_built_in_registry(registrations)
                     .expect("shuffling cannot alter a valid built-in schedule")
@@ -7540,13 +7541,19 @@ pub(crate) mod tests {
 
     #[test]
     fn built_in_schedule_is_independent_of_registration_arrival_order() {
-        let expected =
-            registry_for_optimization(Optimization::SparseConditionalConstantPropagation).unwrap();
-        let expected_contracts = expected.contracts().collect::<Vec<_>>();
+        for optimization in [
+            Optimization::SparseConditionalConstantPropagation,
+            Optimization::ControlFlowCleanup,
+            Optimization::GlobalValueNumbering,
+            Optimization::DeadPureScalarElimination,
+        ] {
+            let expected = registry_for_optimization(optimization).unwrap();
+            let expected_contracts = expected.contracts().collect::<Vec<_>>();
 
-        for registry in randomized_sccp_registries() {
-            assert_eq!(registry.identity(), expected.identity());
-            assert_eq!(registry.contracts().collect::<Vec<_>>(), expected_contracts);
+            for registry in randomized_built_in_registries(optimization) {
+                assert_eq!(registry.identity(), expected.identity());
+                assert_eq!(registry.contracts().collect::<Vec<_>>(), expected_contracts);
+            }
         }
     }
 

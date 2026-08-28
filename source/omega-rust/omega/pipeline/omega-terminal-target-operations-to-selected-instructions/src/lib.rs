@@ -2611,7 +2611,7 @@ pub fn terminal_selected_instruction_plan_identity(
     plan: &TerminalSelectedInstructionPlan,
 ) -> TerminalSelectedInstructionPlanIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-selected-instructions.v5\0");
+    bytes.extend_from_slice(b"omega.terminal-selected-instructions.v6\0");
     bytes.extend_from_slice(plan.terminal_psi.program_fingerprint.as_bytes());
     bytes.extend_from_slice(&plan.terminal_psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
@@ -2736,6 +2736,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &TerminalSelectedInstruc
         TerminalSelectedInstructionKind::ExactAddI64 { .. } => 5,
         TerminalSelectedInstructionKind::ExactAddI64Immediate { .. } => 6,
         TerminalSelectedInstructionKind::ExactSubtractI64 { .. } => 7,
+        TerminalSelectedInstructionKind::ExactSubtractI64Immediate { .. } => 8,
     });
     match instruction.kind {
         TerminalSelectedInstructionKind::MaterializeI64 { value } => match value {
@@ -2763,6 +2764,11 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &TerminalSelectedInstruc
             bytes.extend_from_slice(&accepted_fact.bytes());
         }
         TerminalSelectedInstructionKind::ExactAddI64Immediate {
+            immediate,
+            obligation,
+            accepted_fact,
+        }
+        | TerminalSelectedInstructionKind::ExactSubtractI64Immediate {
             immediate,
             obligation,
             accepted_fact,

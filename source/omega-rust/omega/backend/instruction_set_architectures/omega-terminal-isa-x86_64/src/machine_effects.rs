@@ -16,7 +16,7 @@ use omega_terminal_selected_instructions::{
 use crate::{
     X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_COMPARE_I64_ZERO, X86_64_CONDITIONAL_BRANCH,
     X86_64_COPY_I64, X86_64_MATERIALIZE_I64, X86_64_MICROSOFT_RETURN, X86_64_SUBTRACT_I64,
-    X86_64_SYSTEM_V_RETURN,
+    X86_64_SUBTRACT_I64_IMMEDIATE, X86_64_SYSTEM_V_RETURN,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -95,6 +95,7 @@ fn selected_keys(
         add_i64: X86_64_ADD_I64,
         subtract_i64: X86_64_SUBTRACT_I64,
         add_i64_immediate: X86_64_ADD_I64_IMMEDIATE,
+        subtract_i64_immediate: X86_64_SUBTRACT_I64_IMMEDIATE,
         compare_i64_zero: X86_64_COMPARE_I64_ZERO,
         conditional_branch: X86_64_CONDITIONAL_BRANCH,
         return_i64,
@@ -222,7 +223,8 @@ fn encoded_effects(
         TerminalMachineSemanticKind::MaterializeI64 => (vec![], vec![0]),
         TerminalMachineSemanticKind::CopyI64 => (vec![0], vec![1]),
         TerminalMachineSemanticKind::ExactAddI64 => (vec![0, 1], vec![2]),
-        TerminalMachineSemanticKind::ExactAddI64Immediate => (vec![0], vec![1]),
+        TerminalMachineSemanticKind::ExactAddI64Immediate
+        | TerminalMachineSemanticKind::ExactSubtractI64Immediate => (vec![0], vec![1]),
         TerminalMachineSemanticKind::ExactSubtractI64 if variant == 0 => (vec![], vec![2]),
         TerminalMachineSemanticKind::ExactSubtractI64 => (vec![0, 1], vec![2]),
         TerminalMachineSemanticKind::ConditionalBranchNonZero
@@ -319,6 +321,12 @@ fn size(semantic: TerminalMachineSemanticKind) -> TerminalMachineSizeKnowledge {
             maximum_bytes: Some(5),
         },
         TerminalMachineSemanticKind::ExactAddI64Immediate => {
+            TerminalMachineSizeKnowledge::EncoderResolved {
+                minimum_bytes: 4,
+                maximum_bytes: Some(8),
+            }
+        }
+        TerminalMachineSemanticKind::ExactSubtractI64Immediate => {
             TerminalMachineSizeKnowledge::EncoderResolved {
                 minimum_bytes: 4,
                 maximum_bytes: Some(8),

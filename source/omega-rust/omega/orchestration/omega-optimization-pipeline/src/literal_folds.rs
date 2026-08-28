@@ -121,6 +121,8 @@ pub struct StagedSelectedLoweringOptimizationRun {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedLoweringOptimizationSchedule {
     SelectedIncomingU12ExactAddImmediateToNoChangeV1,
+    SelectedIncomingU12ExactSubtractImmediateToNoChangeV1,
+    SelectedIncomingU12ExactAddAndSubtractImmediateToNoChangeV1,
 }
 
 impl StagedSelectedLoweringOptimizationRun {
@@ -518,25 +520,11 @@ pub fn run_selected_lowering_optimizations(
     if selected_lowering_selections.is_empty() {
         return Err(OptimizedLiteralFoldCustodyError::MissingSelectedLoweringOptimization);
     }
-    if let Some(unsupported) = selected_lowering_selections
-        .as_slice()
-        .iter()
-        .find(|optimization| {
-            !matches!(
-                optimization,
-                Optimization::SelectedIncomingU12ExactAddImmediate
-            )
-        })
-    {
-        return Err(
-            OptimizedLiteralFoldCustodyError::UnsupportedSelectedLoweringOptimization(*unsupported),
-        );
-    }
+    let (schedule, fold_policy) = selected_lowering_contract(&selected_lowering_selections)?;
 
     let choice_policy = TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1;
     let recovery_policy =
         TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1;
-    let fold_policy = TerminalLiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1;
     let iteration_bound = source.legality().receipt().virtual_register_count();
     let selected = source
         .live_range_stage()
@@ -612,6 +600,7 @@ pub fn run_selected_lowering_optimizations(
         usage,
         iteration_bound,
         action_count,
+        schedule,
     );
     Ok(StagedSelectedLoweringOptimizationRun {
         source,
@@ -621,6 +610,40 @@ pub fn run_selected_lowering_optimizations(
         terminal_attempt: attempt,
         custody,
     })
+}
+
+fn selected_lowering_contract(
+    selections: &OptimizationSelections,
+) -> Result<
+    (
+        SelectedLoweringOptimizationSchedule,
+        TerminalLiteralFoldPolicy,
+    ),
+    OptimizedLiteralFoldCustodyError,
+> {
+    match selections.as_slice() {
+        [Optimization::SelectedIncomingU12ExactAddImmediate] => Ok((
+            SelectedLoweringOptimizationSchedule::SelectedIncomingU12ExactAddImmediateToNoChangeV1,
+            TerminalLiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1,
+        )),
+        [Optimization::SelectedIncomingU12ExactSubtractImmediate] => Ok((
+            SelectedLoweringOptimizationSchedule::SelectedIncomingU12ExactSubtractImmediateToNoChangeV1,
+            TerminalLiteralFoldPolicy::SelectedIncomingU12ExactSubtractImmediateV1,
+        )),
+        [
+            Optimization::SelectedIncomingU12ExactAddImmediate,
+            Optimization::SelectedIncomingU12ExactSubtractImmediate,
+        ] => Ok((
+            SelectedLoweringOptimizationSchedule::SelectedIncomingU12ExactAddAndSubtractImmediateToNoChangeV1,
+            TerminalLiteralFoldPolicy::SelectedIncomingU12ExactAddAndSubtractImmediateV1,
+        )),
+        [] => Err(OptimizedLiteralFoldCustodyError::MissingSelectedLoweringOptimization),
+        selections => Err(
+            OptimizedLiteralFoldCustodyError::UnsupportedSelectedLoweringOptimization(
+                selections[0],
+            ),
+        ),
+    }
 }
 
 pub fn validate_selected_lowering_optimization_custody(
@@ -635,20 +658,18 @@ pub fn validate_selected_lowering_optimization_custody(
         .optimized_target()
         .optimized();
     let expected_budget = optimized.budget_per_pass();
-    if run.selections != *optimized.selections()
-        || run.custody.selections != optimized.selections().identity()
-        || run.custody.budget != expected_budget
-        || run.custody.schedule
-            != SelectedLoweringOptimizationSchedule::SelectedIncomingU12ExactAddImmediateToNoChangeV1
-    {
-        return Err(OptimizedLiteralFoldCustodyError::SelectionProjectionMismatch);
-    }
     let projected = run
         .selections
         .for_phase(OptimizationExecutionPhase::SelectedLowering);
-    if projected != run.selected_lowering_selections
-        || projected.as_slice() != [Optimization::SelectedIncomingU12ExactAddImmediate]
+    let (expected_schedule, fold_policy) = selected_lowering_contract(&projected)?;
+    if run.selections != *optimized.selections()
+        || run.custody.selections != optimized.selections().identity()
+        || run.custody.budget != expected_budget
+        || run.custody.schedule != expected_schedule
     {
+        return Err(OptimizedLiteralFoldCustodyError::SelectionProjectionMismatch);
+    }
+    if projected != run.selected_lowering_selections {
         return Err(OptimizedLiteralFoldCustodyError::SelectionProjectionMismatch);
     }
     for step in &run.steps {
@@ -657,6 +678,7 @@ pub fn validate_selected_lowering_optimization_custody(
             step.recovery(),
             step.fold(),
             expected_budget,
+            fold_policy,
         )?;
     }
     validate_selected_lowering_schedule(
@@ -664,6 +686,7 @@ pub fn validate_selected_lowering_optimization_custody(
         run.terminal_attempt.recovery(),
         run.terminal_attempt.fold(),
         expected_budget,
+        fold_policy,
     )?;
     let selected = run
         .source
@@ -701,7 +724,7 @@ pub fn validate_selected_lowering_optimization_custody(
             &run.source,
             TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
             TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
-            TerminalLiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1,
+            fold_policy,
             expected_budget,
         )?,
         None => build_attempt(
@@ -711,7 +734,7 @@ pub fn validate_selected_lowering_optimization_custody(
             &run.source,
             TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
             TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
-            TerminalLiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1,
+            fold_policy,
             expected_budget,
         )?,
     };
@@ -754,6 +777,7 @@ pub fn validate_selected_lowering_optimization_custody(
         usage,
         run.source.legality().receipt().virtual_register_count(),
         action_count,
+        expected_schedule,
     );
     if replayed != run.steps || terminal != run.terminal_attempt || receipt != run.custody {
         return Err(OptimizedLiteralFoldCustodyError::StepMismatch { step: 0 });
@@ -1023,6 +1047,7 @@ fn selected_lowering_custody_receipt(
     usage: OptimizationWorkUsage,
     iteration_bound: usize,
     action_count: usize,
+    schedule: SelectedLoweringOptimizationSchedule,
 ) -> StagedSelectedLoweringOptimizationCustodyReceipt {
     let (final_selected, final_liveness, final_ranges, final_legality) = match steps.last() {
         Some(step) => (
@@ -1054,8 +1079,7 @@ fn selected_lowering_custody_receipt(
         source: source_receipt,
         selections: selections.identity(),
         selected_lowering_selections: selected_lowering_selections.identity(),
-        schedule:
-            SelectedLoweringOptimizationSchedule::SelectedIncomingU12ExactAddImmediateToNoChangeV1,
+        schedule,
         budget,
         usage,
         iteration_bound,
@@ -1080,7 +1104,7 @@ fn selected_lowering_completion_identity(
     receipt: &StagedSelectedLoweringOptimizationCustodyReceipt,
 ) -> SelectedLoweringOptimizationCompletionIdentity {
     let mut canonical = Vec::new();
-    canonical.extend_from_slice(b"omega.selected-lowering-optimization-completion.v1\0");
+    canonical.extend_from_slice(b"omega.selected-lowering-optimization-completion.v2\0");
     let source = receipt.source;
     for identity in [
         source.optimization().bytes(),
@@ -1098,6 +1122,8 @@ fn selected_lowering_completion_identity(
     }
     canonical.push(match receipt.schedule {
         SelectedLoweringOptimizationSchedule::SelectedIncomingU12ExactAddImmediateToNoChangeV1 => 1,
+        SelectedLoweringOptimizationSchedule::SelectedIncomingU12ExactSubtractImmediateToNoChangeV1 => 2,
+        SelectedLoweringOptimizationSchedule::SelectedIncomingU12ExactAddAndSubtractImmediateToNoChangeV1 => 3,
     });
     canonical.extend_from_slice(&receipt.budget.encode());
     canonical.extend_from_slice(&receipt.usage.encode());
@@ -1178,6 +1204,8 @@ fn recovery_policy_tag(policy: TerminalRecoveryClassificationPolicy) -> u8 {
 fn literal_fold_policy_tag(policy: TerminalLiteralFoldPolicy) -> u8 {
     match policy {
         TerminalLiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1 => 1,
+        TerminalLiteralFoldPolicy::SelectedIncomingU12ExactSubtractImmediateV1 => 2,
+        TerminalLiteralFoldPolicy::SelectedIncomingU12ExactAddAndSubtractImmediateV1 => 3,
     }
 }
 
@@ -1289,13 +1317,13 @@ fn validate_selected_lowering_schedule(
     recovery: &ValidatedTerminalRecoveryClassifications,
     fold: &ValidatedTerminalLiteralFold,
     budget: OptimizationWorkBudget,
+    fold_policy: TerminalLiteralFoldPolicy,
 ) -> Result<(), OptimizedLiteralFoldCustodyError> {
     if choices.receipt().policy()
         != TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1
         || recovery.receipt().policy()
             != TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1
-        || fold.receipt().policy()
-            != TerminalLiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1
+        || fold.receipt().policy() != fold_policy
         || choices.plan().budget != budget
         || recovery.plan().budget != budget
         || fold.plan().budget != budget

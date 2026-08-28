@@ -16,7 +16,7 @@ use crate::{
 };
 
 const LITERAL_FOLD_MAGIC: &[u8; 8] = b"OMGLFD\0\0";
-const LITERAL_FOLD_VERSION: u32 = 1;
+const LITERAL_FOLD_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TerminalLiteralFoldIdentity(pub(crate) [u8; 32]);
@@ -36,6 +36,8 @@ impl TerminalLiteralFoldIdentity {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TerminalLiteralFoldPolicy {
     SelectedIncomingU12ExactAddImmediateV1,
+    SelectedIncomingU12ExactSubtractImmediateV1,
+    SelectedIncomingU12ExactAddAndSubtractImmediateV1,
 }
 
 /// Canonical recipe and output commitment. The transformed selected CFG stays
@@ -96,6 +98,8 @@ impl TerminalLiteralFoldPlan {
         )?;
         let policy = match cursor.byte()? {
             0 => TerminalLiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1,
+            1 => TerminalLiteralFoldPolicy::SelectedIncomingU12ExactSubtractImmediateV1,
+            2 => TerminalLiteralFoldPolicy::SelectedIncomingU12ExactAddAndSubtractImmediateV1,
             tag => return Err(TerminalLiteralFoldDecodeError::UnknownPolicy(tag)),
         };
         let budget = OptimizationWorkBudget::decode(cursor.take(40)?)

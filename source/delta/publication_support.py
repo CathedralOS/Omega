@@ -101,7 +101,8 @@ TARGET_RE = re.compile(
 )
 REGISTER_RE = re.compile(r"(?:[xw](?:[0-9]|[12][0-9]|30)|sp|wzr|xzr)")
 IMMEDIATE_RE = re.compile(r"#(?:0|[1-9][0-9]*|0x[0-9a-f]+)")
-SHIFT_RE = re.compile(r"lsl #(12|16)")
+IMMEDIATE_SHIFT_RE = re.compile(r"lsl #(12|16)")
+INDEX_SCALE_SHIFT_RE = re.compile(r"lsl #3")
 CONDITION_RE = re.compile(r"(?:eq|ne|lt|le|gt|ge|lo|ls|hi|hs|vs|vc)")
 PAGE_RE = re.compile(
     r"(?:_(?:selfdata|iobyte|iobuf|iobuf_used)|Lstr[0-9]+)@PAGE(?:OFF)?"
@@ -153,7 +154,8 @@ def _operand_ok(value: str) -> bool:
     return bool(
         REGISTER_RE.fullmatch(value)
         or IMMEDIATE_RE.fullmatch(value)
-        or SHIFT_RE.fullmatch(value)
+        or IMMEDIATE_SHIFT_RE.fullmatch(value)
+        or INDEX_SCALE_SHIFT_RE.fullmatch(value)
         or CONDITION_RE.fullmatch(value)
         or PAGE_RE.fullmatch(value)
         or MEMORY_RE.fullmatch(value)
@@ -163,6 +165,27 @@ def _operand_ok(value: str) -> bool:
 
 def _register(value: str) -> bool:
     return bool(REGISTER_RE.fullmatch(value))
+
+
+def _register_width(value: str) -> int:
+    if value == "sp" or value == "xzr" or value.startswith("x"):
+        return 64
+    if value == "wzr" or value.startswith("w"):
+        return 32
+    return 0
+
+
+def _same_register_width(values: list[str]) -> bool:
+    widths = [_register_width(value) for value in values]
+    return (
+        bool(widths)
+        and widths[0] != 0
+        and all(width == widths[0] for width in widths)
+    )
+
+
+def _shift_register(value: str) -> bool:
+    return _register(value) and value != "sp"
 
 
 def _immediate(value: str) -> bool:
@@ -213,7 +236,7 @@ def _instruction(line: str) -> tuple[str, list[str]]:
     elif mnemonic in ("movz", "movk"):
         if not _register(operands[0]) or not _immediate(operands[1]):
             fail("assembly immediate move shape")
-        if len(operands) == 3 and not SHIFT_RE.fullmatch(operands[2]):
+        if len(operands) == 3 and operands[2] != "lsl #16":
             fail("assembly immediate shift")
     elif mnemonic == "mov":
         if not _register(operands[0]) or not (_register(operands[1]) or _immediate(operands[1])):
@@ -233,7 +256,7 @@ def _instruction(line: str) -> tuple[str, list[str]]:
     elif mnemonic == "cmp":
         if not _register(operands[0]) or not (_register(operands[1]) or _immediate(operands[1])):
             fail("assembly compare shape")
-        if len(operands) == 3 and not SHIFT_RE.fullmatch(operands[2]):
+        if len(operands) == 3 and operands[2] != "lsl #12":
             fail("assembly compare shift")
     elif mnemonic in ("add", "sub"):
         if not _register(operands[0]) or not _register(operands[1]):
@@ -242,14 +265,46 @@ def _instruction(line: str) -> tuple[str, list[str]]:
             fail("assembly arithmetic operand")
         if PAGE_RE.fullmatch(operands[2]) and not operands[2].endswith("@PAGEOFF"):
             fail("assembly page-offset operand")
-        if len(operands) == 4 and (
-            not _immediate(operands[2]) or not SHIFT_RE.fullmatch(operands[3])
-        ):
-            fail("assembly arithmetic shift")
+        if len(operands) == 3:
+            if not _same_register_width(operands[:2]):
+                fail("assembly arithmetic register width")
+            if _register(operands[2]) and not _same_register_width(operands):
+                fail("assembly arithmetic register width")
+            if PAGE_RE.fullmatch(operands[2]) and _register_width(operands[0]) != 64:
+                fail("assembly page-offset register width")
+        else:
+            immediate_shift = (
+                _immediate(operands[2])
+                and operands[3] == "lsl #12"
+                and _same_register_width(operands[:2])
+            )
+            index_scale_shift = (
+                mnemonic == "add"
+                and _register(operands[2])
+                and operands[3] == "lsl #3"
+                and _same_register_width(operands[:3])
+                and _register_width(operands[0]) == 64
+            )
+            if not (immediate_shift or index_scale_shift):
+                fail("assembly arithmetic shift")
     elif mnemonic in ("adds", "subs", "mul", "sdiv", "smull"):
         if any(not _register(value) for value in operands):
             fail("assembly arithmetic shape")
-    elif mnemonic in ("and", "asr", "eor", "lsl", "orr"):
+    elif mnemonic in ("asr", "lsl"):
+        if not all(_shift_register(value) for value in operands[:2]) or not (
+            _same_register_width(operands[:2])
+        ):
+            fail("assembly shift register width")
+        if _register(operands[2]):
+            if not _shift_register(operands[2]) or not _same_register_width(operands):
+                fail("assembly shift register width")
+        elif mnemonic == "asr" and _immediate(operands[2]):
+            expected = "#31" if _register_width(operands[0]) == 32 else "#63"
+            if operands[2] != expected:
+                fail("assembly immediate shift width")
+        else:
+            fail("assembly shift shape")
+    elif mnemonic in ("and", "eor", "orr"):
         if not _register(operands[0]) or not _register(operands[1]) or not (
             _register(operands[2]) or _immediate(operands[2])
         ):

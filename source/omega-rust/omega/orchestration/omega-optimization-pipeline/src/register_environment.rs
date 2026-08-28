@@ -11,16 +11,17 @@ use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_isa_aarch64::{
     AARCH64_AAPCS64_RETURN, AARCH64_ADD_I64, AARCH64_ADD_I64_IMMEDIATE, AARCH64_COMPARE_I64_ZERO,
     AARCH64_CONDITIONAL_BRANCH, AARCH64_COPY_I64, AARCH64_DARWIN_RETURN, AARCH64_MATERIALIZE_I64,
-    AARCH64_SUBTRACT_I64, Aarch64RegisterConstraintCatalogValidationError,
-    aarch64_fixed_register_view, aarch64_physical_register_model,
-    aarch64_register_constraint_catalog, validate_aarch64_register_constraint_catalog,
+    AARCH64_SUBTRACT_I64, AARCH64_SUBTRACT_I64_IMMEDIATE,
+    Aarch64RegisterConstraintCatalogValidationError, aarch64_fixed_register_view,
+    aarch64_physical_register_model, aarch64_register_constraint_catalog,
+    validate_aarch64_register_constraint_catalog,
 };
 use omega_terminal_isa_x86_64::{
     X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_COMPARE_I64_ZERO, X86_64_CONDITIONAL_BRANCH,
     X86_64_COPY_I64, X86_64_MATERIALIZE_I64, X86_64_MICROSOFT_RETURN, X86_64_SUBTRACT_I64,
-    X86_64_SYSTEM_V_RETURN, X86_64RegisterConstraintCatalogValidationError,
-    validate_x86_64_register_constraint_catalog, x86_64_fixed_register_view,
-    x86_64_physical_register_model, x86_64_register_constraint_catalog,
+    X86_64_SUBTRACT_I64_IMMEDIATE, X86_64_SYSTEM_V_RETURN,
+    X86_64RegisterConstraintCatalogValidationError, validate_x86_64_register_constraint_catalog,
+    x86_64_fixed_register_view, x86_64_physical_register_model, x86_64_register_constraint_catalog,
 };
 use omega_terminal_selected_instructions::TerminalSelectedConstraintKeys;
 
@@ -234,6 +235,7 @@ const fn selected_environment_keys(
         add_i64: keys.add_i64,
         add_i64_immediate: keys.add_i64_immediate,
         subtract_i64: keys.subtract_i64,
+        subtract_i64_immediate: keys.subtract_i64_immediate,
         compare_i64_zero: keys.compare_i64_zero,
         conditional_branch: keys.conditional_branch,
         return_i64: keys.return_i64,
@@ -248,6 +250,7 @@ fn selected_constraint_keys(target: NativeTarget) -> Option<TerminalSelectedCons
             add_i64: X86_64_ADD_I64,
             add_i64_immediate: X86_64_ADD_I64_IMMEDIATE,
             subtract_i64: X86_64_SUBTRACT_I64,
+            subtract_i64_immediate: X86_64_SUBTRACT_I64_IMMEDIATE,
             compare_i64_zero: X86_64_COMPARE_I64_ZERO,
             conditional_branch: X86_64_CONDITIONAL_BRANCH,
             return_i64: X86_64_SYSTEM_V_RETURN,
@@ -258,6 +261,7 @@ fn selected_constraint_keys(target: NativeTarget) -> Option<TerminalSelectedCons
             add_i64: X86_64_ADD_I64,
             add_i64_immediate: X86_64_ADD_I64_IMMEDIATE,
             subtract_i64: X86_64_SUBTRACT_I64,
+            subtract_i64_immediate: X86_64_SUBTRACT_I64_IMMEDIATE,
             compare_i64_zero: X86_64_COMPARE_I64_ZERO,
             conditional_branch: X86_64_CONDITIONAL_BRANCH,
             return_i64: X86_64_MICROSOFT_RETURN,
@@ -268,6 +272,7 @@ fn selected_constraint_keys(target: NativeTarget) -> Option<TerminalSelectedCons
             add_i64: AARCH64_ADD_I64,
             add_i64_immediate: AARCH64_ADD_I64_IMMEDIATE,
             subtract_i64: AARCH64_SUBTRACT_I64,
+            subtract_i64_immediate: AARCH64_SUBTRACT_I64_IMMEDIATE,
             compare_i64_zero: AARCH64_COMPARE_I64_ZERO,
             conditional_branch: AARCH64_CONDITIONAL_BRANCH,
             return_i64: AARCH64_AAPCS64_RETURN,
@@ -278,6 +283,7 @@ fn selected_constraint_keys(target: NativeTarget) -> Option<TerminalSelectedCons
             add_i64: AARCH64_ADD_I64,
             add_i64_immediate: AARCH64_ADD_I64_IMMEDIATE,
             subtract_i64: AARCH64_SUBTRACT_I64,
+            subtract_i64_immediate: AARCH64_SUBTRACT_I64_IMMEDIATE,
             compare_i64_zero: AARCH64_COMPARE_I64_ZERO,
             conditional_branch: AARCH64_CONDITIONAL_BRANCH,
             return_i64: AARCH64_DARWIN_RETURN,

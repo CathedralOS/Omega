@@ -620,8 +620,10 @@ non-observing.
 
 The current compiler preserves the observing single-attempt operation as a
 distinct checked ordering and permission identity, but does not yet admit its
-source call. Its closed three-arm result carrier is still an implementation
-prerequisite; checked interpretation and native lowering reject the operation
+source call. Its closed three-arm result carrier is still a prerequisite. The
+cases and payloads above are settled, but the public nominal result-type
+identities and case-qualification paths await an owner language-design
+decision; checked interpretation and native lowering reject the operation
 rather than erase `Uncommitted` by using the decisive carrier.
 
 `Receive` uses the strong portable baseline. A target may select a weaker
@@ -656,6 +658,13 @@ ordering event that terminal Psi and target lowering must preserve. Acquisition
 of device-written data consumes matching completion evidence. It establishes a
 Stable CPU view only when the protocol also returns custody; otherwise the
 storage remains External.
+
+The current compiler foundation retains these five provider-operation demands
+as distinct, exact structural rows and can close an emitted row set against
+one-to-one provider assertions. That staging carrier neither proves provider
+admission nor authorizes anything: source emission, ordering-scope validation,
+Terminal events, publication/acquisition evidence, completion, custody
+transitions, and target lowering are not implemented by it.
 
 Atomics underpin the waitable types above (`Mutex`, `Barrier`) and shared-ring
 IPC, so they sit below a concurrent task-runtime provider in the implementation

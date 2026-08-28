@@ -56,6 +56,20 @@ pub struct TerminalPostAllocationMachinePlan {
     pub functions: Vec<TerminalPostAllocationMachineFunction>,
 }
 
+impl TerminalPostAllocationMachinePlan {
+    /// Encodes this unchecked plan in the strict, self-authenticating artifact
+    /// envelope. This does not grant validation or emission authority.
+    pub fn encode(&self) -> Vec<u8> {
+        crate::alternative_codec::encode_terminal_post_allocation_machine_plan(self)
+    }
+
+    /// Decodes and content-authenticates an unchecked plan. Call
+    /// [`crate::validate_terminal_post_allocation_machine_plan`] before use.
+    pub fn decode(encoded: &[u8]) -> Result<Self, crate::TerminalPostAllocationMachineDecodeError> {
+        crate::alternative_codec::decode_terminal_post_allocation_machine_plan(encoded)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalPostAllocationMachineFunction {
     pub machine: MachineId,

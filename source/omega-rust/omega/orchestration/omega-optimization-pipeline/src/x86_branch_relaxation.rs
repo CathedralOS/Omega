@@ -1175,6 +1175,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: TerminalMachineAlternati
         TerminalMachineAlternativeFamily::ExactSubtractI64 => 5,
         TerminalMachineAlternativeFamily::ConditionalBranchNonZero => 6,
         TerminalMachineAlternativeFamily::ReturnI64 => 7,
+        TerminalMachineAlternativeFamily::ExactSubtractI64Immediate => 8,
     }]);
     hasher.update(alternative.variant.to_le_bytes());
 }

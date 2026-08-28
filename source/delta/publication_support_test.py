@@ -30,6 +30,15 @@ _main:
     mov x29, sp
     adrp x9, _selfdata@PAGE
     add x9, x9, _selfdata@PAGEOFF
+    mov x0, #1
+    add x9, x9, x0, lsl #3
+    add x9, x9, #1, lsl #12
+    asr w2, w0, #31
+    asr x3, x0, #63
+    asr w0, w0, w1
+    lsl w0, w0, w1
+    movk w0, #1, lsl #16
+    cmp w10, #1, lsl #12
     str x9, [x29, #16]
     movz w0, #70
     str x0, [sp, #-16]!
@@ -158,6 +167,31 @@ class AssemblyTests(unittest.TestCase):
             "code-after-constants": POSITIVE_ASSEMBLY + b"    ret\n",
         }
         for name, candidate in mutations.items():
+            with self.subTest(name=name), self.assertRaises(support.PublicationSupportError):
+                support.validate_darwin_arm64_assembly(candidate)
+
+    def test_shift_shape_teeth(self) -> None:
+        mutations = {
+            "index-scale-neighbor": (b"add x9, x9, x0, lsl #3", b"add x9, x9, x0, lsl #2"),
+            "index-scale-immediate": (b"add x9, x9, x0, lsl #3", b"add x9, x9, #1, lsl #3"),
+            "index-scale-width": (b"add x9, x9, x0, lsl #3", b"add x9, x9, w0, lsl #3"),
+            "index-scale-32-bit": (b"add x9, x9, x0, lsl #3", b"add w9, w9, w0, lsl #3"),
+            "index-scale-on-sub": (b"add x9, x9, x0, lsl #3", b"sub x9, x9, x0, lsl #3"),
+            "immediate-add-shift": (b"add x9, x9, #1, lsl #12", b"add x9, x9, #1, lsl #3"),
+            "immediate-add-width": (b"add x9, x9, #1, lsl #12", b"add x9, w9, #1, lsl #12"),
+            "plain-add-width": (b"add x1, x1, x20", b"add x1, x1, w20"),
+            "asr-w-bound": (b"asr w2, w0, #31", b"asr w2, w0, #32"),
+            "asr-x-bound": (b"asr x3, x0, #63", b"asr x3, x0, #64"),
+            "asr-mixed-width": (b"asr w0, w0, w1", b"asr w0, x0, w1"),
+            "asr-stack-register": (b"asr x3, x0, #63", b"asr sp, x0, #63"),
+            "lsl-immediate": (b"lsl w0, w0, w1", b"lsl w0, w0, #31"),
+            "mov-wide-shift": (b"movk w0, #1, lsl #16", b"movk w0, #1, lsl #12"),
+            "compare-shift": (b"cmp w10, #1, lsl #12", b"cmp w10, #1, lsl #16"),
+            "shift-extra-operand": (b"lsl w0, w0, w1", b"lsl w0, w0, w1, lsl #3"),
+        }
+        for name, (old, new) in mutations.items():
+            candidate = POSITIVE_ASSEMBLY.replace(old, new)
+            self.assertNotEqual(candidate, POSITIVE_ASSEMBLY, name)
             with self.subTest(name=name), self.assertRaises(support.PublicationSupportError):
                 support.validate_darwin_arm64_assembly(candidate)
 

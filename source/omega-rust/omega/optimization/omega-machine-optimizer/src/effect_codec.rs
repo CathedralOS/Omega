@@ -27,7 +27,7 @@ use crate::{
 };
 
 const MAGIC: &[u8; 8] = b"OMGMFX\0\0";
-const VERSION: u32 = 3;
+const VERSION: u32 = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalPreAllocationMachineEffectDecodeError {
@@ -191,6 +191,11 @@ fn decode_kind(
         },
         6 => TerminalSelectedInstructionKind::ConditionalBranchNonZero,
         7 => TerminalSelectedInstructionKind::ReturnI64,
+        8 => TerminalSelectedInstructionKind::ExactSubtractI64Immediate {
+            immediate: decode_integer(cursor)?,
+            obligation: decode_obligation(cursor)?,
+            accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
+        },
         _ => return Err(TerminalPreAllocationMachineEffectDecodeError::InvalidField),
     })
 }
@@ -242,7 +247,7 @@ fn decode_provenance(
     })
 }
 
-fn decode_alternative(
+pub(crate) fn decode_alternative(
     cursor: &mut Cursor<'_>,
 ) -> Result<TerminalMachineAlternative, TerminalPreAllocationMachineEffectDecodeError> {
     let family = match cursor.byte()? {
@@ -254,6 +259,7 @@ fn decode_alternative(
         5 => TerminalMachineAlternativeFamily::ExactSubtractI64,
         6 => TerminalMachineAlternativeFamily::ConditionalBranchNonZero,
         7 => TerminalMachineAlternativeFamily::ReturnI64,
+        8 => TerminalMachineAlternativeFamily::ExactSubtractI64Immediate,
         _ => return Err(TerminalPreAllocationMachineEffectDecodeError::InvalidField),
     };
     let key = TerminalMachineAlternativeKey {
@@ -379,7 +385,7 @@ fn decode_u16s(
     Ok(values)
 }
 
-fn decode_target(
+pub(crate) fn decode_target(
     cursor: &mut Cursor<'_>,
 ) -> Result<NativeTarget, TerminalPreAllocationMachineEffectDecodeError> {
     let architecture = match cursor.byte()? {
@@ -422,7 +428,7 @@ fn decode_constraint_key(
     })
 }
 
-fn decode_units(
+pub(crate) fn decode_units(
     cursor: &mut Cursor<'_>,
 ) -> Result<Vec<RegisterUnitId>, TerminalPreAllocationMachineEffectDecodeError> {
     let count = cursor.length()?;
@@ -455,17 +461,17 @@ fn decode_obligation(
         .ok_or(TerminalPreAllocationMachineEffectDecodeError::InvalidField)
 }
 
-struct Cursor<'a> {
+pub(crate) struct Cursor<'a> {
     bytes: &'a [u8],
     position: usize,
 }
 
 impl<'a> Cursor<'a> {
-    const fn new(bytes: &'a [u8]) -> Self {
+    pub(crate) const fn new(bytes: &'a [u8]) -> Self {
         Self { bytes, position: 0 }
     }
 
-    fn take(
+    pub(crate) fn take(
         &mut self,
         count: usize,
     ) -> Result<&'a [u8], TerminalPreAllocationMachineEffectDecodeError> {
@@ -481,7 +487,7 @@ impl<'a> Cursor<'a> {
         Ok(bytes)
     }
 
-    fn array<const N: usize>(
+    pub(crate) fn array<const N: usize>(
         &mut self,
     ) -> Result<[u8; N], TerminalPreAllocationMachineEffectDecodeError> {
         self.take(N)?
@@ -489,28 +495,30 @@ impl<'a> Cursor<'a> {
             .map_err(|_| TerminalPreAllocationMachineEffectDecodeError::Truncated)
     }
 
-    fn byte(&mut self) -> Result<u8, TerminalPreAllocationMachineEffectDecodeError> {
+    pub(crate) fn byte(&mut self) -> Result<u8, TerminalPreAllocationMachineEffectDecodeError> {
         Ok(self.take(1)?[0])
     }
 
-    fn u16(&mut self) -> Result<u16, TerminalPreAllocationMachineEffectDecodeError> {
+    pub(crate) fn u16(&mut self) -> Result<u16, TerminalPreAllocationMachineEffectDecodeError> {
         Ok(u16::from_le_bytes(self.array()?))
     }
 
-    fn u32(&mut self) -> Result<u32, TerminalPreAllocationMachineEffectDecodeError> {
+    pub(crate) fn u32(&mut self) -> Result<u32, TerminalPreAllocationMachineEffectDecodeError> {
         Ok(u32::from_le_bytes(self.array()?))
     }
 
-    fn u64(&mut self) -> Result<u64, TerminalPreAllocationMachineEffectDecodeError> {
+    pub(crate) fn u64(&mut self) -> Result<u64, TerminalPreAllocationMachineEffectDecodeError> {
         Ok(u64::from_le_bytes(self.array()?))
     }
 
-    fn length(&mut self) -> Result<usize, TerminalPreAllocationMachineEffectDecodeError> {
+    pub(crate) fn length(
+        &mut self,
+    ) -> Result<usize, TerminalPreAllocationMachineEffectDecodeError> {
         usize::try_from(self.u64()?)
             .map_err(|_| TerminalPreAllocationMachineEffectDecodeError::InvalidField)
     }
 
-    fn remaining(&self) -> usize {
+    pub(crate) fn remaining(&self) -> usize {
         self.bytes.len().saturating_sub(self.position)
     }
 }

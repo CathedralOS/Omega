@@ -4577,22 +4577,63 @@ fn reclaimable_opaque_callback_requires_unregister_and_root_quiescence() {
         true,
         true,
     );
+    let provider = root_id(84, OpaqueCallbackProviderId::from_normalized_identity);
+    let capacity_identity = root_id(
+        89,
+        OpaqueCallbackRegistrationCapacityOccurrenceId::from_normalized_identity,
+    );
+    let capacity =
+        OpaqueCallbackRegistrationCapacityOccurrence::from_provider(capacity_identity, provider);
     let registration_receipt = OpaqueCallbackRegistrationReceipt::from_provider(
         root_id(
             82,
             OpaqueCallbackRegistrationReceiptId::from_normalized_identity,
         ),
         root_id(83, OpaqueCallbackRegistrationId::from_normalized_identity),
-        root_id(84, OpaqueCallbackProviderId::from_normalized_identity),
+        provider,
         root_id(
             85,
             OpaqueCallbackUnregistrationContractId::from_normalized_identity,
         ),
         &installed,
+        &capacity,
         true,
     );
-    let registration = admit_reclaimable_opaque_callback(installed, registration_receipt)
+    let substituted_capacity_identity = root_id(
+        90,
+        OpaqueCallbackRegistrationCapacityOccurrenceId::from_normalized_identity,
+    );
+    let substituted_capacity = OpaqueCallbackRegistrationCapacityOccurrence::from_provider(
+        substituted_capacity_identity,
+        provider,
+    );
+    let error =
+        admit_reclaimable_opaque_callback(installed, registration_receipt, substituted_capacity)
+            .expect_err("a distinct live-registration capacity occurrence must reject");
+    assert!(error.diagnostic().0.contains("capacity occurrence"));
+    let (installed, registration_receipt, substituted_capacity) = (*error).into_parts();
+    assert_eq!(
+        substituted_capacity.identity(),
+        substituted_capacity_identity
+    );
+    assert_eq!(substituted_capacity.provider(), provider);
+
+    let substituted_provider = root_id(91, OpaqueCallbackProviderId::from_normalized_identity);
+    let provider_drift_capacity = OpaqueCallbackRegistrationCapacityOccurrence::from_provider(
+        capacity_identity,
+        substituted_provider,
+    );
+    let error =
+        admit_reclaimable_opaque_callback(installed, registration_receipt, provider_drift_capacity)
+            .expect_err("live-registration capacity from another provider must reject");
+    assert!(error.diagnostic().0.contains("capacity occurrence"));
+    let (installed, registration_receipt, provider_drift_capacity) = (*error).into_parts();
+    assert_eq!(provider_drift_capacity.identity(), capacity_identity);
+    assert_eq!(provider_drift_capacity.provider(), substituted_provider);
+
+    let registration = admit_reclaimable_opaque_callback(installed, registration_receipt, capacity)
         .expect("accepted unregister contract");
+    assert_eq!(registration.capacity().identity(), capacity_identity);
 
     let provider_incomplete = OpaqueCallbackUnregistrationReceipt::from_provider(
         root_id(
@@ -4607,6 +4648,7 @@ fn reclaimable_opaque_callback_requires_unregister_and_root_quiescence() {
         .expect_err("provider did not unregister the callback");
     assert!(error.diagnostic().0.contains("does not remove"));
     let (registration, _, not_quiesced) = (*error).into_parts();
+    assert_eq!(registration.capacity().identity(), capacity_identity);
     assert!(ledger.record(root_identity).is_some());
 
     let provider_complete = OpaqueCallbackUnregistrationReceipt::from_provider(
@@ -4627,6 +4669,7 @@ fn reclaimable_opaque_callback_requires_unregister_and_root_quiescence() {
             .contains("quiescence is not established")
     );
     let (registration, _, _) = (*error).into_parts();
+    assert_eq!(registration.capacity().identity(), capacity_identity);
     assert!(ledger.record(root_identity).is_some());
 
     let provider_complete = OpaqueCallbackUnregistrationReceipt::from_provider(
@@ -4645,10 +4688,13 @@ fn reclaimable_opaque_callback_requires_unregister_and_root_quiescence() {
         root_id(83, OpaqueCallbackRegistrationId::from_normalized_identity)
     );
     assert!(ledger.record(root_identity).is_none());
+    let (slot, capacity) = completion.into_parts();
     assert_eq!(
-        completion.into_slot_authority().slot(),
+        slot.slot(),
         root_id(20, RootSlotId::from_normalized_identity)
     );
+    assert_eq!(capacity.identity(), capacity_identity);
+    assert_eq!(capacity.provider(), provider);
 }
 
 #[test]

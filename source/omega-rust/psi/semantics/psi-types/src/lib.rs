@@ -246,9 +246,18 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
                             service_reach_is_installation_bound: signature
                                 .service_reach_is_installation_bound,
                             service_reaches: signature.service_reaches,
+                            service_reach_keyword_source_spans: signature
+                                .service_reach_keyword_source_spans
+                                .clone(),
                             invokes: signature.invokes,
                             suspends: signature.suspends,
+                            suspends_keyword_source_spans: signature
+                                .suspends_keyword_source_spans
+                                .clone(),
                             blocks: signature.blocks,
+                            blocks_keyword_source_spans: signature
+                                .blocks_keyword_source_spans
+                                .clone(),
                             contracts: signature.contracts,
                             default_body: signature.default_body,
                             terminates_guarantee: signature.terminates_guarantee,
@@ -740,9 +749,12 @@ mod tests {
             ranking_range: psi_syntax_trees::expression::ExpressionHandle::invalid(),
             service_reach_is_installation_bound: false,
             service_reaches: HandleSpan::empty(),
+            service_reach_keyword_source_spans: Vec::new(),
             invokes: HandleSpan::empty(),
             suspends: false,
+            suspends_keyword_source_spans: Vec::new(),
             blocks: false,
+            blocks_keyword_source_spans: Vec::new(),
             contracts: HandleSpan::empty(),
             states: HandleSpan::from_parts(state, 1),
         }));

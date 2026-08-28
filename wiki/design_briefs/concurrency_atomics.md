@@ -268,9 +268,11 @@ the exact success/failure orderings and permission axis preserved through
 access-plan authorization. Source admission for the single-attempt form is not
 implemented yet: the checked/source trees do not have its three-arm closed
 result carrier, so mapping it to the decisive prior-value carrier would lose
-`Uncommitted`. Until that engineering prerequisite exists, both the checked
-interpreter and the legacy native state-graph boundary reject any forged
-single-attempt operation before execution or lowering.
+`Uncommitted`. The case shapes are settled, but the public nominal result-type
+identities and case-qualification paths remain an owner language-design
+question. Until that identity is settled and the carrier is implemented, both
+the checked interpreter and the legacy native state-graph boundary reject any
+forged single-attempt operation before execution or lowering.
 It does not yet constitute the formal memory model: the language relations,
 their global-order axioms, and proofs that each target mapping refines them
 remain required.
@@ -360,6 +362,18 @@ range. When completion also returns custody, the resulting CPU view may be
 Stable. If the device may continue writing, acquisition only orders subsequent
 observations and the placement remains External.
 
+The current non-authorizing foundation represents the five sealed operation
+families as distinct provider-coverage demands. Each demand retains an opaque
+exact-subrange context over the complete active mapping structure, an opaque
+context over the complete admitted schema/device correspondence, and a nominal
+ordering-scope identity. Exact structural closure rejects missing, extra,
+duplicate, and structurally drifted provider assertions while preserving every
+input for retry. This carrier retains only closed structural coverage; it does
+not prove provider admission or create an ordering event,
+publication/acquisition evidence, completion, custody, or lowering authority.
+Source emission, provider-selection admission binding, and scope/event
+realization remain required.
+
 Still required:
 
 - the remaining fetch-and-modify surface;
@@ -370,8 +384,9 @@ Still required:
 - proof-scoped AArch64 weaker-acquire selection after target measurements
   justify specialization machinery;
 - cross-activation ownership/borrow/access enforcement independent of `[copy]`;
-- device/DMA provider operations, scoped ordering events, completion-bound
-  acquisition, and publication invalidation through ordinary write frames;
+- source-emitted device/DMA requirements, admitted provider-selection binding,
+  scoped ordering events, completion-bound acquisition, and publication
+  invalidation through ordinary write frames;
 - and the deferred compiler-issued composition model when a concrete protocol
   or deployment profile requires whole-system proof.
 

@@ -1572,9 +1572,12 @@ Owners:
   checked expression arena and refuse single-attempt lowering: neither has the
   three-arm runtime result carrier or a target operation identity. Only the
   existing observing-decisive source call is currently derivable. A concrete
-  source-visible closed-result carrier and its parser/checker desugaring are
-  engineering prerequisites for `compare_exchange_once`; reusing the decisive
-  prior-value carrier would erase `Uncommitted`. Source calls for the other
+  source-visible closed-result carrier and its parser/checker desugaring remain
+  prerequisites for `compare_exchange_once`; reusing the decisive prior-value
+  carrier would erase `Uncommitted`. The cases and payloads are settled, but
+  the public nominal result-type identities and therefore their case paths are
+  design-blocked under “Nominal result carriers for observing
+  compare-exchange” in `OWNER_QUESTIONS.md`. Source calls for the other
   families, runtime-result custody, an atomic attempt or retry, the non-
   observing comparison key/selected-encoding law, Terminal rows, provider
   selection or installation, backend target operation identity, and executable
@@ -7751,8 +7754,14 @@ Owners:
   catalog is now joined through one sealed installation manifest entry to the
   exact installed bytes, entry offset, root entry, and requirement, and that
   complete attribution survives every pending/live/terminal result. Invoking
-  the registrar, creating the source-level linear `Registration`, and binding
-  live-registration capacity remain engineering rungs.
+  the registrar and creating the source-level linear `Registration` remain
+  engineering rungs. The deployment admission now also consumes one exact
+  non-clonable provider-bound live-registration capacity occurrence only with
+  the matching successful registrar receipt. Registration rejection returns
+  the occurrence unchanged, the live callback retains it across every
+  unsuccessful unregister or nonquiescent removal, and successful unregister
+  plus root quiescence returns that exact occurrence beside the reclaimed root
+  slot. This capacity is neither a lifetime budget nor a static thunk count.
 - **FOREIGN-RETAINED-ARGUMENT-BACKING — generalize outside callbacks.** Keep
   argument backing and retention off callback-materialization rows. Specify the
   ordinary outbound-plan dispositions for call-scoped storage, public
@@ -9611,7 +9620,23 @@ checked-result arithmetic decision listed below.
   barriers, and installed-root same-context evidence do not wait for it.
 - Add sealed provider requirements for DMA publication/acquisition, cache
   maintenance, MMIO notification, and posted-write completion. Every emitted
-  requirement must be discharged or reject.
+  requirement must be discharged or reject. The first non-authorizing
+  foundation carrier now keeps all five operation families distinct and binds
+  each demand to one opaque exact mapped-subrange context, one complete
+  admitted schema/device-correspondence context, and one nominal ordering-scope
+  identity. The range context retains the complete private mapping/grant,
+  source/destination authority-account facts, lineage roots, rights, origin,
+  and mapping-era structure rather than trusting compact mapping IDs or public
+  geometry. The
+  correspondence context likewise retains provider/source/profile, full
+  placement structure, stable device, and optional revision evidence. Batch
+  structural closure requires exact one-to-one provider-asserted plan rows;
+  missing, extra, duplicate, or structurally drifted rows reject before
+  consumption and return every input in original order for corrected retry.
+  This establishes structural closure only: source/checker emission,
+  provider-selection admission binding, semantic validation of the opaque
+  ordering-scope identity, Terminal ordering events, execution, and lowering
+  remain.
 - Bind publication evidence to exact range/write state so intersecting writes
   invalidate it. Acquisition consumes request- and instance-bound completion
   evidence. Terminal Psi retains the actual ordering event; erased proof values

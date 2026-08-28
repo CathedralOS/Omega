@@ -342,20 +342,25 @@ This classification grants no authority to choose a strategy, move or
 duplicate the original semantic instruction, add a native reconstruction,
 change logical-fuel placement, allocate private storage, or emit code.
 
-The first transformation consuming that evidence is the separately named
-`SelectedIncomingU12ExactAddImmediateV1` policy. It is intentionally not a
-generic literal sink or rematerializer. In the production pressure case the
-right literal is already immediately before its only use, and moving it cannot
-remove the two simultaneous register uses of a three-register `ExactAddI64`.
-The admitted transform instead folds one incoming unsigned `0..=4095` literal
-into an immediately following exact-add consumer. Both target owners publish a
-two-operand `add_i64_immediate` constraint row: x86-64 may realize the exact,
-flag-transparent form with LEA and AArch64 with ADD-immediate.
+The first transformations consuming that evidence are the separately named
+`SelectedIncomingU12ExactAddImmediateV1` and
+`SelectedIncomingU12ExactSubtractImmediateV1` policies. They are intentionally
+not generic literal sinks or rematerializers. In the production pressure case
+the authored right literal is already immediately before its only use, and
+moving it cannot remove the simultaneous register uses of a three-register
+exact binary operation. Each admitted transform folds one incoming unsigned
+`0..=4095` literal into an immediately following proof-bearing consumer, and
+only in operand 1; subtraction never commutes or reorders authored operands.
+Both target owners publish distinct two-operand add- and subtract-immediate
+constraint rows. x86-64 realizes the flag-transparent forms with LEA, using a
+canonical negative displacement for subtraction; AArch64 uses non-S ADD- and
+SUB-immediate forms so neither alternative changes architectural flags.
 
-The transformed `ExactAddI64Immediate` retains the original exact-add
-obligation and accepted proof-fact identity. Its provenance concatenates the
-literal and add operations and logical-fuel settlements exactly once, while
-retaining the add's source values, edges, and obligations. The literal
+The transformed `ExactAddI64Immediate` or `ExactSubtractI64Immediate` retains
+the original arithmetic obligation and accepted proof-fact identity. Its
+provenance concatenates the literal and consumer operations and logical-fuel
+settlements exactly once, while retaining the consumer's source values, edges,
+and obligations. The literal
 instruction and its VReg disappear; all later instruction and VReg identities
 are deterministically redensified throughout the function. A domain-separated
 recipe identity and strict codec bind every selected/range/legality/pressure/
@@ -367,18 +372,20 @@ and home analysis.
 
 Each invocation applies at most one already selected action per function. It
 does not iterate implicitly and is not installed in ordinary builds. In the
-one-view production fixture, one explicit invocation folds literal `8`, full
-reanalysis exposes the other leaf's literal as the next pressure victim, and a
-second explicit invocation plus another full reanalysis reaches deterministic
-homes on x86-64 and AArch64. This establishes an exact physical-form pressure
-recovery without granting spill, frame, emission, or general rematerialization
-authority.
+one-view production fixtures, two explicit invocations with full reanalysis
+close the mutually exclusive leaf pressure points and reach deterministic
+homes on x86-64 and AArch64. This establishes exact add and subtract physical-
+form pressure recovery without granting spill, frame, emission, or general
+rematerialization authority.
 
-The source-visible `SelectedIncomingU12ExactAddImmediate` family uses a
-separate compiler-owned schedule,
-`SelectedIncomingU12ExactAddImmediateToNoChangeV1`. It repeatedly invokes the
-one-step primitive, with complete reanalysis after every changed selected CFG,
-until one final independently validated attempt applies zero actions. Every
+The source-visible `SelectedIncomingU12ExactAddImmediate` and
+`SelectedIncomingU12ExactSubtractImmediate` families use separate compiler-
+owned schedules, with a third exact schedule for the canonical set containing
+both names. The corresponding add-only, subtract-only, or combined policy
+repeatedly invokes the one-step primitive, with complete reanalysis after every
+changed selected CFG, until one final independently validated attempt applies
+zero actions. The combined policy admits only the union of the two named
+shapes; it is not a new optimization name or hidden suite identity. Every
 changed sweep must remove exactly one virtual register per action; the initial
 virtual-register count is therefore a structural bound. The full build suite,
 its exact selected-lowering projection, fixed constituent policies, upstream
@@ -788,10 +795,15 @@ contributions separately carry source-declared contiguous schedule ordinals;
 their private assembler sorts by those ordinals before constructing the
 ordered registry. Thus contribution arrival order cannot perturb the declared
 schedule, while no opaque identity sort silently invents policy. A direct
-second sweep of the currently supported SCCP, CFG-cleanup, then
-copy-propagation schedule
-must produce an empty delta; composing that delta preserves the first sweep's
-ledger exactly.
+second sweep of the currently supported SCCP, CFG-cleanup, copy-propagation,
+GVN, proof-elision, then dead-scalar schedule must produce an empty delta;
+composing that delta preserves the first sweep's ledger exactly. For each
+current multi-rule family—SCCP, CFG cleanup, GVN, and dead-scalar
+elimination—thirty-two shuffled pre-assembly contribution orders reconstruct
+the same ordered registry identity and contracts, then produce byte-for-byte
+equal final units, commits, work usage, decisions, manifests, and ledgers on a
+real dependent fixture. The test never shuffles an assembled public registry,
+because its order is intentionally semantic and identity-bearing.
 
 The first Rust candidate vocabulary is intentionally closed rather than an
 opaque callback or byte payload. An exact-integer-evaluation candidate records
@@ -1618,7 +1630,7 @@ has an effect, trap, fuel charge, cleanup, or observable state transition.
 
 The first implemented machine layer is deliberately a sidecar over the sealed
 selected CFG, not a second mutable instruction IR. Target-owned catalogs name
-all eight currently admitted selected semantics and bind each to its exact
+all nine currently admitted selected semantics and bind each to its exact
 register-constraint row, explicit effect classifications, control-barrier
 status, ordered target alternatives, and size/latency knowledge. The generic
 structural validator checks roster and applicability closure; x86-64 and
@@ -1688,7 +1700,20 @@ distinction is material: x86's XOR-zero subtraction reads no external source
 operand even though it realizes a semantic subtraction, while a return's ABI
 result remains live in RAX/X0 even though the return opcode does not read that
 operand. Catalog, pre-allocation, and post-allocation identities bind this
-contract; the strict pre-allocation codec is v3 for the same reason.
+contract; the strict pre-allocation codec is v4 after exact-subtract immediate
+selection joined the encoded-realization vocabulary.
+
+The post-allocation sidecar crosses a durable boundary through a distinct
+strict v1 codec. Its framed content binds all joined roots, the named choice
+rule, the complete selected roster, chosen alternatives, physical views and
+access-qualified footprints, and canonical unit actions. The decoder rejects
+unknown closed-vocabulary tags, invalid machine identities, truncation,
+trailing bytes, and stale content identities. It returns only a plain unchecked
+plan: content authentication proves which bytes were stored, not that their
+machine claims are legal. Orchestration therefore independently reconstructs
+decoded plans against selected instructions, effects, allocation facts, homes,
+the register model, and target catalogs on both x86-64 and AArch64. Even a
+tampered plan with a freshly recomputed content identity is rejected by replay.
 
 Orchestration reconstructs this sidecar for ordinary selected homes,
 fixed-view-copy output, an explicit literal-fold sequence, and named selected-
@@ -1881,6 +1906,8 @@ data Optimization {
     case DeadPureScalarElimination;
     case ProofCheckElision;
     case SelectedIncomingU12ExactAddImmediate;
+    case X86RelaxConditionalBranchesToRel8V1;
+    case SelectedIncomingU12ExactSubtractImmediate;
 }
 
 data Optimizations {
@@ -1914,9 +1941,10 @@ Each named transformation also has one closed execution phase. Phase routing
 projects the full requested suite into exact subsets; it does not invent a
 level, preset, or implied companion optimization. Custody records retain both
 the full build request and the subset completed at that stage. For example,
-`SelectedIncomingU12ExactAddImmediate` belongs to selected lowering, so a
-pre-physical Psi receipt may retain it in the requested suite while recording
-that it completed no Psi pass. A later selected-lowering receipt must bind the
+`SelectedIncomingU12ExactAddImmediate` and
+`SelectedIncomingU12ExactSubtractImmediate` belong to selected lowering, so a
+pre-physical Psi receipt may retain them in the requested suite while recording
+that they completed no Psi pass. A later selected-lowering receipt must bind the
 same full request before the suite can be considered complete.
 
 Rules:

@@ -37,8 +37,8 @@ pub use manifest::{
 };
 
 const SELECTION_ENCODING_MAGIC: &[u8; 8] = b"OMGOPT\0\0";
-const SELECTION_ENCODING_VERSION: u32 = 3;
-const SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.optimization-selections.v3\0";
+const SELECTION_ENCODING_VERSION: u32 = 4;
+const SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.optimization-selections.v4\0";
 
 /// Closed execution phase for one explicitly named optimization. Phase
 /// projection routes a complete source-visible suite; it never replaces that
@@ -66,10 +66,11 @@ pub enum Optimization {
     ProofCheckElision = 6,
     SelectedIncomingU12ExactAddImmediate = 7,
     X86RelaxConditionalBranchesToRel8V1 = 8,
+    SelectedIncomingU12ExactSubtractImmediate = 9,
 }
 
 impl Optimization {
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 9] = [
         Self::ControlFlowCleanup,
         Self::SparseConditionalConstantPropagation,
         Self::CopyPropagation,
@@ -78,6 +79,7 @@ impl Optimization {
         Self::ProofCheckElision,
         Self::SelectedIncomingU12ExactAddImmediate,
         Self::X86RelaxConditionalBranchesToRel8V1,
+        Self::SelectedIncomingU12ExactSubtractImmediate,
     ];
 
     pub const fn build_case_name(self) -> &'static str {
@@ -90,6 +92,9 @@ impl Optimization {
             Self::ProofCheckElision => "ProofCheckElision",
             Self::SelectedIncomingU12ExactAddImmediate => "SelectedIncomingU12ExactAddImmediate",
             Self::X86RelaxConditionalBranchesToRel8V1 => "X86RelaxConditionalBranchesToRel8V1",
+            Self::SelectedIncomingU12ExactSubtractImmediate => {
+                "SelectedIncomingU12ExactSubtractImmediate"
+            }
         }
     }
 
@@ -107,6 +112,9 @@ impl Optimization {
             Self::X86RelaxConditionalBranchesToRel8V1 => {
                 "x86_relax_conditional_branches_to_rel8_v1"
             }
+            Self::SelectedIncomingU12ExactSubtractImmediate => {
+                "selected_incoming_u12_exact_subtract_immediate"
+            }
         }
     }
 
@@ -118,7 +126,8 @@ impl Optimization {
             | Self::GlobalValueNumbering
             | Self::DeadPureScalarElimination
             | Self::ProofCheckElision => OptimizationExecutionPhase::Psi,
-            Self::SelectedIncomingU12ExactAddImmediate => {
+            Self::SelectedIncomingU12ExactAddImmediate
+            | Self::SelectedIncomingU12ExactSubtractImmediate => {
                 OptimizationExecutionPhase::SelectedLowering
             }
             Self::X86RelaxConditionalBranchesToRel8V1 => {
@@ -386,10 +395,10 @@ mod tests {
         );
 
         let mut old_version = selections.encode();
-        old_version[8..12].copy_from_slice(&2_u32.to_le_bytes());
+        old_version[8..12].copy_from_slice(&3_u32.to_le_bytes());
         assert_eq!(
             OptimizationSelections::decode(&old_version),
-            Err(SelectionDecodeError::UnsupportedVersion(2))
+            Err(SelectionDecodeError::UnsupportedVersion(3))
         );
     }
 
@@ -408,6 +417,7 @@ mod tests {
         let selections = OptimizationSelections::new([
             Optimization::X86RelaxConditionalBranchesToRel8V1,
             Optimization::SelectedIncomingU12ExactAddImmediate,
+            Optimization::SelectedIncomingU12ExactSubtractImmediate,
             Optimization::CopyPropagation,
             Optimization::SparseConditionalConstantPropagation,
         ])
@@ -426,7 +436,10 @@ mod tests {
             selections
                 .for_phase(OptimizationExecutionPhase::SelectedLowering)
                 .as_slice(),
-            &[Optimization::SelectedIncomingU12ExactAddImmediate]
+            &[
+                Optimization::SelectedIncomingU12ExactAddImmediate,
+                Optimization::SelectedIncomingU12ExactSubtractImmediate,
+            ]
         );
         assert_eq!(
             selections
