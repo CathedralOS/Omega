@@ -9,7 +9,7 @@ pub fn terminal_pressure_rematerialization_identity(
     plan: &TerminalPressureRematerializationPlan,
 ) -> TerminalPressureRematerializationIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-pressure-rematerialization.v1\0");
+    bytes.extend_from_slice(b"omega.terminal-pressure-rematerialization.v2\0");
     bytes.extend_from_slice(&encode_terminal_pressure_rematerialization_content(plan));
     TerminalPressureRematerializationIdentity(Sha256::digest(bytes).into())
 }
@@ -29,6 +29,7 @@ pub(crate) fn encode_terminal_pressure_rematerialization_content(
     bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
     bytes.push(match plan.policy {
         TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeSingleFutureFlexibleUseV1 => 0,
+        TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1 => 1,
     });
     bytes.extend_from_slice(&plan.budget.encode());
     bytes.extend_from_slice(&plan.usage.encode());
@@ -39,7 +40,7 @@ pub(crate) fn encode_terminal_pressure_rematerialization_content(
     );
     for function in &plan.functions {
         bytes.extend_from_slice(&function.machine.get().to_le_bytes());
-        match function.action {
+        match &function.action {
             None => bytes.push(0),
             Some(action) => {
                 bytes.push(1);
@@ -60,9 +61,16 @@ pub(crate) fn encode_terminal_pressure_rematerialization_content(
                         bytes.push(1);
                     }
                 }
-                bytes.extend_from_slice(&action.future_point.0.to_le_bytes());
-                bytes.extend_from_slice(&action.future_instruction.0.to_le_bytes());
-                bytes.extend_from_slice(&action.future_operand.to_le_bytes());
+                bytes.extend_from_slice(
+                    &u64::try_from(action.rewrites.len())
+                        .expect("rewrite count fits u64")
+                        .to_le_bytes(),
+                );
+                for rewrite in &action.rewrites {
+                    bytes.extend_from_slice(&rewrite.point.0.to_le_bytes());
+                    bytes.extend_from_slice(&rewrite.instruction.0.to_le_bytes());
+                    bytes.extend_from_slice(&rewrite.operand.to_le_bytes());
+                }
                 bytes.extend_from_slice(&action.fresh_materialize.0.to_le_bytes());
                 bytes.extend_from_slice(&action.result_virtual_register.0.to_le_bytes());
                 bytes.push(match action.materialize_constraint.family {
@@ -117,8 +125,12 @@ mod tests {
                     block: TerminalSelectedBlockId(0), pressure_point: TerminalLiveRangePoint(3),
                     victim: TerminalVirtualRegisterId(0), current_view: RegisterViewId(1), reclaimed_view: RegisterViewId(2),
                     original_materialize: TerminalSelectedInstructionId(0), source_value: ValueId::new(11).unwrap(),
-                    value: IntegerValue::Unsigned(42), future_point: TerminalLiveRangePoint(9),
-                    future_instruction: TerminalSelectedInstructionId(3), future_operand: 0,
+                    value: IntegerValue::Unsigned(42),
+                    rewrites: vec![TerminalPressureRematerializationRewrite {
+                        point: TerminalLiveRangePoint(9),
+                        instruction: TerminalSelectedInstructionId(3),
+                        operand: 0,
+                    }],
                     fresh_materialize: TerminalSelectedInstructionId(4), result_virtual_register: TerminalVirtualRegisterId(3),
                     materialize_constraint: RegisterConstraintKey { family: RegisterConstraintFamily::Instruction, variant: 7 },
                 }),
@@ -132,7 +144,7 @@ mod tests {
         let baseline = plan();
         let identity = terminal_pressure_rematerialization_identity(&baseline);
         let mut changed = baseline.clone();
-        changed.functions[0].action.as_mut().unwrap().future_operand = 1;
+        changed.functions[0].action.as_mut().unwrap().rewrites[0].operand = 1;
         assert_ne!(
             terminal_pressure_rematerialization_identity(&changed),
             identity
@@ -171,6 +183,46 @@ mod tests {
             Err(TerminalPressureRematerializationDecodeError::UnknownPolicy(
                 9
             ))
+        );
+
+        let mut old_version = baseline.encode();
+        old_version[8..12].copy_from_slice(&1_u32.to_le_bytes());
+        assert_eq!(
+            TerminalPressureRematerializationPlan::decode(&old_version),
+            Err(TerminalPressureRematerializationDecodeError::UnsupportedVersion(1))
+        );
+    }
+
+    #[test]
+    fn codec_round_trips_the_multiple_future_use_policy_and_ordered_rewrites() {
+        let mut multiple = plan();
+        multiple.policy = TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1;
+        multiple.functions[0]
+            .action
+            .as_mut()
+            .unwrap()
+            .rewrites
+            .push(TerminalPressureRematerializationRewrite {
+                point: TerminalLiveRangePoint(11),
+                instruction: TerminalSelectedInstructionId(5),
+                operand: 1,
+            });
+        let encoded = multiple.encode();
+        assert_eq!(
+            TerminalPressureRematerializationPlan::decode(&encoded).unwrap(),
+            multiple
+        );
+
+        let mut reordered = multiple.clone();
+        reordered.functions[0]
+            .action
+            .as_mut()
+            .unwrap()
+            .rewrites
+            .swap(0, 1);
+        assert_ne!(
+            terminal_pressure_rematerialization_identity(&reordered),
+            terminal_pressure_rematerialization_identity(&multiple)
         );
     }
 }

@@ -18,7 +18,7 @@ use crate::{
 };
 
 const MAGIC: &[u8; 8] = b"OMGREM\0\0";
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TerminalPressureRematerializationIdentity(pub(crate) [u8; 32]);
@@ -34,7 +34,11 @@ impl TerminalPressureRematerializationIdentity {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TerminalPressureRematerializationPolicy {
+    /// One reconstructed suffix value serves the sole future flexible Use.
     SelectedActiveResidentImmediateU64BeforeSingleFutureFlexibleUseV1,
+    /// One reconstructed suffix value is inserted before the first of two or
+    /// more canonical future flexible Uses and serves the complete suffix.
+    SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
 }
 
 /// Canonical recipe and output commitment. Decoding never grants validation
@@ -94,6 +98,7 @@ impl TerminalPressureRematerializationPlan {
             .ok_or(TerminalPressureRematerializationDecodeError::InvalidFuelSchedule(raw_fuel))?;
         let policy = match cursor.byte()? {
             0 => TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeSingleFutureFlexibleUseV1,
+            1 => TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
             tag => return Err(TerminalPressureRematerializationDecodeError::UnknownPolicy(tag)),
         };
         let budget = OptimizationWorkBudget::decode(cursor.take(40)?)
@@ -109,31 +114,48 @@ impl TerminalPressureRematerializationPlan {
             )?;
             let action = match cursor.byte()? {
                 0 => None,
-                1 => Some(TerminalPressureRematerializationAction {
-                    block: TerminalSelectedBlockId(u32::from_le_bytes(cursor.array()?)),
-                    pressure_point: TerminalLiveRangePoint(u32::from_le_bytes(cursor.array()?)),
-                    victim: TerminalVirtualRegisterId(u32::from_le_bytes(cursor.array()?)),
-                    current_view: RegisterViewId(u16::from_le_bytes(cursor.array()?)),
-                    reclaimed_view: RegisterViewId(u16::from_le_bytes(cursor.array()?)),
-                    original_materialize: TerminalSelectedInstructionId(u32::from_le_bytes(
-                        cursor.array()?,
-                    )),
-                    source_value: ValueId::new(u64::from_le_bytes(cursor.array()?))
-                        .ok_or(TerminalPressureRematerializationDecodeError::InvalidValueId)?,
-                    value: decode_integer_value(&mut cursor)?,
-                    future_point: TerminalLiveRangePoint(u32::from_le_bytes(cursor.array()?)),
-                    future_instruction: TerminalSelectedInstructionId(u32::from_le_bytes(
-                        cursor.array()?,
-                    )),
-                    future_operand: u16::from_le_bytes(cursor.array()?),
-                    fresh_materialize: TerminalSelectedInstructionId(u32::from_le_bytes(
-                        cursor.array()?,
-                    )),
-                    result_virtual_register: TerminalVirtualRegisterId(u32::from_le_bytes(
-                        cursor.array()?,
-                    )),
-                    materialize_constraint: decode_constraint_key(&mut cursor)?,
-                }),
+                1 => {
+                    let block = TerminalSelectedBlockId(u32::from_le_bytes(cursor.array()?));
+                    let pressure_point =
+                        TerminalLiveRangePoint(u32::from_le_bytes(cursor.array()?));
+                    let victim = TerminalVirtualRegisterId(u32::from_le_bytes(cursor.array()?));
+                    let current_view = RegisterViewId(u16::from_le_bytes(cursor.array()?));
+                    let reclaimed_view = RegisterViewId(u16::from_le_bytes(cursor.array()?));
+                    let original_materialize =
+                        TerminalSelectedInstructionId(u32::from_le_bytes(cursor.array()?));
+                    let source_value = ValueId::new(u64::from_le_bytes(cursor.array()?))
+                        .ok_or(TerminalPressureRematerializationDecodeError::InvalidValueId)?;
+                    let value = decode_integer_value(&mut cursor)?;
+                    let rewrite_count = cursor.length()?;
+                    let mut rewrites = Vec::with_capacity(rewrite_count.min(cursor.remaining()));
+                    for _ in 0..rewrite_count {
+                        rewrites.push(TerminalPressureRematerializationRewrite {
+                            point: TerminalLiveRangePoint(u32::from_le_bytes(cursor.array()?)),
+                            instruction: TerminalSelectedInstructionId(u32::from_le_bytes(
+                                cursor.array()?,
+                            )),
+                            operand: u16::from_le_bytes(cursor.array()?),
+                        });
+                    }
+                    Some(TerminalPressureRematerializationAction {
+                        block,
+                        pressure_point,
+                        victim,
+                        current_view,
+                        reclaimed_view,
+                        original_materialize,
+                        source_value,
+                        value,
+                        rewrites,
+                        fresh_materialize: TerminalSelectedInstructionId(u32::from_le_bytes(
+                            cursor.array()?,
+                        )),
+                        result_virtual_register: TerminalVirtualRegisterId(u32::from_le_bytes(
+                            cursor.array()?,
+                        )),
+                        materialize_constraint: decode_constraint_key(&mut cursor)?,
+                    })
+                }
                 tag => {
                     return Err(TerminalPressureRematerializationDecodeError::UnknownOption(
                         tag,
@@ -176,7 +198,7 @@ pub struct TerminalFunctionPressureRematerialization {
     pub action: Option<TerminalPressureRematerializationAction>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalPressureRematerializationAction {
     pub block: TerminalSelectedBlockId,
     pub pressure_point: TerminalLiveRangePoint,
@@ -186,12 +208,19 @@ pub struct TerminalPressureRematerializationAction {
     pub original_materialize: TerminalSelectedInstructionId,
     pub source_value: ValueId,
     pub value: IntegerValue,
-    pub future_point: TerminalLiveRangePoint,
-    pub future_instruction: TerminalSelectedInstructionId,
-    pub future_operand: u16,
+    /// Canonical exact future flexible Uses rewritten to the one fresh suffix
+    /// value. The first row also determines the insertion instruction.
+    pub rewrites: Vec<TerminalPressureRematerializationRewrite>,
     pub fresh_materialize: TerminalSelectedInstructionId,
     pub result_virtual_register: TerminalVirtualRegisterId,
     pub materialize_constraint: RegisterConstraintKey,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct TerminalPressureRematerializationRewrite {
+    pub point: TerminalLiveRangePoint,
+    pub instruction: TerminalSelectedInstructionId,
+    pub operand: u16,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -211,6 +240,7 @@ pub struct TerminalPressureRematerializationValidationReceipt {
     pub(crate) usage: OptimizationWorkUsage,
     pub(crate) function_count: usize,
     pub(crate) applied_count: usize,
+    pub(crate) rewritten_use_count: usize,
 }
 
 impl TerminalPressureRematerializationValidationReceipt {
@@ -258,6 +288,9 @@ impl TerminalPressureRematerializationValidationReceipt {
     }
     pub const fn applied_count(self) -> usize {
         self.applied_count
+    }
+    pub const fn rewritten_use_count(self) -> usize {
+        self.rewritten_use_count
     }
 }
 
