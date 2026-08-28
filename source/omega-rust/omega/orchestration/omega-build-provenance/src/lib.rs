@@ -1,3 +1,7 @@
+#![forbid(unsafe_code)]
+
+//! Non-authoritative provenance identities for observed build executables.
+
 use sha2::{Digest, Sha256};
 use std::error::Error;
 use std::fmt;

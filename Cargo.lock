@@ -497,6 +497,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-build-provenance"
+version = "0.1.0"
+dependencies = [
+ "sha2",
+]
+
+[[package]]
 name = "omega-calling-conventions"
 version = "0.1.0"
 dependencies = [
@@ -1298,6 +1305,7 @@ dependencies = [
  "command-group",
  "nix",
  "omega-build-declarations",
+ "omega-build-provenance",
  "omega-compiler",
  "omega-package-compilation",
  "omega-package-review",

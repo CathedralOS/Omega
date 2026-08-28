@@ -5,9 +5,9 @@ use crate::{
     ImmutableSourceResolution, PackageKey, ResolvedPackageSourceClosure,
     package_compilation_inputs_for,
 };
+use omega_build_provenance::{CompilerExecutableCommitment, CompilerExecutableCommitmentError};
 use omega_compiler::{
-    BuildObservationSummary, CompilerExecutableCommitment, CompilerExecutableCommitmentError,
-    FilesystemSponsor, FilesystemSponsorError,
+    BuildObservationSummary, FilesystemSponsor, FilesystemSponsorError,
     compile_to_checked_with_packages_in_sponsored_build_dir,
 };
 use omega_package_compilation::{

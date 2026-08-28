@@ -544,6 +544,27 @@ fn package_compilation_inputs_are_not_owned_or_reexported_by_the_compiler() {
 }
 
 #[test]
+fn compiler_executable_review_identity_is_build_provenance_owned() {
+    let root = workspace_root();
+    let compiler = root.join("source/omega-rust/omega/orchestration/omega-compiler");
+    assert!(
+        !compiler
+            .join("src/pipeline/compiler_executable_commitment.rs")
+            .exists(),
+        "review-only compiler executable identity must not return to omega-compiler"
+    );
+    assert!(
+        root.join("source/omega-rust/omega/orchestration/omega-build-provenance/src/lib.rs")
+            .is_file(),
+        "omega-build-provenance must own the compiler executable review identity"
+    );
+
+    let public_api = std::fs::read_to_string(compiler.join("src/public_api.rs"))
+        .expect("read omega-compiler compatibility API");
+    assert!(!public_api.contains("CompilerExecutableCommitment"));
+}
+
+#[test]
 fn build_output_custody_is_not_owned_or_reexported_by_the_compiler() {
     let root = workspace_root();
     let compiler = root.join("source/omega-rust/omega/orchestration/omega-compiler");
