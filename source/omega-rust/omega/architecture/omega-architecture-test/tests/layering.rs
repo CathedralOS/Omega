@@ -1146,8 +1146,9 @@ fn retained_native_product_enters_only_terminal_realization() {
         root.join("source/omega-rust/omega/orchestration/omega-compiler/src/compiler/driver.rs");
     let driver = std::fs::read_to_string(&driver_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", driver_path.display()));
-    let legacy_driver_path = root
-        .join("source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/legacy_driver.rs");
+    let legacy_driver_path = root.join(
+        "source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/compatibility/harness.rs",
+    );
     let legacy_driver = std::fs::read_to_string(&legacy_driver_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", legacy_driver_path.display()));
     let request_path =
@@ -1165,7 +1166,7 @@ fn retained_native_product_enters_only_terminal_realization() {
         "production products must share one checked-Psi frontend"
     );
     assert!(
-        !driver.contains("legacy_driver"),
+        !driver.contains("compatibility"),
         "the production compiler must not select the StateGraph compatibility harness"
     );
     assert!(
@@ -1236,12 +1237,13 @@ fn shared_frontend_stages_stop_at_checked_psi() {
         );
     }
 
-    let legacy_path = root
-        .join("source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/legacy_stages.rs");
+    let legacy_path = root.join(
+        "source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/compatibility/stages.rs",
+    );
     let legacy = std::fs::read_to_string(&legacy_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", legacy_path.display()));
     assert!(legacy.contains("pub(super) fn checked_trees_to_state_graph"));
-    assert!(legacy.contains("deleted with `LegacyDriver`"));
+    assert!(legacy.contains("deleted with `StateGraphHarness`"));
 }
 
 #[test]

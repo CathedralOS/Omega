@@ -1,3 +1,7 @@
+use super::stages::{
+    backend_plan_to_native_image_payload, checked_trees_to_state_graph,
+    control_flow_to_backend_plan, state_graph_to_control_flow,
+};
 use crate::compiler::CompileReport;
 use crate::compiler::{ArtifactEmissionPolicy, CompileOptions};
 use crate::pipeline::PackageCompilationInputs;
@@ -10,10 +14,6 @@ use crate::pipeline::artifacts::{
 use crate::pipeline::boundary_report::BoundaryReportObservation;
 use crate::pipeline::compile_policy::{
     ExecutableTcbBuildPolicy, settle_compiler_executable_tcb_installation,
-};
-use crate::pipeline::legacy_stages::{
-    backend_plan_to_native_image_payload, checked_trees_to_state_graph,
-    control_flow_to_backend_plan, state_graph_to_control_flow,
 };
 use crate::pipeline::output::{LegacyCompilerOutputCustody, write_output};
 use crate::pipeline::stages::{
@@ -30,7 +30,7 @@ use std::sync::Arc;
 /// The crate-root [`crate::Compiler`] is the public coordinator. This job
 /// remains isolated here only until the Psi-to-Terminal route replaces and
 /// deletes `compile_legacy`; new policy or semantic models must not be added.
-pub(crate) struct LegacyDriver {
+pub(crate) struct StateGraphHarness {
     options: CompileOptions,
     installs_output: bool,
     executable_tcb_policy: ExecutableTcbBuildPolicy,
@@ -40,7 +40,7 @@ pub(crate) struct LegacyDriver {
     package_inputs: Option<PackageCompilationInputs>,
 }
 
-impl LegacyDriver {
+impl StateGraphHarness {
     pub(crate) fn with_executable_tcb_policy(
         options: CompileOptions,
         executable_tcb_policy: ExecutableTcbBuildPolicy,
