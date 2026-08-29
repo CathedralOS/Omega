@@ -303,7 +303,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 37;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 38;
 
 /// Normalized build-host observation class for one selected build machine.
 ///

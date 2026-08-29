@@ -236,6 +236,7 @@ impl<'program> Evaluator<'program> {
         }
         let mut expected_files = std::collections::BTreeMap::new();
         let mut expected_permissions = std::collections::BTreeMap::new();
+        let mut expected_times = std::collections::BTreeMap::new();
         for output in outputs {
             let mut expected_path = format!("/root/{}", output.output_root().get()).into_bytes();
             expected_path.push(b'/');
@@ -248,7 +249,10 @@ impl<'program> Evaluator<'program> {
                 return trap("filesystem replay contains duplicate Output paths");
             }
             if let Some(mode) = output.replayed_file_permissions() {
-                expected_permissions.insert(expected_path, mode);
+                expected_permissions.insert(expected_path.clone(), mode);
+            }
+            if let Some(modification_time) = output.replayed_file_modification_time() {
+                expected_times.insert(expected_path, modification_time);
             }
         }
         if self.virtual_files != expected_files
@@ -257,7 +261,7 @@ impl<'program> Evaluator<'program> {
             || !self.virtual_finds.is_empty()
             || self.virtual_perms != expected_permissions
             || !self.virtual_symlinks.is_empty()
-            || !self.virtual_times.is_empty()
+            || self.virtual_times != expected_times
             || !self.virtual_flocks.is_empty()
         {
             return trap("filesystem replay output namespace changed");

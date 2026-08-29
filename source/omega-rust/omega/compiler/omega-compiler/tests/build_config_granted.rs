@@ -141,6 +141,7 @@ data RootProbe {{
     position: i64;
     buffer: [u8; 4096];
     small_buffer: [u8; 1];
+    times: [u8; 32];
 }}
 
 machine RootProbe::build(&mut self, builder: &mut Build)
@@ -353,7 +354,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 37);
+    assert_eq!(checked_observations.schema_version(), 38);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -4107,6 +4108,85 @@ fn output_set_file_permissions_replays_exact_executable_class() {
     assert!(replayed.typed.symbols.source_files().any(|source| {
         source.path.ends_with("permissioned.omg")
             && source.source.as_ref() == "data Permissioned {}\n"
+    }));
+
+    let _ = std::fs::remove_dir_all(&project);
+    let _ = std::fs::remove_dir_all(session);
+}
+
+#[test]
+fn output_set_file_times_replays_exact_timespec_carrier() {
+    let (project, profile) = rooted_build_probe_project(
+        "dated-output-file",
+        r#"    let input: &[u8] in Path = builder.source.resolve("main.omg");
+    self.descriptor = self.filesystem.open(input, 0);
+    self.result = self.filesystem.read(self.descriptor, &mut self.buffer, 23);
+    self.code = self.filesystem.close(self.descriptor);
+    let generated: &[u8] in Path = builder.output.resolve("dated.omg");
+    self.descriptor = self.filesystem.create(generated, 438);
+    self.result = self.filesystem.write(self.descriptor, "data Dated {}\n");
+    self.times[0] = 11;
+    self.times[16] = 29;
+    self.code = self.filesystem.set_file_times(self.descriptor, &mut self.times);
+    self.code = self.filesystem.close(self.descriptor);
+    builder.output.include_source(generated);"#,
+    );
+    let session = rooted_build_session(&project, "dated-output-review");
+    let checked =
+        compile_rooted_probe_with_sponsored_output(&project, profile, "dated-output-review")
+            .expect("successful Output descriptor time change should receipt");
+    let summary = checked.build_observation_summary().unwrap();
+    assert!(summary.operation_replay_verified());
+    assert_eq!(summary.realized(), BuildObservationClass::Receipted);
+    assert_eq!(
+        summary
+            .filesystem_operation_attempts()
+            .iter()
+            .map(|attempt| attempt.operation_tag())
+            .collect::<Vec<_>>(),
+        vec![2, 4, 8, 1, 5, 42, 8]
+    );
+    let time_attempt = &summary.filesystem_operation_attempts()[5];
+    let [resolution] = time_attempt.mutable_byte_operand_resolutions() else {
+        panic!("set_file_times retains one resolution-time carrier")
+    };
+    let [carrier] = time_attempt.mutable_byte_operands() else {
+        panic!("set_file_times retains one provider carrier")
+    };
+    assert_eq!(resolution.operand_ordinal(), 1);
+    assert_eq!(resolution.bytes().len(), 32);
+    assert_eq!(resolution.bytes()[0], 11);
+    assert_eq!(resolution.bytes()[16], 29);
+    assert_eq!(resolution.bytes(), carrier.pre_bytes());
+    assert_eq!(carrier.pre_bytes(), carrier.post_bytes());
+
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let record = capture_verified_build_filesystem_replay_record(summary, limits)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        recover_review_only_build_filesystem_replay_record(record.canonical_bytes(), limits)
+            .unwrap(),
+        record
+    );
+
+    let package = PackageKeyIdentity::from_digest([108; 32]).unwrap();
+    set_canonical_source_tree_permissions(&project, true);
+    let source = PackageSourceBinding::new(package, "dated-output", project.clone())
+        .with_canonical_source_metadata()
+        .unwrap();
+    let inputs = PackageCompilationInputs::new(package, vec![source], Vec::new()).unwrap();
+    std::fs::write(session.join("output/dated.omg"), "data Spoofed {}\n").unwrap();
+    let replayed = compile_to_checked_with_packages_and_replay_record(
+        &project.join("main.omg"),
+        Some(profile.target_name()),
+        inputs,
+        record,
+    )
+    .expect("time replay ignores physical Output drift");
+    set_canonical_source_tree_permissions(&project, false);
+    assert!(replayed.typed.symbols.source_files().any(|source| {
+        source.path.ends_with("dated.omg") && source.source.as_ref() == "data Dated {}\n"
     }));
 
     let _ = std::fs::remove_dir_all(&project);

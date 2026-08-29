@@ -12,7 +12,7 @@ use std::fmt;
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 18;
+const VERSION: u16 = 19;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -313,6 +313,17 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
                 operation_records.push(
                     psi_checked_interpreter::FilesystemOutputFileOperationReplayRecord::SetFilePermissions {
                         mode: *mode,
+                    },
+                );
+                continue;
+            }
+            if operation.operation == 42 {
+                let [(1, times)] = operation.mutable_byte_resolutions.as_slice() else {
+                    unreachable!("validated Output set_file_times has one exact carrier")
+                };
+                operation_records.push(
+                    psi_checked_interpreter::FilesystemOutputFileOperationReplayRecord::SetFileTimes {
+                        times: clone_bytes(times)?,
                     },
                 );
                 continue;
@@ -1299,7 +1310,10 @@ fn output_file_ranges(
         }
         cursor += 1;
         while cursor < shapes.len()
-            && matches!(shapes[cursor].operation, 5 | 7 | 10 | 17 | 41 | 43 | 44)
+            && matches!(
+                shapes[cursor].operation,
+                5 | 7 | 10 | 17 | 41 | 42 | 43 | 44
+            )
         {
             cursor += 1;
         }
@@ -1450,6 +1464,10 @@ fn validate_output_file(
         }
         if operation.operation == 17 {
             validate_output_set_file_permissions_shape(operation, output.identity)?;
+            continue;
+        }
+        if operation.operation == 42 {
+            validate_output_set_file_times_shape(operation, output.identity)?;
             continue;
         }
         if matches!(operation.operation, 43 | 44) {
@@ -1653,6 +1671,48 @@ fn validate_output_set_file_permissions_shape(
     {
         return Err(BuildFilesystemReplayRecordError::new(
             "receipted build output set_file_permissions is internally inconsistent",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_output_set_file_times_shape(
+    operation: &AttemptShape<'_>,
+    identity: u64,
+) -> Result<(), BuildFilesystemReplayRecordError> {
+    let [(resolution_ordinal, resolution)] = operation.mutable_byte_resolutions.as_slice() else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "receipted build output set_file_times has no exact input carrier",
+        ));
+    };
+    let [carrier] = operation.mutable_bytes.as_slice() else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "receipted build output set_file_times has no exact provider carrier",
+        ));
+    };
+    let [input] = operation.inputs.as_slice() else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "receipted build output set_file_times has no unique descriptor input",
+        ));
+    };
+    if operation.provider != 2
+        || operation.result != ShapeResult::Scalar(0)
+        || operation.post_error != 0
+        || *resolution_ordinal != 1
+        || carrier.ordinal != 1
+        || resolution.len() < 32
+        || *resolution != carrier.pre
+        || carrier.pre != carrier.post
+        || *input
+            != (ShapeLogicalInput {
+                ordinal: 0,
+                kind: 0,
+                resolution: Some(identity),
+            })
+        || !only_output_set_file_times_lanes(operation)
+    {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "receipted build output set_file_times is internally inconsistent",
         ));
     }
     Ok(())
@@ -2089,6 +2149,22 @@ fn only_output_set_file_permissions_lanes(attempt: &AttemptShape<'_>) -> bool {
         && attempt.refusal_count == 0
 }
 
+fn only_output_set_file_times_lanes(attempt: &AttemptShape<'_>) -> bool {
+    attempt.scalars.is_empty()
+        && attempt.byte_operands.is_empty()
+        && attempt.path_like_operand_count == 0
+        && attempt.rooted_paths.is_empty()
+        && attempt.returned_path_count == 0
+        && attempt.observed_regions.is_empty()
+        && attempt.metadata.is_empty()
+        && attempt.mutable_i64_resolution_count == 0
+        && attempt.mutable_i64_count == 0
+        && attempt.authorized_paths.is_empty()
+        && attempt.output.is_none()
+        && attempt.retired.is_empty()
+        && attempt.refusal_count == 0
+}
+
 fn only_output_seek_lanes(attempt: &AttemptShape<'_>) -> bool {
     attempt.byte_operands.is_empty()
         && attempt.path_like_operand_count == 0
@@ -2411,6 +2487,47 @@ mod first_rung_validation_tests {
         let mut wrong_ordinal = shapes.clone();
         wrong_ordinal[5].scalars = vec![(0, ShapeScalar::U32(0o755))];
         assert!(validate_first_rung(&wrong_ordinal).is_err());
+
+        let mut wrong_descriptor = shapes;
+        wrong_descriptor[5].inputs[0].resolution = Some(9);
+        assert!(validate_first_rung(&wrong_descriptor).is_err());
+    }
+
+    #[test]
+    fn output_set_file_times_requires_exact_unchanged_carrier_and_lineage() {
+        const TIMES: [u8; 32] = [7; 32];
+        const CHANGED_TIMES: [u8; 32] = [8; 32];
+        const SHORT_TIMES: [u8; 31] = [7; 31];
+
+        let mut shapes = exact_input_output_shapes();
+        let mut times = empty_shape(42, ShapeResult::Scalar(0));
+        times.mutable_byte_resolutions = vec![(1, &TIMES)];
+        times.mutable_bytes = vec![ShapeMutableBytes {
+            ordinal: 1,
+            pre: &TIMES,
+            post: &TIMES,
+        }];
+        times.inputs = shapes[4].inputs.clone();
+        shapes.insert(5, times);
+        assert!(validate_first_rung(&shapes).is_ok());
+
+        let mut failed = shapes.clone();
+        failed[5].result = ShapeResult::Scalar(-1);
+        assert!(validate_first_rung(&failed).is_err());
+
+        let mut changed_post = shapes.clone();
+        changed_post[5].mutable_bytes[0].post = &CHANGED_TIMES;
+        assert!(validate_first_rung(&changed_post).is_err());
+
+        let mut wrong_ordinal = shapes.clone();
+        wrong_ordinal[5].mutable_byte_resolutions[0].0 = 0;
+        assert!(validate_first_rung(&wrong_ordinal).is_err());
+
+        let mut short = shapes.clone();
+        short[5].mutable_byte_resolutions[0].1 = &SHORT_TIMES;
+        short[5].mutable_bytes[0].pre = &SHORT_TIMES;
+        short[5].mutable_bytes[0].post = &SHORT_TIMES;
+        assert!(validate_first_rung(&short).is_err());
 
         let mut wrong_descriptor = shapes;
         wrong_descriptor[5].inputs[0].resolution = Some(9);
