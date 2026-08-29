@@ -167,6 +167,16 @@ descends through `ordinary`, `structural`, target-decoding `row`, and
 on producer computation or encoder helpers, so the small entrance cannot hide
 a producer-as-validator cycle.
 
+The resolved selected-form layout stage now makes the next rung equally
+literal. Its stage entrance owns `compute -> independent validation` and names
+`ordinary`, `structural`, and `validation` directly. Ordinary construction has
+a tiny map into `policy`, `order`, `plan`, `function`, `row`, and `branch`;
+ordinary validation has its own `roster`, `order`, `plan`, and `function`
+subtree. Branches remain separate because this is the only layout concern that
+creates new target bytes. The architecture gate rejects the former flat
+`rules.rs` bucket, requires both rung maps, and prevents validation from
+calling construction or target encoders.
+
 The preceding abstract-to-target stage is governed by the same contract. Its
 crate map points to a settlement-and-installation coordinator, then to one
 per-result function route. Scalar lowering visibly orders setup, special

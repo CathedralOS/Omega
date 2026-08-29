@@ -105,9 +105,16 @@ dispositions are reconstructed from the typed optimization plan while its
 unresolved branch remains explicit deferred control.
 
 Function-relative layout resolves labels, branch extents, and exact byte
-offsets. Layout rules such as x86 rel32-to-rel8 relaxation consume a complete
-baseline layout and return a validated replacement. Baseline and selected byte
-counts remain replayable.
+offsets. Its independent admission rung re-derives layout policy, canonical
+block order, function/block spans, row offsets, structural call/return spans,
+and aggregate identity from admitted pre-layout dispositions. Candidate x86-64
+and AArch64 conditional branches are decoded with target-owned validators;
+x86 displacement is relative to the branch end, while AArch64 displacement is
+relative to the instruction address. Candidate evidence, fused CBNZ register
+reads/effects, and structural unresolved-fixup custody must match that replay.
+Layout rules such as x86 rel32-to-rel8 relaxation consume a complete baseline
+layout and return a validated replacement. Baseline and selected byte counts
+remain replayable.
 
 ## Exit and publication custody
 

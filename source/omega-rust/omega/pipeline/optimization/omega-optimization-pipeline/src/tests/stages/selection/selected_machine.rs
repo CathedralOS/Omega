@@ -1039,6 +1039,49 @@ fn exact_subtract_retains_proof_target_effects_and_reaches_homes() {
             ),
             Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)
         );
+        let mut corrupted_layout = layout.clone();
+        corrupted_layout.functions_mut()[0].blocks[0]
+            .instructions
+            .last_mut()
+            .unwrap()
+            .branch
+            .as_mut()
+            .unwrap()
+            .byte_displacement += 1;
+        assert_eq!(
+            validate_optimized_resolved_selected_form_layout(
+                selected_stage.selected(),
+                &post,
+                selected_stage.register_environment().physical(),
+                &encodings,
+                &corrupted_layout,
+            ),
+            Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)
+        );
+        let mut corrupted_layout = layout.clone();
+        corrupted_layout.functions_mut()[0].blocks[1].offset += 1;
+        assert_eq!(
+            validate_optimized_resolved_selected_form_layout(
+                selected_stage.selected(),
+                &post,
+                selected_stage.register_environment().physical(),
+                &encodings,
+                &corrupted_layout,
+            ),
+            Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)
+        );
+        let mut corrupted_layout = layout.clone();
+        corrupted_layout.functions_mut()[0].blocks.swap(1, 2);
+        assert_eq!(
+            validate_optimized_resolved_selected_form_layout(
+                selected_stage.selected(),
+                &post,
+                selected_stage.register_environment().physical(),
+                &encodings,
+                &corrupted_layout,
+            ),
+            Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)
+        );
         let subtracts = post
             .machine()
             .plan()

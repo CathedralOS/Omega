@@ -13,7 +13,7 @@ use super::error::OptimizedResolvedSelectedFormLayoutError;
 use super::identity::layout_identity;
 use super::model::{SelectedFunctionLayoutPolicy, StagedOptimizedResolvedSelectedFormLayout};
 use super::optimization::{validate_layout_byte_savings, validate_optimization_custody};
-use super::rules::{block_instructions, layout_function, selected_layout_policy};
+use super::ordinary::{instructions, layout, select};
 use super::structural::layout_structural_unit_function;
 
 pub(super) fn compute<S: ValidatedSelectedAnalysis>(
@@ -64,7 +64,7 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
     let policy = if has_structural {
         SelectedFunctionLayoutPolicy::StructuralUnitCallThenReturnSingleEntryBlockV1
     } else {
-        selected_layout_policy(selected_plan)?
+        select(selected_plan)?
     };
     let mut pre_rows = pre_layout.rows().iter();
     let mut functions = Vec::with_capacity(selected_plan.functions.len());
@@ -72,7 +72,7 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
     {
         let mut function_pre_rows = BTreeMap::new();
         for block in &function.blocks {
-            for instruction in block_instructions(block) {
+            for instruction in instructions(block) {
                 let row = pre_rows.next().ok_or(
                     OptimizedResolvedSelectedFormLayoutError::MissingInstruction(instruction.id),
                 )?;
@@ -98,7 +98,7 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
             .flat_map(|block| &block.instructions)
             .map(|instruction| (instruction.instruction, instruction))
             .collect::<BTreeMap<_, _>>();
-        functions.push(layout_function(
+        functions.push(layout(
             selected_plan.target.architecture,
             function,
             &function_pre_rows,

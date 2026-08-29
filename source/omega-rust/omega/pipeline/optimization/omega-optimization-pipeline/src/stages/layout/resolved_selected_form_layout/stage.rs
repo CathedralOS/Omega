@@ -14,6 +14,31 @@ use super::{
     validate_optimized_resolved_selected_form_layout_with_post_allocation_machine_optimization,
 };
 
+/// Resolve and independently admit the baseline function-relative layout.
+pub fn stage_optimized_resolved_selected_form_layout<S: ValidatedSelectedAnalysis>(
+    selected: &S,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    physical: &ValidatedPhysicalRegisterModel,
+    pre_layout: &StagedOptimizedSelectedFormEncoding,
+) -> Result<StagedOptimizedResolvedSelectedFormLayout, OptimizedResolvedSelectedFormLayoutError> {
+    stage_optimized_resolved_selected_form_layout_with_post_allocation_machine_optimization(
+        selected, machine, physical, pre_layout, None,
+    )
+}
+
+/// Independently admit a candidate baseline function-relative layout.
+pub fn validate_optimized_resolved_selected_form_layout<S: ValidatedSelectedAnalysis>(
+    selected: &S,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    physical: &ValidatedPhysicalRegisterModel,
+    pre_layout: &StagedOptimizedSelectedFormEncoding,
+    artifact: &StagedOptimizedResolvedSelectedFormLayout,
+) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
+    validate_optimized_resolved_selected_form_layout_with_post_allocation_machine_optimization(
+        selected, machine, physical, pre_layout, None, artifact,
+    )
+}
+
 /// Resolve the validated symbolic CBNZ disposition after function-relative
 /// offsets exist. The compare retains a zero-byte roster row and the branch is
 /// independently target-decoded as CBNZ. The result remains separate
