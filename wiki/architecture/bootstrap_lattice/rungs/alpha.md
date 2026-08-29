@@ -6,6 +6,11 @@ Alpha is the native seed and the only rung realized in hand-written machine code
 It establishes **one thing**: given these bytes and this memory, these exact state
 transitions occur. Nothing else — not types, not safety, not meaning.
 
+Alpha tape is also the single canonical executable representation of every
+bootstrap compiler from Beta through `omega`. This does not add higher-language
+meaning to Alpha; it gives every source-to-artifact proof one common target
+machine.
+
 ## Adds
 
 Raw computation, and only computation:
@@ -57,6 +62,11 @@ runs on every platform's seed**. The Alpha assembler self-hosts on both
 is excluded from the comparison — see below). `seed_env.sh` selects the seed and
 stamps tapes per-platform, so one set of build scripts serves every host.
 
+Beta, Gamma, Delta, `omega₀`, and `omega` therefore need no host-specific
+backend for their compiler artifacts. Product Omega separately owns native
+backends for user programs. A general checked Alpha-to-native realization may
+accelerate tapes; special higher-level substitutions are not part of Alpha.
+
 **The two seeds provide a cross-platform conformance check.** They are separate
 realizations (different ISA, OS, and format), so the *same source* through both
 must yield *byte-identical tapes*—verified: the arm64 macOS VM reproduces the
@@ -101,3 +111,7 @@ noting its trust-architecture framing is superseded by the
 - Complete the memory-fault/`OutOfMemory` event surface when bounds checks land.
 - Add more seed platforms when portability, hardware coverage, or concrete fault
   isolation justifies their audit and maintenance cost.
+- Escalate before adding an opcode, changing the tape encoding, or accepting
+  special native acceleration in response to higher-rung performance or
+  verbosity. Those pressures question the common target and are not ordinary
+  local Alpha maintenance.

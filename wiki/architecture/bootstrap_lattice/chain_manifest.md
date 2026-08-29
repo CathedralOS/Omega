@@ -2,149 +2,111 @@
 
 [Lattice overview](bootstrap_lattice.md) | [Active work](../../../TASKS_BOOTSTRAP.md)
 
-This is the short audit ledger for the current direct chain. Content hashes name
-the exact subjects; construction commands and large test inventories remain
-beside their owners. “Gate accepted” is deliberately narrower than “compiler
-correct”: an open row is not laundered by a later fixed point or differential
-agreement.
+This is the audit ledger for the one permitted compiler chain. A row names an
+exact source subject, its compiler artifact, and the checked source-to-Alpha-tape
+edge. Diagnostics may expose bugs, but they are never extra compiler stages.
 
-Artifact and source paths below are the current committed physical names. D10
-selects descriptive destination names and `.delta`/`.proof` source suffixes;
-the chain ledger changes those paths only when the atomic migration lands.
-Path-only moves preserve content identities but invalidate attempts that pinned
-the moved locator or tooling files.
+```text
+audited Alpha VM seed
+  → Alpha-written Beta compiler       → beta_compiler_bytecode.tape
+  → Beta-written Gamma compiler       → gamma_compiler_bytecode.tape
+  → Gamma-written Delta compiler      → delta_compiler_bytecode.tape
+  → Delta-written full Omega D        → omega0_compiler_bytecode.tape
+  → Omega-written full Omega C        → omega_compiler_bytecode.tape
+```
 
-## Required obligations versus diagnostics
+## Retention rule
 
-Every mandatory subject in the direct chain has one semantic or exact-edge
-obligation. Repetition and producer pedigree may diagnose drift, but are not
-additional premises:
+Repository-owned code and evidence must directly do at least one of these:
 
-| Subject or edge | Mandatory obligation | Diagnostic only |
-| --- | --- | --- |
-| selected Alpha seed | realize the written Alpha machine model under the disclosed native/host admissions | rebuilding the native container from its assembly source |
-| Alpha assembler | exact `assembler.alpha` produces the exact tape installed in the selected assembler artifact | another identical construction run |
-| derivation checker | one below-Beta construction equals the committed checker tape; the resulting checker accepts/rejects discriminating controls | a second identical construction or alternate-checker agreement |
-| Beta compiler | one Alpha-rooted cold construction equals the exact `bc` tape; the rooted refinement derivation must prove the selected observation profile | Beta fixed-point replay, fuzzing, viewers, or reports |
-| Gamma programs | exact Beta sources produce the exact evaluator/type-checker tapes used by the Delta meaning route | rebuilding either tape again or running another type checker at the Delta edge |
-| Delta compiler | one exact Delta elaboration/evaluation observation plus checked Delta-to-Gamma refinement; one checked target realization binds the exact native artifact | a second agreeing Gamma execution, process heartbeats, elapsed-time records, or an installation inventory |
-| `delta + C -> omega0` | exact resolved `C`, product inputs, output, and full-Omega refinement/obligation evidence | another identical compile or Rust-compiler agreement |
-| `omega0 + C -> omega` | the unchanged exact `C`, second output, and independently checked self-build edge | further self-build generations or byte reproducibility alone |
+1. specify a rung;
+2. implement its immediate-predecessor compiler;
+3. prove or reconstruct that compiler's exact source-to-tape edge; or
+4. exercise a focused semantic or performance property of that edge.
 
-Receipts are canonical caches of these joins, not authority merely because a
-file exists. The next Delta publication format must accept one canonical
-execution; the historical V1 two-execution format is not eligible to gate the
-replacement attempt until simplified.
+Anything that cannot be adapted into one of those roles is removed. Git history
+is the archive. In particular, a lower rung parsing past its successor, a host
+script supplying compiler semantics, a native compiler artifact above Alpha,
+or a receipt ceremony without a semantic edge has negative maintenance value.
+
+## Required obligations
+
+| Canonical subject | Source language | Required obligation | Current state |
+| --- | --- | --- | --- |
+| Alpha VM seed | native assembly | audited realization of `source/alpha/SEMANTICS.md` | Darwin arm64 and Windows x64 seeds exist; human binary/listing and physical-platform admissions remain irreducible |
+| Beta compiler | Alpha | exact Alpha source refines the exact Beta-compiler tape | Alpha cold compiler exists but must be promoted, named, and admitted as the canonical implementation |
+| Gamma compiler | Beta | exact Beta source refines the exact Gamma-compiler tape | interpreter and type-checker components exist; standalone compiler-to-tape edge is open |
+| Delta compiler | Gamma | exact Gamma source refines the exact Delta-compiler tape | open |
+| `omega₀` | Delta closure `D` | exact `D` refines a full Omega compiler represented as Alpha tape | partial Delta-written compiler work exists under the wrong owner; edge is open |
+| `omega` | Omega closure `C` | exact `C`, compiled by `omega₀`, refines a full Omega compiler represented as Alpha tape | product source is incomplete; edge is open |
+
+No later fixed point repairs an open earlier row. Every row must stand on its
+own exact source, exact tape, source semantics, Alpha semantics, observation
+profile, checked derivation, and disclosed realization admissions.
 
 ## Alpha execution floor
 
-Committed native seeds:
+Current committed native seeds:
 
-| target | artifact | bytes | SHA-256 |
-| --- | --- | ---: | --- |
-| Darwin arm64 | `source/alpha/alpha_arm64_macos` | 314800 | `e3bb2be7c9e40b3c7a0e66c98568194a743d6d6e354d467386e222ef35dde927` |
-| Windows x86-64 | `source/alpha/alpha_x64_windows.exe` | 267264 | `0b8c3bb6d374d5a7a03de1e16be1f7206248acae990c2594a040291c7c866cb2` |
-
-The accepted input is one length-prefixed Alpha tape; the output is the exact
-byte stream, process status, trap, or divergence defined by
-`source/alpha/SEMANTICS.md`. `source/alpha/verify.sh` runs the optional
-native-source provenance diagnostic, conformance, and exact assembler
-construction. The direct lattice uses its `--edge` mode and omits the
-provenance rebuild. Remaining admissions are the human
-binary/listing audit and the physical hardware, firmware, kernel, loader, and
-ISA realization of the written machine model.
-
-## Alpha assembler
-
-Exact source:
-`source/alpha/assembler/assembler.alpha`, 24110 bytes,
-SHA-256 `dba58ab9131adfdf430627d0df58bc1858d273be7dd441949168813325b2cbe8`.
-
-Exact output tape: 5208 bytes,
-SHA-256 `c019a8cce9f99bf6f505961383fba9f2013ff318381ffd44ace0d20444d48d0d`.
-It is embedded in the two committed host containers below and reproduced
-byte-for-byte by `source/alpha/assembler/selfhost.sh`:
-
-- Darwin arm64: `df561b86b3e60aacf030d3d76b1c8b74c666003e51b8757e7168b95a650a7623`;
-- Windows x86-64: `791f041884201ebcc6a27b0f92446eae60baf0c808bd0e3ede80c865931b4387`.
-
-## Beta compiler
-
-Exact input source: `source/beta/compiler/bc.beta`, 32605 bytes,
-SHA-256 `b6ad15ed9cc540a628b83c671bd8c6629770056a641d72d885e41354a8b06c4c`.
-
-Exact output artifact: `source/beta/compiler/artifacts/beta_compiler_bytecode.tape`, 40693
-bytes, SHA-256
-`73a0087da97b0629617ba8ced637a7783b2cc6911be906d1b4df5801e65c2cdd`.
-The Alpha-written cold start reconstructs it and the Beta compiler reproduces
-its fixed point. The independently Alpha-written structural checker has source
-SHA-256 `df9f5696d7d5f6ac457d74d035ffc4db64f4f68a2f8201f7bb5ea0a28b471a2e`
-and emits a 3035-byte tape with SHA-256
-`6d892139f7e4153dbe30cb353e5eb498c7b1d5260a486470616dc684b55cd67f`.
-That checker accepts framing, reachable control-flow, procedure-region, and
-tape-capacity obligations only. The adjacent canonical maximal-observation
-reconstruction emits one 82,660-byte ROOT Alpha tape; its exact digest is
-`f4dde19077478e240c6aed629c1d25169d3210ad0d2ef2e3cc6a47d32a587867`.
-This is strong executable evidence, but it is not yet a derivation in the
-rooted checker calculus. Complete source/artifact admission remains open on the
-active first-order refinement task: construct total Beta and Alpha traces,
-prove non-lockstep synchronization and observation agreement, and discharge
-every unmatched silent step with a well-founded pair-state rank. No
-coinductive kernel judgment is selected.
-
-## Gamma meaning artifacts
-
-The Beta artifact deterministically compiles the following canonical sources:
-
-| role | source bytes / SHA-256 | output tape bytes / SHA-256 |
+| target | artifact | SHA-256 |
 | --- | --- | --- |
-| interpreter | 50762 / `2c9798cde34d16ef2b93eb192c597c7605171cabfc634881621db6072222f07d` | 72810 / `37e5610b9bbc487e5140c5071bbf66549da200e7a1df915216658733be50fd58` |
-| type checker | 22059 / `aed69a455d95bae79dfa889aebe842b93765acd1cf59cf6a4d11c0808dc0e1d3` | 45230 / `d580f6b88f077043f12a76b91e7643d0bf62e9046ce667459ce20867358399c5` |
+| Darwin arm64 | `source/alpha/alpha_arm64_macos` | `e3bb2be7c9e40b3c7a0e66c98568194a743d6d6e354d467386e222ef35dde927` |
+| Windows x86-64 | `source/alpha/alpha_x64_windows.exe` | `0b8c3bb6d374d5a7a03de1e16be1f7206248acae990c2594a040291c7c866cb2` |
 
-Their exact inputs are `source/gamma/interp.beta` and
-`source/gamma/typeck.beta`. Their outputs are reconstructed rather than
-committed. Gamma execution is fuel- and resource-bounded as documented beside
-the interpreter.
+The accepted compiler artifact above this floor is always the length-prefixed
+Alpha tape. A seed plus tape is a disposable host container, not a new compiler
+identity. The Alpha assembler and derivation checker are Alpha-owned services;
+they are not language rungs.
 
-## Derivation checker
+## Migration evidence that may be retained
 
-The current logical checker input is
-`source/alpha/checker/implementations/beta/check.beta`, 68349 bytes,
-SHA-256 `965cb8417582fee099450a905a6c41535cf53b8bcef2c5a22bd0fe1def27fb10`.
-The accepted output is `source/alpha/checker/artifacts/proof_checker_bytecode.tape`, 150937
-bytes, SHA-256
-`34330f0bf94385fdc403fa989ff113d5c579c8cf8318e1c6c3a86bc080ebd37c`.
-The Alpha-written cold Beta compiler constructs it without `beta_compiler_bytecode.tape`, and
-`source/alpha/checker/reconstruct-artifact.sh` constructs it once below Beta,
-compares the committed bytes, and runs discriminating accept/reject controls. A checker
-compiled by `beta_compiler_bytecode.tape`, plus the Gamma and Python checkers, is differential
-evidence only and cannot admit `beta_compiler_bytecode.tape`.
+- `source/beta/compiler/cold-start/bc-alpha.alpha` already implements the
+  strongest candidate for the canonical Alpha-written Beta compiler. Its
+  construction tests and exact-tape machinery are retained only to the extent
+  they can be redirected to that canonical source subject.
+- `source/beta/compiler/bc.beta` and its fixed point may remain as differential
+  Beta-language evidence. It is not the canonical Beta compiler merely because
+  it can reproduce itself.
+- `source/gamma/interp.beta` and `source/gamma/typeck.beta` are reusable Gamma
+  semantic components and oracles. They must feed a Beta-written Gamma compiler
+  or be reduced to focused tests; they do not constitute a compiler edge alone.
+- the current Delta-written compiler work is a candidate part of `D`. It must
+  move to Omega ownership and emit Alpha tape. It is not the Delta compiler.
 
-## Delta publication
+The former Beta-written Delta-to-Gamma bridge and Darwin-native publication
+apparatus are deleted. They crossed an immediate-predecessor boundary and
+created a noncanonical compiler identity; no successor task may recreate them.
 
-The canonical source snapshot is
-`source/delta/compiler/validation/source-closures/canonical-compiler-v1.json`
-with closure SHA-256
-`31324d8342f1e3c2da95553418245e4bd981985558256fcc012eb8e6a804ff32`
-and content-set SHA-256
-`9559bdee641d8dfcb4452d1eb9d9510c0534a031df86737258d370d3e08d3c42`.
-Its canonical LF image is 168560 bytes with SHA-256
-`a0ecad14670247857e300b5539e0058d8f72054f92fabd1645fc4457b0ac53c9`.
-The lower-rung elaboration and publication verifier are present; the two exact
-full Gamma executions and their accepted publication receipt are still open.
-The adjacent artifact-custody verifier now independently replays the literal
-Darwin ARM64 realization command, requires byte identity with its candidate,
-and binds the exact terminal subjects, reconstruction obligations, and scoped
-lower-rung host, realization-host, and target admissions. Semantic refinement
-remains explicitly open.
-No Delta compiler output is admitted by this manifest.
+## Diagnostic-only evidence
 
-## Omega product edges
+Fixed-point reproduction, Rust agreement, multiple VM agreement, fuzzing,
+viewers, timing reports, native-container reproduction, and repeated executions
+may be useful. None can replace or add a premise to the six required obligations
+above. A diagnostic remains only while it has a named owner, bounded cost, and a
+specific failure it can reveal.
 
-The exact transitive compiler closure `C`, `omega₀`, and `omega` do not yet
-exist as closed subjects, so they have no hashes here. The package/security
-accepted-lock projection remains an external authority dependency. The product
-build entry awaits the settled immutable target-activation and complete
-runtime-reach closure work tracked by
-**IMMUTABLE-TARGET-ACTIVATION-AND-REACH-CLOSURE** in `TASKS.md`; ordinary source
-modules not exercising that build surface remain unblocked.
+## Owner escalation
+
+Stop and open an owner ruling before changing the architecture when any of the
+following occurs:
+
+- representative `delta → omega₀` or `omega₀ → omega` work has unacceptable
+  wall time, memory use, or tape size after ordinary profiling and cleanup;
+- Alpha's current instruction set or encoding appears too verbose, creating
+  pressure for a new opcode, wider encoding, or smuggled high-level primitive;
+- proof size or checker time explodes after DAG sharing and compositional lemmas;
+- useful execution seems to require a source-, function-, hash-, or
+  workload-specific native substitution (a jet);
+- a target ABI, object format, linker, runtime, or host compiler begins leaking
+  into Beta, Gamma, Delta, or canonical compiler identity;
+- a compiler cannot consume its language and emit the next runnable tape
+  without an older rung, semantic interpreter, or host translation script;
+- realistic compiler source crosses an unstated capacity, depends on undefined
+  behavior, or cannot fail closed on resource exhaustion;
+- proof completion appears to require a new trusted axiom or kernel rule rather
+  than a better untrusted producer or reusable checked lemma;
+- two conforming Alpha realizations disagree on the same exact tape/input; or
+- retaining a legacy component requires describing a second accepted chain.
+
+These conditions authorize investigation and an owner question, never a local
+workaround that silently changes the chain.

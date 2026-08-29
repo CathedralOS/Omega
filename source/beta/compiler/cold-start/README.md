@@ -1,9 +1,11 @@
 # Alpha-written Beta cold start
 
-This directory contains the authoritative cold start for `bc.beta`: a Beta
-compiler written in Alpha and assembled/executed only through the audited Alpha
-seed and Alpha-written assembler. It accepts the complete pinned `bc.beta`
-surface and replaces the Rust producer in the canonical construction.
+This directory contains the existing Alpha-written Beta compiler candidate. It
+is assembled and executed only through the audited Alpha seed and Alpha-written
+assembler. Today it accepts the complete pinned `bc.beta` surface and feeds a
+self-hosted fixed point. The canonical edge instead promotes and generalizes
+this Alpha implementation so it directly owns the persisted Beta compiler tape;
+the fixed point then becomes diagnostic.
 
 ## Complete Beta surface
 
@@ -55,17 +57,18 @@ preserve `r14`/`r15`, four live argument registers, full epilogues, and
 precedence-correct lowering. Generated `$L…` and `$S…$…` labels use bytes that
 Beta identifiers cannot spell, preventing collisions with source names.
 
-This now accepts the exact pinned `bc.beta` profile and closes its external-
-producer cold-start dependency. [`rebuild-artifact.sh`](rebuild-artifact.sh)
+This accepts the exact pinned `bc.beta` profile and closes its external-producer
+dependency for the historical construction. [`rebuild-artifact.sh`](rebuild-artifact.sh)
 builds `bc.beta` through the Alpha-written compiler and advances to the
 self-hosted fixed point. Its `--check` mode reconstructs
 [`../artifacts/beta_compiler_bytecode.tape`](../artifacts/README.md) byte-for-byte without changing
 the repository; its default mode deliberately installs that reconstruction.
 The focused [`test.sh`](test.sh) exercises the cold compiler's accepted and
 rejected Beta surface, but that regression suite is not a compiler-lattice
-edge. The separate ROOT gate under
-`source/beta/compiler/validation/` now closes lower-rooted source-to-artifact
-refinement for the exact persisted tape and `B_bc1` profile.
+edge. The separate ROOT gate under `source/beta/compiler/validation/`
+reconstructs the exact persisted `bc.beta` tape and `B_bc1` profile. Its general
+machinery must be adapted to the promoted Alpha source; it does not close the
+canonical Beta edge as written.
 
 ## Full-source target profile
 
@@ -83,7 +86,7 @@ Run the focused gate with:
 sh source/beta/compiler/cold-start/test.sh
 ```
 
-Recheck only the canonical construction edge with:
+Recheck the current migration construction with:
 
 ```sh
 sh source/beta/compiler/cold-start/rebuild-artifact.sh --check

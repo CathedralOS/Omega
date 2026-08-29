@@ -27,7 +27,6 @@ expect_role beta-validation "$OMEGA_REPO_ROOT/source/beta/compiler/validation"
 expect_role gamma "$OMEGA_REPO_ROOT/source/gamma"
 expect_role delta "$OMEGA_REPO_ROOT/source/delta"
 expect_role delta-compiler "$OMEGA_REPO_ROOT/source/delta/compiler"
-expect_role delta-validation "$OMEGA_REPO_ROOT/source/delta/compiler/validation"
 expect_role psi "$OMEGA_REPO_ROOT/source/psi"
 expect_role omega "$OMEGA_REPO_ROOT/source/omega"
 expect_role lattice-tools "$OMEGA_REPO_ROOT/tools/lattice"
@@ -36,7 +35,6 @@ for required in \
   "$OMEGA_PATH_ALPHA" "$OMEGA_PATH_ALPHA_ASSEMBLER" \
   "$OMEGA_PATH_ALPHA_CHECKER" "$OMEGA_PATH_BETA" "$OMEGA_PATH_GAMMA" \
   "$OMEGA_PATH_DELTA" "$OMEGA_PATH_DELTA_COMPILER" \
-  "$OMEGA_PATH_DELTA_VALIDATION" "$OMEGA_PATH_DELTA_MEANING" \
   "$OMEGA_PATH_PSI" "$OMEGA_PATH_OMEGA" \
   "$OMEGA_PATH_BETA_COMPILER" "$OMEGA_PATH_BETA_VALIDATION"
 do
@@ -56,6 +54,8 @@ done
 [ ! -e "$OMEGA_PATH_OMEGA/psi" ] || fail "Psi remains nested under the Omega product owner"
 [ ! -e "$OMEGA_PATH_OMEGA/bootstrap" ] || fail "Omega product source contains a bootstrap owner"
 [ ! -e "$OMEGA_REPO_ROOT/source/delta/build" ] || fail "unowned Delta build bucket remains"
+[ ! -e "$OMEGA_REPO_ROOT/source/delta/meaning" ] || fail "retired Delta-to-Gamma meaning owner remains"
+[ ! -e "$OMEGA_REPO_ROOT/source/delta/compiler/validation" ] || fail "retired Delta native-publication validation remains"
 [ ! -e "$OMEGA_REPO_ROOT/source/gamma/compatibility" ] || fail "retired Gamma compatibility bucket remains"
 [ ! -e "$OMEGA_REPO_ROOT/source/gamma/canonical-bytes" ] || fail "unowned Gamma canonical-byte bucket remains"
 [ ! -e "$OMEGA_REPO_ROOT/source/gamma/terminal-codec-primitives" ] || fail "unowned Gamma terminal-codec bucket remains"
@@ -78,20 +78,12 @@ done
 [ ! -e "$OMEGA_REPO_ROOT/tools/bootstrap" ] || fail "generic bootstrap tooling bucket remains"
 [ ! -e "$OMEGA_REPO_ROOT/tools/assurance" ] || fail "generic assurance tooling bucket remains"
 
-# Keep the default Beta edge to construction and one canonical admission.
-# Artifact framing is already an internal prerequisite of the admission;
-# stress, fuzz, alternate checkers, large corpora, and reports remain focused
-# diagnostics rather than compiler edges.
+# The current Beta construction still targets the noncanonical self-hosted
+# `bc.beta` subject. Keep it directly invocable, but do not present it as a
+# closed direct-lattice edge until the Alpha-written compiler is promoted.
 beta_step_count=$(grep -c '^step "beta — ' "$OMEGA_LATTICE_RUNNER" || true)
-[ "$beta_step_count" -eq 2 ] ||
-  fail "default lattice has $beta_step_count Beta rows, expected construction plus admission"
-for beta_step in \
-  'step "beta — Alpha-rooted compiler construction" beta-compiler cold-start/rebuild-artifact.sh --check' \
-  'step "beta — maximal-observation reconstruction" beta-validation admission/bc-block-control.sh'
-do
-  grep -Fqx "$beta_step" "$OMEGA_LATTICE_RUNNER" ||
-    fail "default lattice is missing or changed Beta row: $beta_step"
-done
+[ "$beta_step_count" -eq 0 ] ||
+  fail "default lattice presents $beta_step_count noncanonical Beta rows"
 
 for diagnostic in \
   'check-path-hygiene.sh' \
@@ -99,6 +91,8 @@ for diagnostic in \
   'admission/bc-artifact-structure.sh' \
   'test-interp.sh' \
   'test-typeck.sh' \
+  'cold-start/rebuild-artifact.sh' \
+  'admission/bc-block-control.sh' \
   'source-closure-snapshot-v1.sh' \
   'lower-rooted-assembly-publication-v1-test.sh'
 do
@@ -107,4 +101,4 @@ do
   fi
 done
 
-echo "lattice paths: direct compiler-sequence owners verified"
+echo "lattice paths: canonical owners and retired-route absence verified"

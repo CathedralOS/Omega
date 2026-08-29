@@ -21,7 +21,7 @@ data Main {
 
 // Reserve COUNT cells with the returned base aligned to ALIGN cells.
 // Result is written to alloc_ok/alloc_base because effecting self methods are
-// already part of Delta's Rust-free Gamma meaning route.
+// part of Delta's fixed-storage language contract.
 machine Main::reserve(&mut self, count: i32, align: i32) {
     self.alloc_ok = 0;
     transition count < 0 { true -> fail() false -> align_check() }

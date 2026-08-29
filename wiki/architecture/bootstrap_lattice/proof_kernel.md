@@ -2,14 +2,14 @@
 
 [Lattice overview](bootstrap_lattice.md) | [Omega product toolchain](omega_toolchain.md) | [Terminal Psi](../pipeline/terminal_psi.md)
 
-> **Status: ROOTED BETA CHECKER; SOUNDNESS BRIDGE OPEN.** Beta and Gamma
-> implementations accept valid certificates, reject invalid ones, and are
-> exercised by logical, equality, operational-seam, fuzz, and
-> cross-implementation gates. The accepted Beta checker tape is constructed by
-> the Alpha-written cold compiler below `bc`. The remaining compiler-refinement
-> bridge is implementation work: encode the existing Beta and Alpha small-step
-> machines, synchronization, and well-founded stuttering proof in the existing
-> calculus. No coinductive kernel extension is selected.
+> **Status: ROOTED CHECKER SERVICE; CANONICAL EDGE MIGRATION OPEN.** Beta and
+> Gamma implementations exercise the shared calculus, and the accepted checker
+> tape is constructed below the self-hosted Beta compiler. The lattice now
+> requires every compiler edge to relate its immediate-predecessor source
+> directly to Alpha tape. Existing `bc.beta`-specific proof machinery is
+> retained only where it can be adapted to the canonical Alpha-written Beta
+> compiler or to later source-to-tape edges. No coinductive kernel extension is
+> selected.
 
 The proof kernel is deliberately not a language rung. Programs do not elaborate
 through it, and it adds no stage between Gamma and Delta. It is an Alpha-owned
@@ -24,10 +24,21 @@ derivation checker. Its role name does not move it into the bootstrap assurance
 owner.
 
 ```text
-Alpha → Beta → Gamma → Delta → omega₀ → omega  compiler spine
-              ↘       ↙       ↓       ↓
-                proof checker  checked compiler edges
+Alpha source ───────────────▶ Beta compiler tape
+Beta source  ───────────────▶ Gamma compiler tape
+Gamma source ───────────────▶ Delta compiler tape
+Delta source D ─────────────▶ omega₀ compiler tape
+Omega source C ─────────────▶ omega compiler tape
+                 all targets are exact Alpha tape
+
+Alpha-owned proof checker ──▶ checks edge propositions reconstructed by owners
 ```
+
+Using one target machine is a material simplification: target semantics,
+observations, decoding, VM realization, and most simulation infrastructure are
+shared by every row. Source stepping and source-to-Alpha relations remain
+language-specific; this common target does not justify transpiling one source
+language through another.
 
 ## Judgment
 
@@ -217,7 +228,7 @@ expressiveness failure can reopen the kernel-rule decision.
 
 ## Producer and self-host boundaries
 
-The Delta-produced compiler, `omega₀`, and production Omega may all emit
+The Delta-written compiler `D`, `omega₀`, and production Omega may all emit
 certificates. No compiler decides whether its own evidence is valid. A compiler
 bug can reproduce into production Omega, but it
 cannot forge a derivation accepted by an independent sound kernel or choose a
@@ -238,6 +249,12 @@ assurance across the self-host edge.
 - Artifact-specific semantics remain in the canonical ledger definition, not in
   generic kernel rules.
 - Production optimization remains entirely outside the kernel.
+- Proof size or checker time that remains prohibitive after proof-DAG sharing,
+  reusable compositional lemmas, and removal of redundant evidence requires an
+  owner escalation. It does not authorize a new trusted rule.
+- Existing proof code that cannot be adapted to a canonical compiler edge or a
+  focused kernel semantic test is deleted; historical effort is not a trust
+  premise or a maintenance justification.
 
 The theoretical
 [matching-logic research lane](../../design_briefs/matching_logic_proof_research.md)

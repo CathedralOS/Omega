@@ -1,28 +1,29 @@
 # Omega product compiler source
 
-This package is the Omega-written product root and Terminal-Psi consumer. The
+This package is the product root and Terminal-Psi consumer. The
 sibling [`../psi/`](../psi/) package owns target-neutral source processing,
 checking, and Terminal Psi; this package owns optimization, target realization,
 artifact emission, and the product entrypoint.
 
-The product compiler is authored once as the exact source closure `C`, using a
-deliberately conservative, compositional subset of ordinary Omega.
+The product compiler has two exact source implementations. `D` is written in
+Delta; `C` is written in Omega using a deliberately conservative,
+compositional subset of ordinary Omega.
 
 ```text
-published Delta-produced compiler + C → omega₀
-omega₀ + the same C                    → omega
+delta compiler + Delta source D → omega₀
+omega₀ + Omega source C          → omega
 ```
 
-`omega₀` may be conservatively generated and slow. It is already a viable full
-product compiler because the optimizer and advanced lowering live in `C`. The
-second build closes the self-hosting edge and may improve the compiler
-executable; it does not add language functionality or another source owner.
+`omega₀` may be conservatively generated and slow. It is already a full Omega
+compiler because `D` implements the product language. The second build closes
+the self-hosting edge and may improve the compiler executable; it does not add
+language functionality.
 
 ## Ownership
 
 - [`../psi/`](../psi/) — target-neutral source, proof, and terminal semantics;
-- this root — target realization, optimization, artifact emission,
-  and product command source;
+- this root — target realization, optimization, artifact emission, the
+  Delta-written source closure `D`, and Omega-written source closure `C`;
 - [`../omega-rust/`](../omega-rust/) — maintained Rust implementation and
   differential comparator, never bootstrap authority;
 - [`../delta/`](../delta/) — final lower-rung compiler and direct first-build

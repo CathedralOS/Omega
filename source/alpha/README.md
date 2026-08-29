@@ -103,6 +103,12 @@ rung up are written once, cross-platform, and only the ~5 KB VM differs per mach
 So the "cross-platform thing that reproduces the rest of itself" is the **tape**, not
 the binary. The binary is the small per-platform shim the tape runs on.
 
+Beta, Gamma, Delta, `omega₀`, and `omega` compiler artifacts are therefore
+identified by exact Alpha tapes, never by stamped native containers. If
+execution needs acceleration, only a general Alpha-to-native realization
+checked against Alpha semantics is eligible. Source-, function-, hash-, or
+workload-specific native substitutions are forbidden.
+
 ## Where the rest is
 
 - `assembler/` — the assembler, written in alpha (`.alpha`); turns text into tape, then
