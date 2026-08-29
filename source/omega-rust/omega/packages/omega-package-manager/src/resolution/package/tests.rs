@@ -65,7 +65,7 @@ fn external_local_resolution_uses_declared_name_and_immutable_snapshot() {
         resolved.snapshot_root(),
         root.canonicalize().expect("canonical live root")
     );
-    assert_eq!(resolved.snapshot_root(), resolved.source().snapshot_root);
+    assert_eq!(resolved.snapshot_root(), resolved.source().snapshot_root());
     let identity = resolved.identity();
     assert_eq!(identity.key(), resolved.key());
     assert_eq!(identity.resolution(), resolved.resolution());
@@ -168,7 +168,7 @@ fn workspace_member_resolution_binds_root_lineage_path_and_member_snapshot() {
         }]
     );
     assert_eq!(
-        resolved.source().canonical_live_root,
+        resolved.source().canonical_live_root(),
         member.canonicalize().expect("canonical member")
     );
     assert!(resolved.snapshot_root().join("main.omg").is_file());

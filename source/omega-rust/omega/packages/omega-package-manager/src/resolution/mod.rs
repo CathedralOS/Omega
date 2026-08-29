@@ -16,9 +16,10 @@ pub(crate) mod package;
 pub use acquisition::{
     GitExecutableIdentity, GitNetworkTransferObservation, GitSourceRequest, GitSourceRequestError,
     GitSourceResolutionObservation, GitTransportExecutableIdentity, GitTransportProfile,
-    LocalSourceLimits, ResolvedGitSource, ResolvedLocalSnapshot, ResolvedLocalSource,
-    SourceResolveError, SourceResolverStorage, resolve_git_source_with_storage,
-    resolve_local_source, resolve_local_source_snapshot_with_storage,
+    LocalSourceLimits, LocalSourceResolutionObservation, ResolvedGitSource, ResolvedLocalSnapshot,
+    ResolvedLocalSource, SourceResolveError, SourceResolverStorage,
+    resolve_git_source_with_storage, resolve_local_source,
+    resolve_local_source_snapshot_with_storage,
 };
 #[cfg(test)]
 pub(crate) use closure::resolve_external_local_package_closure;

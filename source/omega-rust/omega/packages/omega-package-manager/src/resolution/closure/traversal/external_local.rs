@@ -140,7 +140,7 @@ fn resolve_external_local_declared_closure_from_lanes(
         )
     }
     .map_err(ResolveExternalLocalPackageClosureError::Root)?;
-    if root.source().requested_root != requested_root
+    if root.source().requested_root() != requested_root
         || !matches!(
             root.key().source_lineage(),
             SourceLineage::ExternalLocal(lineage)
@@ -151,7 +151,7 @@ fn resolve_external_local_declared_closure_from_lanes(
     }
     let mut external_roots: BTreeMap<PackageKey, PathBuf> = BTreeMap::from([(
         root.key().clone(),
-        root.source().canonical_live_root.clone(),
+        root.source().canonical_live_root().to_path_buf(),
     )]);
 
     resolve_registered_package_closure(

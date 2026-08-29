@@ -170,7 +170,7 @@ fn resolve_workspace_package_closure_impl(
             message: error.to_string(),
         })
     })?;
-    if root.source().canonical_live_root != expected_member_root
+    if root.source().canonical_live_root() != expected_member_root
         || root.key().source_lineage()
             != &SourceLineage::Workspace(WorkspaceMemberLineage::new(
                 workspace_identity.clone(),

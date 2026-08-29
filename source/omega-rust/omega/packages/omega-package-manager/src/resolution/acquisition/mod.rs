@@ -68,8 +68,8 @@ pub use limits::LocalSourceLimits;
 pub(crate) use local::resolve_local_source_snapshot_at_path;
 pub(crate) use local::resolve_local_source_snapshot_in_lane;
 pub use local::{
-    ResolvedLocalSnapshot, ResolvedLocalSource, resolve_local_source,
-    resolve_local_source_snapshot_with_storage,
+    LocalSourceResolutionObservation, ResolvedLocalSnapshot, ResolvedLocalSource,
+    resolve_local_source, resolve_local_source_snapshot_with_storage,
 };
 pub(crate) use local::{
     VerifiedPackageSourceEntry, VerifiedPackageSourceEntryKind,

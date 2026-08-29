@@ -1288,6 +1288,13 @@ Physical local snapshot custody is keyed by both canonical source lineage and
 content identity. Byte-identical packages from different lineages therefore
 keep distinct compiler roots even though their content commitments agree; one
 physical source root is never ambiguously assigned to two package identities.
+Final local-source issuance additionally remains under the snapshot entry lock
+while the resolver rejoins the exact request, canonical live root, retained
+publication, compiler-bounded limits, custody identity, and final exact-tree
+rehash into one opaque non-admitting observation. The public snapshot cannot be
+assembled or mutated by callers. This closes successful-result association; it
+does not claim strict isolation from a same-user process that can race later
+compiler reads.
 
 The envelope separately identifies the producer executable file bytes observed
 before and after closure review, rejecting if those observations differ and

@@ -5,5 +5,6 @@ use super::*;
 mod capture;
 mod identity;
 mod limits;
+mod observation;
 mod path_policy;
 mod snapshots;

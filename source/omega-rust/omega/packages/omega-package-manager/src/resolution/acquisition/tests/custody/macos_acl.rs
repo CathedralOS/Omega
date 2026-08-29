@@ -174,7 +174,7 @@ fn local_snapshot_reuse_rejects_extended_acl_allow_entry() {
     std::fs::write(source.join("main.omg"), b"machine main() { }").expect("write source");
     let resolved = resolve_local_source_snapshot(&source, &cache, LocalSourceLimits::default())
         .expect("prime local snapshot cache");
-    let payload = resolved.snapshot_root.join("main.omg");
+    let payload = resolved.snapshot_root().join("main.omg");
     change_macos_acl(&payload, &["+a", "everyone allow write"]);
 
     let error = resolve_local_source_snapshot(&source, &cache, LocalSourceLimits::default())

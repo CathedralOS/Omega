@@ -13,6 +13,7 @@ use super::capture::{
     capture_local_source_from_open_root, hash_bytes, io_error, raw_os_bytes,
 };
 use super::model::{ResolvedLocalSnapshot, ResolvedLocalSource};
+use super::observation::issue_local_source_resolution_observation;
 use super::operations::resolve_local_source;
 #[cfg(test)]
 use crate::resolution::acquisition::custody::verify_local_cache_root_custody;
@@ -54,7 +55,7 @@ pub(in crate::resolution::acquisition) fn publish_local_snapshot(
     );
     let publication = snapshots.join(format!("source-{custody_identity}"));
     let lock_path = snapshots.join(format!("source-{custody_identity}.lock"));
-    let _entry_lock = CacheEntryLock::acquire_local(&lock_path)?;
+    let entry_lock = CacheEntryLock::acquire_local(&lock_path)?;
 
     let normalized = if publication.exists() {
         let normalized = verify_local_snapshot(&publication, &identity, limits)?;
@@ -64,15 +65,18 @@ pub(in crate::resolution::acquisition) fn publish_local_snapshot(
         materialize_local_snapshot(&snapshots, &publication, &captured, limits)?
     };
 
-    verify_local_cache_root_custody(&canonical_cache_dir)?;
-    verify_local_cache_root_custody(&snapshots)?;
-    verify_local_cache_custody(&publication, limits)?;
-    Ok(ResolvedLocalSnapshot {
+    finalize_local_snapshot(
         requested_root,
-        canonical_live_root: captured.normalized.root,
-        snapshot_root: normalized.root.clone(),
+        &captured.normalized,
+        &publication,
         normalized,
-    })
+        limits,
+        || {
+            entry_lock.verify_path_identity()?;
+            verify_local_cache_root_custody(&canonical_cache_dir)?;
+            verify_local_cache_root_custody(&snapshots)
+        },
+    )
 }
 
 pub(crate) fn publish_local_snapshot_in_lane(
@@ -109,7 +113,7 @@ fn publish_local_snapshot_in_retained_collection(
     let publication = snapshots.path().join(&publication_name);
     let lock_name = format!("source-{custody_identity}.lock");
     let result = (|| {
-        let _entry_lock = CacheEntryLock::acquire_local_from_parent(
+        let entry_lock = CacheEntryLock::acquire_local_from_parent(
             snapshots.path(),
             snapshots.directory(),
             OsStr::new(&lock_name),
@@ -139,14 +143,17 @@ fn publish_local_snapshot_in_retained_collection(
                 limits,
             )?
         };
-
-        verify_local_cache_custody(&publication, limits)?;
-        Ok(ResolvedLocalSnapshot {
+        finalize_local_snapshot(
             requested_root,
-            canonical_live_root: captured.normalized.root,
-            snapshot_root: normalized.root.clone(),
+            &captured.normalized,
+            &publication,
             normalized,
-        })
+            limits,
+            || {
+                entry_lock.verify_path_identity()?;
+                snapshots.verify_path_identity()
+            },
+        )
     })();
 
     let snapshots_result = snapshots.verify_path_identity();
@@ -154,6 +161,70 @@ fn publish_local_snapshot_in_retained_collection(
         Ok(()) => result,
         Err(error) => Err(error),
     }
+}
+
+fn finalize_local_snapshot(
+    requested_root: PathBuf,
+    captured_live_source: &ResolvedLocalSource,
+    publication: &Path,
+    expected_snapshot: ResolvedLocalSource,
+    limits: LocalSourceLimits,
+    verify_outer_custody: impl Fn() -> Result<(), SourceResolveError>,
+) -> Result<ResolvedLocalSnapshot, SourceResolveError> {
+    let limits = limits.compiler_bounded();
+    verify_outer_custody()?;
+    verify_requested_local_root(&requested_root, &captured_live_source.root)?;
+    verify_local_cache_custody(publication, limits)?;
+
+    let final_snapshot =
+        verify_local_snapshot(publication, &captured_live_source.content_identity, limits)?;
+    if final_snapshot.root != expected_snapshot.root
+        || !same_source_identity(&final_snapshot, &expected_snapshot)
+        || !same_source_identity(&final_snapshot, captured_live_source)
+    {
+        return Err(local_snapshot_invalid(
+            publication,
+            "final local snapshot rehash diverged before result issuance",
+        ));
+    }
+
+    verify_live_source_unchanged(captured_live_source, limits)?;
+    verify_local_cache_custody(publication, limits)?;
+    verify_outer_custody()?;
+    verify_requested_local_root(&requested_root, &captured_live_source.root)?;
+
+    let observation = issue_local_source_resolution_observation(
+        &requested_root,
+        &captured_live_source.root,
+        publication,
+        &final_snapshot,
+        limits,
+    );
+    Ok(ResolvedLocalSnapshot::from_issued_parts(
+        requested_root,
+        captured_live_source.root.clone(),
+        final_snapshot.root.clone(),
+        final_snapshot,
+        observation,
+    ))
+}
+
+fn verify_requested_local_root(
+    requested_root: &Path,
+    expected_canonical_root: &Path,
+) -> Result<(), SourceResolveError> {
+    let canonical =
+        requested_root
+            .canonicalize()
+            .map_err(|_| SourceResolveError::LocalSourceChanged {
+                path: requested_root.to_path_buf(),
+            })?;
+    if canonical != expected_canonical_root {
+        return Err(SourceResolveError::LocalSourceChanged {
+            path: requested_root.to_path_buf(),
+        });
+    }
+    Ok(())
 }
 
 #[cfg(test)]
