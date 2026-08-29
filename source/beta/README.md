@@ -22,7 +22,7 @@ beta_compiler.alpha --(Alpha seed + assembler)--> beta_compiler_bytecode.tape
 construction. It rebuilds the accepted
 [`compiler/artifacts/beta_compiler_bytecode.tape`](compiler/artifacts/README.md)
 directly, without a Rust producer or Beta self-host stage. The current tape is
-20,717 bytes.
+20,977 bytes.
 
 The Alpha-written [`compiler/beta_compiler.alpha`](compiler/beta_compiler.alpha)
 is the complete canonical Beta compiler used by the direct chain. Remaining

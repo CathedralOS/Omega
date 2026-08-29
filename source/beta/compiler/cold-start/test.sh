@@ -117,6 +117,27 @@ contain_memory_fault() {
   fi
 }
 
+contain_stack_fault() {
+  name=$1
+  source=$2
+  if ! printf '%s\n' "$source" | "$TMP/compiler" > "$TMP/$name.tape"; then
+    echo "FAIL $name: compiler rejected stack-containment source" >&2
+    fail=$((fail + 1))
+    return
+  fi
+  stamp_seed "$TMP/$name.tape" "$SEED" "$TMP/$name" >/dev/null
+  set +e
+  "$TMP/$name" </dev/null > "$TMP/$name.stdout"
+  status=$?
+  set -e
+  if [ "$status" -eq 250 ] && [ ! -s "$TMP/$name.stdout" ]; then
+    pass=$((pass + 1))
+  else
+    echo "FAIL $name: stack exhaustion was not contained (status $status)" >&2
+    fail=$((fail + 1))
+  fi
+}
+
 accept literal 'proc main() { return 42 }' 42
 accept full_word 'proc main() { return 18446744073709551615 }' 255
 accept full_word_wrap 'proc main() { return 18446744073709551615 + 1 }' 0
@@ -139,6 +160,15 @@ accept forward_call 'proc main() { return double(21) } proc double(x) { return x
 accept nested_calls 'proc main() { return add(mul(2, 3), 4) } proc add(a, b) { return a + b } proc mul(a, b) { return a * b }' 10
 accept factorial_recursion 'proc main() { return fact(5) } proc fact(n) { state r { to b when n < 2 return n * fact(n - 1) } state b { return 1 } }' 120
 accept fibonacci_recursion 'proc main() { return fib(10) } proc fib(n) { state r { to b when n < 2 return fib(n - 1) + fib(n - 2) } state b { return n } }' 55
+stack_source='proc dive(n) {'
+stack_slot=0
+while [ "$stack_slot" -lt 63 ]; do
+  stack_source="$stack_source let v$stack_slot = $stack_slot"
+  stack_slot=$((stack_slot + 1))
+done
+stack_source="$stack_source return dive(n + 1) } proc main() { return dive(0) }"
+contain_stack_fault recursive_stack_exhaustion "$stack_source"
+unset stack_source stack_slot
 accept call_state_loop 'proc main() { return sumto(10) } proc sumto(n) { let t = 0 let i = 1 state l { to b when i <= n return t } state b { t = t + i i = i + 1 to l } }' 55
 accept four_parameters 'proc sum(a, b, c, d) { let x = c * 10 + d return a + b + x } proc main() { return sum(1, 2, 3, 9) }' 42
 accept less_true 'proc main() { return 1 < 2 }' 1
@@ -196,7 +226,10 @@ imm r13,8
 call main
 halt r0
 main:
-sub r15,r13
+imm r5,8
+sub r15,r5
+imm r4,262144
+jlt r15,r4,stack_fault
 store r15,r14
 mov r14,r15
 imm r0,42
@@ -210,6 +243,9 @@ mov r15,r14
 load r14,r15
 add r15,r13
 ret
+stack_fault:
+imm r4,250
+halt r4
 ' | "$ASSEMBLER" > "$TMP/literal.expected.tape"
 if cmp -s "$TMP/literal.tape" "$TMP/literal.expected.tape"; then
   pass=$((pass + 1))

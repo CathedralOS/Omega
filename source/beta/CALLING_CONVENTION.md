@@ -32,18 +32,23 @@ The Alpha-written Beta compiler currently emits this physical layout:
 
 ```text
 [0, 262140)                 Alpha tape payload
-[262144, 1048576)           downward generated data stack (guard still open)
+[262144, 1048576)           guarded downward generated data stack
 [1048576, 2097152)          reserved separation
 [2097152, 35651584)         biased 32 MiB source-visible raw memory
-[35651584, 67108864)        hidden-return-stack allowance (limit still open)
+[35651584, 67108864)        hidden-return-stack allowance
 ```
 
 Every emitted byte/word access now checks the logical 32 MiB bound, rejects a
 signed-negative Word address, and adds the raw base before touching Alpha
 memory. Thus logical address zero is initially zero rather than tape byte zero.
-This is not yet the complete non-alias theorem: generated `r15` reservations
-must still be guarded at `262144`, and semantic call depth must be bounded so
-the hidden Alpha return stack cannot descend below `35651584`.
+Every generated frame and expression reservation subtracts first, then checks
+`r15 >= 262144` before any generated memory access. Failure terminates inside
+the current procedure with status 250 and no further store. Because the
+canonical compiler emits at least one guarded 8-byte frame word per active
+procedure, the 786,432-byte data region bounds semantic depth. At the failing
+edge, including one transient shared-memory-guard call, the hidden Alpha return
+stack remains at or above physical byte 66,322,424—well above the raw-memory
+ceiling 35,651,584. Thus neither generated stack can alias tape or raw memory.
 
 ## Register roles
 
@@ -70,10 +75,14 @@ The compiler brackets each procedure with an **fp-based** prologue and epilogue
 ```
 proc:
         ; prologue
-        sub   r15, r13              ; \  push the caller's fp (`r13 == 8`)
-        store r15, r14              ; /
+        sub   r15, r13              ; reserve caller-fp word (`r13 == 8`)
+        imm   r4, 262144
+        jlt   r15, r4, fault         ; fail before any access below the stack
+        store r15, r14
         mov   r14, r15              ; fp = sp   (the frame base)
         sub   r15, framesize        ; allocate params + locals below fp
+        imm   r4, 262144
+        jlt   r15, r4, fault
         ; store args r0..r(n-1) into param slots [fp - 8 - 8*k]
         ; ... body: params/locals at [fp - 8 - 8*slot]; sp moves freely for temps ...
         ; epilogue
@@ -86,8 +95,10 @@ proc:
 The data stack is balanced per call (the frame is fully reclaimed by `sp = fp`),
 and control returns ride the VM's separate hidden stack — so recursion just works.
 
-**Leaf procedures** that hold no state across a call skip the frame entirely —
-compute in `r0`–`r5` and `ret`. **Spilling across a call**: a caller-saved value
+The canonical compiler deliberately emits the minimum frame word even for a
+leaf, because that invariant bounds both stacks. A later verified optimization
+may elide it only while preserving an equivalent call-depth bound. **Spilling
+across a call**: a caller-saved value
 (e.g. an argument in `r0`) that must outlive a `call` is stored into the frame
 before the call and reloaded after.
 
@@ -116,9 +127,9 @@ Build one through `source/alpha/assembler/build.sh`, for example with
 - **Language control shape** — Beta now has locals and multi-statement bodies.
   Source control is expressed as `state` blocks and guarded `to` transitions,
   not `if`/`while`; the compiler lowers those edges to Alpha jumps.
-- **Stack-overflow guard** — the sp grows down with no limit check. A higher rung
-  proves depth bounds (see `totality_and_bounded_computation.md`); until then it is
-  an unchecked region.
+- **Static depth proofs** — higher rungs may still prove that status 250 is
+  unreachable for a program, but memory containment does not depend on such a
+  proof.
 
 ## Why this is the Beta-the-language foundation
 
