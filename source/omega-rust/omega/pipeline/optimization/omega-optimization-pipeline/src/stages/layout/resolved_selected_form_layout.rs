@@ -461,7 +461,7 @@ fn compute<S: ValidatedSelectedAnalysis>(
             pre_layout.movn_optimization().is_none()
                 && pre_layout.machine_optimization()
                     == Some(
-                        crate::post_allocation_selected_form_encoding::machine_optimization_custody(
+                        crate::stages::encoding::post_allocation_selected_form_encoding::machine_optimization_custody(
                             fusion,
                         ),
                     )

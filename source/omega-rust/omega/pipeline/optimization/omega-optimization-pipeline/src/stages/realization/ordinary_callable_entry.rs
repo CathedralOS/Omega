@@ -611,7 +611,7 @@ fn reconstruct(
             .iter()
             .find(|returned| returned.psi_return_edge == edge)
             .ok_or(OptimizedOrdinaryCallableEntryError::MissingReturn(edge))?;
-        let crate::whole_function_exit_contract::WholeFunctionReturnValueEvidence::ScalarI64V1 {
+        let crate::stages::layout::whole_function_exit_contract::WholeFunctionReturnValueEvidence::ScalarI64V1 {
             virtual_register,
             view,
             units,

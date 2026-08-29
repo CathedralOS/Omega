@@ -1299,11 +1299,23 @@ prove every enabled rule phase is actually scheduled.
   source file is below 1,500 lines, all 34 public function names are unchanged,
   and all 11 serialized `omega.*` identities match the pre-split tree.
 
-  Remaining work: make optimization-pipeline stage catalogs navigable without
-  a flat `#[path]`/re-export wall and split any monolithic test modules beside
-  the family they exercise. Do not create one crate per rule or combine
-  independent producer and validator implementations merely to reduce line
-  counts.
+  The optimization pipeline is now the fifth reference slice. Its former
+  506-line flat `#[path]` and re-export wall is a 16-line crate entrance leading
+  separately to compiler-facing `coordination` and the ordered custody
+  `stages`. The stage catalog descends through selection, allocation, machine,
+  encoding, layout, realization, and artifact boundaries; each family entrance
+  names its exact stage files. The former 14,503-line `tests.rs` now mirrors
+  that coordination/stage taxonomy, with typed fixtures separately cataloged
+  by common artifact, control-flow, selected-lowering, structural-Unit, and raw
+  validation responsibility. All 107 broad integration tests remain present,
+  the complete crate still runs 122 tests, and no test or fixture file exceeds
+  1,501 lines. The 346-name public surface and all 16 serialized `omega.*`
+  identities exactly match the pre-split crate.
+
+  This completes the source-organization gate for the current optimizer
+  crates. Preserve these entrances as new analyses, rules, custody stages, and
+  tests are added. Do not create one crate per rule or combine independent
+  producer and validator implementations merely to reduce line counts.
 
   Acceptance: no optimizer production file combines registry construction,
   unrelated rule mechanics, independent validation, and broad integration

@@ -504,7 +504,7 @@ impl std::error::Error for OptimizedVerifiedPhysicalPipelineError {}
 /// selected/physical validation stage. Phase routing is derived from the exact
 /// retained build suite; callers cannot request or skip selected-lowering work
 /// independently.
-pub fn stage_optimized_verified_physical_pipeline_with_provider_executions(
+pub(crate) fn stage_optimized_verified_physical_pipeline_with_provider_executions(
     optimized: ValidatedOptimizedAbstractPlan,
     target: NativeTarget,
     settlements: &[AdmittedBoundarySettlement<'_>],
@@ -522,7 +522,7 @@ pub fn stage_optimized_verified_physical_pipeline_with_provider_executions(
 /// provider installation that authorized its installed-provider calls. The
 /// admission remains owned by the nested target carrier throughout every
 /// selected and physical stage.
-pub fn stage_optimized_verified_physical_pipeline_with_provider_executions_and_installation(
+pub(crate) fn stage_optimized_verified_physical_pipeline_with_provider_executions_and_installation(
     optimized: ValidatedOptimizedAbstractPlan,
     target: NativeTarget,
     settlements: &[AdmittedBoundarySettlement<'_>],

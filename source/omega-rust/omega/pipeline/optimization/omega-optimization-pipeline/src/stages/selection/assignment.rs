@@ -143,7 +143,7 @@ impl std::error::Error for OptimizedAssignmentPipelineError {}
 /// Assign current physical homes while retaining the exact optimized target
 /// carrier and independently checking every stage root and function provenance
 /// row copied across the boundary.
-pub fn stage_optimized_assignment(
+pub(crate) fn stage_optimized_assignment(
     optimized_target: ValidatedOptimizedTargetOperations,
 ) -> Result<StagedOptimizedAssignedOperations, OptimizedAssignmentPipelineError> {
     let register_environment = baseline_target_register_environment(optimized_target.target())
@@ -163,7 +163,7 @@ pub fn stage_optimized_assignment(
 
 /// Lower and assign one optimized plan without exposing a bare target plan to
 /// compiler coordination.
-pub fn stage_optimized_assignment_with_provider_executions(
+pub(crate) fn stage_optimized_assignment_with_provider_executions(
     optimized: ValidatedOptimizedAbstractPlan,
     target: NativeTarget,
     settlements: &[AdmittedBoundarySettlement<'_>],
@@ -180,7 +180,7 @@ pub fn stage_optimized_assignment_with_provider_executions(
 /// Lower and assign one optimized plan with one exact checked-provider
 /// installation. This is the installation-bearing form of the same canonical
 /// assignment stage, not a second native route.
-pub fn stage_optimized_assignment_with_provider_executions_and_installation(
+pub(crate) fn stage_optimized_assignment_with_provider_executions_and_installation(
     optimized: ValidatedOptimizedAbstractPlan,
     target: NativeTarget,
     settlements: &[AdmittedBoundarySettlement<'_>],
@@ -199,7 +199,7 @@ pub fn stage_optimized_assignment_with_provider_executions_and_installation(
 
 /// Reconstruct exact cross-stage custody without trusting assignment to stamp
 /// its own receipt. Physical-home legality remains outside this check.
-pub fn validate_optimized_assignment_custody(
+pub(crate) fn validate_optimized_assignment_custody(
     optimized_target: &ValidatedOptimizedTargetOperations,
     register_environment: &ValidatedTargetRegisterEnvironment,
     assigned: &AssignedOperationPlan,

@@ -4,7 +4,7 @@ use omega_optimization_core::{
 };
 use omega_regalloc::PostAllocationSelectedTransformation;
 
-use crate::function_relative_realization::{
+use crate::stages::realization::function_relative_realization::{
     function_relative_statistics, seal_function_relative_manifest,
 };
 use crate::{
@@ -349,7 +349,7 @@ fn custody_receipt(
 pub(crate) fn corrupt_active_resident_function_relative_source_for_test(
     staged: &mut StagedOptimizedActiveResidentRematerializationFunctionRelativeRealization,
 ) {
-    crate::active_resident_resolved_selected_form_layout::corrupt_active_resident_resolved_layout_byte_for_test(
+    crate::stages::layout::active_resident_resolved_selected_form_layout::corrupt_active_resident_resolved_layout_byte_for_test(
         &mut staged.source,
     );
 }
