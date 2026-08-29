@@ -190,9 +190,9 @@ fn rejects_mixed_exact_and_wildcard_paths_with_arm_provenance() {
 fn rejects_runtime_subject_paths_even_when_the_state_receives_builder_authority() {
     let fixture = PackageFixture::with_source(
         r#"
-        machine build(builder: &mut Build, enabled: bool) {
+        machine build(builder: &mut Build) {
             builder.package("runtime-subject-path");
-            transition enabled {
+            transition builder.freestanding {
                 true -> conditional(builder)
                 _ -> {}
             }

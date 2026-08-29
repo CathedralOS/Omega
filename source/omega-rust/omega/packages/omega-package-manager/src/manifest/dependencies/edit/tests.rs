@@ -110,22 +110,14 @@ fn appends_after_existing_build_work_and_preserves_it() {
 }
 
 #[test]
-fn noncanonical_signature_yields_generated_manual_patch() {
+fn noncanonical_signature_rejects_before_edit_planning() {
     let source = "machine build(builder: &mut Build, profile: u32) {\n    builder.application(\"dependency-edit-probe\");\n}\n".to_owned();
-    let plan = plan_addition_from_source(PathBuf::from("build.omg"), source, &path("vendor"))
-        .expect("plan addition");
-    let BuildDependencyEditPlan::Manual(patch) = plan else {
-        panic!("expected manual patch");
-    };
-
-    assert_eq!(
-        patch.reason(),
-        BuildDependencyManualReason::NonCanonicalBuildSignature
-    );
-    assert_eq!(
-        patch.proposed_statement(),
-        "builder.depend(Source::Path { location: \"vendor\" });"
-    );
+    assert!(matches!(
+        plan_addition_from_source(PathBuf::from("build.omg"), source, &path("vendor")),
+        Err(BuildDependencyEditError::InvalidBuild(
+            DependencyProjectionError::InvalidBuildParameter
+        ))
+    ));
 }
 
 #[test]

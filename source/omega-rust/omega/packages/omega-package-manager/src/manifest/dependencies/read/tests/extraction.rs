@@ -11,7 +11,7 @@ use std::fs;
 fn projects_path_and_git_requests_in_authored_order() {
     let fixture = PackageFixture::with_source(
         r#"
-        machine build(builder: &mut Build, filesystem: &mut Filesystem) {
+        machine build(builder: &mut Build) {
             builder.application("dependency-projection-probe");
             builder.depend(Source::Path { location: "../local" });
             builder.depend_as("arithmetic_kernels", Source::Git {
