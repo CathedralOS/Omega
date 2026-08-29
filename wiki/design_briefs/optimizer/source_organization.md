@@ -87,11 +87,12 @@ The current source-visible rule paths are:
 |---|---|---|---|
 | Mandatory legalization | `omega-target-operations-to-selected-instructions/src/legalization/mod.rs` | adjacent `catalog.rs` | separate `source/` producer and `replay/` validator taxonomies |
 | Psi | `omega-psi-optimizer/src/rules/mod.rs` | `rules/catalog.rs` | `rules/passes/<exact-pass>/catalog.rs` |
-| Selected lowering and allocation recovery | `omega-regalloc/src/rules/mod.rs` | `rules/catalog.rs` | `rules/{literal_fold,fixed_view_copy,pressure_rematerialization}/` |
+| Selected lowering | `omega-regalloc/src/rules/selected_lowering/mod.rs` | adjacent `catalog.rs` | `literal_fold/` |
+| Allocation recovery | `omega-regalloc/src/rules/allocation_recovery/mod.rs` | adjacent `catalog.rs` | `fixed_view_copy/` and `pressure_rematerialization/` |
 | Post-allocation machine | `omega-machine-optimizer/src/rules/mod.rs` | `rules/catalog.rs` | `rules/<isa>/<exact-rule>/` |
 | Function-relative layout | `omega-optimization-pipeline/src/stages/layout/x86_branch_relaxation/mod.rs` | adjacent `catalog.rs` | `compute`, `validation`, and typed stage model |
 
-The architecture gate requires all four rule-stage entrances to retain their
+The architecture gate requires every listed rule-stage entrance to retain its
 selection/application function and adjacent primary descriptor catalog. It
 also guards each migrated pipeline custody join independently, so making the
 registry clear cannot turn the stage entrance into a re-export wall.
@@ -302,8 +303,10 @@ local rule catalog for every Psi pass; a small re-export wall no longer passes
 that check. The optimized ordinary-callable-entry stage is a physical example:
 its `mod.rs` owns build/replay, with records in `model.rs`, semantic
 reconstruction in `reconstruction.rs`, and wire format in `codec.rs`. The
-selected-lowering literal-fold stage follows the same rule: the regalloc rule
-entrance owns the proposal-to-independent-validation join. Proposal and
+selected-lowering literal-fold stage follows the same rule: its phase entrance
+owns exact selection projection through the adjacent catalog, and the
+`literal_fold/mod.rs` entrance owns the proposal-to-independent-validation
+join. Proposal and
 validation descend through separate roots, constraint, work-accounting,
 action-reconstruction, and selected-plan reconstruction leaves; validation
 cannot import producer transformation mechanics. The architecture gate names

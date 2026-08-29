@@ -2821,7 +2821,7 @@ fn executable_container_v2_retains_strong_imported_authority_commitments() {
 fn selected_lowering_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let rule = root.join(
-        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/literal_fold",
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/selected_lowering/literal_fold",
     );
     let entrance = std::fs::read_to_string(rule.join("mod.rs"))
         .expect("read selected-lowering literal-fold entrance");
@@ -2853,7 +2853,7 @@ fn selected_lowering_validation_cannot_reenter_its_producer() {
     }
     for forbidden in [
         "super::transform",
-        "crate::rules::literal_fold::transform",
+        "crate::rules::selected_lowering::literal_fold::transform",
         "replay_actions",
         "apply_action",
         "action_from_classification",

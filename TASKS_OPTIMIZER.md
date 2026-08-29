@@ -359,6 +359,10 @@ parallel route or optional coordinator field.
   enable/order tables to their rule-owning crate entrances. Remove the proxy
   pipeline catalogs and enforce each meaningful entrance plus adjacent catalog
   in the repository navigation test.
+- [x] Split the regalloc rule root by executable phase. Selected lowering and
+  allocation recovery each own a sub-100-line entrance, adjacent catalog,
+  phase coverage tests, and only their named rule-family folders; the crate
+  rule root is now a small responsibility map rather than a mixed coordinator.
 - [x] Move the 800-line pressure-rematerialization fixture suite out of the
   production compute leaf; the exact rule entrance now descends separately to
   compute, identity, model, validation, and tests.
