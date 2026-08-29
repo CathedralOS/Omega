@@ -1,4 +1,13 @@
-use crate::model::*;
+//! Native policy realization and truthful guarantee classification.
+//!
+//! Each host implementation realizes only its own closed policy; this module
+//! classifies unavailable guarantees instead of promoting best-effort controls.
+
+use crate::model::{
+    ResolverExecutionBackendIdentity, ResolverExecutionGuarantee,
+    ResolverExecutionGuaranteeDisposition, ResolverExecutionNetworkTransport,
+    ResolverExecutionPhase,
+};
 
 #[cfg(target_os = "linux")]
 pub(crate) mod linux;

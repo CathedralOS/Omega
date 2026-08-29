@@ -5,7 +5,7 @@ same order the workflow runs:
 
 ```text
 src/
-├── lib.rs          public compatibility exports
+├── lib.rs          public crate entrance and responsibility exports
 ├── workflow/       complete command-facing operations; start here
 ├── manifest/       read and conservatively edit build.omg
 ├── source/         acquire immutable local and Git source snapshots

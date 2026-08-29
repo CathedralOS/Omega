@@ -3,9 +3,9 @@
 //! Package manifests, immutable source acquisition, closure review, and
 //! root policy for Omega's registry-free package manager.
 //!
-//! Start with the responsibility modules below. The crate keeps its historical
-//! flat exports for callers, while implementation ownership follows the module
-//! tree instead of accumulating in this root.
+//! Start with [`workflow`] for complete operations, then follow the named
+//! responsibility modules below. Root exports form the crate's public caller
+//! surface; implementation ownership remains in the module tree.
 
 pub mod graph;
 pub mod manifest;

@@ -1,3 +1,8 @@
+//! Sealed endpoint routing, transfer budgets, and resolver connector protocol.
+//!
+//! [`model`] owns the closed authority vocabulary, [`broker`] owns the
+//! loopback-to-upstream route, and [`helper`] is the fixed child-process entry.
+
 mod broker;
 mod budget;
 mod connect_protocol;
