@@ -184,14 +184,16 @@ closed. Compiler-issued package review remains non-admitting.
   metadata may be deployment policy; it must not become proof that an audit
   occurred.
 
-- [ ] **DANGEROUS-AUTHORITY-CLASSIFICATION.** Complete exact compiler-owned
-  classification for network, dynamic loading, signing, secrets, executable
-  installation, DMA/IOMMU, and any future authority-bearing surfaces. Names,
-  aliases, paths, and same-spelled package declarations must confer no
-  authority. For an authority surface declared by an ordinary package, bind the
-  closed risk class to the exact accepted declaration identity and normalized
-  schema, never to a package-wide role. Classification is consumer policy and
-  review metadata; it does not grant the service or its provider authority.
+- [ ] **DESIGN-BLOCKED — OWNER Q13: DANGEROUS-AUTHORITY-CLASSIFICATION.** The
+  existing compiler-owned catalog exactly classifies every currently declared
+  authority surface. Select semantic loci for network, dynamic loading,
+  signing, secrets, executable installation, DMA/IOMMU, and future surfaces
+  before extending it. Names, aliases, paths, and same-spelled package
+  declarations must confer no authority. For an authority surface declared by
+  an ordinary package, bind the consumer-policy class to the exact accepted
+  declaration identity and normalized schema, never to a package-wide role.
+  Classification is review metadata; it grants no service or provider
+  authority.
 
 - [ ] **SOURCE-AND-PROVENANCE-TRIAGE.** Wire an organization-selected advisory
   reviewer into command orchestration with the existing fixed instructions,
