@@ -117,6 +117,10 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
     /// vocabulary. This classifies declaration provenance only; optimization
     /// policy and execution remain Omega-owned.
     BuildOptimizationSelection,
+    /// Exact toolchain `Optimizations::emit_report` request. Reporting is
+    /// deliberately distinct from optimization selection and grants no rule
+    /// execution authority.
+    BuildOptimizationReportRequest,
     BuildBoundaryAcceptance,
     BuildWireCompatibilityRequest,
     BuildRootBinding,

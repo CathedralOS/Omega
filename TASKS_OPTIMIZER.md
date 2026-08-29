@@ -17,6 +17,15 @@ another broad alias while executing this plan.
 
 ## Current stopping point
 
+[x] Global value numbering now includes one closed obligation-free wrapping
+neutral-arithmetic family: `0 + x`, `x + 0`, `x - 0`, `1 * x`, and `x * 1`.
+The ordered producer leaf admits only those five typed rows; a separate
+17-line validation entrance descends into independent classification, literal
+evidence, accounting, and application leaves. Candidates retain the exact
+scalar-constant fact, consume no accepted-obligation custody, and remain
+disabled with an empty exact-name selection. Toolchain `emit_report()` is now
+finalized as a reporting-only intrinsic distinct from optimization selection.
+
 [x] The ordinary no-selection path now bypasses optimizer-only artifact
 lowering, optimizer-unit construction, pass management, and optimized-plan
 projection. A focused compiler canary runs on every supported host and checks
@@ -444,8 +453,10 @@ parallel route or optional coordinator field.
 - [x] GVN for local, dominating, and phi-translated expressions.
 - [x] Dead pure scalar elimination using a closed operation partition.
 - [x] Proof-check elision and proof-certified exact integer identities.
-- [ ] Extend GVN and scalar identities to additional exact operations only with
-  exhaustive producer/validator partitions.
+- [x] Extend GVN with an exhaustive five-row obligation-free wrapping neutral
+  arithmetic identity partition and independent validator reconstruction.
+- [ ] Extend GVN and scalar identities to further exact operation families only
+  with exhaustive producer/validator partitions.
 - [ ] Implement loop-invariant code motion after cyclic Terminal-Psi semantics
   are resolved.
 - [?] Define suspension/resume edges for CFG analyses.

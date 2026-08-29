@@ -63,6 +63,7 @@ impl PsiRewriteCandidate {
             PsiRewriteWitness::RedundantBlockParameter(_)
             | PsiRewriteWitness::AcceptedObligation(_)
             | PsiRewriteWitness::ProofCertifiedScalarIdentity { .. }
+            | PsiRewriteWitness::TotalScalarIdentity { .. }
             | PsiRewriteWitness::OwnershipFrontiers(_)
             | PsiRewriteWitness::StructuralIdentity => None,
         }
@@ -74,6 +75,7 @@ impl PsiRewriteCandidate {
             PsiRewriteWitness::RedundantBlockParameter(witness) => Some(witness),
             PsiRewriteWitness::AcceptedObligation(_) => None,
             PsiRewriteWitness::ProofCertifiedScalarIdentity { .. } => None,
+            PsiRewriteWitness::TotalScalarIdentity { .. } => None,
             PsiRewriteWitness::OwnershipFrontiers(_) => None,
             PsiRewriteWitness::StructuralIdentity => None,
         }
@@ -87,6 +89,7 @@ impl PsiRewriteCandidate {
             } => Some(*obligation_fact),
             PsiRewriteWitness::ScalarEvaluation(_)
             | PsiRewriteWitness::RedundantBlockParameter(_)
+            | PsiRewriteWitness::TotalScalarIdentity { .. }
             | PsiRewriteWitness::OwnershipFrontiers(_)
             | PsiRewriteWitness::StructuralIdentity => None,
         }
@@ -103,8 +106,16 @@ impl PsiRewriteCandidate {
             PsiRewriteWitness::ScalarEvaluation(_)
             | PsiRewriteWitness::RedundantBlockParameter(_)
             | PsiRewriteWitness::AcceptedObligation(_)
+            | PsiRewriteWitness::TotalScalarIdentity { .. }
             | PsiRewriteWitness::OwnershipFrontiers(_)
             | PsiRewriteWitness::StructuralIdentity => None,
+        }
+    }
+
+    pub const fn total_scalar_identity_witness(&self) -> Option<ScalarConstantFactIdentity> {
+        match &self.witness {
+            PsiRewriteWitness::TotalScalarIdentity { constant_fact } => Some(*constant_fact),
+            _ => None,
         }
     }
 
@@ -173,6 +184,9 @@ impl PsiRewriteCandidate {
                 OptimizationFactReference::ScalarConstant(*constant_fact),
                 OptimizationFactReference::AcceptedObligation(*obligation_fact),
             ],
+            PsiRewriteWitness::TotalScalarIdentity { constant_fact } => {
+                vec![OptimizationFactReference::ScalarConstant(*constant_fact)]
+            }
             PsiRewriteWitness::OwnershipFrontiers(witness) => witness
                 .rows
                 .iter()

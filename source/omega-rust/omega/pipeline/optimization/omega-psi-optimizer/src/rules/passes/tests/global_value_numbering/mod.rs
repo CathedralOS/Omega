@@ -8,5 +8,6 @@ use super::*;
 mod compatible_policy;
 mod dominating;
 mod expression_vocabulary;
+mod identities;
 mod phi_translated;
 mod same_block;

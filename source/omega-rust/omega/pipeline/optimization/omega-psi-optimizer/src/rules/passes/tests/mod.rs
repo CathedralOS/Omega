@@ -16,7 +16,7 @@ use omega_optimization_unit::{
     ProofCertifiedScalarIdentityRewrite, ProofQuestion, ProofQuestionClass, ProofQuestionOwner,
     ProvenanceDisposition, ProvenanceRewrite, PrunedMachineCustody, PsiOptimizationUnit,
     PsiProvenance, PsiRealizationSite, PsiRewriteCandidate, PsiRewriteCandidateError,
-    PsiRewritePatch, RedundantBlockParameterWitness, ScalarSubstitution,
+    PsiRewritePatch, RedundantBlockParameterWitness, ScalarSubstitution, TotalScalarIdentityKind,
     attach_accepted_obligation_facts, attach_proof_questions,
     recompute_psi_optimization_unit_identity, reconstruct_psi_optimization_unit_seed,
 };
@@ -35,7 +35,8 @@ use omega_optimization_validation::{
     validate_proof_certified_scalar_identity_candidate,
     validate_proof_certified_signed_integer_remainder_by_negative_one_candidate,
     validate_psi_optimization_unit, validate_redundant_block_parameter_candidate,
-    validate_shared_jump_fusion_candidate, validate_unreachable_private_machines_candidate,
+    validate_shared_jump_fusion_candidate, validate_total_scalar_identity_candidate,
+    validate_unreachable_private_machines_candidate,
 };
 use psi_core::{
     BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,

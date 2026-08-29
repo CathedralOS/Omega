@@ -17,6 +17,9 @@ mod expression_keys;
 mod local_and_dominating;
 mod phi_translated;
 mod rule_catalog;
+mod total_scalar_identity;
+
+pub use total_scalar_identity::validate_total_scalar_identity_candidate;
 
 use rule_catalog::{
     ScalarCseProofClass, ScalarCseScope, phi_translated_proof_class, scoped_proof_class,

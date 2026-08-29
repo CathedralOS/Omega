@@ -640,6 +640,9 @@ fn checked_statement_call_intrinsic(
     if exact_statement_build_optimization_receiver(program, state, call) {
         return Some(Intrinsic::BuildOptimizationSelection);
     }
+    if exact_statement_build_optimization_report_receiver(program, state, call) {
+        return Some(Intrinsic::BuildOptimizationReportRequest);
+    }
     checked_call_intrinsic(
         program,
         call.target.as_str(),
@@ -682,6 +685,8 @@ fn checked_call_intrinsic(
             Some(Intrinsic::BuildIncludedSourceHandoff)
         } else if exact_build_optimization_receiver(program, receiver, target) {
             Some(Intrinsic::BuildOptimizationSelection)
+        } else if exact_build_optimization_report_receiver(program, receiver, target) {
+            Some(Intrinsic::BuildOptimizationReportRequest)
         } else {
             None
         }
@@ -728,6 +733,18 @@ fn exact_build_optimization_receiver(
         .is_some_and(|type_symbol| exact_toolchain_data(program, type_symbol, "Optimizations"))
 }
 
+fn exact_build_optimization_report_receiver(
+    program: &TypedTrees,
+    receiver: psi_typed_trees::expression::ExpressionHandle,
+    target: &str,
+) -> bool {
+    if target != "emit_report" {
+        return false;
+    }
+    crate::flow::expression_type_symbol(program, receiver)
+        .is_some_and(|type_symbol| exact_toolchain_data(program, type_symbol, "Optimizations"))
+}
+
 fn exact_statement_build_output_receiver(
     program: &TypedTrees,
     state: &psi_typed_trees::state::State,
@@ -743,6 +760,15 @@ fn exact_statement_build_optimization_receiver(
     call: &psi_typed_trees::statement::TableCall,
 ) -> bool {
     call.target.as_str() == "enable"
+        && exact_statement_build_member_receiver(program, state, call, "Optimizations")
+}
+
+fn exact_statement_build_optimization_report_receiver(
+    program: &TypedTrees,
+    state: &psi_typed_trees::state::State,
+    call: &psi_typed_trees::statement::TableCall,
+) -> bool {
+    call.target.as_str() == "emit_report"
         && exact_statement_build_member_receiver(program, state, call, "Optimizations")
 }
 

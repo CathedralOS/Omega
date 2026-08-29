@@ -2,6 +2,10 @@
 
 use super::*;
 
+#[path = "global_value_numbering/identities.rs"]
+mod identities;
+pub(crate) use identities::*;
+
 pub(crate) fn local_cse_unit() -> PsiOptimizationUnit {
     scalar_local_cse_unit(false)
 }

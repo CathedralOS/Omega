@@ -12,17 +12,9 @@ pub(in crate::rules) fn built_in_registrations() -> Vec<BuiltInRuleRegistration>
         BuiltInRuleRegistration::new(3, DominatorProofCertifiedScalarGvnRule),
         BuiltInRuleRegistration::new(4, PhiTranslatedObligationFreeScalarGvnRule),
         BuiltInRuleRegistration::new(5, PhiTranslatedProofCertifiedScalarGvnRule),
-        BuiltInRuleRegistration::new(
-            6,
-            SameBlockProofCertifiedCompatiblePolicyScalarCseRule,
-        ),
-        BuiltInRuleRegistration::new(
-            7,
-            DominatorProofCertifiedCompatiblePolicyScalarGvnRule,
-        ),
-        BuiltInRuleRegistration::new(
-            8,
-            PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule,
-        ),
+        BuiltInRuleRegistration::new(6, SameBlockProofCertifiedCompatiblePolicyScalarCseRule),
+        BuiltInRuleRegistration::new(7, DominatorProofCertifiedCompatiblePolicyScalarGvnRule),
+        BuiltInRuleRegistration::new(8, PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule),
+        BuiltInRuleRegistration::new(9, WrappingNeutralArithmeticIdentityRule),
     ]
 }

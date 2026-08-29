@@ -26,10 +26,12 @@ use super::{GLOBAL_VALUE_NUMBERING_PASS_NAME, accepted_obligation_fact, support:
 mod accounting;
 mod dominating;
 mod expression_keys;
+mod identities;
 mod local;
 mod phi_translated;
 
 pub use dominating::*;
+pub use identities::*;
 pub use local::*;
 pub use phi_translated::*;
 

@@ -240,6 +240,7 @@ pub fn validate_scalar_evaluation_candidate(
         | PsiRewritePatch::EliminateDominatedScalarCommonSubexpression(_)
         | PsiRewritePatch::EliminatePhiTranslatedScalarCommonSubexpression(_)
         | PsiRewritePatch::EliminateProofCertifiedScalarIdentity(_)
+        | PsiRewritePatch::EliminateTotalScalarIdentity(_)
         | PsiRewritePatch::PruneUnreachablePrivateMachines(_) => {
             Err(OptimizationUnitValidationError::CandidatePatchMismatch)
         }

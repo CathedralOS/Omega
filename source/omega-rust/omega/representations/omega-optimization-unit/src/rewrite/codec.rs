@@ -163,6 +163,10 @@ pub(super) fn encode_candidate(
                 bytes.extend_from_slice(&row.fact.bytes());
             }
         }
+        PsiRewriteWitness::TotalScalarIdentity { constant_fact } => {
+            bytes.push(7);
+            bytes.extend_from_slice(&constant_fact.bytes());
+        }
     }
     bytes.extend_from_slice(&predicted_cost_delta.to_le_bytes());
     match patch {
@@ -310,6 +314,21 @@ pub(super) fn encode_candidate(
                 ProofCertifiedScalarIdentityKind::ExactIntegerShiftLeftZeroValue => 19,
                 ProofCertifiedScalarIdentityKind::ExactIntegerShiftRightZeroValue => 20,
                 ProofCertifiedScalarIdentityKind::ExactIntegerShiftRightNegativeOneValue => 21,
+            });
+        }
+        PsiRewritePatch::EliminateTotalScalarIdentity(patch) => {
+            bytes.push(16);
+            encode_location(&mut bytes, patch.location);
+            bytes.extend_from_slice(&patch.source_operation.get().to_le_bytes());
+            bytes.extend_from_slice(&patch.result.get().to_le_bytes());
+            bytes.extend_from_slice(&patch.replacement.get().to_le_bytes());
+            encode_integer_type(&mut bytes, patch.scalar_type);
+            bytes.push(match patch.identity {
+                TotalScalarIdentityKind::WrappingIntegerAddZeroLeft => 1,
+                TotalScalarIdentityKind::WrappingIntegerAddZeroRight => 2,
+                TotalScalarIdentityKind::WrappingIntegerSubtractZeroRight => 3,
+                TotalScalarIdentityKind::WrappingIntegerMultiplyOneLeft => 4,
+                TotalScalarIdentityKind::WrappingIntegerMultiplyOneRight => 5,
             });
         }
     }

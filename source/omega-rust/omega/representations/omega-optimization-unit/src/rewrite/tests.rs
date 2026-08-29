@@ -342,3 +342,103 @@ fn proof_certified_live_identity_candidate_identity_binds_policy_and_side_kind()
     });
     assert_eq!(identities.into_iter().collect::<BTreeSet<_>>().len(), 14);
 }
+
+#[test]
+fn total_scalar_identity_codec_binds_all_five_rows_and_only_the_literal_fact() {
+    let machine = MachineId::new(701).unwrap();
+    let block = BlockId::new(702).unwrap();
+    let location = NodeLocation {
+        machine,
+        block,
+        node: 1,
+    };
+    let contract = OptimizationRuleContract::new(
+        OptimizationRuleIdentity::from_canonical_bytes(b"total-wrapping-identity-rule"),
+        omega_optimization_core::OptimizationPassIdentity::from_canonical_bytes(
+            b"total-wrapping-identity-pass",
+        ),
+        1,
+        AnalysisSet::default(),
+        AnalysisInvalidationSet::default(),
+        OptimizationSafetyClass::ExactOperationSemantics,
+    )
+    .unwrap();
+    let source_operation = OperationId::new(703).unwrap();
+    let source = PsiProvenance::Operation(source_operation);
+    let provenance = vec![ProvenanceRewrite {
+        input: PsiRealizationSite::Node(location),
+        disposition: ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(location)),
+        sources: vec![source],
+        fuel: vec![FuelSettlement {
+            site: source,
+            units: 1,
+        }],
+    }];
+    let constant_fact = ScalarConstantFactIdentity::from_canonical_bytes(b"neutral-literal");
+    let identities = [
+        (TotalScalarIdentityKind::WrappingIntegerAddZeroLeft, 1),
+        (TotalScalarIdentityKind::WrappingIntegerAddZeroRight, 2),
+        (TotalScalarIdentityKind::WrappingIntegerSubtractZeroRight, 3),
+        (TotalScalarIdentityKind::WrappingIntegerMultiplyOneLeft, 4),
+        (TotalScalarIdentityKind::WrappingIntegerMultiplyOneRight, 5),
+    ]
+    .map(|(identity, identity_tag)| {
+        let input =
+            OptimizationUnitIdentity::from_canonical_bytes(b"total-wrapping-identity-input");
+        let candidate = PsiRewriteCandidate::new_total_scalar_identity(
+            input,
+            contract,
+            vec![block],
+            provenance.clone(),
+            constant_fact,
+            -1,
+            TotalScalarIdentityRewrite {
+                location,
+                source_operation,
+                result: ValueId::new(704).unwrap(),
+                replacement: ValueId::new(705).unwrap(),
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+                identity,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            candidate.total_scalar_identity_witness(),
+            Some(constant_fact)
+        );
+        assert_eq!(
+            candidate.consumed_facts(),
+            [OptimizationFactReference::ScalarConstant(constant_fact)]
+        );
+        assert!(candidate.accepted_obligation_witness().is_none());
+        let canonical = super::codec::encode_candidate(
+            input,
+            contract,
+            candidate.decision_point(),
+            candidate.affected_blocks(),
+            candidate.substitutions(),
+            candidate.provenance(),
+            &candidate.witness,
+            candidate.predicted_cost_delta(),
+            candidate.patch_ref(),
+        );
+        let fact_position = canonical
+            .windows(32)
+            .position(|window| window == constant_fact.bytes())
+            .unwrap();
+        assert_eq!(canonical[fact_position - 1], 7, "appended witness tag");
+        let operation = source_operation.get().to_le_bytes();
+        let patch_operation_position = canonical
+            .windows(8)
+            .rposition(|window| window == operation)
+            .unwrap();
+        assert_eq!(
+            canonical[patch_operation_position - 21],
+            16,
+            "appended patch tag"
+        );
+        assert_eq!(canonical.last(), Some(&identity_tag));
+        candidate.identity()
+    });
+    assert_eq!(identities.into_iter().collect::<BTreeSet<_>>().len(), 5);
+}

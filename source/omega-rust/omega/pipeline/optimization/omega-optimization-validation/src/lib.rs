@@ -28,11 +28,12 @@ use omega_optimization_unit::{
     PsiNodeObservation, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
     PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, RedundantBlockParameterRewrite,
     ScalarConstantValue, ScalarSubstitution, SccpBlockRow, SccpEdgeRow, SccpEdgeState,
-    SccpMachineSnapshot, SccpValueRow, SccpValueState, SharedJumpFusionRewrite, ValueDefinition,
-    ValueDefinitionSite, ValueUse, canonical_ownership_frontier_snapshot,
-    derived_sccp_scalar_constant_fact_identity, literal_scalar_constant_fact_identity,
-    recompute_psi_optimization_unit_identity, reconstruct_psi_closed_region_observation,
-    reconstruct_psi_observation_model, structural_domain_catalog_identity,
+    SccpMachineSnapshot, SccpValueRow, SccpValueState, SharedJumpFusionRewrite,
+    TotalScalarIdentityKind, TotalScalarIdentityRewrite, ValueDefinition, ValueDefinitionSite,
+    ValueUse, canonical_ownership_frontier_snapshot, derived_sccp_scalar_constant_fact_identity,
+    literal_scalar_constant_fact_identity, recompute_psi_optimization_unit_identity,
+    reconstruct_psi_closed_region_observation, reconstruct_psi_observation_model,
+    structural_domain_catalog_identity,
 };
 use psi_core::{
     BlockId, BoundaryMachineId, ClaimId, ContentProjectionExpression, ContentProjectionScalar,
