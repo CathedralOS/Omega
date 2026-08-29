@@ -443,7 +443,7 @@ Remaining:
   `use path::member;` roots plus basic `[pub] data` declarations with optional
   `[copy]`, bare named field types, and payload-free `case Name;` members. The
   parser retains exact mixed field/case order and source spans in owner-local
-  bounded syntax and type-reference tables; explicit discriminants, case
+  bounded syntax and type-reference tables; retired inline discriminants, case
   payloads, other properties, richer types, and every unsupported root reject
   fail closed. Remaining declaration grammar, resolution, checking, terminal
   Psi, and all later Psi/Omega phases remain open. Extend this as live
@@ -808,13 +808,12 @@ Remaining:
   mutation canaries. Any incomplete lowering lane must keep its order-sensitive
   compound forms fenced rather than choose a local schedule.
 
-  One broader ruling must still close before the compiler source may depend on
-  it. Explicit sum discriminants can conflict with the first-case/tag-zero
-  initialization invariant under
-  [OWNER Q10](OWNER_QUESTIONS.md#q10--explicit-sum-discriminants-under-zero-initialization),
-  while default aggregate byte layout remains compiler-controlled. Rule that
-  exact language question before relying on explicit discriminants; do not let
-  a bootstrap-private layout become the public Omega contract by accident.
+  Inline `case Name = integer;` discriminants are retired and must remain a
+  loud parse rejection rather than a bootstrap-private extension. Foreign
+  integer sets cross boundaries in typed scalar carriers and map to nominal
+  Omega sums through ordinary checked machines with an explicit unknown-value
+  path. A future zero-copy optimization must prove complete byte-equivalence;
+  it does not revive declaration-level integer tags.
 
 - **OMEGA-RUST-COMPARATOR.** Maintain the current Rust Psi/Omega compiler under
   `source/omega-rust/` as a parallel differential implementation

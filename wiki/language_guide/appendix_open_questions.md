@@ -66,10 +66,11 @@ Last pruned: 2026-08-29.
 - Settle the boundary between browsable core declarations and
   compiler-managed primitive carriers. Current direction keeps `Array`, `Vec`,
   and `Slice` public; text is bytes plus an encoding domain.
-- Settle explicit discriminants versus the first-case/tag-zero invariant,
-  generic payload layout under stable representations, and the remaining
+- Settle generic payload layout under stable representations and the remaining
   generic case-union/exhaustiveness interactions. Ordinary transition-arm
-  payload binding already uses the data-pattern rules in Chapter 1.
+  payload binding already uses the data-pattern rules in Chapter 1. Inline
+  integer discriminants are retired; foreign integer sets use typed scalar
+  carriers and ordinary checked mapping machines.
 - Define foreign-type domain imports, orphan/coherence restrictions, and their
   authority-report representation.
 - Decide whether any core generic properties beyond `copy`, `linear`, `sized`,

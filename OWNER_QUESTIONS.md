@@ -11,6 +11,13 @@ Code, canaries, and settled documentation must cite a stable named decision or
 the governing guide section rather than an owner-question number. A settled
 decision's durable identity does not change when this queue is pruned.
 
+Before a proposed surface becomes an owner question, audit whether it is
+implemented, whether any authored source uses it, and whether ordinary Omega
+already expresses the customer. An unimplemented, unused spelling that adds no
+capability beyond existing checked machines is retired rather than redesigned.
+Hypothetical future utility does not by itself preserve syntax; a concrete
+customer requiring a distinct capability may propose a new surface later.
+
 Last pruned: 2026-08-29.
 
 ## Q1 — Strict SSH trust and credential authority
@@ -560,48 +567,3 @@ special status to identifiers or values.
   syntax, or Unicode encoding the implementation language happens to provide.
 - Tempting but wrong: call literals raw bytes while silently converting a
   codepoint escape into UTF-8.
-
-## Q10 — Explicit sum discriminants under zero initialization
-
-### Context
-
-Chapter 1 permits payload-less sum cases to declare explicit integer
-discriminants for foreign layouts, with unspecified cases continuing from the
-previous value. Chapters 1 and 20 also require tag zero to denote the first
-declared case so all-zero storage has one safe, recursively defined sum value.
-An explicit nonzero discriminant on the first case cannot satisfy both rules.
-The current Omega-written parser accepts case order and payloads but excludes
-explicit discriminants rather than selecting a local interpretation.
-
-### Problem statement
-
-Decide whether an explicitly discriminated sum must still contain its first
-case at tag zero, or whether explicit foreign tags define a different
-zero-initialization regime. The answer determines the meaning of all-zero
-storage, case identity versus runtime tag, implicit discriminant sequencing,
-duplicate/range validation, placed decoding, and ABI replay. Compiler-selected
-default layout remains a separate concern; this question is only about the
-authored runtime discriminant contract.
-
-### Proposed direction
-
-Preserve the universal first-case/tag-zero invariant. When any explicit
-discriminant is present, require the first declared case to have discriminant
-zero, whether explicit or implicit. Later payload-less cases may use unique
-representable explicit values, and an unspecified case continues from the
-previous discriminant with checked overflow. A foreign enum with no valid zero
-case cannot be represented as an ordinary zero-initializable Omega sum; it must
-use a distinct validated placed/wire carrier whose raw invalid zero state is
-not claimed to be an established sum value.
-
-### Alternates
-
-- Acceptable but broader: define a distinct explicitly represented foreign-sum
-  form whose all-zero storage is safe but gated and does not denote the first
-  case, while ordinary Omega sums retain first-case/tag-zero semantics.
-- Acceptable: forbid explicit discriminants entirely and require foreign tag
-  conversion through checked wire/placement plans.
-- Tempting but wrong: declare that the first case has a nonzero authored tag
-  while also treating zero bytes as that case during ordinary reads.
-- Tempting but wrong: silently renumber explicit tags in default layouts while
-  advertising those same values as the foreign in-memory discriminants.

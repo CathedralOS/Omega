@@ -353,7 +353,7 @@ def main() -> None:
         ("missing-case-name", b"data X { case ; }", 20, (14, 15)),
         ("missing-case-semicolon", b"data X { case A }", 21, (16, 17)),
         ("case-payload-not-yet-supported", b"data X { case A(value: T); }", 21, (15, 16)),
-        ("case-discriminant-is-unsettled", b"data X { case A = 1; }", 21, (16, 17)),
+        ("case-discriminant-is-retired", b"data X { case A = 1; }", 21, (16, 17)),
         ("legacy-bare-case-is-rejected", b"data X { A; }", 12, (10, 11)),
         ("array-types-not-yet-supported", b"data X { field: [u8; 4]; }", 13, (16, 17)),
         ("qualified-types-not-yet-supported", b"data X { field: T in Domain; }", 14, (18, 20)),
