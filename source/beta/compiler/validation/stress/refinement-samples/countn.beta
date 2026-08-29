@@ -1,8 +1,0 @@
-; DATA-DEPENDENT loop with a unit accumulator: count 0..n-1 -> n.
-proc main() {
-    let n = read_byte()
-    let total = 0
-    let i = 0
-    state loop { to body when (i < n)  return total }
-    state body { total = total + 1  i = i + 1  to loop }
-}

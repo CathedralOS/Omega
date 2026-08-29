@@ -1,9 +1,0 @@
-; DATA-DEPENDENT loop whose delta IS the counter: total += i for i=0..n-1  ->  Σ i = triangular sum.
-; The closed form needs division, so both sides emit the user-fn recurrence g(n)=Σ_{j<n} j instead.
-proc main() {
-    let n = read_byte()
-    let total = 0
-    let i = 0
-    state loop { to body when (i < n)  return total }
-    state body { total = total + i  i = i + 1  to loop }
-}

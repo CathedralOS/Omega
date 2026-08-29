@@ -1,6 +1,0 @@
-; two input bytes, summed. refines a+b (and, commuted, b+a).
-proc main() {
-    let a = read_byte()
-    let b = read_byte()
-    return a + b
-}

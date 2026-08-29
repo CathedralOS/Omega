@@ -81,8 +81,8 @@ textual-output-plus-Alpha-assembler route, after which that obsolete oracle was
 removed. Its stored-word encoder subsequently corrected the old assembler's
 high-bit `u64` quotient bug, so that intentional semantic repair supersedes
 blanket byte identity with the historical route. The adjacent validation
-directory now retains only general artifact
-structure, trace-refinement, and bounded stress checks. The former self-hosted
+directory now retains only a general artifact-structure check and a bounded
+symbolic differential. The former self-hosted
 compiler and its exact admission forest were deleted because none of their
 source/PC/count-specific propositions transferred to the promoted Alpha source.
 

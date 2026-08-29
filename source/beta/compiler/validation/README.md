@@ -1,46 +1,29 @@
-# Beta compiler validation
+# Beta compiler validation inventory
 
-This owner now retains only machinery with a direct adaptation to the
-Alpha-written canonical Beta compiler or a bounded, named diagnostic role.
+Everything here targets the one canonical edge:
 
-## Canonical-edge checks
+```text
+source/beta/compiler/beta_compiler.alpha
+  -> source/beta/compiler/beta_compiler_bytecode.tape
+```
 
-- `admission/bc-artifact-structure.alpha` is a general Alpha-tape structural
-  checker. Its wrapper accepts an explicit tape; its no-argument default is the
-  canonical compiler artifact.
-- `admission/fol/` proves that the selected first-order checker can express
-  non-lockstep traces, silent stuttering with a decreasing rank, cyclic
-  execution, and the required negative controls. It contains no exact
-  former self-host proposition.
+Construction and diagnostics do not admit that edge. Exact checked
+Alpha-source/tape correspondence remains open in `TASKS_BOOTSTRAP.md`.
 
-The former 193-module exact-self-host ROOT reconstruction, source/PC witnesses,
-`B_bc1` profile, and resource-cutpoint proofs were deleted. They described the
-wrong canonical source and could not be adapted without replacing their exact
-subjects, tables, counts, procedure identities, and most propositions. Generic
-decoding and proof patterns are small enough to reimplement against the actual
-Alpha-written subject.
+| Retained owner | Bounded failure-detection role | Deletion condition |
+| --- | --- | --- |
+| `admission/bc-artifact-structure.alpha` and `.sh` | Independently decode the reachable canonical Alpha tape and reject malformed instruction framing, invalid direct targets, root `ret`, cross-procedure branches, overlapping procedure regions, and tape-hole overflow. The wrapper includes positive and negative fixtures and accepts an explicit candidate tape before persistence. It proves neither all-path termination nor language correctness. | Merge or delete when the exact checked source/tape certificate reconstructs and proves the same decoder, target, procedure-region, and capacity facts. Delete earlier if a future canonical layout invalidates its ordered-region model rather than weakening that model silently. |
+| `differential/` | Compile a small set of symbolic Beta shapes with the canonical compiler, compare independently generated source/tape scalar terms, differentially pin each term on eight small-input trials, and have the rooted checker validate term equality plus mutation teeth. Its deliberately narrow observation and finite grounding are diagnostic only. | Delete when exact operational refinement covers the retained shapes, or when maintaining two symbolic recognizers is no longer economical. Individual-case deletion rules live in its README. |
 
-## Diagnostics retained conditionally
+The former ordinary-FOL seam was deleted: it proved hard-coded toy machines,
+reconstructed no canonical source or tape byte, and could not be imported by a
+later certificate. The source-only symbolic-loop gate and duplicated hand-built
+Alpha/checker cases were also deleted because they never traversed this edge.
+Git history is the archive for all three.
 
-- `stress/refinement.sh` constructs the canonical Alpha-written compiler and
-  proves source/tape agreement for 71 curated and deterministic generated programs inside
-  the explicitly modeled arithmetic, state-machine, memory, I/O, and bounded
-  control fragment. Deeper fuzz counts are explicit environment overrides;
-  the measured default is 114 seconds on the development host and is not part
-  of the fast suite. This is a compiler-edge diagnostic, not proof of
-  the unmodeled language or a bootstrap premise.
-
-The historical-compiler surface wrapper, a repository-shape ownership test,
-and a duplicate three-checker certificate diamond were deleted. Their distinct
-cases moved to the direct compiler suite; checker implementation agreement is
-already Alpha-checker-owned.
-
-Artifact identity, source-language correctness, and tape structure remain
-separate obligations.
-
-Run the retained focused seams directly:
+Run the retained checks directly:
 
 ```sh
-sh source/beta/compiler/validation/admission/fol/trace-refinement-seam.sh
-sh source/beta/compiler/validation/stress/refinement.sh
+sh source/beta/compiler/validation/admission/bc-artifact-structure.sh
+sh source/beta/compiler/validation/differential/test.sh
 ```

@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
-# refinement_loop_gen.py SEED — emit ONE random DATA-DEPENDENT linear-loop Beta program, chosen
-# deterministically from SEED. The refinement loop-fuzzer compiles it with bc and proves bc's output ≡ the
-# source meaning for ALL inputs — where BOTH the bytecode side (alpha_symbolic) and the source side
-# (beta_symbolic) must SUMMARIZE the loop (symbolic trip count) to the same closed form. This hardens the
-# intricate loop-summarization recognizers over a program space, the way refinement_fuzz_gen hardens the
-# straight-line engines.
+# Emit one deterministic data-dependent linear-loop Beta case selected by
+# `SEED` for the bounded symbolic differential. Both untrusted symbolic engines
+# must summarize the symbolic trip count to the same term.
 #
 # Shape (the recognized linear class): a unit-stride counter `i` from 0 with guard `i < n` (n an input), one
 # or two accumulators each updated `acc = acc ± <delta linear in i>` per iteration, and a returned

@@ -5,7 +5,8 @@ seed runs. It is **written in Alpha** (`assembler.alpha`), so it belongs to the 
 The compatibility path and committed executable retain historical `beta` names;
 canonical gates call this role `alpha-assembler`.
 (The **Beta language** — the first structured language, one tier up — lives in
-`../../beta/` and is compiled by `bc`.) The assembler reads human mnemonics directly
+`../../beta/` and is compiled by `bc`.) The authoritative grammar and encoding
+are fixed by [`../ASSEMBLY.md`](../ASSEMBLY.md). The assembler reads human mnemonics directly
 (opcode names, whole-token `rN` registers for decimal `N` in `0..255`, decimal
 immediates, labels, commas as whitespace), with no
 Rust and no numeric-opcode step in normal use.
@@ -27,7 +28,7 @@ values through signed division.
   outputs over a corpus and is useful for catching encoder bugs. Agreement is
   diagnostic evidence, not source-to-artifact authority.
 The historical Rust cold-start producer has been retired. The checked-in seed,
-written semantics, self-hosting reconstruction, and independent reference gate
+written assembly/VM semantics, self-hosting reconstruction, and independent reference gate
 are the maintained path.
 
 ```

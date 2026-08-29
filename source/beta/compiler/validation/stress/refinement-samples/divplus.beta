@@ -1,6 +1,0 @@
-; division by a VARIABLE but provably-nonzero divisor: a / (b+1), with b a byte so b+1 in [1,256].
-proc main() {
-    let a = read_byte()
-    let b = read_byte()
-    return a / (b + 1)
-}

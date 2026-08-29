@@ -226,6 +226,9 @@ fuel limit and ROOT execution remain tests, not divergence evidence.
   reachable-instruction and procedure-region checker for the canonical tape.
 
 These gates are regression evidence. Complete admission still requires exact
-source/tape obligation reconstruction and the ordinary first-order trace,
+obligation reconstruction at two distinct boundaries. The canonical compiler's
+Alpha assembly must encode to its persisted tape exactly; equality then gives
+lockstep Alpha behavior. Separately, arbitrary accepted Beta source and the
+Alpha tape emitted for it require the ordinary first-order trace,
 synchronization, observation, and well-founded-stuttering derivation described
 above.

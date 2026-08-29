@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-# refinement_nested_gen.py SEED — emit ONE random NESTED-loop Beta program, chosen deterministically from
+# Emit one nested-loop Beta case chosen deterministically from
 # SEED. This is the fuzz surface for RECURSIVE loop summarization: an outer data-dependent loop whose body
 # contains an inner loop that is itself summarized (concrete bound -> unrolled; symbolic bound -> summarized
-# recursively, its closed form over the outer run's markers becoming the outer delta). The refinement gate
-# proves bc's compiled output ≡ the source meaning for every generated program, ∀ inputs.
+# recursively, its closed form over the outer run's markers becoming the outer delta).
 #
-# Shape constraints keep every program inside the certifiable class:
+# Shape constraints keep every program inside the modeled diagnostic fragment:
 #   - inner bound IB ∈ {2, 3, m (an input), i (the outer counter — the TRIANGULAR case)};
 #   - inner deltas are a1·j + a0 with a1,a0 loop-invariant; when IB == i the inner delta must be j-INVARIANT
 #     (a1 = 0), because an inner g(i) would make the outer delta quadratic (tetrahedral — refused);

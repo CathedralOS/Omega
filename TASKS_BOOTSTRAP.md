@@ -161,7 +161,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     corrected that assembler's signed-division bug for high-bit `u64` immediate
     bytes. The canonical tape passes the generic structural gate. Every
     production consumer now uses its direct tape output.
-  - [ ] **DESIGN-BLOCKED — Q17:** Enforce Beta definite initialization across
+  - [ ] **DESIGN-BLOCKED — Q16:** Enforce Beta definite initialization across
     state/transition CFGs after fixing the flat-block formation and guarded-edge
     well-formedness rules. A source-order symbol-table pass alone does not prove
     initialization on every path; the byte-vector must-analysis and bounded
@@ -173,7 +173,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     frame word bounds semantic depth and leaves the hidden Alpha return stack
     above 66,322,424 even at the failing edge. A 64-slot recursive stress case
     reaches fail-closed status 250 without output or aliasing.
-  - [ ] **DESIGN-BLOCKED — Q18:** Project malformed source and each private
+  - [ ] **DESIGN-BLOCKED — Q17:** Project malformed source and each private
     capacity failure to exact, typed no-partial-artifact outcomes. The Alpha
     boundary currently exposes raw success bytes plus a halt code and has no
     selected canonical carrier for `Complete`, `Reject`, `Incomplete`, and
@@ -185,29 +185,43 @@ code, discover a closure, manufacture proof premises, or decide admission.
   `beta_compiler.alpha`; checker, Gamma, reference, and seed-diamond consumers
   no longer invoke an assembler after compiling Beta.
 - [x] Reassess the large historical self-host refinement/admission tree module by module.
-  Adapt general Alpha-machine decoding, observation, stuttering, and proof-DAG
-  machinery to the actual Alpha-written compiler edge. Delete source-specific
+  Adapt general Alpha-machine decoding and proof-DAG machinery to the actual
+  Alpha-written compiler edge. Delete source-specific
   machinery that exists only to prove the noncanonical Beta fixed point.
-  The retained surface is the generic artifact-structure check, generic FOL
-  trace seam, stress/refinement harness, and bounded implementation comparator;
-  about 65,000 source-specific lines and their wrapper scripts were removed.
+  The retained surface is one generic artifact-structure check and a reduced
+  bounded symbolic differential. The toy FOL seam, source-only loop checker,
+  duplicated Alpha/checker fixtures, and redundant symbolic cases were deleted;
+  they reconstructed no canonical source/tape proposition or duplicated cheaper
+  owners. About 65,000 historical source-specific lines had already been removed.
 - [x] Delete the historical Beta self-host after promotion. Its full-source
   migration comparison helped pin the direct emitter, but it had zero remaining
   executable consumers and no bounded comparison gate; constructing a new gate
   merely to justify retention would reverse the repository policy. Its fixed
   point and source now survive only in Git history.
-- [ ] Close exact Alpha-source-to-Alpha-tape refinement with termination, trap,
-  resource exhaustion, output, and divergence observations. Ordinary checked
-  first-order simulation and well-founded stuttering remain the selected proof
-  strategy; no new trusted LTS rule is implied.
+- [ ] Close exact Alpha-assembly-source-to-Alpha-tape correspondence. First
+  specify the authoritative assembly grammar and two-pass encoding, then bind
+  the exact raw `beta_compiler.alpha` and tape subjects and check that every
+  source span, instruction, label fixup, `db` row, and artifact byte belongs to
+  one total encoding partition with no gaps or extras. Exercise source-byte,
+  tape-byte, label-target, and extent mutations and measure certificate size and
+  checking time. Exact tape equality transports through deterministic Alpha
+  semantics in lockstep, preserving every defined termination, trap, output,
+  resource, and divergence observation; this first edge needs no stuttering
+  rank or new trusted LTS rule. Correctness of the compiler for arbitrary Beta
+  source is a separate `ADMIT-ALPHA-BETA-COMPILER` obligation.
+  - [x] Freeze `source/alpha/ASSEMBLY.md`: ASCII lexical form, exact operand
+    grammar, full opcode/width table, string decoding, absolute label meaning,
+    deterministic two-pass encoding, and the raw-payload/container boundary.
+  - [ ] Build the subject-bound whole-source encoding certificate and mutation
+    controls against the exact 78,109-byte source and 20,977-byte tape.
 
 ## 3. Beta-written Gamma compiler
 
-- [ ] **DESIGN-BLOCKED — Q16: BUILD-GAMMA-COMPILER.** Define the complete Gamma source contract, then
+- [ ] **DESIGN-BLOCKED — Q15: BUILD-GAMMA-COMPILER.** Define the complete Gamma source contract, then
   implement `source/gamma/compiler/gamma_compiler.beta` as a standalone
   compiler from Gamma source to Alpha tape. It may reuse or reorganize
   `interp.beta` and `typeck.beta`; no external interpreter may remain part of
-  compilation. Q16 must first select one typed executable grammar, entry/stream
+  compilation. Q15 must first select one typed executable grammar, entry/stream
   ABI, outcome model, and fuel/resource meaning. The current interpreter and
   type checker implement disconnected untyped-executable and typed-nonexecuting
   languages, so choosing either in code would invent Gamma semantics.
@@ -220,14 +234,14 @@ code, discover a closure, manufacture proof premises, or decide admission.
 
 ## 4. Gamma-written Delta compiler
 
-- [ ] **DESIGN-BLOCKED — Q15: FREEZE-DELTA-V1.** Finish one self-contained Delta grammar, static
+- [ ] **DESIGN-BLOCKED — Q14: FREEZE-DELTA-V1.** Finish one self-contained Delta grammar, static
   semantics, deterministic execution model, sealed byte I/O contract, and
   resource taxonomy. Delta is an independent robust C-like compiler-host
-  language; it does not inherit Omega meaning merely by sharing spelling. Q15
+  language; it does not inherit Omega meaning merely by sharing spelling. Q14
   must close the contradictory `Incomplete` placement, exact reject/trap
   taxonomy, keyword policy, optional domains/contracts, builtin resolution,
   Console/string ABI, scalar-transition miss, and closure presentation.
-- [ ] **DESIGN-BLOCKED — Q15: BUILD-DELTA-COMPILER.** Implement
+- [ ] **DESIGN-BLOCKED — Q14: BUILD-DELTA-COMPILER.** Implement
   `source/delta/compiler/delta_compiler.gamma` to consume arbitrary valid Delta
   and emit exact Alpha tape directly. No Beta translator, Gamma evaluator
   subprocess, host encoder/decoder, native assembler stream, or older compiler
@@ -238,7 +252,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   - [x] Delete `exprc.delta` and `minic.delta`; both were demonstrations of the
     removed Darwin-native route rather than authoritative Delta observations.
   - [ ] Classify `contextual-state-identifiers.delta`, `fieldsat.delta`, the
-    range/contracts portion of `discharge.delta`, and `calls.delta` after Q15.
+    range/contracts portion of `discharge.delta`, and `calls.delta` after Q14.
     They currently contradict the written keyword/domain/result/builtin rules.
 - [ ] Check exact Gamma-source-to-Alpha-tape refinement, including realistic
   source closures large enough to compile `D`.
@@ -248,7 +262,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 - [ ] **OWN-OMEGA-D.** Author one exact package-resolved closure `D` at
   `source/omega/omega_compiler.delta`; do not preserve historical filenames,
   snapshots, or native-publication adapters as authorities. This is downstream
-  of Q15. The deleted prototype remains available in Git for selectively
+  of Q14. The deleted prototype remains available in Git for selectively
   re-deriving an isolated algorithm, but it cannot be restored or copied as a
   compiler-shaped starting point.
 - [ ] Make `D` implement the complete Omega specification, including difficult

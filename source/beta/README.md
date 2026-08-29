@@ -26,10 +26,10 @@ The Alpha-written [`compiler/beta_compiler.alpha`](compiler/beta_compiler.alpha)
 is the complete canonical Beta compiler used by the direct chain.
 
 [`compiler/validation/`](compiler/validation/README.md) retains the general
-Alpha-tape structure checker, ordinary-FOL simulation seams, and bounded
-differential stress tools that target the canonical compiler. The 60k-line
-former self-host obligation tree and source/PC witnesses were deleted because
-their proposition cannot admit an Alpha-written source.
+Alpha-tape structure checker and one bounded symbolic differential that target
+the canonical compiler. The 60k-line former self-host obligation tree,
+source/PC witnesses, and toy FOL capability seam were deleted because none
+reconstructed the exact Alpha-written source/tape proposition.
 
 ## Role in the lattice
 
@@ -44,6 +44,7 @@ Run the construction and diagnostic gates directly with:
 sh source/beta/compiler/cold-start/rebuild-artifact.sh --check
 sh source/beta/compiler/cold-start/test.sh
 sh source/beta/compiler/validation/admission/bc-artifact-structure.sh
+sh source/beta/compiler/validation/differential/test.sh
 ```
 
 The active reduction and admission work is tracked in

@@ -58,9 +58,9 @@ class BetaParserTests(unittest.TestCase):
         grouped_ast = beta_parser.Parser(beta_parser.lex(grouped)).parse()
         self.assertEqual(bare_ast, grouped_ast)
 
-    def test_reference_sources_have_no_backend_or_refinement_import(self):
+    def test_reference_sources_have_no_backend_diagnostic_import(self):
         here = Path(__file__).resolve().parent
-        forbidden = {'bc2', 'beta_symbolic', 'symbolic_loop_check'}
+        forbidden = {'bc2', 'beta_symbolic', 'symbolic_differential'}
         for name in ('beta_parser.py', 'beta_interp.py', 'io-verify.py'):
             tree = ast.parse((here / name).read_text(), filename=name)
             imported = {

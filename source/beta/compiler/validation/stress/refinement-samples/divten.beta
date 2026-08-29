@@ -1,5 +1,0 @@
-; one input byte divided by the constant 10. refines a/10 (opaque div constructor).
-proc main() {
-    let a = read_byte()
-    return a / 10
-}

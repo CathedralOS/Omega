@@ -1,5 +1,0 @@
-; one input byte mod the constant 10 (last decimal digit). refines a%10 (opaque mod constructor).
-proc main() {
-    let a = read_byte()
-    return a % 10
-}

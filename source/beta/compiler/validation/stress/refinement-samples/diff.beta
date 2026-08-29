@@ -1,8 +1,0 @@
-; SUBTRACTION (may underflow): (a - b) * c. Modeled as a ℤ difference-pair; sound because the observable is
-; mod 256 and 256 | 2^64, so ℤ arithmetic mod 256 equals alpha's mod-2^64 arithmetic mod 256.
-proc main() {
-    let a = read_byte()
-    let b = read_byte()
-    let c = read_byte()
-    return (a - b) * c
-}
