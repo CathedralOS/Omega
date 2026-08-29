@@ -263,7 +263,7 @@ fn package_aware_checked_compilation_retains_the_reconciled_root_identity() {
     let project = TempProject::new();
     project.write("main.omg", "const ANSWER: u32 = 42;\n");
     let root_identity = PackageKeyIdentity::from_digest([7; 32]).expect("nonzero package identity");
-    let inputs = PackageCompilationInputs::new(
+    let inputs = PackageCompilationInputs::new_package(
         root_identity,
         vec![PackageSourceBinding::new(
             root_identity,

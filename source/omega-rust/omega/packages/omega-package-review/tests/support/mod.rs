@@ -3,7 +3,7 @@
 pub(crate) use omega_build_evaluation::BuildObservationClass;
 pub(crate) use omega_compiler::{CheckedCompilation, compile_to_checked_with_packages};
 pub(crate) use omega_package_compilation::{
-    PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
+    BuildDeclarationKind, PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
 };
 pub(crate) use omega_package_review::encoding::{
     PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION,
@@ -61,7 +61,7 @@ pub(crate) fn ledger_target_range(bytes: &[u8]) -> std::ops::Range<usize> {
 
 pub(crate) fn ledger_closure_package_range(bytes: &[u8]) -> std::ops::Range<usize> {
     let target = ledger_target_range(bytes);
-    let mut position = target.end + 32;
+    let mut position = target.end + 32 + 1;
     let count = read_ledger_u64(bytes, &mut position);
     position..position + count * 32
 }
@@ -115,7 +115,7 @@ pub(crate) fn package_identity() -> PackageKeyIdentity {
 }
 
 pub(crate) fn package_inputs(root: &Path) -> PackageCompilationInputs {
-    PackageCompilationInputs::new(
+    PackageCompilationInputs::new_package(
         package_identity(),
         vec![PackageSourceBinding::new(
             package_identity(),

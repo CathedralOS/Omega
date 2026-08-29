@@ -4,6 +4,7 @@
 
 mod source_consumption;
 
+pub use omega_build_declarations::BuildDeclarationKind;
 use omega_build_output::PackageGeneratedSource;
 use psi_checked_interpreter::{
     CANONICAL_FILESYSTEM_METADATA_POLICY_VERSION, CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT,
@@ -119,6 +120,7 @@ impl PackageDependencyBinding {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageDependencyClosure {
     root: PackageKeyIdentity,
+    root_role: BuildDeclarationKind,
     packages: Vec<PackageKeyIdentity>,
     dependencies: Vec<PackageDependencyBinding>,
 }
@@ -179,6 +181,10 @@ impl PackageDependencyClosure {
         self.root
     }
 
+    pub const fn root_role(&self) -> BuildDeclarationKind {
+        self.root_role
+    }
+
     pub fn packages(&self) -> &[PackageKeyIdentity] {
         &self.packages
     }
@@ -197,9 +203,13 @@ impl PackageDependencyClosure {
     #[doc(hidden)]
     pub fn from_canonical_parts(
         root: PackageKeyIdentity,
+        root_role: BuildDeclarationKind,
         packages: Vec<PackageKeyIdentity>,
         dependencies: Vec<PackageDependencyBinding>,
     ) -> Result<Self, &'static str> {
+        if root_role == BuildDeclarationKind::Workspace {
+            return Err("package dependency closure root has workspace role");
+        }
         if packages.is_empty() {
             return Err("package dependency closure has no packages");
         }
@@ -243,6 +253,7 @@ impl PackageDependencyClosure {
 
         Ok(Self {
             root,
+            root_role,
             packages,
             dependencies,
         })
@@ -255,6 +266,7 @@ impl PackageDependencyClosure {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageCompilationInputs {
     root: PackageKeyIdentity,
+    root_role: BuildDeclarationKind,
     packages: BTreeMap<PackageKeyIdentity, PathBuf>,
     /// Canonical declared names retained solely for human-facing package
     /// diagnostics. Security decisions continue to compare exact identities.
@@ -267,10 +279,14 @@ pub struct PackageCompilationInputs {
 impl PackageCompilationInputs {
     pub fn new(
         root: PackageKeyIdentity,
+        root_role: BuildDeclarationKind,
         packages: Vec<PackageSourceBinding>,
         dependencies: Vec<PackageDependencyBinding>,
     ) -> Result<Self, Vec<PackageCompilationInputError>> {
         let mut errors = Vec::new();
+        if root_role == BuildDeclarationKind::Workspace {
+            errors.push(PackageCompilationInputError::InvalidRootRole { role: root_role });
+        }
         let mut canonical_packages = BTreeMap::new();
         let mut canonical_names = BTreeMap::new();
         let mut canonical_source_metadata = BTreeMap::new();
@@ -412,6 +428,7 @@ impl PackageCompilationInputs {
         if errors.is_empty() {
             Ok(Self {
                 root,
+                root_role,
                 packages: canonical_packages,
                 package_names: canonical_names,
                 canonical_source_metadata,
@@ -423,8 +440,22 @@ impl PackageCompilationInputs {
         }
     }
 
+    /// Construct an ordinary package compilation explicitly. Application
+    /// roots must use [`Self::new`] with their retained authored role.
+    pub fn new_package(
+        root: PackageKeyIdentity,
+        packages: Vec<PackageSourceBinding>,
+        dependencies: Vec<PackageDependencyBinding>,
+    ) -> Result<Self, Vec<PackageCompilationInputError>> {
+        Self::new(root, BuildDeclarationKind::Package, packages, dependencies)
+    }
+
     pub const fn root(&self) -> PackageKeyIdentity {
         self.root
+    }
+
+    pub const fn root_role(&self) -> BuildDeclarationKind {
+        self.root_role
     }
 
     pub fn package_root(&self, identity: PackageKeyIdentity) -> Option<&Path> {
@@ -463,6 +494,7 @@ impl PackageCompilationInputs {
     pub fn dependency_closure(&self) -> PackageDependencyClosure {
         PackageDependencyClosure {
             root: self.root,
+            root_role: self.root_role,
             packages: self.packages.keys().copied().collect(),
             dependencies: self
                 .dependencies()
@@ -608,6 +640,11 @@ impl PackageCompilationInputs {
         let reachable = reachable_packages(root, &self.dependencies);
         PackageDependencyClosure {
             root,
+            root_role: if root == self.root {
+                self.root_role
+            } else {
+                BuildDeclarationKind::Package
+            },
             packages: self
                 .packages
                 .keys()
@@ -1102,6 +1139,9 @@ impl psi_build_time_evaluation::BuildTimeSelectionAuthority for PackageCompilati
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageCompilationInputError {
+    InvalidRootRole {
+        role: BuildDeclarationKind,
+    },
     InvalidPackageName {
         identity: PackageKeyIdentity,
         name: String,
@@ -1178,6 +1218,10 @@ pub enum PackageCompilationInputError {
 impl fmt::Display for PackageCompilationInputError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::InvalidRootRole { role } => write!(
+                formatter,
+                "package compilation root has inadmissible declaration role {role:?}"
+            ),
             Self::InvalidPackageName { identity, name } => write!(
                 formatter,
                 "package identity {} has invalid canonical name `{name}`; expected lowercase kebab-case",

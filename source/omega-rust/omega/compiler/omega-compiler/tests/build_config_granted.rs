@@ -244,7 +244,7 @@ fn compile_rooted_probe_with_sponsored_output_seed(
     set_canonical_source_tree_permissions(project, true);
     let result = (|| {
         let package = PackageKeyIdentity::from_digest([97; 32]).expect("nonzero package identity");
-        let package_inputs = PackageCompilationInputs::new(
+        let package_inputs = PackageCompilationInputs::new_package(
             package,
             vec![
                 PackageSourceBinding::new(package, "generated-source", project.to_path_buf())
@@ -644,7 +644,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let _ = std::fs::remove_dir_all(&build_dir);
     set_canonical_source_tree_permissions(&project, true);
     let package = PackageKeyIdentity::from_digest([91; 32]).expect("nonzero package identity");
-    let package_inputs = PackageCompilationInputs::new(
+    let package_inputs = PackageCompilationInputs::new_package(
         package,
         vec![
             PackageSourceBinding::new(package, "sponsored-build", project.clone())
@@ -2026,8 +2026,9 @@ fn source_only_replay_requires_exact_empty_sponsored_output_custody() {
         PackageSourceBinding::new(package, "source-only-empty-output", project.clone())
             .with_canonical_source_metadata()
             .expect("capture source-only replay metadata");
-    let package_inputs = PackageCompilationInputs::new(package, vec![package_source], Vec::new())
-        .expect("single-package source-only replay input");
+    let package_inputs =
+        PackageCompilationInputs::new_package(package, vec![package_source], Vec::new())
+            .expect("single-package source-only replay input");
     let replayed = compile_to_checked_with_packages_and_replay_record(
         &project.join("main.omg"),
         Some(profile.target_name()),
@@ -2120,8 +2121,9 @@ fn ordinary_output_file_replays_without_generated_source_handoff() {
     let package_source = PackageSourceBinding::new(package, "ordinary-output", project.clone())
         .with_canonical_source_metadata()
         .expect("capture ordinary-output canonical metadata");
-    let package_inputs = PackageCompilationInputs::new(package, vec![package_source], Vec::new())
-        .expect("single-package ordinary-output input");
+    let package_inputs =
+        PackageCompilationInputs::new_package(package, vec![package_source], Vec::new())
+            .expect("single-package ordinary-output input");
     let changed_diagnostics = compile_to_checked_with_packages_and_replay_record(
         &project.join("main.omg"),
         Some(profile.target_name()),
@@ -2244,8 +2246,9 @@ fn multiple_ordinary_output_files_replay_as_one_exact_tree() {
     let package_source = PackageSourceBinding::new(package, "multiple-output", project.clone())
         .with_canonical_source_metadata()
         .expect("capture multiple-output canonical metadata");
-    let package_inputs = PackageCompilationInputs::new(package, vec![package_source], Vec::new())
-        .expect("single-package multiple-output input");
+    let package_inputs =
+        PackageCompilationInputs::new_package(package, vec![package_source], Vec::new())
+            .expect("single-package multiple-output input");
     std::fs::write(
         rooted_build_session(&project, "multiple-output-review").join("output/metadata.bin"),
         "host drift",
@@ -3319,8 +3322,9 @@ fn receipted_generated_source_reopens_with_source_custody_and_rejects_source_dri
     let package_source = PackageSourceBinding::new(package, "generated-source", project.clone())
         .with_canonical_source_metadata()
         .expect("capture replayed generated-source canonical metadata");
-    let package_inputs = PackageCompilationInputs::new(package, vec![package_source], Vec::new())
-        .expect("single-package generated-source input");
+    let package_inputs =
+        PackageCompilationInputs::new_package(package, vec![package_source], Vec::new())
+            .expect("single-package generated-source input");
     let changed_diagnostics = compile_to_checked_with_packages_and_replay_record(
         &project.join("main.omg"),
         Some(profile.target_name()),
@@ -3494,8 +3498,9 @@ fn multiple_generated_source_handoffs_retain_exact_order_and_ordinals() {
     let package_source = PackageSourceBinding::new(package, "multiple-generated", project.clone())
         .with_canonical_source_metadata()
         .expect("capture multiple-generated canonical metadata");
-    let package_inputs = PackageCompilationInputs::new(package, vec![package_source], Vec::new())
-        .expect("single-package multiple-generated input");
+    let package_inputs =
+        PackageCompilationInputs::new_package(package, vec![package_source], Vec::new())
+            .expect("single-package multiple-generated input");
     let reordered = compile_to_checked_with_packages_and_replay_record(
         &project.join("main.omg"),
         Some(profile.target_name()),
@@ -3622,8 +3627,9 @@ fn sequential_full_writes_replay_as_concatenated_output_files() {
     let package_source = PackageSourceBinding::new(package, "multiwrite", project.clone())
         .with_canonical_source_metadata()
         .expect("capture multiwrite canonical metadata");
-    let package_inputs = PackageCompilationInputs::new(package, vec![package_source], Vec::new())
-        .expect("single-package multiwrite input");
+    let package_inputs =
+        PackageCompilationInputs::new_package(package, vec![package_source], Vec::new())
+            .expect("single-package multiwrite input");
     std::fs::write(
         rooted_build_session(&project, "sequential-writes-review").join("output/multiwrite.omg"),
         "data Spoofed {}\n",
@@ -3738,8 +3744,9 @@ fn full_positioned_writes_replay_exact_cursor_and_extent() {
     let package_source = PackageSourceBinding::new(package, "positioned", project.clone())
         .with_canonical_source_metadata()
         .expect("capture positioned-write canonical metadata");
-    let package_inputs = PackageCompilationInputs::new(package, vec![package_source], Vec::new())
-        .expect("single-package positioned-write input");
+    let package_inputs =
+        PackageCompilationInputs::new_package(package, vec![package_source], Vec::new())
+            .expect("single-package positioned-write input");
     std::fs::write(
         rooted_build_session(&project, "positioned-writes-review").join("output/positioned.omg"),
         "data Spoofed {}\n",
@@ -3840,8 +3847,9 @@ fn empty_output_file_replays_without_synthetic_write() {
     let package_source = PackageSourceBinding::new(package, "empty-output", project.clone())
         .with_canonical_source_metadata()
         .expect("capture empty-output canonical metadata");
-    let package_inputs = PackageCompilationInputs::new(package, vec![package_source], Vec::new())
-        .expect("single-package empty-output input");
+    let package_inputs =
+        PackageCompilationInputs::new_package(package, vec![package_source], Vec::new())
+            .expect("single-package empty-output input");
     std::fs::write(
         rooted_build_session(&project, "empty-output-review").join("output/empty.bin"),
         b"spoofed",
@@ -3920,7 +3928,7 @@ fn output_sync_operations_replay_in_authored_order() {
     let source = PackageSourceBinding::new(package, "synced-output", project.clone())
         .with_canonical_source_metadata()
         .unwrap();
-    let inputs = PackageCompilationInputs::new(package, vec![source], Vec::new()).unwrap();
+    let inputs = PackageCompilationInputs::new_package(package, vec![source], Vec::new()).unwrap();
     std::fs::write(
         rooted_build_session(&project, "synced-output-review").join("output/synced.omg"),
         "data Spoofed {}\n",
@@ -3997,7 +4005,7 @@ fn output_set_len_replays_exact_truncation() {
     let source = PackageSourceBinding::new(package, "resized-output", project.clone())
         .with_canonical_source_metadata()
         .unwrap();
-    let inputs = PackageCompilationInputs::new(package, vec![source], Vec::new()).unwrap();
+    let inputs = PackageCompilationInputs::new_package(package, vec![source], Vec::new()).unwrap();
     std::fs::write(
         rooted_build_session(&project, "resized-output-review").join("output/resized.omg"),
         "data Spoofed {}\n",
@@ -4087,7 +4095,7 @@ fn output_set_file_permissions_replays_exact_executable_class() {
     let source = PackageSourceBinding::new(package, "permissioned-output", project.clone())
         .with_canonical_source_metadata()
         .unwrap();
-    let inputs = PackageCompilationInputs::new(package, vec![source], Vec::new()).unwrap();
+    let inputs = PackageCompilationInputs::new_package(package, vec![source], Vec::new()).unwrap();
     let physical_tool = session.join("output/tool.bin");
     std::fs::write(&physical_tool, "spoofed").unwrap();
     std::fs::set_permissions(&physical_tool, std::fs::Permissions::from_mode(0o644)).unwrap();
@@ -4175,7 +4183,7 @@ fn output_set_file_times_replays_exact_timespec_carrier() {
     let source = PackageSourceBinding::new(package, "dated-output", project.clone())
         .with_canonical_source_metadata()
         .unwrap();
-    let inputs = PackageCompilationInputs::new(package, vec![source], Vec::new()).unwrap();
+    let inputs = PackageCompilationInputs::new_package(package, vec![source], Vec::new()).unwrap();
     std::fs::write(session.join("output/dated.omg"), "data Spoofed {}\n").unwrap();
     let replayed = compile_to_checked_with_packages_and_replay_record(
         &project.join("main.omg"),
@@ -4249,7 +4257,7 @@ fn output_seek_replays_exact_cursor_transition() {
     let source = PackageSourceBinding::new(package, "seeked-output", project.clone())
         .with_canonical_source_metadata()
         .unwrap();
-    let inputs = PackageCompilationInputs::new(package, vec![source], Vec::new()).unwrap();
+    let inputs = PackageCompilationInputs::new_package(package, vec![source], Vec::new()).unwrap();
     std::fs::write(
         rooted_build_session(&project, "seeked-output-review").join("output/seeked.omg"),
         "data Spoofed {}\n",
@@ -4362,7 +4370,7 @@ reaches Console
     std::fs::write(project.join("main.omg"), "data Main { value: u8; }\n").expect("write main.omg");
 
     let package = PackageKeyIdentity::from_digest([83; 32]).expect("nonzero package identity");
-    let package_inputs = PackageCompilationInputs::new(
+    let package_inputs = PackageCompilationInputs::new_package(
         package,
         vec![PackageSourceBinding::new(
             package,

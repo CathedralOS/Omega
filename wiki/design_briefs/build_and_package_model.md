@@ -127,6 +127,16 @@ breaks an activation that expects an executable root. Review reports the
 affected contract rather than treating every role change as symmetric or
 manufacturing a new nominal identity.
 
+The compiler handoff carries the same declaration-domain
+`BuildDeclarationKind`; it does not introduce a parallel role enum.
+`PackageCompilationInputs`, its source-path-free dependency closure, and the
+ordinary obligation ledger retain and canonically recover the selected root
+role. A package-only construction is explicit, workspace role rejects, and
+independent compilation of a non-root node uses the package role already
+established by dependency admission. Source-consumption v3 and production-
+manifest v2 identities bind the role rather than allowing package and
+application roots with otherwise equal graphs and bytes to collapse.
+
 `PackageInstance` additionally binds exact source content, produced artifact
 identity, each closure subject's obligation-semantics identity, locally
 re-derived verification results, and disclosed open assumptions. Exact

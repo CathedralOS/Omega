@@ -38,7 +38,7 @@ fn write_program(name: &str, source: &str) -> PathBuf {
 fn package_inputs_for_source(source: &Path, digest_byte: u8) -> PackageCompilationInputs {
     let package = PackageKeyIdentity::from_digest([digest_byte; 32])
         .expect("test package identity should be nonzero");
-    PackageCompilationInputs::new(
+    PackageCompilationInputs::new_package(
         package,
         vec![PackageSourceBinding::new(
             package,

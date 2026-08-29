@@ -1055,6 +1055,7 @@ dependencies = [
 name = "omega-package-compilation"
 version = "0.1.0"
 dependencies = [
+ "omega-build-declarations",
  "omega-build-output",
  "omega-target",
  "psi-build-time-evaluation",

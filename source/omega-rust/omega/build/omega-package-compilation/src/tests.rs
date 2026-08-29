@@ -35,6 +35,40 @@ fn identity(marker: u8) -> PackageKeyIdentity {
 }
 
 #[test]
+fn compiler_inputs_retain_application_root_role_and_reject_workspace_role() {
+    let tree = TempTree::new();
+    let root = tree.package("application");
+    let binding = PackageSourceBinding::new(identity(1), "application", root.clone());
+    let inputs = PackageCompilationInputs::new(
+        identity(1),
+        BuildDeclarationKind::Application,
+        vec![binding.clone()],
+        vec![],
+    )
+    .expect("application root enters compiler handoff");
+
+    assert_eq!(inputs.root_role(), BuildDeclarationKind::Application);
+    assert_eq!(
+        inputs.dependency_closure().root_role(),
+        BuildDeclarationKind::Application
+    );
+
+    let errors = PackageCompilationInputs::new(
+        identity(1),
+        BuildDeclarationKind::Workspace,
+        vec![binding],
+        vec![],
+    )
+    .expect_err("workspace catalog cannot be a compilation root");
+    assert!(matches!(
+        errors.as_slice(),
+        [PackageCompilationInputError::InvalidRootRole {
+            role: BuildDeclarationKind::Workspace
+        }]
+    ));
+}
+
+#[test]
 fn compiler_captured_canonical_metadata_rejects_late_same_length_content_drift() {
     let tree = TempTree::new();
     let root = tree.package("root");
@@ -52,7 +86,7 @@ fn compiler_captured_canonical_metadata_rejects_late_same_length_content_drift()
     let binding = PackageSourceBinding::new(identity(1), "root", root.clone())
         .with_canonical_source_metadata()
         .expect("compiler captures canonical metadata");
-    let inputs = PackageCompilationInputs::new(identity(1), vec![binding], vec![])
+    let inputs = PackageCompilationInputs::new_package(identity(1), vec![binding], vec![])
         .expect("input construction independently recaptures canonical metadata");
     #[cfg(unix)]
     {
@@ -106,7 +140,7 @@ fn dependency_metadata_indexes_are_rejected_instead_of_aggregated() {
         .with_canonical_source_metadata()
         .expect("capture dependency metadata");
 
-    let errors = PackageCompilationInputs::new(
+    let errors = PackageCompilationInputs::new_package(
         identity(1),
         vec![
             PackageSourceBinding::new(identity(1), "root", root),
@@ -152,7 +186,7 @@ fn generated_source(relative_path: &[u8], bytes: &[u8]) -> PackageGeneratedSourc
 }
 
 fn three_package_generated_inputs(tree: &TempTree) -> PackageCompilationInputs {
-    PackageCompilationInputs::new(
+    PackageCompilationInputs::new_package(
         identity(1),
         vec![
             PackageSourceBinding::new(identity(1), "root", tree.package("root")),
@@ -179,7 +213,7 @@ fn requester_local_aliases_may_name_different_targets() {
             )
         })
         .collect();
-    let inputs = PackageCompilationInputs::new(
+    let inputs = PackageCompilationInputs::new_package(
         identity(1),
         packages,
         vec![
@@ -213,7 +247,7 @@ fn requester_local_aliases_may_name_different_targets() {
 #[test]
 fn noncanonical_package_names_reject_at_compiler_handoff() {
     let tree = TempTree::new();
-    let errors = PackageCompilationInputs::new(
+    let errors = PackageCompilationInputs::new_package(
         identity(1),
         vec![PackageSourceBinding::new(
             identity(1),
@@ -234,7 +268,7 @@ fn noncanonical_package_names_reject_at_compiler_handoff() {
 #[test]
 fn duplicate_aliases_and_unreachable_rows_reject() {
     let tree = TempTree::new();
-    let errors = PackageCompilationInputs::new(
+    let errors = PackageCompilationInputs::new_package(
         identity(1),
         vec![
             PackageSourceBinding::new(identity(1), "root", tree.package("root")),
@@ -265,7 +299,7 @@ fn overlapping_roots_and_cycles_reject() {
     let root = tree.package("root");
     let nested = root.join("nested");
     fs::create_dir(&nested).expect("create nested package");
-    let errors = PackageCompilationInputs::new(
+    let errors = PackageCompilationInputs::new_package(
         identity(1),
         vec![
             PackageSourceBinding::new(identity(1), "root", root),
@@ -292,13 +326,18 @@ fn overlapping_roots_and_cycles_reject() {
 #[test]
 fn canonical_path_free_closure_recovery_rejects_open_unreachable_and_cyclic_graphs() {
     let packages = vec![identity(1), identity(2)];
-    let unreachable =
-        PackageDependencyClosure::from_canonical_parts(identity(1), packages.clone(), Vec::new())
-            .expect_err("unreachable path-free closure package must reject");
+    let unreachable = PackageDependencyClosure::from_canonical_parts(
+        identity(1),
+        BuildDeclarationKind::Package,
+        packages.clone(),
+        Vec::new(),
+    )
+    .expect_err("unreachable path-free closure package must reject");
     assert!(unreachable.contains("unreachable"));
 
     let open = PackageDependencyClosure::from_canonical_parts(
         identity(1),
+        BuildDeclarationKind::Package,
         packages.clone(),
         vec![PackageDependencyBinding::new(
             identity(1),
@@ -311,6 +350,7 @@ fn canonical_path_free_closure_recovery_rejects_open_unreachable_and_cyclic_grap
 
     let cyclic = PackageDependencyClosure::from_canonical_parts(
         identity(1),
+        BuildDeclarationKind::Package,
         packages,
         vec![
             PackageDependencyBinding::new(identity(1), "dependency", identity(2)),
@@ -506,7 +546,7 @@ fn generated_source_bundle_target_substitution_rejects_before_loading() {
 fn missing_and_symlink_source_roots_reject() {
     let tree = TempTree::new();
     let missing = tree.0.join("missing");
-    let errors = PackageCompilationInputs::new(
+    let errors = PackageCompilationInputs::new_package(
         identity(1),
         vec![PackageSourceBinding::new(identity(1), "root", missing)],
         Vec::new(),
@@ -523,7 +563,7 @@ fn missing_and_symlink_source_roots_reject() {
         let actual = tree.package("actual");
         let linked = tree.0.join("linked");
         symlink(actual, &linked).expect("create source-root symlink");
-        let errors = PackageCompilationInputs::new(
+        let errors = PackageCompilationInputs::new_package(
             identity(1),
             vec![PackageSourceBinding::new(identity(1), "root", linked)],
             Vec::new(),

@@ -128,7 +128,7 @@ machine Main::main(&mut self) {{}}
         ),
     )
     .expect("write root consumer");
-    let inputs = PackageCompilationInputs::new(
+    let inputs = PackageCompilationInputs::new_package(
         package_identity(1),
         vec![
             PackageSourceBinding::new(package_identity(1), "access-plans", root_directory),
@@ -1168,7 +1168,7 @@ fn placed_view_schema_requires_direct_dependency_authority() {
     )
     .expect("write leaf build declaration");
 
-    let inputs = PackageCompilationInputs::new(
+    let inputs = PackageCompilationInputs::new_package(
         package_identity(1),
         vec![
             PackageSourceBinding::new(package_identity(1), "root", root_directory.clone()),

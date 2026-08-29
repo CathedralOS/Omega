@@ -12,6 +12,7 @@ path = "src/lib.rs"
 test-support = []
 
 [dependencies]
+omega-build-declarations = { path = "../omega-build-declarations" }
 omega-build-output = { path = "../omega-build-output" }
 omega-target = { path = "../../representations/omega-target" }
 psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }

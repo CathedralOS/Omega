@@ -164,7 +164,7 @@ pub machine consume(value: Token) {}
     let middle_identity =
         PackageKeyIdentity::from_digest([42; 32]).expect("middle package identity");
     let leaf_identity = PackageKeyIdentity::from_digest([43; 32]).expect("leaf package identity");
-    let inputs = PackageCompilationInputs::new(
+    let inputs = PackageCompilationInputs::new_package(
         root_identity,
         vec![
             PackageSourceBinding::new(root_identity, "root", root.0.clone()),

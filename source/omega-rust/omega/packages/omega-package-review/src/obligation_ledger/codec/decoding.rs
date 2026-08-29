@@ -14,7 +14,9 @@ use crate::encoding::{
     PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION,
     canonical_row_framing_for_ledger,
 };
-use omega_package_compilation::{PackageDependencyBinding, PackageDependencyClosure};
+use omega_package_compilation::{
+    BuildDeclarationKind, PackageDependencyBinding, PackageDependencyClosure,
+};
 use omega_target::TargetProfile;
 use psi_core::PackageKeyIdentity;
 
@@ -58,6 +60,16 @@ pub fn decode_ordinary_package_obligation_ledger(
     }
 
     let closure_root = decoder.package_identity()?;
+    let closure_root_role = match decoder.byte()? {
+        0 => BuildDeclarationKind::Package,
+        1 => BuildDeclarationKind::Application,
+        2 => BuildDeclarationKind::Workspace,
+        _ => {
+            return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
+                "ordinary package obligation ledger contains an invalid root-role tag",
+            ));
+        }
+    };
     let package_count = decoder.count(
         MAXIMUM_LEDGER_PACKAGES,
         "ordinary package obligation ledger package count exceeds its ceiling",
@@ -90,9 +102,13 @@ pub fn decode_ordinary_package_obligation_ledger(
         let target = decoder.package_identity()?;
         dependencies.push(PackageDependencyBinding::new(requester, alias, target));
     }
-    let dependency_closure =
-        PackageDependencyClosure::from_canonical_parts(closure_root, packages, dependencies)
-            .map_err(OrdinaryPackageObligationLedgerRecoveryError::new)?;
+    let dependency_closure = PackageDependencyClosure::from_canonical_parts(
+        closure_root,
+        closure_root_role,
+        packages,
+        dependencies,
+    )
+    .map_err(OrdinaryPackageObligationLedgerRecoveryError::new)?;
 
     let row_count = decoder.count(
         MAXIMUM_LEDGER_ROWS,
@@ -207,6 +223,10 @@ impl<'bytes> LedgerDecoder<'bytes> {
         Ok(u16::from_le_bytes(self.take(2)?.try_into().expect(
             "ordinary package obligation ledger u16 width is fixed",
         )))
+    }
+
+    fn byte(&mut self) -> Result<u8, OrdinaryPackageObligationLedgerRecoveryError> {
+        Ok(self.take(1)?[0])
     }
 
     fn u64(&mut self) -> Result<u64, OrdinaryPackageObligationLedgerRecoveryError> {

@@ -78,7 +78,7 @@ target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let inputs = PackageCompilationInputs::new(
+    let inputs = PackageCompilationInputs::new_package(
         package_identity(),
         vec![PackageSourceBinding::new(
             package_identity(),
