@@ -1182,7 +1182,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
     let progress_fingerprint = progress_closed
         .progress()
         .expect("progress-bearing deployment retains its opaque closure")
-        .fingerprint();
+        .non_authoritative_report_fingerprint();
     let runnable = progress_closed
         .finalize(ProfileDecisionId::new(0x5424).expect("progress publication profile decision"))
         .expect("production deployment binds the runnable component");
@@ -1284,7 +1284,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         retained
             .progress()
             .expect("published era retains progress")
-            .fingerprint(),
+            .non_authoritative_report_fingerprint(),
         progress_fingerprint
     );
 

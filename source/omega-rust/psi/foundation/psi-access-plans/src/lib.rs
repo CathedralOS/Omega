@@ -13,7 +13,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use psi_extents::LoanPolarity;
 use psi_extents::{Extent, ExtentLoan, ProviderExistingContentGrant, ResidentClaimId};
 use psi_language_core::atomic::{AtomicOrderingPlan, MemoryOrdering};
-use psi_layout_plans::{LayoutPlanReport, normalized_layout_plan_fingerprint};
+use psi_layout_plans::{LayoutPlanReport, normalized_layout_plan_report_fingerprint};
 
 mod access_plan_validation;
 mod atomic_resident_views;
@@ -335,7 +335,7 @@ impl std::hash::Hash for AccessPlan {
 
 impl AccessPlan {
     pub fn inaccessible(layout: &LayoutPlanReport) -> Result<Self, AccessPlanDiagnostic> {
-        let layout_report_fingerprint = normalized_layout_plan_fingerprint(layout);
+        let layout_report_fingerprint = normalized_layout_plan_report_fingerprint(layout);
         let layout_commitment = authoritative_access_layout_commitment(layout);
         let mut canonical_fields = BTreeMap::new();
         let mut presentation_names = BTreeMap::new();

@@ -91,7 +91,7 @@ pub(crate) fn install_import_thunks(
                 {
                     return Err(Diagnostic::error(format!(
                         "normalized foreign locator 0x{:016x} is not applicable to this PE image target",
-                        locator.normalized_identity(),
+                        locator.non_authoritative_compatibility_fingerprint(),
                     )));
                 }
                 match locator.locator() {
@@ -104,7 +104,7 @@ pub(crate) fn install_import_thunks(
                     ForeignLocatorCandidate::ElfVersioned { .. } => {
                         return Err(Diagnostic::error(format!(
                             "versioned ELF foreign locator 0x{:016x} cannot be emitted in a PE import table",
-                            locator.normalized_identity(),
+                            locator.non_authoritative_compatibility_fingerprint(),
                         )));
                     }
                 }
@@ -519,7 +519,7 @@ mod tests {
         let symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
             name: format!(
                 "__omega_foreign_import_{:016x}",
-                locator.normalized_identity()
+                locator.non_authoritative_compatibility_fingerprint()
             ),
             kind: omega_object_file::SymbolKind::Import,
             ..FinalImageSymbol::default()

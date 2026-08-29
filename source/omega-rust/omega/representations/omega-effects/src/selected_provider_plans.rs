@@ -40,7 +40,7 @@ impl Default for SelectedProviderPlanFacts {
     fn default() -> Self {
         Self {
             plans: Vec::new(),
-            normalized_identity: fingerprint_selected_plans(&[]),
+            normalized_identity: selected_plans_report_fingerprint(&[]),
             execution_scope: crate::ExecutionScope::CallerAddressSpace,
             indexed_provider_application_coverage: Vec::new(),
             opaque_executable_admissions: Vec::new(),
@@ -121,7 +121,7 @@ impl SelectedProviderPlanFacts {
             }
         }
 
-        let normalized_identity = fingerprint_selected_plans(&plans);
+        let normalized_identity = selected_plans_report_fingerprint(&plans);
         Ok(Self {
             plans,
             normalized_identity,
@@ -290,7 +290,7 @@ impl SelectedProviderPlanFacts {
             }
         }
         self.indexed_provider_application_coverage = coverage;
-        self.normalized_identity = fingerprint_selected_closure(
+        self.normalized_identity = selected_closure_report_fingerprint(
             &self.plans,
             &self.indexed_provider_application_coverage,
             &self.installation_reach_resolutions,
@@ -450,7 +450,7 @@ impl SelectedProviderPlanFacts {
             }
         }
         self.installation_reach_resolutions = resolutions;
-        self.normalized_identity = fingerprint_selected_closure(
+        self.normalized_identity = selected_closure_report_fingerprint(
             &self.plans,
             &self.indexed_provider_application_coverage,
             &self.installation_reach_resolutions,
@@ -513,7 +513,7 @@ pub struct InstallationReachResolution {
     pub resolved_row: Vec<String>,
 }
 
-fn fingerprint_selected_plans(plans: &[ProviderPlan]) -> u64 {
+fn selected_plans_report_fingerprint(plans: &[ProviderPlan]) -> u64 {
     let mut hash = 0xcbf29ce484222325u64;
     for byte in (plans.len() as u64).to_le_bytes().into_iter().chain(
         plans
@@ -526,12 +526,12 @@ fn fingerprint_selected_plans(plans: &[ProviderPlan]) -> u64 {
     hash
 }
 
-fn fingerprint_selected_closure(
+fn selected_closure_report_fingerprint(
     plans: &[ProviderPlan],
     coverage: &[crate::ProviderAssertedIndexedApplicationCoverage],
     resolutions: &[InstallationReachResolution],
 ) -> u64 {
-    let mut hash = fingerprint_selected_plans(plans);
+    let mut hash = selected_plans_report_fingerprint(plans);
     if !coverage.is_empty() {
         for byte in b"omega.selected-indexed-application-coverage.v1"
             .iter()

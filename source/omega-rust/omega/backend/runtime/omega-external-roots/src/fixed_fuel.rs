@@ -513,12 +513,6 @@ impl FuelSuspensionFreeEvidence {
         self.demand.units()
     }
 
-    /// Compatibility accessor for the non-authoritative report/cache
-    /// fingerprint. The exact demand and opaque evidence are retained above.
-    pub const fn composition_fingerprint(&self) -> u64 {
-        self.non_authoritative_report_fingerprint
-    }
-
     pub const fn non_authoritative_composition_report_fingerprint(&self) -> u64 {
         self.non_authoritative_report_fingerprint
     }
@@ -614,7 +608,7 @@ fn non_authoritative_fuel_suspension_free_report_fingerprint(
 ) -> u64 {
     let mut hash = Fnv1a::new();
     hash.bytes(b"omega.fuel-suspension-free.v1");
-    hash.u64(demand.composition_fingerprint());
+    hash.u64(demand.non_authoritative_composition_report_fingerprint());
     hash.u64(opaque_evidence.len() as u64);
     for (identity, evidence) in opaque_evidence {
         hash.u64(identity.normalized_identity());
@@ -641,12 +635,6 @@ impl ComposedFuelDemand {
 
     pub const fn units(&self) -> u64 {
         self.units
-    }
-
-    /// Compatibility accessor for the non-authoritative report/cache
-    /// fingerprint. Admission compares the complete composed demand.
-    pub const fn composition_fingerprint(&self) -> u64 {
-        self.non_authoritative_composition_report_fingerprint
     }
 
     pub const fn non_authoritative_composition_report_fingerprint(&self) -> u64 {

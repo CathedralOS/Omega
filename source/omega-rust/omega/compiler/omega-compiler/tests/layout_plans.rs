@@ -428,12 +428,12 @@ fn plan_laid_private_callback_slot_retains_exact_target_neutral_demand() {
         layout: recorded.validated_layout.clone(),
         private_callback_demands: recorded.private_callback_demands.clone(),
     };
-    let first = psi_layout_plans::normalized_native_layout_plan_fingerprint(&native);
+    let first = psi_layout_plans::normalized_native_layout_plan_report_fingerprint(&native);
     let mut moved = native;
     moved.private_callback_demands[0].offset = 9;
     assert_ne!(
         first,
-        psi_layout_plans::normalized_native_layout_plan_fingerprint(&moved),
+        psi_layout_plans::normalized_native_layout_plan_report_fingerprint(&moved),
         "private placement must participate in native layout identity"
     );
 

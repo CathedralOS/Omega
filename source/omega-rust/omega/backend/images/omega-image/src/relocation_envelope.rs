@@ -91,8 +91,8 @@ pub fn validate_final_text_relocation_envelope(
         b"omega.final-compiler-text.sha256.v1\0",
         final_compiler_text,
     ));
-    let encoded_text_report_fingerprint = fingerprint_bytes(encoded_text_bytes);
-    let final_compiler_text_report_fingerprint = fingerprint_bytes(final_compiler_text);
+    let encoded_text_report_fingerprint = report_fingerprint_bytes(encoded_text_bytes);
+    let final_compiler_text_report_fingerprint = report_fingerprint_bytes(final_compiler_text);
     let mut relocation_digest = Sha256::new();
     relocation_digest.update(b"omega.compiler-text-relocation-envelope.sha256.v1\0");
     relocation_digest.update((text_relocations.len() as u64).to_le_bytes());
@@ -165,7 +165,7 @@ fn relocation_kind_tag(kind: RelocationKind) -> u8 {
 
 const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
 
-fn fingerprint_bytes(bytes: &[u8]) -> u64 {
+fn report_fingerprint_bytes(bytes: &[u8]) -> u64 {
     let mut fingerprint = FNV_OFFSET;
     fingerprint_into(&mut fingerprint, bytes);
     fingerprint

@@ -268,7 +268,7 @@ pub(crate) fn encode_provider_row(
         ProviderBinding::Import { locator } => {
             encoder.byte(7);
             encoder.string(locator.target().target_name())?;
-            encoder.u64(locator.normalized_identity());
+            encoder.u64(locator.non_authoritative_compatibility_fingerprint());
             match locator.locator() {
                 omega_effects::ForeignLocatorCandidate::PeByName { library, export } => {
                     encoder.byte(0);

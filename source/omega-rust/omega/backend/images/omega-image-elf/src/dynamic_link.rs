@@ -268,7 +268,9 @@ mod tests {
                     .1
                     .import
                 {
-                    FinalImageImportPlan::Normalized(locator) => locator.normalized_identity(),
+                    FinalImageImportPlan::Normalized(locator) => {
+                        locator.non_authoritative_compatibility_fingerprint()
+                    }
                     _ => unreachable!("fixture uses a normalized import"),
                 },
                 object: object.to_vec(),

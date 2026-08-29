@@ -217,7 +217,7 @@ pub fn bind_post_handoff_entry_writer_invocation<'mapping, 'bytes>(
         }
     };
     if !context.binds_invocation(&lowered.invocation)
-        || context.normalized_fragment_fingerprint()
+        || context.normalized_fragment_report_fingerprint()
             != lowered.fragment.normalized_plan_report_fingerprint
     {
         return Err(PostHandoffEntryWriterBindingError {

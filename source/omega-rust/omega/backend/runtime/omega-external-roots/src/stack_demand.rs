@@ -329,18 +329,6 @@ impl ComposedStackDemand {
         &self.validation_receipts
     }
 
-    /// Compatibility accessor for the non-authoritative compact report/cache
-    /// coordinate. Exact relation and summary evidence are retained above.
-    pub const fn composition_fingerprint(&self) -> u64 {
-        self.non_authoritative_composition_report_fingerprint
-    }
-
-    /// Compatibility accessor for the artifact-wide compact report/cache
-    /// coordinate.
-    pub const fn artifact_composition_fingerprint(&self) -> u64 {
-        self.non_authoritative_artifact_composition_report_fingerprint
-    }
-
     pub const fn non_authoritative_composition_report_fingerprint(&self) -> u64 {
         self.non_authoritative_composition_report_fingerprint
     }
@@ -383,12 +371,6 @@ impl ArtifactStackComposition {
 
     pub fn domain_alignment(&self, domain: StackDomain) -> Option<u64> {
         self.domain_alignments.get(&domain).copied()
-    }
-
-    /// Compatibility accessor for the non-authoritative compact report/cache
-    /// coordinate. Exact per-root demands remain retained by this value.
-    pub const fn composition_fingerprint(&self) -> u64 {
-        self.non_authoritative_composition_report_fingerprint
     }
 
     pub const fn non_authoritative_composition_report_fingerprint(&self) -> u64 {

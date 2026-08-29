@@ -892,13 +892,12 @@ impl ProviderPlan {
         encoder.finish()
     }
 
-    /// PRV2: the plan's NORMALIZED IDENTITY -- an FNV-1a fingerprint over
-    /// the canonical rendering (name, exact package provenance, target,
-    /// schema surface, rows in method order). Two plans with the same
-    /// fingerprint are treated as the same execution policy by the current
-    /// provider pipeline; presentation (row order, whitespace) is excluded.
-    /// This 64-bit compatibility key is not collision-resistant package
-    /// admission evidence.
+    /// Historical FNV-1a report fingerprint over the canonical rendering
+    /// (name, exact package provenance, target, schema surface, and rows in
+    /// method order). Presentation order and whitespace are excluded. This
+    /// compact value supports sorting, diagnostics, and compatibility lookup;
+    /// admission and execution must retain the exact plan and its
+    /// collision-resistant [`Self::identity_digest`].
     pub fn identity_fingerprint(&self) -> u64 {
         let mut rendered = format!(
             "{}\n{}\n{}\n{}",
@@ -1019,7 +1018,10 @@ impl ProviderPlan {
         for row in rows {
             let binding_identity = match &row.binding {
                 ProviderBinding::Import { locator } => {
-                    format!("NormalizedImport:{:016x}", locator.normalized_identity(),)
+                    format!(
+                        "NormalizedImport:{:016x}",
+                        locator.non_authoritative_compatibility_fingerprint(),
+                    )
                 }
                 ProviderBinding::StringBackedImportBootstrap { library, symbol } => {
                     format!("StringBackedImportBootstrap:{library:?}/{symbol:?}")

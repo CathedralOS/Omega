@@ -209,7 +209,8 @@ pub fn bind_installed_runnable_component(
         ),
         (Some(committed), Some(progress))
             if committed.manifest_identity() != progress.manifest().normalized_identity()
-                || committed.acceptance_identity() != progress.fingerprint() =>
+                || committed.acceptance_identity()
+                    != progress.non_authoritative_report_fingerprint() =>
         {
             Some(
                 "terminal installation record commits different component-progress identities"

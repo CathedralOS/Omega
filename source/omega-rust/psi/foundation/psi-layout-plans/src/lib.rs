@@ -119,7 +119,10 @@ pub struct NativeLayoutPlanReport {
     pub private_callback_demands: Vec<PrivateCallbackLayoutDemandReport>,
 }
 
-/// Deterministic semantic identity of one validated layout plan.
+/// Deterministic compact report coordinate for one validated layout plan.
+///
+/// This value is never authority: exact layout replay and the strong access
+/// layout commitment govern admission.
 ///
 /// Compiler-issued field keys, numbered-member source names, and authored entry
 /// order are deliberately absent. Repeated fragments are sorted by stable
@@ -127,7 +130,7 @@ pub struct NativeLayoutPlanReport {
 /// placement, while schema identity, size, and alignment remain
 /// identity-bearing. The derived `offsets` convenience projection is excluded
 /// because it contains no fact beyond the entries.
-pub fn normalized_layout_plan_fingerprint(layout: &LayoutPlanReport) -> u64 {
+pub fn normalized_layout_plan_report_fingerprint(layout: &LayoutPlanReport) -> u64 {
     let mut entries = layout.entries.iter().collect::<Vec<_>>();
     entries.sort_unstable_by(|left, right| {
         member_sort_key(left)
@@ -202,10 +205,12 @@ pub fn normalized_layout_plan_fingerprint(layout: &LayoutPlanReport) -> u64 {
     if hash == 0 { 1 } else { hash }
 }
 
-/// Deterministic compatibility identity of an exact conventional sum report.
+/// Deterministic compact report coordinate for an exact conventional sum report.
 /// Case ordinal remains identity-bearing even for numbered schemas because it
 /// controls the runtime tag. Numbered source names are presentation-only.
-pub fn normalized_conventional_sum_layout_fingerprint(layout: &ConventionalSumLayoutReport) -> u64 {
+pub fn normalized_conventional_sum_layout_report_fingerprint(
+    layout: &ConventionalSumLayoutReport,
+) -> u64 {
     let mut hash = 0xcbf29ce484222325u64;
     hash_fingerprint_bytes(&mut hash, b"omega.conventional-sum-layout.v1");
     for value in [
@@ -320,10 +325,10 @@ fn hash_optional_member_identity(hash: &mut u64, identity: Option<u64>, name: &s
     }
 }
 
-/// Canonical identity of a native layout including its private demands. The
+/// Compact report coordinate for a native layout including its private demands. The
 /// base layout remains independently reusable by semantic projection; private
 /// placement participates only in native-layout identity.
-pub fn normalized_native_layout_plan_fingerprint(layout: &NativeLayoutPlanReport) -> u64 {
+pub fn normalized_native_layout_plan_report_fingerprint(layout: &NativeLayoutPlanReport) -> u64 {
     let mut demands = layout.private_callback_demands.iter().collect::<Vec<_>>();
     demands.sort_unstable_by(|left, right| {
         left.slot_identity
@@ -338,7 +343,7 @@ pub fn normalized_native_layout_plan_fingerprint(layout: &NativeLayoutPlanReport
     hash_fingerprint_bytes(&mut hash, b"omega.native-layout-plan.v1");
     hash_fingerprint_u64(
         &mut hash,
-        normalized_layout_plan_fingerprint(&layout.layout),
+        normalized_layout_plan_report_fingerprint(&layout.layout),
     );
     hash_fingerprint_u64(&mut hash, demands.len() as u64);
     for demand in demands {
@@ -1360,13 +1365,13 @@ impl PostHandoffWriterInvocationPlan {
             }
         }
 
-        let expected_fingerprint = generated_post_handoff_writer_fingerprint(
+        let expected_report_fingerprint = generated_post_handoff_writer_report_fingerprint(
             fragment.byte_len,
             fragment.byte_order,
             fragment.source_slot_count,
             &fragment.steps,
         );
-        if fragment.report_fingerprint != expected_fingerprint {
+        if fragment.report_fingerprint != expected_report_fingerprint {
             return Err(MaterializationDiagnostic(
                 "post-handoff writer fragment fingerprint does not match its exact geometry".into(),
             ));
@@ -1488,7 +1493,7 @@ impl PostHandoffWriterPlan {
             byte_len: self.byte_len,
             byte_order: self.byte_order,
             source_slot_count: sources.len(),
-            report_fingerprint: generated_post_handoff_writer_fingerprint(
+            report_fingerprint: generated_post_handoff_writer_report_fingerprint(
                 self.byte_len,
                 self.byte_order,
                 sources.len(),
@@ -1646,7 +1651,7 @@ fn validate_post_handoff_writer_step(
     Ok(())
 }
 
-fn generated_post_handoff_writer_fingerprint(
+fn generated_post_handoff_writer_report_fingerprint(
     byte_len: usize,
     byte_order: ByteOrder,
     source_slot_count: usize,

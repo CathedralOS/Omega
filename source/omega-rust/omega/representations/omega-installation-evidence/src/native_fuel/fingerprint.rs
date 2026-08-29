@@ -7,7 +7,9 @@ use super::plan::{
 };
 use super::{NativeFuelContextLayout, SponsorContextTransport};
 
-pub(super) fn fingerprint_transfer_plan(plan: &NativeFuelTransferRuntimePlanProjection) -> u64 {
+pub(super) fn non_authoritative_transfer_plan_report_fingerprint(
+    plan: &NativeFuelTransferRuntimePlanProjection,
+) -> u64 {
     let mut hash = Fnv1a::new(b"omega.native-fuel-transfer-plan.v1");
     hash.u8(profile_tag(plan.profile));
     hash.target(plan.target);

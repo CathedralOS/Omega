@@ -6121,7 +6121,7 @@ fn component_progress_seals_against_distinct_exact_subject_and_issuer_occurrence
     );
     let colliding_code = installed_code_with_fill(54_000, entry_id(54_001), 1);
     assert!(!acceptance.binds_installed_code(&colliding_code));
-    assert_ne!(acceptance.fingerprint(), 0);
+    assert_ne!(acceptance.non_authoritative_report_fingerprint(), 0);
 }
 
 #[test]

@@ -556,10 +556,13 @@ fn application_identity(
                     .find(|signature| signature.symbol == row.requirement)
             })
         {
-            bytes.extend(
-                crate::monomorphization::canonical_state_signature_fingerprint(program, signature)
-                    .to_le_bytes(),
-            );
+            let signature_bytes =
+                crate::monomorphization::canonical_state_signature_bytes(program, signature);
+            bytes.push(1);
+            bytes.extend((signature_bytes.len() as u64).to_le_bytes());
+            bytes.extend(signature_bytes);
+        } else {
+            bytes.push(0);
         }
         bytes.push(0xfe);
     }

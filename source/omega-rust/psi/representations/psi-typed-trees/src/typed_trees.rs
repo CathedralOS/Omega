@@ -1443,19 +1443,19 @@ impl TypedTrees {
         }
     }
 
-    pub fn boundary_calling_plan_fingerprint(
+    pub fn boundary_calling_plan_report_fingerprint(
         &self,
         boundary_trait: psi_symbols::SymbolHandle,
         requirement_machine: psi_symbols::SymbolHandle,
     ) -> Option<u64> {
-        self.boundary_calling_plan_fingerprint_for_arguments(
+        self.boundary_calling_plan_report_fingerprint_for_arguments(
             boundary_trait,
             &[],
             requirement_machine,
         )
     }
 
-    pub fn boundary_calling_plan_fingerprint_for_arguments(
+    pub fn boundary_calling_plan_report_fingerprint_for_arguments(
         &self,
         boundary_trait: psi_symbols::SymbolHandle,
         boundary_arguments: &[crate::types::TypeReferenceHandle],

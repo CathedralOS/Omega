@@ -64,23 +64,23 @@ impl ProviderExecutionEvidence for TestProviderExecution {
         "Scheduler::wait#exact"
     }
 
-    fn provider_plan(&self) -> u64 {
+    fn provider_plan_report_identity(&self) -> u64 {
         self.plan
     }
 
-    fn provider_execution_identity(&self) -> u64 {
+    fn provider_execution_report_identity(&self) -> u64 {
         self.execution
     }
 
-    fn provider_execution_fingerprint(&self) -> u64 {
+    fn provider_execution_report_fingerprint(&self) -> u64 {
         self.report_fingerprint
     }
 
-    fn normalized_root_identity(&self) -> u64 {
+    fn normalized_root_report_identity(&self) -> u64 {
         self.root
     }
 
-    fn boundary_contract_fingerprint(&self) -> u64 {
+    fn boundary_contract_report_fingerprint(&self) -> u64 {
         self.boundary
     }
 }

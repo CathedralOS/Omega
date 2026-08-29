@@ -830,7 +830,7 @@ mod tests {
         assert_eq!(evidence.transfer_text().span(), artifact.transfer().span());
         assert_eq!(evidence.resume_text().span(), artifact.resume().span());
         assert_eq!(evidence.sponsor_stack_peak_bytes(), 24);
-        assert_ne!(evidence.fingerprint(), 0);
+        assert_ne!(evidence.report_fingerprint(), 0);
         assert_eq!(image.output().final_image_relocations, 2);
         assert_eq!(
             image
@@ -970,7 +970,7 @@ mod tests {
             evidence.transfer_text().final_bytes(),
             "the Branch26 sponsor call must be materialized"
         );
-        assert_ne!(evidence.fingerprint(), 0);
+        assert_ne!(evidence.report_fingerprint(), 0);
     }
 
     #[test]

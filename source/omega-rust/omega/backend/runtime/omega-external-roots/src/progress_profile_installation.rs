@@ -159,12 +159,6 @@ impl InstalledProviderOccurrenceClosure {
         self.by_occurrence.values()
     }
 
-    /// Compatibility accessor for the non-authoritative compact report/cache
-    /// coordinate.
-    pub const fn fingerprint(&self) -> u64 {
-        self.non_authoritative_report_fingerprint
-    }
-
     /// Explicitly non-authoritative report/cache coordinate. The complete
     /// selected facts and occurrence evidence above are the replay authority.
     pub const fn non_authoritative_report_fingerprint(&self) -> u64 {
@@ -359,12 +353,6 @@ impl InstalledComponentProgressClosure {
 
     pub const fn manifest(&self) -> &ComponentProgressManifest {
         &self.manifest
-    }
-
-    /// Compatibility accessor for the non-authoritative compact report/cache
-    /// coordinate.
-    pub const fn fingerprint(&self) -> u64 {
-        self.non_authoritative_report_fingerprint
     }
 
     /// Explicitly non-authoritative report/cache coordinate. Publication must

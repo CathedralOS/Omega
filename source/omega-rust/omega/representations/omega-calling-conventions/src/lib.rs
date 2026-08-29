@@ -1335,7 +1335,7 @@ pub fn merge_external_binding_rows(
                 if row.target_name != locator.target().target_name() {
                     return Err(format!(
                         "normalized foreign locator 0x{:016x} targets `{}`, but external binding `{}::{}` targets `{}`",
-                        locator.normalized_identity(),
+                        locator.non_authoritative_compatibility_fingerprint(),
                         locator.target().target_name(),
                         row.trait_name,
                         row.method,
@@ -1580,7 +1580,10 @@ mod binding_plan_tests {
             TargetProfile::WindowsX64,
         )
         .expect("valid mutated PE-by-name locator");
-        assert_ne!(pe_name.normalized_identity(), changed.normalized_identity());
+        assert_ne!(
+            pe_name.non_authoritative_compatibility_fingerprint(),
+            changed.non_authoritative_compatibility_fingerprint()
+        );
 
         let mut windows = build_host_abi_plan(NativeTarget::windows_x64());
         merge_external_binding_rows(

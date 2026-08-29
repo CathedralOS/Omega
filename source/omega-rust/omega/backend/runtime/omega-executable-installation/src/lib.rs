@@ -1532,8 +1532,14 @@ impl<'mapping, 'bytes> WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
         self.context.binds_invocation(invocation)
     }
 
+    pub const fn normalized_fragment_report_fingerprint(&self) -> u64 {
+        self.context.normalized_fragment_report_fingerprint()
+    }
+
+    /// Compatibility alias for the external-root consumer migration. This
+    /// compact value never establishes the exact invocation binding.
     pub const fn normalized_fragment_fingerprint(&self) -> u64 {
-        self.context.normalized_fragment_fingerprint()
+        self.normalized_fragment_report_fingerprint()
     }
 
     /// Independently replay the exact non-clonable writer context and
@@ -1637,8 +1643,8 @@ impl<'mapping, 'bytes> ValidatedWrittenPostHandoffWriterDestination<'mapping, 'b
         self.written.binds_invocation(invocation)
     }
 
-    pub const fn normalized_fragment_fingerprint(&self) -> u64 {
-        self.written.normalized_fragment_fingerprint()
+    pub const fn normalized_fragment_report_fingerprint(&self) -> u64 {
+        self.written.normalized_fragment_report_fingerprint()
     }
 
     /// Replay the installed realization and destination preparation without
@@ -1719,7 +1725,7 @@ impl std::fmt::Debug for ResolvedPostHandoffEntryWriterContext {
             .field("destination_len", &self.destination_len)
             .field("source_slot_count", &self.invocation.sources().len())
             .field(
-                "normalized_fragment_fingerprint",
+                "normalized_fragment_report_fingerprint",
                 &format_args!("{:016x}", self.invocation.fragment().report_fingerprint()),
             )
             .field(
@@ -1760,7 +1766,7 @@ impl ResolvedPostHandoffEntryWriterContext {
         self.invocation.fragment().context_abi()
     }
 
-    pub const fn normalized_fragment_fingerprint(&self) -> u64 {
+    pub const fn normalized_fragment_report_fingerprint(&self) -> u64 {
         self.invocation.fragment().report_fingerprint()
     }
 
@@ -3351,7 +3357,7 @@ mod tests {
             .expect("checked writer has one reusable fragment");
         assert!(context.binds_invocation(&invocation));
         assert_eq!(
-            context.normalized_fragment_fingerprint(),
+            context.normalized_fragment_report_fingerprint(),
             invocation.fragment().report_fingerprint()
         );
         assert_ne!(

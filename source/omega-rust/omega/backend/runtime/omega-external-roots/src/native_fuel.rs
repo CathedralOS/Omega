@@ -596,10 +596,19 @@ pub fn bind_installed_native_fuel_sponsor_route(
     report_fingerprint.u64(provider_execution.normalized_report_identity());
     report_fingerprint.u64(entry.normalized_identity());
     report_fingerprint.u64(transfer_code.sponsor_text_offset as u64);
-    report_fingerprint.u64(sponsor_path.fixed.demand.composition_fingerprint());
+    report_fingerprint.u64(
+        sponsor_path
+            .fixed
+            .demand
+            .non_authoritative_composition_report_fingerprint(),
+    );
     report_fingerprint.u64(sponsor_path.fixed.provision.normalized_identity());
     report_fingerprint.u64(sponsor_path.fixed.granted_units);
-    report_fingerprint.u64(sponsor_path.suspension_free.composition_fingerprint());
+    report_fingerprint.u64(
+        sponsor_path
+            .suspension_free
+            .non_authoritative_composition_report_fingerprint(),
+    );
     report_fingerprint.u64(sponsor_root.evidence.root.normalized_report_identity());
     report_fingerprint.u64(
         sponsor_root
@@ -730,9 +739,18 @@ pub fn bind_installed_native_fuel_transfer_runtime(
     report_fingerprint.u64(transfer_code.report_fingerprint());
     report_fingerprint.u64(sponsor_route.report_fingerprint());
     report_fingerprint.u64(plan.transfer_plan.normalized_identity());
-    report_fingerprint.u64(plan.sponsor_path.fixed.demand.composition_fingerprint());
+    report_fingerprint.u64(
+        plan.sponsor_path
+            .fixed
+            .demand
+            .non_authoritative_composition_report_fingerprint(),
+    );
     report_fingerprint.u64(plan.sponsor_path.fixed.provision.normalized_identity());
-    report_fingerprint.u64(plan.sponsor_path.suspension_free.composition_fingerprint());
+    report_fingerprint.u64(
+        plan.sponsor_path
+            .suspension_free
+            .non_authoritative_composition_report_fingerprint(),
+    );
 
     Ok(InstalledNativeFuelTransferRuntime {
         plan,
@@ -1160,10 +1178,19 @@ fn dynamic_fuel_attribution_basis_report_fingerprint(
     hash.u64(plan.meter.normalized_identity());
     hash_native_fuel_target_policy(&mut hash, plan.target_policy().projection());
     hash.u64(plan.transfer_plan.normalized_identity());
-    hash.u64(plan.sponsor_path.fixed.demand.composition_fingerprint());
+    hash.u64(
+        plan.sponsor_path
+            .fixed
+            .demand
+            .non_authoritative_composition_report_fingerprint(),
+    );
     hash.u64(plan.sponsor_path.fixed.provision.normalized_identity());
     hash.u64(plan.sponsor_path.fixed.granted_units);
-    hash.u64(plan.sponsor_path.suspension_free.composition_fingerprint());
+    hash.u64(
+        plan.sponsor_path
+            .suspension_free
+            .non_authoritative_composition_report_fingerprint(),
+    );
     hash.u64(rows.len() as u64);
     for row in rows {
         hash.u64(row.machine.get());
@@ -1569,7 +1596,11 @@ fn installed_native_fuel_realization_report_fingerprint(
     hash.bytes(b"omega.installed-native-fuel-realization.v1");
     hash.u64(installed_code.identity().normalized_identity());
     hash.u64(installed_code.artifact().normalized_identity());
-    hash.u64(selected.demand.composition_fingerprint());
+    hash.u64(
+        selected
+            .demand
+            .non_authoritative_composition_report_fingerprint(),
+    );
     hash.u64(selected.provision.normalized_identity());
     hash.u64(selected.granted_units);
     hash.u64(match selected.kind {

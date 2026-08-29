@@ -152,11 +152,6 @@ impl NativeFuelTransferRuntimeEvidence {
     pub const fn report_fingerprint(&self) -> u64 {
         self.non_authoritative_report_fingerprint
     }
-
-    /// Compatibility accessor for [`Self::report_fingerprint`].
-    pub const fn fingerprint(&self) -> u64 {
-        self.report_fingerprint()
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

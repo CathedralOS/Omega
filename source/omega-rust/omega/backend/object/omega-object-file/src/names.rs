@@ -48,7 +48,7 @@ pub fn object_symbol_handle_by_foreign_locator(
 pub fn normalized_foreign_import_symbol_name(locator: &NormalizedForeignLocator) -> String {
     format!(
         "__omega_foreign_import_{:016x}",
-        locator.normalized_identity()
+        locator.non_authoritative_compatibility_fingerprint()
     )
 }
 

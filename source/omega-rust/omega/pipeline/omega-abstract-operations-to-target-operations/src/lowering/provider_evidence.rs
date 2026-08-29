@@ -25,20 +25,26 @@ pub(super) fn bind_provider_executions(
                 });
             }
             let provider_plan = omega_target_operations::ProviderPlanReportIdentity::new(
-                settlement.provider_execution.provider_plan(),
+                settlement
+                    .provider_execution
+                    .provider_plan_report_identity(),
             )
             .ok_or_else(|| LoweringError::ProviderExecutionBinding("zero provider plan".into()))?;
             let provider_execution =
                 omega_target_operations::ProviderExecutionBinding::from_execution_record(
                     provider_plan,
-                    settlement.provider_execution.provider_execution_identity(),
                     settlement
                         .provider_execution
-                        .provider_execution_fingerprint(),
-                    settlement.provider_execution.normalized_root_identity(),
+                        .provider_execution_report_identity(),
                     settlement
                         .provider_execution
-                        .boundary_contract_fingerprint(),
+                        .provider_execution_report_fingerprint(),
+                    settlement
+                        .provider_execution
+                        .normalized_root_report_identity(),
+                    settlement
+                        .provider_execution
+                        .boundary_contract_report_fingerprint(),
                 )
                 .ok_or_else(|| {
                     LoweringError::ProviderExecutionBinding(

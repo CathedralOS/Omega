@@ -88,7 +88,7 @@ data Main { }
 machine Main::main(&mut self) { }
 "#;
 
-fn contract_fingerprint_for(source: &str, machine_name: &str) -> u64 {
+fn contract_report_fingerprint_for(source: &str, machine_name: &str) -> u64 {
     let main_path = write_program("fingerprint", source);
     let checked = compile_to_checked(&main_path, None).expect("contract program should compile");
     let machine = checked
@@ -97,14 +97,14 @@ fn contract_fingerprint_for(source: &str, machine_name: &str) -> u64 {
         .iter()
         .find(|machine| machine.name.as_str() == machine_name)
         .unwrap_or_else(|| panic!("machine {machine_name}"));
-    let fingerprint = checked
+    let report_fingerprint = checked
         .facts
         .contract_plans
         .for_machine(machine.symbol)
         .expect("machine contract plan")
         .report_fingerprint;
     let _ = fs::remove_dir_all(main_path.parent().expect("temporary program directory"));
-    fingerprint
+    report_fingerprint
 }
 
 #[test]
@@ -254,8 +254,8 @@ fn provider_keeps_service_and_operational_contract_axes_independent() {
 
 #[test]
 fn private_ranking_spelling_cannot_perturb_public_contract_identity() {
-    let inferred = contract_fingerprint_for(CONTRACT_PROGRAM, "run_impl");
-    let explicit = contract_fingerprint_for(
+    let inferred = contract_report_fingerprint_for(CONTRACT_PROGRAM, "run_impl");
+    let explicit = contract_report_fingerprint_for(
         &CONTRACT_PROGRAM.replace(
             "terminates by remaining;",
             "terminates by remaining -> Nat::Descending;",
@@ -311,7 +311,7 @@ machine Main::main(&mut self) {}
     let without_edge = with_edge.replace("invokes handler;\n{\n    handler.handle();\n}", "{\n}");
     assert_ne!(
         contract.report_fingerprint,
-        contract_fingerprint_for(&without_edge, "Published::entry")
+        contract_report_fingerprint_for(&without_edge, "Published::entry")
     );
     let _ = fs::remove_dir_all(main_path.parent().expect("temporary program directory"));
 }
