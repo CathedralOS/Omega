@@ -20,7 +20,7 @@ rustix = { version = "1.1.4", features = ["process"] }
 landlock = "0.4.7"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-omega-platform-custody = { path = "../../../tooling/omega-platform-custody" }
+omega-platform-custody = { path = "../../tooling/omega-platform-custody" }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61.2", features = [

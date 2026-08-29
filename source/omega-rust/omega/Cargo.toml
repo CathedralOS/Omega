@@ -13,9 +13,9 @@ test = false
 [dependencies]
 omega-compiler = { path = "compiler/omega-compiler" }
 omega-core = { path = "representations/omega-core" }
-omega-package-manager = { path = "packages/manager" }
+omega-package-manager = { path = "packages/omega-package-manager" }
 omega-package-compilation = { path = "build/omega-package-compilation" }
-omega-resolver-execution = { path = "packages/source/execution" }
+omega-resolver-execution = { path = "packages/omega-resolver-execution" }
 omega-target = { path = "representations/omega-target" }
 omega-trust-ledger = { path = "build/omega-trust-ledger" }
 psi-checked-trees-to-terminal = { path = "../psi/pipeline/psi-checked-trees-to-terminal" }

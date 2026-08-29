@@ -9,5 +9,5 @@ name = "omega_package_advisory"
 path = "src/lib.rs"
 
 [dependencies]
-omega-package-manager = { path = "../../manager" }
+omega-package-manager = { path = "../omega-package-manager" }
 sha2 = "0.10.9"

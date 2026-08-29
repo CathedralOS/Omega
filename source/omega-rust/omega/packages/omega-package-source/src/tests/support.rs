@@ -183,7 +183,7 @@ pub(super) fn add_empty_tree_commit(repository: &Path) -> String {
 }
 
 pub(super) fn package_fixtures_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../../../../tests/fixtures/packages")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../../../tests/fixtures/packages")
 }
 
 pub(super) fn git_cache_entry_root(cache: &Path, request: &GitSourceRequest) -> PathBuf {

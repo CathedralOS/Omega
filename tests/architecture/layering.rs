@@ -795,7 +795,7 @@ fn package_review_is_not_owned_or_reexported_by_the_compiler() {
         "package review projection and evidence schemas must not return to omega-compiler"
     );
 
-    let owner = root.join("source/omega-rust/omega/packages/review/evidence/src/lib.rs");
+    let owner = root.join("source/omega-rust/omega/packages/omega-package-review/src/lib.rs");
     assert!(
         owner.is_file(),
         "omega-package-review must own package review"
@@ -829,16 +829,23 @@ fn package_subsystem_has_deliberate_entrances() {
                 .into_owned()
         })
         .collect::<BTreeSet<_>>();
-    let expected_top_level = ["README.md", "manager", "review", "source"]
-        .into_iter()
-        .map(str::to_owned)
-        .collect::<BTreeSet<_>>();
+    let expected_top_level = [
+        "README.md",
+        "omega-package-advisory",
+        "omega-package-manager",
+        "omega-package-review",
+        "omega-package-source",
+        "omega-resolver-execution",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect::<BTreeSet<_>>();
     assert_eq!(
         top_level, expected_top_level,
         "the package subsystem top level is a deliberate architectural map; document and guard new responsibilities"
     );
 
-    let manager_source = std::fs::read_dir(packages.join("manager/src"))
+    let manager_source = std::fs::read_dir(packages.join("omega-package-manager/src"))
         .expect("read package manager source entrance")
         .map(|entry| {
             entry
@@ -856,7 +863,7 @@ fn package_subsystem_has_deliberate_entrances() {
         manager_source, expected_manager_source,
         "the manager entrance must read as commands, declarations, resolution, then review"
     );
-    let manager_root = std::fs::read_to_string(packages.join("manager/src/lib.rs"))
+    let manager_root = std::fs::read_to_string(packages.join("omega-package-manager/src/lib.rs"))
         .expect("read package manager crate entrance");
     assert!(
         !manager_root
@@ -867,26 +874,24 @@ fn package_subsystem_has_deliberate_entrances() {
 
     for required in [
         "README.md",
-        "manager/src/lib.rs",
-        "manager/src/commands/mod.rs",
-        "manager/src/commands/source_audit/mod.rs",
-        "manager/src/declarations/mod.rs",
-        "manager/src/resolution/mod.rs",
-        "manager/src/resolution/package/mod.rs",
-        "manager/src/resolution/graph/mod.rs",
-        "manager/src/review/mod.rs",
-        "review/README.md",
-        "review/advisory/README.md",
-        "review/advisory/src/lib.rs",
-        "review/evidence/src/lib.rs",
-        "review/evidence/src/evidence/contracts/mod.rs",
-        "review/evidence/src/evidence/signatures/mod.rs",
-        "review/evidence/src/obligation_ledger/mod.rs",
-        "source/README.md",
-        "source/acquisition/README.md",
-        "source/acquisition/SOURCE_RESOLVER_SECURITY.md",
-        "source/acquisition/src/lib.rs",
-        "source/execution/src/lib.rs",
+        "omega-package-manager/src/lib.rs",
+        "omega-package-manager/src/commands/mod.rs",
+        "omega-package-manager/src/commands/source_audit/mod.rs",
+        "omega-package-manager/src/declarations/mod.rs",
+        "omega-package-manager/src/resolution/mod.rs",
+        "omega-package-manager/src/resolution/package/mod.rs",
+        "omega-package-manager/src/resolution/graph/mod.rs",
+        "omega-package-manager/src/review/mod.rs",
+        "omega-package-advisory/README.md",
+        "omega-package-advisory/src/lib.rs",
+        "omega-package-review/src/lib.rs",
+        "omega-package-review/src/evidence/contracts/mod.rs",
+        "omega-package-review/src/evidence/signatures/mod.rs",
+        "omega-package-review/src/obligation_ledger/mod.rs",
+        "omega-package-source/README.md",
+        "omega-package-source/SOURCE_RESOLVER_SECURITY.md",
+        "omega-package-source/src/lib.rs",
+        "omega-resolver-execution/src/lib.rs",
     ] {
         let entrance = packages.join(required);
         assert!(
@@ -907,33 +912,33 @@ fn package_subsystem_has_deliberate_entrances() {
         );
     }
     for retired in [
-        "omega-package-manager",
-        "omega-package-review",
-        "omega-resolver-execution",
+        "manager",
+        "review",
+        "source",
         "advisory-tooling",
         "package-review",
         "resolver-execution",
-        "manager/src/workflow",
-        "manager/src/manifest",
-        "manager/src/package",
-        "manager/src/graph",
-        "manager/SOURCE_RESOLVER_SECURITY.md",
-        "manager/src/storage",
-        "manager/src/source/package",
-        "manager/src/source/audit.rs",
-        "manager/src/source",
-        "manager/src/review/advisor",
-        "manager/src/review/compiler",
-        "manager/src/review/diff",
-        "manager/src/records",
-        "review/evidence/src/encoding/obligation_ledger",
-        "review/evidence/src/projection/public_traits.rs",
-        "review/evidence/src/projection/provider_families.rs",
-        "review/evidence/src/projection/provider_intrinsics.rs",
-        "review/evidence/src/projection/evidence/selected_providers.rs",
-        "review/evidence/src/projection/evidence",
-        "review/evidence/src/evidence/contracts.rs",
-        "review/evidence/src/evidence/signatures.rs",
+        "omega-package-manager/src/workflow",
+        "omega-package-manager/src/manifest",
+        "omega-package-manager/src/package",
+        "omega-package-manager/src/graph",
+        "omega-package-manager/SOURCE_RESOLVER_SECURITY.md",
+        "omega-package-manager/src/storage",
+        "omega-package-manager/src/source/package",
+        "omega-package-manager/src/source/audit.rs",
+        "omega-package-manager/src/source",
+        "omega-package-manager/src/review/advisor",
+        "omega-package-manager/src/review/compiler",
+        "omega-package-manager/src/review/diff",
+        "omega-package-manager/src/records",
+        "omega-package-review/src/encoding/obligation_ledger",
+        "omega-package-review/src/projection/public_traits.rs",
+        "omega-package-review/src/projection/provider_families.rs",
+        "omega-package-review/src/projection/provider_intrinsics.rs",
+        "omega-package-review/src/projection/evidence/selected_providers.rs",
+        "omega-package-review/src/projection/evidence",
+        "omega-package-review/src/evidence/contracts.rs",
+        "omega-package-review/src/evidence/signatures.rs",
     ] {
         assert!(
             !packages.join(retired).exists(),
@@ -1045,14 +1050,15 @@ fn package_semantics_exclude_executable_provenance_and_model_protocols() {
     );
 
     let root = workspace_root();
-    let manager_review = root.join("source/omega-rust/omega/packages/manager/src/review");
+    let manager_review =
+        root.join("source/omega-rust/omega/packages/omega-package-manager/src/review");
     for retired in ["advisory/protocol.rs", "advisory/invocation.rs"] {
         assert!(
             !manager_review.join(retired).exists(),
             "model protocol must remain outside package core: {retired}"
         );
     }
-    let optional_tool = root.join("source/omega-rust/omega/packages/review/advisory/src");
+    let optional_tool = root.join("source/omega-rust/omega/packages/omega-package-advisory/src");
     for owned in ["protocol.rs", "invocation.rs"] {
         assert!(
             optional_tool.join(owned).is_file(),
@@ -3581,8 +3587,8 @@ fn external_root_stack_and_fuel_fingerprints_are_report_only() {
 #[test]
 fn package_review_provider_plan_fingerprints_are_report_only() {
     let root = workspace_root();
-    let evidence_path =
-        root.join("source/omega-rust/omega/packages/review/evidence/src/evidence/projection.rs");
+    let evidence_path = root
+        .join("source/omega-rust/omega/packages/omega-package-review/src/evidence/projection.rs");
     let evidence = std::fs::read_to_string(&evidence_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", evidence_path.display()));
     assert!(
@@ -3595,8 +3601,9 @@ fn package_review_provider_plan_fingerprints_are_report_only() {
         "package-review compact plan values must remain report-only beside exact provider evidence",
     );
 
-    let encoding_path = root
-        .join("source/omega-rust/omega/packages/review/evidence/src/encoding/values/providers.rs");
+    let encoding_path = root.join(
+        "source/omega-rust/omega/packages/omega-package-review/src/encoding/values/providers.rs",
+    );
     let encoding = std::fs::read_to_string(&encoding_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", encoding_path.display()));
     assert!(

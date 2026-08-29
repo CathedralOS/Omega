@@ -12,8 +12,8 @@ path = "src/lib.rs"
 omega-build-declarations = { path = "../../build/omega-build-declarations" }
 omega-build-evaluation = { path = "../../build/omega-build-evaluation" }
 omega-compiler = { path = "../../compiler/omega-compiler" }
-omega-package-review = { path = "../review/evidence" }
-omega-package-source = { path = "../source/acquisition" }
+omega-package-review = { path = "../omega-package-review" }
+omega-package-source = { path = "../omega-package-source" }
 omega-package-compilation = { path = "../../build/omega-package-compilation" }
 omega-platform-custody = { path = "../../tooling/omega-platform-custody" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
@@ -28,4 +28,4 @@ cap-std = "4.0.3"
 sha2 = "0.10.9"
 
 [dev-dependencies]
-omega-package-source = { path = "../source/acquisition", features = ["test-fixtures"] }
+omega-package-source = { path = "../omega-package-source", features = ["test-fixtures"] }
