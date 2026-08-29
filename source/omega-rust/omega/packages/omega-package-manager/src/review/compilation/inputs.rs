@@ -72,7 +72,7 @@ fn binding_with_canonical_source_metadata(
     custody: &crate::resolution::source::PackageSourceCustody,
     binding: PackageSourceBinding,
 ) -> Result<PackageSourceBinding, PackageCompilationInputError> {
-    omega_package_source::capture_verified_package_source_snapshot(
+    omega_package_source::local::operations::capture_verified_package_source_snapshot(
         custody.snapshot_root(),
         custody.materialization().content(),
         custody.source_limits(),

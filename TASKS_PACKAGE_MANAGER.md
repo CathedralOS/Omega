@@ -30,8 +30,8 @@ closed. Compiler-issued package review remains non-admitting.
 
   Remaining work:
 
-  - narrow flat and `#[doc(hidden)]` cross-crate facades after callers migrate,
-    then refresh each crate map and enforce the intended dependency direction.
+  - replace `omega-package-review`'s wildcard root export with explicit owner
+    modules and refresh its crate map.
 
 ## P0 — Source resolver boundary
 

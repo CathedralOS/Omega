@@ -15,7 +15,9 @@ use crate::git::objects::identity::is_object_id;
 use crate::git::process::reconciliation::{
     reconcile_git_cache_operation_result, reconcile_git_command_result,
 };
-use crate::git::request::{GitExecutionTransport, GitSourceRequest};
+#[cfg(any(test, feature = "test-fixtures"))]
+use crate::git::request::GitExecutionTransport;
+use crate::git::request::GitSourceRequest;
 use crate::git::workspace::GitWorkspaceProjectionError;
 use crate::limits::LocalSourceLimits;
 use crate::observations::resolved::{GitAcquisitionPin, ResolvedGitSource};

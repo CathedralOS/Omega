@@ -39,6 +39,9 @@ Authored workspace-member paths remain build declarations; the manager converts
 them explicitly to source-owned validated relative paths at the custody edge.
 `resolution/source/` performs the declaration join before
 `resolution/closure/` derives closure-owned identities.
+Manager code that composes an already-retained source lane uses the source
+crate's named `git::resolution`, `local::operations`, `local::model`, and
+`storage` responsibilities instead of hidden crate-root aliases.
 
 ```text
 resolution/source/
