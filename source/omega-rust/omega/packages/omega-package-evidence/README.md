@@ -36,9 +36,9 @@ src/
 |   |-- behavior/             reach, invocation, mutation, crash, termination, and flow rows
 |   `-- semantics/            declarations, types, signatures, facts, and conformances
 |-- encoding/                 public canonical persistence boundaries; no compiler IR
-|   |-- encode/               framing, row assembly, limits, and primitive encoder
-|   |-- values/               semantic value encoding by evidence family
-|   `-- decode/               canonical-row framing, source recovery, and decoding
+|   |-- encode/               canonical framing, row assembly, limits, and primitive encoder
+|   |   `-- values/           subordinate value encoders grouped by evidence family
+|   `-- recovery/             canonical-row validation and recovered-envelope encoding/decoding
 `-- obligations/             public local reconstruction question; codec remains private
 
 tests/

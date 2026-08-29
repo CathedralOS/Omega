@@ -4,14 +4,14 @@ use super::declarations::{
     encode_trait_shape,
 };
 use super::encoder::Encoder;
+use super::values::callables::{encode_callable, encode_external_executable_supply};
+use super::values::declarations::{
+    encode_const_shape, encode_operator_shape, encode_proposition_shape,
+};
+use super::values::providers::{encode_provider, encode_provider_family};
 use super::{
     MAGIC, PACKAGE_REVIEW_ENCODING_VERSION, PackageReviewEncodingError, PackageReviewEncodingLimits,
 };
-use crate::encoding::values::callables::{encode_callable, encode_external_executable_supply};
-use crate::encoding::values::declarations::{
-    encode_const_shape, encode_operator_shape, encode_proposition_shape,
-};
-use crate::encoding::values::providers::{encode_provider, encode_provider_family};
 use crate::evidence::CheckedPackageReviewProjection;
 
 pub(crate) fn encode(

@@ -4,18 +4,18 @@ use super::declarations::{
     encode_semantic_dependency_key, encode_trait_shape,
 };
 use super::encoder::Encoder;
+use super::values::callables::{
+    encode_callable, encode_external_executable_supply, encode_external_executable_supply_key,
+};
+use super::values::declarations::{
+    encode_const_shape, encode_operator_coordinate, encode_operator_shape, encode_proposition_shape,
+};
+use super::values::identity::encode_nominal;
+use super::values::providers::{encode_provider, encode_provider_family};
 use super::{
     PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION,
     PackageReviewEncodingError, PackageReviewEncodingLimits, ROW_MAGIC,
 };
-use crate::encoding::values::callables::{
-    encode_callable, encode_external_executable_supply, encode_external_executable_supply_key,
-};
-use crate::encoding::values::declarations::{
-    encode_const_shape, encode_operator_coordinate, encode_operator_shape, encode_proposition_shape,
-};
-use crate::encoding::values::identity::encode_nominal;
-use crate::encoding::values::providers::{encode_provider, encode_provider_family};
 use crate::evidence::{
     CheckedPackageReviewProjection, PackageReviewCallableSupply, PackageReviewCanonicalRow,
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,

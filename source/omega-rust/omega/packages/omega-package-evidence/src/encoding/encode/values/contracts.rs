@@ -1,6 +1,6 @@
+use super::super::declarations::encode_type_identity;
+use super::super::encoder::Encoder;
 use crate::encoding::PackageReviewEncodingError;
-use crate::encoding::encode::declarations::encode_type_identity;
-use crate::encoding::encode::encoder::Encoder;
 use crate::evidence::{
     PackageReviewCallableContract, PackageReviewContractFact, PackageReviewContractKind,
     PackageReviewPropositionApplication, PackageReviewPropositionBinderArgumentKind,

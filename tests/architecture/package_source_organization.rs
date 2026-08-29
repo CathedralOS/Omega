@@ -171,6 +171,41 @@ fn stable_evidence_and_encoding_exclude_compiler_representations() {
 }
 
 #[test]
+fn package_evidence_encoding_has_one_canonical_encoder_owner() {
+    let encoding = package_root().join("omega-package-evidence/src/encoding");
+    assert_eq!(
+        directory_entries(&encoding),
+        BTreeSet::from([
+            "encode".to_owned(),
+            "mod.rs".to_owned(),
+            "recovery".to_owned(),
+        ]),
+        "package-evidence encoding must expose canonical encoding and recovery as its only owners",
+    );
+
+    let encoder = encoding.join("encode");
+    assert!(
+        encoder.join("values/mod.rs").is_file(),
+        "semantic value encoders must remain subordinate to canonical encoding",
+    );
+    let encoder_entrance =
+        fs::read_to_string(encoder.join("mod.rs")).expect("read package-evidence encoder entrance");
+    assert!(
+        encoder_entrance.lines().any(|line| line == "mod values;"),
+        "the canonical encoder entrance must own its semantic value encoders",
+    );
+
+    let encoding_entrance = fs::read_to_string(encoding.join("mod.rs"))
+        .expect("read package-evidence encoding entrance");
+    for forbidden_peer in ["mod values;", "mod decode;"] {
+        assert!(
+            !encoding_entrance.lines().any(|line| line == forbidden_peer),
+            "encoding must not restore the former sibling owner `{forbidden_peer}`",
+        );
+    }
+}
+
+#[test]
 fn source_tests_live_with_their_owners() {
     let source = package_root().join("omega-package-source/src");
     assert!(

@@ -1,9 +1,14 @@
 //! Canonical package-review framing and semantic row encoding.
+//!
+//! `review` and `rows` assemble the public persistence products. `values`
+//! contains their subordinate evidence-family encoders; it is deliberately a
+//! child of this owner rather than a peer persistence domain.
 
 pub(super) mod declarations;
 pub(super) mod encoder;
 pub(super) mod review;
 pub(super) mod rows;
+mod values;
 
 pub(crate) const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
 pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 88;
