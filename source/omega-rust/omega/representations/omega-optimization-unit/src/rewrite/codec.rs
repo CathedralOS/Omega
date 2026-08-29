@@ -340,6 +340,12 @@ pub(super) fn encode_candidate(
                 TotalScalarIdentityKind::SaturatingIntegerMultiplyOneRight => 14,
                 TotalScalarIdentityKind::SaturatingIntegerMultiplyZeroLeft => 15,
                 TotalScalarIdentityKind::SaturatingIntegerMultiplyZeroRight => 16,
+                TotalScalarIdentityKind::IntegerBitwiseAndAllOnesLeft => 17,
+                TotalScalarIdentityKind::IntegerBitwiseAndAllOnesRight => 18,
+                TotalScalarIdentityKind::IntegerBitwiseOrZeroLeft => 19,
+                TotalScalarIdentityKind::IntegerBitwiseOrZeroRight => 20,
+                TotalScalarIdentityKind::IntegerBitwiseXorZeroLeft => 21,
+                TotalScalarIdentityKind::IntegerBitwiseXorZeroRight => 22,
             });
         }
     }

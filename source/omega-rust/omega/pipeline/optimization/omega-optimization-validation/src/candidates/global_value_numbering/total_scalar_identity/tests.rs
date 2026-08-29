@@ -44,6 +44,14 @@ fn contract(identity: TotalScalarIdentityKind) -> OptimizationRuleContract {
         | TotalScalarIdentityKind::SaturatingIntegerMultiplyZeroRight => {
             b"omega.psi-rule.live-obligation-free-saturating-integer-multiply-zero-annihilation.v1"
         }
+        TotalScalarIdentityKind::IntegerBitwiseAndAllOnesLeft
+        | TotalScalarIdentityKind::IntegerBitwiseAndAllOnesRight
+        | TotalScalarIdentityKind::IntegerBitwiseOrZeroLeft
+        | TotalScalarIdentityKind::IntegerBitwiseOrZeroRight
+        | TotalScalarIdentityKind::IntegerBitwiseXorZeroLeft
+        | TotalScalarIdentityKind::IntegerBitwiseXorZeroRight => {
+            b"omega.psi-rule.live-obligation-free-integer-bitwise-neutral-literal-elimination.v1"
+        }
     };
     OptimizationRuleContract::new(
         OptimizationRuleIdentity::from_canonical_bytes(domain),
@@ -266,6 +274,78 @@ fn fixture(identity: TotalScalarIdentityKind) -> (PsiOptimizationUnit, TotalScal
             },
             neutral,
         ),
+        TotalScalarIdentityKind::IntegerBitwiseAndAllOnesLeft => (
+            IntegerValue::Unsigned(u128::from(u32::MAX)),
+            scalar_type,
+            AbstractOperation::IntegerBitwiseAnd {
+                psi_operation: arithmetic_operation,
+                result,
+                scalar_type,
+                left: neutral,
+                right: input_value,
+            },
+            input_value,
+        ),
+        TotalScalarIdentityKind::IntegerBitwiseAndAllOnesRight => (
+            IntegerValue::Unsigned(u128::from(u32::MAX)),
+            scalar_type,
+            AbstractOperation::IntegerBitwiseAnd {
+                psi_operation: arithmetic_operation,
+                result,
+                scalar_type,
+                left: input_value,
+                right: neutral,
+            },
+            input_value,
+        ),
+        TotalScalarIdentityKind::IntegerBitwiseOrZeroLeft => (
+            IntegerValue::Unsigned(0),
+            scalar_type,
+            AbstractOperation::IntegerBitwiseOr {
+                psi_operation: arithmetic_operation,
+                result,
+                scalar_type,
+                left: neutral,
+                right: input_value,
+            },
+            input_value,
+        ),
+        TotalScalarIdentityKind::IntegerBitwiseOrZeroRight => (
+            IntegerValue::Unsigned(0),
+            scalar_type,
+            AbstractOperation::IntegerBitwiseOr {
+                psi_operation: arithmetic_operation,
+                result,
+                scalar_type,
+                left: input_value,
+                right: neutral,
+            },
+            input_value,
+        ),
+        TotalScalarIdentityKind::IntegerBitwiseXorZeroLeft => (
+            IntegerValue::Unsigned(0),
+            scalar_type,
+            AbstractOperation::IntegerBitwiseXor {
+                psi_operation: arithmetic_operation,
+                result,
+                scalar_type,
+                left: neutral,
+                right: input_value,
+            },
+            input_value,
+        ),
+        TotalScalarIdentityKind::IntegerBitwiseXorZeroRight => (
+            IntegerValue::Unsigned(0),
+            scalar_type,
+            AbstractOperation::IntegerBitwiseXor {
+                psi_operation: arithmetic_operation,
+                result,
+                scalar_type,
+                left: input_value,
+                right: neutral,
+            },
+            input_value,
+        ),
     };
     let unit = reconstruct_psi_optimization_unit_seed(
         &AbstractOperationPlan {
@@ -405,7 +485,7 @@ fn candidate_with_contract(
 }
 
 #[test]
-fn all_sixteen_total_rows_replay_without_proof_custody() {
+fn all_twenty_two_total_rows_replay_without_proof_custody() {
     let identities = [
         TotalScalarIdentityKind::WrappingIntegerAddZeroLeft,
         TotalScalarIdentityKind::WrappingIntegerAddZeroRight,
@@ -423,6 +503,12 @@ fn all_sixteen_total_rows_replay_without_proof_custody() {
         TotalScalarIdentityKind::SaturatingIntegerMultiplyOneRight,
         TotalScalarIdentityKind::SaturatingIntegerMultiplyZeroLeft,
         TotalScalarIdentityKind::SaturatingIntegerMultiplyZeroRight,
+        TotalScalarIdentityKind::IntegerBitwiseAndAllOnesLeft,
+        TotalScalarIdentityKind::IntegerBitwiseAndAllOnesRight,
+        TotalScalarIdentityKind::IntegerBitwiseOrZeroLeft,
+        TotalScalarIdentityKind::IntegerBitwiseOrZeroRight,
+        TotalScalarIdentityKind::IntegerBitwiseXorZeroLeft,
+        TotalScalarIdentityKind::IntegerBitwiseXorZeroRight,
     ];
     for identity in identities {
         let (unit, patch) = fixture(identity);
@@ -663,6 +749,59 @@ fn independent_validator_rejects_kind_fact_and_accounting_corruption() {
                 false,
                 None,
                 wrapping_annihilation_contract,
+            ),
+        ),
+        Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch),
+    );
+
+    let (bitwise_unit, bitwise_patch) =
+        fixture(TotalScalarIdentityKind::IntegerBitwiseAndAllOnesLeft);
+    let saturating_annihilation_contract =
+        contract(TotalScalarIdentityKind::SaturatingIntegerMultiplyZeroLeft);
+    assert_eq!(
+        validate_total_scalar_identity_candidate(
+            &bitwise_unit,
+            &candidate_with_contract(
+                &bitwise_unit,
+                bitwise_patch,
+                false,
+                None,
+                saturating_annihilation_contract,
+            ),
+        ),
+        Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch),
+    );
+
+    let mut wrong_bitwise_side = bitwise_patch;
+    wrong_bitwise_side.identity = TotalScalarIdentityKind::IntegerBitwiseAndAllOnesRight;
+    assert_eq!(
+        validate_total_scalar_identity_candidate(
+            &bitwise_unit,
+            &candidate(&bitwise_unit, wrong_bitwise_side, false, None),
+        ),
+        Err(OptimizationUnitValidationError::CandidatePatchMismatch),
+    );
+
+    let mut wrong_bitwise_operation = bitwise_patch;
+    wrong_bitwise_operation.identity = TotalScalarIdentityKind::IntegerBitwiseOrZeroLeft;
+    assert_eq!(
+        validate_total_scalar_identity_candidate(
+            &bitwise_unit,
+            &candidate(&bitwise_unit, wrong_bitwise_operation, false, None),
+        ),
+        Err(OptimizationUnitValidationError::CandidatePatchMismatch),
+    );
+
+    let wrapping_contract = contract(TotalScalarIdentityKind::WrappingIntegerAddZeroLeft);
+    assert_eq!(
+        validate_total_scalar_identity_candidate(
+            &bitwise_unit,
+            &candidate_with_contract(
+                &bitwise_unit,
+                bitwise_patch,
+                false,
+                None,
+                wrapping_contract,
             ),
         ),
         Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch),

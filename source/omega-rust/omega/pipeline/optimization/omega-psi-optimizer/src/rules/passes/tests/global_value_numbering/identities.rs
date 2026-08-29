@@ -80,7 +80,7 @@ fn total_identity_rules_are_disabled_by_default_and_cataloged_once() {
     assert_eq!(
         contract.pass(),
         OptimizationPassIdentity::from_canonical_bytes(
-            b"omega.psi-pass.global-value-numbering.v12",
+            b"omega.psi-pass.global-value-numbering.v13",
         )
     );
     let expected = contract.identity();
@@ -137,6 +137,18 @@ fn total_identity_rules_are_disabled_by_default_and_cataloged_once() {
         registry
             .contracts()
             .filter(|contract| contract.identity() == saturating_annihilation)
+            .count(),
+        1
+    );
+    let bitwise_neutral = BitwiseNeutralLiteralIdentityRule::contract().identity();
+    assert_eq!(
+        registry.contracts().nth(14).map(|row| row.identity()),
+        Some(bitwise_neutral)
+    );
+    assert_eq!(
+        registry
+            .contracts()
+            .filter(|contract| contract.identity() == bitwise_neutral)
             .count(),
         1
     );

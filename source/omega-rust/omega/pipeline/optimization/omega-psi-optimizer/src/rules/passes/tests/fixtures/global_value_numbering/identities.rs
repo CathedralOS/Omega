@@ -18,6 +18,84 @@ pub(crate) enum SaturatingNeutralOperation {
     Multiply,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BitwiseNeutralOperation {
+    And,
+    Or,
+    Xor,
+}
+
+pub(crate) fn bitwise_neutral_identity_unit(
+    operation: BitwiseNeutralOperation,
+    literal_value: IntegerValue,
+    literal_left: bool,
+    both_operands_literal: bool,
+) -> PsiOptimizationUnit {
+    bitwise_neutral_identity_unit_with_type_and_liveness(
+        IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+        operation,
+        literal_value,
+        literal_left,
+        both_operands_literal,
+        true,
+    )
+}
+
+pub(crate) fn bitwise_neutral_identity_unit_with_type_and_liveness(
+    integer: IntegerType,
+    operation: BitwiseNeutralOperation,
+    literal_value: IntegerValue,
+    literal_left: bool,
+    both_operands_literal: bool,
+    result_is_live: bool,
+) -> PsiOptimizationUnit {
+    let mut unit = wrapping_neutral_identity_unit_with_type_and_liveness(
+        integer,
+        WrappingNeutralOperation::Add,
+        literal_value,
+        literal_left,
+        both_operands_literal,
+        result_is_live,
+    );
+    let node = &mut unit.functions[0].blocks[0].nodes[1];
+    let O::WrappingIntegerAdd {
+        psi_operation,
+        result,
+        scalar_type,
+        left,
+        right,
+    } = node.operation
+    else {
+        unreachable!("fixture starts from wrapping addition")
+    };
+    node.operation = match operation {
+        BitwiseNeutralOperation::And => O::IntegerBitwiseAnd {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        },
+        BitwiseNeutralOperation::Or => O::IntegerBitwiseOr {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        },
+        BitwiseNeutralOperation::Xor => O::IntegerBitwiseXor {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        },
+    };
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    validate_psi_optimization_unit(&unit).unwrap();
+    unit
+}
+
 pub(crate) fn saturating_neutral_identity_unit(
     operation: SaturatingNeutralOperation,
     literal_value: IntegerValue,

@@ -17,6 +17,15 @@ another broad alias while executing this plan.
 
 ## Current stopping point
 
+[x] Global value numbering now has a separate six-row obligation-free bitwise
+neutral-literal family: `all_ones & x`, `x & all_ones`, `0 | x`, `x | 0`,
+`0 ^ x`, and `x ^ 0`. Candidate tags 17-22 and catalog row 14 are append-only
+under GVN v13; the rule retains only its exact-width law-literal fact and has a
+separate independently reconstructed validator identity. Signed and unsigned
+1/128-bit carrier boundaries, canonical left-literal ties, rule-domain
+isolation, disabled-by-default selection, and fixed-point execution are
+covered. Absorbing bitwise literals remain a distinct future rule.
+
 [x] Global value numbering now has a separate two-row obligation-free
 saturating multiplication annihilation family: `0 * x -> 0` and `x * 0 ->
 0`. It appends candidate tags 15/16 and catalog row 13 under GVN v12, retains
@@ -528,8 +537,9 @@ parallel route or optional coordinator field.
 - [>] Extend GVN and scalar identities to further exact operation families only
   with exhaustive producer/validator partitions. The separate wrapping-shift
   zero-count, wrapping multiply-zero, saturating neutral-arithmetic, and
-  saturating multiply-zero families are complete. Separately named bitwise
-  neutral/absorbing identities remain unselected future families.
+  saturating multiply-zero families and the bitwise neutral-literal family are
+  complete. A separately named bitwise absorbing-literal identity remains an
+  unselected future family.
 - [ ] Implement loop-invariant code motion after cyclic Terminal-Psi semantics
   are resolved.
 - [?] Define suspension/resume edges for CFG analyses.
