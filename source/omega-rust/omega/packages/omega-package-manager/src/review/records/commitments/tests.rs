@@ -27,7 +27,9 @@ fn compiled_observation(
     std::fs::create_dir_all(output.parent().unwrap()).unwrap();
     let permission_change = permission_mode
         .map(|mode| {
-            format!("self.result = self.filesystem.set_file_permissions(self.descriptor, {mode});")
+            format!(
+                "let permission_result: i32 = builder.filesystem.set_file_permissions(descriptor, {mode});"
+            )
         })
         .unwrap_or_default();
     std::fs::write(
@@ -37,16 +39,16 @@ fn compiled_observation(
 
 target windows_x64 {{}}
 
-data RootedWriter {{ filesystem: FilesystemHost; descriptor: i32; written: i64; result: i32; }}
-
-machine RootedWriter::build(&mut self, builder: &mut Build)
+machine build(builder: &mut Build)
 reaches FilesystemHost
+invokes FilesystemHost;
 {{
+builder.application("review-observation");
 let output: &[u8] in Path = builder.output.resolve("{relative_output}");
-self.descriptor = self.filesystem.create(output, {mode});
-self.written = self.filesystem.write(self.descriptor, "{payload}");
+let descriptor: i32 = builder.filesystem.create(output, {mode});
+let written: i64 = builder.filesystem.write(descriptor, "{payload}");
 {permission_change}
-self.result = self.filesystem.close(self.descriptor);
+let close_result: i32 = builder.filesystem.close(descriptor);
 }}
 "#,
             relative_output = relative_output,
@@ -77,9 +79,9 @@ fn compiled_handle_order_observation(reverse_close_order: bool) -> BuildObservat
     let input = project.join("input.txt");
     std::fs::write(&input, "input\n").unwrap();
     let close_order = if reverse_close_order {
-        "self.result = self.filesystem.close(self.second);\n    self.result = self.filesystem.close(self.first);"
+        "let second_close: i32 = builder.filesystem.close(second);\n    let first_close: i32 = builder.filesystem.close(first);"
     } else {
-        "self.result = self.filesystem.close(self.first);\n    self.result = self.filesystem.close(self.second);"
+        "let first_close: i32 = builder.filesystem.close(first);\n    let second_close: i32 = builder.filesystem.close(second);"
     };
     std::fs::write(
         project.join("build.omg"),
@@ -88,14 +90,14 @@ fn compiled_handle_order_observation(reverse_close_order: bool) -> BuildObservat
 
 target windows_x64 {{}}
 
-data HandleOrder {{ filesystem: FilesystemHost; first: i32; second: i32; result: i32; }}
-
-machine HandleOrder::build(&mut self, builder: &mut Build)
+machine build(builder: &mut Build)
 reaches FilesystemHost
+invokes FilesystemHost;
 {{
+builder.application("review-handle-order");
 let input: &[u8] in Path = builder.source.resolve("input.txt");
-self.first = self.filesystem.open(input, 0);
-self.second = self.filesystem.open(input, 0);
+let first: i32 = builder.filesystem.open(input, 0);
+let second: i32 = builder.filesystem.open(input, 0);
 {close_order}
 }}
 "#,
@@ -129,15 +131,16 @@ fn compiled_read_observation(input_bytes: &str) -> BuildObservationSummary {
 
 target windows_x64 {{}}
 
-data RootedReader {{ filesystem: FilesystemHost; descriptor: i32; buffer: [u8; 6]; read: i64; result: i32; }}
-
-machine RootedReader::build(&mut self, builder: &mut Build)
+machine build(builder: &mut Build)
 reaches FilesystemHost
+invokes FilesystemHost;
 {{
+builder.application("review-read-observation");
 let input: &[u8] in Path = builder.source.resolve("input.txt");
-self.descriptor = self.filesystem.open(input, 0);
-self.read = self.filesystem.read(self.descriptor, &mut self.buffer, 6);
-self.result = self.filesystem.close(self.descriptor);
+let buffer: [u8; 6];
+let descriptor: i32 = builder.filesystem.open(input, 0);
+let read_count: i64 = builder.filesystem.read(descriptor, &mut buffer, 6);
+let close_result: i32 = builder.filesystem.close(descriptor);
 }}
 "#,
         ),
@@ -168,13 +171,13 @@ fn compiled_path_like_observation(target: &str) -> BuildObservationSummary {
 
 target windows_x64 {{}}
 
-data SymlinkProbe {{ filesystem: FilesystemHost; result: i32; }}
-
-machine SymlinkProbe::build(&mut self, builder: &mut Build)
+machine build(builder: &mut Build)
 reaches FilesystemHost
+invokes FilesystemHost;
 {{
+builder.application("review-path-observation");
 let link: &[u8] in Path = builder.output.resolve("missing-parent/link");
-self.result = self.filesystem.symlink("{target}", link);
+let result: i32 = builder.filesystem.symlink("{target}", link);
 }}
 "#,
         ),
@@ -208,13 +211,14 @@ fn compiled_read_link_observation(target: &str) -> BuildObservationSummary {
 
 target windows_x64 {}
 
-data ReadLinkProbe { filesystem: FilesystemHost; buffer: [u8; 32]; result: i64; }
-
-machine ReadLinkProbe::build(&mut self, builder: &mut Build)
+machine build(builder: &mut Build)
 reaches FilesystemHost
+invokes FilesystemHost;
 {
+builder.application("review-read-link-observation");
 let link: &[u8] in Path = builder.source.resolve("fixture-link");
-self.result = self.filesystem.read_link(link, &mut self.buffer, 32);
+let buffer: [u8; 32];
+let result: i64 = builder.filesystem.read_link(link, &mut buffer, 32);
 }
 "#,
     )
@@ -243,13 +247,14 @@ fn compiled_metadata_observation(main_source: &str) -> BuildObservationSummary {
 
 target windows_x64 {}
 
-data MetadataProbe { filesystem: FilesystemHost; buffer: [u8; 144]; result: i32; }
-
-machine MetadataProbe::build(&mut self, builder: &mut Build)
+machine build(builder: &mut Build)
 reaches FilesystemHost
+invokes FilesystemHost;
 {
+builder.application("review-metadata-observation");
 let input: &[u8] in Path = builder.source.resolve("main.omg");
-self.result = self.filesystem.read_metadata(input, &mut self.buffer);
+let buffer: [u8; 144];
+let result: i32 = builder.filesystem.read_metadata(input, &mut buffer);
 }
 "#,
     )
