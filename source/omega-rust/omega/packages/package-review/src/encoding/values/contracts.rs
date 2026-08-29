@@ -1,4 +1,6 @@
-use crate::encoding::{Encoder, PackageReviewEncodingError, encode_type_identity};
+use crate::encoding::PackageReviewEncodingError;
+use crate::encoding::canonical::declarations::encode_type_identity;
+use crate::encoding::canonical::encoder::Encoder;
 use crate::evidence::{
     PackageReviewCallableContract, PackageReviewContractFact, PackageReviewContractKind,
     PackageReviewPropositionApplication, PackageReviewPropositionBinderValue,

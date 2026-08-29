@@ -1,7 +1,12 @@
-use super::super::exact_identity::{
+use super::super::exact_identity::nominal_identities::{
     is_canonical_virtual_toolchain_path, toolchain_source_identity,
 };
-use crate::evidence::*;
+use crate::evidence::projection::{
+    PackageReviewCanonicalRowSources, ProjectedNestedSourceLocation,
+};
+use crate::evidence::{
+    PackageReviewSourceLocation, PackageReviewSourceLocationOwner, PackageReviewSourceLocationRole,
+};
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 use psi_symbols::SymbolHandle;

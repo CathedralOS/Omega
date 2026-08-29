@@ -1,7 +1,7 @@
-use super::super::evidence::validate_selected_provider_declaration_owner;
-use super::{
-    nominal_owner_from_symbols, toolchain_source_identity, validate_package_type_identity_input,
-    validate_package_type_identity_input_inner,
+use super::super::evidence::selected_providers::validate_selected_provider_declaration_owner;
+use super::nominal_identities::{nominal_owner_from_symbols, toolchain_source_identity};
+use super::type_identities::{
+    validate_package_type_identity_input, validate_package_type_identity_input_inner,
 };
 use crate::evidence::{
     PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewToolchainSourceIdentity,

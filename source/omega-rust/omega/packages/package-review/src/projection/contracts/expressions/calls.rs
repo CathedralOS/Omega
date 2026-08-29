@@ -1,6 +1,6 @@
 use crate::evidence::{PackageReviewByteSequencePredicate, PackageReviewContractCallTarget};
-use crate::projection::contracts::ContractProjectionContext;
-use crate::projection::exact_identity::nominal_identity;
+use crate::projection::contracts::metadata::contracts::ContractProjectionContext;
+use crate::projection::exact_identity::nominal_identities::nominal_identity;
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 

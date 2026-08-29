@@ -1,11 +1,10 @@
-use super::super::contracts::{ContractProjectionContext, project_contracts};
+use super::super::contracts::metadata::contracts::{ContractProjectionContext, project_contracts};
 use super::super::operational::{
     project_crash_routes, project_machine_parameter_termination, project_service_row,
     project_synchronous_invocations,
 };
-use super::{
-    nominal_identity, review_signature_type_identity_with_binders, trait_requirement_identity,
-};
+use super::nominal_identities::{nominal_identity, trait_requirement_identity};
+use super::type_identities::review_signature_type_identity_with_binders;
 use crate::evidence::{
     PackageReviewCrashRoute, PackageReviewMachineParameterContract,
     PackageReviewMachineParameterSignature, PackageReviewMachineParameterValue,

@@ -1,4 +1,5 @@
-use crate::encoding::{Encoder, PackageReviewEncodingError};
+use crate::encoding::PackageReviewEncodingError;
+use crate::encoding::canonical::encoder::Encoder;
 use crate::evidence::{
     PackageReviewCrash, PackageReviewCrashCall, PackageReviewCrashInterface,
     PackageReviewCrashPredicate, PackageReviewCrashRoute, PackageReviewCrashRouteGuard,

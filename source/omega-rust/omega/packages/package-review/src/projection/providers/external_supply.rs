@@ -1,4 +1,8 @@
-use crate::evidence::*;
+use crate::evidence::projection::{ProjectedNestedSourceLocation, ProjectedReviewRow};
+use crate::evidence::{
+    PackageReviewExternalBinding, PackageReviewExternalExecutableSupply,
+    PackageReviewSourceLocationRole,
+};
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 

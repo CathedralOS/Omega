@@ -1,5 +1,13 @@
 use super::source_locations::{canonical_source_location, canonical_source_span_location};
-use crate::evidence::*;
+use crate::evidence::projection::{
+    ProjectedDangerousAuthorityRow, ProjectedDangerousAuthoritySlackRow, ProjectedReviewRow,
+    ProjectedSemanticDependencyRow,
+};
+use crate::evidence::{
+    PackageReviewCanonicalRowSource, PackageReviewDangerousAuthority,
+    PackageReviewDangerousAuthoritySlack, PackageReviewSemanticDependency,
+    PackageReviewSourceLocationRole,
+};
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 

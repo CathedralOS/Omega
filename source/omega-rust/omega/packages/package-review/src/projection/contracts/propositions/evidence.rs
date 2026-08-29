@@ -6,9 +6,12 @@ use crate::evidence::{
     PackageReviewEvidenceInterface, PackageReviewEvidenceRequirement, PackageReviewNominalIdentity,
     PackageReviewTypeIdentity,
 };
-use crate::projection::exact_identity::{
-    nominal_identity, review_signature_type_identity_with_binders_and_substitutions,
-    review_type_identity_with_binders_and_substitutions, trait_requirement_identity,
+use crate::projection::exact_identity::nominal_identities::{
+    nominal_identity, trait_requirement_identity,
+};
+use crate::projection::exact_identity::type_identities::{
+    review_signature_type_identity_with_binders_and_substitutions,
+    review_type_identity_with_binders_and_substitutions,
 };
 
 pub(crate) fn project_evidence_interface(

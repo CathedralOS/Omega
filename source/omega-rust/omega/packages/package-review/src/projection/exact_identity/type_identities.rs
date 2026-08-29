@@ -1,4 +1,5 @@
-use super::{framed_identity, review_lifetime_topology_with_substitutions};
+use super::canonical::framed_identity;
+use super::lifetime_identities::review_lifetime_topology_with_substitutions;
 use crate::evidence::{PackageReviewDataField, PackageReviewTypeIdentity};
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;

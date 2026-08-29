@@ -1,5 +1,5 @@
-use super::evidence::validate_selected_provider_declaration_owner;
-use super::exact_identity::nominal_identity;
+use super::evidence::selected_providers::validate_selected_provider_declaration_owner;
+use super::exact_identity::nominal_identities::nominal_identity;
 use crate::evidence::{
     CheckedPackageProviderFamilyCoordinateReview, CheckedPackageProviderFamilyReview,
     CheckedPackageProviderReview, PackageReviewProviderFamilyCoverage,

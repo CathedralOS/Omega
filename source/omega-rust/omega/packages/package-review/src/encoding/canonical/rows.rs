@@ -1,15 +1,21 @@
-use super::{
-    Encoder, PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION,
-    PackageReviewEncodingError, PackageReviewEncodingLimits, ROW_MAGIC, encode_conformance_shape,
-    encode_dangerous_authority, encode_dangerous_authority_slack, encode_data_shape,
-    encode_domain_shape, encode_representation_tcb, encode_semantic_dependency,
+use super::declarations::{
+    encode_conformance_shape, encode_dangerous_authority, encode_dangerous_authority_slack,
+    encode_data_shape, encode_domain_shape, encode_representation_tcb, encode_semantic_dependency,
     encode_semantic_dependency_key, encode_trait_shape,
 };
-use crate::encoding::values::{
-    encode_callable, encode_const_shape, encode_external_executable_supply,
-    encode_external_executable_supply_key, encode_nominal, encode_operator_coordinate,
-    encode_operator_shape, encode_proposition_shape, encode_provider, encode_provider_family,
+use super::encoder::Encoder;
+use super::{
+    PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION,
+    PackageReviewEncodingError, PackageReviewEncodingLimits, ROW_MAGIC,
 };
+use crate::encoding::values::callables::{
+    encode_callable, encode_external_executable_supply, encode_external_executable_supply_key,
+};
+use crate::encoding::values::declarations::{
+    encode_const_shape, encode_operator_coordinate, encode_operator_shape, encode_proposition_shape,
+};
+use crate::encoding::values::identity::encode_nominal;
+use crate::encoding::values::providers::{encode_provider, encode_provider_family};
 use crate::evidence::{
     CheckedPackageReviewProjection, PackageReviewCallableSupply, PackageReviewCanonicalRow,
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,

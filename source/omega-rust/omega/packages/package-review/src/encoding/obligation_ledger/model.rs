@@ -1,5 +1,5 @@
 use super::limits::ORDINARY_PACKAGE_OBLIGATION_SCHEMA_VERSION;
-use crate::encoding::{PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk};
+use crate::evidence::{PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk};
 use omega_package_compilation::PackageDependencyClosure;
 use omega_target::TargetProfile;
 use psi_core::PackageKeyIdentity;

@@ -1,10 +1,11 @@
-use super::{
-    project_contract_source_locations, project_signature_invocation_source_locations,
-    project_signature_operational_source_locations,
-    project_signature_service_reach_source_locations,
+use super::operations::{
+    project_signature_invocation_source_locations, project_signature_operational_source_locations,
 };
-use crate::evidence::{PackageReviewSourceLocationRole, ProjectedNestedSourceLocation};
-use crate::projection::evidence::project_nested_declaration_source_location;
+use super::service_reach::project_signature_service_reach_source_locations;
+use super::source_locations::project_contract_source_locations;
+use crate::evidence::PackageReviewSourceLocationRole;
+use crate::evidence::projection::ProjectedNestedSourceLocation;
+use crate::projection::evidence::source_locations::project_nested_declaration_source_location;
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 

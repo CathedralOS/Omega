@@ -1,10 +1,9 @@
-use crate::evidence::{
-    PackageReviewConstShape, PackageReviewSourceLocationRole, ProjectedNestedSourceLocation,
-    ProjectedReviewRow,
+use crate::evidence::projection::{ProjectedNestedSourceLocation, ProjectedReviewRow};
+use crate::evidence::{PackageReviewConstShape, PackageReviewSourceLocationRole};
+use crate::projection::exact_identity::nominal_identities::{
+    nominal_identity, reviewed_package_owns,
 };
-use crate::projection::exact_identity::{
-    nominal_identity, review_type_identity_with_binders, reviewed_package_owns,
-};
+use crate::projection::exact_identity::type_identities::review_type_identity_with_binders;
 use omega_compiler::CheckedCompilation;
 use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;

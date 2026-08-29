@@ -1,8 +1,10 @@
-use super::super::contracts::{
+use super::super::contracts::expressions::static_arguments::{
     ContractCallStaticParameterKind, contract_call_static_parameter_kind, project_static_argument,
 };
-use super::{
-    lifetime_binder_ordinal, nominal_identity, review_signature_type_identity_with_binders,
+use super::lifetime_identities::lifetime_binder_ordinal;
+use super::nominal_identities::nominal_identity;
+use super::type_identities::{
+    review_signature_type_identity_with_binders,
     review_signature_type_identity_with_binders_and_substitutions_and_lifetimes,
 };
 use crate::evidence::{

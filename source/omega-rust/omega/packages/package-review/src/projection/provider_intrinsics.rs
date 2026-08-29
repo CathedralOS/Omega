@@ -125,7 +125,8 @@ fn reconcile_compiler_intrinsic_execution(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::reconcile_compiler_intrinsic_execution;
+    use omega_selected_dispatch::SelectedCompilerIntrinsicExecutionIdentity;
 
     #[test]
     fn execution_reconciliation_rejects_missing_mismatched_and_spoofed_state() {
