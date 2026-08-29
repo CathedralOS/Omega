@@ -125,6 +125,13 @@ Selections remain exact even when rules share a phase. There are no broad
 profiles. Initially the physical pipeline admits only explicitly implemented
 compositions and rejects all others.
 
+Allocation recovery is one phase carrier rather than one carrier per exact
+rule. A tagged source leaf retains either fixed-view-copy or active-resident
+rematerialization proof custody; common encoding, layout, whole-function exit,
+fragment, object, and callable stages sit above that taxonomy. Adding another
+recovery rule therefore adds a source leaf and catalog disposition, not a new
+publication vertical.
+
 ## Where to enter the source
 
 ```text

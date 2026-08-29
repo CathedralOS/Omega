@@ -19,7 +19,8 @@ use omega_selected_instructions::{
 };
 
 use crate::{
-    ResolvedSelectedFormRow, StagedOptimizedResolvedSelectedFormLayout,
+    ResolvedSelectedFormRow, StagedAllocationRecoveryFunctionRelativeSource,
+    StagedOptimizedResolvedSelectedFormLayout,
     StagedOptimizedStructuralUnitFunctionRelativeRealization,
     StagedPostAllocationMachineFunctionRelativeSource,
 };
@@ -30,9 +31,7 @@ use super::model::{
     FunctionFragmentEmissionStage, FunctionFragmentEmissionStatistics,
     FunctionFragmentEmissionUnavailableData, ValidatedFunctionFragmentEmissionManifest,
 };
-use super::source::{
-    StagedOptimizedFunctionFragmentEmissionSource, active_resident_rematerialization,
-};
+use super::source::StagedOptimizedFunctionFragmentEmissionSource;
 
 pub(super) fn compute(
     source: &StagedOptimizedFunctionFragmentEmissionSource,
@@ -121,16 +120,25 @@ pub(super) fn compute(
                 }
             }
         }
-        StagedOptimizedFunctionFragmentEmissionSource::ActiveResidentRematerialization(
-            realization,
-        ) => {
-            let rematerialization = active_resident_rematerialization(realization);
-            compute_from(
-                source,
-                rematerialization.rematerialization(),
-                realization.source().layout(),
-                realization.manifest().record(),
-            )
+        StagedOptimizedFunctionFragmentEmissionSource::AllocationRecovery(realization) => {
+            match realization.source() {
+                StagedAllocationRecoveryFunctionRelativeSource::FixedViewCopies(homes) => {
+                    compute_from(
+                        source,
+                        homes.reanalysis_stage().transformation_stage().copies(),
+                        realization.layout(),
+                        realization.manifest().record(),
+                    )
+                }
+                StagedAllocationRecoveryFunctionRelativeSource::ActiveResidentRematerialization(
+                    rematerialization,
+                ) => compute_from(
+                    source,
+                    rematerialization.rematerialization(),
+                    realization.layout(),
+                    realization.manifest().record(),
+                ),
+            }
         }
         StagedOptimizedFunctionFragmentEmissionSource::UnitBaseline(realization) => {
             let selected = realization
@@ -167,12 +175,11 @@ fn compute_from(
 > {
     let selected_plan = selected.selected_plan();
     let expected_allocation_recovery = match source {
-        StagedOptimizedFunctionFragmentEmissionSource::ActiveResidentRematerialization(_) => {
-            OptimizationSelections::new([
-                omega_optimization_core::Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
-            ])
-            .expect("the closed rematerialization source kind has one valid selection")
-            .identity()
+        StagedOptimizedFunctionFragmentEmissionSource::AllocationRecovery(realization) => {
+            realization
+                .source()
+                .expected_allocation_recovery_selections()
+                .identity()
         }
         _ => OptimizationSelections::default().identity(),
     };
@@ -186,7 +193,7 @@ fn compute_from(
         || source_manifest.allocation_recovery_selections != expected_allocation_recovery
         || matches!(
             source,
-            StagedOptimizedFunctionFragmentEmissionSource::ActiveResidentRematerialization(_)
+            StagedOptimizedFunctionFragmentEmissionSource::AllocationRecovery(_)
         ) && source_manifest.selections != expected_allocation_recovery
     {
         return Err(FunctionFragmentEmissionError::RootMismatch);
@@ -668,8 +675,8 @@ fn source_kind(
                 optimization: realization.optimization().optimization(),
             }
         }
-        StagedOptimizedFunctionFragmentEmissionSource::ActiveResidentRematerialization(_) => {
-            FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1
+        StagedOptimizedFunctionFragmentEmissionSource::AllocationRecovery(_) => {
+            FunctionFragmentEmissionSourceKind::AllocationRecoveryV1
         }
         StagedOptimizedFunctionFragmentEmissionSource::UnitBaseline(_) => {
             FunctionFragmentEmissionSourceKind::UnitBaselineV1

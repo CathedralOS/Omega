@@ -481,7 +481,10 @@ rewrite or opt a program into lossy floating-point semantics.
     validation rung and enforce the boundary architecturally.
 13. [x] Replace the x86-rel8-only fragment admission carrier with one generic
     selected-lowering carrier; do not add add/subtract route variants.
-14. [ ] Unify fixed-view-copy and active-resident realization under one generic
+14. [x] Unify fixed-view-copy and active-resident realization under one generic
     allocation-recovery carrier before extending either publication route.
+    The shared carrier now owns tagged source custody, machine plan, generic
+    encoding, resolved layout, whole-function exit, v9 realization manifest,
+    and fragment/object/callable admission for both exact rules.
 15. [x] Make resolved-layout validation independent before claiming complete
     translation validation for those generic publication routes.

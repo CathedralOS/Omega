@@ -17,11 +17,11 @@ use super::model::{
 };
 
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGFFE\0\0";
-const MANIFEST_VERSION: u32 = 8;
+const MANIFEST_VERSION: u32 = 9;
 
 impl FunctionFragmentEmissionManifest {
     pub fn recomputed_identity(&self) -> FunctionFragmentEmissionManifestIdentity {
-        let mut canonical = b"omega.function-fragment-emission-manifest.v8\0".to_vec();
+        let mut canonical = b"omega.function-fragment-emission-manifest.v9\0".to_vec();
         canonical.extend_from_slice(&encode_manifest_content(self));
         FunctionFragmentEmissionManifestIdentity::from_canonical_bytes(&canonical)
     }
@@ -60,7 +60,7 @@ impl FunctionFragmentEmissionManifest {
             2 => FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 {
                 optimization: decode_post_allocation_optimization(cursor.byte()?)?,
             },
-            3 => FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1,
+            3 => FunctionFragmentEmissionSourceKind::AllocationRecoveryV1,
             4 => FunctionFragmentEmissionSourceKind::UnitBaselineV1,
             5 => FunctionFragmentEmissionSourceKind::StructuralUnitV1,
             6 => FunctionFragmentEmissionSourceKind::SelectedLoweringV1,
@@ -163,7 +163,7 @@ fn encode_manifest_content(record: &FunctionFragmentEmissionManifest) -> Vec<u8>
             bytes.push(2);
             bytes.push(optimization as u8);
         }
-        FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1 => bytes.push(3),
+        FunctionFragmentEmissionSourceKind::AllocationRecoveryV1 => bytes.push(3),
         FunctionFragmentEmissionSourceKind::UnitBaselineV1 => bytes.push(4),
         FunctionFragmentEmissionSourceKind::StructuralUnitV1 => bytes.push(5),
     }

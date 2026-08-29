@@ -276,19 +276,20 @@ Pre-allocation machine-effect staging keeps its exact ISA catalog, analysis,
 source-route construction, independent replay, custody projection, and model
 in named leaves; its entrance replay-gates every supported selected-source
 lineage.
-Active-resident selected-form encoding similarly separates source-validated
-byte construction, custody projection, independent replay, retained model,
-and corruption support below one replay-gated pre-layout entrance.
-Its resolved-layout successor mirrors that structure with policy-checked
-layout construction, aggregate custody projection, independent replay,
-retained model, and corruption support below one admission entrance.
+The final allocation-recovery vertical does not fork by rule. Its 34-line
+entrance owns one construction-to-independent-validation join; `source/`
+descends into `fixed_view`, `active_resident`, and shared `projection` leaves,
+while sibling `construction`, `validation`, `manifest`, `custody`, and `model`
+files own the common function-relative carrier. Both source leaves use the
+generic selected-form encoder and resolved-layout stages.
 Structural-Unit function-relative realization separates its retained model,
 physical-stage construction, independent replay, source-shape admission,
 manifest reconstruction, and custody projection below one replay-gated
 entrance.
-Active-resident function-relative realization follows the same structure and
-keeps corruption helpers in a test-support leaf rather than production
-mechanics.
+Allocation-recovery function-relative realization retains tagged fixed-view or
+active-resident source custody, then binds the common machine, encoding,
+layout, exit, and manifest identities. Corruption helpers remain in a
+test-support leaf rather than production mechanics.
 Receiver-free Unit function-relative realization likewise keeps construction,
 replay, Unit-shape admission, manifest reconstruction, custody, and model
 behind one small entrance.

@@ -66,13 +66,12 @@ fn staged_active_resident_callable_object_artifact(
     let physical =
         stage_optimized_verified_physical_pipeline_with_provider_executions(optimized, target, &[])
             .unwrap();
-    let StagedOptimizedVerifiedPhysicalPipeline::ActiveResidentRematerialization { realization } =
-        physical
+    let StagedOptimizedVerifiedPhysicalPipeline::AllocationRecovery { realization } = physical
     else {
         panic!("the root-build rematerialization selection must retain its owning realization")
     };
     let fragments = stage_optimized_function_fragment_emission(
-        StagedOptimizedFunctionFragmentEmissionSource::ActiveResidentRematerialization(realization),
+        StagedOptimizedFunctionFragmentEmissionSource::AllocationRecovery(realization),
     )
     .unwrap();
     let text = stage_optimized_relocation_free_text_section(fragments).unwrap();
@@ -120,13 +119,17 @@ fn active_resident_root_build_reaches_object_artifact_and_ordinary_callable_on_b
         let object_stage = artifact.source();
         let text_stage = object_stage.source();
         let fragment_stage = text_stage.source();
-        let StagedOptimizedFunctionFragmentEmissionSource::ActiveResidentRematerialization(
-            realization,
-        ) = fragment_stage.source()
+        let StagedOptimizedFunctionFragmentEmissionSource::AllocationRecovery(realization) =
+            fragment_stage.source()
         else {
             panic!("object custody must retain the rematerialization realization")
         };
-        let rematerialization = realization.source().pre_layout().source();
+        let StagedAllocationRecoveryFunctionRelativeSource::ActiveResidentRematerialization(
+            rematerialization,
+        ) = realization.source()
+        else {
+            panic!("object custody must retain the active-resident recovery source")
+        };
         let fresh = rematerialization.rematerialization().plan().functions[0]
             .action
             .as_ref()
@@ -164,7 +167,7 @@ fn active_resident_root_build_reaches_object_artifact_and_ordinary_callable_on_b
         );
         assert_eq!(
             fragment_stage.manifest().record().source_kind,
-            FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1
+            FunctionFragmentEmissionSourceKind::AllocationRecoveryV1
         );
         assert_eq!(
             rematerialization
@@ -229,7 +232,7 @@ fn active_resident_root_build_reaches_object_artifact_and_ordinary_callable_on_b
         let artifact_report = optimization_pipeline_report_from_object_artifact(&artifact);
         assert_eq!(
             artifact_report.function_fragment().unwrap().source_kind,
-            FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1
+            FunctionFragmentEmissionSourceKind::AllocationRecoveryV1
         );
         assert!(artifact_report.ordinary_callable_entry().is_none());
 
@@ -270,7 +273,7 @@ fn active_resident_root_build_reaches_object_artifact_and_ordinary_callable_on_b
         let report = optimization_pipeline_report_from_ordinary_callable_entry(&staged);
         assert_eq!(
             report.function_fragment().unwrap().source_kind,
-            FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1
+            FunctionFragmentEmissionSourceKind::AllocationRecoveryV1
         );
         assert_eq!(
             report.object_container().unwrap().identity,

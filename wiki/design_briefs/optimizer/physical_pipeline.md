@@ -206,3 +206,14 @@ The ordinary empty-selection compiler route is deliberately outside this
 optimizer custody chain. Its four-target byte and artifact-metadata baseline is
 locked by the no-selection golden compiler test; only an explicit nonempty
 selection constructs the optimizer-side prephysical carrier.
+
+Allocation recovery has one final function-relative carrier. Its closed source
+taxonomy has `FixedViewCopies` and `ActiveResidentRematerialization` leaves;
+each leaf retains its exact upstream receipt and post-allocation transformation
+identity, while the carrier owns the common machine plan, selected-form
+encoding, resolved layout, whole-function exit contract, and realization
+manifest. The physical pipeline therefore returns one `AllocationRecovery`
+variant, and fragment admission consumes one `AllocationRecoveryV1` source
+kind. Fixed-view copies and active-resident rematerialization do not own
+parallel publication routes. Fragment and fragment-text manifests use schema
+v9 because the source-kind tag now denotes this generic carrier.

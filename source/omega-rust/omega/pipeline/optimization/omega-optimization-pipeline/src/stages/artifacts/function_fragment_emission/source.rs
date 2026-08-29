@@ -1,9 +1,8 @@
 use omega_regalloc::ValidatedSelectedAnalysis;
 
 use crate::{
+    StagedAllocationRecoveryFunctionRelativeRealization,
     StagedFunctionRelativeLayoutOptimizationRealization,
-    StagedOptimizedActiveResidentRematerialization,
-    StagedOptimizedActiveResidentRematerializationFunctionRelativeRealization,
     StagedOptimizedStructuralUnitFunctionRelativeRealization,
     StagedOptimizedUnitFunctionRelativeRealization,
     StagedPostAllocationMachineFunctionRelativeRealization,
@@ -16,9 +15,7 @@ pub enum StagedOptimizedFunctionFragmentEmissionSource {
     X86Rel8Direct(Box<StagedFunctionRelativeLayoutOptimizationRealization>),
     SelectedLowering(Box<StagedSelectedLoweringFunctionRelativeRealization>),
     PostAllocationMachine(Box<StagedPostAllocationMachineFunctionRelativeRealization>),
-    ActiveResidentRematerialization(
-        Box<StagedOptimizedActiveResidentRematerializationFunctionRelativeRealization>,
-    ),
+    AllocationRecovery(Box<StagedAllocationRecoveryFunctionRelativeRealization>),
     UnitBaseline(Box<StagedOptimizedUnitFunctionRelativeRealization>),
     StructuralUnit(Box<StagedOptimizedStructuralUnitFunctionRelativeRealization>),
 }
@@ -47,11 +44,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                     selected_after_lowering(homes)
                 }
             },
-            Self::ActiveResidentRematerialization(realization) => {
-                active_resident_rematerialization(realization)
-                    .rematerialization()
-                    .selected_plan()
-            }
+            Self::AllocationRecovery(realization) => realization.source().selected_plan(),
             Self::UnitBaseline(realization) => realization
                 .homes()
                 .legality_stage()
@@ -81,9 +74,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                     homes.homes()
                 }
             },
-            Self::ActiveResidentRematerialization(realization) => {
-                active_resident_rematerialization(realization).homes()
-            }
+            Self::AllocationRecovery(realization) => realization.source().homes(),
             Self::UnitBaseline(realization) => realization.homes().homes(),
             Self::StructuralUnit(realization) => realization.homes().homes(),
         }
@@ -123,14 +114,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                         .register_environment()
                 }
             },
-            Self::ActiveResidentRematerialization(realization) => {
-                active_resident_rematerialization(realization)
-                    .source()
-                    .live_range_stage()
-                    .liveness_stage()
-                    .selected_stage()
-                    .register_environment()
-            }
+            Self::AllocationRecovery(realization) => realization.source().register_environment(),
             Self::UnitBaseline(realization) => realization
                 .homes()
                 .legality_stage()
@@ -153,7 +137,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
             Self::X86Rel8Direct(realization) => realization.exit_contract(),
             Self::SelectedLowering(realization) => realization.exit_contract(),
             Self::PostAllocationMachine(realization) => realization.exit_contract(),
-            Self::ActiveResidentRematerialization(realization) => realization.exit_contract(),
+            Self::AllocationRecovery(realization) => realization.exit_contract(),
             Self::UnitBaseline(realization) => realization.exit_contract(),
             Self::StructuralUnit(realization) => realization.exit_contract(),
         }
@@ -202,16 +186,11 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                         .pre_physical_manifest()
                 }
             },
-            Self::ActiveResidentRematerialization(realization) => {
-                active_resident_rematerialization(realization)
-                    .source()
-                    .live_range_stage()
-                    .liveness_stage()
-                    .selected_stage()
-                    .optimized_target()
-                    .optimized()
-                    .pre_physical_manifest()
-            }
+            Self::AllocationRecovery(realization) => realization
+                .source()
+                .optimized_target()
+                .optimized()
+                .pre_physical_manifest(),
             Self::UnitBaseline(realization) => realization
                 .homes()
                 .legality_stage()
@@ -240,7 +219,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
             Self::X86Rel8Direct(realization) => realization.manifest(),
             Self::SelectedLowering(realization) => realization.manifest(),
             Self::PostAllocationMachine(realization) => realization.manifest(),
-            Self::ActiveResidentRematerialization(realization) => realization.manifest(),
+            Self::AllocationRecovery(realization) => realization.manifest(),
             Self::UnitBaseline(realization) => realization.manifest(),
             Self::StructuralUnit(realization) => realization.manifest(),
         }
@@ -260,8 +239,8 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                     homes.post_allocation_manifest()
                 }
             },
-            Self::ActiveResidentRematerialization(realization) => {
-                active_resident_rematerialization(realization).post_allocation_manifest()
+            Self::AllocationRecovery(realization) => {
+                realization.source().post_allocation_manifest()
             }
             Self::UnitBaseline(realization) => realization.homes().post_allocation_manifest(),
             Self::StructuralUnit(realization) => realization.homes().post_allocation_manifest(),
@@ -304,14 +283,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                         .optimized_target()
                 }
             },
-            Self::ActiveResidentRematerialization(realization) => {
-                active_resident_rematerialization(realization)
-                    .source()
-                    .live_range_stage()
-                    .liveness_stage()
-                    .selected_stage()
-                    .optimized_target()
-            }
+            Self::AllocationRecovery(realization) => realization.source().optimized_target(),
             Self::UnitBaseline(realization) => realization
                 .homes()
                 .legality_stage()
@@ -345,12 +317,6 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
     ) -> Option<&omega_psi_to_abstract_operations::AdmittedProviderInstallation> {
         self.optimized_target().provider_installation()
     }
-}
-
-pub(super) const fn active_resident_rematerialization(
-    realization: &StagedOptimizedActiveResidentRematerializationFunctionRelativeRealization,
-) -> &StagedOptimizedActiveResidentRematerialization {
-    realization.source().pre_layout().source()
 }
 
 fn selected_after_lowering(

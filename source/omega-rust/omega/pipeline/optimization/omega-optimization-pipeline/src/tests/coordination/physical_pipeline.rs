@@ -150,17 +150,25 @@ fn compiler_facing_physical_pipeline_runs_only_the_named_shared_entry_copy() {
             &[],
         )
         .unwrap();
-        let StagedOptimizedVerifiedPhysicalPipeline::AllocationRecovery { homes, machine } =
-            &staged
+        let StagedOptimizedVerifiedPhysicalPipeline::AllocationRecovery { realization } = &staged
         else {
             panic!("the exact allocation-recovery phase must use its fixed-copy route")
         };
+        let StagedAllocationRecoveryFunctionRelativeSource::FixedViewCopies(homes) =
+            realization.source()
+        else {
+            panic!("the fixed-view rule must retain fixed-view source custody")
+        };
+        let machine = realization.machine();
         let reanalysis = homes.reanalysis_stage();
         let copies = reanalysis.transformation_stage();
         let plan = copies.copies().plan();
         assert_eq!(staged.selections(), selections.identity());
         assert_eq!(staged.selected_lowering_completion(), None);
-        assert!(staged.function_relative_manifest().is_none());
+        assert_eq!(
+            staged.function_relative_manifest(),
+            Some(realization.manifest())
+        );
         assert!(staged.post_allocation_machine_optimization().is_none());
         assert_eq!(
             copies.custody().policy(),
@@ -207,13 +215,16 @@ fn compiler_facing_physical_pipeline_runs_only_the_named_active_resident_remater
             &[],
         )
         .unwrap();
-        let StagedOptimizedVerifiedPhysicalPipeline::ActiveResidentRematerialization {
-            realization,
-        } = &staged
+        let StagedOptimizedVerifiedPhysicalPipeline::AllocationRecovery { realization } = &staged
         else {
             panic!("the exact rematerialization selection must use its owning realization")
         };
-        let rematerialization = realization.source().pre_layout().source();
+        let StagedAllocationRecoveryFunctionRelativeSource::ActiveResidentRematerialization(
+            rematerialization,
+        ) = realization.source()
+        else {
+            panic!("the active-resident rule must retain rematerialization source custody")
+        };
         let manifest = realization.manifest().record();
         let empty = OptimizationSelections::default().identity();
         assert_eq!(staged.selections(), selections.identity());
@@ -221,7 +232,7 @@ fn compiler_facing_physical_pipeline_runs_only_the_named_active_resident_remater
         assert!(staged.function_relative_realization().is_none());
         assert_eq!(
             staged
-                .active_resident_rematerialization_function_relative_realization()
+                .allocation_recovery_function_relative_realization()
                 .unwrap()
                 .custody(),
             realization.custody()

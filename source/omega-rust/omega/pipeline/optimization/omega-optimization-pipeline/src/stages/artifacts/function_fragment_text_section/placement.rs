@@ -45,7 +45,7 @@ pub(super) fn place_fragments(
             FunctionFragmentEmissionSourceKind::X86Rel8V1
             | FunctionFragmentEmissionSourceKind::SelectedLoweringV1
             | FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 { .. }
-            | FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1
+            | FunctionFragmentEmissionSourceKind::AllocationRecoveryV1
             | FunctionFragmentEmissionSourceKind::UnitBaselineV1,
         ) => place_relocation_free_fragments(fragments),
         (

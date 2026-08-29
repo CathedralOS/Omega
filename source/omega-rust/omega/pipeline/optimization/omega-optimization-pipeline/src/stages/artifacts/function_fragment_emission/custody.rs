@@ -1,6 +1,6 @@
 use crate::{
+    validate_allocation_recovery_function_relative_realization,
     validate_function_relative_layout_optimization_realization_custody,
-    validate_optimized_active_resident_rematerialization_function_relative_realization,
     validate_optimized_structural_unit_function_relative_realization,
     validate_optimized_unit_function_relative_realization,
     validate_post_allocation_machine_function_relative_realization_custody,
@@ -34,13 +34,10 @@ pub(super) fn validate_source(
             validate_post_allocation_machine_function_relative_realization_custody(realization)
                 .map_err(FunctionFragmentEmissionError::Source)?;
         }
-        StagedOptimizedFunctionFragmentEmissionSource::ActiveResidentRematerialization(
-            realization,
-        ) => {
-            validate_optimized_active_resident_rematerialization_function_relative_realization(
-                realization,
-            )
-            .map_err(FunctionFragmentEmissionError::ActiveResidentRematerializationSource)?;
+        StagedOptimizedFunctionFragmentEmissionSource::AllocationRecovery(realization) => {
+            validate_allocation_recovery_function_relative_realization(realization).map_err(
+                |error| FunctionFragmentEmissionError::AllocationRecoverySource(Box::new(error)),
+            )?;
         }
         StagedOptimizedFunctionFragmentEmissionSource::UnitBaseline(realization) => {
             validate_optimized_unit_function_relative_realization(realization)

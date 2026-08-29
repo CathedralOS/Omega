@@ -329,6 +329,14 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn stage_optimized_active_resident_rematerialization_function_relative_realization",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/realization/allocation_recovery_function_relative_realization/mod.rs",
+        coordination_marker: "pub fn stage_allocation_recovery_function_relative_realization",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/coordination/physical_pipeline/routes/allocation_recovery/mod.rs",
+        coordination_marker: "fn stage_allocation_recovery_pipeline",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/realization/unit_function_relative_realization/mod.rs",
         coordination_marker: "pub fn stage_optimized_unit_function_relative_realization",
     },

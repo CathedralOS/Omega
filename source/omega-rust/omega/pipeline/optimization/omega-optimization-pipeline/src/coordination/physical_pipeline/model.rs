@@ -3,11 +3,10 @@ use omega_optimization_validation::ValidatedPrePhysicalOptimizationManifest;
 use omega_regalloc::ValidatedPostAllocationOptimizationManifest;
 
 use crate::{
+    StagedAllocationRecoveryFunctionRelativeRealization,
     StagedFunctionRelativeLayoutOptimizationRealization,
-    StagedOptimizedActiveResidentRematerializationFunctionRelativeRealization,
     StagedOptimizedPostAllocationMachineOptimization, StagedOptimizedPostAllocationMachinePlan,
-    StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterFixedViewCopies,
-    StagedPostAllocationMachineFunctionRelativeRealization,
+    StagedOptimizedRegisterHomes, StagedPostAllocationMachineFunctionRelativeRealization,
     StagedPostAllocationMachineFunctionRelativeSource,
     StagedSelectedLoweringFunctionRelativeRealization,
     ValidatedFunctionRelativeOptimizationRealizationManifest,
@@ -26,11 +25,7 @@ pub enum StagedOptimizedVerifiedPhysicalPipeline {
         realization: StagedPostAllocationMachineFunctionRelativeRealization,
     },
     AllocationRecovery {
-        homes: StagedOptimizedRegisterHomesAfterFixedViewCopies,
-        machine: StagedOptimizedPostAllocationMachinePlan,
-    },
-    ActiveResidentRematerialization {
-        realization: Box<StagedOptimizedActiveResidentRematerializationFunctionRelativeRealization>,
+        realization: Box<StagedAllocationRecoveryFunctionRelativeRealization>,
     },
     FunctionRelativeLayout {
         realization: StagedFunctionRelativeLayoutOptimizationRealization,
@@ -41,7 +36,7 @@ pub enum StagedOptimizedVerifiedPhysicalPipeline {
 }
 
 impl StagedOptimizedVerifiedPhysicalPipeline {
-    pub const fn pre_physical_manifest(&self) -> &ValidatedPrePhysicalOptimizationManifest {
+    pub fn pre_physical_manifest(&self) -> &ValidatedPrePhysicalOptimizationManifest {
         match self {
             Self::PsiOnly { homes, .. } => homes
                 .legality_stage()
@@ -72,24 +67,8 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
                         .pre_physical_manifest()
                 }
             },
-            Self::AllocationRecovery { homes, .. } => homes
-                .reanalysis_stage()
-                .transformation_stage()
-                .source_legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .optimized_target()
-                .optimized()
-                .pre_physical_manifest(),
-            Self::ActiveResidentRematerialization { realization } => realization
+            Self::AllocationRecovery { realization } => realization
                 .source()
-                .pre_layout()
-                .source()
-                .source()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
                 .optimized_target()
                 .optimized()
                 .pre_physical_manifest(),
@@ -126,12 +105,9 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
                     homes.post_allocation_manifest()
                 }
             },
-            Self::AllocationRecovery { homes, .. } => homes.post_allocation_manifest(),
-            Self::ActiveResidentRematerialization { realization } => realization
-                .source()
-                .pre_layout()
-                .source()
-                .post_allocation_manifest(),
+            Self::AllocationRecovery { realization } => {
+                realization.source().post_allocation_manifest()
+            }
             Self::FunctionRelativeLayout { realization } => {
                 realization.homes().post_allocation_manifest()
             }
@@ -145,10 +121,7 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
         match self {
             Self::PsiOnly { machine, .. } => machine,
             Self::PostAllocationMachine { realization } => realization.machine(),
-            Self::AllocationRecovery { machine, .. } => machine,
-            Self::ActiveResidentRematerialization { realization } => {
-                realization.source().pre_layout().machine()
-            }
+            Self::AllocationRecovery { realization } => realization.machine(),
             Self::FunctionRelativeLayout { realization } => realization.machine(),
             Self::SelectedLowering { realization } => realization.machine(),
         }
@@ -161,7 +134,6 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
             Self::PsiOnly { .. }
             | Self::PostAllocationMachine { .. }
             | Self::AllocationRecovery { .. }
-            | Self::ActiveResidentRematerialization { .. }
             | Self::FunctionRelativeLayout { .. } => None,
             Self::SelectedLowering { realization } => Some(realization),
         }
@@ -171,8 +143,8 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
         &self,
     ) -> Option<&ValidatedFunctionRelativeOptimizationRealizationManifest> {
         match self {
-            Self::PsiOnly { .. } | Self::AllocationRecovery { .. } => None,
-            Self::ActiveResidentRematerialization { realization } => Some(realization.manifest()),
+            Self::PsiOnly { .. } => None,
+            Self::AllocationRecovery { realization } => Some(realization.manifest()),
             Self::PostAllocationMachine { realization } => Some(realization.manifest()),
             Self::FunctionRelativeLayout { realization } => Some(realization.manifest()),
             Self::SelectedLowering { realization } => Some(realization.manifest()),
@@ -191,25 +163,8 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
                 .selections()
                 .identity(),
             Self::PostAllocationMachine { realization } => realization.optimization().selections(),
-            Self::AllocationRecovery { homes, .. } => homes
-                .reanalysis_stage()
-                .transformation_stage()
-                .source_legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .optimized_target()
-                .optimized()
-                .selections()
-                .identity(),
-            Self::ActiveResidentRematerialization { realization } => realization
+            Self::AllocationRecovery { realization } => realization
                 .source()
-                .pre_layout()
-                .source()
-                .source()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
                 .optimized_target()
                 .optimized()
                 .selections()
@@ -238,7 +193,6 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
         match self {
             Self::PsiOnly { .. }
             | Self::AllocationRecovery { .. }
-            | Self::ActiveResidentRematerialization { .. }
             | Self::FunctionRelativeLayout { .. } => None,
             Self::PostAllocationMachine { realization } => match realization.source() {
                 StagedPostAllocationMachineFunctionRelativeSource::Direct(_) => None,
@@ -263,17 +217,16 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
             Self::PostAllocationMachine { realization } => Some(realization.optimization()),
             Self::PsiOnly { .. }
             | Self::AllocationRecovery { .. }
-            | Self::ActiveResidentRematerialization { .. }
             | Self::FunctionRelativeLayout { .. }
             | Self::SelectedLowering { .. } => None,
         }
     }
 
-    pub const fn active_resident_rematerialization_function_relative_realization(
+    pub const fn allocation_recovery_function_relative_realization(
         &self,
-    ) -> Option<&StagedOptimizedActiveResidentRematerializationFunctionRelativeRealization> {
+    ) -> Option<&StagedAllocationRecoveryFunctionRelativeRealization> {
         match self {
-            Self::ActiveResidentRematerialization { realization } => Some(realization),
+            Self::AllocationRecovery { realization } => Some(realization),
             _ => None,
         }
     }

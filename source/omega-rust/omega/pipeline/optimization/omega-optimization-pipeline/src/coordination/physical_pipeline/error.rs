@@ -1,10 +1,8 @@
 use omega_abstract_operations_to_target_operations::LoweringError;
 
 use crate::{
+    AllocationRecoveryFunctionRelativeRealizationError,
     FunctionRelativeOptimizationRealizationError, OptimizedActiveResidentRematerializationError,
-    OptimizedActiveResidentRematerializationFunctionRelativeRealizationError,
-    OptimizedActiveResidentRematerializationResolvedSelectedFormLayoutError,
-    OptimizedActiveResidentRematerializationSelectedFormEncodingError,
     OptimizedAllocationLegalityCustodyError, OptimizedFixedViewCopyCustodyError,
     OptimizedLiteralFoldCustodyError, OptimizedLiveRangeCustodyError,
     OptimizedLivenessCustodyError, OptimizedPostAllocationMachineOptimizationError,
@@ -32,15 +30,7 @@ pub enum OptimizedVerifiedPhysicalPipelineError {
     SelectedReanalysis(OptimizedSelectedReanalysisError),
     PostCopyRegisterHomes(OptimizedPostCopyRegisterHomeCustodyError),
     ActiveResidentRematerialization(OptimizedActiveResidentRematerializationError),
-    ActiveResidentRematerializationEncoding(
-        OptimizedActiveResidentRematerializationSelectedFormEncodingError,
-    ),
-    ActiveResidentRematerializationLayout(
-        OptimizedActiveResidentRematerializationResolvedSelectedFormLayoutError,
-    ),
-    ActiveResidentRematerializationFunctionRelative(
-        OptimizedActiveResidentRematerializationFunctionRelativeRealizationError,
-    ),
+    AllocationRecoveryFunctionRelative(Box<AllocationRecoveryFunctionRelativeRealizationError>),
     UnsupportedPhysicalPhaseComposition,
     FunctionRelativeRealization(FunctionRelativeOptimizationRealizationError),
 }
