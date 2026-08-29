@@ -6,6 +6,7 @@
 use super::*;
 
 mod compatible_policy;
+mod bitwise_neutral;
 mod dominating;
 mod expression_vocabulary;
 mod identities;

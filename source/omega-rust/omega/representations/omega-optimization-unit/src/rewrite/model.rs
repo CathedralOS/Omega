@@ -531,6 +531,12 @@ pub enum TotalScalarIdentityKind {
     SaturatingIntegerMultiplyOneRight,
     SaturatingIntegerMultiplyZeroLeft,
     SaturatingIntegerMultiplyZeroRight,
+    IntegerBitwiseAndAllOnesLeft,
+    IntegerBitwiseAndAllOnesRight,
+    IntegerBitwiseOrZeroLeft,
+    IntegerBitwiseOrZeroRight,
+    IntegerBitwiseXorZeroLeft,
+    IntegerBitwiseXorZeroRight,
 }
 
 /// Remove one total integer identity and replace every use of its live result

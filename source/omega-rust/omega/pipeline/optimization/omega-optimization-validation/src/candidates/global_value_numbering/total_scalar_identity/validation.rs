@@ -15,6 +15,8 @@ const SATURATING_NEUTRAL_ARITHMETIC_RULE_DOMAIN: &[u8] =
     b"omega.psi-rule.live-obligation-free-saturating-integer-neutral-arithmetic-identity-elimination.v1";
 const SATURATING_MULTIPLY_ZERO_ANNIHILATION_RULE_DOMAIN: &[u8] =
     b"omega.psi-rule.live-obligation-free-saturating-integer-multiply-zero-annihilation.v1";
+const BITWISE_NEUTRAL_LITERAL_RULE_DOMAIN: &[u8] =
+    b"omega.psi-rule.live-obligation-free-integer-bitwise-neutral-literal-elimination.v1";
 
 pub fn validate_total_scalar_identity_candidate(
     input: &PsiOptimizationUnit,
@@ -173,6 +175,16 @@ fn exact_rule_validator(
         | TotalScalarIdentityKind::SaturatingIntegerMultiplyZeroRight => (
             SATURATING_MULTIPLY_ZERO_ANNIHILATION_RULE_DOMAIN,
             b"omega.validator.live-obligation-free-saturating-integer-multiply-zero-annihilation.v1"
+                .as_slice(),
+        ),
+        TotalScalarIdentityKind::IntegerBitwiseAndAllOnesLeft
+        | TotalScalarIdentityKind::IntegerBitwiseAndAllOnesRight
+        | TotalScalarIdentityKind::IntegerBitwiseOrZeroLeft
+        | TotalScalarIdentityKind::IntegerBitwiseOrZeroRight
+        | TotalScalarIdentityKind::IntegerBitwiseXorZeroLeft
+        | TotalScalarIdentityKind::IntegerBitwiseXorZeroRight => (
+            BITWISE_NEUTRAL_LITERAL_RULE_DOMAIN,
+            b"omega.validator.live-obligation-free-integer-bitwise-neutral-literal-elimination.v1"
                 .as_slice(),
         ),
     };

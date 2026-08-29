@@ -458,6 +458,13 @@ Saturating multiply-zero is a fifth exact rule with a separate
 common immutable candidate conveyor but has distinct rule/validator domains;
 catalog order explicitly resolves its confluent overlap with saturating
 multiply-one without merging their custody.
+Bitwise neutral literals are a sixth exact rule with a six-row
+`bitwise_neutral.rs` producer leaf: AND with exact-width all-ones, OR with zero,
+and XOR with zero, each in both operand positions. Absorbing literals remain a
+separate future rule. Independent classification no longer grows in one mixed
+file: its 47-line exhaustive entrance dispatches to `wrapping`, `saturating`,
+and `bitwise_neutral` semantic leaves above a shared reconstructed-shape model,
+and the architecture gate pins that dispatch seam.
 Independent dead-scalar validation exposes one custody-and-analysis-contract
 entrance above its exact rule catalog, exhaustive closed operation partition,
 and rewrite replay. A new operation or dead-scalar rule therefore has one
