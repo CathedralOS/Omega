@@ -20,7 +20,13 @@ src/
 |   `-- rows.rs               canonical row and source-coordinate carriers
 |-- projection/               checked compiler state -> review model
 |   |-- aggregate.rs          total projection entry and final assembly
-|   |-- evidence.rs           retained evidence, authority classes, and sources
+|   |-- evidence/             retained evidence, authority classes, and sources
+|   |   |-- mod.rs            evidence-projection facade
+|   |   |-- semantic_projection.rs semantic dependencies and representation TCB
+|   |   |-- dangerous_authority.rs reached authority and intrinsic risk classes
+|   |   |-- selected_providers.rs exact provider ownership and source custody
+|   |   |-- row_finalization.rs canonical row/source assembly
+|   |   `-- source_locations.rs bounded canonical source coordinates
 |   |-- public_traits.rs      public trait and conformance projection
 |   |-- public_api/           public domains, propositions, constants, operators, and data
 |   |-- callables.rs          callable envelope projection
