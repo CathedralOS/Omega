@@ -18,13 +18,13 @@ mod duplicates;
 mod lock_tests;
 mod locks;
 
-use directories::validate_output_directory_shape;
+use directories::validate_output_directory_shapes;
 use duplicates::validate_output_duplicate_shapes;
 use locks::validate_output_lock_shapes;
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 22;
+const VERSION: u16 = 23;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -261,23 +261,27 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
             });
     }
     if shapes[output_start].operation == 11 {
-        let directory = &shapes[output_start];
-        let [rooted] = directory.rooted_paths.as_slice() else {
-            unreachable!("validated Output directory has one rooted path")
-        };
-        let directory = psi_checked_interpreter::FilesystemOutputDirectoryReplayRecord::new(
-            crate::BUILD_OUTPUT_ROOT_IDENTITY,
-            clone_bytes(rooted.bytes)?,
-        )
-        .map_err(|_| {
-            BuildFilesystemReplayRecordError::new(
-                "filesystem replay Output directory could not be rehydrated",
-            )
-        })?;
+        let directories = shapes[output_start..]
+            .iter()
+            .map(|directory| {
+                let [rooted] = directory.rooted_paths.as_slice() else {
+                    unreachable!("validated Output directory has one rooted path")
+                };
+                psi_checked_interpreter::FilesystemOutputDirectoryReplayRecord::new(
+                    crate::BUILD_OUTPUT_ROOT_IDENTITY,
+                    clone_bytes(rooted.bytes)?,
+                )
+                .map_err(|_| {
+                    BuildFilesystemReplayRecordError::new(
+                        "filesystem replay Output directory could not be rehydrated",
+                    )
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         let typed_record =
             psi_checked_interpreter::FilesystemInputOutputDirectoryReplayRecord::new(
                 typed_record,
-                directory,
+                directories,
             )
             .map_err(|_| {
                 BuildFilesystemReplayRecordError::new(
@@ -1354,14 +1358,7 @@ fn validate_first_rung(
     }
     if cursor < shapes.len() {
         if shapes[cursor].operation == 11 {
-            if shapes.len()
-                != cursor + psi_checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES
-            {
-                return Err(BuildFilesystemReplayRecordError::new(
-                    "filesystem replay Output-directory lane requires exactly one attempt",
-                ));
-            }
-            validate_output_directory_shape(&shapes[cursor])?;
+            validate_output_directory_shapes(&shapes[cursor..])?;
             return Ok(());
         }
         let output_ranges = output_file_ranges(shapes, cursor)?;

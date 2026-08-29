@@ -14,10 +14,10 @@ pub use directories::{
     FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_MODE, FilesystemInputOutputDirectoryReplayRecord,
     FilesystemOutputDirectoryReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES,
     MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_PATH_BYTES,
+    MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_RETAINED_PATH_BYTES,
 };
 pub(crate) use directories::{
-    output_directory_attempt, output_directory_record_from_attempt, source_attempts_use_root,
-    validate_output_directory_attempt,
+    output_directory_attempt, output_directory_records_from_attempts, source_attempts_use_root,
 };
 pub use duplicates::{
     FilesystemOutputDuplicateReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_DUPLICATES,

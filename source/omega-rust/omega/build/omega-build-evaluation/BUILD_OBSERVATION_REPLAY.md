@@ -74,3 +74,16 @@ bytes. Nested directories, `create_dir_name`, multiple or mixed file/directory
 outputs, alternate modes or providers, failed results, nonzero post-error
 state, and any subsequent child or namespace operation remain outside the
 grammar.
+
+## Empty Output directory tree (summary v42, replay record v23)
+
+The directory lane now accepts a nonempty ordered sequence of successful
+`create_dir` attempts under one exact Output root. Paths are canonical and
+distinct; every nested path must follow its exact parent, so replay never
+infers an unobserved directory. Provider-free execution reproduces the complete
+attempt sequence and requires exact final namespace and staged-tree equality.
+
+One replay retains at most 4,096 directories, 4,096 bytes per path, and 16 MiB
+of aggregate path spelling. Files and directories still do not mix. Missing or
+late parents, duplicate paths, root changes, generated-source handoffs,
+alternate operations, and failed outcomes remain observed but non-receipted.

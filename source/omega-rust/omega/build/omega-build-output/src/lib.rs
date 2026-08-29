@@ -4,7 +4,7 @@
 
 mod replayed_directories;
 
-pub use replayed_directories::replayed_empty_directory;
+pub use replayed_directories::replayed_empty_directories;
 
 use psi_checked_interpreter::{FilesystemSponsor, FilesystemSponsorNamespaceEntryKind};
 use psi_diagnostics::Diagnostic;

@@ -1369,6 +1369,25 @@ executes both operations in order against its fresh virtual namespace. At most
 locks through duplicates, failures, contention histories, and Win32 ranged
 locks remain non-receipted.
 
+Summary v41 and replay-record v22 admit one successful
+`create_dir(Output/direct-child, 493)` as the complete Output lane after the
+Source-input prefix. It binds the exact rooted path, write authorization,
+provider, mode, result, and post-error state, and reconstructs one empty
+directory under fresh virtual namespace and sponsored staged-tree equality.
+No file, child, generated-source handoff, alternate operation, or failed result
+is inferred from the final tree.
+
+Summary v42 and replay-record v23 generalize that lane to a nonempty ordered
+sequence of exact empty Output directories. Every path is canonical and
+distinct under one Output root; a nested path is admitted only after its exact
+parent has already been created. At most 4,096 paths, 4,096 bytes per path, and
+16 MiB of aggregate path spelling are retained. Provider-free replay executes
+the complete authored sequence and requires exact operation, namespace,
+teardown, result, and sponsored staged-tree equality. Files and directories
+still do not mix; missing or late parents, duplicate paths, root changes,
+generated-source handoffs, alternate operations, and failures remain
+non-receipted.
+
 Byte-valued inputs are evaluated once by the shared preparer and reject above
 the evaluator's current 16 MiB sponsor ceiling before provider cloning/
 allocation. Raw transfer counts use one checked conversion and
@@ -1402,8 +1421,9 @@ v27/v8 empty-Output, v28-v29/v9-v10 ordinary-artifact, v30/v11 ordered-handoff,
 v31/v12 sequential-full-write, v32/v13 positioned-full-write, v33/v14
 empty-file, v34/v15 successful-sync, v35/v16 successful-set-length, v36/v17
 successful-seek, v37/v18 successful-descriptor-permission, v38/v19
-successful-descriptor-time, v39/v20 immediate-descriptor-duplicate, and v40/v21
-successful-descriptor-lock grammars above may join them to
+successful-descriptor-time, v39/v20 immediate-descriptor-duplicate, v40/v21
+successful-descriptor-lock, v41/v22 single-empty-directory, and v42/v23
+empty-directory-tree grammars above may join them to
 verified operation replay and reproduced tree equality.
 Sponsored package review does retain a versioned commitment to
 the complete fresh Output tree after successful evaluator/provider teardown
@@ -1426,8 +1446,9 @@ v28-v29/v9-v10 ordinary-artifact, v30/v11 ordered-handoff, v31/v12
 sequential-full-write, v32/v13 positioned-full-write, v33/v14 empty-file, and
 v34/v15 successful-sync, v35/v16 successful-set-length, v36/v17
 successful-seek, v37/v18 successful-descriptor-permission, v38/v19
-successful-descriptor-time, v39/v20 immediate-descriptor-duplicate, and v40/v21
-successful-descriptor-lock grammars above supply canonical
+successful-descriptor-time, v39/v20 immediate-descriptor-duplicate, v40/v21
+successful-descriptor-lock, v41/v22 single-empty-directory, and v42/v23
+empty-directory-tree grammars above supply canonical
 operation replay and retained observed inputs.
 Generated-source cases bind the complete present
 handoff sequence; ordinary-artifact cases bind its absence. All broader shapes

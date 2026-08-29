@@ -104,7 +104,7 @@ fn source_attempts() -> Vec<BuildFilesystemOperationAttempt> {
     vec![open, read, close]
 }
 
-fn directory_attempt() -> BuildFilesystemOperationAttempt {
+fn directory_attempt(path: &[u8]) -> BuildFilesystemOperationAttempt {
     let mut directory = attempt(11, BuildFilesystemOperationResult::Scalar(0));
     directory
         .scalar_operands
@@ -119,7 +119,7 @@ fn directory_attempt() -> BuildFilesystemOperationAttempt {
         .push(BuildFilesystemRootedPathOperandResolution {
             operand_ordinal: 0,
             root: BuildFilesystemRoot::Output,
-            relative_path: b"generated".to_vec(),
+            relative_path: path.to_vec(),
         });
     directory
         .authorized_paths
@@ -127,14 +127,18 @@ fn directory_attempt() -> BuildFilesystemOperationAttempt {
             operand_ordinal: 0,
             access: BuildFilesystemGrantAccess::Write,
             root: BuildFilesystemRoot::Output,
-            relative_path: b"generated".to_vec(),
+            relative_path: path.to_vec(),
         });
     directory
 }
 
 fn replay_summary() -> BuildObservationSummary {
     let mut attempts = source_attempts();
-    attempts.push(directory_attempt());
+    attempts.extend([
+        directory_attempt(b"generated"),
+        directory_attempt(b"generated/nested"),
+        directory_attempt(b"sibling"),
+    ]);
     BuildObservationSummary {
         schema_version: BUILD_OBSERVATION_SCHEMA_VERSION,
         ceiling: BuildObservationClass::Volatile,
@@ -151,7 +155,7 @@ fn replay_summary() -> BuildObservationSummary {
 }
 
 #[test]
-fn recovery_rehydrates_exact_empty_output_directory() {
+fn recovery_rehydrates_exact_empty_output_directory_tree() {
     let limits = BuildFilesystemReplayRecordLimits::default();
     let captured = capture_verified_build_filesystem_replay_record(&replay_summary(), limits)
         .expect("exact directory replay encodes")
@@ -169,13 +173,17 @@ fn recovery_rehydrates_exact_empty_output_directory() {
             .iter()
             .map(|attempt| attempt.operation_tag())
             .collect::<Vec<_>>(),
-        vec![2, 4, 8, 11]
+        vec![2, 4, 8, 11, 11, 11]
     );
-    let directory = rehydrated
-        .output_directory()
-        .expect("rehydrated directory record");
-    assert_eq!(directory.output_relative_path(), b"generated");
-    assert_eq!(directory.mode(), 493);
+    let directories = rehydrated.output_directories();
+    assert_eq!(
+        directories
+            .iter()
+            .map(psi_checked_interpreter::FilesystemOutputDirectoryReplayRecord::output_relative_path)
+            .collect::<Vec<_>>(),
+        vec![b"generated".as_slice(), b"generated/nested", b"sibling"]
+    );
+    assert!(directories.iter().all(|directory| directory.mode() == 493));
 }
 
 #[test]
@@ -204,12 +212,13 @@ fn recovery_rejects_alternate_directory_shapes() {
     post_error.filesystem_operation_attempts[3].post_error = 17;
     variants.push(post_error);
 
-    let mut nested = replay_summary();
-    nested.filesystem_operation_attempts[3].rooted_path_operand_resolutions[0].relative_path =
-        b"nested/generated".to_vec();
-    nested.filesystem_operation_attempts[3].authorized_paths[0].relative_path =
-        b"nested/generated".to_vec();
-    variants.push(nested);
+    let mut missing_parent = replay_summary();
+    missing_parent.filesystem_operation_attempts.remove(3);
+    variants.push(missing_parent);
+
+    let mut late_parent = replay_summary();
+    late_parent.filesystem_operation_attempts.swap(3, 4);
+    variants.push(late_parent);
 
     let mut authorization = replay_summary();
     authorization.filesystem_operation_attempts[3].authorized_paths[0].relative_path =
@@ -221,11 +230,11 @@ fn recovery_rejects_alternate_directory_shapes() {
         BuildFilesystemGrantAccess::Read;
     variants.push(access);
 
-    let mut second_attempt = replay_summary();
-    second_attempt
+    let mut duplicate = replay_summary();
+    duplicate
         .filesystem_operation_attempts
-        .push(directory_attempt());
-    variants.push(second_attempt);
+        .push(directory_attempt(b"sibling"));
+    variants.push(duplicate);
 
     for variant in variants {
         assert!(capture_verified_build_filesystem_replay_record(&variant, limits).is_err());

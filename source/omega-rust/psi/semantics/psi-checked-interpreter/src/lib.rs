@@ -93,14 +93,15 @@ pub use filesystem_replay::{
     FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_MODE, FilesystemInputOutputDirectoryReplayRecord,
     FilesystemOutputDirectoryReplayRecord, FilesystemOutputDuplicateReplayRecord,
     FilesystemOutputLockReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES,
-    MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_PATH_BYTES, MAX_FILESYSTEM_REPLAY_OUTPUT_DUPLICATES,
-    MAX_FILESYSTEM_REPLAY_OUTPUT_LOCK_PAIRS,
+    MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_PATH_BYTES,
+    MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_RETAINED_PATH_BYTES,
+    MAX_FILESYSTEM_REPLAY_OUTPUT_DUPLICATES, MAX_FILESYSTEM_REPLAY_OUTPUT_LOCK_PAIRS,
 };
 use filesystem_replay::{
-    output_directory_attempt, output_directory_record_from_attempt, output_duplicate_attempts,
+    output_directory_attempt, output_directory_records_from_attempts, output_duplicate_attempts,
     output_duplicate_record_from_attempts, output_lock_attempts, output_lock_record_from_attempts,
-    output_logical_handle_identities, source_attempts_use_root, validate_output_directory_attempt,
-    validate_output_duplicate_replay, validate_output_lock_replay,
+    output_logical_handle_identities, source_attempts_use_root, validate_output_duplicate_replay,
+    validate_output_lock_replay,
 };
 pub use filesystem_sponsor::{
     COMPILER_DEFAULT_STAGING_ENTRY_LIMIT, COMPILER_DEFAULT_STAGING_MAX_OBJECT_EXTENT,
@@ -1625,8 +1626,9 @@ pub struct EvaluationObservations {
 /// grammar permits one or more Source input events followed by repeated exact
 /// Output files, each with create, exact rooted-descriptor operations, bounded
 /// immediately retired duplicates, bounded exact lock/unlock pairs on the
-/// original descriptor, and close; or one exact fresh direct-child empty
-/// Output directory. Files and directories do not mix in this increment.
+/// original descriptor, and close; or a bounded parent-before-child sequence
+/// of exact fresh empty Output directories. Files and directories do not mix
+/// in this increment.
 /// File records may carry an ordered generated-source subset.
 /// This remains replay evidence, not a receipt and not a reconstructed
 /// filesystem tree.
@@ -2505,17 +2507,21 @@ impl FilesystemReplay {
             .expect("validated filesystem replay retains exact Output files")
     }
 
-    /// Reconstruct the exact empty Output directory retained by this replay.
-    /// File and source-only records return `None`.
-    pub fn output_directory(&self) -> Option<FilesystemOutputDirectoryReplayRecord> {
-        self.attempts
+    /// Reconstruct the exact ordered empty Output directory tree retained by
+    /// this replay. File and source-only records return an empty vector.
+    pub fn output_directories(&self) -> Vec<FilesystemOutputDirectoryReplayRecord> {
+        let Some(output_start) = self
+            .attempts
             .iter()
-            .find(|attempt| matches!(attempt.operation_tag(), 1 | 11))
-            .filter(|attempt| attempt.operation_tag() == 11)
-            .map(|attempt| {
-                output_directory_record_from_attempt(attempt)
-                    .expect("validated filesystem replay retains an exact Output directory")
-            })
+            .position(|attempt| matches!(attempt.operation_tag(), 1 | 11))
+        else {
+            return Vec::new();
+        };
+        if self.attempts[output_start].operation_tag() != 11 {
+            return Vec::new();
+        }
+        output_directory_records_from_attempts(&self.attempts[output_start..])
+            .expect("validated filesystem replay retains an exact Output directory tree")
     }
 
     /// Generated-source coordinates expected during Output replay, in exact
@@ -2562,20 +2568,13 @@ impl FilesystemReplay {
         }
         validate_source_input_attempts(&attempts[..output_start])?;
         if attempts[output_start].operation_tag() == 11 {
-            if attempts.len() != output_start + MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES {
-                return Err(
-                    "filesystem replay Output-directory lane requires exactly one attempt"
-                        .to_owned(),
-                );
-            }
-            validate_output_directory_attempt(&attempts[output_start])?;
-            let directory = output_directory_record_from_attempt(&attempts[output_start])?;
-            if source_attempts_use_root(&attempts[..output_start], directory.output_root()) {
+            let directories = output_directory_records_from_attempts(&attempts[output_start..])?;
+            if source_attempts_use_root(&attempts[..output_start], directories[0].output_root()) {
                 return Err("filesystem replay Source and Output roots must be distinct".to_owned());
             }
             if !observations.build_included_sources().is_empty() {
                 return Err(
-                    "filesystem replay empty Output directory cannot publish a generated source"
+                    "filesystem replay empty Output directory tree cannot publish a generated source"
                         .to_owned(),
                 );
             }
@@ -2630,14 +2629,14 @@ impl FilesystemReplay {
         })
     }
 
-    /// Construct the bounded Source-input plus one empty Output-directory
-    /// grammar from typed compiler-owned records.
+    /// Construct the bounded Source-input plus ordered empty Output-directory
+    /// tree grammar from typed compiler-owned records.
     pub fn from_input_output_directory_record(
         record: FilesystemInputOutputDirectoryReplayRecord,
     ) -> Result<Self, String> {
-        let (source_input, output_directory) = record.into_parts();
+        let (source_input, output_directories) = record.into_parts();
         let mut attempts = source_input_record_attempts(source_input);
-        attempts.push(output_directory_attempt(output_directory));
+        attempts.extend(output_directories.into_iter().map(output_directory_attempt));
         validate_filesystem_replay_size(&attempts)?;
         Ok(Self {
             attempts: attempts.into(),

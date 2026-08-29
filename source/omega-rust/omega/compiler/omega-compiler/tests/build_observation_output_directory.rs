@@ -56,8 +56,12 @@ reaches FilesystemHost
     let source_buffer: [u8; 64] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     let source_count: i64 = builder.filesystem.read(source_descriptor, &mut source_buffer, 64);
     let source_close: i32 = builder.filesystem.close(source_descriptor);
-    let directory: &[u8] in Path = builder.output.resolve("generated");
-    let directory_result: i32 = builder.filesystem.create_dir(directory, 493);
+    let generated: &[u8] in Path = builder.output.resolve("generated");
+    let generated_result: i32 = builder.filesystem.create_dir(generated, 493);
+    let nested: &[u8] in Path = builder.output.resolve("generated/nested");
+    let nested_result: i32 = builder.filesystem.create_dir(nested, 493);
+    let sibling: &[u8] in Path = builder.output.resolve("sibling");
+    let sibling_result: i32 = builder.filesystem.create_dir(sibling, 493);
     builder.freestanding = false;
 }}
 "#,
@@ -129,7 +133,7 @@ fn package_inputs(source: &Path) -> PackageCompilationInputs {
 }
 
 #[test]
-fn empty_output_directory_replays_without_host_output() {
+fn empty_output_directory_tree_replays_without_host_output() {
     let profile = omega_target::TargetProfile::host();
     let project = TestProject::new();
     project.write_sources(profile.target_name());
@@ -148,7 +152,7 @@ fn empty_output_directory_replays_without_host_output() {
     let summary = checked
         .build_observation_summary()
         .expect("directory build retains observations");
-    assert_eq!(summary.schema_version(), 41);
+    assert_eq!(summary.schema_version(), 42);
     assert!(summary.operation_replay_verified());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
@@ -157,7 +161,7 @@ fn empty_output_directory_replays_without_host_output() {
             .iter()
             .map(|attempt| attempt.operation_tag())
             .collect::<Vec<_>>(),
-        vec![2, 4, 8, 11]
+        vec![2, 4, 8, 11, 11, 11]
     );
     let directory = &summary.filesystem_operation_attempts()[3];
     assert_eq!(directory.provider(), BuildFilesystemProvider::RealScoped);
@@ -185,7 +189,7 @@ fn empty_output_directory_replays_without_host_output() {
     let staged = summary
         .staged_output_tree()
         .expect("empty directory has explicit staged custody");
-    assert_eq!(staged.entry_count(), 1);
+    assert_eq!(staged.entry_count(), 3);
     assert_eq!(staged.file_bytes(), 0);
 
     let limits = BuildFilesystemReplayRecordLimits::default();
@@ -198,9 +202,12 @@ fn empty_output_directory_replays_without_host_output() {
         record
     );
 
-    std::fs::remove_dir(output.join("generated")).expect("remove captured directory");
+    std::fs::remove_dir_all(output.join("generated")).expect("remove captured directory subtree");
     std::fs::write(output.join("generated"), "spoofed file")
         .expect("replace directory with host file");
+    std::fs::remove_dir(output.join("sibling")).expect("remove captured sibling directory");
+    std::fs::write(output.join("sibling"), "second spoofed file")
+        .expect("replace sibling directory with host file");
     let replayed = compile_to_checked_with_packages_and_replay_record(
         &project.source.join("main.omg"),
         Some(profile.target_name()),

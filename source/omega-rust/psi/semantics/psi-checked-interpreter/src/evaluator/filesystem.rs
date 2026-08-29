@@ -225,8 +225,8 @@ impl<'program> Evaluator<'program> {
             ));
         }
         let outputs = replay.output_files();
-        let output_directory = replay.output_directory();
-        if outputs.is_empty() && output_directory.is_none() {
+        let output_directories = replay.output_directories();
+        if outputs.is_empty() && output_directories.is_empty() {
             if !self.build_included_sources.is_empty() {
                 return trap("source-only filesystem replay observed generated-source handoff");
             }
@@ -256,14 +256,15 @@ impl<'program> Evaluator<'program> {
                 expected_times.insert(expected_path, modification_time);
             }
         }
-        let expected_directories = output_directory
+        let expected_directories = output_directories
+            .into_iter()
             .map(|directory| {
                 let mut path = format!("/root/{}", directory.output_root().get()).into_bytes();
                 path.push(b'/');
                 path.extend_from_slice(directory.output_relative_path());
-                std::collections::BTreeSet::from([path])
+                path
             })
-            .unwrap_or_default();
+            .collect::<std::collections::BTreeSet<_>>();
         if self.virtual_files != expected_files
             || !self.virtual_fds.is_empty()
             || self.virtual_dirs != expected_directories
