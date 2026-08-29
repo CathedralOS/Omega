@@ -152,6 +152,7 @@ pub struct ClosedConformanceApplication {
     pub telescope: Vec<ClosedConformanceParameterBinding>,
     pub subject_identity: Option<String>,
     pub trait_identity: String,
+    pub trait_lifetime_arguments: Vec<String>,
     pub trait_arguments: Vec<String>,
     pub rows: Vec<ClosedConformanceRow>,
     /// Historical compact report/index coordinate. It cannot authorize a
@@ -225,6 +226,10 @@ pub fn closed_conformance_application_report_fingerprint(
             .unwrap_or("<subjectless>"),
     );
     push(&mut bytes, &application.trait_identity);
+    bytes.extend((application.trait_lifetime_arguments.len() as u64).to_le_bytes());
+    for argument in &application.trait_lifetime_arguments {
+        push(&mut bytes, argument);
+    }
     bytes.extend((application.telescope.len() as u64).to_le_bytes());
     for binding in &application.telescope {
         push(&mut bytes, &binding.parameter);
@@ -276,6 +281,10 @@ pub fn closed_conformance_application_commitment(
             .unwrap_or("<subjectless>"),
     );
     push(&mut digest, &application.trait_identity);
+    digest.update((application.trait_lifetime_arguments.len() as u64).to_le_bytes());
+    for argument in &application.trait_lifetime_arguments {
+        push(&mut digest, argument);
+    }
     digest.update((application.telescope.len() as u64).to_le_bytes());
     for binding in &application.telescope {
         push(&mut digest, &binding.parameter);

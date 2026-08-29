@@ -61,6 +61,9 @@ pub struct Conformance {
     pub trait_name: Identifier,
     /// Exact trait declaration selected by `trait_name`.
     pub trait_symbol: SymbolHandle,
+    /// Alpha-normalized declaration-order ordinals selecting the conformance
+    /// lifetime supplied to each target-trait lifetime parameter.
+    pub trait_lifetime_arguments: Vec<u32>,
     pub arguments: HandleSpan<crate::types::TypeReferenceHandle>,
     pub alias: Option<Identifier>,
     pub implementation: ConformanceImplementation,

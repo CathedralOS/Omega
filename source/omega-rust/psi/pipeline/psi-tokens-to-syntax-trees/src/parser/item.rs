@@ -331,7 +331,7 @@ pub(super) fn parse_item<'tokens, 'source>(
             psi_syntax_trees::item::ConformanceSubject::Carrier(subject)
         };
         rest = rest.take_contextual("satisfies")?;
-        let ((trait_name, trait_arguments), rest) =
+        let ((trait_name, trait_lifetime_arguments, trait_arguments), rest) =
             parse_conformance_trait_application(syntax_trees, rest)?;
         let ((), rest) = crate::parser::machine::parse_machine_parameter_contracts(
             syntax_trees,
@@ -360,6 +360,7 @@ pub(super) fn parse_item<'tokens, 'source>(
                 type_parameters: generic_parameters.type_parameters,
                 subject,
                 trait_name,
+                trait_lifetime_arguments,
                 trait_arguments,
                 alias: Some(alias),
                 body,
@@ -419,18 +420,34 @@ pub(super) fn parse_conformance_trait_application<'tokens, 'source>(
     'source,
     (
         psi_syntax_trees::identifier::Identifier,
+        Vec<psi_syntax_trees::identifier::Identifier>,
         HandleSpan<psi_syntax_trees::types::TypeReferenceHandle>,
     ),
 > {
     let (trait_name, mut rest) = input.take_identifier()?;
+    let mut lifetime_arguments = Vec::new();
     let trait_arguments = if rest.at_punctuation(PunctuationKind::Less) {
         rest = rest.take_punctuation(PunctuationKind::Less, "<")?;
         let mut arguments = Vec::new();
+        let mut saw_non_lifetime = false;
         loop {
-            let (argument, next) =
-                crate::parser::machine::parse_satisfies_type_argument(syntax_trees, rest)?;
-            arguments.push(argument);
-            rest = next;
+            if rest.at_punctuation(PunctuationKind::Apostrophe) {
+                if saw_non_lifetime {
+                    return Err(rest.error_here(
+                        "lifetime arguments precede type, const, and machine arguments",
+                    ));
+                }
+                rest = rest.take_punctuation(PunctuationKind::Apostrophe, "'")?;
+                let (lifetime, next) = rest.take_identifier()?;
+                lifetime_arguments.push(lifetime);
+                rest = next;
+            } else {
+                saw_non_lifetime = true;
+                let (argument, next) =
+                    crate::parser::machine::parse_satisfies_type_argument(syntax_trees, rest)?;
+                arguments.push(argument);
+                rest = next;
+            }
             if rest.at_punctuation(PunctuationKind::Comma) {
                 rest = rest.take_punctuation(PunctuationKind::Comma, ",")?;
                 continue;
@@ -444,7 +461,7 @@ pub(super) fn parse_conformance_trait_application<'tokens, 'source>(
     } else {
         HandleSpan::empty()
     };
-    Ok(((trait_name, trait_arguments), rest))
+    Ok(((trait_name, lifetime_arguments, trait_arguments), rest))
 }
 
 fn parse_conformance_body<'tokens, 'source>(

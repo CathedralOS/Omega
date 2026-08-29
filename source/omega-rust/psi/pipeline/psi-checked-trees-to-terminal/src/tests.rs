@@ -779,23 +779,30 @@ fn shared_boolean_comparison_normalization_rejects_two_runtime_sides() {
 #[test]
 fn generic_conformance_application_crosses_terminal_scalar_closure() {
     let source = r#"
-        trait Ranked {
+        trait Ranked<'rank, Context> {
             machine Self::before(&self, other: &Self) -> bool;
         }
         data Card {}
+        data Borrow<'scope, Element> { value: &'scope Element }
 
-        FieldOrder<Element>: Element satisfies Ranked {
+        FieldOrder<'scope, Element>:
+            Element satisfies Ranked<'scope, Borrow<'scope, Element>>
+        {
             machine before(&self, other: &Element) -> bool { true }
         }
 
-        machine choose<Element, Order: Element satisfies Ranked>(
-            left: &Element,
-            right: &Element
+        machine choose<
+            'call,
+            Element,
+            Order: Element satisfies Ranked<Borrow<'call, Element>>
+        >(
+            left: &'call Element,
+            right: &'call Element
         ) -> bool {
             Order::before(left, right)
         }
 
-        machine caller(left: &Card, right: &Card) -> bool {
+        machine caller<'view>(left: &'view Card, right: &'view Card) -> bool {
             choose<Card, FieldOrder<Card>>(left, right)
         }
     "#;
@@ -840,6 +847,8 @@ fn generic_conformance_application_crosses_terminal_scalar_closure() {
             && binding.argument == "Card"
     }));
     assert_eq!(application.subject_identity.as_deref(), Some("Card"));
+    assert_eq!(application.trait_lifetime_arguments, ["view"]);
+    assert_eq!(application.trait_arguments, ["Borrow<'view,Card>"]);
     assert_eq!(application.rows.len(), 1);
     assert!(
         lowered
@@ -852,6 +861,14 @@ fn generic_conformance_application_crosses_terminal_scalar_closure() {
         .expect("encode closed application");
     let decoded = psi_terminal_codec::decode_module(&bytes).expect("decode closed application");
     assert_eq!(decoded, lowered.semantic_module);
+
+    let mut redirected_lifetime = decoded.clone();
+    redirected_lifetime.closed_conformance_applications[0].trait_lifetime_arguments[0]
+        .push_str("::redirected");
+    assert!(matches!(
+        psi_terminal_verifier::validate_module(&redirected_lifetime),
+        Err(psi_terminal_verifier::ModuleError::ClosedConformanceFingerprintMismatch { .. })
+    ));
 
     let mut redirected = decoded;
     redirected.closed_conformance_applications[0].rows[0]
@@ -964,7 +981,7 @@ fn payloadless_sum_equality_lowers_to_case_membership_equivalence() {
         .expect("case-membership equality validates");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
         .expect("case-membership module encodes");
-    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &35_u16.to_le_bytes());
     assert_eq!(
         psi_terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())
@@ -1045,7 +1062,7 @@ fn payload_bearing_sum_equality_uses_exact_case_payload_paths() {
         .expect("exact case-payload paths validate");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
         .expect("payload-bearing sum module encodes");
-    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &35_u16.to_le_bytes());
     assert_eq!(
         psi_terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())

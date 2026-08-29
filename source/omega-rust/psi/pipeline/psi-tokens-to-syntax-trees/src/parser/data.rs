@@ -72,8 +72,13 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
                 syntax_trees.items.append_identifier_path_member(member)
             })?;
             input = next.take_contextual("satisfies")?;
-            let ((trait_name, trait_arguments), next) =
+            let ((trait_name, trait_lifetime_arguments, trait_arguments), next) =
                 crate::parser::item::parse_conformance_trait_application(syntax_trees, input)?;
+            if !trait_lifetime_arguments.is_empty() {
+                return Err(next.error_here(
+                    "quotient equivalence selection does not yet retain lifetime arguments; the application must remain lifetime-free",
+                ));
+            }
             input = next.take_contextual("as")?;
             let (conformance_name, next) = input.take_identifier()?;
             input = next;

@@ -515,12 +515,11 @@ fn bind_lifetime(
     }
 }
 
-fn resolved_lifetime<'a>(bindings: &'a [(String, String)], name: &'a str) -> &'a str {
+fn resolved_lifetime<'a>(bindings: &'a [(String, String)], name: &str) -> Option<&'a str> {
     bindings
         .iter()
         .rev()
         .find_map(|(parameter, argument)| (parameter == name).then_some(argument.as_str()))
-        .unwrap_or(name)
 }
 
 fn collect_lifetime_bindings(
@@ -663,13 +662,9 @@ fn collect_conformance_lifetime_bindings(
                 && parameters
                     .iter()
                     .any(|parameter| parameter.as_str() == declared.as_str())
+                && let Some(expected) = resolved_lifetime(expected_lifetimes, expected.as_str())
             {
-                bind_lifetime(
-                    bindings,
-                    declared.as_str(),
-                    resolved_lifetime(expected_lifetimes, expected.as_str()),
-                    conflict,
-                );
+                bind_lifetime(bindings, declared.as_str(), expected, conflict);
             }
             collect_conformance_lifetime_bindings(
                 program,
@@ -717,13 +712,9 @@ fn collect_conformance_lifetime_bindings(
                 if parameters
                     .iter()
                     .any(|parameter| parameter.as_str() == declared.as_str())
+                    && let Some(expected) = resolved_lifetime(expected_lifetimes, expected.as_str())
                 {
-                    bind_lifetime(
-                        bindings,
-                        declared.as_str(),
-                        resolved_lifetime(expected_lifetimes, expected.as_str()),
-                        conflict,
-                    );
+                    bind_lifetime(bindings, declared.as_str(), expected, conflict);
                 }
             }
             for (declared, expected) in program

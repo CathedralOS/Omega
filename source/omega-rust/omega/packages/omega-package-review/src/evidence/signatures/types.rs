@@ -190,6 +190,7 @@ pub struct PackageReviewConformanceBound {
     pub(crate) selected_arguments: Vec<PackageReviewContractStaticArgument>,
     pub(crate) selected_subject: Option<PackageReviewContractStaticArgument>,
     pub(crate) trait_identity: PackageReviewNominalIdentity,
+    pub(crate) trait_lifetime_arguments: Vec<u32>,
     pub(crate) arguments: Vec<PackageReviewTypeIdentity>,
 }
 
@@ -220,6 +221,10 @@ impl PackageReviewConformanceBound {
 
     pub const fn trait_identity(&self) -> &PackageReviewNominalIdentity {
         &self.trait_identity
+    }
+
+    pub fn trait_lifetime_arguments(&self) -> &[u32] {
+        &self.trait_lifetime_arguments
     }
 
     pub fn arguments(&self) -> &[PackageReviewTypeIdentity] {

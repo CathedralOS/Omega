@@ -284,6 +284,122 @@ pub Scoped<'{first}, '{second}, Element>:
 }
 
 #[test]
+fn public_conformance_target_lifetimes_are_complete_alpha_normalized_identity() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let source = |left: &str, right: &str, selected: &str, body: &str| {
+        format!(
+            r#"pub trait Parent<'parent> {{
+    machine absorb(value: &'parent i32);
+}}
+pub trait Child<'child>: Parent<'child> {{ }}
+pub data Buffer {{ }}
+pub BufferReads<'{left}, '{right}>:
+    Buffer satisfies Child<'{selected}>
+{{
+    machine absorb(value: &'{selected} i32) {{ {body} }}
+}}
+"#
+        )
+    };
+    let project = |source: String| {
+        package.write("main.omg", &source);
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("explicit target-trait lifetime application should check");
+        project_checked_package_review(&checked)
+            .expect("checked target-trait lifetime application should project")
+    };
+
+    let first = project(source("left", "right", "left", ""));
+    let [shape] = first.public_conformances() else {
+        panic!("one target-lifetime conformance")
+    };
+    assert_eq!(shape.interface().lifetime_arguments(), &[0]);
+    let [requirement] = shape.interface().requirements() else {
+        panic!("one inherited parent requirement")
+    };
+    assert_eq!(requirement.declaring_trait().path(), "Parent");
+    assert_eq!(requirement.declaring_trait_lifetime_arguments(), &[0]);
+    let first_row = first
+        .canonical_rows()
+        .unwrap()
+        .into_iter()
+        .find(|row| row.kind() == PackageReviewCanonicalRowKind::PublicConformance)
+        .expect("target-lifetime conformance row");
+
+    let renamed = project(source(
+        "primary",
+        "secondary",
+        "primary",
+        "let private_value: i32 = 1;",
+    ));
+    let renamed_row = renamed
+        .canonical_rows()
+        .unwrap()
+        .into_iter()
+        .find(|row| row.kind() == PackageReviewCanonicalRowKind::PublicConformance)
+        .expect("renamed target-lifetime conformance row");
+    assert_eq!(first_row.canonical_bytes(), renamed_row.canonical_bytes());
+
+    let changed = project(source("left", "right", "right", ""));
+    let changed_row = changed
+        .canonical_rows()
+        .unwrap()
+        .into_iter()
+        .find(|row| row.kind() == PackageReviewCanonicalRowKind::PublicConformance)
+        .expect("changed target-lifetime conformance row");
+    assert_ne!(first_row.canonical_bytes(), changed_row.canonical_bytes());
+}
+
+#[test]
+fn public_conformance_target_lifetimes_fail_closed_before_review() {
+    for (source, expected) in [
+        (
+            "pub trait Reads<'view> { }\npub data Buffer { }\npub Broken<'scope>: Buffer satisfies Reads { }\n",
+            "expects 1 target-trait lifetime argument(s), got 0",
+        ),
+        (
+            "pub trait Reads<'view> { }\npub data Buffer { }\npub Broken<'scope>: Buffer satisfies Reads<'foreign> { }\n",
+            "does not name an in-scope conformance lifetime binder",
+        ),
+    ] {
+        let package = TempPackage::new();
+        package.write("main.omg", source);
+        package.write(
+            "build.omg",
+            "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        );
+        let diagnostics = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some("windows_x64"),
+            package_inputs(&package.0),
+        )
+        .expect_err("incomplete target-trait lifetime application must reject");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
+            "missing `{expected}` in {diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
 fn public_conformance_identity_is_independent_of_bodyless_or_closed_realization_form() {
     let Some(target) = host_target_name() else {
         return;

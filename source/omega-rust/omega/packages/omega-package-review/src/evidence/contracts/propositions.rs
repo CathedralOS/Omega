@@ -100,6 +100,7 @@ impl PackageReviewPropositionBinderArgument {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewEvidenceRequirement {
     pub(crate) declaring_trait: PackageReviewNominalIdentity,
+    pub(crate) declaring_trait_lifetime_arguments: Vec<u32>,
     pub(crate) declaring_trait_arguments: Vec<PackageReviewTypeIdentity>,
     pub(crate) requirement: PackageReviewNominalIdentity,
 }
@@ -107,6 +108,10 @@ pub struct PackageReviewEvidenceRequirement {
 impl PackageReviewEvidenceRequirement {
     pub const fn declaring_trait(&self) -> &PackageReviewNominalIdentity {
         &self.declaring_trait
+    }
+
+    pub fn declaring_trait_lifetime_arguments(&self) -> &[u32] {
+        &self.declaring_trait_lifetime_arguments
     }
 
     pub fn declaring_trait_arguments(&self) -> &[PackageReviewTypeIdentity] {
@@ -121,6 +126,7 @@ impl PackageReviewEvidenceRequirement {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewEvidenceInterface {
     pub(crate) trait_identity: PackageReviewNominalIdentity,
+    pub(crate) lifetime_arguments: Vec<u32>,
     pub(crate) arguments: Vec<PackageReviewTypeIdentity>,
     pub(crate) requirements: Vec<PackageReviewEvidenceRequirement>,
 }
@@ -128,6 +134,10 @@ pub struct PackageReviewEvidenceInterface {
 impl PackageReviewEvidenceInterface {
     pub const fn trait_identity(&self) -> &PackageReviewNominalIdentity {
         &self.trait_identity
+    }
+
+    pub fn lifetime_arguments(&self) -> &[u32] {
+        &self.lifetime_arguments
     }
 
     pub fn arguments(&self) -> &[PackageReviewTypeIdentity] {

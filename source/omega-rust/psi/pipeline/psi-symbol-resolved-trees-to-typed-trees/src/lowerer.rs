@@ -193,6 +193,35 @@ pub fn lower_symbol_resolved_trees(
                 .type_reference_table
                 .push_type_reference_handle(&mut arguments, argument);
         }
+        let trait_lifetime_arguments = conformance
+            .trait_lifetime_arguments
+            .iter()
+            .map(|argument| {
+                let ordinal = conformance
+                    .lifetime_parameters
+                    .iter()
+                    .position(|parameter| parameter == argument)
+                    .ok_or_else(|| {
+                        Diagnostic::error(format!(
+                            "conformance `{}` target trait lifetime `'{}' does not name an in-scope conformance lifetime binder",
+                            conformance
+                                .alias
+                                .as_ref()
+                                .map_or("<unnamed-conformance>", |name| name.as_str()),
+                            argument.as_str(),
+                        ))
+                    })?;
+                u32::try_from(ordinal).map_err(|_| {
+                    Diagnostic::error(format!(
+                        "conformance `{}` target trait lifetime ordinal exceeds the compiler limit",
+                        conformance
+                            .alias
+                            .as_ref()
+                            .map_or("<unnamed-conformance>", |name| name.as_str()),
+                    ))
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         let mut conformance = psi_typed_trees::trait_definition::Conformance {
             symbol: conformance.symbol,
             is_public: conformance.is_public,
@@ -215,6 +244,7 @@ pub fn lower_symbol_resolved_trees(
             carrier_symbol: conformance.carrier_symbol,
             trait_name: crate::name::lower_name(&conformance.trait_name),
             trait_symbol: conformance.trait_symbol,
+            trait_lifetime_arguments,
             arguments,
             alias: conformance.alias.as_ref().map(crate::name::lower_name),
             implementation: match &conformance.implementation {

@@ -281,6 +281,8 @@ pub struct ConformanceSnapshot {
     pub subject_symbol: Option<u32>,
     pub trait_name: String,
     pub trait_symbol: u32,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub trait_lifetime_arguments: Vec<u32>,
     pub arguments: Vec<TypeReferenceSnapshot>,
     pub implementation: &'static str,
     pub rows: Vec<ConformanceRowSnapshot>,
@@ -1564,6 +1566,7 @@ fn conformance_snapshot(
             .then(|| conformance.carrier_symbol.arena_index()),
         trait_name: conformance.trait_name.to_string(),
         trait_symbol: conformance.trait_symbol.arena_index(),
+        trait_lifetime_arguments: conformance.trait_lifetime_arguments.clone(),
         arguments: program
             .type_reference_table
             .type_reference_handles(conformance.arguments)

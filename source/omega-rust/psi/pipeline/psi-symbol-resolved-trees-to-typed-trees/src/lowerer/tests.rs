@@ -639,10 +639,10 @@ fn retains_exact_nominal_machine_parameter_identity_in_typed_trees() {
 #[test]
 fn retains_typed_name_owned_conformance_telescope() {
     let source = r#"
-        trait Converter<Source, Target> {}
+        trait Converter<'view, Source, Target> {}
 
         GenericConversion<'scope, Source, const Width: u64, machine Convert>:
-            Source satisfies Converter<Source, u64>
+            Source satisfies Converter<'scope, Source, u64>
         where machine Convert(value: Source) -> u64;
         {}
     "#;
@@ -654,6 +654,11 @@ fn retains_typed_name_owned_conformance_telescope() {
 
     assert_eq!(conformance.lifetime_parameters.len(), 1);
     assert_eq!(conformance.lifetime_parameters[0].as_str(), "scope");
+    assert_eq!(conformance.trait_lifetime_arguments, vec![0]);
+    assert_eq!(
+        typed.snapshot().roots.conformances[0].trait_lifetime_arguments,
+        vec![0]
+    );
     let parameters = typed.conformance_type_parameters(conformance);
     assert_eq!(parameters.len(), 3);
     assert!(

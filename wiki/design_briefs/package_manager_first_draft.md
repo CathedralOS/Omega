@@ -926,9 +926,9 @@ lifetime-generic public conformances when the selected trait has no lifetime
 telescope of its own. Requirement rows apply the complete inherited type
 substitution before deriving alpha-normalized lifetime topology. Renaming
 binders or changing private realization bodies is stable; selecting another
-lifetime ordinal changes canonical identity. Targeting a lifetime-parameterized
-trait remains fail-closed pending the implementation task, but its extension is
-settled. The conformance header supplies every target-trait lifetime explicitly;
+lifetime ordinal changes canonical identity. Review v86 and canonical row v44
+extend that identity to lifetime-parameterized target traits. The conformance
+header supplies every target-trait lifetime explicitly;
 each resolves to an alpha-normalized declaration-order ordinal in the
 conformance telescope and is retained beside the target type arguments through
 checked closure, inherited requirement substitution, public review, and

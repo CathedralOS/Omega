@@ -158,6 +158,7 @@ pub(super) fn lower_closed_conformance_applications(
                 trait_identity: checked
                     .symbols
                     .display_path(application.trait_definition, "::"),
+                trait_lifetime_arguments: application.trait_lifetime_arguments.clone(),
                 trait_arguments: application.trait_arguments.clone(),
                 rows,
                 report_fingerprint: 0,

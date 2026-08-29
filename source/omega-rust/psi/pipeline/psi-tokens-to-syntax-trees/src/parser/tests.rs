@@ -1009,10 +1009,10 @@ fn parses_generic_standalone_conformance_arguments() {
 #[test]
 fn parses_name_owned_generic_conformance_telescope() {
     let source = r#"
-        trait Converter<Source, Target> {}
+        trait Converter<'view, Source, Target> {}
 
         GenericConversion<'scope, Source, const Width: u64, machine Convert>:
-            Source satisfies Converter<Source, u64>
+            Source satisfies Converter<'scope, Source, u64>
         where machine Convert(value: Source) -> u64;
         {}
     "#;
@@ -1031,6 +1031,8 @@ fn parses_name_owned_generic_conformance_telescope() {
 
     assert_eq!(conformance.lifetime_parameters.len(), 1);
     assert_eq!(conformance.lifetime_parameters[0].as_str(), "scope");
+    assert_eq!(conformance.trait_lifetime_arguments.len(), 1);
+    assert_eq!(conformance.trait_lifetime_arguments[0].as_str(), "scope");
     let parameters = parsed.items.type_parameters(conformance.type_parameters);
     assert_eq!(parameters.len(), 3);
     assert_eq!(parameters[0].name.as_str(), "Source");

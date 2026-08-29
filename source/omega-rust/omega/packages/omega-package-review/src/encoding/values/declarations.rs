@@ -116,9 +116,20 @@ pub(crate) fn encode_evidence_interface(
     interface: &PackageReviewEvidenceInterface,
 ) -> Result<(), PackageReviewEncodingError> {
     encode_nominal(encoder, &interface.trait_identity)?;
+    encoder.sequence(&interface.lifetime_arguments, |encoder, argument| {
+        encoder.u32(*argument);
+        Ok(())
+    })?;
     encoder.sequence(&interface.arguments, encode_type_identity)?;
     encoder.sequence(&interface.requirements, |encoder, requirement| {
         encode_nominal(encoder, &requirement.declaring_trait)?;
+        encoder.sequence(
+            &requirement.declaring_trait_lifetime_arguments,
+            |encoder, argument| {
+                encoder.u32(*argument);
+                Ok(())
+            },
+        )?;
         encoder.sequence(&requirement.declaring_trait_arguments, encode_type_identity)?;
         encode_nominal(encoder, &requirement.requirement)
     })

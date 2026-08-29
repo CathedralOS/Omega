@@ -271,6 +271,10 @@ pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
             &application.trait_identity,
         )?;
         writer.strings(
+            "closed conformance trait lifetime arguments",
+            &application.trait_lifetime_arguments,
+        )?;
+        writer.strings(
             "closed conformance trait arguments",
             &application.trait_arguments,
         )?;
@@ -523,6 +527,8 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
                 .then(|| reader.string("closed conformance subject identity"))
                 .transpose()?,
             trait_identity: reader.string("closed conformance trait identity")?,
+            trait_lifetime_arguments: reader
+                .strings("closed conformance trait lifetime arguments")?,
             trait_arguments: reader.strings("closed conformance trait arguments")?,
             rows: decode_counted(reader, |reader| {
                 Ok(ClosedConformanceRow {

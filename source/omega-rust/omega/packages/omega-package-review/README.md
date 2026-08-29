@@ -103,6 +103,13 @@ Projection requires the load form and absence of a result carrier; stores,
 read-modify-write operations, swaps, compare-exchange operations, invalid load
 orderings, and post-check carrier drift reject. This is schema v85 / row v43.
 
+Public conformances targeting lifetime-parameterized traits retain every
+target lifetime as an alpha-normalized ordinal in the conformance telescope.
+Projection requires exact arity and declaration ownership, substitutes that
+mapping through inherited requirements, and rejoins selected closed
+applications with their concrete target lifetimes. Missing, undeclared, and
+out-of-range forms reject. This is schema v86 / row v44.
+
 Operator-bound external supply retains its requirement as the exact existing
 package-qualified operator coordinate in the opaque-blocking executable-supply
 row. Projection rejoins that coordinate with the retained overload symbol and,
@@ -119,4 +126,4 @@ provider identity, selected target, selection authority, complete-declaration
 coverage, and the canonical exact-coordinate-to-plan mapping. Independent
 single-coordinate selections are not inferred into a family.
 
-The canonical review schema is version 85 and row schema version 43.
+The canonical review schema is version 86 and row schema version 44.

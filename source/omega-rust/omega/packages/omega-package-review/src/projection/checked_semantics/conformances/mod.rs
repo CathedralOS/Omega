@@ -21,6 +21,7 @@ pub(crate) struct ProjectedSelectedConformanceApplication {
     pub(crate) arguments: Vec<PackageReviewContractStaticArgument>,
     pub(crate) subject: PackageReviewContractStaticArgument,
     pub(crate) trait_symbol: SymbolHandle,
+    pub(crate) trait_lifetime_arguments: Vec<u32>,
     pub(crate) trait_arguments: Vec<PackageReviewTypeIdentity>,
 }
 
@@ -299,6 +300,33 @@ pub(crate) fn project_selected_conformance_application(
         .cloned()
         .zip(selected_lifetimes.iter().cloned())
         .collect::<Vec<_>>();
+    let selected_trait_lifetimes = declaration
+        .trait_lifetime_arguments
+        .iter()
+        .map(|ordinal| {
+            let ordinal = usize::try_from(*ordinal).map_err(|_| {
+                vec![Diagnostic::error(format!(
+                    "{declaration_kind} `{declaration_path}` selected conformance retains an invalid target-trait lifetime ordinal"
+                ))]
+            })?;
+            let selected = selected_lifetimes.get(ordinal).ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "{declaration_kind} `{declaration_path}` selected conformance target-trait lifetime falls outside its checked application"
+                ))]
+            })?;
+            Ok::<_, Vec<Diagnostic>>(selected.clone())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let trait_lifetime_arguments = selected_trait_lifetimes
+        .iter()
+        .map(|selected| {
+            lifetime_binder_ordinal(
+                selected,
+                lifetime_binders,
+                "selected conformance target trait application",
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let trait_arguments = compilation
         .type_reference_table
         .type_reference_handles(declaration.arguments)
@@ -315,6 +343,11 @@ pub(crate) fn project_selected_conformance_application(
         })
         .collect::<Result<Vec<_>, _>>()?;
     if closed.trait_definition != declaration.trait_symbol
+        || closed.trait_lifetime_arguments
+            != selected_trait_lifetimes
+                .iter()
+                .map(|lifetime| lifetime.as_str().to_owned())
+                .collect::<Vec<_>>()
         || closed.trait_arguments.len() != trait_arguments.len()
     {
         return Err(vec![Diagnostic::error(format!(
@@ -327,6 +360,7 @@ pub(crate) fn project_selected_conformance_application(
         arguments,
         subject,
         trait_symbol: declaration.trait_symbol,
+        trait_lifetime_arguments,
         trait_arguments,
     })
 }
@@ -373,6 +407,7 @@ pub(crate) fn project_conformance_bounds(
             selected_arguments,
             selected_subject,
             trait_symbol,
+            trait_lifetime_arguments,
             trait_arguments,
         ) = match bound.selected_conformance.as_ref() {
             None => (
@@ -381,6 +416,7 @@ pub(crate) fn project_conformance_bounds(
                 Vec::new(),
                 None,
                 bound.carrier,
+                Vec::new(),
                 bound
                     .arguments
                     .iter()
@@ -409,6 +445,7 @@ pub(crate) fn project_conformance_bounds(
                     selected.arguments,
                     Some(selected.subject),
                     selected.trait_symbol,
+                    selected.trait_lifetime_arguments,
                     selected.trait_arguments,
                 )
             }
@@ -430,10 +467,12 @@ pub(crate) fn project_conformance_bounds(
                 trait_definition.name
             ))]);
         }
-        if !trait_definition.lifetime_parameters.is_empty() {
+        if trait_lifetime_arguments.len() != trait_definition.lifetime_parameters.len() {
             return Err(vec![Diagnostic::error(format!(
-                "{declaration_kind} `{declaration_path}` uses lifetime-parameterized conformance trait `{}` without retained lifetime arguments",
-                trait_definition.name
+                "{declaration_kind} `{declaration_path}` uses conformance trait `{}` with {} target lifetime argument(s), expected {}",
+                trait_definition.name,
+                trait_lifetime_arguments.len(),
+                trait_definition.lifetime_parameters.len(),
             ))]);
         }
         projected.push(PackageReviewConformanceBound {
@@ -448,6 +487,7 @@ pub(crate) fn project_conformance_bounds(
             selected_arguments,
             selected_subject,
             trait_identity: nominal_identity(compilation, trait_definition.symbol)?,
+            trait_lifetime_arguments,
             arguments: trait_arguments,
         });
     }
