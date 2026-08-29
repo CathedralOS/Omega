@@ -1,6 +1,6 @@
 //! Revalidated package-aware inputs handed from source custody to the compiler.
 
-use crate::resolution::closure_resolution::ResolvedPackageSourceClosure;
+use crate::resolution::package_closure::ResolvedPackageSourceClosure;
 use omega_package_compilation::{
     PackageCompilationInputError, PackageCompilationInputs, PackageDependencyBinding,
     PackageSourceBinding,
@@ -68,7 +68,7 @@ pub fn package_compilation_inputs_for(
 }
 
 fn binding_with_canonical_source_metadata(
-    custody: &crate::resolution::closure_resolution::PackageSourceCustody,
+    custody: &crate::resolution::package_closure::PackageSourceCustody,
     binding: PackageSourceBinding,
 ) -> Result<PackageSourceBinding, PackageCompilationInputError> {
     crate::resolution::source::capture_verified_package_source_snapshot(
@@ -117,13 +117,12 @@ pub(crate) fn reachable_package_keys(
 mod tests {
     use super::*;
     use crate::declarations::dependency_projection::DependencySourceRequest;
-    use crate::resolution::closure_resolution::{
-        PackageRootSourceRequest, PackageSourceCustody, resolve_package_source_closure,
-    };
     use crate::resolution::identity::{
         GitCommitId, GitTreeId, ImmutableSourceResolution, PackageKey, PackageName,
         SourceContentDigest, SourceLineage,
     };
+    use crate::resolution::package_closure::reconcile::resolve_package_source_closure;
+    use crate::resolution::package_closure::{PackageRootSourceRequest, PackageSourceCustody};
     use psi_checked_interpreter::CanonicalFilesystemMetadataRowKind;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};

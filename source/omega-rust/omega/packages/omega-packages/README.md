@@ -18,9 +18,11 @@ src/
 |-- declarations/          Read and conservatively edit build.omg.
 |-- resolution/
 |   |-- identity.rs        Package names, keys, lineages, and immutable pins.
-|   |-- closure_resolution.rs
-|   |                       Reconcile one complete dependency closure.
-|   |-- source_adapter.rs  Connect declarations to workspace, local, and Git sources.
+|   |-- closure/           Resolve and identify one complete package closure.
+|   |   |-- sources.rs     Connect declarations to workspace, local, and Git sources.
+|   |   |-- reconcile.rs   Reconcile the complete dependency closure.
+|   |   |-- graph.rs       Validate package nodes, edges, aliases, and reachability.
+|   |   `-- subject.rs     Canonically encode the exact resolved closure.
 |   `-- source/            Capture hostile source under resolver custody.
 |       |-- storage.rs     Private per-user storage and retained cache lanes.
 |       |-- local/         Local snapshot capture and authentication.
