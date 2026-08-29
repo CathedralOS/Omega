@@ -232,6 +232,10 @@ Its derived-metadata evidence service also has an explicit place-and-claim
 admission entrance above dominance/control-flow, declared-place, scalar-value,
 provenance, successor-edge, and ownership reconstruction leaves. This is a
 validation taxonomy, not a second rule catalog.
+Current-value-range validation exposes one fact-first entrance that preserves
+the validation-before-applicability order. Independent fact reconstruction,
+current-operation availability, canonical proof-goal mapping, and exact
+integer interval algebra descend into named evidence leaves.
 Liveness computation and pre-allocation machine-effect encoding also keep
 their broad fixtures in sibling test leaves, so production file size measures
 production responsibility.
