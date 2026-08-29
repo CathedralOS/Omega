@@ -1,7 +1,7 @@
 # Gamma language
 
 Gamma is the safe definitional language in the audited bootstrap spine. This
-document records the two bounded pre-Q14 surfaces exercised by `interp.beta`
+document records the two bounded pre-Q9 surfaces exercised by `interp.beta`
 and `typeck.beta`; it does not yet select the one typed executable contract that
 the canonical Beta-written Gamma compiler must implement. Both programs are
 semantic oracles and candidate implementation material, not compiler rungs.

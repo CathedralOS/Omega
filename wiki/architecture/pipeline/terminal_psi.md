@@ -3747,7 +3747,7 @@ owner-derived identity. The former metered object-container publication API was
 deleted because no supported consumer ended at that weaker checkpoint.
 Transfer-runtime plans must explicitly save the ABI rank carrier. Supplying an
 honest sponsor entry for this deliberately one-function artifact remains an
-owner decision (Q19), so schedule comparison does not invent a compiler-private
+owner decision (Q14, ranked native-fuel sponsor), so schedule comparison does not invent a compiler-private
 helper.
 
 Omega may use a certificate only for the exact installed terminal bytes,

@@ -552,10 +552,17 @@ symbol-resolved `ServiceReachRowId` values. Authored identifiers end in a
 syntax-to-resolved normalization sidecar after symbol assignment, row
 construction, and source-facing diagnostics; published resolved and typed
 records contain no parallel spelling contract.
-Build-script admission now consumes exact service reach and admits only the
-pinned canonical `FilesystemHost` and `Console` staging slots; custom boundary
-wrappers do not inherit admission from a category alias. Unknown service
-identifiers resolve normally; there is no global hard-coded service table.
+Build-script admission consumes compiler-owned Build-facet effects rather than
+granting special status to runtime library services. Source reads, staged-output
+writes, generated-source publication, and build logging are operations on the
+compiler-issued `BuildSource`, `BuildOutput`, and `BuildLog` facets. Their exact
+demands and observations compose through helpers into the free build root, and
+the filesystem sponsor enforces physical roots, limits, and custody. An ordinary
+boundary service reached from a build remains an ordinary runtime service and
+is not admitted because it is named `FilesystemHost`, `Console`, or anything
+similar. The older pinned std-service gate is implementation debt owned by
+`OPTIONAL-STDLIB-BUILD-PROTOCOL-AND-SEMANTIC-BINDINGS`; unknown service
+identifiers continue to resolve normally, with no global name table.
 
 ## Acceptance register
 

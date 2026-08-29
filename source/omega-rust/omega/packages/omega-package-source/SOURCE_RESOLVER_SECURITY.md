@@ -765,5 +765,5 @@ Linux native enforcement supply real inputs to strict-receipt reconstruction
 but do not by themselves make the resolver admissible. Complete Linux/Windows strict
 isolation, hostile same-user mutation, non-Windows aggregate and all during-write resource
 ceilings, cross-platform endpoint confinement, explicit SSH trust/credential
-custody (OWNER Q6),
+custody (OWNER Q5, strict SSH custody),
 and the remaining closed receipt rows remain open.

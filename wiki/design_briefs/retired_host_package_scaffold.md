@@ -17,9 +17,10 @@ and trust were fused into one declaration. Trailing `boundary host` /
 
 Current surfaces live in these places:
 
-- portable boundary traits and checked adapters: `source/library/std/`;
-- target-owned provider defaults and implementations:
-  `source/library/std/targets/`;
+- current optional portable boundary traits and checked adapters:
+  `source/library/std/`;
+- current target-owned provider defaults and implementations:
+  `source/library/std/targets/` (ordinary package layout, not a compiler role);
 - generic binding, calling-plan, admission, and selection machinery: the
   provider-plan implementation and its architecture briefs.
 

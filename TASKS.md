@@ -38,7 +38,7 @@ scanners, or receipts.
 
 ## Trusted-core simplification
 
-- [ ] **DESIGN-BLOCKED — Q13. KEEP-TERMINAL-VERIFICATION-NONSEARCHING.** Separate deterministic
+- [ ] **DESIGN-BLOCKED — OWNER Q12. KEEP-TERMINAL-VERIFICATION-NONSEARCHING.** Separate deterministic
   reconstruction of the complete Terminal-Psi obligation set from discovery
   of proof routes. The producer may search and must serialize the selected
   derivation. The verifier checks that explicit derivation against the
@@ -56,7 +56,7 @@ scanners, or receipts.
   malformed producer-selected edge rejects even when the verifier could have
   rediscovered a primitive route. Mirrored candidate selectors are test-only
   for these paths. Completion is language-design blocked on
-  [`Q13`](OWNER_QUESTIONS.md#q13--canonical-kernel-propositions-for-exact-scalar-operations):
+  [`Q12`](OWNER_QUESTIONS.md#q12--canonical-kernel-propositions-for-exact-scalar-operations):
   exact cast, exact shift-left representability, and exact add/subtract/multiply
   still have no settled canonical kernel proposition and therefore retain the
   legacy sufficient-form reducer.
@@ -585,7 +585,7 @@ Remaining:
   distinct strong identity. The standalone metered object-container publication
   API was deleted once it no longer strengthened a consumer edge. Transfer-
   runtime replay now additionally requires its exact activation slots to
-  preserve the ABI rank carrier. **OWNER-BLOCKED — Q15:** honest ranked runtime
+  preserve the ABI rank carrier. **OWNER-BLOCKED — Q14 (ranked native-fuel sponsor):** honest ranked runtime
   execution still needs a sponsor-ownership ruling: the binder requires an
   already-owned in-object sponsor function, while the admitted ranked artifact
   is exactly one countdown function and cannot use itself as sponsor. Native
@@ -1866,7 +1866,7 @@ Owners:
   consumer. Finish owned destruction/move-out evidence before returning
   `Granted & Vacant`.
   The first source-visible establishment carrier is design-blocked on
-  [OWNER_QUESTIONS.md Q3](OWNER_QUESTIONS.md#q3--source-result-schema-for-placed-view-establishment):
+  [OWNER_QUESTIONS.md Q2](OWNER_QUESTIONS.md#q2--source-result-schema-for-placed-view-establishment):
   the core operation signatures and nominal outcome/returned-row schema must
   be fixed before source typing can publish an owned `Placed<P, T>` call.
   Existing Rust admission and occurrence identifiers remain implementation
@@ -2666,7 +2666,7 @@ and unsupported atomic operations reject before code generation.
 
 Owners:
 
-- `wiki/architecture/pipeline/psi.md`
+- `wiki/architecture/pipeline/terminal_psi.md`
 - `wiki/design_briefs/canonical_ir_fuel_and_resource_provisioning.md`
 - `wiki/architecture/bootstrap_lattice/proof_kernel.md`
 
@@ -2902,7 +2902,7 @@ Remaining:
   extends the representation behind that seam; it must not add or retain a
   parallel source-to-native route. The detailed accepted
   vocabulary and current fences live in
-  [`psi.md`](wiki/architecture/pipeline/psi.md); do not
+  [`terminal_psi.md`](wiki/architecture/pipeline/terminal_psi.md); do not
   duplicate its operation-by-operation ledger here.
 
   Producer and verifier proof reconstruction independently own one mutable,
@@ -6475,7 +6475,7 @@ Owners:
   use legality, cleanup, Terminal resource row, or distinction between final
   retirement and discard. Promoting this classification to usable or Terminal
   authority is design-blocked on
-  [OWNER_QUESTIONS.md Q4](OWNER_QUESTIONS.md#q4--reborrow-restoration-disposition).
+  [OWNER_QUESTIONS.md Q3](OWNER_QUESTIONS.md#q3--reborrow-restoration-disposition).
 
   Loan formation freezes exact owner/place occurrences and evaluated range
   values. Every premise must dominate the formation event and be valid at the
@@ -9639,7 +9639,7 @@ Remaining N6/N8 work:
   Terminal replay remain fail-closed, so stage 3 is not complete and stage 4 remains
   open. Arithmetic `Expression` entailment is implemented; transport
   of quotient-domain membership and opaque proposition families is
-  language-design blocked on **OWNER_QUESTIONS Q2**. Q2 must settle the
+  language-design blocked on **OWNER_QUESTIONS Q1 (quotient transport authority)**. Q1 must settle the
   explicit selection locus, per-side transport/weakening application, and
   canonical theorem identity and replay evidence. Ambient domain linking,
   visibility search, or an opaque solver verdict cannot supply that authority.
@@ -9663,8 +9663,8 @@ Remaining N6/N8 work:
   ordinary `lower_machine` path. Ordinary validation still rejects every
   quotient request, one unsupported request prevents returning a partial
   batch, and no row owns a machine or executable operation. This
-  closes the module-retention prerequisite only: stage 3 is still incomplete
-  at Q9, while checked executable authorization and stage-4 operation/result
+  closes the module-retention prerequisite only: stage 3 is still incomplete,
+  while checked executable authorization and stage-4 operation/result
   lowering remain open.
 
   Every request intentionally remains non-executable. Complete admission in

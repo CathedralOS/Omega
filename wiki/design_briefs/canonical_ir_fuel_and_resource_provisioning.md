@@ -693,7 +693,7 @@ rejoins canonical installation plus source-free native-artifact custody. The
 installation does not serialize the derivable rebase record as a second truth.
 Transfer plans must preserve the exact ABI rank carrier in their activation
 slots. Honest ranked runtime execution remains owner-blocked on the ownership
-of a sponsor entry outside the deliberately one-function artifact (Q19).
+of a sponsor entry outside the deliberately one-function artifact (OWNER Q14).
 Acyclic segment checking is not widened.
 
 Every verifier, reduction-family, denotation-row, composition theorem, and

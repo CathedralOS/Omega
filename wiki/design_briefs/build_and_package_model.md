@@ -137,30 +137,31 @@ seals the instance. Spoof rejection for
 same-named packages from different source lineages remains an admission
 requirement until those joins are sealed.
 
-Each package may define:
+Each package may use the compiler-owned build facets:
 
 ```omega
-machine build(builder: &mut Build)
-    reaches FilesystemHost, Console
-    invokes FilesystemHost;
-    invokes Console;
-{
-    ...
+machine build(builder: &mut Build) {
+    let input = builder.source.read("inputs/table.txt");
+    builder.output.write_source("table.generated.omg", generate(input));
+    builder.log.write_line("generated table");
 }
 ```
 
 The tool reserves the first parameter as the build-activation handle,
-`builder: &mut Build`, and may inject additional explicitly declared service
-parameters. `Build` both exposes activation-scoped services and accumulates the
-durable build result; ephemeral capabilities never enter that normalized
-result. Console logging is a declared service call, not output silently
-intercepted by the interpreter.
+`builder: &mut Build`. `BuildSource`, `BuildOutput`, and `BuildLog` are
+compiler-owned, activation-scoped capabilities; they are not supplied by std or
+by a runtime provider. Their exact operations contribute build-effect and
+observation rows to the root contract, while ephemeral capabilities never enter
+the normalized build result. The sponsor separately enforces authenticated
+source reads, staged-output writes, path containment, limits, and custody.
 
-Unused build-host services are absent from the machine's ordinary
-`reaches`/`invokes` contract and are not supplied through its activation.
-Whether a particular one-purpose build service warrants a public boundary
-trait remains an implementation discovery; no service or authority is ambient
-either way.
+An ordinary boundary service is not a build-host service. Importing a library
+trait named `FilesystemHost` or `Console`, selecting a provider for it, or
+placing it in a helper does not cause the build activation to route it. Build
+logging is an explicit `BuildLog` operation and captured observation, not output
+silently intercepted by the interpreter. A future additional build-host effect
+requires a new compiler protocol operation and policy row; no service or
+authority is ambient.
 
 ## Code, not config grammar
 
@@ -229,10 +230,7 @@ column. No `DependencyCondition`, `depend_when`, condition string, or evaluated
 manifest path is introduced.
 
 ```omega
-machine build(builder: &mut Build)
-reaches FilesystemHost;
-invokes FilesystemHost;
-{
+machine build(builder: &mut Build) {
     builder.depend(Source::Path {
         location: "../../contracts/uefi"
     });
@@ -241,31 +239,22 @@ invokes FilesystemHost;
         Application::start
     );
 
-    let input: &[u8] in Path = builder.source.resolve("assets/font.bin");
-    let input_bytes: [u8; 4096];
-    let input_descriptor: i32 = builder.filesystem.open(input, 0);
-    let input_count: i64 = builder.filesystem.read(
-        input_descriptor,
-        &mut input_bytes,
-        4096
-    );
-    let input_close: i32 = builder.filesystem.close(input_descriptor);
-
-    let generated: &[u8] in Path = builder.output.resolve("font.generated.omg");
-    let output_descriptor: i32 = builder.filesystem.create(generated, 438);
-    let output_count: i64 = builder.filesystem.write(
-        output_descriptor,
+    let input = builder.source.read("assets/font.bin");
+    builder.output.write_source(
+        "font.generated.omg",
         "data GeneratedFont {}\n"
     );
-    let output_close: i32 = builder.filesystem.close(output_descriptor);
-    builder.output.include_source(generated);
 }
 ```
 
-`BuildSource::resolve`, `BuildOutput::resolve`, the ordinary `FilesystemHost`
-surface, and the exact `BuildOutput::include_source` handoff are implemented.
-The handoff accepts only an interpreter-retained Output-rooted path and becomes
-usable only after matching sponsored staged-tree custody. In package-aware
+The example uses the settled narrow surface; exact buffer-oriented spellings may
+vary as the implementation migrates. The legacy implementation currently joins
+`BuildSource::resolve` and `BuildOutput::resolve` to std's `Path` domain, routes
+I/O through `Build.filesystem: FilesystemHost`, and publishes through
+`BuildOutput::include_source`. That std seam is implementation debt: the final
+Build protocol owns its relative-path carrier, rooted read/write operations,
+generated-source publication, and log observations. The handoff remains usable
+only after matching sponsored staged-tree custody. In package-aware
 checked compilation, Omega executes the frozen build prepass once, appends the
 exact retained UTF-8 bytes under a compiler-owned `.omega/generated/...`
 logical source path, and runs one final ordinary frontend/check pass without
@@ -289,9 +278,11 @@ same-review custody mismatches reject. This carrier is neither canonical
 admission evidence nor a package instance and has no decoder or public
 constructor.
 
-The post-relocation filesystem-producing two-package canary remains blocked on
-the exact ordinary-package staging-authority role in OWNER Q1. A physical-path
-or spelling exception would invalidate the authority model; the lower-level
+The post-relocation filesystem-producing two-package canary remains blocked only
+on the Build-facet engineering migration in
+`OPTIONAL-STDLIB-BUILD-PROTOCOL-AND-SEMANTIC-BINDINGS`. It requires no
+ordinary-package staging-authority role. A physical-path, package-name, or
+spelling exception would invalidate the authority model; the lower-level
 generated-source custody and import path is independently tested without one.
 
 The dependency's own `builder.package("canonical-name")` declaration supplies
@@ -343,17 +334,17 @@ The build executor supplies two facets through the `Build` activation:
 - one immutable root for the exact package source occurrence; and
 - one fresh writable staging root for that build occurrence.
 
-When the checked build ceiling admits the exact toolchain filesystem service,
-the same activation also supplies it as `builder.filesystem`; no second
-receiver object or ambient local provider is involved. The service and both
-root facets disappear with the activation.
+The final protocol performs sponsored reads and writes through these facets
+themselves; it does not route std's runtime `FilesystemHost` into the build.
+Both facets and every handle derived from them disappear with the activation.
 
 These are authority-bearing root capabilities, not path strings and not fields
-of the durable build result. A source relative name becomes usable only after a
-checked route binds its ordinary `&[u8] in Path` bytes to one exact root
-occurrence. The resulting rooted path retains that root identity plus canonical
-relative bytes. A routed qualification may certify the completed resolution,
-but an erased domain over bare bytes cannot supply the missing root identity.
+of the durable build result. A source-relative name becomes usable only after a
+facet operation binds compiler-owned relative bytes to one exact root
+occurrence. The resulting internal rooted path retains that root identity plus
+canonical relative bytes. A routed qualification may certify completed
+resolution, but an erased domain over bare bytes cannot supply the missing root
+identity. Runtime std's `Path` domain is not part of this protocol.
 
 Resolution rejects absolute input, traversal beyond the root, ambiguous root
 membership, and symlink escape before host access. `canonicalize` and other
@@ -2962,8 +2953,21 @@ facing `omega.lock` custody.
 omission. It is the language: the checker cannot typecheck without it, its
 version is the language version, and two versions of it can never coexist in one
 graph, so welding it enforces something real instead of hoping a resolver agrees.
-`omega::language::std` is an ordinary fetchable package with its own version
-line, which freestanding builds already demonstrate is optional.
+`omega::language::std` has no corresponding privilege. It is one possible
+ordinary fetchable convenience package with its own version line; it may be
+replaced, split into narrower packages, omitted, or retired without changing
+the compiler's semantic contract. The compiler grants no authority from the
+name `std`, its source lineage, repository, path, filenames, or same-spelled
+declarations. Freestanding builds require no std, and the compiler-owned Build
+protocol must remain usable when no standard-library package exists.
+
+Where composition genuinely needs to recognize a declaration supplied by an
+ordinary package—currently target entry/profile integration and consumer risk
+classification—it binds the exact nominal declaration and normalized schema
+inside the accepted resolved closure. The binding does not bless the package,
+does not grant a provider or capability, and cannot be reconstructed from an
+alias or source location. Candidate designations guide confined review only;
+accepted bindings come from consumer policy.
 
 The first vertical implementation canary resolves the repository's real std
 directory as an ordinary local package, derives its default
@@ -3012,10 +3016,10 @@ compared before installation; it is not a standalone compiler escape hatch.
 ## Still open
 
 - workspace inheritance/ceiling details;
-- the minimum concrete representation of each build-host service after package
-  fixtures exercise it, including whether it needs a boundary trait at all;
-- which standard provider families are actually needed beyond
-  Filesystem/Console;
+- the minimum buffer-oriented spelling of the compiler-owned Build-facet
+  operations after package fixtures exercise them;
+- which optional library provider families are actually useful beyond the
+  current Filesystem/Console packages;
 - initial root policy profiles for volatile-capable, record-replayable, and
   source-rebuildable builds; and
 - UX for displaying the first failed provenance edge.

@@ -376,8 +376,10 @@ source-consumption commitment. The orchestration join rejects missing,
 duplicate, foreign, root-self, wrong-target, wrong-closure, and mismatched
 review/custody bundles. This handoff is ephemeral compiler custody, not lock or
 admission evidence. The real filesystem-producing package canary remains
-blocked on OWNER Q1's exact staging-authority package role after std relocation;
-no name/path compatibility exception is admitted.
+engineering-blocked on moving sponsored read/write operations from std's
+`FilesystemHost` onto the compiler-owned `BuildSource`/`BuildOutput` facets. It
+requires no staging-authority package role, and no name/path compatibility
+exception is admitted.
 
 Psi's target-neutral const-generic, fixed-array, const-domain, laid/placed
 layout, wire-policy, and calling-policy evaluators consume the same reconciled
