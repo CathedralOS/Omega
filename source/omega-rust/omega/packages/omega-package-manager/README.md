@@ -39,6 +39,13 @@ src/
 |       `-- custody/       Tree checks, host policy, locks, and atomic publication.
 |-- closure/               Resolve and identify one complete package closure.
 |   |-- traversal/         Connect declarations to workspace, local, and Git sources.
+|   |   |-- mod.rs         Root-source workflow facade and public entry points.
+|   |   |-- workspace.rs   Explicit workspace-member roots.
+|   |   |-- git.rs         Immutable Git roots and request matching.
+|   |   |-- external_local.rs Explicit local roots outside a workspace.
+|   |   |-- dependency_resolution.rs Resolve declared Path and Git edges.
+|   |   |-- cache.rs       Access retained source-storage lanes.
+|   |   `-- errors.rs      Public traversal failure vocabulary.
 |   |-- reconciliation/    Reconcile the complete dependency closure.
 |   |-- graph/             Validate package nodes, edges, aliases, and reachability.
 |   `-- subject/           Canonically encode the exact resolved closure.
