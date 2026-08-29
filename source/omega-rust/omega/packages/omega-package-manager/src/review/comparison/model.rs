@@ -2,6 +2,7 @@
 
 use super::format::{RenderByteCounter, render_conflict_set, review_role_token};
 use crate::identity::PackageKey;
+use crate::manifest::BuildDeclarationKind;
 use crate::resolution::DependencyRequestPath;
 use crate::review::records::ReviewOnlySourceConsumptionCommitment;
 use omega_package_review::evidence::{
@@ -120,6 +121,75 @@ pub enum ReviewOnlyCapabilityConflictChange {
     Removed,
     Changed,
 }
+
+/// Exact compatibility contract broken by changing the selected project root's
+/// authored role without changing its package identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ReviewOnlyRootRoleContract {
+    DependencyCompatibility,
+    ApplicationActivation,
+}
+
+impl ReviewOnlyRootRoleContract {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::DependencyCompatibility => "dependency-compatibility",
+            Self::ApplicationActivation => "application-activation",
+        }
+    }
+}
+
+/// Directional review result for one stable root key whose authored role
+/// changed. This is blocking review evidence, not an admission decision.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewOnlyRootRoleChange {
+    pub(super) root: PackageKey,
+    pub(super) baseline_role: BuildDeclarationKind,
+    pub(super) candidate_role: BuildDeclarationKind,
+    pub(super) broken_contract: ReviewOnlyRootRoleContract,
+}
+
+impl ReviewOnlyRootRoleChange {
+    pub fn root(&self) -> &PackageKey {
+        &self.root
+    }
+
+    pub const fn baseline_role(&self) -> BuildDeclarationKind {
+        self.baseline_role
+    }
+
+    pub const fn candidate_role(&self) -> BuildDeclarationKind {
+        self.candidate_role
+    }
+
+    pub const fn broken_contract(&self) -> ReviewOnlyRootRoleContract {
+        self.broken_contract
+    }
+
+    pub const fn is_blocking(&self) -> bool {
+        true
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReviewOnlyRootRoleComparisonError {
+    RootIdentityMismatch {
+        baseline: Box<PackageKey>,
+        candidate: Box<PackageKey>,
+    },
+}
+
+impl fmt::Display for ReviewOnlyRootRoleComparisonError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::RootIdentityMismatch { .. } => formatter.write_str(
+                "root-role comparison requires one stable package key across baseline and candidate",
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ReviewOnlyRootRoleComparisonError {}
 
 /// Domain-separated identity for one exact review-time row conflict.
 ///

@@ -135,7 +135,10 @@ role. A package-only construction is explicit, workspace role rejects, and
 independent compilation of a non-root node uses the package role already
 established by dependency admission. Source-consumption v3 and production-
 manifest v2 identities bind the role rather than allowing package and
-application roots with otherwise equal graphs and bytes to collapse.
+application roots with otherwise equal graphs and bytes to collapse. Candidate-
+closure commitment v4 binds it independently. Baseline comparison reports the
+directional broken contract: package to application loses dependency
+compatibility, while application to package loses activation compatibility.
 
 `PackageInstance` additionally binds exact source content, produced artifact
 identity, each closure subject's obligation-semantics identity, locally

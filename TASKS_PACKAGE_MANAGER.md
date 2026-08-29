@@ -316,15 +316,18 @@ explicitly.
   sources. Compiler handoff retains the same `BuildDeclarationKind` in
   `PackageCompilationInputs`, its source-path-free dependency closure, and
   ordinary obligation-ledger v2 recovery. Source-consumption v3 and production
-  manifest v2 identities bind it; package-only callers use the explicit
-  `new_package` constructor.
+  manifest v2 identities bind it; candidate-closure commitment v4 binds it too.
+  Baseline-to-candidate review compares package-to-application as lost
+  dependency compatibility and application-to-package as lost activation
+  compatibility. Package-only callers use the explicit `new_package`
+  constructor.
 
   Remaining work:
 
   - retain `{ PackageKey, BuildDeclarationKind }` through accepted lock rows,
     command diagnostics, and audit output;
-  - compare root-role changes directionally and add package/application replay,
-    tampering, and role-change fixtures at each downstream boundary.
+  - add package/application replay, tampering, and role-change fixtures as each
+    accepted-lock, command, and audit boundary lands.
 
 - [ ] **PACKAGE-NATIVE-GENERATED-SOURCE-TRANSACTION.**
   Route native-image production through the sponsored package transaction

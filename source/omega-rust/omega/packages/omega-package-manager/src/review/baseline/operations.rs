@@ -5,11 +5,13 @@ use crate::identity::PackageKey;
 use crate::resolution::{PackageSourceCustody, ResolvedPackageSourceClosure};
 use crate::review::audit_input::assemble_update_source_review_records;
 use crate::review::comparison::compare_review_only_capability_records;
+use crate::review::comparison::compare_review_only_root_role_graphs;
 use crate::review::triage::triage_review_update_records;
 use crate::review::{
     CompilerIssuedPackageReviewSet, CompilerReviewTriage, PackageSourceReviewError,
     PackageSourceReviewInput, PackageSourceReviewLimits, ReviewOnlyCapabilityConflictError,
-    ReviewOnlyCapabilityConflictLimits, ReviewOnlyCapabilityConflictSet,
+    ReviewOnlyCapabilityConflictLimits, ReviewOnlyCapabilityConflictSet, ReviewOnlyRootRoleChange,
+    ReviewOnlyRootRoleComparisonError,
 };
 use std::collections::BTreeSet;
 
@@ -25,6 +27,13 @@ pub fn compare_review_only_capabilities_from_baseline(
         candidate_sources,
         limits,
     )
+}
+
+pub fn compare_review_only_root_role_from_baseline(
+    baseline: &ReviewOnlyBaselineCapsule,
+    candidate_sources: &ResolvedPackageSourceClosure,
+) -> Result<Option<ReviewOnlyRootRoleChange>, ReviewOnlyRootRoleComparisonError> {
+    compare_review_only_root_role_graphs(baseline.graph(), candidate_sources.graph())
 }
 
 pub fn triage_review_update_from_baseline(

@@ -11,7 +11,7 @@ pub use capsule::{ReviewOnlyBaselineCapsule, ReviewOnlyBaselinePackage};
 pub use model::{ReviewOnlyBaselineError, ReviewOnlyBaselineLimits};
 pub use operations::{
     assemble_update_source_review_from_baseline, compare_review_only_capabilities_from_baseline,
-    triage_review_update_from_baseline,
+    compare_review_only_root_role_from_baseline, triage_review_update_from_baseline,
 };
 pub use storage::{
     ReviewOnlyBaselineDirectory, ReviewOnlyBaselineFileError, ReviewOnlyBaselineName,

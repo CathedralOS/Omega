@@ -21,14 +21,16 @@ pub use baseline::{
     ReviewOnlyBaselineFileError, ReviewOnlyBaselineLimits, ReviewOnlyBaselineName,
     ReviewOnlyBaselineNameError, ReviewOnlyBaselinePackage,
     assemble_update_source_review_from_baseline, compare_review_only_capabilities_from_baseline,
-    triage_review_update_from_baseline,
+    compare_review_only_root_role_from_baseline, triage_review_update_from_baseline,
 };
 pub use comparison::{
     ReviewOnlyCandidateClosureCommitment, ReviewOnlyCapabilityConflict,
     ReviewOnlyCapabilityConflictChange, ReviewOnlyCapabilityConflictError,
     ReviewOnlyCapabilityConflictFingerprint, ReviewOnlyCapabilityConflictLimits,
     ReviewOnlyCapabilityConflictRenderError, ReviewOnlyCapabilityConflictSet,
-    ReviewOnlyPackageCapabilityConflicts, ReviewSetRole, compare_review_only_capabilities,
+    ReviewOnlyPackageCapabilityConflicts, ReviewOnlyRootRoleChange,
+    ReviewOnlyRootRoleComparisonError, ReviewOnlyRootRoleContract, ReviewSetRole,
+    compare_review_only_capabilities,
 };
 
 pub use compilation::{

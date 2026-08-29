@@ -3,7 +3,10 @@
 use super::commitments::{derive_candidate_closure_commitment, derive_conflict_fingerprint};
 use super::model::*;
 use crate::identity::PackageKey;
-use crate::resolution::{DependencyRequestPath, ResolvedPackageSourceClosure};
+use crate::manifest::BuildDeclarationKind;
+use crate::resolution::{
+    DependencyRequestPath, ResolvedPackageClosure, ResolvedPackageSourceClosure,
+};
 use crate::review::CompilerIssuedPackageReviewSet;
 use crate::review::records::validation::{
     ReviewOnlyClosureValidationError, ReviewOnlySetValidationError, validate_review_only_closure,
@@ -14,6 +17,35 @@ use omega_package_review::evidence::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
 };
 use std::cmp::Ordering;
+
+pub(crate) fn compare_review_only_root_role_graphs(
+    baseline: &ResolvedPackageClosure,
+    candidate: &ResolvedPackageClosure,
+) -> Result<Option<ReviewOnlyRootRoleChange>, ReviewOnlyRootRoleComparisonError> {
+    if baseline.root() != candidate.root() {
+        return Err(ReviewOnlyRootRoleComparisonError::RootIdentityMismatch {
+            baseline: Box::new(baseline.root().clone()),
+            candidate: Box::new(candidate.root().clone()),
+        });
+    }
+    let baseline_role = baseline.root_role();
+    let candidate_role = candidate.root_role();
+    let broken_contract = match (baseline_role, candidate_role) {
+        (BuildDeclarationKind::Package, BuildDeclarationKind::Application) => {
+            ReviewOnlyRootRoleContract::DependencyCompatibility
+        }
+        (BuildDeclarationKind::Application, BuildDeclarationKind::Package) => {
+            ReviewOnlyRootRoleContract::ApplicationActivation
+        }
+        _ => return Ok(None),
+    };
+    Ok(Some(ReviewOnlyRootRoleChange {
+        root: baseline.root().clone(),
+        baseline_role,
+        candidate_role,
+        broken_contract,
+    }))
+}
 
 pub fn compare_review_only_capabilities(
     baseline: &CompilerIssuedPackageReviewSet,
