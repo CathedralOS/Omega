@@ -43,11 +43,20 @@ fn resolve_git_package_closure_from_lanes(
     local_cache: SourceCacheLane<'_>,
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
+    application_root_allowed: bool,
 ) -> Result<ResolvedPackageSourceClosure, ResolveGitPackageClosureError> {
     let mut git_acquisitions = GitAcquisitionCache::default();
-    let root = git_acquisitions
-        .resolve_selected(request, git_cache, workspace_cache, source_limits)
-        .map_err(ResolveGitPackageClosureError::Root)?;
+    let root = if application_root_allowed {
+        git_acquisitions.resolve_selected_project(
+            request,
+            git_cache,
+            workspace_cache,
+            source_limits,
+        )
+    } else {
+        git_acquisitions.resolve_selected(request, git_cache, workspace_cache, source_limits)
+    }
+    .map_err(ResolveGitPackageClosureError::Root)?;
     if !git_package_root_request_matches(request, &root) {
         return Err(ResolveGitPackageClosureError::RootRequestMismatch);
     }
@@ -93,6 +102,22 @@ pub fn resolve_git_package_closure_with_storage(
     )
 }
 
+/// Resolve a repository-root Git project. The selected root may be a package
+/// or application; every dependency remains package-only.
+pub fn resolve_git_project_closure_with_storage(
+    request: &GitSourceRequest,
+    storage: &SourceResolverStorage,
+    source_limits: LocalSourceLimits,
+    closure_limits: PackageSourceClosureLimits,
+) -> Result<ResolvedPackageSourceClosure, ResolveGitPackageClosureError> {
+    resolve_selected_git_project_closure_with_storage(
+        &GitPackageSourceRequest::root(request.clone()),
+        storage,
+        source_limits,
+        closure_limits,
+    )
+}
+
 /// Resolve one explicitly selected package from a Git repository and its closure.
 pub fn resolve_selected_git_package_closure_with_storage(
     request: &GitPackageSourceRequest,
@@ -110,6 +135,33 @@ pub fn resolve_selected_git_package_closure_with_storage(
         SourceCacheLane::Retained(storage.external_local_sources()),
         source_limits,
         closure_limits,
+        false,
+    );
+    storage.verify_path_identity().map_err(|error| {
+        ResolveGitPackageClosureError::Root(ResolvePackageSourceError::Source(error))
+    })?;
+    result
+}
+
+/// Resolve one explicitly selected Git project root. Named workspace members
+/// may be packages or applications at this root boundary.
+pub fn resolve_selected_git_project_closure_with_storage(
+    request: &GitPackageSourceRequest,
+    storage: &SourceResolverStorage,
+    source_limits: LocalSourceLimits,
+    closure_limits: PackageSourceClosureLimits,
+) -> Result<ResolvedPackageSourceClosure, ResolveGitPackageClosureError> {
+    storage.verify_path_identity().map_err(|error| {
+        ResolveGitPackageClosureError::Root(ResolvePackageSourceError::Source(error))
+    })?;
+    let result = resolve_git_package_closure_from_lanes(
+        request,
+        SourceCacheLane::Retained(storage.workspace_members()),
+        SourceCacheLane::Retained(storage.git_sources()),
+        SourceCacheLane::Retained(storage.external_local_sources()),
+        source_limits,
+        closure_limits,
+        true,
     );
     storage.verify_path_identity().map_err(|error| {
         ResolveGitPackageClosureError::Root(ResolvePackageSourceError::Source(error))

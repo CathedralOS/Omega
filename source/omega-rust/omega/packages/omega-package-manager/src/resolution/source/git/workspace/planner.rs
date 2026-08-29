@@ -106,12 +106,18 @@ pub fn plan_git_workspace_selection(
                 error,
             }
         })?;
-        let BuildDeclaration::Package(package) = declaration else {
-            return Err(GitWorkspaceSelectionError::WrongRole {
-                repository_path,
-                expected: BuildDeclarationKind::Package,
-                found: declaration.kind(),
-            });
+        let (project_name, role) = match declaration {
+            BuildDeclaration::Package(package) => (package.name, BuildDeclarationKind::Package),
+            BuildDeclaration::Application(application) => {
+                (application.name, BuildDeclarationKind::Application)
+            }
+            BuildDeclaration::Workspace(_) => {
+                return Err(GitWorkspaceSelectionError::WrongRole {
+                    repository_path,
+                    expected: BuildDeclarationKind::Package,
+                    found: BuildDeclarationKind::Workspace,
+                });
+            }
         };
         validate_static_dependency_source(source).map_err(|error| {
             GitWorkspaceSelectionError::StaticDependencyProjection {
@@ -119,12 +125,13 @@ pub fn plan_git_workspace_selection(
                 error,
             }
         })?;
-        if &package.name == selected_package {
+        if &project_name == selected_package {
             matches.push(member_path.clone());
         }
         members.push(GitWorkspaceMemberPlan::new(
             member_path,
-            package.name,
+            project_name,
+            role,
             BuildDeclarationEvidence::from_bytes(repository_path, bytes),
         ));
     }

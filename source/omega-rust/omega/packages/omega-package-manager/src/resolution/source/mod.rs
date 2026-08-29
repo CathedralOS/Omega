@@ -20,10 +20,12 @@ pub use error::ResolvePackageSourceError;
 #[cfg(test)]
 pub(crate) use git::resolve_git_package_source;
 pub(crate) use git::resolve_selected_git_package_source_from_pin_in_lanes;
+pub(crate) use git::resolve_selected_git_project_source_from_pin_in_lanes;
 pub(crate) use git::workspace::{GitWorkspaceSelectionDeclarations, GitWorkspaceSelectionEvidence};
 pub use git::{
     GitPackageSourceRequest, resolve_git_package_source_with_storage,
     resolve_selected_git_package_source_with_storage,
+    resolve_selected_git_project_source_with_storage,
 };
 #[cfg(test)]
 pub(crate) use local::resolve_external_local_package_source;
@@ -41,7 +43,11 @@ pub use selection::{PackageSourceSelectionEvidence, PackageSourceSelectionEviden
 #[cfg(test)]
 pub(crate) use workspace::resolve_workspace_member_package_source;
 pub(crate) use workspace::resolve_workspace_member_package_source_in_lane;
-pub use workspace::resolve_workspace_member_package_source_with_storage;
+pub(crate) use workspace::resolve_workspace_member_project_source_in_lane;
+pub use workspace::{
+    resolve_workspace_member_package_source_with_storage,
+    resolve_workspace_member_project_source_with_storage,
+};
 
 #[cfg(test)]
 mod tests;

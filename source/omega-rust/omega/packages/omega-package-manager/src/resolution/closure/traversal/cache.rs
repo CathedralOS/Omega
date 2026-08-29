@@ -2,7 +2,9 @@ use crate::resolution::source::{
     GitPackageSourceRequest, ResolvePackageSourceError, ResolvedPackageSource,
     resolve_external_local_package_source_in_lane, resolve_external_local_project_source_in_lane,
     resolve_selected_git_package_source_from_pin_in_lanes,
+    resolve_selected_git_project_source_from_pin_in_lanes,
     resolve_workspace_member_package_source_in_lane,
+    resolve_workspace_member_project_source_in_lane,
 };
 use omega_package_source::storage::RetainedStorageLane;
 use omega_package_source::{ExternalSourceContext, SourceLineage, SourceRelativePath};
@@ -34,13 +36,38 @@ impl GitAcquisitionCache {
         member_cache: SourceCacheLane<'_>,
         limits: LocalSourceLimits,
     ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
+        self.resolve_selected_with_role(request, git_cache, member_cache, limits, false)
+    }
+
+    pub(super) fn resolve_selected_project(
+        &mut self,
+        request: &GitPackageSourceRequest,
+        git_cache: SourceCacheLane<'_>,
+        member_cache: SourceCacheLane<'_>,
+        limits: LocalSourceLimits,
+    ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
+        self.resolve_selected_with_role(request, git_cache, member_cache, limits, true)
+    }
+
+    fn resolve_selected_with_role(
+        &mut self,
+        request: &GitPackageSourceRequest,
+        git_cache: SourceCacheLane<'_>,
+        member_cache: SourceCacheLane<'_>,
+        limits: LocalSourceLimits,
+        application_root_allowed: bool,
+    ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
         let limits = limits.compiler_bounded();
         if let Some((_, resolved)) = self
             .selected
             .iter()
             .find(|(selected, _)| selected == request)
         {
-            return Ok(resolved.clone());
+            if application_root_allowed
+                || resolved.role() == crate::manifest::BuildDeclarationKind::Package
+            {
+                return Ok(resolved.clone());
+            }
         }
         let pin = self
             .pins
@@ -49,13 +76,23 @@ impl GitAcquisitionCache {
             .map(|(_, pin)| pin);
         let SourceCacheLane::Retained(git_lane) = git_cache;
         let SourceCacheLane::Retained(member_lane) = member_cache;
-        let resolved = resolve_selected_git_package_source_from_pin_in_lanes(
-            request,
-            pin,
-            git_lane,
-            member_lane,
-            limits,
-        )?;
+        let resolved = if application_root_allowed {
+            resolve_selected_git_project_source_from_pin_in_lanes(
+                request,
+                pin,
+                git_lane,
+                member_lane,
+                limits,
+            )
+        } else {
+            resolve_selected_git_package_source_from_pin_in_lanes(
+                request,
+                pin,
+                git_lane,
+                member_lane,
+                limits,
+            )
+        }?;
         if pin.is_none() {
             self.pins.push((
                 request.acquisition().clone(),
@@ -107,6 +144,24 @@ pub(super) fn resolve_workspace_member_from_cache(
 ) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
     match cache {
         SourceCacheLane::Retained(lane) => resolve_workspace_member_package_source_in_lane(
+            workspace_root_source,
+            member_path,
+            live_workspace_root,
+            lane,
+            limits,
+        ),
+    }
+}
+
+pub(super) fn resolve_workspace_member_project_from_cache(
+    workspace_root_source: &SourceLineage,
+    member_path: SourceRelativePath,
+    live_workspace_root: impl AsRef<Path>,
+    cache: SourceCacheLane<'_>,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
+    match cache {
+        SourceCacheLane::Retained(lane) => resolve_workspace_member_project_source_in_lane(
             workspace_root_source,
             member_path,
             live_workspace_root,

@@ -100,9 +100,12 @@ the nominal identity substrate, not merely new aliases.
 Package and application roots share `PackageKey`; their explicit
 `BuildDeclarationKind` is carried separately. The existing root/non-root binding
 rule admits either role only at the selected root and requires every dependency
-edge to resolve to a package. Resolution must retain the admitted root role in
-closure, lock, review, compiler-handoff, and audit evidence instead of coercing
-an application declaration into a package declaration after admission.
+edge to resolve to a package. External-local, Git, named Git member, and
+workspace entry points expose this distinction explicitly: package entry points
+reject applications, while project-root entry points retain either admissible
+role. Resolution must carry that role through closure, lock, review,
+compiler-handoff, and audit evidence instead of coercing an application
+declaration into a package declaration after admission.
 
 Workspaces are member catalogs, not keyed graph nodes. Each selected application
 member forms its own closure; membership alone does not combine applications or
@@ -115,8 +118,8 @@ composition may use ordinary helpers borrowing `&mut Build`, with their complete
 transitive contracts retained against the root.
 
 Canonical source-closure encoding v4 binds the selected root's explicit role,
-root and dependency selectors, plus
-one stable navigation value for every package. Review revalidates the complete
+root and dependency selectors, plus one stable navigation value for every
+package. Review revalidates the complete
 authenticated repository commitment before opening a selected member subtree;
 it never compares a member-only digest to the repository digest.
 Operational custody separately retains the selected package materialization
