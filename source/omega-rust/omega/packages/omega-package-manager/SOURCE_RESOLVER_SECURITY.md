@@ -564,7 +564,10 @@ work is not a hard wall-clock guarantee. Overflow and timeout reject explicitly
 once cleanup returns, including for blob reads. On Linux this process container
 floor is not an OS sandbox: a hostile Unix descendant may deliberately escape
 into another session. The macOS Seatbelt floor adds phase-specific native
-confinement but not endpoint, read-scope, or aggregate-resource custody.
+confinement, including endpoint confinement and phase-specific read scope for
+initialization, inspection, and HTTPS discovery/fetch. SSH read scope remains
+broad pending explicit host-trust and credential custody, and aggregate-resource
+custody remains incomplete.
 Depth-one fetch limits history amplification but does not enforce an object-
 store quota. The broker enforces its whole-resolution transfer ceiling on all
 routed traffic; Linux/Windows cannot yet prevent direct helper egress around

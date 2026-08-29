@@ -89,9 +89,9 @@ pub(super) fn assign_statement_symbols(
                 symbols,
             );
             let provider_selection = call.target.as_str() == "select_provider";
-            for argument in &mut call.machine_arguments {
+            for (index, argument) in call.machine_arguments.iter_mut().enumerate() {
                 if provider_selection {
-                    assign_provider_selection_argument_symbol(symbols, argument);
+                    assign_provider_selection_argument_symbol(symbols, argument, index == 0);
                 } else {
                     assign_static_argument_symbols(symbols, machine.symbol, argument, false);
                 }

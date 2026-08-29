@@ -440,7 +440,10 @@ fn package_selection(
     provider_package: psi_core::PackageKeyIdentity,
 ) -> crate::ProviderSelection {
     let mut selection = crate::ProviderSelection::exact_for_test(boundary_trait, provider_type);
-    selection.boundary_trait.package = Some(boundary_package);
+    let crate::ProviderSelectionSubject::BoundaryTrait(subject) = &mut selection.subject else {
+        panic!("package selection fixture uses one boundary trait")
+    };
+    subject.package = Some(boundary_package);
     selection.provider_type.package = Some(provider_package);
     selection
 }
@@ -1629,6 +1632,120 @@ fn explicit_selection_resolves_covering_ambiguity_by_provider_type() {
         selected_plan_names(&selected),
         vec!["SecondProvider".to_owned()]
     );
+}
+
+fn operator_coordinate_plan(name: &str, coordinate: &str, provider_type: &str) -> ProviderPlan {
+    let mut plan = selection_plan(name, &["invoke"], &["invoke"]);
+    plan.schema.trait_name = coordinate.to_owned();
+    plan.provider_type = provider_type.to_owned();
+    plan
+}
+
+#[test]
+fn operator_family_selection_atomically_selects_every_exact_coordinate() {
+    let first_coordinate = "operator::Math::convert(i32)->i64";
+    let second_coordinate = "operator::Math::convert(u32)->u64";
+    let plans = [
+        operator_coordinate_plan("signed-convert", first_coordinate, "MathProvider"),
+        operator_coordinate_plan("unsigned-convert", second_coordinate, "MathProvider"),
+    ];
+
+    let selected = select_provider_plans(
+        &plans,
+        omega_target::NativeTarget::host(),
+        &[],
+        &[crate::ProviderSelection::operator_family_for_test(
+            "Math::convert",
+            "MathProvider",
+            &[second_coordinate, first_coordinate],
+        )],
+    )
+    .expect("one family declaration selects its complete exact coordinate roster");
+
+    assert_eq!(
+        selected_plan_names(&selected),
+        vec!["signed-convert".to_owned(), "unsigned-convert".to_owned()]
+    );
+}
+
+#[test]
+fn operator_family_selection_rejects_when_one_coordinate_lacks_the_provider() {
+    let first_coordinate = "operator::Math::convert(i32)->i64";
+    let second_coordinate = "operator::Math::convert(u32)->u64";
+    let plans = [
+        operator_coordinate_plan("signed-convert", first_coordinate, "MathProvider"),
+        operator_coordinate_plan("unsigned-convert", second_coordinate, "OtherProvider"),
+    ];
+
+    let diagnostics = select_provider_plans(
+        &plans,
+        omega_target::NativeTarget::host(),
+        &[],
+        &[crate::ProviderSelection::operator_family_for_test(
+            "Math::convert",
+            "MathProvider",
+            &[first_coordinate, second_coordinate],
+        )],
+    )
+    .expect_err("a family selection cannot admit only its satisfiable subset");
+
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(second_coordinate)
+            && diagnostic
+                .message
+                .contains("no candidate exists in the loaded dependency closure")
+    }));
+}
+
+#[test]
+fn operator_family_selection_canonicalizes_coordinate_order() {
+    let first_coordinate = "operator::Math::convert(i32)->i64";
+    let second_coordinate = "operator::Math::convert(u32)->u64";
+    let selection = crate::ProviderSelection::operator_family_for_test(
+        "Math::convert",
+        "MathProvider",
+        &[second_coordinate, first_coordinate],
+    );
+    let crate::ProviderSelectionSubject::BoundaryOperatorFamily(family) = selection.subject else {
+        panic!("operator-family fixture must retain a family subject")
+    };
+
+    assert_eq!(
+        family
+            .coordinates()
+            .iter()
+            .map(|coordinate| coordinate.requirement_identity.as_str())
+            .collect::<Vec<_>>(),
+        vec![first_coordinate, second_coordinate]
+    );
+}
+
+#[test]
+fn operator_family_selection_rejects_an_unknown_exact_coordinate() {
+    let known_coordinate = "operator::Math::convert(i32)->i64";
+    let unknown_coordinate = "operator::Math::convert(u32)->u64";
+    let plans = [operator_coordinate_plan(
+        "signed-convert",
+        known_coordinate,
+        "MathProvider",
+    )];
+
+    let diagnostics = select_provider_plans(
+        &plans,
+        omega_target::NativeTarget::host(),
+        &[],
+        &[crate::ProviderSelection::operator_family_for_test(
+            "Math::convert",
+            "MathProvider",
+            &[known_coordinate, unknown_coordinate],
+        )],
+    )
+    .expect_err("the complete compiler-derived family roster must exist");
+
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(unknown_coordinate)
+            && diagnostic.message.contains("subject `Math::convert`")
+    }));
 }
 
 #[test]
