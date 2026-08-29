@@ -82,3 +82,63 @@ fn resolves_repository_root_git_closure_and_retains_the_exact_request() {
     let _ = std::fs::remove_dir_all(repository);
     let _ = std::fs::remove_dir_all(cache);
 }
+
+#[test]
+fn named_git_selection_rejects_before_resolving_an_unbound_member() {
+    let repository = temp_root("git-named-selection-root");
+    let cache = temp_root("git-named-selection-cache");
+    std::fs::create_dir_all(&repository).expect("create root repository");
+    std::fs::write(
+        repository.join("build.omg"),
+        r#"
+machine build(builder: &mut Build) {
+    builder.package("network-root");
+    builder.depend(Source::Git {
+        repository: "https://github.com/CathedralOS/workspace.git",
+        revision: "main",
+        selection: PackageSelection::Named { package: "matrix" }
+    });
+}
+"#,
+    )
+    .expect("write root build");
+    std::fs::write(repository.join("main.omg"), "machine root() {}\n").expect("write root source");
+    run_test_git(&repository, ["init", "--quiet"]);
+    run_test_git(
+        &repository,
+        ["config", "user.email", "omega@example.invalid"],
+    );
+    run_test_git(&repository, ["config", "user.name", "Omega Tests"]);
+    run_test_git(&repository, ["add", "."]);
+    run_test_git(&repository, ["commit", "--quiet", "-m", "root"]);
+    let request = GitSourceRequest::for_local_test_repository_with_lineage(
+        &repository,
+        None,
+        "https://github.com/CathedralOS/network-root.git",
+    )
+    .expect("validated local Git root request");
+    let storage = SourceResolverStorage::for_hardened_base(&cache)
+        .expect("create retained Git resolver storage");
+
+    let error = resolve_git_package_closure_with_storage(
+        &request,
+        &storage,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .unwrap_err();
+    assert!(matches!(
+        error,
+        ResolveGitPackageClosureError::Closure(
+            PackageSourceClosureResolutionError::Adapter {
+                error: ResolveDependencySourceError::NamedGitPackageSelectionUnavailable {
+                    package
+                },
+                ..
+            }
+        ) if package.as_str() == "matrix"
+    ));
+
+    let _ = std::fs::remove_dir_all(repository);
+    let _ = std::fs::remove_dir_all(cache);
+}

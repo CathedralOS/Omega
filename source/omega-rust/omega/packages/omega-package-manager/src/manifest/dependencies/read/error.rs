@@ -29,6 +29,12 @@ pub enum DependencyProjectionError {
     WrongSourceFields { case_name: String },
     SourceFieldNotString { field: String },
     SourceFieldNotUtf8 { field: String },
+    SelectionNotLiteral,
+    WrongSelectionType,
+    MissingSelectionCase,
+    UnsupportedSelectionCase { case_name: String },
+    WrongSelectionFields { case_name: String },
+    InvalidSelectedPackage { package: String },
 }
 
 impl fmt::Display for DependencyProjectionError {
@@ -107,6 +113,27 @@ impl fmt::Display for DependencyProjectionError {
             Self::SourceFieldNotUtf8 { field } => {
                 write!(formatter, "dependency source field `{field}` must contain UTF-8 bytes")
             }
+            Self::SelectionNotLiteral => formatter.write_str(
+                "Git package selection must be a direct `PackageSelection::Root` or `PackageSelection::Named` literal",
+            ),
+            Self::WrongSelectionType => {
+                formatter.write_str("Git package selection literal must construct `PackageSelection`")
+            }
+            Self::MissingSelectionCase => formatter.write_str(
+                "Git package selection must select `PackageSelection::Root` or `PackageSelection::Named`",
+            ),
+            Self::UnsupportedSelectionCase { case_name } => write!(
+                formatter,
+                "unsupported Git package selection case `PackageSelection::{case_name}`"
+            ),
+            Self::WrongSelectionFields { case_name } => write!(
+                formatter,
+                "`PackageSelection::{case_name}` has noncanonical fields"
+            ),
+            Self::InvalidSelectedPackage { package } => write!(
+                formatter,
+                "selected package `{package}` must use canonical kebab-case spelling"
+            ),
         }
     }
 }

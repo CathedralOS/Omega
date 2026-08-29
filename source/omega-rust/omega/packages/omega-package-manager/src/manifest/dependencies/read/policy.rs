@@ -1,6 +1,6 @@
 use super::error::DependencyProjectionError;
 use super::projection::{DEPEND_AS_MACHINE_NAME, DEPEND_MACHINE_NAME};
-use super::source_literal::SOURCE_TYPE_NAME;
+use super::source_literal::{PACKAGE_SELECTION_TYPE_NAME, SOURCE_TYPE_NAME};
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use psi_syntax_trees::item::Item;
@@ -13,7 +13,12 @@ pub(super) fn reject_authored_toolchain_vocabulary(
 ) -> Result<(), DependencyProjectionError> {
     for item in syntax_trees.root_items() {
         match package_authored_type_name(item) {
-            Some(name) if matches!(machine_leaf_name(name), BUILD_TYPE_NAME | SOURCE_TYPE_NAME) => {
+            Some(name)
+                if matches!(
+                    machine_leaf_name(name),
+                    BUILD_TYPE_NAME | SOURCE_TYPE_NAME | PACKAGE_SELECTION_TYPE_NAME
+                ) =>
+            {
                 return Err(DependencyProjectionError::AuthoredToolchainVocabulary {
                     name: machine_leaf_name(name).to_owned(),
                 });

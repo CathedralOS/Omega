@@ -1,7 +1,7 @@
 //! Canonical closure-identity model and construction.
 
 use super::super::{ResolvedPackageSourceClosure, ResolvedSourceIdentity};
-use crate::manifest::dependencies::read::DependencySourceRequest;
+use crate::manifest::dependencies::read::{DependencySourceRequest, PackageSelection};
 use omega_package_source::{
     AliasName, ExternalSourceContext, PackageKey, PackageName, SourceLineage, WorkspaceMemberPath,
 };
@@ -19,7 +19,7 @@ use encoding::{
 use validation::{canonical_root_request, validate_subject};
 
 const SOURCE_CLOSURE_SUBJECT_MAGIC: &[u8] = b"OMEGA-SOURCE-CLOSURE-SUBJECT\0";
-pub const SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION: u16 = 1;
+pub const SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION: u16 = 2;
 const SOURCE_CLOSURE_SUBJECT_FINGERPRINT_DOMAIN: &[u8] =
     b"OMEGA-SOURCE-CLOSURE-SUBJECT-FINGERPRINT\0";
 const ABSOLUTE_RECORD_BYTE_LIMIT: usize = 64 * 1024 * 1024;
@@ -156,6 +156,7 @@ pub enum CanonicalDependencySourceRequest {
         explicit_alias: Option<AliasName>,
         repository: String,
         revision: String,
+        selection: PackageSelection,
     },
 }
 
@@ -189,10 +190,12 @@ impl From<&DependencySourceRequest> for CanonicalDependencySourceRequest {
                 explicit_alias,
                 repository,
                 revision,
+                selection,
             } => Self::Git {
                 explicit_alias: explicit_alias.clone(),
                 repository: repository.clone(),
                 revision: revision.clone(),
+                selection: selection.clone(),
             },
         }
     }

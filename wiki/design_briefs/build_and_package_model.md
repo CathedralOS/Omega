@@ -1427,8 +1427,10 @@ naming, and transport observations remain provenance rather than package
 identity. Repository-root Git traversal exercises the same path, including a
 retained `HEAD` selector. This custody is not canonical lock encoding, compiler
 evidence, admission, or a package instance, and it is deliberately absent from
-the ordinary obligation ledger. Multi-package Git selection remains governed
-by its separate open selector decision.
+the ordinary obligation ledger. Git dependency rows now normalize omitted
+selection to `Root` and canonically retain explicit `Named(PackageName)`
+selection; named traversal remains fail-closed until authenticated member
+binding lands.
 
 `CanonicalSourceClosureSubject` now gives that exact source-selection question
 a bounded canonical form. It retains the root request and every requester-

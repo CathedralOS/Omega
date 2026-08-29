@@ -251,6 +251,7 @@ fn validate_dependency_selection_kind(
         CanonicalDependencySourceRequest::Git {
             repository,
             revision,
+            selection: package_selection,
             ..
         } => {
             let request = GitSourceRequest::new(repository.clone(), Some(revision.clone()))
@@ -265,6 +266,13 @@ fn validate_dependency_selection_kind(
             {
                 return Err(CanonicalSourceClosureSubjectError::new(
                     "dependency Git request disagrees with its selected source",
+                ));
+            }
+            if let crate::manifest::PackageSelection::Named(package) = package_selection
+                && package != selection.selected.key().name()
+            {
+                return Err(CanonicalSourceClosureSubjectError::new(
+                    "named Git package selection disagrees with its selected package",
                 ));
             }
         }
@@ -288,6 +296,7 @@ fn validate_dependency_request(
             explicit_alias,
             repository,
             revision,
+            selection: _,
         } => {
             validate_optional_alias(explicit_alias)?;
             validate_request_bytes(repository.as_bytes(), maximum_request_bytes)?;

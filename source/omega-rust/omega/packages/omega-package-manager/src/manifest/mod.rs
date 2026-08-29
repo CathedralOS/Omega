@@ -7,9 +7,9 @@ pub(crate) mod roles;
 pub use dependencies::{
     BuildDependencyEditError, BuildDependencyEditPlan, BuildDependencyManualPatch,
     BuildDependencyManualReason, BuildDependencyProjection, BuildFileReplacement,
-    DependencyProjectionError, DependencySourceRequest, canonical_dependency_statement,
-    extract_build_dependency_projection, extract_dependency_projection, plan_dependency_addition,
-    plan_dependency_replacement,
+    DependencyProjectionError, DependencySourceRequest, PackageSelection,
+    canonical_dependency_statement, extract_build_dependency_projection,
+    extract_dependency_projection, plan_dependency_addition, plan_dependency_replacement,
 };
 pub use roles::{
     ApplicationDeclaration, BuildDeclaration, BuildDeclarationError, BuildDeclarationKind,

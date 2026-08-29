@@ -536,9 +536,13 @@ pub data Build {
     freestanding: bool;
     optimizations: Optimizations;
 }
+pub data PackageSelection {
+    case Root;
+    case Named(package: &[u8]);
+}
 pub data Source {
     case Path(location: &[u8]);
-    case Git(repository: &[u8], revision: &[u8]);
+    case Git(repository: &[u8], revision: &[u8], selection: PackageSelection);
 }
 pub machine Build::depend(&mut self, source: Source) {
 }
@@ -691,9 +695,13 @@ pub data Build {
     output: BuildOutput;
     filesystem: FilesystemHost;
 }
+pub data PackageSelection {
+    case Root;
+    case Named(package: &[u8]);
+}
 pub data Source {
     case Path(location: &[u8]);
-    case Git(repository: &[u8], revision: &[u8]);
+    case Git(repository: &[u8], revision: &[u8], selection: PackageSelection);
 }
 pub machine Build::depend(&mut self, source: Source) {
 }
@@ -976,7 +984,33 @@ mod tests {
                 .iter()
                 .map(|field| field.name.as_str())
                 .collect::<Vec<_>>(),
-            ["repository", "revision"]
+            ["repository", "revision", "selection"]
+        );
+
+        let package_selection = syntax_trees
+            .root_items()
+            .find_map(|item| match item {
+                psi_syntax_trees::item::Item::Data(data)
+                    if data.name.as_str() == "PackageSelection" =>
+                {
+                    Some(data)
+                }
+                _ => None,
+            })
+            .expect("build prelude must define PackageSelection");
+        assert_eq!(
+            syntax_trees
+                .items
+                .data_members(package_selection.members)
+                .iter()
+                .filter_map(|member| match member {
+                    psi_syntax_trees::item::DataMember::Variant(variant) => {
+                        Some(variant.name.as_str())
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>(),
+            ["Root", "Named"]
         );
 
         let mut dependency_methods = syntax_trees

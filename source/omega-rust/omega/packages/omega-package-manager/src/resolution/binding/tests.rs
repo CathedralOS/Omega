@@ -161,6 +161,7 @@ fn workspace_member_resolution_binds_root_lineage_path_and_member_snapshot() {
             explicit_alias: None,
             repository: "https://github.com/CathedralOS/exact-math.git".to_owned(),
             revision: "main".to_owned(),
+            selection: crate::manifest::PackageSelection::Root,
         }]
     );
     assert_eq!(
@@ -382,6 +383,7 @@ fn source_custody_projects_only_canonical_dependency_rows() {
                 explicit_alias: None,
                 repository: "https://github.com/CathedralOS/arithmetic-kernels.git".to_owned(),
                 revision: "main".to_owned(),
+                selection: crate::manifest::PackageSelection::Root,
             },
         ]
     );

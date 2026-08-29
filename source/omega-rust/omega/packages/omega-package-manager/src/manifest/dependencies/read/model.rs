@@ -1,6 +1,16 @@
 use crate::manifest::roles::BuildDeclaration;
 use omega_package_source::{AliasName, PackageName};
 
+/// Package selection inside one acquired repository source.
+///
+/// Selection is request custody, not source or package identity. Omitting the
+/// source field normalizes to the zero case, `Root`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PackageSelection {
+    Root,
+    Named(PackageName),
+}
+
 /// One source request projected without evaluating `build.omg`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DependencySourceRequest {
@@ -12,6 +22,7 @@ pub enum DependencySourceRequest {
         explicit_alias: Option<AliasName>,
         repository: String,
         revision: String,
+        selection: PackageSelection,
     },
 }
 
@@ -21,6 +32,13 @@ impl DependencySourceRequest {
             Self::Path { explicit_alias, .. } | Self::Git { explicit_alias, .. } => {
                 explicit_alias.as_ref()
             }
+        }
+    }
+
+    pub const fn package_selection(&self) -> Option<&PackageSelection> {
+        match self {
+            Self::Path { .. } => None,
+            Self::Git { selection, .. } => Some(selection),
         }
     }
 

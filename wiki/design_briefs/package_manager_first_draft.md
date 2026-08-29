@@ -1836,7 +1836,9 @@ and preserves its requested locator and `HEAD` selector independently from the
 resolved commit/tree/content tuple. This is resolver custody only—not lock
 encoding, compiler evidence, admission, or `PackageInstance` construction—and
 the ordinary obligation ledger intentionally remains source-selector-free.
-Multi-package Git selection remains a separate open decision.
+Git dependency requests now normalize omitted selection to `Root` and retain
+explicit `Named(PackageName)` selection in this custody. Named selection still
+rejects before traversal until authenticated workspace-member binding lands.
 
 The versioned `CanonicalSourceClosureSubject` is the bounded canonical form of
 that source-selection question. It retains the exact root request and every
@@ -1848,8 +1850,8 @@ resolution and snapshotting followed by complete reconstruction and exact
 equality. Snapshot/cache paths, raw source bytes, transport execution
 observations, compiler-consumption/build observations, artifacts, certificates,
 admissions, and open obligations remain separately bound. This is neither an
-accepted lock nor a package instance, and a future multi-package Git selector
-adds a request case rather than changing today's repository-root meaning.
+accepted lock nor a package instance. Package selection is an explicit request
+coordinate and does not change repository source identity.
 
 `CanonicalPackageReconstructionQuestion` is the first canonical association of
 that source-selection question with the current ordinary obligation questions.

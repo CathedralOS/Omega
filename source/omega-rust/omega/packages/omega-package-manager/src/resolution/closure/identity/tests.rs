@@ -64,6 +64,65 @@ fn exact_git_request_spelling_changes_subject_without_changing_selection() {
 }
 
 #[test]
+fn git_package_selection_is_canonical_request_custody_not_package_identity() {
+    let root = git_source("root", "workspace", 1);
+    let child = git_source("child", "workspace", 1);
+    let request = |selection| CanonicalDependencySourceSelection {
+        requester: root.key().clone(),
+        dependency_index: 0,
+        request: CanonicalDependencySourceRequest::Git {
+            explicit_alias: None,
+            repository: "https://github.com/CathedralOS/workspace.git".to_owned(),
+            revision: "main".to_owned(),
+            selection,
+        },
+        alias: child.key().name().default_alias(),
+        selected: child.clone(),
+    };
+    let subject = |selection| {
+        CanonicalSourceClosureSubject::finish(
+            root_git_selection("https://github.com/CathedralOS/workspace.git", &root),
+            vec![child.clone(), root.clone()],
+            vec![request(selection)],
+            CanonicalSourceClosureSubjectLimits::default(),
+        )
+        .unwrap()
+    };
+    let root_selected = subject(crate::manifest::PackageSelection::Root);
+    let named_selected = subject(crate::manifest::PackageSelection::Named(
+        PackageName::parse("child").unwrap(),
+    ));
+
+    assert_eq!(root_selected.packages, named_selected.packages);
+    assert_ne!(
+        root_selected.canonical_bytes,
+        named_selected.canonical_bytes
+    );
+    assert_eq!(
+        CanonicalSourceClosureSubject::recover(
+            named_selected.canonical_bytes(),
+            CanonicalSourceClosureSubjectLimits::default(),
+        )
+        .unwrap(),
+        named_selected
+    );
+
+    let mismatch = CanonicalSourceClosureSubject::finish(
+        root_git_selection("https://github.com/CathedralOS/workspace.git", &root),
+        vec![child.clone(), root.clone()],
+        vec![request(crate::manifest::PackageSelection::Named(
+            PackageName::parse("other").unwrap(),
+        ))],
+        CanonicalSourceClosureSubjectLimits::default(),
+    )
+    .unwrap_err();
+    assert_eq!(
+        mismatch.message(),
+        "named Git package selection disagrees with its selected package"
+    );
+}
+
+#[test]
 fn request_and_edge_disagreement_reject_before_encoding() {
     let root = git_source("root", "root", 1);
     let child = git_source("child", "child", 2);
@@ -74,6 +133,7 @@ fn request_and_edge_disagreement_reject_before_encoding() {
             explicit_alias: None,
             repository: "https://github.com/CathedralOS/child.git".to_owned(),
             revision: "main".to_owned(),
+            selection: crate::manifest::PackageSelection::Root,
         },
         alias: AliasName::parse("wrong_alias").unwrap(),
         selected: child.clone(),
@@ -102,6 +162,7 @@ fn missing_ordinals_and_open_graphs_reject() {
             explicit_alias: None,
             repository: "https://github.com/CathedralOS/child.git".to_owned(),
             revision: "main".to_owned(),
+            selection: crate::manifest::PackageSelection::Root,
         },
         alias: child.key().name().default_alias(),
         selected: child.clone(),
@@ -144,7 +205,8 @@ fn recovery_rejects_unknown_version_trailing_bytes_and_tight_limits() {
 
     let mut unknown_version = subject.canonical_bytes.clone();
     let version_offset = SOURCE_CLOSURE_SUBJECT_MAGIC.len();
-    unknown_version[version_offset..version_offset + 2].copy_from_slice(&2_u16.to_le_bytes());
+    unknown_version[version_offset..version_offset + 2]
+        .copy_from_slice(&(SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION + 1).to_le_bytes());
     assert!(
         CanonicalSourceClosureSubject::recover(
             &unknown_version,
@@ -209,6 +271,7 @@ fn noncanonical_unreachable_and_cyclic_package_state_rejects() {
             explicit_alias: None,
             repository: repository.to_owned(),
             revision: "main".to_owned(),
+            selection: crate::manifest::PackageSelection::Root,
         },
         alias: selected.key().name().default_alias(),
         selected: selected.clone(),
