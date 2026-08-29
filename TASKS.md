@@ -794,18 +794,27 @@ Remaining:
   behavior, or add compiler-source dependencies on those behaviors, until the
   owner rules one normative lexical contract.
 
-  Two broader rulings must also close before the compiler source may depend on
-  them observably. Call-argument and aggregate-literal field evaluation order
-  are not normative under
-  [OWNER Q10](OWNER_QUESTIONS.md#q10--evaluation-order-for-call-arguments-and-aggregate-fields);
-  current bridge slices therefore admit only combinations whose relative order
-  cannot be observed. Explicit sum discriminants can conflict with the first-
-  case/tag-zero initialization invariant under
-  [OWNER Q11](OWNER_QUESTIONS.md#q11--explicit-sum-discriminants-under-zero-initialization),
-  while default aggregate byte layout remains compiler-controlled. Rule these
-  exact language questions before relying on effectful/trapping evaluation
-  order or explicit discriminants; do not let a bootstrap-private schedule or
-  layout become the public Omega contract by accident.
+  The evaluation-order ruling is closed. Every eager child evaluates exactly
+  once in the language's authored left-to-right schedule: attached receiver
+  before arguments, strict operands left to right, collection before index,
+  range start before end, fixed arrays by increasing index, and record/case
+  fields in authored literal order. `&&`, `||`, and transition dispatch are the
+  closed selective forms. Ordinary abandonment cleans partially staged values
+  in reverse establishment order; completed aggregates retain recursive reverse
+  declaration cleanup, and trap/nuclear-abort edges clean nothing. Audit the
+  Omega-written compiler, comparator, checked interpreter, Terminal lowering,
+  optimizer, and native backends together. Add effect, trap, move, partial-call,
+  partial-aggregate, source/declaration-order divergence, short-circuit, and
+  mutation canaries. Any incomplete lowering lane must keep its order-sensitive
+  compound forms fenced rather than choose a local schedule.
+
+  One broader ruling must still close before the compiler source may depend on
+  it. Explicit sum discriminants can conflict with the first-case/tag-zero
+  initialization invariant under
+  [OWNER Q10](OWNER_QUESTIONS.md#q10--explicit-sum-discriminants-under-zero-initialization),
+  while default aggregate byte layout remains compiler-controlled. Rule that
+  exact language question before relying on explicit discriminants; do not let
+  a bootstrap-private layout become the public Omega contract by accident.
 
 - **OMEGA-RUST-COMPARATOR.** Maintain the current Rust Psi/Omega compiler under
   `source/omega-rust/` as a parallel differential implementation

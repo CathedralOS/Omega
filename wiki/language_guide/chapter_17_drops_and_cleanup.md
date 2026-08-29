@@ -271,6 +271,16 @@ owner or consuming machine rather than asking cleanup to reconstruct history.
 Fixed-array cleanup is the same reverse-establishment rule with indices as its
 structural positions; authored element moves still occur in authored order.
 
+Complete-value cleanup and abandoned construction intentionally use different
+orders. A complete record or case owns its fields structurally and cleans them
+in recursive reverse declaration order. A record or case literal evaluates
+named fields in authored order; if an ordinary cleanup-bearing edge abandons
+that partial construction, only its established prefix exists and cleans in
+reverse establishment order. Partial call-argument staging follows the same
+rule. Physical layout and completed-value canonicalization determine neither
+schedule. A trap or nuclear abort remains a no-successor edge and cleans
+nothing.
+
 If fixed-array construction leaves through an ordinary cleanup-bearing edge,
 only the successfully established prefix exists and it is cleaned from its
 highest established index to its lowest. This is ordinary edge cleanup, not
