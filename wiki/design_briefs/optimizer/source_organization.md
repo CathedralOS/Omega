@@ -233,6 +233,10 @@ reconstruction in `reconstruction.rs`, and wire format in `codec.rs`. The
 selected-lowering literal-fold stage follows the same rule: the regalloc rule
 entrance owns phase projection and catalog order; pipeline custody then
 descends through `model`, `schedule`, `execution`, and `accounting`.
+Fragment admission consumes the resulting phase carrier through one
+`SelectedLowering` source kind. The exact add/subtract rules and optional rel8
+layout result remain below that carrier; none owns a parallel publication
+route.
 Register-allocation rule folders use the same
 shape; pressure rematerialization keeps its production computation and broad
 fixtures in separate leaves below its real compute/validate entrance. The

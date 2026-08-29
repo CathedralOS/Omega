@@ -19,9 +19,11 @@ fn function_relative_only_rel8_suite_shrinks_and_replays_without_selected_loweri
     assert_eq!(staged.selections(), selections.identity());
     assert_eq!(staged.selected_lowering_completion(), None);
     assert!(staged.function_relative_realization().is_none());
-    assert!(optimization_pipeline_report(&staged)
-        .function_relative()
-        .is_some());
+    assert!(
+        optimization_pipeline_report(&staged)
+            .function_relative()
+            .is_some()
+    );
     let StagedOptimizedVerifiedPhysicalPipeline::FunctionRelativeLayout { realization } =
         &mut staged
     else {
@@ -355,7 +357,7 @@ fn relocation_free_cbnz_fragment_emission_retains_the_elided_compare_span() {
         }
     );
     let encoded = emitted.manifest().record().encode();
-    assert_eq!(&encoded[8..12], &7_u32.to_le_bytes());
+    assert_eq!(&encoded[8..12], &8_u32.to_le_bytes());
     assert_eq!(encoded[45], 2);
     assert_eq!(
         encoded[46],
@@ -540,7 +542,7 @@ fn aarch64_movn_reaches_fragments_text_object_artifact_and_callable_for_both_rou
                 );
                 let fragment_manifest = emitted.manifest().record().clone();
                 let fragment_encoded = fragment_manifest.encode();
-                assert_eq!(&fragment_encoded[8..12], &7_u32.to_le_bytes());
+                assert_eq!(&fragment_encoded[8..12], &8_u32.to_le_bytes());
                 assert_eq!(fragment_encoded[45], 2);
                 assert_eq!(
                     fragment_encoded[46],
@@ -652,7 +654,7 @@ fn aarch64_movn_reaches_fragments_text_object_artifact_and_callable_for_both_rou
                 assert_eq!(text.manifest().record().statistics.relocation_requirements, 0);
                 let text_manifest = text.manifest().record().clone();
                 let text_encoded = text_manifest.encode();
-                assert_eq!(&text_encoded[8..12], &7_u32.to_le_bytes());
+                assert_eq!(&text_encoded[8..12], &8_u32.to_le_bytes());
                 assert_eq!(text_encoded[45], 2);
                 assert_eq!(
                     text_encoded[46],

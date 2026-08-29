@@ -701,7 +701,7 @@ fn structural_unit_call_reaches_post_allocation_machine_custody() {
         FunctionFragmentEmissionManifest::decode(&fragment_manifest.encode()),
         Ok(fragment_manifest.clone())
     );
-    for unsupported in [5_u32, 8_u32] {
+    for unsupported in [5_u32, 7_u32, 9_u32] {
         let mut encoded = fragment_manifest.encode();
         encoded[8..12].copy_from_slice(&unsupported.to_le_bytes());
         assert_eq!(
@@ -832,7 +832,7 @@ fn structural_unit_call_reaches_post_allocation_machine_custody() {
         FunctionFragmentTextSectionManifest::decode(&text_manifest.encode()),
         Ok(text_manifest.clone())
     );
-    for unsupported in [5_u32, 8_u32] {
+    for unsupported in [5_u32, 7_u32, 9_u32] {
         let mut encoded = text_manifest.encode();
         encoded[8..12].copy_from_slice(&unsupported.to_le_bytes());
         assert_eq!(

@@ -78,6 +78,13 @@ branch encoding; independent validation separately derives those facts and
 admits candidate branch bytes only through target decoders. Architecture and
 corruption tests pin both the navigation shape and the producer boundary.
 
+[x] Fragment admission now consumes one generic selected-lowering realization
+instead of requiring the x86 rel8 rule. Exact add and subtract selected
+lowering reach fragment, text, and object-container custody on both supported
+ISAs, then object-artifact and callable custody, without rule-specific route
+variants; v8 fragment/text manifests retain the generic source kind and exact
+selection identity.
+
 ## Completed foundation
 
 - [x] Exact source-visible `Optimization` vocabulary and versioned canonical
@@ -472,7 +479,7 @@ rewrite or opt a program into lossy floating-point semantics.
    rule beyond explicit opt-in.
 12. [x] Replace selected-form producer replay with an independent decoder-led
     validation rung and enforce the boundary architecturally.
-13. [ ] Replace the x86-rel8-only fragment admission carrier with one generic
+13. [x] Replace the x86-rel8-only fragment admission carrier with one generic
     selected-lowering carrier; do not add add/subtract route variants.
 14. [ ] Unify fixed-view-copy and active-resident realization under one generic
     allocation-recovery carrier before extending either publication route.

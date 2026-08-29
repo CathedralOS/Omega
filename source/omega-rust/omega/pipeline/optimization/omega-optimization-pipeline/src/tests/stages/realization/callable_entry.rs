@@ -37,9 +37,7 @@ fn staged_callable_object_artifact(
             ))
         }
         StagedOptimizedVerifiedPhysicalPipeline::SelectedLowering { realization } => {
-            StagedOptimizedFunctionFragmentEmissionSource::X86Rel8AfterSelectedLowering(Box::new(
-                realization,
-            ))
+            StagedOptimizedFunctionFragmentEmissionSource::SelectedLowering(Box::new(realization))
         }
         _ => panic!("fixture must complete a function-relative realization"),
     };
@@ -394,9 +392,11 @@ fn ordinary_callable_entry_accepts_both_selected_lowering_compositions_and_repor
                     report.ordinary_callable_entry(),
                     Some(staged.manifest().record())
                 );
-                assert!(report
-                    .render_human_text(OptimizationReportRequest::Suppressed)
-                    .is_none());
+                assert!(
+                    report
+                        .render_human_text(OptimizationReportRequest::Suppressed)
+                        .is_none()
+                );
                 let text = report
                     .render_human_text(OptimizationReportRequest::EmitHumanText)
                     .unwrap();
