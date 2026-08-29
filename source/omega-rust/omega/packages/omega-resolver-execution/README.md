@@ -33,8 +33,8 @@ text or containment claims.
 - `src/confinement/` owns native confinement facts and implementations.
   `macos.rs` owns Seatbelt policy/custody and its native canaries;
   `linux.rs` owns Landlock ABI-v5 filesystem mutation and execution policy;
-  `windows.rs` owns suspended launch, Job Object assignment and limits,
-  whole-job termination, and active-process-zero completion.
+  `windows/` separates suspended launch, Job Object setup, limits, lifecycle,
+  whole-job termination, native adapters, and behavior-named tests.
 
 Tests follow the responsibility they exercise: backend request/observation
 tests live under `src/backend/tests/`, endpoint tests under `src/network/`, and

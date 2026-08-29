@@ -36,8 +36,7 @@ closed. Compiler-issued package review remains non-admitting.
     validated relative paths;
   - replace misleading evidence/projection modules without changing canonical
     rows or encodings;
-  - split oversized native confinement implementations and move their large
-    inline test bodies under behavior-named test folders;
+  - split macOS confinement policy construction from native realization;
   - narrow flat and `#[doc(hidden)]` cross-crate facades after callers migrate,
     then refresh each crate map and enforce the intended dependency direction.
 
