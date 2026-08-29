@@ -1,15 +1,18 @@
 use super::error::DependencyProjectionError;
 use super::model::BuildDependencyProjection;
 use super::policy::{reject_authored_toolchain_vocabulary, reject_unprojected_dependency_syntax};
-use crate::manifest::roles::{BuildDeclarationError, convert_shared_declaration};
+use crate::manifest::roles::convert_shared_declaration;
 use omega_build_declarations as shared;
 use psi_source_files_to_tokens::Lexer;
-use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::item::Item;
+use psi_syntax_trees::SyntaxTrees;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 
 mod calls;
+mod declaration;
 mod graph;
+
+use declaration::map_build_declaration_error;
 
 pub(super) const DEPEND_MACHINE_NAME: &str = "depend";
 pub(super) const DEPEND_AS_MACHINE_NAME: &str = "depend_as";
@@ -86,23 +89,4 @@ fn extract_build_projection_from_syntax_trees(
         convert_shared_declaration(role_projection.into_declaration()),
         dependencies,
     ))
-}
-
-fn map_build_declaration_error(error: BuildDeclarationError) -> DependencyProjectionError {
-    match error {
-        BuildDeclarationError::ScopedBuildMachine { scope } => {
-            DependencyProjectionError::ScopedBuildMachine { scope }
-        }
-        BuildDeclarationError::DuplicateBuildMachines { count } => {
-            DependencyProjectionError::DuplicateBuildMachines { count }
-        }
-        BuildDeclarationError::InvalidBuildMachine => {
-            DependencyProjectionError::InvalidBuildMachine
-        }
-        BuildDeclarationError::MissingBuildEntry => DependencyProjectionError::MissingBuildEntry,
-        BuildDeclarationError::InvalidBuildParameter => {
-            DependencyProjectionError::InvalidBuildParameter
-        }
-        error => DependencyProjectionError::BuildDeclaration(Box::new(error)),
-    }
 }

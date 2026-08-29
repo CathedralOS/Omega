@@ -934,13 +934,20 @@ fn package_subsystem_has_deliberate_entrances() {
                 .into_owned()
         })
         .collect::<BTreeSet<_>>();
-    let expected_manager_source = ["commands", "lib.rs", "manifest", "resolution", "review"]
-        .into_iter()
-        .map(str::to_owned)
-        .collect::<BTreeSet<_>>();
+    let expected_manager_source = [
+        "commands",
+        "identity",
+        "lib.rs",
+        "manifest",
+        "resolution",
+        "review",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect::<BTreeSet<_>>();
     assert_eq!(
         manager_source, expected_manager_source,
-        "the manager entrance must read as commands, manifest, resolution, then review"
+        "the manager entrance must read as commands, identity, manifest, resolution, then review"
     );
     let manager_root = std::fs::read_to_string(packages.join("omega-package-manager/src/lib.rs"))
         .expect("read package manager crate entrance");
@@ -4100,8 +4107,9 @@ fn external_root_stack_and_fuel_fingerprints_are_report_only() {
 #[test]
 fn package_review_provider_plan_fingerprints_are_report_only() {
     let root = workspace_root();
-    let evidence_path = root
-        .join("source/omega-rust/omega/packages/omega-package-review/src/evidence/projection.rs");
+    let evidence_path = root.join(
+        "source/omega-rust/omega/packages/omega-package-review/src/evidence/review/providers.rs",
+    );
     let evidence = std::fs::read_to_string(&evidence_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", evidence_path.display()));
     assert!(
