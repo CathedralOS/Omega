@@ -1271,6 +1271,20 @@ Remaining:
   returning ledger will not begin firmware return while its phase lease is
   live.
 
+  The physical-input custody rung is now complete. The invocation ledger mints
+  the opaque image-handle occurrence provenance once, and a recoverable join
+  consumes it with the lifecycle-scoped system table and retained physical
+  contract only when all three name the same private ledger, firmware session,
+  and invocation. The plan owner independently reconstructs the target-authored
+  UEFI x64 contract, including its integer-only volatile-register ceiling, and
+  replays the exact package-source commitment, normalized requirement,
+  input/result types, report fingerprint, and complete boundary plan; a
+  compiler canary checks this against the contract produced from the real
+  target package. The resulting
+  non-clone carrier remains pre-provider and pre-installation and exposes no
+  raw handle, address, table bytes, `Extent`, storage root, shell, or execution
+  authority.
+
   The next composition edge is design-settled. Implement one exact
   target-runtime bootstrap adapter satisfying `UefiPhysicalEntry::enter`; the
   generated shell invokes it, while `build.omg` binds only the semantic

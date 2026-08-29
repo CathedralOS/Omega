@@ -7,6 +7,9 @@
 use omega_calling_conventions::BoundaryEntryPlan;
 use sha2::{Digest, Sha256};
 
+mod exact_uefi;
+pub use exact_uefi::*;
+
 /// Domain-separated commitment to the exact source bytes of one closed
 /// toolchain-owned physical-entry contract package.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -150,6 +150,7 @@ normalized_id!(
 );
 normalized_id!(UefiFirmwareSessionId, "UEFI firmware session");
 normalized_id!(UefiPhysicalInvocationId, "UEFI physical invocation");
+normalized_id!(UefiImageHandleOccurrenceId, "UEFI image-handle occurrence");
 normalized_id!(UefiSystemTableOccurrenceId, "UEFI system-table occurrence");
 normalized_id!(
     UefiBootServicesPhaseLeaseId,
