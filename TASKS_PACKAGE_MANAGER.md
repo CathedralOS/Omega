@@ -56,8 +56,9 @@ closed. Compiler-issued package review remains non-admitting.
     kernel exactly rejoins non-admitting resolution, native policy/completion,
     command input, endpoint, executable-path, transfer-accounting, source, and
     limit rows; calls `require_strict` for every command; and retains a closed
-    rejection for missing, changed, unavailable, or unreconstructed evidence.
-    Complete the still-missing transport-trust, credential-custody,
+    rejection for missing, changed, unavailable, or the first unimplemented
+    source requirement. There is deliberately no success issuer yet. Add real
+    evidence carriers and reconstruction for transport-trust, credential-custody,
     whole-operation storage/resource, same-user mutation, and platform-native
     rows before any success receipt can issue;
 

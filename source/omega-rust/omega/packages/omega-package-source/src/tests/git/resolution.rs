@@ -157,7 +157,7 @@ fn git_source_resolves_exact_commit_and_local_identity() {
             .iter()
             .any(|observation| matches!(
                 observation.input(),
-                GitCommandInputObservation::ExactBytes { .. }
+                GitCommandInputCommitment::ExactBytes { .. }
             )),
         "object-batch commands must retain exact input custody"
     );
@@ -262,11 +262,10 @@ fn strict_receipt_reconstruction_rejects_unavailable_and_tampered_rows() {
     );
 
     let mut changed_input = PendingResolvedGitSource::from_issued(&resolved);
-    changed_input.command_execution_observations[0].input =
-        GitCommandInputObservation::ExactBytes {
-            length: 1,
-            identity: "00".repeat(32),
-        };
+    changed_input.command_execution_observations[0].input = GitCommandInputCommitment::ExactBytes {
+        length: 1,
+        identity: "00".repeat(32),
+    };
     assert_eq!(
         reconstruct_git_source_strict_receipt(&changed_input, limits, &retained),
         Err(GitSourceStrictReceiptError::InvalidResolutionObservation)
