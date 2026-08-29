@@ -165,13 +165,13 @@ pub struct Aarch64MovnMaterializationPlan {
 
 impl Aarch64MovnMaterializationPlan {
     pub fn encode(&self) -> Vec<u8> {
-        crate::aarch64_movn_codec::encode(self)
+        super::codec::encode(self)
     }
 
     /// Decode and content-authenticate an unchecked artifact. Call
     /// [`crate::validate_aarch64_movn_materialization`] before use.
     pub fn decode(encoded: &[u8]) -> Result<Self, crate::Aarch64MovnMaterializationDecodeError> {
-        crate::aarch64_movn_codec::decode(encoded)
+        super::codec::decode(encoded)
     }
 }
 

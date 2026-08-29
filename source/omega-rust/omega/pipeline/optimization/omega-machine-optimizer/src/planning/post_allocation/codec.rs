@@ -1,4 +1,6 @@
 use omega_optimization_core::PostAllocationOptimizationManifestIdentity;
+
+use crate::analyses::pre_allocation_effects::codec as effect_codec;
 use omega_regalloc::{AllocationLegalityIdentity, LiveRangeIdentity, RegisterHomeIdentity};
 use omega_register_model::{
     PhysicalRegisterModelIdentity, RegisterClassId, RegisterConstraintCatalogIdentity,
@@ -46,8 +48,7 @@ impl std::error::Error for PostAllocationMachineDecodeError {}
 pub(crate) fn encode_terminal_post_allocation_machine_plan(
     plan: &PostAllocationMachinePlan,
 ) -> Vec<u8> {
-    let content =
-        crate::alternative_identity::encode_terminal_post_allocation_machine_content(plan);
+    let content = super::identity::encode_terminal_post_allocation_machine_content(plan);
     let mut encoded = Vec::with_capacity(44 + content.len());
     encoded.extend_from_slice(MAGIC);
     encoded.extend_from_slice(&VERSION.to_le_bytes());
@@ -59,7 +60,7 @@ pub(crate) fn encode_terminal_post_allocation_machine_plan(
 pub(crate) fn decode_terminal_post_allocation_machine_plan(
     encoded: &[u8],
 ) -> Result<PostAllocationMachinePlan, PostAllocationMachineDecodeError> {
-    let mut cursor = crate::effect_codec::Cursor::new(encoded);
+    let mut cursor = effect_codec::Cursor::new(encoded);
     if take(&mut cursor, MAGIC.len())? != MAGIC {
         return Err(PostAllocationMachineDecodeError::WrongMagic);
     }
@@ -77,7 +78,7 @@ pub(crate) fn decode_terminal_post_allocation_machine_plan(
     let homes = RegisterHomeIdentity::from_bytes(array(&mut cursor)?);
     let post_allocation_manifest =
         PostAllocationOptimizationManifestIdentity::from_bytes(array(&mut cursor)?);
-    let target = crate::effect_codec::decode_target(&mut cursor).map_err(map_field_error)?;
+    let target = effect_codec::decode_target(&mut cursor).map_err(map_field_error)?;
     let register_environment = TargetRegisterEnvironmentIdentity::from_bytes(array(&mut cursor)?);
     let physical_register_model = PhysicalRegisterModelIdentity::from_bytes(array(&mut cursor)?);
     let register_constraints = RegisterConstraintCatalogIdentity::from_bytes(array(&mut cursor)?);
@@ -116,19 +117,16 @@ pub(crate) fn decode_terminal_post_allocation_machine_plan(
         let block = SelectedBlockId(u32_field(&mut cursor)?);
         let call = match byte(&mut cursor)? {
             0 => None,
-            1 => Some(
-                crate::effect_codec::decode_structural_call(&mut cursor)
-                    .map_err(map_field_error)?,
-            ),
+            1 => Some(effect_codec::decode_structural_call(&mut cursor).map_err(map_field_error)?),
             _ => return Err(PostAllocationMachineDecodeError::InvalidField),
         };
         let return_instruction = decode_instruction(&mut cursor)?;
         let return_provenance =
-            crate::effect_codec::decode_provenance(&mut cursor).map_err(map_field_error)?;
+            effect_codec::decode_provenance(&mut cursor).map_err(map_field_error)?;
         let return_effect =
-            crate::effect_codec::decode_effect_link(&mut cursor).map_err(map_field_error)?;
+            effect_codec::decode_effect_link(&mut cursor).map_err(map_field_error)?;
         let return_ownership =
-            crate::effect_codec::decode_ownership(&mut cursor).map_err(map_field_error)?;
+            effect_codec::decode_ownership(&mut cursor).map_err(map_field_error)?;
         structural_unit_functions.push(PostAllocationStructuralUnitFunction {
             machine,
             block,
@@ -166,10 +164,10 @@ pub(crate) fn decode_terminal_post_allocation_machine_plan(
 }
 
 fn decode_instruction(
-    cursor: &mut crate::effect_codec::Cursor<'_>,
+    cursor: &mut effect_codec::Cursor<'_>,
 ) -> Result<PostAllocationMachineInstruction, PostAllocationMachineDecodeError> {
     let instruction = SelectedInstructionId(u32_field(cursor)?);
-    let alternative = crate::effect_codec::decode_alternative(cursor).map_err(map_field_error)?;
+    let alternative = effect_codec::decode_alternative(cursor).map_err(map_field_error)?;
     let operand_count = length(cursor)?;
     let mut operands = Vec::with_capacity(operand_count.min(cursor.remaining()));
     for _ in 0..operand_count {
@@ -189,7 +187,7 @@ fn decode_instruction(
 }
 
 fn decode_operand(
-    cursor: &mut crate::effect_codec::Cursor<'_>,
+    cursor: &mut effect_codec::Cursor<'_>,
 ) -> Result<PhysicalOperandFootprint, PostAllocationMachineDecodeError> {
     let operand = u16_field(cursor)?;
     let virtual_register = VirtualRegisterId(u32_field(cursor)?);
@@ -242,52 +240,50 @@ fn map_field_error(
 }
 
 fn take<'a>(
-    cursor: &mut crate::effect_codec::Cursor<'a>,
+    cursor: &mut effect_codec::Cursor<'a>,
     count: usize,
 ) -> Result<&'a [u8], PostAllocationMachineDecodeError> {
     cursor.take(count).map_err(map_field_error)
 }
 
 fn array<const N: usize>(
-    cursor: &mut crate::effect_codec::Cursor<'_>,
+    cursor: &mut effect_codec::Cursor<'_>,
 ) -> Result<[u8; N], PostAllocationMachineDecodeError> {
     cursor.array().map_err(map_field_error)
 }
 
-fn byte(
-    cursor: &mut crate::effect_codec::Cursor<'_>,
-) -> Result<u8, PostAllocationMachineDecodeError> {
+fn byte(cursor: &mut effect_codec::Cursor<'_>) -> Result<u8, PostAllocationMachineDecodeError> {
     cursor.byte().map_err(map_field_error)
 }
 
 fn u16_field(
-    cursor: &mut crate::effect_codec::Cursor<'_>,
+    cursor: &mut effect_codec::Cursor<'_>,
 ) -> Result<u16, PostAllocationMachineDecodeError> {
     cursor.u16().map_err(map_field_error)
 }
 
 fn u32_field(
-    cursor: &mut crate::effect_codec::Cursor<'_>,
+    cursor: &mut effect_codec::Cursor<'_>,
 ) -> Result<u32, PostAllocationMachineDecodeError> {
     cursor.u32().map_err(map_field_error)
 }
 
 fn u64_field(
-    cursor: &mut crate::effect_codec::Cursor<'_>,
+    cursor: &mut effect_codec::Cursor<'_>,
 ) -> Result<u64, PostAllocationMachineDecodeError> {
     cursor.u64().map_err(map_field_error)
 }
 
 fn length(
-    cursor: &mut crate::effect_codec::Cursor<'_>,
+    cursor: &mut effect_codec::Cursor<'_>,
 ) -> Result<usize, PostAllocationMachineDecodeError> {
     cursor.length().map_err(map_field_error)
 }
 
 fn decode_units(
-    cursor: &mut crate::effect_codec::Cursor<'_>,
+    cursor: &mut effect_codec::Cursor<'_>,
 ) -> Result<Vec<omega_register_model::RegisterUnitId>, PostAllocationMachineDecodeError> {
-    crate::effect_codec::decode_units(cursor).map_err(map_field_error)
+    effect_codec::decode_units(cursor).map_err(map_field_error)
 }
 
 #[cfg(test)]

@@ -8915,9 +8915,16 @@ pub fn validate_boolean_evaluation_candidate(
     if candidate.input() != input.identity {
         return Err(OptimizationUnitValidationError::CandidateInputMismatch);
     }
-    if !candidate
-        .required_analyses()
-        .contains(AnalysisKind::ScalarConstants)
+    let has_required_evaluation_analysis = match candidate.scalar_evaluation_witness() {
+        Some(IntegerEvaluationWitness::RangeAgainstRange { .. }) => candidate
+            .required_analyses()
+            .contains(AnalysisKind::ValueRanges),
+        Some(_) => candidate
+            .required_analyses()
+            .contains(AnalysisKind::ScalarConstants),
+        None => false,
+    };
+    if !has_required_evaluation_analysis
         || !candidate
             .invalidated_analyses()
             .contains(AnalysisKind::UseDefinition)
@@ -9033,7 +9040,7 @@ pub fn validate_boolean_evaluation_candidate(
         unit: output,
         candidate: candidate.identity(),
         validator: OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.boolean-evaluation.v3",
+            b"omega.validator.boolean-evaluation.v4",
         ),
         provenance: accepted_provenance,
     })
@@ -9117,6 +9124,65 @@ fn evaluate_boolean_operation(
             left,
             right,
         } => {
+            if let Some((left_range_fact, right_range_fact)) = candidate
+                .scalar_evaluation_witness()
+                .and_then(IntegerEvaluationWitness::range_against_range)
+            {
+                if !candidate
+                    .required_analyses()
+                    .contains(AnalysisKind::ValueRanges)
+                {
+                    return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
+                }
+                let kind = independently_validated_integer_range_pair_comparison_kind(
+                    candidate.rule(),
+                    &node.operation,
+                )
+                .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
+                let left_range =
+                    current_value_ranges::independently_reconstruct_value_range_fact_at(
+                        input,
+                        left_range_fact,
+                        function.machine,
+                        left,
+                        location.block,
+                        location.node,
+                    )
+                    .ok_or(OptimizationUnitValidationError::CurrentValueRangeFactMismatch)?;
+                let right_range =
+                    current_value_ranges::independently_reconstruct_value_range_fact_at(
+                        input,
+                        right_range_fact,
+                        function.machine,
+                        right,
+                        location.block,
+                        location.node,
+                    )
+                    .ok_or(OptimizationUnitValidationError::CurrentValueRangeFactMismatch)?;
+                if left_range.scalar_type != right_range.scalar_type
+                    || validator_integer_value_type(function, left) != Some(left_range.scalar_type)
+                    || validator_integer_value_type(function, right)
+                        != Some(right_range.scalar_type)
+                {
+                    return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
+                }
+                let constant = independently_evaluate_integer_range_pair_comparison(
+                    kind,
+                    left_range.scalar_type,
+                    left == right,
+                    left_range.minimum,
+                    left_range.maximum,
+                    right_range.minimum,
+                    right_range.maximum,
+                )
+                .ok_or(OptimizationUnitValidationError::CandidateEvaluationMismatch)?;
+                return Ok((
+                    psi_operation,
+                    result,
+                    constant,
+                    OptimizationSafetyClass::ProofCertified,
+                ));
+            }
             if let Some((range_fact, constant_fact)) = candidate
                 .scalar_evaluation_witness()
                 .and_then(IntegerEvaluationWitness::range_against_constant)
@@ -9223,6 +9289,85 @@ enum ValidatedIntegerRangeComparisonKind {
     ConstantLessThanRange,
     RangeLessOrEqualConstant,
     ConstantLessOrEqualRange,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ValidatedIntegerRangePairComparisonKind {
+    Equal,
+    LessThan,
+    LessOrEqual,
+}
+
+fn independently_validated_integer_range_pair_comparison_kind(
+    rule: OptimizationRuleIdentity,
+    operation: &O,
+) -> Option<ValidatedIntegerRangePairComparisonKind> {
+    let kind = if rule
+        == OptimizationRuleIdentity::from_canonical_bytes(
+            b"omega.psi-rule.integer-equal-range-range.v1",
+        ) {
+        ValidatedIntegerRangePairComparisonKind::Equal
+    } else if rule
+        == OptimizationRuleIdentity::from_canonical_bytes(
+            b"omega.psi-rule.integer-less-than-range-range.v1",
+        )
+    {
+        ValidatedIntegerRangePairComparisonKind::LessThan
+    } else if rule
+        == OptimizationRuleIdentity::from_canonical_bytes(
+            b"omega.psi-rule.integer-less-or-equal-range-range.v1",
+        )
+    {
+        ValidatedIntegerRangePairComparisonKind::LessOrEqual
+    } else {
+        return None;
+    };
+    match (kind, operation) {
+        (ValidatedIntegerRangePairComparisonKind::Equal, O::IntegerEqual { .. })
+        | (ValidatedIntegerRangePairComparisonKind::LessThan, O::IntegerLessThan { .. })
+        | (ValidatedIntegerRangePairComparisonKind::LessOrEqual, O::IntegerLessOrEqual { .. }) => {
+            Some(kind)
+        }
+        _ => None,
+    }
+}
+
+fn independently_evaluate_integer_range_pair_comparison(
+    kind: ValidatedIntegerRangePairComparisonKind,
+    scalar_type: psi_core::IntegerType,
+    same_value: bool,
+    left_minimum: psi_core::IntegerValue,
+    left_maximum: psi_core::IntegerValue,
+    right_minimum: psi_core::IntegerValue,
+    right_maximum: psi_core::IntegerValue,
+) -> Option<bool> {
+    if same_value {
+        return Some(!matches!(
+            kind,
+            ValidatedIntegerRangePairComparisonKind::LessThan
+        ));
+    }
+    let left_maximum_to_right_minimum = scalar_type.compare(left_maximum, right_minimum)?;
+    let left_minimum_to_right_maximum = scalar_type.compare(left_minimum, right_maximum)?;
+    match kind {
+        ValidatedIntegerRangePairComparisonKind::Equal => {
+            let both_equal_singletons = scalar_type.compare(left_minimum, left_maximum)?.is_eq()
+                && scalar_type.compare(right_minimum, right_maximum)?.is_eq()
+                && scalar_type.compare(left_minimum, right_minimum)?.is_eq();
+            both_equal_singletons.then_some(true).or_else(|| {
+                (left_maximum_to_right_minimum.is_lt() || left_minimum_to_right_maximum.is_gt())
+                    .then_some(false)
+            })
+        }
+        ValidatedIntegerRangePairComparisonKind::LessThan => left_maximum_to_right_minimum
+            .is_lt()
+            .then_some(true)
+            .or_else(|| (!left_minimum_to_right_maximum.is_lt()).then_some(false)),
+        ValidatedIntegerRangePairComparisonKind::LessOrEqual => (!left_maximum_to_right_minimum
+            .is_gt())
+        .then_some(true)
+        .or_else(|| left_minimum_to_right_maximum.is_gt().then_some(false)),
+    }
 }
 
 fn independently_validated_integer_range_comparison_kind(
@@ -15212,6 +15357,174 @@ mod tests {
                     IntegerValue::Unsigned(8),
                 ),
                 None
+            );
+        }
+    }
+
+    #[test]
+    fn range_pair_rules_reject_operator_and_rule_corruption() {
+        let equal = AbstractOperation::IntegerEqual {
+            psi_operation: id(91_001, OperationId::new),
+            result: id(91_002, ValueId::new),
+            left: id(91_003, ValueId::new),
+            right: id(91_004, ValueId::new),
+        };
+        let less_than = AbstractOperation::IntegerLessThan {
+            psi_operation: id(91_005, OperationId::new),
+            result: id(91_006, ValueId::new),
+            left: id(91_003, ValueId::new),
+            right: id(91_004, ValueId::new),
+        };
+        let less_or_equal = AbstractOperation::IntegerLessOrEqual {
+            psi_operation: id(91_007, OperationId::new),
+            result: id(91_008, ValueId::new),
+            left: id(91_003, ValueId::new),
+            right: id(91_004, ValueId::new),
+        };
+        let equal_rule = OptimizationRuleIdentity::from_canonical_bytes(
+            b"omega.psi-rule.integer-equal-range-range.v1",
+        );
+        let less_than_rule = OptimizationRuleIdentity::from_canonical_bytes(
+            b"omega.psi-rule.integer-less-than-range-range.v1",
+        );
+        let less_or_equal_rule = OptimizationRuleIdentity::from_canonical_bytes(
+            b"omega.psi-rule.integer-less-or-equal-range-range.v1",
+        );
+
+        assert_eq!(
+            independently_validated_integer_range_pair_comparison_kind(equal_rule, &equal),
+            Some(ValidatedIntegerRangePairComparisonKind::Equal)
+        );
+        assert_eq!(
+            independently_validated_integer_range_pair_comparison_kind(less_than_rule, &less_than,),
+            Some(ValidatedIntegerRangePairComparisonKind::LessThan)
+        );
+        assert_eq!(
+            independently_validated_integer_range_pair_comparison_kind(
+                less_or_equal_rule,
+                &less_or_equal,
+            ),
+            Some(ValidatedIntegerRangePairComparisonKind::LessOrEqual)
+        );
+        assert_eq!(
+            independently_validated_integer_range_pair_comparison_kind(equal_rule, &less_than),
+            None
+        );
+        assert_eq!(
+            independently_validated_integer_range_pair_comparison_kind(
+                OptimizationRuleIdentity::from_canonical_bytes(
+                    b"omega.psi-rule.integer-equal-range-constant.v1",
+                ),
+                &equal,
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn range_pair_interval_evaluation_is_independently_closed() {
+        let scalar_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        let value = IntegerValue::Unsigned;
+        let evaluate = |kind, left_minimum, left_maximum, right_minimum, right_maximum| {
+            independently_evaluate_integer_range_pair_comparison(
+                kind,
+                scalar_type,
+                false,
+                value(left_minimum),
+                value(left_maximum),
+                value(right_minimum),
+                value(right_maximum),
+            )
+        };
+
+        assert_eq!(
+            evaluate(ValidatedIntegerRangePairComparisonKind::Equal, 7, 7, 7, 7,),
+            Some(true)
+        );
+        assert_eq!(
+            evaluate(ValidatedIntegerRangePairComparisonKind::Equal, 1, 3, 5, 8,),
+            Some(false)
+        );
+        assert_eq!(
+            evaluate(ValidatedIntegerRangePairComparisonKind::Equal, 1, 5, 3, 8,),
+            None
+        );
+        assert_eq!(
+            evaluate(
+                ValidatedIntegerRangePairComparisonKind::LessThan,
+                1,
+                3,
+                5,
+                8,
+            ),
+            Some(true)
+        );
+        assert_eq!(
+            evaluate(
+                ValidatedIntegerRangePairComparisonKind::LessThan,
+                5,
+                8,
+                1,
+                3,
+            ),
+            Some(false)
+        );
+        assert_eq!(
+            evaluate(
+                ValidatedIntegerRangePairComparisonKind::LessThan,
+                1,
+                5,
+                3,
+                8,
+            ),
+            None
+        );
+        assert_eq!(
+            evaluate(
+                ValidatedIntegerRangePairComparisonKind::LessOrEqual,
+                1,
+                5,
+                5,
+                8,
+            ),
+            Some(true)
+        );
+        assert_eq!(
+            evaluate(
+                ValidatedIntegerRangePairComparisonKind::LessOrEqual,
+                5,
+                8,
+                1,
+                3,
+            ),
+            Some(false)
+        );
+        assert_eq!(
+            evaluate(
+                ValidatedIntegerRangePairComparisonKind::LessOrEqual,
+                1,
+                6,
+                5,
+                8,
+            ),
+            None
+        );
+        for (kind, expected) in [
+            (ValidatedIntegerRangePairComparisonKind::Equal, true),
+            (ValidatedIntegerRangePairComparisonKind::LessThan, false),
+            (ValidatedIntegerRangePairComparisonKind::LessOrEqual, true),
+        ] {
+            assert_eq!(
+                independently_evaluate_integer_range_pair_comparison(
+                    kind,
+                    scalar_type,
+                    true,
+                    value(1),
+                    value(8),
+                    value(1),
+                    value(8),
+                ),
+                Some(expected)
             );
         }
     }

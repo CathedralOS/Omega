@@ -32,7 +32,7 @@ use crate::{
     RuleRegistryError, ScalarConstant, ScalarConstantAnalysis, ValueRangeAnalysis,
 };
 
-const SCCP_PASS_NAME: &[u8] = b"omega.psi-pass.sparse-conditional-constant-propagation.v4";
+const SCCP_PASS_NAME: &[u8] = b"omega.psi-pass.sparse-conditional-constant-propagation.v5";
 const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-cleanup.v12";
 const COPY_PROPAGATION_PASS_NAME: &[u8] = b"omega.psi-pass.copy-propagation.v1";
 const DEAD_PURE_SCALAR_PASS_NAME: &[u8] = b"omega.psi-pass.dead-pure-scalar-elimination.v2";
@@ -7400,6 +7400,13 @@ enum IntegerRangeComparisonKind {
     ConstantLessOrEqualRange,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum IntegerRangePairComparisonKind {
+    Equal,
+    LessThan,
+    LessOrEqual,
+}
+
 macro_rules! integer_range_comparison_rule {
     ($name:ident, $identity:literal, $kind:expr) => {
         #[derive(Debug, Clone, Copy, Default)]
@@ -7478,6 +7485,64 @@ integer_range_comparison_rule!(
     IntegerLessOrEqualConstantRangeRule,
     b"omega.psi-rule.integer-less-or-equal-constant-range.v1",
     IntegerRangeComparisonKind::ConstantLessOrEqualRange
+);
+
+macro_rules! integer_range_pair_comparison_rule {
+    ($name:ident, $identity:literal, $kind:expr) => {
+        #[derive(Debug, Clone, Copy, Default)]
+        pub struct $name;
+
+        impl $name {
+            pub fn contract() -> OptimizationRuleContract {
+                OptimizationRuleContract::new(
+                    OptimizationRuleIdentity::from_canonical_bytes($identity),
+                    OptimizationPassIdentity::from_canonical_bytes(SCCP_PASS_NAME),
+                    1,
+                    AnalysisSet::new([AnalysisKind::ValueRanges]),
+                    AnalysisInvalidationSet::new([AnalysisKind::UseDefinition]),
+                    OptimizationSafetyClass::ProofCertified,
+                )
+                .expect("built-in rule has nonzero version")
+            }
+        }
+
+        impl PsiOptimizationRule for $name {
+            fn contract(&self) -> OptimizationRuleContract {
+                Self::contract()
+            }
+
+            fn propose(
+                &self,
+                unit: &PsiOptimizationUnit,
+                analyses: RuleAnalysisView<'_>,
+            ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+                let Some(AnalysisProduct::ValueRanges(ranges)) =
+                    analyses.get(AnalysisKind::ValueRanges)
+                else {
+                    return Err(RuleProposalError::MissingAnalysis(
+                        AnalysisKind::ValueRanges,
+                    ));
+                };
+                propose_integer_range_pair_comparison(unit, ranges, Self::contract(), $kind)
+            }
+        }
+    };
+}
+
+integer_range_pair_comparison_rule!(
+    IntegerEqualRangeRangeRule,
+    b"omega.psi-rule.integer-equal-range-range.v1",
+    IntegerRangePairComparisonKind::Equal
+);
+integer_range_pair_comparison_rule!(
+    IntegerLessThanRangeRangeRule,
+    b"omega.psi-rule.integer-less-than-range-range.v1",
+    IntegerRangePairComparisonKind::LessThan
+);
+integer_range_pair_comparison_rule!(
+    IntegerLessOrEqualRangeRangeRule,
+    b"omega.psi-rule.integer-less-or-equal-range-range.v1",
+    IntegerRangePairComparisonKind::LessOrEqual
 );
 
 fn propose_integer_range_comparison(
@@ -7640,6 +7705,160 @@ fn evaluate_integer_range_comparison(
         IntegerRangeComparisonKind::ConstantLessOrEqualRange => (!minimum_to_constant.is_lt())
             .then_some(true)
             .or_else(|| maximum_to_constant.is_lt().then_some(false)),
+    }
+}
+
+fn propose_integer_range_pair_comparison(
+    unit: &PsiOptimizationUnit,
+    ranges: &ValueRangeAnalysis,
+    contract: OptimizationRuleContract,
+    kind: IntegerRangePairComparisonKind,
+) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+    let mut candidates = Vec::new();
+    for function in &unit.functions {
+        for block in &function.blocks {
+            for (node_index, node) in block.nodes.iter().enumerate() {
+                let (psi_operation, result, left, right) = match (kind, &node.operation) {
+                    (
+                        IntegerRangePairComparisonKind::Equal,
+                        O::IntegerEqual {
+                            psi_operation,
+                            result,
+                            left,
+                            right,
+                        },
+                    )
+                    | (
+                        IntegerRangePairComparisonKind::LessThan,
+                        O::IntegerLessThan {
+                            psi_operation,
+                            result,
+                            left,
+                            right,
+                        },
+                    )
+                    | (
+                        IntegerRangePairComparisonKind::LessOrEqual,
+                        O::IntegerLessOrEqual {
+                            psi_operation,
+                            result,
+                            left,
+                            right,
+                        },
+                    ) => (*psi_operation, *result, *left, *right),
+                    _ => continue,
+                };
+                let Some(scalar_type) = integer_value_type(function, left) else {
+                    continue;
+                };
+                if integer_value_type(function, right) != Some(scalar_type) {
+                    continue;
+                }
+                let node_index =
+                    u32::try_from(node_index).expect("optimization node indices are u32");
+                let proof_range = |value| {
+                    ranges.facts.iter().find(|fact| {
+                        fact.valid_in.machine == function.machine
+                            && fact.value == value
+                            && fact.scalar_type == scalar_type
+                            && matches!(
+                                fact.support,
+                                ValueRangeSupport::AcceptedOperationProof { .. }
+                            )
+                            && ranges.fact_applies_at(
+                                fact,
+                                unit,
+                                function.machine,
+                                block.id,
+                                node_index,
+                            )
+                    })
+                };
+                let (Some(left_range), Some(right_range)) = (proof_range(left), proof_range(right))
+                else {
+                    continue;
+                };
+                let Some(constant) = evaluate_integer_range_pair_comparison(
+                    kind,
+                    scalar_type,
+                    left == right,
+                    left_range.minimum,
+                    left_range.maximum,
+                    right_range.minimum,
+                    right_range.maximum,
+                ) else {
+                    continue;
+                };
+                let location = NodeLocation {
+                    machine: function.machine,
+                    block: block.id,
+                    node: node_index,
+                };
+                candidates.push(
+                    PsiRewriteCandidate::new_boolean_evaluation(
+                        unit.identity,
+                        contract,
+                        vec![block.id],
+                        Vec::new(),
+                        vec![ProvenanceRewrite {
+                            input: PsiRealizationSite::Node(location),
+                            disposition: ProvenanceDisposition::RealizedAt(
+                                PsiRealizationSite::Node(location),
+                            ),
+                            sources: node.provenance.clone(),
+                            fuel: node.fuel.clone(),
+                        }],
+                        IntegerEvaluationWitness::RangeAgainstRange {
+                            left_range_fact: left_range.identity,
+                            right_range_fact: right_range.identity,
+                        },
+                        -1,
+                        BooleanConstantRewrite {
+                            location,
+                            source_operation: psi_operation,
+                            result,
+                            constant,
+                        },
+                    )
+                    .map_err(RuleProposalError::InvalidCandidate)?,
+                );
+            }
+        }
+    }
+    Ok(candidates)
+}
+
+fn evaluate_integer_range_pair_comparison(
+    kind: IntegerRangePairComparisonKind,
+    scalar_type: IntegerType,
+    same_value: bool,
+    left_minimum: IntegerValue,
+    left_maximum: IntegerValue,
+    right_minimum: IntegerValue,
+    right_maximum: IntegerValue,
+) -> Option<bool> {
+    if same_value {
+        return Some(!matches!(kind, IntegerRangePairComparisonKind::LessThan));
+    }
+    let left_maximum_to_right_minimum = scalar_type.compare(left_maximum, right_minimum)?;
+    let left_minimum_to_right_maximum = scalar_type.compare(left_minimum, right_maximum)?;
+    match kind {
+        IntegerRangePairComparisonKind::Equal => {
+            let both_equal_singletons = scalar_type.compare(left_minimum, left_maximum)?.is_eq()
+                && scalar_type.compare(right_minimum, right_maximum)?.is_eq()
+                && scalar_type.compare(left_minimum, right_minimum)?.is_eq();
+            both_equal_singletons.then_some(true).or_else(|| {
+                (left_maximum_to_right_minimum.is_lt() || left_minimum_to_right_maximum.is_gt())
+                    .then_some(false)
+            })
+        }
+        IntegerRangePairComparisonKind::LessThan => left_maximum_to_right_minimum
+            .is_lt()
+            .then_some(true)
+            .or_else(|| (!left_minimum_to_right_maximum.is_lt()).then_some(false)),
+        IntegerRangePairComparisonKind::LessOrEqual => (!left_maximum_to_right_minimum.is_gt())
+            .then_some(true)
+            .or_else(|| left_minimum_to_right_maximum.is_gt().then_some(false)),
     }
 }
 
@@ -9054,6 +9273,9 @@ fn built_in_rule_registrations(optimization: Optimization) -> Vec<BuiltInRuleReg
         register!(33, IntegerLessOrEqualConstantRangeRule);
         register!(34, IntegerEqualRangeConstantRule);
         register!(35, IntegerEqualConstantRangeRule);
+        register!(36, IntegerEqualRangeRangeRule);
+        register!(37, IntegerLessThanRangeRangeRule);
+        register!(38, IntegerLessOrEqualRangeRangeRule);
     }
     if optimization == Optimization::ControlFlowCleanup {
         register!(0, ConstantConditionalFoldRule);
@@ -9134,8 +9356,9 @@ pub(crate) mod tests {
     use omega_optimization_core::{OptimizationFactReference, OptimizationValidatorIdentity};
     use omega_optimization_unit::{
         AcceptedObligationFact, OptimizationFact, OptimizationNode, OwnershipFrontierFact,
-        OwnershipFrontierSnapshot, PsiProvenance, PsiRewriteCandidateError, PsiRewritePatch,
-        attach_accepted_obligation_facts, recompute_psi_optimization_unit_identity,
+        OwnershipFrontierSnapshot, ProofQuestion, ProofQuestionClass, ProofQuestionOwner,
+        PsiProvenance, PsiRewriteCandidateError, PsiRewritePatch, attach_accepted_obligation_facts,
+        attach_proof_questions, recompute_psi_optimization_unit_identity,
         reconstruct_psi_optimization_unit_seed,
     };
     use omega_optimization_validation::{
@@ -12259,6 +12482,146 @@ pub(crate) mod tests {
         .unwrap()
     }
 
+    fn proof_range_pair_comparison_unit() -> PsiOptimizationUnit {
+        let machine = id(361, MachineId::new);
+        let block = id(362, BlockId::new);
+        let left_value = id(363, ValueId::new);
+        let right_value = id(364, ValueId::new);
+        let left_count = id(365, ValueId::new);
+        let right_count = id(366, ValueId::new);
+        let left_shift = id(367, ValueId::new);
+        let right_shift = id(368, ValueId::new);
+        let result = id(369, ValueId::new);
+        let left_operation = id(370, OperationId::new);
+        let right_operation = id(371, OperationId::new);
+        let left_obligation = id(372, ObligationId::new);
+        let right_obligation = id(373, ObligationId::new);
+        let one_bit = IntegerType::new(IntegerSign::Unsigned, 1).unwrap();
+        let eight_bit = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        let unit = reconstruct_psi_optimization_unit_seed(
+            &AbstractOperationPlan {
+                psi: TerminalPsiIdentity {
+                    vocabulary_marker: VocabularyMarker::CURRENT,
+                    program_fingerprint: SemanticFingerprint::from_bytes([18; 32]),
+                },
+                entry: machine,
+                structural_types: Vec::new(),
+                boundary_machines: Vec::new(),
+                provider_candidates: Vec::new(),
+                functions: vec![AbstractFunction {
+                    machine,
+                    attachment: None,
+                    entry: block,
+                    parameters: vec![
+                        AbstractParameter {
+                            value: left_value,
+                            scalar_type: ScalarType::Integer(one_bit),
+                        },
+                        AbstractParameter {
+                            value: right_value,
+                            scalar_type: ScalarType::Integer(eight_bit),
+                        },
+                        AbstractParameter {
+                            value: left_count,
+                            scalar_type: ScalarType::Integer(eight_bit),
+                        },
+                        AbstractParameter {
+                            value: right_count,
+                            scalar_type: ScalarType::Integer(eight_bit),
+                        },
+                    ],
+                    structural_parameters: Vec::new(),
+                    result: AbstractFunctionResult::Scalar(AbstractResult {
+                        value: result,
+                        scalar_type: ScalarType::Boolean,
+                    }),
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![AbstractBlockEntry {
+                        block,
+                        parameters: Vec::new(),
+                        operation_offset: 0,
+                    }],
+                    operations: vec![
+                        AbstractOperation::ExactIntegerShiftRight {
+                            psi_operation: left_operation,
+                            obligation: left_obligation,
+                            result: left_shift,
+                            value_type: one_bit,
+                            count_type: eight_bit,
+                            value: left_value,
+                            count: left_count,
+                        },
+                        AbstractOperation::ExactIntegerShiftRight {
+                            psi_operation: right_operation,
+                            obligation: right_obligation,
+                            result: right_shift,
+                            value_type: eight_bit,
+                            count_type: eight_bit,
+                            value: right_value,
+                            count: right_count,
+                        },
+                        AbstractOperation::IntegerLessOrEqual {
+                            psi_operation: id(374, OperationId::new),
+                            result,
+                            left: left_count,
+                            right: right_count,
+                        },
+                        AbstractOperation::Return {
+                            psi_edge: id(375, EdgeId::new),
+                            result,
+                            value: result,
+                            scalar_type: ScalarType::Boolean,
+                            cleanup_actions: Vec::new(),
+                        },
+                    ],
+                }],
+            },
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap();
+        let proof_bundle_fingerprint = [30; 32];
+        let rows = [
+            (left_operation, left_obligation, one_bit, left_count),
+            (right_operation, right_obligation, eight_bit, right_count),
+        ];
+        let mut facts = Vec::new();
+        let mut questions = Vec::new();
+        for (operation, obligation, value_type, count) in rows {
+            let proposition = psi_terminal_semantics::CanonicalScalarGoal::ExactShiftCount {
+                value_type,
+                count_type: eight_bit,
+                count: psi_core::ScalarTerm::value(count, ScalarType::Integer(eight_bit)),
+            }
+            .kernel_proposition()
+            .unwrap()
+            .unwrap();
+            let proposition =
+                psi_terminal_codec::canonical_proposition_order_key(&proposition).unwrap();
+            facts.push(AcceptedObligationFact::new(
+                unit.psi,
+                proof_bundle_fingerprint,
+                machine,
+                operation,
+                obligation,
+                proposition.clone(),
+            ));
+            questions.push(ProofQuestion::new(
+                unit.psi,
+                proof_bundle_fingerprint,
+                ProofQuestionOwner::Operation { machine, operation },
+                obligation,
+                ProofQuestionClass::Derivable,
+                proposition,
+                Vec::new(),
+                Vec::new(),
+                true,
+            ));
+        }
+        let unit = attach_accepted_obligation_facts(unit, facts).unwrap();
+        attach_proof_questions(unit, questions).unwrap()
+    }
+
     #[test]
     fn selected_builtin_proposes_one_independently_validated_exact_fold() {
         let unit = exact_add_unit();
@@ -12269,7 +12632,7 @@ pub(crate) mod tests {
             OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
                 .unwrap();
         let registry = built_in_psi_registry(&selections).unwrap();
-        assert_eq!(registry.len(), 36);
+        assert_eq!(registry.len(), 39);
         let mut dispatched = 0usize;
         let mut candidates = Vec::new();
         for rule in registry.iter() {
@@ -12688,11 +13051,149 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn sccp_registry_appends_both_integer_range_equality_orientations() {
+    fn integer_range_pair_comparisons_prove_only_universal_results() {
+        let scalar_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        let u = IntegerValue::Unsigned;
+        assert_eq!(
+            evaluate_integer_range_pair_comparison(
+                IntegerRangePairComparisonKind::Equal,
+                scalar_type,
+                false,
+                u(7),
+                u(7),
+                u(7),
+                u(7),
+            ),
+            Some(true)
+        );
+        assert_eq!(
+            evaluate_integer_range_pair_comparison(
+                IntegerRangePairComparisonKind::Equal,
+                scalar_type,
+                false,
+                u(1),
+                u(3),
+                u(4),
+                u(6),
+            ),
+            Some(false)
+        );
+        assert_eq!(
+            evaluate_integer_range_pair_comparison(
+                IntegerRangePairComparisonKind::Equal,
+                scalar_type,
+                false,
+                u(1),
+                u(4),
+                u(3),
+                u(6),
+            ),
+            None
+        );
+        assert_eq!(
+            evaluate_integer_range_pair_comparison(
+                IntegerRangePairComparisonKind::LessThan,
+                scalar_type,
+                false,
+                u(1),
+                u(3),
+                u(4),
+                u(6),
+            ),
+            Some(true)
+        );
+        assert_eq!(
+            evaluate_integer_range_pair_comparison(
+                IntegerRangePairComparisonKind::LessThan,
+                scalar_type,
+                false,
+                u(4),
+                u(6),
+                u(1),
+                u(4),
+            ),
+            Some(false)
+        );
+        assert_eq!(
+            evaluate_integer_range_pair_comparison(
+                IntegerRangePairComparisonKind::LessOrEqual,
+                scalar_type,
+                false,
+                u(1),
+                u(4),
+                u(4),
+                u(6),
+            ),
+            Some(true)
+        );
+        assert_eq!(
+            evaluate_integer_range_pair_comparison(
+                IntegerRangePairComparisonKind::LessOrEqual,
+                scalar_type,
+                false,
+                u(5),
+                u(6),
+                u(1),
+                u(4),
+            ),
+            Some(false)
+        );
+        for (kind, expected) in [
+            (IntegerRangePairComparisonKind::Equal, true),
+            (IntegerRangePairComparisonKind::LessThan, false),
+            (IntegerRangePairComparisonKind::LessOrEqual, true),
+        ] {
+            assert_eq!(
+                evaluate_integer_range_pair_comparison(
+                    kind,
+                    scalar_type,
+                    true,
+                    u(1),
+                    u(6),
+                    u(1),
+                    u(6),
+                ),
+                Some(expected)
+            );
+        }
+    }
+
+    #[test]
+    fn proof_derived_range_pair_proposes_two_fact_boolean_fold() {
+        let unit = proof_range_pair_comparison_unit();
+        let ranges = compute_analysis(&unit, AnalysisKind::ValueRanges).unwrap();
+        let candidates = IntegerLessOrEqualRangeRangeRule
+            .propose(&unit, RuleAnalysisView::new(&[ranges]))
+            .unwrap();
+        let [candidate] = candidates.as_slice() else {
+            panic!("two applicable proof ranges produce one comparison candidate")
+        };
+        let (left_range_fact, right_range_fact) = candidate
+            .scalar_evaluation_witness()
+            .and_then(IntegerEvaluationWitness::range_against_range)
+            .expect("range-pair candidate retains both proof facts");
+        assert_ne!(left_range_fact, right_range_fact);
+        assert_eq!(candidate.consumed_facts().len(), 2);
+        assert!(matches!(
+            candidate.patch(),
+            PsiRewritePatch::ReplaceBooleanOperationWithConstant(BooleanConstantRewrite {
+                constant: true,
+                ..
+            })
+        ));
+        let accepted = validate_boolean_evaluation_candidate(&unit, candidate).unwrap();
+        assert!(matches!(
+            accepted.unit().functions[0].blocks[0].nodes[2].operation,
+            AbstractOperation::BooleanConstant { value: true, .. }
+        ));
+    }
+
+    #[test]
+    fn sccp_registry_appends_range_pair_comparisons_after_literal_range_rules() {
         let registry =
             registry_for_optimization(Optimization::SparseConditionalConstantPropagation).unwrap();
         let contracts = registry.contracts().collect::<Vec<_>>();
-        assert_eq!(contracts.len(), 36);
+        assert_eq!(contracts.len(), 39);
         assert_eq!(
             contracts[34].identity(),
             IntegerEqualRangeConstantRule::contract().identity()
@@ -12700,6 +13201,18 @@ pub(crate) mod tests {
         assert_eq!(
             contracts[35].identity(),
             IntegerEqualConstantRangeRule::contract().identity()
+        );
+        assert_eq!(
+            contracts[36].identity(),
+            IntegerEqualRangeRangeRule::contract().identity()
+        );
+        assert_eq!(
+            contracts[37].identity(),
+            IntegerLessThanRangeRangeRule::contract().identity()
+        );
+        assert_eq!(
+            contracts[38].identity(),
+            IntegerLessOrEqualRangeRangeRule::contract().identity()
         );
         assert!(contracts.iter().all(|contract| {
             contract.pass() == OptimizationPassIdentity::from_canonical_bytes(SCCP_PASS_NAME)

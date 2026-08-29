@@ -75,6 +75,7 @@ fn terminal_report(
     request: CompileRequest,
     checked: crate::pipeline::CheckedCompilation,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
+    reject_unconsumed_callback_placements("terminal-artifact", &checked)?;
     let source_file_count = checked.source_file_count();
     let entry_machine = checked
         .selected_program_entry_machine()
@@ -107,6 +108,7 @@ fn native_report(
     request: CompileRequest,
     checked: crate::pipeline::CheckedCompilation,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
+    reject_unconsumed_callback_placements("native-artifact", &checked)?;
     let source_file_count = checked.source_file_count();
     let selected_program_entry = checked.selected_program_entry().ok_or_else(|| {
         vec![Diagnostic::error(
@@ -163,4 +165,24 @@ fn native_report(
         build_observation_summary,
     )
     .map_err(|message| vec![Diagnostic::error(message)])
+}
+
+fn reject_unconsumed_callback_placements(
+    product: &str,
+    checked: &crate::pipeline::CheckedCompilation,
+) -> Result<(), Vec<Diagnostic>> {
+    let placements = checked.callback_placements();
+    if placements.is_empty() {
+        return Ok(());
+    }
+
+    let requirements = placements
+        .iter()
+        .map(|placement| format!("`{}`", placement.canonical_requirement_overload))
+        .collect::<Vec<_>>()
+        .join(", ");
+    Err(vec![Diagnostic::error(format!(
+        "{product} production cannot discard {} validated callback placement(s) for {requirements}; canonical Terminal callback-use custody is not implemented",
+        placements.len()
+    ))])
 }

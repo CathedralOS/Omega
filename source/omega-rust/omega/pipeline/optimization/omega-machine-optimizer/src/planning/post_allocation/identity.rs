@@ -58,13 +58,24 @@ pub(crate) fn encode_terminal_post_allocation_machine_content(
             None => bytes.push(0),
             Some(call) => {
                 bytes.push(1);
-                crate::effect_identity::encode_structural_call(&mut bytes, call);
+                crate::analyses::pre_allocation_effects::identity::encode_structural_call(
+                    &mut bytes, call,
+                );
             }
         }
         encode_instruction(&mut bytes, &function.return_instruction);
-        crate::effect_identity::encode_provenance(&mut bytes, &function.return_provenance);
-        crate::effect_identity::encode_effect_link(&mut bytes, function.return_effect);
-        crate::effect_identity::encode_ownership(&mut bytes, &function.return_ownership);
+        crate::analyses::pre_allocation_effects::identity::encode_provenance(
+            &mut bytes,
+            &function.return_provenance,
+        );
+        crate::analyses::pre_allocation_effects::identity::encode_effect_link(
+            &mut bytes,
+            function.return_effect,
+        );
+        crate::analyses::pre_allocation_effects::identity::encode_ownership(
+            &mut bytes,
+            &function.return_ownership,
+        );
     }
     bytes
 }

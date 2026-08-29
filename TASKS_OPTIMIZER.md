@@ -830,8 +830,21 @@ These facts constrain the work below.
   validator bind the authored operand orientation and replay both fact
   identities at the point of use. Checked-source canaries cover false and
   overlap outcomes in both orientations, while separate producer and validator
-  tests cover singleton truth. SCCP pass identity is v4, the optimized-plan
-  projection validator is v31, and the prephysical manifest identity is v30.
+  tests cover singleton truth. Rules 37–39 consume two proof-derived integer
+  intervals for `range == range`, `range < range`, and `range <= range`.
+  Equality is true only for matching singleton intervals and false only for
+  disjoint intervals. Less-than is true when the left maximum is below the
+  right minimum and false when the left minimum is at least the right maximum;
+  less-than-or-equal is true when the left maximum is at most the right minimum
+  and false when the left minimum is above the right maximum. Every other
+  overlapping or crossing case declines. Each witness retains both exact
+  `ValueRangeFactIdentity` values, and producer plus independent validator
+  separately check both facts' fixed-integer types, operation-entry
+  applicability, authored operand order, proof support, and comparison result.
+  SCCP pass identity is v5, the optimized-plan projection validator is v32,
+  and the prephysical manifest identity is v31. Candidate v24 and optimization-
+  unit identity v16 need no change because they already encode both typed fact
+  references and the complete proof-bearing candidate/unit content.
   The task reopens when the scalar vocabulary grows (including any future
   trapping or exact-float policy). Semantic analyses remain open for the wider
   proof/effect/ownership vocabulary and broader range-consuming rules.
@@ -984,7 +997,7 @@ These facts constrain the work below.
   ownership-fact occurrences, while verified artifact tests reach the exact
   one-block and three-block projections. Its v5 contract consumes the three
   exact ownership facts and is registered under `ControlFlowCleanup` v12; the
-  current prephysical manifest v30 and optimized-plan projection v31 bind that
+  current prephysical manifest v31 and optimized-plan projection v32 bind that
   admission meaning. Ledger v4 already represents both moves.
 - The fifth exact `ControlFlowCleanup` rule,
   `shared-terminal-jump-fusion.v1`, removes one unconditional jump into a
@@ -1212,7 +1225,9 @@ These facts constrain the work below.
 `../Squalr` provides the intended small rule-planning pattern:
 
 - rule traits have stable IDs;
-- registries own built-in rules;
+- a 78-line element-scan registry visibly owns the complete built-in rule list;
+- each built-in rule has its own coherently named file below parameter-rule or
+  filter-rule folders;
 - rules map an input or mutable execution plan to a more efficient plan;
 - dispatch selects a specialized implementation from the planned result; and
 - a debug scalar scan can compare the specialized result against a reference.
@@ -1222,9 +1237,46 @@ reference validation. Do not copy Squalr's transitional global singleton,
 unsafe initialization, hash-map iteration order, in-place partial mutation, or
 absence of declared analysis invalidation. Omega registries must be explicit,
 ordered values; rules propose atomic patches; a separate validator accepts or
-rejects them. The audit also found registered element-parameter rules without a
-dispatcher call site in the scanned crates; Omega therefore needs a registry
-coverage test proving that every enabled rule phase is actually scheduled.
+rejects them. Squalr's current callers do dispatch both parameter and filter
+rule registries, but their hash-map iteration does not express a stable chained
+order. Omega therefore retains ordered registry values and coverage tests that
+prove every enabled rule phase is actually scheduled.
+
+## Optimizer source organization gate
+
+- **OPT-OPTIMIZER-MODULE-TAXONOMY.** Replace flat prefix-named file sets and
+  multi-purpose monoliths with navigable stage entrances and named rule
+  families. A human entering an optimizer crate must first see a small
+  responsibility-bearing `lib.rs`; it names the stage's semantic rungs and
+  public coordination entries. Each rung then has a small `mod.rs` that owns
+  its catalog or compute-to-independent-validation flow and leads to folders
+  named for exact analyses, plans, or optimization rules. Entrances must not
+  contain rule mechanics or giant test modules, but also must not be empty
+  forwarding shells.
+
+  The machine optimizer is the reference slice. Its 16-line crate entrance
+  leads to `analyses/pre_allocation_effects`, `planning/post_allocation`, and
+  `rules/aarch64/{compare_zero_branch_nonzero,materialize_i64_movn}`. Each leaf
+  entrance is 26–54 lines and owns the public operation plus its
+  compute/independent-replay join. Existing public API names and all semantic
+  identities are unchanged.
+
+  Remaining work: split `omega-psi-optimizer/src/rules.rs` by named pass and
+  exact rule family; split candidate replay out of
+  `omega-optimization-validation/src/lib.rs` under the matching independent
+  validator taxonomy; organize register allocation into `analyses`,
+  `allocation`, and exact `rules`; make optimization-pipeline stage catalogs
+  navigable without a flat `#[path]`/re-export wall; and split monolithic test
+  modules beside the family they exercise. Do not create one crate per rule or
+  combine independent producer and validator implementations merely to reduce
+  line counts.
+
+  Acceptance: no optimizer production file combines registry construction,
+  unrelated rule mechanics, independent validation, and broad integration
+  fixtures; every exact named optimization is discoverable from one stage
+  entrance through coherently named folders; enabling/disabling remains the
+  exact ordered selection/registry operation; and workspace plus stage tests
+  prove the refactor changes no identities, schedules, or outputs.
 
 ## Ownership and placement
 
@@ -1660,7 +1712,7 @@ alternate semantic handoff.
   with explicit dominance/use-definition evidence, global typed substitution,
   moved-definition reconstruction, dense-effect accounting, and independent
   replay. Candidate v24, optimization-unit identity v16, ledger v4,
-  prephysical manifest v30, and projection validator v31 bind the current
+  prephysical manifest v31, and projection validator v32 bind the current
   occurrence and function-roster replay.
 
   A standalone pass over blocks that are already unreachable has no admitted
@@ -1681,7 +1733,7 @@ alternate semantic handoff.
   block parameters. Float support waits for complete per-operation exact
   semantics and must never use host arithmetic as a shortcut.
 
-  Current slice: thirty-six exact rules cover every currently evaluable Boolean
+  Current slice: thirty-nine exact rules cover every currently evaluable Boolean
   and integer leaf and consume literal or coupled-CFG propagated block-
   parameter facts reconstructed by the independent validator. Rules 31–34
   consume a proof-derived interval plus an exact direct literal for all four
@@ -1689,7 +1741,15 @@ alternate semantic handoff.
   outcomes, record both fact identities, and decline overlapping ranges. Rules
   35–36 cover both operand orientations of integer equality against a direct
   literal, proving true only for the matching singleton interval, false only
-  outside the interval, and declining an interior overlap.
+  outside the interval, and declining an interior overlap. Rules 37–39 consume
+  two independently applicable proof-derived intervals for integer equality,
+  less-than, and less-than-or-equal. They use only the exact closed-interval
+  laws: matching singletons/disjointness for equality, ordered extrema for the
+  comparisons, and no candidate when overlapping or crossing intervals do not
+  force one Boolean result. Both range facts, fixed-integer types, proof
+  supports, point-of-use applicability, and authored operand order are
+  independently reconstructed and replayed. This does not add a broader range
+  extractor or infer intervals beyond the already admitted proof vocabulary.
   Structural-field and call results remain
   overdefined because the input has no immutable
   structural version or call-summary constant fact. Float and trapping-policy

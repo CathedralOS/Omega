@@ -144,14 +144,14 @@ pub struct Aarch64CbnzFusionPlan {
 
 impl Aarch64CbnzFusionPlan {
     pub fn encode(&self) -> Vec<u8> {
-        crate::aarch64_cbnz_codec::encode(self)
+        super::codec::encode(self)
     }
 
     /// Decode and content-authenticate a plain unchecked artifact. Call
     /// [`crate::validate_aarch64_cbnz_fusion`] against the retained inputs
     /// before using any disposition.
     pub fn decode(encoded: &[u8]) -> Result<Self, crate::Aarch64CbnzFusionDecodeError> {
-        crate::aarch64_cbnz_codec::decode(encoded)
+        super::codec::decode(encoded)
     }
 }
 
