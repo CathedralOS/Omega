@@ -5,7 +5,7 @@
 //! implementation details.
 
 mod cache;
-mod dependency_resolution;
+mod dependencies;
 mod errors;
 mod external_local;
 mod git;

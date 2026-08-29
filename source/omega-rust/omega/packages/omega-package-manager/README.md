@@ -54,6 +54,7 @@ resolution/closure/
 ├── model.rs         validated nodes, edges, aliases, and reachability
 ├── root_request.rs  exact request selecting the root
 ├── traversal/       follow declared workspace, local, and Git edges
+│   └── dependencies/ dispatch Git and Path rows within retained context
 ├── reconciliation/  reconcile one complete closure
 └── identity/        canonical identity of the exact closure
     ├── subject/     closure question, requests, limits, and fingerprint

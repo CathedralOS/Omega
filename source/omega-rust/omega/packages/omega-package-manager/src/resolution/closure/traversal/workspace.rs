@@ -3,8 +3,8 @@
 use super::super::reconciliation::{
     PackageRootSourceRequest, PackageSourceClosureLimits, ResolvedPackageSourceClosure,
 };
-use super::cache::{GitAcquisitionCache, SourceCacheLane, resolve_workspace_member_from_cache};
-use super::dependency_resolution::{WorkspaceContext, resolve_registered_package_closure};
+use super::cache::{resolve_workspace_member_from_cache, GitAcquisitionCache, SourceCacheLane};
+use super::dependencies::{resolve_registered_package_closure, WorkspaceContext};
 use super::errors::ResolveWorkspacePackageClosureError;
 use crate::resolution::source::ResolvePackageSourceError;
 use omega_package_source::{
