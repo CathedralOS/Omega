@@ -5,40 +5,46 @@ same order the workflow runs:
 
 ```text
 src/
-├── lib.rs          public entrance; reexports only
+├── lib.rs          public compatibility exports
+├── workflow/       complete command-facing operations; start here
 ├── manifest/       read and conservatively edit build.omg
-├── source/         establish immutable package-source custody
+├── source/         acquire immutable local and Git source snapshots
+├── package/        bind snapshots to declarations and dependency rows
 ├── graph/          construct, validate, and identify the dependency closure
 ├── review/         compile, compare, triage, and apply root review policy
-└── storage/        shared bounded atomic record files
+└── records/        shared bounded atomic record files
 ```
+
+`workflow/source_audit/` is the first complete operation. Install/update
+orchestration remains intentionally absent until its admission prerequisites
+are implemented.
 
 ## Source custody
 
 ```text
 source/
-├── mod.rs          source facade and responsibility map
-├── audit.rs        read-only command boundary
+├── mod.rs          acquisition boundary and public source vocabulary
 ├── identity/       package names, aliases, lineages, locators, and exact pins
 ├── local/          capture and publish immutable local snapshots
 ├── git/            fetch, authenticate, materialize, and retain Git snapshots
 ├── custody/        locks, host policy, tree checks, and atomic publication
 ├── observations/   successful resolution and execution observations
-├── package/        bind one retained source to its package declaration
 ├── storage.rs      private per-user resolver storage lanes
 ├── limits.rs       compiler-owned acquisition ceilings
 └── error.rs        source-resolution failures
 ```
 
 Hostile-process confinement is delegated to
-[`resolver-execution`](../resolver-execution/README.md). Source identity,
-package identity, and final resolution issuance remain here.
+[`resolver-execution`](../resolver-execution/README.md). Source acquisition
+does not know graph identity. `package/` performs the declaration join before
+`graph/` derives graph-owned identities.
 
 ## Dependency graph
 
 ```text
 graph/
-├── mod.rs           graph facade
+├── mod.rs           graph boundary and public graph vocabulary
+├── root_request.rs  exact request selecting the root
 ├── traversal/       follow declared workspace, local, and Git edges
 ├── reconciliation/  reconcile one complete closure
 ├── validation/      validate nodes, edges, aliases, and reachability
@@ -67,12 +73,12 @@ qualification throughout the nominal identity substrate, not merely new aliases.
 
 ```text
 review/
-├── compiler/        compile exact custody into compiler-issued review rows
+├── compilation/     compile exact custody into compiler-issued review rows
 ├── evidence/        bind rows to source and closure commitments
 ├── comparison/      compare candidate rows with a retained baseline
-├── diff/            bounded hostile-source differences
+├── source_diff/     bounded hostile-source differences
 ├── triage/          deterministic blockers and audit recommendations
-├── advisor/         bounded advisory human/LLM review boundary
+├── advisory/        bounded advisory human/LLM review boundary
 ├── baseline/        non-admitting review baseline persistence
 ├── reconstruction/  exact closure reconstruction questions
 └── policy/          root-owned review decisions
@@ -86,7 +92,7 @@ resolver guarantees and gaps are maintained in
 
 Package-authored code never chooses admitted capabilities, accepted lock state,
 resolver policy, or review outcome. `build.omg` provides compiler-checked
-declarations; [`compiler-review`](../compiler-review/README.md) projects checked
+declarations; [`package-review`](../package-review/README.md) projects checked
 semantic facts without admission authority.
 
 Language and design references:

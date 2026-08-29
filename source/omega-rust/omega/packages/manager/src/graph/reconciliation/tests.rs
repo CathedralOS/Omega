@@ -6,7 +6,7 @@ use crate::source::identity::{
     SourceContentDigest, SourceLineage, WorkspaceMemberPath,
 };
 use crate::{
-    GitSourceRequest, LocalSourceLimits, ResolvedPackageSource,
+    GitSourceRequest, LocalSourceLimits, PackageSourceCustody, ResolvedPackageSource,
     resolve_workspace_member_package_source,
 };
 use std::cell::RefCell;

@@ -6,19 +6,19 @@ only package crate called by the `omega` command.
 ```text
 packages/
 ├── README.md             this entrance
-├── manager/              manifest → source → graph → review
-├── compiler-review/      checked compiler state → inert review evidence
+├── manager/              workflow → manifest/source/package/graph/review
+├── package-review/       checked compiler state → inert review evidence
 └── resolver-execution/   confined native source-resolution processes
 ```
 
 The dependency direction is one-way:
 
 ```text
-manager ──→ compiler-review
+manager ──→ package-review
         └─→ resolver-execution
 ```
 
-`compiler-review` understands compiler semantics but cannot admit packages.
+`package-review` understands compiler semantics but cannot admit packages.
 `resolver-execution` understands host confinement but cannot choose package
 identity or policy. `manager` composes those results, but mutating install and
 update transactions remain gated by [`TASKS_PACKAGE_MANAGER.md`](../../../../TASKS_PACKAGE_MANAGER.md).

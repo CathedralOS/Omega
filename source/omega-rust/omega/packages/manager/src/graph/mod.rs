@@ -6,17 +6,19 @@
 //! review identity.
 
 pub(crate) mod reconciliation;
+mod root_request;
 mod subject;
 mod traversal;
 pub(crate) mod validation;
 
 pub use reconciliation::{
-    DependencyRequestPath, DependencyRequestPathStep, PackageRootSourceRequest,
-    PackageSourceClosureConflict, PackageSourceClosureConflictCandidate,
-    PackageSourceClosureLimitKind, PackageSourceClosureLimits, PackageSourceClosureResolutionError,
-    PackageSourceCustody, ResolvedDependencySourceRequest, ResolvedPackageSourceClosure,
-    ResolvedPackageSourceRequestSet, ResolvedRootPackageSourceRequest,
+    DependencyRequestPath, DependencyRequestPathStep, PackageSourceClosureConflict,
+    PackageSourceClosureConflictCandidate, PackageSourceClosureLimitKind,
+    PackageSourceClosureLimits, PackageSourceClosureResolutionError,
+    ResolvedDependencySourceRequest, ResolvedPackageSourceClosure, ResolvedPackageSourceRequestSet,
+    ResolvedRootPackageSourceRequest,
 };
+pub use root_request::PackageRootSourceRequest;
 pub use subject::{
     CanonicalDependencySourceRequest, CanonicalDependencySourceSelection,
     CanonicalRootSourceRequest, CanonicalRootSourceSelection, CanonicalSourceClosureSubject,

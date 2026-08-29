@@ -10,6 +10,7 @@ use super::platform::{
     verify_windows_open_cache_directory_custody, verify_windows_open_cache_link_custody,
     verify_windows_open_cache_regular_file_custody,
 };
+use crate::records::atomic_file::{RecordFileLimits, RecordFileRoot};
 use crate::source::SourceResolveError;
 use crate::source::git::cache::{cache_invalid, local_snapshot_invalid};
 use crate::source::limits::{
@@ -18,7 +19,6 @@ use crate::source::limits::{
     LocalSourceLimits,
 };
 use crate::source::local::capture::{io_error, open_absolute_directory_nofollow};
-use crate::storage::atomic_file::{RecordFileLimits, RecordFileRoot};
 use cap_fs_ext::DirExt;
 use cap_std::fs::{Dir as CapabilityDirectory, Metadata as CapabilityMetadata};
 use std::path::{Path, PathBuf};

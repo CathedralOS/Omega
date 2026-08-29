@@ -2,7 +2,7 @@
 
 use super::super::reconciliation::{
     PackageRootSourceRequest, PackageSourceClosureLimits, PackageSourceClosureResolutionError,
-    PackageSourceCustody, ResolvedPackageSourceClosure, resolve_package_source_closure_with_limits,
+    ResolvedPackageSourceClosure, resolve_package_source_closure_with_limits,
 };
 use super::cache::{
     SourceCacheLane, resolve_external_local_package_from_cache, resolve_git_from_cache,
@@ -10,10 +10,10 @@ use super::cache::{
 };
 use super::errors::ResolveDependencySourceError;
 use crate::manifest::dependency_projection::DependencySourceRequest;
+use crate::package::{PackageSourceCustody, ResolvePackageSourceError};
 use crate::source::identity::{
     ExternalSourceContext, PackageKey, SourceLineage, WorkspaceLineageIdentity, WorkspaceMemberPath,
 };
-use crate::source::package::ResolvePackageSourceError;
 use crate::source::{GitSourceRequest, LocalSourceLimits};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

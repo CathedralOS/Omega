@@ -528,7 +528,7 @@ fn package_review_is_not_owned_or_reexported_by_the_compiler() {
         "package review projection and evidence schemas must not return to omega-compiler"
     );
 
-    let owner = root.join("source/omega-rust/omega/packages/compiler-review/src/lib.rs");
+    let owner = root.join("source/omega-rust/omega/packages/package-review/src/lib.rs");
     assert!(
         owner.is_file(),
         "omega-package-review must own package review"
@@ -555,12 +555,15 @@ fn package_subsystem_has_discoverable_owners_and_bounded_modules() {
     for required in [
         "README.md",
         "manager/src/lib.rs",
+        "manager/src/workflow/mod.rs",
+        "manager/src/workflow/source_audit/mod.rs",
         "manager/src/manifest/mod.rs",
         "manager/src/source/mod.rs",
+        "manager/src/package/mod.rs",
         "manager/src/graph/mod.rs",
         "manager/src/review/mod.rs",
-        "manager/src/storage/mod.rs",
-        "compiler-review/src/lib.rs",
+        "manager/src/records/mod.rs",
+        "package-review/src/lib.rs",
         "resolver-execution/src/lib.rs",
     ] {
         assert!(
@@ -573,7 +576,12 @@ fn package_subsystem_has_discoverable_owners_and_bounded_modules() {
         "omega-package-review",
         "omega-resolver-execution",
         "manager/src/resolution",
-        "manager/src/records",
+        "manager/src/storage",
+        "manager/src/source/package",
+        "manager/src/source/audit.rs",
+        "manager/src/review/advisor",
+        "manager/src/review/compiler",
+        "manager/src/review/diff",
     ] {
         assert!(
             !packages.join(retired).exists(),

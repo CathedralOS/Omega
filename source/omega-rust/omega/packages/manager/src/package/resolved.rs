@@ -1,5 +1,5 @@
-use crate::graph::{PackageSourceCustody, ResolvedSourceIdentity};
 use crate::manifest::dependency_projection::DependencySourceRequest;
+use crate::package::PackageSourceCustody;
 use crate::source::LocalSourceLimits;
 use crate::source::identity::{ImmutableSourceResolution, PackageKey};
 use std::path::{Path, PathBuf};
@@ -61,10 +61,6 @@ impl<S> ResolvedPackageSource<S> {
 
     pub fn source(&self) -> &S {
         &self.source
-    }
-
-    pub fn identity(&self) -> ResolvedSourceIdentity {
-        ResolvedSourceIdentity::from_validated_parts(self.key.clone(), self.resolution.clone())
     }
 
     /// Erase the transport-specific resolver payload while retaining the

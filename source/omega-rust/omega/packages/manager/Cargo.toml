@@ -13,7 +13,7 @@ omega-build-declarations = { path = "../../build/omega-build-declarations" }
 omega-build-evaluation = { path = "../../build/omega-build-evaluation" }
 omega-build-provenance = { path = "../../build/omega-build-provenance" }
 omega-compiler = { path = "../../compiler/omega-compiler" }
-omega-package-review = { path = "../compiler-review" }
+omega-package-review = { path = "../package-review" }
 omega-package-compilation = { path = "../../build/omega-package-compilation" }
 omega-resolver-execution = { path = "../resolver-execution" }
 psi-core = { path = "../../../psi/foundation/psi-core" }

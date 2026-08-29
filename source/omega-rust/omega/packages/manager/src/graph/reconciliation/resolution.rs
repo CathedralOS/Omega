@@ -1,14 +1,17 @@
 //! Bounded traversal, custody reconciliation, and conflict path collection.
 
-use super::super::validation::{ResolvedDependency, ResolvedPackageClosure, ResolvedPackageNode};
+use super::super::validation::{
+    ResolvedDependency, ResolvedPackageClosure, ResolvedPackageNode, ResolvedSourceIdentity,
+};
 use super::model::{
     DependencyRequestPath, DependencyRequestPathStep, PackageSourceClosureConflict,
     PackageSourceClosureConflictCandidate, PackageSourceClosureLimitKind,
     PackageSourceClosureLimits, PackageSourceClosureResolutionError,
 };
 use super::resolved_closure::ResolvedPackageSourceClosure;
-use super::source_custody::{PackageRootSourceRequest, PackageSourceCustody};
+use crate::graph::PackageRootSourceRequest;
 use crate::manifest::dependency_projection::DependencySourceRequest;
+use crate::package::PackageSourceCustody;
 use crate::source::identity::{AliasName, PackageKey};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
@@ -165,7 +168,10 @@ where
         .values()
         .map(|custody| {
             ResolvedPackageNode::new(
-                custody.source_identity(),
+                ResolvedSourceIdentity::from_validated_parts(
+                    custody.key().clone(),
+                    custody.resolution().clone(),
+                ),
                 dependencies.get(custody.key()).cloned().unwrap_or_default(),
             )
         })

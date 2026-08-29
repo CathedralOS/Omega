@@ -3,6 +3,7 @@
 //! The entry points are grouped by source lineage. Shared declaration
 //! projection, errors, and resolved custody live behind this narrow facade.
 
+mod custody;
 mod error;
 mod git;
 mod local;
@@ -10,6 +11,7 @@ mod projection;
 mod resolved;
 mod workspace;
 
+pub use custody::PackageSourceCustody;
 pub use error::ResolvePackageSourceError;
 #[cfg(test)]
 pub(crate) use git::resolve_git_package_source;

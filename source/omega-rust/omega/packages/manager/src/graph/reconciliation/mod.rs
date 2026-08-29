@@ -6,8 +6,8 @@
 mod model;
 mod resolution;
 mod resolved_closure;
-mod source_custody;
 
+pub use super::root_request::PackageRootSourceRequest;
 pub use model::{
     DependencyRequestPath, DependencyRequestPathStep, PackageSourceClosureConflict,
     PackageSourceClosureConflictCandidate, PackageSourceClosureLimitKind,
@@ -17,7 +17,6 @@ pub use resolved_closure::{
     ResolvedDependencySourceRequest, ResolvedPackageSourceClosure, ResolvedPackageSourceRequestSet,
     ResolvedRootPackageSourceRequest,
 };
-pub use source_custody::{PackageRootSourceRequest, PackageSourceCustody};
 
 #[cfg(test)]
 pub(crate) use resolution::resolve_package_source_closure;
