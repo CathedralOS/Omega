@@ -401,10 +401,20 @@ relocation envelope, executable-region inventory, target, and bytes to the
 borrowed source-free `ObjectArtifact`. Any target or artifact drift rejects
 with the admitted carrier intact. Success is deliberately a distinct
 non-installable custody carrier rather than `ExecutableImage`, so the bridge
-adds no installation, publication, or execution authority. Optional
-`.gnu.hash`, compiler orchestration of the complete dynamic-owner chain, and
-ordinary source `via` evaluation remain open. An owned direct `[u8; N]`
-destination now contextually
+adds no installation, publication, or execution authority. A complete source-
+free chain driver now consumes one exact import-bearing `ObjectArtifact` plus
+one `NormalizedElfInterpreterPlan`, builds the final image, and advances
+transactionally through every existing section, linkage, placement, fixup,
+assembly, admission, and production-bridge owner.
+Each rejecting rung is retained in a stage-tagged error rather than flattened
+to a diagnostic; a malformed procedure-call placeholder therefore returns the
+descriptor owner still carrying the exact image, interpreter, and normalized
+imports. Both Linux profiles replay to deterministic production output, while
+the result remains the non-installable custody carrier above. This remains a
+pre-integration seam because the ordinary production object builder does not
+yet retain normalized foreign imports. Production import retention, optional
+`.gnu.hash`, and ordinary source `via` evaluation remain open. An owned direct
+`[u8; N]` destination now contextually
 copies a quoted literal into an ordinary raw-byte array only when `N` is a
 resolved integer literal and the source byte count matches exactly; non-byte
 or unresolved/mismatched widths reject, and hermetic evaluation observes the

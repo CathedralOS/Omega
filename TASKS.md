@@ -10314,9 +10314,20 @@ boundary without its corresponding checked law.
   `ObjectArtifact`. Target or artifact drift rejects with the admitted carrier
   intact. Success remains a distinct non-installable custody type rather than
   `ExecutableImage`, so it cannot enter existing installation/publication APIs
-  and grants no execution event. Optional `.gnu.hash`, compiler orchestration
-  of the complete dynamic-owner chain, and ordinary source `via` evaluation
-  remain unimplemented.
+  and grants no execution event. The complete source-free chain driver is now
+  live for one exact import-bearing `ObjectArtifact` plus one consumed
+  `NormalizedElfInterpreterPlan`: it constructs the final image and advances
+  through every existing section, linkage, placement, fixup, assembly,
+  admission, and production-bridge owner in order.
+  Its stage-tagged failure enum retains the exact typed carrier returned by the
+  rejecting rung; even a mid-chain opcode-placeholder failure preserves the
+  original image, interpreter, and normalized imports through that owner.
+  Exact x86-64/AArch64 replay is deterministic. The driver result remains the
+  same non-installable custody type and grants no publication or execution
+  authority. This is still a pre-integration seam: the ordinary production
+  object builder does not yet populate normalized foreign imports, so it cannot
+  supply the driver's successful input. Production import retention, optional
+  `.gnu.hash`, and ordinary source `via` evaluation remain unimplemented.
   The generic contextual byte-literal rung is also live for owned direct
   `[u8; N]` destinations used by final results, locals/owned initializers,
   exact resolved call arguments, and record/case fields. It copies source bytes

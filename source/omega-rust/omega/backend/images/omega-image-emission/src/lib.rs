@@ -47,8 +47,8 @@ mod unit_call_custody;
 mod unit_stack;
 
 pub use dynamic_elf::{
-    DynamicElfImageEmission, DynamicElfImageEmissionError, emit_admitted_dynamic_elf_image,
-    validate_dynamic_elf_image_emission,
+    DynamicElfImageEmission, DynamicElfImageEmissionError, DynamicElfOrchestrationError,
+    emit_admitted_dynamic_elf_image, emit_dynamic_elf_image, validate_dynamic_elf_image_emission,
 };
 pub use image_output::{
     ExecutableImage, NativeFuelExecutableImage, NativeFuelTransferRuntimeExecutableImage,
