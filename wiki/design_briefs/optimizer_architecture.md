@@ -3504,6 +3504,36 @@ separately rather than hiding the stage taxonomy in a single integration file.
 Reorganization must not change the flat public compatibility surface, semantic
 identities, exact selected schedule, or stage outputs.
 
+The function-relative realization boundary uses a second descending taxonomy
+inside `stages/realization`:
+
+```text
+function_relative_realization/
+  mod.rs                         # stage vocabulary + lower responsibility map
+  model.rs                       # manifest/statistics records
+  codec.rs                       # v8 identity, binary codec, text rendering
+  carriers.rs                    # owning route results and custody receipts
+  error.rs                       # closed stage failure surface
+  routes/
+    mod.rs                       # exact route catalog
+    selected_lowering.rs
+    layout_optimization.rs
+    aarch64_cbnz.rs
+  assembly/
+    mod.rs                       # shared build -> independent-validation join
+    rel8.rs                      # selection, layout, and whole-exit handling
+    manifests.rs                 # route-specific manifest reconstruction
+    statistics.rs                # measured counts and manifest sealing
+    custody.rs                   # identity-bound receipt construction
+```
+
+The entrance owns the stage/scope/unavailable-data vocabulary, so it is useful
+without absorbing route mechanics. The route leaves tell a reader which exact
+phase composition is being realized. The assembly entrance owns the common
+artifact construction and independent replay boundary, while its leaves expose
+the lower validation taxonomy. This split preserves the public compatibility
+surface, `OMGFRM` magic, and v8 manifest identity domain exactly.
+
 ## Testing strategy
 
 Each rule has positive, negative, boundary, and fact-expiry tests. The full

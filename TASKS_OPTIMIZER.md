@@ -1327,6 +1327,18 @@ prove every enabled rule phase is actually scheduled.
   fixture file exceeds 1,501 lines. The 346-name public surface and all 16
   serialized `omega.*` identities exactly match the pre-split crate.
 
+  Function-relative realization now applies the same rule inside the pipeline
+  stage itself. Its former 2,715-line file is a 39-line entrance that owns the
+  stage/scope/unavailable-data vocabulary and names five lower responsibilities:
+  `model`, `codec`, `carriers`, `routes`, and `assembly`. The route catalog
+  descends to selected-lowering, layout-optimization, and AArch64-CBNZ flows;
+  assembly descends separately to rel8/exit handling, manifest construction,
+  statistics/sealing, and custody receipts. The 116-line assembly entrance owns
+  the shared build-and-independent-validation join rather than merely forwarding
+  calls. All public types and functions, the `OMGFRM` magic, and the
+  `omega.function-relative-optimization-realization-manifest.v8` identity domain
+  are unchanged, and all 122 pipeline tests pass through the reorganized stage.
+
   This completes the source-organization gate for the current optimizer
   crates. Preserve these entrances as new analyses, rules, custody stages, and
   tests are added. Do not create one crate per rule or combine independent
