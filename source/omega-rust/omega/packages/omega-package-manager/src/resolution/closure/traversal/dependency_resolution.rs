@@ -12,8 +12,9 @@ use super::errors::ResolveDependencySourceError;
 use crate::manifest::dependencies::read::DependencySourceRequest;
 use crate::resolution::binding::git_selection::{GitWorkspaceEvidence, GitWorkspaceSelectionPlan};
 use crate::resolution::binding::{
-    GitPackageSourceRequest, PackageSourceCustody, PackageSourceNavigation,
-    PackageSourceSelectionEvidence, ResolvePackageSourceError, bind_git_member_package_custody,
+    GitPackageSourceRequest, PackageSourceCustody, PackageSourceMaterialization,
+    PackageSourceNavigation, PackageSourceSelectionEvidence, ResolvePackageSourceError,
+    bind_git_member_package_custody,
 };
 use omega_package_source::LocalSourceLimits;
 use omega_package_source::{
@@ -34,6 +35,7 @@ pub(super) struct WorkspaceContext {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct GitRepositoryContext {
     resolution: ImmutableSourceResolution,
+    acquisition_materialization: PackageSourceMaterialization,
     declared_members: BTreeSet<WorkspaceMemberPath>,
     workspace_evidence: Option<GitWorkspaceEvidence>,
     source_limits: LocalSourceLimits,
@@ -96,6 +98,7 @@ pub(super) fn resolve_registered_package_closure(
                     resolved.key().source_lineage(),
                     resolved.acquisition_root(),
                     resolved.resolution(),
+                    resolved.acquisition_materialization(),
                     resolved.selection_evidence(),
                     resolved.source_limits(),
                 )?;
@@ -136,6 +139,7 @@ pub(super) fn resolve_registered_package_closure(
                                 requester.key().source_lineage().clone(),
                                 git_repository.resolution.clone(),
                                 &context.root,
+                                git_repository.acquisition_materialization.clone(),
                                 member_path.clone(),
                                 git_workspace_member_selection(git_repository, &member_path),
                                 git_repository.source_limits,
@@ -180,6 +184,7 @@ pub(super) fn register_git_repository(
     root_source: &SourceLineage,
     acquisition_root: &Path,
     resolution: &ImmutableSourceResolution,
+    acquisition_materialization: &PackageSourceMaterialization,
     selection_evidence: &PackageSourceSelectionEvidence,
     source_limits: LocalSourceLimits,
 ) -> Result<WorkspaceLineageIdentity, ResolveDependencySourceError> {
@@ -201,6 +206,7 @@ pub(super) fn register_git_repository(
         allows_external_paths: false,
         git_repository: Some(GitRepositoryContext {
             resolution: resolution.clone(),
+            acquisition_materialization: acquisition_materialization.clone(),
             declared_members,
             workspace_evidence,
             source_limits: source_limits.compiler_bounded(),

@@ -85,7 +85,7 @@ pub(super) fn capture_snapshot(
     };
     verify_package_source_snapshot(
         custody.acquisition_root(),
-        custody.resolution().content(),
+        custody.acquisition_materialization().content(),
         custody.source_limits(),
     )
     .map_err(|error| PackageSourcePatchError::SourceCustody { side, error })?;
@@ -135,12 +135,12 @@ pub(super) fn revalidate_snapshot(
         .map_err(|error| PackageSourcePatchError::SourceSelectionCustody { side, error })?;
     verify_package_source_snapshot(
         custody.acquisition_root(),
-        custody.resolution().content(),
+        custody.acquisition_materialization().content(),
         custody.source_limits(),
     )
     .map_err(|error| PackageSourcePatchError::SourceCustody { side, error })?;
     if custody.snapshot_root() != custody.acquisition_root()
-        || custody.materialization().content() != custody.resolution().content()
+        || custody.materialization() != custody.acquisition_materialization()
     {
         verify_package_source_snapshot(
             custody.snapshot_root(),

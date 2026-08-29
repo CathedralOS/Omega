@@ -67,6 +67,7 @@ fn custody(
     PackageSourceCustody::from_resolved_parts(
         key(name, repository),
         resolution,
+        materialization.clone(),
         materialization,
         PathBuf::from(snapshot_root),
         PathBuf::from(snapshot_root),

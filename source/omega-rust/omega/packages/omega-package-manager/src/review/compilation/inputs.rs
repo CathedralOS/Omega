@@ -74,7 +74,7 @@ fn binding_with_canonical_source_metadata(
 ) -> Result<PackageSourceBinding, PackageCompilationInputError> {
     omega_package_source::capture_verified_package_source_snapshot(
         custody.acquisition_root(),
-        custody.resolution().content(),
+        custody.acquisition_materialization().content(),
         custody.source_limits(),
     )
     .map_err(|error| PackageCompilationInputError::InvalidSourceRoot {
@@ -83,7 +83,7 @@ fn binding_with_canonical_source_metadata(
         reason: format!("could not derive canonical build-source metadata: {error}"),
     })?;
     if custody.snapshot_root() != custody.acquisition_root()
-        || custody.materialization().content() != custody.resolution().content()
+        || custody.materialization() != custody.acquisition_materialization()
     {
         omega_package_source::capture_verified_package_source_snapshot(
             custody.snapshot_root(),
@@ -218,6 +218,7 @@ mod tests {
         PackageSourceCustody::from_resolved_parts(
             key,
             resolution,
+            materialization.clone(),
             materialization,
             source_root.clone(),
             source_root,
