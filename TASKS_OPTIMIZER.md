@@ -144,9 +144,13 @@ selection identity.
   evaluation is also complete: its 35-line shared-contract entrance descends
   into boolean rules and an integer subtree for binary operations, exact casts,
   unary operations, and fact lookup; the former 1,276-line leaf is gone and the
-  largest replacement is below 750 lines. Continue through the exact exception
-  table in the architecture guard, removing each exception as its file falls
-  below the 1,000-line default.
+  largest replacement is below 750 lines. Rewrite-candidate construction is
+  complete too: its 76-line entrance owns decision derivation, common custody,
+  exact patch validation, identity encoding, and immutable admission, with
+  scalar/control-flow constructors and accessors in named leaves; the former
+  1,253-line file is gone and the largest replacement is below 400 lines.
+  Continue through the exact exception table in the architecture guard,
+  removing each exception as its file falls below the 1,000-line default.
 - [x] Clear the current production-file size violations by semantic split, not
   line shuffling. Pipeline `whole_function_exit_contract`,
   `resolved_selected_form_layout`, `x86_branch_relaxation`, and
