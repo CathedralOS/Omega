@@ -28,7 +28,7 @@ fn source(arguments: impl Iterator<Item = OsString>) {
         std::process::exit(2);
     };
     let adapter =
-        match omega_package_manager::commands::SourceAdapter::parse(&arguments.source_kind) {
+        match omega_package_manager::operations::SourceAdapter::parse(&arguments.source_kind) {
             Ok(adapter) => adapter,
             Err(error) => {
                 eprintln!("invalid source adapter: {error:?}");
@@ -42,7 +42,7 @@ fn source(arguments: impl Iterator<Item = OsString>) {
             std::process::exit(1);
         }
     };
-    match omega_package_manager::commands::audit_package_source_locator(
+    match omega_package_manager::operations::audit_package_source_locator(
         adapter,
         arguments.locator,
         arguments.rev,

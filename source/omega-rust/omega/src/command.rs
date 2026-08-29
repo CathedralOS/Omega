@@ -207,13 +207,13 @@ fn reconcile_local_project(
     .map_err(|diagnostic| diagnostic.to_string())?;
     let storage = local_source_storage()?;
     let closure =
-        omega_package_manager::resolution::resolve_external_local_project_closure_with_storage(
+        omega_package_manager::graph::resolve_external_local_project_closure_with_storage(
             &project_root,
             omega_package_source::ExternalSourceContext::derive(b"omega-local-project-v1"),
             target_profile,
             &storage,
             omega_package_source::LocalSourceLimits::default(),
-            omega_package_manager::resolution::PackageSourceClosureLimits::default(),
+            omega_package_manager::graph::PackageSourceClosureLimits::default(),
         )
         .map_err(|error| format!("cannot resolve declared package closure: {error}"))?;
     let root_snapshot = closure

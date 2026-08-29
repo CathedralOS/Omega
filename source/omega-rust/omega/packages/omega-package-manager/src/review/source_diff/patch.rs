@@ -1,7 +1,7 @@
 //! Source-patch model and rendering workflow.
 
+use crate::discovery::{PackageSourceCustody, PackageSourceSelectionEvidenceError};
 use crate::identity::PackageKey;
-use crate::resolution::{PackageSourceCustody, PackageSourceSelectionEvidenceError};
 use omega_package_source::SourceResolveError;
 use std::collections::BTreeSet;
 use std::fmt;

@@ -1,6 +1,6 @@
 use super::PackageSourceVerificationPhase;
+use crate::discovery::PackageSourceSelectionEvidenceError;
 use crate::identity::PackageKey;
-use crate::resolution::PackageSourceSelectionEvidenceError;
 use omega_package_compilation::PackageCompilationInputError;
 use omega_package_review::encoding::PackageReviewEncodingError;
 use omega_package_source::SourceResolveError;

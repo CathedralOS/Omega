@@ -1,6 +1,6 @@
 //! Revalidated package-aware inputs handed from source custody to the compiler.
 
-use crate::resolution::closure::ResolvedPackageSourceClosure;
+use crate::graph::ResolvedPackageSourceClosure;
 use omega_package_compilation::{
     PackageCompilationInputError, PackageCompilationInputs, PackageDependencyBinding,
     PackageSourceBinding,
@@ -68,13 +68,13 @@ pub fn package_compilation_inputs_for(
     let root_role = if root == closure.graph().root() {
         closure.root_role()
     } else {
-        crate::manifest::BuildDeclarationKind::Package
+        crate::declarations::BuildDeclarationKind::Package
     };
     PackageCompilationInputs::new(root.identity(), root_role, packages, dependencies)
 }
 
 fn binding_with_canonical_source_metadata(
-    custody: &crate::resolution::source::PackageSourceCustody,
+    custody: &crate::discovery::PackageSourceCustody,
     binding: PackageSourceBinding,
 ) -> Result<PackageSourceBinding, PackageCompilationInputError> {
     omega_package_source::local::operations::capture_verified_package_source_snapshot(
@@ -97,7 +97,7 @@ fn binding_with_canonical_source_metadata(
 }
 
 fn revalidate_package_source_selection(
-    custody: &crate::resolution::source::PackageSourceCustody,
+    custody: &crate::discovery::PackageSourceCustody,
 ) -> Result<(), PackageCompilationInputError> {
     custody.selection_evidence().revalidate().map_err(|error| {
         PackageCompilationInputError::InvalidSourceRoot {
@@ -134,11 +134,11 @@ pub(crate) fn reachable_package_keys(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::declarations::dependencies::read::DependencySourceRequest;
+    use crate::discovery::PackageSourceCustody;
+    use crate::graph::PackageRootSourceRequest;
+    use crate::graph::reconcile::resolve_package_source_closure;
     use crate::identity::{PackageKey, PackageName};
-    use crate::manifest::dependencies::read::DependencySourceRequest;
-    use crate::resolution::closure::PackageRootSourceRequest;
-    use crate::resolution::closure::reconciliation::resolve_package_source_closure;
-    use crate::resolution::source::PackageSourceCustody;
     use omega_package_source::{GitCommitId, GitTreeId, ImmutableSourceResolution, SourceLineage};
     #[cfg(unix)]
     use psi_checked_interpreter::CanonicalFilesystemMetadataRowKind;
@@ -146,7 +146,7 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn root_request(root: &PackageSourceCustody) -> PackageRootSourceRequest {
-        PackageRootSourceRequest::Git(crate::resolution::GitPackageSourceRequest::root(
+        PackageRootSourceRequest::Git(crate::discovery::GitPackageSourceRequest::root(
             omega_package_source::GitSourceRequest::new(
                 format!(
                     "https://github.com/CathedralOS/{}.git",
@@ -201,15 +201,15 @@ mod tests {
             GitTreeId::parse_hex(&digit.to_string().repeat(40)).expect("tree"),
         )
         .expect("resolution");
-        let materialization = crate::resolution::PackageSourceMaterialization::from_local(&source);
+        let materialization = crate::discovery::PackageSourceMaterialization::from_local(&source);
         PackageSourceCustody::from_resolved_parts(
             key,
-            crate::manifest::BuildDeclarationKind::Package,
+            crate::declarations::BuildDeclarationKind::Package,
             resolution,
             materialization,
             source_root,
-            crate::resolution::PackageSourceNavigation::Root,
-            crate::resolution::PackageSourceSelectionEvidence::Root,
+            crate::discovery::PackageSourceNavigation::Root,
+            crate::discovery::PackageSourceSelectionEvidence::Root,
             omega_package_source::LocalSourceLimits::default(),
             dependency_requests,
         )
