@@ -105,6 +105,7 @@ fn candidate_closure_binds_review_evidence_from_every_package() {
     let closure = resolve_external_local_package_closure(
         &root,
         ExternalSourceContext::derive(b"candidate-closure-review-evidence"),
+        omega_target::TargetProfile::CrossPlatformCli,
         &cache,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
@@ -168,6 +169,7 @@ fn candidate_closure_and_directional_review_bind_the_exact_root_role() {
     let closure = resolve_external_local_package_closure(
         &root,
         ExternalSourceContext::derive(b"candidate-closure-root-role"),
+        omega_target::TargetProfile::CrossPlatformCli,
         &cache,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),

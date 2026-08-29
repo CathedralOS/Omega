@@ -199,6 +199,7 @@ fn remote_fixture_pins_resolve_to_local_fixture_contents() {
 
         let closure = resolve_git_package_closure_with_storage(
             &request,
+            omega_target::TargetProfile::CrossPlatformCli,
             &storage,
             LocalSourceLimits::default(),
             PackageSourceClosureLimits::default(),

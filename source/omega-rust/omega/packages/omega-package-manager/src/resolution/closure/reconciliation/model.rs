@@ -3,6 +3,7 @@
 use super::super::PackageClosureValidationError;
 use crate::identity::{AliasName, PackageKey};
 use crate::manifest::BuildDeclarationKind;
+use crate::manifest::dependencies::read::ActiveDependencyAliasError;
 use crate::manifest::dependencies::read::DependencySourceRequest;
 use crate::resolution::source::PackageSourceCustody;
 
@@ -145,6 +146,12 @@ pub enum PackageSourceClosureResolutionError<E> {
         selected: PackageKey,
         role: BuildDeclarationKind,
     },
+    /// The selected target's active requester-local aliases conflict after
+    /// package-authored names have been recovered from source custody.
+    InvalidActiveAliases {
+        requester: PackageKey,
+        error: ActiveDependencyAliasError,
+    },
 }
 
 impl<E> PackageSourceClosureResolutionError<E> {
@@ -154,7 +161,8 @@ impl<E> PackageSourceClosureResolutionError<E> {
             Self::Adapter { .. }
             | Self::LimitExceeded { .. }
             | Self::InvalidClosure { .. }
-            | Self::InvalidDependencyRole { .. } => None,
+            | Self::InvalidDependencyRole { .. }
+            | Self::InvalidActiveAliases { .. } => None,
         }
     }
 }
@@ -196,6 +204,11 @@ impl<E: fmt::Display> fmt::Display for PackageSourceClosureResolutionError<E> {
                 "dependency row {dependency_index} of package `{}` selected `{}` with non-package role {role:?}",
                 requester.name().as_str(),
                 selected.name().as_str(),
+            ),
+            Self::InvalidActiveAliases { requester, error } => write!(
+                formatter,
+                "active dependencies of package `{}` are invalid: {error}",
+                requester.name().as_str(),
             ),
         }
     }

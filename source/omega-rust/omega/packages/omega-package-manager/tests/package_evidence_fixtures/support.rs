@@ -48,6 +48,7 @@ pub(super) fn resolve_workspace_package_closure(
         workspace_root_source,
         root_member_path,
         live_workspace_root,
+        omega_target::TargetProfile::CrossPlatformCli,
         &storage,
         source_limits,
         closure_limits,

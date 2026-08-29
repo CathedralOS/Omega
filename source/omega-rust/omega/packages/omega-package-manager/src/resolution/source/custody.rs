@@ -2,7 +2,7 @@
 
 use crate::identity::PackageKey;
 use crate::manifest::BuildDeclarationKind;
-use crate::manifest::dependencies::read::DependencySourceRequest;
+use crate::manifest::dependencies::read::{DependencySourceRequest, ProjectedDependencies};
 use crate::resolution::source::{
     PackageSourceMaterialization, PackageSourceNavigation, PackageSourceSelectionEvidence,
 };
@@ -22,7 +22,7 @@ pub struct PackageSourceCustody {
     navigation: PackageSourceNavigation,
     selection_evidence: PackageSourceSelectionEvidence,
     source_limits: LocalSourceLimits,
-    dependency_requests: Vec<DependencySourceRequest>,
+    projected_dependencies: ProjectedDependencies,
 }
 
 impl PartialEq for PackageSourceCustody {
@@ -34,14 +34,14 @@ impl PartialEq for PackageSourceCustody {
             && self.snapshot_root == other.snapshot_root
             && self.navigation == other.navigation
             && self.selection_evidence == other.selection_evidence
-            && self.dependency_requests == other.dependency_requests
+            && self.projected_dependencies == other.projected_dependencies
     }
 }
 
 impl Eq for PackageSourceCustody {}
 
 impl PackageSourceCustody {
-    pub(crate) fn from_resolved_parts(
+    pub(crate) fn from_resolved_parts<D>(
         key: PackageKey,
         role: BuildDeclarationKind,
         resolution: ImmutableSourceResolution,
@@ -50,8 +50,11 @@ impl PackageSourceCustody {
         navigation: PackageSourceNavigation,
         selection_evidence: PackageSourceSelectionEvidence,
         source_limits: LocalSourceLimits,
-        dependency_requests: Vec<DependencySourceRequest>,
-    ) -> Self {
+        projected_dependencies: D,
+    ) -> Self
+    where
+        D: Into<ProjectedDependencies>,
+    {
         debug_assert!(resolution.matches_lineage(key.source_lineage()));
         Self {
             key,
@@ -62,7 +65,7 @@ impl PackageSourceCustody {
             navigation,
             selection_evidence,
             source_limits,
-            dependency_requests,
+            projected_dependencies: projected_dependencies.into(),
         }
     }
 
@@ -99,7 +102,11 @@ impl PackageSourceCustody {
     }
 
     pub fn dependency_requests(&self) -> &[DependencySourceRequest] {
-        &self.dependency_requests
+        self.projected_dependencies.authored_dependencies()
+    }
+
+    pub const fn projected_dependencies(&self) -> &ProjectedDependencies {
+        &self.projected_dependencies
     }
 
     pub(crate) fn semantically_equivalent(&self, other: &Self) -> bool {
@@ -109,6 +116,6 @@ impl PackageSourceCustody {
             && self.materialization == other.materialization
             && self.navigation == other.navigation
             && self.selection_evidence == other.selection_evidence
-            && self.dependency_requests == other.dependency_requests
+            && self.projected_dependencies == other.projected_dependencies
     }
 }

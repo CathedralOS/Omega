@@ -19,7 +19,7 @@ pub enum ActiveDependencyAliasScope {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ActiveDependencyAliasError {
     ResolvedPackageCountMismatch {
-        authored_occurrences: usize,
+        active_occurrences: usize,
         selected_packages: usize,
     },
     DuplicateAlias {
@@ -34,11 +34,11 @@ impl fmt::Display for ActiveDependencyAliasError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::ResolvedPackageCountMismatch {
-                authored_occurrences,
+                active_occurrences,
                 selected_packages,
             } => write!(
                 formatter,
-                "cannot validate dependency aliases: {authored_occurrences} authored occurrences have {selected_packages} selected package declarations",
+                "cannot validate dependency aliases: {active_occurrences} active occurrences have {selected_packages} selected package declarations",
             ),
             Self::DuplicateAlias {
                 scope,
@@ -66,21 +66,29 @@ impl std::error::Error for ActiveDependencyAliasError {}
 
 pub(super) fn validate_active_alias_uniqueness(
     dependencies: &ProjectedDependencies,
+    profile: TargetProfile,
     selected_package_names: &[PackageName],
 ) -> Result<(), ActiveDependencyAliasError> {
-    if selected_package_names.len() != dependencies.authored_dependencies().len() {
+    let active_occurrences = dependencies
+        .occurrence_indices_for_profile(profile)
+        .collect::<Vec<_>>();
+    if selected_package_names.len() != active_occurrences.len() {
         return Err(ActiveDependencyAliasError::ResolvedPackageCountMismatch {
-            authored_occurrences: dependencies.authored_dependencies().len(),
+            active_occurrences: active_occurrences.len(),
             selected_packages: selected_package_names.len(),
         });
     }
 
-    let resolved_aliases = dependencies
-        .authored_dependencies()
+    let resolved_aliases = active_occurrences
         .iter()
         .zip(selected_package_names)
-        .map(|(request, package_name)| request.resolved_alias(package_name))
-        .collect::<Vec<_>>();
+        .map(|(occurrence, package_name)| {
+            (
+                *occurrence,
+                dependencies.authored_dependencies()[*occurrence].resolved_alias(package_name),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
     let common_aliases = validate_column(
         dependencies.common_occurrence_indices(),
         &resolved_aliases,
@@ -88,11 +96,15 @@ pub(super) fn validate_active_alias_uniqueness(
         BTreeMap::new(),
     )?;
 
-    for column in dependencies.by_profile() {
+    if let Some(column) = dependencies
+        .by_profile()
+        .iter()
+        .find(|column| column.profile() == profile)
+    {
         validate_column(
             column.occurrence_indices(),
             &resolved_aliases,
-            ActiveDependencyAliasScope::Profile(column.profile()),
+            ActiveDependencyAliasScope::Profile(profile),
             common_aliases.clone(),
         )?;
     }
@@ -102,12 +114,14 @@ pub(super) fn validate_active_alias_uniqueness(
 
 fn validate_column(
     occurrence_indices: &[usize],
-    resolved_aliases: &[AliasName],
+    resolved_aliases: &BTreeMap<usize, AliasName>,
     scope: ActiveDependencyAliasScope,
     mut aliases: BTreeMap<AliasName, usize>,
 ) -> Result<BTreeMap<AliasName, usize>, ActiveDependencyAliasError> {
     for occurrence_index in occurrence_indices {
-        let alias = &resolved_aliases[*occurrence_index];
+        let alias = resolved_aliases
+            .get(occurrence_index)
+            .expect("validated active occurrence has a selected package name");
         if let Some(first_occurrence) = aliases.insert(alias.clone(), *occurrence_index) {
             return Err(ActiveDependencyAliasError::DuplicateAlias {
                 scope,

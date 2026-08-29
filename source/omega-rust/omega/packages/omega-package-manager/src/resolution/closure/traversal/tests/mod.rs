@@ -110,4 +110,5 @@ mod external_local;
 mod git_cache;
 mod git_requests;
 mod limits;
+mod target_profiles;
 mod workspace;

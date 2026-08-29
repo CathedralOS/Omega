@@ -43,7 +43,10 @@ fn allows_one_alias_in_mutually_exclusive_exact_profile_columns() {
     );
 
     dependencies
-        .validate_active_aliases(&package_names(&["windows-api", "linux-api"]))
+        .validate_active_aliases(TargetProfile::WindowsX64, &package_names(&["windows-api"]))
+        .expect("Windows column may use the local alias");
+    dependencies
+        .validate_active_aliases(TargetProfile::LinuxX64, &package_names(&["linux-api"]))
         .expect("mutually exclusive columns may reuse one local alias");
     assert_eq!(dependencies.authored_dependencies().len(), 2);
     assert_eq!(dependencies.by_profile().len(), 2);
@@ -68,7 +71,10 @@ fn rejects_a_common_alias_reused_in_an_exact_profile_column() {
     );
 
     assert_eq!(
-        dependencies.validate_active_aliases(&package_names(&["portable-api", "windows-api"])),
+        dependencies.validate_active_aliases(
+            TargetProfile::WindowsX64,
+            &package_names(&["portable-api", "windows-api"]),
+        ),
         Err(ActiveDependencyAliasError::DuplicateAlias {
             scope: ActiveDependencyAliasScope::Profile(TargetProfile::WindowsX64),
             alias: crate::identity::AliasName::parse("native_api").unwrap(),
@@ -97,7 +103,10 @@ fn rejects_default_aliases_that_collide_after_package_selection() {
     );
 
     let error = dependencies
-        .validate_active_aliases(&package_names(&["same-name", "same-name"]))
+        .validate_active_aliases(
+            TargetProfile::LinuxX64,
+            &package_names(&["same-name", "same-name"]),
+        )
         .expect_err("selected package names produce a duplicate default alias");
     assert!(matches!(
         error,
@@ -123,7 +132,10 @@ fn rejects_alias_reuse_within_the_common_column() {
     );
 
     let error = dependencies
-        .validate_active_aliases(&package_names(&["first", "second"]))
+        .validate_active_aliases(
+            TargetProfile::CrossPlatformCli,
+            &package_names(&["first", "second"]),
+        )
         .expect_err("one common active set cannot bind an alias twice");
     assert!(matches!(
         error,
@@ -149,9 +161,10 @@ fn rejects_an_incomplete_selected_package_roster() {
     );
 
     assert_eq!(
-        dependencies.validate_active_aliases(&package_names(&["first"])),
+        dependencies
+            .validate_active_aliases(TargetProfile::CrossPlatformCli, &package_names(&["first"]),),
         Err(ActiveDependencyAliasError::ResolvedPackageCountMismatch {
-            authored_occurrences: 2,
+            active_occurrences: 2,
             selected_packages: 1,
         })
     );

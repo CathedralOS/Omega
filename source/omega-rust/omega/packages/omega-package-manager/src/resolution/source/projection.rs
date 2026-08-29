@@ -1,7 +1,7 @@
 use super::ResolvePackageSourceError;
 use crate::identity::PackageName;
 use crate::manifest::dependencies::read::{
-    DependencyProjectionError, DependencySourceRequest, extract_build_dependency_projection,
+    DependencyProjectionError, ProjectedDependencies, extract_build_dependency_projection,
 };
 use crate::manifest::roles::{BuildDeclaration, BuildDeclarationKind, PackageDeclarationError};
 use std::path::Path;
@@ -13,7 +13,7 @@ use std::path::Path;
 pub(super) struct ProjectedPackageBuild {
     pub(super) name: PackageName,
     pub(super) role: BuildDeclarationKind,
-    pub(super) dependencies: Vec<DependencySourceRequest>,
+    pub(super) dependencies: ProjectedDependencies,
 }
 
 pub(super) fn project_package_build(
@@ -53,12 +53,6 @@ pub(super) fn project_package_build(
         Err(error) => return Err(ResolvePackageSourceError::DependencyProjection(error)),
     };
     let (declaration, dependencies) = projection.into_parts();
-    if dependencies.has_target_conditions() {
-        return Err(ResolvePackageSourceError::DependencyProjection(
-            DependencyProjectionError::TargetConditionedResolutionUnavailable,
-        ));
-    }
-    let dependencies = dependencies.common().cloned().collect();
     match declaration {
         BuildDeclaration::Package(package) => Ok(ProjectedPackageBuild {
             name: package.name,

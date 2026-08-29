@@ -7,6 +7,7 @@ fn propagates_closure_resource_ceilings() {
         &fixture_lineage(),
         SourceRelativePath::parse("graph-workbench").expect("root member"),
         fixture_root(),
+        omega_target::TargetProfile::CrossPlatformCli,
         &cache,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits {

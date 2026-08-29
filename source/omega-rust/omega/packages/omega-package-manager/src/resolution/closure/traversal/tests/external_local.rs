@@ -19,6 +19,7 @@ fn resolves_external_local_closure_across_directory_boundaries_in_one_context() 
     let first = resolve_external_local_package_closure(
         sources.join("root"),
         first_context.clone(),
+        omega_target::TargetProfile::CrossPlatformCli,
         &first_cache,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
@@ -48,6 +49,7 @@ fn resolves_external_local_closure_across_directory_boundaries_in_one_context() 
     let second = resolve_external_local_package_closure(
         sources.join("root"),
         second_context,
+        omega_target::TargetProfile::CrossPlatformCli,
         &second_cache,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
@@ -85,6 +87,7 @@ fn project_resolution_retains_an_application_root_role() {
     let closure = resolve_external_local_project_closure_with_storage(
         &source,
         ExternalSourceContext::derive(b"application-root-lock"),
+        omega_target::TargetProfile::CrossPlatformCli,
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),

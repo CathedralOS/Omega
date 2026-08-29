@@ -94,6 +94,7 @@ fn resolve_external_local_package_closure(
     resolve_external_local_package_closure_with_storage(
         live_root,
         source_context,
+        omega_target::TargetProfile::CrossPlatformCli,
         &storage,
         source_limits,
         closure_limits,
@@ -115,6 +116,7 @@ fn resolve_workspace_package_closure(
         workspace_root_source,
         root_member_path,
         live_workspace_root,
+        omega_target::TargetProfile::CrossPlatformCli,
         &storage,
         source_limits,
         closure_limits,

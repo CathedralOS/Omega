@@ -1,6 +1,6 @@
 use crate::identity::PackageKey;
 use crate::manifest::BuildDeclarationKind;
-use crate::manifest::dependencies::read::DependencySourceRequest;
+use crate::manifest::dependencies::read::{DependencySourceRequest, ProjectedDependencies};
 use crate::resolution::source::PackageSourceCustody;
 use crate::resolution::source::PackageSourceMaterialization;
 use crate::resolution::source::PackageSourceNavigation;
@@ -25,12 +25,12 @@ pub struct ResolvedPackageSource<S> {
     navigation: PackageSourceNavigation,
     selection_evidence: PackageSourceSelectionEvidence,
     source_limits: LocalSourceLimits,
-    dependency_requests: Vec<DependencySourceRequest>,
+    projected_dependencies: ProjectedDependencies,
     source: S,
 }
 
 impl<S> ResolvedPackageSource<S> {
-    pub(super) fn from_resolved_parts(
+    pub(super) fn from_resolved_parts<D>(
         key: PackageKey,
         role: BuildDeclarationKind,
         resolution: ImmutableSourceResolution,
@@ -39,9 +39,12 @@ impl<S> ResolvedPackageSource<S> {
         navigation: PackageSourceNavigation,
         selection_evidence: PackageSourceSelectionEvidence,
         source_limits: LocalSourceLimits,
-        dependency_requests: Vec<DependencySourceRequest>,
+        projected_dependencies: D,
         source: S,
-    ) -> Self {
+    ) -> Self
+    where
+        D: Into<ProjectedDependencies>,
+    {
         Self {
             key,
             role,
@@ -51,7 +54,7 @@ impl<S> ResolvedPackageSource<S> {
             navigation,
             selection_evidence,
             source_limits,
-            dependency_requests,
+            projected_dependencies: projected_dependencies.into(),
             source,
         }
     }
@@ -85,7 +88,11 @@ impl<S> ResolvedPackageSource<S> {
     }
 
     pub fn dependency_requests(&self) -> &[DependencySourceRequest] {
-        &self.dependency_requests
+        self.projected_dependencies.authored_dependencies()
+    }
+
+    pub const fn projected_dependencies(&self) -> &ProjectedDependencies {
+        &self.projected_dependencies
     }
 
     pub fn source_limits(&self) -> LocalSourceLimits {
@@ -112,7 +119,7 @@ impl<S> ResolvedPackageSource<S> {
             self.navigation,
             self.selection_evidence,
             self.source_limits,
-            self.dependency_requests,
+            self.projected_dependencies,
         )
     }
 
