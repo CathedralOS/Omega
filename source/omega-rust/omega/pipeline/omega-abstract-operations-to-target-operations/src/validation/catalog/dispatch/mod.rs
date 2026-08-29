@@ -52,3 +52,10 @@ pub(super) const STRAIGHT_LINE_BOOLEAN_NOT_PARAMETER: TranslationFamilyDescripto
         straight_line_parameter::boolean_not::is_candidate,
         parameter::straight_line_boolean_not_parameter,
     );
+
+pub(super) const STRAIGHT_LINE_BOOLEAN_EQUAL_PARAMETERS: TranslationFamilyDescriptor =
+    TranslationFamilyDescriptor::new(
+        AbstractToTargetTranslationFamily::StraightLineBooleanEqualParameters,
+        straight_line_parameter::boolean_equal::is_candidate,
+        parameter::straight_line_boolean_equal_parameters,
+    );

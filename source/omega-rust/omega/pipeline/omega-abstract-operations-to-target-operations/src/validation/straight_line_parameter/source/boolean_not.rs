@@ -1,11 +1,8 @@
 use omega_abstract_operations::{AbstractFunction, AbstractOperation};
 use psi_core::ScalarType;
 
-use super::super::model::ReconstructedEnvelope;
-use super::super::{
-    StraightLineBooleanNotParameterTranslationError,
-    model::{BooleanNotParameterSource, ParameterResultKind},
-};
+use super::super::model::{BooleanNotParameterSource, ParameterResultKind, ReconstructedEnvelope};
+use crate::validation::model::StraightLineBooleanNotParameterTranslationError;
 
 pub(in crate::validation::straight_line_parameter) fn is_candidate(
     function: &AbstractFunction,

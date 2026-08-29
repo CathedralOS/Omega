@@ -56,3 +56,25 @@ pub(super) struct BooleanNotParameterSource {
     pub(super) operand_value: ValueId,
     pub(super) parameter_index: usize,
 }
+
+pub(super) struct ReconstructedBooleanEqualParameters {
+    pub(super) equal_operation: OperationId,
+    pub(super) return_edge: EdgeId,
+    pub(super) source_value: ValueId,
+    pub(super) left_value: ValueId,
+    pub(super) right_value: ValueId,
+    pub(super) left_parameter_index: usize,
+    pub(super) right_parameter_index: usize,
+    pub(super) left_location: ScalarParameterLocation,
+    pub(super) right_location: ScalarParameterLocation,
+}
+
+pub(super) struct BooleanEqualParametersSource {
+    pub(super) equal_operation: OperationId,
+    pub(super) return_edge: EdgeId,
+    pub(super) source_value: ValueId,
+    pub(super) left_value: ValueId,
+    pub(super) right_value: ValueId,
+    pub(super) left_parameter_index: usize,
+    pub(super) right_parameter_index: usize,
+}

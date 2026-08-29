@@ -1,85 +1,4 @@
-use psi_core::MachineId;
-
-use super::AbstractToTargetTranslationFamily;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AbstractToTargetTranslationValidationError {
-    PsiMismatch,
-    TargetMismatch,
-    EntryMismatch,
-    FunctionCountMismatch,
-    FunctionMachineMismatch {
-        position: usize,
-    },
-    FunctionAttachmentMismatch {
-        machine: MachineId,
-    },
-    AmbiguousFunctionFamily {
-        machine: MachineId,
-        first: AbstractToTargetTranslationFamily,
-        second: AbstractToTargetTranslationFamily,
-    },
-    FunctionFamily {
-        machine: MachineId,
-        family: AbstractToTargetTranslationFamily,
-        error: AbstractToTargetTranslationFamilyError,
-    },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AbstractToTargetTranslationFamilyError {
-    StraightLineIntegerImmediate(StraightLineIntegerImmediateTranslationError),
-    StraightLineBooleanImmediate(StraightLineBooleanImmediateTranslationError),
-    StraightLineScalarCrash(StraightLineScalarCrashTranslationError),
-    StraightLineIntegerParameter(StraightLineIntegerParameterTranslationError),
-    StraightLineBooleanParameter(StraightLineBooleanParameterTranslationError),
-    StraightLineBooleanNotParameter(StraightLineBooleanNotParameterTranslationError),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StraightLineBooleanImmediateTranslationError {
-    SourceParameters,
-    SourceStructuralParameters,
-    SourceResult,
-    SourceEntryClaims,
-    SourcePublishedServices,
-    SourceBlockRoster,
-    SourceOperationRoster,
-    SourceResultLink,
-    SourceCleanup,
-    TargetProvenance,
-    TargetOperation,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StraightLineIntegerImmediateTranslationError {
-    SourceParameters,
-    SourceStructuralParameters,
-    SourceResult,
-    SourceEntryClaims,
-    SourcePublishedServices,
-    SourceBlockRoster,
-    SourceOperationRoster,
-    SourceConstantType,
-    SourceConstantOutsideType,
-    SourceResultLink,
-    SourceCleanup,
-    TargetProvenance,
-    TargetOperation,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StraightLineScalarCrashTranslationError {
-    SourceParameters,
-    SourceStructuralParameters,
-    SourceResult,
-    SourceEntryClaims,
-    SourcePublishedServices,
-    SourceBlockRoster,
-    SourceOperationRoster,
-    TargetProvenance,
-    TargetOperation,
-}
+//! Shared and exact parameter-derived replay errors.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StraightLineIntegerParameterTranslationError {
@@ -144,7 +63,30 @@ pub enum StraightLineBooleanNotParameterTranslationError {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum StraightLineParameterReconstructionError {
+pub enum StraightLineBooleanEqualParametersTranslationError {
+    SourceParameters,
+    SourceStructuralParameters,
+    SourceResult,
+    SourceEntryClaims,
+    SourcePublishedServices,
+    SourceBlockRoster,
+    SourceOperationRoster,
+    SourceParameterRoster,
+    SourceParameterShape,
+    SourceEqualResultRoster,
+    SourceLeftOperandLink,
+    SourceRightOperandLink,
+    SourceReturnLink,
+    SourceCleanup,
+    AbiPlan,
+    AbiParameterCount,
+    AbiParameterPlacement,
+    TargetProvenance,
+    TargetOperation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::validation) enum StraightLineParameterReconstructionError {
     SourceParameters,
     SourceStructuralParameters,
     SourceResult,
@@ -215,14 +157,4 @@ macro_rules! map_parameter_reconstruction_error {
 map_parameter_reconstruction_error!(StraightLineIntegerParameterTranslationError);
 map_parameter_reconstruction_error!(StraightLineBooleanParameterTranslationError);
 map_parameter_reconstruction_error!(StraightLineBooleanNotParameterTranslationError);
-
-impl std::fmt::Display for AbstractToTargetTranslationValidationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "abstract-to-target translation validation failed: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for AbstractToTargetTranslationValidationError {}
+map_parameter_reconstruction_error!(StraightLineBooleanEqualParametersTranslationError);

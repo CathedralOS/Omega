@@ -596,7 +596,8 @@ parallel route or optional coordinator field.
 - [>] Complete translation validation for all lowering and machine rule
   families. Selected-lowering incoming-u12 add/subtract folds,
   straight-line integer-immediate, Boolean-immediate, scalar-Crash,
-  integer-parameter, Boolean-parameter, and Boolean-not-parameter
+  integer-parameter, Boolean-parameter, Boolean-not-parameter, and ordered
+  Boolean-equal-parameters
   abstract-to-target translation,
   layout-independent baseline, MOVN, XOR-zero, MOV-r32-imm32, CBNZ dispositions,
   structural-Unit encodings, and resolved function-relative layouts now replay
@@ -800,3 +801,8 @@ rewrite or opt a program into lossy floating-point semantics.
 24. [x] Replace selected construction's forwarding wall, mixed plan file, and
     duplicated 966-line scalar classifier with meaningful result-family
     entrances and one seven-row scalar construction catalog.
+25. [x] Add exact Boolean-equality-of-parameters translation replay across all
+    native targets, retaining ordered or identical operand identities and ABI
+    locations through optimized target custody. Split common source envelopes,
+    derived-expression coordination, and family error/receipt vocabulary into
+    small semantic entrances while doing so.

@@ -32,12 +32,19 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
 - `validation/straight_line_scalar_crash.rs` owns parameterless one-block
   scalar `[Crash]` to exact target `Crash` custody.
 - `validation/straight_line_parameter/mod.rs` owns the shared source-envelope
-  to native-ABI replay join for nonempty scalar parameter rosters.
-- `validation/straight_line_parameter/source/mod.rs` owns the common envelope,
-  then descends into direct-return or Boolean-not source grammar.
-- `validation/straight_line_parameter/{integer,boolean,boolean_not}.rs` retain
+  to native-ABI replay join for direct nonempty scalar parameter rosters;
+  `derived.rs` owns the corresponding full-roster ABI/provenance join for
+  parameter-derived expressions.
+- `validation/straight_line_parameter/source/mod.rs` maps source grammar,
+  descending into a common `envelope.rs` and direct-return, Boolean-not, or
+  ordered Boolean-equality grammar leaves.
+- `validation/straight_line_parameter/{integer,boolean,boolean_not,boolean_equal}.rs` retain
   distinct exact family identities and validate their corresponding target
-  variants after independent register or stack reconstruction.
+  variants after independent register or stack reconstruction. Boolean
+  equality opens the recursive `ReturnBooleanExpression` carrier while
+  retaining both ordered operands, including identical operands.
+- `validation/model/{error,receipt}/mod.rs` are the small family maps above
+  immediate, terminal, roster, and parameter-specific vocabulary leaves.
 - `conditional_control.rs`, `conditional_scalar.rs`, `structural_result.rs`, and
   `structural_scalar.rs` own their corresponding closed operation families.
 - `omega-target-operations/src/lib.rs` owns the target-aware output vocabulary.
