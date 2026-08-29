@@ -1106,16 +1106,16 @@ fn named_selected_lowering_suite_retains_verified_no_change_completion() {
             Err(FunctionRelativeOptimizationRealizationManifestDecodeError::WrongMagic)
         );
         let mut wrong_version = encoded.clone();
-        wrong_version[8..12].copy_from_slice(&9_u32.to_le_bytes());
+        wrong_version[8..12].copy_from_slice(&10_u32.to_le_bytes());
         assert_eq!(
             FunctionRelativeOptimizationRealizationManifest::decode(&wrong_version),
-            Err(FunctionRelativeOptimizationRealizationManifestDecodeError::UnsupportedVersion(9))
+            Err(FunctionRelativeOptimizationRealizationManifestDecodeError::UnsupportedVersion(10))
         );
         let mut legacy_version = encoded.clone();
-        legacy_version[8..12].copy_from_slice(&7_u32.to_le_bytes());
+        legacy_version[8..12].copy_from_slice(&8_u32.to_le_bytes());
         assert_eq!(
             FunctionRelativeOptimizationRealizationManifest::decode(&legacy_version),
-            Err(FunctionRelativeOptimizationRealizationManifestDecodeError::UnsupportedVersion(7))
+            Err(FunctionRelativeOptimizationRealizationManifestDecodeError::UnsupportedVersion(8))
         );
         let mut trailing = encoded.clone();
         trailing.push(0);
@@ -1131,8 +1131,8 @@ fn named_selected_lowering_suite_retains_verified_no_change_completion() {
         let selected_lowering_completion_status_offset = content_offset + 1 + 2 * 32;
         let x86_branch_relaxation_status_offset =
             selected_lowering_completion_status_offset + 1 + 32 + 12 * 32;
-        let aarch64_cbnz_fusion_status_offset = x86_branch_relaxation_status_offset + 1;
-        let aarch64_movn_materialization_status_offset = aarch64_cbnz_fusion_status_offset + 1;
+        let post_allocation_machine_optimization_status_offset =
+            x86_branch_relaxation_status_offset + 1;
         let mut unknown_stage = encoded.clone();
         unknown_stage[content_offset] = 9;
         assert_eq!(
@@ -1155,23 +1155,27 @@ fn named_selected_lowering_suite_retains_verified_no_change_completion() {
             ),
             Err(FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownX86BranchRelaxationStatus(9))
         );
-        let mut unknown_aarch64_cbnz_fusion = encoded.clone();
-        unknown_aarch64_cbnz_fusion[aarch64_cbnz_fusion_status_offset] = 9;
+        let mut unknown_post_allocation_machine_optimization_status = encoded.clone();
+        unknown_post_allocation_machine_optimization_status
+            [post_allocation_machine_optimization_status_offset] = 9;
         assert_eq!(
             FunctionRelativeOptimizationRealizationManifest::decode(
-                &unknown_aarch64_cbnz_fusion
+                &unknown_post_allocation_machine_optimization_status
             ),
-            Err(FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownAarch64CbnzFusionStatus(9))
+            Err(FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownPostAllocationMachineOptimizationStatus(9))
         );
-        let mut unknown_aarch64_movn_materialization = encoded.clone();
-        unknown_aarch64_movn_materialization[aarch64_movn_materialization_status_offset] = 9;
+        let mut unknown_post_allocation_machine_optimization = encoded.clone();
+        unknown_post_allocation_machine_optimization
+            [post_allocation_machine_optimization_status_offset] = 1;
+        unknown_post_allocation_machine_optimization
+            [post_allocation_machine_optimization_status_offset + 1] = 9;
         assert_eq!(
             FunctionRelativeOptimizationRealizationManifest::decode(
-                &unknown_aarch64_movn_materialization
+                &unknown_post_allocation_machine_optimization
             ),
-            Err(FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownAarch64MovnMaterializationStatus(9))
+            Err(FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownPostAllocationMachineOptimization(9))
         );
-        let target_offset = aarch64_movn_materialization_status_offset + 1 + 32;
+        let target_offset = post_allocation_machine_optimization_status_offset + 1 + 32;
         let mut unknown_architecture = encoded.clone();
         unknown_architecture[target_offset] = 9;
         assert_eq!(

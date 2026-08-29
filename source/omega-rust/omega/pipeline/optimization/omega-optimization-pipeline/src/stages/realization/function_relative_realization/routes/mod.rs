@@ -1,9 +1,9 @@
 //! Exact source-custody routes into one function-relative manifest boundary.
 
-mod aarch64_cbnz;
 mod layout_optimization;
+mod post_allocation_machine;
 mod selected_lowering;
 
-pub use aarch64_cbnz::*;
 pub use layout_optimization::*;
+pub use post_allocation_machine::*;
 pub use selected_lowering::*;

@@ -2,26 +2,21 @@ use omega_optimization_core::{Optimization, OptimizationExecutionPhase};
 use omega_regalloc::FixedViewCopyPolicy;
 
 use crate::{
-    StagedOptimizedVerifiedPhysicalPipeline, ValidatedOptimizedTargetOperations,
-    run_selected_lowering_optimizations, stage_aarch64_cbnz_function_relative_realization,
-    stage_function_relative_layout_optimization_realization, stage_optimized_aarch64_cbnz_fusion,
-    stage_optimized_aarch64_cbnz_fusion_after_selected_lowering,
-    stage_optimized_aarch64_movn_function_relative_realization,
-    stage_optimized_aarch64_movn_materialization,
-    stage_optimized_aarch64_movn_materialization_after_selected_lowering,
-    stage_optimized_aarch64_movn_resolved_selected_form_layout,
+    run_selected_lowering_optimizations, stage_function_relative_layout_optimization_realization,
     stage_optimized_allocation_legality, stage_optimized_allocation_legality_for_frameless_leaf,
     stage_optimized_fixed_view_copies, stage_optimized_instruction_selection,
     stage_optimized_live_ranges, stage_optimized_liveness,
+    stage_optimized_post_allocation_machine_optimization,
+    stage_optimized_post_allocation_machine_optimization_after_selected_lowering,
     stage_optimized_post_allocation_machine_plan,
     stage_optimized_post_allocation_machine_plan_after_fixed_view_copies,
     stage_optimized_post_allocation_machine_plan_after_selected_lowering,
     stage_optimized_register_homes, stage_optimized_register_homes_after_fixed_view_copies,
     stage_optimized_register_homes_after_selected_lowering, stage_optimized_selected_reanalysis,
-    stage_selected_lowering_aarch64_cbnz_function_relative_realization,
-    stage_selected_lowering_aarch64_movn_function_relative_realization,
-    stage_selected_lowering_aarch64_movn_resolved_selected_form_layout,
-    stage_selected_lowering_function_relative_realization,
+    stage_post_allocation_machine_function_relative_realization,
+    stage_post_allocation_machine_function_relative_realization_after_selected_lowering,
+    stage_selected_lowering_function_relative_realization, StagedOptimizedVerifiedPhysicalPipeline,
+    ValidatedOptimizedTargetOperations,
 };
 
 use super::super::OptimizedVerifiedPhysicalPipelineError;
@@ -115,11 +110,10 @@ pub(in crate::coordination::physical_pipeline) fn stage_non_active_resident_rema
                 OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition,
             );
         }
-        let post_allocation_optimization = match post_allocation_machine.as_slice() {
-            [optimization @ Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1]
-            | [optimization @ Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1] => {
-                *optimization
-            }
+        match post_allocation_machine.as_slice() {
+            [Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1]
+            | [Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1]
+            | [Optimization::X86SelectXorZeroI64MaterializationV1] => {}
             _ => {
                 return Err(
                     OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition,
@@ -133,50 +127,19 @@ pub(in crate::coordination::physical_pipeline) fn stage_non_active_resident_rema
                 .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterHomes)?;
             let machine = stage_optimized_post_allocation_machine_plan(&homes)
                 .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)?;
-            return match post_allocation_optimization {
-                Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 => {
-                    let optimization = stage_optimized_aarch64_cbnz_fusion(&homes, &machine)
-                        .map_err(
-                        OptimizedVerifiedPhysicalPipelineError::PostAllocationMachineOptimization,
-                    )?;
-                    let realization = stage_aarch64_cbnz_function_relative_realization(
-                        homes,
-                        machine,
-                        optimization,
-                    )
-                    .map_err(OptimizedVerifiedPhysicalPipelineError::FunctionRelativeRealization)?;
-                    Ok(
-                        StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine {
-                            realization,
-                        },
-                    )
-                }
-                Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1 => {
-                    let materialization = stage_optimized_aarch64_movn_materialization(
-                        &homes, &machine,
-                    )
-                    .map_err(
-                        OptimizedVerifiedPhysicalPipelineError::PostAllocationMachineOptimization,
-                    )?;
-                    let layout = stage_optimized_aarch64_movn_resolved_selected_form_layout(
-                        homes,
-                        machine,
-                        materialization,
-                    )
-                    .map_err(OptimizedVerifiedPhysicalPipelineError::Aarch64MovnResolvedLayout)?;
-                    let realization =
-                        stage_optimized_aarch64_movn_function_relative_realization(layout)
-                            .map_err(
-                                OptimizedVerifiedPhysicalPipelineError::Aarch64MovnFunctionRelative,
-                            )?;
-                    Ok(
-                        StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachineMovn {
-                            realization,
-                        },
-                    )
-                }
-                _ => unreachable!("post-allocation singleton was closed above"),
-            };
+            let optimization = stage_optimized_post_allocation_machine_optimization(
+                &homes, &machine,
+            )
+            .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachineOptimization)?;
+            let realization = stage_post_allocation_machine_function_relative_realization(
+                homes,
+                machine,
+                optimization,
+            )
+            .map_err(OptimizedVerifiedPhysicalPipelineError::FunctionRelativeRealization)?;
+            return Ok(
+                StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization },
+            );
         }
         let legality = stage_optimized_allocation_legality_for_frameless_leaf(ranges)
             .map_err(OptimizedVerifiedPhysicalPipelineError::AllocationLegality)?;
@@ -186,53 +149,19 @@ pub(in crate::coordination::physical_pipeline) fn stage_non_active_resident_rema
             .map_err(OptimizedVerifiedPhysicalPipelineError::SelectedLoweringHomes)?;
         let machine = stage_optimized_post_allocation_machine_plan_after_selected_lowering(&homes)
             .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)?;
-        return match post_allocation_optimization {
-            Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 => {
-                let optimization =
-                    stage_optimized_aarch64_cbnz_fusion_after_selected_lowering(&homes, &machine)
-                        .map_err(
-                        OptimizedVerifiedPhysicalPipelineError::PostAllocationMachineOptimization,
-                    )?;
-                let realization =
-                    stage_selected_lowering_aarch64_cbnz_function_relative_realization(
-                        homes,
-                        machine,
-                        optimization,
-                    )
-                    .map_err(OptimizedVerifiedPhysicalPipelineError::FunctionRelativeRealization)?;
-                Ok(
-                    StagedOptimizedVerifiedPhysicalPipeline::SelectedLoweringPostAllocationMachine {
-                        realization,
-                    },
-                )
-            }
-            Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1 => {
-                let materialization =
-                    stage_optimized_aarch64_movn_materialization_after_selected_lowering(
-                        &homes, &machine,
-                    )
-                    .map_err(
-                        OptimizedVerifiedPhysicalPipelineError::PostAllocationMachineOptimization,
-                    )?;
-                let layout = stage_selected_lowering_aarch64_movn_resolved_selected_form_layout(
-                    homes,
-                    machine,
-                    materialization,
-                )
-                .map_err(OptimizedVerifiedPhysicalPipelineError::Aarch64MovnResolvedLayout)?;
-                let realization =
-                    stage_selected_lowering_aarch64_movn_function_relative_realization(layout)
-                        .map_err(
-                            OptimizedVerifiedPhysicalPipelineError::Aarch64MovnFunctionRelative,
-                        )?;
-                Ok(
-                    StagedOptimizedVerifiedPhysicalPipeline::SelectedLoweringPostAllocationMachineMovn {
-                        realization,
-                    },
-                )
-            }
-            _ => unreachable!("post-allocation singleton was closed above"),
-        };
+        let optimization =
+            stage_optimized_post_allocation_machine_optimization_after_selected_lowering(
+                &homes, &machine,
+            )
+            .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachineOptimization)?;
+        let realization =
+            stage_post_allocation_machine_function_relative_realization_after_selected_lowering(
+                homes,
+                machine,
+                optimization,
+            )
+            .map_err(OptimizedVerifiedPhysicalPipelineError::FunctionRelativeRealization)?;
+        return Ok(StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization });
     }
 
     if selected_lowering.is_empty() && function_relative_layout.is_empty() {

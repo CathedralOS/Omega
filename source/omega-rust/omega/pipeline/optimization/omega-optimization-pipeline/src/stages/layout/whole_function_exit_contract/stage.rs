@@ -2,15 +2,12 @@ use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::ValidatedPhysicalRegisterModel;
 
 use crate::{
-    validate_optimized_aarch64_movn_resolved_selected_form_layout,
     validate_optimized_resolved_selected_form_layout,
     validate_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion,
     validate_optimized_x86_branch_relaxation,
-    validate_selected_lowering_aarch64_movn_resolved_selected_form_layout,
-    StagedOptimizedAarch64CbnzFusion, StagedOptimizedAarch64MovnResolvedSelectedFormLayout,
-    StagedOptimizedPostAllocationMachinePlan, StagedOptimizedResolvedSelectedFormLayout,
-    StagedOptimizedSelectedFormEncoding, StagedOptimizedX86BranchRelaxation,
-    StagedSelectedLoweringAarch64MovnResolvedSelectedFormLayout,
+    StagedOptimizedAarch64CbnzFusion, StagedOptimizedPostAllocationMachinePlan,
+    StagedOptimizedResolvedSelectedFormLayout, StagedOptimizedSelectedFormEncoding,
+    StagedOptimizedX86BranchRelaxation,
 };
 
 use super::{
@@ -206,169 +203,6 @@ pub fn validate_whole_function_exit_contract_after_aarch64_cbnz_fusion<
         layout,
         layout_custody,
     )?;
-    if replayed != contract.contract {
-        return Err(WholeFunctionExitContractError::ArtifactMismatch);
-    }
-    Ok(())
-}
-
-/// Stage an exit contract over the direct-homes owning shortest-MOVN layout
-/// carrier. The exact materialization identity remains explicit exit custody;
-/// transformed bytes are never admitted through the baseline layout mode.
-pub fn stage_whole_function_exit_contract_after_aarch64_movn_materialization(
-    staged: &StagedOptimizedAarch64MovnResolvedSelectedFormLayout,
-) -> Result<ValidatedWholeFunctionExitContract, WholeFunctionExitContractError> {
-    validate_optimized_aarch64_movn_resolved_selected_form_layout(staged)
-        .map_err(|_| WholeFunctionExitContractError::MovnLayout)?;
-    let selected_stage = staged
-        .homes()
-        .legality_stage()
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage();
-    let layout_custody =
-        WholeFunctionExitLayoutCustody::Aarch64SelectShortestMovnSeededI64MaterializationV1 {
-            materialization: staged
-                .materialization()
-                .materialization()
-                .receipt()
-                .identity(),
-        };
-    let contract = compute(
-        selected_stage.selected(),
-        staged.machine(),
-        selected_stage.register_environment().physical(),
-        staged.encoding(),
-        staged.layout(),
-        layout_custody,
-    )?;
-    let validated = ValidatedWholeFunctionExitContract { contract };
-    validate_whole_function_exit_contract_after_aarch64_movn_materialization(staged, &validated)?;
-    Ok(validated)
-}
-
-/// Independently replay the owning direct-homes MOVN carrier before accepting
-/// its whole-function exit contract.
-pub fn validate_whole_function_exit_contract_after_aarch64_movn_materialization(
-    staged: &StagedOptimizedAarch64MovnResolvedSelectedFormLayout,
-    contract: &ValidatedWholeFunctionExitContract,
-) -> Result<(), WholeFunctionExitContractError> {
-    validate_optimized_aarch64_movn_resolved_selected_form_layout(staged)
-        .map_err(|_| WholeFunctionExitContractError::MovnLayout)?;
-    let selected_stage = staged
-        .homes()
-        .legality_stage()
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage();
-    let layout_custody =
-        WholeFunctionExitLayoutCustody::Aarch64SelectShortestMovnSeededI64MaterializationV1 {
-            materialization: staged
-                .materialization()
-                .materialization()
-                .receipt()
-                .identity(),
-        };
-    let replayed = compute(
-        selected_stage.selected(),
-        staged.machine(),
-        selected_stage.register_environment().physical(),
-        staged.encoding(),
-        staged.layout(),
-        layout_custody,
-    )?;
-    if replayed != contract.contract {
-        return Err(WholeFunctionExitContractError::ArtifactMismatch);
-    }
-    Ok(())
-}
-
-/// Stage the same exact MOVN exit custody after a named selected-lowering run.
-/// The transformed selected plan is derived only from the retained completion.
-pub fn stage_selected_lowering_whole_function_exit_contract_after_aarch64_movn_materialization(
-    staged: &StagedSelectedLoweringAarch64MovnResolvedSelectedFormLayout,
-) -> Result<ValidatedWholeFunctionExitContract, WholeFunctionExitContractError> {
-    validate_selected_lowering_aarch64_movn_resolved_selected_form_layout(staged)
-        .map_err(|_| WholeFunctionExitContractError::MovnLayout)?;
-    let run = staged.homes().selected_lowering_run();
-    let selected_stage = run
-        .source_legality_stage()
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage();
-    let layout_custody =
-        WholeFunctionExitLayoutCustody::Aarch64SelectShortestMovnSeededI64MaterializationV1 {
-            materialization: staged
-                .materialization()
-                .materialization()
-                .receipt()
-                .identity(),
-        };
-    let contract = match run.steps().last() {
-        Some(step) => compute(
-            step.fold(),
-            staged.machine(),
-            selected_stage.register_environment().physical(),
-            staged.encoding(),
-            staged.layout(),
-            layout_custody,
-        ),
-        None => compute(
-            selected_stage.selected(),
-            staged.machine(),
-            selected_stage.register_environment().physical(),
-            staged.encoding(),
-            staged.layout(),
-            layout_custody,
-        ),
-    }?;
-    let validated = ValidatedWholeFunctionExitContract { contract };
-    validate_selected_lowering_whole_function_exit_contract_after_aarch64_movn_materialization(
-        staged, &validated,
-    )?;
-    Ok(validated)
-}
-
-/// Independently replay selected lowering, homes, MOVN materialization, and
-/// resolved layout before accepting the selected-lowering exit contract.
-pub fn validate_selected_lowering_whole_function_exit_contract_after_aarch64_movn_materialization(
-    staged: &StagedSelectedLoweringAarch64MovnResolvedSelectedFormLayout,
-    contract: &ValidatedWholeFunctionExitContract,
-) -> Result<(), WholeFunctionExitContractError> {
-    validate_selected_lowering_aarch64_movn_resolved_selected_form_layout(staged)
-        .map_err(|_| WholeFunctionExitContractError::MovnLayout)?;
-    let run = staged.homes().selected_lowering_run();
-    let selected_stage = run
-        .source_legality_stage()
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage();
-    let layout_custody =
-        WholeFunctionExitLayoutCustody::Aarch64SelectShortestMovnSeededI64MaterializationV1 {
-            materialization: staged
-                .materialization()
-                .materialization()
-                .receipt()
-                .identity(),
-        };
-    let replayed = match run.steps().last() {
-        Some(step) => compute(
-            step.fold(),
-            staged.machine(),
-            selected_stage.register_environment().physical(),
-            staged.encoding(),
-            staged.layout(),
-            layout_custody,
-        ),
-        None => compute(
-            selected_stage.selected(),
-            staged.machine(),
-            selected_stage.register_environment().physical(),
-            staged.encoding(),
-            staged.layout(),
-            layout_custody,
-        ),
-    }?;
     if replayed != contract.contract {
         return Err(WholeFunctionExitContractError::ArtifactMismatch);
     }

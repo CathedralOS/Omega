@@ -107,7 +107,7 @@ fn active_resident_rematerialization_emits_relocation_free_fragments_on_both_arc
 
         let record = emitted.manifest().record();
         let encoded = record.encode();
-        assert_eq!(&encoded[8..12], &6_u32.to_le_bytes());
+        assert_eq!(&encoded[8..12], &7_u32.to_le_bytes());
         assert_eq!(encoded[45], 3);
         assert_eq!(
             FunctionFragmentEmissionManifest::decode(&encoded),
@@ -174,7 +174,7 @@ fn active_resident_rematerialization_emits_relocation_free_fragments_on_both_arc
             FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1
         );
         let text_encoded = placed.manifest().record().encode();
-        assert_eq!(&text_encoded[8..12], &6_u32.to_le_bytes());
+        assert_eq!(&text_encoded[8..12], &7_u32.to_le_bytes());
         assert_eq!(text_encoded[45], 3);
         assert_eq!(
             FunctionFragmentTextSectionManifest::decode(&text_encoded),
@@ -469,19 +469,17 @@ fn relocation_free_cbnz_text_section_preserves_zero_span_and_alignment() {
         panic!("CBNZ must complete its direct function-relative realization")
     };
     let emitted = stage_optimized_function_fragment_emission(
-        StagedOptimizedFunctionFragmentEmissionSource::Aarch64CbnzDirect(Box::new(realization)),
+        StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(realization)),
     )
     .unwrap();
     let mut placed = stage_optimized_relocation_free_text_section(emitted).unwrap();
     let section = placed.text_section();
     assert_eq!(section.section_alignment, 4);
     assert_eq!(section.byte_count % 4, 0);
-    assert!(
-        section
-            .functions
-            .iter()
-            .all(|function| function.section_offset % 4 == 0 && function.byte_count % 4 == 0)
-    );
+    assert!(section
+        .functions
+        .iter()
+        .all(|function| function.section_offset % 4 == 0 && function.byte_count % 4 == 0));
     let rows = section.functions[0]
         .blocks
         .iter()
@@ -561,7 +559,7 @@ fn relocation_free_cbnz_object_container_retains_zero_span_source_and_private_en
         panic!("CBNZ must complete its direct function-relative realization")
     };
     let emitted = stage_optimized_function_fragment_emission(
-        StagedOptimizedFunctionFragmentEmissionSource::Aarch64CbnzDirect(Box::new(realization)),
+        StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(realization)),
     )
     .unwrap();
     let placed = stage_optimized_relocation_free_text_section(emitted).unwrap();
@@ -571,13 +569,11 @@ fn relocation_free_cbnz_object_container_retains_zero_span_source_and_private_en
         staged.object().text_section.bytes,
         staged.source().text_section().bytes
     );
-    assert!(
-        staged.source().text_section().functions[0]
-            .blocks
-            .iter()
-            .flat_map(|block| &block.instructions)
-            .any(|instruction| instruction.byte_count == 0)
-    );
+    assert!(staged.source().text_section().functions[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .any(|instruction| instruction.byte_count == 0));
     assert_eq!(
         staged.object().symbols[0].role,
         omega_object_file::RelocationFreeObjectSymbolRole::SemanticEntryV1
@@ -756,7 +752,7 @@ fn optimized_cbnz_object_artifact_retains_zero_span_and_rejects_detached_proof()
         panic!("CBNZ must complete its direct realization")
     };
     let emitted = stage_optimized_function_fragment_emission(
-        StagedOptimizedFunctionFragmentEmissionSource::Aarch64CbnzDirect(Box::new(realization)),
+        StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(realization)),
     )
     .unwrap();
     let placed = stage_optimized_relocation_free_text_section(emitted).unwrap();
@@ -791,7 +787,7 @@ fn optimized_cbnz_object_artifact_retains_zero_span_and_rejects_detached_proof()
         panic!("CBNZ must complete its direct realization")
     };
     let emitted = stage_optimized_function_fragment_emission(
-        StagedOptimizedFunctionFragmentEmissionSource::Aarch64CbnzDirect(Box::new(realization)),
+        StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(realization)),
     )
     .unwrap();
     let placed = stage_optimized_relocation_free_text_section(emitted).unwrap();
@@ -799,13 +795,11 @@ fn optimized_cbnz_object_artifact_retains_zero_span_and_rejects_detached_proof()
     let staged =
         stage_validated_optimized_object_artifact(canonical_artifact(&semantic, &proof), object)
             .unwrap();
-    assert!(
-        staged.source().source().text_section().functions[0]
-            .blocks
-            .iter()
-            .flat_map(|block| &block.instructions)
-            .any(|instruction| instruction.byte_count == 0)
-    );
+    assert!(staged.source().source().text_section().functions[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .any(|instruction| instruction.byte_count == 0));
     assert_eq!(
         validate_optimized_object_artifact(&staged).unwrap(),
         staged.custody()
@@ -979,16 +973,13 @@ fn relocation_free_fragment_emission_accepts_both_selected_lowering_compositions
         &[],
     )
     .unwrap();
-    let StagedOptimizedVerifiedPhysicalPipeline::SelectedLoweringPostAllocationMachine {
-        realization,
-    } = arm_physical
+    let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } =
+        arm_physical
     else {
         panic!("combined AArch64 suite must retain both phase completions")
     };
     let arm = stage_optimized_function_fragment_emission(
-        StagedOptimizedFunctionFragmentEmissionSource::Aarch64CbnzAfterSelectedLowering(Box::new(
-            realization,
-        )),
+        StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(realization)),
     )
     .unwrap();
     assert_eq!(
@@ -1116,11 +1107,9 @@ fn selected_lowering_suite_enforces_one_aggregate_budget() {
         maximum(|usage| usage.iterations),
     )
     .unwrap();
-    assert!(
-        component_usages
-            .into_iter()
-            .all(|usage| usage.within(component_only_budget))
-    );
+    assert!(component_usages
+        .into_iter()
+        .all(|usage| usage.within(component_only_budget)));
 
     let source = stage_optimized_allocation_legality(
         stage_optimized_live_ranges(

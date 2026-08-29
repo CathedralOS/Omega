@@ -9,13 +9,13 @@ use super::{
 };
 
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGFRM\0\0";
-const MANIFEST_VERSION: u32 = 8;
+const MANIFEST_VERSION: u32 = 9;
 
 impl FunctionRelativeOptimizationRealizationManifest {
     pub fn recomputed_identity(&self) -> FunctionRelativeOptimizationRealizationManifestIdentity {
         let mut canonical = Vec::new();
         canonical
-            .extend_from_slice(b"omega.function-relative-optimization-realization-manifest.v8\0");
+            .extend_from_slice(b"omega.function-relative-optimization-realization-manifest.v9\0");
         canonical.extend_from_slice(&encode_manifest_content(self));
         FunctionRelativeOptimizationRealizationManifestIdentity::from_canonical_bytes(&canonical)
     }
@@ -96,25 +96,38 @@ impl FunctionRelativeOptimizationRealizationManifest {
                 return Err(FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownX86BranchRelaxationStatus(tag));
             }
         };
-        let aarch64_cbnz_fusion = match cursor.byte()? {
+        let post_allocation_machine_optimization = match cursor.byte()? {
             0 => None,
-            1 => Some(
-                omega_machine_optimizer::Aarch64CbnzFusionIdentity::from_bytes(cursor.array()?),
-            ),
-            tag => {
-                return Err(FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownAarch64CbnzFusionStatus(tag));
-            }
-        };
-        let aarch64_movn_materialization = match cursor.byte()? {
-            0 => None,
-            1 => Some(
-                omega_machine_optimizer::Aarch64MovnMaterializationIdentity::from_bytes(
+            1 => {
+                let optimization = decode_post_allocation_optimization(cursor.byte()?)?;
+                let artifact_identity = cursor.array()?;
+                let selections = OptimizationSelectionIdentity::from_bytes(cursor.array()?);
+                let post_allocation_machine_selections =
+                    OptimizationSelectionIdentity::from_bytes(cursor.array()?);
+                let source = omega_machine_optimizer::PostAllocationMachineIdentity::from_bytes(
                     cursor.array()?,
-                ),
-            ),
+                );
+                let action_count = usize::try_from(u64::from_le_bytes(cursor.array()?)).map_err(
+                    |_| {
+                        FunctionRelativeOptimizationRealizationManifestDecodeError::ActionCountOverflow
+                    },
+                )?;
+                let baseline_bytes = u64::from_le_bytes(cursor.array()?);
+                let selected_bytes = u64::from_le_bytes(cursor.array()?);
+                Some(PostAllocationMachineOptimizationCustody::from_parts(
+                    optimization,
+                    artifact_identity,
+                    selections,
+                    post_allocation_machine_selections,
+                    source,
+                    action_count,
+                    baseline_bytes,
+                    selected_bytes,
+                ))
+            }
             tag => {
                 return Err(
-                    FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownAarch64MovnMaterializationStatus(tag),
+                    FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownPostAllocationMachineOptimizationStatus(tag),
                 );
             }
         };
@@ -185,8 +198,7 @@ impl FunctionRelativeOptimizationRealizationManifest {
             baseline_resolved_layout,
             resolved_layout,
             x86_branch_relaxation,
-            aarch64_cbnz_fusion,
-            aarch64_movn_materialization,
+            post_allocation_machine_optimization,
             whole_function_exit_contract,
             target,
             layout_policy,
@@ -201,10 +213,8 @@ impl FunctionRelativeOptimizationRealizationManifest {
             installation: unavailable[6],
             publication: unavailable[7],
         };
-        if usize::from(manifest.x86_branch_relaxation.is_some())
-            + usize::from(manifest.aarch64_cbnz_fusion.is_some())
-            + usize::from(manifest.aarch64_movn_materialization.is_some())
-            > 1
+        if manifest.x86_branch_relaxation.is_some()
+            && manifest.post_allocation_machine_optimization.is_some()
         {
             return Err(
                 FunctionRelativeOptimizationRealizationManifestDecodeError::ConflictingPhysicalTransformations,
@@ -321,20 +331,35 @@ impl FunctionRelativeOptimizationRealizationManifest {
             }
             None => writeln!(output, "x86 branch relaxation: not run").unwrap(),
         }
-        match self.aarch64_cbnz_fusion {
-            Some(identity) => {
-                writeln!(output, "AArch64 CBNZ fusion: {}", hex(&identity.bytes())).unwrap()
+        match self.post_allocation_machine_optimization {
+            Some(custody) => {
+                writeln!(
+                    output,
+                    "post-allocation machine optimization: {}",
+                    custody.optimization().build_case_name()
+                )
+                .unwrap();
+                writeln!(
+                    output,
+                    "post-allocation machine artifact: {}",
+                    hex(&custody.artifact_identity())
+                )
+                .unwrap();
+                writeln!(
+                    output,
+                    "post-allocation machine actions: {}",
+                    custody.action_count()
+                )
+                .unwrap();
+                writeln!(
+                    output,
+                    "post-allocation machine bytes: {} -> {}",
+                    custody.baseline_bytes(),
+                    custody.selected_bytes()
+                )
+                .unwrap();
             }
-            None => writeln!(output, "AArch64 CBNZ fusion: not run").unwrap(),
-        }
-        match self.aarch64_movn_materialization {
-            Some(identity) => writeln!(
-                output,
-                "AArch64 MOVN materialization: {}",
-                hex(&identity.bytes())
-            )
-            .unwrap(),
-            None => writeln!(output, "AArch64 MOVN materialization: not run").unwrap(),
+            None => writeln!(output, "post-allocation machine optimization: not run").unwrap(),
         }
         writeln!(
             output,
@@ -427,8 +452,9 @@ pub enum FunctionRelativeOptimizationRealizationManifestDecodeError {
     UnknownStage(u8),
     UnknownSelectedLoweringCompletionStatus(u8),
     UnknownX86BranchRelaxationStatus(u8),
-    UnknownAarch64CbnzFusionStatus(u8),
-    UnknownAarch64MovnMaterializationStatus(u8),
+    UnknownPostAllocationMachineOptimizationStatus(u8),
+    UnknownPostAllocationMachineOptimization(u8),
+    ActionCountOverflow,
     ConflictingPhysicalTransformations,
     UnknownArchitecture(u8),
     UnknownObjectFormat(u8),
@@ -487,17 +513,17 @@ fn encode_manifest_content(manifest: &FunctionRelativeOptimizationRealizationMan
         }
         None => canonical.push(0),
     }
-    match manifest.aarch64_cbnz_fusion {
-        Some(identity) => {
+    match manifest.post_allocation_machine_optimization {
+        Some(custody) => {
             canonical.push(1);
-            canonical.extend_from_slice(&identity.bytes());
-        }
-        None => canonical.push(0),
-    }
-    match manifest.aarch64_movn_materialization {
-        Some(identity) => {
-            canonical.push(1);
-            canonical.extend_from_slice(&identity.bytes());
+            canonical.push(custody.optimization() as u8);
+            canonical.extend_from_slice(&custody.artifact_identity());
+            canonical.extend_from_slice(&custody.selections().bytes());
+            canonical.extend_from_slice(&custody.post_allocation_machine_selections().bytes());
+            canonical.extend_from_slice(&custody.source().bytes());
+            canonical.extend_from_slice(&(custody.action_count() as u64).to_le_bytes());
+            canonical.extend_from_slice(&custody.baseline_bytes().to_le_bytes());
+            canonical.extend_from_slice(&custody.selected_bytes().to_le_bytes());
         }
         None => canonical.push(0),
     }
@@ -554,6 +580,33 @@ fn encode_target(bytes: &mut Vec<u8>, target: NativeTarget) {
     });
     encode_usize(bytes, target.pointer_size);
     encode_usize(bytes, target.pointer_alignment);
+}
+
+fn decode_post_allocation_optimization(
+    tag: u8,
+) -> Result<Optimization, FunctionRelativeOptimizationRealizationManifestDecodeError> {
+    match tag {
+        value
+            if value
+                == Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 as u8 =>
+        {
+            Ok(Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1)
+        }
+        value
+            if value
+                == Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1 as u8 =>
+        {
+            Ok(Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1)
+        }
+        value if value == Optimization::X86SelectXorZeroI64MaterializationV1 as u8 => {
+            Ok(Optimization::X86SelectXorZeroI64MaterializationV1)
+        }
+        value => Err(
+            FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownPostAllocationMachineOptimization(
+                value,
+            ),
+        ),
+    }
 }
 
 const fn architecture_name(architecture: Architecture) -> &'static str {

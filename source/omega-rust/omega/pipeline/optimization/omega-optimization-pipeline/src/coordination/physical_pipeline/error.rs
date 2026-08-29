@@ -1,10 +1,7 @@
 use omega_abstract_operations_to_target_operations::LoweringError;
 
 use crate::{
-    FunctionRelativeOptimizationRealizationError,
-    OptimizedAarch64MovnFunctionRelativeRealizationError,
-    OptimizedAarch64MovnResolvedSelectedFormLayoutError,
-    OptimizedActiveResidentRematerializationError,
+    FunctionRelativeOptimizationRealizationError, OptimizedActiveResidentRematerializationError,
     OptimizedActiveResidentRematerializationFunctionRelativeRealizationError,
     OptimizedActiveResidentRematerializationResolvedSelectedFormLayoutError,
     OptimizedActiveResidentRematerializationSelectedFormEncodingError,
@@ -41,8 +38,6 @@ pub enum OptimizedVerifiedPhysicalPipelineError {
     ActiveResidentRematerializationFunctionRelative(
         OptimizedActiveResidentRematerializationFunctionRelativeRealizationError,
     ),
-    Aarch64MovnResolvedLayout(OptimizedAarch64MovnResolvedSelectedFormLayoutError),
-    Aarch64MovnFunctionRelative(OptimizedAarch64MovnFunctionRelativeRealizationError),
     UnsupportedPhysicalPhaseComposition,
     FunctionRelativeRealization(FunctionRelativeOptimizationRealizationError),
 }

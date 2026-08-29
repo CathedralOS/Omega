@@ -17,32 +17,22 @@ another broad alias while executing this plan.
 
 ## Current stopping point
 
-[>] Add `X86SelectXorZeroI64MaterializationV1`: replace x86-64
+[x] `X86SelectXorZeroI64MaterializationV1` replaces x86-64
 `MOV r64, imm64(0)` with canonical `XOR r64, r64` only when independent
-selected-CFG liveness reconstruction proves every canonical RFLAGS unit dead.
+selected-CFG liveness reconstruction proves every canonical RFLAGS unit
+dead-out.
 
-This slice also repairs the physical-pipeline organization exposed by the new
-rule. It must add a catalog-driven post-allocation entrance and one typed stage
-result, not another bespoke route/carrier chain copied from AArch64 MOVN.
+CBNZ, MOVN, and XOR-zero now share one catalog-driven post-allocation result,
+one function-relative realization carrier/source, and one fragment source.
+The named CBNZ/MOVN complete-route owners are removed. Function-relative
+realization uses manifest v9; fragment and text publication use v7 and retain
+the exact optimization name. The x86 rule has direct and selected-lowering
+coverage through fragment, object, and callable publication.
 
-Checkpoint complete through resolved layout: exact build vocabulary, the
-target-owned canonical x86 encoder/decoder, the independently replayed symbolic
-rule, the catalog-driven post-allocation stage, generic selected-form encoding,
-generic resolved-layout custody with exact ten-to-three-byte accounting, and
-generic whole-function exit validation. Realization and later publication
-stages do not yet admit the x86 result.
-
-Acceptance:
-
-- explicit build opt-in and empty-selection baseline;
-- target-owned canonical three-byte encoding/decoding/effect reconstruction;
-- symbolic producer plus independent liveness validator;
-- low/high GPR, REX, ModRM, flags-live, corruption, and budget coverage;
-- exact ten-to-three-byte layout accounting;
-- custody through whole-function realization and artifacts;
-- direct and selected-lowering-composed paths;
-- small meaningful stage entrances and no new monolith; and
-- workspace checks, checkpoint, rebase, and push.
+[>] Next, close the remaining organization and rollout gates: exhaustively
+cross-check build/report mappings against `Optimization::ALL`, add no-selection
+golden canaries and broader target/ABI matrices, and continue the general
+allocator/frame work.
 
 ## Completed foundation
 
@@ -85,7 +75,7 @@ Acceptance:
 - [x] Split `post_allocation_selected_form_encoding.rs` by stage model,
   row/structural encoding, machine-rule disposition, identity, and independent
   validation. Its entrance must own the encode/validate join.
-- [ ] Remove optimization-name-specific variants from complete physical route
+- [x] Remove optimization-name-specific variants from complete physical route
   results once the typed post-allocation result can carry them.
 - [ ] Derive or exhaustively cross-check build vocabulary and report mappings
   against `Optimization::ALL`; no hidden second registry.
@@ -122,9 +112,8 @@ Acceptance:
   budgets, decisions, typed facts, and manifests.
 - [x] Deterministic Psi catalog, scheduling, fixed point, and replay.
 - [x] Revision-aware analysis cache with stale-analysis tests.
-- [>] Add a similarly obvious ordered catalog at every physical stage; machine
-  optimization currently has well-shaped rule leaves but pipeline dispatch is
-  still duplicated.
+- [x] Add one obvious ordered post-allocation machine catalog and route its
+  typed result through one complete physical realization carrier.
 - [ ] Unify common catalog descriptors without erasing representation-specific
   candidate and validator types.
 - [ ] Add catalog coverage tests proving every selected name is scheduled once
@@ -190,14 +179,14 @@ Acceptance:
 - [x] Target-neutral post-allocation symbolic machine plan and effects.
 - [x] AArch64 CBNZ fusion and MOVN materialization rules.
 - [x] x86 rel8 layout relaxation.
-- [>] x86 XOR-zero materialization with RFLAGS-dead proof.
+- [x] x86 XOR-zero materialization with RFLAGS-dead proof.
 - [ ] Add declarative peephole matching over symbolic instructions, physical
   register units, effects, traps, memory, stack, and control flow.
 - [ ] Add exact copy removal, redundant extension removal, address folding,
   compare/test selection, and scheduling rules where independently verifiable.
 - [ ] Add target cost models as non-authoritative identities; semantic
   validation must not depend on cost estimates.
-- [ ] Generalize whole-function encoding/layout/realization so new form
+- [x] Generalize whole-function encoding/layout/realization so new form
   substitutions add one rule leaf and catalog entry, not a new route family.
 
 ## P7 — Proof-, ownership-, and state-aware optimizations
@@ -253,11 +242,10 @@ rewrite or opt a program into lossy floating-point semantics.
 2. [x] Introduce the post-allocation stage catalog and typed result.
 3. [x] Split the encoding stage monolith along that taxonomy (the machine stage
    split is complete).
-4. [>] Carry the generic result through encoding, layout, realization, and
-   artifact custody with exact byte-delta tests. Encoding, resolved layout, and
-   whole-function exit are complete.
-5. Add build opt-in and full direct/composed integration tests.
-6. Run focused crates, pipeline tests with the required stack, workspace check,
-   and diff checks.
-7. Update this stopping point, commit without the unrelated checked-tree edit,
-   rebase on upstream, rerun affected checks, and push.
+4. [x] Carry the generic result through encoding, layout, realization, and
+   artifact custody with exact byte-delta tests.
+5. [x] Retain exact build opt-in and direct/selected XOR-zero coverage through
+   publication and callable entry.
+6. [ ] Add the broader target/ABI corruption matrix.
+7. [ ] Finish the remaining organization checks, workspace validation, and
+   rollout canaries before promoting any rule beyond explicit opt-in.

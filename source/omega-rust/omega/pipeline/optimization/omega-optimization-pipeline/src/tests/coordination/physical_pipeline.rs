@@ -297,7 +297,8 @@ fn allocation_recovery_compositions_reject_instead_of_dispatching_a_hidden_polic
 }
 
 #[test]
-fn compiler_facing_physical_pipeline_runs_only_the_named_aarch64_cbnz_fusion() {
+fn compiler_facing_physical_pipeline_routes_aarch64_cbnz_through_the_generic_post_allocation_join()
+{
     let target = NativeTarget::linux_arm64();
     let (semantic, proof) = conditional_exact_binary_artifact(false);
     let selections =
@@ -317,9 +318,16 @@ fn compiler_facing_physical_pipeline_runs_only_the_named_aarch64_cbnz_fusion() {
     else {
         panic!("the exact post-allocation phase must use its symbolic machine route")
     };
-    let homes = realization.homes();
+    let StagedPostAllocationMachineFunctionRelativeSource::Direct(homes) = realization.source()
+    else {
+        panic!("the direct CBNZ route must retain direct register homes")
+    };
     let machine = realization.machine();
-    let optimization = realization.fusion();
+    let StagedOptimizedPostAllocationMachineOptimization::Aarch64Cbnz(optimization) =
+        realization.optimization()
+    else {
+        panic!("the generic realization must retain the CBNZ result")
+    };
     assert_eq!(staged.selections(), selections.identity());
     assert_eq!(staged.selected_lowering_completion(), None);
     assert!(staged.function_relative_manifest().is_some());
@@ -328,7 +336,8 @@ fn compiler_facing_physical_pipeline_runs_only_the_named_aarch64_cbnz_fusion() {
         Some(realization.manifest())
     );
     assert_eq!(
-        validate_aarch64_cbnz_function_relative_realization_custody(realization).unwrap(),
+        validate_post_allocation_machine_function_relative_realization_custody(realization)
+            .unwrap(),
         *realization.custody()
     );
     let manifest = realization.manifest().record();
@@ -351,14 +360,16 @@ fn compiler_facing_physical_pipeline_runs_only_the_named_aarch64_cbnz_fusion() {
     );
     assert_eq!(manifest.resolved_layout, realization.layout().identity());
     assert_eq!(
-        manifest.aarch64_cbnz_fusion,
-        Some(realization.fusion().fusion().receipt().identity())
+        manifest.post_allocation_machine_optimization,
+        realization.optimization().custody()
     );
     assert_eq!(manifest.x86_branch_relaxation, None);
     assert!(matches!(
         realization.exit_contract().contract().layout_custody,
-        WholeFunctionExitLayoutCustody::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 { fusion }
-            if fusion == realization.fusion().fusion().receipt().identity()
+        WholeFunctionExitLayoutCustody::PostAllocationMachineOptimizationV1 {
+            optimization: Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
+            artifact_identity,
+        } if artifact_identity == optimization.fusion().receipt().identity().bytes()
     ));
     assert_eq!(
         FunctionRelativeOptimizationRealizationManifest::decode(&manifest.encode()),
@@ -568,7 +579,7 @@ fn compiler_facing_physical_pipeline_runs_only_the_named_aarch64_cbnz_fusion() {
     realization.manifest_mut().record_mut().resolved_layout =
         realization.baseline_layout().identity();
     assert_eq!(
-        validate_aarch64_cbnz_function_relative_realization_custody(realization),
+        validate_post_allocation_machine_function_relative_realization_custody(realization),
         Err(FunctionRelativeOptimizationRealizationError::RootMismatch)
     );
     realization.manifest_mut().record_mut().resolved_layout = original_layout;
@@ -578,7 +589,7 @@ fn compiler_facing_physical_pipeline_runs_only_the_named_aarch64_cbnz_fusion() {
         .contract_mut()
         .layout_custody = WholeFunctionExitLayoutCustody::BaselineNearLayoutV1;
     assert!(matches!(
-        validate_aarch64_cbnz_function_relative_realization_custody(realization),
+        validate_post_allocation_machine_function_relative_realization_custody(realization),
         Err(FunctionRelativeOptimizationRealizationError::ExitContract(
             WholeFunctionExitContractError::ArtifactMismatch
         ))
@@ -588,7 +599,8 @@ fn compiler_facing_physical_pipeline_runs_only_the_named_aarch64_cbnz_fusion() {
         .contract_mut()
         .layout_custody = original_custody;
     assert_eq!(
-        validate_aarch64_cbnz_function_relative_realization_custody(realization).unwrap(),
+        validate_post_allocation_machine_function_relative_realization_custody(realization)
+            .unwrap(),
         *realization.custody()
     );
 }
@@ -805,7 +817,8 @@ fn named_aarch64_movn_materialization_shrinks_pre_layout_bytes_and_replays() {
 }
 
 #[test]
-fn compiler_facing_physical_pipeline_routes_only_the_named_aarch64_movn_materialization() {
+fn compiler_facing_physical_pipeline_routes_aarch64_movn_through_the_generic_post_allocation_join()
+{
     let (semantic, proof) = conditional_active_resident_exact_add_chain_artifact_with_false_literal(
         IntegerValue::Unsigned(u64::MAX as u128),
     );
@@ -835,15 +848,20 @@ fn compiler_facing_physical_pipeline_routes_only_the_named_aarch64_movn_material
             .function_relative()
             .is_some()
     );
-    assert!(staged.post_allocation_machine_optimization().is_none());
-    assert!(staged.post_allocation_movn_optimization().is_some());
-    let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachineMovn { realization } =
+    assert!(staged.post_allocation_machine_optimization().is_some());
+    let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } =
         &mut staged
     else {
         panic!("the exact MOVN selection must use its function-relative realization")
     };
+    let StagedOptimizedPostAllocationMachineOptimization::Aarch64Movn(materialization) =
+        realization.optimization()
+    else {
+        panic!("the generic join must retain the exact MOVN result")
+    };
     assert_eq!(
-        validate_optimized_aarch64_movn_function_relative_realization(realization).unwrap(),
+        validate_post_allocation_machine_function_relative_realization_custody(realization)
+            .unwrap(),
         *realization.custody()
     );
     assert_eq!(
@@ -856,64 +874,59 @@ fn compiler_facing_physical_pipeline_routes_only_the_named_aarch64_movn_material
     );
     assert!(matches!(
         realization.exit_contract().contract().layout_custody,
-        WholeFunctionExitLayoutCustody::Aarch64SelectShortestMovnSeededI64MaterializationV1 {
-            materialization
-        } if materialization == realization.materialization().custody().materialization()
+        WholeFunctionExitLayoutCustody::PostAllocationMachineOptimizationV1 {
+            optimization: Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
+            artifact_identity,
+        } if artifact_identity == materialization.custody().materialization().bytes()
     ));
     assert_eq!(
-        realization.manifest().record().aarch64_movn_materialization,
-        Some(realization.materialization().custody().materialization())
+        realization
+            .manifest()
+            .record()
+            .post_allocation_machine_optimization,
+        realization.optimization().custody()
     );
-    assert_eq!(realization.manifest().record().aarch64_cbnz_fusion, None);
     assert_eq!(
         FunctionRelativeOptimizationRealizationManifest::decode(
             &realization.manifest().record().encode()
         ),
         Ok(realization.manifest().record().clone())
     );
-    let mut conflicting = realization.manifest().record().clone();
-    conflicting.aarch64_cbnz_fusion =
-        Some(omega_machine_optimizer::Aarch64CbnzFusionIdentity::from_bytes([0xc2; 32]));
-    conflicting.identity = conflicting.recomputed_identity();
-    assert_eq!(
-        FunctionRelativeOptimizationRealizationManifest::decode(&conflicting.encode()),
-        Err(
-            FunctionRelativeOptimizationRealizationManifestDecodeError::ConflictingPhysicalTransformations
-        )
-    );
     assert!(
         realization
             .manifest()
             .record()
             .render_text()
-            .contains("AArch64 MOVN materialization:")
-    );
-    let layout = realization.source();
-    let custody = validate_optimized_aarch64_movn_resolved_selected_form_layout(layout).unwrap();
-    assert_eq!(custody, *layout.custody());
-    assert_eq!(
-        custody.materialization(),
-        layout.materialization().custody()
+            .contains("post-allocation machine optimization:")
     );
     assert_eq!(
-        custody.baseline_encoding(),
-        layout.baseline_encoding().identity()
+        realization.baseline_encoding().identity(),
+        realization.manifest().record().baseline_pre_layout
     );
-    assert_eq!(custody.encoding(), layout.encoding().identity());
     assert_eq!(
-        custody.baseline_layout(),
-        layout.baseline_layout().identity()
+        realization.encoding().identity(),
+        realization.manifest().record().pre_layout
     );
-    assert_eq!(custody.layout(), layout.layout().identity());
-    assert!(custody.selected_bytes() < custody.baseline_bytes());
+    let baseline_bytes = realization
+        .baseline_layout()
+        .functions()
+        .iter()
+        .map(|function| function.byte_count)
+        .sum::<u64>();
+    let selected_bytes = realization
+        .layout()
+        .functions()
+        .iter()
+        .map(|function| function.byte_count)
+        .sum::<u64>();
+    assert!(selected_bytes < baseline_bytes);
 
-    crate::stages::realization::aarch64_movn_function_relative_realization::corrupt_aarch64_movn_function_relative_manifest_for_test(
-        realization,
+    realization.manifest_mut().record_mut().resolved_layout =
+        realization.baseline_layout().identity();
+    assert_eq!(
+        validate_post_allocation_machine_function_relative_realization_custody(realization),
+        Err(FunctionRelativeOptimizationRealizationError::RootMismatch)
     );
-    assert!(matches!(
-        validate_optimized_aarch64_movn_function_relative_realization(realization),
-        Err(OptimizedAarch64MovnFunctionRelativeRealizationError::RootMismatch)
-    ));
 }
 
 fn staged_direct_aarch64_movn_physical_pipeline() -> StagedOptimizedVerifiedPhysicalPipeline {
@@ -940,57 +953,37 @@ fn staged_direct_aarch64_movn_physical_pipeline() -> StagedOptimizedVerifiedPhys
 }
 
 #[test]
-fn aarch64_movn_function_relative_realization_rejects_source_exit_and_receipt_corruption() {
+fn generic_post_allocation_realization_rejects_manifest_and_exit_corruption() {
     let mut staged = staged_direct_aarch64_movn_physical_pipeline();
-    let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachineMovn { realization } =
+    let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } =
         &mut staged
     else {
         unreachable!()
     };
-    crate::stages::realization::aarch64_movn_function_relative_realization::corrupt_aarch64_movn_function_relative_source_for_test(
-        realization,
+    realization
+        .manifest_mut()
+        .record_mut()
+        .post_allocation_machine_optimization = None;
+    assert_eq!(
+        validate_post_allocation_machine_function_relative_realization_custody(realization),
+        Err(FunctionRelativeOptimizationRealizationError::RootMismatch)
     );
-    assert!(matches!(
-        validate_optimized_aarch64_movn_function_relative_realization(realization),
-        Err(
-            OptimizedAarch64MovnFunctionRelativeRealizationError::Source(
-                OptimizedAarch64MovnResolvedSelectedFormLayoutError::Layout(
-                    OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch
-                )
-            )
-        )
-    ));
 
     let mut staged = staged_direct_aarch64_movn_physical_pipeline();
-    let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachineMovn { realization } =
+    let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } =
         &mut staged
     else {
         unreachable!()
     };
-    crate::stages::realization::aarch64_movn_function_relative_realization::corrupt_aarch64_movn_function_relative_exit_for_test(
-        realization,
-    );
+    realization
+        .exit_contract_mut()
+        .contract_mut()
+        .layout_custody = WholeFunctionExitLayoutCustody::BaselineNearLayoutV1;
     assert!(matches!(
-        validate_optimized_aarch64_movn_function_relative_realization(realization),
-        Err(
-            OptimizedAarch64MovnFunctionRelativeRealizationError::ExitContract(
-                WholeFunctionExitContractError::ArtifactMismatch
-            )
-        )
-    ));
-
-    let mut staged = staged_direct_aarch64_movn_physical_pipeline();
-    let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachineMovn { realization } =
-        &mut staged
-    else {
-        unreachable!()
-    };
-    crate::stages::realization::aarch64_movn_function_relative_realization::corrupt_aarch64_movn_function_relative_receipt_for_test(
-        realization,
-    );
-    assert!(matches!(
-        validate_optimized_aarch64_movn_function_relative_realization(realization),
-        Err(OptimizedAarch64MovnFunctionRelativeRealizationError::ReceiptMismatch)
+        validate_post_allocation_machine_function_relative_realization_custody(realization),
+        Err(FunctionRelativeOptimizationRealizationError::ExitContract(
+            _
+        ))
     ));
 }
 
@@ -1017,29 +1010,32 @@ fn aarch64_movn_function_relative_realization_composes_after_exact_selected_lowe
         &[],
     )
     .unwrap();
-    let StagedOptimizedVerifiedPhysicalPipeline::SelectedLoweringPostAllocationMachineMovn {
-        realization,
-    } = &staged
+    let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } = &staged
     else {
         panic!("selected lowering must retain custody before MOVN realization")
+    };
+    let StagedPostAllocationMachineFunctionRelativeSource::AfterSelectedLowering(homes) =
+        realization.source()
+    else {
+        panic!("selected lowering must remain the generic realization source")
+    };
+    let StagedOptimizedPostAllocationMachineOptimization::Aarch64Movn(materialization) =
+        realization.optimization()
+    else {
+        panic!("the generic realization must retain the MOVN result")
     };
     assert_eq!(staged.selections(), selections.identity());
     assert_eq!(
         staged.selected_lowering_completion(),
-        Some(
-            realization
-                .homes()
-                .selected_lowering_run()
-                .custody()
-                .identity()
-        )
+        Some(homes.selected_lowering_run().custody().identity())
     );
     assert_eq!(
         staged.function_relative_manifest(),
         Some(realization.manifest())
     );
     assert_eq!(
-        validate_selected_lowering_aarch64_movn_function_relative_realization(realization).unwrap(),
+        validate_post_allocation_machine_function_relative_realization_custody(realization)
+            .unwrap(),
         *realization.custody()
     );
     assert_eq!(
@@ -1047,15 +1043,140 @@ fn aarch64_movn_function_relative_realization_composes_after_exact_selected_lowe
         staged.selected_lowering_completion()
     );
     assert_eq!(
-        realization.manifest().record().aarch64_movn_materialization,
-        Some(realization.materialization().custody().materialization())
+        realization
+            .manifest()
+            .record()
+            .post_allocation_machine_optimization,
+        realization.optimization().custody()
     );
     assert!(matches!(
         realization.exit_contract().contract().layout_custody,
-        WholeFunctionExitLayoutCustody::Aarch64SelectShortestMovnSeededI64MaterializationV1 {
-            materialization
-        } if materialization == realization.materialization().custody().materialization()
+        WholeFunctionExitLayoutCustody::PostAllocationMachineOptimizationV1 {
+            optimization: Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
+            artifact_identity,
+        } if artifact_identity == materialization.custody().materialization().bytes()
     ));
+}
+
+#[test]
+fn x86_xor_zero_uses_the_generic_post_allocation_join_for_both_source_routes() {
+    for selected_lowering in [false, true] {
+        let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+        let machine = conditional_immediate_machine(18_100, integer_type, [0, 1]);
+        let module = conditional_immediate_module(machine.id, vec![machine]);
+        let semantic = psi_terminal_codec::encode_module(&module).unwrap();
+        let proof = psi_terminal_codec::encode_proof_bundle(&ProofBundle {
+            evidence_producers: Vec::new(),
+            evidence: Vec::new(),
+        })
+        .unwrap();
+        let selections = if selected_lowering {
+            OptimizationSelections::new([
+                Optimization::SelectedIncomingU12ExactAddImmediate,
+                Optimization::X86SelectXorZeroI64MaterializationV1,
+            ])
+            .unwrap()
+        } else {
+            OptimizationSelections::new([Optimization::X86SelectXorZeroI64MaterializationV1])
+                .unwrap()
+        };
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            ExplicitOptimizationRequest::new(selections.clone(), selected_lowering_budget())
+                .unwrap(),
+        )
+        .unwrap();
+        let staged = stage_optimized_verified_physical_pipeline_with_provider_executions(
+            optimized,
+            NativeTarget::linux_x64(),
+            &[],
+        )
+        .unwrap();
+        let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } =
+            &staged
+        else {
+            panic!("XOR-zero must reach the generic post-allocation realization")
+        };
+        assert_eq!(staged.selections(), selections.identity());
+        match (selected_lowering, realization.source()) {
+            (false, StagedPostAllocationMachineFunctionRelativeSource::Direct(_)) => {
+                assert_eq!(staged.selected_lowering_completion(), None);
+            }
+            (
+                true,
+                StagedPostAllocationMachineFunctionRelativeSource::AfterSelectedLowering(homes),
+            ) => {
+                assert_eq!(
+                    staged.selected_lowering_completion(),
+                    Some(homes.selected_lowering_run().custody().identity())
+                );
+            }
+            _ => panic!("the generic realization must retain its exact source route"),
+        }
+        let StagedOptimizedPostAllocationMachineOptimization::X86XorZero(materialization) =
+            realization.optimization()
+        else {
+            panic!("the generic realization must retain the XOR-zero result")
+        };
+        let custody = realization.optimization().custody().unwrap();
+        assert!(custody.action_count() > 0);
+        let action_count = u64::try_from(custody.action_count()).unwrap();
+        assert_eq!(custody.baseline_bytes(), action_count * 10);
+        assert_eq!(custody.selected_bytes(), action_count * 3);
+        assert_eq!(custody.selections(), selections.identity());
+        assert_eq!(
+            realization
+                .manifest()
+                .record()
+                .post_allocation_machine_optimization,
+            Some(custody)
+        );
+        assert_eq!(
+            validate_post_allocation_machine_function_relative_realization_custody(realization)
+                .unwrap(),
+            *realization.custody()
+        );
+        assert_eq!(
+            materialization.materialization().plan().actions.len(),
+            custody.action_count()
+        );
+        assert!(matches!(
+            realization.exit_contract().contract().layout_custody,
+            WholeFunctionExitLayoutCustody::PostAllocationMachineOptimizationV1 {
+                optimization: Optimization::X86SelectXorZeroI64MaterializationV1,
+                artifact_identity,
+            } if artifact_identity == custody.artifact_identity()
+        ));
+
+        let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } = staged
+        else {
+            unreachable!()
+        };
+        let emitted = stage_optimized_function_fragment_emission(
+            StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(
+                realization,
+            )),
+        )
+        .unwrap();
+        assert_eq!(
+            emitted.manifest().record().source_kind,
+            FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 {
+                optimization: Optimization::X86SelectXorZeroI64MaterializationV1,
+            }
+        );
+        let text = stage_optimized_relocation_free_text_section(emitted).unwrap();
+        let object = stage_optimized_relocation_free_object_container(text).unwrap();
+        let artifact = stage_validated_optimized_object_artifact(
+            canonical_artifact(&semantic, &proof),
+            object,
+        )
+        .unwrap();
+        validate_optimized_object_artifact(&artifact).unwrap();
+        let callable = stage_validated_optimized_ordinary_callable_entry(artifact).unwrap();
+        validate_optimized_ordinary_callable_entry(&callable).unwrap();
+    }
 }
 
 #[test]
@@ -1105,15 +1226,21 @@ fn aarch64_cbnz_fusion_composes_after_exact_selected_lowering() {
     let staged =
         stage_optimized_verified_physical_pipeline_with_provider_executions(optimized, target, &[])
             .unwrap();
-    let StagedOptimizedVerifiedPhysicalPipeline::SelectedLoweringPostAllocationMachine {
-        realization,
-    } = &staged
+    let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } = &staged
     else {
         panic!("selected lowering must retain custody before post-allocation fusion")
     };
-    let homes = realization.homes();
+    let StagedPostAllocationMachineFunctionRelativeSource::AfterSelectedLowering(homes) =
+        realization.source()
+    else {
+        panic!("selected lowering must remain the generic realization source")
+    };
     let machine = realization.machine();
-    let optimization = realization.fusion();
+    let StagedOptimizedPostAllocationMachineOptimization::Aarch64Cbnz(optimization) =
+        realization.optimization()
+    else {
+        panic!("the generic realization must retain the CBNZ result")
+    };
     assert_eq!(staged.selections(), selections.identity());
     assert_eq!(
         staged.selected_lowering_completion(),
@@ -1125,7 +1252,7 @@ fn aarch64_cbnz_fusion_composes_after_exact_selected_lowering() {
         Some(realization.manifest())
     );
     assert_eq!(
-        validate_selected_lowering_aarch64_cbnz_function_relative_realization_custody(realization)
+        validate_post_allocation_machine_function_relative_realization_custody(realization)
             .unwrap(),
         *realization.custody()
     );
@@ -1134,8 +1261,11 @@ fn aarch64_cbnz_fusion_composes_after_exact_selected_lowering() {
         staged.selected_lowering_completion()
     );
     assert_eq!(
-        realization.manifest().record().aarch64_cbnz_fusion,
-        Some(optimization.fusion().receipt().identity())
+        realization
+            .manifest()
+            .record()
+            .post_allocation_machine_optimization,
+        realization.optimization().custody()
     );
     assert_eq!(
         validate_optimized_aarch64_cbnz_fusion_after_selected_lowering_custody(

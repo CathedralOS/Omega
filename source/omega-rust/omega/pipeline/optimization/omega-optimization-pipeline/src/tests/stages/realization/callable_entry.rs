@@ -32,18 +32,15 @@ fn staged_callable_object_artifact(
             StagedOptimizedFunctionFragmentEmissionSource::X86Rel8Direct(Box::new(realization))
         }
         StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } => {
-            StagedOptimizedFunctionFragmentEmissionSource::Aarch64CbnzDirect(Box::new(realization))
+            StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(
+                realization,
+            ))
         }
         StagedOptimizedVerifiedPhysicalPipeline::SelectedLowering { realization } => {
             StagedOptimizedFunctionFragmentEmissionSource::X86Rel8AfterSelectedLowering(Box::new(
                 realization,
             ))
         }
-        StagedOptimizedVerifiedPhysicalPipeline::SelectedLoweringPostAllocationMachine {
-            realization,
-        } => StagedOptimizedFunctionFragmentEmissionSource::Aarch64CbnzAfterSelectedLowering(
-            Box::new(realization),
-        ),
         _ => panic!("fixture must complete a function-relative realization"),
     };
     let fragments = stage_optimized_function_fragment_emission(source).unwrap();
@@ -397,11 +394,9 @@ fn ordinary_callable_entry_accepts_both_selected_lowering_compositions_and_repor
                     report.ordinary_callable_entry(),
                     Some(staged.manifest().record())
                 );
-                assert!(
-                    report
-                        .render_human_text(OptimizationReportRequest::Suppressed)
-                        .is_none()
-                );
+                assert!(report
+                    .render_human_text(OptimizationReportRequest::Suppressed)
+                    .is_none());
                 let text = report
                     .render_human_text(OptimizationReportRequest::EmitHumanText)
                     .unwrap();

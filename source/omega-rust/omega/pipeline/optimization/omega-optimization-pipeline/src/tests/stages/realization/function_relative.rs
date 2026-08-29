@@ -19,11 +19,9 @@ fn function_relative_only_rel8_suite_shrinks_and_replays_without_selected_loweri
     assert_eq!(staged.selections(), selections.identity());
     assert_eq!(staged.selected_lowering_completion(), None);
     assert!(staged.function_relative_realization().is_none());
-    assert!(
-        optimization_pipeline_report(&staged)
-            .function_relative()
-            .is_some()
-    );
+    assert!(optimization_pipeline_report(&staged)
+        .function_relative()
+        .is_some());
     let StagedOptimizedVerifiedPhysicalPipeline::FunctionRelativeLayout { realization } =
         &mut staged
     else {
@@ -317,7 +315,7 @@ fn relocation_free_cbnz_fragment_emission_retains_the_elided_compare_span() {
         panic!("CBNZ must complete its direct function-relative realization")
     };
     let mut emitted = stage_optimized_function_fragment_emission(
-        StagedOptimizedFunctionFragmentEmissionSource::Aarch64CbnzDirect(Box::new(realization)),
+        StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(realization)),
     )
     .unwrap();
     let function = &emitted.fragments().functions[0];
@@ -352,7 +350,20 @@ fn relocation_free_cbnz_fragment_emission_retains_the_elided_compare_span() {
     );
     assert_eq!(
         emitted.manifest().record().source_kind,
-        FunctionFragmentEmissionSourceKind::Aarch64CbnzV1
+        FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 {
+            optimization: Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
+        }
+    );
+    let encoded = emitted.manifest().record().encode();
+    assert_eq!(&encoded[8..12], &7_u32.to_le_bytes());
+    assert_eq!(encoded[45], 2);
+    assert_eq!(
+        encoded[46],
+        Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 as u8
+    );
+    assert_eq!(
+        FunctionFragmentEmissionManifest::decode(&encoded).unwrap(),
+        *emitted.manifest().record()
     );
     assert_eq!(
         validate_optimized_function_fragment_emission(&emitted).unwrap(),
@@ -420,20 +431,11 @@ fn aarch64_movn_reaches_fragments_text_object_artifact_and_callable_for_both_rou
                     )
                     .unwrap();
                 let source = match physical {
-                    StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachineMovn {
+                    StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine {
                         realization,
-                    } if !selected_lowering => {
-                        StagedOptimizedFunctionFragmentEmissionSource::Aarch64MovnDirect(
-                            Box::new(realization),
-                        )
-                    }
-                    StagedOptimizedVerifiedPhysicalPipeline::SelectedLoweringPostAllocationMachineMovn {
-                        realization,
-                    } if selected_lowering => {
-                        StagedOptimizedFunctionFragmentEmissionSource::Aarch64MovnAfterSelectedLowering(
-                            Box::new(realization),
-                        )
-                    }
+                    } => StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(
+                        Box::new(realization),
+                    ),
                     _ => panic!("MOVN fixture must retain the corresponding realization route"),
                 };
 
@@ -444,35 +446,32 @@ fn aarch64_movn_reaches_fragments_text_object_artifact_and_callable_for_both_rou
                 );
                 assert_eq!(
                     emitted.manifest().record().source_kind,
-                    FunctionFragmentEmissionSourceKind::Aarch64MovnV1
+                    FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 {
+                        optimization:
+                            Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
+                    }
                 );
                 assert_eq!(
                     emitted.manifest().record().selections,
                     selections.identity()
                 );
 
-                let (materialization, baseline_layout, final_layout, exit, realization_manifest) =
-                    match emitted.source() {
-                        StagedOptimizedFunctionFragmentEmissionSource::Aarch64MovnDirect(
-                            realization,
-                        ) => (
-                            realization.materialization(),
-                            realization.baseline_layout(),
-                            realization.layout(),
-                            realization.exit_contract(),
-                            realization.manifest(),
-                        ),
-                        StagedOptimizedFunctionFragmentEmissionSource::Aarch64MovnAfterSelectedLowering(
-                            realization,
-                        ) => (
-                            realization.materialization(),
-                            realization.baseline_layout(),
-                            realization.layout(),
-                            realization.exit_contract(),
-                            realization.manifest(),
-                        ),
-                        _ => unreachable!(),
+                let realization = match emitted.source() {
+                    StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(
+                        realization,
+                    ) => realization,
+                    _ => unreachable!(),
                 };
+                let materialization = match realization.optimization() {
+                    StagedOptimizedPostAllocationMachineOptimization::Aarch64Movn(
+                        materialization,
+                    ) => materialization,
+                    _ => unreachable!(),
+                };
+                let baseline_layout = realization.baseline_layout();
+                let final_layout = realization.layout();
+                let exit = realization.exit_contract();
+                let realization_manifest = realization.manifest();
                 let action = &materialization.materialization().plan().actions[0];
                 let action_instruction = action.instruction;
                 let exit_identity = exit.identity();
@@ -541,11 +540,41 @@ fn aarch64_movn_reaches_fragments_text_object_artifact_and_callable_for_both_rou
                 );
                 let fragment_manifest = emitted.manifest().record().clone();
                 let fragment_encoded = fragment_manifest.encode();
-                assert_eq!(&fragment_encoded[8..12], &6_u32.to_le_bytes());
-                assert_eq!(fragment_encoded[45], 6);
+                assert_eq!(&fragment_encoded[8..12], &7_u32.to_le_bytes());
+                assert_eq!(fragment_encoded[45], 2);
+                assert_eq!(
+                    fragment_encoded[46],
+                    Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1 as u8
+                );
                 assert_eq!(
                     FunctionFragmentEmissionManifest::decode(&fragment_encoded),
                     Ok(fragment_manifest.clone())
+                );
+                let mut xor_fragment_manifest = fragment_manifest.clone();
+                xor_fragment_manifest.source_kind =
+                    FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 {
+                        optimization: Optimization::X86SelectXorZeroI64MaterializationV1,
+                    };
+                xor_fragment_manifest.identity = xor_fragment_manifest.recomputed_identity();
+                let xor_fragment_encoded = xor_fragment_manifest.encode();
+                assert_eq!(xor_fragment_encoded[45], 2);
+                assert_eq!(
+                    xor_fragment_encoded[46],
+                    Optimization::X86SelectXorZeroI64MaterializationV1 as u8
+                );
+                assert_eq!(
+                    FunctionFragmentEmissionManifest::decode(&xor_fragment_encoded),
+                    Ok(xor_fragment_manifest)
+                );
+                let mut unknown_fragment_optimization = fragment_encoded.clone();
+                unknown_fragment_optimization[46] = u8::MAX;
+                assert_eq!(
+                    FunctionFragmentEmissionManifest::decode(&unknown_fragment_optimization),
+                    Err(
+                        FunctionFragmentEmissionManifestDecodeError::UnknownPostAllocationMachineOptimization(
+                            u8::MAX,
+                        ),
+                    )
                 );
                 let mut unknown_fragment_source = fragment_encoded;
                 unknown_fragment_source[45] = 7;
@@ -612,16 +641,52 @@ fn aarch64_movn_reaches_fragments_text_object_artifact_and_callable_for_both_rou
                     text.text_section().relocation_requirements,
                     omega_object_file::TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1
                 );
-                assert_eq!(text.manifest().record().source_kind, FunctionFragmentEmissionSourceKind::Aarch64MovnV1);
+                assert_eq!(
+                    text.manifest().record().source_kind,
+                    FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 {
+                        optimization:
+                            Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
+                    }
+                );
                 assert_eq!(text.manifest().record().statistics.padding_bytes, 0);
                 assert_eq!(text.manifest().record().statistics.relocation_requirements, 0);
                 let text_manifest = text.manifest().record().clone();
                 let text_encoded = text_manifest.encode();
-                assert_eq!(&text_encoded[8..12], &6_u32.to_le_bytes());
-                assert_eq!(text_encoded[45], 6);
+                assert_eq!(&text_encoded[8..12], &7_u32.to_le_bytes());
+                assert_eq!(text_encoded[45], 2);
+                assert_eq!(
+                    text_encoded[46],
+                    Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1 as u8
+                );
                 assert_eq!(
                     FunctionFragmentTextSectionManifest::decode(&text_encoded),
                     Ok(text_manifest.clone())
+                );
+                let mut xor_text_manifest = text_manifest.clone();
+                xor_text_manifest.source_kind =
+                    FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 {
+                        optimization: Optimization::X86SelectXorZeroI64MaterializationV1,
+                    };
+                xor_text_manifest.identity = xor_text_manifest.recomputed_identity();
+                let xor_text_encoded = xor_text_manifest.encode();
+                assert_eq!(xor_text_encoded[45], 2);
+                assert_eq!(
+                    xor_text_encoded[46],
+                    Optimization::X86SelectXorZeroI64MaterializationV1 as u8
+                );
+                assert_eq!(
+                    FunctionFragmentTextSectionManifest::decode(&xor_text_encoded),
+                    Ok(xor_text_manifest)
+                );
+                let mut unknown_text_optimization = text_encoded.clone();
+                unknown_text_optimization[46] = u8::MAX;
+                assert_eq!(
+                    FunctionFragmentTextSectionManifest::decode(&unknown_text_optimization),
+                    Err(
+                        FunctionFragmentTextSectionManifestDecodeError::UnknownPostAllocationMachineOptimization(
+                            u8::MAX,
+                        ),
+                    )
                 );
                 let mut unknown_text_source = text_encoded;
                 unknown_text_source[45] = 7;
@@ -670,13 +735,16 @@ fn aarch64_movn_reaches_fragments_text_object_artifact_and_callable_for_both_rou
                 let artifact_report = optimization_pipeline_report_from_object_artifact(&artifact);
                 assert_eq!(
                     artifact_report.function_fragment().unwrap().source_kind,
-                    FunctionFragmentEmissionSourceKind::Aarch64MovnV1
+                    FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 {
+                        optimization:
+                            Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
+                    }
                 );
                 assert!(
                     artifact_report
                         .function_relative()
                         .unwrap()
-                        .aarch64_movn_materialization
+                        .post_allocation_machine_optimization
                         .is_some()
                 );
                 assert!(artifact_report.ordinary_callable_entry().is_none());
@@ -705,7 +773,10 @@ fn aarch64_movn_reaches_fragments_text_object_artifact_and_callable_for_both_rou
                 let report = optimization_pipeline_report_from_ordinary_callable_entry(&callable);
                 assert_eq!(
                     report.function_fragment().unwrap().source_kind,
-                    FunctionFragmentEmissionSourceKind::Aarch64MovnV1
+                    FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 {
+                        optimization:
+                            Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
+                    }
                 );
                 assert_eq!(
                     report.ordinary_callable_entry().unwrap().entry,

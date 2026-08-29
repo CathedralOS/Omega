@@ -10,7 +10,6 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FunctionFragmentEmissionError {
     Source(FunctionRelativeOptimizationRealizationError),
-    Aarch64MovnSource,
     ActiveResidentRematerializationSource(
         OptimizedActiveResidentRematerializationFunctionRelativeRealizationError,
     ),
@@ -47,6 +46,7 @@ pub enum FunctionFragmentEmissionManifestDecodeError {
     UnsupportedVersion(u32),
     UnknownStage(u8),
     UnknownSourceKind(u8),
+    UnknownPostAllocationMachineOptimization(u8),
     UnknownVocabulary(u16),
     InvalidFuelSchedule,
     UnknownArchitecture(u8),

@@ -93,6 +93,14 @@ Refactor before adding a rule when any of these are true:
 - a file mixes model, compute, validation, codec, and broad tests; or
 - the only way to locate built-ins is repository-wide search.
 
-The x86 XOR-zero milestone uses this trigger first at the symbolic-machine
-stage, replacing its flat coordinator with a catalog and typed result, then at
-the encoding/layout conveyor before optimized bytes are admitted.
+The x86 XOR-zero milestone exercised this trigger across the full physical
+conveyor. The symbolic-machine stage now has one catalog and typed result;
+encoding, layout, whole-function exit, and realization consume that result;
+and fragment publication has one generic post-allocation source. Adding
+XOR-zero did not copy the former MOVN route, and the named CBNZ/MOVN owning
+complete routes were removed.
+
+The next organization work is registry coverage and enforcement rather than
+another route refactor: exhaustively cross-check build/report mappings against
+`Optimization::ALL`, finish the remaining semantic file splits, and add the
+repository size/navigation check described above.

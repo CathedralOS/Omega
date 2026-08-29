@@ -1,8 +1,8 @@
 use omega_machine_code::FunctionFragmentEmissionPlan;
 use omega_optimization_core::{
     FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifestIdentity,
-    FunctionRelativeOptimizationRealizationManifestIdentity, OptimizationSelectionIdentity,
-    PostAllocationOptimizationManifestIdentity,
+    FunctionRelativeOptimizationRealizationManifestIdentity, Optimization,
+    OptimizationSelectionIdentity, PostAllocationOptimizationManifestIdentity,
 };
 use omega_target::NativeTarget;
 use psi_core::FuelScheduleIdentity;
@@ -15,8 +15,7 @@ use super::source::StagedOptimizedFunctionFragmentEmissionSource;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionFragmentEmissionSourceKind {
     X86Rel8V1,
-    Aarch64CbnzV1,
-    Aarch64MovnV1,
+    PostAllocationMachineOptimizationV1 { optimization: Optimization },
     ActiveResidentImmediateU64MultiUseRematerializationV1,
     UnitBaselineV1,
     StructuralUnitV1,

@@ -807,7 +807,7 @@ fn active_resident_rematerialization_reaches_function_relative_exit_on_both_arch
         assert_eq!(manifest.baseline_pre_layout, manifest.pre_layout);
         assert_eq!(manifest.baseline_resolved_layout, manifest.resolved_layout);
         assert_eq!(manifest.x86_branch_relaxation, None);
-        assert_eq!(manifest.aarch64_cbnz_fusion, None);
+        assert_eq!(manifest.post_allocation_machine_optimization, None);
         assert_eq!(manifest.target, target);
         assert_eq!(
             rematerialization
