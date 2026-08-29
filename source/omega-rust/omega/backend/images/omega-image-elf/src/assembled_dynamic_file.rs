@@ -13,6 +13,8 @@
 use crate::load_layout::{ElfPlacedDynamicSectionKind, ValidatedElfDynamicLoadLayout};
 use crate::resolved_procedure_linkage::ValidatedElfResolvedProcedureLinkage;
 use crate::section_roster::ElfDynamicRosterSectionKind;
+use omega_image::{ExecutableImageOutput, FinalImage, place_executable_regions};
+use omega_target::TargetProfile;
 use psi_diagnostics::Diagnostic;
 
 const SECTION_COUNT: usize = 12;
@@ -87,6 +89,62 @@ impl ValidatedElfAssembledDynamicFile {
         self.non_authoritative_assembled_file_compatibility_fingerprint
     }
 }
+
+/// Final admitted dynamic ELF bytes beside the exact consumed and relocated
+/// source image. Publication and loader execution remain separate owners.
+#[derive(Debug)]
+#[must_use = "admitted dynamic ELF retains exact final-image and byte custody"]
+pub struct ValidatedElfDynamicExecutable {
+    image: FinalImage,
+    output: ExecutableImageOutput,
+    assembled_file_compatibility_fingerprint: u64,
+}
+
+impl ValidatedElfDynamicExecutable {
+    pub const fn image(&self) -> &FinalImage {
+        &self.image
+    }
+
+    pub const fn output(&self) -> &ExecutableImageOutput {
+        &self.output
+    }
+
+    /// Compatibility/report coordinate only. Exact image and byte replay is
+    /// authoritative for this carrier.
+    pub const fn assembled_file_compatibility_fingerprint(&self) -> u64 {
+        self.assembled_file_compatibility_fingerprint
+    }
+
+    pub fn into_parts(self) -> (FinalImage, ExecutableImageOutput) {
+        (self.image, self.output)
+    }
+}
+
+/// Rejected final-byte admission retaining the complete assembled-file owner.
+#[derive(Debug)]
+#[must_use = "dynamic ELF admission rejection retains assembled-file custody"]
+pub struct ElfDynamicExecutableAdmissionError {
+    assembled: ValidatedElfAssembledDynamicFile,
+    diagnostic: Diagnostic,
+}
+
+impl ElfDynamicExecutableAdmissionError {
+    pub const fn diagnostic(&self) -> &Diagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(self) -> (ValidatedElfAssembledDynamicFile, Diagnostic) {
+        (self.assembled, self.diagnostic)
+    }
+}
+
+impl std::fmt::Display for ElfDynamicExecutableAdmissionError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.diagnostic.fmt(formatter)
+    }
+}
+
+impl std::error::Error for ElfDynamicExecutableAdmissionError {}
 
 /// Rejected file assembly retaining the exact resolved-linkage owner.
 #[derive(Debug)]
@@ -165,6 +223,137 @@ pub fn assemble_elf_dynamic_file(
             diagnostic: error.diagnostic,
         })
     })
+}
+
+/// Consume one independently replayed dynamic ELF assembly, apply its exact
+/// resolved source text to the retained `FinalImage`, and admit the complete
+/// final byte image. This grants no publication receipt or execution event.
+pub fn admit_elf_dynamic_executable(
+    assembled: ValidatedElfAssembledDynamicFile,
+) -> Result<ValidatedElfDynamicExecutable, Box<ElfDynamicExecutableAdmissionError>> {
+    let mut expected_image = load_layout(&assembled.resolved_linkage)
+        .retained_image()
+        .clone();
+    expected_image.memory.text = assembled.resolved_linkage.source_text_bytes().to_vec();
+    let output = match derive_executable_output(&assembled, &expected_image) {
+        Ok(output) => output,
+        Err(diagnostic) => {
+            return Err(Box::new(ElfDynamicExecutableAdmissionError {
+                assembled,
+                diagnostic,
+            }));
+        }
+    };
+    if let Err(diagnostic) = validate_executable_output(&assembled, &expected_image, &output) {
+        return Err(Box::new(ElfDynamicExecutableAdmissionError {
+            assembled,
+            diagnostic,
+        }));
+    }
+
+    let assembled_file_compatibility_fingerprint =
+        assembled.non_authoritative_assembled_file_compatibility_fingerprint;
+    let ValidatedElfAssembledDynamicFile {
+        resolved_linkage, ..
+    } = assembled;
+    let mut image = recover_retained_image(resolved_linkage);
+    image.memory.text = output.final_text_bytes.clone();
+    debug_assert_eq!(image, expected_image);
+
+    Ok(ValidatedElfDynamicExecutable {
+        image,
+        output,
+        assembled_file_compatibility_fingerprint,
+    })
+}
+
+fn derive_executable_output(
+    assembled: &ValidatedElfAssembledDynamicFile,
+    image: &FinalImage,
+) -> Result<ExecutableImageOutput, Diagnostic> {
+    let load = load_layout(&assembled.resolved_linkage);
+    let format = dynamic_executable_format(load.target())?;
+    let executable_regions = place_executable_regions(image, load.final_image_layout())?;
+    Ok(ExecutableImageOutput {
+        bytes: assembled.bytes().to_vec(),
+        final_text_bytes: image.memory.text.clone(),
+        file_name: "omega-program".to_owned(),
+        format: format.to_owned(),
+        text_bytes: image.memory.text.len(),
+        data_bytes: image.memory.data.len(),
+        bss_bytes: image.memory.bss_size,
+        symbols: image.symbol_table.symbols.len(),
+        imports: image.symbol_table.imports.len(),
+        relocations: image.relocation_table.relocations.len(),
+        executable_regions,
+    })
+}
+
+fn validate_executable_output(
+    assembled: &ValidatedElfAssembledDynamicFile,
+    image: &FinalImage,
+    output: &ExecutableImageOutput,
+) -> Result<(), Diagnostic> {
+    validate_contents(&assembled.resolved_linkage, &assembled.contents)?;
+    let load = load_layout(&assembled.resolved_linkage);
+    let expected_format = dynamic_executable_format(load.target())?;
+    let expected_regions = place_executable_regions(image, load.final_image_layout())?;
+    require(
+        image.target == load.target().native_target()
+            && image.memory.text == assembled.resolved_linkage.source_text_bytes()
+            && output.bytes == assembled.contents.bytes
+            && output.final_text_bytes == image.memory.text
+            && output.file_name == "omega-program"
+            && output.format == expected_format
+            && output.text_bytes == image.memory.text.len()
+            && output.data_bytes == image.memory.data.len()
+            && output.bss_bytes == image.memory.bss_size
+            && output.symbols == image.symbol_table.symbols.len()
+            && output.imports == image.symbol_table.imports.len()
+            && output.relocations == image.relocation_table.relocations.len()
+            && output.executable_regions == expected_regions,
+        "admitted dynamic ELF output drifted from exact assembled-file custody",
+    )?;
+    require(
+        output.bytes.starts_with(b"\x7fELF")
+            && output.bytes.get(4) == Some(&2)
+            && output.bytes.get(5) == Some(&1),
+        "admitted dynamic ELF output is not an ELF64-LSB image",
+    )
+}
+
+fn dynamic_executable_format(target: TargetProfile) -> Result<&'static str, Diagnostic> {
+    match target {
+        TargetProfile::LinuxX64 => Ok("elf64-x86-64-dynamic-executable"),
+        TargetProfile::LinuxArm64 => Ok("elf64-aarch64-dynamic-executable"),
+        _ => Err(Diagnostic::error(
+            "dynamic ELF admission requires an exact Linux target profile",
+        )),
+    }
+}
+
+fn recover_retained_image(resolved_linkage: ValidatedElfResolvedProcedureLinkage) -> FinalImage {
+    let envelope = resolved_linkage.into_envelope();
+    let resolved_dynamic = envelope.into_resolved_dynamic_table();
+    let (placed_headers, _) = resolved_dynamic.into_parts();
+    let (load_layout, _) = placed_headers.into_parts();
+    let relative = load_layout.into_relative();
+    let (indexed_payloads, _) = relative.into_parts();
+    let (section_headers, _) = indexed_payloads.into_parts();
+    let (section_roster, _) = section_headers.into_parts();
+    let (section_names, _) = section_roster.into_parts();
+    let (dynamic_descriptor, _) = section_names.into_parts();
+    let (dynamic_payload, _) = dynamic_descriptor.into_parts();
+    let (dynamic_tags, _) = dynamic_payload.into_parts();
+    let (linkage_descriptors, _) = dynamic_tags.into_parts();
+    let (linkage_templates, _) = linkage_descriptors.into_parts();
+    let (linkage_relocations, _) = linkage_templates.into_parts();
+    let (section_descriptors, _) = linkage_relocations.into_parts();
+    let (section_payloads, _) = section_descriptors.into_parts();
+    let (section_plan, _) = section_payloads.into_parts();
+    let (inputs, _) = section_plan.into_parts();
+    let (image, _, _) = inputs.into_parts();
+    image
 }
 
 fn derive_contents(
@@ -1036,5 +1225,62 @@ mod tests {
                 .to_string()
                 .contains("fingerprint does not replay"),
         );
+    }
+
+    #[test]
+    fn both_linux_targets_consume_the_retained_image_into_exact_admitted_bytes() {
+        for target in [TargetProfile::LinuxX64, TargetProfile::LinuxArm64] {
+            let resolved = standard_resolved_linkage(target);
+            let original = load_layout(&resolved).retained_image().clone();
+            let resolved_text = resolved.source_text_bytes().to_vec();
+            assert_ne!(original.memory.text, resolved_text);
+            let assembled = assemble_elf_dynamic_file(resolved).unwrap();
+            let assembled_bytes = assembled.bytes().to_vec();
+            let assembled_fingerprint =
+                assembled.non_authoritative_assembled_file_compatibility_fingerprint();
+
+            let admitted = admit_elf_dynamic_executable(assembled).unwrap();
+            assert_eq!(admitted.image().memory.text, resolved_text);
+            assert_eq!(admitted.image().memory.data, original.memory.data);
+            assert_eq!(admitted.image().memory.bss_size, original.memory.bss_size);
+            assert_eq!(admitted.output().bytes, assembled_bytes);
+            assert_eq!(admitted.output().final_text_bytes, resolved_text);
+            assert_eq!(admitted.output().imports, 2);
+            assert_eq!(admitted.output().relocations, 3);
+            assert_eq!(
+                admitted.assembled_file_compatibility_fingerprint(),
+                assembled_fingerprint,
+            );
+            assert!(admitted.output().bytes.starts_with(b"\x7fELF"));
+            assert!(admitted.output().format.contains("dynamic-executable"));
+        }
+    }
+
+    #[test]
+    fn final_byte_admission_rejects_independent_output_drift() {
+        let assembled =
+            assemble_elf_dynamic_file(standard_resolved_linkage(TargetProfile::LinuxX64)).unwrap();
+        let mut image = load_layout(&assembled.resolved_linkage)
+            .retained_image()
+            .clone();
+        image.memory.text = assembled.resolved_linkage.source_text_bytes().to_vec();
+        let output = derive_executable_output(&assembled, &image).unwrap();
+        validate_executable_output(&assembled, &image, &output).unwrap();
+
+        let mut bytes = output.clone();
+        bytes.bytes[0] ^= 1;
+        assert!(validate_executable_output(&assembled, &image, &bytes).is_err());
+
+        let mut text = output.clone();
+        text.final_text_bytes[0] ^= 1;
+        assert!(validate_executable_output(&assembled, &image, &text).is_err());
+
+        let mut format = output.clone();
+        format.format.push_str("-drift");
+        assert!(validate_executable_output(&assembled, &image, &format).is_err());
+
+        let mut statistics = output;
+        statistics.imports += 1;
+        assert!(validate_executable_output(&assembled, &image, &statistics).is_err());
     }
 }

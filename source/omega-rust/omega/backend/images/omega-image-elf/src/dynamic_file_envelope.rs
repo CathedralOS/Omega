@@ -87,6 +87,10 @@ impl ValidatedElfDynamicFileEnvelope {
     pub const fn non_authoritative_envelope_compatibility_fingerprint(&self) -> u64 {
         self.non_authoritative_envelope_compatibility_fingerprint
     }
+
+    pub(crate) fn into_resolved_dynamic_table(self) -> ValidatedElfResolvedDynamicTable {
+        self.resolved_dynamic_table
+    }
 }
 
 /// Rejected serialization retaining the exact resolved-dynamic owner.

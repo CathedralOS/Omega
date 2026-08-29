@@ -164,6 +164,10 @@ impl ValidatedElfResolvedProcedureLinkage {
     pub const fn non_authoritative_resolved_linkage_compatibility_fingerprint(&self) -> u64 {
         self.non_authoritative_resolved_linkage_compatibility_fingerprint
     }
+
+    pub(crate) fn into_envelope(self) -> ValidatedElfDynamicFileEnvelope {
+        self.envelope
+    }
 }
 
 /// Rejected fixup application retaining the exact file-envelope owner.

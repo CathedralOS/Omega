@@ -36,8 +36,9 @@ mod sections;
 mod tests;
 
 pub use assembled_dynamic_file::{
-    ElfDynamicFileAssemblyError, ElfDynamicFileFragmentKind, ElfDynamicFileFragmentPlacement,
-    ValidatedElfAssembledDynamicFile, assemble_elf_dynamic_file,
+    ElfDynamicExecutableAdmissionError, ElfDynamicFileAssemblyError, ElfDynamicFileFragmentKind,
+    ElfDynamicFileFragmentPlacement, ValidatedElfAssembledDynamicFile,
+    ValidatedElfDynamicExecutable, admit_elf_dynamic_executable, assemble_elf_dynamic_file,
 };
 pub use dynamic_file_envelope::{
     ElfDynamicFileEnvelopeSerializationError, ValidatedElfDynamicFileEnvelope,
