@@ -15,7 +15,7 @@ pub(super) fn verify_transitive_source_custody(
             .custody(&source_package)
             .expect("validated source closure retains every reachable custody");
         verify_package_source_snapshot(
-            custody.snapshot_root(),
+            custody.acquisition_root(),
             custody.resolution().content(),
             custody.source_limits(),
         )

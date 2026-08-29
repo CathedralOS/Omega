@@ -108,6 +108,8 @@ fn bind_workspace_member_package_source(
         PackageKey::new(declaration.name, lineage),
         resolution,
         source.snapshot_root().to_path_buf(),
+        source.snapshot_root().to_path_buf(),
+        super::PackageSourceNavigation::Root,
         limits,
         dependency_requests,
         source,

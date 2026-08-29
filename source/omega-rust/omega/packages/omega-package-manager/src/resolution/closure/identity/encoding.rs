@@ -7,6 +7,7 @@ use super::{
     SOURCE_CLOSURE_SUBJECT_MAGIC,
 };
 use crate::manifest::dependencies::read::PackageSelection;
+use crate::resolution::binding::PackageSourceNavigation;
 use crate::resolution::closure::ResolvedSourceIdentity;
 use omega_package_source::{
     AliasName, ExternalLocalLineage, ExternalSourceContext, GitCommitId, GitTransport, GitTreeId,
@@ -18,6 +19,7 @@ use sha2::{Digest, Sha256};
 pub(super) fn encode_subject(
     root: &CanonicalRootSourceSelection,
     packages: &[ResolvedSourceIdentity],
+    package_navigations: &[PackageSourceNavigation],
     dependency_requests: &[CanonicalDependencySourceSelection],
     limits: CanonicalSourceClosureSubjectLimits,
 ) -> Result<Vec<u8>, CanonicalSourceClosureSubjectError> {
@@ -26,8 +28,9 @@ pub(super) fn encode_subject(
     encoder.u16(SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION);
     encode_root_selection(&mut encoder, root, limits)?;
     encoder.count(packages.len())?;
-    for source in packages {
+    for (source, navigation) in packages.iter().zip(package_navigations) {
         encode_source_identity(&mut encoder, source, limits.maximum_identity_bytes)?;
+        encode_package_navigation(&mut encoder, navigation, limits.maximum_request_bytes)?;
     }
     encoder.count(dependency_requests.len())?;
     for request in dependency_requests {
@@ -45,10 +48,12 @@ fn encode_root_selection(
         CanonicalRootSourceRequest::Git {
             requested_locator,
             requested_revision,
+            selection,
         } => {
             encoder.byte(0);
             encoder.bytes_bounded(requested_locator.as_bytes(), limits.maximum_request_bytes)?;
             encoder.bytes_bounded(requested_revision.as_bytes(), limits.maximum_request_bytes)?;
+            encode_package_selection(encoder, selection, limits.maximum_identity_bytes)?;
         }
         CanonicalRootSourceRequest::WorkspaceMember {
             workspace_root_source,
@@ -87,6 +92,7 @@ pub(super) fn decode_root_selection(
         0 => CanonicalRootSourceRequest::Git {
             requested_locator: decoder.string(limits.maximum_request_bytes)?,
             requested_revision: decoder.string(limits.maximum_request_bytes)?,
+            selection: decode_package_selection(decoder, limits.maximum_identity_bytes)?,
         },
         1 => CanonicalRootSourceRequest::WorkspaceMember {
             workspace_root_source: decode_source_lineage(decoder, limits.maximum_identity_bytes)?,
@@ -219,6 +225,36 @@ fn decode_package_selection(
             .map_err(|_| CanonicalSourceClosureSubjectError::new("invalid selected package name")),
         _ => Err(CanonicalSourceClosureSubjectError::new(
             "invalid package-selection tag",
+        )),
+    }
+}
+
+fn encode_package_navigation(
+    encoder: &mut Encoder,
+    navigation: &PackageSourceNavigation,
+    maximum_request_bytes: usize,
+) -> Result<(), CanonicalSourceClosureSubjectError> {
+    match navigation {
+        PackageSourceNavigation::Root => encoder.byte(0),
+        PackageSourceNavigation::Member(path) => {
+            encoder.byte(1);
+            encoder.bytes_bounded(path.as_str().as_bytes(), maximum_request_bytes)?;
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn decode_package_navigation(
+    decoder: &mut Decoder<'_>,
+    maximum_request_bytes: usize,
+) -> Result<PackageSourceNavigation, CanonicalSourceClosureSubjectError> {
+    match decoder.byte()? {
+        0 => Ok(PackageSourceNavigation::Root),
+        1 => WorkspaceMemberPath::parse(&decoder.string(maximum_request_bytes)?)
+            .map(PackageSourceNavigation::Member)
+            .map_err(|_| CanonicalSourceClosureSubjectError::new("invalid package navigation")),
+        _ => Err(CanonicalSourceClosureSubjectError::new(
+            "invalid package-navigation tag",
         )),
     }
 }

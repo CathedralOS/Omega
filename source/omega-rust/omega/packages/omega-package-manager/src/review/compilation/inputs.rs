@@ -72,13 +72,13 @@ fn binding_with_canonical_source_metadata(
     binding: PackageSourceBinding,
 ) -> Result<PackageSourceBinding, PackageCompilationInputError> {
     omega_package_source::capture_verified_package_source_snapshot(
-        custody.snapshot_root(),
+        custody.acquisition_root(),
         custody.resolution().content(),
         custody.source_limits(),
     )
     .map_err(|error| PackageCompilationInputError::InvalidSourceRoot {
         identity: custody.key().identity(),
-        path: custody.snapshot_root().to_path_buf(),
+        path: custody.acquisition_root().to_path_buf(),
         reason: format!("could not derive canonical build-source metadata: {error}"),
     })?;
     binding.with_canonical_source_metadata().map_err(|reason| {
@@ -130,7 +130,7 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn root_request(root: &PackageSourceCustody) -> PackageRootSourceRequest {
-        PackageRootSourceRequest::Git(
+        PackageRootSourceRequest::Git(crate::resolution::GitPackageSourceRequest::root(
             omega_package_source::GitSourceRequest::new(
                 format!(
                     "https://github.com/CathedralOS/{}.git",
@@ -139,7 +139,7 @@ mod tests {
                 Some("HEAD".to_owned()),
             )
             .expect("synthetic root request"),
-        )
+        ))
     }
 
     fn temp_root(name: &str) -> PathBuf {
@@ -189,7 +189,9 @@ mod tests {
         PackageSourceCustody::from_resolved_parts(
             key,
             resolution,
+            source_root.clone(),
             source_root,
+            crate::resolution::PackageSourceNavigation::Root,
             omega_package_source::LocalSourceLimits::default(),
             dependency_requests,
         )

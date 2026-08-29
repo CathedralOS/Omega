@@ -3,6 +3,16 @@ use omega_package_source::{
     GitCommitId, GitTreeId, ImmutableSourceResolution, SourceContentDigest,
 };
 
+fn finish(
+    root: CanonicalRootSourceSelection,
+    packages: Vec<ResolvedSourceIdentity>,
+    dependency_requests: Vec<CanonicalDependencySourceSelection>,
+    limits: CanonicalSourceClosureSubjectLimits,
+) -> Result<CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectError> {
+    let navigations = vec![PackageSourceNavigation::Root; packages.len()];
+    CanonicalSourceClosureSubject::finish(root, packages, navigations, dependency_requests, limits)
+}
+
 fn git_source(name: &str, repository: &str, marker: u8) -> ResolvedSourceIdentity {
     let key = PackageKey::new(
         PackageName::parse(name).unwrap(),
@@ -27,6 +37,7 @@ fn root_git_selection(
         request: CanonicalRootSourceRequest::Git {
             requested_locator: locator.to_owned(),
             requested_revision: "main".to_owned(),
+            selection: crate::manifest::PackageSelection::Root,
         },
         selected: selected.clone(),
     }
@@ -35,14 +46,14 @@ fn root_git_selection(
 #[test]
 fn exact_git_request_spelling_changes_subject_without_changing_selection() {
     let selected = git_source("codec", "codec", 1);
-    let https = CanonicalSourceClosureSubject::finish(
+    let https = finish(
         root_git_selection("https://github.com/CathedralOS/codec.git", &selected),
         vec![selected.clone()],
         Vec::new(),
         CanonicalSourceClosureSubjectLimits::default(),
     )
     .unwrap();
-    let ssh = CanonicalSourceClosureSubject::finish(
+    let ssh = finish(
         root_git_selection("git@github.com:CathedralOS/codec.git", &selected),
         vec![selected],
         Vec::new(),
@@ -80,9 +91,19 @@ fn git_package_selection_is_canonical_request_custody_not_package_identity() {
         selected: child.clone(),
     };
     let subject = |selection| {
+        let navigations = match &selection {
+            crate::manifest::PackageSelection::Root => {
+                vec![PackageSourceNavigation::Root, PackageSourceNavigation::Root]
+            }
+            crate::manifest::PackageSelection::Named(_) => vec![
+                PackageSourceNavigation::Member(WorkspaceMemberPath::parse("child").unwrap()),
+                PackageSourceNavigation::Root,
+            ],
+        };
         CanonicalSourceClosureSubject::finish(
             root_git_selection("https://github.com/CathedralOS/workspace.git", &root),
             vec![child.clone(), root.clone()],
+            navigations,
             vec![request(selection)],
             CanonicalSourceClosureSubjectLimits::default(),
         )
@@ -110,6 +131,10 @@ fn git_package_selection_is_canonical_request_custody_not_package_identity() {
     let mismatch = CanonicalSourceClosureSubject::finish(
         root_git_selection("https://github.com/CathedralOS/workspace.git", &root),
         vec![child.clone(), root.clone()],
+        vec![
+            PackageSourceNavigation::Member(WorkspaceMemberPath::parse("child").unwrap()),
+            PackageSourceNavigation::Root,
+        ],
         vec![request(crate::manifest::PackageSelection::Named(
             PackageName::parse("other").unwrap(),
         ))],
@@ -138,7 +163,7 @@ fn request_and_edge_disagreement_reject_before_encoding() {
         alias: AliasName::parse("wrong_alias").unwrap(),
         selected: child.clone(),
     };
-    let error = CanonicalSourceClosureSubject::finish(
+    let error = finish(
         root_git_selection("https://github.com/CathedralOS/root.git", &root),
         vec![child, root],
         vec![request],
@@ -167,7 +192,7 @@ fn missing_ordinals_and_open_graphs_reject() {
         alias: child.key().name().default_alias(),
         selected: child.clone(),
     };
-    let error = CanonicalSourceClosureSubject::finish(
+    let error = finish(
         root_git_selection("https://github.com/CathedralOS/root.git", &root),
         vec![child.clone(), root.clone()],
         vec![request(1)],
@@ -179,7 +204,7 @@ fn missing_ordinals_and_open_graphs_reject() {
         "dependency request ordinals do not begin at zero"
     );
 
-    let error = CanonicalSourceClosureSubject::finish(
+    let error = finish(
         root_git_selection("https://github.com/CathedralOS/root.git", &root),
         vec![root.clone()],
         vec![request(0)],
@@ -195,7 +220,7 @@ fn missing_ordinals_and_open_graphs_reject() {
 #[test]
 fn recovery_rejects_unknown_version_trailing_bytes_and_tight_limits() {
     let selected = git_source("codec", "codec", 1);
-    let subject = CanonicalSourceClosureSubject::finish(
+    let subject = finish(
         root_git_selection("https://github.com/CathedralOS/codec.git", &selected),
         vec![selected],
         Vec::new(),
@@ -238,7 +263,7 @@ fn noncanonical_unreachable_and_cyclic_package_state_rejects() {
     let child = git_source("child", "child", 2);
     let root_selection = root_git_selection("https://github.com/CathedralOS/root.git", &root);
 
-    let error = CanonicalSourceClosureSubject::finish(
+    let error = finish(
         root_selection.clone(),
         vec![root.clone(), child.clone()],
         Vec::new(),
@@ -250,7 +275,7 @@ fn noncanonical_unreachable_and_cyclic_package_state_rejects() {
         "source-closure packages are not in strict canonical order"
     );
 
-    let error = CanonicalSourceClosureSubject::finish(
+    let error = finish(
         root_selection.clone(),
         vec![child.clone(), root.clone()],
         Vec::new(),
@@ -276,7 +301,7 @@ fn noncanonical_unreachable_and_cyclic_package_state_rejects() {
         alias: selected.key().name().default_alias(),
         selected: selected.clone(),
     };
-    let error = CanonicalSourceClosureSubject::finish(
+    let error = finish(
         root_selection,
         vec![child.clone(), root.clone()],
         vec![

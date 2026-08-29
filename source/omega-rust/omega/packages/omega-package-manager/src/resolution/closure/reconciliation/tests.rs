@@ -65,13 +65,15 @@ fn custody(
         key(name, repository),
         resolution(marker),
         PathBuf::from(snapshot_root),
+        PathBuf::from(snapshot_root),
+        crate::resolution::PackageSourceNavigation::Root,
         LocalSourceLimits::default(),
         dependency_requests,
     )
 }
 
 fn git_root_request(root: &PackageSourceCustody) -> PackageRootSourceRequest {
-    PackageRootSourceRequest::Git(
+    PackageRootSourceRequest::Git(crate::resolution::GitPackageSourceRequest::root(
         GitSourceRequest::new(
             format!(
                 "https://github.com/CathedralOS/{}.git",
@@ -80,7 +82,7 @@ fn git_root_request(root: &PackageSourceCustody) -> PackageRootSourceRequest {
             Some("HEAD".to_owned()),
         )
         .expect("synthetic root request"),
-    )
+    ))
 }
 
 fn fake_adapter(
@@ -509,7 +511,7 @@ fn conflicting_resolution_reports_every_requesting_path() {
 }
 
 #[test]
-fn same_key_and_resolution_with_different_custody_root_rejects() {
+fn same_semantic_custody_at_different_cache_roots_deduplicates() {
     let first = custody("shared", "shared", 2, "/snapshots/first", vec![]);
     let mut second = first.clone();
     second.snapshot_root = PathBuf::from("/snapshots/second");
@@ -518,29 +520,22 @@ fn same_key_and_resolution_with_different_custody_root_rejects() {
         "application",
         1,
         "/snapshots/application",
-        vec![request("first"), request("second")],
+        vec![request_as("first", "first"), request_as("second", "second")],
     );
 
-    let error = resolve_package_source_closure(
+    let closure = resolve_package_source_closure(
         git_root_request(&root),
         root,
         fake_adapter(BTreeMap::from([("first", first), ("second", second)])),
     )
-    .expect_err("custody root drift rejects");
-    let conflicts = error.conflicts().expect("custody conflict details");
+    .expect("cache relocation does not change package semantics");
 
-    assert_eq!(conflicts.len(), 1);
-    assert_eq!(conflicts[0].candidates().len(), 2);
-    assert_eq!(
-        conflicts[0]
-            .candidates()
-            .iter()
-            .map(|candidate| candidate.custody().resolution())
-            .collect::<BTreeSet<_>>()
-            .len(),
-        1,
-        "the differing custody roots share one immutable resolution"
-    );
+    let shared = closure
+        .custodies()
+        .iter()
+        .find(|custody| custody.key().name().as_str() == "shared")
+        .expect("deduplicated shared custody");
+    assert_eq!(shared.snapshot_root(), Path::new("/snapshots/first"));
 }
 
 #[test]

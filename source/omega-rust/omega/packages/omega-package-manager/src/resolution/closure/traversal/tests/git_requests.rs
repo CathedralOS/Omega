@@ -84,25 +84,20 @@ fn resolves_repository_root_git_closure_and_retains_the_exact_request() {
 }
 
 #[test]
-fn named_git_selection_rejects_before_resolving_an_unbound_member() {
+fn named_git_selection_resolves_only_the_declared_matching_member() {
     let repository = temp_root("git-named-selection-root");
     let cache = temp_root("git-named-selection-cache");
-    std::fs::create_dir_all(&repository).expect("create root repository");
+    std::fs::create_dir_all(repository.join("packages")).expect("create root repository");
     std::fs::write(
         repository.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.package("network-root");
-    builder.depend(Source::Git {
-        repository: "https://github.com/CathedralOS/workspace.git",
-        revision: "main",
-        selection: PackageSelection::Named { package: "matrix" }
-    });
+    builder.member("packages/matrix");
 }
 "#,
     )
     .expect("write root build");
-    std::fs::write(repository.join("main.omg"), "machine root() {}\n").expect("write root source");
+    write_package(&repository.join("packages/matrix"), "matrix", None);
     run_test_git(&repository, ["init", "--quiet"]);
     run_test_git(
         &repository,
@@ -111,33 +106,40 @@ machine build(builder: &mut Build) {
     run_test_git(&repository, ["config", "user.name", "Omega Tests"]);
     run_test_git(&repository, ["add", "."]);
     run_test_git(&repository, ["commit", "--quiet", "-m", "root"]);
-    let request = GitSourceRequest::for_local_test_repository_with_lineage(
-        &repository,
-        None,
-        "https://github.com/CathedralOS/network-root.git",
-    )
-    .expect("validated local Git root request");
+    let request = crate::resolution::GitPackageSourceRequest::new(
+        GitSourceRequest::for_local_test_repository_with_lineage(
+            &repository,
+            None,
+            "https://github.com/CathedralOS/workspace.git",
+        )
+        .expect("validated local Git root request"),
+        crate::manifest::PackageSelection::Named(
+            omega_package_source::PackageName::parse("matrix").expect("package name"),
+        ),
+    );
     let storage = SourceResolverStorage::for_hardened_base(&cache)
         .expect("create retained Git resolver storage");
 
-    let error = resolve_git_package_closure_with_storage(
+    let closure = crate::resolution::resolve_selected_git_package_closure_with_storage(
         &request,
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
     )
-    .unwrap_err();
+    .expect("resolve named Git workspace member");
+    let root = closure
+        .custody(closure.graph().root())
+        .expect("root custody");
+    assert_eq!(root.key().name().as_str(), "matrix");
     assert!(matches!(
-        error,
-        ResolveGitPackageClosureError::Closure(
-            PackageSourceClosureResolutionError::Adapter {
-                error: ResolveDependencySourceError::NamedGitPackageSelectionUnavailable {
-                    package
-                },
-                ..
-            }
-        ) if package.as_str() == "matrix"
+        root.navigation(),
+        crate::resolution::PackageSourceNavigation::Member(path)
+            if path.as_str() == "packages/matrix"
     ));
+    let PackageRootSourceRequest::Git(retained) = closure.source_requests().root().request() else {
+        panic!("named Git request retained")
+    };
+    assert_eq!(retained, &request);
 
     let _ = std::fs::remove_dir_all(repository);
     let _ = std::fs::remove_dir_all(cache);

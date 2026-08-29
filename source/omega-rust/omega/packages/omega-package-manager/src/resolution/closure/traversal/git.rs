@@ -3,10 +3,12 @@
 use super::super::reconciliation::{
     PackageRootSourceRequest, PackageSourceClosureLimits, ResolvedPackageSourceClosure,
 };
-use super::cache::{SourceCacheLane, resolve_git_from_cache};
-use super::dependency_resolution::{register_workspace, resolve_registered_package_closure};
+use super::cache::{GitAcquisitionCache, SourceCacheLane};
+use super::dependency_resolution::{register_git_repository, resolve_registered_package_closure};
 use super::errors::ResolveGitPackageClosureError;
-use crate::resolution::binding::ResolvePackageSourceError;
+use crate::resolution::binding::{
+    GitPackageSourceRequest, PackageSourceNavigation, ResolvePackageSourceError,
+};
 use omega_package_source::SourceLineage;
 use omega_package_source::{
     GitSourceRequest, LocalSourceLimits, ResolvedGitSource, SourceResolverStorage,
@@ -35,23 +37,27 @@ pub(crate) fn resolve_git_package_closure(
 }
 
 fn resolve_git_package_closure_from_lanes(
-    request: &GitSourceRequest,
+    request: &GitPackageSourceRequest,
     workspace_cache: SourceCacheLane<'_>,
     git_cache: SourceCacheLane<'_>,
     local_cache: SourceCacheLane<'_>,
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveGitPackageClosureError> {
-    let root = resolve_git_from_cache(request, git_cache, source_limits)
+    let mut git_acquisitions = GitAcquisitionCache::default();
+    let root = git_acquisitions
+        .resolve_selected(request, git_cache, source_limits)
         .map_err(ResolveGitPackageClosureError::Root)?;
-    if !git_root_request_matches(request, root.source(), root.key().source_lineage()) {
+    if !git_package_root_request_matches(request, &root) {
         return Err(ResolveGitPackageClosureError::RootRequestMismatch);
     }
     let mut workspaces = BTreeMap::new();
-    register_workspace(
+    register_git_repository(
         &mut workspaces,
         root.key().source_lineage(),
-        root.snapshot_root(),
+        root.acquisition_root(),
+        root.resolution(),
+        root.source_limits(),
     )
     .map_err(ResolveGitPackageClosureError::RootWorkspace)?;
 
@@ -66,6 +72,7 @@ fn resolve_git_package_closure_from_lanes(
         &mut workspaces,
         &mut BTreeMap::new(),
         None,
+        &mut git_acquisitions,
     )
     .map_err(ResolveGitPackageClosureError::Closure)
 }
@@ -73,6 +80,21 @@ fn resolve_git_package_closure_from_lanes(
 /// Resolve a Git closure beneath the manager-owned private source root.
 pub fn resolve_git_package_closure_with_storage(
     request: &GitSourceRequest,
+    storage: &SourceResolverStorage,
+    source_limits: LocalSourceLimits,
+    closure_limits: PackageSourceClosureLimits,
+) -> Result<ResolvedPackageSourceClosure, ResolveGitPackageClosureError> {
+    resolve_selected_git_package_closure_with_storage(
+        &GitPackageSourceRequest::root(request.clone()),
+        storage,
+        source_limits,
+        closure_limits,
+    )
+}
+
+/// Resolve one explicitly selected package from a Git repository and its closure.
+pub fn resolve_selected_git_package_closure_with_storage(
+    request: &GitPackageSourceRequest,
     storage: &SourceResolverStorage,
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
@@ -104,4 +126,28 @@ pub(crate) fn git_root_request_matches(
         && resolved.requested_revision() == request.requested_revision()
         && resolved.transport_profile() == request.transport_profile()
         && lineage == request.lineage()
+}
+
+fn git_package_root_request_matches(
+    request: &GitPackageSourceRequest,
+    resolved: &crate::resolution::binding::ResolvedPackageSource<ResolvedGitSource>,
+) -> bool {
+    if !git_root_request_matches(
+        request.acquisition(),
+        resolved.source(),
+        resolved.key().source_lineage(),
+    ) {
+        return false;
+    }
+    match (request.selection(), resolved.navigation()) {
+        (
+            crate::manifest::dependencies::read::PackageSelection::Root,
+            PackageSourceNavigation::Root,
+        ) => true,
+        (
+            crate::manifest::dependencies::read::PackageSelection::Named(package),
+            PackageSourceNavigation::Member(_),
+        ) => resolved.key().name() == package,
+        _ => false,
+    }
 }
