@@ -258,6 +258,91 @@ pub(super) fn lower_unit_function(
                                     ))?;
                                 (element, element_shape, offset, Some(length), Some(stride))
                             }
+                            [
+                                StructuralPathSegment::FixedIndex(outer_index),
+                                StructuralPathSegment::FixedIndex(inner_index),
+                            ] => {
+                                let declaration = structural_types
+                                    .get(&source.structural_type)
+                                    .copied()
+                                    .ok_or(LoweringError::UnknownStructuralType(
+                                        source.structural_type,
+                                    ))?;
+                                let StructuralTypeShape::FixedArray {
+                                    element: inner_type,
+                                    length: 2,
+                                } = declaration.shape
+                                else {
+                                    return Err(
+                                        LoweringError::StructuralCallArgumentTypeMismatch {
+                                            callee: *callee,
+                                            place: argument.place,
+                                        },
+                                    );
+                                };
+                                let inner_declaration = structural_types
+                                    .get(&inner_type)
+                                    .copied()
+                                    .ok_or(LoweringError::UnknownStructuralType(inner_type))?;
+                                let StructuralTypeShape::FixedArray {
+                                    element: leaf_type,
+                                    length: 3,
+                                } = inner_declaration.shape
+                                else {
+                                    return Err(
+                                        LoweringError::StructuralCallArgumentTypeMismatch {
+                                            callee: *callee,
+                                            place: argument.place,
+                                        },
+                                    );
+                                };
+                                if *outer_index >= 2 || *inner_index >= 3 {
+                                    return Err(
+                                        LoweringError::StructuralCallArgumentTypeMismatch {
+                                            callee: *callee,
+                                            place: argument.place,
+                                        },
+                                    );
+                                }
+                                let inner_shape = structural_shape(
+                                    inner_type,
+                                    structural_types,
+                                    &mut shape_cache,
+                                    &mut active,
+                                )?;
+                                let leaf_shape = structural_shape(
+                                    leaf_type,
+                                    structural_types,
+                                    &mut shape_cache,
+                                    &mut active,
+                                )?;
+                                let outer_stride = checked_align_up_u32(
+                                    u32::from(inner_shape.byte_size),
+                                    u32::from(inner_shape.alignment),
+                                )
+                                .ok_or(
+                                    LoweringError::StructuralTypeTooLarge(source.structural_type),
+                                )?;
+                                let inner_stride = checked_align_up_u32(
+                                    u32::from(leaf_shape.byte_size),
+                                    u32::from(leaf_shape.alignment),
+                                )
+                                .ok_or(
+                                    LoweringError::StructuralTypeTooLarge(source.structural_type),
+                                )?;
+                                let offset = u64::from(outer_stride)
+                                    .checked_mul(*outer_index)
+                                    .and_then(|offset| {
+                                        u64::from(inner_stride)
+                                            .checked_mul(*inner_index)
+                                            .and_then(|inner| offset.checked_add(inner))
+                                    })
+                                    .and_then(|offset| u32::try_from(offset).ok())
+                                    .ok_or(LoweringError::StructuralTypeTooLarge(
+                                        source.structural_type,
+                                    ))?;
+                                (leaf_type, leaf_shape, offset, Some(2), Some(outer_stride))
+                            }
                             path @ [StructuralPathSegment::Field(_), ..]
                                 if path.iter().all(|segment| {
                                     matches!(segment, StructuralPathSegment::Field(_))

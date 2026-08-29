@@ -567,6 +567,10 @@ pub(super) fn ordinary_projected_call_is_supported(
         && !matches!(
             arguments[0].path.as_slice(),
             [CheckedUnitStructuralPathSegment::FixedIndex(_)]
+                | [
+                    CheckedUnitStructuralPathSegment::FixedIndex(_),
+                    CheckedUnitStructuralPathSegment::FixedIndex(_),
+                ]
         )
     {
         return false;
@@ -610,11 +614,7 @@ pub(super) fn ordinary_projected_call_is_supported(
         return false;
     }
 
-    let bounded_affine_array_index_path = if allow_field_path_projection
-        && matches!(
-            arguments[0].path.as_slice(),
-            [CheckedUnitStructuralPathSegment::FixedIndex(0 | 1 | 2 | 3)]
-        ) {
+    let bounded_affine_array_index_path = if allow_field_path_projection {
         let mut type_reference = caller_source_parameters[0].type_reference;
         loop {
             match program.type_reference_table.type_reference(type_reference) {
@@ -625,13 +625,38 @@ pub(super) fn ordinary_projected_call_is_supported(
                 _ => break,
             }
         }
-        matches!(
+        match (
+            arguments[0].path.as_slice(),
             program.type_reference_table.type_reference(type_reference),
-            TypeReferenceNode::FixedArray {
-                length: psi_typed_trees::types::FixedArrayLength::Literal(2 | 3 | 4),
-                ..
+        ) {
+            (
+                [CheckedUnitStructuralPathSegment::FixedIndex(0 | 1 | 2 | 3)],
+                TypeReferenceNode::FixedArray {
+                    length: psi_typed_trees::types::FixedArrayLength::Literal(2 | 3 | 4),
+                    ..
+                },
+            ) => true,
+            (
+                [
+                    CheckedUnitStructuralPathSegment::FixedIndex(outer @ (0 | 1)),
+                    CheckedUnitStructuralPathSegment::FixedIndex(inner @ (0 | 1 | 2)),
+                ],
+                TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: psi_typed_trees::types::FixedArrayLength::Literal(2),
+                },
+            ) => {
+                let _ = (outer, inner);
+                matches!(
+                    program.type_reference_table.type_reference(*element_type),
+                    TypeReferenceNode::FixedArray {
+                        length: psi_typed_trees::types::FixedArrayLength::Literal(3),
+                        ..
+                    }
+                )
             }
-        )
+            _ => false,
+        }
     } else {
         false
     };
@@ -998,6 +1023,33 @@ pub(super) fn structural_call_arguments(
                 vec![CheckedUnitStructuralPathSegment::FixedIndex(
                     u64::try_from(*index).ok()?,
                 )]
+            }
+            segments @ [
+                psi_facts::PlaceSegment::FixedIndex { .. },
+                psi_facts::PlaceSegment::FixedIndex { .. },
+            ] if allow_fixed_index_projection
+                && caller_parameters
+                    .get(source_index)?
+                    .qualifications
+                    .is_empty() =>
+            {
+                let projected_type = crate::flow::project_type_reference_from_segments(
+                    program,
+                    source_parameter.type_reference,
+                    segments,
+                )?;
+                if base_type_identity(program, projected_type, &[])? != target_identity {
+                    return None;
+                }
+                segments
+                    .iter()
+                    .map(|segment| match segment {
+                        psi_facts::PlaceSegment::FixedIndex { index } => u64::try_from(*index)
+                            .ok()
+                            .map(CheckedUnitStructuralPathSegment::FixedIndex),
+                        _ => None,
+                    })
+                    .collect::<Option<Vec<_>>>()?
             }
             segments @ [psi_facts::PlaceSegment::Field { .. }, ..]
                 if (allow_field_path_projection

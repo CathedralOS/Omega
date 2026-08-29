@@ -224,6 +224,10 @@ pub(super) fn validate_unit_operation_static(
                     && !matches!(
                         argument.path.as_slice(),
                         [StructuralPathSegment::FixedIndex(_)]
+                            | [
+                                StructuralPathSegment::FixedIndex(_),
+                                StructuralPathSegment::FixedIndex(_),
+                            ]
                     )
                     && !is_nonempty_field_path(&argument.path)
             }) {
@@ -236,6 +240,10 @@ pub(super) fn validate_unit_operation_static(
                                 && !matches!(
                                     argument.path.as_slice(),
                                     [StructuralPathSegment::FixedIndex(_)]
+                                        | [
+                                            StructuralPathSegment::FixedIndex(_),
+                                            StructuralPathSegment::FixedIndex(_),
+                                        ]
                                 )
                                 && !is_nonempty_field_path(&argument.path)
                         })

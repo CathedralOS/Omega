@@ -1542,6 +1542,23 @@ pub(super) fn is_bounded_partial_affine_path(
                         )
                     )
             }))
+        || (matches!(
+            path,
+            [
+                StructuralPathSegment::FixedIndex(0 | 1),
+                StructuralPathSegment::FixedIndex(0 | 1 | 2)
+            ]
+        ) && module.structural_types.iter().any(|declaration| {
+            declaration.id == root_type
+                && matches!(
+                    declaration.shape,
+                    StructuralTypeShape::FixedArray { length: 2, element }
+                        if module.structural_types.iter().any(|inner| {
+                            inner.id == element
+                                && matches!(inner.shape, StructuralTypeShape::FixedArray { length: 3, .. })
+                        })
+                )
+        }))
 }
 
 pub(super) fn partial_affine_residuals(
@@ -1597,6 +1614,75 @@ pub(super) fn partial_affine_residuals(
                 .map(|index| (vec![StructuralPathSegment::FixedIndex(index)], element))
                 .collect(),
         );
+    }
+    if moved_paths.iter().all(|path| {
+        matches!(
+            path.as_slice(),
+            [
+                StructuralPathSegment::FixedIndex(0 | 1),
+                StructuralPathSegment::FixedIndex(0 | 1 | 2)
+            ]
+        )
+    }) {
+        let declaration = module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == root_type)?;
+        let StructuralTypeShape::FixedArray { element, length: 2 } = declaration.shape else {
+            return None;
+        };
+        let inner = module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == element)?;
+        let StructuralTypeShape::FixedArray {
+            element: leaf,
+            length: 3,
+        } = inner.shape
+        else {
+            return None;
+        };
+        if moved_paths.len() != 2
+            || !matches!(
+                module
+                    .structural_types
+                    .iter()
+                    .find(|declaration| declaration.id == leaf)
+                    .map(|declaration| &declaration.shape),
+                Some(StructuralTypeShape::Record { .. })
+            )
+        {
+            return None;
+        }
+        let moved = moved_paths
+            .iter()
+            .filter_map(|path| match path.as_slice() {
+                [
+                    StructuralPathSegment::FixedIndex(outer @ (0 | 1)),
+                    StructuralPathSegment::FixedIndex(inner @ (0 | 1 | 2)),
+                ] => Some((*outer, *inner)),
+                _ => None,
+            })
+            .collect::<BTreeMap<_, _>>();
+        if moved.len() != 2 {
+            return None;
+        }
+        let mut residuals = Vec::with_capacity(4);
+        for outer in (0_u64..2).rev() {
+            let moved_inner = *moved.get(&outer)?;
+            for inner in (0_u64..3).rev() {
+                if inner != moved_inner {
+                    residuals.push((
+                        vec![
+                            StructuralPathSegment::FixedIndex(outer),
+                            StructuralPathSegment::FixedIndex(inner),
+                        ],
+                        leaf,
+                    ));
+                }
+            }
+        }
+        return Some(residuals);
     }
     if moved_paths.iter().enumerate().any(|(index, path)| {
         moved_paths

@@ -37,6 +37,10 @@ pub(crate) fn structural_arguments_match(
                     || matches!(
                         argument.path.as_slice(),
                         [psi_terminal::StructuralPathSegment::FixedIndex(_)]
+                            | [
+                                psi_terminal::StructuralPathSegment::FixedIndex(_),
+                                psi_terminal::StructuralPathSegment::FixedIndex(_),
+                            ]
                     )
                     || is_nonempty_field_path(&argument.path)
             }
@@ -207,4 +211,19 @@ pub(crate) fn is_bounded_partial_affine_path(
                     )
                 )
             }))
+        || (matches!(
+            path,
+            [
+                psi_terminal::StructuralPathSegment::FixedIndex(0 | 1),
+                psi_terminal::StructuralPathSegment::FixedIndex(0 | 1 | 2)
+            ]
+        ) && types.get(&root).is_some_and(|declaration| {
+            matches!(
+                declaration.shape,
+                psi_terminal::StructuralTypeShape::FixedArray { length: 2, element }
+                    if types.get(&element).is_some_and(|inner| {
+                        matches!(inner.shape, psi_terminal::StructuralTypeShape::FixedArray { length: 3, .. })
+                    })
+            )
+        }))
 }

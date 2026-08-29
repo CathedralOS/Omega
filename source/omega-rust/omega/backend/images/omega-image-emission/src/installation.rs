@@ -2135,6 +2135,31 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                                         != Some(u64::from(argument.source.shape.byte_size))
                                     || argument.source.shape.alignment != argument.shape.alignment
                             }
+                            [
+                                StructuralPathSegment::FixedIndex(outer @ (0 | 1)),
+                                StructuralPathSegment::FixedIndex(inner @ (0 | 1 | 2)),
+                            ] => {
+                                let leaf_stride = u32::from(argument.shape.byte_size)
+                                    .next_multiple_of(u32::from(argument.shape.alignment));
+                                let Some(outer_stride) = argument.element_stride else {
+                                    return true;
+                                };
+                                let expected_outer_stride = leaf_stride.checked_mul(3);
+                                let expected_offset = outer_stride
+                                    .checked_mul(u32::try_from(*outer).unwrap_or(u32::MAX))
+                                    .and_then(|offset| {
+                                        leaf_stride
+                                            .checked_mul(u32::try_from(*inner).unwrap_or(u32::MAX))
+                                            .and_then(|inner| offset.checked_add(inner))
+                                    });
+                                argument.root_structural_type == argument.structural_type
+                                    || argument.fixed_array_length != Some(2)
+                                    || Some(outer_stride) != expected_outer_stride
+                                    || Some(argument.source_byte_offset) != expected_offset
+                                    || outer_stride.checked_mul(2)
+                                        != Some(u32::from(argument.source.shape.byte_size))
+                                    || argument.source.shape.alignment != argument.shape.alignment
+                            }
                             path @ [StructuralPathSegment::Field(_), ..]
                                 if path.iter().all(|segment| {
                                     matches!(segment,
@@ -2539,7 +2564,14 @@ fn is_partial_cleanup_path(path: &[StructuralPathSegment]) -> bool {
         && path.iter().all(|segment| {
             matches!(segment, StructuralPathSegment::Field(identity) if !identity.is_empty())
         }))
-        || matches!(path, [StructuralPathSegment::FixedIndex(0 | 1 | 2 | 3)])
+        || matches!(
+            path,
+            [StructuralPathSegment::FixedIndex(0 | 1 | 2 | 3)]
+                | [
+                    StructuralPathSegment::FixedIndex(0 | 1),
+                    StructuralPathSegment::FixedIndex(0 | 1 | 2),
+                ]
+        )
 }
 
 fn validate_native_fuel_transfer_shape(

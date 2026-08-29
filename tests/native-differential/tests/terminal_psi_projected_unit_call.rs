@@ -118,6 +118,17 @@ const PARTIAL_AFFINE_QUARTET_SOURCE: &str = r#"
     }
 "#;
 
+const NESTED_AFFINE_ARRAY_SOURCE: &str = r#"
+    data Token { value: u64; }
+    data Helper {}
+    machine Helper::take(token: Token) {}
+    data Root {}
+    machine Root::enter(values: [[Token; 3]; 2]) {
+        Helper::take(values[1][0]);
+        Helper::take(values[0][1]);
+    }
+"#;
+
 const MIXED_SCALAR_PARTIAL_AFFINE_SOURCE: &str = r#"
     domain [u8; 3]::Utf8
     requires
@@ -468,6 +479,21 @@ fn partial_affine_quartet_plan() -> omega_abstract_operations::AbstractOperation
         encode_proof_bundle(&terminal.proof_bundle).expect("encode partial affine quartet proof");
     lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
         .expect("verified partial affine quartet artifact enters Omega")
+}
+
+fn nested_affine_array_plan() -> omega_abstract_operations::AbstractOperationPlan {
+    let tokens = Lexer::new(NESTED_AFFINE_ARRAY_SOURCE)
+        .tokenize()
+        .expect("tokenize nested affine array source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse nested affine array source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve nested affine array source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type nested affine array source");
+    let checked = lower_typed_trees(typed).expect("check nested affine array source");
+    let terminal = lower_machine(&checked, "Root::enter").expect("lower nested affine array Psi");
+    let semantics = encode_module(&terminal.semantic_module).expect("encode nested affine Psi");
+    let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode nested affine proof");
+    lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
+        .expect("verified nested affine artifact enters Omega")
 }
 
 fn mixed_scalar_partial_affine_plan() -> omega_abstract_operations::AbstractOperationPlan {
@@ -902,6 +928,7 @@ fn source_partial_and_nominal_affine_plans_reach_current_optimizer_ownership_rep
         fully_consumed_affine_pair_plan(FULLY_CONSUMED_AFFINE_PAIR_SOURCE),
         fully_consumed_affine_pair_plan(FORWARD_FULLY_CONSUMED_AFFINE_PAIR_SOURCE),
         partial_affine_triple_plan(),
+        nested_affine_array_plan(),
         wide_partial_affine_plan(),
         multiple_move_partial_affine_plan(),
         nested_partial_affine_plan(),
@@ -1768,6 +1795,230 @@ fn partial_affine_quartet_retains_two_calls_and_decreasing_cleanup_on_all_target
                 .count(),
             2,
         );
+        validate_installation_record(&installation, &image).unwrap();
+        let encoded = encode_installation_record(&installation).unwrap();
+        assert_eq!(decode_installation_record(&encoded), Ok(installation));
+    }
+}
+
+#[test]
+fn nested_affine_arrays_retain_exact_offsets_and_decreasing_cleanup_on_all_targets() {
+    let plan = nested_affine_array_plan();
+    let caller_machine = plan.entry;
+    let caller = plan
+        .functions
+        .iter()
+        .find(|function| function.machine == caller_machine)
+        .expect("nested caller remains present");
+    let root_place = caller.structural_parameters[0].place;
+    let root_type = caller.structural_parameters[0].structural_type;
+    let StructuralTypeShape::FixedArray {
+        element: inner_type,
+        length: 2,
+    } = plan
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == root_type)
+        .expect("outer declaration")
+        .shape
+    else {
+        panic!("root remains an exact outer pair")
+    };
+    let StructuralTypeShape::FixedArray {
+        element: leaf_type,
+        length: 3,
+    } = plan
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == inner_type)
+        .expect("inner declaration")
+        .shape
+    else {
+        panic!("element remains an exact inner triple")
+    };
+    let residuals = caller
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            omega_abstract_operations::AbstractOperation::ReturnUnit {
+                cleanup_actions, ..
+            } => Some(
+                cleanup_actions
+                    .iter()
+                    .filter_map(|action| match action {
+                        TerminalAffineCleanupAction::DiscardResidual(residual) => {
+                            Some(residual.clone())
+                        }
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>(),
+            ),
+            _ => None,
+        })
+        .expect("nested return retains residuals");
+    assert_eq!(
+        residuals
+            .iter()
+            .map(|residual| residual.path.clone())
+            .collect::<Vec<_>>(),
+        vec![
+            vec![
+                StructuralPathSegment::FixedIndex(1),
+                StructuralPathSegment::FixedIndex(2),
+            ],
+            vec![
+                StructuralPathSegment::FixedIndex(1),
+                StructuralPathSegment::FixedIndex(1),
+            ],
+            vec![
+                StructuralPathSegment::FixedIndex(0),
+                StructuralPathSegment::FixedIndex(2),
+            ],
+            vec![
+                StructuralPathSegment::FixedIndex(0),
+                StructuralPathSegment::FixedIndex(0),
+            ],
+        ],
+    );
+    assert!(
+        residuals.iter().all(|residual| {
+            residual.place == root_place && residual.structural_type == leaf_type
+        })
+    );
+
+    let mut wrong_order = plan.clone();
+    let actions = wrong_order
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == caller_machine)
+        .unwrap()
+        .operations
+        .iter_mut()
+        .find_map(|operation| match operation {
+            omega_abstract_operations::AbstractOperation::ReturnUnit {
+                cleanup_actions, ..
+            } => Some(cleanup_actions),
+            _ => None,
+        })
+        .unwrap();
+    actions.reverse();
+    let wrong_unit = reconstruct_psi_optimization_unit_seed(
+        &wrong_order,
+        TerminalFuelSchedule::CURRENT.identity(),
+    )
+    .expect("tampered abstract plan remains representable as optimizer input");
+    assert!(
+        validate_psi_optimization_unit(&wrong_unit).is_err(),
+        "optimizer ownership replay rejects reversed nested cleanup",
+    );
+    assert!(
+        lower_to_target_operations(&wrong_order, NativeTarget::linux_x64()).is_err(),
+        "target lowering rejects reversed nested cleanup",
+    );
+
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let target_plan = lower_to_target_operations(&plan, target).unwrap();
+        let TargetOperation::UnitBody(body) = &target_plan
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .unwrap()
+            .operation
+        else {
+            panic!("nested caller remains Unit")
+        };
+        assert_eq!(body.parameters[0].shape, ValueShape::integer(48, 8));
+        let calls = body
+            .operations
+            .iter()
+            .filter_map(|operation| match operation {
+                omega_target_operations::TargetUnitOperation::Call { arguments, .. } => {
+                    Some(&arguments[0])
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(calls.len(), 2);
+        assert_eq!(
+            calls
+                .iter()
+                .map(|call| call.path.clone())
+                .collect::<Vec<_>>(),
+            vec![
+                vec![
+                    StructuralPathSegment::FixedIndex(1),
+                    StructuralPathSegment::FixedIndex(0),
+                ],
+                vec![
+                    StructuralPathSegment::FixedIndex(0),
+                    StructuralPathSegment::FixedIndex(1),
+                ],
+            ],
+        );
+        assert_eq!(
+            calls
+                .iter()
+                .map(|call| call.source_byte_offset)
+                .collect::<Vec<_>>(),
+            vec![24, 8],
+        );
+        assert!(calls.iter().all(|call| {
+            call.root_structural_type == root_type
+                && call.structural_type == leaf_type
+                && call.fixed_array_length == Some(2)
+                && call.element_stride == Some(24)
+        }));
+
+        let assigned = assign_registers(&target_plan).unwrap();
+        let machine = emit_machine_code(&assigned).unwrap();
+        let emitted = machine
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .unwrap();
+        assert_eq!(
+            emitted
+                .fuel_attribution
+                .iter()
+                .map(|attribution| attribution.operation_ordinal)
+                .collect::<Vec<_>>(),
+            vec![0, 1, 2],
+        );
+        assert_eq!(
+            emitted.unit_affine_cleanup.as_ref().unwrap().actions,
+            residuals
+                .iter()
+                .cloned()
+                .map(TerminalAffineCleanupAction::DiscardResidual)
+                .collect::<Vec<_>>(),
+        );
+
+        let mut tampered = machine.clone();
+        tampered
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller_machine)
+            .unwrap()
+            .unit_affine_cleanup
+            .as_mut()
+            .unwrap()
+            .actions
+            .reverse();
+        assert!(
+            build_object_artifact(&tampered).is_err(),
+            "object replay rejects reversed nested cleanup",
+        );
+
+        let object = build_object_artifact(&machine).unwrap();
+        let image = emit_executable_image(&object, 3).unwrap();
+        let installation =
+            build_installation_record(&image, ProfileDecisionId::new(1).unwrap()).unwrap();
         validate_installation_record(&installation, &image).unwrap();
         let encoded = encode_installation_record(&installation).unwrap();
         assert_eq!(decode_installation_record(&encoded), Ok(installation));

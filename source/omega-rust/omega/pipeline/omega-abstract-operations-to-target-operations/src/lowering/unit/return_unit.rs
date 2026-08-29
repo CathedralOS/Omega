@@ -154,6 +154,16 @@ pub(super) fn lower_unit_return(
                 let fixed_array_call_count = structural_types
                     .get(&parameter.structural_type)
                     .and_then(|declaration| match declaration.shape {
+                        StructuralTypeShape::FixedArray { element, length: 2 }
+                            if structural_types.get(&element).is_some_and(|inner| {
+                                matches!(
+                                    inner.shape,
+                                    StructuralTypeShape::FixedArray { length: 3, .. }
+                                )
+                            }) =>
+                        {
+                            Some(2)
+                        }
                         StructuralTypeShape::FixedArray { length: 2, .. } => Some(1),
                         StructuralTypeShape::FixedArray { length: 3, .. } => {
                             Some(moved_arguments.len())

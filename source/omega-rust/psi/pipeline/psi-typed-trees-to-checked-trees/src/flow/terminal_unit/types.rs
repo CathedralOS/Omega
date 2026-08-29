@@ -1089,6 +1089,90 @@ impl<'program> ShapeCollector<'program> {
         else {
             return self.add_type(type_reference, binders, &[]);
         };
+        let nested_element = match self
+            .program
+            .type_reference_table
+            .type_reference(*element_type)
+        {
+            TypeReferenceNode::FixedArray {
+                element_type: leaf_type,
+                length: psi_typed_trees::types::FixedArrayLength::Literal(3),
+            } if *length == 2 => Some(*leaf_type),
+            _ => None,
+        };
+        if let Some(leaf_type) = nested_element {
+            if crate::checks::type_multiplicity(self.program, leaf_type) != Multiplicity::Affine
+                || !matches!(
+                    self.program.type_reference_table.type_reference(leaf_type),
+                    TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
+                )
+            {
+                return None;
+            }
+            let identity = self
+                .program
+                .normalized_type_identity_with_binders(resolved, binders)
+                .into_string();
+            if self.types.contains_key(&identity) {
+                return Some(identity);
+            }
+            if !self.in_progress.insert(identity.clone()) {
+                return None;
+            }
+            let inner_identity = self
+                .program
+                .normalized_type_identity_with_binders(*element_type, binders)
+                .into_string();
+            if !self.types.contains_key(&inner_identity) {
+                if !self.in_progress.insert(inner_identity.clone()) {
+                    self.in_progress.remove(&identity);
+                    return None;
+                }
+                let Some(leaf_identity) = self.add_type(leaf_type, binders, &[]) else {
+                    self.in_progress.remove(&inner_identity);
+                    self.in_progress.remove(&identity);
+                    return None;
+                };
+                if !matches!(
+                    self.types.get(&leaf_identity).map(|plan| &plan.shape),
+                    Some(CheckedUnitStructuralTypeShape::Record { .. })
+                ) {
+                    self.in_progress.remove(&inner_identity);
+                    self.in_progress.remove(&identity);
+                    return None;
+                }
+                self.types.insert(
+                    inner_identity.clone(),
+                    CheckedUnitStructuralTypePlan {
+                        identity: inner_identity.clone(),
+                        shape: CheckedUnitStructuralTypeShape::FixedArray {
+                            element_type_identity: leaf_identity,
+                            length: 3,
+                        },
+                    },
+                );
+                self.in_progress.remove(&inner_identity);
+            }
+            if !matches!(
+                self.types.get(&inner_identity).map(|plan| &plan.shape),
+                Some(CheckedUnitStructuralTypeShape::FixedArray { length: 3, .. })
+            ) {
+                self.in_progress.remove(&identity);
+                return None;
+            }
+            self.types.insert(
+                identity.clone(),
+                CheckedUnitStructuralTypePlan {
+                    identity: identity.clone(),
+                    shape: CheckedUnitStructuralTypeShape::FixedArray {
+                        element_type_identity: inner_identity,
+                        length: 2,
+                    },
+                },
+            );
+            self.in_progress.remove(&identity);
+            return Some(identity);
+        }
         if crate::checks::type_multiplicity(self.program, *element_type) != Multiplicity::Affine
             || !matches!(
                 self.program

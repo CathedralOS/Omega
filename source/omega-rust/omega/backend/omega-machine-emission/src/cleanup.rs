@@ -1060,6 +1060,69 @@ fn append_expected_partial_residuals(
     )>,
 ) -> Option<()> {
     if prefix.is_empty()
+        && moved.iter().all(|(path, _)| {
+            matches!(
+                path,
+                [
+                    psi_terminal::StructuralPathSegment::FixedIndex(0 | 1),
+                    psi_terminal::StructuralPathSegment::FixedIndex(0 | 1 | 2)
+                ]
+            )
+        })
+    {
+        let psi_terminal::StructuralTypeShape::FixedArray { element, length: 2 } =
+            declarations.get(&structural_type)?.shape
+        else {
+            return None;
+        };
+        let psi_terminal::StructuralTypeShape::FixedArray {
+            element: leaf,
+            length: 3,
+        } = declarations.get(&element)?.shape
+        else {
+            return None;
+        };
+        if moved.len() != 2
+            || moved.iter().any(|(_, moved_type)| *moved_type != leaf)
+            || !matches!(
+                declarations
+                    .get(&leaf)
+                    .map(|declaration| &declaration.shape),
+                Some(psi_terminal::StructuralTypeShape::Record { .. })
+            )
+        {
+            return None;
+        }
+        let moved_by_outer = moved
+            .iter()
+            .filter_map(|(path, _)| match path {
+                [
+                    psi_terminal::StructuralPathSegment::FixedIndex(outer @ (0 | 1)),
+                    psi_terminal::StructuralPathSegment::FixedIndex(inner @ (0 | 1 | 2)),
+                ] => Some((*outer, *inner)),
+                _ => None,
+            })
+            .collect::<std::collections::BTreeMap<_, _>>();
+        if moved_by_outer.len() != 2 {
+            return None;
+        }
+        for outer in (0_u64..2).rev() {
+            let moved_inner = *moved_by_outer.get(&outer)?;
+            for inner in (0_u64..3).rev() {
+                if inner != moved_inner {
+                    output.push((
+                        vec![
+                            psi_terminal::StructuralPathSegment::FixedIndex(outer),
+                            psi_terminal::StructuralPathSegment::FixedIndex(inner),
+                        ],
+                        leaf,
+                    ));
+                }
+            }
+        }
+        return Some(());
+    }
+    if prefix.is_empty()
         && moved
             .iter()
             .all(|(path, _)| matches!(path, [psi_terminal::StructuralPathSegment::FixedIndex(_)]))
