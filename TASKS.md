@@ -279,9 +279,16 @@ Remaining:
   affine frontier remains live until the exit cleanup. A distinct opaque
   interpreter verifier carrier grants no fixed-fuel, Omega, native, provider-
   installation, or mixed-operation authority; ordinary execution validation
-  still returns `NonExecutableRankedScc`. The next substep is derived fixed fuel,
-  followed by Omega/native lowering and artifact custody for the same exact
-  first slice.
+  still returns `NonExecutableRankedScc`. Derived fixed fuel is now complete
+  through its own opaque verifier carrier for the same exact slice. The checker
+  recomputes actual preheader, header, decrement, exit, and return costs under
+  the current schedule and proves `entry + maximum_iterations * cycle + exit`,
+  with checked overflow into the certificate's `u64` denomination. The exact
+  `u32` all-input ceiling is `25_769_803_775` units for concrete cost
+  `5 + 6 * remaining`; the canonical codec round trip replays the certificate,
+  while a `u64` carrier fails closed because its ceiling cannot be represented.
+  Existing acyclic segment authority remains unchanged. The next substep is
+  Omega/native lowering and artifact custody for the same exact first slice.
   Later product-required slices must then add persistent mutable receiver and
   subplace custody, mixed operations in multi-state blocks, structural-result
   boundary calls and payload cases, nested field/index reads and writes, and

@@ -1038,6 +1038,23 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
         &psi_proof_admission::AdmissionProfile::default(),
     )
     .expect("ranked proof closes for interpreter admission");
+    let fixed_fuel_verified = psi_terminal_verifier::verify_module_for_fixed_fuel(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &psi_proof_admission::AdmissionProfile::default(),
+    )
+    .expect("ranked proof closes for fixed-fuel admission");
+    let fixed_fuel = psi_terminal_fixed_fuel::derive_ranked_countdown_entry_fuel(
+        &fixed_fuel_verified,
+        machine.id,
+    )
+    .expect("ranked countdown has an all-input ceiling");
+    assert_eq!(fixed_fuel.ceiling_units(), 25_769_803_775);
+    psi_terminal_fixed_fuel::validate_ranked_countdown_entry_fuel(
+        &fixed_fuel_verified,
+        &fixed_fuel,
+    )
+    .expect("ranked fixed-fuel theorem replays");
     assert_eq!(lowered.proof_bundle.evidence.len(), 1);
     assert!(matches!(
         psi_terminal_verifier::validate_module(&lowered.semantic_module),
@@ -1047,10 +1064,19 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
     ));
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
         .expect("ranked semantic identity should encode");
-    assert_eq!(
-        psi_terminal_codec::decode_module(&bytes),
-        Ok(lowered.semantic_module.clone())
-    );
+    let decoded = psi_terminal_codec::decode_module(&bytes).expect("ranked identity decodes");
+    assert_eq!(decoded, lowered.semantic_module);
+    let decoded_fixed_fuel_verified = psi_terminal_verifier::verify_module_for_fixed_fuel(
+        &decoded,
+        &lowered.proof_bundle,
+        &psi_proof_admission::AdmissionProfile::default(),
+    )
+    .expect("decoded ranked proof closes for fixed fuel");
+    psi_terminal_fixed_fuel::validate_ranked_countdown_entry_fuel(
+        &decoded_fixed_fuel_verified,
+        &fixed_fuel,
+    )
+    .expect("ranked certificate binds the canonical round trip");
     let lowered = lower_machine(&checked, "Root::countdown")
         .expect("public lowering admits the interpreter-only ranked slice");
     let semantic = psi_terminal_codec::encode_module(&lowered.semantic_module)
@@ -1125,4 +1151,40 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
     );
     assert_eq!(meter.usage().total_units(), 23);
     assert_eq!(execution.live_affine_frontier().count(), 0);
+}
+
+#[test]
+fn ranked_u64_countdown_fails_closed_when_fixed_fuel_exceeds_u64() {
+    let checked = checked_source(
+        r#"
+            data Token { value: i32; }
+            data Root {}
+
+            machine Root::countdown(token: Token, remaining: u64)
+            terminates by remaining -> Nat::Descending;
+            {
+                transition remaining > 0 {
+                    true -> countdown(token, remaining - 1)
+                    _ -> done(token)
+                }
+                state done(token: Token) {}
+            }
+        "#,
+    );
+    let lowered =
+        lower_machine(&checked, "Root::countdown").expect("u64 ranked representation should lower");
+    let verified = psi_terminal_verifier::verify_module_for_fixed_fuel(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &psi_proof_admission::AdmissionProfile::default(),
+    )
+    .expect("u64 ranked proof closes for fixed-fuel admission");
+
+    assert!(matches!(
+        psi_terminal_fixed_fuel::derive_ranked_countdown_entry_fuel(
+            &verified,
+            lowered.semantic_module.entry,
+        ),
+        Err(psi_terminal_fixed_fuel::FixedFuelError::BoundOverflow)
+    ));
 }
