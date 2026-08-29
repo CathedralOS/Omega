@@ -303,7 +303,11 @@ analysis, independent replay, custody projection, and the retained model
 separate; its entrance owns policy selection plus the replay-gated stage join.
 Exact fixed-view-copy recovery then separates model, materialization,
 independent replay, and custody projection below one source-validated
-entrance. Transformed-selected reanalysis recomputes liveness, ranges, and
+entrance. Its compute rung retains one visible application loop, then descends
+through source preflight/work accounting, shared-entry policy mechanics,
+selected-CFG mutation, and focused fixtures. The former 1,022-line mixed leaf
+is gone and no replacement exceeds 278 lines. Transformed-selected reanalysis
+recomputes liveness, ranges, and
 legality without source-fact reuse and keeps replay, transition invariants,
 custody, and model in named leaves.
 Register-home staging preserves baseline-legality and post-copy-reanalysis as
