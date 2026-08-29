@@ -1,5 +1,7 @@
 //! Exact Linux AAPCS64 `u32` countdown in the canonical incoming `w0` home.
 
+use psi_diagnostics::Diagnostic;
+
 pub const AARCH64_RANKED_U32_COUNTDOWN_BYTE_COUNT: usize = 24;
 pub const AARCH64_RANKED_U32_PREHEADER_BRANCH_OFFSET: usize = 0;
 pub const AARCH64_RANKED_U32_PREHEADER_BRANCH_BYTE_COUNT: usize = 4;
@@ -181,6 +183,67 @@ fn conditional_branch19_target(word: u32, instruction_offset: i64) -> i64 {
     let immediate = ((word >> 5) & 0x7ffff) as i32;
     let signed_words = (immediate << 13) >> 13;
     instruction_offset + i64::from(signed_words) * 4
+}
+
+/// Rebase only the three canonical branch words after a caller expands the
+/// semantic layout with independently owned instrumentation.
+pub fn rebase_ranked_u32_countdown_branches(
+    bytes: &mut [u8],
+    preheader_offset: usize,
+    header_offset: usize,
+    exit_branch_offset: usize,
+    exit_offset: usize,
+    backward_branch_offset: usize,
+) -> Result<(), Diagnostic> {
+    patch_branch(bytes, preheader_offset, header_offset, false)?;
+    patch_branch(bytes, exit_branch_offset, exit_offset, true)?;
+    patch_branch(bytes, backward_branch_offset, header_offset, false)
+}
+
+fn patch_branch(
+    bytes: &mut [u8],
+    instruction_offset: usize,
+    target_offset: usize,
+    conditional: bool,
+) -> Result<(), Diagnostic> {
+    let slot = bytes
+        .get_mut(instruction_offset..instruction_offset + 4)
+        .ok_or_else(|| Diagnostic::error("ranked AArch64 branch word is outside code"))?;
+    let original = u32::from_le_bytes(slot.try_into().expect("four-byte branch slot"));
+    if (conditional && original & 0xff00_001f != 0x5400_0000)
+        || (!conditional && original & 0xfc00_0000 != 0x1400_0000)
+    {
+        return Err(Diagnostic::error("ranked AArch64 branch opcode drifted"));
+    }
+    let distance = isize::try_from(target_offset)
+        .ok()
+        .and_then(|target| {
+            isize::try_from(instruction_offset)
+                .ok()
+                .map(|origin| target - origin)
+        })
+        .ok_or_else(|| Diagnostic::error("ranked AArch64 branch distance overflowed"))?;
+    if distance % 4 != 0 {
+        return Err(Diagnostic::error(
+            "ranked AArch64 branch target is unaligned",
+        ));
+    }
+    let immediate = distance / 4;
+    let encoded = if conditional {
+        if !(-(1_isize << 18)..(1_isize << 18)).contains(&immediate) {
+            return Err(Diagnostic::error(
+                "ranked AArch64 conditional branch is out of range",
+            ));
+        }
+        0x5400_0000 | (((immediate as u32) & 0x7ffff) << 5) | (original & 0xf)
+    } else {
+        if !(-(1_isize << 25)..(1_isize << 25)).contains(&immediate) {
+            return Err(Diagnostic::error("ranked AArch64 branch is out of range"));
+        }
+        0x1400_0000 | ((immediate as u32) & 0x03ff_ffff)
+    };
+    slot.copy_from_slice(&encoded.to_le_bytes());
+    Ok(())
 }
 
 #[cfg(test)]

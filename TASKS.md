@@ -488,11 +488,16 @@ Remaining:
   the object boundary separately reconstructs Psi/entry identity, fixed-fuel
   custody, the ranked graph, ABI call plan, affine frontier and cleanup, exact
   provenance, and all nine fuel rows. The complete ranked record survives on
-  `ObjectFunction`, while stripping that optional record still rejects. Final
-  image emission has a named ranked-custody fence rather than silently granting
-  publication. The next substep is ranked-aware native-fuel rebasing, followed
-  by final image/install/native-artifact custody and native rank 0, 1, and 3
-  schedule comparison before retrying the product build.
+  `ObjectFunction`, while stripping that optional record still rejects. Ranked-
+  aware native-fuel rebasing is also complete for this carrier: both producer
+  and independent image replay
+  map each original branch instruction after its own hot charge, map the header
+  and exit to the first charge at those semantic sites, rewrite all three x86
+  or AArch64 immediates, and reject metered-byte mutation. The stripped-custody
+  shape cannot enter instrumentation. Final image emission retains its named
+  ranked-custody fence rather than silently granting publication. The next
+  substep is final image/install/native-artifact custody and native rank 0, 1,
+  and 3 schedule comparison before retrying the product build.
   Later product-required slices must then add persistent mutable receiver and
   subplace custody, mixed operations in multi-state blocks, structural-result
   boundary calls and payload cases, nested field/index reads and writes, and

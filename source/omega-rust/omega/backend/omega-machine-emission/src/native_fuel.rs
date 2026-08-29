@@ -3,7 +3,8 @@
 //! Semantic bytes and their original evidence remain in the source plan. This
 //! transform creates a parallel metered carrier with exact hot/cold records;
 //! object construction can therefore replay source semantics first and fuel
-//! bytes independently instead of rebasing dozens of unrelated evidence rows.
+//! bytes independently. The exact ranked carrier rewrites only its three
+//! internal branch immediates against charge-expanded target offsets.
 
 use std::collections::BTreeSet;
 
@@ -21,7 +22,7 @@ pub enum NativeFuelInstrumentationError {
     NoAttributions,
     NonCanonicalAttributions(MachineId),
     InvalidAttribution(MachineId),
-    RankedCountdownRequiresBranchRebasing(MachineId),
+    RankedCountdownMissingCustody(MachineId),
     SizeOverflow,
     Encoding(String),
 }
@@ -41,8 +42,8 @@ struct PreparedRow {
 }
 
 /// Insert one hot precharge before every attributed semantic site (including
-/// zero-byte sites), preserve source bytes in one forward pass, and append one
-/// cold dispatcher per site after the semantic function end.
+/// zero-byte sites), rebase the exact ranked carrier's internal branches, and
+/// append one cold dispatcher per site after the semantic function end.
 pub fn instrument_native_fuel(
     source: MachineCodePlan,
     target_policy: NativeFuelTargetPlanProjection,
@@ -55,21 +56,24 @@ pub fn instrument_native_fuel(
     let mut total_sites = 0usize;
     let mut prepared = Vec::with_capacity(source.functions.len());
     for function in &source.functions {
-        if function.requires_ranked_countdown_replay() {
+        if function.ranked_u32_countdown.is_none() && function.requires_ranked_countdown_replay() {
             return Err(
-                NativeFuelInstrumentationError::RankedCountdownRequiresBranchRebasing(
-                    function.machine,
-                ),
+                NativeFuelInstrumentationError::RankedCountdownMissingCustody(function.machine),
             );
         }
         total_sites = total_sites
             .checked_add(function.fuel_attribution.len())
             .ok_or(NativeFuelInstrumentationError::SizeOverflow)?;
-        prepared.push(prepare_function(
-            source.target.architecture,
-            &target_policy,
-            function,
-        )?);
+        let mut prepared_function =
+            prepare_function(source.target.architecture, &target_policy, function)?;
+        if function.ranked_u32_countdown.is_some() {
+            rebase_ranked_countdown_branches(
+                source.target.architecture,
+                &function.fuel_attribution,
+                &mut prepared_function.bytes,
+            )?;
+        }
+        prepared.push(prepared_function);
     }
     if total_sites == 0 {
         return Err(NativeFuelInstrumentationError::NoAttributions);
@@ -273,6 +277,82 @@ fn signed_distance(target: usize, origin: usize) -> Result<isize, NativeFuelInst
     target
         .checked_sub(origin)
         .ok_or(NativeFuelInstrumentationError::SizeOverflow)
+}
+
+fn rebase_ranked_countdown_branches(
+    architecture: Architecture,
+    attributions: &[NativeFuelAttribution],
+    bytes: &mut [u8],
+) -> Result<(), NativeFuelInstrumentationError> {
+    let translated = |source_offset, include_charges_at_offset| {
+        translated_ranked_offset(
+            source_offset,
+            attributions,
+            include_charges_at_offset,
+            architecture,
+        )
+    };
+    match architecture {
+        Architecture::X86_64 => omega_isa_x86_64::rebase_ranked_u32_countdown_branches(
+            bytes,
+            translated(
+                omega_isa_x86_64::X86_64_RANKED_U32_PREHEADER_BRANCH_OFFSET,
+                true,
+            )?,
+            translated(omega_isa_x86_64::X86_64_RANKED_U32_HEADER_OFFSET, false)?,
+            translated(omega_isa_x86_64::X86_64_RANKED_U32_EXIT_BRANCH_OFFSET, true)?,
+            translated(omega_isa_x86_64::X86_64_RANKED_U32_EXIT_OFFSET, false)?,
+            translated(
+                omega_isa_x86_64::X86_64_RANKED_U32_BACKWARD_BRANCH_OFFSET,
+                true,
+            )?,
+        )
+        .map_err(|diagnostic| NativeFuelInstrumentationError::Encoding(diagnostic.to_string())),
+        Architecture::Aarch64 => omega_isa_aarch64::rebase_ranked_u32_countdown_branches(
+            bytes,
+            translated(
+                omega_isa_aarch64::AARCH64_RANKED_U32_PREHEADER_BRANCH_OFFSET,
+                true,
+            )?,
+            translated(omega_isa_aarch64::AARCH64_RANKED_U32_HEADER_OFFSET, false)?,
+            translated(
+                omega_isa_aarch64::AARCH64_RANKED_U32_EXIT_BRANCH_OFFSET,
+                true,
+            )?,
+            translated(omega_isa_aarch64::AARCH64_RANKED_U32_EXIT_OFFSET, false)?,
+            translated(
+                omega_isa_aarch64::AARCH64_RANKED_U32_BACKWARD_BRANCH_OFFSET,
+                true,
+            )?,
+        )
+        .map_err(|diagnostic| NativeFuelInstrumentationError::Encoding(diagnostic.to_string())),
+    }
+}
+
+fn translated_ranked_offset(
+    source_offset: usize,
+    attributions: &[NativeFuelAttribution],
+    include_charges_at_offset: bool,
+    architecture: Architecture,
+) -> Result<usize, NativeFuelInstrumentationError> {
+    let charge_count = attributions.partition_point(|row| {
+        row.code_offset < source_offset
+            || (include_charges_at_offset && row.code_offset == source_offset)
+    });
+    source_offset
+        .checked_add(
+            hot_charge_byte_count(architecture)
+                .checked_mul(charge_count)
+                .ok_or(NativeFuelInstrumentationError::SizeOverflow)?,
+        )
+        .ok_or(NativeFuelInstrumentationError::SizeOverflow)
+}
+
+const fn hot_charge_byte_count(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::X86_64 => omega_isa_x86_64::X86_NATIVE_FUEL_CHARGE_BYTE_COUNT,
+        Architecture::Aarch64 => omega_isa_aarch64::AARCH64_NATIVE_FUEL_CHARGE_BYTE_COUNT,
+    }
 }
 
 #[cfg(test)]
@@ -538,7 +618,7 @@ mod tests {
         assert_eq!(
             instrument_native_fuel(plan, target_policy(profile)),
             Err(
-                NativeFuelInstrumentationError::RankedCountdownRequiresBranchRebasing(
+                NativeFuelInstrumentationError::RankedCountdownMissingCustody(
                     MachineId::new(1).unwrap()
                 )
             )
