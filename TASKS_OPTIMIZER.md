@@ -217,6 +217,9 @@ and no-selection compatibility remain enforced.
 - [x] Split verified/transformed optimizer-context validation into immutable
   context projection, seed/fact replay, surviving frontier validation, and
   signature/roster custody below one revision-policy entrance.
+- [x] Split complete-unit core validation into canonical identity/fact indexes,
+  active/pruned machine and structural/service catalogs, retained affine
+  authority, and final entry/frontier checks below one ordered entrance.
 - [>] Replace remaining flat executable stages and mixed-responsibility files
   with semantic folders whose small `mod.rs` owns the real stage join. Tighten
   the production-file ceiling as each named legacy leaf is removed.
