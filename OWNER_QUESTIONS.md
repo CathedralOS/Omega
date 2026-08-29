@@ -13,50 +13,7 @@ decision's durable identity does not change when this queue is pruned.
 
 Last pruned: 2026-08-29.
 
-## Q1 — Fixed-array element cleanup order
-
-### Context
-
-Literal-length fixed arrays expose one canonical ownership path per element.
-Moving one literal-indexed element leaves every unselected sibling obligation
-live, and the cleanup plan must later dispose each remaining cleanup-bearing
-element exactly once. Records already clean structural fields in recursive
-reverse declaration order, but array elements are not declarations and the
-language guide assigns them no cleanup order.
-
-### Problem statement
-
-General fixed-array cleanup, including partial arrays with more than one live
-element, needs one deterministic semantic order before checked cleanup plans,
-fuel, proof traces, and native artifacts can agree. Choosing increasing or
-decreasing index order in the compiler would silently add language semantics.
-The bounded two-element slice with exactly one moved element and one residual,
-and the bounded three-element slice with exactly two moved elements and one
-residual, do not expose this choice. Wider-array partitions with multiple live
-residuals remain blocked on it.
-
-### Proposed direction
-
-Define literal array construction in increasing index order and structural
-cleanup in the reverse order of the live constructed elements: decreasing
-index, skipping moved elements. This matches record cleanup's reverse-source
-principle, makes partial cleanup a filtered suffix/order rather than a new
-schedule, and gives interpretation, fuel, and artifact replay one canonical
-sequence.
-
-### Alternates
-
-- Acceptable if iteration semantics should dominate: clean in increasing index
-  order, but state why arrays intentionally differ from reverse record-field
-  cleanup and pin construction-failure behavior to the same choice.
-- Acceptable if element order must be type-directed: require an explicit
-  collection-owned cleanup policy, but ordinary fixed arrays then need a
-  canonical default before they can contain cleanup-bearing elements.
-- Tempting but wrong: let each backend choose an order or treat order as
-  unobservable. Cleanup calls can carry effects, requirements, guarantees,
-  fuel, and diagnostics, so their sequence is semantic.
-
-## Q2 — Lifetime application on conformance target traits
+## Q1 — Lifetime application on conformance target traits
 
 ### Context
 
@@ -92,7 +49,7 @@ package review.
 - Tempting but wrong: erase the target-trait lifetime application because it
   has no runtime layout effect; it remains proof and public-interface identity.
 
-## Q3 — Authority-bearing roles for ordinary packages
+## Q2 — Authority-bearing roles for ordinary packages
 
 ### Context
 
@@ -150,7 +107,7 @@ role from names.
   as an ordinary package at the import surface; that preserves two identities
   for one dependency and defeats capability review.
 
-## Q4 — Explicit transport authority for quotient preconditions
+## Q3 — Explicit transport authority for quotient preconditions
 
 ### Context
 
@@ -198,7 +155,7 @@ closed.
 - Tempting but wrong: retain only a solver `Proven` verdict without the selected
   theorem identity, ordered premises, per-side application, and replay data.
 
-## Q5 — Source result schema for placed-view establishment
+## Q4 — Source result schema for placed-view establishment
 
 ### Context
 
@@ -260,7 +217,7 @@ outputs outside the runtime result.
 - Tempting but wrong: derive result identity from source spelling, call-site
   order, accessor names, parameter ordinals, or compact plan fingerprints.
 
-## Q6 — Reborrow restoration disposition
+## Q5 — Reborrow restoration disposition
 
 ### Context
 
@@ -309,7 +266,7 @@ post-return use, cleanup, or Terminal resource claim may be derived from them.
 - Tempting but wrong: skip retired projected parents and return authority
   directly to a root without retaining and validating the complete path.
 
-## Q7 — Nominal result carriers for observing compare-exchange
+## Q6 — Nominal result carriers for observing compare-exchange
 
 ### Context
 
@@ -380,7 +337,7 @@ operation requirement identities separate from these value-type identities.
 - Tempting but wrong: expose `Uncommitted` on the decisive result merely because
   one larger runtime layout would be convenient.
 
-## Q8 — Strict SSH trust and credential authority
+## Q7 — Strict SSH trust and credential authority
 
 ### Context
 
@@ -429,7 +386,7 @@ producer claim.
 - Tempting but wrong: serialize private keys, tokens, or reusable credentials in
   `omega.lock` or source-resolution evidence.
 
-## Q9 — Suspension as control-flow exit or resumable continuation
+## Q8 — Suspension as control-flow exit or resumable continuation
 
 ### Context
 
@@ -468,7 +425,7 @@ and its custody.
 - Tempting but wrong: classify every `MaySuspend` call as a local CFG exit
   without retaining its continuation and outcome-specific state.
 
-## Q10 — Cyclic control flow in Terminal Psi
+## Q9 — Cyclic control flow in Terminal Psi
 
 ### Context
 
@@ -508,7 +465,7 @@ block-loop API.
   validation before loop-carried SSA, ownership, cleanup, and fuel semantics
   exist.
 
-## Q11 — Close the Delta v1 semantic contract
+## Q10 — Close the Delta v1 semantic contract
 
 ### Context
 
@@ -588,7 +545,7 @@ out of Delta without weakening its ability to host a robust compiler.
 - Tempting but wrong: retain the old translator's private capacities, exit
   codes, or Darwin output behavior as language rules.
 
-## Q12 — Select one typed executable Gamma contract
+## Q11 — Select one typed executable Gamma contract
 
 ### Context
 
@@ -658,7 +615,7 @@ failures.
 - Tempting but wrong: make Alpha I/O effects directly callable from arbitrary
   Gamma source merely to avoid defining the compiler-entry adapter.
 
-## Q13 — Fix Beta block formation and definite-initialization reachability
+## Q12 — Fix Beta block formation and definite-initialization reachability
 
 ### Context
 
@@ -723,7 +680,7 @@ semantic acceptance independent of optimizer sophistication.
 - Tempting but wrong: zero-initialize generated frame slots and call the gap
   closed; that changes Beta's written local semantics and hides skipped stores.
 
-## Q14 — Select the canonical Beta compiler outcome carrier
+## Q13 — Select the canonical Beta compiler outcome carrier
 
 ### Context
 
@@ -787,7 +744,7 @@ impossible fixup/table condition maps to `InternalFailure`.
 - Tempting but wrong: prepend a success tag to Alpha tape and thereby change the
   canonical artifact bytes or require a stripping stage.
 
-## Q15 — Canonical kernel propositions for exact scalar operations
+## Q14 — Canonical kernel propositions for exact scalar operations
 
 ### Context
 
@@ -844,7 +801,7 @@ and mirrored verifier search tree.
 - Tempting but wrong: serialize only the producer's chosen goal and trust it
   without independently reconstructing the operation-owned proposition.
 
-## Q16 — Compose the exact Alpha-to-Beta edge within checker capacity
+## Q15 — Compose the exact Alpha-to-Beta edge within checker capacity
 
 ### Context
 
@@ -906,7 +863,7 @@ of adding an assembly-specific evaluator path.
   primitive, trust a producer receipt, compare hashes, or weaken exact total
   partitioning.
 
-## Q17 — Own the ranked native-fuel sponsor entry
+## Q16 — Own the ranked native-fuel sponsor entry
 
 ### Context
 

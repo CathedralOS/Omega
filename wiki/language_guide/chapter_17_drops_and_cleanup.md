@@ -257,7 +257,9 @@ Cleanup order is deterministic:
 3. A whole value's nominal `drop(&mut self)` runs before structural field
    cleanup.
 4. Remaining fields are cleaned in reverse declaration order.
-5. A sum cleans only its active payload.
+5. Fixed-array elements are established from lowest to highest index and the
+   remaining live elements are cleaned from highest to lowest index.
+6. A sum cleans only its active payload.
 
 The checker validates that cleanup-bearing borrow and ownership dependencies
 agree with this order. A borrowed owner cannot die before a dependent cleanup
@@ -266,6 +268,14 @@ action.
 Reverse declaration order is stable at joins. Dynamic acquisition history is
 not. APIs needing a different release protocol express it through an explicit
 owner or consuming machine rather than asking cleanup to reconstruct history.
+Fixed-array cleanup is the same reverse-establishment rule with indices as its
+structural positions; authored element moves still occur in authored order.
+
+If fixed-array construction leaves through an ordinary cleanup-bearing edge,
+only the successfully established prefix exists and it is cleaned from its
+highest established index to its lowest. This is ordinary edge cleanup, not
+exception unwinding. A trap or nuclear abort is a no-successor edge and cleans
+nothing.
 
 ## Partial Values
 
@@ -305,6 +315,13 @@ remains. It cleans every maximal live residual subtree in recursive reverse
 declaration order and never cleans a partially moved ancestor whole. Arrays and
 cases, claims, content evidence, contracts, and nominal `drop` remain fenced
 from that slice.
+
+For a partially moved fixed array, the compiler constructs one static cleanup
+sequence from the exact live index set: decreasing indices with every moved or
+otherwise discharged element absent. It does not emit a traversal with runtime
+liveness flags. Cleanup recurses structurally, so `[Record; 3]` cleans the live
+fields of element 2 before element 1 and element 0, while `[[T; 2]; 3]` applies
+decreasing-index order at both levels.
 
 A type with a nominal whole-value `drop` body may not be partially moved:
 the body is entitled to receive one whole valid value. Such a type exposes an

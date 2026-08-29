@@ -376,7 +376,7 @@ source-consumption commitment. The orchestration join rejects missing,
 duplicate, foreign, root-self, wrong-target, wrong-closure, and mismatched
 review/custody bundles. This handoff is ephemeral compiler custody, not lock or
 admission evidence. The real filesystem-producing package canary remains
-blocked on OWNER Q3's exact staging-authority package role after std relocation;
+blocked on OWNER Q2's exact staging-authority package role after std relocation;
 no name/path compatibility exception is admitted.
 
 Psi's target-neutral const-generic, fixed-array, const-domain, laid/placed
