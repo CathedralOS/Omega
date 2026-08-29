@@ -1364,8 +1364,10 @@ content count. The compiler-owned review row now retains the complete canonical
 tree behind private fields and can materialize it into an existing empty
 concrete directory, then independently re-inspect exact paths, kinds, modes,
 targets, and bytes before returning the same commitment. Hard-link topology is
-neither retained nor leaked through the count. This is output-tree custody and
-replay only. Canonical operation replay, recorded observed inputs, generated-
+neither retained nor leaked through the count by this staged-tree
+representation: every linked name is committed as ordinary regular-file
+content. This is output-tree custody and replay only. Canonical operation
+replay, recorded observed inputs, generated-
 output handoff, and the complete record replay checker remain required before
 any `Receipted` verdict. This rung does not claim hostile same-user race
 exclusion.
@@ -1547,6 +1549,20 @@ permission operand and derives the canonical staged-tree ordinary/executable
 class from its execute bits without consulting physical Output metadata. It
 does not alter bytes, extent, or cursor. Failed calls, malformed lanes, wrong
 or closed descriptors, and path-based permission changes remain
+non-receipted.
+
+The current exact Output-tree increment, observation summary v45 and compiler
+replay-record v26, admits successful hard links at portable tag 19 and Win32
+tag 27. Both canonical names must remain under the same Output root with write
+authorization for the existing and new names. The existing name must be an
+earlier regular-file or hard-link entry; authored order, provider-specific
+operand order, successful result spelling, zero post-error state,
+parent-before-child ordering, and destination collision checks remain exact.
+Provider-free replay recreates the link relation. The sponsored staged-output
+commitment deliberately normalizes each linked name to duplicate regular-file
+content and does not retain inode identity or hard-link topology. Missing,
+late, directory, or symbolic-link sources, cross-root names, insufficient
+authority, collisions, alternate operations, and failures remain
 non-receipted.
 
 Raw byte-valued inputs are evaluated once by the shared preparer and reject

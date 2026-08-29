@@ -1420,6 +1420,19 @@ colliding, failed, or alternate symlink operations remain non-receipted. Link
 path and target bytes share the existing 16 MiB aggregate spelling ceiling;
 the individual target ceiling is 4,096 bytes.
 
+Summary v45 and replay-record v26 add exact successful Output hard links to
+that ordered grammar: portable tag 19 and Win32 tag 27. The existing and new
+operands are canonical names under the same Output root, and each must carry
+matching write authorization. The existing name must be an earlier
+regular-file or hard-link entry; authored order, provider-specific operand
+order, successful result spelling, zero post-error state, parent-before-child
+ordering, and destination collision checks remain exact. Provider-free replay
+recreates the link relation. Sponsored staged-output custody intentionally
+normalizes every linked name to ordinary regular-file content and therefore
+does not commit inode identity or hard-link topology. Missing, late,
+directory, or symbolic-link sources, cross-root names, insufficient authority,
+collisions, alternate operations, and failures remain non-receipted.
+
 Byte-valued inputs are evaluated once by the shared preparer and reject above
 the evaluator's current 16 MiB sponsor ceiling before provider cloning/
 allocation. Raw transfer counts use one checked conversion and
@@ -1455,8 +1468,8 @@ empty-file, v34/v15 successful-sync, v35/v16 successful-set-length, v36/v17
 successful-seek, v37/v18 successful-descriptor-permission, v38/v19
 successful-descriptor-time, v39/v20 immediate-descriptor-duplicate, v40/v21
 successful-descriptor-lock, v41/v22 single-empty-directory, and v42/v23
-empty-directory-tree, v43/v24 mixed-output-tree, and v44/v25 symbolic-link-output
-grammars above may join them to
+empty-directory-tree, v43/v24 mixed-output-tree, v44/v25 symbolic-link-output,
+and v45/v26 hard-link-output grammars above may join them to
 verified operation replay and reproduced tree equality.
 Sponsored package review does retain a versioned commitment to
 the complete fresh Output tree after successful evaluator/provider teardown
@@ -1473,16 +1486,18 @@ count. The compiler-owned review row retains the complete canonical tree behind
 private fields and can materialize it into an existing empty concrete directory,
 then independently re-inspect exact paths, kinds, modes, targets, and bytes
 before returning the same commitment. Hard-link topology is neither retained
-nor leaked through the count. In isolation this is output-tree custody and
-replay only. The exact v24/v6 generated-source, v27/v8 empty-Output, and
+nor leaked through the count by this staged-tree representation; exact v45/v26
+operation replay retains the authored link relation separately. In isolation
+this is output-tree custody and replay only. The exact v24/v6 generated-source,
+v27/v8 empty-Output, and
 v28-v29/v9-v10 ordinary-artifact, v30/v11 ordered-handoff, v31/v12
 sequential-full-write, v32/v13 positioned-full-write, v33/v14 empty-file, and
 v34/v15 successful-sync, v35/v16 successful-set-length, v36/v17
 successful-seek, v37/v18 successful-descriptor-permission, v38/v19
 successful-descriptor-time, v39/v20 immediate-descriptor-duplicate, v40/v21
 successful-descriptor-lock, v41/v22 single-empty-directory, and v42/v23
-empty-directory-tree, v43/v24 mixed-output-tree, and v44/v25 symbolic-link-output
-grammars above supply canonical
+empty-directory-tree, v43/v24 mixed-output-tree, v44/v25 symbolic-link-output,
+and v45/v26 hard-link-output grammars above supply canonical
 operation replay and retained observed inputs.
 Generated-source cases bind the complete present
 handoff sequence; ordinary-artifact cases bind its absence. All broader shapes

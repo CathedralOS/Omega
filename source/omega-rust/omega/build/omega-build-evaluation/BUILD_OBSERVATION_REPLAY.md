@@ -124,3 +124,22 @@ malformed, NUL-bearing, escaping, missing-parent, colliding, failed, and
 alternate link operations remain outside this increment. A target retains at
 most 4,096 bytes; link-path and target spelling share the existing 16 MiB
 aggregate ceiling.
+
+## Hard-link Output entry (summary v45, replay record v26)
+
+The ordered Output-tree grammar now accepts exact successful hard links: the
+portable operation at tag 19 and Win32 `CreateHardLink` at tag 27. Both names
+must be canonical paths under the same Output root, and replay retains matching
+write authorization for the existing and new names. The existing name must be
+an earlier regular-file or hard-link entry; the new name obeys the ordinary
+parent-before-child and collision rules. Provider-specific operand order,
+successful result spelling, and zero post-error state remain exact.
+
+Provider-free replay recreates each link in authored order and requires exact
+attempt, namespace, teardown, and sponsored staged-tree equality. The staged
+output commitment intentionally omits inode identity and hard-link topology:
+each linked name is committed as ordinary regular-file content, so equivalent
+hard-linked and duplicated-file trees have the same staged representation.
+Missing, late, directory, or symbolic-link sources, cross-root names,
+insufficient authorization, collisions, failures, and alternate operations
+remain non-receipted.
