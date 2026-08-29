@@ -11,7 +11,7 @@ The structural diagnostic does not admit the compiler edge by itself.
 
 The status-only encoding ledger and its gate were deleted after compiler-scale
 measurement proved they could not become the selected checked derivation. They
-were a parallel assembly semantics, not an admission premise. OWNER Q12 (the exact
+were a parallel assembly semantics, not an admission premise. OWNER Q11 (the exact
 Alpha-to-Beta edge) in `OWNER_QUESTIONS.md` owns the measured conflict between one compiler-scale
 reflexive equality and the generic checker's conversion-scratch lifetime.
 

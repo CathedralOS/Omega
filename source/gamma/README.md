@@ -89,7 +89,7 @@ no live artifact admission consumed it. Being written in Gamma did not make it
 part of Gamma meaning; artifact-specific reconstruction belongs beside the
 artifact being admitted.
 
-The older imperative experiment does not select the new compiler edge. OWNER Q8 must
+The older imperative experiment does not select the new compiler edge. OWNER Q7 must
 first select Gamma's typed executable contract; the resulting compiler must
 emit Alpha tape and is not a revival of an unrelated historical language.
 
@@ -103,11 +103,11 @@ Gamma's architectural role.
 | --- | --- | --- |
 | `compiler/` | The sole owner of the future Beta-written compiler accepting Gamma and its exact Alpha-tape edge. | Replace only atomically with the admitted immediate-predecessor compiler edge. |
 | `reference/` | One independent executable Gamma meaning reference and bounded differential. | Delete when a stronger checked semantic relation subsumes every retained case. |
-| `LANGUAGE.md` | The current accepted Gamma surface pending OWNER Q8's executable-contract ruling. | Replace only atomically with the ruled contract and synchronized compiler/reference tests. |
+| `LANGUAGE.md` | The current accepted Gamma surface pending OWNER Q7's executable-contract ruling. | Replace only atomically with the ruled contract and synchronized compiler/reference tests. |
 | `interp.beta`, `test-interp.sh`, `test-interp-arena.sh` | Candidate compiler component plus bounded execution, failure, and arena-profile discriminators. | Absorb into the standalone compiler or delete when Q8 makes the interpreter noncanonical; delete a gate when its exact failure surface is subsumed. |
 | `typeck.beta`, `test-typeck.sh` | Candidate compiler component plus bounded static-semantics discriminators. | Absorb into the standalone compiler or delete when Q8 makes it noncanonical. |
 
 At the root, `interp.beta` and `typeck.beta` remain candidate implementation
 components and executable semantic oracles for the blocked compiler edge. Each
-must be absorbed, adapted, or deleted when OWNER Q8 freezes the executable Gamma
+must be absorbed, adapted, or deleted when OWNER Q7 freezes the executable Gamma
 contract; neither is itself a compiler artifact.

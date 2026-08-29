@@ -201,6 +201,54 @@ every helper call. An opaque foreign implementation receives the corresponding
 address and may be physically capable of reading it; its compliance is an
 admitted provider claim unless target isolation enforces the restriction.
 
+## Reborrow Authority and Restoration
+
+A reborrow derives a child loan from one exact parent-loan occurrence. It does
+not create authority, and borrowing the reference carrier itself is not a
+reborrow of its referent. The child access must be an allowed attenuation of
+the parent's retained access:
+
+| parent access | child `Read` | child `Mutable` | child `WriteOnly` |
+| --- | --- | --- | --- |
+| `Read` | allowed | rejected | rejected |
+| `Mutable` | allowed; shared freeze | allowed; exclusive suspension | allowed; exclusive suspension |
+| `WriteOnly` | rejected | rejected | allowed; exclusive suspension |
+
+`is_exclusive` is an interference classification, not this attenuation rule.
+In particular, `Mutable` may attenuate to `WriteOnly`, while `WriteOnly` may
+never acquire observation by becoming `Read` or `Mutable`.
+
+The permitted cases have three different lifetime effects:
+
+- `Read` to `Read` releases the child without suspending or restoring the
+  parent. Shared descendants may coexist.
+- `Mutable` to `Read` freezes the parent's mutation authority while a finite
+  cohort of shared descendants exists. The parent remains readable, and its
+  exact `Mutable` access returns once, only after the last descendant in that
+  cohort ends.
+- An exclusive child suspends its parent behind one descendant branch. The
+  parent regains its exact original access only after that branch ends.
+  The first release permits one active exclusive descendant branch; broader
+  branching requires a separately specified resource algebra.
+
+Restoration is therefore not the generic rule "child ends, parent becomes
+available." Exclusive lineages close deepest-first. Shared descendants form a
+dependency set: all members ending at one semantic boundary release before the
+frozen parent is restored exactly once. A parent that retires while suspended
+or frozen remains pending; closure follows the complete retained lineage to a
+live parent or an exact direct-root occurrence. When that route reaches a root
+at state exit, the borrow system returns custody to that root only. Transfer,
+cleanup, and linear discharge remain ownership operations and are never
+inferred by the borrow disposition.
+
+Usable restoration requires checked evidence for the exact parent and child
+resources, access pair, formation and weakening boundaries, projection path,
+and suspension or freeze interval. The evidence must establish that forbidden
+parent use did not occur and that the exclusive branch or complete shared
+cohort ended. Lexical survival and a compiler-recorded disposition are not by
+themselves authority. Terminal Psi independently reconstructs and replays this
+evidence before publishing post-reborrow use or root custody.
+
 ## Transitions And Ownership
 
 A transition is a jump. Arguments passed to the target state must be valid on

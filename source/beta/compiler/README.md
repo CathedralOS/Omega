@@ -36,7 +36,7 @@ second assembler invocation participates.
 The former Alpha-written status reconstructor was deleted after measured proof
 work showed that it could not become the selected checked derivation. It was a
 parallel assembly semantics, not an admission premise. The exact source/tape
-certificate remains open under OWNER Q12 (the exact Alpha-to-Beta edge) in
+certificate remains open under OWNER Q11 (the exact Alpha-to-Beta edge) in
 `OWNER_QUESTIONS.md`.
 
 The committed artifact is 20,977 bytes with SHA-256
@@ -47,7 +47,7 @@ The byte comparison, not the convenient digest, governs repository identity.
 
 The Alpha-written compiler enforces the following fixed private ceilings before
 publishing any tape. They bound the implementation accepted by the current
-edge; they do not settle OWNER Q10's typed `Complete` / `Reject` / `Incomplete` /
+edge; they do not settle OWNER Q9's typed `Complete` / `Reject` / `Incomplete` /
 internal-failure carrier. The focused gate therefore requires every refused
 adjacent case to return nonzero with empty stdout, without assigning that raw
 status its future language-level meaning.

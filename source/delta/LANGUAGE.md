@@ -1,14 +1,14 @@
-# Delta v1 language-contract draft — DESIGN-BLOCKED OWNER Q7
+# Delta v1 language-contract draft — DESIGN-BLOCKED OWNER Q6
 
 Delta is the last implementation language in the audited bootstrap spine. It
 is a small, deterministic, C-like language for writing the compiler that
 directly builds the first Omega compiler. Delta is not Alpha with nicer
 spelling, an Omega subset, or an alternate definition of Omega.
 
-This document is non-authoritative decision material until OWNER Q7 is resolved. It
+This document is non-authoritative decision material until OWNER Q6 is resolved. It
 records a candidate source and execution contract, including alternatives that
 are still internally inconsistent; no compiler or conformance suite may treat
-those choices as Delta v1. OWNER Q7 must select and reconcile the result taxonomy,
+those choices as Delta v1. OWNER Q6 must select and reconcile the result taxonomy,
 keywords, optional domains/contracts, builtin resolution, Console/string ABI,
 scalar-transition miss behavior, and source-closure presentation. After that
 ruling, this file must be rewritten as one self-consistent normative contract.
