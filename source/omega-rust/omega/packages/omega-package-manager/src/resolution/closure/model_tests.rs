@@ -1,8 +1,6 @@
 use super::*;
 use omega_package_source::{AliasName, ImmutableSourceResolution, PackageKey};
-use omega_package_source::{
-    GitCommitId, GitTreeId, PackageName, SourceContentDigest, SourceLineage,
-};
+use omega_package_source::{GitCommitId, GitTreeId, PackageName, SourceLineage};
 
 fn key(name: &str, repository: &str) -> PackageKey {
     PackageKey::new(
@@ -18,7 +16,6 @@ fn resolution(marker: u8) -> ImmutableSourceResolution {
     ImmutableSourceResolution::git(
         GitCommitId::parse_hex(&commit_digit.to_string().repeat(40)).unwrap(),
         GitTreeId::parse_hex(&tree_digit.to_string().repeat(40)).unwrap(),
-        SourceContentDigest::derive(&[marker]),
     )
     .unwrap()
 }

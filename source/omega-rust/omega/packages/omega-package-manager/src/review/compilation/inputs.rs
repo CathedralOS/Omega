@@ -73,29 +73,15 @@ fn binding_with_canonical_source_metadata(
     binding: PackageSourceBinding,
 ) -> Result<PackageSourceBinding, PackageCompilationInputError> {
     omega_package_source::capture_verified_package_source_snapshot(
-        custody.acquisition_root(),
-        custody.acquisition_materialization().content(),
+        custody.snapshot_root(),
+        custody.materialization().content(),
         custody.source_limits(),
     )
     .map_err(|error| PackageCompilationInputError::InvalidSourceRoot {
         identity: custody.key().identity(),
-        path: custody.acquisition_root().to_path_buf(),
+        path: custody.snapshot_root().to_path_buf(),
         reason: format!("could not derive canonical build-source metadata: {error}"),
     })?;
-    if custody.snapshot_root() != custody.acquisition_root()
-        || custody.materialization() != custody.acquisition_materialization()
-    {
-        omega_package_source::capture_verified_package_source_snapshot(
-            custody.snapshot_root(),
-            custody.materialization().content(),
-            custody.source_limits(),
-        )
-        .map_err(|error| PackageCompilationInputError::InvalidSourceRoot {
-            identity: custody.key().identity(),
-            path: custody.snapshot_root().to_path_buf(),
-            reason: format!("could not verify selected package materialization: {error}"),
-        })?;
-    }
     binding.with_canonical_source_metadata().map_err(|reason| {
         PackageCompilationInputError::InvalidSourceRoot {
             identity: custody.key().identity(),
@@ -108,14 +94,13 @@ fn binding_with_canonical_source_metadata(
 fn revalidate_package_source_selection(
     custody: &crate::resolution::binding::PackageSourceCustody,
 ) -> Result<(), PackageCompilationInputError> {
-    custody
-        .selection_evidence()
-        .revalidate(custody.acquisition_root())
-        .map_err(|error| PackageCompilationInputError::InvalidSourceRoot {
+    custody.selection_evidence().revalidate().map_err(|error| {
+        PackageCompilationInputError::InvalidSourceRoot {
             identity: custody.key().identity(),
-            path: custody.acquisition_root().to_path_buf(),
+            path: custody.snapshot_root().to_path_buf(),
             reason: format!("could not revalidate package selection evidence: {error}"),
-        })
+        }
+    })
 }
 
 pub(crate) fn reachable_package_keys(
@@ -149,8 +134,7 @@ mod tests {
     use crate::resolution::closure::PackageRootSourceRequest;
     use crate::resolution::closure::reconciliation::resolve_package_source_closure;
     use omega_package_source::{
-        GitCommitId, GitTreeId, ImmutableSourceResolution, PackageKey, PackageName,
-        SourceContentDigest, SourceLineage,
+        GitCommitId, GitTreeId, ImmutableSourceResolution, PackageKey, PackageName, SourceLineage,
     };
     #[cfg(unix)]
     use psi_checked_interpreter::CanonicalFilesystemMetadataRowKind;
@@ -211,16 +195,13 @@ mod tests {
         let resolution = ImmutableSourceResolution::git(
             GitCommitId::parse_hex(&digit.to_string().repeat(40)).expect("commit"),
             GitTreeId::parse_hex(&digit.to_string().repeat(40)).expect("tree"),
-            SourceContentDigest::derive(source.content_identity.as_bytes()),
         )
         .expect("resolution");
         let materialization = crate::resolution::PackageSourceMaterialization::from_local(&source);
         PackageSourceCustody::from_resolved_parts(
             key,
             resolution,
-            materialization.clone(),
             materialization,
-            source_root.clone(),
             source_root,
             crate::resolution::PackageSourceNavigation::Root,
             crate::resolution::PackageSourceSelectionEvidence::Root,

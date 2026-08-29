@@ -1,6 +1,6 @@
 use super::encoding::{
-    decode_replay_record_option, encode_replay_record_option, replay_parent_binding, Decoder,
-    Encoder,
+    Decoder, Encoder, decode_replay_record_option, decode_resolution, encode_replay_record_option,
+    encode_resolution, replay_parent_binding,
 };
 use super::validation::replay_record_limits;
 use super::*;
@@ -8,6 +8,27 @@ use omega_build_evaluation::capture_verified_build_filesystem_replay_record;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(1);
+
+#[test]
+fn baseline_git_resolution_rejects_content_not_derived_from_its_tree() {
+    use omega_package_source::{GitCommitId, GitTreeId, ImmutableSourceResolution};
+
+    let resolution = ImmutableSourceResolution::git(
+        GitCommitId::parse_hex(&"01".repeat(20)).unwrap(),
+        GitTreeId::parse_hex(&"02".repeat(20)).unwrap(),
+    )
+    .unwrap();
+    let mut encoder = Encoder::bounded(256);
+    encode_resolution(&mut encoder, &resolution).unwrap();
+    let mut encoded = encoder.finish().unwrap();
+
+    let mut decoder = Decoder::new(&encoded);
+    assert_eq!(decode_resolution(&mut decoder).unwrap(), resolution);
+    decoder.finish().unwrap();
+
+    *encoded.last_mut().unwrap() ^= 1;
+    assert!(decode_resolution(&mut Decoder::new(&encoded)).is_err());
+}
 
 #[test]
 fn replay_record_option_framing_round_trips_compiler_bytes() {

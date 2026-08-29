@@ -151,30 +151,10 @@ machine build(builder: &mut Build) {
     };
     assert_eq!(retained, &request);
 
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-
-        let retained_build = root.acquisition_root().join("build.omg");
-        std::fs::set_permissions(&retained_build, std::fs::Permissions::from_mode(0o644))
-            .expect("unseal retained declaration for tamper probe");
-        std::fs::write(
-            &retained_build,
-            b"machine build(builder: &mut Build) { builder.member(\"packages/matrix\"); }\n",
-        )
-        .expect("tamper retained declaration");
-        std::fs::set_permissions(&retained_build, std::fs::Permissions::from_mode(0o444))
-            .expect("reseal retained declaration");
-        let errors = crate::review::package_compilation_inputs(&closure)
-            .expect_err("compiler handoff rejects changed selection evidence");
-        assert!(errors.iter().any(|error| matches!(
-            error,
-            omega_package_compilation::PackageCompilationInputError::InvalidSourceRoot {
-                reason,
-                ..
-            } if reason.contains("selection evidence")
-        )));
-    }
+    root.selection_evidence()
+        .revalidate()
+        .expect("retained declaration bytes replay outside compilation root");
+    assert!(!root.snapshot_root().join("packages/matrix").exists());
 
     let _ = std::fs::remove_dir_all(repository);
     let _ = std::fs::remove_dir_all(cache);
@@ -243,7 +223,7 @@ machine build(builder: &mut Build) {
         right.materialization().content(),
         "one repository resolution carries distinct selected package bytes"
     );
-    assert_eq!(left.acquisition_root(), right.acquisition_root());
+    assert_ne!(left.snapshot_root(), right.snapshot_root());
     assert!(matches!(
         right.navigation(),
         crate::resolution::PackageSourceNavigation::Member(path)

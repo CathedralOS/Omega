@@ -15,8 +15,8 @@ pub(super) fn verify_transitive_source_custody(
             .custody(&source_package)
             .expect("validated source closure retains every reachable custody");
         verify_package_source_snapshot(
-            custody.acquisition_root(),
-            custody.acquisition_materialization().content(),
+            custody.snapshot_root(),
+            custody.materialization().content(),
             custody.source_limits(),
         )
         .map_err(|error| CompileResolvedPackageReviewsError::SourceCustody {
@@ -25,32 +25,14 @@ pub(super) fn verify_transitive_source_custody(
             phase,
             error,
         })?;
-        if custody.snapshot_root() != custody.acquisition_root()
-            || custody.materialization() != custody.acquisition_materialization()
-        {
-            verify_package_source_snapshot(
-                custody.snapshot_root(),
-                custody.materialization().content(),
-                custody.source_limits(),
-            )
-            .map_err(|error| CompileResolvedPackageReviewsError::SourceCustody {
+        custody.selection_evidence().revalidate().map_err(|error| {
+            CompileResolvedPackageReviewsError::SourceSelectionCustody {
                 compiling_package: compiling_package.clone(),
-                source_package: source_package.clone(),
+                source_package,
                 phase,
                 error,
-            })?;
-        }
-        custody
-            .selection_evidence()
-            .revalidate(custody.acquisition_root())
-            .map_err(
-                |error| CompileResolvedPackageReviewsError::SourceSelectionCustody {
-                    compiling_package: compiling_package.clone(),
-                    source_package,
-                    phase,
-                    error,
-                },
-            )?;
+            }
+        })?;
     }
     Ok(())
 }

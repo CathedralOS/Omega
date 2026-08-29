@@ -1,5 +1,7 @@
 use super::{IdentityError, SourceContentDigest, SourceLineage, decode_hex, encode_hex};
 
+const GIT_TREE_CONTENT_EVIDENCE_DOMAIN: &[u8] = b"omega-git-tree-content-v1";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum SourceLineageFamily {
     Git,
@@ -23,14 +25,11 @@ pub enum ImmutableSourceResolution {
 }
 
 impl ImmutableSourceResolution {
-    pub fn git(
-        commit: GitCommitId,
-        tree: GitTreeId,
-        content: SourceContentDigest,
-    ) -> Result<Self, IdentityError> {
+    pub fn git(commit: GitCommitId, tree: GitTreeId) -> Result<Self, IdentityError> {
         if commit.algorithm() != tree.algorithm() {
             return Err(IdentityError::GitObjectFormatMismatch);
         }
+        let content = derive_git_tree_content(&tree);
         Ok(Self::Git {
             commit,
             tree,
@@ -66,6 +65,20 @@ impl ImmutableSourceResolution {
                 )
         )
     }
+}
+
+fn derive_git_tree_content(tree: &GitTreeId) -> SourceContentDigest {
+    // This evidence is bounded by the largest supported Git object ID: one
+    // format tag and at most 64 lowercase hexadecimal bytes.
+    let tree_hex = tree.to_hex();
+    let mut evidence = Vec::with_capacity(GIT_TREE_CONTENT_EVIDENCE_DOMAIN.len() + 1 + 64);
+    evidence.extend_from_slice(GIT_TREE_CONTENT_EVIDENCE_DOMAIN);
+    evidence.push(match tree.algorithm() {
+        GitObjectIdAlgorithm::Sha1 => 1,
+        GitObjectIdAlgorithm::Sha256 => 2,
+    });
+    evidence.extend_from_slice(tree_hex.as_bytes());
+    SourceContentDigest::derive(&evidence)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

@@ -108,9 +108,7 @@ fn bind_workspace_member_package_source(
     Ok(ResolvedPackageSource::from_resolved_parts(
         PackageKey::new(declaration.name, lineage),
         resolution,
-        materialization.clone(),
         materialization,
-        source.snapshot_root().to_path_buf(),
         source.snapshot_root().to_path_buf(),
         super::PackageSourceNavigation::Root,
         super::PackageSourceSelectionEvidence::Root,

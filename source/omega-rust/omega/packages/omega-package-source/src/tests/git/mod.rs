@@ -7,3 +7,4 @@ mod resolution;
 mod reuse;
 mod snapshot;
 mod validation;
+mod workspace;

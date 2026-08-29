@@ -6,8 +6,7 @@ use crate::resolution::{
 };
 use omega_package_source::{
     AliasName, GitCommitId, GitSourceRequest, GitTreeId, ImmutableSourceResolution,
-    LocalSourceLimits, PackageKey, PackageName, SourceContentDigest, SourceLineage,
-    WorkspaceMemberPath,
+    LocalSourceLimits, PackageKey, PackageName, SourceLineage, WorkspaceMemberPath,
 };
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -28,7 +27,6 @@ fn resolution(marker: u8) -> ImmutableSourceResolution {
     ImmutableSourceResolution::git(
         GitCommitId::parse_hex(&commit_digit.to_string().repeat(40)).unwrap(),
         GitTreeId::parse_hex(&tree_digit.to_string().repeat(40)).unwrap(),
-        SourceContentDigest::derive(&[marker]),
     )
     .unwrap()
 }
@@ -67,9 +65,7 @@ fn custody(
     PackageSourceCustody::from_resolved_parts(
         key(name, repository),
         resolution,
-        materialization.clone(),
         materialization,
-        PathBuf::from(snapshot_root),
         PathBuf::from(snapshot_root),
         crate::resolution::PackageSourceNavigation::Root,
         crate::resolution::PackageSourceSelectionEvidence::Root,

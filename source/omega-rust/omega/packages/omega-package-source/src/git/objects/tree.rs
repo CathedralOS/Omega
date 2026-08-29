@@ -25,7 +25,6 @@ pub(crate) fn parse_git_tree_entries(
 /// Parse a complete recursive graph without charging unopened blob payloads to
 /// the eventual package projection. The listing and graph remain bounded by
 /// compiler-owned entry/depth ceilings and the process-output ceiling.
-#[allow(dead_code)] // Used when the resolve layer adopts selective inspection.
 pub(super) fn parse_git_tree_graph_entries(
     listing: &[u8],
     repository: &Path,
@@ -43,7 +42,6 @@ pub(super) fn parse_git_tree_graph_entries(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)] // `SelectedOnly` belongs to the staged selective-inspection API.
 enum GitTreePayloadLimitPolicy {
     WholeTree,
     SelectedOnly,

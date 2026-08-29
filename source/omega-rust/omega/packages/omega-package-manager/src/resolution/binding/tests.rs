@@ -595,8 +595,9 @@ fn named_git_binding_rejects_symlink_member_navigation() {
     .expect_err("symlink member navigation rejects");
     assert!(matches!(
         error,
-        ResolvePackageSourceError::GitWorkspaceMemberNavigation { member_path, .. }
-            if member_path.as_str() == "packages/linked"
+        ResolvePackageSourceError::Source(
+            omega_package_source::SourceResolveError::GitTreeInvalid { path, .. }
+        ) if path == b"packages/linked/build.omg"
     ));
 
     drop(storage);

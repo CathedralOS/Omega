@@ -6,6 +6,7 @@
 //! repository-tree custody, [`invalidation`] disables rejected entries, and
 //! [`identity`] defines stable cache records and diagnostics.
 
+pub(crate) mod configuration;
 pub(crate) mod creation;
 pub(crate) mod custody;
 pub(crate) mod identity;

@@ -1,21 +1,25 @@
 use super::projection::project_package_build;
-use super::selection::read_bounded_declaration;
-use super::{PackageSourceCustody, ResolvePackageSourceError, ResolvedPackageSource};
-use crate::manifest::PackageDeclarationError;
+use super::{
+    GitWorkspaceSelectionDeclarations, GitWorkspaceSelectionEvidence, ResolvePackageSourceError,
+    ResolvedPackageSource,
+};
 use crate::manifest::dependencies::read::PackageSelection;
 use crate::resolution::binding::git_selection::{
-    GitWorkspaceMemberBuild, GitWorkspaceSelectionPlan, account_declaration_bytes,
-    discover_git_workspace, plan_git_workspace_selection,
+    GitWorkspaceMemberBuild, MAX_BUILD_DECLARATION_BYTES, MAX_TOTAL_BUILD_DECLARATION_BYTES,
+    MAX_WORKSPACE_MEMBERS, discover_git_workspace, plan_git_workspace_selection,
 };
 use omega_package_source::{
-    GitCommitId, GitTreeId, ImmutableSourceResolution, PackageKey, SourceContentDigest,
-    SourceLineage,
+    GitAcquisitionPin, GitSourceRequest, LocalSourceLimits, ResolvedGitSource,
+    SourceResolverStorage,
 };
 use omega_package_source::{
-    GitSourceRequest, LocalSourceLimits, ResolvedGitSource, SourceResolverStorage,
+    GitCommitId, GitTreeId, ImmutableSourceResolution, PackageKey, SourceLineage,
 };
-use omega_package_source::{RetainedStorageLane, resolve_git_source_in_lane, resolve_local_source};
-use std::path::{Path, PathBuf};
+use omega_package_source::{
+    GitWorkspaceDeclaration, GitWorkspaceDeclarationLimits, GitWorkspaceProjectionError,
+    GitWorkspaceProjectionPlanner, GitWorkspaceSelection, RetainedStorageLane,
+    resolve_git_source_in_lane, resolve_git_workspace_member_from_pin_in_lanes,
+};
 
 /// One exact package selection over one validated Git acquisition request.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -63,22 +67,85 @@ impl GitPackageSourceRequest {
 #[cfg(test)]
 pub fn resolve_git_package_source(
     request: &GitSourceRequest,
-    cache_dir: impl AsRef<Path>,
+    cache_dir: impl AsRef<std::path::Path>,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
     let storage = SourceResolverStorage::for_hardened_base(cache_dir)?;
     resolve_git_package_source_with_storage(request, &storage, limits)
 }
 
-fn resolve_selected_git_package_source_in_lane(
-    request: &GitPackageSourceRequest,
+fn resolve_git_root_package_source_in_lane(
+    request: &GitSourceRequest,
     lane: &RetainedStorageLane,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
     let limits = limits.compiler_bounded();
-    let lineage = request.acquisition().lineage().clone();
-    let source = resolve_git_source_in_lane(request.acquisition(), lane, limits)?;
-    bind_git_package_source(lineage, source, limits, request.selection())
+    let lineage = request.lineage().clone();
+    let source = resolve_git_source_in_lane(request, lane, limits)?;
+    bind_git_root_package_source(lineage, source, limits)
+}
+
+pub(crate) fn resolve_selected_git_package_source_in_lanes(
+    request: &GitPackageSourceRequest,
+    git_lane: &RetainedStorageLane,
+    member_lane: &RetainedStorageLane,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
+    resolve_selected_git_package_source_from_pin_in_lanes(
+        request,
+        None,
+        git_lane,
+        member_lane,
+        limits,
+    )
+}
+
+pub(crate) fn resolve_selected_git_package_source_from_pin_in_lanes(
+    request: &GitPackageSourceRequest,
+    pin: Option<&GitAcquisitionPin>,
+    git_lane: &RetainedStorageLane,
+    member_lane: &RetainedStorageLane,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
+    let limits = limits.compiler_bounded();
+    match request.selection() {
+        PackageSelection::Root => {
+            resolve_git_root_package_source_in_lane(request.acquisition(), git_lane, limits)
+        }
+        PackageSelection::Named(package) => {
+            let mut planner = ManagerGitWorkspacePlanner::new(package);
+            let projected = resolve_git_workspace_member_from_pin_in_lanes(
+                request.acquisition(),
+                pin,
+                git_lane,
+                member_lane,
+                limits,
+                GitWorkspaceDeclarationLimits::new(
+                    MAX_WORKSPACE_MEMBERS,
+                    u64::try_from(MAX_BUILD_DECLARATION_BYTES)
+                        .expect("declaration limit fits canonical u64"),
+                    u64::try_from(MAX_TOTAL_BUILD_DECLARATION_BYTES)
+                        .expect("declaration aggregate limit fits canonical u64"),
+                ),
+                &mut planner,
+            )
+            .map_err(|error| match error {
+                GitWorkspaceProjectionError::Source(error) => {
+                    ResolvePackageSourceError::Source(error)
+                }
+                GitWorkspaceProjectionError::Planner(error) => {
+                    ResolvePackageSourceError::GitWorkspaceSelection(error)
+                }
+            })?;
+            let (source, evidence) = projected.into_parts();
+            bind_projected_git_package_source(
+                request.acquisition().lineage().clone(),
+                source,
+                limits,
+                evidence,
+            )
+        }
+    }
 }
 
 pub fn resolve_git_package_source_with_storage(
@@ -99,174 +166,156 @@ pub fn resolve_selected_git_package_source_with_storage(
     limits: LocalSourceLimits,
 ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
     storage.verify_path_identity()?;
-    let result =
-        resolve_selected_git_package_source_in_lane(request, storage.git_sources(), limits);
+    let result = resolve_selected_git_package_source_in_lanes(
+        request,
+        storage.git_sources(),
+        storage.workspace_members(),
+        limits,
+    );
     storage.verify_path_identity()?;
     result
 }
 
-pub(crate) fn bind_git_package_source(
+struct ManagerGitWorkspacePlanner<'a> {
+    selected: &'a omega_package_source::PackageName,
+}
+
+impl<'a> ManagerGitWorkspacePlanner<'a> {
+    fn new(selected: &'a omega_package_source::PackageName) -> Self {
+        Self { selected }
+    }
+}
+
+impl GitWorkspaceProjectionPlanner for ManagerGitWorkspacePlanner<'_> {
+    type Error = crate::resolution::binding::git_selection::GitWorkspaceSelectionError;
+    type Evidence = GitWorkspaceSelectionEvidence;
+
+    fn discover_members(
+        &mut self,
+        root_declaration: &GitWorkspaceDeclaration,
+    ) -> Result<Vec<omega_package_source::WorkspaceMemberPath>, Self::Error> {
+        let discovery = discover_git_workspace(root_declaration.bytes())?;
+        Ok(discovery
+            .member_paths()
+            .iter()
+            .cloned()
+            .map(omega_package_source::WorkspaceMemberPath::from)
+            .collect())
+    }
+
+    fn select_member(
+        &mut self,
+        root_declaration: &GitWorkspaceDeclaration,
+        member_declarations: &[GitWorkspaceDeclaration],
+    ) -> Result<GitWorkspaceSelection<Self::Evidence>, Self::Error> {
+        let declarations = member_declarations
+            .iter()
+            .map(|declaration| {
+                let member_path = declaration
+                    .member_path()
+                    .expect("member declaration has one member path");
+                let member_path =
+                    omega_build_declarations::WorkspaceMemberPath::parse(member_path.as_str())
+                        .expect("source and build declaration paths share one grammar");
+                (member_path, declaration.bytes().to_vec())
+            })
+            .collect::<Vec<_>>();
+        let supplied = declarations
+            .iter()
+            .map(|(member_path, bytes)| GitWorkspaceMemberBuild::new(member_path, bytes.as_slice()))
+            .collect::<Vec<_>>();
+        let selected = omega_build_declarations::ProjectName::parse(self.selected.as_str())
+            .expect("source and build declaration package names share one grammar");
+        let plan = plan_git_workspace_selection(&selected, root_declaration.bytes(), &supplied)?;
+        let selected_member =
+            omega_package_source::WorkspaceMemberPath::from(plan.selected_member_path().clone());
+        Ok(GitWorkspaceSelection::new(
+            selected_member,
+            GitWorkspaceSelectionEvidence::new(
+                plan,
+                GitWorkspaceSelectionDeclarations::new(
+                    root_declaration.bytes().to_vec(),
+                    declarations,
+                ),
+            ),
+        ))
+    }
+}
+
+fn bind_projected_git_package_source(
     lineage: SourceLineage,
     source: ResolvedGitSource,
     limits: LocalSourceLimits,
-    selection: &PackageSelection,
+    selection_evidence: GitWorkspaceSelectionEvidence,
 ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
-    let acquisition_root = source.snapshot_root().to_path_buf();
-    let (snapshot_root, navigation, selection_evidence) = match selection {
-        PackageSelection::Root => (
-            acquisition_root.clone(),
-            super::PackageSourceNavigation::Root,
-            super::PackageSourceSelectionEvidence::Root,
-        ),
-        PackageSelection::Named(package) => {
-            let (member_path, plan) = select_named_git_member(&acquisition_root, package)?;
-            let member_root = validate_git_member_root(&acquisition_root, &member_path)?;
-            (
-                member_root,
-                super::PackageSourceNavigation::Member(member_path),
-                super::PackageSourceSelectionEvidence::GitWorkspace(plan),
-            )
+    let projection = source.workspace_projection().ok_or_else(|| {
+        ResolvePackageSourceError::GitWorkspaceMemberNavigation {
+            member_path: omega_package_source::WorkspaceMemberPath::from(
+                selection_evidence.plan().selected_member_path().clone(),
+            ),
+            message: "selective source result omitted workspace projection custody".to_owned(),
         }
-    };
+    })?;
+    let selected_member_path = omega_package_source::WorkspaceMemberPath::from(
+        selection_evidence.plan().selected_member_path().clone(),
+    );
+    if projection.selected_member_path() != &selected_member_path
+        || projection.selected_member_tree() != source.materialized_tree()
+    {
+        return Err(ResolvePackageSourceError::GitWorkspaceMemberNavigation {
+            member_path: selected_member_path,
+            message: "source and manager workspace selection evidence disagree".to_owned(),
+        });
+    }
+    let snapshot_root = source.snapshot_root().to_path_buf();
     let (declaration, dependency_requests) = project_package_build(&snapshot_root, false)?;
     let resolution = ImmutableSourceResolution::git(
         GitCommitId::parse_hex(source.commit())?,
         GitTreeId::parse_hex(source.tree())?,
-        SourceContentDigest::derive(source.local().content_identity.as_bytes()),
     )?;
-    let acquisition_materialization =
-        super::PackageSourceMaterialization::from_local(source.local());
-    let materialization = if snapshot_root == acquisition_root {
-        acquisition_materialization.clone()
-    } else {
-        super::PackageSourceMaterialization::from_local(&resolve_local_source(
-            &snapshot_root,
-            limits,
-        )?)
-    };
+    let materialization = super::PackageSourceMaterialization::from_local(source.local());
+    selection_evidence.revalidate().map_err(|error| {
+        ResolvePackageSourceError::GitWorkspaceMemberNavigation {
+            member_path: projection.selected_member_path().clone(),
+            message: error.to_string(),
+        }
+    })?;
 
     Ok(ResolvedPackageSource::from_resolved_parts(
         PackageKey::new(declaration.name, lineage),
         resolution,
-        acquisition_materialization,
         materialization,
-        acquisition_root,
         snapshot_root,
-        navigation,
-        selection_evidence,
+        super::PackageSourceNavigation::Member(projection.selected_member_path().clone()),
+        super::PackageSourceSelectionEvidence::GitWorkspace(selection_evidence),
         limits,
         dependency_requests,
         source,
     ))
 }
 
-fn select_named_git_member(
-    acquisition_root: &Path,
-    selected: &omega_package_source::PackageName,
-) -> Result<
-    (
-        omega_package_source::WorkspaceMemberPath,
-        GitWorkspaceSelectionPlan,
-    ),
-    ResolvePackageSourceError,
-> {
-    let root_build = read_git_build(acquisition_root, Path::new("build.omg"))?;
-    let discovery = discover_git_workspace(&root_build)?;
-    let mut total_bytes = account_declaration_bytes(0, &root_build)?;
-    let mut member_builds = Vec::with_capacity(discovery.member_paths().len());
-    for declared_path in discovery.member_paths() {
-        let member_path = omega_package_source::WorkspaceMemberPath::from(declared_path.clone());
-        validate_git_member_root(acquisition_root, &member_path)?;
-        let build_path = PathBuf::from(declared_path.as_str()).join("build.omg");
-        let build = read_git_build(acquisition_root, &build_path)?;
-        total_bytes = account_declaration_bytes(total_bytes, &build)?;
-        member_builds.push((declared_path.clone(), build));
-    }
-    let supplied = member_builds
-        .iter()
-        .map(|(member_path, build_bytes)| {
-            GitWorkspaceMemberBuild::new(member_path, build_bytes.as_slice())
-        })
-        .collect::<Vec<_>>();
-    let selected = omega_build_declarations::ProjectName::parse(selected.as_str())
-        .expect("package-source and build-declaration names share one grammar");
-    let plan = plan_git_workspace_selection(&selected, &root_build, &supplied)?;
-    let member_path =
-        omega_package_source::WorkspaceMemberPath::from(plan.selected_member_path().clone());
-    Ok((member_path, plan))
-}
-
-fn read_git_build(
-    acquisition_root: &Path,
-    relative_path: &Path,
-) -> Result<Vec<u8>, ResolvePackageSourceError> {
-    let path = acquisition_root.join(relative_path);
-    read_bounded_declaration(&path).map_err(|error| {
-        ResolvePackageSourceError::Declaration(if error.kind() == std::io::ErrorKind::NotFound {
-            PackageDeclarationError::MissingBuildFile { path }
-        } else {
-            PackageDeclarationError::ReadBuildFile {
-                path,
-                message: error.to_string(),
-            }
-        })
-    })
-}
-
-fn validate_git_member_root(
-    acquisition_root: &Path,
-    member_path: &omega_package_source::WorkspaceMemberPath,
-) -> Result<PathBuf, ResolvePackageSourceError> {
-    let mut current = acquisition_root.to_path_buf();
-    for component in member_path.as_str().split('/') {
-        current.push(component);
-        let metadata = std::fs::symlink_metadata(&current).map_err(|error| {
-            ResolvePackageSourceError::GitWorkspaceMemberNavigation {
-                member_path: member_path.clone(),
-                message: error.to_string(),
-            }
-        })?;
-        if metadata.file_type().is_symlink() {
-            return Err(ResolvePackageSourceError::GitWorkspaceMemberNavigation {
-                member_path: member_path.clone(),
-                message: "member navigation contains a symbolic link".to_owned(),
-            });
-        }
-    }
-    if !current.is_dir() {
-        return Err(ResolvePackageSourceError::GitWorkspaceMemberNavigation {
-            member_path: member_path.clone(),
-            message: "member root is not a directory".to_owned(),
-        });
-    }
-    Ok(current)
-}
-
-pub(crate) fn bind_git_member_package_custody(
+fn bind_git_root_package_source(
     lineage: SourceLineage,
-    resolution: ImmutableSourceResolution,
-    acquisition_root: &Path,
-    acquisition_materialization: super::PackageSourceMaterialization,
-    member_path: omega_package_source::WorkspaceMemberPath,
-    selection_plan: GitWorkspaceSelectionPlan,
+    source: ResolvedGitSource,
     limits: LocalSourceLimits,
-) -> Result<PackageSourceCustody, ResolvePackageSourceError> {
-    let snapshot_root = validate_git_member_root(acquisition_root, &member_path)?;
+) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
+    let snapshot_root = source.snapshot_root().to_path_buf();
     let (declaration, dependency_requests) = project_package_build(&snapshot_root, false)?;
-    let materialization = super::PackageSourceMaterialization::from_local(&resolve_local_source(
-        &snapshot_root,
-        limits,
-    )?);
-    Ok(PackageSourceCustody::from_resolved_parts(
+    let resolution = ImmutableSourceResolution::git(
+        GitCommitId::parse_hex(source.commit())?,
+        GitTreeId::parse_hex(source.tree())?,
+    )?;
+    let materialization = super::PackageSourceMaterialization::from_local(source.local());
+
+    Ok(ResolvedPackageSource::from_resolved_parts(
         PackageKey::new(declaration.name, lineage),
         resolution,
-        acquisition_materialization,
         materialization,
-        acquisition_root.to_path_buf(),
         snapshot_root,
-        super::PackageSourceNavigation::Member(member_path),
-        super::PackageSourceSelectionEvidence::GitWorkspace(selection_plan),
+        super::PackageSourceNavigation::Root,
+        super::PackageSourceSelectionEvidence::Root,
         limits,
         dependency_requests,
+        source,
     ))
 }

@@ -19,11 +19,11 @@ pub use custody::PackageSourceCustody;
 pub use error::ResolvePackageSourceError;
 #[cfg(test)]
 pub(crate) use git::resolve_git_package_source;
+pub(crate) use git::resolve_selected_git_package_source_from_pin_in_lanes;
 pub use git::{
     GitPackageSourceRequest, resolve_git_package_source_with_storage,
     resolve_selected_git_package_source_with_storage,
 };
-pub(crate) use git::{bind_git_member_package_custody, bind_git_package_source};
 #[cfg(test)]
 pub(crate) use local::resolve_external_local_package_source;
 pub(crate) use local::{
@@ -36,6 +36,7 @@ pub use local::{
 pub use materialization::PackageSourceMaterialization;
 pub use navigation::PackageSourceNavigation;
 pub use resolved::ResolvedPackageSource;
+pub(crate) use selection::{GitWorkspaceSelectionDeclarations, GitWorkspaceSelectionEvidence};
 pub use selection::{PackageSourceSelectionEvidence, PackageSourceSelectionEvidenceError};
 #[cfg(test)]
 pub(crate) use workspace::resolve_workspace_member_package_source;

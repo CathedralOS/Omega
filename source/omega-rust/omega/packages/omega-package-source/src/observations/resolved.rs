@@ -1,4 +1,5 @@
 use crate::git::request::GitTransportProfile;
+use crate::git::workspace::GitWorkspaceProjectionCustody;
 use crate::local::model::ResolvedLocalSource;
 use omega_resolver_execution::ResolverExecutionPolicyObservation;
 use std::path::{Path, PathBuf};
@@ -18,8 +19,10 @@ pub struct ResolvedGitSource {
     pub(crate) requested_rev: String,
     pub(crate) commit: String,
     pub(crate) tree: String,
+    pub(crate) materialized_tree: String,
     pub(crate) snapshot_root: PathBuf,
     pub(crate) local: ResolvedLocalSource,
+    pub(crate) workspace_projection: Option<GitWorkspaceProjectionCustody>,
     /// Absolute parent Git executable identity observed before and after every launch.
     /// This is diagnostic custody, not certification of the executable.
     pub(crate) git_executable: GitExecutableIdentity,
@@ -41,7 +44,32 @@ pub struct ResolvedGitSource {
     pub(crate) strict_receipt: Result<GitSourceStrictReceipt, GitSourceStrictReceiptError>,
 }
 
+/// Operation-local reuse pin for one already resolved Git acquisition.
+///
+/// This is not lock evidence. It only prevents a later member selection in the
+/// same manager traversal from refetching or drifting away from the exact
+/// commit and root tree already authenticated for that request.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitAcquisitionPin {
+    requested_locator: String,
+    locator_identity: String,
+    transport_profile: GitTransportProfile,
+    requested_rev: String,
+    commit: String,
+    tree: String,
+}
+
 impl ResolvedGitSource {
+    pub fn acquisition_pin(&self) -> GitAcquisitionPin {
+        GitAcquisitionPin {
+            requested_locator: self.requested_locator.clone(),
+            locator_identity: self.locator_identity.clone(),
+            transport_profile: self.transport_profile,
+            requested_rev: self.requested_rev.clone(),
+            commit: self.commit.clone(),
+            tree: self.tree.clone(),
+        }
+    }
     pub fn requested_locator(&self) -> &str {
         &self.requested_locator
     }
@@ -66,12 +94,20 @@ impl ResolvedGitSource {
         &self.tree
     }
 
+    pub fn materialized_tree(&self) -> &str {
+        &self.materialized_tree
+    }
+
     pub fn snapshot_root(&self) -> &Path {
         &self.snapshot_root
     }
 
     pub const fn local(&self) -> &ResolvedLocalSource {
         &self.local
+    }
+
+    pub const fn workspace_projection(&self) -> Option<&GitWorkspaceProjectionCustody> {
+        self.workspace_projection.as_ref()
     }
 
     pub const fn git_executable(&self) -> &GitExecutableIdentity {
@@ -118,6 +154,29 @@ impl ResolvedGitSource {
     }
 }
 
+impl GitAcquisitionPin {
+    pub(crate) fn matches_request(
+        &self,
+        requested_locator: &str,
+        locator_identity: &str,
+        transport_profile: GitTransportProfile,
+        requested_rev: &str,
+    ) -> bool {
+        self.requested_locator == requested_locator
+            && self.locator_identity == locator_identity
+            && self.transport_profile == transport_profile
+            && self.requested_rev == requested_rev
+    }
+
+    pub(crate) fn commit(&self) -> &str {
+        &self.commit
+    }
+
+    pub(crate) fn tree(&self) -> &str {
+        &self.tree
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PendingResolvedGitSource {
     pub(crate) requested_locator: String,
@@ -126,8 +185,10 @@ pub(crate) struct PendingResolvedGitSource {
     pub(crate) requested_rev: String,
     pub(crate) commit: String,
     pub(crate) tree: String,
+    pub(crate) materialized_tree: String,
     pub(crate) snapshot_root: PathBuf,
     pub(crate) local: ResolvedLocalSource,
+    pub(crate) workspace_projection: Option<GitWorkspaceProjectionCustody>,
     pub(crate) git_executable: GitExecutableIdentity,
     pub(crate) transport_executable: Option<GitTransportExecutableIdentity>,
     pub(crate) execution_helper_executables: Vec<GitTransportExecutableIdentity>,
@@ -147,8 +208,10 @@ impl PendingResolvedGitSource {
             requested_rev: resolved.requested_rev.clone(),
             commit: resolved.commit.clone(),
             tree: resolved.tree.clone(),
+            materialized_tree: resolved.materialized_tree.clone(),
             snapshot_root: resolved.snapshot_root.clone(),
             local: resolved.local.clone(),
+            workspace_projection: resolved.workspace_projection.clone(),
             git_executable: resolved.git_executable.clone(),
             transport_executable: resolved.transport_executable.clone(),
             execution_helper_executables: resolved.execution_helper_executables.clone(),

@@ -1,7 +1,5 @@
 use super::*;
-use omega_package_source::{
-    GitCommitId, GitTreeId, ImmutableSourceResolution, SourceContentDigest,
-};
+use omega_package_source::{GitCommitId, GitTreeId, ImmutableSourceResolution};
 
 fn finish(
     root: CanonicalRootSourceSelection,
@@ -23,7 +21,6 @@ fn git_source(name: &str, repository: &str, marker: u8) -> ResolvedSourceIdentit
     let resolution = ImmutableSourceResolution::git(
         GitCommitId::parse_hex(&digit.to_string().repeat(40)).unwrap(),
         GitTreeId::parse_hex(&next.to_string().repeat(40)).unwrap(),
-        SourceContentDigest::derive(&[marker]),
     )
     .unwrap();
     ResolvedSourceIdentity::new(key, resolution).unwrap()

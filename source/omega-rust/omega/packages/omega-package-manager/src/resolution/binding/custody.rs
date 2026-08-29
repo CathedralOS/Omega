@@ -14,9 +14,7 @@ use std::path::{Path, PathBuf};
 pub struct PackageSourceCustody {
     key: PackageKey,
     resolution: ImmutableSourceResolution,
-    acquisition_materialization: PackageSourceMaterialization,
     materialization: PackageSourceMaterialization,
-    acquisition_root: PathBuf,
     pub(crate) snapshot_root: PathBuf,
     navigation: PackageSourceNavigation,
     selection_evidence: PackageSourceSelectionEvidence,
@@ -28,9 +26,7 @@ impl PartialEq for PackageSourceCustody {
     fn eq(&self, other: &Self) -> bool {
         self.key == other.key
             && self.resolution == other.resolution
-            && self.acquisition_materialization == other.acquisition_materialization
             && self.materialization == other.materialization
-            && self.acquisition_root == other.acquisition_root
             && self.snapshot_root == other.snapshot_root
             && self.navigation == other.navigation
             && self.selection_evidence == other.selection_evidence
@@ -44,9 +40,7 @@ impl PackageSourceCustody {
     pub(crate) fn from_resolved_parts(
         key: PackageKey,
         resolution: ImmutableSourceResolution,
-        acquisition_materialization: PackageSourceMaterialization,
         materialization: PackageSourceMaterialization,
-        acquisition_root: PathBuf,
         snapshot_root: PathBuf,
         navigation: PackageSourceNavigation,
         selection_evidence: PackageSourceSelectionEvidence,
@@ -57,9 +51,7 @@ impl PackageSourceCustody {
         Self {
             key,
             resolution,
-            acquisition_materialization,
             materialization,
-            acquisition_root,
             snapshot_root,
             navigation,
             selection_evidence,
@@ -76,20 +68,12 @@ impl PackageSourceCustody {
         &self.resolution
     }
 
-    pub const fn acquisition_materialization(&self) -> &PackageSourceMaterialization {
-        &self.acquisition_materialization
-    }
-
     pub const fn materialization(&self) -> &PackageSourceMaterialization {
         &self.materialization
     }
 
     pub fn snapshot_root(&self) -> &Path {
         &self.snapshot_root
-    }
-
-    pub fn acquisition_root(&self) -> &Path {
-        &self.acquisition_root
     }
 
     pub const fn navigation(&self) -> &PackageSourceNavigation {
@@ -111,7 +95,6 @@ impl PackageSourceCustody {
     pub(crate) fn semantically_equivalent(&self, other: &Self) -> bool {
         self.key == other.key
             && self.resolution == other.resolution
-            && self.acquisition_materialization == other.acquisition_materialization
             && self.materialization == other.materialization
             && self.navigation == other.navigation
             && self.selection_evidence == other.selection_evidence

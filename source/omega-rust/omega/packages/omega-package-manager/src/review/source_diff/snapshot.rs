@@ -71,7 +71,7 @@ pub(super) fn capture_snapshot(
 ) -> Result<BTreeMap<Vec<u8>, VerifiedPackageSourceEntryKind>, PackageSourcePatchError> {
     custody
         .selection_evidence()
-        .revalidate(custody.acquisition_root())
+        .revalidate()
         .map_err(|error| PackageSourcePatchError::SourceSelectionCustody { side, error })?;
     let custody_limits = custody.source_limits();
     let review_limits = LocalSourceLimits {
@@ -84,8 +84,8 @@ pub(super) fn capture_snapshot(
         max_depth: custody_limits.max_depth,
     };
     verify_package_source_snapshot(
-        custody.acquisition_root(),
-        custody.acquisition_materialization().content(),
+        custody.snapshot_root(),
+        custody.materialization().content(),
         custody.source_limits(),
     )
     .map_err(|error| PackageSourcePatchError::SourceCustody { side, error })?;
@@ -131,25 +131,14 @@ pub(super) fn revalidate_snapshot(
 ) -> Result<(), PackageSourcePatchError> {
     custody
         .selection_evidence()
-        .revalidate(custody.acquisition_root())
+        .revalidate()
         .map_err(|error| PackageSourcePatchError::SourceSelectionCustody { side, error })?;
     verify_package_source_snapshot(
-        custody.acquisition_root(),
-        custody.acquisition_materialization().content(),
+        custody.snapshot_root(),
+        custody.materialization().content(),
         custody.source_limits(),
     )
-    .map_err(|error| PackageSourcePatchError::SourceCustody { side, error })?;
-    if custody.snapshot_root() != custody.acquisition_root()
-        || custody.materialization() != custody.acquisition_materialization()
-    {
-        verify_package_source_snapshot(
-            custody.snapshot_root(),
-            custody.materialization().content(),
-            custody.source_limits(),
-        )
-        .map_err(|error| PackageSourcePatchError::SourceCustody { side, error })?;
-    }
-    Ok(())
+    .map_err(|error| PackageSourcePatchError::SourceCustody { side, error })
 }
 
 pub(super) fn render_entry(

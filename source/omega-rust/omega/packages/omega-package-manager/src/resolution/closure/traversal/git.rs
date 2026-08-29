@@ -46,7 +46,7 @@ fn resolve_git_package_closure_from_lanes(
 ) -> Result<ResolvedPackageSourceClosure, ResolveGitPackageClosureError> {
     let mut git_acquisitions = GitAcquisitionCache::default();
     let root = git_acquisitions
-        .resolve_selected(request, git_cache, source_limits)
+        .resolve_selected(request, git_cache, workspace_cache, source_limits)
         .map_err(ResolveGitPackageClosureError::Root)?;
     if !git_package_root_request_matches(request, &root) {
         return Err(ResolveGitPackageClosureError::RootRequestMismatch);
@@ -54,10 +54,9 @@ fn resolve_git_package_closure_from_lanes(
     let mut workspaces = BTreeMap::new();
     register_git_repository(
         &mut workspaces,
+        request.acquisition(),
         root.key().source_lineage(),
-        root.acquisition_root(),
         root.resolution(),
-        root.acquisition_materialization(),
         root.selection_evidence(),
         root.source_limits(),
     )

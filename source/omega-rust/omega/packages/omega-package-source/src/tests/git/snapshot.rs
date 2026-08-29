@@ -1,5 +1,178 @@
 use super::*;
 
+fn authenticated_single_file_member_tree(repository: &Path) -> (String, Vec<GitTreeEntry>) {
+    let bytes = b"machine Main::main() {}\n".to_vec();
+    let blob = run_test_git_with_input(repository, ["rev-parse", "HEAD:main.omg"], b"");
+    let tree = run_test_git_with_input(repository, ["rev-parse", "HEAD^{tree}"], b"");
+    let size = u64::try_from(bytes.len()).expect("test source size");
+    let end = bytes.len();
+    (
+        tree,
+        vec![GitTreeEntry {
+            relative_bytes: b"main.omg".to_vec(),
+            relative_path: PathBuf::from("main.omg"),
+            oid: blob,
+            size,
+            kind: GitTreeEntryKind::File {
+                executable: false,
+                bytes: GitBlobBytes {
+                    batch: Arc::new(bytes),
+                    start: 0,
+                    end,
+                },
+            },
+        }],
+    )
+}
+
+#[test]
+fn authenticated_member_snapshot_publishes_directly_in_workspace_member_lane() {
+    let (repository, _) = create_git_source("git-member-snapshot");
+    let (tree, entries) = authenticated_single_file_member_tree(&repository);
+    let storage_base = temp_root("git-member-snapshot-storage");
+    std::fs::create_dir_all(&storage_base).expect("create retained storage base");
+    let storage =
+        SourceResolverStorage::for_hardened_base(&storage_base).expect("retain resolver storage");
+    let executor =
+        test_system_git_executor(GitExecutionTransport::Https).expect("system Git executor");
+
+    let (snapshot_root, local) = publish_git_member_snapshot(
+        &executor,
+        storage.workspace_members(),
+        &tree,
+        entries,
+        LocalSourceLimits::default(),
+    )
+    .expect("publish authenticated member tree");
+
+    let publication = storage
+        .workspace_members()
+        .path()
+        .join(format!("tree-{tree}"));
+    assert_eq!(snapshot_root, publication.join(GIT_SNAPSHOT_SOURCE));
+    assert_eq!(
+        std::fs::read(snapshot_root.join("main.omg")).expect("read member snapshot"),
+        b"machine Main::main() {}\n"
+    );
+    assert_eq!(local.file_count, 1);
+    assert!(
+        storage
+            .workspace_members()
+            .path()
+            .join(format!("tree-{tree}.lock"))
+            .is_file()
+    );
+    assert!(
+        !storage
+            .workspace_members()
+            .path()
+            .join("snapshots")
+            .exists()
+    );
+    assert!(publication.join(GIT_SNAPSHOT_METADATA).is_file());
+
+    drop(storage);
+    let _ = std::fs::remove_dir_all(&repository);
+    make_tree_owner_writable(&storage_base);
+    let _ = std::fs::remove_dir_all(&storage_base);
+}
+
+#[cfg(unix)]
+#[test]
+fn authenticated_member_snapshot_reuse_rejects_tampered_publication() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let (repository, _) = create_git_source("git-member-snapshot-reuse");
+    let (tree, entries) = authenticated_single_file_member_tree(&repository);
+    let storage_base = temp_root("git-member-snapshot-reuse-storage");
+    std::fs::create_dir_all(&storage_base).expect("create retained storage base");
+    let storage =
+        SourceResolverStorage::for_hardened_base(&storage_base).expect("retain resolver storage");
+    let executor =
+        test_system_git_executor(GitExecutionTransport::Https).expect("system Git executor");
+
+    let (first_root, first_local) = publish_git_member_snapshot(
+        &executor,
+        storage.workspace_members(),
+        &tree,
+        entries.clone(),
+        LocalSourceLimits::default(),
+    )
+    .expect("publish member snapshot");
+    let (reused_root, reused_local) = publish_git_member_snapshot(
+        &executor,
+        storage.workspace_members(),
+        &tree,
+        entries.clone(),
+        LocalSourceLimits::default(),
+    )
+    .expect("reuse verified member snapshot");
+    assert_eq!(reused_root, first_root);
+    assert_eq!(reused_local, first_local);
+
+    let publication = first_root.parent().expect("publication root");
+    make_tree_owner_writable(publication);
+    let payload = first_root.join("main.omg");
+    std::fs::set_permissions(&payload, std::fs::Permissions::from_mode(0o644))
+        .expect("make member payload writable");
+    std::fs::write(&payload, b"machine Tampered::main() {}\n").expect("tamper member payload");
+    make_snapshot_read_only(publication).expect("restore snapshot modes");
+
+    let error = publish_git_member_snapshot(
+        &executor,
+        storage.workspace_members(),
+        &tree,
+        entries,
+        LocalSourceLimits::default(),
+    )
+    .expect_err("reuse must verify member snapshot content");
+    assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
+
+    drop(storage);
+    let _ = std::fs::remove_dir_all(&repository);
+    make_tree_owner_writable(&storage_base);
+    let _ = std::fs::remove_dir_all(&storage_base);
+}
+
+#[test]
+fn authenticated_member_snapshot_rejects_replaced_workspace_member_lane() {
+    let (repository, _) = create_git_source("git-member-snapshot-custody");
+    let (tree, entries) = authenticated_single_file_member_tree(&repository);
+    let storage_base = temp_root("git-member-snapshot-custody-storage");
+    std::fs::create_dir_all(&storage_base).expect("create retained storage base");
+    let storage =
+        SourceResolverStorage::for_hardened_base(&storage_base).expect("retain resolver storage");
+    let lane_path = storage.workspace_members().path().to_path_buf();
+    let retained_path = lane_path.with_extension("retained");
+    std::fs::rename(&lane_path, &retained_path).expect("move retained lane");
+    std::fs::create_dir(&lane_path).expect("replace lane pathname");
+    let executor =
+        test_system_git_executor(GitExecutionTransport::Https).expect("system Git executor");
+
+    let error = publish_git_member_snapshot(
+        &executor,
+        storage.workspace_members(),
+        &tree,
+        entries,
+        LocalSourceLimits::default(),
+    )
+    .expect_err("replaced workspace-member lane must reject");
+    assert!(error.to_string().contains("no longer identifies"));
+    assert_eq!(
+        std::fs::read_dir(&lane_path)
+            .expect("read replacement lane")
+            .count(),
+        0,
+        "publication must not enter a replacement lane"
+    );
+
+    drop(storage);
+    let _ = std::fs::remove_dir_all(&repository);
+    let _ = std::fs::remove_dir_all(&lane_path);
+    make_tree_owner_writable(&storage_base);
+    let _ = std::fs::remove_dir_all(&storage_base);
+}
+
 #[cfg(unix)]
 #[test]
 fn git_snapshot_preserves_paths_executable_modes_and_symlink_spelling() {

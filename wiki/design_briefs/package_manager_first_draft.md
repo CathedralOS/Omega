@@ -155,6 +155,12 @@ accepts a caller-authored member path. The resolved member path is retained as
 navigation/replay custody and as the base for relative dependencies, but it does
 not enter `PackageKey`; relocating the member does not replace the package.
 
+Omega syntax remains a manager responsibility: source acquisition exposes
+bounded authenticated declaration bytes to the manager planner and receives
+only validated member paths and the selected path in return. Source then opens
+and publishes the selected subtree from the already authenticated graph. The
+raw declarations remain replay evidence outside the compilation root.
+
 Target-conditioned requests use those same operations under exact branches of
 the immutable `builder.target` value. There is no `depend_when` family or
 condition string:

@@ -15,7 +15,7 @@ use crate::git::objects::{authentication::*, batch::*, identity::*, tree::*, *};
 use crate::git::process::{capture::*, command::*, identity::*, invocation::*, reconciliation::*};
 use crate::git::request::GitExecutionTransport;
 #[allow(unused_imports)]
-use crate::git::resolve::*;
+use crate::git::resolution::*;
 #[allow(unused_imports)]
 use crate::git::snapshot::{
     construction::*, materialization::*, metadata::*, permissions::*, publication::*,

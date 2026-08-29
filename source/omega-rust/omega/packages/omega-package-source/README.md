@@ -11,7 +11,15 @@ src/
 ├── lib.rs          public identity and acquisition entrance
 ├── identity/       names, lineages, locators, and immutable revisions
 ├── local/          capture and publish local immutable snapshots
-├── git/            fetch, authenticate, materialize, and retain Git trees
+├── git/            validated Git request through immutable publication
+│   ├── request.rs      validate transport, locator, revision, and endpoint
+│   ├── cache/          create, verify, repair, and invalidate retained stores
+│   ├── executable/     select and retain exact helper executables
+│   ├── process/        construct and reconcile bounded Git commands
+│   ├── objects/        authenticate commit/tree/blob object graphs
+│   ├── resolution/     acquire, authenticate, materialize, and issue custody
+│   ├── snapshot/       build and atomically publish immutable source trees
+│   └── workspace/      syntax-neutral workspace declaration exchange
 ├── custody/        locks, tree validation, and atomic publication
 ├── observations/   bounded successful-resolution observations
 ├── storage.rs      retained private storage and acquisition lanes

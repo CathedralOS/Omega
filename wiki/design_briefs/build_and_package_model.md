@@ -294,6 +294,14 @@ member whose own package declaration matches. The resolved member path is
 retained as navigation/replay custody and as the base for relative dependencies,
 but it is not `PackageKey` identity.
 
+The source resolver owns one syntax-neutral authenticated tree session. It
+opens the exact root declaration, accepts bounded member paths from the
+manager's Omega-aware planner, batch-opens those exact member declarations, and
+publishes only the selected authenticated member subtree. Declaration bytes are
+retained outside the compilation root for replay. Multiple selections in one
+closure reuse one exact commit/root-tree pin even when the authored revision is
+symbolic; they do not independently observe a moving branch.
+
 Library values such as `Source::Path`, `KiB`, and `Subsystem` carry the
 vocabulary. Adding a target option normally extends `Build`/library data rather
 than the parser. The compiler-provided build prelude now defines the canonical
