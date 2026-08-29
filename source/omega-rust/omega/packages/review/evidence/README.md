@@ -93,6 +93,12 @@ the package-qualified operator target, and excludes the static namespace from
 the optional value receiver. Target drift and explicit reference-argument type
 drift reject. This adds no new canonical atom beyond schema v84 / row v42.
 
+Atomic loads in public contracts retain the recursively projected loaded value
+and one closed checked ordering: `NoOrdering`, `Receive`, or `GlobalOrder`.
+Projection requires the load form and absence of a result carrier; stores,
+read-modify-write operations, swaps, compare-exchange operations, invalid load
+orderings, and post-check carrier drift reject. This is schema v85 / row v43.
+
 Operator-bound external supply retains its requirement as the exact existing
 package-qualified operator coordinate in the opaque-blocking executable-supply
 row. Projection rejoins that coordinate with the retained overload symbol and,
@@ -109,4 +115,4 @@ provider identity, selected target, selection authority, complete-declaration
 coverage, and the canonical exact-coordinate-to-plan mapping. Independent
 single-coordinate selections are not inferred into a family.
 
-The canonical review schema is version 84 and row schema version 42.
+The canonical review schema is version 85 and row schema version 43.

@@ -61,6 +61,13 @@ pub enum PackageReviewReferenceAccess {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewAtomicLoadOrdering {
+    NoOrdering,
+    Receive,
+    GlobalOrder,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewArithmeticDomain {
     Exact,
     Wrapping,
@@ -241,6 +248,12 @@ pub enum PackageReviewContractExpression {
     Reference {
         access: PackageReviewReferenceAccess,
         target: Box<PackageReviewContractExpression>,
+    },
+    /// One denotational atomic load retained with its exact checked ordering.
+    /// Mutation-bearing atomic operations remain outside contract identity.
+    AtomicLoad {
+        value: Box<PackageReviewContractExpression>,
+        ordering: PackageReviewAtomicLoadOrdering,
     },
     /// Proof-only observation of one exact type's normalized all-zero home
     /// representation. The checker rejects quotient targets before review.

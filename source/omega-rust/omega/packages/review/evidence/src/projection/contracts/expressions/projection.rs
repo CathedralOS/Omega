@@ -19,9 +19,9 @@ use super::static_arguments::{
     contract_call_static_parameter_kinds, project_contract_static_argument,
 };
 use crate::evidence::{
-    PackageReviewArithmeticDomain, PackageReviewCastForm, PackageReviewContractCallTarget,
-    PackageReviewContractExpression, PackageReviewContractOperatorMeaning,
-    PackageReviewFloatLiteral, PackageReviewReferenceAccess,
+    PackageReviewArithmeticDomain, PackageReviewAtomicLoadOrdering, PackageReviewCastForm,
+    PackageReviewContractCallTarget, PackageReviewContractExpression,
+    PackageReviewContractOperatorMeaning, PackageReviewFloatLiteral, PackageReviewReferenceAccess,
 };
 use crate::projection::contracts::metadata::contracts::ContractProjectionContext;
 use crate::projection::exact_identity::nominal_identities::{
@@ -115,6 +115,41 @@ pub(crate) fn project_contract_expression_with_substitutions(
         )),
         ExpressionNode::StructLiteral(literal) => {
             project_contract_constructor_expression(compilation, context, literal, &child)
+        }
+        ExpressionNode::Atomic(atomic) => {
+            if !atomic.value.is_valid() || atomic.result.is_valid() {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed {} `{}` contains an inconsistent atomic-load expression",
+                    context.subject_kind, context.subject_name
+                ))]);
+            }
+            let ordering = match atomic.ordering {
+                psi_language_core::atomic::AtomicOrderingPlan::Load(
+                    psi_language_core::atomic::MemoryOrdering::NoOrdering,
+                ) => PackageReviewAtomicLoadOrdering::NoOrdering,
+                psi_language_core::atomic::AtomicOrderingPlan::Load(
+                    psi_language_core::atomic::MemoryOrdering::Receive,
+                ) => PackageReviewAtomicLoadOrdering::Receive,
+                psi_language_core::atomic::AtomicOrderingPlan::Load(
+                    psi_language_core::atomic::MemoryOrdering::GlobalOrder,
+                ) => PackageReviewAtomicLoadOrdering::GlobalOrder,
+                psi_language_core::atomic::AtomicOrderingPlan::Load(_) => {
+                    return Err(vec![Diagnostic::error(format!(
+                        "reviewed {} `{}` contains an atomic load with an invalid ordering",
+                        context.subject_kind, context.subject_name
+                    ))]);
+                }
+                _ => {
+                    return Err(vec![Diagnostic::error(format!(
+                        "reviewed {} `{}` contains a mutation-bearing atomic contract expression",
+                        context.subject_kind, context.subject_name
+                    ))]);
+                }
+            };
+            Ok(PackageReviewContractExpression::AtomicLoad {
+                value: Box::new(child(atomic.value)?),
+                ordering,
+            })
         }
         ExpressionNode::Indexed(indexed) => Ok(PackageReviewContractExpression::Indexed {
             meaning: exact_checked_contract_operator_meaning(compilation, context, expression)?,
@@ -572,9 +607,5 @@ pub(crate) fn project_contract_expression_with_substitutions(
                 },
             })
         }
-        _ => Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` uses a contract expression form not yet represented by package review",
-            context.subject_kind, context.subject_name
-        ))]),
     }
 }

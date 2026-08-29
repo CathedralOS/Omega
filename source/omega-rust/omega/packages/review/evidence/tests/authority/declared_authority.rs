@@ -104,8 +104,8 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 84);
-    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 42);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 85);
+    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 43);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };

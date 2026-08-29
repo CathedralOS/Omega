@@ -2,11 +2,11 @@ use crate::encoding::PackageReviewEncodingError;
 use crate::encoding::canonical::declarations::encode_type_identity;
 use crate::encoding::canonical::encoder::Encoder;
 use crate::evidence::{
-    PackageReviewArithmeticDomain, PackageReviewByteSequencePredicate, PackageReviewCastForm,
-    PackageReviewContractBinaryOperator, PackageReviewContractCallTarget,
-    PackageReviewContractExpression, PackageReviewContractOperatorMeaning,
-    PackageReviewContractStaticArgument, PackageReviewContractUnaryOperator,
-    PackageReviewFloatLiteral, PackageReviewReferenceAccess,
+    PackageReviewArithmeticDomain, PackageReviewAtomicLoadOrdering,
+    PackageReviewByteSequencePredicate, PackageReviewCastForm, PackageReviewContractBinaryOperator,
+    PackageReviewContractCallTarget, PackageReviewContractExpression,
+    PackageReviewContractOperatorMeaning, PackageReviewContractStaticArgument,
+    PackageReviewContractUnaryOperator, PackageReviewFloatLiteral, PackageReviewReferenceAccess,
 };
 
 use super::declarations::encode_operator_coordinate;
@@ -97,6 +97,15 @@ pub(crate) fn encode_contract_expression(
                 PackageReviewReferenceAccess::WriteOnly => 2,
             });
             encode_contract_expression(encoder, target)?;
+        }
+        PackageReviewContractExpression::AtomicLoad { value, ordering } => {
+            encoder.byte(21);
+            encoder.byte(match ordering {
+                PackageReviewAtomicLoadOrdering::NoOrdering => 0,
+                PackageReviewAtomicLoadOrdering::Receive => 1,
+                PackageReviewAtomicLoadOrdering::GlobalOrder => 2,
+            });
+            encode_contract_expression(encoder, value)?;
         }
         PackageReviewContractExpression::ZeroValue(type_identity) => {
             encoder.byte(13);
