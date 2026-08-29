@@ -174,6 +174,9 @@ entrance.
 Active-resident function-relative realization follows the same structure and
 keeps corruption helpers in a test-support leaf rather than production
 mechanics.
+Receiver-free Unit function-relative realization likewise keeps construction,
+replay, Unit-shape admission, manifest reconstruction, custody, and model
+behind one small entrance.
 Liveness computation and pre-allocation machine-effect encoding also keep
 their broad fixtures in sibling test leaves, so production file size measures
 production responsibility.
