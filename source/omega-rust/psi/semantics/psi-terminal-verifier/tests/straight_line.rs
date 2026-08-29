@@ -5,7 +5,7 @@ use psi_core::{
     ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
     ObligationId, OperationId, PlaceId, Proposition, PropositionError, ScalarTerm, ScalarType,
     StructuralCaseId, StructuralCaseSubject, StructuralPlaceKind, StructuralTypeId, ValueId,
-    content_conservation_fingerprint,
+    content_conservation_report_fingerprint,
 };
 use psi_proof_admission::{
     AdmissionProfile, CertificateEnvelope, EvidenceError, EvidenceRoute, PrimitiveJudgment,
@@ -4011,8 +4011,8 @@ fn crash_frontier_must_name_every_still_live_entry_claim() {
 fn partition_composition_rejects_theorem_drift() {
     let (mut fingerprint_drift, _, _) = partition_composition_module();
     let composition = &mut fingerprint_drift.machines[0].content_partition_compositions[0];
-    let reconstructed = composition.source_fingerprint;
-    composition.source_fingerprint ^= 1;
+    let reconstructed = composition.source_report_fingerprint;
+    composition.source_report_fingerprint ^= 1;
     assert_eq!(
         validate_module(&fingerprint_drift)
             .expect_err("the source theorem fingerprint must be independently reconstructed"),
@@ -4134,10 +4134,11 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
     );
     let projection = ContentProjectionIdentity {
         domain: ContentDomainId::new(90).expect("content domain"),
-        projection_fingerprint: psi_language_semantics::content::terminal_projection_fingerprint(
-            &algebra,
-            &expression,
-        ),
+        projection_report_fingerprint:
+            psi_language_semantics::content::terminal_projection_report_fingerprint(
+                &algebra,
+                &expression,
+            ),
     };
     let reshuffle = ContentIdentityReshuffle {
         claim,
@@ -4561,10 +4562,11 @@ fn partition_composition_module() -> (TerminalModule, Proposition, ObligationId)
     );
     let projection = ContentProjectionIdentity {
         domain: ContentDomainId::new(90).expect("content domain"),
-        projection_fingerprint: psi_language_semantics::content::terminal_projection_fingerprint(
-            &algebra,
-            &expression,
-        ),
+        projection_report_fingerprint:
+            psi_language_semantics::content::terminal_projection_report_fingerprint(
+                &algebra,
+                &expression,
+            ),
     };
     let source_input_root = PlaceId::new(190).expect("source input");
     let place = |version, root, segments| ContentStructuralPlace {
@@ -4636,11 +4638,12 @@ fn partition_composition_module() -> (TerminalModule, Proposition, ObligationId)
         .iter()
         .map(|place| (place.id, place.kind))
         .collect();
-    let source_fingerprint = content_conservation_fingerprint(&source, &source_place_kinds)
-        .expect("the fixture source theorem has a checked fingerprint preimage");
+    let source_report_fingerprint =
+        content_conservation_report_fingerprint(&source, &source_place_kinds)
+            .expect("the fixture source theorem has a checked fingerprint preimage");
     let composition = ContentPartitionComposition {
         producer_operation: operation,
-        source_fingerprint,
+        source_report_fingerprint,
         source_structural_places: source_structural_places.clone(),
         source: source.clone(),
         input_claims: vec![claim],
@@ -4742,7 +4745,7 @@ fn partition_composition_module() -> (TerminalModule, Proposition, ObligationId)
         requires: Vec::new(),
         program_local_root_introductions: Vec::new(),
         content_guarantees: vec![ContentConservationGuarantee {
-            fingerprint: source_fingerprint,
+            report_fingerprint: source_report_fingerprint,
             structural_places: source_structural_places,
             conservation: source,
         }],
@@ -4840,7 +4843,7 @@ fn reflexive_content_module() -> (TerminalModule, Proposition, ObligationId) {
     let subject = ContentTerm::Projection {
         projection: ContentProjectionIdentity {
             domain: ContentDomainId::new(80).expect("content domain"),
-            projection_fingerprint: 0x8055,
+            projection_report_fingerprint: 0x8055,
         },
         subject: ContentStructuralPlace {
             version: ContentPlaceVersion::Entry,

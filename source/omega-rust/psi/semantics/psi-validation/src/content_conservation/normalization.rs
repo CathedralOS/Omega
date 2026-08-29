@@ -120,7 +120,7 @@ fn normalize_term(
             domain: projection.domain,
             semantic_domain: projection.semantic_domain,
             projection_machine: projection.machine,
-            projection_fingerprint: projection.fingerprint,
+            projection_report_fingerprint: projection.report_fingerprint,
             subject,
         },
         projection.algebra.clone(),

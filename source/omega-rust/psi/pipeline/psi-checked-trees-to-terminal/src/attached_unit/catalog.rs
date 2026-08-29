@@ -49,7 +49,7 @@ pub(super) fn lower_program_local_root_introductions(
         if !authorizes_requirement {
             continue;
         }
-        if projection.fingerprint == 0 {
+        if projection.report_fingerprint == 0 {
             return unsupported("program-local root projection has a null identity");
         }
         let qualification = lookup_domain_id(domain_ids, requirement.domain)?;

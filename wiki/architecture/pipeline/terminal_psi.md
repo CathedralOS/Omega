@@ -613,24 +613,29 @@ a scalar-runtime row retains its scalar result type and links one canonical
 caller, have the declared result shape, and call the linked callee; a missing,
 spurious, unknown, wrong-kind, wrong-caller, or mismatched-callee link rejects.
 For a generic callee, the target-machine identity composes the checked
-specialization fingerprint, which includes every concrete type, `const`,
-static-machine, and closed conformance selection. The proof row therefore
-cannot alias another application that happens to retain the same post-
-specialization callable shape. The proof row adds no operation or fuel beyond
-that ordinary call.
+specialization report fingerprint and its strong identity, including every
+concrete type, `const`, static-machine, and closed conformance selection. The
+proof row therefore cannot alias another application that happens to retain the
+same post-specialization callable shape. The proof row adds no operation or
+fuel beyond that ordinary call.
 
 For the first attached static trait-requirement proof call, the public target
 is the requirement's normalized callable identity rather than the concrete machine.
 A separate private dispatch row retains the caller-owned closed-conformance
-application, exact declaring trait/requirement/realization row, and emitted
+application, its domain-separated commitment, exact declaring trait/
+requirement/realization row, and emitted
 Unit callee. The selected output has no satisfier callee-term or forwarding
 coordinate: its requirement proposition and public selector authorize one
 fresh caller-local opaque term. Representation validation rejoins the public
 identity to the canonical row, the row to the owner-scoped application, and
 the private realization to the ordinary `CallUnit`; it rejects missing
-dispatch, identity or fingerprint drift, private forwarding/provenance leakage,
-and reuse of an input or prior output term. Codec format 33 / vocabulary 35
-preserve this split. Erasing the proof rows leaves runtime parameter/result
+dispatch, identity, commitment, or report-fingerprint drift, private
+forwarding/provenance leakage, and reuse of an input or prior output term. Codec
+format 33 / vocabulary 38 preserve this split and serialize the application
+and dispatch commitments. Terminal validation recomputes the application
+commitment from its complete source-free structure, selects dispatch by owner
+plus that commitment, and then replays the exact row. The compact fingerprint
+is report/index data only. Erasing the proof rows leaves runtime parameter/result
 shape, storage, operations, and fixed fuel unchanged.
 
 Outcome
@@ -720,7 +725,7 @@ projection and algebra; it does not infer content from carrier bytes or from
 the domain name.
 Vocabulary 27 retains that normalized projection on the owning structural
 domain independently from any route, claim, or producer schema. Validation
-replays its algebra, expression, carrier paths, and fingerprint before checking
+replays its algebra, expression, carrier paths, and report fingerprint before checking
 that every use cites the exact owner definition. A producer therefore cannot
 coherently understate capacity by rewriting both its schema expression and its
 derived schema identity.
@@ -2051,9 +2056,9 @@ conservation guarantee, and checks the call's structural arguments against the
 recorded substitution. Reconstruction introduces the derived theorem only
 after that exact call completes successfully; it is unavailable to earlier
 operations and absent from rejection or crash paths. Boundary guarantees are
-canonical semantic rows, not provider admissions. Fingerprints identify
-canonical content for reporting and caches; neither a producer-carried row nor
-a matching fingerprint authorizes a theorem by itself. Structural-result-rooted
+canonical semantic rows, not provider admissions. Report fingerprints identify
+canonical content for diagnostics and caches; neither a producer-carried row
+nor a matching compact value authorizes a theorem by itself. Structural-result-rooted
 correspondence is admitted only through the explicit root-only internal
 `CallStructural` carrier described above. Wider or bodyless structural results
 remain fenced. At a bodyless partial
@@ -2125,12 +2130,16 @@ lineage ID is only a report key. Aggregate schemas remain accounting evidence
 and are not silently converted into one shared parent root.
 
 The same installation registry owns build-bound progress closure. It seals the
-complete selected provider-plan set to exact installed provider occurrences,
+complete selected provider-plan set and its domain-separated selected-closure
+digest to exact installed provider occurrences,
 then admits a `ProgressProfile` receipt only when the exact issuer occurrence
 realizes one owner-authorized boundary route and the receipt qualifies the
 exact subject occurrence. Issuer and subject need not be the same occurrence.
-Component closure checks every canonical pending row before committing and
-retains the original manifest plus exact evidence. Terminal installation
+Component closure checks every canonical pending row and replays the manifest's
+own domain-separated digest before committing. A compact-equal manifest or
+selected-provider closure with different exact structure rejects. The compact
+values are compatibility-report coordinates only. Closure retains the original
+manifest plus exact evidence. Terminal installation
 format 42 records structural access modes plus the manifest and acceptance
 report identities in the hashed installation bytes. Runnable publication
 additionally joins the complete

@@ -29,7 +29,7 @@ use psi_language_semantics::content::{
     ContentConservationOwnerKind, ContentConservationPlan, ContentConservationTerm,
     ContentFieldSegment, ContentPlaceRoot, ContentPlaceVersion, ContentProjectionExpression,
     ContentProjectionPlan, ContentScalarExpression, ContentStructuralPlace,
-    conservation_fingerprint, projection_fingerprint,
+    conservation_report_fingerprint, projection_report_fingerprint,
 };
 use psi_language_semantics::{
     BlockingInterface, BlockingPlan, BlockingSummary, CarryAddress, CarryCpu, CarryHostThread,

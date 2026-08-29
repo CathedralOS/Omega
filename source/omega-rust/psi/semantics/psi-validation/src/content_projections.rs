@@ -11,7 +11,7 @@ use psi_diagnostics::Diagnostic;
 use psi_language_semantics::content::{
     ContentAlgebraIdentity, ContentArithmeticOperator, ContentFieldSegment,
     ContentIntervalExpression, ContentProjectionExpression, ContentProjectionPlan,
-    ContentScalarExpression, projection_fingerprint,
+    ContentScalarExpression, projection_report_fingerprint,
 };
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
@@ -209,7 +209,7 @@ pub fn build_content_projection_plans(program: &TypedTrees) -> Vec<ContentProjec
                         &algebra,
                         projection_result_expression(program, machine)?,
                     )?;
-                    let fingerprint = projection_fingerprint(&algebra, &expression);
+                    let report_fingerprint = projection_report_fingerprint(&algebra, &expression);
                     Some(ContentProjectionPlan {
                         domain: domain.symbol,
                         semantic_domain: candidate.semantic_domain,
@@ -219,7 +219,7 @@ pub fn build_content_projection_plans(program: &TypedTrees) -> Vec<ContentProjec
                         machine: machine.symbol,
                         algebra,
                         expression,
-                        fingerprint,
+                        report_fingerprint,
                     })
                 })
         })

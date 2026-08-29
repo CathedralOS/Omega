@@ -229,7 +229,9 @@ pub struct ContentProjectionPlan {
     pub machine: SymbolHandle,
     pub algebra: ContentAlgebraIdentity,
     pub expression: ContentProjectionExpression,
-    pub fingerprint: u64,
+    /// Non-authoritative compact coordinate. Exact algebra and expression,
+    /// joined through the owner domain, define the projection.
+    pub report_fingerprint: u64,
 }
 
 /// Which declared callable owns an authored content-conservation equation.
@@ -277,15 +279,17 @@ pub struct ContentStructuralPlace {
 }
 
 /// Closed content expression admitted in an authored conservation equation.
-/// Projection identity is exact and `Separate` children are flattened and
-/// canonically sorted, so package spelling order cannot perturb semantics.
+/// Projection ownership is exact; the compact projection report fingerprint
+/// is only a cache/report coordinate beside that owner definition. `Separate`
+/// children are flattened and canonically sorted, so package spelling order
+/// cannot perturb semantics.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ContentConservationTerm {
     Projection {
         domain: SymbolHandle,
         semantic_domain: SemanticDomainId,
         projection_machine: SymbolHandle,
-        projection_fingerprint: u64,
+        projection_report_fingerprint: u64,
         subject: ContentStructuralPlace,
     },
     Separate(Vec<ContentConservationTerm>),
@@ -341,10 +345,14 @@ pub struct ContentConservationPlan {
     pub callable: SymbolHandle,
     pub algebra: ContentAlgebraIdentity,
     pub equation: ContentConservationEquation,
-    pub fingerprint: u64,
+    /// Non-authoritative compact coordinate for reports and caches. The exact
+    /// equation is retained and replayed wherever the theorem is consumed.
+    pub report_fingerprint: u64,
 }
 
-pub fn conservation_fingerprint(
+/// Compute the non-authoritative compact report coordinate for an exact
+/// conservation equation. Consumers retain and replay the equation itself.
+pub fn conservation_report_fingerprint(
     algebra: &ContentAlgebraIdentity,
     equation: &ContentConservationEquation,
 ) -> u64 {
@@ -384,13 +392,13 @@ fn encode_content_conservation_term(term: &ContentConservationTerm, output: &mut
     match term {
         ContentConservationTerm::Projection {
             semantic_domain,
-            projection_fingerprint,
+            projection_report_fingerprint,
             subject,
             ..
         } => {
             output.push(1);
             output.extend_from_slice(&semantic_domain.0.to_le_bytes());
-            output.extend_from_slice(&projection_fingerprint.to_le_bytes());
+            output.extend_from_slice(&projection_report_fingerprint.to_le_bytes());
             output.push(match subject.version {
                 ContentPlaceVersion::Entry => 1,
                 ContentPlaceVersion::Current => 2,
@@ -432,7 +440,9 @@ fn encode_content_conservation_term(term: &ContentConservationTerm, output: &mut
     }
 }
 
-pub fn projection_fingerprint(
+/// Compute the non-authoritative compact report coordinate for an exact
+/// owner-retained projection algebra and expression.
+pub fn projection_report_fingerprint(
     algebra: &ContentAlgebraIdentity,
     expression: &ContentProjectionExpression,
 ) -> u64 {
@@ -447,9 +457,10 @@ pub fn projection_fingerprint(
     })
 }
 
-/// Recompute the same projection identity after frontend symbols have erased.
-/// This is the verifier bridge for portable program-local root schemas.
-pub fn terminal_projection_fingerprint(
+/// Recompute the same compact projection report coordinate after frontend
+/// symbols have erased. The verifier separately rejoins the exact owner
+/// definition for portable program-local root schemas.
+pub fn terminal_projection_report_fingerprint(
     algebra: &psi_core::ContentAlgebra,
     expression: &psi_core::ContentProjectionExpression,
 ) -> u64 {
@@ -672,7 +683,7 @@ mod tests {
     }
 
     #[test]
-    fn projection_fingerprint_ignores_arena_local_field_symbols() {
+    fn projection_report_fingerprint_ignores_arena_local_field_symbols() {
         let expression = |index| ContentProjectionExpression::CountedQuantity {
             magnitude: ContentScalarExpression::SubjectField(vec![ContentFieldSegment {
                 symbol: SymbolHandle::from_arena_index(index),
@@ -684,8 +695,8 @@ mod tests {
         };
 
         assert_eq!(
-            projection_fingerprint(&algebra, &expression(7)),
-            projection_fingerprint(&algebra, &expression(91))
+            projection_report_fingerprint(&algebra, &expression(7)),
+            projection_report_fingerprint(&algebra, &expression(91))
         );
     }
 
@@ -702,8 +713,8 @@ mod tests {
         };
 
         assert_eq!(
-            projection_fingerprint(&algebra, &expression(7)),
-            projection_fingerprint(&algebra, &expression(91))
+            projection_report_fingerprint(&algebra, &expression(7)),
+            projection_report_fingerprint(&algebra, &expression(91))
         );
     }
 
@@ -720,13 +731,13 @@ mod tests {
         };
 
         assert_eq!(
-            projection_fingerprint(&algebra, &expression),
+            projection_report_fingerprint(&algebra, &expression),
             0x0042_e73e_1d08_fd01
         );
     }
 
     #[test]
-    fn conservation_fingerprint_normalizes_equation_and_separate_order() {
+    fn conservation_report_fingerprint_normalizes_equation_and_separate_order() {
         let algebra = ContentAlgebraIdentity::CountedQuantity {
             unit: "named(name(ByteUnit))".to_owned(),
         };
@@ -734,7 +745,7 @@ mod tests {
             domain: SymbolHandle::from_arena_index(71),
             semantic_domain: SemanticDomainId(9),
             projection_machine: SymbolHandle::from_arena_index(72),
-            projection_fingerprint: 0x1122_3344_5566_7788,
+            projection_report_fingerprint: 0x1122_3344_5566_7788,
             subject,
         };
         let entry = |name: &str, symbol_index| ContentStructuralPlace {
@@ -771,11 +782,11 @@ mod tests {
             projection(entry("renamed", 100)),
         );
 
-        let fingerprint = conservation_fingerprint(&algebra, &first);
+        let report_fingerprint = conservation_report_fingerprint(&algebra, &first);
         assert_eq!(
-            fingerprint,
-            conservation_fingerprint(&algebra, &renamed_and_reordered)
+            report_fingerprint,
+            conservation_report_fingerprint(&algebra, &renamed_and_reordered)
         );
-        assert_eq!(fingerprint, 0xbca0_a611_d59c_b3c1);
+        assert_eq!(report_fingerprint, 0xbca0_a611_d59c_b3c1);
     }
 }

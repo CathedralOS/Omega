@@ -135,8 +135,8 @@ pub(crate) fn content_entry_claim(
         projections: vec![psi_terminal::ClaimContentProjection {
             projection: psi_core::ContentProjectionIdentity {
                 domain: id(1, psi_core::ContentDomainId::new),
-                projection_fingerprint:
-                    psi_language_semantics::content::terminal_projection_fingerprint(
+                projection_report_fingerprint:
+                    psi_language_semantics::content::terminal_projection_report_fingerprint(
                         &algebra,
                         &expression,
                     ),
@@ -164,8 +164,8 @@ pub(crate) fn install_content_owner(unit: &mut PsiOptimizationUnit) {
         content_projection: Some(psi_terminal::StructuralContentProjection {
             identity: psi_core::ContentProjectionIdentity {
                 domain: id(semantic_domain.get(), psi_core::ContentDomainId::new),
-                projection_fingerprint:
-                    psi_language_semantics::content::terminal_projection_fingerprint(
+                projection_report_fingerprint:
+                    psi_language_semantics::content::terminal_projection_report_fingerprint(
                         &algebra,
                         &expression,
                     ),

@@ -28,7 +28,10 @@ pub(super) fn content_partition_input_validation_fixture() -> CheckedTrees {
         owner: reshuffle.plan.owner,
         callable: reshuffle.plan.callable,
         algebra: reshuffle.plan.algebra.clone(),
-        fingerprint: conservation_fingerprint(&reshuffle.plan.algebra, &source_equation),
+        report_fingerprint: conservation_report_fingerprint(
+            &reshuffle.plan.algebra,
+            &source_equation,
+        ),
         equation: source_equation,
     };
     let mut substitution_subjects = Vec::new();
@@ -79,7 +82,7 @@ pub(super) fn content_partition_input_validation_fixture() -> CheckedTrees {
             machine_symbol: reshuffle.machine_symbol,
             state_symbol: reshuffle.state_symbol,
             source_callable: source_plan.callable,
-            source_fingerprint: source_plan.fingerprint,
+            source_report_fingerprint: source_plan.report_fingerprint,
             source_derivation_depth: 0,
             source_plan: source_plan.clone(),
             statement_index: 4,
@@ -478,13 +481,13 @@ fn content_partition_substitution_manifest_rejects_projection_tuple_drift() {
                 domain,
                 semantic_domain,
                 projection_machine,
-                projection_fingerprint,
+                projection_report_fingerprint,
                 subject,
             } => ContentConservationTerm::Projection {
                 domain: SymbolHandle::from_arena_index(domain.arena_index() + 1000),
                 semantic_domain: *semantic_domain,
                 projection_machine: *projection_machine,
-                projection_fingerprint: *projection_fingerprint,
+                projection_report_fingerprint: *projection_report_fingerprint,
                 subject: subject.clone(),
             },
             ContentConservationTerm::Separate(terms) => {

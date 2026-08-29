@@ -236,7 +236,10 @@ pub struct ProofOutputCallFact {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct StaticRequirementDispatchFact {
+    /// Compact report coordinate; authority uses `application_commitment`.
     pub application_fingerprint: u64,
+    pub application_commitment:
+        psi_typed_trees::typed_trees::ClosedConformanceApplicationCommitment,
     pub declaring_trait: SymbolHandle,
     pub requirement: SymbolHandle,
     pub realization_machine: SymbolHandle,

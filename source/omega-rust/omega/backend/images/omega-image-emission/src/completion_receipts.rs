@@ -124,7 +124,7 @@ fn claim_source_is_canonical(source: &CompletionClaimSource) -> bool {
                 )
             })
             && content.projections.iter().all(|projection| {
-                projection.projection.projection_fingerprint != 0
+                projection.projection.projection_report_fingerprint != 0
                     && !projection.algebra.parameter.is_empty()
             })
     });
@@ -286,7 +286,7 @@ mod tests {
                 projections: vec![psi_terminal::ClaimContentProjection {
                     projection: psi_core::ContentProjectionIdentity {
                         domain: psi_core::ContentDomainId::new(1).expect("domain"),
-                        projection_fingerprint: 7,
+                        projection_report_fingerprint: 7,
                     },
                     algebra: psi_core::ContentAlgebra {
                         kind: psi_core::ContentAlgebraKind::CountedQuantity,

@@ -94,7 +94,9 @@ pub struct DurablyStoredComponentDeploymentJournal {
     record: ComponentDeploymentJournalRecord,
     path: PathBuf,
     byte_count: usize,
-    byte_fingerprint: u64,
+    /// Non-authoritative compact coordinate for restart reports. Validation
+    /// authorizes only through exact canonical bytes plus decoded-record replay.
+    byte_compatibility_report_fingerprint: u64,
 }
 
 impl DurablyStoredComponentDeploymentJournal {
@@ -110,8 +112,8 @@ impl DurablyStoredComponentDeploymentJournal {
         self.byte_count
     }
 
-    pub const fn byte_fingerprint(&self) -> u64 {
-        self.byte_fingerprint
+    pub const fn byte_compatibility_report_fingerprint(&self) -> u64 {
+        self.byte_compatibility_report_fingerprint
     }
 
     pub fn validate(&self) -> Result<(), ComponentDeploymentJournalStorageDiagnostic> {
@@ -132,7 +134,8 @@ impl DurablyStoredComponentDeploymentJournal {
         if decoded != self.record
             || bytes != expected
             || bytes.len() != self.byte_count
-            || fingerprint_bytes(&bytes) != self.byte_fingerprint
+            || non_authoritative_byte_compatibility_fingerprint(&bytes)
+                != self.byte_compatibility_report_fingerprint
         {
             return Err(storage_diagnostic(
                 "durable deployment journal bytes or retained identity drifted",
@@ -277,7 +280,9 @@ pub fn durably_store_component_deployment_journal(
         record,
         path,
         byte_count: bytes.len(),
-        byte_fingerprint: fingerprint_bytes(&bytes),
+        byte_compatibility_report_fingerprint: non_authoritative_byte_compatibility_fingerprint(
+            &bytes,
+        ),
     })
 }
 
@@ -311,7 +316,9 @@ pub fn load_durable_component_deployment_journal(
         record,
         path,
         byte_count: bytes.len(),
-        byte_fingerprint: fingerprint_bytes(&bytes),
+        byte_compatibility_report_fingerprint: non_authoritative_byte_compatibility_fingerprint(
+            &bytes,
+        ),
     };
     stored.validate()?;
     Ok(stored)
@@ -375,7 +382,7 @@ fn storage_diagnostic(
     ComponentDeploymentJournalStorageDiagnostic(diagnostic.into())
 }
 
-fn fingerprint_bytes(bytes: &[u8]) -> u64 {
+fn non_authoritative_byte_compatibility_fingerprint(bytes: &[u8]) -> u64 {
     let mut hash = 0xcbf2_9ce4_8422_2325u64;
     for byte in bytes {
         hash ^= u64::from(*byte);

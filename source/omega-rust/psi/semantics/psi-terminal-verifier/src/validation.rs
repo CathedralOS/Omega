@@ -7,7 +7,7 @@ use psi_core::{
     EvidenceTermId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId, OperationId,
     PlaceId, Proposition, PropositionContext, PropositionId, ScalarTerm, ScalarType, ServiceId,
     StructuralDomainId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
-    content_conservation_fingerprint,
+    content_conservation_report_fingerprint,
 };
 use psi_terminal::{
     BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, ContentPartitionComposition,

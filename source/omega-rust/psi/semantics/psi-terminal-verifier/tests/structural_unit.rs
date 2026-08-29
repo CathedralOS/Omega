@@ -1626,7 +1626,7 @@ fn ordinary_unit_calls_cannot_mint_or_drop_content_claims() {
     let mut reinterpreted = matching;
     reinterpreted.machines[1].content_entry_claims[0].projections[0]
         .projection
-        .projection_fingerprint ^= 1;
+        .projection_report_fingerprint ^= 1;
     assert_eq!(
         validate_module(&reinterpreted).unwrap_err(),
         ModuleError::UnitCallContentClaimMismatch {
@@ -4625,8 +4625,8 @@ fn content_owner_projection() -> StructuralContentProjection {
     StructuralContentProjection {
         identity: ContentProjectionIdentity {
             domain: ContentDomainId::new(1).expect("content domain"),
-            projection_fingerprint:
-                psi_language_semantics::content::terminal_projection_fingerprint(
+            projection_report_fingerprint:
+                psi_language_semantics::content::terminal_projection_report_fingerprint(
                     &algebra,
                     &expression,
                 ),
@@ -4659,7 +4659,7 @@ fn empty_contract(id: ContractId) -> MachineContract {
 fn content_predicate(root: PlaceId) -> Proposition {
     let projection = ContentProjectionIdentity {
         domain: ContentDomainId::new(1).expect("content domain"),
-        projection_fingerprint: 1,
+        projection_report_fingerprint: 1,
     };
     let projected = |field: &str| ContentTerm::Projection {
         projection,

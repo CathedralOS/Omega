@@ -807,6 +807,7 @@ fn checked_static_requirement_dispatch<'program>(
     };
 
     if dispatch.application_fingerprint == 0
+        || dispatch.application_commitment.is_zero()
         || dispatch.realization_machine != realization_machine.symbol
         || dispatch.realization_state != realization_state.symbol
         || call.target_symbol != realization_state.symbol
@@ -821,7 +822,10 @@ fn checked_static_requirement_dispatch<'program>(
         .iter()
         .filter(|specialization| specialization.instance == caller_machine)
         .flat_map(|specialization| &specialization.conformance_applications)
-        .filter(|application| application.fingerprint == dispatch.application_fingerprint)
+        .filter(|application| {
+            application.fingerprint == dispatch.application_fingerprint
+                && application.commitment == dispatch.application_commitment
+        })
         .collect::<Vec<_>>();
     let [application] = applications.as_slice() else {
         return Err(rejected(
@@ -982,6 +986,7 @@ fn checked_static_requirement_dispatch<'program>(
     Ok(Some((
         psi_checked_trees::StaticRequirementDispatchFact {
             application_fingerprint: dispatch.application_fingerprint,
+            application_commitment: dispatch.application_commitment,
             declaring_trait: dispatch.declaring_trait,
             requirement: dispatch.requirement,
             realization_machine: dispatch.realization_machine,

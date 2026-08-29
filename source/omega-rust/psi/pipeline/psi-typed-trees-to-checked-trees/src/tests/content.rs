@@ -48,7 +48,7 @@ fn checked_facts_retain_normalized_content_projection() {
     };
     assert!(plan.domain.is_valid());
     assert!(plan.machine.is_valid());
-    assert_ne!(plan.fingerprint, 0);
+    assert_ne!(plan.report_fingerprint, 0);
     assert!(matches!(
         &plan.algebra,
         ContentAlgebraIdentity::CountedQuantity { unit }
@@ -259,7 +259,7 @@ fn checked_facts_retain_normalized_content_conservation() {
     );
     assert!(plan.owner.is_valid());
     assert!(plan.callable.is_valid());
-    assert_ne!(plan.fingerprint, 0);
+    assert_ne!(plan.report_fingerprint, 0);
     assert!(matches!(
         &plan.algebra,
         ContentAlgebraIdentity::CountedQuantity { unit }
@@ -835,8 +835,8 @@ fn checked_facts_compose_authored_partitions_through_a_direct_wrapper() {
         .expect("direct wrapper composition");
     assert_eq!(forward_row.source_callable, partition);
     assert_eq!(
-        forward_row.source_fingerprint,
-        forward_row.source_plan.fingerprint
+        forward_row.source_report_fingerprint,
+        forward_row.source_plan.report_fingerprint
     );
     assert_eq!(forward_row.call_ordinal, 0);
     assert_eq!(forward_row.input_claim_identities.len(), 2);

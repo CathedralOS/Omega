@@ -23,6 +23,7 @@ psi-source = { path = "../../foundation/psi-source" }
 psi-symbols = { path = "../../foundation/psi-symbols" }
 psi-typed-trees = { path = "../../representations/psi-typed-trees" }
 psi-validation = { path = "../../semantics/psi-validation" }
+sha2 = "0.10"
 
 [dev-dependencies]
 psi-source-files-to-tokens = { path = "../psi-source-files-to-tokens" }

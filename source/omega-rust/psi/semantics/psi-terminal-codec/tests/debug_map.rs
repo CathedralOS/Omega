@@ -112,10 +112,11 @@ fn typed_debug_map_accepts_an_entry_only_claim_subject() {
     );
     let projection = ContentProjectionIdentity {
         domain: ContentDomainId::new(1).expect("content domain"),
-        projection_fingerprint: psi_language_semantics::content::terminal_projection_fingerprint(
-            &algebra,
-            &expression,
-        ),
+        projection_report_fingerprint:
+            psi_language_semantics::content::terminal_projection_report_fingerprint(
+                &algebra,
+                &expression,
+            ),
     };
     let structural_type = StructuralTypeId::new(1).expect("structural type");
     module.structural_types = vec![StructuralTypeDeclaration {

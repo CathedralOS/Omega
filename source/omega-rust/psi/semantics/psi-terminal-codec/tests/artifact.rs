@@ -1438,7 +1438,7 @@ fn proof_format_canonically_encodes_content_certificates() {
     let term = ContentTerm::Projection {
         projection: ContentProjectionIdentity {
             domain: ContentDomainId::new(81).expect("domain"),
-            projection_fingerprint: 0x8283,
+            projection_report_fingerprint: 0x8283,
         },
         subject: ContentStructuralPlace {
             version: ContentPlaceVersion::Entry,
@@ -1650,7 +1650,7 @@ fn proof_format_canonically_encodes_sum_case_content_certificates() {
     let term = ContentTerm::Projection {
         projection: ContentProjectionIdentity {
             domain: ContentDomainId::new(91).expect("domain"),
-            projection_fingerprint: 0x9293,
+            projection_report_fingerprint: 0x9293,
         },
         subject: ContentStructuralPlace {
             version: ContentPlaceVersion::Entry,

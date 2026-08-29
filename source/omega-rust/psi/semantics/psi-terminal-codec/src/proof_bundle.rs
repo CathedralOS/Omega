@@ -596,7 +596,7 @@ fn encode_content_term(
         } => {
             writer.u8(1);
             writer.id(projection.domain);
-            writer.u64(projection.projection_fingerprint);
+            writer.u64(projection.projection_report_fingerprint);
             writer.u8(match subject.version {
                 ContentPlaceVersion::Entry => 1,
                 ContentPlaceVersion::Current => 2,
@@ -1281,7 +1281,7 @@ fn decode_content_term(
         1 => {
             let projection = ContentProjectionIdentity {
                 domain: reader.id::<ContentDomainId>("ContentDomainId")?,
-                projection_fingerprint: reader.u64()?,
+                projection_report_fingerprint: reader.u64()?,
             };
             let version = match reader.u8()? {
                 1 => ContentPlaceVersion::Entry,

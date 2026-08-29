@@ -878,13 +878,16 @@ fn durable_deployment_journal_storage_is_no_clobber_and_replays_exact_bytes() {
         .expect("canonical record stores durably");
     assert_eq!(stored.record(), &record);
     assert_eq!(stored.path(), path);
-    assert_ne!(stored.byte_fingerprint(), 0);
+    assert_ne!(stored.byte_compatibility_report_fingerprint(), 0);
     stored.validate().expect("stored record replays exactly");
     let loaded = load_durable_component_deployment_journal(path.clone())
         .expect("restart loads canonical durable record");
     assert_eq!(loaded.record(), &record);
     assert_eq!(loaded.byte_count(), stored.byte_count());
-    assert_eq!(loaded.byte_fingerprint(), stored.byte_fingerprint());
+    assert_eq!(
+        loaded.byte_compatibility_report_fingerprint(),
+        stored.byte_compatibility_report_fingerprint()
+    );
 
     let occupied = root.join("occupied.journal");
     std::fs::write(&occupied, b"caller-owned sentinel").expect("occupied destination fixture");

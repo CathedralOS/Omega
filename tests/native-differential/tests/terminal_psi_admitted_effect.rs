@@ -684,7 +684,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
             projections: vec![ClaimContentProjection {
                 projection: ContentProjectionIdentity {
                     domain: ContentDomainId::new(1).expect("content domain"),
-                    projection_fingerprint: 0x63f4_9912,
+                    projection_report_fingerprint: 0x63f4_9912,
                 },
                 algebra: ContentAlgebra {
                     kind: ContentAlgebraKind::CountedQuantity,

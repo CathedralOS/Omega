@@ -3236,6 +3236,7 @@ fn evidence_requirement_rewrites(
                     .map_or_else(Box::default, |application| application.arguments.clone()),
                 dispatch: psi_typed_trees::typed_trees::StaticRequirementDispatch {
                     application_fingerprint: application.fingerprint,
+                    application_commitment: application.commitment,
                     declaring_trait: row.declaring_trait,
                     requirement: row.requirement,
                     realization_machine: row.realization_machine,

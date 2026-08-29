@@ -1,7 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omega_effects::{
-    ComponentBuildBoundProgressDemand, ComponentProgressManifest, SelectedProviderPlanFacts,
+    ComponentBuildBoundProgressDemand, ComponentProgressManifest, SelectedProviderClosureDigest,
+    SelectedProviderPlanFacts,
     provider_plan::{ServiceProgressEstablishmentRoute, ServiceProgressEstablishmentRouteKind},
 };
 use omega_executable_installation::{InstalledCode, InstalledCodeContext};
@@ -119,7 +120,7 @@ pub struct InstalledProviderOccurrenceClosure {
     selected: SelectedProviderPlanFacts,
     by_plan: BTreeMap<u64, InstalledProviderOccurrence>,
     by_occurrence: BTreeMap<InstalledProviderOccurrenceId, InstalledProviderOccurrence>,
-    fingerprint: u64,
+    non_authoritative_report_fingerprint: u64,
 }
 
 impl InstalledProviderOccurrenceClosure {
@@ -129,6 +130,15 @@ impl InstalledProviderOccurrenceClosure {
 
     pub const fn selected_provider_closure_identity(&self) -> u64 {
         self.selected.normalized_identity()
+    }
+
+    /// Explicitly non-authoritative compatibility/report coordinate.
+    pub const fn selected_provider_closure_report_identity(&self) -> u64 {
+        self.selected.compatibility_report_identity()
+    }
+
+    pub fn selected_provider_closure_digest(&self) -> SelectedProviderClosureDigest {
+        self.selected.identity_digest()
     }
 
     pub fn occurrence_for_plan(
@@ -149,8 +159,16 @@ impl InstalledProviderOccurrenceClosure {
         self.by_occurrence.values()
     }
 
+    /// Compatibility accessor for the non-authoritative compact report/cache
+    /// coordinate.
     pub const fn fingerprint(&self) -> u64 {
-        self.fingerprint
+        self.non_authoritative_report_fingerprint
+    }
+
+    /// Explicitly non-authoritative report/cache coordinate. The complete
+    /// selected facts and occurrence evidence above are the replay authority.
+    pub const fn non_authoritative_report_fingerprint(&self) -> u64 {
+        self.non_authoritative_report_fingerprint
     }
 }
 
@@ -205,7 +223,8 @@ impl ProgressProfileEstablishmentAttestation {
 pub struct AdmittedProgressProfileEstablishment {
     receipt: ProgressProfileEstablishmentReceiptId,
     installed: InstalledCodeContext,
-    selected_provider_closure_identity: u64,
+    selected_provider_closure_report_identity: u64,
+    selected_provider_closure_digest: SelectedProviderClosureDigest,
     subject: InstalledProviderOccurrenceEvidence,
     issuer: InstalledProviderOccurrenceEvidence,
     issuer_provider_plan_identity: u64,
@@ -246,6 +265,10 @@ impl AdmittedProgressProfileEstablishment {
 
     pub const fn route(&self) -> &ServiceProgressEstablishmentRoute {
         &self.route
+    }
+
+    pub const fn selected_provider_closure_digest(&self) -> SelectedProviderClosureDigest {
+        self.selected_provider_closure_digest
     }
 }
 
@@ -316,7 +339,7 @@ pub struct InstalledComponentProgressClosure {
     selected_provider_plans: Vec<u64>,
     manifest: ComponentProgressManifest,
     bindings: Vec<InstalledComponentProgressBinding>,
-    fingerprint: u64,
+    non_authoritative_report_fingerprint: u64,
 }
 
 impl InstalledComponentProgressClosure {
@@ -338,8 +361,16 @@ impl InstalledComponentProgressClosure {
         &self.manifest
     }
 
+    /// Compatibility accessor for the non-authoritative compact report/cache
+    /// coordinate.
     pub const fn fingerprint(&self) -> u64 {
-        self.fingerprint
+        self.non_authoritative_report_fingerprint
+    }
+
+    /// Explicitly non-authoritative report/cache coordinate. Publication must
+    /// retain this complete opaque acceptance and its manifest commitment.
+    pub const fn non_authoritative_report_fingerprint(&self) -> u64 {
+        self.non_authoritative_report_fingerprint
     }
 
     pub fn receipts(&self) -> impl ExactSizeIterator<Item = &AdmittedProgressProfileEstablishment> {
@@ -355,7 +386,7 @@ impl omega_installation_evidence::ComponentProgressAcceptanceEvidence
     }
 
     fn component_progress_acceptance_identity(&self) -> u64 {
-        self.fingerprint
+        self.non_authoritative_report_fingerprint
     }
 }
 
@@ -473,12 +504,13 @@ impl InstalledRootLedger {
             by_occurrence.insert(occurrence.identity(), occurrence.clone());
             by_plan.insert(binding.provider_plan_identity, occurrence);
         }
-        let fingerprint = fingerprint_provider_occurrences(selected, &by_plan);
+        let non_authoritative_report_fingerprint =
+            non_authoritative_provider_occurrence_report_fingerprint(selected, &by_plan);
         self.provider_occurrence_closure = Some(InstalledProviderOccurrenceClosure {
             selected: selected.clone(),
             by_plan,
             by_occurrence,
-            fingerprint,
+            non_authoritative_report_fingerprint,
         });
         Ok(self
             .provider_occurrence_closure
@@ -575,7 +607,10 @@ impl InstalledRootLedger {
         let admitted = AdmittedProgressProfileEstablishment {
             receipt: attestation.receipt,
             installed: attestation.installed,
-            selected_provider_closure_identity: closure.selected.normalized_identity(),
+            selected_provider_closure_report_identity: closure
+                .selected
+                .compatibility_report_identity(),
+            selected_provider_closure_digest: closure.selected.identity_digest(),
             subject: subject.evidence,
             issuer: issuer.evidence,
             issuer_provider_plan_identity: attestation.issuer_provider_plan_identity,
@@ -649,7 +684,7 @@ impl InstalledRootLedger {
                 "component progress sealing requires a provider-occurrence closure".into(),
             ));
         };
-        if manifest.selected_provider_closure_identity() != closure.selected.normalized_identity() {
+        if !manifest.matches_selected_provider_closure(&closure.selected) {
             return Err(fail(
                 manifest,
                 bindings,
@@ -717,8 +752,10 @@ impl InstalledRootLedger {
                 ));
             };
             if receipt.subject != subject.evidence
-                || receipt.selected_provider_closure_identity
+                || receipt.selected_provider_closure_report_identity
                     != manifest.selected_provider_closure_identity()
+                || receipt.selected_provider_closure_digest
+                    != manifest.selected_provider_closure_digest()
                 || receipt.profile_identity != demand.profile_identity
                 || receipt.subject_projections != demand.subject_projections
                 || !demand.establishment_routes.contains(&receipt.route)
@@ -745,19 +782,20 @@ impl InstalledRootLedger {
             .collect::<Vec<_>>();
         selected_provider_plans.sort_unstable();
         selected_provider_plans.dedup();
-        let fingerprint = fingerprint_component_progress(&manifest, &accepted);
+        let non_authoritative_report_fingerprint =
+            non_authoritative_component_progress_report_fingerprint(&manifest, &accepted);
         self.accepted_component_progress.push(manifest.clone());
         Ok(InstalledComponentProgressClosure {
             installed: self.installed_context.clone(),
             selected_provider_plans,
             manifest,
             bindings: accepted,
-            fingerprint,
+            non_authoritative_report_fingerprint,
         })
     }
 }
 
-fn fingerprint_provider_occurrences(
+fn non_authoritative_provider_occurrence_report_fingerprint(
     selected: &SelectedProviderPlanFacts,
     by_plan: &BTreeMap<u64, InstalledProviderOccurrence>,
 ) -> u64 {
@@ -772,7 +810,7 @@ fn fingerprint_provider_occurrences(
     hash.finish()
 }
 
-fn fingerprint_component_progress(
+fn non_authoritative_component_progress_report_fingerprint(
     manifest: &ComponentProgressManifest,
     bindings: &[InstalledComponentProgressBinding],
 ) -> u64 {

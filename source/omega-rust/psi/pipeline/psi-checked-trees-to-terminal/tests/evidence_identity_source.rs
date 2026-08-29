@@ -1424,6 +1424,7 @@ fn static_requirement_proof_output_keeps_public_identity_and_private_dispatch_se
         .find(|application| {
             application.owner == invocation.caller
                 && application.fingerprint == dispatch.conformance_application_fingerprint
+                && application.commitment == dispatch.conformance_application_commitment
         })
         .expect("the dispatch rejoins its exact closed application");
     assert_eq!(
@@ -1531,6 +1532,29 @@ fn static_requirement_proof_output_keeps_public_identity_and_private_dispatch_se
     rejects(lowered.semantic_module.clone(), |dispatch| {
         dispatch.conformance_application_fingerprint ^= 1;
     });
+    let original_application = lowered.semantic_module.closed_conformance_applications[0].clone();
+    let mut compact_equal_substitute = original_application.clone();
+    compact_equal_substitute
+        .trait_arguments
+        .push("forged-static-argument".to_owned());
+    let substitute_commitment =
+        psi_terminal::closed_conformance_application_commitment(&compact_equal_substitute);
+    assert_ne!(substitute_commitment, original_application.commitment);
+    let mut substituted_dispatch = lowered.semantic_module.clone();
+    let dispatch = substituted_dispatch.proof_output_calls[0]
+        .static_requirement_dispatch
+        .as_mut()
+        .expect("static dispatch");
+    let compact_coordinate = dispatch.conformance_application_fingerprint;
+    dispatch.conformance_application_commitment = substitute_commitment;
+    assert_eq!(
+        dispatch.conformance_application_fingerprint,
+        compact_coordinate
+    );
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&substituted_dispatch),
+        Err(psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. })
+    ));
     rejects(lowered.semantic_module.clone(), |dispatch| {
         dispatch.public_requirement_identity.push_str("::forged");
     });
@@ -1576,11 +1600,17 @@ fn static_requirement_proof_output_keeps_public_identity_and_private_dispatch_se
         .public_requirement_identity
         .push_str("::forged");
     application.fingerprint = psi_terminal::closed_conformance_application_fingerprint(application);
+    application.commitment = psi_terminal::closed_conformance_application_commitment(application);
     renamed_row.proof_output_calls[0]
         .static_requirement_dispatch
         .as_mut()
         .expect("static dispatch")
         .conformance_application_fingerprint = application.fingerprint;
+    renamed_row.proof_output_calls[0]
+        .static_requirement_dispatch
+        .as_mut()
+        .expect("static dispatch")
+        .conformance_application_commitment = application.commitment;
     assert!(matches!(
         psi_terminal_verifier::validate_module_representation(&renamed_row),
         Err(psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. })
@@ -1594,11 +1624,17 @@ fn static_requirement_proof_output_keeps_public_identity_and_private_dispatch_se
         .expect("entry closed application");
     application.rows.clear();
     application.fingerprint = psi_terminal::closed_conformance_application_fingerprint(application);
+    application.commitment = psi_terminal::closed_conformance_application_commitment(application);
     deleted_row.proof_output_calls[0]
         .static_requirement_dispatch
         .as_mut()
         .expect("static dispatch")
         .conformance_application_fingerprint = application.fingerprint;
+    deleted_row.proof_output_calls[0]
+        .static_requirement_dispatch
+        .as_mut()
+        .expect("static dispatch")
+        .conformance_application_commitment = application.commitment;
     assert!(matches!(
         psi_terminal_verifier::validate_module_representation(&deleted_row),
         Err(psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. })
@@ -1612,11 +1648,17 @@ fn static_requirement_proof_output_keeps_public_identity_and_private_dispatch_se
         .expect("entry closed application");
     application.trait_arguments.push("forged".to_owned());
     application.fingerprint = psi_terminal::closed_conformance_application_fingerprint(application);
+    application.commitment = psi_terminal::closed_conformance_application_commitment(application);
     widened_application.proof_output_calls[0]
         .static_requirement_dispatch
         .as_mut()
         .expect("static dispatch")
         .conformance_application_fingerprint = application.fingerprint;
+    widened_application.proof_output_calls[0]
+        .static_requirement_dispatch
+        .as_mut()
+        .expect("static dispatch")
+        .conformance_application_commitment = application.commitment;
     assert!(matches!(
         psi_terminal_verifier::validate_module_representation(&widened_application),
         Err(psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. })

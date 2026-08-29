@@ -1468,8 +1468,8 @@ fn program_local_root_module() -> TerminalModule {
         carrier,
         projection: psi_core::ContentProjectionIdentity {
             domain: psi_core::ContentDomainId::new(1).expect("content domain identity"),
-            projection_fingerprint:
-                psi_language_semantics::content::terminal_projection_fingerprint(
+            projection_report_fingerprint:
+                psi_language_semantics::content::terminal_projection_report_fingerprint(
                     &algebra, &capacity,
                 ),
         },
@@ -1601,8 +1601,8 @@ fn program_local_extent_module() -> TerminalModule {
     let schema = &mut module.boundary_machines[0].program_local_root_introductions[0];
     schema.algebra = algebra;
     schema.capacity = capacity;
-    schema.projection.projection_fingerprint =
-        psi_language_semantics::content::terminal_projection_fingerprint(
+    schema.projection.projection_report_fingerprint =
+        psi_language_semantics::content::terminal_projection_report_fingerprint(
             &schema.algebra,
             &schema.capacity,
         );
@@ -2968,8 +2968,8 @@ fn program_local_root_prebinding_rejects_catalog_object_and_claim_substitution()
         schema.capacity = psi_core::ContentProjectionExpression::CountedQuantity(
             psi_core::ContentProjectionScalar::Natural("1".into()),
         );
-        schema.projection.projection_fingerprint =
-            psi_language_semantics::content::terminal_projection_fingerprint(
+        schema.projection.projection_report_fingerprint =
+            psi_language_semantics::content::terminal_projection_report_fingerprint(
                 &schema.algebra,
                 &schema.capacity,
             );

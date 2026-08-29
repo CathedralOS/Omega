@@ -156,10 +156,24 @@ scanners, or receipts.
   authority section carries independent imported-contract-set, declared-
   footprint, machine-regime, and installation-scope commitments, all four enter
   executable content identity, and admission rejects v1 candidates. Container
-  v1 remains an explicit byte-stable tooling compatibility path. Remaining work
-  is the broader compact-identity inventory and its repository-wide
-  enforcement, including residual Terminal-Psi conformance/content coordinates
-  and external-root report fields.
+  v1 remains an explicit byte-stable tooling compatibility path. Closed
+  conformance applications now retain domain-separated commitments through
+  typed, checked, and Terminal Psi; dispatch selects by owner plus strong
+  commitment and then replays the exact row, while compact values are report/
+  index coordinates only. Terminal vocabulary 38 serializes and verifies those
+  commitments. Content-projection and conservation FNV values are now named
+  report fingerprints throughout semantic, codec, verifier, optimizer, image,
+  runtime, and visualization consumers; authority remains the exact owner
+  definition, algebra, structural places, substitution, producer call, and
+  verifier replay. Component-progress manifests now bind both a strong selected-
+  provider-closure digest and their own domain-separated digest. External-root
+  receipt admission and component sealing replay both, so a compact-equal
+  selected closure cannot substitute. Durable deployment-journal bytes and
+  normalized may-write frames likewise expose their FNV values only as report
+  coordinates beside exact bytes/records or completeness/paths. Remaining work
+  is the broader compact-identity inventory and repository-wide enforcement,
+  including residual native-image, provider, stack/fuel, target-layout, and
+  build-time report fields.
 
   Acceptance: an automated architecture test rejects new authoritative
   `u64`-only identities, every retained FNV use has a local non-authoritative

@@ -37,6 +37,7 @@ pub use component_era_entry_ledger::{
 };
 pub use component_progress_manifest::{
     CheckedComponentProgressDemand, ComponentBuildBoundProgressDemand, ComponentProgressManifest,
+    ComponentProgressManifestDigest,
 };
 pub use executable_tcb_manifest::{
     ContainmentEvidence, ContainmentGuarantee, ExecutableEntryOrigin, ExecutableIdentity,

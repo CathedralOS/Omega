@@ -454,8 +454,8 @@ fn structural_domain_content_projection_replays_terminal_contract() {
         psi_terminal::StructuralContentProjection {
             identity: psi_core::ContentProjectionIdentity {
                 domain: id(semantic_domain.get(), psi_core::ContentDomainId::new),
-                projection_fingerprint:
-                    psi_language_semantics::content::terminal_projection_fingerprint(
+                projection_report_fingerprint:
+                    psi_language_semantics::content::terminal_projection_report_fingerprint(
                         &algebra,
                         &expression,
                     ),
@@ -529,7 +529,7 @@ fn structural_domain_content_projection_replays_terminal_contract() {
     invalid.identity.domain = id(32, psi_core::ContentDomainId::new);
     rejects(invalid);
     let mut invalid = valid.clone();
-    invalid.identity.projection_fingerprint = 0;
+    invalid.identity.projection_report_fingerprint = 0;
     rejects(invalid);
     let mut invalid = valid.clone();
     invalid.algebra.parameter.clear();

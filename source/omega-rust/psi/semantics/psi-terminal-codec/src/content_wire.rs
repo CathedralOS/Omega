@@ -35,7 +35,7 @@ pub(super) fn encode_content_partition_composition(
     composition: &ContentPartitionComposition,
 ) -> Result<(), CodecError> {
     writer.id(composition.producer_operation);
-    writer.u64(composition.source_fingerprint);
+    writer.u64(composition.source_report_fingerprint);
     writer.len(
         "partition source structural places",
         composition.source_structural_places.len(),
@@ -64,7 +64,7 @@ pub(super) fn encode_content_conservation_guarantee(
     writer: &mut Writer,
     guarantee: &ContentConservationGuarantee,
 ) -> Result<(), CodecError> {
-    writer.u64(guarantee.fingerprint);
+    writer.u64(guarantee.report_fingerprint);
     writer.len(
         "content guarantee structural places",
         guarantee.structural_places.len(),
@@ -102,7 +102,7 @@ fn encode_claim_content_projections(
     writer.len("claim content projections", projections.len())?;
     for content in projections {
         writer.id(content.projection.domain);
-        writer.u64(content.projection.projection_fingerprint);
+        writer.u64(content.projection.projection_report_fingerprint);
         encode_content_algebra(writer, &content.algebra)?;
     }
     Ok(())
@@ -134,7 +134,7 @@ pub(super) fn encode_content_term(
         } => {
             writer.u8(1);
             writer.id(projection.domain);
-            writer.u64(projection.projection_fingerprint);
+            writer.u64(projection.projection_report_fingerprint);
             encode_content_structural_place(writer, subject)?;
         }
         ContentTerm::Separate(terms) => {
@@ -191,7 +191,7 @@ pub(super) fn decode_content_partition_composition(
     reader: &mut Reader<'_>,
 ) -> Result<ContentPartitionComposition, CodecError> {
     let producer_operation = reader.id("OperationId")?;
-    let source_fingerprint = reader.u64()?;
+    let source_report_fingerprint = reader.u64()?;
     let source_place_count = reader.count()?;
     let mut source_structural_places = Vec::new();
     for _ in 0..source_place_count {
@@ -217,7 +217,7 @@ pub(super) fn decode_content_partition_composition(
     let derived = decode_content_conservation(reader)?;
     Ok(ContentPartitionComposition {
         producer_operation,
-        source_fingerprint,
+        source_report_fingerprint,
         source_structural_places,
         source,
         input_claims,
@@ -229,7 +229,7 @@ pub(super) fn decode_content_partition_composition(
 pub(super) fn decode_content_conservation_guarantee(
     reader: &mut Reader<'_>,
 ) -> Result<ContentConservationGuarantee, CodecError> {
-    let fingerprint = reader.u64()?;
+    let report_fingerprint = reader.u64()?;
     let structural_places = decode_counted(reader, |reader| {
         Ok(StructuralPlaceDeclaration {
             id: reader.id("PlaceId")?,
@@ -238,7 +238,7 @@ pub(super) fn decode_content_conservation_guarantee(
     })?;
     let conservation = decode_content_conservation(reader)?;
     Ok(ContentConservationGuarantee {
-        fingerprint,
+        report_fingerprint,
         structural_places,
         conservation,
     })
@@ -276,7 +276,7 @@ fn decode_claim_content_projections(
         projections.push(ClaimContentProjection {
             projection: ContentProjectionIdentity {
                 domain: reader.id("ContentDomainId")?,
-                projection_fingerprint: reader.u64()?,
+                projection_report_fingerprint: reader.u64()?,
             },
             algebra: decode_content_algebra(reader)?,
         });
@@ -309,7 +309,7 @@ pub(super) fn decode_content_term(
         1 => {
             let projection = ContentProjectionIdentity {
                 domain: reader.id::<ContentDomainId>("ContentDomainId")?,
-                projection_fingerprint: reader.u64()?,
+                projection_report_fingerprint: reader.u64()?,
             };
             ContentTerm::Projection {
                 projection,
@@ -371,7 +371,7 @@ mod tests {
         let term = ContentTerm::Projection {
             projection: ContentProjectionIdentity {
                 domain: ContentDomainId::new(5).expect("content domain identity"),
-                projection_fingerprint: 0xfeed,
+                projection_report_fingerprint: 0xfeed,
             },
             subject: place(),
         };
@@ -388,7 +388,7 @@ mod tests {
     #[test]
     fn producer_operation_and_boundary_guarantee_round_trip_exactly() {
         let guarantee = ContentConservationGuarantee {
-            fingerprint: 0x1234,
+            report_fingerprint: 0x1234,
             structural_places: vec![StructuralPlaceDeclaration {
                 id: PlaceId::new(3).expect("place identity"),
                 kind: StructuralPlaceKind::Parameter {
@@ -400,7 +400,7 @@ mod tests {
         };
         let composition = ContentPartitionComposition {
             producer_operation: OperationId::new(17).expect("operation identity"),
-            source_fingerprint: guarantee.fingerprint,
+            source_report_fingerprint: guarantee.report_fingerprint,
             source_structural_places: guarantee.structural_places.clone(),
             source: guarantee.conservation.clone(),
             input_claims: Vec::new(),

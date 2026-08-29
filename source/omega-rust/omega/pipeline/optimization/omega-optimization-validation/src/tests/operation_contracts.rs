@@ -675,7 +675,7 @@ fn accepts_content_only_internal_claim_transfer_and_rejects_interface_corruption
             projection.projection.domain = id(99, psi_core::ContentDomainId::new);
         },
         |projection: &mut psi_terminal::ClaimContentProjection| {
-            projection.projection.projection_fingerprint ^= 1;
+            projection.projection.projection_report_fingerprint ^= 1;
         },
         |projection: &mut psi_terminal::ClaimContentProjection| {
             projection.algebra.kind = psi_core::ContentAlgebraKind::IntervalSet;
@@ -702,10 +702,11 @@ fn accepts_content_only_internal_claim_transfer_and_rejects_interface_corruption
     );
     let identity = psi_core::ContentProjectionIdentity {
         domain: id(semantic_domain.get(), psi_core::ContentDomainId::new),
-        projection_fingerprint: psi_language_semantics::content::terminal_projection_fingerprint(
-            &algebra,
-            &expression,
-        ),
+        projection_report_fingerprint:
+            psi_language_semantics::content::terminal_projection_report_fingerprint(
+                &algebra,
+                &expression,
+            ),
     };
     let mut domains = mismatched_interface.structural_domains.to_vec();
     domains.push(psi_terminal::StructuralDomainDeclaration {

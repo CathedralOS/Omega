@@ -16,7 +16,7 @@ pub use content::{
     ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentPlaceSegment,
     ContentPlaceVersion, ContentProjectionExpression, ContentProjectionIdentity,
     ContentProjectionScalar, ContentStructuralPlace, ContentTerm, StructuralPlaceKind,
-    content_conservation_fingerprint,
+    content_conservation_report_fingerprint,
 };
 pub use identity::{
     AdmissionSiteId, BlockId, BoundaryMachineId, ClaimId, ContentDomainId, ContractId,
