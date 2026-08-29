@@ -71,6 +71,13 @@ Publication preserves that receipt, and the command prints the exact requested,
 applied, and effective names. This provenance is intentionally separate from
 the effective optimizer/artifact identity.
 
+The rollback regression enumerates `Optimization::ALL`: each exact name must
+subtract only itself, disappear from every phase projection, and become an
+idempotent no-op when the same overlay is applied again. Both build preludes
+also prove that each authored exact name resolves to the same rollback name.
+The hosted-target golden test separately proves that an empty effective set
+rejoins the byte-identical ordinary native path.
+
 ## Compatibility firewall
 
 While experimental:

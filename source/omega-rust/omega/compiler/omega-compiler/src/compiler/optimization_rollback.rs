@@ -81,6 +81,70 @@ impl std::error::Error for OptimizationRollbackInputError {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use omega_optimization_core::OptimizationExecutionPhase;
+
+    const EXECUTION_PHASES: [OptimizationExecutionPhase; 5] = [
+        OptimizationExecutionPhase::Psi,
+        OptimizationExecutionPhase::SelectedLowering,
+        OptimizationExecutionPhase::AllocationRecovery,
+        OptimizationExecutionPhase::PostAllocationMachine,
+        OptimizationExecutionPhase::FunctionRelativeLayout,
+    ];
+
+    #[test]
+    fn every_exact_rule_is_subtractive_phase_local_and_idempotent() {
+        let all = OptimizationSelections::new(Optimization::ALL)
+            .expect("the closed optimization vocabulary is duplicate-free");
+
+        for disabled in Optimization::ALL {
+            let rollback = OptimizationRollback::from_exact_names([disabled.build_case_name()])
+                .expect("every build case name is an exact rollback name");
+            let receipt = rollback
+                .reconcile(&all)
+                .expect("a nonempty rollback request leaves custody");
+            let expected_effective = OptimizationSelections::new(
+                Optimization::ALL
+                    .into_iter()
+                    .filter(|optimization| *optimization != disabled),
+            )
+            .expect("a vocabulary subset remains duplicate-free");
+
+            assert_eq!(receipt.build_selected(), &all, "{disabled:?}");
+            assert_eq!(
+                receipt.requested_disabled().as_slice(),
+                &[disabled],
+                "{disabled:?}"
+            );
+            assert_eq!(
+                receipt.actually_disabled().as_slice(),
+                &[disabled],
+                "{disabled:?}"
+            );
+            assert_eq!(receipt.effective(), &expected_effective, "{disabled:?}");
+            assert!(receipt.is_consistent(), "{disabled:?}");
+
+            for phase in EXECUTION_PHASES {
+                let expected_phase = OptimizationSelections::new(
+                    Optimization::ALL.into_iter().filter(|optimization| {
+                        *optimization != disabled && optimization.execution_phase() == phase
+                    }),
+                )
+                .expect("a phase vocabulary subset remains duplicate-free");
+                let effective_phase = receipt.effective().for_phase(phase);
+                assert_eq!(effective_phase, expected_phase, "{disabled:?} in {phase:?}");
+                assert!(
+                    !effective_phase.contains(disabled),
+                    "{disabled:?} leaked into {phase:?}"
+                );
+            }
+
+            let repeated = rollback
+                .reconcile(receipt.effective())
+                .expect("the authored rollback request remains visible");
+            assert!(repeated.actually_disabled().is_empty(), "{disabled:?}");
+            assert_eq!(repeated.effective(), receipt.effective(), "{disabled:?}");
+        }
+    }
 
     #[test]
     fn exact_names_are_canonical_subtractive_and_idempotent_for_absent_rules() {

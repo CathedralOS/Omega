@@ -159,7 +159,7 @@ fn duplicate_human_report_requests_reject_during_build_evaluation() {
 }
 
 #[test]
-fn every_exact_enable_call_maps_to_itself_through_both_build_preludes() {
+fn every_exact_enable_and_rollback_maps_to_itself_through_both_build_preludes() {
     for optimization in Optimization::ALL {
         for (prelude_label, filesystem_prelude) in [("ordinary", false), ("filesystem", true)] {
             let build = exact_optimization_vocabulary_build(optimization, filesystem_prelude);
@@ -182,6 +182,16 @@ fn every_exact_enable_call_maps_to_itself_through_both_build_preludes() {
                 checked.optimization_selection_identity(),
                 checked.optimization_selections().identity()
             );
+
+            let rollback = OptimizationRollback::from_exact_names([optimization.build_case_name()])
+                .expect("the exact build name is also the exact rollback name");
+            let receipt = rollback
+                .reconcile(checked.optimization_selections())
+                .expect("one exact rollback request leaves custody");
+            assert_eq!(receipt.build_selected().as_slice(), &[optimization]);
+            assert_eq!(receipt.requested_disabled().as_slice(), &[optimization]);
+            assert_eq!(receipt.actually_disabled().as_slice(), &[optimization]);
+            assert!(receipt.effective().is_empty());
         }
     }
 }
