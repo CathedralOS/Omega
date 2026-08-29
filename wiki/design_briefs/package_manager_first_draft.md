@@ -1429,6 +1429,14 @@ failed close, interleaving, and every otherwise unsupported operation still
 reject. Internal replay vocabulary now names the unit an Output file rather
 than a write chain.
 
+Observation summary v34 and compiler replay-record v15 admit successful
+`sync` and `sync_data` operations anywhere between a fresh Output file's create
+and close. They bind the same live descriptor, exact authored operation kind,
+zero result, and zero post-error state. Replay preserves their order while they
+leave bytes, extent, and cursor unchanged, then still requires exact operation,
+namespace, tree, and sponsored-custody equality. Failed syncs, malformed lanes,
+other descriptors, and sync after close remain non-receipted.
+
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities reject negative, wrapped, or

@@ -1964,6 +1964,13 @@ impl FilesystemOutputWriteReplayRecord {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FilesystemOutputFileOperationReplayRecord {
+    Write(FilesystemOutputWriteReplayRecord),
+    Sync,
+    SyncData,
+}
+
 /// One freshly created and closed Output file, optionally containing complete
 /// sequential or positioned writes.
 ///
@@ -1979,7 +1986,7 @@ pub struct FilesystemOutputFileReplayRecord {
     output_relative_path: Vec<u8>,
     logical_handle_identity: FilesystemLogicalHandleIdentity,
     create_post_error: i32,
-    writes: Vec<FilesystemOutputWriteReplayRecord>,
+    operations: Vec<FilesystemOutputFileOperationReplayRecord>,
     close_post_error: i32,
 }
 
@@ -2037,6 +2044,27 @@ impl FilesystemOutputFileReplayRecord {
         writes: Vec<FilesystemOutputWriteReplayRecord>,
         close_post_error: i32,
     ) -> Result<Self, String> {
+        Self::with_operations(
+            output_root,
+            output_relative_path,
+            logical_handle_identity,
+            create_post_error,
+            writes
+                .into_iter()
+                .map(FilesystemOutputFileOperationReplayRecord::Write)
+                .collect(),
+            close_post_error,
+        )
+    }
+
+    pub fn with_operations(
+        output_root: FilesystemGrantRootIdentity,
+        output_relative_path: Vec<u8>,
+        logical_handle_identity: u64,
+        create_post_error: i32,
+        operations: Vec<FilesystemOutputFileOperationReplayRecord>,
+        close_post_error: i32,
+    ) -> Result<Self, String> {
         if !filesystem_root_relative_path_is_canonical(&output_relative_path, false) {
             return Err("filesystem replay output path must be canonical and non-root".to_owned());
         }
@@ -2047,7 +2075,7 @@ impl FilesystemOutputFileReplayRecord {
             output_relative_path,
             logical_handle_identity,
             create_post_error,
-            writes,
+            operations,
             close_post_error,
         };
         record.replayed_extent()?;
@@ -2074,8 +2102,8 @@ impl FilesystemOutputFileReplayRecord {
         self.create_post_error
     }
 
-    pub fn writes(&self) -> &[FilesystemOutputWriteReplayRecord] {
-        &self.writes
+    pub fn operations(&self) -> &[FilesystemOutputFileOperationReplayRecord] {
+        &self.operations
     }
 
     pub fn replayed_bytes(&self) -> Result<Vec<u8>, String> {
@@ -2086,7 +2114,10 @@ impl FilesystemOutputFileReplayRecord {
             .map_err(|_| "filesystem replay output allocation failed".to_owned())?;
         output.resize(extent, 0);
         let mut cursor = 0usize;
-        for write in &self.writes {
+        for operation in &self.operations {
+            let FilesystemOutputFileOperationReplayRecord::Write(write) = operation else {
+                continue;
+            };
             let start = match write.kind {
                 FilesystemOutputWriteReplayKind::Sequential => cursor,
                 FilesystemOutputWriteReplayKind::Positioned { offset } => usize::try_from(offset)
@@ -2114,7 +2145,10 @@ impl FilesystemOutputFileReplayRecord {
     fn replayed_extent(&self) -> Result<usize, String> {
         let mut cursor = 0usize;
         let mut extent = 0usize;
-        for write in &self.writes {
+        for operation in &self.operations {
+            let FilesystemOutputFileOperationReplayRecord::Write(write) = operation else {
+                continue;
+            };
             let start = match write.kind {
                 FilesystemOutputWriteReplayKind::Sequential => cursor,
                 FilesystemOutputWriteReplayKind::Positioned { offset } => usize::try_from(offset)
@@ -2384,7 +2418,7 @@ fn validate_expected_included_sources(
     let total_attempt_count = outputs
         .iter()
         .try_fold(source_attempt_count, |count, output| {
-            count.checked_add(output.writes.len().checked_add(2)?)
+            count.checked_add(output.operations.len().checked_add(2)?)
         })
         .ok_or_else(|| "filesystem replay event count overflowed".to_owned())?;
     let mut previous_ordinal = source_attempt_count;
@@ -2415,7 +2449,7 @@ fn validate_expected_included_sources(
         let earliest_ordinal = outputs[..=output_index]
             .iter()
             .try_fold(source_attempt_count, |count, output| {
-                count.checked_add(output.writes.len().checked_add(2)?)
+                count.checked_add(output.operations.len().checked_add(2)?)
             })
             .ok_or_else(|| "filesystem replay event count overflowed".to_owned())?;
         if included.filesystem_attempt_ordinal() < earliest_ordinal
@@ -2657,7 +2691,7 @@ fn output_file_record_from_attempts(
     let Some((create, remainder)) = attempts.split_first() else {
         return Err("bounded filesystem replay requires a complete Output file".to_owned());
     };
-    let Some((close, writes)) = remainder.split_last() else {
+    let Some((close, operations)) = remainder.split_last() else {
         return Err("bounded filesystem replay requires a complete Output file".to_owned());
     };
 
@@ -2710,12 +2744,18 @@ fn output_file_record_from_attempts(
         return Err("filesystem replay Output create lanes are inconsistent".to_owned());
     }
 
-    let mut write_records = Vec::new();
-    write_records
-        .try_reserve_exact(writes.len())
-        .map_err(|_| "filesystem replay Output write allocation failed".to_owned())?;
-    for write in writes {
-        write_records.push(output_write_record_from_attempt(write, create_result)?);
+    let mut operation_records = Vec::new();
+    operation_records
+        .try_reserve_exact(operations.len())
+        .map_err(|_| "filesystem replay Output operation allocation failed".to_owned())?;
+    for operation in operations {
+        operation_records.push(match operation.operation_tag {
+            5 | 7 => FilesystemOutputFileOperationReplayRecord::Write(
+                output_write_record_from_attempt(operation, create_result)?,
+            ),
+            43 | 44 => output_sync_record_from_attempt(operation, create_result)?,
+            _ => return Err("filesystem replay Output operation is unsupported".to_owned()),
+        });
     }
 
     let [close_input] = close.logical_handle_inputs.as_slice() else {
@@ -2755,14 +2795,53 @@ fn output_file_record_from_attempts(
         return Err("filesystem replay Output close lanes are inconsistent".to_owned());
     }
 
-    FilesystemOutputFileReplayRecord::with_writes(
+    FilesystemOutputFileReplayRecord::with_operations(
         rooted.root,
         rooted.relative_path.clone(),
         create_result.get(),
         create_post_error,
-        write_records,
+        operation_records,
         close_post_error,
     )
+}
+
+fn output_sync_record_from_attempt(
+    operation: &FilesystemOperationAttempt,
+    identity: FilesystemLogicalHandleIdentity,
+) -> Result<FilesystemOutputFileOperationReplayRecord, String> {
+    let [input] = operation.logical_handle_inputs.as_slice() else {
+        return Err("filesystem replay Output sync lanes are inconsistent".to_owned());
+    };
+    if !matches!(operation.operation_tag, 43 | 44)
+        || operation.provider != FilesystemObservationProvider::RealScoped
+        || operation.result() != Some(FilesystemOperationResult::Scalar(0))
+        || operation.post_error() != Some(0)
+        || input.operand_ordinal != 0
+        || input.kind != FilesystemLogicalHandleKind::Descriptor
+        || input.resolution != FilesystemLogicalHandleInputResolution::Resolved(identity)
+        || !operation.scalar_operands.is_empty()
+        || !operation.byte_operands.is_empty()
+        || !operation.path_like_operands.is_empty()
+        || !operation.rooted_path_operand_resolutions.is_empty()
+        || !operation.returned_paths.is_empty()
+        || !operation.observed_byte_regions.is_empty()
+        || !operation.metadata_observations.is_empty()
+        || !operation.mutable_byte_operand_resolutions.is_empty()
+        || !operation.mutable_i64_operand_resolutions.is_empty()
+        || !operation.mutable_byte_operands.is_empty()
+        || !operation.mutable_i64_operands.is_empty()
+        || !operation.authorized_paths.is_empty()
+        || operation.logical_handle_output.is_some()
+        || !operation.retired_logical_handles.is_empty()
+        || !operation.grant_refusals.is_empty()
+    {
+        return Err("filesystem replay Output sync lanes are inconsistent".to_owned());
+    }
+    Ok(if operation.operation_tag == 43 {
+        FilesystemOutputFileOperationReplayRecord::Sync
+    } else {
+        FilesystemOutputFileOperationReplayRecord::SyncData
+    })
 }
 
 fn output_write_record_from_attempt(
@@ -2859,7 +2938,8 @@ fn output_file_records_from_attempts(
             return Err("filesystem replay Output file must begin with create".to_owned());
         }
         cursor += 1;
-        while cursor < attempts.len() && matches!(attempts[cursor].operation_tag(), 5 | 7) {
+        while cursor < attempts.len() && matches!(attempts[cursor].operation_tag(), 5 | 7 | 43 | 44)
+        {
             cursor += 1;
         }
         if cursor == attempts.len() || attempts[cursor].operation_tag() != 8 {
@@ -2931,10 +3011,52 @@ fn output_file_attempts(
         retired_logical_handles: Vec::new(),
         grant_refusals: Vec::new(),
     };
-    let writes = record
-        .writes
+    let operations = record
+        .operations
         .into_iter()
-        .map(|write| FilesystemOperationAttempt {
+        .map(|operation| output_file_operation_attempt(operation, identity))
+        .collect::<Vec<_>>();
+    let close = FilesystemOperationAttempt {
+        operation_tag: 8,
+        provider: FilesystemObservationProvider::RealScoped,
+        outcome: Some(FilesystemOperationAttemptOutcome::Returned {
+            result: FilesystemOperationResult::Scalar(0),
+            post_error: record.close_post_error,
+        }),
+        scalar_operands: Vec::new(),
+        byte_operands: Vec::new(),
+        path_like_operands: Vec::new(),
+        rooted_path_operand_resolutions: Vec::new(),
+        returned_paths: Vec::new(),
+        observed_byte_regions: Vec::new(),
+        metadata_observations: Vec::new(),
+        mutable_byte_operand_resolutions: Vec::new(),
+        mutable_i64_operand_resolutions: Vec::new(),
+        mutable_byte_operands: Vec::new(),
+        mutable_i64_operands: Vec::new(),
+        authorized_paths: Vec::new(),
+        logical_handle_inputs: vec![FilesystemLogicalHandleInput {
+            operand_ordinal: 0,
+            kind: FilesystemLogicalHandleKind::Descriptor,
+            resolution: FilesystemLogicalHandleInputResolution::Resolved(identity),
+        }],
+        logical_handle_output: None,
+        retired_logical_handles: vec![identity],
+        grant_refusals: Vec::new(),
+    };
+    let mut attempts = Vec::with_capacity(operations.len() + 2);
+    attempts.push(create);
+    attempts.extend(operations);
+    attempts.push(close);
+    attempts
+}
+
+fn output_file_operation_attempt(
+    operation: FilesystemOutputFileOperationReplayRecord,
+    identity: FilesystemLogicalHandleIdentity,
+) -> FilesystemOperationAttempt {
+    match operation {
+        FilesystemOutputFileOperationReplayRecord::Write(write) => FilesystemOperationAttempt {
             operation_tag: match write.kind {
                 FilesystemOutputWriteReplayKind::Sequential => 5,
                 FilesystemOutputWriteReplayKind::Positioned { .. } => 7,
@@ -2975,41 +3097,41 @@ fn output_file_attempts(
             logical_handle_output: None,
             retired_logical_handles: Vec::new(),
             grant_refusals: Vec::new(),
-        })
-        .collect::<Vec<_>>();
-    let close = FilesystemOperationAttempt {
-        operation_tag: 8,
-        provider: FilesystemObservationProvider::RealScoped,
-        outcome: Some(FilesystemOperationAttemptOutcome::Returned {
-            result: FilesystemOperationResult::Scalar(0),
-            post_error: record.close_post_error,
-        }),
-        scalar_operands: Vec::new(),
-        byte_operands: Vec::new(),
-        path_like_operands: Vec::new(),
-        rooted_path_operand_resolutions: Vec::new(),
-        returned_paths: Vec::new(),
-        observed_byte_regions: Vec::new(),
-        metadata_observations: Vec::new(),
-        mutable_byte_operand_resolutions: Vec::new(),
-        mutable_i64_operand_resolutions: Vec::new(),
-        mutable_byte_operands: Vec::new(),
-        mutable_i64_operands: Vec::new(),
-        authorized_paths: Vec::new(),
-        logical_handle_inputs: vec![FilesystemLogicalHandleInput {
-            operand_ordinal: 0,
-            kind: FilesystemLogicalHandleKind::Descriptor,
-            resolution: FilesystemLogicalHandleInputResolution::Resolved(identity),
-        }],
-        logical_handle_output: None,
-        retired_logical_handles: vec![identity],
-        grant_refusals: Vec::new(),
-    };
-    let mut attempts = Vec::with_capacity(writes.len() + 2);
-    attempts.push(create);
-    attempts.extend(writes);
-    attempts.push(close);
-    attempts
+        },
+        FilesystemOutputFileOperationReplayRecord::Sync
+        | FilesystemOutputFileOperationReplayRecord::SyncData => FilesystemOperationAttempt {
+            operation_tag: match operation {
+                FilesystemOutputFileOperationReplayRecord::Sync => 43,
+                FilesystemOutputFileOperationReplayRecord::SyncData => 44,
+                FilesystemOutputFileOperationReplayRecord::Write(_) => unreachable!(),
+            },
+            provider: FilesystemObservationProvider::RealScoped,
+            outcome: Some(FilesystemOperationAttemptOutcome::Returned {
+                result: FilesystemOperationResult::Scalar(0),
+                post_error: 0,
+            }),
+            scalar_operands: Vec::new(),
+            byte_operands: Vec::new(),
+            path_like_operands: Vec::new(),
+            rooted_path_operand_resolutions: Vec::new(),
+            returned_paths: Vec::new(),
+            observed_byte_regions: Vec::new(),
+            metadata_observations: Vec::new(),
+            mutable_byte_operand_resolutions: Vec::new(),
+            mutable_i64_operand_resolutions: Vec::new(),
+            mutable_byte_operands: Vec::new(),
+            mutable_i64_operands: Vec::new(),
+            authorized_paths: Vec::new(),
+            logical_handle_inputs: vec![FilesystemLogicalHandleInput {
+                operand_ordinal: 0,
+                kind: FilesystemLogicalHandleKind::Descriptor,
+                resolution: FilesystemLogicalHandleInputResolution::Resolved(identity),
+            }],
+            logical_handle_output: None,
+            retired_logical_handles: Vec::new(),
+            grant_refusals: Vec::new(),
+        },
+    }
 }
 
 #[cfg(test)]
@@ -3164,7 +3286,7 @@ mod filesystem_replay_record_tests {
         assert_eq!(output.output_relative_path(), b"table.generated.omg");
         assert_eq!(output.logical_handle_identity().get(), 2);
         assert_eq!(output.create_mode(), 438);
-        let [write] = output.writes() else {
+        let [FilesystemOutputFileOperationReplayRecord::Write(write)] = output.operations() else {
             panic!("singleton Output file retains one write")
         };
         assert_eq!(write.result(), write.bytes().len() as i64);
@@ -3259,9 +3381,13 @@ mod filesystem_replay_record_tests {
         };
         assert_eq!(
             decoded
-                .writes()
+                .operations()
                 .iter()
-                .flat_map(|write| write.bytes())
+                .filter_map(|operation| match operation {
+                    FilesystemOutputFileOperationReplayRecord::Write(write) => Some(write),
+                    _ => None,
+                })
+                .flat_map(FilesystemOutputWriteReplayRecord::bytes)
                 .copied()
                 .collect::<Vec<_>>(),
             b"firstsecond"
@@ -3328,8 +3454,12 @@ mod filesystem_replay_record_tests {
             panic!("one positioned Output file is retained")
         };
         assert_eq!(decoded.replayed_bytes().unwrap(), b"head-curtail");
+        let FilesystemOutputFileOperationReplayRecord::Write(positioned) = &decoded.operations()[1]
+        else {
+            panic!("second Output operation is a positioned write")
+        };
         assert_eq!(
-            decoded.writes()[1].kind(),
+            positioned.kind(),
             FilesystemOutputWriteReplayKind::Positioned { offset: 8 }
         );
 
@@ -3387,7 +3517,7 @@ mod filesystem_replay_record_tests {
     #[test]
     fn typed_output_file_retains_create_close_without_synthetic_write() {
         let output = empty_output_file(2);
-        assert!(output.writes().is_empty());
+        assert!(output.operations().is_empty());
         assert!(output.replayed_bytes().unwrap().is_empty());
         let record =
             FilesystemInputOutputReplayRecord::new(source_input(1), vec![output], Vec::new())
@@ -3412,13 +3542,69 @@ mod filesystem_replay_record_tests {
         let [decoded] = output_files.as_slice() else {
             panic!("one empty Output file is retained")
         };
-        assert!(decoded.writes().is_empty());
+        assert!(decoded.operations().is_empty());
         assert!(decoded.replayed_bytes().unwrap().is_empty());
 
         let mut incomplete = replay.attempts().to_vec();
         incomplete.pop();
         let observations =
             EvaluationObservations::from_filesystem_operation_attempts(incomplete, Vec::new());
+        assert!(FilesystemReplay::from_input_output_observations(&observations).is_err());
+    }
+
+    #[test]
+    fn typed_output_file_retains_sync_operations_in_authored_order() {
+        let output = FilesystemOutputFileReplayRecord::with_operations(
+            root(2),
+            b"synced.bin".to_vec(),
+            2,
+            0,
+            vec![
+                FilesystemOutputFileOperationReplayRecord::Sync,
+                FilesystemOutputFileOperationReplayRecord::Write(
+                    FilesystemOutputWriteReplayRecord::new(b"first".to_vec(), 5, 0).unwrap(),
+                ),
+                FilesystemOutputFileOperationReplayRecord::SyncData,
+                FilesystemOutputFileOperationReplayRecord::Write(
+                    FilesystemOutputWriteReplayRecord::new(b"second".to_vec(), 6, 0).unwrap(),
+                ),
+                FilesystemOutputFileOperationReplayRecord::Sync,
+            ],
+            0,
+        )
+        .unwrap();
+        assert_eq!(output.replayed_bytes().unwrap(), b"firstsecond");
+        let record =
+            FilesystemInputOutputReplayRecord::new(source_input(1), vec![output], Vec::new())
+                .unwrap();
+        let replay = FilesystemReplay::from_input_output_record(record).unwrap();
+        assert_eq!(
+            replay
+                .attempts()
+                .iter()
+                .map(FilesystemOperationAttempt::operation_tag)
+                .collect::<Vec<_>>(),
+            vec![2, 4, 8, 1, 43, 5, 44, 5, 43, 8]
+        );
+        let observations = EvaluationObservations::from_filesystem_operation_attempts(
+            replay.attempts().to_vec(),
+            Vec::new(),
+        );
+        let decoded = FilesystemReplay::from_input_output_observations(&observations)
+            .expect("successful sync operations are exact Output operations");
+        assert_eq!(decoded.output_files()[0].operations().len(), 5);
+        assert_eq!(
+            decoded.output_files()[0].replayed_bytes().unwrap(),
+            b"firstsecond"
+        );
+
+        let mut malformed = replay.attempts().to_vec();
+        malformed[4].scalar_operands.push(FilesystemScalarOperand {
+            operand_ordinal: 1,
+            value: FilesystemScalarOperandValue::I32(0),
+        });
+        let observations =
+            EvaluationObservations::from_filesystem_operation_attempts(malformed, Vec::new());
         assert!(FilesystemReplay::from_input_output_observations(&observations).is_err());
     }
 
