@@ -43,7 +43,7 @@ closed. Compiler-issued package review remains non-admitting.
   - run the existing Windows Job Object process-count, per-process memory,
     aggregate-memory, and aggregate-CPU exhaustion pairs on a native Windows
     worker; cross-compilation is not execution evidence;
-  - narrow macOS SSH discovery/fetch reads after Q6 settles explicit host-key,
+  - narrow macOS SSH discovery/fetch reads after OWNER Q5 settles explicit host-key,
     key, credential-provider, and credential-file custody;
   - make the existing broker transfer ceiling complete by denying direct helper
     egress on Linux and Windows; separately enforce whole-operation object-store,
@@ -65,7 +65,7 @@ closed. Compiler-issued package review remains non-admitting.
   The detailed established floor and remaining platform gaps are maintained in
   `source/omega-rust/omega/packages/omega-package-source/SOURCE_RESOLVER_SECURITY.md`.
   Strict SSH trust and credential authority is
-  design-blocked on OWNER Q6; the other bullets are engineering work.
+  design-blocked on OWNER Q5 (strict SSH custody); the other bullets are engineering work.
 
 ## P1 — Total package semantic identity
 
@@ -193,7 +193,10 @@ closed. Compiler-issued package review remains non-admitting.
   classification for network, dynamic loading, signing, secrets, executable
   installation, DMA/IOMMU, and any future authority-bearing surfaces. Names,
   aliases, paths, and same-spelled package declarations must confer no
-  authority. Ordinary std/provider authority depends on OWNER Q1.
+  authority. For an authority surface declared by an ordinary package, bind the
+  closed risk class to the exact accepted declaration identity and normalized
+  schema, never to a package-wide role. Classification is consumer policy and
+  review metadata; it does not grant the service or its provider authority.
 
 - [ ] **SOURCE-AND-PROVENANCE-TRIAGE.** Wire an organization-selected advisory
   reviewer into command orchestration with the existing fixed instructions,
@@ -245,10 +248,11 @@ closed. Compiler-issued package review remains non-admitting.
   remain an explicit ignored/blocked environment condition, never a fallback
   to fabricated or ambient evidence.
 
-## P7 — Owner-blocked package work
+## P7 — Cross-system package work
 
-The first task is settled cross-system implementation; the remaining named
-items are still owner-blocked.
+These tasks consume settled language and architecture decisions across package,
+compiler, and runtime owners. A task that still needs an owner decision says so
+explicitly.
 
 - [ ] **OPAQUE-BY-VALUE-BOUNDARY-ABI.** Implement lazy representation demand for
   runtime-relevant opaque boundary data. Add compiler-owned
@@ -347,17 +351,18 @@ items are still owner-blocked.
   Convert all five corpus exceptions to free roots and give every one an
   explicit application role. Move the two provider-selection passes into the
   root or an ordinary `configure_*(&mut Build)` helper. Recast
-  `build_effects_undeclared` through `builder.filesystem` while omitting the
-  root ceiling; keep the rowless and lookalike-service failures on their exact
-  declared reach identities without receiver smuggling.
+  `build_effects_undeclared` through a compiler-owned Build facet while omitting
+  the corresponding root build-effect ceiling; keep the rowless and lookalike-
+  service failures on their exact declared reach identities without receiver
+  smuggling until the std-service gate is retired.
 
   Pin helper composition with a positive and negative pair. The free root may
   lend `&mut Build` to an ordinary helper, but the helper's complete transitive
   reach, invocation, suspension, blocking, termination, authority, and build
-  observations compose into the root. A filesystem-reaching helper called from
-  a root without `reaches FilesystemHost` must reject. Project-role, workspace,
-  and dependency declarations remain direct statically projected root
-  statements and reject inside helpers.
+  observations compose into the root. A source-reading or output-writing helper
+  called from a root without the corresponding Build-facet effect ceiling must
+  reject. Project-role, workspace, and dependency declarations remain direct
+  statically projected root statements and reject inside helpers.
 
 - [ ] **CONFORMANCE-TARGET-LIFETIME-APPLICATION — complete the conformance
   header's trait application.** Add the ordered target-trait lifetime arguments
@@ -382,12 +387,33 @@ items are still owner-blocked.
   identity and selection until Omega gains another lifetime term or lifetime
   subtyping.
 
-- [ ] **BLOCKED — OWNER Q1: ORDINARY-STD-AND-PROVIDER-AUTHORITY.** Replace all
-  physical `source/library/std` routing and direct filesystem/GUI provider
-  injection with exact ordinary graph nodes and explicit authenticated role
-  bindings. Only core remains compiler-welded. Removing the declared std edge
-  must reject every std selection; no package name, alias, path, or magic mount
-  may confer authority.
+- [ ] **OPTIONAL-STDLIB-BUILD-PROTOCOL-AND-SEMANTIC-BINDINGS.** Finish the
+  ordinary-package std migration without recreating a privileged `std` role.
+  Only core and genuinely compiler-injected vocabulary remain toolchain-owned;
+  std may be replaced, split, or absent. Removing its graph edge must reject
+  every std import or provider selection, and no name, alias, path, repository,
+  filename, or same-spelled declaration may restore it.
+
+  Remove the build protocol's dependency on std: delete
+  `Build.filesystem: FilesystemHost`, replace the std-owned `Path` in the
+  `BuildSource`/`BuildOutput` surface with a compiler-owned relative-path
+  carrier or direct rooted operations, move sponsored reads and writes onto
+  those existing facets, and add an explicit compiler-owned logging facet.
+  Build evaluation must admit no ordinary runtime boundary service merely
+  because it is filesystem- or console-shaped. Retain exact build-effect and
+  observation rows, while `FilesystemSponsor` remains the enforcement boundary
+  for source/output roots, symlinks, limits, descriptors, and staging custody.
+
+  Audit every non-test `SourceOrigin::Toolchain` consumer. Preserve it for core,
+  intrinsics, and virtual compiler sources such as `<build-prelude>`; replace
+  relocated std checks with ordinary `PackageKeyIdentity` provenance. Where
+  target integration or dangerous-authority review genuinely needs compiler
+  recognition, carry an accepted-closure-scoped binding to the exact nominal
+  declaration and normalized schema fingerprint rather than granting a role to
+  its whole package. Candidate review designations remain non-authoritative;
+  accepted bindings come only from consumer policy. Clear the
+  `generated-table -> generated-consumer` canary through the sponsored Build
+  facets, not through a std authority exception.
 
 - [ ] Complete generic/exact-application coverage for
   **BOUNDARY-OPERATOR-FAMILY-SELECTION**. Package review now retains complete
@@ -406,7 +432,7 @@ items are still owner-blocked.
   bodylessness, catalog presence, nor build policy may synthesize a requirement
   or satisfier edge.
 
-- [ ] **BLOCKED — OWNER Q6: STRICT-SSH-CUSTODY.** Settle host-key, key,
+- [ ] **BLOCKED — OWNER Q5: STRICT-SSH-CUSTODY.** Settle host-key, key,
   credential-provider, and credential-file authority before narrowing the
   remaining SSH read surface or treating SSH resolution as strict evidence.
 
@@ -416,5 +442,5 @@ items are still owner-blocked.
   complete package, package-review, package-compilation, resolver, compiler
   handoff, platform-native, fixture, recovery, and architecture suites. Require
   zero unexpected ignores, no legacy manifest/receipt/plan surface, no physical
-  std authority, no unresolved canonical evidence rows, and a clean atomic
+  std special-casing, no unresolved canonical evidence rows, and a clean atomic
   failure path for every install/update stage.

@@ -916,7 +916,7 @@ owner substitution, general adapted arguments, non-arithmetic logical
 implication, and executable canonical Terminal replay remain fail closed.
 Arithmetic `Expression` entailment is implemented; transport of quotient-domain
 membership and opaque proposition families is language-design blocked on
-**OWNER_QUESTIONS Q2**. Q2 must settle the explicit selection locus, per-side
+**OWNER_QUESTIONS Q1 (quotient transport authority)**. Q1 must settle the explicit selection locus, per-side
 transport/weakening application, and canonical theorem identity and replay
 evidence. Ambient domain linking, visibility search, or an opaque solver
 verdict cannot supply that authority.
@@ -941,7 +941,7 @@ an ordinary machine-lowering path. The rows still own no machine or
 operation, normal validation continues to reject every quotient operation, and
 a batch with one unsupported request yields no partial rows. This is a
 source-erasure, module-retention, and replay prerequisite, not executable
-stage-4 admission; Q9 and checked operation/result lowering remain open.
+stage-4 admission; checked operation/result lowering remains open.
 
 The representation-observer fence is explicit at resolved-to-typed lowering.
 A quotient cannot declare `Equatable`, participate as a field in synthesized

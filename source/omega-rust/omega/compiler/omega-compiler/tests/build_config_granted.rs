@@ -1775,7 +1775,7 @@ fn failed_source_metadata_does_not_claim_source_input_replay() {
 }
 
 #[test]
-#[ignore = "OWNER Q5: build boundary-service identity is not yet authority-bearing"]
+#[ignore = "OPTIONAL-STDLIB-BUILD-PROTOCOL-AND-SEMANTIC-BINDINGS: migrate sponsored reads off std FilesystemHost"]
 fn source_open_descriptor_metadata_close_replays_without_a_filesystem_provider() {
     let (project, profile) = rooted_build_probe_project(
         "descriptor-metadata-replay",

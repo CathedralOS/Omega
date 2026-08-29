@@ -59,7 +59,9 @@ a present consumer and bounded gate, and state when it is absorbed or deleted.
 Material that cannot be adapted into that shape has negative value and is
 removed; Git history is the archive.
 
-The package library lives at `source/library/`. Temporary compiler readers may
-still address that physical location while
-`ORDINARY-STD-AND-PROVIDER-AUTHORITY` completes the ordinary package-graph
-route; no compatibility path exists.
+Optional library packages live at `source/library/`; none are compiler-trusted
+or required to exist. Temporary compiler readers may still address that
+physical location while
+`OPTIONAL-STDLIB-BUILD-PROTOCOL-AND-SEMANTIC-BINDINGS` removes the remaining
+physical-path and build-protocol dependencies; no compatibility path survives
+that migration.

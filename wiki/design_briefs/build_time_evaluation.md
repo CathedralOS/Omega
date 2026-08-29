@@ -437,15 +437,14 @@ machines lower through terminal Psi, the canonical schedule replaces this
 precursor count rather than being inferred from it.
 
 Package build filesystem authority enters through the one `Build` activation,
-which exposes an immutable source-root capability and a fresh writable
-staging-root capability. When its exact checked ceiling admits the toolchain
-filesystem service, that activation exposes it as `builder.filesystem`; the
-service is not ambient and does not enter the durable build result. `Path`
-remains the ordinary NUL-free byte domain; its bytes alone confer no authority.
-A checked resolver joins one exact root
-occurrence to canonical relative bytes before provider access. No compiler-host
-absolute path, process working directory, or virtual-prefix test participates
-in authorization.
+which exposes an immutable `BuildSource` capability and a fresh writable
+`BuildOutput` capability. Their compiler-owned operations perform sponsored
+reads, writes, and explicit generated-source publication directly; no runtime
+standard-library `FilesystemHost`, `Console`, or `Path` declaration is part of
+the build protocol. A checked facet operation joins one exact root occurrence
+to canonical relative bytes before host access. No compiler-host absolute path,
+process working directory, virtual-prefix test, package role, or service name
+participates in authorization.
 
 The resolved value, not an erased qualification over bare path bytes, carries
 the operational root identity. Resolution rejects absolute input, traversal,
@@ -455,7 +454,7 @@ bytes; following them requires another checked resolution, so an outside target
 may be inspected but not traversed. `/source/...` and `/output/...` are reserved
 canonical evidence renderings and never package-facing authority spellings.
 
-Writing under Output and publishing generated input are distinct. A successful
+Writing under `BuildOutput` and publishing generated input are distinct. A successful
 evaluation first closes its observations and output-tree custody; only an
 explicit `Build` handoff may then introduce selected staged content into
 compilation. Failure discards the staging occurrence. Root capabilities,

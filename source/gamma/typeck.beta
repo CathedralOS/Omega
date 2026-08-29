@@ -1,7 +1,7 @@
-; typeck.beta — a pre-Q14 Gamma static-semantics oracle, written in Beta.
+; typeck.beta — a pre-Q9 Gamma static-semantics oracle, written in Beta.
 ;
 ; This program exercises candidate monomorphic type rules. It is not a proof
-; kernel, a selected executable Gamma contract, or a compiler stage. Q14 decides
+; kernel, a selected executable Gamma contract, or a compiler stage. OWNER Q9 decides
 ; which rules enter the Beta-written Gamma compiler and whether this standalone
 ; parser/checker is then deleted.
 ;

@@ -13,65 +13,7 @@ decision's durable identity does not change when this queue is pruned.
 
 Last pruned: 2026-08-29.
 
-## Q1 — Authority-bearing roles for ordinary packages
-
-### Context
-
-`omega::language::std` is settled as an ordinary optional package rather than a
-compiler-mounted namespace. Its filesystem, console, target, and platform
-provider declarations nevertheless have compiler-recognized semantic roles:
-they drive sandboxed build services, dangerous-authority classification, and
-target/provider validation. `PackageCompilationInputs` currently carries exact
-package identities, roots, and dependency edges, but no authenticated role
-binding.
-
-### Problem statement
-
-Once std and platform providers arrive through the ordinary graph, the compiler
-must know which exact package is allowed to supply each compiler-recognized
-role. Inferring that authority from a declared package name, requester alias,
-source path, repository location, or same-spelled trait/service would let a
-lookalike package acquire authority. Initial review also needs to classify and
-sandbox a candidate before that candidate has accepted lock evidence, without
-pretending candidate designation is admission.
-
-The post-relocation `generated-table -> generated-consumer` canary now exposes
-the same boundary from build execution: dependency generated-source custody is
-ready, but the producer cannot receive `FilesystemHost` until its exact
-ordinary-package role is authenticated. A package name, trait spelling, or old
-physical std path must not make that test pass.
-
-### Proposed direction
-
-Have package orchestration pass an explicit, exact role-binding set into the
-compiler. Each binding names a closed compiler-owned role and one reachable
-`PackageKeyIdentity`; roles that require a particular interface additionally
-rejoin exact declaration/schema coordinates after checking. Candidate review
-and accepted compilation use distinct provenance: a candidate binding permits
-classification and confined evaluation and becomes review evidence, while an
-accepted binding must come from the consumer's accepted graph policy. The
-compiler validates reachability and exact semantic declarations and passes
-their resolved symbols downstream; Psi and package review never rediscover the
-role from names.
-
-### Alternates
-
-- Acceptable but less flexible: weld one exact std package lineage into each
-  compiler release while still resolving its revisions as ordinary graph
-  nodes. This makes alternate standard-service implementations a compiler
-  configuration change.
-- Acceptable for platform providers: let the root application's accepted build
-  policy bind target/provider roles explicitly, provided candidate review keeps
-  that choice non-authoritative until admission.
-- Tempting but wrong: reserve `omega-language-std`, `omega_language_std`, or a
-  source-directory location as authority.
-- Tempting but wrong: classify any package that implements a same-spelled
-  `FilesystemHost`, `Console`, target, or provider trait.
-- Tempting but wrong: keep std toolchain-owned internally while presenting it
-  as an ordinary package at the import surface; that preserves two identities
-  for one dependency and defeats capability review.
-
-## Q2 — Explicit transport authority for quotient preconditions
+## Q1 — Explicit transport authority for quotient preconditions
 
 ### Context
 
@@ -119,7 +61,7 @@ closed.
 - Tempting but wrong: retain only a solver `Proven` verdict without the selected
   theorem identity, ordered premises, per-side application, and replay data.
 
-## Q3 — Source result schema for placed-view establishment
+## Q2 — Source result schema for placed-view establishment
 
 ### Context
 
@@ -181,7 +123,7 @@ outputs outside the runtime result.
 - Tempting but wrong: derive result identity from source spelling, call-site
   order, accessor names, parameter ordinals, or compact plan fingerprints.
 
-## Q4 — Reborrow restoration disposition
+## Q3 — Reborrow restoration disposition
 
 ### Context
 
@@ -230,7 +172,7 @@ post-return use, cleanup, or Terminal resource claim may be derived from them.
 - Tempting but wrong: skip retired projected parents and return authority
   directly to a root without retaining and validating the complete path.
 
-## Q5 — Nominal result carriers for observing compare-exchange
+## Q4 — Nominal result carriers for observing compare-exchange
 
 ### Context
 
@@ -301,7 +243,7 @@ operation requirement identities separate from these value-type identities.
 - Tempting but wrong: expose `Uncommitted` on the decisive result merely because
   one larger runtime layout would be convenient.
 
-## Q6 — Strict SSH trust and credential authority
+## Q5 — Strict SSH trust and credential authority
 
 ### Context
 
@@ -350,7 +292,7 @@ producer claim.
 - Tempting but wrong: serialize private keys, tokens, or reusable credentials in
   `omega.lock` or source-resolution evidence.
 
-## Q7 — Suspension as control-flow exit or resumable continuation
+## Q6 — Suspension as control-flow exit or resumable continuation
 
 ### Context
 
@@ -389,7 +331,7 @@ and its custody.
 - Tempting but wrong: classify every `MaySuspend` call as a local CFG exit
   without retaining its continuation and outcome-specific state.
 
-## Q8 — Cyclic control flow in Terminal Psi
+## Q7 — Cyclic control flow in Terminal Psi
 
 ### Context
 
@@ -429,7 +371,7 @@ block-loop API.
   validation before loop-carried SSA, ownership, cleanup, and fuel semantics
   exist.
 
-## Q9 — Close the Delta v1 semantic contract
+## Q8 — Close the Delta v1 semantic contract
 
 ### Context
 
@@ -509,7 +451,7 @@ out of Delta without weakening its ability to host a robust compiler.
 - Tempting but wrong: retain the old translator's private capacities, exit
   codes, or Darwin output behavior as language rules.
 
-## Q10 — Select one typed executable Gamma contract
+## Q9 — Select one typed executable Gamma contract
 
 ### Context
 
@@ -579,7 +521,7 @@ failures.
 - Tempting but wrong: make Alpha I/O effects directly callable from arbitrary
   Gamma source merely to avoid defining the compiler-entry adapter.
 
-## Q11 — Fix Beta block formation and definite-initialization reachability
+## Q10 — Fix Beta block formation and definite-initialization reachability
 
 ### Context
 
@@ -644,7 +586,7 @@ semantic acceptance independent of optimizer sophistication.
 - Tempting but wrong: zero-initialize generated frame slots and call the gap
   closed; that changes Beta's written local semantics and hides skipped stores.
 
-## Q12 — Select the canonical Beta compiler outcome carrier
+## Q11 — Select the canonical Beta compiler outcome carrier
 
 ### Context
 
@@ -708,7 +650,7 @@ impossible fixup/table condition maps to `InternalFailure`.
 - Tempting but wrong: prepend a success tag to Alpha tape and thereby change the
   canonical artifact bytes or require a stripping stage.
 
-## Q13 — Canonical kernel propositions for exact scalar operations
+## Q12 — Canonical kernel propositions for exact scalar operations
 
 ### Context
 
@@ -765,7 +707,7 @@ and mirrored verifier search tree.
 - Tempting but wrong: serialize only the producer's chosen goal and trust it
   without independently reconstructing the operation-owned proposition.
 
-## Q14 — Compose the exact Alpha-to-Beta edge within checker capacity
+## Q13 — Compose the exact Alpha-to-Beta edge within checker capacity
 
 ### Context
 
@@ -827,7 +769,7 @@ of adding an assembly-specific evaluator path.
   primitive, trust a producer receipt, compare hashes, or weaken exact total
   partitioning.
 
-## Q15 — Own the ranked native-fuel sponsor entry
+## Q14 — Own the ranked native-fuel sponsor entry
 
 ### Context
 

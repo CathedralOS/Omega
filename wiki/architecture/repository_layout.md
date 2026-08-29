@@ -231,9 +231,10 @@ validation precedent.
 
 The package library now lives at `source/library/`. The relocation deliberately
 has no compatibility symlink. Package-manager task
-`ORDINARY-STD-AND-PROVIDER-AUTHORITY` still owns removal of the temporary
-physical-path readers that were updated to this location during the move; the
-final implementation resolves std through the package graph.
+`OPTIONAL-STDLIB-BUILD-PROTOCOL-AND-SEMANTIC-BINDINGS` still owns removal of the
+temporary physical-path readers that were updated to this location during the
+move. The final implementation resolves std only through the package graph and
+keeps the compiler-owned build protocol independent of whether std exists.
 
 ## Placement Rules
 
@@ -374,10 +375,11 @@ final implementation resolves std through the package graph.
   `.gitkeep` files and was removed; reserve that placement here in prose rather
   than as empty directories on disk.
 - The retired `omega/host` capability scaffold is not a second boundary model.
-  Portable host requirements and checked adapters live under
-  `source/library/std`; target-owned implementations/defaults live under
-  `source/library/std/targets`. [Retired: Host Package Scaffold](../design_briefs/retired_host_package_scaffold.md)
-  preserves the migration fence for any future dedicated provider package; the
+  The repository's current optional host requirements, checked adapters, and
+  target implementations live under `source/library/std`, but that package and
+  decomposition have no compiler privilege and may be split or retired.
+  [Retired: Host Package Scaffold](../design_briefs/retired_host_package_scaffold.md)
+  preserves the migration fence for future dedicated provider packages; the
   `omega/host/` directory itself is gone.
 - Import tables, export tables, loader metadata, startup selection, and final
   fixups are compiler responsibilities because Omega does not assume native

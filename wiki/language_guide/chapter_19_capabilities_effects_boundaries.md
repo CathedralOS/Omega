@@ -831,18 +831,26 @@ raw host provider to acquire filesystem authority itself.
 
 ### Package builds
 
-`build.omg` is an ordinary checked Omega program run with package-scoped build
-providers. It has no ambient filesystem, network, process, signing, secret, or
-package-acceptance authority. Before evaluation, its normalized contract gives
-policy the static service and authority ceiling; after evaluation, receipts
-record the realized observations and outputs.
+`build.omg` is an ordinary checked Omega program run with compiler-issued,
+package-scoped Build facets. It has no ambient filesystem, network, process,
+signing, secret, package-acceptance, or standard-library authority. `BuildSource`
+may observe only the authenticated source snapshot, `BuildOutput` may mutate
+only the sponsored staging tree and publish explicit generated-source handoffs,
+and `BuildLog` emits captured build observations. These facets are part of the
+compiler build protocol and remain available in a freestanding toolchain with
+no standard library. Before evaluation, their normalized effect demand gives
+policy the static ceiling; after evaluation, receipts record realized
+observations and outputs. The filesystem sponsor, not a package role or service
+name, enforces the physical grants.
 
 Only the canonical free build root initially receives `&mut Build`. It may lend
 that activation to ordinary helpers, but delegation does not narrow audit scope:
 their complete transitive reach, invocation, suspension, blocking, termination,
-authority demand, and build observations compose into the root. A helper that
-reaches `FilesystemHost` therefore requires the root to publish a ceiling that
-covers `FilesystemHost`. A scoped name or receiver never grants build authority.
+authority demand, Build-facet effects, and observations compose into the root.
+A helper cannot turn an ordinary runtime `FilesystemHost` or `Console` boundary
+into a build service; such a reach remains outside the compiler-owned build
+protocol and rejects unless a future explicit host-service mechanism is
+separately designed. A scoped name or receiver never grants build authority.
 
 Dependency retrieval is a resolver operation performed before downloaded code
 runs. The resolver owns narrowly scoped network, archive-reading, expansion-
@@ -1551,26 +1559,30 @@ boundaries.
 
 ## Host vs Standard Library
 
-The standard library is the portable API most application code should use. It
-can provide `Console.read_line`, formatting, strings, slices, data structures,
-and higher-level process or filesystem helpers. These machines are ordinary
-Omega code unless they are explicitly modeling the bottom host edge.
+An optional standard-library package may provide `Console.read_line`,
+formatting, strings, slices, data structures, and higher-level process or
+filesystem helpers. It is not a language component or privileged namespace: a
+deployment may replace it, split it into narrower packages, or omit it. These
+machines are ordinary Omega code unless they explicitly model the bottom host
+edge.
 
-Host packages are the audited bottom edge. They contain imported libraries,
-syscall surfaces, startup bindings, and boundary providers.
+Host packages are ordinary packages selected as the audited bottom edge. They
+contain imported libraries, syscall surfaces, startup bindings, and boundary
+providers; the exact selected declarations and provider plans confer their
+meaning, not a `host` or `std` package role.
 
 Typical layering:
 
 ```text
 application code
-  -> standard-library Omega machines
+  -> optional library Omega machines
     -> boundary trait requirement
       -> selected provider and calling plan
         -> syscall / imported symbol / firmware jump / loader hook
 ```
 
 Static vs dynamic linkage is not the same question as boundary vs normal code.
-A statically linked standard-library wrapper is still normal Omega code if the
+A statically linked library wrapper is still normal Omega code if the
 compiler can check its body. A dynamically imported, syscall-backed, firmware,
 or externally supplied implementation is a boundary because its guarantees are
 boundary rather than proved from Omega source.
@@ -1584,9 +1596,12 @@ use omega::language::std::console;
 use omega::language::std::filesystem;
 ```
 
-There is no compiler-magic `omega::host` package. Target providers live under
-`omega::language::std::targets`, satisfy the same public requirements, and are
-selected by target defaults or an explicit slot-owner override in `build.omg`.
+There is no compiler-magic `omega::host` or `std` package. The repository's
+current optional library places target providers under
+`omega::language::std::targets`, but this is package layout rather than language
+semantics. Target providers may instead live in dedicated ordinary packages;
+target composition selects their exact declarations and schemas through the
+accepted graph or an explicit slot-owner override in `build.omg`.
 
 Advanced users can author libraries for custom OSes, firmware, game consoles,
 or unusual hardware. Doing so explicitly expands the boundary base.
