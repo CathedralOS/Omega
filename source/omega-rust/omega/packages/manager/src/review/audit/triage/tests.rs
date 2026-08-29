@@ -1,8 +1,8 @@
 use super::render::reason_token;
 use super::*;
-use crate::declarations::BuildDeclarationKind;
 use crate::graph::{ResolvedPackageClosure, ResolvedPackageNode, ResolvedSourceIdentity};
-use crate::identity::{PackageKey, PackageName};
+use crate::package::{PackageKey, PackageName};
+use crate::project::BuildDeclarationKind;
 use crate::review::compare::compare_review_only_root_role_graphs;
 use omega_package_source::{GitCommitId, GitTreeId, ImmutableSourceResolution, SourceLineage};
 

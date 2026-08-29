@@ -6,7 +6,7 @@ use super::{
     ReviewOnlyBaselinePackage,
 };
 use crate::graph::ResolvedPackageClosure;
-use crate::identity::{AliasName, PackageKey};
+use crate::package::{AliasName, PackageKey};
 use crate::review::candidate::ReviewOnlyCanonicalRow;
 use crate::review::candidate::validation::validate_review_only_records;
 use omega_build_evaluation::{

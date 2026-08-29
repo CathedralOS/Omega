@@ -1,6 +1,6 @@
 //! Exact request that selected a dependency graph root.
 
-use crate::discovery::GitPackageSourceRequest;
+use crate::sources::GitPackageSourceRequest;
 use omega_package_source::{ExternalSourceContext, SourceLineage, SourceRelativePath};
 use std::path::PathBuf;
 

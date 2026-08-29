@@ -1,6 +1,6 @@
 use super::super::reconcile::PackageSourceClosureResolutionError;
-use crate::discovery::ResolvePackageSourceError;
-use crate::identity::PackageKey;
+use crate::package::PackageKey;
+use crate::sources::ResolvePackageSourceError;
 use omega_build_declarations::WorkspaceMemberPath;
 use omega_package_source::GitSourceRequestError;
 use omega_package_source::WorkspaceLineageIdentity;

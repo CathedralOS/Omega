@@ -1,5 +1,5 @@
-use crate::discovery::GitWorkspaceSelectionDeclarations;
-use crate::discovery::git::workspace::GitWorkspaceEvidence;
+use crate::sources::GitWorkspaceSelectionDeclarations;
+use crate::sources::git::workspace::GitWorkspaceEvidence;
 use omega_build_declarations::WorkspaceMemberPath;
 use omega_package_source::{
     GitSourceRequest, ImmutableSourceResolution, LocalSourceLimits, SourceLineage,

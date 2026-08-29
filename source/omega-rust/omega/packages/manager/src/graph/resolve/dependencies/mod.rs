@@ -14,9 +14,9 @@ use super::super::reconcile::{
 };
 use super::cache::{GitAcquisitionCache, SourceCacheLane};
 use super::errors::ResolveDependencySourceError;
-use crate::declarations::dependencies::read::DependencySourceRequest;
-use crate::discovery::PackageSourceCustody;
-use crate::identity::PackageKey;
+use crate::package::PackageKey;
+use crate::project::dependencies::read::DependencySourceRequest;
+use crate::sources::PackageSourceCustody;
 use omega_package_source::{ExternalSourceContext, LocalSourceLimits, WorkspaceLineageIdentity};
 use omega_target::TargetProfile;
 use std::collections::BTreeMap;

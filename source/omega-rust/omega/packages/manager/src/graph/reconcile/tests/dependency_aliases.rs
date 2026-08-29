@@ -1,6 +1,6 @@
 use super::super::*;
 use super::support::*;
-use crate::declarations::dependencies::read::ActiveDependencyAliasError;
+use crate::project::dependencies::read::ActiveDependencyAliasError;
 use std::collections::BTreeMap;
 
 #[test]

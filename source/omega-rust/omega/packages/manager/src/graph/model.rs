@@ -1,7 +1,7 @@
 //! Validated package-closure model over immutable source identities.
 
-use crate::declarations::BuildDeclarationKind;
-use crate::identity::{AliasName, PackageKey};
+use crate::package::{AliasName, PackageKey};
+use crate::project::BuildDeclarationKind;
 use omega_package_source::{IdentityError, ImmutableSourceResolution};
 use std::collections::{BTreeMap, BTreeSet};
 

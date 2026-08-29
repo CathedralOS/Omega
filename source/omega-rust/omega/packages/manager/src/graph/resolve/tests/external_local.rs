@@ -96,14 +96,14 @@ fn project_resolution_retains_an_application_root_role() {
 
     assert_eq!(
         closure.root_role(),
-        crate::declarations::BuildDeclarationKind::Application
+        crate::project::BuildDeclarationKind::Application
     );
     assert_eq!(
         closure
             .custody(closure.graph().root())
             .expect("root custody")
             .role(),
-        crate::declarations::BuildDeclarationKind::Application
+        crate::project::BuildDeclarationKind::Application
     );
 
     let subject = crate::graph::CanonicalSourceClosureSubject::from_resolved(
@@ -113,7 +113,7 @@ fn project_resolution_retains_an_application_root_role() {
     .expect("encode source closure");
     assert_eq!(
         subject.root_role(),
-        crate::declarations::BuildDeclarationKind::Application
+        crate::project::BuildDeclarationKind::Application
     );
     let recovered = crate::graph::CanonicalSourceClosureSubject::recover(
         subject.canonical_bytes(),
@@ -122,17 +122,17 @@ fn project_resolution_retains_an_application_root_role() {
     .expect("recover source closure");
     assert_eq!(
         recovered.root_role(),
-        crate::declarations::BuildDeclarationKind::Application
+        crate::project::BuildDeclarationKind::Application
     );
     let compiler_inputs = crate::review::package_compilation_inputs(&closure)
         .expect("application role enters compiler handoff");
     assert_eq!(
         compiler_inputs.root_role(),
-        crate::declarations::BuildDeclarationKind::Application
+        crate::project::BuildDeclarationKind::Application
     );
     assert_eq!(
         compiler_inputs.dependency_closure().root_role(),
-        crate::declarations::BuildDeclarationKind::Application
+        crate::project::BuildDeclarationKind::Application
     );
 
     let _ = std::fs::remove_dir_all(source);

@@ -1,0 +1,190 @@
+use super::projection::project_package_build;
+use super::{ResolvePackageSourceError, ResolvedPackageSource};
+use crate::package::PackageKey;
+use omega_package_source::local::operations::resolve_local_source_snapshot_in_lane;
+use omega_package_source::storage::RetainedStorageLane;
+use omega_package_source::{
+    ImmutableSourceResolution, SourceContentDigest, SourceLineage, SourceRelativePath,
+    WorkspaceLineageIdentity, WorkspaceMemberLineage,
+};
+use omega_package_source::{LocalSourceLimits, ResolvedLocalSnapshot, SourceResolverStorage};
+use std::path::{Path, PathBuf};
+
+/// Snapshot one workspace member and bind it to the workspace root's source
+/// lineage plus its normalized member-relative path.
+///
+/// The live member is derived only as `live_workspace_root/member_path`; the
+/// caller does not supply a second spelling to reconcile. It must remain a
+/// strict descendant of the canonical workspace root. Only that member is
+/// passed to local snapshot custody.
+#[cfg(test)]
+pub fn resolve_workspace_member_package_source(
+    workspace_root_source: &SourceLineage,
+    member_path: SourceRelativePath,
+    live_workspace_root: impl AsRef<Path>,
+    cache_dir: impl AsRef<Path>,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
+    let storage = SourceResolverStorage::for_hardened_base(cache_dir)?;
+    resolve_workspace_member_package_source_with_storage(
+        workspace_root_source,
+        member_path,
+        live_workspace_root,
+        &storage,
+        limits,
+    )
+}
+
+pub(crate) fn resolve_workspace_member_package_source_in_lane(
+    workspace_root_source: &SourceLineage,
+    member_path: SourceRelativePath,
+    live_workspace_root: impl AsRef<Path>,
+    lane: &RetainedStorageLane,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
+    resolve_workspace_member_declared_source_in_lane(
+        workspace_root_source,
+        member_path,
+        live_workspace_root,
+        lane,
+        limits,
+        false,
+    )
+}
+
+pub(crate) fn resolve_workspace_member_project_source_in_lane(
+    workspace_root_source: &SourceLineage,
+    member_path: SourceRelativePath,
+    live_workspace_root: impl AsRef<Path>,
+    lane: &RetainedStorageLane,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
+    resolve_workspace_member_declared_source_in_lane(
+        workspace_root_source,
+        member_path,
+        live_workspace_root,
+        lane,
+        limits,
+        true,
+    )
+}
+
+fn resolve_workspace_member_declared_source_in_lane(
+    workspace_root_source: &SourceLineage,
+    member_path: SourceRelativePath,
+    live_workspace_root: impl AsRef<Path>,
+    lane: &RetainedStorageLane,
+    limits: LocalSourceLimits,
+    application_root_allowed: bool,
+) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
+    let limits = limits.compiler_bounded();
+    let workspace_identity = WorkspaceLineageIdentity::from_root_source(workspace_root_source)?;
+    let canonical_declared_member_root =
+        validate_workspace_member_root(live_workspace_root.as_ref(), &member_path)?;
+    let source =
+        resolve_local_source_snapshot_in_lane(&canonical_declared_member_root, lane, limits)?;
+    bind_workspace_member_package_source(
+        workspace_identity,
+        member_path,
+        source,
+        limits,
+        application_root_allowed,
+    )
+}
+
+pub fn resolve_workspace_member_package_source_with_storage(
+    workspace_root_source: &SourceLineage,
+    member_path: SourceRelativePath,
+    live_workspace_root: impl AsRef<Path>,
+    storage: &SourceResolverStorage,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
+    storage.verify_path_identity()?;
+    let result = resolve_workspace_member_package_source_in_lane(
+        workspace_root_source,
+        member_path,
+        live_workspace_root,
+        storage.workspace_members(),
+        limits,
+    );
+    storage.verify_path_identity()?;
+    result
+}
+
+pub fn resolve_workspace_member_project_source_with_storage(
+    workspace_root_source: &SourceLineage,
+    member_path: SourceRelativePath,
+    live_workspace_root: impl AsRef<Path>,
+    storage: &SourceResolverStorage,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
+    storage.verify_path_identity()?;
+    let result = resolve_workspace_member_project_source_in_lane(
+        workspace_root_source,
+        member_path,
+        live_workspace_root,
+        storage.workspace_members(),
+        limits,
+    );
+    storage.verify_path_identity()?;
+    result
+}
+
+fn validate_workspace_member_root(
+    requested_workspace_root: &Path,
+    member_path: &SourceRelativePath,
+) -> Result<PathBuf, ResolvePackageSourceError> {
+    let declared_member_root = requested_workspace_root.join(member_path.as_str());
+
+    let canonical_workspace_root = canonical_workspace_path(requested_workspace_root)?;
+    let canonical_declared_member_root = canonical_workspace_path(&declared_member_root)?;
+
+    if canonical_declared_member_root == canonical_workspace_root {
+        return Err(ResolvePackageSourceError::WorkspaceMemberIsRoot {
+            workspace_root: canonical_workspace_root,
+        });
+    }
+    if !canonical_declared_member_root.starts_with(&canonical_workspace_root) {
+        return Err(ResolvePackageSourceError::WorkspaceMemberEscapesRoot {
+            workspace_root: canonical_workspace_root,
+            member_root: canonical_declared_member_root,
+        });
+    }
+    Ok(canonical_declared_member_root)
+}
+
+fn bind_workspace_member_package_source(
+    workspace_identity: WorkspaceLineageIdentity,
+    member_path: SourceRelativePath,
+    source: ResolvedLocalSnapshot,
+    limits: LocalSourceLimits,
+    application_root_allowed: bool,
+) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
+    let lineage =
+        SourceLineage::Workspace(WorkspaceMemberLineage::new(workspace_identity, member_path));
+    let declaration = project_package_build(source.snapshot_root(), application_root_allowed)?;
+    let resolution = ImmutableSourceResolution::workspace(SourceContentDigest::derive(
+        source.normalized().content_identity.as_bytes(),
+    ));
+    let materialization = super::PackageSourceMaterialization::from_local(source.normalized());
+
+    Ok(ResolvedPackageSource::from_resolved_parts(
+        PackageKey::new(declaration.name, lineage),
+        declaration.role,
+        resolution,
+        materialization,
+        source.snapshot_root().to_path_buf(),
+        super::PackageSourceNavigation::Root,
+        super::PackageSourceSelectionEvidence::Root,
+        limits,
+        declaration.dependencies,
+        source,
+    ))
+}
+
+fn canonical_workspace_path(path: &Path) -> Result<PathBuf, ResolvePackageSourceError> {
+    std::fs::canonicalize(path).map_err(|error| ResolvePackageSourceError::WorkspacePath {
+        path: path.to_path_buf(),
+        message: error.to_string(),
+    })
+}

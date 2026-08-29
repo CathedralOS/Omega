@@ -6,12 +6,12 @@ use super::context::{WorkspaceContext, WorkspaceContextKind};
 use super::external_local::{
     resolve_external_dependency, resolve_external_dependency_from_root, workspace_requester_root,
 };
-use crate::discovery::workspace_path::source_relative_path;
-use crate::discovery::{
+use crate::package::PackageKey;
+use crate::sources::workspace_path::source_relative_path;
+use crate::sources::{
     GitPackageSourceRequest, PackageSourceCustody, PackageSourceNavigation,
     ResolvePackageSourceError,
 };
-use crate::identity::PackageKey;
 use omega_build_declarations::WorkspaceMemberPath;
 use omega_package_source::{
     ExternalSourceContext, LocalSourceLimits, SourceLineage, WorkspaceLineageIdentity,
@@ -61,13 +61,13 @@ pub(super) fn resolve_path_dependency(
                     });
                 }
                 let selection = super::git::workspace_member_selection(repository, &member_path);
-                let package_name = crate::identity::PackageName::parse(
+                let package_name = crate::package::PackageName::parse(
                     selection.plan().selected_member().package_name().as_str(),
                 )
                 .expect("source and build package names share one grammar");
                 let request = GitPackageSourceRequest::new(
                     repository.request.clone(),
-                    crate::declarations::dependencies::read::PackageSelection::Named(package_name),
+                    crate::project::dependencies::read::PackageSelection::Named(package_name),
                 );
                 let resolved = git_acquisitions.resolve_selected(
                     &request,

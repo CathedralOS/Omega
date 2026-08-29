@@ -1,6 +1,6 @@
 use super::*;
-use crate::identity::PackageName;
-use crate::identity::{AliasName, PackageKey};
+use crate::package::PackageName;
+use crate::package::{AliasName, PackageKey};
 use omega_package_source::ImmutableSourceResolution;
 use omega_package_source::{GitCommitId, GitTreeId, SourceLineage};
 
@@ -49,7 +49,7 @@ fn same_name_from_different_lineages_remains_distinct() {
 
     let closure = ResolvedPackageClosure::new(
         root.clone(),
-        crate::declarations::BuildDeclarationKind::Package,
+        crate::project::BuildDeclarationKind::Package,
         vec![
             node(
                 &root,
@@ -78,7 +78,7 @@ fn same_name_wrong_lineage_does_not_satisfy_an_edge() {
 
     let errors = ResolvedPackageClosure::new(
         root.clone(),
-        crate::declarations::BuildDeclarationKind::Package,
+        crate::project::BuildDeclarationKind::Package,
         vec![
             node(&root, 1, vec![dependency("codec", &requested)]),
             node(&spoof, 2, vec![]),
@@ -102,7 +102,7 @@ fn conflicting_resolutions_for_one_key_are_rejected() {
     let root = key("application", "application");
     let errors = ResolvedPackageClosure::new(
         root.clone(),
-        crate::declarations::BuildDeclarationKind::Package,
+        crate::project::BuildDeclarationKind::Package,
         vec![node(&root, 1, vec![]), node(&root, 2, vec![])],
     )
     .unwrap_err();
@@ -118,7 +118,7 @@ fn duplicate_identical_package_rows_are_rejected() {
     let root = key("application", "application");
     let errors = ResolvedPackageClosure::new(
         root.clone(),
-        crate::declarations::BuildDeclarationKind::Package,
+        crate::project::BuildDeclarationKind::Package,
         vec![node(&root, 1, vec![]), node(&root, 1, vec![])],
     )
     .unwrap_err();
@@ -135,7 +135,7 @@ fn root_requires_the_exact_package_key() {
     let same_name_wrong_lineage = key("application", "other-application");
     let errors = ResolvedPackageClosure::new(
         requested_root.clone(),
-        crate::declarations::BuildDeclarationKind::Package,
+        crate::project::BuildDeclarationKind::Package,
         vec![node(&same_name_wrong_lineage, 1, vec![])],
     )
     .unwrap_err();
@@ -155,7 +155,7 @@ fn closed_diamond_succeeds() {
 
     let closure = ResolvedPackageClosure::new(
         root.clone(),
-        crate::declarations::BuildDeclarationKind::Package,
+        crate::project::BuildDeclarationKind::Package,
         vec![
             node(
                 &root,
@@ -179,7 +179,7 @@ fn unreachable_package_is_rejected() {
     let unused = key("unused", "unused");
     let errors = ResolvedPackageClosure::new(
         root.clone(),
-        crate::declarations::BuildDeclarationKind::Package,
+        crate::project::BuildDeclarationKind::Package,
         vec![node(&root, 1, vec![]), node(&unused, 2, vec![])],
     )
     .unwrap_err();
@@ -197,7 +197,7 @@ fn duplicate_alias_within_one_requester_is_rejected() {
     let second = key("second", "second");
     let errors = ResolvedPackageClosure::new(
         root.clone(),
-        crate::declarations::BuildDeclarationKind::Package,
+        crate::project::BuildDeclarationKind::Package,
         vec![
             node(
                 &root,
@@ -223,7 +223,7 @@ fn dependency_cycle_is_rejected() {
     let library = key("library", "library");
     let errors = ResolvedPackageClosure::new(
         root.clone(),
-        crate::declarations::BuildDeclarationKind::Package,
+        crate::project::BuildDeclarationKind::Package,
         vec![
             node(&root, 1, vec![dependency("library", &library)]),
             node(&library, 2, vec![dependency("application", &root)]),

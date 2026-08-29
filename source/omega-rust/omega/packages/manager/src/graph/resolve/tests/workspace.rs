@@ -81,7 +81,7 @@ fn workspace_project_entry_retains_application_root_role() {
 
     assert_eq!(
         closure.root_role(),
-        crate::declarations::BuildDeclarationKind::Application
+        crate::project::BuildDeclarationKind::Application
     );
     assert_eq!(closure.graph().root().name().as_str(), "driver-console");
 

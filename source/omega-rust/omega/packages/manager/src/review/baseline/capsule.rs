@@ -11,12 +11,12 @@ use super::{
     CHECKSUM_BYTES, MAGIC, REVIEW_ONLY_ARTIFACT_CLASS, ReviewOnlyBaselineError,
     ReviewOnlyBaselineLimits, VERSION,
 };
-use crate::declarations::BuildDeclarationKind;
 use crate::graph::{
     ResolvedDependency, ResolvedPackageClosure, ResolvedPackageNode, ResolvedPackageSourceClosure,
     ResolvedSourceIdentity,
 };
-use crate::identity::{AliasName, PackageKey};
+use crate::package::{AliasName, PackageKey};
+use crate::project::BuildDeclarationKind;
 use crate::review::CompilerIssuedPackageReviewSet;
 use crate::review::candidate::validation::validate_review_only_closure;
 use crate::review::candidate::{

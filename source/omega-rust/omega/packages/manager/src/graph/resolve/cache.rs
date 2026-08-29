@@ -1,4 +1,4 @@
-use crate::discovery::{
+use crate::sources::{
     GitPackageSourceRequest, ResolvePackageSourceError, ResolvedPackageSource,
     resolve_external_local_package_source_in_lane, resolve_external_local_project_source_in_lane,
     resolve_selected_git_package_source_from_pin_in_lanes,
@@ -64,7 +64,7 @@ impl GitAcquisitionCache {
             .find(|(selected, _)| selected == request)
         {
             if application_root_allowed
-                || resolved.role() == crate::declarations::BuildDeclarationKind::Package
+                || resolved.role() == crate::project::BuildDeclarationKind::Package
             {
                 return Ok(resolved.clone());
             }

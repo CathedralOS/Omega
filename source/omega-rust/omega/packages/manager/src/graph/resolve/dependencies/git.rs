@@ -3,8 +3,8 @@ use super::super::errors::ResolveDependencySourceError;
 use super::context::{
     GitRepositoryContext, GitRepositoryWorkspaceEvidence, WorkspaceContext, WorkspaceContextKind,
 };
-use crate::declarations::dependencies::read::PackageSelection;
-use crate::discovery::{
+use crate::project::dependencies::read::PackageSelection;
+use crate::sources::{
     GitPackageSourceRequest, GitWorkspaceSelectionEvidence, PackageSourceCustody,
     PackageSourceSelectionEvidence, ResolvePackageSourceError,
 };

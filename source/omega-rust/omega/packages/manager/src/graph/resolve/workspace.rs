@@ -9,7 +9,7 @@ use super::cache::{
 };
 use super::dependencies::{WorkspaceContext, resolve_registered_package_closure};
 use super::errors::ResolveWorkspacePackageClosureError;
-use crate::discovery::ResolvePackageSourceError;
+use crate::sources::ResolvePackageSourceError;
 use omega_package_source::{
     ExternalSourceContext, SourceLineage, SourceRelativePath, WorkspaceLineageIdentity,
     WorkspaceMemberLineage,

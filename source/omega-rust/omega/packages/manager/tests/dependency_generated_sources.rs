@@ -1,9 +1,9 @@
-use omega_package_manager::discovery::ResolvePackageSourceError;
 use omega_package_manager::graph::{
     PackageSourceClosureLimits, ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure,
     resolve_workspace_package_closure_with_storage,
 };
 use omega_package_manager::review::compile_resolved_package_reviews;
+use omega_package_manager::sources::ResolvePackageSourceError;
 use omega_package_source::{
     LocalSourceLimits, SourceLineage, SourceRelativePath, SourceResolverStorage,
 };

@@ -21,7 +21,7 @@ fn resolves_repository_root_git_closure_and_retains_the_exact_request() {
     .expect("validated local Git root request");
     let storage = SourceResolverStorage::for_hardened_base(&cache)
         .expect("create retained Git resolver storage");
-    let resolved = crate::discovery::resolve_git_package_source_with_storage(
+    let resolved = crate::sources::resolve_git_package_source_with_storage(
         &request,
         &storage,
         LocalSourceLimits::default(),
@@ -125,7 +125,7 @@ fn repository_root_project_retains_application_role_and_package_entry_rejects() 
 
     assert_eq!(
         closure.root_role(),
-        crate::declarations::BuildDeclarationKind::Application
+        crate::project::BuildDeclarationKind::Application
     );
     assert_eq!(closure.graph().root().name().as_str(), "network-console");
 
@@ -156,15 +156,15 @@ machine build(builder: &mut Build) {
     run_test_git(&repository, ["config", "user.name", "Omega Tests"]);
     run_test_git(&repository, ["add", "."]);
     run_test_git(&repository, ["commit", "--quiet", "-m", "root"]);
-    let request = crate::discovery::GitPackageSourceRequest::new(
+    let request = crate::sources::GitPackageSourceRequest::new(
         GitSourceRequest::for_local_test_repository_with_lineage(
             &repository,
             None,
             "https://github.com/CathedralOS/workspace.git",
         )
         .expect("validated local Git root request"),
-        crate::declarations::PackageSelection::Named(
-            crate::identity::PackageName::parse("matrix").expect("package name"),
+        crate::project::PackageSelection::Named(
+            crate::package::PackageName::parse("matrix").expect("package name"),
         ),
     );
     let storage = SourceResolverStorage::for_hardened_base(&cache)
@@ -184,7 +184,7 @@ machine build(builder: &mut Build) {
     assert_eq!(root.key().name().as_str(), "matrix");
     assert!(matches!(
         root.navigation(),
-        crate::discovery::PackageSourceNavigation::Member(path)
+        crate::sources::PackageSourceNavigation::Member(path)
             if path.as_str() == "packages/matrix"
     ));
     let selection = root
@@ -240,15 +240,15 @@ machine build(builder: &mut Build) {
     run_test_git(&repository, ["config", "user.name", "Omega Tests"]);
     run_test_git(&repository, ["add", "."]);
     run_test_git(&repository, ["commit", "--quiet", "-m", "workspace"]);
-    let request = crate::discovery::GitPackageSourceRequest::new(
+    let request = crate::sources::GitPackageSourceRequest::new(
         GitSourceRequest::for_local_test_repository_with_lineage(
             &repository,
             None,
             "https://github.com/CathedralOS/driver-workspace.git",
         )
         .expect("validated local Git workspace request"),
-        crate::declarations::PackageSelection::Named(
-            crate::identity::PackageName::parse("driver-console").expect("project name"),
+        crate::project::PackageSelection::Named(
+            crate::package::PackageName::parse("driver-console").expect("project name"),
         ),
     );
     let storage = SourceResolverStorage::for_hardened_base(&cache)
@@ -265,7 +265,7 @@ machine build(builder: &mut Build) {
 
     assert_eq!(
         closure.root_role(),
-        crate::declarations::BuildDeclarationKind::Application
+        crate::project::BuildDeclarationKind::Application
     );
     let evidence = closure
         .custody(closure.graph().root())
@@ -276,11 +276,11 @@ machine build(builder: &mut Build) {
     assert_eq!(evidence.members().len(), 2);
     assert!(evidence.members().iter().any(|member| {
         member.package_name().as_str() == "driver-console"
-            && member.role() == crate::declarations::BuildDeclarationKind::Application
+            && member.role() == crate::project::BuildDeclarationKind::Application
     }));
     assert!(evidence.members().iter().any(|member| {
         member.package_name().as_str() == "driver-protocol"
-            && member.role() == crate::declarations::BuildDeclarationKind::Package
+            && member.role() == crate::project::BuildDeclarationKind::Package
     }));
 
     let _ = std::fs::remove_dir_all(repository);
@@ -312,15 +312,15 @@ machine build(builder: &mut Build) {
     run_test_git(&repository, ["config", "user.name", "Omega Tests"]);
     run_test_git(&repository, ["add", "."]);
     run_test_git(&repository, ["commit", "--quiet", "-m", "workspace"]);
-    let request = crate::discovery::GitPackageSourceRequest::new(
+    let request = crate::sources::GitPackageSourceRequest::new(
         GitSourceRequest::for_local_test_repository_with_lineage(
             &repository,
             None,
             "https://github.com/CathedralOS/member-path.git",
         )
         .expect("validated local Git root request"),
-        crate::declarations::PackageSelection::Named(
-            crate::identity::PackageName::parse("left").expect("package name"),
+        crate::project::PackageSelection::Named(
+            crate::package::PackageName::parse("left").expect("package name"),
         ),
     );
     let storage = SourceResolverStorage::for_hardened_base(&cache)
@@ -354,7 +354,7 @@ machine build(builder: &mut Build) {
     assert_ne!(left.snapshot_root(), right.snapshot_root());
     assert!(matches!(
         right.navigation(),
-        crate::discovery::PackageSourceNavigation::Member(path)
+        crate::sources::PackageSourceNavigation::Member(path)
             if path.as_str() == "packages/right"
     ));
     assert_eq!(
@@ -414,15 +414,15 @@ machine build(builder: &mut Build) {
     run_test_git(&repository, ["config", "user.name", "Omega Tests"]);
     run_test_git(&repository, ["add", "."]);
     run_test_git(&repository, ["commit", "--quiet", "-m", "workspace"]);
-    let request = crate::discovery::GitPackageSourceRequest::new(
+    let request = crate::sources::GitPackageSourceRequest::new(
         GitSourceRequest::for_local_test_repository_with_lineage(
             &repository,
             None,
             "https://github.com/CathedralOS/undeclared-member.git",
         )
         .expect("validated local Git root request"),
-        crate::declarations::PackageSelection::Named(
-            crate::identity::PackageName::parse("left").expect("package name"),
+        crate::project::PackageSelection::Named(
+            crate::package::PackageName::parse("left").expect("package name"),
         ),
     );
     let storage = SourceResolverStorage::for_hardened_base(&cache)

@@ -1,7 +1,7 @@
-use omega_package_manager::declarations::{
+use omega_package_manager::package::PackageName;
+use omega_package_manager::project::{
     BuildDeclaration, BuildDeclarationError, WorkspaceMemberPath, extract_build_declaration,
 };
-use omega_package_manager::identity::PackageName;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -77,7 +77,7 @@ fn repository_workspace_declares_its_members_in_authored_order() {
     let declaration = extract_build_declaration(repository_root()).unwrap();
     assert_eq!(
         declaration,
-        BuildDeclaration::Workspace(omega_package_manager::declarations::WorkspaceDeclaration {
+        BuildDeclaration::Workspace(omega_package_manager::project::WorkspaceDeclaration {
             members: vec![
                 WorkspaceMemberPath::parse("source/library/std").unwrap(),
                 WorkspaceMemberPath::parse("source/psi").unwrap(),
@@ -92,21 +92,19 @@ fn compiler_application_and_standard_library_declare_their_kinds() {
     let root = repository_root();
     assert_eq!(
         extract_build_declaration(root.join("source/omega")).unwrap(),
-        BuildDeclaration::Application(
-            omega_package_manager::declarations::ApplicationDeclaration {
-                name: PackageName::parse("omega-compiler").unwrap(),
-            }
-        )
+        BuildDeclaration::Application(omega_package_manager::project::ApplicationDeclaration {
+            name: PackageName::parse("omega-compiler").unwrap(),
+        })
     );
     assert_eq!(
         extract_build_declaration(root.join("source/psi")).unwrap(),
-        BuildDeclaration::Package(omega_package_manager::declarations::PackageDeclaration {
+        BuildDeclaration::Package(omega_package_manager::project::PackageDeclaration {
             name: PackageName::parse("psi").unwrap(),
         })
     );
     assert_eq!(
         extract_build_declaration(root.join("source/library/std")).unwrap(),
-        BuildDeclaration::Package(omega_package_manager::declarations::PackageDeclaration {
+        BuildDeclaration::Package(omega_package_manager::project::PackageDeclaration {
             name: PackageName::parse("omega-language-std").unwrap(),
         })
     );
@@ -128,11 +126,9 @@ fn executable_samples_declare_canonical_application_roles() {
                     root.display()
                 )
             }),
-            BuildDeclaration::Application(
-                omega_package_manager::declarations::ApplicationDeclaration {
-                    name: PackageName::parse(&expected_name).unwrap(),
-                }
-            ),
+            BuildDeclaration::Application(omega_package_manager::project::ApplicationDeclaration {
+                name: PackageName::parse(&expected_name).unwrap(),
+            }),
             "unexpected sample application declaration in {}",
             root.display()
         );
@@ -169,11 +165,9 @@ fn ordinary_omega_case_projects_declare_canonical_application_roles() {
                     root.display()
                 )
             }),
-            BuildDeclaration::Application(
-                omega_package_manager::declarations::ApplicationDeclaration {
-                    name: PackageName::parse(&expected_name).unwrap(),
-                }
-            ),
+            BuildDeclaration::Application(omega_package_manager::project::ApplicationDeclaration {
+                name: PackageName::parse(&expected_name).unwrap(),
+            }),
             "unexpected Omega case application declaration in {}",
             root.display()
         );

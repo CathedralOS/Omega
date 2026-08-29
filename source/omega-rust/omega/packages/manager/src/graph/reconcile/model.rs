@@ -1,11 +1,11 @@
 //! Paths, limits, conflicts, and failures exposed by reconciliation.
 
 use super::super::PackageClosureValidationError;
-use crate::declarations::BuildDeclarationKind;
-use crate::declarations::dependencies::read::ActiveDependencyAliasError;
-use crate::declarations::dependencies::read::DependencySourceRequest;
-use crate::discovery::PackageSourceCustody;
-use crate::identity::{AliasName, PackageKey};
+use crate::package::{AliasName, PackageKey};
+use crate::project::BuildDeclarationKind;
+use crate::project::dependencies::read::ActiveDependencyAliasError;
+use crate::project::dependencies::read::DependencySourceRequest;
+use crate::sources::PackageSourceCustody;
 
 use std::fmt;
 

@@ -9,8 +9,8 @@ use super::cache::{
 };
 use super::dependencies::resolve_registered_package_closure;
 use super::errors::ResolveExternalLocalPackageClosureError;
-use crate::discovery::ResolvePackageSourceError;
-use crate::identity::PackageKey;
+use crate::package::PackageKey;
+use crate::sources::ResolvePackageSourceError;
 use omega_package_source::{ExternalSourceContext, SourceLineage};
 use omega_package_source::{LocalSourceLimits, SourceResolverStorage};
 use omega_target::TargetProfile;
