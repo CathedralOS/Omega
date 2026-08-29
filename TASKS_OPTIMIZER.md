@@ -17,6 +17,13 @@ another broad alias while executing this plan.
 
 ## Current stopping point
 
+[x] Producer-side GVN expression identity no longer lives in one 954-line
+mixed leaf. A 33-line `expression_keys/mod.rs` entrance owns the canonical row
+and operand-pair contracts and descends into named `model`, obligation-free
+`total`, `proof_certified`, and asymmetric `compatible_policy` leaves. No
+replacement exceeds 300 lines, and the source-organization gate pins the
+meaningful entrance.
+
 [x] Global value numbering now has a separate five-row obligation-free
 saturating neutral-arithmetic family: add-zero left/right, subtract-zero right,
 and multiply-one left/right. It appends candidate tags 10-14 and catalog row 12
