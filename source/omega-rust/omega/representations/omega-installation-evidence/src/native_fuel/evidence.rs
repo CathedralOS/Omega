@@ -1,6 +1,6 @@
 use omega_calling_conventions::StateFootprintEvidence;
 
-use super::fingerprint::fingerprint_transfer_evidence;
+use super::fingerprint::non_authoritative_transfer_evidence_report_fingerprint;
 use super::plan::{NativeFuelRuntimeEntryIdentity, NativeFuelTransferRuntimePlanProjection};
 
 /// Exact interval in the final image's compiler-owned text coordinate space.
@@ -74,7 +74,7 @@ pub struct NativeFuelTransferRuntimeEvidence {
     pub(super) resume_text: NativeFuelRuntimeTextEvidence,
     pub(super) physical_state_footprint: StateFootprintEvidence,
     pub(super) sponsor_stack_peak_bytes: u64,
-    pub(super) fingerprint: u64,
+    pub(super) non_authoritative_report_fingerprint: u64,
 }
 
 impl NativeFuelTransferRuntimeEvidence {
@@ -120,9 +120,10 @@ impl NativeFuelTransferRuntimeEvidence {
             resume_text,
             physical_state_footprint,
             sponsor_stack_peak_bytes,
-            fingerprint: 0,
+            non_authoritative_report_fingerprint: 0,
         };
-        evidence.fingerprint = fingerprint_transfer_evidence(&evidence);
+        evidence.non_authoritative_report_fingerprint =
+            non_authoritative_transfer_evidence_report_fingerprint(&evidence);
         Ok(evidence)
     }
 
@@ -146,8 +147,15 @@ impl NativeFuelTransferRuntimeEvidence {
         self.sponsor_stack_peak_bytes
     }
 
+    /// Explicitly non-authoritative compact report/cache coordinate. The exact
+    /// plan, byte rows, footprint, and stack peak above remain the evidence.
+    pub const fn report_fingerprint(&self) -> u64 {
+        self.non_authoritative_report_fingerprint
+    }
+
+    /// Compatibility accessor for [`Self::report_fingerprint`].
     pub const fn fingerprint(&self) -> u64 {
-        self.fingerprint
+        self.report_fingerprint()
     }
 }
 

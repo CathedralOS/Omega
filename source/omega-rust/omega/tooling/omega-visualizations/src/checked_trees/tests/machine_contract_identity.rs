@@ -399,12 +399,17 @@ fn machine_contract_manifest_specialization_coordinates_accept_reuse_and_clone_i
         .expect("cloned specialization");
 
     assert!(reuse < cloned);
-    assert!(json[reuse..cloned].contains("\"instance_fingerprint\": \"0x000000000000aaaa\""));
     assert!(
-        json[reuse..cloned].contains("\"instance_contract_fingerprint\": \"0x0000000000001111\"")
+        json[reuse..cloned].contains("\"instance_report_fingerprint\": \"0x000000000000aaaa\"")
     );
-    assert!(json[cloned..].contains("\"instance_fingerprint\": \"0x000000000000bbbb\""));
-    assert!(json[cloned..].contains("\"instance_contract_fingerprint\": \"0x0000000000002222\""));
+    assert!(
+        json[reuse..cloned]
+            .contains("\"instance_contract_report_fingerprint\": \"0x0000000000001111\"")
+    );
+    assert!(json[cloned..].contains("\"instance_report_fingerprint\": \"0x000000000000bbbb\""));
+    assert!(
+        json[cloned..].contains("\"instance_contract_report_fingerprint\": \"0x0000000000002222\"")
+    );
 }
 
 #[test]
@@ -504,6 +509,29 @@ fn machine_contract_manifest_records_specialization_trust_and_contract_ids() {
         },
     );
     program.typed.push_machine(machine);
+    let argument_symbol = SymbolHandle::from_arena_index(8);
+    let mut argument_machine = Machine {
+        symbol: argument_symbol,
+        name: Identifier::generated("selected_argument"),
+        ..Default::default()
+    };
+    program.typed.push_machine_state(
+        &mut argument_machine,
+        State {
+            symbol: SymbolHandle::from_arena_index(9),
+            name: Identifier::generated("entry"),
+            ..Default::default()
+        },
+    );
+    program.typed.push_machine(argument_machine);
+    push_behavior_contract(&mut program, argument_symbol, false, false);
+    program
+        .facts
+        .contract_plans
+        .machines
+        .last_mut()
+        .expect("selected argument contract fixture")
+        .fingerprint = 0x2222;
     program
         .typed
         .machine_specializations
@@ -514,14 +542,14 @@ fn machine_contract_manifest_records_specialization_trust_and_contract_ids() {
             const_arguments: vec!["1".to_owned()],
             type_argument_identities: vec!["named(name(Card))".to_owned()],
             const_argument_identities: vec!["named(name(1))".to_owned()],
-            machine_arguments: vec![SymbolHandle::from_arena_index(8)],
+            machine_arguments: vec![argument_symbol],
             conformance_arguments: Vec::new(),
             inferred_conformance_arguments: Vec::new(),
             conformance_applications: Vec::new(),
             template_contract_fingerprint: 0x1111,
             accepted_template_commitment: Some("accepted_map".to_owned()),
-            machine_argument_contract_fingerprints: vec![0x2222],
-            conformance_argument_fingerprints: vec![0x4444, 0x5555],
+            machine_argument_contract_report_fingerprints: vec![0x2222],
+            conformance_argument_report_fingerprints: vec![0x4444, 0x5555],
             fingerprint: 0x3333,
         });
     push_behavior_contract(&mut program, symbol, false, false);
@@ -536,17 +564,21 @@ fn machine_contract_manifest_records_specialization_trust_and_contract_ids() {
     let json = machine_contract_manifest_json(&program);
     assert!(json.contains("\"template\": \"accepted_map\""));
     assert!(json.contains("\"accepted_template_commitment\": \"accepted_map\""));
-    assert!(json.contains("\"template_contract_fingerprint\": \"0x0000000000001111\""));
+    assert!(json.contains("\"template_contract_report_fingerprint\": \"0x0000000000001111\""));
     assert!(json.contains("\"type_arguments\": [\"Card\"]"));
     assert!(json.contains("\"const_arguments\": [\"1\"]"));
     assert!(json.contains("\"type_argument_identities\": [\"named(name(Card))\"]"));
     assert!(json.contains("\"const_argument_identities\": [\"named(name(1))\"]"));
-    assert!(json.contains("\"machine_argument_contract_fingerprints\": [\"0x0000000000002222\"]"));
+    assert!(
+        json.contains(
+            "\"machine_argument_contract_report_fingerprints\": [\"0x0000000000002222\"]"
+        )
+    );
     assert!(json.contains(
-        "\"conformance_argument_fingerprints\": [\"0x0000000000004444\", \"0x0000000000005555\"]"
+        "\"conformance_argument_report_fingerprints\": [\"0x0000000000004444\", \"0x0000000000005555\"]"
     ));
-    assert!(json.contains("\"instance_fingerprint\": \"0x0000000000003333\""));
-    assert!(json.contains("\"instance_contract_fingerprint\": \"0x000000000000aaaa\""));
+    assert!(json.contains("\"instance_report_fingerprint\": \"0x0000000000003333\""));
+    assert!(json.contains("\"instance_contract_report_fingerprint\": \"0x000000000000aaaa\""));
 }
 
 #[test]
@@ -557,5 +589,5 @@ fn specialization_manifest_fails_closed_without_exact_instance_contract() {
         name: Identifier::generated("Missing::instance"),
         ..Default::default()
     };
-    specialization_instance_contract_fingerprint(&CheckedTrees::default(), &instance);
+    specialization_instance_contract_report_fingerprint(&CheckedTrees::default(), &instance);
 }

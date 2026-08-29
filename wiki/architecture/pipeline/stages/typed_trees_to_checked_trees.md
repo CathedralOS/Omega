@@ -640,8 +640,9 @@ Current ownership is:
   each cloning round. Exact duplicate observations collapse, a conflicting row
   at one key rejects, and structural selections do not enter this nominal
   table. When the exact nominal requirement owns an evaluated boundary calling
-  plan, the row also retains its nonzero fingerprint as the target-placement
-  join key. Ordinary nominal selections retain no callback placement; the
+  plan, the row retains its domain-separated strong commitment as the
+  target-placement join key plus a compact report fingerprint. Ordinary nominal
+  selections retain no callback placement; the
   target-owned plan and emitted thunk remain outside checked Psi. Registrar
   plan identity separately binds the registration operation's exact nominal
   static-machine slot to one native destination; it never substitutes the
@@ -651,7 +652,10 @@ Current ownership is:
   The row also joins the requirement capsule's normalized contract commitment
   to the selected machine's normalized declared contract commitment and retains
   an explicit admission-refinement receipt over those endpoints. Historical
-  compact fingerprints remain report compatibility coordinates only. The
+  compact contract, refinement, and calling-plan fingerprints remain report
+  compatibility coordinates only. Target planning recomputes the calling-plan
+  commitment from the exact validated plan and rejects a compact-equal
+  substitution. The
   published capsule separately carries canonical service reach, synchronous
   invocation, suspension, blocking, termination, and crash axes. One
   exact-machine realized envelope aggregates effective checked reach and

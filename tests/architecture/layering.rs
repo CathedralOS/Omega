@@ -1403,8 +1403,32 @@ fn checked_semantics_are_psi_owned_without_provider_realization() {
     let task_source = std::fs::read_to_string(&omega_task_carrier)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", omega_task_carrier.display()));
     assert!(
-        task_source.contains("pub struct TaskActivationPlanSet"),
-        "target/layout-specific task activation plans must remain an Omega sidecar"
+        task_source.contains("pub struct TaskActivationPlanSet")
+            && task_source.contains("pub specialization_report_fingerprint: u64")
+            && task_source.contains("pub specialization_commitment: TaskSpecializationCommitment",)
+            && !task_source.contains("omega.task-specialization.sha256.v1"),
+        "target/layout-specific task activation plans must remain an Omega sidecar with compact specialization coordinates explicitly report-only beside strong authority"
+    );
+
+    let task_planning =
+        root.join("source/omega-rust/omega/build/omega-provider-planning/src/task_plans.rs");
+    let task_planning_source = std::fs::read_to_string(&task_planning)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", task_planning.display()));
+    assert!(
+        task_planning_source.contains("omega.task-specialization.sha256.v1")
+            && task_planning_source.contains("normalized_trait_requirement_overload_identity")
+            && task_planning_source.contains("strong.machine(program, target_machine)")
+            && task_planning_source.contains("strong.state(program, target_machine, target_entry)")
+            && task_planning_source.contains("target_contract.commitment.as_bytes()")
+            && task_planning_source.contains("package_qualified_type_identity")
+            && task_planning_source.contains("parameter.is_const")
+            && !task_planning_source
+                .contains("TaskSpecializationCommitment::from_digest([0; 32])",),
+        "task specialization authority must be derived from the domain-separated exact checked requirement, target, entry, and contract commitment"
+    );
+    assert!(
+        !task_source.contains("fingerprint.word(activation.specialization_report_fingerprint)",),
+        "task invocation authority must not derive from its compact report coordinate"
     );
 }
 

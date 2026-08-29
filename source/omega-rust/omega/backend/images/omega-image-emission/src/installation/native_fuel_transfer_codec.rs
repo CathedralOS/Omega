@@ -92,7 +92,7 @@ pub(super) fn encode_native_fuel_transfer(
     push_u16(bytes, footprint.machine_state().bits());
     push_u16(bytes, 0);
     push_u64(bytes, evidence.sponsor_stack_peak_bytes());
-    push_u64(bytes, evidence.fingerprint());
+    push_u64(bytes, evidence.report_fingerprint());
     Ok(())
 }
 
@@ -200,7 +200,7 @@ pub(super) fn decode_native_fuel_transfer(
         return Err(InstallationError::NonzeroReservedField);
     }
     let sponsor_stack_peak_bytes = reader.u64()?;
-    let encoded_evidence_fingerprint = reader.u64()?;
+    let encoded_evidence_report_fingerprint = reader.u64()?;
     let evidence = NativeFuelTransferRuntimeEvidence::new(
         plan,
         transfer_text,
@@ -210,7 +210,7 @@ pub(super) fn decode_native_fuel_transfer(
     )
     .map_err(|_| InstallationError::InvalidNativeFuelTransferEvidence)?;
     if evidence.physical_state_footprint().machine_state() != footprint_state
-        || evidence.fingerprint() != encoded_evidence_fingerprint
+        || evidence.report_fingerprint() != encoded_evidence_report_fingerprint
     {
         return Err(InstallationError::InvalidNativeFuelTransferEvidence);
     }

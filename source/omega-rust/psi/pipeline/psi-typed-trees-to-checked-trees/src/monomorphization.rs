@@ -2405,8 +2405,8 @@ fn clone_specialized_machine(
                 .collect(),
             template_contract_fingerprint,
             accepted_template_commitment,
-            machine_argument_contract_fingerprints: Vec::new(),
-            conformance_argument_fingerprints: Vec::new(),
+            machine_argument_contract_report_fingerprints: Vec::new(),
+            conformance_argument_report_fingerprints: Vec::new(),
             fingerprint,
         });
 
@@ -3697,8 +3697,8 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
             conformance_applications,
             template_contract_fingerprint,
             accepted_template_commitment,
-            machine_argument_contract_fingerprints: Vec::new(),
-            conformance_argument_fingerprints: Vec::new(),
+            machine_argument_contract_report_fingerprints: Vec::new(),
+            conformance_argument_report_fingerprints: Vec::new(),
             fingerprint,
         });
 
@@ -4465,28 +4465,30 @@ pub(crate) fn bind_specialization_contract_identities(
         program.machine_specializations.iter_mut().zip(updates)
     {
         if !specialization
-            .machine_argument_contract_fingerprints
+            .machine_argument_contract_report_fingerprints
             .is_empty()
-            && specialization.machine_argument_contract_fingerprints != machine_identities
+            && specialization.machine_argument_contract_report_fingerprints != machine_identities
         {
             return Err(vec![Diagnostic::error(
                 "generic specialization cache entry no longer matches its selected machine contract identities",
             )]);
         }
-        if !specialization.conformance_argument_fingerprints.is_empty()
-            && specialization.conformance_argument_fingerprints != conformance_identities
+        if !specialization
+            .conformance_argument_report_fingerprints
+            .is_empty()
+            && specialization.conformance_argument_report_fingerprints != conformance_identities
         {
             return Err(vec![Diagnostic::error(
                 "generic specialization cache entry no longer matches its selected conformance-map identities",
             )]);
         }
-        specialization.machine_argument_contract_fingerprints = machine_identities;
-        specialization.conformance_argument_fingerprints = conformance_identities;
+        specialization.machine_argument_contract_report_fingerprints = machine_identities;
+        specialization.conformance_argument_report_fingerprints = conformance_identities;
         specialization.fingerprint = specialization_contract_fingerprint(
             specialization.fingerprint,
             specialization.template_contract_fingerprint,
-            &specialization.machine_argument_contract_fingerprints,
-            &specialization.conformance_argument_fingerprints,
+            &specialization.machine_argument_contract_report_fingerprints,
+            &specialization.conformance_argument_report_fingerprints,
         );
     }
     Ok(())

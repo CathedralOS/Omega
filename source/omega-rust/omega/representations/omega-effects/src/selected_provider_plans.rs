@@ -743,7 +743,8 @@ mod tests {
                     may_block: false,
                     terminates_guarantee: false,
                     termination_premises: Vec::new(),
-                    calling_plan_fingerprint: None,
+                    calling_plan_report_fingerprint: None,
+                    calling_plan_commitment: None,
                 }],
             },
             rows: vec![ProviderPlanRow {
@@ -815,6 +816,32 @@ mod tests {
             selected.plan_by_exact_evidence(report_identity, &selected_plan),
             Some(&selected_plan)
         );
+    }
+
+    #[test]
+    fn selected_closure_digest_distinguishes_compact_equal_calling_plans() {
+        let mut first = candidate("Alpha", "read");
+        first.schema.methods[0].calling_plan_report_fingerprint = Some(0x1234);
+        first.schema.methods[0].calling_plan_commitment =
+            Some(crate::provider_plan::BoundaryCallingPlanCommitment::from_digest([0x11; 32]));
+        let mut substituted = first.clone();
+        substituted.schema.methods[0].calling_plan_commitment =
+            Some(crate::provider_plan::BoundaryCallingPlanCommitment::from_digest([0x22; 32]));
+
+        assert_eq!(
+            first.identity_fingerprint(),
+            substituted.identity_fingerprint()
+        );
+        assert_ne!(first.identity_digest(), substituted.identity_digest());
+        let first = SelectedProviderPlanFacts::from_selected_plans(vec![first])
+            .expect("first exact selected closure");
+        let substituted = SelectedProviderPlanFacts::from_selected_plans(vec![substituted])
+            .expect("substituted exact selected closure");
+        assert_eq!(
+            first.normalized_identity(),
+            substituted.normalized_identity()
+        );
+        assert_ne!(first.identity_digest(), substituted.identity_digest());
     }
 
     #[test]

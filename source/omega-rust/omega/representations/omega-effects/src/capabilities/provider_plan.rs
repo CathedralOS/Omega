@@ -11,6 +11,7 @@
 //! on these types.
 
 use super::foreign_locator::NormalizedForeignLocator;
+pub use psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment;
 use sha2::{Digest, Sha256};
 
 /// Collision-resistant identity of one exact normalized provider plan.
@@ -104,9 +105,12 @@ pub struct ServiceMethod {
     /// provider receiver from caller parameters; projections and profile use
     /// semantic paths.
     pub termination_premises: Vec<ServiceProgressPremise>,
-    /// Canonical validated `BoundaryEntryPlan` identity selected by a concrete
-    /// `Calling<C>` relationship. Policy type/source identity is excluded.
-    pub calling_plan_fingerprint: Option<u64>,
+    /// Compact report coordinate for the canonical validated
+    /// `BoundaryEntryPlan` selected by a concrete `Calling<C>` relationship.
+    pub calling_plan_report_fingerprint: Option<u64>,
+    /// Domain-separated commitment to that exact boundary calling plan.
+    /// This is present exactly when the report coordinate is present.
+    pub calling_plan_commitment: Option<BoundaryCallingPlanCommitment>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -374,7 +378,8 @@ impl ServiceSchema {
                 may_block: false,
                 terminates_guarantee: false,
                 termination_premises: Vec::new(),
-                calling_plan_fingerprint: None,
+                calling_plan_report_fingerprint: None,
+                calling_plan_commitment: None,
             }],
         })
     }
@@ -421,6 +426,11 @@ fn collect_service_methods(
         {
             continue;
         }
+        let calling_plan = program.boundary_calling_plan_identity_for_arguments(
+            policy_owner,
+            boundary_arguments,
+            signature.symbol,
+        );
         methods.push(ServiceMethod {
             name: signature.name.as_str().to_owned(),
             requirement_owner: trait_definition.name.as_str().to_owned(),
@@ -457,11 +467,9 @@ fn collect_service_methods(
             may_block: signature.blocks,
             terminates_guarantee: signature.termination_guarantee.promises_termination(),
             termination_premises: service_progress_premises(program, signature),
-            calling_plan_fingerprint: program.boundary_calling_plan_fingerprint_for_arguments(
-                policy_owner,
-                boundary_arguments,
-                signature.symbol,
-            ),
+            calling_plan_report_fingerprint: calling_plan
+                .map(|identity| identity.report_fingerprint),
+            calling_plan_commitment: calling_plan.map(|identity| identity.commitment),
         });
     }
 }
@@ -998,7 +1006,7 @@ impl ProviderPlan {
             for claim in result_claims {
                 rendered.push_str(&format!("\nmrc:{}/{}", claim.domain, claim.effective_carry,));
             }
-            if let Some(fingerprint) = method.calling_plan_fingerprint {
+            if let Some(fingerprint) = method.calling_plan_report_fingerprint {
                 rendered.push_str(&format!("/calling:{fingerprint:016x}"));
             }
         }
@@ -1084,6 +1092,23 @@ impl ProviderPlan {
             ));
         }
         for (method_index, method) in self.schema.methods.iter().enumerate() {
+            if method.calling_plan_report_fingerprint.is_some()
+                != method.calling_plan_commitment.is_some()
+            {
+                errors.push(format!(
+                    "plan `{}` schema method `{}::{}` must retain its calling-plan report coordinate and strong commitment together",
+                    self.name, self.schema.trait_name, method.name,
+                ));
+            }
+            if method
+                .calling_plan_commitment
+                .is_some_and(BoundaryCallingPlanCommitment::is_zero)
+            {
+                errors.push(format!(
+                    "plan `{}` schema method `{}::{}` retains an empty calling-plan commitment",
+                    self.name, self.schema.trait_name, method.name,
+                ));
+            }
             if method.name.is_empty() {
                 errors.push(format!(
                     "plan `{}` schema `{}` has a method with no readable drift name",
@@ -1670,10 +1695,17 @@ impl ProviderPlanDigestEncoder {
             }
         }
 
-        match method.calling_plan_fingerprint {
+        match method.calling_plan_report_fingerprint {
             Some(fingerprint) => {
                 self.byte(1);
                 self.u64(fingerprint);
+            }
+            None => self.byte(0),
+        }
+        match method.calling_plan_commitment {
+            Some(commitment) => {
+                self.byte(1);
+                self.bytes(&commitment.as_bytes());
             }
             None => self.byte(0),
         }
@@ -1805,7 +1837,8 @@ mod tests {
                     may_block: false,
                     terminates_guarantee: false,
                     termination_premises: Vec::new(),
-                    calling_plan_fingerprint: None,
+                    calling_plan_report_fingerprint: None,
+                    calling_plan_commitment: None,
                 },
                 ServiceMethod {
                     name: "read_byte".to_owned(),
@@ -1824,7 +1857,8 @@ mod tests {
                     may_block: false,
                     terminates_guarantee: false,
                     termination_premises: Vec::new(),
-                    calling_plan_fingerprint: None,
+                    calling_plan_report_fingerprint: None,
+                    calling_plan_commitment: None,
                 },
                 ServiceMethod {
                     name: "exit_process".to_owned(),
@@ -1843,7 +1877,8 @@ mod tests {
                     may_block: true,
                     terminates_guarantee: false,
                     termination_premises: Vec::new(),
-                    calling_plan_fingerprint: None,
+                    calling_plan_report_fingerprint: None,
+                    calling_plan_commitment: None,
                 },
             ],
         };
@@ -1888,14 +1923,40 @@ mod tests {
     fn evaluated_calling_plan_is_published_provider_identity() {
         let mut first = windows_console_plan();
         let baseline = first.identity_fingerprint();
-        first.schema.methods[0].calling_plan_fingerprint = Some(0x1234);
+        first.schema.methods[0].calling_plan_report_fingerprint = Some(0x1234);
+        first.schema.methods[0].calling_plan_commitment =
+            Some(psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest([1; 32]));
         assert_ne!(baseline, first.identity_fingerprint());
 
         let mut refactored = first.clone();
-        refactored.schema.methods[0].calling_plan_fingerprint = Some(0x1234);
+        refactored.schema.methods[0].calling_plan_report_fingerprint = Some(0x1234);
         assert_eq!(
             first.identity_fingerprint(),
             refactored.identity_fingerprint()
+        );
+
+        refactored.schema.methods[0].calling_plan_commitment =
+            Some(psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest([2; 32]));
+        assert_eq!(
+            first.identity_fingerprint(),
+            refactored.identity_fingerprint()
+        );
+        assert_ne!(first.identity_digest(), refactored.identity_digest());
+    }
+
+    #[test]
+    fn provider_candidate_rejects_an_empty_calling_plan_commitment() {
+        let mut plan = windows_console_plan();
+        plan.schema.methods[0].calling_plan_report_fingerprint = Some(0x1234);
+        plan.schema.methods[0].calling_plan_commitment =
+            Some(BoundaryCallingPlanCommitment::from_digest([0; 32]));
+
+        let diagnostics = plan.validate_candidate_against_schema();
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.contains("empty calling-plan commitment")),
+            "unexpected diagnostics: {diagnostics:?}"
         );
     }
 

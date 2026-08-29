@@ -193,11 +193,16 @@ scanners, or receipts.
   registrar calling-plan FNV values as report coordinates; thunk binding
   identity retains the exact inbound plan, and schedule replay rejects an
   exact-plan substitution even when the compact report value is held equal.
+  Target closure now requires the pre-closure strong commitment before
+  rewriting a checked callback placement, and callback admission rejoins the
+  published requirement report plus commitment to its exact checked capsule.
   Fixed-fuel, ordinary stack, and epoch-stack composition carriers likewise
   name their FNV values as non-authoritative report/cache fingerprints while
   retaining complete provider graphs, nesting relations, arithmetic inputs,
   and admitted evidence; compact-equal graph substitutions remain structurally
-  distinct.
+  distinct. Native-fuel transfer-runtime evidence applies the same
+  classification to its aggregate FNV beside the exact plan, unrelocated/final
+  byte rows, physical footprint, and sponsor-stack peak.
   Fixed-record and conventional-sum `ConstMaterializable` carriers now also
   name their layout and materialization FNV values as non-authoritative report
   fingerprints. Replay retains and compares the exact typed value, complete
@@ -207,7 +212,16 @@ scanners, or receipts.
   with a domain-separated SHA-256 commitment to the exact package identity,
   canonical source path, and source bytes. Its former package-source FNV is an
   explicitly non-authoritative report fingerprint, and compact-equal source
-  substitution rejects through the retained strong commitment.
+  substitution rejects through the retained strong commitment. The physical
+  entry calling-plan FNV is likewise a report coordinate; build evaluation
+  replays the realization's strong commitment and crate-sealed exact plan.
+  Checked nominal-machine-use facts now name contract-envelope, refinement,
+  resource-anchor, and boundary-calling-plan compact values as report
+  fingerprints. Contract/refinement joins retain normalized machine-contract
+  commitments, while callback placement now carries a domain-separated strong
+  commitment to the complete canonical boundary plan; target planning
+  recomputes it and replays exact plan custody, rejecting compact-equal plan
+  substitution. The repository compact-field ceiling shrinks with this slice.
   Package-review provider projections likewise label plan FNV values as report
   coordinates beside the exact package owners, schema, target, rows, and
   declaration coordinates retained in canonical review evidence.
@@ -221,14 +235,36 @@ scanners, or receipts.
   certificate, installation-codec, and publication consumers. Exact relocated
   text, relocation envelopes, placed-region rows, entry-region custody, and
   state footprints retain their domain-separated commitments; the compact
-  summary fields do not recreate those authorities. A repository-wide
-  architecture test now scans every exported Rust `u64` fingerprint field:
+  summary fields do not recreate those authorities. Trust tooling now applies
+  the same split: provider-plan and selected-closure compact values are report
+  fingerprints beside their domain-separated digests; generic template and
+  specialization coordinates are report-only beside exact arguments, strong
+  selected machine/conformance commitments, and the exact instance-contract
+  commitment. Rendered trust output labels every compact value as a report
+  coordinate rather than authority. Accepted-machine rows now also label
+  contract/template compact values as reports and retain the checked machine-
+  contract commitment. Provider `ServiceMethod` schemas likewise
+  retain the typed boundary calling-plan commitment beside an explicitly named
+  report fingerprint; provider-plan and selected-closure digests include it,
+  and native/program-entry replay compares it to the exact evaluated plan.
+  A repository-wide
+  architecture test now scans exported direct, optional, and vector `u64`
+  fingerprint fields:
   explicit report/cache/compatibility names pass, while the remaining legacy
   inventory is a shrinking per-owner ceiling that rejects new fields or
-  duplicate occurrences. Remaining work is the broader compact-identity
-  inventory and repository-wide enforcement, including task-specialization
-  coordinates, checked-Psi carriers, tooling views, and private/local fields
-  outside the exported-field scanner.
+  duplicate occurrences. Task activation specialization now follows the same
+  rule: its historical FNV value is a report coordinate, while a
+  domain-separated SHA-256 commitment binds the exact checked TaskRuntime
+  requirement, operation, target/entry signature, and target machine-contract
+  commitment through provider planning and runtime receipt validation.
+  Compact-equal exact-target substitution changes the
+  authoritative runtime binding. Native-fuel sponsor routes now retain exact
+  transfer-code custody—plan, Psi, installed occurrence, runtime evidence, and
+  sponsor coordinate—rather than rejoining executable runtime authority by the
+  aggregate FNV; that compact value remains report-only and a compact-equal Psi
+  substitution rejects. Remaining work is the broader compact-identity
+  inventory and repository-wide enforcement, including checked-Psi carriers
+  and private/local fields outside the exported-field scanner.
 
   Acceptance: an automated architecture test rejects new authoritative
   `u64`-only identities, every retained FNV use has a local non-authoritative

@@ -809,7 +809,12 @@ fingerprint. The callback's published requirement envelope and selected
 machine's actual envelope remain separate, with an explicit refinement proof
 from actual to published. The foreign protocol relies on the published
 envelope; installation, resource, reach, and crash reasoning may use the
-narrower actual envelope.
+narrower actual envelope. Callback admission rejoins both the published report
+coordinate and strong commitment to the exact requirement capsule, while the
+actual commitment rejoins the selected machine contract. Target closure also
+updates a checked callback placement only when its pre-closure report
+coordinate and strong calling-plan commitment both match; compact equality
+alone cannot transfer the placement to a newly closed plan.
 
 That evaluated identity is a boundary-plan application, not merely the
 reusable physical `CallPlan`. It fingerprints the requirement's complete
@@ -1651,6 +1656,14 @@ from the callback's inbound entry plan. The address-free backend demand now
 replays that separation against the exact emitted thunk/root schedule, but does
 not yet choose a relocation kind, section, offset, encoded bytes, or runtime
 lease.
+
+Checked Psi carries a domain-separated SHA-256 commitment to the complete
+canonical inbound boundary plan beside its compact report fingerprint. Native
+planning recomputes that commitment from the exact validated plan and also
+replays its crate-sealed exact-plan copy. Contract-envelope and refinement FNV
+values are likewise report coordinates beside their existing normalized
+machine-contract commitments. Holding any compact coordinate equal cannot
+substitute a different contract endpoint or callback plan.
 
 The direct `NativePlace::Parameter` variant and callback-demand carrier exist,
 but source can currently originate only layout-field demands. The remaining

@@ -3,7 +3,7 @@ use super::{
     exact_manifest_crash_source_state, exact_manifest_crash_target, machine_blocking_summary,
     machine_contract_manifest_json, machine_suspension_summary, push_termination_interface_json,
     qualification_evidence_manifest_json, qualification_requirement_identity,
-    qualification_subject, specialization_instance_contract_fingerprint, symbol_label,
+    qualification_subject, specialization_instance_contract_report_fingerprint, symbol_label,
     task_activation_manifest_json, validate_content_conservation_plan,
     validate_content_identity_reshuffle, validate_content_partition_input_custody,
     validate_content_partition_lineage, validate_content_partition_result_rewrites,
@@ -564,7 +564,8 @@ fn selected_storage_plan() -> ProviderPlan {
                 may_block: false,
                 terminates_guarantee: false,
                 termination_premises: Vec::new(),
-                calling_plan_fingerprint: None,
+                calling_plan_report_fingerprint: None,
+                calling_plan_commitment: None,
             }],
         },
         rows: vec![ProviderPlanRow {

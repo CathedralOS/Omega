@@ -52,7 +52,7 @@ pub struct ProgramEntryPhysicalContractPlan {
     non_authoritative_target_package_source_report_fingerprint: u64,
     parameter_type_identities: Vec<String>,
     result_type_identity: String,
-    calling_plan_fingerprint: u64,
+    calling_plan_report_fingerprint: u64,
     boundary_entry_plan: BoundaryEntryPlan,
 }
 
@@ -65,7 +65,7 @@ impl ProgramEntryPhysicalContractPlan {
         non_authoritative_target_package_source_report_fingerprint: u64,
         parameter_type_identities: Vec<String>,
         result_type_identity: String,
-        calling_plan_fingerprint: u64,
+        calling_plan_report_fingerprint: u64,
         boundary_entry_plan: BoundaryEntryPlan,
     ) -> Result<Self, String> {
         let Some(physical_requirement) = target_slot.physical_arrival_requirement else {
@@ -87,7 +87,7 @@ impl ProgramEntryPhysicalContractPlan {
             || parameter_type_identities.len() != 2
             || parameter_type_identities.iter().any(String::is_empty)
             || result_type_identity.is_empty()
-            || calling_plan_fingerprint == 0
+            || calling_plan_report_fingerprint == 0
         {
             return Err(
                 "physical UEFI entry contract lost its exact two parameters, result, or calling-plan identity"
@@ -111,7 +111,7 @@ impl ProgramEntryPhysicalContractPlan {
             non_authoritative_target_package_source_report_fingerprint,
             parameter_type_identities,
             result_type_identity,
-            calling_plan_fingerprint,
+            calling_plan_report_fingerprint,
             boundary_entry_plan,
         })
     }
@@ -164,8 +164,8 @@ impl ProgramEntryPhysicalContractPlan {
         &self.result_type_identity
     }
 
-    pub const fn calling_plan_fingerprint(&self) -> u64 {
-        self.calling_plan_fingerprint
+    pub const fn calling_plan_report_fingerprint(&self) -> u64 {
+        self.calling_plan_report_fingerprint
     }
 
     pub const fn boundary_entry_plan(&self) -> &BoundaryEntryPlan {

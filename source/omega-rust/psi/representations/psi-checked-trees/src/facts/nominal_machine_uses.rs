@@ -12,15 +12,15 @@ pub enum NominalMachineUseSite {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CheckedMachineContractEnvelopeIdentity {
-    pub contract_fingerprint: u64,
+    pub contract_report_fingerprint: u64,
     pub contract_commitment: crate::MachineContractCommitment,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CheckedMachineContractRefinement {
-    pub published_requirement_fingerprint: u64,
+    pub published_requirement_report_fingerprint: u64,
     pub published_requirement_commitment: crate::MachineContractCommitment,
-    pub selected_actual_fingerprint: u64,
+    pub selected_actual_report_fingerprint: u64,
     pub selected_actual_commitment: crate::MachineContractCommitment,
 }
 
@@ -29,7 +29,9 @@ pub struct CheckedMachineContractRefinement {
 /// join key used by later thunk placement.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CheckedCallbackPlacementIdentity {
-    pub boundary_calling_plan_fingerprint: u64,
+    pub boundary_calling_plan_report_fingerprint: u64,
+    pub boundary_calling_plan_commitment:
+        psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment,
     /// Exact checked resource anchor selected for this callback entry. This is
     /// compilation-local derivation custody, not a numeric resource claim or
     /// installation receipt.
@@ -47,11 +49,11 @@ pub struct CheckedCallbackPlacementIdentity {
 pub struct CheckedCallbackResourceReceipt {
     machine: SymbolHandle,
     entry: SymbolHandle,
-    contract_fingerprint: u64,
-    stack_fingerprint: u64,
-    logical_structural_work_fingerprint: u64,
-    machine_state_fingerprint: u64,
-    envelope_fingerprint: u64,
+    contract_report_fingerprint: u64,
+    stack_report_fingerprint: u64,
+    logical_structural_work_report_fingerprint: u64,
+    machine_state_report_fingerprint: u64,
+    envelope_report_fingerprint: u64,
 }
 
 impl CheckedCallbackResourceReceipt {
@@ -62,11 +64,13 @@ impl CheckedCallbackResourceReceipt {
         Ok(Self {
             machine: envelope.machine(),
             entry: envelope.entry(),
-            contract_fingerprint: envelope.contract_fingerprint(),
-            stack_fingerprint: envelope.stack().fingerprint(),
-            logical_structural_work_fingerprint: envelope.logical_structural_work().fingerprint(),
-            machine_state_fingerprint: envelope.machine_state().fingerprint(),
-            envelope_fingerprint: envelope.fingerprint(),
+            contract_report_fingerprint: envelope.contract_fingerprint(),
+            stack_report_fingerprint: envelope.stack().fingerprint(),
+            logical_structural_work_report_fingerprint: envelope
+                .logical_structural_work()
+                .fingerprint(),
+            machine_state_report_fingerprint: envelope.machine_state().fingerprint(),
+            envelope_report_fingerprint: envelope.fingerprint(),
         })
     }
 
@@ -79,30 +83,34 @@ impl CheckedCallbackResourceReceipt {
     }
 
     pub const fn contract_fingerprint(self) -> u64 {
-        self.contract_fingerprint
+        self.contract_report_fingerprint
+    }
+
+    pub const fn contract_report_fingerprint(self) -> u64 {
+        self.contract_report_fingerprint
     }
 
     pub const fn stack_fingerprint(self) -> u64 {
-        self.stack_fingerprint
+        self.stack_report_fingerprint
     }
 
     pub const fn logical_structural_work_fingerprint(self) -> u64 {
-        self.logical_structural_work_fingerprint
+        self.logical_structural_work_report_fingerprint
     }
 
     pub const fn machine_state_fingerprint(self) -> u64 {
-        self.machine_state_fingerprint
+        self.machine_state_report_fingerprint
     }
 
     pub const fn envelope_fingerprint(self) -> u64 {
-        self.envelope_fingerprint
+        self.envelope_report_fingerprint
     }
 
     pub fn validate(self) -> Result<(), &'static str> {
         let replayed = CheckedEntryResourceEnvelope::from_checked_contract(
             self.machine,
             self.entry,
-            self.contract_fingerprint,
+            self.contract_report_fingerprint,
         );
         self.validate_against(&replayed)
     }
@@ -114,12 +122,12 @@ impl CheckedCallbackResourceReceipt {
         envelope.validate()?;
         if self.machine != envelope.machine()
             || self.entry != envelope.entry()
-            || self.contract_fingerprint != envelope.contract_fingerprint()
-            || self.stack_fingerprint != envelope.stack().fingerprint()
-            || self.logical_structural_work_fingerprint
+            || self.contract_report_fingerprint != envelope.contract_fingerprint()
+            || self.stack_report_fingerprint != envelope.stack().fingerprint()
+            || self.logical_structural_work_report_fingerprint
                 != envelope.logical_structural_work().fingerprint()
-            || self.machine_state_fingerprint != envelope.machine_state().fingerprint()
-            || self.envelope_fingerprint != envelope.fingerprint()
+            || self.machine_state_report_fingerprint != envelope.machine_state().fingerprint()
+            || self.envelope_report_fingerprint != envelope.fingerprint()
         {
             return Err(
                 "checked callback resource receipt does not bind its exact per-entry envelope",
@@ -163,15 +171,18 @@ impl NominalMachineUseFacts {
         for nominal_use in uses {
             if nominal_use
                 .published_requirement_envelope
-                .contract_fingerprint
-                == 0
-                || nominal_use.selected_actual_envelope.contract_fingerprint == 0
+                .contract_commitment
+                .is_zero()
+                || nominal_use
+                    .selected_actual_envelope
+                    .contract_commitment
+                    .is_zero()
             {
                 return Err("nominal machine use retained an empty envelope identity".to_owned());
             }
             if nominal_use
                 .callback_placement
-                .is_some_and(|placement| placement.boundary_calling_plan_fingerprint == 0)
+                .is_some_and(|placement| placement.boundary_calling_plan_commitment.is_zero())
             {
                 return Err(
                     "nominal callback use retained an empty boundary calling-plan identity"
@@ -183,7 +194,9 @@ impl NominalMachineUseFacts {
                 if placement.resource_receipt.machine() != nominal_use.selected_machine
                     || placement.resource_receipt.entry() != nominal_use.selected_entry
                     || placement.resource_receipt.contract_fingerprint()
-                        != nominal_use.selected_actual_envelope.contract_fingerprint
+                        != nominal_use
+                            .selected_actual_envelope
+                            .contract_report_fingerprint
                 {
                     return Err(
                         "nominal callback resource receipt does not bind its selected actual entry envelope"
@@ -191,12 +204,16 @@ impl NominalMachineUseFacts {
                     );
                 }
             }
-            if nominal_use.refinement.published_requirement_fingerprint
+            if nominal_use
+                .refinement
+                .published_requirement_report_fingerprint
                 != nominal_use
                     .published_requirement_envelope
-                    .contract_fingerprint
-                || nominal_use.refinement.selected_actual_fingerprint
-                    != nominal_use.selected_actual_envelope.contract_fingerprint
+                    .contract_report_fingerprint
+                || nominal_use.refinement.selected_actual_report_fingerprint
+                    != nominal_use
+                        .selected_actual_envelope
+                        .contract_report_fingerprint
                 || nominal_use.refinement.published_requirement_commitment
                     != nominal_use
                         .published_requirement_envelope
@@ -256,18 +273,18 @@ mod tests {
             satisfaction_requirement: SymbolHandle::from_arena_index(6),
             canonical_requirement_overload: "Handler::call".to_owned(),
             published_requirement_envelope: CheckedMachineContractEnvelopeIdentity {
-                contract_fingerprint: 7,
+                contract_report_fingerprint: 7,
                 contract_commitment: MachineContractCommitment::from_digest([7; 32]),
             },
             selected_actual_envelope: CheckedMachineContractEnvelopeIdentity {
-                contract_fingerprint: 8,
+                contract_report_fingerprint: 8,
                 contract_commitment: MachineContractCommitment::from_digest([8; 32]),
             },
             callback_placement: None,
             refinement: CheckedMachineContractRefinement {
-                published_requirement_fingerprint: 7,
+                published_requirement_report_fingerprint: 7,
                 published_requirement_commitment: MachineContractCommitment::from_digest([7; 32]),
-                selected_actual_fingerprint: 8,
+                selected_actual_report_fingerprint: 8,
                 selected_actual_commitment: MachineContractCommitment::from_digest([8; 32]),
             },
         }
@@ -298,7 +315,7 @@ mod tests {
     fn refinement_receipt_must_bind_the_retained_envelope_identities() {
         let first = nominal_use(3);
         let mut second = first.clone();
-        second.refinement.selected_actual_fingerprint = 9;
+        second.refinement.selected_actual_report_fingerprint = 9;
 
         let message = NominalMachineUseFacts::try_with_uses([first, second])
             .expect_err("a refinement receipt cannot cite a different endpoint");
@@ -312,10 +329,12 @@ mod tests {
         let resource = CheckedEntryResourceEnvelope::from_checked_contract(
             row.selected_machine,
             row.selected_entry,
-            row.selected_actual_envelope.contract_fingerprint,
+            row.selected_actual_envelope.contract_report_fingerprint,
         );
         row.callback_placement = Some(CheckedCallbackPlacementIdentity {
-            boundary_calling_plan_fingerprint: 0,
+            boundary_calling_plan_report_fingerprint: 0,
+            boundary_calling_plan_commitment:
+                psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest([0; 32]),
             resource_receipt: CheckedCallbackResourceReceipt::try_from_entry_envelope(&resource)
                 .expect("canonical resource receipt"),
         });
@@ -332,10 +351,12 @@ mod tests {
         let foreign_entry = CheckedEntryResourceEnvelope::from_checked_contract(
             row.selected_machine,
             SymbolHandle::from_arena_index(9),
-            row.selected_actual_envelope.contract_fingerprint,
+            row.selected_actual_envelope.contract_report_fingerprint,
         );
         row.callback_placement = Some(CheckedCallbackPlacementIdentity {
-            boundary_calling_plan_fingerprint: 10,
+            boundary_calling_plan_report_fingerprint: 10,
+            boundary_calling_plan_commitment:
+                psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest([10; 32]),
             resource_receipt: CheckedCallbackResourceReceipt::try_from_entry_envelope(
                 &foreign_entry,
             )

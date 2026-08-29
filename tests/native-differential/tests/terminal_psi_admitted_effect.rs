@@ -154,7 +154,12 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     selected_method.requirement_identity = "TimerRoot::tick".into();
     selected_method.parameter_count = 1;
     selected_method.parameter_type_identities = vec!["Test::BoundaryWord".into()];
-    selected_method.calling_plan_fingerprint = Some(boundary_plan.contract_fingerprint());
+    selected_method.calling_plan_report_fingerprint = Some(boundary_plan.contract_fingerprint());
+    selected_method.calling_plan_commitment = Some(
+        omega_effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(
+            boundary_plan.contract_commitment_digest(),
+        ),
+    );
     let selected_provider = SelectedExternalRootProviderPlan::from_exact_plan(exact_provider_plan)
         .expect("exact selected provider plan");
     let candidate = ExternalRootCandidate {

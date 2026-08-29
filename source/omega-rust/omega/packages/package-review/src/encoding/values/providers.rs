@@ -223,11 +223,15 @@ pub(crate) fn encode_service_schema(
             })
         })?;
         encoder.option(
-            method.calling_plan_fingerprint.as_ref(),
+            method.calling_plan_report_fingerprint.as_ref(),
             |encoder, fingerprint| {
                 encoder.u64(*fingerprint);
                 Ok(())
             },
+        )?;
+        encoder.option(
+            method.calling_plan_commitment.as_ref(),
+            |encoder, commitment| encoder.bytes(&commitment.as_bytes()),
         )
     })
 }

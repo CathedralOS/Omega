@@ -902,6 +902,13 @@ only as an explicitly non-authoritative compatibility fingerprint while
 independently replaying the exact owned carrier; final-image and installation
 authority cannot be reconstructed from that compact value.
 
+Native-fuel sponsor-route admission applies this rule after installation as
+well as during image replay. The route retains exact transfer-code custody over
+the admitted plan, terminal Psi identity, opaque installed occurrence, runtime
+evidence, and sponsor coordinate. Its compact transfer-code and route FNVs are
+report coordinates only; executable runtime binding compares the exact custody
+and rejects compact-equal substitution.
+
 Target-owned physical-entry package provenance follows the same rule. Build
 evaluation first validates exact toolchain origin and canonical source
 membership, then commits the package identity, package-relative source path,
@@ -919,6 +926,14 @@ digest and exact requirement strings and plan requirement catalogs; native
 replay compares those exact strings before comparing the compact report rows.
 Consequently a report-equal execution cannot be substituted for another exact
 requirement, and decoding an installation record cannot recreate admission.
+
+Provider service schemas preserve the boundary-plan authority split before
+that lowering. Each `ServiceMethod` retains a compact calling-plan report
+fingerprint beside the typed domain-separated calling-plan commitment. The
+provider-plan digest and selected-provider-closure digest commit the strong
+value, and source-boundary, program-entry, and native-entry consumers replay it
+against the exact evaluated plan. Equal compact coordinates therefore cannot
+replace a selected service requirement's calling convention.
 
 The external-root producer preserves the same distinction before that
 projection. Its normalized root, provider-execution, opaque-exit, stack, fuel,
@@ -948,6 +963,16 @@ and entry-region plus footprint mutation custody retains strong evidence
 digests. A collision-resistant digest over a report summary preserves that
 summary's custody but does not promote an imported compact coordinate into the
 underlying authority.
+
+Trust artifacts make the same distinction visible to tooling users. Provider-
+plan rows retain the normalized plan digest, and the report header retains the
+complete selected-provider-closure digest; their compact values are labeled
+report fingerprints. Generic accepted-instance rows label template and
+specialization values as report coordinates while retaining exact type and
+const argument identities, strong selected machine-contract and closed-
+conformance-application commitments, and the specialized instance-contract
+commitment. Equal compact display coordinates therefore never imply equal
+trust authority.
 
 For hardware-entered provider slots, the selected service schema records a
 linear routed parameter qualification as a structured `accepts` row. The row

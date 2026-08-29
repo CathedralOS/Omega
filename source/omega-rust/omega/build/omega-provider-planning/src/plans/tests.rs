@@ -416,7 +416,8 @@ fn selection_plan(name: &str, methods: &[&str], rows: &[&str]) -> ProviderPlan {
                     may_block: false,
                     terminates_guarantee: false,
                     termination_premises: Vec::new(),
-                    calling_plan_fingerprint: None,
+                    calling_plan_report_fingerprint: None,
+                    calling_plan_commitment: None,
                 })
                 .collect(),
         },
@@ -2509,7 +2510,14 @@ fn provider_candidate_requires_exact_canonical_typed_schema() {
             Drift::Suspension => method.may_suspend = true,
             Drift::Blocking => method.may_block = true,
             Drift::Termination => method.terminates_guarantee = true,
-            Drift::CallingPlan => method.calling_plan_fingerprint = Some(1),
+            Drift::CallingPlan => {
+                method.calling_plan_report_fingerprint = Some(1);
+                method.calling_plan_commitment = Some(
+                    psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(
+                        [1; 32],
+                    ),
+                );
+            }
         }
 
         let diagnostics = validate_provider_plan_candidates(&typed, &[drifted]);

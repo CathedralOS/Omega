@@ -250,8 +250,8 @@ fn build_nominal_machine_use_facts(
         let published_fingerprint = published.target_contract_fingerprint();
         let published_commitment = published.target_contract_commitment();
         let actual_fingerprint = actual.fingerprint;
-        if published_fingerprint == 0
-            || actual_fingerprint == 0
+        if published_commitment.is_zero()
+            || actual.commitment.is_zero()
             || actual_envelope.contract_fingerprint != actual_fingerprint
             || actual_envelope.contract_commitment != actual.commitment
         {
@@ -259,11 +259,11 @@ fn build_nominal_machine_use_facts(
                 "admitted nominal machine use retained an empty contract-envelope identity",
             )]);
         }
-        let callback_placement = match program.boundary_calling_plan_fingerprint(
+        let callback_placement = match program.boundary_calling_plan_identity(
             nominal_use.satisfaction_trait,
             nominal_use.satisfaction_requirement,
         ) {
-            Some(boundary_calling_plan_fingerprint) => {
+            Some(boundary_calling_plan_identity) => {
                 let Some(resource_envelope) = contract_plans
                     .resource_envelope(nominal_use.selected_machine, nominal_use.selected_entry)
                 else {
@@ -279,16 +279,18 @@ fn build_nominal_machine_use_facts(
                         vec![psi_diagnostics::Diagnostic::error(format!(
                             "admitted nominal callback resource receipt failed checked replay: {error}"
                         ))]
-                    })?;
+                })?;
                 Some(psi_checked_trees::CheckedCallbackPlacementIdentity {
-                    boundary_calling_plan_fingerprint,
+                    boundary_calling_plan_report_fingerprint: boundary_calling_plan_identity
+                        .report_fingerprint,
+                    boundary_calling_plan_commitment: boundary_calling_plan_identity.commitment,
                     resource_receipt,
                 })
             }
             None => None,
         };
         if callback_placement
-            .is_some_and(|placement| placement.boundary_calling_plan_fingerprint == 0)
+            .is_some_and(|placement| placement.boundary_calling_plan_commitment.is_zero())
         {
             return Err(vec![psi_diagnostics::Diagnostic::error(
                 "admitted nominal callback use is missing its evaluated boundary calling-plan identity",
@@ -312,18 +314,18 @@ fn build_nominal_machine_use_facts(
             canonical_requirement_overload: nominal_use.canonical_requirement_overload,
             published_requirement_envelope:
                 psi_checked_trees::CheckedMachineContractEnvelopeIdentity {
-                    contract_fingerprint: published_fingerprint,
+                    contract_report_fingerprint: published_fingerprint,
                     contract_commitment: published_commitment,
                 },
             selected_actual_envelope: psi_checked_trees::CheckedMachineContractEnvelopeIdentity {
-                contract_fingerprint: actual_fingerprint,
+                contract_report_fingerprint: actual_fingerprint,
                 contract_commitment: actual.commitment,
             },
             callback_placement,
             refinement: psi_checked_trees::CheckedMachineContractRefinement {
-                published_requirement_fingerprint: published_fingerprint,
+                published_requirement_report_fingerprint: published_fingerprint,
                 published_requirement_commitment: published_commitment,
-                selected_actual_fingerprint: actual_fingerprint,
+                selected_actual_report_fingerprint: actual_fingerprint,
                 selected_actual_commitment: actual.commitment,
             },
         });

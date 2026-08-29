@@ -39,17 +39,44 @@ fn exported_compact_fingerprint_field(line: &str) -> Option<&str> {
     let (name, ty) = declaration.split_once(':')?;
     let name = name.trim();
     let ty = ty.trim_start();
-    if name.ends_with("fingerprint")
-        && ty.starts_with("u64")
-        && ty[3..]
-            .chars()
-            .next()
-            .is_none_or(|next| next == ',' || next.is_whitespace())
-    {
+    let ty = ty.split_once("//").map_or(ty, |(ty, _)| ty);
+    let contains_compact_u64 = ty.match_indices("u64").any(|(index, _)| {
+        let before = ty[..index].chars().next_back();
+        let after = ty[index + 3..].chars().next();
+        let is_identifier = |character: char| character.is_ascii_alphanumeric() || character == '_';
+        before.is_none_or(|character| !is_identifier(character))
+            && after.is_none_or(|character| !is_identifier(character))
+    });
+    if (name.ends_with("fingerprint") || name.ends_with("fingerprints")) && contains_compact_u64 {
         Some(name)
     } else {
         None
     }
+}
+
+#[test]
+fn compact_fingerprint_scanner_covers_wrapped_and_collection_u64_fields() {
+    for declaration in [
+        "pub fingerprint: u64,",
+        "pub(crate) fingerprint: Option<u64>,",
+        "pub fingerprints: Vec<u64>,",
+        "pub fingerprints: [u64; 2],",
+        "pub fingerprint: Box<[u64]>,",
+    ] {
+        assert_eq!(
+            exported_compact_fingerprint_field(declaration),
+            Some(if declaration.contains("fingerprints:") {
+                "fingerprints"
+            } else {
+                "fingerprint"
+            }),
+            "scanner missed compact field `{declaration}`",
+        );
+    }
+    assert_eq!(
+        exported_compact_fingerprint_field("pub fingerprint: [u8; 32], // not u64"),
+        None,
+    );
 }
 
 fn explicitly_non_authoritative(name: &str) -> bool {
@@ -79,59 +106,11 @@ fn new_exported_u64_fingerprints_require_explicit_classification() {
     // occurrence or introduce a new unclassified exported field.
     let legacy_maximums = BTreeMap::<&str, usize>::from([
         (
-            "source/omega-rust/omega/build/omega-provider-planning/src/calling_policy_plans.rs:fingerprint",
-            1,
-        ),
-        (
-            "source/omega-rust/omega/representations/omega-installation-evidence/src/native_fuel/evidence.rs:fingerprint",
-            1,
-        ),
-        (
-            "source/omega-rust/omega/representations/omega-task-plans/src/lib.rs:specialization_fingerprint",
-            2,
-        ),
-        (
-            "source/omega-rust/omega/tooling/omega-artifacts/src/lib.rs:instance_contract_fingerprint",
-            1,
-        ),
-        (
-            "source/omega-rust/omega/tooling/omega-artifacts/src/lib.rs:instance_fingerprint",
-            1,
-        ),
-        (
-            "source/omega-rust/omega/tooling/omega-artifacts/src/lib.rs:provider_plan_fingerprint",
-            2,
-        ),
-        (
-            "source/omega-rust/omega/tooling/omega-artifacts/src/lib.rs:selected_provider_closure_fingerprint",
-            1,
-        ),
-        (
-            "source/omega-rust/omega/tooling/omega-artifacts/src/lib.rs:template_fingerprint",
-            1,
-        ),
-        (
             "source/omega-rust/psi/representations/psi-checked-trees/src/facts/contract_plans.rs:contract_fingerprint",
             1,
         ),
         (
             "source/omega-rust/psi/representations/psi-checked-trees/src/facts/contract_plans.rs:fingerprint",
-            1,
-        ),
-        (
-            "source/omega-rust/psi/representations/psi-checked-trees/src/facts/nominal_machine_uses.rs:boundary_calling_plan_fingerprint",
-            1,
-        ),
-        (
-            "source/omega-rust/psi/representations/psi-checked-trees/src/facts/nominal_machine_uses.rs:contract_fingerprint",
-            1,
-        ),
-        (
-            "source/omega-rust/psi/representations/psi-checked-trees/src/facts/nominal_machine_uses.rs:published_requirement_fingerprint",
-            1,
-        ),
-        (
-            "source/omega-rust/psi/representations/psi-checked-trees/src/facts/nominal_machine_uses.rs:selected_actual_fingerprint",
             1,
         ),
         (
@@ -148,7 +127,7 @@ fn new_exported_u64_fingerprints_require_explicit_classification() {
         ),
         (
             "source/omega-rust/psi/representations/psi-typed-trees/src/typed_trees.rs:fingerprint",
-            2,
+            1,
         ),
         (
             "source/omega-rust/psi/representations/psi-typed-trees/src/typed_trees.rs:template_contract_fingerprint",
@@ -191,5 +170,161 @@ fn new_exported_u64_fingerprints_require_explicit_classification() {
     assert!(
         stale_or_overstated.is_empty(),
         "the legacy compact-fingerprint ceiling must shrink in the same change that classifies a field; stale or overstated rows: {stale_or_overstated:#?}",
+    );
+}
+
+#[test]
+fn checked_nominal_machine_use_reports_retain_strong_contract_and_plan_authority() {
+    let root = workspace_root();
+    let checked_path = root.join(
+        "source/omega-rust/psi/representations/psi-checked-trees/src/facts/nominal_machine_uses.rs",
+    );
+    let checked = fs::read_to_string(&checked_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", checked_path.display()));
+    assert!(
+        checked.contains("pub contract_report_fingerprint: u64")
+            && checked.contains("pub published_requirement_report_fingerprint: u64")
+            && checked.contains("pub selected_actual_report_fingerprint: u64")
+            && checked.contains("pub boundary_calling_plan_report_fingerprint: u64")
+            && checked.contains("pub boundary_calling_plan_commitment:")
+            && checked.contains("pub contract_commitment: crate::MachineContractCommitment")
+            && !checked.contains("pub boundary_calling_plan_fingerprint: u64"),
+        "checked nominal-use compact coordinates must be reports beside strong contract and plan commitments",
+    );
+
+    let planning_path = root
+        .join("source/omega-rust/omega/build/omega-provider-planning/src/calling_policy_plans.rs");
+    let planning = fs::read_to_string(&planning_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", planning_path.display()));
+    assert!(
+        planning.contains("validated.contract_commitment_digest()")
+            && planning
+                .contains("placement.boundary_calling_plan_commitment != realized_commitment")
+            && planning.contains("realization.exact_boundary_entry_plan() != validated.plan()")
+            && planning.contains("published_contract.target_contract_commitment()")
+            && planning.contains("placement.boundary_calling_plan_commitment == old_commitment")
+            && planning.contains("a compact-equal strong-plan substitution must reject"),
+        "nominal callback binding must replay exact plan custody and the strong commitment",
+    );
+}
+
+#[test]
+fn trust_tooling_compact_coordinates_retain_strong_evidence_and_report_labels() {
+    let root = workspace_root();
+    let carrier_path = root.join("source/omega-rust/omega/tooling/omega-artifacts/src/lib.rs");
+    let report_path =
+        root.join("source/omega-rust/omega/tooling/omega-artifacts/src/trust_report.rs");
+    let carrier = fs::read_to_string(&carrier_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", carrier_path.display()));
+    let report = fs::read_to_string(&report_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", report_path.display()));
+    let visualization_path =
+        root.join("source/omega-rust/omega/tooling/omega-visualizations/src/checked_trees.rs");
+    let visualization = fs::read_to_string(&visualization_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", visualization_path.display()));
+
+    for required in [
+        "provider_plan_report_fingerprint: u64",
+        "provider_plan_digest: omega_effects::provider_plan::ProviderPlanDigest",
+        "template_report_fingerprint: u64",
+        "instance_report_fingerprint: u64",
+        "instance_contract_report_fingerprint: u64",
+        "instance_contract_commitment: psi_checked_trees::MachineContractCommitment",
+        "machine_contract_report_fingerprint: Option<u64>",
+        "machine_contract_commitment: Option<psi_checked_trees::MachineContractCommitment>",
+        "machine_template_report_fingerprint: Option<u64>",
+        "machine_argument_contract_report_fingerprints: Vec<u64>",
+        "conformance_argument_report_fingerprints: Vec<u64>",
+        "selected_provider_closure_report_fingerprint: u64",
+        "selected_provider_closure_digest: omega_effects::SelectedProviderClosureDigest",
+    ] {
+        assert!(
+            carrier.contains(required),
+            "missing trust evidence field `{required}`"
+        );
+    }
+    assert!(report.contains("selected provider closure report fingerprint:"));
+    assert!(report.contains("selected provider closure digest:"));
+    assert!(report.contains("plan report fingerprint:"));
+    assert!(report.contains("plan digest:"));
+    assert!(report.contains("instance contract commitment:"));
+    assert!(report.contains("machine contract report fingerprint:"));
+    assert!(report.contains("machine contract commitment:"));
+    for required in [
+        "selected_provider_closure_report_fingerprint",
+        "selected_provider_closure_digest",
+        "specialization_report_fingerprint",
+        "instance_report_fingerprint",
+        "instance_contract_report_fingerprint",
+        "instance_contract_commitment",
+        "template_contract_report_fingerprint",
+        "machine_argument_contract_report_fingerprints",
+        "machine_argument_contract_commitments",
+        "conformance_argument_report_fingerprints",
+        "conformance_argument_commitments",
+    ] {
+        assert!(
+            visualization.contains(required),
+            "checked-tree visualization is missing `{required}`"
+        );
+    }
+}
+
+#[test]
+fn provider_service_calling_plan_reports_retain_strong_commitments() {
+    let root = workspace_root();
+    let provider_path = root.join(
+        "source/omega-rust/omega/representations/omega-effects/src/capabilities/provider_plan.rs",
+    );
+    let provider = fs::read_to_string(&provider_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", provider_path.display()));
+    assert!(provider.contains("pub calling_plan_report_fingerprint: Option<u64>"));
+    assert!(
+        provider.contains("pub calling_plan_commitment: Option<BoundaryCallingPlanCommitment>")
+    );
+    assert!(provider.contains("boundary_calling_plan_identity_for_arguments"));
+    assert!(provider.contains("self.bytes(&commitment.as_bytes())"));
+    assert!(!provider.contains("pub calling_plan_fingerprint: Option<u64>"));
+}
+
+#[test]
+fn native_fuel_transfer_compact_evidence_is_report_only() {
+    let root = workspace_root();
+    let evidence_path = root.join(
+        "source/omega-rust/omega/representations/omega-installation-evidence/src/native_fuel/evidence.rs",
+    );
+    let evidence = fs::read_to_string(&evidence_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", evidence_path.display()));
+    assert!(
+        evidence.contains("non_authoritative_report_fingerprint: u64")
+            && evidence.contains("pub const fn report_fingerprint")
+            && evidence.contains("plan: NativeFuelTransferRuntimePlanProjection")
+            && evidence.contains("transfer_text: NativeFuelRuntimeTextEvidence")
+            && evidence.contains("resume_text: NativeFuelRuntimeTextEvidence")
+            && evidence.contains("physical_state_footprint: StateFootprintEvidence")
+            && !evidence.contains("pub(super) fingerprint: u64"),
+        "native-fuel transfer evidence must retain exact rows beside an explicitly report-only compact value",
+    );
+
+    let route_path = root
+        .join("source/omega-rust/omega/backend/runtime/omega-external-roots/src/native_fuel.rs");
+    let route = fs::read_to_string(&route_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", route_path.display()));
+    assert!(
+        route.contains("transfer_code_custody: InstalledNativeFuelTransferCodeCustody")
+            && route.contains("self.transfer_code_custody.binds(transfer_code)")
+            && route.contains("self.transfer_plan == transfer_code.transfer_plan")
+            && route.contains("self.psi == transfer_code.psi")
+            && route.contains("self.installed_code == transfer_code.installed_code")
+            && route
+                .contains("self.installed_code_context == transfer_code.installed_code_context",)
+            && route.contains("self.artifact == transfer_code.artifact")
+            && route.contains("self.runtime_evidence == transfer_code.runtime_evidence")
+            && route.contains("self.sponsor_text_offset == transfer_code.sponsor_text_offset")
+            && route.contains("transfer_code_report_fingerprint: u64")
+            && route.contains("non_authoritative_report_fingerprint: u64")
+            && !route.contains("transfer_code_fingerprint: u64")
+            && !route.contains("self.transfer_code_fingerprint == transfer_code.fingerprint"),
+        "native-fuel sponsor routes must rejoin exact transfer-code custody rather than compact report equality",
     );
 }

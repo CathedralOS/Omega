@@ -4,12 +4,13 @@ use omega_task_plans::{
     ActivationCarryObligations, ActivationPlanCandidate, CallingPlanId,
     CanonicalSuspensionCrossing, MachineContractId, MachineEntryId,
     SelectedTaskRuntimeProviderFact, StackPlan, StackRepresentationId, SuspensionCrossingId,
-    TaskActivationPlanFact, TaskActivationPlanSet, TaskRuntimeId, TaskStartOperation,
-    ValueLayoutId, validate_activation_plan,
+    TaskActivationPlanFact, TaskActivationPlanSet, TaskRuntimeId, TaskSpecializationCommitment,
+    TaskStartOperation, ValueLayoutId, validate_activation_plan,
 };
 use psi_checked_trees::{CheckedTrees, SuspensionCrossingStorage};
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::{CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension};
+use sha2::{Digest, Sha256};
 use std::sync::Arc;
 
 /// Elaborate every concrete `TaskRuntime::{start,try_start}<M>` specialization
@@ -53,6 +54,14 @@ pub fn elaborate_task_activation_plans(
             program,
             target_machine.symbol,
             target_machine.name.as_str(),
+        )?;
+        let specialization_commitment = task_specialization_commitment(
+            program,
+            &selection,
+            target_machine,
+            entry,
+            contract,
+            selected_runtime.requirement_identity.as_str(),
         )?;
         let suspension = exact_task_machine_suspension(
             program,
@@ -148,7 +157,8 @@ pub fn elaborate_task_activation_plans(
             start_requirement: selection.requirement,
             target_machine: target_machine.symbol,
             target_entry: entry.symbol,
-            specialization_fingerprint: selection.fingerprint,
+            specialization_report_fingerprint: selection.fingerprint,
+            specialization_commitment,
             operation: selection.operation,
             selected_runtime,
             plan,
@@ -195,6 +205,291 @@ fn exact_task_machine_contract<'program>(
         ))]);
     }
     Ok(plan)
+}
+
+fn task_specialization_commitment(
+    program: &CheckedTrees,
+    selection: &TaskStartSelection,
+    target_machine: &psi_checked_trees::machine::Machine,
+    target_entry: &psi_checked_trees::state::State,
+    target_contract: &psi_checked_trees::MachineContractPlan,
+    requirement_identity: &str,
+) -> Result<TaskSpecializationCommitment, Vec<Diagnostic>> {
+    let requirement_owner = program
+        .traits()
+        .iter()
+        .find(|definition| definition.symbol == selection.requirement_owner)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "task specialization is missing its exact TaskRuntime requirement owner",
+            )]
+        })?;
+    let requirement = program
+        .trait_machine_signatures(requirement_owner)
+        .iter()
+        .find(|signature| signature.symbol == selection.requirement)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "task specialization is missing its exact TaskRuntime requirement",
+            )]
+        })?;
+    let normalized_requirement =
+        program.normalized_trait_requirement_overload_identity(requirement_owner, requirement);
+    if normalized_requirement.identity() != requirement_identity {
+        return Err(vec![Diagnostic::error(
+            "task specialization selected-runtime requirement differs from its exact checked requirement",
+        )]);
+    }
+
+    let mut strong = ExactSpecializationEncoder::new();
+    strong.string(normalized_requirement.identity().as_str());
+    strong.optional_digest(
+        program
+            .symbols
+            .symbol_package_identity(requirement_owner.symbol)
+            .map(|identity| identity.digest()),
+    );
+    let mut requirement_binders = vec![(requirement_owner.symbol, "$Self".to_owned())];
+    requirement_binders.extend(
+        program
+            .trait_type_parameters(requirement_owner)
+            .iter()
+            .chain(program.state_signature_type_parameters(requirement))
+            .enumerate()
+            .filter(|(_, parameter)| parameter.symbol.is_valid())
+            .map(|(index, parameter)| (parameter.symbol, format!("$T{index}"))),
+    );
+    let requirement_parameters = program.state_signature_parameters(requirement);
+    strong.length(requirement_parameters.len());
+    for parameter in requirement_parameters {
+        strong.byte(u8::from(parameter.is_self));
+        strong.byte(u8::from(parameter.is_mutable));
+        strong.byte(u8::from(parameter.is_const));
+        strong.string(
+            program
+                .package_qualified_type_identity_with_binders(
+                    parameter.type_reference,
+                    &requirement_binders,
+                )
+                .as_str(),
+        );
+    }
+    strong.string(
+        program
+            .package_qualified_type_identity_with_binders(
+                requirement.return_type,
+                &requirement_binders,
+            )
+            .as_str(),
+    );
+    strong.byte(match selection.operation {
+        TaskStartOperation::Start => 1,
+        TaskStartOperation::TryStart => 2,
+    });
+    strong.machine(program, target_machine)?;
+    strong.state(program, target_machine, target_entry);
+    strong.digest(target_contract.commitment.as_bytes());
+    strong.target_machine_specialization(program, target_machine.symbol)?;
+    Ok(strong.finish())
+}
+
+struct ExactSpecializationEncoder(Sha256);
+
+impl ExactSpecializationEncoder {
+    fn new() -> Self {
+        let mut digest = Sha256::new();
+        digest.update(b"omega.task-specialization.sha256.v1\0");
+        Self(digest)
+    }
+
+    fn byte(&mut self, value: u8) {
+        self.0.update([value]);
+    }
+
+    fn length(&mut self, value: usize) {
+        self.0.update((value as u64).to_le_bytes());
+    }
+
+    fn string(&mut self, value: &str) {
+        self.length(value.len());
+        self.0.update(value.as_bytes());
+    }
+
+    fn strings(&mut self, values: &[String]) {
+        self.length(values.len());
+        for value in values {
+            self.string(value);
+        }
+    }
+
+    fn digest(&mut self, value: [u8; 32]) {
+        self.0.update(value);
+    }
+
+    fn optional_digest(&mut self, value: Option<[u8; 32]>) {
+        match value {
+            Some(value) => {
+                self.byte(1);
+                self.digest(value);
+            }
+            None => self.byte(0),
+        }
+    }
+
+    fn optional_string(&mut self, value: Option<&str>) {
+        match value {
+            Some(value) => {
+                self.byte(1);
+                self.string(value);
+            }
+            None => self.byte(0),
+        }
+    }
+
+    fn target_machine_specialization(
+        &mut self,
+        program: &CheckedTrees,
+        target_machine: psi_symbols::SymbolHandle,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let mut matches = program
+            .machine_specializations
+            .iter()
+            .filter(|specialization| specialization.instance == target_machine);
+        let Some(specialization) = matches.next() else {
+            self.byte(0);
+            return Ok(());
+        };
+        if matches.next().is_some() {
+            return Err(vec![Diagnostic::error(
+                "task activation target has duplicate exact checked specialization rows",
+            )]);
+        }
+        self.byte(1);
+        let template = exact_specialization_machine(program, specialization.template, "template")?;
+        self.machine(program, template)?;
+        self.digest(
+            exact_task_machine_contract(program, template.symbol, template.name.as_str())?
+                .commitment
+                .as_bytes(),
+        );
+        self.strings(&specialization.type_argument_identities);
+        self.strings(&specialization.const_argument_identities);
+        self.optional_string(specialization.accepted_template_commitment.as_deref());
+
+        self.length(specialization.machine_arguments.len());
+        for argument in &specialization.machine_arguments {
+            let (owner, state) =
+                unique_task_activation_target(program, *argument).map_err(|error| {
+                    vec![Diagnostic::error(format!(
+                    "task specialization static machine argument has no exact semantic target: {}",
+                    error.message()
+                ))]
+                })?;
+            self.machine(program, owner)?;
+            self.state(program, owner, state);
+            self.digest(
+                exact_task_machine_contract(program, owner.symbol, owner.name.as_str())?
+                    .commitment
+                    .as_bytes(),
+            );
+        }
+
+        let selected_conformance_count = specialization.conformance_arguments.len()
+            + specialization.inferred_conformance_arguments.len();
+        if specialization.conformance_applications.len() != selected_conformance_count {
+            return Err(vec![Diagnostic::error(
+                "task specialization does not retain one exact closed application per selected conformance",
+            )]);
+        }
+        self.length(specialization.conformance_arguments.len());
+        self.length(specialization.inferred_conformance_arguments.len());
+        self.length(specialization.conformance_applications.len());
+        for application in &specialization.conformance_applications {
+            if application.commitment.is_zero() {
+                return Err(vec![Diagnostic::error(
+                    "task specialization retained an empty closed-conformance commitment",
+                )]);
+            }
+            self.digest(application.commitment.as_bytes());
+        }
+        Ok(())
+    }
+
+    fn machine(
+        &mut self,
+        program: &CheckedTrees,
+        machine: &psi_checked_trees::machine::Machine,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let identity = program
+            .normalized_machine_overload_identity(machine)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "task specialization machine `{}` has no exact normalized overload identity",
+                    machine.name.as_str()
+                ))]
+            })?;
+        self.string(identity.identity().as_str());
+        self.optional_digest(
+            program
+                .symbols
+                .symbol_package_identity(machine.symbol)
+                .map(|identity| identity.digest()),
+        );
+        Ok(())
+    }
+
+    fn state(
+        &mut self,
+        program: &CheckedTrees,
+        owner: &psi_checked_trees::machine::Machine,
+        state: &psi_checked_trees::state::State,
+    ) {
+        self.string(owner.name.as_str());
+        self.string(state.name.as_str());
+        let parameters = program.state_parameters(state);
+        self.length(parameters.len());
+        for parameter in parameters {
+            self.byte(u8::from(parameter.is_self));
+            self.byte(u8::from(parameter.is_mutable));
+            self.byte(u8::from(parameter.is_const));
+            self.string(
+                program
+                    .package_qualified_type_identity(parameter.type_reference)
+                    .as_str(),
+            );
+        }
+        self.string(
+            program
+                .package_qualified_type_identity(state.return_type)
+                .as_str(),
+        );
+    }
+
+    fn finish(self) -> TaskSpecializationCommitment {
+        TaskSpecializationCommitment::from_digest(self.0.finalize().into())
+    }
+}
+
+fn exact_specialization_machine<'program>(
+    program: &'program CheckedTrees,
+    symbol: psi_symbols::SymbolHandle,
+    role: &str,
+) -> Result<&'program psi_checked_trees::machine::Machine, Vec<Diagnostic>> {
+    let mut matches = program
+        .machines()
+        .iter()
+        .filter(|machine| machine.symbol == symbol);
+    let machine = matches.next().ok_or_else(|| {
+        vec![Diagnostic::error(format!(
+            "task specialization is missing its exact checked {role} machine"
+        ))]
+    })?;
+    if matches.next().is_some() {
+        return Err(vec![Diagnostic::error(format!(
+            "task specialization has duplicate exact checked {role} machines"
+        ))]);
+    }
+    Ok(machine)
 }
 
 fn exact_task_machine_suspension(
@@ -2426,6 +2721,80 @@ mod tests {
                 .iter()
                 .any(|activation| { activation.operation == TaskStartOperation::TryStart })
         );
+    }
+
+    #[test]
+    fn compact_equal_specialization_substitution_changes_authoritative_commitment() {
+        let (mut checked, selected, _) = concrete_task_start_fixture();
+        let baseline_start = task_start_selections(&checked)
+            .expect("baseline task selections")
+            .into_iter()
+            .find(|selection| selection.operation == TaskStartOperation::Start)
+            .expect("baseline start selection");
+        let target_specialization_index = checked.typed.machine_specializations.len();
+        checked.typed.machine_specializations.push(
+            psi_typed_trees::typed_trees::MachineSpecialization {
+                template: baseline_start.target_machine,
+                instance: baseline_start.target_machine,
+                type_argument_identities: vec!["exact::Baseline".to_owned()],
+                fingerprint: 0x4455,
+                ..Default::default()
+            },
+        );
+        let baseline_runtime = selected_task_runtime_provider(&checked, &selected, &baseline_start)
+            .expect("baseline selected task runtime");
+        let (baseline_machine, baseline_entry) = exact_task_activation_target(
+            &checked,
+            baseline_start.target_machine,
+            baseline_start.target_entry,
+        )
+        .expect("baseline exact task target");
+        let baseline_contract = exact_task_machine_contract(
+            &checked,
+            baseline_machine.symbol,
+            baseline_machine.name.as_str(),
+        )
+        .expect("baseline exact task contract");
+        let baseline_commitment = task_specialization_commitment(
+            &checked,
+            &baseline_start,
+            baseline_machine,
+            baseline_entry,
+            baseline_contract,
+            baseline_runtime.requirement_identity.as_str(),
+        )
+        .expect("baseline task specialization commitment");
+
+        let mut substituted = checked.clone();
+        substituted.typed.machine_specializations[target_specialization_index]
+            .type_argument_identities[0] = "exact::Substituted".to_owned();
+        assert_eq!(
+            substituted.machine_specializations[target_specialization_index].fingerprint,
+            checked.machine_specializations[target_specialization_index].fingerprint,
+        );
+        let (changed_machine, changed_entry) = exact_task_activation_target(
+            &substituted,
+            baseline_start.target_machine,
+            baseline_start.target_entry,
+        )
+        .expect("changed exact task target");
+        let changed_contract = exact_task_machine_contract(
+            &substituted,
+            changed_machine.symbol,
+            changed_machine.name.as_str(),
+        )
+        .expect("changed exact task contract");
+        let changed_commitment = task_specialization_commitment(
+            &substituted,
+            &baseline_start,
+            changed_machine,
+            changed_entry,
+            changed_contract,
+            baseline_runtime.requirement_identity.as_str(),
+        )
+        .expect("changed task specialization commitment");
+
+        assert_ne!(baseline_commitment, changed_commitment);
     }
 
     #[test]

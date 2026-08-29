@@ -302,9 +302,9 @@ pub struct InstalledNativeFuelTransferCode {
     artifact: ArtifactId,
     runtime_evidence: NativeFuelTransferRuntimeEvidence,
     sponsor_text_offset: usize,
-    unrelocated_text_fingerprint: u64,
-    final_text_fingerprint: u64,
-    fingerprint: u64,
+    unrelocated_text_report_fingerprint: u64,
+    final_text_report_fingerprint: u64,
+    non_authoritative_report_fingerprint: u64,
 }
 
 impl InstalledNativeFuelTransferCode {
@@ -328,16 +328,33 @@ impl InstalledNativeFuelTransferCode {
         self.sponsor_text_offset
     }
 
+    pub const fn unrelocated_text_report_fingerprint(&self) -> u64 {
+        self.unrelocated_text_report_fingerprint
+    }
+
+    /// Compatibility accessor for [`Self::unrelocated_text_report_fingerprint`].
     pub const fn unrelocated_text_fingerprint(&self) -> u64 {
-        self.unrelocated_text_fingerprint
+        self.unrelocated_text_report_fingerprint()
     }
 
+    pub const fn final_text_report_fingerprint(&self) -> u64 {
+        self.final_text_report_fingerprint
+    }
+
+    /// Compatibility accessor for [`Self::final_text_report_fingerprint`].
     pub const fn final_text_fingerprint(&self) -> u64 {
-        self.final_text_fingerprint
+        self.final_text_report_fingerprint()
     }
 
+    /// Compact report coordinate retained for compatibility. Sponsor-route
+    /// and executable-runtime authority use exact transfer-code custody.
+    pub const fn report_fingerprint(&self) -> u64 {
+        self.non_authoritative_report_fingerprint
+    }
+
+    /// Compatibility accessor for [`Self::report_fingerprint`].
     pub const fn fingerprint(&self) -> u64 {
-        self.fingerprint
+        self.report_fingerprint()
     }
 
     pub fn binds_installed_code(&self, installed_code: &InstalledCode) -> bool {
@@ -398,11 +415,11 @@ pub fn bind_installed_native_fuel_transfer_code<Image: NativeFuelTransferRuntime
     let mut unrelocated_hash = Fnv1a::new();
     unrelocated_hash.bytes(b"omega.native-fuel-transfer-unrelocated-text.v1");
     unrelocated_hash.bytes(image.unrelocated_text_bytes());
-    let unrelocated_text_fingerprint = unrelocated_hash.finish();
+    let unrelocated_text_report_fingerprint = unrelocated_hash.finish();
     let mut final_hash = Fnv1a::new();
     final_hash.bytes(b"omega.native-fuel-transfer-final-text.v1");
     final_hash.bytes(image.final_text_bytes());
-    let final_text_fingerprint = final_hash.finish();
+    let final_text_report_fingerprint = final_hash.finish();
 
     let psi = image.psi();
     let mut fingerprint = Fnv1a::new();
@@ -412,10 +429,10 @@ pub fn bind_installed_native_fuel_transfer_code<Image: NativeFuelTransferRuntime
     fingerprint.bytes(psi.program_fingerprint.as_bytes());
     fingerprint.u64(installed_code.identity().normalized_identity());
     fingerprint.u64(installed_code.artifact().normalized_identity());
-    fingerprint.u64(runtime_evidence.fingerprint());
+    fingerprint.u64(runtime_evidence.report_fingerprint());
     fingerprint.u64(image.sponsor_text_offset() as u64);
-    fingerprint.u64(unrelocated_text_fingerprint);
-    fingerprint.u64(final_text_fingerprint);
+    fingerprint.u64(unrelocated_text_report_fingerprint);
+    fingerprint.u64(final_text_report_fingerprint);
 
     Ok(InstalledNativeFuelTransferCode {
         transfer_plan,
@@ -425,9 +442,9 @@ pub fn bind_installed_native_fuel_transfer_code<Image: NativeFuelTransferRuntime
         artifact: installed_code.artifact(),
         runtime_evidence: runtime_evidence.clone(),
         sponsor_text_offset: image.sponsor_text_offset(),
-        unrelocated_text_fingerprint,
-        final_text_fingerprint,
-        fingerprint: fingerprint.finish(),
+        unrelocated_text_report_fingerprint,
+        final_text_report_fingerprint,
+        non_authoritative_report_fingerprint: fingerprint.finish(),
     })
 }
 
@@ -448,6 +465,45 @@ fn runtime_text_matches_image(
             .is_some_and(|bytes| bytes == evidence.final_bytes())
 }
 
+/// Exact transfer-code evidence retained by an installed sponsor route. The
+/// installed occurrence context carries the complete admitted artifact bytes;
+/// the remaining fields retain the exact transfer plan, Psi, runtime rows, and
+/// sponsor coordinate. Compact report fingerprints are deliberately excluded.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct InstalledNativeFuelTransferCodeCustody {
+    transfer_plan: ValidatedNativeFuelTransferPlan,
+    psi: psi_terminal::TerminalPsiIdentity,
+    installed_code: InstalledCodeId,
+    installed_code_context: InstalledCodeContext,
+    artifact: ArtifactId,
+    runtime_evidence: NativeFuelTransferRuntimeEvidence,
+    sponsor_text_offset: usize,
+}
+
+impl InstalledNativeFuelTransferCodeCustody {
+    fn from_transfer_code(transfer_code: &InstalledNativeFuelTransferCode) -> Self {
+        Self {
+            transfer_plan: transfer_code.transfer_plan.clone(),
+            psi: transfer_code.psi,
+            installed_code: transfer_code.installed_code,
+            installed_code_context: transfer_code.installed_code_context.clone(),
+            artifact: transfer_code.artifact,
+            runtime_evidence: transfer_code.runtime_evidence.clone(),
+            sponsor_text_offset: transfer_code.sponsor_text_offset,
+        }
+    }
+
+    fn binds(&self, transfer_code: &InstalledNativeFuelTransferCode) -> bool {
+        self.transfer_plan == transfer_code.transfer_plan
+            && self.psi == transfer_code.psi
+            && self.installed_code == transfer_code.installed_code
+            && self.installed_code_context == transfer_code.installed_code_context
+            && self.artifact == transfer_code.artifact
+            && self.runtime_evidence == transfer_code.runtime_evidence
+            && self.sponsor_text_offset == transfer_code.sponsor_text_offset
+    }
+}
+
 /// Installed provider route reached by the compiler-owned transfer stub.
 /// This retains the exact fixed, suspension-free sponsor provision separately
 /// from transfer-code custody and binds the relocation's sponsor coordinate to
@@ -455,16 +511,14 @@ fn runtime_text_matches_image(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstalledNativeFuelSponsorRoute {
     sponsor_path: SuspensionFreeFixedFuelProvision,
-    transfer_code_fingerprint: u64,
+    transfer_code_custody: InstalledNativeFuelTransferCodeCustody,
+    transfer_code_report_fingerprint: u64,
     root: ExternalRootId,
     provider_execution: ProviderExecutionId,
-    provider_execution_fingerprint: u64,
+    provider_execution_report_fingerprint: u64,
     entry: EntryStubId,
-    installed_code: InstalledCodeId,
-    installed_code_context: InstalledCodeContext,
-    artifact: ArtifactId,
     sponsor_text_offset: usize,
-    fingerprint: u64,
+    non_authoritative_report_fingerprint: u64,
 }
 
 impl InstalledNativeFuelSponsorRoute {
@@ -488,16 +542,27 @@ impl InstalledNativeFuelSponsorRoute {
         self.sponsor_text_offset
     }
 
+    pub const fn transfer_code_report_fingerprint(&self) -> u64 {
+        self.transfer_code_report_fingerprint
+    }
+
+    pub const fn provider_execution_report_fingerprint(&self) -> u64 {
+        self.provider_execution_report_fingerprint
+    }
+
+    /// Compact report coordinate retained for compatibility. Runtime authority
+    /// uses the exact transfer-code custody held by this route.
+    pub const fn report_fingerprint(&self) -> u64 {
+        self.non_authoritative_report_fingerprint
+    }
+
+    /// Compatibility accessor for [`Self::report_fingerprint`].
     pub const fn fingerprint(&self) -> u64 {
-        self.fingerprint
+        self.report_fingerprint()
     }
 
     fn binds_transfer_code(&self, transfer_code: &InstalledNativeFuelTransferCode) -> bool {
-        self.transfer_code_fingerprint == transfer_code.fingerprint
-            && self.installed_code == transfer_code.installed_code
-            && self.installed_code_context == transfer_code.installed_code_context
-            && self.artifact == transfer_code.artifact
-            && self.sponsor_text_offset == transfer_code.sponsor_text_offset
+        self.transfer_code_custody.binds(transfer_code)
     }
 }
 
@@ -545,7 +610,7 @@ pub fn bind_installed_native_fuel_sponsor_route(
 
     let mut fingerprint = Fnv1a::new();
     fingerprint.bytes(b"omega.installed-native-fuel-sponsor-route.v1");
-    fingerprint.u64(transfer_code.fingerprint);
+    fingerprint.u64(transfer_code.report_fingerprint());
     fingerprint.u64(sponsor_root.root.normalized_identity());
     fingerprint.u64(provider_execution.identity().normalized_identity());
     fingerprint.u64(provider_execution.normalized_report_identity());
@@ -565,16 +630,16 @@ pub fn bind_installed_native_fuel_sponsor_route(
 
     Ok(InstalledNativeFuelSponsorRoute {
         sponsor_path,
-        transfer_code_fingerprint: transfer_code.fingerprint,
+        transfer_code_custody: InstalledNativeFuelTransferCodeCustody::from_transfer_code(
+            transfer_code,
+        ),
+        transfer_code_report_fingerprint: transfer_code.report_fingerprint(),
         root: sponsor_root.root,
         provider_execution: provider_execution.identity(),
-        provider_execution_fingerprint: provider_execution.normalized_report_identity(),
+        provider_execution_report_fingerprint: provider_execution.normalized_report_identity(),
         entry,
-        installed_code: installed_code.identity(),
-        installed_code_context: installed_code.receipt_context(),
-        artifact: installed_code.artifact(),
         sponsor_text_offset: transfer_code.sponsor_text_offset,
-        fingerprint: fingerprint.finish(),
+        non_authoritative_report_fingerprint: fingerprint.finish(),
     })
 }
 
@@ -631,7 +696,7 @@ pub struct InstalledNativeFuelTransferRuntime {
     plan: DynamicNativeFuelMeterPlan,
     transfer_code: InstalledNativeFuelTransferCode,
     sponsor_route: InstalledNativeFuelSponsorRoute,
-    fingerprint: u64,
+    non_authoritative_report_fingerprint: u64,
 }
 
 impl InstalledNativeFuelTransferRuntime {
@@ -643,8 +708,15 @@ impl InstalledNativeFuelTransferRuntime {
         &self.sponsor_route
     }
 
+    /// Compact report coordinate retained for compatibility. Exact runtime
+    /// authority is the plan/code/route evidence held by this carrier.
+    pub const fn report_fingerprint(&self) -> u64 {
+        self.non_authoritative_report_fingerprint
+    }
+
+    /// Compatibility accessor for [`Self::report_fingerprint`].
     pub const fn fingerprint(&self) -> u64 {
-        self.fingerprint
+        self.report_fingerprint()
     }
 
     fn matches(&self, plan: &DynamicNativeFuelMeterPlan, installed_code: &InstalledCode) -> bool {
@@ -680,8 +752,8 @@ pub fn bind_installed_native_fuel_transfer_runtime(
 
     let mut fingerprint = Fnv1a::new();
     fingerprint.bytes(b"omega.installed-native-fuel-transfer-runtime.v1");
-    fingerprint.u64(transfer_code.fingerprint());
-    fingerprint.u64(sponsor_route.fingerprint());
+    fingerprint.u64(transfer_code.report_fingerprint());
+    fingerprint.u64(sponsor_route.report_fingerprint());
     fingerprint.u64(plan.transfer_plan.normalized_identity());
     fingerprint.u64(plan.sponsor_path.fixed.demand.composition_fingerprint());
     fingerprint.u64(plan.sponsor_path.fixed.provision.normalized_identity());
@@ -691,7 +763,7 @@ pub fn bind_installed_native_fuel_transfer_runtime(
         plan,
         transfer_code,
         sponsor_route,
-        fingerprint: fingerprint.finish(),
+        non_authoritative_report_fingerprint: fingerprint.finish(),
     })
 }
 
@@ -1962,9 +2034,9 @@ mod tests {
         assert_eq!(custody.installed_code(), installed.identity());
         assert_eq!(custody.runtime_evidence(), &image.evidence);
         assert!(custody.binds_installed_code(&installed));
-        assert_ne!(custody.unrelocated_text_fingerprint(), 0);
-        assert_ne!(custody.final_text_fingerprint(), 0);
-        assert_ne!(custody.fingerprint(), 0);
+        assert_ne!(custody.unrelocated_text_report_fingerprint(), 0);
+        assert_ne!(custody.final_text_report_fingerprint(), 0);
+        assert_ne!(custody.report_fingerprint(), 0);
     }
 
     #[test]
@@ -2065,6 +2137,26 @@ mod tests {
         .expect("resolved sponsor call names exact installed fixed root entry");
         assert_eq!(route.entry(), entry);
         assert_eq!(route.sponsor_text_offset(), 16);
+
+        let mut compact_equal_transfer_substitute = transfer_code.clone();
+        compact_equal_transfer_substitute.psi.program_fingerprint =
+            psi_terminal::SemanticFingerprint::from_bytes([8; 32]);
+        assert_eq!(
+            compact_equal_transfer_substitute.report_fingerprint(),
+            transfer_code.report_fingerprint(),
+            "the adversarial substitute deliberately preserves the compact report coordinate"
+        );
+        assert!(
+            bind_installed_native_fuel_transfer_runtime(
+                plan.clone(),
+                compact_equal_transfer_substitute,
+                route.clone(),
+            )
+            .expect_err("compact-equal Psi substitution must not reuse sponsor-route authority")
+            .0
+            .contains("exact transfer code")
+        );
+
         let runtime = bind_installed_native_fuel_transfer_runtime(
             plan.clone(),
             transfer_code.clone(),
@@ -2498,52 +2590,44 @@ mod tests {
         );
 
         image.source[0] ^= 1;
-        assert!(
-            validate_installed_dynamic_fuel_attribution(
-                &installed_attribution,
-                &image,
-                &installed,
-            )
-            .expect_err("source text drift must reject replay")
-            .0
-            .contains("validated source text")
-        );
+        assert!(validate_installed_dynamic_fuel_attribution(
+            &installed_attribution,
+            &image,
+            &installed,
+        )
+        .expect_err("source text drift must reject replay")
+        .0
+        .contains("validated source text"));
         image.source[0] ^= 1;
         image.policy = x86_target_projection(TargetProfile::UefiX64);
-        assert!(
-            validate_installed_dynamic_fuel_attribution(
-                &installed_attribution,
-                &image,
-                &installed,
-            )
-            .expect_err("target-profile policy cannot be substituted by equal native tuple")
-            .0
-            .contains("admitted target recipe")
-        );
+        assert!(validate_installed_dynamic_fuel_attribution(
+            &installed_attribution,
+            &image,
+            &installed,
+        )
+        .expect_err("target-profile policy cannot be substituted by equal native tuple")
+        .0
+        .contains("admitted target recipe"));
         image.policy = x86_target_projection(profile);
         image.charges[0].attribution.operation_ordinal += 1;
-        assert!(
-            validate_installed_dynamic_fuel_attribution(
-                &installed_attribution,
-                &image,
-                &installed,
-            )
-            .expect_err("charge attribution drift must reject replay")
-            .0
-            .contains("one-for-one")
-        );
+        assert!(validate_installed_dynamic_fuel_attribution(
+            &installed_attribution,
+            &image,
+            &installed,
+        )
+        .expect_err("charge attribution drift must reject replay")
+        .0
+        .contains("one-for-one"));
         image.charges[0].attribution.operation_ordinal -= 1;
         image.final_text[0] ^= 1;
-        assert!(
-            validate_installed_dynamic_fuel_attribution(
-                &installed_attribution,
-                &image,
-                &installed,
-            )
-            .expect_err("materialized final-text drift must reject replay")
-            .0
-            .contains("exact unrelocated and materialized")
-        );
+        assert!(validate_installed_dynamic_fuel_attribution(
+            &installed_attribution,
+            &image,
+            &installed,
+        )
+        .expect_err("materialized final-text drift must reject replay")
+        .0
+        .contains("exact unrelocated and materialized"));
         image.final_text[0] ^= 1;
 
         let mut drifted = installed_attribution.clone();

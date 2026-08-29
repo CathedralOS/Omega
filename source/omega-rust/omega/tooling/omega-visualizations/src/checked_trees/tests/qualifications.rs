@@ -295,8 +295,8 @@ fn qualification_evidence_manifest_separates_origin_point_and_receipt() {
     let json = qualification_evidence_manifest_json(&program, &selected);
 
     assert!(json.contains(&format!(
-        "\"selected_provider_closure_fingerprint\": \"0x{:016x}\"",
-        selected.normalized_identity()
+        "\"selected_provider_closure_report_fingerprint\": \"0x{:016x}\"",
+        selected.compatibility_report_identity()
     )));
     assert!(json.contains("\"subject\": \"#4\""));
     assert!(json.contains("\"domain\": \"#5\""));
@@ -824,7 +824,7 @@ fn qualification_manifest_retains_provider_origin_outside_plan_identity() {
 
     let json = qualification_evidence_manifest_json(&CheckedTrees::default(), &selected);
     assert!(json.contains(&format!(
-        "\"selected_provider_closure_fingerprint\": \"0x{selected_closure_identity:016x}\""
+        "\"selected_provider_closure_report_fingerprint\": \"0x{selected_closure_identity:016x}\""
     )));
     assert_eq!(json.matches("\"provider_origin_package\"").count(), 2);
     assert_eq!(

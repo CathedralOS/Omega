@@ -239,9 +239,12 @@ fn selected_source_boundary_entry_plan(
                 "selected source boundary entry ProviderPlan `{provider_plan_name}` does not bind exact boundary operator `{operator_identity}`"
             )));
         }
-        return match method.calling_plan_fingerprint {
-            None => Ok(None),
-            Some(_) => Err(Diagnostic::error(format!(
+        return match (
+            method.calling_plan_report_fingerprint,
+            method.calling_plan_commitment,
+        ) {
+            (None, None) => Ok(None),
+            _ => Err(Diagnostic::error(format!(
                 "selected source boundary operator `{operator_identity}` retains a trait calling-plan fingerprint"
             ))),
         };
@@ -300,8 +303,19 @@ fn selected_source_boundary_entry_plan(
         )));
     };
 
-    let Some(fingerprint) = method.calling_plan_fingerprint else {
-        return Ok(None);
+    let (Some(fingerprint), Some(commitment)) = (
+        method.calling_plan_report_fingerprint,
+        method.calling_plan_commitment,
+    ) else {
+        return if method.calling_plan_report_fingerprint.is_none()
+            && method.calling_plan_commitment.is_none()
+        {
+            Ok(None)
+        } else {
+            Err(Diagnostic::error(format!(
+                "selected source boundary entry `{trait_name}::{method_name}` does not retain its calling-plan report coordinate and commitment together"
+            )))
+        };
     };
     if fingerprint == 0 {
         return Err(Diagnostic::error(format!(
@@ -312,7 +326,8 @@ fn selected_source_boundary_entry_plan(
     let matching_realizations = boundary_calling_plan_realizations
         .iter()
         .filter(|realization| {
-            realization.fingerprint == fingerprint
+            realization.report_fingerprint == fingerprint
+                && realization.commitment == commitment
                 && realization.boundary_trait == schema_owner.symbol
                 && realization.requirement_machine == signature.symbol
         })
@@ -323,9 +338,21 @@ fn selected_source_boundary_entry_plan(
             matching_realizations.len()
         )));
     };
-    if &realization.boundary_entry_plan != realization.exact_boundary_entry_plan() {
+    let validated = realization.replayed_validated_plan().map_err(|error| {
+        Diagnostic::error(format!(
+            "selected source boundary entry `{trait_name}::{method_name}` / `{requirement_identity}` retained an invalid target calling-plan realization: {error}"
+        ))
+    })?;
+    if validated.plan() != realization.exact_boundary_entry_plan() {
         return Err(Diagnostic::error(format!(
             "selected source boundary entry `{trait_name}::{method_name}` / `{requirement_identity}` substituted a calling plan behind its compact report fingerprint"
+        )));
+    }
+    if realization.report_fingerprint != validated.contract_fingerprint()
+        || realization.commitment.as_bytes() != validated.contract_commitment_digest()
+    {
+        return Err(Diagnostic::error(format!(
+            "selected source boundary entry `{trait_name}::{method_name}` / `{requirement_identity}` substituted a calling-plan commitment behind its compact report fingerprint"
         )));
     }
 

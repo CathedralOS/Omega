@@ -29,7 +29,9 @@ pub(super) fn fingerprint_transfer_plan(plan: &NativeFuelTransferRuntimePlanProj
     hash.finish_nonzero()
 }
 
-pub(super) fn fingerprint_transfer_evidence(evidence: &NativeFuelTransferRuntimeEvidence) -> u64 {
+pub(super) fn non_authoritative_transfer_evidence_report_fingerprint(
+    evidence: &NativeFuelTransferRuntimeEvidence,
+) -> u64 {
     let mut hash = Fnv1a::new(b"omega.native-fuel-transfer-evidence.v1");
     hash.u64(evidence.plan.normalized_identity());
     hash.text_evidence(&evidence.transfer_text);

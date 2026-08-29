@@ -594,7 +594,7 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
     let schema = omega_effects::provider_plan::ServiceSchema::from_typed(&checked.typed, timer)
         .expect("TimerRoot service schema");
     assert_eq!(
-        schema.methods[0].calling_plan_fingerprint,
+        schema.methods[0].calling_plan_report_fingerprint,
         Some(validated.contract_fingerprint())
     );
     let selected = selected_plan_for_external_root(checked.selected_provider_plans(), "TimerRoot");
@@ -921,16 +921,20 @@ fn source_policy_receives_signature_and_publishes_only_validated_acceptance() {
         .expect("Tick service schema");
     assert_eq!(schema.methods.len(), 1);
     assert_eq!(
-        schema.methods[0].calling_plan_fingerprint,
+        schema.methods[0].calling_plan_report_fingerprint,
         Some(validated.contract_fingerprint())
     );
     let retained = checked
         .typed
         .boundary_calling_plans
         .iter()
-        .find(|identity| identity.fingerprint == validated.contract_fingerprint())
+        .find(|identity| identity.report_fingerprint == validated.contract_fingerprint())
         .expect("typed semantic identity for the published boundary contract");
-    assert_ne!(retained.fingerprint, 0);
+    assert_ne!(retained.report_fingerprint, 0);
+    assert_eq!(
+        retained.commitment.as_bytes(),
+        validated.contract_commitment_digest()
+    );
 }
 
 #[test]
@@ -1210,7 +1214,7 @@ fn policy_source_identity_is_absent_from_the_published_fingerprint() {
         omega_effects::provider_plan::ServiceSchema::from_typed(&checked.typed, tick)
             .expect("Tick service schema")
             .methods[0]
-            .calling_plan_fingerprint
+            .calling_plan_report_fingerprint
             .expect("evaluated calling identity")
     };
 
@@ -1279,8 +1283,10 @@ machine Main::main(&mut self) { }
         methods[0].requirement_identity, methods[1].requirement_identity,
         "the readable method name is not an overload identity"
     );
-    assert!(methods[0].calling_plan_fingerprint.is_some());
-    assert!(methods[1].calling_plan_fingerprint.is_some());
+    assert!(methods[0].calling_plan_report_fingerprint.is_some());
+    assert!(methods[0].calling_plan_commitment.is_some());
+    assert!(methods[1].calling_plan_report_fingerprint.is_some());
+    assert!(methods[1].calling_plan_commitment.is_some());
 
     let _ = fs::remove_dir_all(main_path.parent().expect("temporary policy directory"));
 }
@@ -1321,12 +1327,13 @@ fn generic_boundary_conformance_selects_and_publishes_its_policy_instance() {
     .expect("generic Tick service schema");
 
     assert_eq!(schema.methods.len(), 1);
-    assert!(schema.methods[0].calling_plan_fingerprint.is_some());
+    assert!(schema.methods[0].calling_plan_report_fingerprint.is_some());
+    assert!(schema.methods[0].calling_plan_commitment.is_some());
     assert_eq!(
         omega_effects::provider_plan::ServiceSchema::from_typed(&checked.typed, tick)
             .expect("uninstantiated schema")
             .methods[0]
-            .calling_plan_fingerprint,
+            .calling_plan_report_fingerprint,
         None,
         "a generic declaration is not itself a concrete ABI"
     );
@@ -1349,7 +1356,8 @@ fn uninstantiated_generic_boundary_does_not_publish_an_abi() {
     let schema = omega_effects::provider_plan::ServiceSchema::from_typed(&checked.typed, tick)
         .expect("generic declaration schema");
 
-    assert_eq!(schema.methods[0].calling_plan_fingerprint, None);
+    assert_eq!(schema.methods[0].calling_plan_report_fingerprint, None);
+    assert_eq!(schema.methods[0].calling_plan_commitment, None);
 }
 
 #[test]

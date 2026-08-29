@@ -552,6 +552,7 @@ fn transfer_evidence_retains_exact_bytes_spans_and_resources() {
     assert_eq!(evidence.resume_text().final_bytes(), &[5, 6, 7, 8]);
     assert_eq!(evidence.sponsor_stack_peak_bytes(), 128);
     assert_ne!(evidence.fingerprint(), 0);
+    assert_eq!(evidence.fingerprint(), evidence.report_fingerprint());
 }
 
 #[test]

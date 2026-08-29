@@ -15,6 +15,7 @@ external-root-report = ["dep:omega-external-roots"]
 omega-backend-report-types = { path = "../../representations/omega-backend-report-types" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }
+psi-typed-trees = { path = "../../../psi/representations/psi-typed-trees" }
 omega-core = { path = "../../representations/omega-core" }
 psi-arena = { path = "../../../psi/foundation/psi-arena" }
 psi-symbols = { path = "../../../psi/foundation/psi-symbols" }

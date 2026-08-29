@@ -24,7 +24,9 @@ pub fn write_trust_report(
 ) -> Result<(), Vec<Diagnostic>> {
     let typed = &checked.typed;
     let mut report = TrustReport::default();
-    report.selected_provider_closure_fingerprint = selected_provider_plans.normalized_identity();
+    report.selected_provider_closure_report_fingerprint =
+        selected_provider_plans.compatibility_report_identity();
+    report.selected_provider_closure_digest = selected_provider_plans.identity_digest();
     let provider_grants = crate::resolve_selected_provider_grants(
         provider_plans,
         selected_provider_plans,
@@ -102,8 +104,9 @@ pub fn write_trust_report(
                 if selected { "yes" } else { "no" },
             ),
             provenance: provenance.to_owned(),
-            machine_contract_fingerprint: None,
-            machine_template_fingerprint: None,
+            machine_contract_report_fingerprint: None,
+            machine_contract_commitment: None,
+            machine_template_report_fingerprint: None,
             machine_service_reach: None,
             machine_synchronous_invocations: None,
             machine_may_suspend: None,
@@ -126,7 +129,8 @@ pub fn write_trust_report(
                 .provider_requirements
                 .push(TrustProviderRequirementRow {
                     provider_plan: plan.name.clone(),
-                    provider_plan_fingerprint: plan.identity_fingerprint(),
+                    provider_plan_report_fingerprint: plan.identity_fingerprint(),
+                    provider_plan_digest: plan.identity_digest(),
                     provider_type: plan.provider_type.clone(),
                     provider_type_package_identity: plan.provider_type_package_identity,
                     target: plan.target.clone(),
@@ -134,7 +138,8 @@ pub fn write_trust_report(
                     provider_origin_package: plan.origin_package.clone(),
                     service_schema: plan.schema.trait_name.clone(),
                     service_schema_package_identity: plan.schema.trait_package_identity,
-                    calling_plan_fingerprint: method.calling_plan_fingerprint,
+                    calling_plan_report_fingerprint: method.calling_plan_report_fingerprint,
+                    calling_plan_commitment: method.calling_plan_commitment,
                     selected,
                     requirement_owner: method.requirement_owner.clone(),
                     requirement_owner_package_identity: method
@@ -177,7 +182,8 @@ pub fn write_trust_report(
             for claim in &method.entry_claims {
                 report.qualifications.push(TrustQualificationRow {
                     provider_plan: plan.name.clone(),
-                    provider_plan_fingerprint: plan.identity_fingerprint(),
+                    provider_plan_report_fingerprint: plan.identity_fingerprint(),
+                    provider_plan_digest: plan.identity_digest(),
                     provider_type: plan.provider_type.clone(),
                     provider_type_package_identity: plan.provider_type_package_identity,
                     target: plan.target.clone(),
@@ -185,7 +191,8 @@ pub fn write_trust_report(
                     provider_origin_package: plan.origin_package.clone(),
                     service_schema: plan.schema.trait_name.clone(),
                     service_schema_package_identity: plan.schema.trait_package_identity,
-                    calling_plan_fingerprint: method.calling_plan_fingerprint,
+                    calling_plan_report_fingerprint: method.calling_plan_report_fingerprint,
+                    calling_plan_commitment: method.calling_plan_commitment,
                     selected,
                     requirement_owner: method.requirement_owner.clone(),
                     requirement_owner_package_identity: method.requirement_owner_package_identity,
@@ -207,7 +214,8 @@ pub fn write_trust_report(
                 // this generic provider-result carrier.
                 report.qualifications.push(TrustQualificationRow {
                     provider_plan: plan.name.clone(),
-                    provider_plan_fingerprint: plan.identity_fingerprint(),
+                    provider_plan_report_fingerprint: plan.identity_fingerprint(),
+                    provider_plan_digest: plan.identity_digest(),
                     provider_type: plan.provider_type.clone(),
                     provider_type_package_identity: plan.provider_type_package_identity,
                     target: plan.target.clone(),
@@ -215,7 +223,8 @@ pub fn write_trust_report(
                     provider_origin_package: plan.origin_package.clone(),
                     service_schema: plan.schema.trait_name.clone(),
                     service_schema_package_identity: plan.schema.trait_package_identity,
-                    calling_plan_fingerprint: method.calling_plan_fingerprint,
+                    calling_plan_report_fingerprint: method.calling_plan_report_fingerprint,
+                    calling_plan_commitment: method.calling_plan_commitment,
                     selected,
                     requirement_owner: method.requirement_owner.clone(),
                     requirement_owner_package_identity: method.requirement_owner_package_identity,
@@ -260,8 +269,8 @@ pub fn write_trust_report(
             &format!("accepted machine `{}`", machine.name.as_str()),
         )
         .map_err(|diagnostic| vec![diagnostic])?;
-        let machine_contract_fingerprint = contract.fingerprint;
-        let machine_template_fingerprint = accepted_template_classifications
+        let machine_contract_report_fingerprint = contract.fingerprint;
+        let machine_template_report_fingerprint = accepted_template_classifications
             .for_machine(machine.symbol, machine.name.as_str())
             .map_err(|diagnostic| vec![diagnostic])?;
         let machine_service_reach =
@@ -291,8 +300,9 @@ pub fn write_trust_report(
             } else {
                 "own-package (dev-active)".to_owned()
             },
-            machine_contract_fingerprint: Some(machine_contract_fingerprint),
-            machine_template_fingerprint,
+            machine_contract_report_fingerprint: Some(machine_contract_report_fingerprint),
+            machine_contract_commitment: Some(contract.commitment),
+            machine_template_report_fingerprint,
             machine_service_reach: Some(machine_service_reach),
             machine_synchronous_invocations: Some(machine_synchronous_invocations),
             machine_may_suspend: Some(machine_may_suspend),
@@ -306,27 +316,55 @@ pub fn write_trust_report(
         let Some(template_commitment) = specialization.accepted_template_commitment.as_ref() else {
             continue;
         };
-        let instance_contract_fingerprint = accepted_instance_contract_fingerprint(
-            checked,
-            specialization.instance,
-            template_commitment,
-        )
-        .map_err(|diagnostic| vec![diagnostic])?;
+        let instance_contract =
+            accepted_instance_contract_plan(checked, specialization.instance, template_commitment)
+                .map_err(|diagnostic| vec![diagnostic])?;
+        let machine_argument_contract_commitments = specialization
+            .machine_arguments
+            .iter()
+            .map(|state| {
+                let owner = typed.machines().iter().find(|machine| {
+                    typed
+                        .machine_states(machine)
+                        .iter()
+                        .any(|candidate| candidate.symbol == *state)
+                });
+                let owner = owner.ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "accepted generic instance of `{template_commitment}` references a static machine state with no exact owning machine"
+                    ))
+                })?;
+                exact_machine_contract_plan(
+                    checked,
+                    owner.symbol,
+                    &format!("static machine argument `{}`", owner.name.as_str()),
+                )
+                .map(|plan| plan.commitment)
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|diagnostic| vec![diagnostic])?;
         report
             .generic_accepted_instances
             .push(TrustGenericAcceptedInstanceRow {
                 template_commitment: template_commitment.clone(),
-                template_fingerprint: specialization.template_contract_fingerprint,
-                instance_fingerprint: specialization.fingerprint,
-                instance_contract_fingerprint,
+                template_report_fingerprint: specialization.template_contract_fingerprint,
+                instance_report_fingerprint: specialization.fingerprint,
+                instance_contract_report_fingerprint: instance_contract.fingerprint,
+                instance_contract_commitment: instance_contract.commitment,
                 type_argument_identities: specialization.type_argument_identities.clone(),
                 const_argument_identities: specialization.const_argument_identities.clone(),
-                machine_argument_contract_fingerprints: specialization
-                    .machine_argument_contract_fingerprints
+                machine_argument_contract_report_fingerprints: specialization
+                    .machine_argument_contract_report_fingerprints
                     .clone(),
-                conformance_argument_fingerprints: specialization
-                    .conformance_argument_fingerprints
+                machine_argument_contract_commitments,
+                conformance_argument_report_fingerprints: specialization
+                    .conformance_argument_report_fingerprints
                     .clone(),
+                conformance_argument_commitments: specialization
+                    .conformance_applications
+                    .iter()
+                    .map(|application| application.commitment)
+                    .collect(),
             });
     }
 
@@ -350,17 +388,16 @@ fn package_key_text(identity: Option<psi_core::PackageKeyIdentity>) -> String {
         .collect()
 }
 
-fn accepted_instance_contract_fingerprint(
-    checked: &psi_checked_trees::CheckedTrees,
+fn accepted_instance_contract_plan<'checked>(
+    checked: &'checked psi_checked_trees::CheckedTrees,
     instance: psi_symbols::SymbolHandle,
     template_commitment: &str,
-) -> Result<u64, Diagnostic> {
+) -> Result<&'checked psi_checked_trees::MachineContractPlan, Diagnostic> {
     exact_machine_contract_plan(
         checked,
         instance,
         &format!("accepted generic instance of `{template_commitment}`"),
     )
-    .map(|plan| plan.fingerprint)
 }
 
 fn exact_machine_contract_plan<'checked>(
@@ -668,8 +705,8 @@ fn trust_provider_realization(
 #[cfg(test)]
 mod tests {
     use super::{
-        accepted_instance_contract_fingerprint, accepted_machine_crash_routes,
-        accepted_machine_may_block, accepted_machine_may_suspend, accepted_machine_service_reach,
+        accepted_instance_contract_plan, accepted_machine_crash_routes, accepted_machine_may_block,
+        accepted_machine_may_suspend, accepted_machine_service_reach,
         accepted_machine_synchronous_invocations, accepted_machine_terminates_guarantee,
         exact_machine_contract_plan, trust_provider_realization,
     };
@@ -737,7 +774,7 @@ mod tests {
     fn accepted_instance_contract_identity_copies_exact_plan_and_fails_closed_when_missing() {
         let machine = SymbolHandle::from_arena_index(1);
         let missing =
-            accepted_instance_contract_fingerprint(&CheckedTrees::default(), machine, "admitted")
+            accepted_instance_contract_plan(&CheckedTrees::default(), machine, "admitted")
                 .expect_err("missing checked instance plan must fail closed");
         assert!(
             missing
@@ -757,14 +794,17 @@ mod tests {
                 fingerprint: 0x1234_5678_9abc_def0,
                 commitment: psi_checked_trees::MachineContractCommitment::from_digest([1; 32]),
             });
+        let identity = accepted_instance_contract_plan(&checked, machine, "admitted")
+            .expect("exact checked instance plan");
+        assert_eq!(identity.fingerprint, 0x1234_5678_9abc_def0);
         assert_eq!(
-            accepted_instance_contract_fingerprint(&checked, machine, "admitted"),
-            Ok(0x1234_5678_9abc_def0)
+            identity.commitment,
+            psi_checked_trees::MachineContractCommitment::from_digest([1; 32])
         );
 
         let duplicate = checked.facts.contract_plans.machines[0].clone();
         checked.facts.contract_plans.machines.push(duplicate);
-        let duplicate = accepted_instance_contract_fingerprint(&checked, machine, "admitted")
+        let duplicate = accepted_instance_contract_plan(&checked, machine, "admitted")
             .expect_err("duplicate checked instance plans must fail closed");
         assert!(
             duplicate

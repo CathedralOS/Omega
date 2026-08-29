@@ -132,7 +132,27 @@ pub struct BoundaryCallingPlanIdentity {
     /// Empty for a non-generic boundary declaration.
     pub boundary_arguments: Vec<crate::types::TypeReferenceHandle>,
     pub requirement_machine: psi_symbols::SymbolHandle,
-    pub fingerprint: u64,
+    /// Compact compatibility/report coordinate. Exact plan authority uses the
+    /// adjacent strong commitment.
+    pub report_fingerprint: u64,
+    pub commitment: BoundaryCallingPlanCommitment,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BoundaryCallingPlanCommitment([u8; 32]);
+
+impl BoundaryCallingPlanCommitment {
+    pub const fn from_digest(digest: [u8; 32]) -> Self {
+        Self(digest)
+    }
+
+    pub const fn as_bytes(self) -> [u8; 32] {
+        self.0
+    }
+
+    pub fn is_zero(self) -> bool {
+        self.0 == [0; 32]
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -271,10 +291,10 @@ pub struct MachineSpecialization {
     /// Checked contract identities of the selected static machine arguments.
     /// Populated after contract-plan construction and folded into
     /// `fingerprint`, so a selected contract change invalidates the instance.
-    pub machine_argument_contract_fingerprints: Vec<u64>,
+    pub machine_argument_contract_report_fingerprints: Vec<u64>,
     /// Semantic identities of the selected closed conformance maps. These
     /// commit to the exact requirement-to-realization rows, not arena handles.
-    pub conformance_argument_fingerprints: Vec<u64>,
+    pub conformance_argument_report_fingerprints: Vec<u64>,
     pub fingerprint: u64,
 }
 
@@ -1387,7 +1407,28 @@ impl TypedTrees {
                     && identity.boundary_arguments == boundary_arguments
                     && identity.requirement_machine == requirement_machine
             })
-            .map(|identity| identity.fingerprint)
+            .map(|identity| identity.report_fingerprint)
+    }
+
+    pub fn boundary_calling_plan_identity_for_arguments(
+        &self,
+        boundary_trait: psi_symbols::SymbolHandle,
+        boundary_arguments: &[crate::types::TypeReferenceHandle],
+        requirement_machine: psi_symbols::SymbolHandle,
+    ) -> Option<&BoundaryCallingPlanIdentity> {
+        self.boundary_calling_plans.iter().find(|identity| {
+            identity.boundary_trait == boundary_trait
+                && identity.boundary_arguments == boundary_arguments
+                && identity.requirement_machine == requirement_machine
+        })
+    }
+
+    pub fn boundary_calling_plan_identity(
+        &self,
+        boundary_trait: psi_symbols::SymbolHandle,
+        requirement_machine: psi_symbols::SymbolHandle,
+    ) -> Option<&BoundaryCallingPlanIdentity> {
+        self.boundary_calling_plan_identity_for_arguments(boundary_trait, &[], requirement_machine)
     }
 
     pub fn push_trait_machine_signature(
