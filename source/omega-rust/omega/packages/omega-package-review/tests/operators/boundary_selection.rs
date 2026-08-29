@@ -225,11 +225,11 @@ machine build(builder: &mut Build) {
     assert_eq!(family.target().target_name(), target);
     assert_eq!(
         family.authority(),
-        omega_package_review::PackageReviewProviderSelectionAuthority::BuildOverride
+        omega_package_review::evidence::PackageReviewProviderSelectionAuthority::BuildOverride
     );
     assert_eq!(
         family.coverage(),
-        omega_package_review::PackageReviewProviderFamilyCoverage::CompleteDeclarationFamily
+        omega_package_review::evidence::PackageReviewProviderFamilyCoverage::CompleteDeclarationFamily
     );
     let coordinates = family.coordinates();
     assert_eq!(coordinates.len(), 2);

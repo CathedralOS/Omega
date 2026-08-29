@@ -5,17 +5,19 @@ pub(crate) use omega_compiler::{CheckedCompilation, compile_to_checked_with_pack
 pub(crate) use omega_package_compilation::{
     PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
 };
-pub(crate) use omega_package_review::{
-    CheckedPackageReviewProjection, PACKAGE_REVIEW_ENCODING_VERSION,
-    PACKAGE_REVIEW_ROW_ENCODING_VERSION, PackageReviewArithmeticDomain,
-    PackageReviewAtomicLoadOrdering, PackageReviewByteSequencePredicate, PackageReviewCallableRole,
-    PackageReviewCallableSupply, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
-    PackageReviewCastForm, PackageReviewCheckedServiceReach,
-    PackageReviewCompilerIntrinsicExecution, PackageReviewConformanceSubject,
-    PackageReviewContractBinaryOperator, PackageReviewContractExpression,
-    PackageReviewContractFact, PackageReviewContractKind, PackageReviewContractOperatorMeaning,
-    PackageReviewContractStaticArgument, PackageReviewContractUnaryOperator,
-    PackageReviewCrashInterface, PackageReviewCrashRouteGuard,
+pub(crate) use omega_package_review::encoding::{
+    PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION,
+    decode_package_review_canonical_row, encode_package_review_canonical_row,
+};
+pub(crate) use omega_package_review::evidence::{
+    CheckedPackageReviewProjection, PackageReviewArithmeticDomain, PackageReviewAtomicLoadOrdering,
+    PackageReviewByteSequencePredicate, PackageReviewCallableRole, PackageReviewCallableSupply,
+    PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCastForm,
+    PackageReviewCheckedServiceReach, PackageReviewCompilerIntrinsicExecution,
+    PackageReviewConformanceSubject, PackageReviewContractBinaryOperator,
+    PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractKind,
+    PackageReviewContractOperatorMeaning, PackageReviewContractStaticArgument,
+    PackageReviewContractUnaryOperator, PackageReviewCrashInterface, PackageReviewCrashRouteGuard,
     PackageReviewDangerousAuthorityClass, PackageReviewDataKind, PackageReviewDataMember,
     PackageReviewDomainAliasAtom, PackageReviewDomainClassification,
     PackageReviewDomainEstablishmentKind, PackageReviewDomainSemanticRole,
@@ -28,12 +30,14 @@ pub(crate) use omega_package_review::{
     PackageReviewSemanticDependencyKind, PackageReviewSourceLocationOwner,
     PackageReviewSourceLocationRole, PackageReviewSynchronousInvocation,
     PackageReviewSyntheticSourceKind, PackageReviewTypeParameterKind,
-    decode_ordinary_package_obligation_ledger, decode_package_review_canonical_row,
-    encode_ordinary_package_obligation_ledger, encode_package_review_canonical_row,
+};
+pub(crate) use omega_package_review::obligation_ledger::{
+    decode_ordinary_package_obligation_ledger, encode_ordinary_package_obligation_ledger,
     ordinary_package_obligation_ledger_fingerprint,
-    ordinary_package_obligation_ledger_from_compiler_rows, project_checked_package_review,
+    ordinary_package_obligation_ledger_from_compiler_rows,
     recover_ordinary_package_obligation_ledger, validate_ordinary_package_obligation_ledger,
 };
+pub(crate) use omega_package_review::project_checked_package_review;
 pub(crate) use psi_core::PackageKeyIdentity;
 pub(crate) use std::fs;
 pub(crate) use std::path::{Path, PathBuf};

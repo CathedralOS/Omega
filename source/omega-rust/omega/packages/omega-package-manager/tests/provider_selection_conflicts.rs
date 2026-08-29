@@ -6,7 +6,7 @@ use omega_package_manager::review::{
     ReviewOnlyCapabilityConflictLimits, compare_review_only_capabilities,
     compile_resolved_package_reviews, triage_review_update,
 };
-use omega_package_review::{
+use omega_package_review::evidence::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewSourceLocationRole,
 };
 use omega_package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};

@@ -31,7 +31,7 @@ use omega_build_evaluation::{
     capture_verified_build_filesystem_replay_record,
     recover_review_only_build_filesystem_replay_record,
 };
-use omega_package_review::{
+use omega_package_review::encoding::{
     decode_package_review_canonical_row_with_limits,
     encode_package_review_canonical_row_with_limits,
 };

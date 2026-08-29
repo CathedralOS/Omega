@@ -1,11 +1,14 @@
 use omega_compiler::compile_to_checked_with_packages;
 use omega_package_compilation::{PackageCompilationInputs, PackageSourceBinding};
-use omega_package_review::{
-    PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION, PackageReviewCanonicalRowKind,
-    PackageReviewCanonicalRowRecoveryLimits, PackageReviewSourceLocationRole,
+use omega_package_review::encoding::{
+    PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION, PackageReviewCanonicalRowRecoveryLimits,
     decode_package_review_canonical_row, decode_package_review_canonical_row_with_limits,
-    encode_package_review_canonical_row, project_checked_package_review,
+    encode_package_review_canonical_row,
 };
+use omega_package_review::evidence::{
+    PackageReviewCanonicalRowKind, PackageReviewSourceLocationRole,
+};
+use omega_package_review::project_checked_package_review;
 use psi_core::PackageKeyIdentity;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -46,7 +49,7 @@ fn package_identity() -> PackageKeyIdentity {
 
 fn fixture_rows() -> Option<(
     omega_target::TargetProfile,
-    Vec<omega_package_review::PackageReviewCanonicalRow>,
+    Vec<omega_package_review::evidence::PackageReviewCanonicalRow>,
 )> {
     let target_name = host_target_name()?;
     let package = TempPackage::new();
@@ -352,7 +355,7 @@ fn decoder_rejects_malformed_noncanonical_and_over_limit_recovery_rows() {
         usize::MAX,
     );
     assert!(
-        omega_package_review::encode_package_review_canonical_row_with_limits(
+        omega_package_review::encoding::encode_package_review_canonical_row_with_limits(
             authored,
             tiny_envelope
         )

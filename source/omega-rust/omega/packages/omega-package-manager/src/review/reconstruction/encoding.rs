@@ -8,7 +8,7 @@ use super::{
     RECONSTRUCTION_QUESTION_MAGIC,
 };
 use crate::resolution::CanonicalSourceClosureSubject;
-use omega_package_review::{
+use omega_package_review::obligation_ledger::{
     decode_ordinary_package_obligation_ledger, encode_ordinary_package_obligation_ledger,
 };
 use sha2::{Digest, Sha256};

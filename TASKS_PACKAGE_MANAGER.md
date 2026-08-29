@@ -20,19 +20,6 @@ Do not wire mutating `omega install` or `omega update` until the P0 source
 boundary, recheckable evidence, accepted lock, and transaction gates below are
 closed. Compiler-issued package review remains non-admitting.
 
-## Architecture — package subsystem ownership
-
-- [ ] **PACKAGE-SUBSYSTEM-BOUNDARIES.** Finish the responsibility and source-tree
-  cleanup before adding command orchestration. A reader must be able to enter at
-  `packages/README.md`, follow crate entrances, and descend through
-  responsibility-named folders without encountering algorithmic `mod.rs`
-  files, generic junk-drawer modules, or mixed thousand-line workflows.
-
-  Remaining work:
-
-  - replace `omega-package-review`'s wildcard root export with explicit owner
-    modules and refresh its crate map.
-
 ## P0 — Source resolver boundary
 
 - [ ] **HARDEN-SOURCE-RESOLVER.** Finish the hostile-process boundary around

@@ -10,7 +10,7 @@ use crate::review::records::validation::{
     validate_review_only_records,
 };
 use crate::review::records::{PackageReviewEvidence, ReviewOnlyCanonicalRow};
-use omega_package_review::{
+use omega_package_review::evidence::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
 };
 use std::cmp::Ordering;

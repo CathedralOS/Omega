@@ -4,7 +4,7 @@ use super::model::{
     ReviewOnlyCapabilityConflictChange, ReviewOnlyCapabilityConflictSet,
     ReviewOnlyPackageCapabilityConflicts, ReviewSetRole,
 };
-use omega_package_review::{
+use omega_package_review::evidence::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
     PackageReviewSourceLocationOwner, PackageReviewSourceLocationRole,
     PackageReviewSyntheticSourceKind,

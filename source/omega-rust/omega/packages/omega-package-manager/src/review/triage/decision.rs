@@ -4,7 +4,7 @@ use crate::identity::PackageKey;
 use crate::review::comparison::changed_review_risk;
 use crate::review::records::PackageReviewEvidence;
 use crate::review::{CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet};
-use omega_package_review::{
+use omega_package_review::evidence::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
     PackageReviewDangerousAuthorityClass,
 };
