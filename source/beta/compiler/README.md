@@ -33,11 +33,10 @@ byte-for-byte without changing the repository. `artifact_env.sh` stamps it into
 the selected audited Alpha seed. No Beta self-host, textual Alpha output, or
 second assembler invocation participates.
 
-`validation/admission/encoding/test.sh` independently replays the authoritative
-two-pass assembly relation in Alpha against the exact framed source and tape.
-It is a bounded reconstructor with mutation controls; it does not admit the
-edge until its subject-bound judgment is expressed as a derivation checked by
-`source/alpha/checker/`.
+The former Alpha-written status reconstructor was deleted after measured proof
+work showed that it could not become the selected checked derivation. It was a
+parallel assembly semantics, not an admission premise. The exact source/tape
+certificate remains open under Q18 in `OWNER_QUESTIONS.md`.
 
 The committed artifact is 20,977 bytes with SHA-256
 `1911fc4f9667081ca96559ee970f07c3359f225c1177b5ed889d55c05a059f0f`.
@@ -47,7 +46,7 @@ The byte comparison, not the convenient digest, governs repository identity.
 
 | Retained child | Bounded role | Deletion condition |
 | --- | --- | --- |
-| `validation/` | Exact artifact structure and exact Alpha encoding reconstruction for this compiler edge. | Delete a diagnostic when a stronger artifact-bound proof subsumes it; delete the subtree when direct checked refinement subsumes every retained check. |
+| `validation/` | Exact reachable-artifact structure for this compiler edge. | Delete it when the direct checked source/tape refinement proves the same facts. |
 
 Root files are the one compiler source, one Alpha-tape artifact, one artifact
 loader, one exact reconstruction entry point, and one focused language gate.

@@ -54,9 +54,9 @@ agreed chain.
   report, receipt, `bootstrap/`, or canary tree remains in the Alpha–Delta
   lattice. Retained wrappers now divide into exact seed/assembler construction,
   below-Beta checker construction and soundness tests, exact seed/assembler and
-  Beta artifact reconstruction, one structure check, and one Alpha-written exact
-  encoding reconstructor. The duplicate
-  Beta self-host wrapper was deleted. The Alpha checker was subsequently cut
+  Beta artifact reconstruction, and one structure check. The status-only
+  encoding reconstructor was deleted when it could not be adapted into the
+  selected derivation. The duplicate Beta self-host wrapper was deleted. The Alpha checker was subsequently cut
   from a 293-file theorem/prover/adapter and overlapping-gate tree to one
   authoritative Beta source/tape, one complete independent reference, one
   bounded semantic seam, and compact positive/negative discriminators.
@@ -202,8 +202,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
   Adapt general Alpha-machine decoding and proof-DAG machinery to the actual
   Alpha-written compiler edge. Delete source-specific
   machinery that exists only to prove the noncanonical Beta fixed point.
-  The retained surface is one generic artifact-structure check and one exact
-  Alpha-written encoding reconstructor. The toy FOL seam, source-only loop
+  The retained diagnostic surface is one generic artifact-structure check; the
+  exact checked source/tape derivation remains the open canonical obligation.
+  The status reconstructor, toy FOL seam, source-only loop
   checker, duplicated Alpha/checker fixtures, and symbolic differential were
   deleted; they reconstructed no canonical checked source/tape proposition or
   duplicated cheaper owners. The final symbolic differential had also drifted
@@ -231,11 +232,12 @@ code, discover a closure, manufacture proof premises, or decide admission.
     two-pass encoding, and the raw-payload/container boundary. Close the Alpha
     assembler and independent reference implementation over that grammar while
     retaining their byte-identical fixed point.
-  - [x] Land the Alpha-written, subject-bound whole-source encoding
-    reconstructor and mutation controls against the exact 78,109-byte source
-    and 20,977-byte tape. It is a 6,993-byte Alpha tape; its 12-control gate runs
-    in under one second and covers source/tape bytes, fixups, extents, and closed
-    grammar failures without writing output.
+  - [x] Retire the Alpha-written status-only encoding reconstructor and its
+    parallel mutation gate. It exercised the exact 78,109-byte source and
+    20,977-byte tape, but returned private halt statuses rather than a checked
+    derivation and could not be adapted into the selected certificate shape.
+    Keeping it after that result would preserve a second assembly semantics and
+    false progress on an open edge. Git history is its archive.
   - [x] Bind proof propositions to raw persisted subjects inside the checker.
     The bounded `OMGCHK1` frame carries exact little-endian source, tape, and
     certificate extents; checker-built immutable power-of-two-indexed byte trees are available only
@@ -252,13 +254,12 @@ code, discover a closure, manufacture proof premises, or decide admission.
     lemma, duplicate IDs and trailing forms reject, and the independent checker
     matches those controls; a later rewrite cannot change an accepted lemma's
     definitional meaning.
-  - [ ] Turn the reconstructed ground judgment into a derivation certificate
+  - [ ] **DESIGN-BLOCKED — Q18:** Turn the ground assembly judgment into a derivation certificate
     over those checker-bound subjects. The certificate must check the complete
     two-pass ledger, unique label map, total source/tape partitions, exact
-    fixups, and full exhaustion; the status-only reconstructor does not itself
-    admit the edge.
+    fixups, and full exhaustion.
     - The only permitted end state here is one artifact-owned fixed `.proof`
-      and the existing acceptance/mutation gate. Define one closed ground
+      and one artifact-owned acceptance/mutation gate. Define one closed ground
       judgment `VERIFY(source, tape, trace) = ACCEPT`, discharged by checked
       computation/reflexivity. Do not add an assembly rule to the generic
       checker, a theorem-library subtree, a host parser, a generated ledger,
@@ -271,23 +272,28 @@ code, discover a closure, manufacture proof premises, or decide admission.
       decoded `db` byte, and little-endian fixup against its exact tape span.
       Root cuts and totals must prove both subjects fully exhausted, without
       gaps or suffixes.
-    - Direct sequential accumulation over all 78,109 source bytes exhausts the
-      generated semantic stack. Keep local work bounded by item leaves and
-      global combination balanced. Immutable checker-built subject nodes are
-      already normal and are preserved by pointer, so fixed-path selection is
-      proportional to path depth rather than selected-subtree size. Conversion
-      also reclaims other temporary normal forms after each equality decision,
-      so repeated independent computations do not exhaust the permanent arena;
-      a compiler-scale multi-path control pins both behaviors. Fixed paths reach
-      the canonical endpoints in under one second. These are engineering
-      constraints, not grounds for a trusted primitive.
-    - First try a static checked certificate. If measured construction requires
-      a producer, transform the existing Alpha ledger into the sole proof-term
-      producer and keep the obligation/goal owner-fixed outside its output.
-      The producer may emit only checked witnesses/derivation material. It may
-      not choose the theory, proposition, subjects, premises, or admission
-      result. The status ledger and its status-code cases must be deleted in the
-      same change; parallel assembly semantics are negative value.
+    - Measurements closed the representation search rather than merely finding
+      a slow implementation. Dynamic balanced cutting accepts 714 canonical
+      leaves and fails at 715 with contained memory status 251. A structurally
+      recursive balanced carrier traverses all 6,467 leaves in 0.704 seconds,
+      and a folded 3,240-leaf carrier in 0.465 seconds, but adding local parsing
+      exhausts the same arena. Even a content-free structural visit of all
+      78,109 raw bytes fails inside one equality. Sequential remainder folds
+      instead hit contained semantic-stack status 250. The checker reclaims
+      conversion scratch only after a complete equality decision, so one
+      compiler-scale reflexive equality retains every branch temporary.
+      A checker-native control partitions the same source into 112 named
+      subject-bound equality decisions, visits every byte, and composes their
+      checked propositions with `use`; it accepts in 1.192 seconds. This proves
+      the proposed reclamation boundary is viable but does not yet prove the
+      required boundary chain or assembly semantics.
+    - Q18 must choose between bounded subject-bound chunk equalities whose exact
+      boundary states compose through checked congruence/`eqelim` into the one
+      root edge judgment, or generic sound branch-local reclamation in the
+      checker. Neither choice may add an assembly-specific primitive, trusted
+      premise, host parser, generated ledger, persisted producer/receipt, or
+      second acceptance gate. Enlarging an undocumented bound, weakening exact
+      exhaustion, or restoring the deleted status ledger is not an option.
 
 ## 3. Beta-written Gamma compiler
 
