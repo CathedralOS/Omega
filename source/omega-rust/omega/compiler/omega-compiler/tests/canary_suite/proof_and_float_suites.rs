@@ -610,8 +610,13 @@ fn generic_float_builtins_retain_exact_provider_evidence() {
     );
     assert!(
         uses.iter()
-            .all(|operator_use| operator_use.provider_plan_identity != 0),
+            .all(|operator_use| operator_use.provider_plan_report_fingerprint != 0),
         "every normalized float builtin must carry its exact selected ProviderPlan"
+    );
+    assert!(
+        uses.iter()
+            .all(|operator_use| !operator_use.provider_plan_commitment.is_empty()),
+        "every normalized float builtin must carry its exact selected ProviderPlan commitment"
     );
 }
 
@@ -1399,22 +1404,22 @@ fn build_runtime_float_semantics_twins_agree() {
 
     let mut selected_intrinsics = std::collections::BTreeSet::new();
     let mut selected_plan_identities = Vec::new();
-    for provider_plan_identity in checked
+    for provider_plan_report_fingerprint in checked
         .facts
         .operators
         .resolved_uses()
-        .map(|operator_use| operator_use.provider_plan_identity)
+        .map(|operator_use| operator_use.provider_plan_report_fingerprint)
         .chain(
             checked
                 .facts
                 .operators
                 .named_uses()
-                .map(|operator_use| operator_use.provider_plan_identity),
+                .map(|operator_use| operator_use.provider_plan_report_fingerprint),
         )
     {
         let Some(plan) = checked
             .selected_provider_plans()
-            .plan_by_identity(provider_plan_identity)
+            .plan_by_report_fingerprint(provider_plan_report_fingerprint)
         else {
             continue;
         };
@@ -1573,22 +1578,22 @@ fn linux_arm64_float_semantic_edge_twin_retains_artifact_evidence() {
         .expect("Linux AArch64 float twin should compile and evaluate its array length");
     let mut selected_intrinsics = std::collections::BTreeSet::new();
     let mut selected_plan_identities = Vec::new();
-    for provider_plan_identity in checked
+    for provider_plan_report_fingerprint in checked
         .facts
         .operators
         .resolved_uses()
-        .map(|operator_use| operator_use.provider_plan_identity)
+        .map(|operator_use| operator_use.provider_plan_report_fingerprint)
         .chain(
             checked
                 .facts
                 .operators
                 .named_uses()
-                .map(|operator_use| operator_use.provider_plan_identity),
+                .map(|operator_use| operator_use.provider_plan_report_fingerprint),
         )
     {
         let Some(plan) = checked
             .selected_provider_plans()
-            .plan_by_identity(provider_plan_identity)
+            .plan_by_report_fingerprint(provider_plan_report_fingerprint)
         else {
             continue;
         };
@@ -1764,22 +1769,22 @@ fn linux_x64_baseline_float_semantic_edge_twin_retains_artifact_evidence() {
         .expect("baseline x86 float twin should compile and evaluate its array length");
     let mut selected_intrinsics = std::collections::BTreeSet::new();
     let mut selected_plan_identities = Vec::new();
-    for provider_plan_identity in checked
+    for provider_plan_report_fingerprint in checked
         .facts
         .operators
         .resolved_uses()
-        .map(|operator_use| operator_use.provider_plan_identity)
+        .map(|operator_use| operator_use.provider_plan_report_fingerprint)
         .chain(
             checked
                 .facts
                 .operators
                 .named_uses()
-                .map(|operator_use| operator_use.provider_plan_identity),
+                .map(|operator_use| operator_use.provider_plan_report_fingerprint),
         )
     {
         let Some(plan) = checked
             .selected_provider_plans()
-            .plan_by_identity(provider_plan_identity)
+            .plan_by_report_fingerprint(provider_plan_report_fingerprint)
         else {
             continue;
         };
@@ -1948,22 +1953,22 @@ fn windows_x64_baseline_float_semantic_edge_twin_retains_artifact_evidence() {
         .expect("baseline Windows x64 float twin should compile and evaluate its array length");
     let mut selected_intrinsics = std::collections::BTreeSet::new();
     let mut selected_plan_identities = Vec::new();
-    for provider_plan_identity in checked
+    for provider_plan_report_fingerprint in checked
         .facts
         .operators
         .resolved_uses()
-        .map(|operator_use| operator_use.provider_plan_identity)
+        .map(|operator_use| operator_use.provider_plan_report_fingerprint)
         .chain(
             checked
                 .facts
                 .operators
                 .named_uses()
-                .map(|operator_use| operator_use.provider_plan_identity),
+                .map(|operator_use| operator_use.provider_plan_report_fingerprint),
         )
     {
         let Some(plan) = checked
             .selected_provider_plans()
-            .plan_by_identity(provider_plan_identity)
+            .plan_by_report_fingerprint(provider_plan_report_fingerprint)
         else {
             continue;
         };

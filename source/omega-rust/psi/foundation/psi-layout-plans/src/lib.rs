@@ -46,10 +46,13 @@ pub struct LayoutFieldEntryReport {
 /// A validated layout plan, ready for consumers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LayoutPlanReport {
-    /// Canonical identity of the complete reflected schema, including stable
-    /// field/case identities and tombstones but excluding numbered-member
-    /// source names and runtime discriminants.
-    pub schema_identity: u64,
+    /// Compact FNV report coordinate for the complete reflected schema.
+    ///
+    /// This is never authority. Typed consumers retain the exact schema and
+    /// replay its members and physical requirements; later consumers retain
+    /// the complete validated layout. Stable member identities below are exact
+    /// authored semantic values rather than hashes.
+    pub schema_report_fingerprint: u64,
     pub entries: Vec<LayoutFieldEntryReport>,
     /// Declaration-order offsets when every field has one fixed `At`
     /// placement. Fragmented plans deliberately have no such projection.
@@ -90,7 +93,9 @@ pub struct ConventionalSumCaseLayoutReport {
 /// representation and grants no storage or materialization authority alone.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConventionalSumLayoutReport {
-    pub schema_identity: u64,
+    /// Compact schema report coordinate only. Exact case/member rows and their
+    /// compiler-owned conventional geometry govern replay.
+    pub schema_report_fingerprint: u64,
     pub tag_offset: u64,
     pub tag_size: u64,
     pub tag_align: u64,
@@ -127,7 +132,7 @@ pub struct NativeLayoutPlanReport {
 /// Compiler-issued field keys, numbered-member source names, and authored entry
 /// order are deliberately absent. Repeated fragments are sorted by stable
 /// member identity (or by name for positional schemas) and complete normalized
-/// placement, while schema identity, size, and alignment remain
+/// placement, while the schema report coordinate, size, and alignment remain
 /// identity-bearing. The derived `offsets` convenience projection is excluded
 /// because it contains no fact beyond the entries.
 pub fn normalized_layout_plan_report_fingerprint(layout: &LayoutPlanReport) -> u64 {
@@ -142,7 +147,7 @@ pub fn normalized_layout_plan_report_fingerprint(layout: &LayoutPlanReport) -> u
 
     let mut hash = 0xcbf29ce484222325u64;
     hash_fingerprint_bytes(&mut hash, b"omega.layout-plan.v3");
-    hash_fingerprint_u64(&mut hash, layout.schema_identity);
+    hash_fingerprint_u64(&mut hash, layout.schema_report_fingerprint);
     hash_fingerprint_byte(&mut hash, u8::from(layout.size.is_some()));
     if let Some(size) = layout.size {
         hash_fingerprint_u64(&mut hash, size);
@@ -214,7 +219,7 @@ pub fn normalized_conventional_sum_layout_report_fingerprint(
     let mut hash = 0xcbf29ce484222325u64;
     hash_fingerprint_bytes(&mut hash, b"omega.conventional-sum-layout.v1");
     for value in [
-        layout.schema_identity,
+        layout.schema_report_fingerprint,
         layout.tag_offset,
         layout.tag_size,
         layout.tag_align,
@@ -247,7 +252,7 @@ pub fn conventional_sum_layout_reports_match_for_replay(
 ) -> bool {
     if !conventional_sum_member_identities_are_unambiguous(current)
         || !conventional_sum_member_identities_are_unambiguous(retained)
-        || current.schema_identity != retained.schema_identity
+        || current.schema_report_fingerprint != retained.schema_report_fingerprint
         || current.tag_offset != retained.tag_offset
         || current.tag_size != retained.tag_size
         || current.tag_align != retained.tag_align
@@ -372,7 +377,7 @@ pub fn layout_plan_reports_match_for_replay(
 ) -> bool {
     if validate_materialization_field_identities(current).is_err()
         || validate_materialization_field_identities(retained).is_err()
-        || current.schema_identity != retained.schema_identity
+        || current.schema_report_fingerprint != retained.schema_report_fingerprint
         || current.offsets != retained.offsets
         || current.size != retained.size
         || current.align != retained.align

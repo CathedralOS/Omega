@@ -6,12 +6,16 @@ use crate::statement::{StatementNode, StatementTable, TransitionGuardNode, Trans
 use crate::typed_trees::TypedTrees;
 use crate::types::{TypeReferenceHandle, TypeReferenceNode, TypeReferenceTable};
 
-/// Canonical schema identity for one exact typed data definition.
+/// Compact report fingerprint for one exact typed data definition.
 ///
 /// Numbered member names are presentation-only; unnumbered members retain
 /// their declaration position and source name. Runtime case ordinals are not
-/// stable schema identities and are deliberately absent.
-pub fn normalized_schema_identity(typed: &TypedTrees, data: &crate::data::DataDefinition) -> u64 {
+/// stable schema identities and are deliberately absent. This FNV value is not
+/// authority: typed consumers retain and structurally replay the exact schema.
+pub fn normalized_schema_report_fingerprint(
+    typed: &TypedTrees,
+    data: &crate::data::DataDefinition,
+) -> u64 {
     fn byte(hash: &mut u64, value: u8) {
         *hash ^= u64::from(value);
         *hash = hash.wrapping_mul(0x100000001b3);

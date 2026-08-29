@@ -49,7 +49,7 @@ fn selected_plan_for_external_root<'a>(
     let identity = selected_external_root_provider_plan_id(facts, trait_name)
         .unwrap_or_else(|error| panic!("selected `{trait_name}` provider plan: {error}"));
     facts
-        .plan_by_identity(identity.normalized_identity())
+        .plan_by_report_fingerprint(identity.normalized_identity())
         .unwrap_or_else(|| {
             panic!(
                 "selected `{trait_name}` provider identity {:#018x} must address an exact retained plan",

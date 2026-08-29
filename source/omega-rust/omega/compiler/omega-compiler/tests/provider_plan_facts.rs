@@ -38,7 +38,7 @@ machine Main::main(&mut self) { }
     assert!(plan.covers_schema());
     assert_eq!(
         facts
-            .plan_by_identity(plan.report_fingerprint())
+            .plan_by_report_fingerprint(plan.report_fingerprint())
             .map(|selected| selected.name.as_str()),
         Some("satisfies::Pair")
     );

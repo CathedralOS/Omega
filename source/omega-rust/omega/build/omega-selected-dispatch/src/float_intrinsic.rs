@@ -101,7 +101,9 @@ fn plan_selected_float_intrinsic_rewrites(
     let mut diagnostics = Vec::new();
 
     for (_, operator_use) in checked.facts.operators.named_uses.iter() {
-        if operator_use.provider_plan_identity == 0 {
+        if operator_use.provider_plan_report_fingerprint == 0
+            && operator_use.provider_plan_commitment.is_empty()
+        {
             continue;
         }
         let rewrite = match resolve_selected_float_intrinsic_call(
@@ -203,21 +205,40 @@ fn resolve_selected_float_intrinsic_call(
     selected_provider_plans: &[omega_effects::provider_plan::ProviderPlan],
     operator_use: &psi_checked_trees::CheckedNamedOperatorUseFact,
 ) -> Result<Option<StagedNamedFloatRewrite>, Diagnostic> {
-    let plans = selected_provider_plans
+    if operator_use.provider_plan_commitment.is_empty() {
+        return Err(Diagnostic::error(format!(
+            "named float operator use carries ProviderPlan report fingerprint {:#018x} without an exact commitment",
+            operator_use.provider_plan_report_fingerprint,
+        )));
+    }
+    let report_matches = selected_provider_plans
         .iter()
-        .filter(|plan| plan.report_fingerprint() == operator_use.provider_plan_identity)
+        .filter(|plan| plan.report_fingerprint() == operator_use.provider_plan_report_fingerprint)
+        .collect::<Vec<_>>();
+    let plans = report_matches
+        .iter()
+        .copied()
+        .filter(|plan| {
+            plan.identity_digest().as_bytes() == operator_use.provider_plan_commitment.as_bytes()
+        })
         .collect::<Vec<_>>();
     let [plan] = plans.as_slice() else {
-        return Err(Diagnostic::error(match plans.len() {
-            0 => format!(
-                "named float operator use carries unknown ProviderPlan identity {:#018x}",
-                operator_use.provider_plan_identity,
-            ),
-            count => format!(
-                "named float operator use ProviderPlan identity {:#018x} matches {count} selected plans",
-                operator_use.provider_plan_identity,
-            ),
-        }));
+        return Err(Diagnostic::error(
+            match (report_matches.len(), plans.len()) {
+                (1, 0) => format!(
+                    "named float operator use ProviderPlan report fingerprint {:#018x} has an exact commitment that does not match the selected plan",
+                    operator_use.provider_plan_report_fingerprint,
+                ),
+                (0, _) => format!(
+                    "named float operator use carries unknown ProviderPlan report fingerprint {:#018x}",
+                    operator_use.provider_plan_report_fingerprint,
+                ),
+                (_, count) => format!(
+                    "named float operator use ProviderPlan report fingerprint {:#018x} and exact commitment match {count} selected plans",
+                    operator_use.provider_plan_report_fingerprint,
+                ),
+            },
+        ));
     };
 
     resolve_float_intrinsic_call(checked, operator_use, plan)
@@ -1029,6 +1050,8 @@ mod tests {
     enum Drift {
         None,
         UnknownPlan,
+        MissingCommitment,
+        WrongCommitment,
         DuplicatePlan,
         EmptyOverload,
         CrossOperatorPlan,
@@ -1047,8 +1070,19 @@ mod tests {
     fn exact_intrinsic_resolver_rejects_every_identity_drift() {
         let cases = [
             (Drift::None, None),
-            (Drift::UnknownPlan, Some("unknown ProviderPlan identity")),
-            (Drift::DuplicatePlan, Some("matches 2 selected plans")),
+            (
+                Drift::UnknownPlan,
+                Some("unknown ProviderPlan report fingerprint"),
+            ),
+            (
+                Drift::MissingCommitment,
+                Some("without an exact commitment"),
+            ),
+            (
+                Drift::WrongCommitment,
+                Some("exact commitment that does not match"),
+            ),
+            (Drift::DuplicatePlan, Some("match 2 selected plans")),
             (Drift::EmptyOverload, Some("does not bind exact overload")),
             (
                 Drift::CrossOperatorPlan,
@@ -1077,7 +1111,11 @@ mod tests {
             let mut plans = vec![plan.clone()];
             match drift {
                 Drift::None => {}
-                Drift::UnknownPlan => fixture.operator_use.provider_plan_identity = u64::MAX,
+                Drift::UnknownPlan => {
+                    fixture.operator_use.provider_plan_report_fingerprint = u64::MAX
+                }
+                Drift::MissingCommitment => {}
+                Drift::WrongCommitment => {}
                 Drift::DuplicatePlan => plans.push(plan.clone()),
                 Drift::EmptyOverload => {
                     plan.schema.trait_name.clear();
@@ -1196,8 +1234,20 @@ mod tests {
                 }
             }
             if !matches!(drift, Drift::UnknownPlan) {
-                fixture.operator_use.provider_plan_identity = plan.report_fingerprint();
+                fixture.operator_use.provider_plan_report_fingerprint = plan.report_fingerprint();
             }
+            fixture.operator_use.provider_plan_commitment =
+                if matches!(drift, Drift::MissingCommitment) {
+                    psi_checked_trees::CheckedProviderPlanCommitment::default()
+                } else {
+                    psi_checked_trees::CheckedProviderPlanCommitment::from_digest(
+                        if matches!(drift, Drift::WrongCommitment) {
+                            [0xa5; 32]
+                        } else {
+                            *plan.identity_digest().as_bytes()
+                        },
+                    )
+                };
 
             let result = resolve_selected_float_intrinsic_call(
                 &fixture.checked,
@@ -1398,7 +1448,11 @@ mod tests {
             .map(|(handle, operator_use)| (handle, *operator_use))
             .find(|(_, operator_use)| operator_use.expression == fixture.operator_use.expression)
             .expect("fixture named-float use");
-        retained.provider_plan_identity = fixture.minimum_plan.report_fingerprint();
+        retained.provider_plan_report_fingerprint = fixture.minimum_plan.report_fingerprint();
+        retained.provider_plan_commitment =
+            psi_checked_trees::CheckedProviderPlanCommitment::from_digest(
+                *fixture.minimum_plan.identity_digest().as_bytes(),
+            );
         *fixture.checked.facts.operators.named_uses.get_mut(handle) = retained;
         (fixture, selected, handle, retained)
     }
@@ -1533,7 +1587,7 @@ mod tests {
     fn shared_rejection_preserves_arc_identity_and_complete_contents() {
         let (mut fixture, selected, _, retained) = selected_fixture();
         let mut invalid = retained;
-        invalid.provider_plan_identity = u64::MAX;
+        invalid.provider_plan_report_fingerprint = u64::MAX;
         fixture.checked.facts.operators.named_uses.append(invalid);
         let before = fixture.checked.clone();
         let original = Arc::new(fixture.checked);
@@ -1544,7 +1598,7 @@ mod tests {
         assert!(
             diagnostics[0]
                 .message
-                .contains("unknown ProviderPlan identity")
+                .contains("unknown ProviderPlan report fingerprint")
         );
         assert_eq!(
             rejected.as_ref(),

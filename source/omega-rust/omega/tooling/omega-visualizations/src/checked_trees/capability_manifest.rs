@@ -795,6 +795,7 @@ mod tests {
         assert!(json.contains("\"requirement\": \"SchedulerAdmission::grant#exact\""));
         assert!(json.contains("\"provider_plan_report_identity\""));
         assert!(!json.contains("\"provider_plan_identity\""));
+        assert!(!json.contains("\"provider_plan_report_fingerprint\""));
         assert!(json.contains("\"component_progress_status\": \"pending\""));
         assert!(json.contains("\"component_progress_manifest_report_identity\""));
         assert!(!json.contains("\"component_progress_manifest_identity\""));

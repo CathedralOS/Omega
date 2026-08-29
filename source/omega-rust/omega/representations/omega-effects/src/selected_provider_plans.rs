@@ -175,10 +175,10 @@ impl SelectedProviderPlanFacts {
     /// Compatibility/report lookup for existing compact-ID consumers. Code
     /// making an admission or execution decision must use
     /// [`Self::plan_by_exact_evidence`] instead.
-    pub fn plan_by_identity(&self, identity: u64) -> Option<&ProviderPlan> {
+    pub fn plan_by_report_fingerprint(&self, report_fingerprint: u64) -> Option<&ProviderPlan> {
         self.plans
             .iter()
-            .find(|plan| plan.report_fingerprint() == identity)
+            .find(|plan| plan.report_fingerprint() == report_fingerprint)
     }
 
     /// Rejoin a compact provider-plan report identity only when the caller
@@ -261,7 +261,7 @@ impl SelectedProviderPlanFacts {
         coverage.sort();
         let mut occupied_slots = BTreeSet::new();
         for row in &coverage {
-            let Some(plan) = self.plan_by_identity(row.provider_plan_report_identity()) else {
+            let Some(plan) = self.plan_by_report_fingerprint(row.provider_plan_report_identity()) else {
                 return Err(format!(
                     "indexed-application coverage names unselected provider plan {:#018x}",
                     row.provider_plan_report_identity()
@@ -433,7 +433,7 @@ impl SelectedProviderPlanFacts {
                     resolution.requirement_identity
                 ));
             }
-            let Some(plan) = self.plan_by_identity(resolution.provider_plan_report_identity) else {
+            let Some(plan) = self.plan_by_report_fingerprint(resolution.provider_plan_report_identity) else {
                 return Err(format!(
                     "installation reach resolution for `{}` names unselected provider plan {:#018x}",
                     resolution.requirement_identity, resolution.provider_plan_report_identity
@@ -792,7 +792,7 @@ mod tests {
         );
         assert_eq!(
             first
-                .plan_by_identity(alpha.report_fingerprint())
+                .plan_by_report_fingerprint(alpha.report_fingerprint())
                 .map(|plan| plan.name.as_str()),
             Some("Alpha")
         );
@@ -914,13 +914,13 @@ mod tests {
 
         assert_eq!(
             selected
-                .plan_by_identity(first_identity)
+                .plan_by_report_fingerprint(first_identity)
                 .and_then(|plan| plan.origin_package_identity),
             Some(first_package)
         );
         assert_eq!(
             selected
-                .plan_by_identity(second_identity)
+                .plan_by_report_fingerprint(second_identity)
                 .and_then(|plan| plan.origin_package_identity),
             Some(second_package)
         );

@@ -1024,7 +1024,7 @@ fn expected_theorem_schema_pairs_quotient_positions_and_shares_ordinary_position
 }
 
 #[test]
-fn expected_theorem_schema_identity_rejects_same_count_relation_and_mapping_drift() {
+fn expected_theorem_schema_report_fingerprint_rejects_same_count_relation_and_mapping_drift() {
     let mut program = TypedTrees::default();
     let carrier = carrier_type(&mut program);
     let ordinary = program.type_reference_table.insert(TypeReferenceNode::Unit);

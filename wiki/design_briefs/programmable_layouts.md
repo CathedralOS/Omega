@@ -56,10 +56,13 @@ is checked there.
 The live reflection now carries record fields, sum cases, structured-case
 payload fields, and each scope's retired identities. Case array order remains
 authored declaration order for policies that care about home layout, while
-canonical schema and plan identity sort numbered scopes by stable identity and
-therefore do not mistake `#N` for a runtime discriminant. Fixed-layout `At` and
-`Bits` placement remains limited to the reflected common/record fields; tagged
-case placement belongs to the next closed-vocabulary extension.
+canonical schema reporting and plan normalization sort numbered scopes by
+stable identity and therefore do not mistake `#N` for a runtime discriminant.
+The resulting schema FNV is a compact report fingerprint, not schema authority;
+typed reflection collision-checks it locally and later replay retains the exact
+member/case rows and physical plan. Fixed-layout `At` and `Bits` placement
+remains limited to the reflected common/record fields; tagged case placement
+belongs to the next closed-vocabulary extension.
 
 The compiler's existing conventional sum representation has a separate
 read-only report for constant materialization. `omega-layout` projects its

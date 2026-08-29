@@ -24,7 +24,7 @@ pub fn compute_placement_plan(
     policy_machine: &str,
     schema_data: &str,
 ) -> Result<ValidatedPlacementPlan, String> {
-    let (schema_fields, schema_identity) = schema_fields(typed, schema_data)?;
+    let (schema_fields, schema_report_fingerprint) = schema_fields(typed, schema_data)?;
     let schema_value = build_schema_value(typed, schema_data, &schema_fields)?;
     let plan = evaluate_policy(typed, policy_machine, vec![schema_value], "placement")?;
     let fields = struct_fields(&plan).map_err(|reason| invalid(policy_machine, reason))?;
@@ -33,7 +33,7 @@ pub fn compute_placement_plan(
     let layout = validate_plan(
         layout_value,
         &schema_fields,
-        schema_identity,
+        schema_report_fingerprint,
         policy_machine,
     )?;
     let access_value =

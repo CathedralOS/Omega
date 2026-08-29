@@ -66,7 +66,7 @@ scanners, or receipts.
   producer-selected route from a certificate rejects even when the verifier
   could otherwise rediscover another route.
 
-- [ ] **CLASSIFY-AND-HARDEN-AUTHORITATIVE-IDENTITIES.** Inventory every compact
+- [x] **CLASSIFY-AND-HARDEN-AUTHORITATIVE-IDENTITIES.** Inventory every compact
   FNV or other `u64` fingerprint in Psi, native realization, image emission,
   installation, provider planning, external roots, and component machinery.
   Classify each as either a non-authoritative local index/cache discriminator
@@ -312,9 +312,17 @@ scanners, or receipts.
   component-progress demand, executable-TCB, and ELF dynamic-import compact
   identity fields now use explicit report vocabulary. Component-progress and
   executable-TCB admission also retain and replay `ProviderPlanDigest`; a
-  compact-equal candidate with the wrong plan digest rejects. Remaining work
-  is classifying the other identity-named fields outside both fingerprint
-  scanners.
+  compact-equal candidate with the wrong plan digest rejects. The residual
+  identity-named audit is complete. Psi schema, indexed-provider application/
+  coverage/closure, task-plan, UEFI layout, foreign-locator, and callback-
+  catalog compact values now use explicit report/compatibility/discriminator
+  vocabulary. Checked operator dispatch retains and rejoins the strong
+  `ProviderPlanDigest`; callback requirements and native parameters collision-
+  check their exact retained catalogs. Remaining raw `u64` identities are
+  exact authored schema numbers, compiler-generated graph coordinates, or
+  runtime-issued lifecycle tokens rather than hashes. An architecture test
+  guards the residual compact aliases in addition to the generic fingerprint
+  field/accessor scanners.
 
   Acceptance: an automated architecture test rejects new authoritative
   `u64`-only identities, every retained FNV use has a local non-authoritative

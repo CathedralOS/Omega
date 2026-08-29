@@ -1036,6 +1036,18 @@ replay. Wire protocol reports label schema, codec, encode, and plan FNVs as
 report identities; compatibility compares retained field and case structure
 even when compact schema reports match.
 
+The residual identity-named inventory applies the same classification. Psi
+schema FNVs, indexed-provider application/coverage/closure summaries, task-plan
+entry/layout/calling summaries, UEFI layout summaries, and foreign-locator
+summaries use explicit report, compatibility, or discriminator vocabulary.
+Checked operator uses retain the selected `ProviderPlanDigest` beside their
+compact plan report and dispatch joins both. Callback binder/requirement and
+native-parameter catalogs reconstruct exact retained requirements and reject
+compact collisions before policy evaluation. The remaining raw `u64`
+identities are exact authored schema numbers, compiler-generated graph
+coordinates, or runtime-issued lifecycle tokens rather than hashes; their
+namespace issuers and exact replay rules define uniqueness.
+
 For hardware-entered provider slots, the selected service schema records a
 linear routed parameter qualification as a structured `accepts` row. The row
 uses the carrier-aware semantic-domain identity, begins with the strict

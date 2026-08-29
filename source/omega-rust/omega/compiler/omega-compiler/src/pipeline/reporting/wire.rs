@@ -527,9 +527,8 @@ fn ordinary_data_schema_report_entry(
     };
     Some(WireSchemaReportEntry {
         name: data.name.to_string(),
-        normalized_schema_report_identity: psi_build_time_evaluation::normalized_schema_identity(
-            typed, data,
-        ),
+        normalized_schema_report_identity:
+            psi_build_time_evaluation::normalized_schema_report_fingerprint(typed, data),
         synthesized_codec: false,
         encoding: None,
         codec_requirement: None,

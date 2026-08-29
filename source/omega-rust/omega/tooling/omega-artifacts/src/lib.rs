@@ -502,9 +502,9 @@ pub enum TrustProviderRealization {
 }
 
 impl TrustProviderRealization {
-    /// Exact normalized foreign-locator identity retained by this trust row.
-    /// Other realization cases have their identity in their structured fields.
-    pub fn normalized_foreign_locator_identity(&self) -> Option<u64> {
+    /// Compact compatibility report for the exact foreign locator retained by
+    /// this trust row. Other realization cases have no locator report.
+    pub fn foreign_locator_compatibility_report_identity(&self) -> Option<u64> {
         match self {
             Self::Import { locator } => Some(locator.non_authoritative_compatibility_fingerprint()),
             _ => None,

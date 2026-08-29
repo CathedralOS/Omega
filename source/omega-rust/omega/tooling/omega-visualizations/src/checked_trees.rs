@@ -395,7 +395,7 @@ fn validate_qualification_receipt(
             "nonzero qualification evidence receipt must use admitted-receipt origin",
         );
         selected_provider_plans
-            .plan_by_identity(receipt_identity)
+            .plan_by_report_fingerprint(receipt_identity)
             .expect(
                 "qualification evidence receipt must name an exact retained selected provider plan",
             );

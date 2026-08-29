@@ -1121,7 +1121,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
 
     let selected_plan = checked
         .selected_provider_plans()
-        .plan_by_identity(demand.provider_plan_report_identity)
+        .plan_by_report_fingerprint(demand.provider_plan_report_identity)
         .expect("progress demand retains its exact selected plan");
     let occurrence = InstalledProviderOccurrenceId::from_normalized_identity(0x5420)
         .expect("installed provider occurrence");

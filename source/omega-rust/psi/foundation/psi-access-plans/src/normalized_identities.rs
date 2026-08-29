@@ -64,7 +64,7 @@ pub(super) fn authoritative_placement_interpretation(
 }
 
 fn hash_canonical_layout(digest: &mut Sha256, layout: &psi_layout_plans::LayoutPlanReport) {
-    hash_u64_sha(digest, layout.schema_identity);
+    hash_u64_sha(digest, layout.schema_report_fingerprint);
     match layout.size {
         Some(size) => {
             digest.update([1]);

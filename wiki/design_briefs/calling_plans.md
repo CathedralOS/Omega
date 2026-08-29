@@ -880,6 +880,15 @@ The binding remains address-free and grants no target operand, physical offset,
 object relocation, runtime storage, address, registration authority, or
 callback lifetime.
 
+The nominal callback IDs in this catalog are compact report discriminators,
+not standalone authority. Before policy evaluation, the compiler reconstructs
+each binder's exact canonical requirement from its retained trait and machine
+symbols, rejects distinct requirements sharing one compact ID, and rejects
+native-parameter ID reuse between distinct exact registrar parameters. Layout
+and slot IDs remain joined to the exact data symbols, layout rows, field paths,
+and private-slot demands described below; compact equality never bypasses that
+replay.
+
 The following target-closed placement recipe now binds that exact argument to
 the outbound registrar `CallPlan` parameter's `ValuePlacement`. A direct
 `Field` retains exactly one authoritative native-layout demand row, including

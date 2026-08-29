@@ -485,6 +485,108 @@ fn checked_nominal_machine_use_reports_retain_strong_contract_and_plan_authority
 }
 
 #[test]
+fn checked_operator_provider_reports_retain_strong_plan_authority() {
+    let root = workspace_root();
+    let checked_path =
+        root.join("source/omega-rust/psi/representations/psi-checked-trees/src/operators.rs");
+    let checked = fs::read_to_string(&checked_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", checked_path.display()));
+    assert!(
+        checked.contains("pub provider_plan_report_fingerprint: u64")
+            && checked.contains("pub provider_plan_commitment: CheckedProviderPlanCommitment")
+            && checked.contains("pub struct CheckedProviderPlanCommitment([u8; 32])")
+            && !checked.contains("pub provider_plan_identity: u64"),
+        "checked operator uses must classify compact plan coordinates as reports beside exact commitments",
+    );
+
+    let planning_path =
+        root.join("source/omega-rust/omega/build/omega-provider-planning/src/plans.rs");
+    let planning = fs::read_to_string(&planning_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", planning_path.display()));
+    assert!(
+        planning.contains("*plan.identity_digest().as_bytes()")
+            && planning.contains("operator_use.provider_plan_commitment = commitment"),
+        "provider selection must copy the exact selected plan commitment into checked operator evidence",
+    );
+
+    for relative in [
+        "source/omega-rust/omega/build/omega-selected-dispatch/src/operator_adapter.rs",
+        "source/omega-rust/omega/build/omega-selected-dispatch/src/float_intrinsic.rs",
+    ] {
+        let path = root.join(relative);
+        let dispatch = fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
+        assert!(
+            dispatch.contains(
+                "plan.identity_digest().as_bytes() == operator_use.provider_plan_commitment.as_bytes()",
+            ) && dispatch.contains("without an exact commitment")
+                && dispatch.contains("exact commitment that does not match"),
+            "selected operator dispatch must join on the strong plan commitment in {}",
+            path.display(),
+        );
+    }
+}
+
+#[test]
+fn residual_identity_named_compact_hashes_are_explicit_reports() {
+    let root = workspace_root();
+    let cases = [
+        (
+            "source/omega-rust/psi/foundation/psi-layout-plans/src/lib.rs",
+            &["pub schema_identity: u64"][..],
+        ),
+        (
+            "source/omega-rust/omega/representations/omega-effects/src/indexed_provider_applications.rs",
+            &[
+                "\n    identity: u64,",
+                "pub const fn identity(&self) -> u64",
+            ][..],
+        ),
+        (
+            "source/omega-rust/omega/representations/omega-effects/src/selected_provider_plans.rs",
+            &["plan_by_identity"][..],
+        ),
+        (
+            "source/omega-rust/omega/representations/omega-target/src/uefi_system_table.rs",
+            &["fn layout_identity(&self) -> u64"][..],
+        ),
+        (
+            "source/omega-rust/omega/tooling/omega-artifacts/src/lib.rs",
+            &["normalized_foreign_locator_identity"][..],
+        ),
+        (
+            "source/omega-rust/omega/build/omega-provider-planning/src/task_plans.rs",
+            &[
+                "fn stack_representation_identity",
+                "fn signature_layout_identity",
+                "fn entry_identity(",
+                "fn calling_plan_identity",
+            ][..],
+        ),
+        (
+            "source/omega-rust/omega/representations/omega-calling-conventions/src/callback_materializations.rs",
+            &["fn callback_nominal_identity"][..],
+        ),
+        (
+            "source/omega-rust/omega/build/omega-provider-planning/src/calling_policy_plans.rs",
+            &["fn callback_plan_identity"][..],
+        ),
+    ];
+    for (relative, forbidden) in cases {
+        let path = root.join(relative);
+        let source = fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
+        for spelling in forbidden {
+            assert!(
+                !source.contains(spelling),
+                "compact hash `{spelling}` in {} must use explicit report/cache/discriminator vocabulary",
+                path.display(),
+            );
+        }
+    }
+}
+
+#[test]
 fn trust_tooling_compact_coordinates_retain_strong_evidence_and_report_labels() {
     let root = workspace_root();
     let carrier_path = root.join("source/omega-rust/omega/tooling/omega-artifacts/src/lib.rs");

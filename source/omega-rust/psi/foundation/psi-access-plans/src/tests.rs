@@ -41,7 +41,7 @@ fn compact_fnv_plan_inventory_is_explicitly_non_authoritative() {
 #[test]
 fn stored_integer_geometry_uses_the_exact_encoded_width() {
     let layout = LayoutPlanReport {
-        schema_identity: 1,
+        schema_report_fingerprint: 1,
         entries: vec![LayoutFieldEntryReport {
             field: "value".into(),
             member_identity: None,
@@ -80,7 +80,7 @@ fn uart_reach() -> BoundaryReach {
 
 fn uart_layout() -> LayoutPlanReport {
     LayoutPlanReport {
-        schema_identity: 1,
+        schema_report_fingerprint: 1,
         entries: vec![
             LayoutFieldEntryReport {
                 field: "status".into(),
@@ -219,7 +219,7 @@ fn inaccessible_seed_has_exact_canonical_schema_cardinality() {
 #[test]
 fn numbered_field_rename_does_not_change_access_identity() {
     let mut original_layout = LayoutPlanReport {
-        schema_identity: 0x44,
+        schema_report_fingerprint: 0x44,
         entries: vec![LayoutFieldEntryReport {
             field: "word".into(),
             member_identity: Some(7),
@@ -269,7 +269,7 @@ fn numbered_field_rename_does_not_change_access_identity() {
 #[test]
 fn inaccessible_plan_rejects_one_name_for_multiple_field_identities() {
     let layout = LayoutPlanReport {
-        schema_identity: 0x45,
+        schema_report_fingerprint: 0x45,
         entries: vec![
             LayoutFieldEntryReport {
                 field: "word".into(),
@@ -301,7 +301,7 @@ fn inaccessible_plan_rejects_one_name_for_multiple_field_identities() {
 #[test]
 fn access_validation_replays_retained_layout_structure_not_only_fingerprint() {
     let layout = LayoutPlanReport {
-        schema_identity: 0x46,
+        schema_report_fingerprint: 0x46,
         entries: vec![LayoutFieldEntryReport {
             field: "word".into(),
             member_identity: Some(7),
@@ -331,7 +331,7 @@ fn access_validation_replays_retained_layout_structure_not_only_fingerprint() {
 #[test]
 fn access_identity_covers_operation_width_and_exposure() {
     let layout = LayoutPlanReport {
-        schema_identity: 1,
+        schema_report_fingerprint: 1,
         entries: vec![LayoutFieldEntryReport {
             field: "word".into(),
             member_identity: None,
@@ -664,7 +664,7 @@ fn destructive_access_requires_one_whole_snapshot_accessor() {
     );
 
     let aliased_layout = LayoutPlanReport {
-        schema_identity: 0xdead,
+        schema_report_fingerprint: 0xdead,
         entries: vec![
             LayoutFieldEntryReport {
                 field: "snapshot".into(),
@@ -772,7 +772,7 @@ fn empty_access_cases_reject_in_favor_of_inaccessible() {
 #[test]
 fn atomic_shared_page_exposes_only_atomic_mutation() {
     let layout = LayoutPlanReport {
-        schema_identity: 1,
+        schema_report_fingerprint: 1,
         entries: vec![LayoutFieldEntryReport {
             field: "head".into(),
             member_identity: None,
@@ -1005,7 +1005,7 @@ fn compare_exchange_permissions_keep_both_axes_distinct() {
     }
 
     let layout = LayoutPlanReport {
-        schema_identity: 0xce01,
+        schema_report_fingerprint: 0xce01,
         entries: vec![LayoutFieldEntryReport {
             field: "word".into(),
             member_identity: None,
@@ -1074,7 +1074,7 @@ fn compare_exchange_permissions_keep_both_axes_distinct() {
 #[test]
 fn overlapping_atomic_fields_cannot_select_mixed_widths() {
     let layout = LayoutPlanReport {
-        schema_identity: 0xa70,
+        schema_report_fingerprint: 0xa70,
         entries: vec![
             LayoutFieldEntryReport {
                 field: "wide".into(),
@@ -1116,7 +1116,7 @@ fn overlapping_atomic_fields_cannot_select_mixed_widths() {
 #[test]
 fn multi_container_fragments_are_not_one_access() {
     let layout = LayoutPlanReport {
-        schema_identity: 1,
+        schema_report_fingerprint: 1,
         entries: vec![
             LayoutFieldEntryReport {
                 field: "entry".into(),
@@ -1169,7 +1169,7 @@ fn field_keys_reject_cross_layout_and_out_of_cardinality_use() {
     let layout = uart_layout();
     let mut plan = AccessPlan::inaccessible(&layout).expect("UART seed");
     let mut alternate_layout = layout.clone();
-    alternate_layout.schema_identity = 2;
+    alternate_layout.schema_report_fingerprint = 2;
     let mut alternate = AccessPlan::inaccessible(&alternate_layout).expect("alternate schema seed");
     alternate.layout_report_fingerprint = plan.layout_report_fingerprint;
     for entry in &mut alternate.entries {
@@ -1338,7 +1338,7 @@ fn uart_resource_profile_data(length: u64, reach: &BoundaryReach) -> ResourcePro
 
 fn stable_word_placement() -> ValidatedPlacementPlan {
     let layout = LayoutPlanReport {
-        schema_identity: 0x5ab1e,
+        schema_report_fingerprint: 0x5ab1e,
         entries: vec![LayoutFieldEntryReport {
             field: "word".into(),
             member_identity: None,
@@ -1414,7 +1414,7 @@ fn stable_uart_resource_profile(
 
 fn destructive_word_placement() -> ValidatedPlacementPlan {
     let layout = LayoutPlanReport {
-        schema_identity: 0xe17e_7a4e,
+        schema_report_fingerprint: 0xe17e_7a4e,
         entries: vec![LayoutFieldEntryReport {
             field: "fifo".into(),
             member_identity: None,
@@ -1493,11 +1493,11 @@ fn atomic_word_placement() -> ValidatedPlacementPlan {
 }
 
 fn atomic_word_placement_with_operations(
-    schema_identity: u64,
+    schema_report_fingerprint: u64,
     operations: AtomicPermissions,
 ) -> ValidatedPlacementPlan {
     let layout = LayoutPlanReport {
-        schema_identity,
+        schema_report_fingerprint,
         entries: vec![LayoutFieldEntryReport {
             field: "head".into(),
             member_identity: None,
@@ -1841,7 +1841,7 @@ fn provider_correspondence_admits_against_exact_plan_and_profile_without_storage
     .expect("provider correspondence grant");
 
     let mut colliding = plan.clone();
-    colliding.layout.schema_identity ^= 1;
+    colliding.layout.schema_report_fingerprint ^= 1;
     assert_eq!(colliding.identity(), plan.identity());
     assert_ne!(colliding.layout(), plan.layout());
     let rejection = grant
@@ -1897,13 +1897,14 @@ fn correspondence_binding_replays_placement_and_returns_both_inputs_for_retry() 
         .admit(&plan, &profile)
         .expect("schema correspondence admission");
 
-    admission.placement_plan.layout.schema_identity ^= 1;
+    admission.placement_plan.layout.schema_report_fingerprint ^= 1;
     assert_eq!(admission.placement_plan.identity(), plan.identity());
     let rejection = bind_schema_correspondence_to_placement(admission, correspondence)
         .expect_err("same compact identity cannot hide placement structure drift");
     assert!(rejection.diagnostic().0.contains("exact plan"));
     let (mut admission, mut correspondence, _) = rejection.into_parts();
-    admission.placement_plan.layout.schema_identity = plan.layout().schema_identity;
+    admission.placement_plan.layout.schema_report_fingerprint =
+        plan.layout().schema_report_fingerprint;
 
     correspondence.replace_placement_for_test(PlacementPlanId(plan.identity().0 ^ 1));
     let rejection = bind_schema_correspondence_to_placement(admission, correspondence)
@@ -5156,7 +5157,7 @@ fn placed_view_derives_access_from_extent_provenance_and_actual_borrow() {
 #[test]
 fn placed_projection_exposes_only_granular_authorized_events() {
     let layout = LayoutPlanReport {
-        schema_identity: 95,
+        schema_report_fingerprint: 95,
         entries: ["stable", "fifo", "counter", "hidden"]
             .into_iter()
             .enumerate()
@@ -5669,7 +5670,7 @@ fn resource_compatibility_joins_observation_operations_width_and_reach() {
     );
 
     let atomic_layout = LayoutPlanReport {
-        schema_identity: 93,
+        schema_report_fingerprint: 93,
         entries: vec![LayoutFieldEntryReport {
             field: "head".into(),
             member_identity: None,
@@ -5735,7 +5736,7 @@ fn resource_compatibility_joins_observation_operations_width_and_reach() {
 #[test]
 fn subrange_loan_rebases_profile_and_preserves_denied_bytes() {
     let layout = LayoutPlanReport {
-        schema_identity: 94,
+        schema_report_fingerprint: 94,
         entries: vec![LayoutFieldEntryReport {
             field: "word".into(),
             member_identity: None,
@@ -5894,7 +5895,7 @@ fn admitted_profile_rejects_coincident_independent_extent_root() {
 #[test]
 fn transfer_alignment_derives_build_time_and_runtime_base_checks() {
     let conflicting_layout = LayoutPlanReport {
-        schema_identity: 91,
+        schema_report_fingerprint: 91,
         entries: vec![
             LayoutFieldEntryReport {
                 field: "left".into(),
@@ -5967,7 +5968,7 @@ fn transfer_alignment_derives_build_time_and_runtime_base_checks() {
     );
 
     let layout = LayoutPlanReport {
-        schema_identity: 92,
+        schema_report_fingerprint: 92,
         entries: vec![LayoutFieldEntryReport {
             field: "word".into(),
             member_identity: None,

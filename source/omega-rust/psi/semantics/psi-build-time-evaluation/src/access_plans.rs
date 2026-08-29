@@ -28,11 +28,11 @@ pub fn compute_access_plan(
     schema_data: &str,
     layout: &LayoutPlanReport,
 ) -> Result<ValidatedAccessPlan, String> {
-    let (schema_fields, schema_identity) = schema_fields(typed, schema_data)?;
-    if layout.schema_identity != schema_identity {
+    let (schema_fields, schema_report_fingerprint) = schema_fields(typed, schema_data)?;
+    if layout.schema_report_fingerprint != schema_report_fingerprint {
         return Err(format!(
-            "validated layout schema identity {} does not match reflected schema `{schema_data}` identity {schema_identity}",
-            layout.schema_identity
+            "validated layout schema report fingerprint {} does not match reflected schema `{schema_data}` report fingerprint {schema_report_fingerprint}",
+            layout.schema_report_fingerprint
         ));
     }
     // Reject an aliased or malformed retained field-identity set before
@@ -47,7 +47,7 @@ pub fn compute_access_plan(
     let canonical_layout = validate_plan(
         &layout_value,
         &schema_fields,
-        schema_identity,
+        schema_report_fingerprint,
         policy_machine,
     )?;
     // Numbered source names are presentation. Acceptance still replays the

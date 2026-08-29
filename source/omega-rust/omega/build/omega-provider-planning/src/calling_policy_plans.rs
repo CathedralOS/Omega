@@ -334,6 +334,59 @@ fn validate_retained_callback_binders(
     Ok(())
 }
 
+fn exact_callback_requirement_catalog(
+    typed: &TypedTrees,
+    binders: &[BoundaryCallbackBinder],
+) -> Result<Vec<(CallbackRequirementId, String)>, String> {
+    let mut catalog = Vec::with_capacity(binders.len());
+    for binder in binders {
+        let trait_definition = typed
+            .traits()
+            .iter()
+            .find(|candidate| candidate.symbol == binder.requirement_trait)
+            .ok_or_else(|| {
+                "evaluated callback binder lost its exact requirement trait".to_owned()
+            })?;
+        let requirement = typed
+            .trait_machine_signatures(trait_definition)
+            .iter()
+            .find(|candidate| candidate.symbol == binder.requirement_machine)
+            .ok_or_else(|| {
+                "evaluated callback binder lost its exact requirement machine".to_owned()
+            })?;
+        let exact = typed
+            .normalized_trait_requirement_overload_identity(trait_definition, requirement)
+            .identity();
+        let report = callback_requirement_id(&exact);
+        if report != binder.requirement {
+            return Err(
+                "evaluated callback binder requirement report drifted from its exact requirement"
+                    .to_owned(),
+            );
+        }
+        validate_callback_requirement_report_collision(&catalog, report, &exact)?;
+        catalog.push((report, exact));
+    }
+    Ok(catalog)
+}
+
+fn validate_callback_requirement_report_collision(
+    exact_catalog: &[(CallbackRequirementId, String)],
+    report: CallbackRequirementId,
+    exact: &str,
+) -> Result<(), String> {
+    if exact_catalog
+        .iter()
+        .any(|(prior_report, prior_exact)| *prior_report == report && prior_exact != exact)
+    {
+        return Err(
+            "distinct exact callback requirements collide on one compact report identity"
+                .to_owned(),
+        );
+    }
+    Ok(())
+}
+
 /// Bind checked nominal callback authority back to the one target-owned plan
 /// realization that produced its retained fingerprint. This runs before any
 /// backend lowering so a missing, duplicated, or changed placement recipe
@@ -923,6 +976,12 @@ pub fn close_outbound_callback_materializations(
         );
 
     for realization in realizations {
+        let binder_requirement_catalog =
+            exact_callback_requirement_catalog(&checked.typed, &realization.callback_binders)
+                .map_err(|reason| {
+                    vec![Diagnostic::error(reason).with_source_span(realization.relationship_span)]
+                })?;
+        let mut demand_requirement_catalog = Vec::new();
         let mut demands = Vec::new();
         for parameter in &realization.native_parameters {
             for demand in layout_plan
@@ -930,6 +989,25 @@ pub fn close_outbound_callback_materializations(
                 .iter()
                 .filter(|demand| demand.data_symbol == parameter.layout_data_symbol)
             {
+                validate_callback_requirement_report_collision(
+                    &binder_requirement_catalog,
+                    demand.requirement,
+                    &demand.callback_requirement_identity,
+                )
+                .and_then(|()| {
+                    validate_callback_requirement_report_collision(
+                        &demand_requirement_catalog,
+                        demand.requirement,
+                        &demand.callback_requirement_identity,
+                    )
+                })
+                .map_err(|reason| {
+                    vec![Diagnostic::error(reason).with_source_span(realization.relationship_span)]
+                })?;
+                demand_requirement_catalog.push((
+                    demand.requirement,
+                    demand.callback_requirement_identity.to_string(),
+                ));
                 demands.push(demand.native_demand(parameter.identity));
             }
             for path in layout_plan
@@ -937,6 +1015,27 @@ pub fn close_outbound_callback_materializations(
                 .iter()
                 .filter(|path| path.root_layout.data_symbol == parameter.layout_data_symbol)
             {
+                validate_callback_requirement_report_collision(
+                    &binder_requirement_catalog,
+                    path.terminal_demand.requirement,
+                    &path.terminal_demand.callback_requirement_identity,
+                )
+                .and_then(|()| {
+                    validate_callback_requirement_report_collision(
+                        &demand_requirement_catalog,
+                        path.terminal_demand.requirement,
+                        &path.terminal_demand.callback_requirement_identity,
+                    )
+                })
+                .map_err(|reason| {
+                    vec![Diagnostic::error(reason).with_source_span(realization.relationship_span)]
+                })?;
+                demand_requirement_catalog.push((
+                    path.terminal_demand.requirement,
+                    path.terminal_demand
+                        .callback_requirement_identity
+                        .to_string(),
+                ));
                 demands.push(path.native_demand(parameter.identity));
             }
         }
@@ -1285,12 +1384,12 @@ fn call_signature_from_typed(
         parameters.push(root);
         let type_reference = substituted_type_reference(typed, parameter.type_reference, bindings);
         let layout_data_symbol = exact_boundary_layout_root_symbol(typed, type_reference);
+        let ordinal = u32::try_from(ordinal)
+            .map_err(|_| "boundary signature has too many runtime parameters")?;
+        let identity = callback_native_parameter_id(owner_requirement_identity, ordinal);
+        validate_fresh_native_parameter_report_identity(&native_parameters, identity, ordinal)?;
         native_parameters.push(BoundaryNativeParameter {
-            identity: callback_native_parameter_id(
-                owner_requirement_identity,
-                u32::try_from(ordinal)
-                    .map_err(|_| "boundary signature has too many runtime parameters")?,
-            ),
+            identity,
             layout_data_symbol,
         });
     }
@@ -1337,7 +1436,7 @@ fn call_signature_from_typed(
         let requirement_identity = typed
             .normalized_trait_requirement_overload_identity(trait_definition_row, requirement_row)
             .identity();
-        let binder_identity = callback_plan_identity(
+        let binder_report_fingerprint = callback_plan_report_fingerprint(
             b"omega.callback-binder.v1",
             &[
                 owner_requirement_identity.as_bytes(),
@@ -1346,7 +1445,7 @@ fn call_signature_from_typed(
             ],
         );
         callback_binders.push(BoundaryCallbackBinder {
-            binder: StaticMachineBinderId::new(binder_identity)
+            binder: StaticMachineBinderId::new(binder_report_fingerprint)
                 .expect("callback binder fingerprint is nonzero"),
             requirement: callback_requirement_id(&requirement_identity),
             static_machine_ordinal: ordinal,
@@ -1385,19 +1484,39 @@ fn exact_boundary_layout_root_symbol(
     }
 }
 
-fn callback_plan_identity(domain: &[u8], parts: &[&[u8]]) -> u64 {
-    let mut identity = 0xcbf2_9ce4_8422_2325u64;
+fn validate_fresh_native_parameter_report_identity(
+    prior: &[BoundaryNativeParameter],
+    identity: NativeParameterId,
+    ordinal: u32,
+) -> Result<(), String> {
+    if prior.iter().any(|parameter| parameter.identity == identity) {
+        return Err(format!(
+            "boundary runtime parameter {ordinal} collides with an earlier exact parameter on one compact native-parameter report identity"
+        ));
+    }
+    Ok(())
+}
+
+/// Compact callback-binder catalog discriminator. The exact binder ordinal,
+/// parameter symbol, and requirement symbols remain beside it and collisions
+/// reject before a calling policy is evaluated.
+fn callback_plan_report_fingerprint(domain: &[u8], parts: &[&[u8]]) -> u64 {
+    let mut report_fingerprint = 0xcbf2_9ce4_8422_2325u64;
     for bytes in std::iter::once(domain).chain(parts.iter().copied()) {
         for byte in (bytes.len() as u64)
             .to_le_bytes()
             .into_iter()
             .chain(bytes.iter().copied())
         {
-            identity ^= u64::from(byte);
-            identity = identity.wrapping_mul(0x0000_0100_0000_01b3);
+            report_fingerprint ^= u64::from(byte);
+            report_fingerprint = report_fingerprint.wrapping_mul(0x0000_0100_0000_01b3);
         }
     }
-    if identity == 0 { 1 } else { identity }
+    if report_fingerprint == 0 {
+        1
+    } else {
+        report_fingerprint
+    }
 }
 
 fn value_shape_from_type(
@@ -2977,6 +3096,40 @@ fn u32_value(value: &BuildTimeValue, context: &str) -> Result<u32, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn compact_native_parameter_collision_rejects_within_exact_registrar_catalog() {
+        let identity = NativeParameterId::new(0x51).expect("nonzero report identity");
+        let prior = [BoundaryNativeParameter {
+            identity,
+            layout_data_symbol: psi_symbols::SymbolHandle::from_arena_index(3),
+        }];
+
+        let error = validate_fresh_native_parameter_report_identity(&prior, identity, 1)
+            .expect_err("a second exact parameter cannot reuse a compact report identity");
+        assert!(error.contains("collides with an earlier exact parameter"));
+    }
+
+    #[test]
+    fn compact_callback_requirement_collision_rejects_exact_requirement_substitution() {
+        let report = CallbackRequirementId::new(0x61).expect("nonzero report identity");
+        let catalog = [(report, "package::First::call#exact".to_owned())];
+
+        let error = validate_callback_requirement_report_collision(
+            &catalog,
+            report,
+            "package::Second::call#exact",
+        )
+        .expect_err("compact equality cannot substitute another exact callback requirement");
+        assert!(error.contains("distinct exact callback requirements collide"));
+
+        validate_callback_requirement_report_collision(
+            &catalog,
+            report,
+            "package::First::call#exact",
+        )
+        .expect("the same exact requirement may reuse its catalog report coordinate");
+    }
 
     #[test]
     fn callback_native_place_decoder_preserves_nominal_field_path() {

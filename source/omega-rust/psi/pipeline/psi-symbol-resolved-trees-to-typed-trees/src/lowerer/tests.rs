@@ -2304,7 +2304,7 @@ fn normalizes_domain_constraints_by_short_name_and_carrier() {
 }
 
 #[test]
-fn retains_closed_compiler_domain_subjects_and_layout_schema_identity() {
+fn retains_closed_compiler_domain_subjects_and_layout_schema_report_fingerprint() {
     use psi_typed_trees::types::{
         DomainConstraintSubject, OmegaLayoutGrammar, TypeConstraintNode, TypeReferenceNode,
     };

@@ -33,7 +33,7 @@ pub use const_sum_materializable::{
 };
 use owned_value_encoding::{encode_typed_owned_value, exact_struct_fields};
 pub(crate) use plan_validation::validate_plan;
-pub use schema_reflection::normalized_schema_identity;
+pub use schema_reflection::normalized_schema_report_fingerprint;
 #[allow(unused_imports)]
 pub(crate) use schema_reflection::{RepeatedFieldInfo, SchemaFieldInfo, schema_fields};
 use schema_reflection::{
@@ -126,7 +126,7 @@ fn compute_native_layout_plan_with_optional_authority(
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     custody: Option<crate::BuildTimeInvocationCustody>,
 ) -> Result<NativeLayoutPlanReport, String> {
-    let (schema_fields, schema_identity) = schema_fields(typed, schema_data)?;
+    let (schema_fields, schema_report_fingerprint) = schema_fields(typed, schema_data)?;
     let schema_value = build_schema_value(typed, schema_data, &schema_fields)?;
 
     let machine = typed
@@ -151,7 +151,7 @@ fn compute_native_layout_plan_with_optional_authority(
     let layout = validate_plan(
         evaluation.value(),
         &schema_fields,
-        schema_identity,
+        schema_report_fingerprint,
         policy_machine,
     )?;
     let private_callback_demands = normalize_private_callback_demands(
@@ -335,9 +335,9 @@ pub fn materialize_typed_owned_layout_into(
                 "no typed data definition named `{schema_data}` exists"
             ))
         })?;
-    if layout.schema_identity != normalized_schema_identity(typed, data) {
+    if layout.schema_report_fingerprint != normalized_schema_report_fingerprint(typed, data) {
         return Err(MaterializationDiagnostic(format!(
-            "layout schema identity does not match typed data `{schema_data}`"
+            "layout schema report fingerprint does not match typed data `{schema_data}`"
         )));
     }
     let (schema_fields, _) =
@@ -517,14 +517,14 @@ pub fn evaluate_and_materialize_typed_owned_layout_into(
 
 #[cfg(test)]
 mod tests {
-    use super::{normalized_schema_identity, schema_fields};
+    use super::{normalized_schema_report_fingerprint, schema_fields};
     use psi_source_files_to_tokens::Lexer;
     use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
     use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
     use psi_tokens_to_syntax_trees::parse_syntax_trees;
 
     #[test]
-    fn semantic_schema_identity_distinguishes_common_and_payload_field_relevance() {
+    fn semantic_schema_report_fingerprint_distinguishes_common_and_payload_field_relevance() {
         let source = r#"
             data CommonRelevant { proof: i32; }
             data CommonErased { proof [erased]: i32; }
@@ -541,7 +541,7 @@ mod tests {
                 .iter()
                 .find(|data| data.name.as_str() == name)
                 .expect("data definition");
-            normalized_schema_identity(&typed, data)
+            normalized_schema_report_fingerprint(&typed, data)
         };
 
         assert_ne!(identity("CommonRelevant"), identity("CommonErased"));

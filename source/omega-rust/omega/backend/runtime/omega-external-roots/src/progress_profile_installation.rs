@@ -602,7 +602,7 @@ impl InstalledRootLedger {
         }
         let issuer_plan = closure
             .selected
-            .plan_by_identity(attestation.issuer_provider_plan_report_identity)
+            .plan_by_report_fingerprint(attestation.issuer_provider_plan_report_identity)
             .expect("installed plan binding came from selected facts");
         let exact_routes = issuer_plan
             .rows
@@ -761,7 +761,7 @@ impl InstalledRootLedger {
             }
             let Some(selected_plan) = closure
                 .selected
-                .plan_by_identity(demand.provider_plan_report_identity)
+                .plan_by_report_fingerprint(demand.provider_plan_report_identity)
                 .filter(|plan| plan.identity_digest() == demand.provider_plan_digest)
             else {
                 return Err(fail(

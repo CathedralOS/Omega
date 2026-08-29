@@ -370,7 +370,7 @@ pub struct ExtentProgramLocalOrigin {
     installed_code: u64,
     external_root: u64,
     root_slot: u64,
-    schema_identity: u64,
+    schema_report_fingerprint: u64,
     lifecycle_ledger: u64,
     lifecycle_epoch: u64,
     entry_invocation: u64,
@@ -383,7 +383,7 @@ impl ExtentProgramLocalOrigin {
             installed_code,
             external_root,
             root_slot,
-            schema_identity,
+            schema_report_fingerprint,
             lifecycle_ledger,
             lifecycle_epoch,
             entry_invocation,
@@ -393,7 +393,7 @@ impl ExtentProgramLocalOrigin {
             (installed_code, "installed-code"),
             (external_root, "external-root"),
             (root_slot, "root-slot"),
-            (schema_identity, "program-local schema"),
+            (schema_report_fingerprint, "program-local schema"),
             (lifecycle_ledger, "component lifecycle ledger"),
             (lifecycle_epoch, "component lifecycle epoch"),
             (entry_invocation, "entry invocation"),
@@ -405,7 +405,7 @@ impl ExtentProgramLocalOrigin {
             installed_code,
             external_root,
             root_slot,
-            schema_identity,
+            schema_report_fingerprint,
             lifecycle_ledger,
             lifecycle_epoch,
             entry_invocation,
@@ -425,8 +425,8 @@ impl ExtentProgramLocalOrigin {
         self.root_slot
     }
 
-    pub const fn schema_identity(self) -> u64 {
-        self.schema_identity
+    pub const fn schema_report_fingerprint(self) -> u64 {
+        self.schema_report_fingerprint
     }
 
     pub const fn lifecycle_ledger(self) -> u64 {

@@ -52,10 +52,12 @@ struct SelectedProviderProgramUpdates {
     spelled_operator_uses: Vec<(
         psi_arena::Handle<psi_checked_trees::CheckedOperatorUseFact>,
         u64,
+        psi_checked_trees::CheckedProviderPlanCommitment,
     )>,
     named_operator_uses: Vec<(
         psi_arena::Handle<psi_checked_trees::CheckedNamedOperatorUseFact>,
         u64,
+        psi_checked_trees::CheckedProviderPlanCommitment,
     )>,
     admitted_receipts: Vec<(psi_facts::FactHandle, u64)>,
 }
@@ -68,21 +70,15 @@ impl SelectedProviderProgramUpdates {
     }
 
     fn apply(self, checked: &mut psi_checked_trees::CheckedTrees) {
-        for (handle, identity) in self.spelled_operator_uses {
-            checked
-                .facts
-                .operators
-                .uses
-                .get_mut(handle)
-                .provider_plan_identity = identity;
+        for (handle, report_fingerprint, commitment) in self.spelled_operator_uses {
+            let operator_use = checked.facts.operators.uses.get_mut(handle);
+            operator_use.provider_plan_report_fingerprint = report_fingerprint;
+            operator_use.provider_plan_commitment = commitment;
         }
-        for (handle, identity) in self.named_operator_uses {
-            checked
-                .facts
-                .operators
-                .named_uses
-                .get_mut(handle)
-                .provider_plan_identity = identity;
+        for (handle, report_fingerprint, commitment) in self.named_operator_uses {
+            let operator_use = checked.facts.operators.named_uses.get_mut(handle);
+            operator_use.provider_plan_report_fingerprint = report_fingerprint;
+            operator_use.provider_plan_commitment = commitment;
         }
         for (handle, identity) in self.admitted_receipts {
             checked
@@ -405,10 +401,12 @@ fn plan_selected_operator_provider_evidence(
         Vec<(
             psi_arena::Handle<psi_checked_trees::CheckedOperatorUseFact>,
             u64,
+            psi_checked_trees::CheckedProviderPlanCommitment,
         )>,
         Vec<(
             psi_arena::Handle<psi_checked_trees::CheckedNamedOperatorUseFact>,
             u64,
+            psi_checked_trees::CheckedProviderPlanCommitment,
         )>,
     ),
     Vec<psi_diagnostics::Diagnostic>,
@@ -430,7 +428,7 @@ fn plan_selected_operator_provider_evidence(
             continue;
         };
         if let Err(diagnostic) =
-            selected_operator_provider_identity(checked, candidates, selected, operator.symbol)
+            selected_operator_provider_evidence(checked, candidates, selected, operator.symbol)
         {
             diagnostics.push(diagnostic);
         }
@@ -455,16 +453,20 @@ fn plan_selected_operator_provider_evidence(
         .collect::<Vec<_>>();
     let mut spelled_updates = Vec::new();
     for (handle, symbol) in spelled {
-        match selected_operator_provider_identity(checked, candidates, selected, symbol) {
-            Ok(Some(identity)) => spelled_updates.push((handle, identity)),
+        match selected_operator_provider_evidence(checked, candidates, selected, symbol) {
+            Ok(Some((report_fingerprint, commitment))) => {
+                spelled_updates.push((handle, report_fingerprint, commitment));
+            }
             Ok(None) => {}
             Err(diagnostic) => diagnostics.push(diagnostic),
         }
     }
     let mut named_updates = Vec::new();
     for (handle, symbol) in named {
-        match selected_operator_provider_identity(checked, candidates, selected, symbol) {
-            Ok(Some(identity)) => named_updates.push((handle, identity)),
+        match selected_operator_provider_evidence(checked, candidates, selected, symbol) {
+            Ok(Some((report_fingerprint, commitment))) => {
+                named_updates.push((handle, report_fingerprint, commitment));
+            }
             Ok(None) => {}
             Err(diagnostic) => diagnostics.push(diagnostic),
         }
@@ -477,12 +479,15 @@ fn plan_selected_operator_provider_evidence(
     }
 }
 
-fn selected_operator_provider_identity(
+fn selected_operator_provider_evidence(
     checked: &psi_checked_trees::CheckedTrees,
     candidates: &[ProviderPlan],
     selected: &omega_effects::SelectedProviderPlanFacts,
     operator_symbol: psi_symbols::SymbolHandle,
-) -> Result<Option<u64>, psi_diagnostics::Diagnostic> {
+) -> Result<
+    Option<(u64, psi_checked_trees::CheckedProviderPlanCommitment)>,
+    psi_diagnostics::Diagnostic,
+> {
     let Some(operator) = checked
         .typed
         .operators()
@@ -547,7 +552,12 @@ fn selected_operator_provider_identity(
                 plan.name,
             )));
         }
-        return Ok(Some(plan.report_fingerprint()));
+        return Ok(Some((
+            plan.report_fingerprint(),
+            psi_checked_trees::CheckedProviderPlanCommitment::from_digest(
+                *plan.identity_digest().as_bytes(),
+            ),
+        )));
     }
     let ProviderBinding::CompilerIntrinsic { machine, .. } = &row.binding else {
         return Err(psi_diagnostics::Diagnostic::error(format!(
@@ -567,7 +577,12 @@ fn selected_operator_provider_identity(
             plan.name,
         )));
     }
-    Ok(Some(plan.report_fingerprint()))
+    Ok(Some((
+        plan.report_fingerprint(),
+        psi_checked_trees::CheckedProviderPlanCommitment::from_digest(
+            *plan.identity_digest().as_bytes(),
+        ),
+    )))
 }
 
 pub fn intrinsic_realization_matches_operator(
