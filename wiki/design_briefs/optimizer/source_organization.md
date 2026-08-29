@@ -412,6 +412,11 @@ entrance validates candidate custody and selects local/dominating elimination
 or phi-translated join synthesis; `rule_catalog` exposes the exact admitted
 rule identities, while proof admission, expression keys, dominance replay,
 and the two rewrite protocols descend into named leaves.
+Producer-side GVN expression identity has the same shape. Its former flat
+`expression_keys.rs` leaf is a 33-line entrance that owns the common canonical
+row and operand-pair contracts, then names separate `model`, obligation-free
+`total`, `proof_certified`, and asymmetric `compatible_policy` rungs. No leaf
+exceeds 300 lines, and the architecture gate pins the entrance contract.
 Obligation-free wrapping neutral arithmetic is a separate closed family. The
 producer's `identities/mod.rs` entrance exposes its rule and five-row shape
 partition; the validator's `total_scalar_identity/mod.rs` entrance descends
