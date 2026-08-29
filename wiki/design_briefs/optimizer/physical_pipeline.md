@@ -11,6 +11,14 @@ the entire program. Selected rules may fold exact incoming immediates or choose
 equivalent target forms, but must preserve operation, edge, trap, provenance,
 and fuel identities.
 
+The mandatory lowering crate has two explicit entrances. `legalization/mod.rs`
+joins canonical source projection to independent whole-plan replay;
+`selection/mod.rs` joins selected-plan construction to independent validation.
+Structural, scalar-function, leaf-expression, constraint, identity, and
+fixture mechanics descend below those joins. The crate-level `lib.rs` is only
+the 21-line responsibility map between the two stages, not a hidden third
+coordinator.
+
 ## Register allocation
 
 Allocation computes selected-CFG liveness, live-range fragments,

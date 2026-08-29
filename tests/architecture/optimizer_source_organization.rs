@@ -24,6 +24,7 @@ const GOVERNED_ROOTS: &[&str] = &[
     "source/omega-rust/omega/representations/omega-optimization-core",
     "source/omega-rust/omega/representations/omega-optimization-unit",
     "source/omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations",
+    "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions",
 ];
 
 #[derive(Clone, Copy)]
@@ -39,6 +40,21 @@ struct EntranceException {
 /// or returns to 100 lines or fewer. Ceilings may never exceed the hard
 /// 200-line entrance limit.
 const ENTRANCE_EXCEPTIONS: &[EntranceException] = &[
+    EntranceException {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/replay/mod.rs",
+        ceiling: 120,
+        semantic_reason: "owns whole-plan independent replay across scalar, Unit, and structural Unit function families",
+    },
+    EntranceException {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/mod.rs",
+        ceiling: 160,
+        semantic_reason: "owns the three canonical source-projection rosters and their shared custody preflight",
+    },
+    EntranceException {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/mod.rs",
+        ceiling: 140,
+        semantic_reason: "owns complete selected-plan custody, roster traversal, independent validation, and receipt admission",
+    },
     EntranceException {
         path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/realization/function_relative_realization/assembly/mod.rs",
         ceiling: 120,
@@ -60,6 +76,14 @@ struct RequiredCoordinationEntrance {
 /// keeping these paths small is insufficient: deleting the coordination seam
 /// and leaving a re-export wall must fail this architecture test.
 const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/mod.rs",
+        coordination_marker: "pub fn legalize_target_operations",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/mod.rs",
+        coordination_marker: "pub fn select_instructions",
+    },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/mod.rs",
         coordination_marker: "pub fn built_in_psi_registries",

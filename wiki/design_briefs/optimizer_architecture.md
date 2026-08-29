@@ -124,12 +124,15 @@ source/omega-rust/omega/
     omega-optimization-core/       # one exact-name descriptor, selections, identities
     omega-optimization-unit/       # complete input model, reconstruction, rewrite custody
     omega-register-model/          # register views, units, aliases, ABI facts
-  pipeline/optimization/
-    omega-psi-optimizer/            # Psi analyses, catalog, rules, pass manager
-    omega-optimization-validation/  # independent Psi and unit validation
-    omega-regalloc/                 # physical analyses, allocation, recovery rules
-    omega-machine-optimizer/        # symbolic-machine analyses, plans, rules
-    omega-optimization-pipeline/    # cross-stage custody and compiler routes
+  pipeline/
+    omega-target-operations-to-selected-instructions/
+                                      # legalization and selection stage entrances
+    optimization/
+      omega-psi-optimizer/            # Psi analyses, catalog, rules, pass manager
+      omega-optimization-validation/  # independent Psi and unit validation
+      omega-regalloc/                 # physical analyses, allocation, recovery rules
+      omega-machine-optimizer/        # symbolic-machine analyses, plans, rules
+      omega-optimization-pipeline/    # cross-stage custody and compiler routes
 ```
 
 Within a crate, follow semantic rungs rather than filename prefixes:
