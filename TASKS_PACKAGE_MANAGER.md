@@ -61,10 +61,11 @@ closed. Compiler-issued package review remains non-admitting.
 
   Existing coverage includes ordinary nominal references, calls, operators,
   conformance arguments, `satisfies` coordinates, establishment routes,
-  machine-parameter requirements, unary compiler intrinsics, and supported
-  member access. Remaining visibility-dependent nested positions must either
-  retain exact authored selection and source custody or fail before review.
-  Toolchain-authored bodies remain outside ordinary package admission.
+  machine-parameter requirements, qualification-cast semantic domains, unary
+  compiler intrinsics, and supported member access. Remaining visibility-
+  dependent nested positions must either retain exact authored selection and
+  source custody or fail before review. Toolchain-authored bodies remain
+  outside ordinary package admission.
 
 - [ ] **CLOSE-COMPILER-SEMANTIC-SUBJECTS.** Give every source-free
   compiler-owned semantic subject admitted by package review a closed identity

@@ -591,6 +591,18 @@ fn expression_candidates(
                 &mut candidates,
             );
         }
+        ExpressionNode::Cast(cast) if !cast.semantic_domain.is_empty() => {
+            let members = expressions.name_path_members(cast.semantic_domain);
+            candidates.push(Candidate {
+                expression,
+                source_span: path_span(members, expression_span),
+                kind: Kind::DomainMembership,
+                target: resolved_or_late(
+                    cast.semantic_domain_symbol,
+                    LateBinding::CheckedDomainMembership,
+                ),
+            });
+        }
         ExpressionNode::Member(member) => candidates.push(Candidate {
             expression,
             source_span: member.member.source_span(),

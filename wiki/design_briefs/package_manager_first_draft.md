@@ -169,7 +169,10 @@ selected domain path, not the lexical value parameter. Every independently
 nameable declaration owns ordinary `pub`; carrier qualification does not imply
 visibility inheritance, while genuine nested members inherit their one exact
 semantic owner's visibility. A public-interface selection of a private
-declaration rejects.
+declaration rejects. A qualification cast's authored semantic-domain path is
+one such exact selection: it enters the ledger at the cast expression, is
+finalized only by the typed domain resolution, and therefore passes the same
+visibility and direct-dependency gates before package review.
 
 In a generic conformance bound, the subject and optional evidence binder are
 lexical. The right-hand trait is authored declaration authority, and a
