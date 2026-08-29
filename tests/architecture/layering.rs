@@ -644,12 +644,10 @@ fn compiler_crate_owns_no_product_binaries() {
 #[test]
 fn standalone_source_profile_analysis_stays_retired() {
     let root = workspace_root();
-    let retired_compiler =
-        root.join("source/omega-rust/omega/compiler/omega-compiler/src/pipeline/source_inspection.rs");
-    let retired_tool =
-        root.join("source/omega-rust/omega/tooling/omega-source-profile/Cargo.toml");
-    let retired_command =
-        root.join("source/omega-rust/omega/src/command/source_snapshot.rs");
+    let retired_compiler = root
+        .join("source/omega-rust/omega/compiler/omega-compiler/src/pipeline/source_inspection.rs");
+    let retired_tool = root.join("source/omega-rust/omega/tooling/omega-source-profile/Cargo.toml");
+    let retired_command = root.join("source/omega-rust/omega/src/command/source_snapshot.rs");
     assert!(
         !retired_compiler.exists() && !retired_tool.exists() && !retired_command.exists(),
         "standalone source inspection, census schemas, and their command must not return beside the production compiler path"
@@ -860,6 +858,14 @@ fn package_subsystem_has_deliberate_entrances() {
     assert_eq!(
         manager_source, expected_manager_source,
         "the manager entrance must read as commands, declarations, resolution, then review"
+    );
+    let manager_root = std::fs::read_to_string(packages.join("manager/src/lib.rs"))
+        .expect("read package manager crate entrance");
+    assert!(
+        !manager_root
+            .lines()
+            .any(|line| line.starts_with("pub use ")),
+        "the manager crate entrance must name responsibility owners instead of flattening them"
     );
 
     for required in [

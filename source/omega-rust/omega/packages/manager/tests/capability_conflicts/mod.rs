@@ -1,16 +1,20 @@
-use omega_package_manager::{
-    ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits, PackageTriageDisposition,
-    PackageTriageReason, ResolveExternalLocalPackageClosureError, ResolvePackageSourceError,
-    ResolvedPackageSourceClosure, ReviewOnlyBaselineCapsule, ReviewOnlyBaselineLimits,
-    ReviewOnlyCapabilityConflictChange, ReviewOnlyCapabilityConflictError,
-    ReviewOnlyCapabilityConflictLimits, ReviewOnlyRootPolicyDirectory,
-    ReviewOnlyRootPolicyDisposition, ReviewOnlyRootPolicyFileError, ReviewOnlyRootPolicyName,
-    ReviewOnlyRootPolicyNameError, ReviewOnlyRootPolicyRecordError,
-    ReviewOnlyRootPolicyRecordLimits, ReviewOnlyRootPolicyResolutionError, SourceResolverStorage,
+use omega_package_manager::resolution::{
+    ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits,
+    ResolveExternalLocalPackageClosureError, ResolvePackageSourceError,
+    ResolvedPackageSourceClosure, SourceResolverStorage,
+    resolve_external_local_package_closure_with_storage,
+};
+use omega_package_manager::review::{
+    PackageTriageDisposition, PackageTriageReason, ReviewOnlyBaselineCapsule,
+    ReviewOnlyBaselineLimits, ReviewOnlyCapabilityConflictChange,
+    ReviewOnlyCapabilityConflictError, ReviewOnlyCapabilityConflictLimits,
+    ReviewOnlyRootPolicyDirectory, ReviewOnlyRootPolicyDisposition, ReviewOnlyRootPolicyFileError,
+    ReviewOnlyRootPolicyName, ReviewOnlyRootPolicyNameError, ReviewOnlyRootPolicyRecordError,
+    ReviewOnlyRootPolicyRecordLimits, ReviewOnlyRootPolicyResolutionError,
     compare_review_only_capabilities, compare_review_only_capabilities_from_baseline,
     compile_resolved_package_reviews, recover_review_only_root_policy_resolution,
-    resolve_external_local_package_closure_with_storage, resolve_review_only_root_policy_decisions,
-    triage_review_update, triage_review_update_from_baseline,
+    resolve_review_only_root_policy_decisions, triage_review_update,
+    triage_review_update_from_baseline,
 };
 use omega_package_review::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,

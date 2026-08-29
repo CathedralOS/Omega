@@ -1,8 +1,8 @@
 //! Canonical graph and resource validation shared by capture and recovery.
 
 use super::{ReviewOnlyBaselineError, ReviewOnlyBaselineLimits, ReviewOnlyBaselinePackage};
+use crate::resolution::{AliasName, ImmutableSourceResolution, PackageKey, ResolvedPackageClosure};
 use crate::review::evidence::ReviewOnlyCanonicalRow;
-use crate::{AliasName, ImmutableSourceResolution, PackageKey, ResolvedPackageClosure};
 use omega_build_evaluation::BuildFilesystemReplayRecordLimits;
 use omega_package_review::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRecoveryLimits,

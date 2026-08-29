@@ -2,7 +2,7 @@ use super::model::{
     CanonicalPackageReconstructionEntry, CanonicalPackageReconstructionQuestionError,
     CanonicalPackageReconstructionQuestionLimits,
 };
-use crate::{CanonicalSourceClosureSubject, PackageKey};
+use crate::resolution::{CanonicalSourceClosureSubject, PackageKey};
 use omega_package_review::encode_ordinary_package_obligation_ledger;
 use psi_core::PackageKeyIdentity;
 use std::collections::{BTreeMap, BTreeSet};

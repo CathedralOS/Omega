@@ -1,7 +1,7 @@
 use super::super::validation::PackageClosureValidationError;
 use super::*;
 use crate::declarations::dependency_projection::DependencySourceRequest;
-use crate::{
+use crate::resolution::{
     GitSourceRequest, LocalSourceLimits, PackageSourceCustody, ResolvedPackageSource,
     resolve_workspace_member_package_source,
 };

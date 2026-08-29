@@ -1,4 +1,6 @@
-use crate::{CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, PackageKey};
+use crate::resolution::{
+    CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, PackageKey,
+};
 use omega_package_review::OrdinaryPackageObligationLedger;
 use std::fmt;
 

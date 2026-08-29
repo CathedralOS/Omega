@@ -1,6 +1,6 @@
+use crate::resolution::{PackageKey, PackageSourceCustody};
 use crate::review::evidence::PackageReviewEvidence;
 use crate::review::validation::{ReviewOnlyClosureValidationError, ReviewOnlySetValidationError};
-use crate::{PackageKey, PackageSourceCustody};
 use std::collections::BTreeMap;
 
 use super::super::error::{PackageSourceReviewCustodyRole, PackageSourceReviewError};

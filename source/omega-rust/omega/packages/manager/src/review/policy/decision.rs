@@ -1,5 +1,5 @@
 use super::resolution::ReviewOnlyRootPolicyResolutionError;
-use crate::{
+use crate::review::{
     ReviewOnlyCandidateClosureCommitment, ReviewOnlyCapabilityConflict,
     ReviewOnlyCapabilityConflictFingerprint, ReviewOnlyPackageCapabilityConflicts,
 };

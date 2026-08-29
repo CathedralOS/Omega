@@ -1,8 +1,9 @@
 use omega_compiler::compile_to_checked_with_packages;
-use omega_package_manager::{
+use omega_package_manager::resolution::{
     ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits, SourceResolverStorage,
-    package_compilation_inputs, resolve_external_local_package_closure_with_storage,
+    resolve_external_local_package_closure_with_storage,
 };
+use omega_package_manager::review::package_compilation_inputs;
 use psi_source::SourceOrigin;
 use std::fs;
 use std::path::{Path, PathBuf};

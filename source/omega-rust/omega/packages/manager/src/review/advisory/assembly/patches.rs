@@ -1,6 +1,6 @@
-use crate::{
-    CompilerReviewTriage, PackageKey, PackageSourceCustody, PackageTriageDecision,
-    PackageTriageDisposition, PackageTriageReason, ResolvedPackageSourceClosure,
+use crate::resolution::{PackageKey, PackageSourceCustody, ResolvedPackageSourceClosure};
+use crate::review::{
+    CompilerReviewTriage, PackageTriageDecision, PackageTriageDisposition, PackageTriageReason,
     render_package_source_patch,
 };
 use std::collections::BTreeMap;

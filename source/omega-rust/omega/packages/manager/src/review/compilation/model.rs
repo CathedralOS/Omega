@@ -1,5 +1,5 @@
+use crate::resolution::{ImmutableSourceResolution, PackageKey};
 use crate::review::evidence::ReviewOnlyCanonicalRow;
-use crate::{ImmutableSourceResolution, PackageKey};
 use omega_build_evaluation::BuildObservationSummary;
 use omega_package_compilation::{PackageGeneratedSourceBundle, PackageSourceConsumptionCommitment};
 use omega_package_review::{

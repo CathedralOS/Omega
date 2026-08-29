@@ -4,10 +4,8 @@ use super::model::{
     CanonicalPackageReconstructionQuestionError, CanonicalPackageReconstructionQuestionLimits,
 };
 use super::validation::validate_association;
-use crate::{
-    CanonicalSourceClosureSubject, CompilerIssuedPackageReviewSet, ResolvedPackageSourceClosure,
-    package_compilation_inputs_for,
-};
+use crate::resolution::{CanonicalSourceClosureSubject, ResolvedPackageSourceClosure};
+use crate::review::{CompilerIssuedPackageReviewSet, package_compilation_inputs_for};
 use std::collections::BTreeMap;
 
 impl CanonicalPackageReconstructionQuestion {

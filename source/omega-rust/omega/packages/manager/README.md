@@ -5,7 +5,7 @@ same order the workflow runs:
 
 ```text
 src/
-├── lib.rs          public crate entrance and responsibility exports
+├── lib.rs          public entrance naming the four responsibility owners
 ├── commands/       complete command-facing operations; start here
 ├── declarations/   read and conservatively edit build.omg
 ├── resolution/     turn declared sources into one validated closure
@@ -17,6 +17,11 @@ src/
 `commands/source_audit/` is the first complete operation. Install/update
 orchestration remains intentionally absent until its admission prerequisites
 are implemented.
+
+Callers use these owner paths directly—for example `declarations::` for
+`build.omg` projection, `resolution::` for source closure construction, and
+`review::` for compiler-review orchestration. The crate root does not flatten
+their APIs into a second, ambiguous namespace.
 
 ## Source custody
 

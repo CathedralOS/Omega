@@ -1,6 +1,6 @@
 use super::{CompileResolvedPackageReviewsError, PackageSourceVerificationPhase};
+use crate::resolution::{ImmutableSourceResolution, PackageKey, ResolvedPackageSourceClosure};
 use crate::review::compilation::inputs::reachable_package_keys;
-use crate::{ImmutableSourceResolution, PackageKey, ResolvedPackageSourceClosure};
 use omega_package_source::verify_package_source_snapshot;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -87,7 +87,7 @@ fn encode_hex(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::package_build_root;
-    use crate::{
+    use crate::resolution::{
         ImmutableSourceResolution, PackageKey, PackageName, SourceContentDigest, SourceLineage,
     };
     use std::path::Path;

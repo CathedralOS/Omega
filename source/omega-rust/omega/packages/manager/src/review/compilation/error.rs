@@ -1,5 +1,5 @@
 use super::PackageSourceVerificationPhase;
-use crate::PackageKey;
+use crate::resolution::PackageKey;
 use omega_package_compilation::PackageCompilationInputError;
 use omega_package_review::PackageReviewEncodingError;
 use omega_package_source::SourceResolveError;

@@ -147,7 +147,7 @@ pub fn audit_package_source_locator(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::GitSourceRequest;
+    use crate::resolution::GitSourceRequest;
     use std::ffi::OsStr;
     use std::process::Command;
     use std::time::{SystemTime, UNIX_EPOCH};

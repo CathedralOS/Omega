@@ -10,9 +10,10 @@ use super::{
     CompileResolvedPackageReviewsError, CompilerIssuedPackageReview,
     CompilerIssuedPackageReviewSet, PackageSourceVerificationPhase,
 };
+use crate::resolution::ResolvedPackageSourceClosure;
 use crate::review::compilation::inputs::reachable_package_keys;
 use crate::review::evidence::ReviewOnlyCanonicalRow;
-use crate::{ResolvedPackageSourceClosure, package_compilation_inputs_for};
+use crate::review::package_compilation_inputs_for;
 use omega_compiler::compile_to_checked_with_packages_in_sponsored_build_dir;
 use omega_package_compilation::PackageCompilationInputError;
 use omega_package_review::{

@@ -177,8 +177,9 @@ fn reconcile_declared_local_dependencies(
     if !project_root.join("build.omg").is_file() {
         return Ok(None);
     }
-    let dependencies = omega_package_manager::extract_dependency_projection(&project_root)
-        .map_err(|error| format!("cannot project declared dependencies: {error}"))?;
+    let dependencies =
+        omega_package_manager::declarations::extract_dependency_projection(&project_root)
+            .map_err(|error| format!("cannot project declared dependencies: {error}"))?;
     if dependencies.is_empty() {
         return Ok(None);
     }
@@ -195,25 +196,29 @@ fn reconcile_declared_local_dependencies(
             )
         })?;
     let storage = local_source_storage()?;
-    let closure = omega_package_manager::resolve_external_local_project_closure_with_storage(
-        &project_root,
-        omega_package_manager::ExternalSourceContext::derive(b"omega-local-project-v1"),
-        &storage,
-        omega_package_manager::LocalSourceLimits::default(),
-        omega_package_manager::PackageSourceClosureLimits::default(),
-    )
-    .map_err(|error| format!("cannot resolve declared package closure: {error}"))?;
+    let closure =
+        omega_package_manager::resolution::resolve_external_local_project_closure_with_storage(
+            &project_root,
+            omega_package_manager::resolution::ExternalSourceContext::derive(
+                b"omega-local-project-v1",
+            ),
+            &storage,
+            omega_package_manager::resolution::LocalSourceLimits::default(),
+            omega_package_manager::resolution::PackageSourceClosureLimits::default(),
+        )
+        .map_err(|error| format!("cannot resolve declared package closure: {error}"))?;
     let root_snapshot = closure
         .source_root(closure.graph().root())
         .ok_or_else(|| "resolved package closure lost its root source custody".to_owned())?;
     options.root_path = root_snapshot.join(entry_relative);
-    omega_package_manager::package_compilation_inputs(&closure)
+    omega_package_manager::review::package_compilation_inputs(&closure)
         .map(Some)
         .map_err(|errors| format!("cannot construct compiler package graph: {errors:?}"))
 }
 
-fn local_source_storage() -> Result<omega_package_manager::SourceResolverStorage, String> {
-    omega_package_manager::SourceResolverStorage::for_current_user()
+fn local_source_storage() -> Result<omega_package_manager::resolution::SourceResolverStorage, String>
+{
+    omega_package_manager::resolution::SourceResolverStorage::for_current_user()
         .map_err(|error| format!("cannot open private source resolver storage: {error}"))
 }
 

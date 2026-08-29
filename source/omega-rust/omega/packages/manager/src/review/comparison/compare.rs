@@ -2,13 +2,12 @@
 
 use super::commitments::{derive_candidate_closure_commitment, derive_conflict_fingerprint};
 use super::model::*;
+use crate::resolution::{DependencyRequestPath, PackageKey, ResolvedPackageSourceClosure};
+use crate::review::CompilerIssuedPackageReviewSet;
 use crate::review::evidence::{PackageReviewEvidence, ReviewOnlyCanonicalRow};
 use crate::review::validation::{
     ReviewOnlyClosureValidationError, ReviewOnlySetValidationError, validate_review_only_closure,
     validate_review_only_records,
-};
-use crate::{
-    CompilerIssuedPackageReviewSet, DependencyRequestPath, PackageKey, ResolvedPackageSourceClosure,
 };
 use omega_package_review::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,

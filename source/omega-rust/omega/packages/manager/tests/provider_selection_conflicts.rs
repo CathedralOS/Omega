@@ -1,8 +1,11 @@
-use omega_package_manager::{
-    ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits, PackageTriageDisposition,
-    PackageTriageReason, ReviewOnlyCapabilityConflictChange, ReviewOnlyCapabilityConflictLimits,
-    SourceResolverStorage, compare_review_only_capabilities, compile_resolved_package_reviews,
-    resolve_external_local_package_closure_with_storage, triage_review_update,
+use omega_package_manager::resolution::{
+    ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits, SourceResolverStorage,
+    resolve_external_local_package_closure_with_storage,
+};
+use omega_package_manager::review::{
+    PackageTriageDisposition, PackageTriageReason, ReviewOnlyCapabilityConflictChange,
+    ReviewOnlyCapabilityConflictLimits, compare_review_only_capabilities,
+    compile_resolved_package_reviews, triage_review_update,
 };
 use omega_package_review::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewSourceLocationRole,

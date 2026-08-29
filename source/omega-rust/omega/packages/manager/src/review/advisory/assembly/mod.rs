@@ -1,13 +1,11 @@
 mod patches;
 mod validation;
 
+use crate::resolution::{PackageSourceCustody, ResolvedPackageSourceClosure};
 use crate::review::evidence::PackageReviewEvidence;
 use crate::review::triage::triage_review_update_records;
 use crate::review::validation::{validate_review_only_closure, validate_review_only_records};
-use crate::{
-    CompilerIssuedPackageReviewSet, PackageSourceCustody, ResolvedPackageSourceClosure,
-    triage_initial_install,
-};
+use crate::review::{CompilerIssuedPackageReviewSet, triage_initial_install};
 
 use super::error::{PackageSourceReviewCustodyRole, PackageSourceReviewError};
 use super::input::{PackageSourceReviewInput, PackageSourceReviewLimits};

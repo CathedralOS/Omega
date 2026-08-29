@@ -176,7 +176,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
         let initial_review = assemble_initial_source_review(
             &reviews,
             &closure,
-            omega_package_manager::PackageSourceReviewLimits::default(),
+            omega_package_manager::review::PackageSourceReviewLimits::default(),
         )
         .expect("initial review input joins compiler rows to exact source custody");
         assert_eq!(
@@ -215,7 +215,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             &reviews,
             closure.custodies(),
             &closure,
-            omega_package_manager::PackageSourceReviewLimits::default(),
+            omega_package_manager::review::PackageSourceReviewLimits::default(),
         )
         .expect("unchanged review input joins exact baseline and candidate custody");
         assert!(
@@ -239,7 +239,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             &reviews,
             &[],
             &closure,
-            omega_package_manager::PackageSourceReviewLimits::default(),
+            omega_package_manager::review::PackageSourceReviewLimits::default(),
         )
         .expect("missing old source retains compiler baseline and renders candidate custody");
         let unavailable_patch = unavailable_review
@@ -282,7 +282,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
                 &reviews,
                 closure.custodies(),
                 &closure,
-                omega_package_manager::PackageSourceReviewLimits::default(),
+                omega_package_manager::review::PackageSourceReviewLimits::default(),
             )
             .expect("recovered baseline joins available old custody");
             assert_eq!(recovered_unchanged, unchanged_review);
@@ -291,7 +291,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
                 &reviews,
                 &[],
                 &closure,
-                omega_package_manager::PackageSourceReviewLimits::default(),
+                omega_package_manager::review::PackageSourceReviewLimits::default(),
             )
             .expect("recovered baseline survives unavailable old source");
             assert_eq!(recovered_unavailable, unavailable_review);
@@ -365,7 +365,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
                         &reviews,
                         &[],
                         &closure,
-                        omega_package_manager::PackageSourceReviewLimits::default(),
+                        omega_package_manager::review::PackageSourceReviewLimits::default(),
                     )
                     .expect("reopened baseline preserves standalone source review"),
                     unavailable_review

@@ -1,16 +1,20 @@
 use omega_build_evaluation::{BuildFilesystemObservedByteRegionKind, BuildObservationClass};
-use omega_package_manager::{
-    CompileResolvedPackageReviewsError, LocalSourceLimits, PackageSourceClosureLimits,
-    PackageSourceVerificationPhase, PackageTriageDisposition, PackageTriageReason,
-    ResolvePackageSourceError, ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure,
-    ReviewOnlyBaselineCapsule, ReviewOnlyBaselineDirectory, ReviewOnlyBaselineFileError,
-    ReviewOnlyBaselineLimits, ReviewOnlyBaselineName, ReviewOnlyBaselineNameError,
-    ReviewOnlyCapabilityConflictLimits, SourceLineage, SourceResolveError, SourceResolverStorage,
-    WorkspaceMemberPath, assemble_initial_source_review, assemble_update_source_review,
+use omega_package_manager::resolution::{
+    LocalSourceLimits, PackageSourceClosureLimits, ResolvePackageSourceError,
+    ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure, SourceLineage,
+    SourceResolveError, SourceResolverStorage, WorkspaceMemberPath,
+    resolve_workspace_package_closure_with_storage,
+};
+use omega_package_manager::review::{
+    CompileResolvedPackageReviewsError, PackageSourceVerificationPhase, PackageTriageDisposition,
+    PackageTriageReason, ReviewOnlyBaselineCapsule, ReviewOnlyBaselineDirectory,
+    ReviewOnlyBaselineFileError, ReviewOnlyBaselineLimits, ReviewOnlyBaselineName,
+    ReviewOnlyBaselineNameError, ReviewOnlyCapabilityConflictLimits,
+    assemble_initial_source_review, assemble_update_source_review,
     assemble_update_source_review_from_baseline, compare_review_only_capabilities,
     compare_review_only_capabilities_from_baseline, compile_resolved_package_reviews,
-    resolve_workspace_package_closure_with_storage, triage_initial_install, triage_review_update,
-    triage_review_update_from_baseline, triage_update_without_admission_baseline,
+    triage_initial_install, triage_review_update, triage_review_update_from_baseline,
+    triage_update_without_admission_baseline,
 };
 use omega_package_review::{
     CheckedPackageReviewProjection, PackageReviewCallableRole, PackageReviewCanonicalRowKind,

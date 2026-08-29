@@ -1,5 +1,5 @@
 use super::decision::{ReviewOnlyRootPolicyDecision, ReviewOnlyRootPolicyDisposition};
-use crate::{
+use crate::review::{
     ReviewOnlyCandidateClosureCommitment, ReviewOnlyCapabilityConflictFingerprint,
     ReviewOnlyCapabilityConflictSet,
 };

@@ -14,9 +14,10 @@ pub(super) struct ExactCompilerRowScenario {
     pub(super) policy_outside: PathBuf,
     pub(super) baseline_sources: ResolvedPackageSourceClosure,
     pub(super) candidate_sources: ResolvedPackageSourceClosure,
-    pub(super) baseline_reviews: omega_package_manager::CompilerIssuedPackageReviewSet,
-    pub(super) stale_baseline_reviews: omega_package_manager::CompilerIssuedPackageReviewSet,
-    pub(super) candidate_reviews: omega_package_manager::CompilerIssuedPackageReviewSet,
+    pub(super) baseline_reviews: omega_package_manager::review::CompilerIssuedPackageReviewSet,
+    pub(super) stale_baseline_reviews:
+        omega_package_manager::review::CompilerIssuedPackageReviewSet,
+    pub(super) candidate_reviews: omega_package_manager::review::CompilerIssuedPackageReviewSet,
 }
 
 impl ExactCompilerRowScenario {
