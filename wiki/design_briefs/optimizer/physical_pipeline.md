@@ -85,6 +85,13 @@ an optional typed leaf of the selected-lowering realization rather than an
 admission prerequisite. The fragment manifest records the generic phase source
 kind while its selection and realization identities retain the exact rules.
 
+The incoming-u12 add/subtract producer emits an immutable fold plan. Its
+validator separately reconstructs source eligibility, register constraints,
+the exact action roster, rewritten instructions, provenance and fuel custody,
+dense identifiers, work usage, and transformed-plan identity. Validation does
+not call the producer's transformation helpers; an architecture dependency
+guard enforces that separation.
+
 The adjacent machine catalog is also the architecture-admission point. CBNZ
 and MOVN require AArch64; XOR-zero requires x86-64. Function-relative rel8
 relaxation declares x86-64 in its adjacent layout catalog. Unsupported target
