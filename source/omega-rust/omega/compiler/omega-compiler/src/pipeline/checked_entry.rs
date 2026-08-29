@@ -1,7 +1,7 @@
 use crate::pipeline::PackageCompilationInputs;
 use crate::pipeline::phase_transitions::{
-    symbol_resolved_trees_to_typed_trees, syntax_trees_to_symbol_resolved_trees,
-    typed_trees_to_checked_trees,
+    TypedToCheckedSettlementInput, symbol_resolved_trees_to_typed_trees,
+    syntax_trees_to_symbol_resolved_trees, typed_trees_to_checked_trees,
 };
 use crate::pipeline::source_assembly::source_files_to_syntax_trees_for_engine;
 use crate::pipeline::timing::CompileTimings;
@@ -755,36 +755,20 @@ fn compile_to_checked_inner_with_replay(
             &selected_provider_plan_facts,
         )?;
     }
-    let mut checked = typed_trees_to_checked_trees(typed, &mut timings)?;
-    if let Some(package_inputs) = package_inputs {
-        crate::pipeline::package_declaration_admission::validate_authored_declaration_selections(
-            &checked.program,
+    let mut checked = typed_trees_to_checked_trees(
+        typed,
+        &mut timings,
+        TypedToCheckedSettlementInput {
+            native_target: selected_native_target,
             package_inputs,
-        )?;
-    }
-    if let Some(native_target) = selected_native_target {
-        crate::pipeline::calling_policy_plans::close_outbound_callback_materializations(
-            Arc::get_mut(&mut checked.program)
-                .expect("checked program must be uniquely owned before callback closure"),
-            &mut boundary_calling_plan_realizations,
-            native_target,
-            package_inputs,
-        )?;
-    }
-    let callback_placements =
-        crate::pipeline::calling_policy_plans::validate_nominal_callback_placement_bindings(
-            &checked.program,
-            &boundary_calling_plan_realizations,
-        )?;
-    let selected_provider_binding =
-        crate::pipeline::provider_plans::bind_selected_provider_plan_facts(
-            &checked.program,
-            &provider_plans,
+            boundary_calling_plan_realizations: &mut boundary_calling_plan_realizations,
+            provider_plans: &provider_plans,
             selected_provider_plan_facts,
-            &build_config.grants,
-        )?;
-    let (program, selected_provider_plan_facts) = selected_provider_binding.into_parts();
-    checked.program = program;
+            root_grants: &build_config.grants,
+        },
+    )?;
+    let callback_placements = std::mem::take(&mut checked.callback_placements);
+    let selected_provider_plan_facts = checked.selected_provider_plan_facts;
     let component_progress =
         crate::pipeline::component_progress::build_selected_component_progress_manifest(
             &checked.program,

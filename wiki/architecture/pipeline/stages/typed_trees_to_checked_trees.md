@@ -23,6 +23,17 @@ separate typed-tree snapshot or courier raw typed-derived rows around checking.
 Missing or duplicate template-classification rows reject, and package review
 rejects every unresolved stand-down.
 
+Target-dependent callback closure crosses this boundary as one explicit
+`TypedToCheckedSettlementInput`. Before checked Psi enters shared ownership,
+the transition closes the exact boundary calling-plan realizations and
+validates their nominal callback placements. It then transactionally binds the
+selected provider receipts and returns the settled provider facts plus callback
+placements on `CheckedProgramSurface`. The compiler coordinator consumes that
+complete result; it neither recovers unique ownership with `Arc::get_mut` nor
+replaces the checked program with an out-of-band provider settlement.
+Preliminary package-selection validation uses a separate checked observation;
+it does not fabricate a final surface with absent settlement fields.
+
 ## Semantic Ownership
 
 This stage is the first durable semantic fact owner. It should be the place

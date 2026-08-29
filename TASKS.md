@@ -2657,7 +2657,16 @@ Remaining:
   the existing pristine-typed machine/contract/fact/reason ledger before the
   ownership-moving check and carries that phase-owned result into package
   review; the driver no longer captures or couriers a raw side vector.
-  Remaining post-check fact couriers remain open.
+  Target-dependent callback closure now also enters that transition through
+  one explicit `TypedToCheckedSettlementInput`. The phase closes callback
+  materializations while checked Psi is uniquely owned, validates the resulting
+  placements, transactionally binds selected-provider receipt facts, and
+  returns both sidecars on `CheckedProgramSurface`; the driver no longer uses
+  `Arc::get_mut`, calls the provider-fact binder, or replaces the checked
+  program after the transition. Preliminary package-selection validation uses
+  a distinct checked observation and cannot construct an incomplete final
+  surface. Selected execution-dispatch rewrites and the compiler-intrinsic
+  review-provenance courier remain open.
 
   Restore the driver contract:
 

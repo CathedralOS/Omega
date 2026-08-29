@@ -257,6 +257,76 @@ fn typed_to_checked_surface_owns_contract_stand_down_capture() {
     );
 }
 
+#[test]
+fn typed_to_checked_transition_owns_post_check_settlements_inside_its_surface() {
+    let repo_root = repo_root();
+    let transition_path = repo_root
+        .join("source/omega-rust/omega/compiler/omega-compiler/src/pipeline/phase_transitions.rs");
+    let transition = fs::read_to_string(&transition_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", transition_path.display()));
+    let transition = without_ascii_whitespace(&transition);
+    let settlement = transition
+        .find("close_outbound_callback_materializations(")
+        .expect("the typed-to-checked phase transition must own explicit callback settlement");
+    let shared_ownership = transition
+        .find("Arc::new(program)")
+        .expect("the typed-to-checked phase transition must publish checked Psi through Arc");
+    assert!(
+        settlement < shared_ownership,
+        "callback settlement must complete before checked Psi enters shared Arc ownership"
+    );
+    assert!(
+        transition.contains("bind_selected_provider_plan_facts("),
+        "the typed-to-checked phase transition must own provider fact settlement"
+    );
+    assert!(
+        transition.contains(
+            "pub(super)selected_provider_plan_facts:omega_effects::SelectedProviderPlanFacts,"
+        ),
+        "the final checked phase surface must require its settled provider facts"
+    );
+    assert!(
+        transition.contains("fntyped_trees_to_preliminary_checked_trees("),
+        "preliminary package validation must use a distinct checked observation rather than an incomplete final surface"
+    );
+    let returned_surface = transition
+        .split_once("Ok(CheckedProgramSurface{")
+        .map(|(_, returned_surface)| returned_surface)
+        .expect("the typed-to-checked transition must return its checked phase surface");
+    assert!(
+        returned_surface.contains("selected_provider_plan_facts"),
+        "the typed-to-checked transition must return the provider facts settled beside the program"
+    );
+
+    for driver_relative_path in [
+        "source/omega-rust/omega/compiler/omega-compiler/src/compiler/driver.rs",
+        "source/omega-rust/omega/compiler/omega-compiler/src/pipeline/checked_entry.rs",
+    ] {
+        let driver_path = repo_root.join(driver_relative_path);
+        let driver = fs::read_to_string(&driver_path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", driver_path.display()));
+        assert!(
+            !without_ascii_whitespace(&driver).contains("Arc::get_mut("),
+            "{} must not recover unique ownership to rewrite checked Psi after checking",
+            driver_path.display()
+        );
+    }
+
+    let checked_entry_path = repo_root
+        .join("source/omega-rust/omega/compiler/omega-compiler/src/pipeline/checked_entry.rs");
+    let checked_entry = fs::read_to_string(&checked_entry_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", checked_entry_path.display()));
+    let checked_entry = without_ascii_whitespace(&checked_entry);
+    assert!(
+        !checked_entry.contains("bind_selected_provider_plan_facts("),
+        "checked orchestration must consume phase-settled provider facts instead of binding them after checking"
+    );
+    assert!(
+        !checked_entry.contains("checked.program="),
+        "checked orchestration must not replace the checked program after its phase transition"
+    );
+}
+
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
@@ -321,4 +391,11 @@ fn has_dependency_under(contents: &str, path_fragment: &str) -> bool {
     production_dependency_lines(contents)
         .iter()
         .any(|line| line.contains(path_fragment))
+}
+
+fn without_ascii_whitespace(contents: &str) -> String {
+    contents
+        .chars()
+        .filter(|character| !character.is_ascii_whitespace())
+        .collect()
 }
