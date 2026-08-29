@@ -41,7 +41,10 @@ fn review_projects_exact_reference_formation_in_public_propositions() {
     };
     assert_eq!(
         application.arguments(),
-        &[PackageReviewContractExpression::Parameter(0)]
+        &[PackageReviewContractExpression::Reference {
+            access: PackageReviewReferenceAccess::Shared,
+            target: Box::new(PackageReviewContractExpression::Parameter(0)),
+        }]
     );
 
     let mutable_reviewed = mutable
