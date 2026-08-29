@@ -8,7 +8,8 @@ mod source_snapshot;
 use std::path::PathBuf;
 
 use omega_compiler::{
-    ArtifactEmissionPolicy, CompileOptions, CompileRequest, RequestedCompileProduct, compile,
+    ArtifactEmissionPolicy, CompileOptions, CompileRequest, OptimizationRollback,
+    RequestedCompileProduct, compile,
 };
 use omega_core::allocations::CountingAllocator;
 
@@ -60,12 +61,13 @@ pub(crate) fn run() {
         source_snapshot::run(raw_arguments);
         return;
     }
-    let Some(arguments) = parse_arguments() else {
-        eprintln!(
-            "usage: omega [--check] [--output-only] [--build-dir <dir>] [--target <name>] <root.omg>\n       omega run [--both] [--keep] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source --kind <local|git> <locator> [--rev <rev>]\n       omega source-snapshot --repository-root <dir> [--target <name>] [--feature-census] <root.omg>\n       omega refresh-samples [samples-dir]"
-        );
+    let arguments = parse_arguments().unwrap_or_else(|error| {
+        if !error.is_empty() {
+            eprintln!("{error}");
+        }
+        eprintln!("{}", usage());
         std::process::exit(2);
-    };
+    });
 
     let mut options = CompileOptions {
         build_dir: arguments.build_dir,
@@ -93,14 +95,20 @@ pub(crate) fn run() {
     };
     let mut request = CompileRequest::new(options)
         .with_requested_product(requested_product)
-        .with_artifact_policy(artifact_policy);
+        .with_artifact_policy(artifact_policy)
+        .with_optimization_rollback(arguments.optimization_rollback);
     if let Some(package_inputs) = package_inputs {
         request = request.with_package_inputs(package_inputs);
     }
     match compile(request) {
         Ok(report) if arguments.check_only => println!("{}", report.summary()),
         Ok(report) => match output::publish_native_artifact(report, &build_dir) {
-            Ok(path) => println!("published native output to {}", path.display()),
+            Ok((published, path)) => {
+                if let Some(receipt) = published.optimization_rollback_receipt() {
+                    println!("optimizer rollback: {receipt}");
+                }
+                println!("published native output to {}", path.display());
+            }
             Err(error) => {
                 eprintln!("{error}");
                 std::process::exit(1);
@@ -178,11 +186,17 @@ struct CliArguments {
     output_only: bool,
     root_path: PathBuf,
     target_name: Option<String>,
+    optimization_rollback: OptimizationRollback,
 }
 
-fn parse_arguments() -> Option<CliArguments> {
+fn usage() -> &'static str {
+    "usage: omega [--check] [--output-only] [--build-dir <dir>] [--target <name>] [--disable-optimization <ExactName>]... <root.omg>\n       omega run [--both] [--keep] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source --kind <local|git> <locator> [--rev <rev>]\n       omega source-snapshot --repository-root <dir> [--target <name>] [--feature-census] <root.omg>\n       omega refresh-samples [samples-dir]"
+}
+
+fn parse_arguments() -> Result<CliArguments, String> {
     let mut build_dir = None;
     let mut check_only = false;
+    let mut disabled_optimizations = Vec::new();
     let mut output_only = false;
     let mut root_path = None;
     let mut target_name = None;
@@ -201,7 +215,9 @@ fn parse_arguments() -> Option<CliArguments> {
 
         if argument == "--build-dir" {
             build_dir = arguments.next().map(PathBuf::from);
-            build_dir.as_ref()?;
+            if build_dir.is_none() {
+                return Err("--build-dir requires a directory".into());
+            }
             continue;
         }
 
@@ -209,22 +225,42 @@ fn parse_arguments() -> Option<CliArguments> {
             target_name = arguments
                 .next()
                 .and_then(|target_name| target_name.into_string().ok());
-            target_name.as_ref()?;
+            if target_name.is_none() {
+                return Err("--target requires a UTF-8 target name".into());
+            }
+            continue;
+        }
+
+        if argument == "--disable-optimization" {
+            let Some(name) = arguments.next() else {
+                return Err("--disable-optimization requires one exact optimization name".into());
+            };
+            let name = name.into_string().map_err(|_| {
+                "--disable-optimization requires a UTF-8 exact optimization name".to_owned()
+            })?;
+            disabled_optimizations.push(name);
             continue;
         }
 
         if root_path.is_some() {
-            return None;
+            return Err(format!(
+                "unexpected extra argument `{}`",
+                argument.to_string_lossy()
+            ));
         }
 
         root_path = Some(PathBuf::from(argument));
     }
 
-    Some(CliArguments {
+    let optimization_rollback =
+        OptimizationRollback::from_exact_names(disabled_optimizations.iter().map(String::as_str))
+            .map_err(|error| error.to_string())?;
+    Ok(CliArguments {
         build_dir,
         check_only,
         output_only,
-        root_path: root_path?,
+        root_path: root_path.ok_or_else(|| "missing root Omega source path".to_owned())?,
         target_name,
+        optimization_rollback,
     })
 }

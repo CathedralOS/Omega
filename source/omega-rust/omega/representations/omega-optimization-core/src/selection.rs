@@ -49,6 +49,15 @@ macro_rules! optimization_vocabulary {
                 match self { $(Self::$variant => $counter),+ }
             }
 
+            /// Resolve one exact source-visible case name. Release tooling
+            /// shares this generated vocabulary rather than maintaining a
+            /// second rollback-name registry.
+            pub fn from_build_case_name(name: &str) -> Option<Self> {
+                Self::ALL
+                    .into_iter()
+                    .find(|optimization| optimization.build_case_name() == name)
+            }
+
             pub const fn execution_phase(self) -> OptimizationExecutionPhase {
                 match self {
                     $(Self::$variant => OptimizationExecutionPhase::$phase),+
@@ -343,9 +352,17 @@ mod tests {
             assert!(!optimization.build_counter_field().is_empty());
             assert!(case_names.insert(optimization.build_case_name()));
             assert!(counter_fields.insert(optimization.build_counter_field()));
+            assert_eq!(
+                Optimization::from_build_case_name(optimization.build_case_name()),
+                Some(optimization)
+            );
         }
         assert_eq!(case_names.len(), Optimization::ALL.len());
         assert_eq!(counter_fields.len(), Optimization::ALL.len());
+        assert_eq!(
+            Optimization::from_build_case_name("CopyPropagationV2"),
+            None
+        );
     }
 
     #[test]

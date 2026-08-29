@@ -453,6 +453,7 @@ dependencies = [
  "omega-build-evaluation",
  "omega-image",
  "omega-native-artifact",
+ "omega-optimization-core",
  "omega-target",
  "psi-terminal-codec",
  "sha2",

@@ -1,6 +1,9 @@
 use sha2::{Digest, Sha256};
 use std::path::PathBuf;
 
+mod optimization_rollback;
+pub use optimization_rollback::OptimizationRollbackReceipt;
+
 /// Complete non-clonable Terminal-Psi native artifact retained before output
 /// publication. The compatibility name remains while callers migrate from the
 /// former legacy `EmissionPlan + EmittedProgram` payload.
@@ -396,6 +399,9 @@ pub struct CompileReport {
     /// optional macOS application bundle. Non-GUI/non-Mach-O builds retain
     /// `None`; this remains distinct from the flat executable receipt.
     app_bundle_publication: Option<ExecutablePublicationReceipt>,
+    /// Exact subtractive release overlay applied after build selection and
+    /// before native realization. Ordinary requests retain `None`.
+    optimization_rollback: Option<OptimizationRollbackReceipt>,
     /// Deterministic accounting from the transitional typed-tree build
     /// evaluator. This is explicitly not terminal-Psi fuel.
     pub build_evaluation_usage: Option<omega_build_evaluation::BuildEvaluationUsage>,
@@ -426,6 +432,7 @@ impl CompileReport {
             artifact: None,
             executable_publication,
             app_bundle_publication,
+            optimization_rollback: None,
             build_evaluation_usage,
             build_observation_summary,
         };
@@ -440,6 +447,7 @@ impl CompileReport {
         root_path: PathBuf,
         source_file_count: usize,
         artifact: RetainedNativeArtifact,
+        optimization_rollback: Option<OptimizationRollbackReceipt>,
         build_evaluation_usage: Option<omega_build_evaluation::BuildEvaluationUsage>,
         build_observation_summary: Option<omega_build_evaluation::BuildObservationSummary>,
     ) -> Result<Self, &'static str> {
@@ -455,6 +463,7 @@ impl CompileReport {
             artifact: None,
             executable_publication: None,
             app_bundle_publication: None,
+            optimization_rollback,
             build_evaluation_usage,
             build_observation_summary,
         };
@@ -574,6 +583,7 @@ impl CompileReport {
             artifact: None,
             executable_publication: Some(receipt),
             app_bundle_publication: None,
+            optimization_rollback: self.optimization_rollback,
             build_evaluation_usage: self.build_evaluation_usage,
             build_observation_summary: self.build_observation_summary,
         };
@@ -599,6 +609,10 @@ impl CompileReport {
         self.retained_native_artifact.as_ref()
     }
 
+    pub const fn optimization_rollback_receipt(&self) -> Option<&OptimizationRollbackReceipt> {
+        self.optimization_rollback.as_ref()
+    }
+
     pub fn from_artifact(
         root_path: PathBuf,
         source_file_count: usize,
@@ -618,6 +632,7 @@ impl CompileReport {
             artifact: Some(artifact),
             executable_publication: None,
             app_bundle_publication: None,
+            optimization_rollback: None,
             build_evaluation_usage,
             build_observation_summary,
         };
@@ -668,6 +683,18 @@ impl CompileReport {
     /// executable and optional app-bundle copy, and terminal output replays
     /// the retained installation/image/file join.
     pub fn has_consistent_executable_publication_custody(&self) -> bool {
+        let rollback_matches_kind = match self.output_kind {
+            CompileOutputKind::RetainedNativeArtifact | CompileOutputKind::NativeExecutable => self
+                .optimization_rollback
+                .as_ref()
+                .is_none_or(OptimizationRollbackReceipt::is_consistent),
+            CompileOutputKind::CheckOnly
+            | CompileOutputKind::TerminalArtifact
+            | CompileOutputKind::ObjectContainer => self.optimization_rollback.is_none(),
+        };
+        if !rollback_matches_kind {
+            return false;
+        }
         let cardinality_matches_kind = match self.output_kind {
             CompileOutputKind::CheckOnly => {
                 !self.wrote_output
@@ -793,9 +820,35 @@ mod tests {
             artifact: None,
             executable_publication: flat,
             app_bundle_publication: bundle,
+            optimization_rollback: None,
             build_evaluation_usage: None,
             build_observation_summary: None,
         }
+    }
+
+    #[test]
+    fn rollback_receipt_is_custody_only_for_native_products() {
+        let selected = omega_optimization_core::OptimizationSelections::new([
+            omega_optimization_core::Optimization::ControlFlowCleanup,
+        ])
+        .unwrap();
+        let requested = selected.clone();
+        let rollback = super::OptimizationRollbackReceipt::new(selected, requested);
+        let mut native = report(
+            true,
+            CompileOutputKind::NativeExecutable,
+            Some(receipt(
+                ExecutablePublicationDestination::FlatOutput,
+                "build/main",
+            )),
+            None,
+        );
+        native.optimization_rollback = Some(rollback.clone());
+        assert!(native.has_consistent_executable_publication_custody());
+
+        let mut check = report(false, CompileOutputKind::CheckOnly, None, None);
+        check.optimization_rollback = Some(rollback);
+        assert!(!check.has_consistent_executable_publication_custody());
     }
 
     #[test]

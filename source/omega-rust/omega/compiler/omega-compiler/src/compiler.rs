@@ -8,14 +8,16 @@ use psi_diagnostics::Diagnostic;
 
 mod driver;
 pub(crate) mod execution;
+mod optimization_rollback;
 mod options;
 pub(crate) use omega_compilation_report as report;
 mod request;
 
+pub use optimization_rollback::{OptimizationRollback, OptimizationRollbackInputError};
 pub use options::{ArtifactEmissionPolicy, CompileOptions};
 pub use report::{
     CompileOutputKind, CompileReport, ExecutablePublicationDestination,
-    ExecutablePublicationReceipt, RetainedNativeArtifact,
+    ExecutablePublicationReceipt, OptimizationRollbackReceipt, RetainedNativeArtifact,
 };
 pub use request::{CompileRequest, RequestedCompileProduct};
 

@@ -58,6 +58,55 @@ fn production_usage_does_not_advertise_manifest_or_receipt_inputs() {
 }
 
 #[test]
+fn optimizer_rollback_cli_requires_exact_unique_names() {
+    let unknown = omega(&[
+        "--disable-optimization",
+        "control_flow_cleanup",
+        "missing.omg",
+    ]);
+    assert_eq!(unknown.status.code(), Some(2));
+    assert!(
+        String::from_utf8_lossy(&unknown.stderr)
+            .contains("unknown exact optimization rollback name `control_flow_cleanup`")
+    );
+
+    let duplicate = omega(&[
+        "--disable-optimization",
+        "ControlFlowCleanup",
+        "--disable-optimization",
+        "ControlFlowCleanup",
+        "missing.omg",
+    ]);
+    assert_eq!(duplicate.status.code(), Some(2));
+    assert!(
+        String::from_utf8_lossy(&duplicate.stderr)
+            .contains("optimization rollback repeats `ControlFlowCleanup`")
+    );
+
+    let missing = omega(&["--disable-optimization"]);
+    assert_eq!(missing.status.code(), Some(2));
+    assert!(
+        String::from_utf8_lossy(&missing.stderr)
+            .contains("--disable-optimization requires one exact optimization name")
+    );
+}
+
+#[test]
+fn optimizer_rollback_cli_rejects_check_before_reading_source() {
+    let output = omega(&[
+        "--check",
+        "--disable-optimization",
+        "ControlFlowCleanup",
+        "missing.omg",
+    ]);
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("requires NativeArtifact production"));
+    assert!(stderr.contains("`ControlFlowCleanup`"));
+    assert!(!stderr.contains("failed to read"));
+}
+
+#[test]
 fn source_audit_requires_an_explicit_supported_adapter() {
     let missing = omega(&["audit", "source", "https://example.invalid/package"]);
     assert_eq!(missing.status.code(), Some(2));

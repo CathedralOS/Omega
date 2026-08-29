@@ -29,6 +29,48 @@ metadata/digest files under `tests/omega/golden/optimizer/no_selection/`.
 UEFI is not included until its physical adapter and publication chain are
 implemented.
 
+## Exact-rule release rollback
+
+Native production accepts a repeatable release-tooling overlay:
+
+```text
+omega --disable-optimization ControlFlowCleanup \
+      --disable-optimization CopyPropagation \
+      --target linux_x64 main.omg
+```
+
+Each value must be one exact source-visible `Optimization` case name. Unknown
+and duplicate names reject. A known rule that this build did not select is an
+accepted, visible no-op, allowing one fleet-wide kill switch to be applied
+idempotently across differently selected builds.
+
+The overlay is deliberately subtractive. `build.omg` remains the authoritative
+authored selection and its checked-compilation identity does not change. At
+the native-realization boundary the compiler derives:
+
+```text
+actually disabled = build selected intersection requested disabled
+effective         = build selected minus requested disabled
+```
+
+Only the effective set enters optimizer construction, artifact identity, and
+native realization. When it is empty, compilation rejoins the ordinary
+no-selection path; the four-target golden firewall checks exact semantic,
+proof, object-text, image-byte, and metadata parity. The rollback request does
+not masquerade as authored selection or alter the catalog.
+
+A nonempty overlay is invalid for `--check` and Terminal-artifact production,
+because those products never enter native optimizer realization and therefore
+cannot truthfully report the rule as disabled. Rejection occurs before frontend
+work or auxiliary output. An empty request retains existing behavior and
+produces no rollback receipt.
+
+Successful native production retains a separate receipt containing the build
+selection, requested disabled set, actually disabled set, and effective set.
+Publication preserves that receipt, and the command prints the exact requested,
+applied, and effective names. This provenance is intentionally separate from
+the effective optimizer/artifact identity.
+
 ## Compatibility firewall
 
 While experimental:
@@ -37,6 +79,8 @@ While experimental:
 - unknown selection and encoding versions reject;
 - optimizer construction is skipped for empty selection;
 - optimized artifacts retain the complete selection and validation manifests;
+- release rollback receipts retain authored, requested, applied, and effective
+  exact-name sets without changing the authored selection identity;
 - caches bind source, selections, target facts, rule catalog, validators, cost
   model, and relevant workload/profile identities; and
 - publication requires the full custody chain.

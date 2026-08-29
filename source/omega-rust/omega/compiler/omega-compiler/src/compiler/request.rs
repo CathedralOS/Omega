@@ -1,4 +1,4 @@
-use crate::compiler::{ArtifactEmissionPolicy, CompileOptions};
+use crate::compiler::{ArtifactEmissionPolicy, CompileOptions, OptimizationRollback};
 use crate::pipeline::PackageCompilationInputs;
 
 /// The semantic product requested from the production compiler pipeline.
@@ -21,6 +21,7 @@ pub struct CompileRequest {
     pub(crate) artifact_policy: ArtifactEmissionPolicy,
     pub(crate) terminal_admission_profile: psi_proof_admission::AdmissionProfile,
     pub(crate) package_inputs: Option<PackageCompilationInputs>,
+    pub(crate) optimization_rollback: OptimizationRollback,
 }
 
 impl CompileRequest {
@@ -33,6 +34,7 @@ impl CompileRequest {
             artifact_policy: ArtifactEmissionPolicy::Full,
             terminal_admission_profile: psi_proof_admission::AdmissionProfile::default(),
             package_inputs: None,
+            optimization_rollback: OptimizationRollback::default(),
         }
     }
 
@@ -62,11 +64,23 @@ impl CompileRequest {
         self
     }
 
+    pub fn with_optimization_rollback(
+        mut self,
+        optimization_rollback: OptimizationRollback,
+    ) -> Self {
+        self.optimization_rollback = optimization_rollback;
+        self
+    }
+
     pub const fn options(&self) -> &CompileOptions {
         &self.options
     }
 
     pub const fn requested_product(&self) -> RequestedCompileProduct {
         self.requested_product
+    }
+
+    pub const fn optimization_rollback(&self) -> &OptimizationRollback {
+        &self.optimization_rollback
     }
 }

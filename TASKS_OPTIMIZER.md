@@ -32,10 +32,19 @@ pass folder. Copy propagation no longer survives as a flat catch-all file. The
 architecture test rejects a missing pass catalog or a named stage entrance
 that regresses into a re-export wall.
 
-[>] Continue the same taxonomy migration for remaining flat executable stage
-files before adding optimizer surface area. Then add the broader four-ABI
-corruption matrix and continue general allocator/frame work. Closed vocabulary
-and no-selection compatibility remain enforced.
+[x] Every Omega pipeline root is now governed by the source-navigation gate;
+small stage entrances retain their real joins and semantic leaves remain below
+the production/test ceilings.
+
+[x] Exact per-rule release rollback is now a typed, native-only, subtractive
+overlay. Unknown and duplicate names reject; known unselected rules are visible
+no-ops; publication retains the authored/requested/applied/effective receipt;
+and rollback-to-empty matches the ordinary path byte-for-byte on all four
+hosted native targets.
+
+[>] Add the broader four-ABI corruption matrix and continue general
+allocator/frame work. Closed vocabulary and no-selection compatibility remain
+enforced.
 
 ## Completed foundation
 
@@ -251,7 +260,7 @@ and no-selection compatibility remain enforced.
   settlement, native realization, provider admission, machine emission,
   artifact assembly, diagnostics, encoding projection, and replay leaves. The
   architecture gate now governs the entire crate and its real stage joins.
-- [>] Replace remaining flat executable stages and mixed-responsibility files
+- [x] Replace remaining flat executable stages and mixed-responsibility files
   with semantic folders whose small `mod.rs` owns the real stage join. Tighten
   the production-file ceiling as each named legacy leaf is removed.
 
@@ -264,7 +273,7 @@ and no-selection compatibility remain enforced.
 - [x] Add golden canaries comparing no-selection source acceptance,
   diagnostics, interpreter output, native bytes, and artifact metadata on every
   supported host/target pair.
-- [ ] Add an exact per-rule disable/rollback path to release tooling.
+- [x] Add an exact per-rule disable/rollback path to release tooling.
 
 ## P1 — Shared rule engine and analysis system
 
@@ -406,8 +415,8 @@ rewrite or opt a program into lossy floating-point semantics.
    artifact custody with exact byte-delta tests.
 5. [x] Retain exact build opt-in and direct/selected XOR-zero coverage through
    publication and callable entry.
-6. [>] Finish the remaining stage-entrance taxonomy migration and make the
+6. [x] Finish the remaining stage-entrance taxonomy migration and make the
    navigation contract executable for each migrated stage.
-7. [ ] Add the broader target/ABI corruption matrix.
+7. [>] Add the broader target/ABI corruption matrix.
 8. [ ] Finish workspace validation and rollout canaries before promoting any
    rule beyond explicit opt-in.

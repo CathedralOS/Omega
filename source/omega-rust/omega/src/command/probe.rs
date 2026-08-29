@@ -67,7 +67,7 @@ pub(super) fn run(arguments: impl Iterator<Item = std::ffi::OsString>) -> ! {
         }
     };
     let exe = match super::output::publish_native_artifact(report, &build_dir) {
-        Ok(path) => path,
+        Ok((_published, path)) => path,
         Err(error) => {
             eprintln!("native publication FAILED: {error}");
             std::process::exit(200);
