@@ -578,13 +578,13 @@ fn affine_array_partial_cleanup_fences_other_lengths() {
         machine Root::one(values: [Token; 1]) {
             Sink::take(values[0]);
         }
-        machine Root::four(values: [Token; 4]) {
+        machine Root::five(values: [Token; 5]) {
             Sink::take(values[0]);
             Sink::take(values[1]);
         }
         "#,
     );
-    for machine in ["one", "four"] {
+    for machine in ["one", "five"] {
         assert!(
             checked
                 .facts
@@ -593,6 +593,81 @@ fn affine_array_partial_cleanup_fences_other_lengths() {
                 .for_machine(machine_named(&checked, machine))
                 .is_none(),
             "`{machine}` remains outside the exact bounded array slice"
+        );
+    }
+}
+
+#[test]
+fn four_element_affine_array_moves_two_indices_and_discards_the_complement_decreasing() {
+    let checked = checked(
+        r#"
+        data Token { value: u64; }
+        data Sink {}
+        machine Sink::take(token: Token) {}
+        data Root {}
+        machine Root::outer(values: [Token; 4]) {
+            Sink::take(values[1]);
+            Sink::take(values[3]);
+        }
+        machine Root::inner(values: [Token; 4]) {
+            Sink::take(values[2]);
+            Sink::take(values[1]);
+        }
+        machine Root::one(values: [Token; 4]) {
+            Sink::take(values[0]);
+        }
+        machine Root::three(values: [Token; 4]) {
+            Sink::take(values[0]);
+            Sink::take(values[1]);
+            Sink::take(values[2]);
+        }
+        "#,
+    );
+    for (machine, moves, residuals) in [("outer", [1, 3], [2, 0]), ("inner", [2, 1], [3, 0])] {
+        let plan = checked
+            .facts
+            .flow
+            .terminal_partial_affine_unit_cleanups
+            .for_machine(machine_named(&checked, machine))
+            .expect("two quartet moves leave the exact decreasing complement");
+        assert_eq!(
+            plan.machine.operations[..2]
+                .iter()
+                .map(|operation| match operation {
+                    CheckedUnitEffectOperationPlan::CallUnit {
+                        structural_arguments,
+                        ..
+                    } => match structural_arguments[0].path.as_slice() {
+                        [CheckedUnitStructuralPathSegment::FixedIndex(index)] => *index,
+                        _ => panic!("quartet move is one literal index"),
+                    },
+                    _ => panic!("quartet cleanup contains calls before return"),
+                })
+                .collect::<Vec<_>>(),
+            moves,
+            "authored move order is retained",
+        );
+        assert_eq!(
+            plan.residual_affine_discards
+                .iter()
+                .map(|discard| match discard.path.as_slice() {
+                    [CheckedUnitStructuralPathSegment::FixedIndex(index)] => *index,
+                    _ => panic!("quartet residual is one literal index"),
+                })
+                .collect::<Vec<_>>(),
+            residuals,
+            "the compiler emits the live complement in decreasing index order",
+        );
+    }
+    for machine in ["one", "three"] {
+        assert!(
+            checked
+                .facts
+                .flow
+                .terminal_partial_affine_unit_cleanups
+                .for_machine(machine_named(&checked, machine))
+                .is_none(),
+            "the quartet rung admits exactly two moves",
         );
     }
 }

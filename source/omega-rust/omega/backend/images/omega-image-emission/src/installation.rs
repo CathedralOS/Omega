@@ -1263,8 +1263,8 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 &function_unit_calls,
                 function.unit_affine_cleanup.as_ref(),
             );
-        let partially_consumed_affine_triple =
-            crate::fully_consumed_affine_pair::exact_partially_consumed_affine_triple(
+        let partially_consumed_affine_array =
+            crate::fully_consumed_affine_pair::exact_partially_consumed_affine_array(
                 &function.unit_parameter_homes,
                 &function_unit_calls,
                 function.unit_affine_cleanup.as_ref(),
@@ -1576,15 +1576,16 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                             })
                             .map(|argument| (argument.path.as_slice(), argument.structural_type))
                             .collect::<Vec<_>>();
-                        let parameter_is_affine_triple = parameter_type.is_some_and(|root_type| {
-                            cleanup.structural_types.iter().any(|declaration| {
-                                declaration.id == root_type
-                                    && matches!(
-                                        declaration.shape,
-                                        StructuralTypeShape::FixedArray { length: 3, .. }
-                                    )
-                            })
-                        });
+                        let parameter_is_bounded_affine_array =
+                            parameter_type.is_some_and(|root_type| {
+                                cleanup.structural_types.iter().any(|declaration| {
+                                    declaration.id == root_type
+                                        && matches!(
+                                            declaration.shape,
+                                            StructuralTypeShape::FixedArray { length: 3 | 4, .. }
+                                        )
+                                })
+                            });
                         cleanup.actions.get(..discards.len()).is_none_or(|prefix| {
                             !prefix.iter().zip(&discards).all(|(action, place)| {
                                 matches!(action,
@@ -1617,8 +1618,8 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                                     })
                                 })
                             || parameter_type.is_none()
-                            || (parameter_is_affine_triple
-                                && !partially_consumed_affine_triple)
+                            || (parameter_is_bounded_affine_array
+                                && !partially_consumed_affine_array)
                             || moved.is_empty()
                             || moved.iter().any(|(path, _)| {
                                 path.is_empty()
@@ -2538,7 +2539,7 @@ fn is_partial_cleanup_path(path: &[StructuralPathSegment]) -> bool {
         && path.iter().all(|segment| {
             matches!(segment, StructuralPathSegment::Field(identity) if !identity.is_empty())
         }))
-        || matches!(path, [StructuralPathSegment::FixedIndex(0 | 1 | 2)])
+        || matches!(path, [StructuralPathSegment::FixedIndex(0 | 1 | 2 | 3)])
 }
 
 fn validate_native_fuel_transfer_shape(

@@ -29,7 +29,7 @@ pub(super) fn partial_affine_residuals(
         ) {
             return None;
         }
-        if !matches!((length, moved_paths.len()), (2, 1) | (3, 1 | 2)) {
+        if !matches!((length, moved_paths.len()), (2, 1) | (3, 1 | 2) | (4, 2)) {
             return None;
         }
         let moved = moved_paths
@@ -86,6 +86,9 @@ pub(super) fn is_bounded_partial_affine_path(
                     ) | (
                         StructuralTypeShape::FixedArray { length: 3, .. },
                         [StructuralPathSegment::FixedIndex(0 | 1 | 2)]
+                    ) | (
+                        StructuralTypeShape::FixedArray { length: 4, .. },
+                        [StructuralPathSegment::FixedIndex(0 | 1 | 2 | 3)]
                     )
                 )
             }))

@@ -109,6 +109,17 @@ const AFFINE_TRIPLE_SOURCE: &str = r#"
     }
 "#;
 
+const AFFINE_QUARTET_SOURCE: &str = r#"
+    data Token { value: u64; }
+    data Sink {}
+    machine Sink::take(token: Token) {}
+    data Root {}
+    machine Root::enter(values: [Token; 4]) {
+        Sink::take(values[1]);
+        Sink::take(values[3]);
+    }
+"#;
+
 #[test]
 fn two_element_affine_array_cleanup_crosses_source_codec_verifier_and_interpreter() {
     let tokens = Lexer::new(AFFINE_PAIR_SOURCE).tokenize().expect("tokenize");
@@ -825,6 +836,133 @@ fn affine_triple_residuals_follow_the_exact_decreasing_live_index_order() {
             .is_err()
         );
     }
+}
+
+#[test]
+fn affine_quartet_two_moves_retain_authored_calls_and_decreasing_residuals() {
+    let tokens = Lexer::new(AFFINE_QUARTET_SOURCE)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
+        .expect("two quartet moves and their decreasing complement lower");
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|candidate| candidate.id == lowered.semantic_module.entry)
+        .expect("entry machine");
+    let [root] = entry.structural_parameters.as_slice() else {
+        panic!("affine quartet has one structural root")
+    };
+    let [block] = entry.blocks.as_slice() else {
+        panic!("affine quartet has one block")
+    };
+    assert_eq!(
+        block
+            .operations
+            .iter()
+            .map(|operation| match &operation.kind {
+                OperationKind::CallUnit {
+                    structural_arguments,
+                    ..
+                } => match structural_arguments[0].path.as_slice() {
+                    [StructuralPathSegment::FixedIndex(index)] => *index,
+                    _ => panic!("quartet call is one literal index"),
+                },
+                _ => panic!("quartet body retains only Unit calls"),
+            })
+            .collect::<Vec<_>>(),
+        vec![1, 3],
+    );
+    let Terminator::ReturnUnitPartialAffine {
+        edge,
+        residual_affine_discards,
+        ..
+    } = &block.terminator
+    else {
+        panic!("quartet uses a partial-affine return")
+    };
+    assert_eq!(
+        residual_affine_discards
+            .iter()
+            .map(|discard| {
+                assert_eq!(discard.place, root.place);
+                match discard.path.as_slice() {
+                    [StructuralPathSegment::FixedIndex(index)] => *index,
+                    _ => panic!("quartet residual is one literal index"),
+                }
+            })
+            .collect::<Vec<_>>(),
+        vec![2, 0],
+    );
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("verifier reconstructs the quartet complement");
+
+    let mut wrong_order = lowered.semantic_module.clone();
+    let entry = wrong_order
+        .machines
+        .iter_mut()
+        .find(|candidate| candidate.id == wrong_order.entry)
+        .unwrap();
+    let Terminator::ReturnUnitPartialAffine {
+        residual_affine_discards,
+        ..
+    } = &mut entry.blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    residual_affine_discards.reverse();
+    assert!(
+        psi_terminal_verifier::verify_module(
+            &wrong_order,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default(),
+        )
+        .is_err(),
+        "increasing producer order rejects",
+    );
+
+    let semantic = encode_module(&lowered.semantic_module).expect("module encodes");
+    assert_eq!(decode_module(&semantic).unwrap(), lowered.semantic_module);
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encodes");
+    let argument_value = TerminalStructuralValue {
+        opaque_identity: 0x5155_4152,
+        structural_type: root.structural_type,
+        qualifications: root.qualifications.clone(),
+        path: Vec::new(),
+    };
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[argument_value],
+    )
+    .expect("verified affine quartet starts");
+    let mut meter = TerminalFuelMeter::with_allowance(4);
+    assert_eq!(
+        execution.resume(&mut meter).expect("execution suspends"),
+        TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
+            schedule: TerminalFuelSchedule::CURRENT.identity(),
+            site: FuelChargeSite::Edge(*edge),
+            required_units: 1,
+            remaining_units: 0,
+        })
+    );
+    meter.replenish(1).expect("replenish quartet return edge");
+    assert_eq!(
+        execution.resume(&mut meter).expect("execution completes"),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(meter.usage().total_units(), 5);
 }
 
 #[test]

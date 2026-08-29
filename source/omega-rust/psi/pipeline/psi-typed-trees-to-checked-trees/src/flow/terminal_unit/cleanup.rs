@@ -1160,7 +1160,7 @@ pub(super) fn partial_affine_residuals(
                 (2, 2) if exact_fully_moved_affine_pair(moved_paths, element_type_identity) => {
                     return Some(Vec::new());
                 }
-                (2, 1) | (3, 1 | 2)
+                (2, 1) | (3, 1 | 2) | (4, 2)
                     if exact_bounded_affine_array_moves(
                         moved_paths,
                         element_type_identity,
@@ -1301,6 +1301,10 @@ fn exact_affine_array_move_paths(
             matches!(moved_paths.len(), 1 | 2)
                 && exact_bounded_affine_array_moves(moved_paths, element_type_identity, 3)
         }
+        4 => {
+            moved_paths.len() == 2
+                && exact_bounded_affine_array_moves(moved_paths, element_type_identity, 4)
+        }
         _ => false,
     }
 }
@@ -1352,7 +1356,7 @@ fn is_partial_affine_path(path: &[CheckedUnitStructuralPathSegment]) -> bool {
             .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Field(_))))
         || matches!(
             path,
-            [CheckedUnitStructuralPathSegment::FixedIndex(0 | 1 | 2)]
+            [CheckedUnitStructuralPathSegment::FixedIndex(0 | 1 | 2 | 3)]
         )
 }
 

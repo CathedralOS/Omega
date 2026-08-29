@@ -25,7 +25,7 @@ pub(super) fn validate_unit_affine_cleanup(
     cleanup: &UnitAffineCleanupRecord,
     allow_mixed_nominal_roots: bool,
     fully_consumed_affine_pair: bool,
-    partially_consumed_affine_triple: bool,
+    partially_consumed_affine_array: bool,
 ) -> Result<(), ObjectError> {
     let invalid = || ObjectError::InvalidUnitAffineCleanupEvidence(machine);
     let end = cleanup
@@ -172,12 +172,12 @@ pub(super) fn validate_unit_affine_cleanup(
             })
             .map(|argument| (argument.path.as_slice(), argument.structural_type))
             .collect::<Vec<_>>();
-        let parameter_is_affine_triple = parameter_type.is_some_and(|root_type| {
+        let parameter_is_bounded_affine_array = parameter_type.is_some_and(|root_type| {
             cleanup.structural_types.iter().any(|declaration| {
                 declaration.id == root_type
                     && matches!(
                         declaration.shape,
-                        psi_terminal::StructuralTypeShape::FixedArray { length: 3, .. }
+                        psi_terminal::StructuralTypeShape::FixedArray { length: 3 | 4, .. }
                     )
             })
         });
@@ -186,7 +186,7 @@ pub(super) fn validate_unit_affine_cleanup(
             || residuals.is_empty()
             || residual_root.is_none_or(|root| expected_parameter_suffix.as_slice() != [root])
             || parameter_type.is_none()
-            || (parameter_is_affine_triple && !partially_consumed_affine_triple)
+            || (parameter_is_bounded_affine_array && !partially_consumed_affine_array)
             || residuals.iter().any(|residual| {
                 Some(residual.place) != residual_root
                     || residual.path.is_empty()
@@ -403,7 +403,9 @@ fn is_partial_cleanup_path(path: &[psi_terminal::StructuralPathSegment]) -> bool
         }))
         || matches!(
             path,
-            [psi_terminal::StructuralPathSegment::FixedIndex(0 | 1 | 2)]
+            [psi_terminal::StructuralPathSegment::FixedIndex(
+                0 | 1 | 2 | 3
+            )]
         )
 }
 

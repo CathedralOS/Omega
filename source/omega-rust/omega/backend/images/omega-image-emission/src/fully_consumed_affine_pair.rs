@@ -17,13 +17,15 @@ pub(crate) fn exact_fully_consumed_affine_pair(
         .is_some_and(|indexes| indexes.as_slice() == [0, 1] || indexes.as_slice() == [1, 0])
 }
 
-pub(crate) fn exact_partially_consumed_affine_triple(
+pub(crate) fn exact_partially_consumed_affine_array(
     parameter_homes: &[UnitParameterHomeRecord],
     calls: &[InternalUnitCallRecord],
     cleanup: Option<&UnitAffineCleanupRecord>,
 ) -> bool {
     exact_affine_array_calls(parameter_homes, calls, cleanup, 3)
         .is_some_and(|indexes| matches!(indexes.len(), 1 | 2))
+        || exact_affine_array_calls(parameter_homes, calls, cleanup, 4)
+            .is_some_and(|indexes| indexes.len() == 2)
 }
 
 fn exact_affine_array_calls(
@@ -35,7 +37,7 @@ fn exact_affine_array_calls(
     let ([home], Some(cleanup)) = (parameter_homes, cleanup) else {
         return None;
     };
-    if !matches!((expected_length, calls.len()), (2, 2) | (3, 1 | 2))
+    if !matches!((expected_length, calls.len()), (2, 2) | (3, 1 | 2) | (4, 2))
         || home.multiplicity != StructuralMultiplicity::Affine
         || !cleanup.locals.is_empty()
         || cleanup
