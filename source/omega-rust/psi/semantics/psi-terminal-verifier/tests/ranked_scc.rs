@@ -1,10 +1,12 @@
 use psi_core::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
-    OperationId, ScalarType, ValueId,
+    OperationId, PlaceId, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
-    Block, MachineContract, Operation, OperationKind, OperationResult, SuccessorEdge,
-    TerminalMachine, TerminalMachineResult, TerminalModule, TerminalRankedGuard, TerminalRankedScc,
+    Block, MachineContract, Operation, OperationKind, OperationResult, StructuralAccess,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalMachine,
+    TerminalMachineResult, TerminalModule, TerminalRankedGuard, TerminalRankedScc,
     TerminalRankedSccEdge, TerminalRankedSuccessorArgument, Terminator, ValueDeclaration,
     VocabularyMarker,
 };
@@ -205,6 +207,44 @@ fn ranked_countdown() -> TerminalModule {
     }
 }
 
+fn add_loop_preserved_affine_parameter(module: &mut TerminalModule) -> PlaceId {
+    let structural_type = id(1, StructuralTypeId::new);
+    let place = id(1, PlaceId::new);
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: structural_type,
+        identity: "LoopCustody".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    });
+    let machine = &mut module.machines[0];
+    machine
+        .structural_parameters
+        .push(StructuralParameterDeclaration {
+            place,
+            position: 0,
+            is_self: false,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Affine,
+            access: StructuralAccess::Owned,
+            qualifications: Vec::new(),
+        });
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: place,
+        kind: StructuralPlaceKind::Parameter {
+            position: 0,
+            is_self: false,
+        },
+    });
+    let Terminator::ReturnUnit {
+        trivial_affine_discards,
+        ..
+    } = &mut machine.blocks[3].terminator
+    else {
+        panic!("countdown exit must return Unit")
+    };
+    trivial_affine_discards.push(place);
+    place
+}
+
 #[test]
 fn ranked_countdown_is_representation_only() {
     let module = ranked_countdown();
@@ -213,6 +253,33 @@ fn ranked_countdown_is_representation_only() {
         validate_module(&module),
         Err(ModuleError::NonExecutableRankedScc(machine)) if machine == module.entry
     ));
+}
+
+#[test]
+fn ranked_countdown_preserves_a_nonempty_structural_frontier() {
+    let mut module = ranked_countdown();
+    add_loop_preserved_affine_parameter(&mut module);
+    assert_eq!(validate_module_representation(&module), Ok(()));
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::NonExecutableRankedScc(machine)) if machine == module.entry
+    ));
+}
+
+#[test]
+fn ranked_countdown_rejects_a_cycle_body_that_changes_structural_custody() {
+    let mut module = ranked_countdown();
+    let place = add_loop_preserved_affine_parameter(&mut module);
+    let machine = &mut module.machines[0];
+    let header = machine.ranked_scc.as_ref().unwrap().header;
+    let Terminator::Conditional { when_true, .. } = &mut machine.blocks[1].terminator else {
+        panic!("countdown header must select the cycle path")
+    };
+    when_true.trivial_affine_discards.push(place);
+    assert_eq!(
+        validate_module_representation(&module),
+        Err(ModuleError::OwnedStructuralFrontierJoinMismatch(header))
+    );
 }
 
 #[test]

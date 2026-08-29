@@ -639,6 +639,12 @@ certificate. Logical-justification order, path availability, state/place
 versions, invalidation, all-predecessor merge evidence, and call-requirement
 enumeration are part of the canonical ledger. Cyclic control requires explicit
 invariant establishment and preservation rather than ordinary merge evidence.
+The first ranked unsigned-countdown representation implements that distinction
+for structural custody: its acyclic preheader establishes the header frontier,
+and the exact covered backedge must reconstruct the identical live-claim,
+owned-place, and partial-custody frontier after one complete cycle body. This
+fixed-point check is representation evidence only until interpreter, fuel, and
+native cyclic execution are separately admitted.
 
 Every verifier, reduction-family, denotation-row, composition theorem, and
 irreducible semantic dependency has an exact versioned node in a closed trust

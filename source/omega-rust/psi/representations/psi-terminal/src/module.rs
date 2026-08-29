@@ -784,9 +784,10 @@ pub struct TerminalMachine {
     /// Ordered runtime structural parameters, separate from scalar values.
     pub structural_parameters: Vec<StructuralParameterDeclaration>,
     /// Canonical source-handle-free ranking evidence for the first admitted
-    /// cyclic control component. Representation validation checks only the
-    /// closed identity and graph joins; execution remains unavailable until
-    /// the verifier reconstructs the stated guard and successor arithmetic.
+    /// cyclic control component. Representation validation reconstructs the
+    /// closed identity, guard, successor arithmetic, and exact structural-
+    /// frontier preservation fixed point. Execution remains independently
+    /// unavailable until interpreter, fuel, and native support land.
     pub ranked_scc: Option<TerminalRankedScc>,
     /// Unit carries no value; scalar results have a stable pseudo-value bound
     /// by every scalar return edge and available to `ensures`.
