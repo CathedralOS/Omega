@@ -4,7 +4,7 @@ use omega_package_manager::resolution::{
 };
 use omega_package_manager::review::compile_resolved_package_reviews;
 use omega_package_source::{
-    LocalSourceLimits, SourceLineage, SourceResolverStorage, WorkspaceMemberPath,
+    LocalSourceLimits, SourceLineage, SourceRelativePath, SourceResolverStorage,
 };
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -29,7 +29,7 @@ fn temporary_root() -> PathBuf {
 
 fn resolve_workspace_package_closure(
     workspace_root_source: &SourceLineage,
-    root_member_path: WorkspaceMemberPath,
+    root_member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
     cache_dir: impl AsRef<Path>,
     source_limits: LocalSourceLimits,
@@ -56,7 +56,7 @@ fn dependency_generated_source_enters_consumer_without_rerunning_the_dependency_
     let lineage = SourceLineage::git("https://github.com/CathedralOS/Omega.git").unwrap();
     let closure = resolve_workspace_package_closure(
         &lineage,
-        WorkspaceMemberPath::parse("generated-consumer").unwrap(),
+        SourceRelativePath::parse("generated-consumer").unwrap(),
         &fixtures,
         temporary.join("cache"),
         LocalSourceLimits::default(),

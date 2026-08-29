@@ -2,11 +2,11 @@
 
 use crate::identity::PackageName;
 use omega_build_declarations as shared;
-use omega_package_source::WorkspaceMemberPath;
 use std::path::Path;
 
 pub use shared::BuildDeclarationError as PackageDeclarationError;
 pub use shared::BuildDeclarationKind;
+pub use shared::WorkspaceMemberPath;
 
 /// Backward-compatible package-manager name for the shared declaration error.
 pub type BuildDeclarationError = PackageDeclarationError;
@@ -86,11 +86,7 @@ pub(crate) fn convert_shared_declaration(
         }
         shared::BuildDeclaration::Workspace(declaration) => {
             BuildDeclaration::Workspace(WorkspaceDeclaration {
-                members: declaration
-                    .members
-                    .into_iter()
-                    .map(WorkspaceMemberPath::from)
-                    .collect(),
+                members: declaration.members,
             })
         }
     }

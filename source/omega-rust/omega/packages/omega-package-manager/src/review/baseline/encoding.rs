@@ -15,8 +15,8 @@ use omega_package_review::{
 };
 use omega_package_source::{
     ExternalLocalLineage, ExternalSourceContext, GitCommitId, GitTransport, GitTreeId,
-    ImmutableSourceResolution, SourceContentDigest, SourceLineage, WorkspaceLineageIdentity,
-    WorkspaceMemberLineage, WorkspaceMemberPath,
+    ImmutableSourceResolution, SourceContentDigest, SourceLineage, SourceRelativePath,
+    WorkspaceLineageIdentity, WorkspaceMemberLineage,
 };
 use sha2::{Digest, Sha256};
 
@@ -255,7 +255,7 @@ pub(super) fn decode_package_key(
         3 => {
             let workspace = WorkspaceLineageIdentity::parse_hex(&encode_hex(&decoder.array_32()?))
                 .map_err(|_| ReviewOnlyBaselineError::new("invalid workspace identity"));
-            let member = WorkspaceMemberPath::parse(decoder.string(maximum_identity_bytes)?)
+            let member = SourceRelativePath::parse(decoder.string(maximum_identity_bytes)?)
                 .map_err(|_| ReviewOnlyBaselineError::new("invalid workspace member path"));
             return Ok(PackageKey::new(
                 name,

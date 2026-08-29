@@ -5,7 +5,7 @@ fn propagates_closure_resource_ceilings() {
     let cache = temp_root("limit-cache");
     let error = resolve_workspace_package_closure(
         &fixture_lineage(),
-        WorkspaceMemberPath::parse("graph-workbench").expect("root member"),
+        SourceRelativePath::parse("graph-workbench").expect("root member"),
         fixture_root(),
         &cache,
         LocalSourceLimits::default(),

@@ -2,8 +2,8 @@ use super::projection::project_package_build;
 use super::{ResolvePackageSourceError, ResolvedPackageSource};
 use crate::identity::PackageKey;
 use omega_package_source::{
-    ImmutableSourceResolution, SourceContentDigest, SourceLineage, WorkspaceLineageIdentity,
-    WorkspaceMemberLineage, WorkspaceMemberPath,
+    ImmutableSourceResolution, SourceContentDigest, SourceLineage, SourceRelativePath,
+    WorkspaceLineageIdentity, WorkspaceMemberLineage,
 };
 use omega_package_source::{LocalSourceLimits, ResolvedLocalSnapshot, SourceResolverStorage};
 use omega_package_source::{RetainedStorageLane, resolve_local_source_snapshot_in_lane};
@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 #[cfg(test)]
 pub fn resolve_workspace_member_package_source(
     workspace_root_source: &SourceLineage,
-    member_path: WorkspaceMemberPath,
+    member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
     cache_dir: impl AsRef<Path>,
     limits: LocalSourceLimits,
@@ -36,7 +36,7 @@ pub fn resolve_workspace_member_package_source(
 
 pub(crate) fn resolve_workspace_member_package_source_in_lane(
     workspace_root_source: &SourceLineage,
-    member_path: WorkspaceMemberPath,
+    member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
     lane: &RetainedStorageLane,
     limits: LocalSourceLimits,
@@ -52,7 +52,7 @@ pub(crate) fn resolve_workspace_member_package_source_in_lane(
 
 pub fn resolve_workspace_member_package_source_with_storage(
     workspace_root_source: &SourceLineage,
-    member_path: WorkspaceMemberPath,
+    member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
     storage: &SourceResolverStorage,
     limits: LocalSourceLimits,
@@ -71,7 +71,7 @@ pub fn resolve_workspace_member_package_source_with_storage(
 
 fn validate_workspace_member_root(
     requested_workspace_root: &Path,
-    member_path: &WorkspaceMemberPath,
+    member_path: &SourceRelativePath,
 ) -> Result<PathBuf, ResolvePackageSourceError> {
     let declared_member_root = requested_workspace_root.join(member_path.as_str());
 
@@ -94,7 +94,7 @@ fn validate_workspace_member_root(
 
 fn bind_workspace_member_package_source(
     workspace_identity: WorkspaceLineageIdentity,
-    member_path: WorkspaceMemberPath,
+    member_path: SourceRelativePath,
     source: ResolvedLocalSnapshot,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {

@@ -5,7 +5,7 @@ use crate::resolution::source::{
     resolve_workspace_member_package_source_in_lane,
 };
 use omega_package_source::RetainedStorageLane;
-use omega_package_source::{ExternalSourceContext, SourceLineage, WorkspaceMemberPath};
+use omega_package_source::{ExternalSourceContext, SourceLineage, SourceRelativePath};
 use omega_package_source::{
     GitAcquisitionPin, GitSourceRequest, LocalSourceLimits, ResolvedGitSource,
     ResolvedLocalSnapshot,
@@ -100,7 +100,7 @@ pub(super) fn resolve_external_local_project_from_cache(
 
 pub(super) fn resolve_workspace_member_from_cache(
     workspace_root_source: &SourceLineage,
-    member_path: WorkspaceMemberPath,
+    member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
     cache: SourceCacheLane<'_>,
     limits: LocalSourceLimits,

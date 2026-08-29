@@ -3,7 +3,7 @@ use crate::manifest::dependencies::read::DependencySourceRequest;
 use crate::resolution::PackageSourceCustody;
 use omega_package_source::{
     GitCommitId, GitSourceRequest, GitTreeId, ImmutableSourceResolution, LocalSourceLimits,
-    SourceLineage, WorkspaceMemberPath,
+    SourceLineage, SourceRelativePath,
 };
 use std::collections::BTreeMap;
 use std::path::{Component, Path, PathBuf};
@@ -117,7 +117,7 @@ pub(super) fn temp_cache() -> PathBuf {
 pub(super) fn workspace_member_request(
     requester: &PackageSourceCustody,
     location: &str,
-) -> Result<WorkspaceMemberPath, String> {
+) -> Result<SourceRelativePath, String> {
     let SourceLineage::Workspace(lineage) = requester.key().source_lineage() else {
         return Err("path requester is not a workspace member".to_owned());
     };
@@ -130,7 +130,7 @@ pub(super) fn workspace_member_request(
             _ => return Err("path request escapes the fixture workspace".to_owned()),
         }
     }
-    WorkspaceMemberPath::parse(
+    SourceRelativePath::parse(
         normalized
             .to_str()
             .ok_or_else(|| "fixture member path is not UTF-8".to_owned())?,

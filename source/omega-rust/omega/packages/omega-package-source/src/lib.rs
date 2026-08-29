@@ -35,7 +35,7 @@ pub use identity::{
     ExternalLocalLineage, ExternalSourceContext, GenericGitLineage, GitCommitId,
     GitHubRepositoryLineage, GitLabRepositoryLineage, GitObjectIdAlgorithm, GitTransport,
     GitTreeId, IdentityError, ImmutableSourceResolution, SourceContentDigest, SourceLineage,
-    WorkspaceLineageIdentity, WorkspaceMemberLineage, WorkspaceMemberPath,
+    SourceRelativePath, WorkspaceLineageIdentity, WorkspaceMemberLineage,
 };
 pub use limits::LocalSourceLimits;
 pub use local::model::{

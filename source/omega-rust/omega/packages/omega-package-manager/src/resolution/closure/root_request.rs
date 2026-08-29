@@ -1,7 +1,7 @@
 //! Exact request that selected a dependency graph root.
 
 use crate::resolution::source::GitPackageSourceRequest;
-use omega_package_source::{ExternalSourceContext, SourceLineage, WorkspaceMemberPath};
+use omega_package_source::{ExternalSourceContext, SourceLineage, SourceRelativePath};
 use std::path::PathBuf;
 
 /// Dependency requests belong to a requester package. The graph root has no
@@ -11,7 +11,7 @@ pub enum PackageRootSourceRequest {
     Git(GitPackageSourceRequest),
     WorkspaceMember {
         workspace_root_source: SourceLineage,
-        member_path: WorkspaceMemberPath,
+        member_path: SourceRelativePath,
         requested_workspace_root: PathBuf,
     },
     ExternalLocal {

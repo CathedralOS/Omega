@@ -41,7 +41,7 @@ use super::reconciliation::{
     PackageRootSourceRequest, PackageSourceClosureLimits, PackageSourceClosureResolutionError,
 };
 #[cfg(test)]
-use omega_package_source::{ExternalSourceContext, SourceLineage, WorkspaceMemberPath};
+use omega_package_source::{ExternalSourceContext, SourceLineage, SourceRelativePath};
 #[cfg(test)]
 use omega_package_source::{GitSourceRequest, LocalSourceLimits, SourceResolverStorage};
 #[cfg(test)]

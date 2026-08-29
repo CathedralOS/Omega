@@ -9,7 +9,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
         let cache = temp_root(package);
         let closure = resolve_workspace_package_closure(
             &workspace_lineage,
-            WorkspaceMemberPath::parse(package).expect("fixture member path"),
+            SourceRelativePath::parse(package).expect("fixture member path"),
             &fixtures,
             &cache,
             LocalSourceLimits::default(),

@@ -1,8 +1,8 @@
 use crate::resolution::source::GitWorkspaceSelectionDeclarations;
 use crate::resolution::source::git::workspace::GitWorkspaceEvidence;
+use omega_build_declarations::WorkspaceMemberPath;
 use omega_package_source::{
     GitSourceRequest, ImmutableSourceResolution, LocalSourceLimits, SourceLineage,
-    WorkspaceMemberPath,
 };
 use std::collections::BTreeSet;
 use std::path::PathBuf;

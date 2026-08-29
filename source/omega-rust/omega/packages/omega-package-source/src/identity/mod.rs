@@ -41,8 +41,8 @@ pub use git::{
     SourceLineage,
 };
 pub use local::{
-    ExternalLocalLineage, ExternalSourceContext, SourceContentDigest, WorkspaceLineageIdentity,
-    WorkspaceMemberLineage, WorkspaceMemberPath,
+    ExternalLocalLineage, ExternalSourceContext, SourceContentDigest, SourceRelativePath,
+    WorkspaceLineageIdentity, WorkspaceMemberLineage,
 };
 pub use resolution::{GitCommitId, GitObjectIdAlgorithm, GitTreeId, ImmutableSourceResolution};
 

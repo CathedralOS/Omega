@@ -5,13 +5,13 @@ use std::path::{Component, Path, PathBuf};
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WorkspaceMemberLineage {
     pub(super) workspace_identity: WorkspaceLineageIdentity,
-    pub(super) member_path: WorkspaceMemberPath,
+    pub(super) member_path: SourceRelativePath,
 }
 
 impl WorkspaceMemberLineage {
     pub fn new(
         workspace_identity: WorkspaceLineageIdentity,
-        member_path: WorkspaceMemberPath,
+        member_path: SourceRelativePath,
     ) -> Self {
         Self {
             workspace_identity,
@@ -23,17 +23,28 @@ impl WorkspaceMemberLineage {
         &self.workspace_identity
     }
 
-    pub fn member_path(&self) -> &WorkspaceMemberPath {
+    pub fn member_path(&self) -> &SourceRelativePath {
         &self.member_path
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WorkspaceMemberPath(String);
+pub struct SourceRelativePath(String);
 
-impl WorkspaceMemberPath {
+impl SourceRelativePath {
     pub fn parse(value: &str) -> Result<Self, IdentityError> {
-        omega_build_declarations::WorkspaceMemberPath::parse(value)
-            .map_err(|_| IdentityError::InvalidWorkspaceMemberPath)?;
+        if value.is_empty()
+            || value.starts_with('/')
+            || value.ends_with('/')
+            || value.contains('\\')
+            || value.bytes().any(|byte| byte.is_ascii_control())
+            || value.split('/').any(|component| {
+                component.is_empty()
+                    || matches!(component, "." | "..")
+                    || !component.bytes().all(is_portable_path_byte)
+            })
+        {
+            return Err(IdentityError::InvalidSourceRelativePath);
+        }
         Ok(Self(value.to_owned()))
     }
 
@@ -42,10 +53,8 @@ impl WorkspaceMemberPath {
     }
 }
 
-impl From<omega_build_declarations::WorkspaceMemberPath> for WorkspaceMemberPath {
-    fn from(value: omega_build_declarations::WorkspaceMemberPath) -> Self {
-        Self(value.into_string())
-    }
+fn is_portable_path_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.')
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

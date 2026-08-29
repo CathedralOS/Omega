@@ -145,7 +145,7 @@ fn generic_git_rejects_secrets_ambiguous_paths_and_unknown_protocols() {
 #[test]
 fn workspace_member_paths_are_normalized_and_traversal_free() {
     assert_eq!(
-        WorkspaceMemberPath::parse("packages/arithmetic-kernels")
+        SourceRelativePath::parse("packages/arithmetic-kernels")
             .unwrap()
             .as_str(),
         "packages/arithmetic-kernels"
@@ -163,7 +163,7 @@ fn workspace_member_paths_are_normalized_and_traversal_free() {
         "packages/naïve",
     ] {
         assert!(
-            WorkspaceMemberPath::parse(path).is_err(),
+            SourceRelativePath::parse(path).is_err(),
             "accepted {path:?}"
         );
     }
@@ -175,11 +175,11 @@ fn workspace_lineage_binds_root_identity_and_member_path() {
     let workspace = WorkspaceLineageIdentity::from_root_source(&root).unwrap();
     let first = SourceLineage::Workspace(WorkspaceMemberLineage::new(
         workspace.clone(),
-        WorkspaceMemberPath::parse("packages/first").unwrap(),
+        SourceRelativePath::parse("packages/first").unwrap(),
     ));
     let second = SourceLineage::Workspace(WorkspaceMemberLineage::new(
         workspace,
-        WorkspaceMemberPath::parse("packages/second").unwrap(),
+        SourceRelativePath::parse("packages/second").unwrap(),
     ));
 
     assert_ne!(first, second);

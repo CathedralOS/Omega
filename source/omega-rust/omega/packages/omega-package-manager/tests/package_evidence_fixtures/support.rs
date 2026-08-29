@@ -35,7 +35,7 @@ pub(super) fn temp_root(name: &str) -> PathBuf {
 
 pub(super) fn resolve_workspace_package_closure(
     workspace_root_source: &SourceLineage,
-    root_member_path: WorkspaceMemberPath,
+    root_member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
     cache_dir: impl AsRef<Path>,
     source_limits: LocalSourceLimits,

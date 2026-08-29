@@ -7,7 +7,7 @@ fn review_compilation_rejects_snapshot_tampering_before_compiler_consumption() {
     let cache = temp_root("tampered-custody");
     let closure = resolve_workspace_package_closure(
         &workspace_lineage,
-        WorkspaceMemberPath::parse("arithmetic-kernels").unwrap(),
+        SourceRelativePath::parse("arithmetic-kernels").unwrap(),
         &fixtures,
         &cache,
         LocalSourceLimits::default(),

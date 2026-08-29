@@ -11,7 +11,7 @@ pub enum IdentityError {
     PortNotAllowed,
     UnexpectedGitHubSshUser,
     UnexpectedGitLabSshUser,
-    InvalidWorkspaceMemberPath,
+    InvalidSourceRelativePath,
     RecursiveWorkspaceLineage,
     CanonicalPath { path: PathBuf, error: String },
     UnsupportedNonUtf8Path(PathBuf),
@@ -41,8 +41,8 @@ impl fmt::Display for IdentityError {
             Self::UnexpectedGitLabSshUser => {
                 formatter.write_str("GitLab SSH repository identity requires the `git` user")
             }
-            Self::InvalidWorkspaceMemberPath => formatter
-                .write_str("workspace member path must be a normalized portable relative path"),
+            Self::InvalidSourceRelativePath => formatter
+                .write_str("source-relative path must be canonical, portable, and traversal-free"),
             Self::RecursiveWorkspaceLineage => {
                 formatter.write_str("a workspace lineage cannot be derived from a workspace member")
             }

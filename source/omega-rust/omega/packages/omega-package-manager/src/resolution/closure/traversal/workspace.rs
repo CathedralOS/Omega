@@ -8,8 +8,8 @@ use super::dependencies::{WorkspaceContext, resolve_registered_package_closure};
 use super::errors::ResolveWorkspacePackageClosureError;
 use crate::resolution::source::ResolvePackageSourceError;
 use omega_package_source::{
-    ExternalSourceContext, SourceLineage, WorkspaceLineageIdentity, WorkspaceMemberLineage,
-    WorkspaceMemberPath,
+    ExternalSourceContext, SourceLineage, SourceRelativePath, WorkspaceLineageIdentity,
+    WorkspaceMemberLineage,
 };
 use omega_package_source::{LocalSourceLimits, SourceResolverStorage};
 use std::collections::BTreeMap;
@@ -23,7 +23,7 @@ use std::path::Path;
 #[cfg(test)]
 pub(crate) fn resolve_workspace_package_closure(
     workspace_root_source: &SourceLineage,
-    root_member_path: WorkspaceMemberPath,
+    root_member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
     cache_dir: impl AsRef<Path>,
     source_limits: LocalSourceLimits,
@@ -45,7 +45,7 @@ pub(crate) fn resolve_workspace_package_closure(
 /// Resolve a workspace closure beneath the manager-owned private source root.
 pub fn resolve_workspace_package_closure_with_storage(
     workspace_root_source: &SourceLineage,
-    root_member_path: WorkspaceMemberPath,
+    root_member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
     storage: &SourceResolverStorage,
     source_limits: LocalSourceLimits,
@@ -79,7 +79,7 @@ pub fn resolve_workspace_package_closure_with_storage(
 #[cfg(test)]
 pub(crate) fn resolve_workspace_package_closure_in_context(
     workspace_root_source: &SourceLineage,
-    root_member_path: WorkspaceMemberPath,
+    root_member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
     source_context: ExternalSourceContext,
     cache_dir: impl AsRef<Path>,
@@ -103,7 +103,7 @@ pub(crate) fn resolve_workspace_package_closure_in_context(
 /// Resolve a context-enabled workspace closure beneath private resolver storage.
 pub fn resolve_workspace_package_closure_in_context_with_storage(
     workspace_root_source: &SourceLineage,
-    root_member_path: WorkspaceMemberPath,
+    root_member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
     source_context: ExternalSourceContext,
     storage: &SourceResolverStorage,
@@ -132,7 +132,7 @@ pub fn resolve_workspace_package_closure_in_context_with_storage(
 #[allow(clippy::too_many_arguments)]
 fn resolve_workspace_package_closure_impl(
     workspace_root_source: &SourceLineage,
-    root_member_path: WorkspaceMemberPath,
+    root_member_path: SourceRelativePath,
     live_workspace_root: &Path,
     workspace_cache: SourceCacheLane<'_>,
     git_cache: SourceCacheLane<'_>,

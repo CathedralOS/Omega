@@ -1,4 +1,4 @@
-use crate::{ResolvedGitSource, SourceResolveError, WorkspaceMemberPath};
+use crate::{ResolvedGitSource, SourceRelativePath, SourceResolveError};
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -40,7 +40,7 @@ impl GitWorkspaceDeclarationLimits {
 /// member's compilation root merely to support workspace navigation replay.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GitWorkspaceDeclaration {
-    member_path: Option<WorkspaceMemberPath>,
+    member_path: Option<SourceRelativePath>,
     repository_path: String,
     object_id: String,
     bytes: Vec<u8>,
@@ -51,7 +51,7 @@ pub struct GitWorkspaceDeclaration {
 pub struct GitWorkspaceProjectionCustody {
     root_declaration: GitWorkspaceDeclaration,
     member_declarations: Vec<GitWorkspaceDeclaration>,
-    selected_member_path: WorkspaceMemberPath,
+    selected_member_path: SourceRelativePath,
     selected_member_tree: String,
 }
 
@@ -59,7 +59,7 @@ impl GitWorkspaceProjectionCustody {
     pub(crate) fn new(
         root_declaration: GitWorkspaceDeclaration,
         member_declarations: Vec<GitWorkspaceDeclaration>,
-        selected_member_path: WorkspaceMemberPath,
+        selected_member_path: SourceRelativePath,
         selected_member_tree: String,
     ) -> Self {
         Self {
@@ -78,7 +78,7 @@ impl GitWorkspaceProjectionCustody {
         &self.member_declarations
     }
 
-    pub const fn selected_member_path(&self) -> &WorkspaceMemberPath {
+    pub const fn selected_member_path(&self) -> &SourceRelativePath {
         &self.selected_member_path
     }
 
@@ -98,7 +98,7 @@ impl GitWorkspaceDeclaration {
     }
 
     pub(crate) fn member(
-        member_path: WorkspaceMemberPath,
+        member_path: SourceRelativePath,
         repository_path: String,
         object_id: String,
         bytes: Vec<u8>,
@@ -111,7 +111,7 @@ impl GitWorkspaceDeclaration {
         }
     }
 
-    pub const fn member_path(&self) -> Option<&WorkspaceMemberPath> {
+    pub const fn member_path(&self) -> Option<&SourceRelativePath> {
         self.member_path.as_ref()
     }
 
@@ -140,7 +140,7 @@ pub trait GitWorkspaceProjectionPlanner {
     fn discover_members(
         &mut self,
         root_declaration: &GitWorkspaceDeclaration,
-    ) -> Result<Vec<WorkspaceMemberPath>, Self::Error>;
+    ) -> Result<Vec<SourceRelativePath>, Self::Error>;
 
     fn select_member(
         &mut self,
@@ -151,23 +151,23 @@ pub trait GitWorkspaceProjectionPlanner {
 
 #[derive(Debug)]
 pub struct GitWorkspaceSelection<Evidence> {
-    member_path: WorkspaceMemberPath,
+    member_path: SourceRelativePath,
     evidence: Evidence,
 }
 
 impl<Evidence> GitWorkspaceSelection<Evidence> {
-    pub fn new(member_path: WorkspaceMemberPath, evidence: Evidence) -> Self {
+    pub fn new(member_path: SourceRelativePath, evidence: Evidence) -> Self {
         Self {
             member_path,
             evidence,
         }
     }
 
-    pub const fn member_path(&self) -> &WorkspaceMemberPath {
+    pub const fn member_path(&self) -> &SourceRelativePath {
         &self.member_path
     }
 
-    pub fn into_parts(self) -> (WorkspaceMemberPath, Evidence) {
+    pub fn into_parts(self) -> (SourceRelativePath, Evidence) {
         (self.member_path, self.evidence)
     }
 }
