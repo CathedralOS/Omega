@@ -180,10 +180,20 @@ Remaining:
   separately checked invariant-preservation fixed point for the one admitted
   backedge; the edge is no longer silently omitted from custody validation. A
   countdown carrying a nonempty affine frontier passes, while discarding that
-  custody only on the cycle path rejects at the header. Ordinary execution
-  authority still returns the existing `NonExecutableRankedScc` fence. The next
-  substep is interpreter execution, followed by derived fuel, Omega/native
-  lowering, and artifact custody for the same exact first slice.
+  custody only on the cycle path rejects at the header. Interpreter execution
+  is now complete for the same exact slice. Proof reconstruction schedules the
+  acyclic skeleton by removing only the validated covered backedge, retains the
+  taken positive-guard fact as the exact `1 <= remaining` subtraction premise,
+  and requires producer evidence for that reconstructed site. Canonical
+  semantic/proof sections execute ranks 0, 1, and 3 with exact measured costs
+  5, 11, and 23 respectively;
+  mid-cycle sponsor exhaustion resumes without replay, while the preserved
+  affine frontier remains live until the exit cleanup. A distinct opaque
+  interpreter verifier carrier grants no fixed-fuel, Omega, native, provider-
+  installation, or mixed-operation authority; ordinary execution validation
+  still returns `NonExecutableRankedScc`. The next substep is derived fixed fuel,
+  followed by Omega/native lowering and artifact custody for the same exact
+  first slice.
   Later product-required slices must then add persistent mutable receiver and
   subplace custody, mixed operations in multi-state blocks, structural-result
   boundary calls and payload cases, nested field/index reads and writes, and

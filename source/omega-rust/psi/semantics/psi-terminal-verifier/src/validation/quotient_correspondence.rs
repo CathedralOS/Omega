@@ -31,7 +31,7 @@ pub(super) fn validate_quotient_correspondences(
             .map_err(|error| ModuleError::InvalidQuotientCorrespondence { index, error })?;
     }
 
-    if policy == ValidationPolicy::Execution && !module.quotient_correspondences.is_empty() {
+    if policy != ValidationPolicy::Representation && !module.quotient_correspondences.is_empty() {
         return Err(ModuleError::NonExecutableQuotientCorrespondence);
     }
     Ok(())

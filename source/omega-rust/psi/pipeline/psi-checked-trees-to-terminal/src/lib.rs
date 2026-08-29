@@ -970,8 +970,18 @@ pub fn lower_machine(
         .map(lower_float_meaning_equality)
         .collect();
     lower_and_install_evidence_artifacts(checked, selection.machine, &mut lowered)?;
-    psi_terminal_verifier::validate_module(&lowered.semantic_module)
-        .map_err(LoweringError::InvalidTerminalModule)?;
+    if lowered
+        .semantic_module
+        .machines
+        .iter()
+        .any(|machine| machine.ranked_scc.is_some())
+    {
+        psi_terminal_verifier::validate_module_for_interpretation(&lowered.semantic_module)
+            .map_err(LoweringError::InvalidTerminalModule)?;
+    } else {
+        psi_terminal_verifier::validate_module(&lowered.semantic_module)
+            .map_err(LoweringError::InvalidTerminalModule)?;
+    }
     lowered.debug_map = if selection.signature == CheckedTerminalSignatureEligibility::Eligible {
         checked
             .facts

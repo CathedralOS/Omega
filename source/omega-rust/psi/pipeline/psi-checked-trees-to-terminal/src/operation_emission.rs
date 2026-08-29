@@ -6,11 +6,28 @@ use crate::nonzero_divisor_certificate::prove_canonical_integer_proposition;
 pub(super) fn finalize_operation_proofs(
     lowered: &mut LoweredTerminalPsi,
 ) -> Result<(), LoweringError> {
-    let validated = psi_terminal_verifier::validate_module(&lowered.semantic_module)
+    let has_ranked_countdown = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .any(|machine| machine.ranked_scc.is_some());
+    let execution_validated = (!has_ranked_countdown)
+        .then(|| psi_terminal_verifier::validate_module(&lowered.semantic_module))
+        .transpose()
         .map_err(LoweringError::InvalidTerminalModule)?;
-    for site in reconstruct_operation_obligations(&lowered.semantic_module)
-        .map_err(LoweringError::InvalidTerminalModule)?
-    {
+    let interpretation_validated = has_ranked_countdown
+        .then(|| {
+            psi_terminal_verifier::validate_module_for_interpretation(&lowered.semantic_module)
+        })
+        .transpose()
+        .map_err(LoweringError::InvalidTerminalModule)?;
+    let obligations = if let Some(validated) = interpretation_validated {
+        psi_terminal_verifier::reconstruct_interpretable_operation_obligations(validated)
+    } else {
+        reconstruct_operation_obligations(&lowered.semantic_module)
+    }
+    .map_err(LoweringError::InvalidTerminalModule)?;
+    for site in obligations {
         // Some closure builders have already supplied source-derived evidence
         // for contextual call/cleanup obligations. Reconstruct every site,
         // but synthesize only obligations that remain undispatched; the final
@@ -37,9 +54,14 @@ pub(super) fn finalize_operation_proofs(
         let proof = if let Some(machine) = owner
             && site.canonical_certificate
         {
-            let context = validated
-                .value_context(machine)
-                .map_err(LoweringError::InvalidTerminalModule)?;
+            let context = if let Some(validated) = interpretation_validated {
+                validated.value_context(machine)
+            } else {
+                execution_validated
+                    .expect("one validation carrier is present")
+                    .value_context(machine)
+            }
+            .map_err(LoweringError::InvalidTerminalModule)?;
             prove_canonical_integer_proposition(
                 &context,
                 &site.obligation.proposition,
