@@ -1,0 +1,110 @@
+use omega_optimization_core::FunctionRelativeOptimizationRealizationManifestIdentity;
+
+use crate::{
+    FunctionRelativeOptimizationRealizationError, OptimizedActiveResidentRematerializationError,
+    OptimizedPostAllocationMachinePipelineError, OptimizedPostCopyRegisterHomeCustodyError,
+    OptimizedResolvedSelectedFormLayoutError, OptimizedSelectedFormEncodingError,
+    StagedOptimizedPostAllocationMachinePlan, StagedOptimizedResolvedSelectedFormLayout,
+    StagedOptimizedSelectedFormEncoding, ValidatedFunctionRelativeOptimizationRealizationManifest,
+    ValidatedWholeFunctionExitContract, WholeFunctionExitContractError,
+};
+
+use super::source::{
+    StagedAllocationRecoveryFunctionRelativeSource, StagedAllocationRecoverySourceCustodyReceipt,
+};
+
+/// Final frameless, function-relative custody for one allocation-recovery
+/// transformation. It grants no section, object, installation, or publication
+/// authority.
+#[derive(Debug)]
+pub struct StagedAllocationRecoveryFunctionRelativeRealization {
+    pub(super) source: StagedAllocationRecoveryFunctionRelativeSource,
+    pub(super) machine: StagedOptimizedPostAllocationMachinePlan,
+    pub(super) encoding: StagedOptimizedSelectedFormEncoding,
+    pub(super) layout: StagedOptimizedResolvedSelectedFormLayout,
+    pub(super) exit_contract: ValidatedWholeFunctionExitContract,
+    pub(super) manifest: ValidatedFunctionRelativeOptimizationRealizationManifest,
+    pub(super) custody: StagedAllocationRecoveryFunctionRelativeRealizationCustodyReceipt,
+}
+
+impl StagedAllocationRecoveryFunctionRelativeRealization {
+    pub const fn source(&self) -> &StagedAllocationRecoveryFunctionRelativeSource {
+        &self.source
+    }
+    pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachinePlan {
+        &self.machine
+    }
+    pub const fn encoding(&self) -> &StagedOptimizedSelectedFormEncoding {
+        &self.encoding
+    }
+    pub const fn layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
+        &self.layout
+    }
+    pub const fn exit_contract(&self) -> &ValidatedWholeFunctionExitContract {
+        &self.exit_contract
+    }
+    pub const fn manifest(&self) -> &ValidatedFunctionRelativeOptimizationRealizationManifest {
+        &self.manifest
+    }
+    pub const fn custody(
+        &self,
+    ) -> &StagedAllocationRecoveryFunctionRelativeRealizationCustodyReceipt {
+        &self.custody
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StagedAllocationRecoveryFunctionRelativeRealizationCustodyReceipt {
+    pub(super) source: StagedAllocationRecoverySourceCustodyReceipt,
+    pub(super) machine: omega_machine_optimizer::PostAllocationMachineIdentity,
+    pub(super) encoding: crate::SelectedFormEncodingIdentity,
+    pub(super) layout: crate::ResolvedSelectedFormLayoutIdentity,
+    pub(super) exit_contract: crate::WholeFunctionExitContractIdentity,
+    pub(super) realization: FunctionRelativeOptimizationRealizationManifestIdentity,
+}
+
+impl StagedAllocationRecoveryFunctionRelativeRealizationCustodyReceipt {
+    pub const fn source(&self) -> &StagedAllocationRecoverySourceCustodyReceipt {
+        &self.source
+    }
+    pub const fn machine(&self) -> omega_machine_optimizer::PostAllocationMachineIdentity {
+        self.machine
+    }
+    pub const fn encoding(&self) -> crate::SelectedFormEncodingIdentity {
+        self.encoding
+    }
+    pub const fn layout(&self) -> crate::ResolvedSelectedFormLayoutIdentity {
+        self.layout
+    }
+    pub const fn exit_contract(&self) -> crate::WholeFunctionExitContractIdentity {
+        self.exit_contract
+    }
+    pub const fn realization(&self) -> FunctionRelativeOptimizationRealizationManifestIdentity {
+        self.realization
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AllocationRecoveryFunctionRelativeRealizationError {
+    FixedViewSource(OptimizedPostCopyRegisterHomeCustodyError),
+    ActiveResidentSource(OptimizedActiveResidentRematerializationError),
+    Machine(OptimizedPostAllocationMachinePipelineError),
+    Encoding(OptimizedSelectedFormEncodingError),
+    Layout(OptimizedResolvedSelectedFormLayoutError),
+    ExitContract(WholeFunctionExitContractError),
+    Manifest(FunctionRelativeOptimizationRealizationError),
+    UnsupportedSelections,
+    RootMismatch,
+    ReceiptMismatch,
+}
+
+impl std::fmt::Display for AllocationRecoveryFunctionRelativeRealizationError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "allocation-recovery function-relative realization failed: {self:?}"
+        )
+    }
+}
+
+impl std::error::Error for AllocationRecoveryFunctionRelativeRealizationError {}

@@ -1,8 +1,8 @@
 use psi_core::MachineId;
 
 use crate::{
+    AllocationRecoveryFunctionRelativeRealizationError,
     FunctionRelativeOptimizationRealizationError,
-    OptimizedActiveResidentRematerializationFunctionRelativeRealizationError,
     OptimizedStructuralUnitFunctionRelativeRealizationError,
     OptimizedUnitFunctionRelativeRealizationError,
 };
@@ -10,9 +10,7 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FunctionFragmentEmissionError {
     Source(FunctionRelativeOptimizationRealizationError),
-    ActiveResidentRematerializationSource(
-        OptimizedActiveResidentRematerializationFunctionRelativeRealizationError,
-    ),
+    AllocationRecoverySource(Box<AllocationRecoveryFunctionRelativeRealizationError>),
     UnitSource(OptimizedUnitFunctionRelativeRealizationError),
     StructuralUnitSource(OptimizedStructuralUnitFunctionRelativeRealizationError),
     SourceKindMismatch,

@@ -2802,9 +2802,9 @@ fn selected_lowering_fragment_admission_is_rule_independent() {
         let encoded = std::fs::read_to_string(&manifest)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", manifest.display()));
         assert!(
-            encoded.contains("const MANIFEST_VERSION: u32 = 8;")
+            encoded.contains("const MANIFEST_VERSION: u32 = 9;")
                 && encoded.contains("SelectedLoweringV1"),
-            "generic selected-lowering source custody must be explicit in v8 manifest {}",
+            "generic selected-lowering source custody must be explicit in v9 manifest {}",
             manifest.display(),
         );
     }
@@ -3172,4 +3172,47 @@ fn build_evaluation_physical_package_source_uses_strong_commitment() {
             && !evaluation.contains("\n    package_fingerprint: u64"),
         "build evaluation must derive the strong commitment only after exact toolchain package/source validation",
     );
+}
+
+#[test]
+fn allocation_recovery_has_one_route_and_one_realization_carrier() {
+    let root = workspace_root();
+    let pipeline =
+        root.join("source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src");
+    let route = std::fs::read_to_string(
+        pipeline.join("coordination/physical_pipeline/routes/allocation_recovery/mod.rs"),
+    )
+    .expect("read allocation-recovery route entrance");
+    for required in [
+        "mod fixed_view;",
+        "mod active_resident;",
+        "fn stage_allocation_recovery_pipeline",
+        "SharedEntryFixedViewCopyAfterCompareBeforeBranchV1",
+        "stage_fixed_view(ranges)",
+        "ActiveResidentImmediateU64MultiUseRematerializationV1",
+        "stage_active_resident(ranges)",
+    ] {
+        assert!(
+            route.contains(required),
+            "allocation-recovery route must expose `{required}`"
+        );
+    }
+    let model = std::fs::read_to_string(pipeline.join("coordination/physical_pipeline/model.rs"))
+        .expect("read physical carrier model");
+    assert!(
+        model.contains("AllocationRecovery {")
+            && model.contains("StagedAllocationRecoveryFunctionRelativeRealization")
+    );
+    assert!(!model.contains("ActiveResidentRematerialization {"));
+
+    let fragment_source = std::fs::read_to_string(
+        pipeline.join("stages/artifacts/function_fragment_emission/source.rs"),
+    )
+    .expect("read fragment source taxonomy");
+    assert!(
+        fragment_source.contains(
+            "AllocationRecovery(Box<StagedAllocationRecoveryFunctionRelativeRealization>)"
+        )
+    );
+    assert!(!fragment_source.contains("ActiveResidentRematerialization("));
 }

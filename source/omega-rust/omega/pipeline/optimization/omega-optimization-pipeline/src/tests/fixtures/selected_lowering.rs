@@ -507,6 +507,19 @@ pub(crate) fn staged_active_resident_function_relative_realization(
     .unwrap()
 }
 
+pub(crate) fn staged_active_resident_allocation_recovery_realization(
+    target: NativeTarget,
+) -> StagedAllocationRecoveryFunctionRelativeRealization {
+    let (source, machine) = staged_active_resident_rematerialization_and_machine(target);
+    stage_allocation_recovery_function_relative_realization(
+        StagedAllocationRecoveryFunctionRelativeSource::ActiveResidentRematerialization(Box::new(
+            source,
+        )),
+        machine,
+    )
+    .unwrap()
+}
+
 pub(crate) fn conditional_widened_u8_exact_add_artifact() -> (Vec<u8>, Vec<u8>) {
     conditional_widened_u8_exact_add_artifact_with_values([200, 55], [254, 1])
 }
