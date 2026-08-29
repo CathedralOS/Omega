@@ -38,9 +38,11 @@ pub use identity::{
     PackageReviewToolchainSourceIdentity,
 };
 pub use projection::{
-    CheckedPackageCallableReview, CheckedPackageProviderReview, CheckedPackageProviderRowIdentity,
-    CheckedPackageReviewProjection, PackageReviewCheckedServiceReach,
-    PackageReviewCompilerIntrinsicExecution,
+    CheckedPackageCallableReview, CheckedPackageProviderFamilyCoordinateReview,
+    CheckedPackageProviderFamilyReview, CheckedPackageProviderReview,
+    CheckedPackageProviderRowIdentity, CheckedPackageReviewProjection,
+    PackageReviewCheckedServiceReach, PackageReviewCompilerIntrinsicExecution,
+    PackageReviewProviderFamilyCoverage, PackageReviewProviderSelectionAuthority,
 };
 pub(crate) use projection::{
     PackageReviewCanonicalRowSources, ProjectedDangerousAuthorityRow,

@@ -466,6 +466,10 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     );
 
     assert_eq!(review.selected_providers().len(), 2);
+    assert!(
+        review.selected_provider_families().is_empty(),
+        "independently selected overloads must not be invented into one atomic family"
+    );
     let selected_realizations = review
         .selected_providers()
         .iter()
@@ -476,6 +480,91 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         selected_realizations,
         std::collections::BTreeSet::from(["I32Provider::convert", "U64Provider::convert"])
     );
+}
+
+#[test]
+fn review_retains_atomic_boundary_operator_family_selection() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data CheckedMath {}
+pub boundary operator CheckedMath::convert(value: u64) -> u64;
+pub boundary operator CheckedMath::convert(value: i32) -> i32;
+
+pub data ConvertProvider {}
+pub machine ConvertProvider::convert_u64(input: u64) -> u64
+satisfies CheckedMath::convert
+{ input }
+pub machine ConvertProvider::convert_i32(input: i32) -> i32
+satisfies CheckedMath::convert
+{ input }
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) {
+    builder.package("review-fixture");
+    builder.select_provider<CheckedMath::convert, ConvertProvider>();
+}
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("one provider should cover the complete overloaded operator family");
+    let review = project_checked_package_review(&checked)
+        .expect("package review should retain the exact atomic family mapping");
+
+    let [family] = review.selected_provider_families() else {
+        panic!("one explicit selected provider family")
+    };
+    assert_eq!(family.family_identity().path(), "CheckedMath::convert");
+    assert_eq!(family.provider_type_declaration().path(), "ConvertProvider");
+    assert_eq!(family.target().target_name(), target);
+    assert_eq!(
+        family.authority(),
+        omega_package_review::PackageReviewProviderSelectionAuthority::BuildOverride
+    );
+    assert_eq!(
+        family.coverage(),
+        omega_package_review::PackageReviewProviderFamilyCoverage::CompleteDeclarationFamily
+    );
+    let coordinates = family.coordinates();
+    assert_eq!(coordinates.len(), 2);
+    assert!(coordinates[0].requirement_identity().contains("i32"));
+    assert!(coordinates[1].requirement_identity().contains("u64"));
+    assert!(
+        coordinates
+            .windows(2)
+            .all(|pair| pair[0].requirement_identity() < pair[1].requirement_identity())
+    );
+    let selected_fingerprints = review
+        .selected_providers()
+        .iter()
+        .map(|provider| provider.plan_fingerprint())
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(
+        coordinates
+            .iter()
+            .map(|coordinate| coordinate.plan_fingerprint())
+            .collect::<std::collections::BTreeSet<_>>(),
+        selected_fingerprints
+    );
+
+    let canonical = review
+        .canonical_review_bytes()
+        .expect("family mapping should have canonical review encoding");
+    assert!(!canonical.is_empty());
 }
 
 #[test]

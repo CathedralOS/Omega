@@ -95,7 +95,7 @@ closed. Compiler-issued package review remains non-admitting.
     permission-frontier, crash-refinement, and compiler-intrinsic ownership
     joins;
   - an exact trust-bearing association for operator-bound external supply;
-  - atomic same-path overloaded boundary-provider selection under
+  - generic/exact-application boundary-provider family evidence under
     **BOUNDARY-OPERATOR-FAMILY-SELECTION**;
   - complete exact semantic-subject commitments, certificate closure, and
     reproducibility dispositions.
@@ -283,11 +283,14 @@ closed. Compiler-issued package review remains non-admitting.
   must reject every std selection; no package name, alias, path, or magic mount
   may confer authority.
 
-- [ ] Consume **BOUNDARY-OPERATOR-FAMILY-SELECTION** from `TASKS.md`: retain the
-  canonical family-coordinate set, exact provider mapping, generic or exact-
-  application coverage, target identity, and compatibility failure when a
-  public family gains an uncovered coordinate. Package evidence must never use
-  declaration order, display signatures, ordinals, or reach-selected subsets.
+- [ ] Complete generic/exact-application coverage for
+  **BOUNDARY-OPERATOR-FAMILY-SELECTION**. Package review now retains complete
+  declaration-family coordinates, exact provider and target, selection
+  authority, and the canonical coordinate-to-plan mapping. Extend that closed
+  carrier when exact applications become admissible, and keep compatibility
+  failure when a public family gains an uncovered coordinate. Package evidence
+  must never use declaration order, display signatures, ordinals, or
+  reach-selected subsets.
 
 - [ ] Consume **TOP-LEVEL-BOUNDARY-REQUIREMENTS** from `TASKS.md`: publish the
   explicit requirement declaration separately from every checked/external

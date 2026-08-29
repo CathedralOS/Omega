@@ -215,6 +215,84 @@ impl CheckedPackageProviderReview {
     }
 }
 
+/// Which ordinary compiler-owned authority selected one provider family.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewProviderSelectionAuthority {
+    BuildOverride,
+    TargetDefault,
+}
+
+/// Closed coverage vocabulary for an atomic boundary-operator family.
+///
+/// Exact generic applications remain inadmissible until they receive a
+/// distinct compiler-owned coordinate carrier; this variant means every
+/// declaration coordinate in the selected family is covered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewProviderFamilyCoverage {
+    CompleteDeclarationFamily,
+}
+
+/// One exact overload coordinate mapped to its selected provider plan.
+/// `plan_fingerprint` is checked compatibility data joined to the complete
+/// selected-provider row; it is not a package-admission identity by itself.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct CheckedPackageProviderFamilyCoordinateReview {
+    pub(crate) requirement_identity: String,
+    pub(crate) operator_declaration: PackageReviewNominalIdentity,
+    pub(crate) plan_fingerprint: u64,
+}
+
+impl CheckedPackageProviderFamilyCoordinateReview {
+    pub fn requirement_identity(&self) -> &str {
+        &self.requirement_identity
+    }
+
+    pub const fn operator_declaration(&self) -> &PackageReviewNominalIdentity {
+        &self.operator_declaration
+    }
+
+    pub const fn plan_fingerprint(&self) -> u64 {
+        self.plan_fingerprint
+    }
+}
+
+/// One explicit atomic same-path boundary-operator provider selection.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedPackageProviderFamilyReview {
+    pub(crate) family_identity: PackageReviewNominalIdentity,
+    pub(crate) provider_type_declaration: PackageReviewNominalIdentity,
+    pub(crate) target: omega_target::TargetProfile,
+    pub(crate) authority: PackageReviewProviderSelectionAuthority,
+    pub(crate) coverage: PackageReviewProviderFamilyCoverage,
+    pub(crate) coordinates: Vec<CheckedPackageProviderFamilyCoordinateReview>,
+}
+
+impl CheckedPackageProviderFamilyReview {
+    pub const fn family_identity(&self) -> &PackageReviewNominalIdentity {
+        &self.family_identity
+    }
+
+    pub const fn provider_type_declaration(&self) -> &PackageReviewNominalIdentity {
+        &self.provider_type_declaration
+    }
+
+    pub const fn target(&self) -> omega_target::TargetProfile {
+        self.target
+    }
+
+    pub const fn authority(&self) -> PackageReviewProviderSelectionAuthority {
+        self.authority
+    }
+
+    pub const fn coverage(&self) -> PackageReviewProviderFamilyCoverage {
+        self.coverage
+    }
+
+    pub fn coordinates(&self) -> &[CheckedPackageProviderFamilyCoordinateReview] {
+        &self.coordinates
+    }
+}
+
 impl CheckedPackageCallableReview {
     pub const fn role(&self) -> PackageReviewCallableRole {
         self.role
@@ -325,6 +403,7 @@ pub struct CheckedPackageReviewProjection {
     pub(crate) dangerous_authorities: Vec<PackageReviewDangerousAuthority>,
     pub(crate) dangerous_authority_slack: Vec<PackageReviewDangerousAuthoritySlack>,
     pub(crate) selected_providers: Vec<CheckedPackageProviderReview>,
+    pub(crate) selected_provider_families: Vec<CheckedPackageProviderFamilyReview>,
     pub(crate) row_sources: PackageReviewCanonicalRowSources,
 }
 
@@ -346,6 +425,7 @@ impl PartialEq for CheckedPackageReviewProjection {
             && self.dangerous_authorities == other.dangerous_authorities
             && self.dangerous_authority_slack == other.dangerous_authority_slack
             && self.selected_providers == other.selected_providers
+            && self.selected_provider_families == other.selected_provider_families
     }
 }
 

@@ -47,5 +47,6 @@ pub(crate) use expressions::{
 pub(crate) use identity::{encode_nominal, encode_supply};
 #[allow(unused_imports)]
 pub(crate) use providers::{
-    encode_carry_policy, encode_provider, encode_provider_row, encode_service_schema,
+    encode_carry_policy, encode_provider, encode_provider_family, encode_provider_row,
+    encode_service_schema,
 };

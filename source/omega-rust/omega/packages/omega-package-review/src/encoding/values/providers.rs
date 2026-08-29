@@ -1,5 +1,9 @@
 use crate::encoding::{Encoder, PackageReviewEncodingError};
-use crate::model::{CheckedPackageProviderReview, PackageReviewCompilerIntrinsicExecution};
+use crate::model::{
+    CheckedPackageProviderFamilyReview, CheckedPackageProviderReview,
+    PackageReviewCompilerIntrinsicExecution, PackageReviewProviderFamilyCoverage,
+    PackageReviewProviderSelectionAuthority,
+};
 use omega_effects::provider_plan::{
     ProviderBinding, ServiceEntryAuthorityFlow, ServiceProgressEstablishmentRouteKind,
     ServiceProgressSubject,
@@ -28,6 +32,28 @@ pub(crate) fn encode_provider(
             row.compiler_intrinsic_execution.as_ref(),
             encode_compiler_intrinsic_execution,
         )
+    })
+}
+
+pub(crate) fn encode_provider_family(
+    encoder: &mut Encoder,
+    family: &CheckedPackageProviderFamilyReview,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_nominal(encoder, &family.family_identity)?;
+    encode_nominal(encoder, &family.provider_type_declaration)?;
+    encoder.string(family.target.target_name())?;
+    encoder.byte(match family.authority {
+        PackageReviewProviderSelectionAuthority::BuildOverride => 0,
+        PackageReviewProviderSelectionAuthority::TargetDefault => 1,
+    });
+    encoder.byte(match family.coverage {
+        PackageReviewProviderFamilyCoverage::CompleteDeclarationFamily => 0,
+    });
+    encoder.sequence(&family.coordinates, |encoder, coordinate| {
+        encoder.string(&coordinate.requirement_identity)?;
+        encode_nominal(encoder, &coordinate.operator_declaration)?;
+        encoder.u64(coordinate.plan_fingerprint);
+        Ok(())
     })
 }
 
