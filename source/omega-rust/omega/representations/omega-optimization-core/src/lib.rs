@@ -47,8 +47,8 @@ pub use manifest::{
 };
 
 const SELECTION_ENCODING_MAGIC: &[u8; 8] = b"OMGOPT\0\0";
-const SELECTION_ENCODING_VERSION: u32 = 8;
-const SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.optimization-selections.v8\0";
+const SELECTION_ENCODING_VERSION: u32 = 9;
+const SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.optimization-selections.v9\0";
 
 /// Closed execution phase for one explicitly named optimization. Phase
 /// projection routes a complete source-visible suite; it never replaces that
@@ -83,10 +83,11 @@ pub enum Optimization {
     SharedEntryFixedViewCopyAfterCompareBeforeBranchV1 = 11,
     ActiveResidentImmediateU64MultiUseRematerializationV1 = 12,
     Aarch64SelectShortestMovnSeededI64MaterializationV1 = 13,
+    X86SelectXorZeroI64MaterializationV1 = 14,
 }
 
 impl Optimization {
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 14] = [
         Self::ControlFlowCleanup,
         Self::SparseConditionalConstantPropagation,
         Self::CopyPropagation,
@@ -100,6 +101,7 @@ impl Optimization {
         Self::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
         Self::ActiveResidentImmediateU64MultiUseRematerializationV1,
         Self::Aarch64SelectShortestMovnSeededI64MaterializationV1,
+        Self::X86SelectXorZeroI64MaterializationV1,
     ];
 
     pub const fn build_case_name(self) -> &'static str {
@@ -127,6 +129,7 @@ impl Optimization {
             Self::Aarch64SelectShortestMovnSeededI64MaterializationV1 => {
                 "Aarch64SelectShortestMovnSeededI64MaterializationV1"
             }
+            Self::X86SelectXorZeroI64MaterializationV1 => "X86SelectXorZeroI64MaterializationV1",
         }
     }
 
@@ -159,6 +162,9 @@ impl Optimization {
             Self::Aarch64SelectShortestMovnSeededI64MaterializationV1 => {
                 "aarch64_select_shortest_movn_seeded_i64_materialization_v1"
             }
+            Self::X86SelectXorZeroI64MaterializationV1 => {
+                "x86_select_xor_zero_i64_materialization_v1"
+            }
         }
     }
 
@@ -178,7 +184,8 @@ impl Optimization {
                 OptimizationExecutionPhase::FunctionRelativeLayout
             }
             Self::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1
-            | Self::Aarch64SelectShortestMovnSeededI64MaterializationV1 => {
+            | Self::Aarch64SelectShortestMovnSeededI64MaterializationV1
+            | Self::X86SelectXorZeroI64MaterializationV1 => {
                 OptimizationExecutionPhase::PostAllocationMachine
             }
             Self::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1
@@ -395,6 +402,7 @@ mod tests {
             Optimization::ControlFlowCleanup,
             Optimization::CopyPropagation,
             Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
+            Optimization::X86SelectXorZeroI64MaterializationV1,
         ])
         .expect("unique selections");
         assert_eq!(
@@ -408,6 +416,7 @@ mod tests {
                 Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
                 Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
                 Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
+                Optimization::X86SelectXorZeroI64MaterializationV1,
             ]
         );
         let encoded = selections.encode();
@@ -455,10 +464,10 @@ mod tests {
         );
 
         let mut old_version = selections.encode();
-        old_version[8..12].copy_from_slice(&7_u32.to_le_bytes());
+        old_version[8..12].copy_from_slice(&8_u32.to_le_bytes());
         assert_eq!(
             OptimizationSelections::decode(&old_version),
-            Err(SelectionDecodeError::UnsupportedVersion(7))
+            Err(SelectionDecodeError::UnsupportedVersion(8))
         );
     }
 
@@ -479,6 +488,7 @@ mod tests {
             Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
             Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
             Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
+            Optimization::X86SelectXorZeroI64MaterializationV1,
             Optimization::X86RelaxConditionalBranchesToRel8V1,
             Optimization::SelectedIncomingU12ExactAddImmediate,
             Optimization::SelectedIncomingU12ExactSubtractImmediate,
@@ -503,6 +513,7 @@ mod tests {
             &[
                 Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
                 Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
+                Optimization::X86SelectXorZeroI64MaterializationV1,
             ]
         );
         assert_eq!(
