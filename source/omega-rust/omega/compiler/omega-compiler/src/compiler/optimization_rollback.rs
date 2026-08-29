@@ -9,6 +9,26 @@ pub struct OptimizationRollback {
     requested_disabled: OptimizationSelections,
 }
 
+/// Complete native-realization view of one release rollback request.
+///
+/// The effective selection and optional report receipt are constructed
+/// together so callers cannot reimplement the empty-request identity case.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct OptimizationRollbackSettlement {
+    effective: OptimizationSelections,
+    receipt: Option<OptimizationRollbackReceipt>,
+}
+
+impl OptimizationRollbackSettlement {
+    pub const fn effective(&self) -> &OptimizationSelections {
+        &self.effective
+    }
+
+    pub fn into_receipt(self) -> Option<OptimizationRollbackReceipt> {
+        self.receipt
+    }
+}
+
 impl OptimizationRollback {
     pub fn new(
         requested_disabled: impl IntoIterator<Item = Optimization>,
@@ -41,6 +61,10 @@ impl OptimizationRollback {
         &self.requested_disabled
     }
 
+    /// Reconstruct the optional public report receipt for compatibility with
+    /// callers that inspect rollback evidence independently. Production native
+    /// realization consumes [`Self::settle`] so effective selection cannot
+    /// detach from this receipt.
     pub fn reconcile(
         &self,
         build_selected: &OptimizationSelections,
@@ -51,6 +75,18 @@ impl OptimizationRollback {
                 self.requested_disabled.clone(),
             )
         })
+    }
+
+    pub(crate) fn settle(
+        &self,
+        build_selected: &OptimizationSelections,
+    ) -> OptimizationRollbackSettlement {
+        let receipt = self.reconcile(build_selected);
+        let effective = receipt.as_ref().map_or_else(
+            || build_selected.clone(),
+            |receipt| receipt.effective().clone(),
+        );
+        OptimizationRollbackSettlement { effective, receipt }
     }
 }
 
@@ -90,6 +126,41 @@ mod tests {
         OptimizationExecutionPhase::PostAllocationMachine,
         OptimizationExecutionPhase::FunctionRelativeLayout,
     ];
+
+    #[test]
+    fn empty_settlement_preserves_build_selection_without_a_receipt() {
+        let selected = OptimizationSelections::new([
+            Optimization::ControlFlowCleanup,
+            Optimization::CopyPropagation,
+        ])
+        .expect("canonical build selection");
+        let settlement = OptimizationRollback::default().settle(&selected);
+
+        assert_eq!(settlement.effective(), &selected);
+        assert_eq!(settlement.into_receipt(), None);
+    }
+
+    #[test]
+    fn nonempty_settlement_keeps_effective_selection_and_receipt_coherent() {
+        let selected = OptimizationSelections::new([
+            Optimization::ControlFlowCleanup,
+            Optimization::CopyPropagation,
+        ])
+        .expect("canonical build selection");
+        let rollback = OptimizationRollback::new([Optimization::CopyPropagation])
+            .expect("canonical rollback selection");
+        let settlement = rollback.settle(&selected);
+        let expected = OptimizationSelections::new([Optimization::ControlFlowCleanup])
+            .expect("canonical effective selection");
+
+        assert_eq!(settlement.effective(), &expected);
+        let receipt = settlement
+            .into_receipt()
+            .expect("a nonempty request retains one report receipt");
+        assert_eq!(receipt.build_selected(), &selected);
+        assert_eq!(receipt.effective(), &expected);
+        assert!(receipt.is_consistent());
+    }
 
     #[test]
     fn every_exact_rule_is_subtractive_phase_local_and_idempotent() {
