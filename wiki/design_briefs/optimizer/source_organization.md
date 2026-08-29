@@ -45,6 +45,22 @@ No second match table may silently become an alternate registry. Build
 vocabulary, reports, and codecs derive from or exhaustively test against the
 closed `Optimization::ALL` vocabulary.
 
+## Squalr pattern carried forward
+
+The clearest concrete reference is Squalr's
+`registries/scan_rules/pointer_scan_rule_registry.rs`: one short registry
+visibly lists the built-in planning rules. The `rule_map_search_kernel.rs` leaf
+owns the SIMD-linear/scalar-linear/scalar-binary choice, while
+`pointer_scans/pointer_scan_dispatcher.rs` has one obvious application loop.
+The element-scan registry follows the same shape for its parameter and filter
+rule families.
+
+Omega keeps that navigational shape: catalog, named leaves, one application
+loop. Omega strengthens it with deterministic catalog order, exact typed
+selection names, immutable candidate plans, independent validation, and
+identity-bound receipts. It deliberately does not copy the global unsafe
+singleton, string-keyed scheduling, or unordered `HashMap` iteration.
+
 ## Test placement
 
 Focused tests live beside the responsibility they verify. Integration tests

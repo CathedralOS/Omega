@@ -1,0 +1,60 @@
+//! Layout-independent selected-form encoding, replay, and optimization custody.
+
+use omega_regalloc::ValidatedSelectedAnalysis;
+use omega_register_model::ValidatedPhysicalRegisterModel;
+
+use crate::{
+    StagedOptimizedPostAllocationMachineOptimization, StagedOptimizedPostAllocationMachinePlan,
+};
+
+mod compute;
+mod custody;
+mod error;
+mod identity;
+mod model;
+mod row_encoding;
+mod stage;
+mod structural_encoding;
+
+pub use error::*;
+pub use model::*;
+pub use stage::*;
+
+/// Canonical selected-form encoding join. The optional typed machine result
+/// owns rule selection; the returned artifact retains only normalized custody.
+pub fn stage_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization<
+    S: ValidatedSelectedAnalysis,
+>(
+    selected: &S,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    physical: &ValidatedPhysicalRegisterModel,
+    optimization: Option<&StagedOptimizedPostAllocationMachineOptimization>,
+) -> Result<StagedOptimizedSelectedFormEncoding, OptimizedSelectedFormEncodingError> {
+    let artifact = compute::compute(selected, machine, physical, optimization)?;
+    validate_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization(
+        selected,
+        machine,
+        physical,
+        optimization,
+        &artifact,
+    )?;
+    Ok(artifact)
+}
+
+/// Replay the canonical selected-form encoding join against all retained
+/// selected, physical-machine, and normalized optimization roots.
+pub fn validate_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization<
+    S: ValidatedSelectedAnalysis,
+>(
+    selected: &S,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    physical: &ValidatedPhysicalRegisterModel,
+    optimization: Option<&StagedOptimizedPostAllocationMachineOptimization>,
+    artifact: &StagedOptimizedSelectedFormEncoding,
+) -> Result<(), OptimizedSelectedFormEncodingError> {
+    let replayed = compute::compute(selected, machine, physical, optimization)?;
+    if artifact != &replayed {
+        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+    }
+    Ok(())
+}

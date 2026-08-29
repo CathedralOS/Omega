@@ -1,0 +1,440 @@
+use omega_regalloc::ValidatedSelectedAnalysis;
+
+use crate::{
+    StagedAarch64CbnzFunctionRelativeRealization,
+    StagedFunctionRelativeLayoutOptimizationRealization,
+    StagedOptimizedAarch64MovnFunctionRelativeRealization,
+    StagedOptimizedActiveResidentRematerialization,
+    StagedOptimizedActiveResidentRematerializationFunctionRelativeRealization,
+    StagedOptimizedStructuralUnitFunctionRelativeRealization,
+    StagedOptimizedUnitFunctionRelativeRealization,
+    StagedSelectedLoweringAarch64CbnzFunctionRelativeRealization,
+    StagedSelectedLoweringAarch64MovnFunctionRelativeRealization,
+    StagedSelectedLoweringFunctionRelativeRealization,
+};
+
+#[derive(Debug)]
+pub enum StagedOptimizedFunctionFragmentEmissionSource {
+    X86Rel8Direct(Box<StagedFunctionRelativeLayoutOptimizationRealization>),
+    X86Rel8AfterSelectedLowering(Box<StagedSelectedLoweringFunctionRelativeRealization>),
+    Aarch64CbnzDirect(Box<StagedAarch64CbnzFunctionRelativeRealization>),
+    Aarch64CbnzAfterSelectedLowering(
+        Box<StagedSelectedLoweringAarch64CbnzFunctionRelativeRealization>,
+    ),
+    Aarch64MovnDirect(Box<StagedOptimizedAarch64MovnFunctionRelativeRealization>),
+    Aarch64MovnAfterSelectedLowering(
+        Box<StagedSelectedLoweringAarch64MovnFunctionRelativeRealization>,
+    ),
+    ActiveResidentRematerialization(
+        Box<StagedOptimizedActiveResidentRematerializationFunctionRelativeRealization>,
+    ),
+    UnitBaseline(Box<StagedOptimizedUnitFunctionRelativeRealization>),
+    StructuralUnit(Box<StagedOptimizedStructuralUnitFunctionRelativeRealization>),
+}
+
+impl StagedOptimizedFunctionFragmentEmissionSource {
+    pub fn selected_plan(&self) -> &omega_selected_instructions::SelectedInstructionPlan {
+        match self {
+            Self::X86Rel8Direct(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .selected()
+                .selected_plan(),
+            Self::Aarch64CbnzDirect(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .selected()
+                .selected_plan(),
+            Self::Aarch64MovnDirect(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .selected()
+                .selected_plan(),
+            Self::X86Rel8AfterSelectedLowering(realization) => {
+                selected_after_lowering(realization.homes())
+            }
+            Self::Aarch64CbnzAfterSelectedLowering(realization) => {
+                selected_after_lowering(realization.homes())
+            }
+            Self::Aarch64MovnAfterSelectedLowering(realization) => {
+                selected_after_lowering(realization.homes())
+            }
+            Self::ActiveResidentRematerialization(realization) => {
+                active_resident_rematerialization(realization)
+                    .rematerialization()
+                    .selected_plan()
+            }
+            Self::UnitBaseline(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .selected()
+                .selected_plan(),
+            Self::StructuralUnit(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .selected()
+                .selected_plan(),
+        }
+    }
+
+    pub const fn register_homes(&self) -> &omega_regalloc::ValidatedRegisterHomes {
+        match self {
+            Self::X86Rel8Direct(realization) => realization.homes().homes(),
+            Self::X86Rel8AfterSelectedLowering(realization) => realization.homes().homes(),
+            Self::Aarch64CbnzDirect(realization) => realization.homes().homes(),
+            Self::Aarch64CbnzAfterSelectedLowering(realization) => realization.homes().homes(),
+            Self::Aarch64MovnDirect(realization) => realization.homes().homes(),
+            Self::Aarch64MovnAfterSelectedLowering(realization) => realization.homes().homes(),
+            Self::ActiveResidentRematerialization(realization) => {
+                active_resident_rematerialization(realization).homes()
+            }
+            Self::UnitBaseline(realization) => realization.homes().homes(),
+            Self::StructuralUnit(realization) => realization.homes().homes(),
+        }
+    }
+
+    pub fn register_environment(&self) -> &crate::ValidatedTargetRegisterEnvironment {
+        match self {
+            Self::X86Rel8Direct(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .register_environment(),
+            Self::Aarch64CbnzDirect(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .register_environment(),
+            Self::Aarch64MovnDirect(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .register_environment(),
+            Self::X86Rel8AfterSelectedLowering(realization) => realization
+                .homes()
+                .selected_lowering_run()
+                .source_legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .register_environment(),
+            Self::Aarch64CbnzAfterSelectedLowering(realization) => realization
+                .homes()
+                .selected_lowering_run()
+                .source_legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .register_environment(),
+            Self::Aarch64MovnAfterSelectedLowering(realization) => realization
+                .homes()
+                .selected_lowering_run()
+                .source_legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .register_environment(),
+            Self::ActiveResidentRematerialization(realization) => {
+                active_resident_rematerialization(realization)
+                    .source()
+                    .live_range_stage()
+                    .liveness_stage()
+                    .selected_stage()
+                    .register_environment()
+            }
+            Self::UnitBaseline(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .register_environment(),
+            Self::StructuralUnit(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .register_environment(),
+        }
+    }
+
+    pub const fn exit_contract(&self) -> &crate::ValidatedWholeFunctionExitContract {
+        match self {
+            Self::X86Rel8Direct(realization) => realization.exit_contract(),
+            Self::X86Rel8AfterSelectedLowering(realization) => realization.exit_contract(),
+            Self::Aarch64CbnzDirect(realization) => realization.exit_contract(),
+            Self::Aarch64CbnzAfterSelectedLowering(realization) => realization.exit_contract(),
+            Self::Aarch64MovnDirect(realization) => realization.exit_contract(),
+            Self::Aarch64MovnAfterSelectedLowering(realization) => realization.exit_contract(),
+            Self::ActiveResidentRematerialization(realization) => realization.exit_contract(),
+            Self::UnitBaseline(realization) => realization.exit_contract(),
+            Self::StructuralUnit(realization) => realization.exit_contract(),
+        }
+    }
+    pub fn pre_physical_manifest(
+        &self,
+    ) -> &omega_optimization_validation::ValidatedPrePhysicalOptimizationManifest {
+        match self {
+            Self::X86Rel8Direct(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target()
+                .optimized()
+                .pre_physical_manifest(),
+            Self::X86Rel8AfterSelectedLowering(realization) => realization
+                .homes()
+                .selected_lowering_run()
+                .source_legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target()
+                .optimized()
+                .pre_physical_manifest(),
+            Self::Aarch64CbnzDirect(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target()
+                .optimized()
+                .pre_physical_manifest(),
+            Self::Aarch64MovnDirect(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target()
+                .optimized()
+                .pre_physical_manifest(),
+            Self::Aarch64CbnzAfterSelectedLowering(realization) => realization
+                .homes()
+                .selected_lowering_run()
+                .source_legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target()
+                .optimized()
+                .pre_physical_manifest(),
+            Self::Aarch64MovnAfterSelectedLowering(realization) => realization
+                .homes()
+                .selected_lowering_run()
+                .source_legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target()
+                .optimized()
+                .pre_physical_manifest(),
+            Self::ActiveResidentRematerialization(realization) => {
+                active_resident_rematerialization(realization)
+                    .source()
+                    .live_range_stage()
+                    .liveness_stage()
+                    .selected_stage()
+                    .optimized_target()
+                    .optimized()
+                    .pre_physical_manifest()
+            }
+            Self::UnitBaseline(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target()
+                .optimized()
+                .pre_physical_manifest(),
+            Self::StructuralUnit(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target()
+                .optimized()
+                .pre_physical_manifest(),
+        }
+    }
+
+    pub const fn function_relative_manifest(
+        &self,
+    ) -> &crate::ValidatedFunctionRelativeOptimizationRealizationManifest {
+        match self {
+            Self::X86Rel8Direct(realization) => realization.manifest(),
+            Self::X86Rel8AfterSelectedLowering(realization) => realization.manifest(),
+            Self::Aarch64CbnzDirect(realization) => realization.manifest(),
+            Self::Aarch64CbnzAfterSelectedLowering(realization) => realization.manifest(),
+            Self::Aarch64MovnDirect(realization) => realization.manifest(),
+            Self::Aarch64MovnAfterSelectedLowering(realization) => realization.manifest(),
+            Self::ActiveResidentRematerialization(realization) => realization.manifest(),
+            Self::UnitBaseline(realization) => realization.manifest(),
+            Self::StructuralUnit(realization) => realization.manifest(),
+        }
+    }
+
+    pub const fn post_allocation_manifest(
+        &self,
+    ) -> &omega_regalloc::ValidatedPostAllocationOptimizationManifest {
+        match self {
+            Self::X86Rel8Direct(realization) => realization.homes().post_allocation_manifest(),
+            Self::X86Rel8AfterSelectedLowering(realization) => {
+                realization.homes().post_allocation_manifest()
+            }
+            Self::Aarch64CbnzDirect(realization) => realization.homes().post_allocation_manifest(),
+            Self::Aarch64CbnzAfterSelectedLowering(realization) => {
+                realization.homes().post_allocation_manifest()
+            }
+            Self::Aarch64MovnDirect(realization) => realization.homes().post_allocation_manifest(),
+            Self::Aarch64MovnAfterSelectedLowering(realization) => {
+                realization.homes().post_allocation_manifest()
+            }
+            Self::ActiveResidentRematerialization(realization) => {
+                active_resident_rematerialization(realization).post_allocation_manifest()
+            }
+            Self::UnitBaseline(realization) => realization.homes().post_allocation_manifest(),
+            Self::StructuralUnit(realization) => realization.homes().post_allocation_manifest(),
+        }
+    }
+
+    /// Borrow the exact optimized-target carrier retained through every
+    /// admitted realization route.
+    pub fn optimized_target(&self) -> &crate::ValidatedOptimizedTargetOperations {
+        match self {
+            Self::X86Rel8Direct(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target(),
+            Self::X86Rel8AfterSelectedLowering(realization) => realization
+                .homes()
+                .selected_lowering_run()
+                .source_legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target(),
+            Self::Aarch64CbnzDirect(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target(),
+            Self::Aarch64MovnDirect(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target(),
+            Self::Aarch64CbnzAfterSelectedLowering(realization) => realization
+                .homes()
+                .selected_lowering_run()
+                .source_legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target(),
+            Self::Aarch64MovnAfterSelectedLowering(realization) => realization
+                .homes()
+                .selected_lowering_run()
+                .source_legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target(),
+            Self::ActiveResidentRematerialization(realization) => {
+                active_resident_rematerialization(realization)
+                    .source()
+                    .live_range_stage()
+                    .liveness_stage()
+                    .selected_stage()
+                    .optimized_target()
+            }
+            Self::UnitBaseline(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target(),
+            Self::StructuralUnit(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target(),
+        }
+    }
+
+    /// Borrow the exact verifier-owned input retained through every admitted
+    /// realization route. This accessor does not detach semantic or proof
+    /// context from staged custody.
+    pub fn verified_input(
+        &self,
+    ) -> &omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput {
+        self.optimized_target().optimized().verified_input()
+    }
+
+    /// Borrow the opaque checked-provider installation, when one authorized
+    /// the installed calls retained by this realization.
+    pub fn provider_installation(
+        &self,
+    ) -> Option<&omega_psi_to_abstract_operations::AdmittedProviderInstallation> {
+        self.optimized_target().provider_installation()
+    }
+}
+
+pub(super) const fn active_resident_rematerialization(
+    realization: &StagedOptimizedActiveResidentRematerializationFunctionRelativeRealization,
+) -> &StagedOptimizedActiveResidentRematerialization {
+    realization.source().pre_layout().source()
+}
+
+fn selected_after_lowering(
+    homes: &crate::StagedOptimizedRegisterHomesAfterSelectedLowering,
+) -> &omega_selected_instructions::SelectedInstructionPlan {
+    let run = homes.selected_lowering_run();
+    match run.steps().last() {
+        Some(step) => step.fold().selected_plan(),
+        None => run
+            .source_legality_stage()
+            .live_range_stage()
+            .liveness_stage()
+            .selected_stage()
+            .selected()
+            .selected_plan(),
+    }
+}
