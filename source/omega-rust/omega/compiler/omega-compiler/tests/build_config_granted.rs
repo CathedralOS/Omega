@@ -114,6 +114,16 @@ fn replay_handoff_lane(relative_path: &[u8], filesystem_attempt_ordinal: u64) ->
 
 fn rooted_build_probe_project(label: &str, body: &str) -> (PathBuf, omega_target::TargetProfile) {
     let profile = omega_target::TargetProfile::host();
+    let body = body
+        .replace("self.fake.resolve", "fake_resolve")
+        .replace("self.filesystem", "builder.filesystem")
+        .replace("self.descriptor", "descriptor")
+        .replace("self.code", "code")
+        .replace("self.result", "result")
+        .replace("self.position", "position")
+        .replace("self.small_buffer", "small_buffer")
+        .replace("self.buffer", "buffer")
+        .replace("self.times", "times");
     let project = std::env::temp_dir().join(format!(
         "omega-rooted-build-probe-{label}-{}",
         std::process::id()
@@ -127,26 +137,21 @@ fn rooted_build_probe_project(label: &str, body: &str) -> (PathBuf, omega_target
 
 target {target} {{}}
 
-data FakeRoot {{}}
-machine FakeRoot::resolve<'path>(&self, relative: &'path [u8] in Path) -> &'path [u8] in Path {{
+machine fake_resolve<'path>(relative: &'path [u8] in Path) -> &'path [u8] in Path {{
     relative
 }}
 
-data RootProbe {{
-    filesystem: FilesystemHost;
-    fake: FakeRoot;
-    descriptor: i32;
-    code: i32;
-    result: i64;
-    position: i64;
-    buffer: [u8; 4096];
-    small_buffer: [u8; 1];
-    times: [u8; 32];
-}}
-
-machine RootProbe::build(&mut self, builder: &mut Build)
+machine build(builder: &mut Build)
 reaches FilesystemHost
 {{
+    builder.application("rooted-build-probe");
+    let mut descriptor: i32 = 0;
+    let mut code: i32 = 0;
+    let mut result: i64 = 0;
+    let mut position: i64 = 0;
+    let mut buffer: [u8; 4096];
+    let mut small_buffer: [u8; 1];
+    let mut times: [u8; 32];
 {body}
     builder.freestanding = false;
 }}
@@ -286,43 +291,38 @@ use omega::language::std::filesystem_host;
 
 target {target} {{}}
 
-data Stager {{
-    fs: FilesystemHost;
-    log: Console;
-    fd: i32;
-    clone_fd: i32;
-    handle: i64;
-    buffer: [u8; 6];
-    n: i64;
-    rc: i32;
-}}
-
-machine Stager::build(&mut self, builder: &mut Build)
+machine build(builder: &mut Build)
 reaches
     FilesystemHost + Console
 {{
+    builder.application("filesystem-staging");
     builder.roots.bind({root_owner}::ProgramEntry, Main::main);
-    self.log.write_line("build: staging");
+    let mut console: Console;
+    console.write_line("build: staging");
     let source_path: &[u8] in Path = builder.source.resolve("inputs/table.txt");
-    self.fd = self.fs.open(source_path, 0);
-    self.n = self.fs.read(self.fd, &mut self.buffer, 6);
-    self.handle = self.fs.get_osfhandle(self.fd);
-    self.rc = self.fs.close(self.fd);
+    let mut buffer: [u8; 6];
+    let source_descriptor: i32 = builder.filesystem.open(source_path, 0);
+    let source_bytes: i64 = builder.filesystem.read(source_descriptor, &mut buffer, 6);
+    let source_handle: i64 = builder.filesystem.get_osfhandle(source_descriptor);
+    let source_close: i32 = builder.filesystem.close(source_descriptor);
     let staged_path: &[u8] in Path = builder.output.resolve("stage/asset.tmp");
-    self.fd = self.fs.create(staged_path, 438);
-    transition self.fd >= 0 {{ true -> put(builder) _ -> done(builder) }}
-    state put(&mut self, builder: &mut Build) {{
-        self.clone_fd = self.fs.duplicate(self.fd);
-        self.n = self.fs.write(self.clone_fd, "staged by build\n");
-        _ = self.fs.sync(self.clone_fd);
-        self.n = self.fs.close(self.clone_fd);
-        self.n = self.fs.close(self.fd);
+    let staged_descriptor: i32 = builder.filesystem.create(staged_path, 438);
+    transition staged_descriptor >= 0 {{
+        true -> put(staged_descriptor, builder)
+        _ -> done(builder)
+    }}
+    state put(staged_descriptor: i32, builder: &mut Build) {{
+        let duplicate_descriptor: i32 = builder.filesystem.duplicate(staged_descriptor);
+        let staged_bytes: i64 = builder.filesystem.write(duplicate_descriptor, "staged by build\n");
+        let synchronized: i32 = builder.filesystem.sync(duplicate_descriptor);
+        let duplicate_close: i32 = builder.filesystem.close(duplicate_descriptor);
+        let staged_close: i32 = builder.filesystem.close(staged_descriptor);
         let staged_path: &[u8] in Path = builder.output.resolve("stage/asset.tmp");
         let final_path: &[u8] in Path = builder.output.resolve("stage/asset.bin");
-        self.rc = self.fs.rename(staged_path, final_path);
+        let renamed: i32 = builder.filesystem.rename(staged_path, final_path);
         transition true {{ true -> done(builder) _ -> done(builder) }}
     }}
-    state done(&mut self, builder: &mut Build) {{
+    state done(builder: &mut Build) {{
         builder.freestanding = false;
     }}
 }}
@@ -695,16 +695,10 @@ fn declared_filesystem_build_machine_cannot_write_under_source_root() {
 
 target {target} {{}}
 
-data SourceWriter {{
-    fs: FilesystemHost;
-    fd: i32;
-    rc: i32;
-}}
-
-machine SourceWriter::build(&mut self, builder: &mut Build)
-reaches
-    FilesystemHost
+machine build(builder: &mut Build)
+reaches FilesystemHost
 {{
+    builder.application("source-write-denial");
     builder.roots.bind({root_owner}::ProgramEntry, Main::main);
     let forbidden: &[u8] in Path = builder.source.resolve("stage/blocked.bin");
     let unresolvable: &[u8] in Path = builder.source.resolve("missing-parent/blocked.bin");
@@ -713,12 +707,12 @@ reaches
     let mixed_to: &[u8] in Path = builder.source.resolve("stage/mixed-to.bin");
     let rename_from: &[u8] in Path = builder.source.resolve("stage/rename-from.bin");
     let rename_to: &[u8] in Path = builder.source.resolve("stage/rename-to.bin");
-    self.fd = self.fs.create(forbidden, 438);
-    self.fd = self.fs.create(unresolvable, 438);
-    self.rc = self.fs.close(self.fd);
-    self.rc = self.fs.remove(absent_output);
-    self.rc = self.fs.rename(mixed_from, mixed_to);
-    self.rc = self.fs.rename(rename_from, rename_to);
+    let forbidden_descriptor: i32 = builder.filesystem.create(forbidden, 438);
+    let unresolved_descriptor: i32 = builder.filesystem.create(unresolvable, 438);
+    let failed_close: i32 = builder.filesystem.close(unresolved_descriptor);
+    let absent_remove: i32 = builder.filesystem.remove(absent_output);
+    let mixed_rename: i32 = builder.filesystem.rename(mixed_from, mixed_to);
+    let denied_rename: i32 = builder.filesystem.rename(rename_from, rename_to);
     builder.freestanding = false;
 }}
 "#,
@@ -943,22 +937,16 @@ fn source_descriptor_cannot_amplify_read_grant_into_mutation_authority() {
 
 target {target} {{}}
 
-data SourceMetadataWriter {{
-    fs: FilesystemHost;
-    descriptor: i32;
-    result: i32;
-}}
-
-machine SourceMetadataWriter::build(&mut self, builder: &mut Build)
-reaches
-    FilesystemHost
+machine build(builder: &mut Build)
+reaches FilesystemHost
 {{
+    builder.application("source-descriptor-mutation-denial");
     builder.roots.bind({root_owner}::ProgramEntry, Main::main);
     let source_file: &[u8] in Path = builder.source.resolve("source.txt");
-    self.descriptor = self.fs.open(source_file, 0);
-    self.result = self.fs.set_file_permissions(self.descriptor, 511);
-    self.result = self.fs.lock_file(self.descriptor, 6);
-    self.result = self.fs.close(self.descriptor);
+    let descriptor: i32 = builder.filesystem.open(source_file, 0);
+    let denied_permissions: i32 = builder.filesystem.set_file_permissions(descriptor, 511);
+    let denied_lock: i32 = builder.filesystem.lock_file(descriptor, 6);
+    let closed: i32 = builder.filesystem.close(descriptor);
     builder.freestanding = false;
 }}
 "#,
@@ -1062,20 +1050,15 @@ fn failed_filesystem_build_reports_partial_non_admission_evidence() {
 
 target {target} {{}}
 
-data FailingStager {{
-    fs: FilesystemHost;
-    fd: i32;
-    buffer: [u8; 1];
-    n: i64;
-}}
-
-machine FailingStager::build(&mut self, builder: &mut Build)
+machine build(builder: &mut Build)
 reaches FilesystemHost
 {{
+    builder.application("failing-filesystem-staging");
     builder.roots.bind({root_owner}::ProgramEntry, Main::main);
     let staged: &[u8] in Path = builder.output.resolve("stage/partial.bin");
-    self.fd = self.fs.create(staged, 438);
-    self.n = self.fs.read(self.fd, &mut self.buffer, 16777217);
+    let descriptor: i32 = builder.filesystem.create(staged, 438);
+    let mut buffer: [u8; 1];
+    let bytes: i64 = builder.filesystem.read(descriptor, &mut buffer, 16777217);
     builder.freestanding = false;
 }}
 "#,
@@ -1337,27 +1320,22 @@ fn metadata_observation_uses_each_selected_checked_target_layout() {
 
 target {target} {{}}
 
-data MetadataProbe {{
-    filesystem: FilesystemHost;
-    buffer: [u8; 144];
-    descriptor: i32;
-    result: i32;
-}}
-
-machine MetadataProbe::build(&mut self, builder: &mut Build)
+machine build(builder: &mut Build)
 reaches FilesystemHost
 invokes FilesystemHost;
 {{
-    self.buffer[36] = 255;
-    self.buffer[143] = 255;
+    builder.application("filesystem-metadata-layout");
+    let mut buffer: [u8; 144];
+    buffer[36] = 255;
+    buffer[143] = 255;
     let path: &[u8] in Path = builder.source.resolve("main.omg");
-    self.result = self.filesystem.read_metadata(path, &mut self.buffer);
-    self.descriptor = self.filesystem.open(path, 0);
-    self.result = self.filesystem.read_file_metadata(self.descriptor, &mut self.buffer);
-    self.result = self.filesystem.close(self.descriptor);
-    self.result = self.filesystem.read_symlink_metadata(path, &mut self.buffer);
+    let followed: i32 = builder.filesystem.read_metadata(path, &mut buffer);
+    let descriptor: i32 = builder.filesystem.open(path, 0);
+    let descriptor_metadata: i32 = builder.filesystem.read_file_metadata(descriptor, &mut buffer);
+    let closed: i32 = builder.filesystem.close(descriptor);
+    let unfollowed: i32 = builder.filesystem.read_symlink_metadata(path, &mut buffer);
     let missing: &[u8] in Path = builder.source.resolve("missing.omg");
-    self.result = self.filesystem.read_metadata(missing, &mut self.buffer);
+    let missing_result: i32 = builder.filesystem.read_metadata(missing, &mut buffer);
 }}
 "#,
             ),
@@ -1677,8 +1655,8 @@ fn source_path_metadata_is_replayed_without_a_filesystem_provider() {
     let build_path = project.join("build.omg");
     let original_build = std::fs::read_to_string(&build_path).expect("read metadata replay build");
     let changed_build = original_build.replacen(
-        "self.filesystem.read_metadata(link, &mut self.buffer)",
-        "self.filesystem.read_symlink_metadata(link, &mut self.buffer)",
+        "builder.filesystem.read_metadata(link, &mut buffer)",
+        "builder.filesystem.read_symlink_metadata(link, &mut buffer)",
         1,
     );
     assert_ne!(
@@ -1966,8 +1944,8 @@ fn source_open_read_close_is_replayed_without_a_filesystem_provider() {
     let build_path = project.join("build.omg");
     let original_build = std::fs::read_to_string(&build_path).expect("read build probe");
     let changed_build = original_build.replace(
-        "self.filesystem.read(self.descriptor, &mut self.buffer, 23)",
-        "self.filesystem.read(self.descriptor, &mut self.buffer, 22)",
+        "builder.filesystem.read(descriptor, &mut buffer, 23)",
+        "builder.filesystem.read(descriptor, &mut buffer, 22)",
     );
     assert_ne!(
         changed_build, original_build,
@@ -2412,8 +2390,8 @@ fn source_open_read_at_close_is_replayed_without_a_filesystem_provider() {
     let build_path = project.join("build.omg");
     let original_build = std::fs::read_to_string(&build_path).expect("read build probe");
     let changed_build = original_build.replace(
-        "self.filesystem.read_at(self.descriptor, &mut self.buffer, 7, 5)",
-        "self.filesystem.read_at(self.descriptor, &mut self.buffer, 7, 6)",
+        "builder.filesystem.read_at(descriptor, &mut buffer, 7, 5)",
+        "builder.filesystem.read_at(descriptor, &mut buffer, 7, 6)",
     );
     assert_ne!(changed_build, original_build, "fixture must change offset");
     std::fs::write(&build_path, changed_build).expect("change positioned replay offset");
@@ -2515,8 +2493,8 @@ fn source_open_mixed_read_sequence_close_replays_exact_cursor_semantics() {
     let build_path = project.join("build.omg");
     let original_build = std::fs::read_to_string(&build_path).expect("read build probe");
     let changed_build = original_build.replace(
-        "self.filesystem.read_at(self.descriptor, &mut self.buffer, 4, 10)",
-        "self.filesystem.read_at(self.descriptor, &mut self.buffer, 4, 11)",
+        "builder.filesystem.read_at(descriptor, &mut buffer, 4, 10)",
+        "builder.filesystem.read_at(descriptor, &mut buffer, 4, 11)",
     );
     assert_ne!(changed_build, original_build, "fixture must change offset");
     std::fs::write(&build_path, changed_build).expect("change middle positioned offset");
@@ -4440,12 +4418,12 @@ fn console_only_build_machine_receives_no_real_filesystem_provider() {
 
 target {target} {{}}
 
-data BuildLogger {{ console: Console; }}
-
-machine BuildLogger::build(&mut self, builder: &mut Build)
+machine build(builder: &mut Build)
 reaches Console
 {{
-    self.console.write_line("build: console only");
+    builder.application("console-only-build");
+    let mut console: Console;
+    console.write_line("build: console only");
     builder.freestanding = false;
 }}
 "#,
