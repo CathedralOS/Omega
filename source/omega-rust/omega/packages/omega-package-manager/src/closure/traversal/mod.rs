@@ -1,6 +1,6 @@
 //! Explicit local, workspace, and Git source policies for closure traversal.
 
-use super::reconcile::{
+use super::reconciliation::{
     PackageRootSourceRequest, PackageSourceClosureLimits, PackageSourceClosureResolutionError,
     PackageSourceCustody, ResolvedPackageSourceClosure, resolve_package_source_closure_with_limits,
 };
@@ -9,7 +9,7 @@ use crate::source::acquisition::RetainedStorageLane;
 use crate::source::identity::{
     ExternalSourceContext, PackageKey, SourceLineage, WorkspaceLineageIdentity, WorkspaceMemberPath,
 };
-use crate::source::resolution::{
+use crate::source::package_resolution::{
     ResolvePackageSourceError, ResolvedPackageSource,
     resolve_external_local_package_source_in_lane, resolve_external_local_project_source_in_lane,
     resolve_git_package_source_in_lane, resolve_workspace_member_package_source_in_lane,

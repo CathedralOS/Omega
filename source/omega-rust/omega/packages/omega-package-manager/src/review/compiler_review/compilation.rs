@@ -10,7 +10,7 @@ use super::{
     CompileResolvedPackageReviewsError, CompilerExecutableVerificationPhase,
     CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet, PackageSourceVerificationPhase,
 };
-use crate::review::compiler_handoff::reachable_package_keys;
+use crate::review::compilation_inputs::reachable_package_keys;
 use crate::review::evidence::ReviewOnlyCanonicalRow;
 use crate::{ResolvedPackageSourceClosure, package_compilation_inputs_for};
 use omega_build_provenance::CompilerExecutableCommitment;

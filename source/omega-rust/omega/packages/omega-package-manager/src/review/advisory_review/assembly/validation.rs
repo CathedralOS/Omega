@@ -1,5 +1,7 @@
-use crate::review::closure::{ReviewOnlyClosureValidationError, ReviewOnlySetValidationError};
 use crate::review::evidence::PackageReviewEvidence;
+use crate::review::review_set_validation::{
+    ReviewOnlyClosureValidationError, ReviewOnlySetValidationError,
+};
 use crate::{PackageKey, PackageSourceCustody};
 use std::collections::BTreeMap;
 

@@ -1581,10 +1581,10 @@ omega-package-manager/
 |   |-- declarations/             # Read and conservatively edit build.omg.
 |   |-- source/                   # Package-source workflow.
 |   |   |-- identity/             # Package/source lineage and immutable identity.
-|   |   |-- resolution/           # Snapshot-to-declared-PackageKey custody.
+|   |   |-- package_resolution/   # Snapshot-to-declared-PackageKey custody.
 |   |   |-- acquisition/          # Local/Git acquisition and host custody.
-|   |   `-- audit.rs              # Read-only diagnostic command surface.
-|   |-- closure/                  # Graph reconciliation and exact closure subject.
+|   |   `-- inspection.rs         # Read-only diagnostic command surface.
+|   |-- closure/                  # Graph, traversal, reconciliation, and exact subject.
 |   |-- review/                   # Compiler review, comparison, triage, and policy.
 |   `-- records/record_file.rs    # Internal bounded rooted persistence.
 `-- tests/

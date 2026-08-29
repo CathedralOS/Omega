@@ -6,7 +6,7 @@ use super::{
 use crate::closure::graph::{
     ResolvedDependency, ResolvedPackageClosure, ResolvedPackageNode, ResolvedSourceIdentity,
 };
-use crate::closure::reconcile::PackageRootSourceRequest;
+use crate::closure::reconciliation::PackageRootSourceRequest;
 use crate::source::GitSourceRequest;
 use crate::source::identity::{
     AliasName, ImmutableSourceResolution, PackageKey, SourceLineage, WorkspaceLineageIdentity,

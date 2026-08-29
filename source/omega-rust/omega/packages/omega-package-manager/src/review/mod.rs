@@ -1,17 +1,24 @@
 //! Compiler review, candidate comparison, advisory triage, and root policy.
 
+pub(crate) mod advisory_review;
 pub(crate) mod baseline;
-pub(crate) mod closure;
 pub mod comparison;
-pub(crate) mod compiler_handoff;
+pub(crate) mod compilation_inputs;
 pub(crate) mod compiler_review;
 pub(crate) mod evidence;
-pub(crate) mod policy;
-pub(crate) mod reconstruction;
-pub(crate) mod source_patch;
-pub(crate) mod source_review;
-pub(crate) mod source_triage;
+pub(crate) mod reconstruction_question;
+pub(crate) mod review_set_validation;
+pub(crate) mod review_triage;
+pub(crate) mod root_policy;
+pub(crate) mod source_diff;
 
+pub use advisory_review::{
+    PackageAdvisoryRecommendation, PackageAdvisoryReviewError, PackageAdvisoryReviewOutcome,
+    PackageAdvisoryReviewOutput, PackageAdvisoryReviewOutputError, PackageAdvisoryReviewRequest,
+    PackageAdvisoryReviewer, PackageSourceReviewCustodyRole, PackageSourceReviewError,
+    PackageSourceReviewInput, PackageSourceReviewLimits, PackageSourceReviewRenderError,
+    assemble_initial_source_review, assemble_update_source_review, invoke_package_advisory_review,
+};
 pub use baseline::{
     ReviewOnlyBaselineCapsule, ReviewOnlyBaselineDirectory, ReviewOnlyBaselineError,
     ReviewOnlyBaselineFileError, ReviewOnlyBaselineLimits, ReviewOnlyBaselineName,
@@ -26,7 +33,7 @@ pub use comparison::{
     ReviewOnlyCapabilityConflictRenderError, ReviewOnlyCapabilityConflictSet,
     ReviewOnlyPackageCapabilityConflicts, ReviewSetRole, compare_review_only_capabilities,
 };
-pub use compiler_handoff::{package_compilation_inputs, package_compilation_inputs_for};
+pub use compilation_inputs::{package_compilation_inputs, package_compilation_inputs_for};
 pub use compiler_review::{
     CompileResolvedPackageReviewsError, CompilerExecutableVerificationPhase,
     CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet, PackageSourceVerificationPhase,
@@ -36,7 +43,17 @@ pub use evidence::{
     ReviewOnlyCanonicalRow, ReviewOnlyCompilerExecutableCommitment,
     ReviewOnlySourceConsumptionCommitment,
 };
-pub use policy::{
+pub use reconstruction_question::{
+    CanonicalPackageReconstructionEntry, CanonicalPackageReconstructionQuestion,
+    CanonicalPackageReconstructionQuestionError, CanonicalPackageReconstructionQuestionFingerprint,
+    CanonicalPackageReconstructionQuestionLimits, PACKAGE_RECONSTRUCTION_QUESTION_ENCODING_VERSION,
+};
+pub use review_triage::{
+    CompilerReviewTriage, PackageTriageDecision, PackageTriageDisposition, PackageTriageReason,
+    TriageRenderError, triage_initial_install, triage_review_update,
+    triage_update_without_admission_baseline,
+};
+pub use root_policy::{
     ReviewOnlyRootPolicyDecision, ReviewOnlyRootPolicyDirectory, ReviewOnlyRootPolicyDisposition,
     ReviewOnlyRootPolicyFileError, ReviewOnlyRootPolicyName, ReviewOnlyRootPolicyNameError,
     ReviewOnlyRootPolicyRecordError, ReviewOnlyRootPolicyRecordLimits,
@@ -44,24 +61,7 @@ pub use policy::{
     ReviewOnlyRootPolicyResolutionError, recover_review_only_root_policy_resolution,
     resolve_review_only_root_policy_decisions,
 };
-pub use reconstruction::{
-    CanonicalPackageReconstructionEntry, CanonicalPackageReconstructionQuestion,
-    CanonicalPackageReconstructionQuestionError, CanonicalPackageReconstructionQuestionFingerprint,
-    CanonicalPackageReconstructionQuestionLimits, PACKAGE_RECONSTRUCTION_QUESTION_ENCODING_VERSION,
-};
-pub use source_patch::{
+pub use source_diff::{
     PackageSourcePatch, PackageSourcePatchError, PackageSourcePatchLimits, PackageSourcePatchSide,
     render_package_source_patch,
-};
-pub use source_review::{
-    PackageAdvisoryRecommendation, PackageAdvisoryReviewError, PackageAdvisoryReviewOutcome,
-    PackageAdvisoryReviewOutput, PackageAdvisoryReviewOutputError, PackageAdvisoryReviewRequest,
-    PackageAdvisoryReviewer, PackageSourceReviewCustodyRole, PackageSourceReviewError,
-    PackageSourceReviewInput, PackageSourceReviewLimits, PackageSourceReviewRenderError,
-    assemble_initial_source_review, assemble_update_source_review, invoke_package_advisory_review,
-};
-pub use source_triage::{
-    CompilerReviewTriage, PackageTriageDecision, PackageTriageDisposition, PackageTriageReason,
-    TriageRenderError, triage_initial_install, triage_review_update,
-    triage_update_without_admission_baseline,
 };

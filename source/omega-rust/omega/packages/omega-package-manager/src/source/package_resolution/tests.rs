@@ -581,26 +581,28 @@ fn conflicting_git_revisions_report_real_custody_and_both_request_paths() {
     )
     .expect("resolve root custody")
     .into_custody();
-    let error =
-        crate::closure::reconcile::resolve_package_source_closure::<std::convert::Infallible, _>(
-            crate::closure::PackageRootSourceRequest::ExternalLocal {
-                requested_root: root.clone(),
-                source_context,
-            },
-            root_custody,
-            |_, request| {
-                let DependencySourceRequest::Git { revision, .. } = request else {
-                    unreachable!("root authors only Git requests")
-                };
-                Ok(if revision == &first_revision {
-                    first.clone()
-                } else {
-                    assert_eq!(revision, &second_revision);
-                    second.clone()
-                })
-            },
-        )
-        .expect_err("one package key cannot reconcile two immutable revisions");
+    let error = crate::closure::reconciliation::resolve_package_source_closure::<
+        std::convert::Infallible,
+        _,
+    >(
+        crate::closure::PackageRootSourceRequest::ExternalLocal {
+            requested_root: root.clone(),
+            source_context,
+        },
+        root_custody,
+        |_, request| {
+            let DependencySourceRequest::Git { revision, .. } = request else {
+                unreachable!("root authors only Git requests")
+            };
+            Ok(if revision == &first_revision {
+                first.clone()
+            } else {
+                assert_eq!(revision, &second_revision);
+                second.clone()
+            })
+        },
+    )
+    .expect_err("one package key cannot reconcile two immutable revisions");
 
     let [conflict] = error.conflicts().expect("exact custody conflict") else {
         panic!("one package key must conflict")

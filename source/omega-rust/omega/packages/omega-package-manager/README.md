@@ -25,8 +25,8 @@ src/
 |   |   |-- locator.rs     Strict Git locator parsing and normalization.
 |   |   |-- local.rs       Workspace and external-local lineages and digests.
 |   |   `-- resolution.rs  Immutable source pins and typed Git object IDs.
-|   |-- resolution/        Bind Git, workspace, and local requests to packages.
-|   |-- audit.rs           Source-inspection command boundary.
+|   |-- package_resolution/ Bind Git, workspace, and local requests to packages.
+|   |-- inspection.rs      Source-inspection command boundary.
 |   `-- acquisition/       Capture hostile source under resolver custody.
 |       |-- storage.rs     Private per-user storage and retained cache lanes.
 |       |-- local/         Local snapshot capture and authentication.
@@ -38,29 +38,34 @@ src/
 |       |-- observations/  Issue resolved-source, execution, and accounting records.
 |       `-- custody/       Tree checks, host policy, locks, and atomic publication.
 |-- closure/               Resolve and identify one complete package closure.
-|   |-- sources.rs         Connect declarations to workspace, local, and Git sources.
-|   |-- reconcile.rs       Reconcile the complete dependency closure.
-|   |-- graph.rs           Validate package nodes, edges, aliases, and reachability.
+|   |-- traversal/         Connect declarations to workspace, local, and Git sources.
+|   |-- reconciliation/    Reconcile the complete dependency closure.
+|   |-- graph/             Validate package nodes, edges, aliases, and reachability.
 |   `-- subject/           Canonically encode the exact resolved closure.
 |-- review/
+|   |-- compilation_inputs.rs Compiler inputs derived from exact source custody.
+|   |-- review_set_validation.rs Join complete review sets to package custody.
 |   |-- compiler_review/   Compile a closure and retain compiler-issued evidence.
 |   |-- evidence/          Bind compiler output to source and closure commitments.
 |   |-- comparison/        Compare candidate and baseline capabilities.
 |   |   |-- model.rs       Bounded conflict and error vocabulary.
 |   |   |-- compare.rs     Exact row comparison and closure commitments.
 |   |   `-- format.rs      Fixed review rendering and canonical tags.
-|   |-- source_patch/      Produce bounded source changes for human/LLM review.
+|   |-- source_diff/       Produce bounded source changes for human/LLM review.
 |   |   |-- snapshot.rs    Capture and classify resolver-owned snapshots.
 |   |   |-- diff.rs        Bound line splitting, diff work, and hunk construction.
 |   |   `-- output.rs      Escape hostile bytes into a bounded output sink.
-|   |-- source_triage.rs   Derive deterministic blockers and audit recommendations.
-|   |-- source_review/     Assemble and invoke the advisory-review boundary.
+|   |-- review_triage/     Derive deterministic blockers and audit recommendations.
+|   |   |-- mod.rs         Review decisions from exact candidate/baseline evidence.
+|   |   `-- render.rs      Bounded fixed-vocabulary advisory-review input.
+|   |-- advisory_review/   Assemble and invoke the advisory-review boundary.
+|   |-- reconstruction_question/ Bind review evidence to exact closure identity.
 |   |-- baseline/          Capture and recover review-only comparison baselines.
 |   |   |-- capsule.rs     In-memory baseline packages and capsules.
 |   |   |-- storage.rs     Private rooted record persistence.
 |   |   |-- validation.rs  Canonical graph and resource checks.
 |   |   `-- encoding.rs    Canonical binary codec and identity encoding.
-|   `-- policy/            Resolve, encode, and store root-owned review policy.
+|   `-- root_policy/       Resolve, encode, and store root-owned review policy.
 `-- records/               Bounded internal record persistence.
 ```
 

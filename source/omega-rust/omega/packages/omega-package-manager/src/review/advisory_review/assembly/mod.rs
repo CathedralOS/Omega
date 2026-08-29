@@ -1,9 +1,11 @@
 mod patches;
 mod validation;
 
-use crate::review::closure::{validate_review_only_closure, validate_review_only_records};
 use crate::review::evidence::PackageReviewEvidence;
-use crate::review::source_triage::triage_review_update_records;
+use crate::review::review_set_validation::{
+    validate_review_only_closure, validate_review_only_records,
+};
+use crate::review::review_triage::triage_review_update_records;
 use crate::{
     CompilerIssuedPackageReviewSet, PackageSourceCustody, ResolvedPackageSourceClosure,
     triage_initial_install,

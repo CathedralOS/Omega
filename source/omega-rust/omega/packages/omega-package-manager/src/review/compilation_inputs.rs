@@ -116,7 +116,7 @@ pub(crate) fn reachable_package_keys(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::closure::reconcile::resolve_package_source_closure;
+    use crate::closure::reconciliation::resolve_package_source_closure;
     use crate::closure::{PackageRootSourceRequest, PackageSourceCustody};
     use crate::declarations::dependency_projection::DependencySourceRequest;
     use crate::source::identity::{
