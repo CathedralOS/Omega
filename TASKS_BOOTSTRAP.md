@@ -90,7 +90,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
 
 ## 0. Make the repository tell the truth
 
-- [ ] Apply the target layout atomically:
+- [x] Establish the canonical owner layout for every implementation that
+  currently exists. Do not create placeholders for missing compiler edges:
 
   ```text
   source/beta/compiler/beta_compiler.alpha
@@ -100,13 +101,24 @@ code, discover a closure, manufacture proof premises, or decide admission.
   source/omega/{build,main}.omg            # C roots
   ```
 
-  Each owner contains its descriptive `.tape` artifact and adjacent validation.
+  Each implemented owner contains its descriptive `.tape` artifact and
+  adjacent validation. Missing Gamma, Delta, and `D` files are work gaps, not
+  permission for substitute owners.
   Do not create generic `bootstrap/`, `on-ramp/`, `assurance/`, `canaries/`, or
   generation directories. `omega₀` and `omega` are artifacts, not languages or
   source owners.
   - [x] Move the existing Beta tape adjacent to `beta_compiler.alpha`, delete
     its otherwise content-free `artifacts/` bucket, and make path hygiene reject
     nested artifact buckets for every canonical compiler owner.
+  - [ ] **DESIGN-BLOCKED — Q14.** Materialize the Gamma compiler source, tape,
+    and adjacent validation in `source/gamma/compiler/`; section 3 owns the
+    implementation.
+  - [ ] **DESIGN-BLOCKED — Q13/Q14.** Materialize the Delta compiler source,
+    tape, and adjacent validation in `source/delta/compiler/`; section 4 owns
+    the implementation.
+  - [ ] Author `source/omega/omega_compiler.delta` and its resulting tape only
+    when section 5's downstream prerequisites are satisfied. Section 6 owns
+    completion of the existing `build.omg`/`main.omg` closure and its tape.
 - [x] Update path-hygiene and lattice runners to enumerate only the canonical
   owners above. They must fail if a lower rung imports source or a semantic
   executable from beyond its immediate successor. `lattice_path` now accepts
@@ -308,6 +320,14 @@ code, discover a closure, manufacture proof premises, or decide admission.
 - [ ] Keep `interp.beta` and `typeck.beta` only as reusable compiler components
   or bounded semantic oracles. Delete either if the canonical compiler subsumes
   its useful failure detection.
+  - [x] Delete the interpreter's dead environment lookup and the
+    `Node`/`Chunks`/`ZeroTree` compact representation plus 524,288-slot
+    translator-carrier case. They existed for the deleted cross-rung translator,
+    not for Gamma semantics or the canonical compiler edge. Rewrite the
+    interpreter-first claims to classify both executables as pre-Q14 oracles.
+  - [x] Remove the type checker's retired proof-kernel purpose and reject
+    unknown declared types explicitly instead of allowing the shared `-1`
+    error/type sentinel to compare equal.
 - [ ] Check the exact Beta-source-to-Alpha-tape refinement and all resource
   outcomes. Measure representative compiler-sized inputs; a 12-hour ceiling is
   emergency containment, not acceptable normal performance.

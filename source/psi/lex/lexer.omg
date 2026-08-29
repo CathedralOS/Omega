@@ -1,4 +1,4 @@
-use psi::generated::unicode_tables;
+use psi::lex::unicode_tables;
 use psi::source::source;
 use psi::tokens::tokens;
 

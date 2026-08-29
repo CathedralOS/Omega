@@ -6,22 +6,21 @@ type system. It is suitable for implementing the Delta compiler as well as
 parsers, validators, and interpreters.
 
 The reference evaluator implements proper tail calls and uses variable-size AST
-nodes, immediate nonnegative `u32` integers with a boxed fallback, and headerless
-two-word representations for ordinary `Cons` cells and the `Node` and `Chunks`
-constructors used by bounded persistent-array workloads. Its parsed AST and
+nodes, immediate nonnegative `u32` integers with a boxed fallback, and a
+headerless two-word representation for ordinary `Cons` cells. Its parsed AST and
 evaluation values occupy one stable-address checked 16 MiB bump arena. The
 interpreter deliberately does not inspect compiler-generated Beta frames as
 source-visible memory; exhaustion is fail-closed rather than reclaimed by a
-collector with an incomplete explicit root set. Known `Nil`, `ZeroTree`, `Cons`,
-`Node`, and `Chunks` patterns are classified once while parsing; expression and
-value constructors retain their ordinary representation. Direct call
+collector with an incomplete explicit root set. Known `Nil` and `Cons` patterns
+are classified once while parsing; expression and value constructors retain
+their ordinary representation. Direct call
 expressions also cache their resolved function-table index after the first
 lookup; this is interpreter-private AST metadata and does not alter name
 resolution, evaluation order, fuel, or printed values. Variable expressions
 likewise cache their frame-relative lexical slot after the first complete
 lookup; subsequent reads use the current invocation's frame base, so recursion
 and repeated calls do not retain a prior invocation's value. These are bounded
-execution properties of the canonical interpreter. Its checked evaluator entry
+execution properties of the current oracle. Its checked evaluator entry
 establishes positive fuel; subexpression evaluation preserves that invariant,
 and every function-call decrement is checked at the tail-transfer boundary.
 The internal evaluator therefore does not repeat the same fuel test for every
@@ -45,7 +44,7 @@ semantic-oracle infrastructure, not a canonical compiler edge:
 
 ```text
 interp.beta / typeck.beta --beta_compiler.alpha--> Alpha tape --seed-->
-    canonical interpreter / type checker consuming Gamma source
+    bounded interpreter / type-checker oracles consuming Gamma source
 ```
 
 D11 requires one Beta-written Gamma compiler artifact that accepts
@@ -55,11 +54,11 @@ permission to keep an older compiler as an external runtime dependency.
 
 Principal artifacts:
 
-- `interp.beta` — canonical Gamma reference interpreter, written in Beta;
-- `typeck.beta` — monomorphic Gamma type checker, written in Beta;
+- `interp.beta` — bounded Gamma evaluation oracle, written in Beta;
+- `typeck.beta` — bounded monomorphic Gamma checking oracle, written in Beta;
 - future `compiler/gamma_compiler.beta` — immediate-predecessor compiler emitting
   `gamma_compiler_bytecode.tape`;
-- `reference/` — optional Python evaluator, fuzz generator, and differential
+- `reference/` — independent Python evaluator, fuzz generator, and differential
   runner;
 
 Run the principal gates from the repository root:
@@ -79,22 +78,22 @@ verification permutations under the Gamma language owner.
 
 ## Ownership classification
 
-`LANGUAGE.md` defines Gamma's accepted surface. `interp.beta` and `typeck.beta`
-are the current canonical executable interpretation and checking components
-pending the standalone compiler. The independent Python
-evaluator and the focused gates are conformance tools; agreement with them does
-not override `interp.beta`.
+`LANGUAGE.md` records the two pre-Q14 oracle surfaces. `interp.beta` and
+`typeck.beta` are candidate compiler material and bounded failure detectors,
+not a coherent executable contract or accepted compiler edge. The independent
+Python evaluator and focused gates are diagnostics; agreement cannot promote
+either oracle into the missing compiler.
 
 The old generic canonical-byte and terminal-codec prototype was retired because
 no live artifact admission consumed it. Being written in Gamma did not make it
 part of Gamma meaning; artifact-specific reconstruction belongs beside the
 artifact being admitted.
 
-The older compiler-first imperative experiment does not select the new compiler
-edge. The required Gamma compiler must implement the current Gamma language and
-emit Alpha tape; it is not a revival of an unrelated historical language.
+The older imperative experiment does not select the new compiler edge. Q14 must
+first select Gamma's typed executable contract; the resulting compiler must
+emit Alpha tape and is not a revival of an unrelated historical language.
 
-See [LANGUAGE.md](LANGUAGE.md) for the canonical surface and
+See [LANGUAGE.md](LANGUAGE.md) for the current oracle surfaces and
 [`rungs/gamma.md`](../../wiki/architecture/bootstrap_lattice/rungs/gamma.md) for
 Gamma's architectural role.
 

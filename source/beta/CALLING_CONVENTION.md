@@ -122,8 +122,9 @@ Build one through `source/alpha/assembler/build.sh`, for example with
 
 ## Remaining limits
 
-- **>4 arguments** — spill the rest onto the data stack (left-to-right; caller
-  cleans up).
+- **Argument count** — Beta v1 accepts at most four arguments. Calls and
+  procedures with five or more are rejected; stack-passed arguments are not a
+  deferred compatibility path.
 - **Language control shape** — Beta now has locals and multi-statement bodies.
   Source control is expressed as `state` blocks and guarded `to` transitions,
   not `if`/`while`; the compiler lowers those edges to Alpha jumps.
@@ -134,7 +135,8 @@ Build one through `source/alpha/assembler/build.sh`, for example with
 ## Why this is the Beta-the-language foundation
 
 A "procedure with parameters and locals" is exactly a source construct that lowers
-to: prologue, argument moves, body, epilogue. Beta's self-hosting compiler emits
-these frames mechanically. Gamma's canonical interpreter and type checker are
-Beta programs, so everything higher can grow without another hand-written
-assembly compiler.
+to: prologue, argument moves, body, epilogue. Beta's compiler emits these frames
+mechanically. Gamma's current interpreter and type-checker components are Beta
+programs. The canonical next edge remains a Beta-written Gamma compiler that
+emits Alpha tape directly; these components must be absorbed into it or reduced
+to bounded oracles.

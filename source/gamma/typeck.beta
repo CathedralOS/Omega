@@ -1,9 +1,9 @@
-; typeck.beta — a static TYPE CHECKER for Gamma, written in Beta.
+; typeck.beta — a pre-Q14 Gamma static-semantics oracle, written in Beta.
 ;
-; gamma.md asks for "a simple static type system — just enough to make the proof kernel
-; checker safe to write, no more". Companion to interp.beta: where the interpreter
-; says what a program MEANS, this says whether it is well-TYPED before it runs.
-; Monomorphic and fully annotated, so type checking is synthesis + name comparison.
+; This program exercises candidate monomorphic type rules. It is not a proof
+; kernel, a selected executable Gamma contract, or a compiler stage. Q14 decides
+; which rules enter the Beta-written Gamma compiler and whether this standalone
+; parser/checker is then deleted.
 ;
 ; Phase 1: builtin Int + top-level functions with typed params and a declared return
 ; type; arithmetic/comparisons are Int x Int -> Int, `if` wants an Int condition and
@@ -18,7 +18,8 @@
 ; by guarded `to … when …` transitions — no if/while.
 ;
 ; Memory:  2097152 SRC  2097144 CUR  2097136 LEN  2097128 APTR  2097120 NFUN
-;          2097112 TENVN 2097104 NTY 2097096 NCON   16777216 ARENA (~48 MB)
+;          2097112 TENVN 2097104 NTY 2097096 NCON 2097088 INVALID_TYPE
+;          16777216 ARENA (~48 MB)
 ;          4194304 FUNS
 ;          4259840 TYNAMES  4325376 CONS  5242880 TENV
 ; "type" = small id: Int = 0. AST nodes 4 words. Func entry 4 words
@@ -49,6 +50,7 @@ proc slurp() {
         word[2097112] = 0        ; TENVN
         word[2097104] = 1        ; NTY (id 0 = builtin Int)
         word[2097096] = 0        ; NCON
+        word[2097088] = 0        ; INVALID_TYPE
     }
 }
 
@@ -201,7 +203,7 @@ proc tyid(off) {
     }
     state loop {
         to body when (i < n)
-        return 0 - 1
+        to missing
     }
     state body {
         to hit when (name_eq(off, word[4259840 + i * 8]) == 1)
@@ -209,6 +211,10 @@ proc tyid(off) {
         to loop
     }
     state hit { return i }
+    state missing {
+        word[2097088] = 1
+        return 0 - 1
+    }
 }
 
 proc con_lookup(coff) {              ; constructor index by name, or -1
@@ -750,8 +756,10 @@ proc main() {
     state checkfns {
         let ok = 1
         let i = 0
+        to invalid_type when (word[2097088] != 0)
         to floop
     }
+    state invalid_type { ok = 0  to floop }
     state floop {
         to fbody when (i < word[2097120])
         return ok

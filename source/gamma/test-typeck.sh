@@ -38,6 +38,7 @@ tc '(def f ((a Int)) Int (g a)) (def g ((x Int)) Int x)' 1 'forward call'
 tc '(def add ((a Int) (b Int)) Int (+ a b)) (def main () Int (add 2))' 0 'arity too few'
 tc '(def add ((a Int) (b Int)) Int (+ a b)) (def main () Int (add 1 2 3))' 0 'arity too many'
 tc '(def main () Int (nope 1))' 0 'unknown function'
+tc '(def f ((x Nope)) Nope x)' 0 'unknown declared type'
 # phase 2 — data declarations (ADTs) + match, well-typed
 tc '(data Nat (Z) (S Nat)) (def pred ((n Nat)) Nat (match n (Z Z) ((S m) m))) (def main () Nat (pred (S (S Z))))' 1 'Nat pred'
 tc '(data List (Nil) (Cons Int List)) (def len ((xs List)) Int (match xs (Nil 0) ((Cons h t) (+ 1 (len t)))))' 1 'list length'

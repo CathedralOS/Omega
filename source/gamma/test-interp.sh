@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
-# Gate for the Gamma reference interpreter (interp.beta, stage 1). Compiles it
-# with bc (the self-hosting Rust-free Beta compiler), then evaluates Gamma
+# Gate for the bounded Gamma evaluation oracle. Compiles interp.beta with the
+# canonical Alpha-written Beta compiler, then evaluates candidate Gamma
 # programs and checks the integer result (the process exit code).
 OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
@@ -76,18 +76,12 @@ ev '(def plus (a b) (match a (Z b) ((S m) (S (plus m b))))) (def toint (n) (matc
 ev '(def fst (p) (match p ((Pair a b) a))) (fst (Pair 42 99))' 42
 ev '(def isnil (xs) (match xs (Nil 1) (other 0))) (isnil (Cons 1 Nil))' 0
 ev '(def isnil (xs) (match xs (Nil 1) (other 0))) (isnil Nil)' 1
-# Headerless persistent-array handles retain ordinary constructor matching.
-ev '(match (Node 19 23) ((Node l r) (+ l r)))' 42
-ev '(match (Chunks 2 ZeroTree) ((Chunks n t) n))' 2
 # Pattern-only constructor tags retain exact names and arities, including the
 # arbitrary-constructor fallback.
 ev '(match Nilly (Nil 1) (other 42))' 42
 ev '(match (Consx 1 2) ((Cons a b) 1) (other 42))' 42
 ev '(match (Cons 1 Nil) ((Cons a) 1) (other 42))' 42
 ev '(match (Pair 1 2) ((Pair a) 1) (other 42))' 42
-# The translator's exact 524,288-slot tree carrier touches both boundary paths
-# without materializing its zero subtrees.
-ev '(def ntht (t k h) (if (eq h 0) t (match t ((Node l r) (if (lt k h) (ntht l k (/ h 2)) (ntht r (- k h) (/ h 2)))) (z 0)))) (def nth (xs k) (match xs ((Chunks n t) (ntht t k 262144)))) (def sett (t k v h) (if (eq h 0) v (match t ((Node l r) (if (lt k h) (Node (sett l k v (/ h 2)) r) (Node l (sett r (- k h) v (/ h 2))))) (z (if (lt k h) (Node (sett 0 k v (/ h 2)) 0) (Node 0 (sett 0 (- k h) v (/ h 2)))))))) (def setl (xs k v) (match xs ((Chunks n t) (Chunks n (sett t k v 262144))))) (let a (setl (Chunks 524288 0) 0 19) (let b (setl a 524287 23) (+ (nth b 0) (nth b 524287))))' 42
 # returning data structures (printed)
 cv '(def sq (xs) (match xs (Nil Nil) ((Cons h t) (Cons (* h h) (sq t))))) (sq (Cons 1 (Cons 2 (Cons 3 Nil))))' '(Cons 1 (Cons 4 (Cons 9 Nil)))'
 cv '(def app (xs ys) (match xs (Nil ys) ((Cons h t) (Cons h (app t ys))))) (app (Cons 1 (Cons 2 Nil)) (Cons 3 Nil))' '(Cons 1 (Cons 2 (Cons 3 Nil)))'
@@ -98,7 +92,7 @@ cv '(Cons 1)' '(Cons 1)'
 cv '(Cons 1 2 3)' '(Cons 1 2 3)'
 # A formerly boxed compiler-sized value remains exact under the immediate path.
 ov '70001' '70001'
-# Nonnegative u32 values use the canonical interpreter's immediate representation;
+# Nonnegative u32 values use the oracle's immediate representation;
 # zero/one, the adjacent value, negative arithmetic, and arithmetic crossing the
 # boundary pin the evaluator's direct encode/decode paths and boxed fallback.
 ov '0' '0'
@@ -108,8 +102,5 @@ ov '4294967296' '4294967296'
 ov '(- 0 1)' '-1'
 ov '(- 0 2)' '-2'
 ov '(+ 4294967295 1)' '4294967296'
-# Known persistent-array constructors use compact tagged handles without changing
-# their canonical printed tree.
-cv '(Chunks 2 (Node ZeroTree ZeroTree))' '(Chunks 2 (Node ZeroTree ZeroTree))'
 echo "gamma interp: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1

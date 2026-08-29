@@ -1,16 +1,17 @@
 # Gamma language
 
-Gamma is the safe definitional language in the audited bootstrap spine. Its
-canonical meaning is the pure, fuel-bounded reference interpreter in
-`interp.beta`; its static checker is `typeck.beta`. Both are Beta programs built
-by the self-hosting Beta compiler.
+Gamma is the safe definitional language in the audited bootstrap spine. This
+document records the two bounded pre-Q14 surfaces exercised by `interp.beta`
+and `typeck.beta`; it does not yet select the one typed executable contract that
+the canonical Beta-written Gamma compiler must implement. Both programs are
+semantic oracles and candidate implementation material, not compiler rungs.
 
-The old imperative compiler-first prototype is retired to Git history. It is
-not the canonical Gamma surface.
+The old imperative prototype is retired to Git history. It does not select the
+Gamma surface or compiler architecture.
 
 ## Evaluated surface
 
-The reference interpreter accepts prefix expressions:
+The current evaluation oracle accepts prefix expressions:
 
 ```text
 program := (def NAME (PARAM...) EXPR)* EXPR
@@ -33,19 +34,17 @@ invisible unbounded computation. Tail-position `let`, `if`, `match`, and call
 chains are trampolined: a terminating tail-recursive Gamma program does not also
 depend on the Beta/Alpha return-stack depth. The interpreter may represent a
 bounded integer range immediately and compact ordinary two-field `Cons` cells
-internally. It may likewise
-compact the ordinary `Node` and `Chunks` constructors used by the bootstrap
-translator's persistent-array carrier; matching and the canonical printed
-constructor tree are unchanged by those representations. It may classify known
+internally; matching and the canonical printed constructor tree remain
+unchanged. It may classify known
 constructor patterns while parsing as long as arbitrary constructor names and
-exact constructor arities retain the same matching behavior. The canonical
-interpreter may also use bounded private scratch storage to transfer
+exact constructor arities retain the same matching behavior. The current
+oracle may also use bounded private scratch storage to transfer
 already-evaluated call arguments; those slots are never Gamma values and are
 released when the callee parameters are bound. It may cache the function-table
 index resolved for a parsed call expression; the cache is private evaluator
 metadata and leaves source name resolution, argument evaluation, fuel, and
-observable values unchanged. Exhausting the canonical
-interpreter's private source, argument, or node capacities is a fail-closed host
+observable values unchanged. Exhausting the oracle's private source, argument,
+or node capacities is a fail-closed host
 outcome and never publishes a partial Gamma value. Parsed syntax is pinned for
 the evaluation. A parsed variable expression may likewise cache its resolved
 slot relative to the current function frame: Gamma has no closures, lookup does

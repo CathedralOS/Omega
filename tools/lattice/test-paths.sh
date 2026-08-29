@@ -203,6 +203,7 @@ done
 [ ! -e "$OMEGA_REPO_ROOT/source/omega-boot" ] || fail "standalone omega-boot owner remains"
 [ ! -e "$OMEGA_PATH_OMEGA/psi" ] || fail "Psi remains nested under the Omega product owner"
 [ ! -e "$OMEGA_PATH_OMEGA/bootstrap" ] || fail "Omega product source contains a bootstrap owner"
+[ ! -e "$OMEGA_REPO_ROOT/source/psi/generated" ] || fail "Psi semantic source remains under a generic generated owner"
 [ ! -e "$OMEGA_REPO_ROOT/source/delta/build" ] || fail "unowned Delta build bucket remains"
 [ ! -e "$OMEGA_REPO_ROOT/source/delta/meaning" ] || fail "retired Delta-to-Gamma meaning owner remains"
 [ ! -e "$OMEGA_REPO_ROOT/source/delta/compiler/validation" ] || fail "retired Delta native-publication validation remains"
