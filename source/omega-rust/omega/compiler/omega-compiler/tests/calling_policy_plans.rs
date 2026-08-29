@@ -595,7 +595,7 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
         .expect("TimerRoot service schema");
     assert_eq!(
         schema.methods[0].calling_plan_report_fingerprint,
-        Some(validated.contract_fingerprint())
+        Some(validated.contract_report_fingerprint())
     );
     let selected = selected_plan_for_external_root(checked.selected_provider_plans(), "TimerRoot");
     assert_eq!(selected.name, "TimerProvider::satisfies::TimerRoot");
@@ -619,8 +619,8 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
     let mut missing_active = mask_plan.clone();
     missing_active.schema.methods[0].result_claims.clear();
     assert_ne!(
-        mask_plan.identity_fingerprint(),
-        missing_active.identity_fingerprint(),
+        mask_plan.report_fingerprint(),
+        missing_active.report_fingerprint(),
         "the mask provider receipt must bind its routed Active result claim"
     );
     let mask_selection = selected_external_root_provider_plan(
@@ -698,15 +698,15 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
     let mut weakened = selected.clone();
     weakened.schema.methods[0].parameter_type_identities[0] = "InterruptAcknowledgement".to_owned();
     assert_ne!(
-        selected.identity_fingerprint(),
-        weakened.identity_fingerprint(),
+        selected.report_fingerprint(),
+        weakened.report_fingerprint(),
         "the provider-plan identity carried into external-root admission must drift if Pending issuance is removed"
     );
     let mut unreported = selected.clone();
     unreported.schema.methods[0].entry_claims.clear();
     assert_ne!(
-        selected.identity_fingerprint(),
-        unreported.identity_fingerprint(),
+        selected.report_fingerprint(),
+        unreported.report_fingerprint(),
         "the provider-plan receipt must bind the compiler-owned accepted-authority row"
     );
     let root_selection =
@@ -714,7 +714,7 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
             .expect("external-root bridge should retain the qualified timer schema");
     assert_eq!(
         root_selection.identity.normalized_identity(),
-        selected.identity_fingerprint()
+        selected.report_fingerprint()
     );
     assert_eq!(
         root_selection.schema.methods[0].parameter_type_identities,
@@ -826,7 +826,7 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
         selected_external_root_provider_plan_id(checked.selected_provider_plans(), "TimerRoot")
             .expect("external-root bridge should retain the selected timer plan")
             .normalized_identity(),
-        selected.identity_fingerprint()
+        selected.report_fingerprint()
     );
     let qualification = omega_visualizations::qualification_evidence_manifest_json(
         &checked,
@@ -872,7 +872,7 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
     assert!(entry_row.contains("\"requirement_owner\": \"InterruptEntry\""));
     assert!(entry_row.contains(&format!(
         "\"receipt_identity\": \"0x{:016x}\"",
-        selected.identity_fingerprint()
+        selected.report_fingerprint()
     )));
     assert!(
         !authority_flow.contains(&format!(
@@ -890,7 +890,7 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
     ));
     assert!(qualification.contains(&format!(
         "\"receipt_identity\": \"0x{:016x}\"",
-        selected.identity_fingerprint()
+        selected.report_fingerprint()
     )));
     let _ = fs::remove_dir_all(main_path.parent().expect("temporary policy directory"));
 }
@@ -909,7 +909,7 @@ fn source_policy_receives_signature_and_publishes_only_validated_acceptance() {
 
     assert_eq!(validated.plan().call.policy, CallingPolicy::MicrosoftX64);
     assert_eq!(validated.plan().call.stack_alignment, 16);
-    assert_ne!(validated.contract_fingerprint(), 0);
+    assert_ne!(validated.contract_report_fingerprint(), 0);
 
     let tick = checked
         .typed
@@ -922,13 +922,13 @@ fn source_policy_receives_signature_and_publishes_only_validated_acceptance() {
     assert_eq!(schema.methods.len(), 1);
     assert_eq!(
         schema.methods[0].calling_plan_report_fingerprint,
-        Some(validated.contract_fingerprint())
+        Some(validated.contract_report_fingerprint())
     );
     let retained = checked
         .typed
         .boundary_calling_plans
         .iter()
-        .find(|identity| identity.report_fingerprint == validated.contract_fingerprint())
+        .find(|identity| identity.report_fingerprint == validated.contract_report_fingerprint())
         .expect("typed semantic identity for the published boundary contract");
     assert_ne!(retained.report_fingerprint, 0);
     assert_eq!(

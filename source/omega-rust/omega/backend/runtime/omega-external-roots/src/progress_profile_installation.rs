@@ -425,7 +425,7 @@ impl InstalledRootLedger {
         let expected = selected
             .plans()
             .iter()
-            .map(|plan| plan.identity_fingerprint())
+            .map(|plan| plan.report_fingerprint())
             .collect::<BTreeSet<_>>();
         let supplied = bindings
             .iter()
@@ -766,7 +766,7 @@ impl InstalledRootLedger {
             .selected
             .plans()
             .iter()
-            .map(omega_effects::provider_plan::ProviderPlan::identity_fingerprint)
+            .map(omega_effects::provider_plan::ProviderPlan::report_fingerprint)
             .collect::<Vec<_>>();
         selected_provider_plans.sort_unstable();
         selected_provider_plans.dedup();

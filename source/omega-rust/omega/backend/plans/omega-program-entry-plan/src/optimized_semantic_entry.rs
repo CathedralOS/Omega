@@ -239,8 +239,9 @@ pub fn bind_optimized_program_storage_semantic_entry_contract(
     if physical_contract.target_slot() != slot
         || physical_contract.requirement_identity() == method.requirement_identity
         || physical_contract.calling_plan_report_fingerprint()
-            != validated_physical.contract_fingerprint()
-        || physical_contract.calling_plan_report_fingerprint() == boundary.contract_fingerprint()
+            != validated_physical.contract_report_fingerprint()
+        || physical_contract.calling_plan_report_fingerprint()
+            == boundary.contract_report_fingerprint()
         || physical_contract
             .boundary_entry_plan()
             .call
@@ -272,7 +273,7 @@ pub fn bind_optimized_program_storage_semantic_entry_contract(
         source_signature: source.clone(),
         source_signature_identity: source.identity(),
         semantic_boundary_entry_plan: boundary.plan().clone(),
-        semantic_calling_plan_report_fingerprint: boundary.contract_fingerprint(),
+        semantic_calling_plan_report_fingerprint: boundary.contract_report_fingerprint(),
         roots,
         physical_contract: physical_contract.clone(),
         physical_disposition: OptimizedProgramStoragePhysicalEntryDisposition::PlannedNotInvokedV1,
@@ -309,7 +310,7 @@ fn validate_method(
         || method.has_result
         || method.result_type_identity.is_some()
         || !method.result_claims.is_empty()
-        || method.calling_plan_report_fingerprint != Some(boundary.contract_fingerprint())
+        || method.calling_plan_report_fingerprint != Some(boundary.contract_report_fingerprint())
         || method.calling_plan_commitment.map(|value| value.as_bytes())
             != Some(boundary.contract_commitment_digest())
         || !matches!(
@@ -456,7 +457,7 @@ mod tests {
             0xfeed,
             vec!["EfiImageHandle".into(), "&EfiSystemTable".into()],
             "EfiStatus".into(),
-            physical.contract_fingerprint(),
+            physical.contract_report_fingerprint(),
             physical.plan().clone(),
         )
         .expect("physical contract")
@@ -481,7 +482,7 @@ mod tests {
             parameter_count: 2,
             parameter_type_identities: vec![IMAGE_TYPE.into(), STORAGE_TYPE.into()],
             entry_claims: vec![claim(0), claim(1)],
-            calling_plan_report_fingerprint: Some(boundary.contract_fingerprint()),
+            calling_plan_report_fingerprint: Some(boundary.contract_report_fingerprint()),
             calling_plan_commitment: Some(
                 omega_effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(
                     boundary.contract_commitment_digest(),
@@ -600,7 +601,7 @@ mod tests {
         assert_eq!(contract.source_signature_identity(), source.identity());
         assert_eq!(
             contract.semantic_calling_plan_report_fingerprint(),
-            semantic.contract_fingerprint()
+            semantic.contract_report_fingerprint()
         );
         assert_eq!(
             contract.physical_disposition(),

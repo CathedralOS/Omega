@@ -533,7 +533,7 @@ mod tests {
             library: "platform".into(),
             symbol: "read".into(),
         });
-        let plan_identity = selected.plans()[0].identity_fingerprint();
+        let plan_identity = selected.plans()[0].report_fingerprint();
         let selected = selected
             .with_opaque_executable_admissions([
                 omega_effects::OpaqueExecutableAdmissionCandidate {

@@ -428,8 +428,8 @@ mod tests {
         )
         .expect("exact callback binder/native-place join");
         assert_ne!(
-            validated.contract_fingerprint(),
-            baseline.contract_fingerprint(),
+            validated.contract_report_fingerprint(),
+            baseline.contract_report_fingerprint(),
             "private callback placement is part of the registrar ABI identity"
         );
         assert!(

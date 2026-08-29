@@ -201,7 +201,7 @@ fn qualification_evidence_manifest_separates_origin_point_and_receipt() {
     let state_symbol = SymbolHandle::from_arena_index(81);
     let plan = selected_storage_plan();
     assert_ne!(plan.schema.trait_name, "StorageBase");
-    let receipt_identity = plan.identity_fingerprint();
+    let receipt_identity = plan.report_fingerprint();
     let selected = omega_effects::SelectedProviderPlanFacts::from_selection(
         std::slice::from_ref(&plan),
         std::slice::from_ref(&plan.name),
@@ -704,7 +704,7 @@ fn qualification_manifest_rejects_unselected_nonzero_receipt() {
     validate_qualification_receipt(
         &omega_effects::SelectedProviderPlanFacts::default(),
         QualificationEvidenceOrigin::AdmittedReceipt,
-        selected_storage_plan().identity_fingerprint(),
+        selected_storage_plan().report_fingerprint(),
     );
 }
 
@@ -720,7 +720,7 @@ fn qualification_manifest_rejects_selected_receipt_on_non_admitted_origin() {
     validate_qualification_receipt(
         &selected,
         QualificationEvidenceOrigin::Prover,
-        plan.identity_fingerprint(),
+        plan.report_fingerprint(),
     );
 }
 
@@ -807,11 +807,11 @@ fn qualification_manifest_rejects_requirement_on_non_admitted_evidence() {
 #[test]
 fn qualification_manifest_retains_provider_origin_outside_plan_identity() {
     let plan = selected_storage_plan();
-    let plan_identity = plan.identity_fingerprint();
+    let plan_identity = plan.report_fingerprint();
     let mut relocated = plan.clone();
     relocated.origin_package = "omega::providers::relocated".to_owned();
     assert_eq!(
-        relocated.identity_fingerprint(),
+        relocated.report_fingerprint(),
         plan_identity,
         "provider origin is provenance beside, not part of, plan identity"
     );

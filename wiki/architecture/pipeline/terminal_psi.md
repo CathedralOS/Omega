@@ -3719,7 +3719,7 @@ Object admission reconstructs its proof/fixed-fuel identity, graph, ABI,
 structural frontier and cleanup, target instructions, and nine logical fuel
 rows. Final-image emission and source-free native-artifact validation replay
 those facts again before accepting the object/image join. Canonical
-installation format 43 retains a ranked-body tag and rejects combining it with
+installation format 44 retains a ranked-body tag and rejects combining it with
 ordinary Unit, scalar, boundary, or port custody. The canonical Terminal
 artifact manifest derives its obligation ledger through the interpretable
 ranked validation carrier; this binds the same complete proof question without
@@ -3728,7 +3728,7 @@ misrepresenting the module as accepted by ordinary acyclic execution.
 The directly metered variant reaches the same publication boundary without a
 parallel compiler path. Image replay rederives its five branch coordinates from
 the immutable semantic body and nine fuel rows, checks both metered and final
-text with target-owned decoders, and binds the final symbol table. Format 43
+text with target-owned decoders, and binds the final symbol table. Format 44
 retains the semantic ranked tag, exact source/metered spans, target policy,
 charge catalog, and image fingerprint; it does not duplicate the derivable
 rebase record. A bounded source-free ranked-native-fuel artifact joins that

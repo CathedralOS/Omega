@@ -1,8 +1,13 @@
 use omega_calling_conventions::{MachineRegister, MachineState, MachineStateSet};
 use omega_target::{Architecture, NativeTarget, TargetProfile};
 
-use super::fingerprint::non_authoritative_transfer_plan_report_fingerprint;
-use super::{NativeFuelContextLayout, NativeFuelTargetPlanProjection, SponsorContextTransport};
+use super::fingerprint::{
+    non_authoritative_transfer_plan_report_fingerprint, transfer_plan_commitment,
+};
+use super::{
+    NativeFuelContextLayout, NativeFuelTargetPlanProjection, NativeFuelTransferPlanCommitment,
+    SponsorContextTransport,
+};
 
 /// One exact machine value retained in the opaque activation save area.
 /// Stack-pointer state is distinct from the AArch64 X31/ZR encoding and from
@@ -40,9 +45,9 @@ pub struct NativeFuelRuntimeEntryIdentity {
 }
 
 /// Structural transfer/runtime plan consumed by target encoding and replay.
-/// Its normalized identity is derived from every field and is never supplied
-/// independently by a caller. Constructing this projection validates shape
-/// only; it grants no execution or installation authority.
+/// Its report identity and strong commitment are derived from every field and
+/// are never supplied independently by a caller. Constructing this projection
+/// validates shape only; it grants no execution or installation authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeFuelTransferRuntimePlanProjection {
     pub(super) profile: TargetProfile,
@@ -56,7 +61,8 @@ pub struct NativeFuelTransferRuntimePlanProjection {
     pub(super) restored_state: MachineStateSet,
     pub(super) transfer_entry: NativeFuelRuntimeEntryIdentity,
     pub(super) resume_entry: NativeFuelRuntimeEntryIdentity,
-    pub(super) normalized_identity: u64,
+    pub(super) report_identity: u64,
+    pub(super) commitment: NativeFuelTransferPlanCommitment,
 }
 
 impl NativeFuelTransferRuntimePlanProjection {
@@ -97,9 +103,11 @@ impl NativeFuelTransferRuntimePlanProjection {
             restored_state,
             transfer_entry,
             resume_entry,
-            normalized_identity: 0,
+            report_identity: 0,
+            commitment: NativeFuelTransferPlanCommitment::from_bytes([0; 32]),
         };
-        plan.normalized_identity = non_authoritative_transfer_plan_report_fingerprint(&plan);
+        plan.report_identity = non_authoritative_transfer_plan_report_fingerprint(&plan);
+        plan.commitment = transfer_plan_commitment(&plan);
         Ok(plan)
     }
 
@@ -144,11 +152,16 @@ impl NativeFuelTransferRuntimePlanProjection {
         {
             return Err(NativeFuelTransferPlanError::TargetPolicyMismatch);
         }
-        if self.normalized_identity != policy.transfer_plan_identity {
-            return Err(NativeFuelTransferPlanError::TransferPlanIdentityMismatch {
-                expected: self.normalized_identity,
-                supplied: policy.transfer_plan_identity,
-            });
+        if self.report_identity != policy.transfer_plan_report_identity {
+            return Err(
+                NativeFuelTransferPlanError::TransferPlanReportIdentityMismatch {
+                    expected: self.report_identity,
+                    supplied: policy.transfer_plan_report_identity,
+                },
+            );
+        }
+        if self.commitment != policy.transfer_plan_commitment {
+            return Err(NativeFuelTransferPlanError::TransferPlanCommitmentMismatch);
         }
         Ok(())
     }
@@ -197,8 +210,12 @@ impl NativeFuelTransferRuntimePlanProjection {
         self.resume_entry
     }
 
-    pub const fn normalized_identity(&self) -> u64 {
-        self.normalized_identity
+    pub const fn report_identity(&self) -> u64 {
+        self.report_identity
+    }
+
+    pub const fn commitment(&self) -> NativeFuelTransferPlanCommitment {
+        self.commitment
     }
 }
 
@@ -215,7 +232,8 @@ pub enum NativeFuelTransferPlanError {
     InvalidEntryIdentity,
     DuplicateEntryIdentity,
     TargetPolicyMismatch,
-    TransferPlanIdentityMismatch { expected: u64, supplied: u64 },
+    TransferPlanReportIdentityMismatch { expected: u64, supplied: u64 },
+    TransferPlanCommitmentMismatch,
 }
 
 impl std::fmt::Display for NativeFuelTransferPlanError {

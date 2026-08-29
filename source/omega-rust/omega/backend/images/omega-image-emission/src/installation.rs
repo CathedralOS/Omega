@@ -75,7 +75,7 @@ use structural_scalar_codec::{
 };
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 43;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 44;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -2602,7 +2602,8 @@ fn validate_native_fuel_shape(record: &InstallationRecord) -> Result<(), Install
         || policy.profile.native_target() != record.target
         || record.target.pointer_size != 8
         || record.target.pointer_alignment != 8
-        || policy.transfer_plan_identity == 0
+        || policy.transfer_plan_report_identity == 0
+        || policy.transfer_plan_commitment.is_empty()
         || !matches!(
             (record.target.architecture, policy.transport),
             (

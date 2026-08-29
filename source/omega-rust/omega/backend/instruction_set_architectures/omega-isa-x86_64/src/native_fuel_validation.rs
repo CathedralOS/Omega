@@ -173,7 +173,9 @@ mod tests {
                 activation_state_offset: 80,
                 activation_state_byte_count: 176,
             },
-            transfer_plan_identity: 1,
+            transfer_plan_report_identity: 1,
+            transfer_plan_commitment:
+                omega_installation_evidence::NativeFuelTransferPlanCommitment::from_bytes([1; 32]),
         }
     }
 

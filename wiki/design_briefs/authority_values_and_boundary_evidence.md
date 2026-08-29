@@ -913,7 +913,11 @@ well as during image replay. The route retains exact transfer-code custody over
 the admitted plan, terminal Psi identity, opaque installed occurrence, runtime
 evidence, and sponsor coordinate. Its compact transfer-code and route FNVs are
 report coordinates only; executable runtime binding compares the exact custody
-and rejects compact-equal substitution.
+and rejects compact-equal substitution. Target policy independently carries a
+domain-separated SHA-256 commitment to the complete canonical transfer plan,
+including target/context shape, activation slots, machine-state sets, sponsor
+stack, and entry identities. Plan admission requires that commitment even when
+the historical compact plan report identity matches.
 
 Target-owned physical-entry package provenance follows the same rule. Build
 evaluation first validates exact toolchain origin and canonical source

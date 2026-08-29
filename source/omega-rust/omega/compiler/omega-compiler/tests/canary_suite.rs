@@ -2704,7 +2704,7 @@ fn task_runtime_machine_selection_builds_omega_activation_sidecar() {
                 .plans()
                 .first()
                 .expect("selected TaskRuntime provider plan")
-                .identity_fingerprint()
+                .report_fingerprint()
         );
         assert!(
             activation

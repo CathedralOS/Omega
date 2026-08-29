@@ -381,7 +381,7 @@ pub fn validate_bound_nominal_callback_placement(
             )?;
         if validated_registrar.plan() != &materialization.registrar_boundary_entry_plan
             || materialization.registrar_calling_plan_report_fingerprint == 0
-            || validated_registrar.contract_fingerprint()
+            || validated_registrar.contract_report_fingerprint()
                 != materialization.registrar_calling_plan_report_fingerprint
         {
             return Err(omega_calling_conventions::PlanDiagnostic(
@@ -434,7 +434,8 @@ pub fn validate_bound_nominal_callback_placement(
         ));
     }
     if placement.boundary_calling_plan_report_fingerprint == 0
-        || validated.contract_fingerprint() != placement.boundary_calling_plan_report_fingerprint
+        || validated.contract_report_fingerprint()
+            != placement.boundary_calling_plan_report_fingerprint
     {
         return Err(omega_calling_conventions::PlanDiagnostic(
             "callback placement boundary entry plan drifted from its retained fingerprint"
@@ -522,7 +523,7 @@ mod tests {
             satisfaction_trait: SymbolHandle::from_arena_index(6),
             satisfaction_requirement: SymbolHandle::from_arena_index(8),
             canonical_requirement_overload: "Handler::call".to_owned(),
-            boundary_calling_plan_report_fingerprint: validated.contract_fingerprint(),
+            boundary_calling_plan_report_fingerprint: validated.contract_report_fingerprint(),
             resource_receipt: resource_receipt(selected_machine, selected_entry, 0xfeed),
             boundary_entry_plan: validated.plan().clone(),
             private_materialization: None,

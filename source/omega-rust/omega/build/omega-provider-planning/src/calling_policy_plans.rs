@@ -418,7 +418,7 @@ pub fn validate_nominal_callback_placement_bindings(
                 continue;
             }
         };
-        let realized_report_fingerprint = validated.contract_fingerprint();
+        let realized_report_fingerprint = validated.contract_report_fingerprint();
         let realized_commitment =
             psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(
                 validated.contract_commitment_digest(),
@@ -613,7 +613,7 @@ fn bound_private_callback_materialization(
         );
         if validated.plan() != &registrar.boundary_entry_plan
             || validated.plan() != registrar.exact_boundary_entry_plan()
-            || validated.contract_fingerprint() != registrar.report_fingerprint
+            || validated.contract_report_fingerprint() != registrar.report_fingerprint
             || commitment != registrar.commitment
         {
             return Err(
@@ -646,7 +646,7 @@ fn bound_private_callback_materialization(
     );
     if validated.plan() != &registrar.boundary_entry_plan
         || validated.plan() != registrar.exact_boundary_entry_plan()
-        || validated.contract_fingerprint() != registrar.report_fingerprint
+        || validated.contract_report_fingerprint() != registrar.report_fingerprint
         || commitment != registrar.commitment
     {
         return Err(
@@ -686,7 +686,7 @@ fn bound_private_callback_materialization(
             destination: row.destination.clone(),
             requirement: demand.requirement,
             registrar_boundary_entry_plan: validated.plan().clone(),
-            registrar_calling_plan_report_fingerprint: validated.contract_fingerprint(),
+            registrar_calling_plan_report_fingerprint: validated.contract_report_fingerprint(),
             context,
         },
     ))
@@ -871,7 +871,7 @@ pub fn compute_boundary_calling_plans(
             boundary_trait,
             boundary_arguments,
             requirement_machine,
-            report_fingerprint: validated.contract_fingerprint(),
+            report_fingerprint: validated.contract_report_fingerprint(),
             commitment: psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(
                 validated.contract_commitment_digest(),
             ),
@@ -1010,7 +1010,7 @@ pub fn close_outbound_callback_materializations(
                 .with_source_span(realization.relationship_span),
             ]
         })?;
-        let new_fingerprint = validated.contract_fingerprint();
+        let new_fingerprint = validated.contract_report_fingerprint();
         realization.report_fingerprint = new_fingerprint;
         realization.commitment =
             psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(
@@ -3123,7 +3123,7 @@ mod tests {
             &CallSignature::default(),
         )
         .expect("empty ordinary boundary plan");
-        let report_fingerprint = validated.contract_fingerprint();
+        let report_fingerprint = validated.contract_report_fingerprint();
         let commitment = psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(
             validated.contract_commitment_digest(),
         );
@@ -3428,7 +3428,7 @@ mod tests {
             &context,
         )
         .unwrap();
-        realization.report_fingerprint = validated.contract_fingerprint();
+        realization.report_fingerprint = validated.contract_report_fingerprint();
         realization.commitment =
             psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(
                 validated.contract_commitment_digest(),

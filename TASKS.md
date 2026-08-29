@@ -303,10 +303,13 @@ scanners, or receipts.
   Closed conformance application SHA-256 authority now binds the complete
   canonical state-signature bytes instead of an FNV compression. The
   architecture inventory scans compact-returning fingerprint accessors and
-  seals a per-path shrinking migration ceiling; only the executable-fragment
-  compatibility alias and the public calling-plan/provider-plan accessors
-  remain on that ceiling. Remaining work is classifying those accessors and
-  identity-named fields outside both fingerprint scanners.
+  rejects every ambiguous compact accessor; executable-fragment,
+  calling-plan, state-footprint-evidence, and provider-plan accessors have now
+  cleared the migration ceiling. Native-fuel target policy also carries a
+  domain-separated SHA-256 commitment to the complete canonical transfer plan;
+  its historical plan `u64` is a report identity and cannot admit a compact-
+  equal substituted plan. Remaining work is classifying identity-named fields
+  outside both fingerprint scanners.
 
   Acceptance: an automated architecture test rejects new authoritative
   `u64`-only identities, every retained FNV use has a local non-authoritative
@@ -542,7 +545,7 @@ Remaining:
   native-artifact custody are now complete for the unmetered carrier. Final-image
   emission and source-free native-artifact validation independently replay the
   ranked contract, target decoding, and all nine object fuel rows. Canonical
-  installation format 43 retains an explicit disjoint ranked-body tag, rejects
+  installation format 44 retains an explicit disjoint ranked-body tag, rejects
   mixed body custody, round-trips it, and binds it back to the exact emitted
   image. The canonical Terminal artifact ledger now reconstructs the complete
   interpretable proof question for ranked modules rather than incorrectly
@@ -561,7 +564,7 @@ Remaining:
   for both Linux ISAs. Final-image replay independently rederives all five
   branch coordinates from immutable semantic bytes and the nine fuel rows,
   decodes both metered and final text, and binds the exact final symbol table.
-  Canonical format 43 rejoins the semantic ranked tag, source/metered spans,
+  Canonical format 44 rejoins the semantic ranked tag, source/metered spans,
   target policy, all charge rows, and exact image fingerprint without
   duplicating the derivable rebase record. The canonical native-artifact owner
   has one deliberately bounded ranked-native-fuel realization binding canonical

@@ -201,10 +201,7 @@ fn selected_provider_binds_actual_reach_for_bounded_requirement() {
 
     assert_eq!(resolution.upper_bound, ["MachineControl", "PortIo"]);
     assert_eq!(resolution.resolved_row, ["PortIo"]);
-    assert_eq!(
-        resolution.provider_plan_identity,
-        plan.identity_fingerprint()
-    );
+    assert_eq!(resolution.provider_plan_identity, plan.report_fingerprint());
 }
 
 #[test]
@@ -320,7 +317,7 @@ fn shared_provider_binding_publishes_exact_operator_identity_without_mutating_re
             .named_uses
             .get(use_handle)
             .provider_plan_identity,
-        plan.identity_fingerprint()
+        plan.report_fingerprint()
     );
     assert!(selected.installation_reach_resolutions().is_empty());
 }
@@ -484,7 +481,7 @@ fn provider_grant_ledger_resolves_one_exact_selector_subject() {
     assert_eq!(grants[1].commitment(), "provider slot: Pair");
     assert_eq!(grants[2], grants[1]);
     assert!(grants.iter().all(|grant| {
-        grant.selected_plan_report_identity == first.identity_fingerprint()
+        grant.selected_plan_report_identity == first.report_fingerprint()
             && grant.selected_plan_digest == first.identity_digest()
             && grant.selected_plan == first
             && grant.replays_selected_plan(&first)
@@ -493,8 +490,8 @@ fn provider_grant_ledger_resolves_one_exact_selector_subject() {
     let mut compact_equal_substitute = first.clone();
     compact_equal_substitute.schema.methods[0].requirement_owner = "OtherPair".to_owned();
     assert_eq!(
-        compact_equal_substitute.identity_fingerprint(),
-        first.identity_fingerprint(),
+        compact_equal_substitute.report_fingerprint(),
+        first.report_fingerprint(),
         "the compact report identity omits the exact requirement-owner spelling"
     );
     assert_ne!(compact_equal_substitute, first);
@@ -530,8 +527,8 @@ fn provider_grant_binding_rejects_compact_equal_selected_plan_substitution() {
     let mut substituted = candidate.clone();
     substituted.schema.methods[0].requirement_owner = "OtherPair".to_owned();
     assert_eq!(
-        substituted.identity_fingerprint(),
-        candidate.identity_fingerprint()
+        substituted.report_fingerprint(),
+        candidate.report_fingerprint()
     );
     assert_ne!(substituted.identity_digest(), candidate.identity_digest());
     let selected = omega_effects::SelectedProviderPlanFacts::from_selected_plans(vec![substituted])
@@ -1244,7 +1241,7 @@ fn external_root_bridge_requires_one_exact_retained_boundary_slot() {
         selected_external_root_provider_plan_id(&facts, "first::Pair")
             .expect("qualified slot resolves")
             .normalized_identity(),
-        first.identity_fingerprint()
+        first.report_fingerprint()
     );
     assert!(
         selected_external_root_provider_plan_id(&facts, "Pair")
@@ -1270,7 +1267,7 @@ fn external_root_bridge_rejects_compact_equal_exact_plan_substitution() {
 
     assert_eq!(selected.identity, compact_identity);
     assert_eq!(
-        selected.exact_plan.identity_fingerprint(),
+        selected.exact_plan.report_fingerprint(),
         compact_identity.normalized_identity(),
         "the compatibility fingerprint omits this exact structural field"
     );
@@ -1306,7 +1303,7 @@ fn granted_selected_plan_attaches_receipt_by_exact_inherited_requirement() {
         "PairBase",
         &requirement_identity,
     );
-    let identity = selected.identity_fingerprint();
+    let identity = selected.report_fingerprint();
     let original_contents = checked.clone();
     let original = Arc::new(checked);
 

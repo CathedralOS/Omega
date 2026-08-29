@@ -7738,14 +7738,8 @@ mod provider_plan {
         };
         let forward = plan(vec![row("a", 1), row("b", 2)]);
         let reversed = plan(vec![row("b", 2), row("a", 1)]);
-        assert_eq!(
-            forward.identity_fingerprint(),
-            reversed.identity_fingerprint()
-        );
+        assert_eq!(forward.report_fingerprint(), reversed.report_fingerprint());
         let changed = plan(vec![row("a", 9), row("b", 2)]);
-        assert_ne!(
-            forward.identity_fingerprint(),
-            changed.identity_fingerprint()
-        );
+        assert_ne!(forward.report_fingerprint(), changed.report_fingerprint());
     }
 }

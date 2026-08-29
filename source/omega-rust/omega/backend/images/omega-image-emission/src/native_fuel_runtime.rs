@@ -745,7 +745,8 @@ mod tests {
             target: plan.target(),
             transport: plan.transport(),
             context: plan.context(),
-            transfer_plan_identity: plan.normalized_identity(),
+            transfer_plan_report_identity: plan.report_identity(),
+            transfer_plan_commitment: plan.commitment(),
         }
     }
 

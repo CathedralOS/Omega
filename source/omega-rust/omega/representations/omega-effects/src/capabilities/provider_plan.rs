@@ -853,7 +853,7 @@ fn push_package_identity(
 
 impl ProviderPlan {
     /// Domain-separated SHA-256 commitment to the complete normalized plan
-    /// structure. Unlike [`Self::identity_fingerprint`], this includes exact
+    /// structure. Unlike [`Self::report_fingerprint`], this includes exact
     /// normalized foreign-locator coordinates and is suitable for retained
     /// evidence identity.
     pub fn identity_digest(&self) -> ProviderPlanDigest {
@@ -898,7 +898,7 @@ impl ProviderPlan {
     /// compact value supports sorting, diagnostics, and compatibility lookup;
     /// admission and execution must retain the exact plan and its
     /// collision-resistant [`Self::identity_digest`].
-    pub fn identity_fingerprint(&self) -> u64 {
+    pub fn report_fingerprint(&self) -> u64 {
         let mut rendered = format!(
             "{}\n{}\n{}\n{}",
             self.name, self.provider_type, self.target, self.schema.trait_name
@@ -1924,25 +1924,19 @@ mod tests {
     #[test]
     fn evaluated_calling_plan_is_published_provider_identity() {
         let mut first = windows_console_plan();
-        let baseline = first.identity_fingerprint();
+        let baseline = first.report_fingerprint();
         first.schema.methods[0].calling_plan_report_fingerprint = Some(0x1234);
         first.schema.methods[0].calling_plan_commitment =
             Some(psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest([1; 32]));
-        assert_ne!(baseline, first.identity_fingerprint());
+        assert_ne!(baseline, first.report_fingerprint());
 
         let mut refactored = first.clone();
         refactored.schema.methods[0].calling_plan_report_fingerprint = Some(0x1234);
-        assert_eq!(
-            first.identity_fingerprint(),
-            refactored.identity_fingerprint()
-        );
+        assert_eq!(first.report_fingerprint(), refactored.report_fingerprint());
 
         refactored.schema.methods[0].calling_plan_commitment =
             Some(psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest([2; 32]));
-        assert_eq!(
-            first.identity_fingerprint(),
-            refactored.identity_fingerprint()
-        );
+        assert_eq!(first.report_fingerprint(), refactored.report_fingerprint());
         assert_ne!(first.identity_digest(), refactored.identity_digest());
     }
 
@@ -1969,8 +1963,8 @@ mod tests {
         substituted.schema.methods[0].requirement_owner = "OtherConsole".to_owned();
 
         assert_eq!(
-            original.identity_fingerprint(),
-            substituted.identity_fingerprint(),
+            original.report_fingerprint(),
+            substituted.report_fingerprint(),
             "the legacy compact renderer did not retain the readable requirement-owner field"
         );
         assert_ne!(original, substituted);
@@ -1981,37 +1975,37 @@ mod tests {
     fn exact_package_provenance_enters_provider_identity_but_legacy_label_does_not() {
         let mut first = windows_console_plan();
         first.origin_package_identity = psi_core::PackageKeyIdentity::from_digest([1; 32]);
-        let first_identity = first.identity_fingerprint();
+        let first_identity = first.report_fingerprint();
 
         let mut renamed_label = first.clone();
         renamed_label.origin_package = "misleading display label".to_owned();
-        assert_eq!(renamed_label.identity_fingerprint(), first_identity);
+        assert_eq!(renamed_label.report_fingerprint(), first_identity);
 
         let mut second = first;
         second.origin_package_identity = psi_core::PackageKeyIdentity::from_digest([2; 32]);
-        assert_ne!(second.identity_fingerprint(), first_identity);
+        assert_ne!(second.report_fingerprint(), first_identity);
 
         let mut provider_type_owner = renamed_label.clone();
         provider_type_owner.provider_type_package_identity =
             psi_core::PackageKeyIdentity::from_digest([3; 32]);
-        assert_ne!(provider_type_owner.identity_fingerprint(), first_identity);
+        assert_ne!(provider_type_owner.report_fingerprint(), first_identity);
 
         let mut schema_owner = renamed_label.clone();
         schema_owner.schema.trait_package_identity =
             psi_core::PackageKeyIdentity::from_digest([4; 32]);
-        assert_ne!(schema_owner.identity_fingerprint(), first_identity);
+        assert_ne!(schema_owner.report_fingerprint(), first_identity);
 
         let mut requirement_owner = renamed_label;
         requirement_owner.schema.methods[0].requirement_owner_package_identity =
             psi_core::PackageKeyIdentity::from_digest([5; 32]);
-        assert_ne!(requirement_owner.identity_fingerprint(), first_identity);
+        assert_ne!(requirement_owner.report_fingerprint(), first_identity);
 
         let mut unbound_adapter = windows_console_plan();
         unbound_adapter.rows[0].binding = ProviderBinding::CheckedAdapter {
             machine_identity: "named-callable(path(ConsoleProvider::write))".to_owned(),
             machine_package_identity: None,
         };
-        let unbound_identity = unbound_adapter.identity_fingerprint();
+        let unbound_identity = unbound_adapter.report_fingerprint();
         let mut bound_adapter = unbound_adapter.clone();
         let adapter_package =
             psi_core::PackageKeyIdentity::from_digest([6; 32]).expect("nonzero package identity");
@@ -2020,32 +2014,32 @@ mod tests {
             machine_identity: "named-callable(path(ConsoleProvider::write))".to_owned(),
             machine_package_identity: Some(adapter_package),
         };
-        assert_ne!(bound_adapter.identity_fingerprint(), unbound_identity);
+        assert_ne!(bound_adapter.report_fingerprint(), unbound_identity);
 
         let mut other_overload = unbound_adapter;
         other_overload.rows[0].binding = ProviderBinding::CheckedAdapter {
             machine_identity: "named-callable(path(ConsoleProvider::write))#other".to_owned(),
             machine_package_identity: None,
         };
-        assert_ne!(other_overload.identity_fingerprint(), unbound_identity);
+        assert_ne!(other_overload.report_fingerprint(), unbound_identity);
     }
 
     #[test]
     fn independent_operational_ceilings_enter_provider_identity() {
         let baseline = windows_console_plan();
-        let baseline_identity = baseline.identity_fingerprint();
+        let baseline_identity = baseline.report_fingerprint();
 
         let mut suspending = baseline.clone();
         suspending.schema.methods[0].may_suspend = true;
-        assert_ne!(suspending.identity_fingerprint(), baseline_identity);
+        assert_ne!(suspending.report_fingerprint(), baseline_identity);
 
         let mut blocking = baseline;
         blocking.schema.methods[0].may_block = true;
-        assert_ne!(blocking.identity_fingerprint(), baseline_identity);
+        assert_ne!(blocking.report_fingerprint(), baseline_identity);
 
         let mut terminating = windows_console_plan();
         terminating.schema.methods[0].terminates_guarantee = true;
-        assert_ne!(terminating.identity_fingerprint(), baseline_identity);
+        assert_ne!(terminating.report_fingerprint(), baseline_identity);
 
         let mut premised = terminating.clone();
         premised.schema.methods[0].termination_premises = vec![ServiceProgressPremise {
@@ -2058,15 +2052,15 @@ mod tests {
             }],
         }];
         assert_ne!(
-            premised.identity_fingerprint(),
-            terminating.identity_fingerprint()
+            premised.report_fingerprint(),
+            terminating.report_fingerprint()
         );
         let mut changed_route = premised.clone();
         changed_route.schema.methods[0].termination_premises[0].establishment_routes[0]
             .requirement_identity = "SchedulerAdmission::grant_strong#exact".to_owned();
         assert_ne!(
-            premised.identity_fingerprint(),
-            changed_route.identity_fingerprint(),
+            premised.report_fingerprint(),
+            changed_route.report_fingerprint(),
             "the authorized establishment route must enter provider identity"
         );
         let mut two_routes = premised.clone();
@@ -2081,21 +2075,21 @@ mod tests {
             .establishment_routes
             .reverse();
         assert_eq!(
-            two_routes.identity_fingerprint(),
-            reversed_routes.identity_fingerprint(),
+            two_routes.report_fingerprint(),
+            reversed_routes.report_fingerprint(),
             "route declaration order is presentation, not provider identity"
         );
         assert_ne!(
-            suspending.identity_fingerprint(),
-            blocking.identity_fingerprint()
+            suspending.report_fingerprint(),
+            blocking.report_fingerprint()
         );
         assert_ne!(
-            terminating.identity_fingerprint(),
-            suspending.identity_fingerprint()
+            terminating.report_fingerprint(),
+            suspending.report_fingerprint()
         );
         assert_ne!(
-            terminating.identity_fingerprint(),
-            blocking.identity_fingerprint()
+            terminating.report_fingerprint(),
+            blocking.report_fingerprint()
         );
     }
 
@@ -2142,22 +2136,19 @@ mod tests {
     #[test]
     fn normalized_parameter_and_result_types_enter_provider_identity() {
         let baseline = windows_console_plan();
-        let baseline_identity = baseline.identity_fingerprint();
+        let baseline_identity = baseline.report_fingerprint();
 
         let mut qualified_parameter = baseline.clone();
         qualified_parameter.schema.methods[0].parameter_type_identities[0] =
             "InterruptAcknowledgement in InterruptAcknowledgement::Pending".to_owned();
-        assert_ne!(
-            qualified_parameter.identity_fingerprint(),
-            baseline_identity
-        );
+        assert_ne!(qualified_parameter.report_fingerprint(), baseline_identity);
 
         let mut changed_result = baseline;
         changed_result.schema.methods[1].result_type_identity = Some("u16".to_owned());
-        assert_ne!(changed_result.identity_fingerprint(), baseline_identity);
+        assert_ne!(changed_result.report_fingerprint(), baseline_identity);
         assert_ne!(
-            qualified_parameter.identity_fingerprint(),
-            changed_result.identity_fingerprint()
+            qualified_parameter.report_fingerprint(),
+            changed_result.report_fingerprint()
         );
     }
 
@@ -2175,8 +2166,8 @@ mod tests {
         }];
 
         assert_ne!(
-            accepted.identity_fingerprint(),
-            baseline.identity_fingerprint(),
+            accepted.report_fingerprint(),
+            baseline.report_fingerprint(),
             "the receipt identity must bind structured accepted authority, not only display types"
         );
 
@@ -2184,8 +2175,8 @@ mod tests {
         redirected_carrier.schema.methods[0].entry_claims[0].carrier_identity =
             "named(name(OtherAcknowledgement))".to_owned();
         assert_ne!(
-            accepted.identity_fingerprint(),
-            redirected_carrier.identity_fingerprint(),
+            accepted.report_fingerprint(),
+            redirected_carrier.report_fingerprint(),
             "the routed qualification's exact carrier is provider-plan identity"
         );
 
@@ -2193,8 +2184,8 @@ mod tests {
         relaxed.schema.methods[0].entry_claims[0].effective_carry =
             psi_language_semantics::CarryPolicy::PERMISSIVE;
         assert_ne!(
-            accepted.identity_fingerprint(),
-            relaxed.identity_fingerprint(),
+            accepted.report_fingerprint(),
+            relaxed.report_fingerprint(),
             "the compiler-owned entry carry policy is receipt identity"
         );
 
@@ -2202,8 +2193,8 @@ mod tests {
         predicate_bearing.schema.methods[0].entry_claims[0].predicate_body =
             psi_language_semantics::DomainPredicateBody::Present;
         assert_ne!(
-            accepted.identity_fingerprint(),
-            predicate_bearing.identity_fingerprint(),
+            accepted.report_fingerprint(),
+            predicate_bearing.report_fingerprint(),
             "predicate discharge is part of the selected provider contract"
         );
     }
@@ -2988,15 +2979,15 @@ mod tests {
     fn normalized_import_identity_enters_provider_plan_identity_atomically() {
         let mut baseline = windows_console_plan();
         baseline.rows[0].binding = normalized_windows_import(b"kernel32.dll", b"WriteFile");
-        let baseline_identity = baseline.identity_fingerprint();
+        let baseline_identity = baseline.report_fingerprint();
 
         let mut changed_library = baseline.clone();
         changed_library.rows[0].binding =
             normalized_windows_import(b"kernelbase.dll", b"WriteFile");
-        assert_ne!(baseline_identity, changed_library.identity_fingerprint());
+        assert_ne!(baseline_identity, changed_library.report_fingerprint());
 
         let mut changed_export = baseline.clone();
         changed_export.rows[0].binding = normalized_windows_import(b"kernel32.dll", b"ReadFile");
-        assert_ne!(baseline_identity, changed_export.identity_fingerprint());
+        assert_ne!(baseline_identity, changed_export.report_fingerprint());
     }
 }

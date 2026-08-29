@@ -427,7 +427,7 @@ pub fn bind_compiler_entry_footprint(
     }
     let prior_inventory_report_fingerprint = inventory.inventory_report_fingerprint;
     let prior_inventory_digest = inventory.inventory_digest;
-    let footprint_report_fingerprint = footprint.evidence_fingerprint();
+    let footprint_report_fingerprint = footprint.evidence_report_fingerprint();
     let footprint_digest = state_footprint_evidence_digest(&footprint);
     entry.footprint = Some(footprint);
     inventory.inventory_report_fingerprint = executable_inventory_report_fingerprint(
@@ -630,7 +630,10 @@ fn executable_inventory_report_fingerprint(
         match &region.footprint {
             Some(footprint) => {
                 fingerprint_bytes(&mut hash, &[1]);
-                fingerprint_bytes(&mut hash, &footprint.evidence_fingerprint().to_le_bytes());
+                fingerprint_bytes(
+                    &mut hash,
+                    &footprint.evidence_report_fingerprint().to_le_bytes(),
+                );
             }
             None => fingerprint_bytes(&mut hash, &[0]),
         }

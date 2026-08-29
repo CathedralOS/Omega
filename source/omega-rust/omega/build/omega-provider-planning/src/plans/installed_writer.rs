@@ -925,7 +925,7 @@ impl SelectedExternalRootProviderPlan {
     ) -> Result<Self, omega_external_roots::ExternalRootDiagnostic> {
         Ok(Self {
             identity: omega_external_roots::ProviderPlanId::from_normalized_identity(
-                exact_plan.identity_fingerprint(),
+                exact_plan.report_fingerprint(),
             )?,
             digest: exact_plan.identity_digest(),
             schema: exact_plan.schema.clone(),
@@ -938,7 +938,7 @@ impl SelectedExternalRootProviderPlan {
     }
 
     fn has_valid_exact_identity(&self) -> bool {
-        self.identity.normalized_identity() == self.exact_plan.identity_fingerprint()
+        self.identity.normalized_identity() == self.exact_plan.report_fingerprint()
             && self.digest == self.exact_plan.identity_digest()
             && self.schema == self.exact_plan.schema
     }
@@ -1275,9 +1275,8 @@ pub fn selected_external_root_entry_fact_bindings(
             },
         ));
     };
-    let provider_plan = omega_external_roots::ProviderPlanId::from_normalized_identity(
-        plan.identity_fingerprint(),
-    )?;
+    let provider_plan =
+        omega_external_roots::ProviderPlanId::from_normalized_identity(plan.report_fingerprint())?;
     let mut bindings = Vec::new();
 
     for method in &plan.schema.methods {

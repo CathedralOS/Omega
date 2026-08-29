@@ -1133,7 +1133,8 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         target: object_artifact.target(),
         transport: transfer_projection.transport(),
         context: transfer_projection.context(),
-        transfer_plan_identity: transfer_projection.normalized_identity(),
+        transfer_plan_report_identity: transfer_projection.report_identity(),
+        transfer_plan_commitment: transfer_projection.commitment(),
     })
     .expect("host native fuel target policy");
     let transfer_plan = admit_native_fuel_transfer_plan(target_policy, transfer_projection)
@@ -1343,7 +1344,7 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         entry: entry_stub,
         provider: deployment_provider,
         provider_plan: ProviderPlanId::from_normalized_identity(
-            omega_effects::provider_plan::ProviderPlan::default().identity_fingerprint(),
+            omega_effects::provider_plan::ProviderPlan::default().report_fingerprint(),
         )
         .unwrap(),
         provider_plan_digest: omega_effects::provider_plan::ProviderPlan::default()
@@ -1874,7 +1875,7 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         entry: entry_stub,
         provider: root_provider,
         provider_plan: ProviderPlanId::from_normalized_identity(
-            omega_effects::provider_plan::ProviderPlan::default().identity_fingerprint(),
+            omega_effects::provider_plan::ProviderPlan::default().report_fingerprint(),
         )
         .unwrap(),
         provider_plan_digest: omega_effects::provider_plan::ProviderPlan::default()

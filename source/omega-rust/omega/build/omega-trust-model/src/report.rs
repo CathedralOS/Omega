@@ -109,7 +109,7 @@ pub fn reconstruct_trust_report(
             commitment: format!(
                 "provider plan: {} [{:016x}] provider type: {} target: {} provider origin package: {} provider package key: {} coverage {covered}/{} selected: {}",
                 plan.name,
-                plan.identity_fingerprint(),
+                plan.report_fingerprint(),
                 if plan.provider_type.is_empty() {
                     "<free external>"
                 } else {
@@ -155,7 +155,7 @@ pub fn reconstruct_trust_report(
                 .provider_requirements
                 .push(TrustProviderRequirementRow {
                     provider_plan: plan.name.clone(),
-                    provider_plan_report_fingerprint: plan.identity_fingerprint(),
+                    provider_plan_report_fingerprint: plan.report_fingerprint(),
                     provider_plan_digest: plan.identity_digest(),
                     provider_type: plan.provider_type.clone(),
                     provider_type_package_identity: plan.provider_type_package_identity,
@@ -208,7 +208,7 @@ pub fn reconstruct_trust_report(
             for claim in &method.entry_claims {
                 report.qualifications.push(TrustQualificationRow {
                     provider_plan: plan.name.clone(),
-                    provider_plan_report_fingerprint: plan.identity_fingerprint(),
+                    provider_plan_report_fingerprint: plan.report_fingerprint(),
                     provider_plan_digest: plan.identity_digest(),
                     provider_type: plan.provider_type.clone(),
                     provider_type_package_identity: plan.provider_type_package_identity,
@@ -240,7 +240,7 @@ pub fn reconstruct_trust_report(
                 // this generic provider-result carrier.
                 report.qualifications.push(TrustQualificationRow {
                     provider_plan: plan.name.clone(),
-                    provider_plan_report_fingerprint: plan.identity_fingerprint(),
+                    provider_plan_report_fingerprint: plan.report_fingerprint(),
                     provider_plan_digest: plan.identity_digest(),
                     provider_type: plan.provider_type.clone(),
                     provider_type_package_identity: plan.provider_type_package_identity,
@@ -777,8 +777,8 @@ mod tests {
         let mut substituted = candidate.clone();
         substituted.schema.methods[0].requirement_owner = "OtherPair".to_owned();
         assert_eq!(
-            candidate.identity_fingerprint(),
-            substituted.identity_fingerprint()
+            candidate.report_fingerprint(),
+            substituted.report_fingerprint()
         );
         assert_ne!(candidate.identity_digest(), substituted.identity_digest());
         let selected =

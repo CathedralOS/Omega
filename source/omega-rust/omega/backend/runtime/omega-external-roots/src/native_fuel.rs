@@ -173,9 +173,12 @@ pub fn admit_native_fuel_target_policy(
         }
     }
     validate_native_fuel_context_layout(&projection.context)?;
-    if projection.transfer_plan_identity == 0 {
+    if projection.transfer_plan_report_identity == 0
+        || projection.transfer_plan_commitment.is_empty()
+    {
         return Err(ExternalRootDiagnostic(
-            "native fuel target policy requires a nonzero transfer-plan identity".into(),
+            "native fuel target policy requires a nonzero transfer-plan report and strong commitment"
+                .into(),
         ));
     }
     Ok(AdmittedNativeFuelTargetPolicy(projection))
@@ -258,13 +261,20 @@ impl ValidatedNativeFuelTransferPlan {
         &self.projection
     }
 
-    pub const fn normalized_identity(&self) -> u64 {
-        self.projection.normalized_identity()
+    pub const fn report_identity(&self) -> u64 {
+        self.projection.report_identity()
+    }
+
+    pub const fn commitment(
+        &self,
+    ) -> omega_installation_evidence::NativeFuelTransferPlanCommitment {
+        self.projection.commitment()
     }
 }
 
 /// Seal a dependency-light runtime plan only when every target-policy field
-/// and its derived normalized identity agree with the admitted charge recipe.
+/// and its derived report identity plus strong commitment agree with the
+/// admitted charge recipe.
 pub fn admit_native_fuel_transfer_plan(
     target_policy: AdmittedNativeFuelTargetPolicy,
     projection: NativeFuelTransferRuntimePlanProjection,
@@ -274,7 +284,8 @@ pub fn admit_native_fuel_transfer_plan(
         || projection.target() != policy.target
         || projection.transport() != policy.transport
         || projection.context() != policy.context
-        || projection.normalized_identity() != policy.transfer_plan_identity
+        || projection.report_identity() != policy.transfer_plan_report_identity
+        || projection.commitment() != policy.transfer_plan_commitment
         || projection.validate_target_policy(policy).is_err()
     {
         return Err(ExternalRootDiagnostic(
@@ -409,7 +420,8 @@ pub fn bind_installed_native_fuel_transfer_code<Image: NativeFuelTransferRuntime
     let psi = image.psi();
     let mut report_fingerprint = Fnv1a::new();
     report_fingerprint.bytes(b"omega.installed-native-fuel-transfer-code.v1");
-    report_fingerprint.u64(transfer_plan.normalized_identity());
+    report_fingerprint.u64(transfer_plan.report_identity());
+    report_fingerprint.bytes(&transfer_plan.commitment().as_bytes());
     report_fingerprint.u64(u64::from(psi.vocabulary_marker.get()));
     report_fingerprint.bytes(psi.program_fingerprint.as_bytes());
     report_fingerprint.u64(installed_code.identity().normalized_identity());
@@ -738,7 +750,8 @@ pub fn bind_installed_native_fuel_transfer_runtime(
     report_fingerprint.bytes(b"omega.installed-native-fuel-transfer-runtime.v1");
     report_fingerprint.u64(transfer_code.report_fingerprint());
     report_fingerprint.u64(sponsor_route.report_fingerprint());
-    report_fingerprint.u64(plan.transfer_plan.normalized_identity());
+    report_fingerprint.u64(plan.transfer_plan.report_identity());
+    report_fingerprint.bytes(&plan.transfer_plan.commitment().as_bytes());
     report_fingerprint.u64(
         plan.sponsor_path
             .fixed
@@ -1177,7 +1190,8 @@ fn dynamic_fuel_attribution_basis_report_fingerprint(
     hash.u64(u64::from(plan.schedule.marker()));
     hash.u64(plan.meter.normalized_identity());
     hash_native_fuel_target_policy(&mut hash, plan.target_policy().projection());
-    hash.u64(plan.transfer_plan.normalized_identity());
+    hash.u64(plan.transfer_plan.report_identity());
+    hash.bytes(&plan.transfer_plan.commitment().as_bytes());
     hash.u64(
         plan.sponsor_path
             .fixed
@@ -1243,7 +1257,8 @@ fn hash_native_fuel_target_policy(hash: &mut Fnv1a, plan: &NativeFuelTargetPlanP
     hash.u64(u64::from(plan.context.sponsor_stack_top_offset));
     hash.u64(u64::from(plan.context.activation_state_offset));
     hash.u64(u64::from(plan.context.activation_state_byte_count));
-    hash.u64(plan.transfer_plan_identity);
+    hash.u64(plan.transfer_plan_report_identity);
+    hash.bytes(&plan.transfer_plan_commitment.as_bytes());
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1894,7 +1909,8 @@ mod tests {
             target: profile.native_target(),
             transport: transfer.transport(),
             context: transfer.context(),
-            transfer_plan_identity: transfer.normalized_identity(),
+            transfer_plan_report_identity: transfer.report_identity(),
+            transfer_plan_commitment: transfer.commitment(),
         }
     }
 
@@ -2399,14 +2415,12 @@ mod tests {
             admit_native_fuel_transfer_plan(x86_target_policy(profile), projection.clone())
                 .expect("exact structural transfer plan");
         assert_eq!(admitted.projection(), &projection);
-        assert_eq!(
-            admitted.normalized_identity(),
-            projection.normalized_identity()
-        );
+        assert_eq!(admitted.report_identity(), projection.report_identity());
+        assert_eq!(admitted.commitment(), projection.commitment());
 
         let mut wrong_identity = x86_target_projection(profile);
-        wrong_identity.transfer_plan_identity =
-            wrong_identity.transfer_plan_identity.wrapping_add(1);
+        wrong_identity.transfer_plan_report_identity =
+            wrong_identity.transfer_plan_report_identity.wrapping_add(1);
         let wrong_identity = admit_native_fuel_target_policy(wrong_identity)
             .expect("nonzero alternate identity remains a structurally valid target recipe");
         assert!(

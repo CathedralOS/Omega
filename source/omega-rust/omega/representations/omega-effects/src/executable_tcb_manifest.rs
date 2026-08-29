@@ -515,7 +515,7 @@ pub(crate) fn validate_opaque_executable_admission(
     }
     let matching_plans = plans
         .iter()
-        .filter(|plan| plan.identity_fingerprint() == candidate.provider_plan_identity)
+        .filter(|plan| plan.report_fingerprint() == candidate.provider_plan_identity)
         .collect::<Vec<_>>();
     let [plan] = matching_plans.as_slice() else {
         return Err(match matching_plans.len() {
@@ -614,7 +614,7 @@ pub(crate) fn derive_static_manifest(
 
     for plan in plans {
         let provider_identity = provider_identity(plan);
-        let provider_plan_identity = plan.identity_fingerprint();
+        let provider_plan_identity = plan.report_fingerprint();
         for row in &plan.rows {
             assert!(
                 !row.requirement_identity.is_empty(),
@@ -789,7 +789,7 @@ fn incomplete_cause(
     let requirement_identity = row.requirement_identity.clone();
     IncompleteCause::SelectedOpaqueProvider {
         provider_identity: provider_identity(plan),
-        provider_plan_identity: plan.identity_fingerprint(),
+        provider_plan_identity: plan.report_fingerprint(),
         method: row.method.clone(),
         requirement_identity,
         binding,

@@ -76,7 +76,7 @@ pub(super) fn encode_native_fuel_transfer(
     push_u16(bytes, 0);
     encode_entry(bytes, plan.transfer_entry());
     encode_entry(bytes, plan.resume_entry());
-    push_u64(bytes, plan.normalized_identity());
+    push_u64(bytes, plan.report_identity());
 
     encode_text_evidence(bytes, evidence.transfer_text())?;
     encode_text_evidence(bytes, evidence.resume_text())?;
@@ -180,7 +180,7 @@ pub(super) fn decode_native_fuel_transfer(
         resume_entry,
     )
     .map_err(|_| InstallationError::InvalidNativeFuelTransferPlan)?;
-    if plan.normalized_identity() != encoded_plan_identity {
+    if plan.report_identity() != encoded_plan_identity {
         return Err(InstallationError::InvalidNativeFuelTransferPlan);
     }
 

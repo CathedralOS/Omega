@@ -221,10 +221,7 @@ pub fn qualification_evidence_manifest_json(
             push_json_string(&mut json, &plan.origin_package);
         }
         json.push_str(",\n      \"receipt_identity\": ");
-        push_json_string(
-            &mut json,
-            &format!("0x{:016x}", plan.identity_fingerprint()),
-        );
+        push_json_string(&mut json, &format!("0x{:016x}", plan.report_fingerprint()));
         json.push_str("\n    }");
     }
     for (index, (plan, method, claim)) in boundary_result_rows.iter().enumerate() {
@@ -261,10 +258,7 @@ pub fn qualification_evidence_manifest_json(
             push_json_string(&mut json, &plan.origin_package);
         }
         json.push_str(",\n      \"receipt_identity\": ");
-        push_json_string(
-            &mut json,
-            &format!("0x{:016x}", plan.identity_fingerprint()),
-        );
+        push_json_string(&mut json, &format!("0x{:016x}", plan.report_fingerprint()));
         json.push_str("\n    }");
     }
 

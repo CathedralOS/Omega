@@ -383,7 +383,7 @@ fn derive_selected_installation_reach_resolutions(
                 .collect();
             resolutions.push(omega_effects::InstallationReachResolution {
                 requirement_identity: row.requirement_identity.clone(),
-                provider_plan_identity: plan.identity_fingerprint(),
+                provider_plan_identity: plan.report_fingerprint(),
                 upper_bound,
                 resolved_row: envelope.effective_service_reach.clone(),
             });
@@ -547,7 +547,7 @@ fn selected_operator_provider_identity(
                 plan.name,
             )));
         }
-        return Ok(Some(plan.identity_fingerprint()));
+        return Ok(Some(plan.report_fingerprint()));
     }
     let ProviderBinding::CompilerIntrinsic { machine, .. } = &row.binding else {
         return Err(psi_diagnostics::Diagnostic::error(format!(
@@ -567,7 +567,7 @@ fn selected_operator_provider_identity(
             plan.name,
         )));
     }
-    Ok(Some(plan.identity_fingerprint()))
+    Ok(Some(plan.report_fingerprint()))
 }
 
 pub fn intrinsic_realization_matches_operator(
@@ -2425,10 +2425,7 @@ pub fn selected_provider_plan_facts_with_provenance(
                     .trait_package_identity
                     .cmp(&right.schema.trait_package_identity)
             })
-            .then_with(|| {
-                left.identity_fingerprint()
-                    .cmp(&right.identity_fingerprint())
-            })
+            .then_with(|| left.report_fingerprint().cmp(&right.report_fingerprint()))
     });
 
     let mut diagnostics = Vec::new();
@@ -2565,7 +2562,7 @@ pub fn selected_provider_plan_facts_with_provenance(
     if facts.plans() != plans
         || plans.iter().any(|plan| {
             facts
-                .plan_by_exact_evidence(plan.identity_fingerprint(), plan)
+                .plan_by_exact_evidence(plan.report_fingerprint(), plan)
                 .is_none()
         })
     {
@@ -2841,7 +2838,7 @@ fn select_provider_plan_indices(
                 diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
                     "slot `{slot_name}` has {count} covering provider plans for the selected target: {} -- choose one in build.omg with `b.select_provider<{slot_name}, ProviderType>();`",
                     many.iter()
-                        .map(|(_, plan)| format!("`{}` [{:016x}]", plan.name, plan.identity_fingerprint()))
+                        .map(|(_, plan)| format!("`{}` [{:016x}]", plan.name, plan.report_fingerprint()))
                         .collect::<Vec<_>>()
                         .join(", "),
                 )));
