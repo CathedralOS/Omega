@@ -161,6 +161,10 @@ selection identity.
   descends through function construction, constraints, fragments,
   architectural units, and focused tests; the former 1,071-line mixed file is
   gone and the largest replacement is below 450 lines.
+  Psi-to-abstract machine lowering is complete too: its existing 57-line stage
+  entrance descends through a 49-line payloadless/structural/ordinary route,
+  then ordinary lifecycle, exact operation, and terminator projection leaves;
+  the former 1,058-line file is gone and no replacement exceeds 700 lines.
   Continue through the exact exception table in the architecture guard,
   removing each exception as its file falls below the 1,000-line default.
 - [x] Clear the current production-file size violations by semantic split, not
