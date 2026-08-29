@@ -365,56 +365,7 @@ closed.
 - Tempting but wrong: retain only a solver `Proven` verdict without the selected
   theorem identity, ordered premises, per-side application, and replay data.
 
-## Q9 — Selecting an overloaded boundary-operator provider family
-
-### Context
-
-Each boundary-operator overload already has an exact package-qualified
-provider-plan slot and may have checked or external provider candidates. A
-unique covering candidate can be selected without source policy. The ordinary
-build override is currently `builder.select_provider<Service, Provider>()`,
-where `Service` resolves to one boundary-trait declaration. A boundary operator
-instead has a descriptive path plus an overload coordinate.
-
-### Problem statement
-
-`CheckedMath::offset_zero` identifies an operator family, not necessarily one
-overload. The existing static path has no position for parameter/result
-dispatch identity, so treating it as one exact slot is unsound when several
-boundary operators share that path. Silently applying the override to whichever
-symbol resolution encounters first, to only the provider's matching subset, or
-to every overload without an atomic completeness rule would make selection
-context- or declaration-order-dependent. Inventing a stringified signature
-would duplicate compiler identity in source.
-
-### Proposed direction
-
-Keep the concise existing form and define an operator path in
-`select_provider` as an atomic family selection. Resolve the exact
-package-qualified path, enumerate every applicable boundary-operator overload
-coordinate in that family for the selected target, and require the selected
-provider type to contribute exactly one complete candidate for every member.
-Select all of those plans together or reject the complete declaration. A
-project requiring different providers should use distinct descriptive operator
-paths rather than splitting one overload family through hidden signature
-syntax.
-
-### Alternates
-
-- Acceptable if per-overload selection is genuinely required: introduce one
-  ordinary typed declaration-reference value whose canonical meaning already
-  includes the overload coordinate, then let `select_provider` consume it. Do
-  not add package-manager-only signature syntax.
-- Acceptable as a stricter first release: forbid authored overrides for
-  boundary operators and require target policy or one unique covering candidate
-  for every exact slot.
-- Tempting but wrong: select the first same-path operator symbol or use return
-  type/display spelling to break the tie.
-- Tempting but wrong: encode the normalized signature as an authored string.
-- Tempting but wrong: apply a family override only to overloads the provider
-  happens to implement and leave the rest on unrelated defaults.
-
-## Q10 — Provider selection for a top-level boundary requirement
+## Q9 — Provider selection for a top-level boundary requirement
 
 ### Context
 
@@ -459,7 +410,7 @@ settlement authority.
 - Tempting but wrong: keep one hardcoded `PortIo` completion row and treat it as
   proof of PIC/LAPIC provider coherence.
 
-## Q11 — Source result schema for placed-view establishment
+## Q10 — Source result schema for placed-view establishment
 
 ### Context
 
@@ -521,7 +472,7 @@ outputs outside the runtime result.
 - Tempting but wrong: derive result identity from source spelling, call-site
   order, accessor names, parameter ordinals, or compact plan fingerprints.
 
-## Q12 — Declaring a direct native-parameter callback destination
+## Q11 — Declaring a direct native-parameter callback destination
 
 ### Context
 
@@ -578,7 +529,7 @@ that would add or reorder ABI parameters.
 - Tempting but wrong: expose a raw parameter ordinal, physical register/stack
   location, or callback code address to source policy.
 
-## Q13 — Reborrow restoration disposition
+## Q12 — Reborrow restoration disposition
 
 ### Context
 
@@ -627,7 +578,7 @@ post-return use, cleanup, or Terminal resource claim may be derived from them.
 - Tempting but wrong: skip retired projected parents and return authority
   directly to a root without retaining and validating the complete path.
 
-## Q14 — Nominal result carriers for observing compare-exchange
+## Q13 — Nominal result carriers for observing compare-exchange
 
 ### Context
 
@@ -698,7 +649,7 @@ operation requirement identities separate from these value-type identities.
 - Tempting but wrong: expose `Uncommitted` on the decisive result merely because
   one larger runtime layout would be convenient.
 
-## Q15 — Strict SSH trust and credential authority
+## Q14 — Strict SSH trust and credential authority
 
 ### Context
 
@@ -747,7 +698,7 @@ producer claim.
 - Tempting but wrong: serialize private keys, tokens, or reusable credentials in
   `omega.lock` or source-resolution evidence.
 
-## Q16 — Suspension as control-flow exit or resumable continuation
+## Q15 — Suspension as control-flow exit or resumable continuation
 
 ### Context
 
@@ -786,7 +737,7 @@ and its custody.
 - Tempting but wrong: classify every `MaySuspend` call as a local CFG exit
   without retaining its continuation and outcome-specific state.
 
-## Q17 — Cyclic control flow in Terminal Psi
+## Q16 — Cyclic control flow in Terminal Psi
 
 ### Context
 

@@ -109,12 +109,15 @@ The source forms are deliberately distinct:
 |---|---|
 | Checked body | An ordinary machine with a `{ ... }` body |
 | Required body | A bodyless machine declaration inside a trait |
-| External provider | A machine that `satisfies` a requirement `via` a compile-time `Binding` value |
+| External provider | A bodyless `boundary machine` that `satisfies` a requirement, with `via` only when an explicit binding payload is required |
 | Accepted declaration | A bodyless `boundary machine ... ensures ...;` declaration |
 
 There are no expression-bodied machines. `{ ... }` is the sole executable
-machine-body syntax; even a one-expression predicate uses braces. `via` is not
-an expression-body operator. It selects the external-provider supply variant:
+machine-body syntax; even a one-expression predicate uses braces. `boundary`
+marks a seam in either direction; the satisfied requirement and composition
+decide whether the machine supplies an import, export, provider, or installed
+root. `via` is not a supply keyword or expression-body operator. It is present
+only when it carries binding data the declaration cannot derive:
 
 ```omega
 windows_x64 machine WindowsBindings::write_file() -> Binding<12, 9, 0> {
@@ -126,7 +129,7 @@ windows_x64 machine WindowsBindings::write_file() -> Binding<12, 9, 0> {
     }
 }
 
-machine Kernel32::write_file(handle: WinHandle, bytes: &[u8]) -> WriteResult
+boundary machine Kernel32::write_file(handle: WinHandle, bytes: &[u8]) -> WriteResult
     satisfies Kernel32Requirements::write_file
     via WindowsBindings::write_file();
 ```
@@ -137,17 +140,24 @@ carrierless evidence interface, and `=` defines a transparent logical
 expansion. The witness-bearing form uses an `evidence Interface;` clause after
 the proposition signature. None is a machine body or machine supply mode.
 
-The expression after `via` must be compile-time evaluable to a normalized
-`Binding` value. Its normalized identity enters the derived provider plan;
-plan derivation validates it structurally, and admission assigns trust from
-the binding kind and evidence. Merely writing `via` asserts no trust class.
+When present, the expression after `via` must be compile-time evaluable to a
+normalized `Binding` value. Its normalized identity enters the derived provider
+plan; plan derivation validates it structurally, and admission assigns trust
+from the binding kind and evidence. Merely writing `via` asserts no trust class.
 
-The realization machine already supplies the canonical Omega symbol.
-`Binding::CompilerIntrinsic` therefore has no textual name payload: the
-resolved realization symbol, normalized signature, and selected target key the
-sealed intrinsic catalog. Other binding operands are ordinary typed compile-time
-values. A DLL locator is one object-format-specific sum case containing all of
-its name, ordinal, or version coordinates as fixed byte arrays and scalars.
+A compiler intrinsic carries no binding payload. A bodyless target-qualified
+`boundary machine ... satisfies ...;` already supplies the resolved realization
+symbol, normalized signature, and selected target that key the sealed intrinsic
+catalog. An absent or ambiguous catalog entry rejects; source does not write
+`via Binding::CompilerIntrinsic`. Other binding operands are ordinary typed
+compile-time values. A DLL locator is one object-format-specific sum case
+containing all of its name, ordinal, or version coordinates as fixed byte arrays
+and scalars.
+
+`satisfies`, not `via`, distinguishes external provider supply from a standalone
+accepted declaration: the former refines a separately published requirement;
+the latter publishes only its own admitted contract. Removing an empty binding
+clause therefore creates no ambiguity.
 The satisfied requirement's `Calling<C, Policy>` relationship separately
 produces the evaluated `CallPlan`; `Binding` neither carries nor reselects it. Raw
 linker bytes are target-package data and never Omega symbols, requirement keys,
@@ -169,7 +179,8 @@ as an unpinned ordinary import or remain unresolved in a final artifact.
 Checked adapters remain ordinary machines. A Console operation that obtains a
 handle and performs two writes is authored as an Omega body satisfying the
 Console requirement; only its irreducible DLL/syscall/instruction leaves use
-`via`. The toolchain derives `ProviderPlan` coverage, dependency closure,
+bodyless boundary supply. Only leaves with an undiscoverable locator use `via`.
+The toolchain derives `ProviderPlan` coverage, dependency closure,
 reach, identity, and admission inputs from the explicitly selected
 conformance closure. Programs never assemble plan rows imperatively.
 

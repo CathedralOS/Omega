@@ -1,6 +1,6 @@
 # Design Brief: Build And Package Model
 
-Current as of 2026-08-26. `build.omg` is ordinary Omega code interpreted in an
+Current as of 2026-08-28. `build.omg` is ordinary Omega code interpreted in an
 explicit build-host context. It produces inspectable build data and may stage
 assets or obtain external inputs through supplied services; it is not a second
 configuration language.
@@ -481,8 +481,9 @@ machine build(builder: &mut Build) {
 `Application::start` is the exact machine selected by the entry-machine slot.
 It may be free or carry one `&mut self` receiver according to the slot's entry
 shape. `TestConsole` is the nominal provider type selected for the complete
-`Console` surface; its ordinary conformances and `via` leaves determine the
-derived plan. Binding shape is declared by the slot, not inferred from the
+`Console` surface; its ordinary satisfiers and bodyless boundary leaves
+determine the derived plan. A leaf uses `via` only for a payload the exact
+declaration and target cannot derive. Binding shape is declared by the slot, not inferred from the
 trait's current requirement count. Exact slot consumers can cite only the
 selected requirement's normalized contract; they possess no conformance
 identity from which trait laws could be cited.
@@ -570,19 +571,23 @@ configuration selects the already-declared candidate.
 
 Requirement declarations never select their own provider. In particular, a
 `boundary operator` carries no provider clause: checked satisfiers and
-`satisfies ... via <Binding>` leaves declare candidates, and compiler policy
-chooses one exact plan. Unique covering selection is implemented. OWNER Q9
-must settle how an authored build/target override applies to a same-path
-overloaded operator family before that override route opens. The retired top-
+bodyless boundary satisfiers (with `via <Binding>` only for an explicit payload)
+declare candidates, and compiler policy
+chooses one exact plan. Unique covering selection remains per exact operator
+coordinate. An authored operator override instead selects the complete exact
+package-qualified same-path family atomically: the provider must cover every
+canonical overload coordinate or the whole selection rejects. The retired top-
 level `provider Name : Category;` declaration and operator-local
 `provider Name` clause are bootstrap syntax from a parallel primitive registry
 and must not be preserved as a second selection path.
 
 Selection identities are nominal; binding identities are normalized evaluated
-values. `select_provider` retains two structural type paths through parsing,
-resolves them to an exact boundary-trait symbol and provider-data symbol, and
-carries their compiler-derived package owners into selection. Plans match only
-exact `(package, canonical path)` slot and provider identities; authored
+values. `select_provider` retains one static selectable-declaration reference
+and one provider-data type path. The first resolves to either one exact boundary
+trait or one exact package-qualified boundary-operator family; the second
+resolves to one provider-data symbol. Both carry compiler-derived package owners
+into selection. Plans match only exact `(package, canonical path)` slot and
+provider identities; authored
 spellings remain diagnostic data and there is no leaf-name fallback. Checked
 adapters likewise bind normalized overloads to exact package owners for the
 realizing machine, provider type, selected service schema, and requirement
@@ -599,8 +604,10 @@ Producer names are deterministic, authored selection rows retain their source
 order and identity, and build overrides continue to outrank target defaults.
 
 `Build::select_provider<Service, Provider>()` is ordinary typed API vocabulary.
-It performs a type-per-slot override; users do not repeat every default and
-cannot append or mutate derived plan rows.
+It performs a declaration-family-per-slot override; users do not repeat every
+default and cannot append or mutate derived plan rows. Strings, normalized
+signature spellings, ordinals, compiler fingerprints, and declaration order
+never select an overload.
 
 Selection remains nominal and argument-free. Target-specific values such as a
 Windows standard-output handle or Linux file descriptor belong inside the
@@ -609,6 +616,29 @@ selected target-owned realization contract, not as value arguments to
 target-specific leaves. When two configurations are genuinely distinct
 authored choices, they use distinct nominal/static realization identities;
 runtime-variable descriptors remain ordinary capability values.
+
+Boundary-operator family membership is a semantic set. Evidence deduplicates
+exact overload coordinates and serializes them in canonical coordinate-identity
+order; source reorderings do not change selection identity. Each coordinate's
+static telescope is a separate axis: coverage may be one generic realization or
+an exact application family covering every verifier-reconstructed concrete or
+symbolic demand. Generic applications are not overload coordinates.
+
+A provider may compose checked software and target-owned external leaves. An
+exact call to a public realization machine delegates directly and does not
+redispatch through the selected operator family; spelling the operator inside
+its own provider would recurse. The delegated leaf's target restriction,
+contract, reach, binding, and admissions compose transitively. External leaves
+are bodyless `boundary machine ... satisfies ...` declarations. A compiler
+intrinsic is discovered from exact declaration, signature, and target identity;
+only bindings carrying an undiscoverable payload retain `via`.
+
+Adding or removing an overload coordinate in a public family is a compatibility
+break for every authored family override. An existing provider that does not
+cover the new coordinate rejects with a diagnostic naming that member. Keep
+operator paths as deliberate, reasonably stable policy units; a future
+per-coordinate override requires a separately justified typed declaration-
+reference facility rather than hidden signature syntax.
 
 The same selection owns componentization. A selection is `fused` by default;
 the build may instead request `independent` emission through the typed `Build`
@@ -1594,7 +1624,7 @@ repeats that exact symbol, slot, checked-adapter binding, package, and machine
 join. A positive named-boundary canary covers the unique-candidate route.
 Fixed-token boundary operators remain fail-closed until checked-adapter token
 dispatch exists. Authored selection across a same-path overloaded family
-remains OWNER Q9. Operators
+must use the atomic family rule above. Operators
 with outcome-specific or crash contracts, and providers with any nonempty
 checked crash behavior, reject until their refinement rules exist. The
 association is a retained compiler-private

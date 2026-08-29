@@ -266,7 +266,7 @@ The one machine construct has four explicit supply forms:
 |---|---|
 | Checked Omega implementation | `{ ... }` body |
 | Trait requirement | Bodyless declaration inside the trait |
-| External requirement realization | `satisfies Trait::requirement via <Binding>;` |
+| External requirement realization | Bodyless `boundary machine ... satisfies Trait::requirement;`, with `via <Binding>` only for an explicit payload |
 | Accepted claim | Bodyless `boundary machine ... ensures ...;` |
 
 An external realization binds an irreducible imported operation to a
@@ -282,26 +282,26 @@ windows_x64 machine WindowsBindings::write_file() -> Binding<12, 9, 0> {
     }
 }
 
-machine Kernel32::write_file(handle: WinHandle, bytes: &[u8]) -> WriteResult
+boundary machine Kernel32::write_file(handle: WinHandle, bytes: &[u8]) -> WriteResult
     satisfies Kernel32Requirements::write_file
     via WindowsBindings::write_file();
 ```
 
-The value after `via` must be compile-time evaluable to the closed `Binding`
+When present, the value after `via` must be compile-time evaluable to the closed `Binding`
 vocabulary. The compiler normalizes and validates it, derives the provider
 plan from explicit conformances, and assigns any trust expenditure only when
 the provider is admitted. `satisfies` supplies the requirement contract and
 public service/suspension/blocking and guarded-crash ceilings; the
-binding/provider behavior must refine each one. A `via` machine does not repeat
-those clauses.
+binding/provider behavior must refine each one. A boundary realization does not
+repeat those clauses.
 
 Binding operands are ordinary typed compile-time values. A DLL locator is one
 object-format-specific sum case, so its library/export, library/ordinal, or
 object/symbol/version coordinates cannot be independently paired. Its textual
 bytes are physical target data, not Omega names or provider-selection keys. The
 satisfied requirement's `Calling<C, Policy>` relationship separately evaluates
-the ABI `CallPlan`; the binding cannot select a second one. A compiler-intrinsic
-binding has no payload: its exact realization-machine symbol, normalized
+the ABI `CallPlan`; the binding cannot select a second one. A compiler intrinsic
+has no binding value: its exact realization-machine symbol, normalized
 signature, and target select the sealed lowering catalog entry.
 
 The compiler fingerprints the complete evaluated binding, its producer closure,

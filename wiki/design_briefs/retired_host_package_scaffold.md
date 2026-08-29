@@ -25,5 +25,6 @@ Current surfaces live in these places:
 
 Do not restore the retired files as compatibility syntax. If a future target
 needs a dedicated host package here, build it as an ordinary current-model
-provider package: boundary requirements, `satisfies` adapters, `via` leaves,
-derived plans, and target-owned defaults.
+provider package: boundary requirements, checked satisfiers, bodyless boundary
+leaves, payload-bearing `via` only where required, derived plans, and target-
+owned defaults.

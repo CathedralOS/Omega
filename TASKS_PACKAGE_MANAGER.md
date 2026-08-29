@@ -51,7 +51,7 @@ closed. Compiler-issued package review remains non-admitting.
 
   The detailed established floor and remaining platform gaps are maintained in
   `SOURCE_RESOLVER_SECURITY.md`. Strict SSH trust and credential authority is
-  design-blocked on OWNER Q18; the other bullets are engineering work.
+  design-blocked on OWNER Q14; the other bullets are engineering work.
 
 ## P1 — Total package semantic identity
 
@@ -89,7 +89,8 @@ closed. Compiler-issued package review remains non-admitting.
     permission-frontier, crash-refinement, and compiler-intrinsic ownership
     joins;
   - an exact trust-bearing association for operator-bound external supply;
-  - same-path overloaded boundary-provider selection after OWNER Q9;
+  - atomic same-path overloaded boundary-provider selection under
+    **BOUNDARY-OPERATOR-FAMILY-SELECTION**;
   - complete exact semantic-subject commitments, certificate closure, and
     reproducibility dispositions.
 
@@ -251,14 +252,14 @@ closed. Compiler-issued package review remains non-admitting.
   selection intent only. This blocks remote `omega-language-std` selection and
   selective member fetch.
 
-- [ ] **BLOCKED — OWNER Q3/Q8: PACKAGE-NATIVE-GENERATED-SOURCE-TRANSACTION.**
+- [ ] **BLOCKED — OWNER Q3: PACKAGE-NATIVE-GENERATED-SOURCE-TRANSACTION.**
   Route native-image production through the sponsored package transaction
   without rerunning `build.omg` or reopening discovery. Lower the exact frozen
   checked program after generated-source handoff, retain the unpublished native
   artifact as an exact subject, reconstruct every source/build/generated/native
   commitment, and publish only after complete accepted comparison. Q3 must
-  settle application-root identity and Q8 requested-versus-source-selected
-  target identity first.
+  settle application-root identity; exact requested-target identity then comes
+  from **IMMUTABLE-TARGET-ACTIVATION-AND-REACH-CLOSURE** in `TASKS.md`.
 
 - [ ] **BLOCKED — OWNER Q4: SCOPED-BUILD-ROOTS.** Retire the five remaining
   `Owner::build` compatibility canaries or formally admit one shared scoped-root
@@ -276,11 +277,13 @@ closed. Compiler-issued package review remains non-admitting.
   must reject every std selection; no package name, alias, path, or magic mount
   may confer authority.
 
-- [ ] **BLOCKED — OWNER Q9: OVERLOADED-BOUNDARY-PROVIDER-SELECTION.** Settle
-  authored override selection for same-path overloaded boundary-operator
-  families before admitting that provider form into package evidence.
+- [ ] Consume **BOUNDARY-OPERATOR-FAMILY-SELECTION** from `TASKS.md`: retain the
+  canonical family-coordinate set, exact provider mapping, generic or exact-
+  application coverage, target identity, and compatibility failure when a
+  public family gains an uncovered coordinate. Package evidence must never use
+  declaration order, display signatures, ordinals, or reach-selected subsets.
 
-- [ ] **BLOCKED — OWNER Q18: STRICT-SSH-CUSTODY.** Settle host-key, key,
+- [ ] **BLOCKED — OWNER Q14: STRICT-SSH-CUSTODY.** Settle host-key, key,
   credential-provider, and credential-file authority before narrowing the
   remaining SSH read surface or treating SSH resolution as strict evidence.
 

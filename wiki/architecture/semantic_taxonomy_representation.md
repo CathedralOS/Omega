@@ -369,7 +369,8 @@ MachineSupplyMode =
 the axiom-tier form whose trust remains explicit. Neither is interchangeable
 with a checked body or a requirement.
 
-`ExternalRealization` is sourced by `satisfies ... via <Binding>`. The binding
+`ExternalRealization` is sourced by a bodyless `boundary machine ... satisfies
+...`; an optional `via <Binding>` carries an undiscoverable payload. The binding
 expression is compile-time evaluated and normalized before checked-plan
 construction. It is not an executable body, and it does not author a trust
 class or a second reach row. The satisfied requirement supplies the public

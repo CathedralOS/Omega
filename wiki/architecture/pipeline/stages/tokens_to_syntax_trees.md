@@ -116,7 +116,7 @@ name denotes.
 | Calls | Syntactic call expressions/statements plus ordered `suspend` / `block` acknowledgements. |
 | Transitions | Syntactic transition statements and targets. |
 | Reach | Reach clauses and synchronous invocation ceilings as unresolved names. |
-| Boundary edges | Parsed `boundary` traits and operators, exact `satisfies ... via` realizations, and target policies. |
+| Boundary edges | Parsed `boundary` traits and operators, exact bodyless boundary satisfiers with optional payload-bearing `via`, and target policies. |
 
 ## Ownership Rules
 
