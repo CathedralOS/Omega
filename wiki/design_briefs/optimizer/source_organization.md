@@ -230,7 +230,10 @@ accepted facts, proof questions, ownership frontiers, and sealing; provider
 installation owns selection policy followed by exact plan and call replay;
 machine lowering owns entry-roster coordination over payloadless, ordinary,
 and structural families. Their entrances are 48, 65, 53, and 57 lines, and no
-production leaf exceeds 1,058 lines.
+production leaf exceeds 700 lines. Ordinary-machine routing now keeps its
+49-line payloadless/structural/ordinary choice separate from ordinary block
+lifecycle, exhaustive operation projection, and terminator projection; the
+former 1,058-line leaf is gone.
 
 The Terminal-Psi-to-native crate now follows the same navigational contract as
 a complete governed tree. Its crate root is only a responsibility map.
