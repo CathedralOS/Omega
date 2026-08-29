@@ -1273,14 +1273,25 @@ prove every enabled rule phase is actually scheduled.
   public rule name, contract identity, built-in ordinal, or registry schedule
   changed.
 
-  Remaining work: split candidate replay out of
-  `omega-optimization-validation/src/lib.rs` under the matching independent
-  validator taxonomy; organize register allocation into `analyses`,
-  `allocation`, and exact `rules`; make optimization-pipeline stage catalogs
-  navigable without a flat `#[path]`/re-export wall; and split monolithic test
-  modules beside the family they exercise. Do not create one crate per rule or
-  combine independent producer and validator implementations merely to reduce
-  line counts.
+  The independent validator is now the third reference slice. Its former
+  22,346-line `lib.rs` is a 77-line crate entrance. A 33-line candidate entrance
+  mirrors the producer pass taxonomy without importing producer mechanics:
+  proof check elision, SCCP, CFG cleanup by graph rewrite, GVN, dead-scalar
+  elimination, and copy propagation. Its separate accounting module rebuilds
+  custody and provenance from accepted inputs. A 24-line complete-unit entrance
+  leads to core, service, retained-context, structural-catalog,
+  function-structure, operation-contract, and derived-metadata validators.
+  Public validator names and every `omega.psi-validator.*` identity are exact
+  matches for the pre-split surface. The 63 validator tests and their typed
+  fixtures mirror those responsibilities; no production or test file reaches
+  2,000 lines.
+
+  Remaining work: organize register allocation into `analyses`, `allocation`,
+  and exact `rules`; make optimization-pipeline stage catalogs navigable without
+  a flat `#[path]`/re-export wall; and split their monolithic test modules beside
+  the family they exercise. Do not create one crate per rule or combine
+  independent producer and validator implementations merely to reduce line
+  counts.
 
   Acceptance: no optimizer production file combines registry construction,
   unrelated rule mechanics, independent validation, and broad integration
