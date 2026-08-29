@@ -80,7 +80,7 @@ fn total_identity_rules_are_disabled_by_default_and_cataloged_once() {
     assert_eq!(
         contract.pass(),
         OptimizationPassIdentity::from_canonical_bytes(
-            b"omega.psi-pass.global-value-numbering.v11",
+            b"omega.psi-pass.global-value-numbering.v12",
         )
     );
     let expected = contract.identity();
@@ -125,6 +125,18 @@ fn total_identity_rules_are_disabled_by_default_and_cataloged_once() {
         registry
             .contracts()
             .filter(|contract| contract.identity() == saturating)
+            .count(),
+        1
+    );
+    let saturating_annihilation = SaturatingMultiplyZeroAnnihilationRule::contract().identity();
+    assert_eq!(
+        registry.contracts().nth(13).map(|row| row.identity()),
+        Some(saturating_annihilation)
+    );
+    assert_eq!(
+        registry
+            .contracts()
+            .filter(|contract| contract.identity() == saturating_annihilation)
             .count(),
         1
     );

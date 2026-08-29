@@ -40,6 +40,10 @@ fn contract(identity: TotalScalarIdentityKind) -> OptimizationRuleContract {
         | TotalScalarIdentityKind::SaturatingIntegerMultiplyOneRight => {
             b"omega.psi-rule.live-obligation-free-saturating-integer-neutral-arithmetic-identity-elimination.v1"
         }
+        TotalScalarIdentityKind::SaturatingIntegerMultiplyZeroLeft
+        | TotalScalarIdentityKind::SaturatingIntegerMultiplyZeroRight => {
+            b"omega.psi-rule.live-obligation-free-saturating-integer-multiply-zero-annihilation.v1"
+        }
     };
     OptimizationRuleContract::new(
         OptimizationRuleIdentity::from_canonical_bytes(domain),
@@ -238,6 +242,30 @@ fn fixture(identity: TotalScalarIdentityKind) -> (PsiOptimizationUnit, TotalScal
             },
             input_value,
         ),
+        TotalScalarIdentityKind::SaturatingIntegerMultiplyZeroLeft => (
+            IntegerValue::Unsigned(0),
+            scalar_type,
+            AbstractOperation::SaturatingIntegerMultiply {
+                psi_operation: arithmetic_operation,
+                result,
+                scalar_type,
+                left: neutral,
+                right: input_value,
+            },
+            neutral,
+        ),
+        TotalScalarIdentityKind::SaturatingIntegerMultiplyZeroRight => (
+            IntegerValue::Unsigned(0),
+            scalar_type,
+            AbstractOperation::SaturatingIntegerMultiply {
+                psi_operation: arithmetic_operation,
+                result,
+                scalar_type,
+                left: input_value,
+                right: neutral,
+            },
+            neutral,
+        ),
     };
     let unit = reconstruct_psi_optimization_unit_seed(
         &AbstractOperationPlan {
@@ -377,7 +405,7 @@ fn candidate_with_contract(
 }
 
 #[test]
-fn all_fourteen_total_rows_replay_without_proof_custody() {
+fn all_sixteen_total_rows_replay_without_proof_custody() {
     let identities = [
         TotalScalarIdentityKind::WrappingIntegerAddZeroLeft,
         TotalScalarIdentityKind::WrappingIntegerAddZeroRight,
@@ -393,6 +421,8 @@ fn all_fourteen_total_rows_replay_without_proof_custody() {
         TotalScalarIdentityKind::SaturatingIntegerSubtractZeroRight,
         TotalScalarIdentityKind::SaturatingIntegerMultiplyOneLeft,
         TotalScalarIdentityKind::SaturatingIntegerMultiplyOneRight,
+        TotalScalarIdentityKind::SaturatingIntegerMultiplyZeroLeft,
+        TotalScalarIdentityKind::SaturatingIntegerMultiplyZeroRight,
     ];
     for identity in identities {
         let (unit, patch) = fixture(identity);
@@ -586,6 +616,54 @@ fn independent_validator_rejects_kind_fact_and_accounting_corruption() {
         validate_total_scalar_identity_candidate(
             &unit,
             &candidate_with_contract(&unit, patch, false, None, saturating_contract),
+        ),
+        Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch),
+    );
+
+    let (saturating_annihilation_unit, saturating_annihilation_patch) =
+        fixture(TotalScalarIdentityKind::SaturatingIntegerMultiplyZeroLeft);
+    assert_eq!(
+        validate_total_scalar_identity_candidate(
+            &saturating_annihilation_unit,
+            &candidate_with_contract(
+                &saturating_annihilation_unit,
+                saturating_annihilation_patch,
+                false,
+                None,
+                saturating_contract,
+            ),
+        ),
+        Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch),
+    );
+
+    let mut wrong_saturating_annihilation_side = saturating_annihilation_patch;
+    wrong_saturating_annihilation_side.identity =
+        TotalScalarIdentityKind::SaturatingIntegerMultiplyZeroRight;
+    assert_eq!(
+        validate_total_scalar_identity_candidate(
+            &saturating_annihilation_unit,
+            &candidate(
+                &saturating_annihilation_unit,
+                wrong_saturating_annihilation_side,
+                false,
+                None,
+            ),
+        ),
+        Err(OptimizationUnitValidationError::CandidatePatchMismatch),
+    );
+
+    let wrapping_annihilation_contract =
+        contract(TotalScalarIdentityKind::WrappingIntegerMultiplyZeroLeft);
+    assert_eq!(
+        validate_total_scalar_identity_candidate(
+            &saturating_annihilation_unit,
+            &candidate_with_contract(
+                &saturating_annihilation_unit,
+                saturating_annihilation_patch,
+                false,
+                None,
+                wrapping_annihilation_contract,
+            ),
         ),
         Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch),
     );

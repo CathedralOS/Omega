@@ -326,3 +326,31 @@ pub(crate) fn wrapping_multiply_literal_pair_unit(
     )
     .unwrap()
 }
+
+pub(crate) fn saturating_multiply_literal_pair_unit(
+    left_value: IntegerValue,
+    right_value: IntegerValue,
+) -> PsiOptimizationUnit {
+    let mut unit = wrapping_multiply_literal_pair_unit(left_value, right_value);
+    let node = &mut unit.functions[0].blocks[0].nodes[2];
+    let O::WrappingIntegerMultiply {
+        psi_operation,
+        result,
+        scalar_type,
+        left,
+        right,
+    } = node.operation
+    else {
+        unreachable!("pair fixture contains wrapping multiplication")
+    };
+    node.operation = O::SaturatingIntegerMultiply {
+        psi_operation,
+        result,
+        scalar_type,
+        left,
+        right,
+    };
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    validate_psi_optimization_unit(&unit).unwrap();
+    unit
+}

@@ -7,11 +7,14 @@
 mod proposal;
 mod rule;
 mod saturating;
+mod saturating_multiply_zero;
 mod shapes;
 
 pub use rule::{
-    SaturatingNeutralArithmeticIdentityRule, WrappingMultiplyZeroAnnihilationRule,
-    WrappingNeutralArithmeticIdentityRule, WrappingShiftZeroCountIdentityRule,
+    SaturatingMultiplyZeroAnnihilationRule, SaturatingNeutralArithmeticIdentityRule,
+    WrappingMultiplyZeroAnnihilationRule, WrappingNeutralArithmeticIdentityRule,
+    WrappingShiftZeroCountIdentityRule,
 };
 pub(in crate::rules::passes) use saturating::*;
+pub(in crate::rules::passes) use saturating_multiply_zero::*;
 pub(in crate::rules::passes) use shapes::*;

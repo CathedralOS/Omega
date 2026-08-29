@@ -453,6 +453,11 @@ The focused `saturating_neutral.rs` test leaf owns width boundaries, canonical
 ties, policy isolation, and invalid-fact rejection. Bitwise work remains split
 into future neutral-literal and absorbing-literal families rather than one
 vague identity bucket.
+Saturating multiply-zero is a fifth exact rule with a separate
+`saturating_multiply_zero.rs` classifier and focused test leaf. It reuses the
+common immutable candidate conveyor but has distinct rule/validator domains;
+catalog order explicitly resolves its confluent overlap with saturating
+multiply-one without merging their custody.
 Independent dead-scalar validation exposes one custody-and-analysis-contract
 entrance above its exact rule catalog, exhaustive closed operation partition,
 and rewrite replay. A new operation or dead-scalar rule therefore has one
