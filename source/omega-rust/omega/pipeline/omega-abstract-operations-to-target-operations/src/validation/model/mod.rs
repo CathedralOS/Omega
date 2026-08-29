@@ -1,16 +1,19 @@
 mod error;
 mod receipt;
 
+pub(in crate::validation) use error::StraightLineParameterReconstructionError;
 pub use error::{
     AbstractToTargetTranslationFamilyError, AbstractToTargetTranslationValidationError,
-    StraightLineBooleanImmediateTranslationError, StraightLineIntegerImmediateTranslationError,
-    StraightLineIntegerParameterTranslationError, StraightLineScalarCrashTranslationError,
+    StraightLineBooleanImmediateTranslationError, StraightLineBooleanParameterTranslationError,
+    StraightLineIntegerImmediateTranslationError, StraightLineIntegerParameterTranslationError,
+    StraightLineScalarCrashTranslationError,
 };
 pub use receipt::{
     AbstractToTargetFunctionRosterReceipt, AbstractToTargetFunctionTranslationDisposition,
     AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationValidationReceipt,
-    StraightLineBooleanImmediateTranslationReceipt, StraightLineIntegerImmediateTranslationReceipt,
-    StraightLineIntegerParameterTranslationReceipt, StraightLineScalarCrashTranslationReceipt,
+    StraightLineBooleanImmediateTranslationReceipt, StraightLineBooleanParameterTranslationReceipt,
+    StraightLineIntegerImmediateTranslationReceipt, StraightLineIntegerParameterTranslationReceipt,
+    StraightLineScalarCrashTranslationReceipt,
 };
 
 /// Stable identity of one independently replayed abstract-to-target family.
@@ -20,4 +23,5 @@ pub enum AbstractToTargetTranslationFamily {
     StraightLineBooleanImmediate,
     StraightLineScalarCrash,
     StraightLineIntegerParameter,
+    StraightLineBooleanParameter,
 }

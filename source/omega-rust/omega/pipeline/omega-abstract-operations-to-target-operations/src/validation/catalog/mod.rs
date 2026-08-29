@@ -20,6 +20,7 @@ const ENABLED_TRANSLATION_FAMILIES: &[TranslationFamilyDescriptor] = &[
     dispatch::STRAIGHT_LINE_BOOLEAN_IMMEDIATE,
     dispatch::STRAIGHT_LINE_SCALAR_CRASH,
     dispatch::STRAIGHT_LINE_INTEGER_PARAMETER,
+    dispatch::STRAIGHT_LINE_BOOLEAN_PARAMETER,
 ];
 
 pub(super) fn validate_function(

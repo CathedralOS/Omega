@@ -4,8 +4,8 @@ use omega_target_operations::TargetFunction;
 
 use super::super::{
     AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError,
-    straight_line_boolean_immediate, straight_line_integer_immediate,
-    straight_line_integer_parameter, straight_line_scalar_crash,
+    straight_line_boolean_immediate, straight_line_integer_immediate, straight_line_parameter,
+    straight_line_scalar_crash,
 };
 use super::model::TranslationFamilyDescriptor;
 use crate::AbstractToTargetTranslationFamily;
@@ -34,8 +34,15 @@ pub(super) const STRAIGHT_LINE_SCALAR_CRASH: TranslationFamilyDescriptor =
 pub(super) const STRAIGHT_LINE_INTEGER_PARAMETER: TranslationFamilyDescriptor =
     TranslationFamilyDescriptor::new(
         AbstractToTargetTranslationFamily::StraightLineIntegerParameter,
-        straight_line_integer_parameter::is_candidate,
+        straight_line_parameter::integer::is_candidate,
         straight_line_integer_parameter_adapter,
+    );
+
+pub(super) const STRAIGHT_LINE_BOOLEAN_PARAMETER: TranslationFamilyDescriptor =
+    TranslationFamilyDescriptor::new(
+        AbstractToTargetTranslationFamily::StraightLineBooleanParameter,
+        straight_line_parameter::boolean::is_candidate,
+        straight_line_boolean_parameter_adapter,
     );
 
 fn straight_line_integer_immediate_adapter(
@@ -73,7 +80,17 @@ fn straight_line_integer_parameter_adapter(
     expected_target: NativeTarget,
     target: &TargetFunction,
 ) -> Result<AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError> {
-    straight_line_integer_parameter::validate(source, expected_target, target)
+    straight_line_parameter::integer::validate(source, expected_target, target)
         .map(AbstractToTargetFunctionTranslationReceipt::StraightLineIntegerParameter)
         .map_err(AbstractToTargetTranslationFamilyError::StraightLineIntegerParameter)
+}
+
+fn straight_line_boolean_parameter_adapter(
+    source: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError> {
+    straight_line_parameter::boolean::validate(source, expected_target, target)
+        .map(AbstractToTargetFunctionTranslationReceipt::StraightLineBooleanParameter)
+        .map_err(AbstractToTargetTranslationFamilyError::StraightLineBooleanParameter)
 }

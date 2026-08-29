@@ -1,3 +1,6 @@
+use super::parameter_translation_fixture::{
+    integer_type, parameter_return_plan, uniform_integer_plan,
+};
 use super::*;
 use crate::{
     AbstractToTargetFunctionTranslationDisposition, AbstractToTargetFunctionTranslationReceipt,
@@ -7,77 +10,15 @@ use crate::{
 };
 use omega_target_operations::TerminalPsiProvenance;
 
-fn integer_type(sign: IntegerSign, bits: u16) -> IntegerType {
-    IntegerType::new(sign, bits).expect("test integer type")
-}
-
-fn parameter_return_plan(
-    parameter_types: &[ScalarType],
-    returned_parameter: usize,
-) -> AbstractOperationPlan {
-    let machine = MachineId::new(3_001).unwrap();
-    let entry = BlockId::new(3_002).unwrap();
-    let result_value = ValueId::new(3_003).unwrap();
-    let return_edge = EdgeId::new(3_004).unwrap();
-    let parameters = parameter_types
-        .iter()
-        .enumerate()
-        .map(|(index, scalar_type)| AbstractParameter {
-            value: ValueId::new(3_100 + index as u64).unwrap(),
-            scalar_type: *scalar_type,
-        })
-        .collect::<Vec<_>>();
-    let scalar_type = parameter_types[returned_parameter];
-    AbstractOperationPlan {
-        psi: identity(),
-        entry: machine,
-        structural_types: Vec::new(),
-        boundary_machines: Vec::new(),
-        provider_candidates: Vec::new(),
-        functions: vec![AbstractFunction {
-            machine,
-            attachment: None,
-            entry,
-            parameters: parameters.clone(),
-            structural_parameters: Vec::new(),
-            result: AbstractFunctionResult::Scalar(AbstractResult {
-                value: result_value,
-                scalar_type,
-            }),
-            entry_claims: Vec::new(),
-            published_service_ceiling: Vec::new(),
-            block_entries: vec![AbstractBlockEntry {
-                block: entry,
-                parameters: Vec::new(),
-                operation_offset: 0,
-            }],
-            operations: vec![AbstractOperation::Return {
-                psi_edge: return_edge,
-                result: result_value,
-                value: parameters[returned_parameter].value,
-                scalar_type,
-                cleanup_actions: Vec::new(),
-            }],
-        }],
-    }
-}
-
-fn uniform_plan(integer: IntegerType, parameter_count: usize) -> AbstractOperationPlan {
-    parameter_return_plan(
-        &vec![ScalarType::Integer(integer); parameter_count],
-        parameter_count - 1,
-    )
-}
-
 fn leaf_error(
     mutate: impl FnOnce(&mut AbstractFunction),
 ) -> StraightLineIntegerParameterTranslationError {
     let integer = integer_type(IntegerSign::Unsigned, 8);
-    let mut source = uniform_plan(integer, 1);
+    let mut source = uniform_integer_plan(integer, 1);
     let target_profile = NativeTarget::linux_x64();
     let target = lower_to_target_operations(&source, target_profile).unwrap();
     mutate(&mut source.functions[0]);
-    crate::validation::straight_line_integer_parameter::validate(
+    crate::validation::straight_line_parameter::integer::validate(
         &source.functions[0],
         target_profile,
         &target.functions[0],
@@ -89,7 +30,7 @@ fn candidate_error(
     mutate: impl FnOnce(&mut omega_target_operations::TargetOperationPlan),
 ) -> StraightLineIntegerParameterTranslationError {
     let integer = integer_type(IntegerSign::Unsigned, 8);
-    let source = uniform_plan(integer, 1);
+    let source = uniform_integer_plan(integer, 1);
     let target_profile = NativeTarget::linux_x64();
     let mut candidate = lower_to_target_operations(&source, target_profile).unwrap();
     mutate(&mut candidate);
@@ -153,7 +94,7 @@ fn validates_register_and_stack_parameter_returns_on_every_native_target() {
     let integer = integer_type(IntegerSign::Unsigned, 8);
     for ((target_profile, register), (_, stack)) in register_cases.into_iter().zip(stack_cases) {
         for (parameter_count, expected_location) in [(1, register), (9, stack)] {
-            let source = uniform_plan(integer, parameter_count);
+            let source = uniform_integer_plan(integer, parameter_count);
             let target = lower_to_target_operations(&source, target_profile).unwrap();
             let receipt =
                 validate_abstract_to_target_translation(&source, target_profile, &target).unwrap();
@@ -182,7 +123,7 @@ fn validates_supported_integer_shapes_and_mixed_parameter_rosters() {
     for sign in [IntegerSign::Unsigned, IntegerSign::Signed] {
         for bits in [8, 16, 32, 64] {
             let integer = integer_type(sign, bits);
-            let source = uniform_plan(integer, 1);
+            let source = uniform_integer_plan(integer, 1);
             let target_profile = NativeTarget::linux_x64();
             let target = lower_to_target_operations(&source, target_profile).unwrap();
             validate_abstract_to_target_translation(&source, target_profile, &target).unwrap();
