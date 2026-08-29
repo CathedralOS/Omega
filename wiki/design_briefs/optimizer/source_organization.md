@@ -159,6 +159,14 @@ named leaves. Costs are descriptive and cannot participate in legality. The
 architecture gate requires the catalog and prevents replay from reaching the
 producer matcher.
 
+The layout-independent selected-form encoding stage applies the same
+navigational rule to a custody join rather than a rule catalog. Its 57-line
+entrance owns construction followed by independent admission. Validation then
+descends through `ordinary`, `structural`, target-decoding `row`, and
+`aggregate` leaves. The architecture gate rejects any validation dependency
+on producer computation or encoder helpers, so the small entrance cannot hide
+a producer-as-validator cycle.
+
 The preceding abstract-to-target stage is governed by the same contract. Its
 crate map points to a settlement-and-installation coordinator, then to one
 per-result function route. Scalar lowering visibly orders setup, special

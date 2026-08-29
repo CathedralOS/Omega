@@ -95,6 +95,15 @@ machine rule never hand-assembles bytes. Layout-independent encoding retains
 row identity, decoded footprint, effects, provenance, and optimization
 disposition.
 
+The encoding entrance joins construction to a separate `validation/` rung.
+That rung checks roots and normalized optimization custody, then descends
+independently through ordinary rows, structural rows, and aggregate
+counts/identity. Row validation consumes candidate bytes only through the
+target-owned baseline, MOVN, XOR-zero, and structural-call decoders; an
+architecture guard forbids imports of producer row/structural encoders. CBNZ
+dispositions are reconstructed from the typed optimization plan while its
+unresolved branch remains explicit deferred control.
+
 Function-relative layout resolves labels, branch extents, and exact byte
 offsets. Layout rules such as x86 rel32-to-rel8 relaxation consume a complete
 baseline layout and return a validated replacement. Baseline and selected byte

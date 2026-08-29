@@ -2456,3 +2456,67 @@ fn executable_container_v2_retains_strong_imported_authority_commitments() {
         "materialization must retain exact admitted authority evidence and bind it through content into final bytes",
     );
 }
+
+#[test]
+fn selected_form_encoding_validation_cannot_reenter_its_producer() {
+    let root = workspace_root();
+    let stage = root.join(
+        "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/encoding/post_allocation_selected_form_encoding",
+    );
+    let entrance = std::fs::read_to_string(stage.join("mod.rs"))
+        .expect("read selected-form encoding entrance");
+    assert!(
+        entrance
+            .contains("validation::validate(selected, machine, physical, optimization, artifact)"),
+        "the selected-form encoding entrance must send candidate artifacts into independent validation",
+    );
+    assert!(
+        !entrance.contains("let replayed = compute::compute"),
+        "the selected-form encoding validator must not reconstruct artifacts with its producer",
+    );
+
+    let validation = [
+        "mod.rs",
+        "aggregate.rs",
+        "ordinary.rs",
+        "row.rs",
+        "structural.rs",
+    ]
+    .into_iter()
+    .map(|leaf| {
+        let path = stage.join("validation").join(leaf);
+        std::fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()))
+    })
+    .collect::<Vec<_>>()
+    .join("\n");
+    for forbidden in [
+        "compute::",
+        "row_encoding",
+        "structural_encoding",
+        "encode_row",
+        "encode_structural_function",
+        "encode_x86_64_selected_form",
+        "encode_aarch64_selected_form",
+        "encode_aarch64_shortest_movn_materialization",
+        "encode_x86_64_xor_zero_i64_materialization",
+        "encode_x86_64_selected_structural_unit_call_template",
+    ] {
+        assert!(
+            !validation.contains(forbidden),
+            "independent selected-form encoding validation must not consume producer mechanics; found {forbidden}",
+        );
+    }
+    for required_decoder in [
+        "validate_x86_64_selected_form_encoding",
+        "validate_aarch64_selected_form_encoding",
+        "validate_aarch64_shortest_movn_materialization",
+        "validate_x86_64_xor_zero_i64_materialization",
+        "validate_x86_64_selected_structural_unit_call_template",
+    ] {
+        assert!(
+            validation.contains(required_decoder),
+            "selected-form validation must visibly descend into target-owned decoder `{required_decoder}`",
+        );
+    }
+}
