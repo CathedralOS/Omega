@@ -23,7 +23,7 @@ pub(crate) enum ElfImportLocator {
     },
     Versioned {
         target_profile: TargetProfile,
-        normalized_identity: u64,
+        compatibility_report_identity: u64,
         object: Vec<u8>,
         symbol: Vec<u8>,
         version: Vec<u8>,
@@ -132,7 +132,8 @@ pub(crate) fn canonical_referenced_imports(
                 normalized_imports.push((import.symbol_handle, locator.clone()));
                 ElfImportLocator::Versioned {
                     target_profile: locator.target(),
-                    normalized_identity: locator.non_authoritative_compatibility_fingerprint(),
+                    compatibility_report_identity: locator
+                        .non_authoritative_compatibility_fingerprint(),
                     object: object.clone(),
                     symbol: symbol.clone(),
                     version: version.clone(),
@@ -366,7 +367,8 @@ mod tests {
             requests[0].locator,
             ElfImportLocator::Versioned {
                 target_profile: TargetProfile::LinuxX64,
-                normalized_identity: locator.non_authoritative_compatibility_fingerprint(),
+                compatibility_report_identity: locator
+                    .non_authoritative_compatibility_fingerprint(),
                 object: object.to_vec(),
                 symbol: symbol.to_vec(),
                 version: version.to_vec(),

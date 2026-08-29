@@ -1,4 +1,4 @@
-use crate::provider_plan::{ProviderBinding, ProviderPlan};
+use crate::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanDigest};
 
 /// Why an executable entry belongs to the manifest.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -84,7 +84,9 @@ pub struct ContainmentEvidence {
 /// opaque executable cannot introduce unreported code in the named scope.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OpaqueExecutableAdmissionCandidate {
-    pub provider_plan_identity: u64,
+    /// Compact report coordinate; never sufficient to select a plan.
+    pub provider_plan_report_identity: u64,
+    pub provider_plan_digest: ProviderPlanDigest,
     pub method: String,
     pub requirement_identity: String,
     pub binding: OpaqueInProcessBinding,
@@ -128,7 +130,9 @@ impl Eq for SelectedProviderRequirement {}
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutableTcbEntry {
     pub provider_identity: ProviderIdentity,
-    pub provider_plan_identity: u64,
+    /// Compact report coordinate beside the authoritative plan digest.
+    pub provider_plan_report_identity: u64,
+    pub provider_plan_digest: ProviderPlanDigest,
     /// `None` only for an admission that does not originate from one selected
     /// static ProviderPlan row, such as a runtime-loaded artifact or isolated
     /// endpoint.
@@ -145,14 +149,16 @@ pub struct ExecutableTcbEntry {
 pub enum IncompleteCause {
     SelectedOpaqueProvider {
         provider_identity: ProviderIdentity,
-        provider_plan_identity: u64,
+        provider_plan_report_identity: u64,
+        provider_plan_digest: ProviderPlanDigest,
         method: String,
         requirement_identity: String,
         binding: OpaqueInProcessBinding,
     },
     OmegaRuntimeAdmission {
         provider_identity: ProviderIdentity,
-        provider_plan_identity: u64,
+        provider_plan_report_identity: u64,
+        provider_plan_digest: ProviderPlanDigest,
         executable_identity: String,
         admission_receipt_identity: String,
     },
@@ -184,7 +190,7 @@ pub enum OpaqueInProcessBinding {
 pub enum ScopeCompleteness {
     Complete {
         scope: ExecutionScope,
-        selected_provider_closure_identity: u64,
+        selected_provider_closure_report_identity: u64,
         opaque_closure_evidence: Vec<OpaqueClosureEvidence>,
         runtime_closure_evidence: Vec<RuntimeExecutableClosureEvidence>,
     },
@@ -198,7 +204,8 @@ pub enum ScopeCompleteness {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OpaqueClosureEvidence {
-    pub provider_plan_identity: u64,
+    pub provider_plan_report_identity: u64,
+    pub provider_plan_digest: ProviderPlanDigest,
     pub method: String,
     pub requirement_identity: String,
     pub evidence_identity: String,
@@ -209,7 +216,8 @@ pub struct OpaqueClosureEvidence {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeExecutableClosureEvidence {
     pub provider_identity: ProviderIdentity,
-    pub provider_plan_identity: u64,
+    pub provider_plan_report_identity: u64,
+    pub provider_plan_digest: ProviderPlanDigest,
     pub executable_identity: String,
     pub admission_receipt_identity: String,
     pub evidence_identity: String,
@@ -221,7 +229,8 @@ pub struct RuntimeExecutableClosureEvidence {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OmegaRuntimeExecutableAdmissionCandidate {
     pub provider_identity: ProviderIdentity,
-    pub provider_plan_identity: u64,
+    pub provider_plan_report_identity: u64,
+    pub provider_plan_digest: ProviderPlanDigest,
     pub executable_identity: String,
     pub implementation_evidence_identity: String,
     pub admission_receipt_identity: String,
@@ -297,20 +306,27 @@ impl OmegaRuntimeExecutableLedger {
         }
         if self.admissions.iter().any(|admission| {
             admission.0.provider_identity == candidate.provider_identity
-                && admission.0.provider_plan_identity == candidate.provider_plan_identity
+                && admission.0.provider_plan_report_identity
+                    == candidate.provider_plan_report_identity
+                && admission.0.provider_plan_digest == candidate.provider_plan_digest
                 && admission.0.executable_identity == candidate.executable_identity
         }) {
             return Err(format!(
                 "Omega runtime executable admission duplicates artifact `{}` in provider plan {:#018x}",
-                candidate.executable_identity, candidate.provider_plan_identity
+                candidate.executable_identity, candidate.provider_plan_report_identity
             ));
         }
         self.admissions
             .push(ValidatedOmegaRuntimeExecutableAdmission(candidate));
         self.admissions.sort_by(|left, right| {
             left.0
-                .provider_plan_identity
-                .cmp(&right.0.provider_plan_identity)
+                .provider_plan_report_identity
+                .cmp(&right.0.provider_plan_report_identity)
+                .then_with(|| {
+                    left.0
+                        .provider_plan_digest
+                        .cmp(&right.0.provider_plan_digest)
+                })
                 .then_with(|| left.0.executable_identity.cmp(&right.0.executable_identity))
                 .then_with(|| {
                     left.0
@@ -346,7 +362,8 @@ impl OmegaRuntimeExecutableLedger {
             let candidate = &admission.0;
             let entry = ExecutableTcbEntry {
                 provider_identity: candidate.provider_identity.clone(),
-                provider_plan_identity: candidate.provider_plan_identity,
+                provider_plan_report_identity: candidate.provider_plan_report_identity,
+                provider_plan_digest: candidate.provider_plan_digest,
                 selected_requirement: None,
                 executable_identity: ExecutableIdentity::PinnedOpaqueArtifact(
                     candidate.executable_identity.clone(),
@@ -364,7 +381,8 @@ impl OmegaRuntimeExecutableLedger {
             if let Some(evidence_identity) = &candidate.executable_closure_evidence_identity {
                 runtime_closure_evidence.push(RuntimeExecutableClosureEvidence {
                     provider_identity: candidate.provider_identity.clone(),
-                    provider_plan_identity: candidate.provider_plan_identity,
+                    provider_plan_report_identity: candidate.provider_plan_report_identity,
+                    provider_plan_digest: candidate.provider_plan_digest,
                     executable_identity: candidate.executable_identity.clone(),
                     admission_receipt_identity: candidate.admission_receipt_identity.clone(),
                     evidence_identity: evidence_identity.clone(),
@@ -372,7 +390,8 @@ impl OmegaRuntimeExecutableLedger {
             } else {
                 runtime_causes.push(IncompleteCause::OmegaRuntimeAdmission {
                     provider_identity: candidate.provider_identity.clone(),
-                    provider_plan_identity: candidate.provider_plan_identity,
+                    provider_plan_report_identity: candidate.provider_plan_report_identity,
+                    provider_plan_digest: candidate.provider_plan_digest,
                     executable_identity: candidate.executable_identity.clone(),
                     admission_receipt_identity: candidate.admission_receipt_identity.clone(),
                 });
@@ -382,14 +401,14 @@ impl OmegaRuntimeExecutableLedger {
         manifest.completeness = match manifest.completeness {
             ScopeCompleteness::Complete {
                 scope,
-                selected_provider_closure_identity,
+                selected_provider_closure_report_identity,
                 opaque_closure_evidence,
                 runtime_closure_evidence: mut retained_runtime_evidence,
             } if runtime_causes.is_empty() => {
                 extend_unique(&mut retained_runtime_evidence, runtime_closure_evidence);
                 ScopeCompleteness::Complete {
                     scope,
-                    selected_provider_closure_identity,
+                    selected_provider_closure_report_identity,
                     opaque_closure_evidence,
                     runtime_closure_evidence: retained_runtime_evidence,
                 }
@@ -440,11 +459,19 @@ fn validate_runtime_admission(
     scope: ExecutionScope,
     candidate: &mut OmegaRuntimeExecutableAdmissionCandidate,
 ) -> Result<(), String> {
-    if candidate.provider_plan_identity == 0 {
+    if candidate.provider_plan_report_identity == 0 {
         return Err(
             "Omega runtime executable admission has the reserved zero provider-plan identity"
                 .into(),
         );
+    }
+    if candidate
+        .provider_plan_digest
+        .as_bytes()
+        .iter()
+        .all(|byte| *byte == 0)
+    {
+        return Err("Omega runtime executable admission has a zero provider-plan digest".into());
     }
     let provider_name = match &candidate.provider_identity {
         ProviderIdentity::NominalType(name) | ProviderIdentity::FreeExternalPlan(name) => name,
@@ -508,24 +535,35 @@ pub(crate) fn validate_opaque_executable_admission(
     plans: &[ProviderPlan],
     mut candidate: OpaqueExecutableAdmissionCandidate,
 ) -> Result<ValidatedOpaqueExecutableAdmission, String> {
-    if candidate.provider_plan_identity == 0 {
+    if candidate.provider_plan_report_identity == 0 {
         return Err(
             "opaque executable admission has the reserved zero provider-plan identity".into(),
         );
     }
+    if candidate
+        .provider_plan_digest
+        .as_bytes()
+        .iter()
+        .all(|byte| *byte == 0)
+    {
+        return Err("opaque executable admission has a zero provider-plan digest".into());
+    }
     let matching_plans = plans
         .iter()
-        .filter(|plan| plan.report_fingerprint() == candidate.provider_plan_identity)
+        .filter(|plan| {
+            plan.report_fingerprint() == candidate.provider_plan_report_identity
+                && plan.identity_digest() == candidate.provider_plan_digest
+        })
         .collect::<Vec<_>>();
     let [plan] = matching_plans.as_slice() else {
         return Err(match matching_plans.len() {
             0 => format!(
                 "opaque executable admission names unselected provider plan {:#018x}",
-                candidate.provider_plan_identity
+                candidate.provider_plan_report_identity
             ),
             count => format!(
                 "opaque executable admission provider plan {:#018x} matches {count} selected plans",
-                candidate.provider_plan_identity
+                candidate.provider_plan_report_identity
             ),
         });
     };
@@ -604,7 +642,7 @@ pub(crate) fn validate_opaque_executable_admission(
 
 pub(crate) fn derive_static_manifest(
     plans: &[ProviderPlan],
-    selected_provider_closure_identity: u64,
+    selected_provider_closure_report_identity: u64,
     scope: ExecutionScope,
     admissions: &[ValidatedOpaqueExecutableAdmission],
 ) -> ExecutableTcbManifest {
@@ -614,7 +652,8 @@ pub(crate) fn derive_static_manifest(
 
     for plan in plans {
         let provider_identity = provider_identity(plan);
-        let provider_plan_identity = plan.report_fingerprint();
+        let provider_plan_report_identity = plan.report_fingerprint();
+        let provider_plan_digest = plan.identity_digest();
         for row in &plan.rows {
             assert!(
                 !row.requirement_identity.is_empty(),
@@ -629,7 +668,8 @@ pub(crate) fn derive_static_manifest(
                     machine_identity, ..
                 } => Some(ExecutableTcbEntry {
                     provider_identity: provider_identity.clone(),
-                    provider_plan_identity,
+                    provider_plan_report_identity,
+                    provider_plan_digest,
                     selected_requirement: selected_requirement.clone(),
                     executable_identity: ExecutableIdentity::CurrentArtifactMachine(
                         machine_identity.clone(),
@@ -643,7 +683,8 @@ pub(crate) fn derive_static_manifest(
                 }),
                 ProviderBinding::CompilerIntrinsic { machine, .. } => Some(ExecutableTcbEntry {
                     provider_identity: provider_identity.clone(),
-                    provider_plan_identity,
+                    provider_plan_report_identity,
+                    provider_plan_digest,
                     selected_requirement: selected_requirement.clone(),
                     executable_identity: ExecutableIdentity::CurrentArtifactIntrinsic {
                         target: plan.target.clone(),
@@ -667,7 +708,8 @@ pub(crate) fn derive_static_manifest(
                     let requirement_identity = row.requirement_identity.clone();
                     let admission = admissions.iter().find(|admission| {
                         let admission = admission.candidate();
-                        admission.provider_plan_identity == provider_plan_identity
+                        admission.provider_plan_report_identity == provider_plan_report_identity
+                            && admission.provider_plan_digest == provider_plan_digest
                             && admission.method == row.method
                             && admission.requirement_identity == requirement_identity
                             && admission.binding == binding
@@ -678,7 +720,8 @@ pub(crate) fn derive_static_manifest(
                             &admission.executable_closure_evidence_identity
                         {
                             opaque_closure_evidence.push(OpaqueClosureEvidence {
-                                provider_plan_identity,
+                                provider_plan_report_identity,
+                                provider_plan_digest,
                                 method: row.method.clone(),
                                 requirement_identity: requirement_identity.clone(),
                                 evidence_identity: evidence_identity.clone(),
@@ -688,7 +731,8 @@ pub(crate) fn derive_static_manifest(
                         }
                         Some(ExecutableTcbEntry {
                             provider_identity: provider_identity.clone(),
-                            provider_plan_identity,
+                            provider_plan_report_identity,
+                            provider_plan_digest,
                             selected_requirement: selected_requirement.clone(),
                             executable_identity: ExecutableIdentity::PinnedOpaqueArtifact(
                                 admission.executable_identity.clone(),
@@ -723,7 +767,7 @@ pub(crate) fn derive_static_manifest(
     let completeness = if causes.is_empty() {
         ScopeCompleteness::Complete {
             scope,
-            selected_provider_closure_identity,
+            selected_provider_closure_report_identity,
             opaque_closure_evidence,
             runtime_closure_evidence: Vec::new(),
         }
@@ -789,7 +833,8 @@ fn incomplete_cause(
     let requirement_identity = row.requirement_identity.clone();
     IncompleteCause::SelectedOpaqueProvider {
         provider_identity: provider_identity(plan),
-        provider_plan_identity: plan.report_fingerprint(),
+        provider_plan_report_identity: plan.report_fingerprint(),
+        provider_plan_digest: plan.identity_digest(),
         method: row.method.clone(),
         requirement_identity,
         binding,
@@ -806,7 +851,8 @@ mod runtime_ledger_tests {
     ) -> OmegaRuntimeExecutableAdmissionCandidate {
         OmegaRuntimeExecutableAdmissionCandidate {
             provider_identity: ProviderIdentity::NominalType("RuntimePlugin".into()),
-            provider_plan_identity: 41,
+            provider_plan_report_identity: 41,
+            provider_plan_digest: ProviderPlan::default().identity_digest(),
             executable_identity: executable_identity.into(),
             implementation_evidence_identity: "receipt:implementation-v1".into(),
             admission_receipt_identity: format!("receipt:admission:{executable_identity}"),
@@ -824,7 +870,7 @@ mod runtime_ledger_tests {
             known_entries: Vec::new(),
             completeness: ScopeCompleteness::Complete {
                 scope: ExecutionScope::CallerAddressSpace,
-                selected_provider_closure_identity: 17,
+                selected_provider_closure_report_identity: 17,
                 opaque_closure_evidence: Vec::new(),
                 runtime_closure_evidence: Vec::new(),
             },

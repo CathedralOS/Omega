@@ -383,7 +383,7 @@ fn derive_selected_installation_reach_resolutions(
                 .collect();
             resolutions.push(omega_effects::InstallationReachResolution {
                 requirement_identity: row.requirement_identity.clone(),
-                provider_plan_identity: plan.report_fingerprint(),
+                provider_plan_report_identity: plan.report_fingerprint(),
                 upper_bound,
                 resolved_row: envelope.effective_service_reach.clone(),
             });

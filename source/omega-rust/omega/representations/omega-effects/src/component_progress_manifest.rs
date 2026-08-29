@@ -1,5 +1,6 @@
 use crate::{
-    SelectedProviderClosureDigest, SelectedProviderPlanFacts, provider_plan::ServiceProgressSubject,
+    SelectedProviderClosureDigest, SelectedProviderPlanFacts,
+    provider_plan::{ProviderPlanDigest, ServiceProgressSubject},
 };
 use sha2::{Digest, Sha256};
 
@@ -48,7 +49,10 @@ pub struct ComponentBuildBoundProgressDemand {
     pub profile_identity: String,
     pub subject_projections: Vec<String>,
     pub establishment_routes: Vec<crate::provider_plan::ServiceProgressEstablishmentRoute>,
-    pub provider_plan_identity: u64,
+    /// Non-authoritative coordinate for the exact selected plan committed by
+    /// `provider_plan_digest` and the enclosing selected-closure digest.
+    pub provider_plan_report_identity: u64,
+    pub provider_plan_digest: ProviderPlanDigest,
     pub origin_callable_identity: String,
     pub origin_state_identity: String,
     pub statement_ordinal: usize,
@@ -155,7 +159,8 @@ impl ComponentProgressManifest {
                 profile_identity: demand.profile_identity,
                 subject_projections: demand.subject_projections,
                 establishment_routes,
-                provider_plan_identity: plan.report_fingerprint(),
+                provider_plan_report_identity: plan.report_fingerprint(),
+                provider_plan_digest: plan.identity_digest(),
                 origin_callable_identity: demand.origin_callable_identity,
                 origin_state_identity: demand.origin_state_identity,
                 statement_ordinal: demand.statement_ordinal,
@@ -190,9 +195,9 @@ impl ComponentProgressManifest {
         &self.entry_callable_identity
     }
 
-    /// Compatibility accessor for the non-authoritative compact selected
-    /// closure coordinate. Admission must also compare the closure digest.
-    pub const fn selected_provider_closure_identity(&self) -> u64 {
+    /// Non-authoritative compact selected-closure coordinate. Admission also
+    /// compares the closure digest.
+    pub const fn selected_provider_closure_report_identity(&self) -> u64 {
         self.selected_provider_closure_report_identity
     }
 
@@ -210,12 +215,6 @@ impl ComponentProgressManifest {
 
     pub fn pending(&self) -> &[ComponentBuildBoundProgressDemand] {
         &self.pending
-    }
-
-    /// Compatibility accessor for the non-authoritative compact manifest
-    /// coordinate.
-    pub const fn normalized_identity(&self) -> u64 {
-        self.compatibility_report_identity
     }
 
     /// Explicit name for the non-authoritative compact manifest coordinate.
@@ -251,7 +250,8 @@ fn digest_manifest(
         }
         // This remains a compact plan coordinate, but the selected closure
         // commitment above binds the exact uniquely indexed plans.
-        encoder.u64(demand.provider_plan_identity);
+        encoder.u64(demand.provider_plan_report_identity);
+        encoder.bytes(demand.provider_plan_digest.as_bytes());
         encoder.string(&demand.origin_callable_identity);
         encoder.string(&demand.origin_state_identity);
         encoder.u64(demand.statement_ordinal as u64);
@@ -354,7 +354,7 @@ fn compatibility_report_fingerprint(
             write(route.kind.as_str().as_bytes());
             write(route.requirement_identity.as_bytes());
         }
-        write(&demand.provider_plan_identity.to_le_bytes());
+        write(&demand.provider_plan_report_identity.to_le_bytes());
         write(demand.origin_callable_identity.as_bytes());
         write(demand.origin_state_identity.as_bytes());
         write(&(demand.statement_ordinal as u64).to_le_bytes());
@@ -466,8 +466,12 @@ mod tests {
             "SchedulerAdmission::grant#exact"
         );
         assert_eq!(
-            first.pending()[0].provider_plan_identity,
+            first.pending()[0].provider_plan_report_identity,
             selected.plans()[0].report_fingerprint()
+        );
+        assert_eq!(
+            first.pending()[0].provider_plan_digest,
+            selected.plans()[0].identity_digest()
         );
         assert!(first.matches_selected_provider_closure(&selected));
         assert_ne!(first.identity_digest().as_bytes(), &[0; 32]);

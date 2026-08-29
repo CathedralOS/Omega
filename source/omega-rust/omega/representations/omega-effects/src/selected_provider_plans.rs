@@ -29,7 +29,9 @@ impl SelectedProviderClosureDigest {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProviderPlanFacts {
     plans: Vec<ProviderPlan>,
-    normalized_identity: u64,
+    /// Compact report coordinate. Authority retains `plans` and is exposed by
+    /// `identity_digest()`.
+    report_fingerprint: u64,
     execution_scope: crate::ExecutionScope,
     indexed_provider_application_coverage: Vec<crate::ProviderAssertedIndexedApplicationCoverage>,
     opaque_executable_admissions: Vec<crate::ValidatedOpaqueExecutableAdmission>,
@@ -40,7 +42,7 @@ impl Default for SelectedProviderPlanFacts {
     fn default() -> Self {
         Self {
             plans: Vec::new(),
-            normalized_identity: selected_plans_report_fingerprint(&[]),
+            report_fingerprint: selected_plans_report_fingerprint(&[]),
             execution_scope: crate::ExecutionScope::CallerAddressSpace,
             indexed_provider_application_coverage: Vec::new(),
             opaque_executable_admissions: Vec::new(),
@@ -118,10 +120,10 @@ impl SelectedProviderPlanFacts {
             }
         }
 
-        let normalized_identity = selected_plans_report_fingerprint(&plans);
+        let report_fingerprint = selected_plans_report_fingerprint(&plans);
         Ok(Self {
             plans,
-            normalized_identity,
+            report_fingerprint,
             execution_scope: crate::ExecutionScope::CallerAddressSpace,
             indexed_provider_application_coverage: Vec::new(),
             opaque_executable_admissions: Vec::new(),
@@ -199,14 +201,14 @@ impl SelectedProviderPlanFacts {
         Some(selected)
     }
 
-    pub const fn normalized_identity(&self) -> u64 {
-        self.normalized_identity
+    pub const fn report_fingerprint(&self) -> u64 {
+        self.report_fingerprint
     }
 
     /// Non-authoritative compatibility/report identity retained for existing
     /// artifact formats and diagnostics.
     pub const fn compatibility_report_identity(&self) -> u64 {
-        self.normalized_identity
+        self.report_fingerprint
     }
 
     /// Domain-separated SHA-256 commitment to the complete exact selected
@@ -233,7 +235,7 @@ impl SelectedProviderPlanFacts {
         encoder.len(self.installation_reach_resolutions.len());
         for resolution in &self.installation_reach_resolutions {
             encoder.string(&resolution.requirement_identity);
-            encoder.u64(resolution.provider_plan_identity);
+            encoder.u64(resolution.provider_plan_report_identity);
             encoder.strings(&resolution.upper_bound);
             encoder.strings(&resolution.resolved_row);
         }
@@ -259,10 +261,10 @@ impl SelectedProviderPlanFacts {
         coverage.sort();
         let mut occupied_slots = BTreeSet::new();
         for row in &coverage {
-            let Some(plan) = self.plan_by_identity(row.provider_plan_identity()) else {
+            let Some(plan) = self.plan_by_identity(row.provider_plan_report_identity()) else {
                 return Err(format!(
                     "indexed-application coverage names unselected provider plan {:#018x}",
-                    row.provider_plan_identity()
+                    row.provider_plan_report_identity()
                 ));
             };
             if plan.schema.trait_name != row.schema().trait_name()
@@ -274,7 +276,7 @@ impl SelectedProviderPlanFacts {
                 ));
             }
             let slot = (
-                row.provider_plan_identity(),
+                row.provider_plan_report_identity(),
                 row.schema().trait_package_identity(),
                 row.schema().trait_name(),
             );
@@ -287,7 +289,7 @@ impl SelectedProviderPlanFacts {
             }
         }
         self.indexed_provider_application_coverage = coverage;
-        self.normalized_identity = selected_closure_report_fingerprint(
+        self.report_fingerprint = selected_closure_report_fingerprint(
             &self.plans,
             &self.indexed_provider_application_coverage,
             &self.installation_reach_resolutions,
@@ -338,7 +340,8 @@ impl SelectedProviderPlanFacts {
             .map(|admission| {
                 let candidate = admission.candidate();
                 (
-                    candidate.provider_plan_identity,
+                    candidate.provider_plan_report_identity,
+                    candidate.provider_plan_digest,
                     candidate.method.clone(),
                     candidate.requirement_identity.clone(),
                 )
@@ -352,7 +355,8 @@ impl SelectedProviderPlanFacts {
                 ));
             }
             let key = (
-                candidate.provider_plan_identity,
+                candidate.provider_plan_report_identity,
+                candidate.provider_plan_digest,
                 candidate.method.clone(),
                 candidate.requirement_identity.clone(),
             );
@@ -361,7 +365,7 @@ impl SelectedProviderPlanFacts {
                     "opaque executable admission duplicates selected row `{}` / `{}` in provider plan {:#018x}",
                     candidate.method,
                     candidate.requirement_identity,
-                    candidate.provider_plan_identity
+                    candidate.provider_plan_report_identity
                 ));
             }
             self.opaque_executable_admissions.push(
@@ -374,8 +378,8 @@ impl SelectedProviderPlanFacts {
         self.opaque_executable_admissions.sort_by(|left, right| {
             let left = left.candidate();
             let right = right.candidate();
-            left.provider_plan_identity
-                .cmp(&right.provider_plan_identity)
+            left.provider_plan_report_identity
+                .cmp(&right.provider_plan_report_identity)
                 .then_with(|| left.method.cmp(&right.method))
                 .then_with(|| left.requirement_identity.cmp(&right.requirement_identity))
         });
@@ -397,8 +401,8 @@ impl SelectedProviderPlanFacts {
             left.requirement_identity
                 .cmp(&right.requirement_identity)
                 .then_with(|| {
-                    left.provider_plan_identity
-                        .cmp(&right.provider_plan_identity)
+                    left.provider_plan_report_identity
+                        .cmp(&right.provider_plan_report_identity)
                 })
         });
         for pair in resolutions.windows(2) {
@@ -429,10 +433,10 @@ impl SelectedProviderPlanFacts {
                     resolution.requirement_identity
                 ));
             }
-            let Some(plan) = self.plan_by_identity(resolution.provider_plan_identity) else {
+            let Some(plan) = self.plan_by_identity(resolution.provider_plan_report_identity) else {
                 return Err(format!(
                     "installation reach resolution for `{}` names unselected provider plan {:#018x}",
-                    resolution.requirement_identity, resolution.provider_plan_identity
+                    resolution.requirement_identity, resolution.provider_plan_report_identity
                 ));
             };
             if !plan
@@ -447,7 +451,7 @@ impl SelectedProviderPlanFacts {
             }
         }
         self.installation_reach_resolutions = resolutions;
-        self.normalized_identity = selected_closure_report_fingerprint(
+        self.report_fingerprint = selected_closure_report_fingerprint(
             &self.plans,
             &self.indexed_provider_application_coverage,
             &self.installation_reach_resolutions,
@@ -495,7 +499,7 @@ impl SelectedProviderPlanFacts {
     pub fn executable_tcb_manifest(&self) -> crate::ExecutableTcbManifest {
         crate::executable_tcb_manifest::derive_static_manifest(
             &self.plans,
-            self.normalized_identity,
+            self.report_fingerprint,
             self.execution_scope,
             &self.opaque_executable_admissions,
         )
@@ -505,7 +509,9 @@ impl SelectedProviderPlanFacts {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstallationReachResolution {
     pub requirement_identity: String,
-    pub provider_plan_identity: u64,
+    /// Compact report coordinate; the owning selected closure retains the
+    /// exact plan and its strong digest.
+    pub provider_plan_report_identity: u64,
     pub upper_bound: Vec<String>,
     pub resolved_row: Vec<String>,
 }
@@ -546,7 +552,7 @@ fn selected_closure_report_fingerprint(
             .as_bytes()
             .iter()
             .copied()
-            .chain(resolution.provider_plan_identity.to_le_bytes())
+            .chain(resolution.provider_plan_report_identity.to_le_bytes())
             .chain((resolution.upper_bound.len() as u64).to_le_bytes())
             .chain(
                 resolution
@@ -638,7 +644,8 @@ impl SelectedProviderClosureDigestEncoder {
         &mut self,
         admission: &crate::OpaqueExecutableAdmissionCandidate,
     ) {
-        self.u64(admission.provider_plan_identity);
+        self.u64(admission.provider_plan_report_identity);
+        self.bytes(admission.provider_plan_digest.as_bytes());
         self.string(&admission.method);
         self.string(&admission.requirement_identity);
         self.opaque_binding(&admission.binding);
@@ -831,10 +838,7 @@ mod tests {
             .expect("first exact selected closure");
         let substituted = SelectedProviderPlanFacts::from_selected_plans(vec![substituted])
             .expect("substituted exact selected closure");
-        assert_eq!(
-            first.normalized_identity(),
-            substituted.normalized_identity()
-        );
+        assert_eq!(first.report_fingerprint(), substituted.report_fingerprint());
         assert_ne!(first.identity_digest(), substituted.identity_digest());
     }
 
@@ -931,18 +935,18 @@ mod tests {
             std::slice::from_ref(&plan.name),
         )
         .expect("selected provider");
-        let base_identity = selected.normalized_identity();
+        let base_identity = selected.report_fingerprint();
         let requirement_identity = plan.schema.methods[0].requirement_identity.clone();
         let resolved = selected
             .with_installation_reach_resolutions(vec![InstallationReachResolution {
                 requirement_identity: requirement_identity.clone(),
-                provider_plan_identity: plan_identity,
+                provider_plan_report_identity: plan_identity,
                 upper_bound: vec!["PortIo".into(), "MachineControl".into()],
                 resolved_row: vec!["PortIo".into()],
             }])
             .expect("selected row refines its bound");
 
-        assert_ne!(resolved.normalized_identity(), base_identity);
+        assert_ne!(resolved.report_fingerprint(), base_identity);
         let row = resolved
             .installation_reach_resolution(&requirement_identity)
             .expect("exact requirement resolution");
@@ -971,7 +975,7 @@ mod tests {
         .expect("selected provider")
         .with_installation_reach_resolutions(vec![InstallationReachResolution {
             requirement_identity,
-            provider_plan_identity: plan_identity,
+            provider_plan_report_identity: plan_identity,
             upper_bound: vec!["MachineControl".into()],
             resolved_row: vec!["FilesystemHost".into()],
         }])
@@ -1077,12 +1081,12 @@ mod tests {
         assert!(matches!(
             &causes[0],
             crate::IncompleteCause::SelectedOpaqueProvider {
-                provider_plan_identity,
+                provider_plan_report_identity,
                 binding: crate::OpaqueInProcessBinding::Import {
                     locator: retained,
                 },
                 ..
-            } if *provider_plan_identity == opaque_leaf.report_fingerprint()
+            } if *provider_plan_report_identity == opaque_leaf.report_fingerprint()
                 && retained == &locator
         ));
     }
@@ -1110,8 +1114,8 @@ mod tests {
         }
 
         assert_ne!(
-            selected(b"read_raw").normalized_identity(),
-            selected(b"write_raw").normalized_identity(),
+            selected(b"read_raw").report_fingerprint(),
+            selected(b"write_raw").report_fingerprint(),
         );
     }
 
@@ -1129,7 +1133,8 @@ mod tests {
         )
         .expect("selected opaque provider")
         .with_opaque_executable_admissions([crate::OpaqueExecutableAdmissionCandidate {
-            provider_plan_identity: plan_identity,
+            provider_plan_report_identity: plan_identity,
+            provider_plan_digest: opaque.identity_digest(),
             method: "read".into(),
             requirement_identity: opaque.schema.methods[0].requirement_identity.clone(),
             binding: crate::OpaqueInProcessBinding::StringBackedImportBootstrap {
@@ -1174,7 +1179,8 @@ mod tests {
         )
         .expect("selected opaque provider")
         .with_opaque_executable_admissions([crate::OpaqueExecutableAdmissionCandidate {
-            provider_plan_identity: plan_identity,
+            provider_plan_report_identity: plan_identity,
+            provider_plan_digest: opaque.identity_digest(),
             method: "read".into(),
             requirement_identity: opaque.schema.methods[0].requirement_identity.clone(),
             binding: crate::OpaqueInProcessBinding::StringBackedImportBootstrap {
@@ -1233,7 +1239,8 @@ mod tests {
         )
         .expect("two distinct selected slots")
         .with_opaque_executable_admissions([crate::OpaqueExecutableAdmissionCandidate {
-            provider_plan_identity: closed_identity,
+            provider_plan_report_identity: closed_identity,
+            provider_plan_digest: closed.identity_digest(),
             method: "read".into(),
             requirement_identity: closed.schema.methods[0].requirement_identity.clone(),
             binding: crate::OpaqueInProcessBinding::StringBackedImportBootstrap {
@@ -1261,9 +1268,9 @@ mod tests {
         assert!(matches!(
             &causes[0],
             crate::IncompleteCause::SelectedOpaqueProvider {
-                provider_plan_identity,
+                provider_plan_report_identity,
                 ..
-            } if *provider_plan_identity == open.report_fingerprint()
+            } if *provider_plan_report_identity == open.report_fingerprint()
         ));
         assert_eq!(opaque_closure_evidence.len(), 1);
         assert_eq!(
@@ -1286,7 +1293,8 @@ mod tests {
         )
         .expect("selected opaque provider");
         let candidate = crate::OpaqueExecutableAdmissionCandidate {
-            provider_plan_identity: plan_identity,
+            provider_plan_report_identity: plan_identity,
+            provider_plan_digest: opaque.identity_digest(),
             method: "read".into(),
             requirement_identity: opaque.schema.methods[0].requirement_identity.clone(),
             binding: crate::OpaqueInProcessBinding::StringBackedImportBootstrap {
@@ -1299,6 +1307,17 @@ mod tests {
             containment: Vec::new(),
             executable_closure_evidence_identity: None,
         };
+        let mut compact_equal_wrong_digest = candidate.clone();
+        let mut substituted_plan = opaque.clone();
+        substituted_plan.name = "compact-equal-substitution".into();
+        compact_equal_wrong_digest.provider_plan_digest = substituted_plan.identity_digest();
+        assert!(
+            selected
+                .clone()
+                .with_opaque_executable_admissions([compact_equal_wrong_digest])
+                .expect_err("compact report identity cannot select a different exact plan")
+                .contains("unselected provider plan")
+        );
         assert!(
             selected
                 .clone()
@@ -1350,9 +1369,9 @@ mod tests {
         assert!(matches!(
             manifest.completeness,
             crate::ScopeCompleteness::Complete {
-                selected_provider_closure_identity,
+                selected_provider_closure_report_identity,
                 ..
-            } if selected_provider_closure_identity == selected.normalized_identity()
+            } if selected_provider_closure_report_identity == selected.report_fingerprint()
         ));
         assert!(manifest.known_entries.iter().all(|entry| {
             entry.origin == crate::ExecutableEntryOrigin::StaticSelection

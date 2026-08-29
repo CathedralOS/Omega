@@ -259,7 +259,7 @@ mod tests {
             planned.imports[0].locator,
             ElfImportLocator::Versioned {
                 target_profile: TargetProfile::LinuxX64,
-                normalized_identity: match &expected_image
+                compatibility_report_identity: match &expected_image
                     .symbol_table
                     .imports
                     .iter()

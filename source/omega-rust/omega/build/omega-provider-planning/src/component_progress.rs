@@ -421,8 +421,8 @@ mod tests {
 
         assert_eq!(manifest.entry_callable_identity(), "Application::run#exact");
         assert_eq!(
-            manifest.selected_provider_closure_identity(),
-            selected.normalized_identity()
+            manifest.selected_provider_closure_report_identity(),
+            selected.compatibility_report_identity()
         );
         assert!(manifest.pending().is_empty());
     }

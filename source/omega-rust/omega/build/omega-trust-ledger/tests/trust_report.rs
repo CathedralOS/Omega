@@ -147,7 +147,7 @@ machine Main::exercise(&mut self) {
     let report = std::fs::read_to_string(build_dir.join("trust_report.md"))
         .expect("the empty report is still written -- the honest no-commitments statement");
     let empty_selected_closure =
-        omega_effects::SelectedProviderPlanFacts::default().normalized_identity();
+        omega_effects::SelectedProviderPlanFacts::default().report_fingerprint();
     assert!(report.contains(&format!(
         "selected provider closure report fingerprint: {empty_selected_closure:016x}"
     )));
@@ -1122,7 +1122,7 @@ machine Main::exercise(&mut self) {}
 
     let checked = compile_to_checked(&project.join("main.omg"), None)
         .expect("calling-policy provider should check");
-    let expected_selected_closure = checked.selected_provider_plans().normalized_identity();
+    let expected_selected_closure = checked.selected_provider_plans().report_fingerprint();
     let tick = checked
         .typed
         .traits()

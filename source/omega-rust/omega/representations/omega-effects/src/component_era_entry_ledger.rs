@@ -896,7 +896,7 @@ mod tests {
                 known_entries: Vec::new(),
                 completeness: ScopeCompleteness::Complete {
                     scope: ExecutionScope::CallerAddressSpace,
-                    selected_provider_closure_identity: closure,
+                    selected_provider_closure_report_identity: closure,
                     opaque_closure_evidence: Vec::new(),
                     runtime_closure_evidence: Vec::new(),
                 },
