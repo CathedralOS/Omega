@@ -112,6 +112,7 @@ fn bind_workspace_member_package_source(
         source.snapshot_root().to_path_buf(),
         source.snapshot_root().to_path_buf(),
         super::PackageSourceNavigation::Root,
+        super::PackageSourceSelectionEvidence::Root,
         limits,
         dependency_requests,
         source,

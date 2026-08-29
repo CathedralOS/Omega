@@ -6,11 +6,13 @@
 mod custody;
 mod error;
 mod git;
+pub mod git_selection;
 mod local;
 mod materialization;
 mod navigation;
 mod projection;
 mod resolved;
+mod selection;
 mod workspace;
 
 pub use custody::PackageSourceCustody;
@@ -34,6 +36,7 @@ pub use local::{
 pub use materialization::PackageSourceMaterialization;
 pub use navigation::PackageSourceNavigation;
 pub use resolved::ResolvedPackageSource;
+pub use selection::{PackageSourceSelectionEvidence, PackageSourceSelectionEvidenceError};
 #[cfg(test)]
 pub(crate) use workspace::resolve_workspace_member_package_source;
 pub(crate) use workspace::resolve_workspace_member_package_source_in_lane;

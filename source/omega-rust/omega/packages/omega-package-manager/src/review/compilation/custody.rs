@@ -35,11 +35,22 @@ pub(super) fn verify_transitive_source_custody(
             )
             .map_err(|error| CompileResolvedPackageReviewsError::SourceCustody {
                 compiling_package: compiling_package.clone(),
-                source_package,
+                source_package: source_package.clone(),
                 phase,
                 error,
             })?;
         }
+        custody
+            .selection_evidence()
+            .revalidate(custody.acquisition_root())
+            .map_err(
+                |error| CompileResolvedPackageReviewsError::SourceSelectionCustody {
+                    compiling_package: compiling_package.clone(),
+                    source_package,
+                    phase,
+                    error,
+                },
+            )?;
     }
     Ok(())
 }

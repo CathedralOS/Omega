@@ -1,6 +1,6 @@
 //! Source-patch model and rendering workflow.
 
-use crate::resolution::PackageSourceCustody;
+use crate::resolution::{PackageSourceCustody, PackageSourceSelectionEvidenceError};
 use omega_package_source::{PackageKey, SourceResolveError};
 use std::collections::BTreeSet;
 use std::fmt;
@@ -110,6 +110,10 @@ pub enum PackageSourcePatchError {
         side: PackageSourcePatchSide,
         error: SourceResolveError,
     },
+    SourceSelectionCustody {
+        side: PackageSourcePatchSide,
+        error: PackageSourceSelectionEvidenceError,
+    },
     SourceMetadataExceeded {
         side: PackageSourcePatchSide,
         maximum_bytes: usize,
@@ -142,6 +146,11 @@ impl fmt::Display for PackageSourcePatchError {
                     side_token(*side)
                 )
             }
+            Self::SourceSelectionCustody { side, error } => write!(
+                formatter,
+                "{} source selection custody failed: {error}",
+                side_token(*side)
+            ),
             Self::SourceMetadataExceeded {
                 side,
                 maximum_bytes,

@@ -1,5 +1,7 @@
 use super::super::cache::{GitAcquisitionCache, SourceCacheLane};
+use super::super::dependency_resolution::register_git_repository;
 use super::*;
+use std::collections::BTreeMap;
 
 #[test]
 fn two_named_packages_share_one_exact_git_acquisition() {
@@ -62,6 +64,39 @@ machine build(builder: &mut Build) {
     assert_eq!(acquisitions.acquisition_count(), 1);
     assert_eq!(first.acquisition_root(), second.acquisition_root());
     assert_eq!(first.resolution(), second.resolution());
+    assert_ne!(first.selection_evidence(), second.selection_evidence());
+    assert_eq!(
+        first
+            .selection_evidence()
+            .git_workspace()
+            .expect("first workspace selection")
+            .workspace_evidence(),
+        second
+            .selection_evidence()
+            .git_workspace()
+            .expect("second workspace selection")
+            .workspace_evidence(),
+    );
+    let mut workspaces = BTreeMap::new();
+    register_git_repository(
+        &mut workspaces,
+        first.key().source_lineage(),
+        first.acquisition_root(),
+        first.resolution(),
+        first.selection_evidence(),
+        first.source_limits(),
+    )
+    .expect("register first selected package");
+    register_git_repository(
+        &mut workspaces,
+        second.key().source_lineage(),
+        second.acquisition_root(),
+        second.resolution(),
+        second.selection_evidence(),
+        second.source_limits(),
+    )
+    .expect("same workspace evidence reconciles across selected members");
+    assert_eq!(workspaces.len(), 1);
 
     drop(storage);
     let _ = std::fs::remove_dir_all(repository);

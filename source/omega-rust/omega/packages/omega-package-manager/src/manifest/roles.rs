@@ -95,6 +95,16 @@ pub(crate) fn convert_shared_declaration(
     }
 }
 
+/// Project one already-decoded `build.omg` without consulting the filesystem.
+///
+/// Manager-owned planners that must remain independent of package-source
+/// identity types use the declaration-domain result directly.
+pub(crate) fn project_build_declaration_source(
+    source: &str,
+) -> Result<shared::BuildDeclaration, BuildDeclarationError> {
+    shared::project_build_declaration_from_source(source)
+}
+
 fn convert_project_name(name: shared::ProjectName) -> PackageName {
     name.into()
 }

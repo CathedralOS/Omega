@@ -27,6 +27,14 @@ pub(super) fn extract_build_projection_from_source(
     extract_build_projection_from_syntax_trees(&syntax_trees)
 }
 
+/// Apply the package manager's complete static dependency projection policy to
+/// one already-decoded declaration without retaining source-layer requests.
+pub(crate) fn validate_static_dependency_source(
+    source: &str,
+) -> Result<(), DependencyProjectionError> {
+    extract_build_projection_from_source(source).map(drop)
+}
+
 fn extract_build_projection_from_syntax_trees(
     syntax_trees: &SyntaxTrees,
 ) -> Result<BuildDependencyProjection, DependencyProjectionError> {

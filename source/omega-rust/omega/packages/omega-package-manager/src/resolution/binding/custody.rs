@@ -1,7 +1,9 @@
 //! Transport-erased custody for one declared package snapshot.
 
 use crate::manifest::dependencies::read::DependencySourceRequest;
-use crate::resolution::binding::{PackageSourceMaterialization, PackageSourceNavigation};
+use crate::resolution::binding::{
+    PackageSourceMaterialization, PackageSourceNavigation, PackageSourceSelectionEvidence,
+};
 use omega_package_source::LocalSourceLimits;
 use omega_package_source::{ImmutableSourceResolution, PackageKey};
 use std::path::{Path, PathBuf};
@@ -16,6 +18,7 @@ pub struct PackageSourceCustody {
     acquisition_root: PathBuf,
     pub(crate) snapshot_root: PathBuf,
     navigation: PackageSourceNavigation,
+    selection_evidence: PackageSourceSelectionEvidence,
     source_limits: LocalSourceLimits,
     dependency_requests: Vec<DependencySourceRequest>,
 }
@@ -28,6 +31,7 @@ impl PartialEq for PackageSourceCustody {
             && self.acquisition_root == other.acquisition_root
             && self.snapshot_root == other.snapshot_root
             && self.navigation == other.navigation
+            && self.selection_evidence == other.selection_evidence
             && self.dependency_requests == other.dependency_requests
     }
 }
@@ -42,6 +46,7 @@ impl PackageSourceCustody {
         acquisition_root: PathBuf,
         snapshot_root: PathBuf,
         navigation: PackageSourceNavigation,
+        selection_evidence: PackageSourceSelectionEvidence,
         source_limits: LocalSourceLimits,
         dependency_requests: Vec<DependencySourceRequest>,
     ) -> Self {
@@ -53,6 +58,7 @@ impl PackageSourceCustody {
             acquisition_root,
             snapshot_root,
             navigation,
+            selection_evidence,
             source_limits,
             dependency_requests,
         }
@@ -82,6 +88,10 @@ impl PackageSourceCustody {
         &self.navigation
     }
 
+    pub const fn selection_evidence(&self) -> &PackageSourceSelectionEvidence {
+        &self.selection_evidence
+    }
+
     pub fn source_limits(&self) -> LocalSourceLimits {
         self.source_limits
     }
@@ -95,6 +105,7 @@ impl PackageSourceCustody {
             && self.resolution == other.resolution
             && self.materialization == other.materialization
             && self.navigation == other.navigation
+            && self.selection_evidence == other.selection_evidence
             && self.dependency_requests == other.dependency_requests
     }
 }

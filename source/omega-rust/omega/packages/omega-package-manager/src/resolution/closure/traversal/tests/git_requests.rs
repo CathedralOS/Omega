@@ -136,10 +136,45 @@ machine build(builder: &mut Build) {
         crate::resolution::PackageSourceNavigation::Member(path)
             if path.as_str() == "packages/matrix"
     ));
+    let selection = root
+        .selection_evidence()
+        .git_workspace()
+        .expect("named Git source retains workspace declaration evidence");
+    assert_eq!(selection.selected_member_path().as_str(), "packages/matrix");
+    assert_eq!(selection.members().len(), 1);
+    assert_eq!(
+        selection.workspace_declaration().repository_path(),
+        "build.omg"
+    );
     let PackageRootSourceRequest::Git(retained) = closure.source_requests().root().request() else {
         panic!("named Git request retained")
     };
     assert_eq!(retained, &request);
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        let retained_build = root.acquisition_root().join("build.omg");
+        std::fs::set_permissions(&retained_build, std::fs::Permissions::from_mode(0o644))
+            .expect("unseal retained declaration for tamper probe");
+        std::fs::write(
+            &retained_build,
+            b"machine build(builder: &mut Build) { builder.member(\"packages/matrix\"); }\n",
+        )
+        .expect("tamper retained declaration");
+        std::fs::set_permissions(&retained_build, std::fs::Permissions::from_mode(0o444))
+            .expect("reseal retained declaration");
+        let errors = crate::review::package_compilation_inputs(&closure)
+            .expect_err("compiler handoff rejects changed selection evidence");
+        assert!(errors.iter().any(|error| matches!(
+            error,
+            omega_package_compilation::PackageCompilationInputError::InvalidSourceRoot {
+                reason,
+                ..
+            } if reason.contains("selection evidence")
+        )));
+    }
 
     let _ = std::fs::remove_dir_all(repository);
     let _ = std::fs::remove_dir_all(cache);
@@ -214,6 +249,23 @@ machine build(builder: &mut Build) {
         crate::resolution::PackageSourceNavigation::Member(path)
             if path.as_str() == "packages/right"
     ));
+    assert_eq!(
+        left.selection_evidence()
+            .git_workspace()
+            .expect("left selection evidence")
+            .selected_member_path()
+            .as_str(),
+        "packages/left"
+    );
+    assert_eq!(
+        right
+            .selection_evidence()
+            .git_workspace()
+            .expect("right selection evidence")
+            .selected_member_path()
+            .as_str(),
+        "packages/right"
+    );
     let canonical = crate::resolution::CanonicalSourceClosureSubject::from_resolved(
         &closure,
         crate::resolution::CanonicalSourceClosureSubjectLimits::default(),
