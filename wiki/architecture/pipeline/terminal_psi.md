@@ -629,6 +629,15 @@ proof row therefore cannot alias another application that happens to retain the
 same post-specialization callable shape. The proof row adds no operation or
 fuel beyond that ordinary call.
 
+Omega task activation applies the same authority split after checking.
+`TaskRuntime::{start,try_start}` retains its compact specialization value only
+as a report coordinate; provider planning derives a domain-separated strong
+commitment over the exact checked TaskRuntime requirement and operation, exact
+package-qualified target/entry signature including parameter modes, and target
+machine-contract commitment. The task runtime receipt binding carries both
+values but derives invocation identity from the strong commitment alone, so
+compact equality never authorizes a different specialization.
+
 For the first attached static trait-requirement proof call, the public target
 is the requirement's normalized callable identity rather than the concrete machine.
 A separate private dispatch row retains the caller-owned closed-conformance

@@ -137,6 +137,17 @@ selection, requirement drift, and provider narrowing of the published static
 machine contract reject. This is static provider/operation binding, not a
 fabricated runtime-instance or per-invocation receipt.
 
+The activation's historical specialization FNV is retained only as
+`specialization_report_fingerprint`. Provider planning also derives a
+domain-separated SHA-256 `TaskSpecializationCommitment` from the exact checked
+TaskRuntime specialization: normalized requirement identity, selected
+operation, package-qualified declaration/type ownership, the exact target and
+entry signature including parameter modes, and the target machine-contract
+commitment. Runtime receipt validation carries that commitment—not the compact
+report coordinate—into the invocation binding, so a compact-equal
+specialization substitution cannot activate or alias the original runtime
+child.
+
 The provider-independent selection gate is also live in `omega-task-plans`.
 It consumes one exact checked-conformance or admission-receipt identity for
 each demanded CPU/host-thread preservation axis, rejects missing or mismatched

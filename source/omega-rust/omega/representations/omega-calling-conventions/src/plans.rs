@@ -10,6 +10,7 @@ use crate::callback_materializations::{
     validate_callback_materializations,
 };
 use omega_target::Architecture;
+use sha2::{Digest, Sha256};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MachineRegister {
@@ -414,6 +415,14 @@ impl ValidatedBoundaryEntryPlan {
         hash.call_plan(&self.0.call);
         hash.state_plan(&self.0.state);
         hash.finish()
+    }
+
+    /// Domain-separated commitment to the complete canonical boundary plan.
+    pub fn contract_commitment_digest(&self) -> [u8; 32] {
+        let mut hash = Fnv1a::with_strong_domain(b"omega.boundary-calling-plan.v1");
+        hash.call_plan(&self.0.call);
+        hash.state_plan(&self.0.state);
+        hash.finish_strong()
     }
 }
 
@@ -2014,21 +2023,44 @@ const fn system_v_eightbyte_class_code(class: SystemVEightbyteClass) -> u8 {
     }
 }
 
-struct Fnv1a(u64);
+struct Fnv1a {
+    compact: u64,
+    strong: Option<Sha256>,
+}
 
 impl Fnv1a {
     const fn new() -> Self {
-        Self(0xcbf29ce484222325)
+        Self {
+            compact: 0xcbf29ce484222325,
+            strong: None,
+        }
+    }
+
+    fn with_strong_domain(domain: &[u8]) -> Self {
+        let mut strong = Sha256::new();
+        strong.update((domain.len() as u64).to_le_bytes());
+        strong.update(domain);
+        Self {
+            compact: 0xcbf29ce484222325,
+            strong: Some(strong),
+        }
     }
 
     const fn finish(self) -> u64 {
-        self.0
+        self.compact
+    }
+
+    fn finish_strong(self) -> [u8; 32] {
+        self.strong.expect("strong plan hasher").finalize().into()
     }
 
     fn bytes(&mut self, bytes: &[u8]) {
         for byte in bytes {
-            self.0 ^= u64::from(*byte);
-            self.0 = self.0.wrapping_mul(0x100000001b3);
+            self.compact ^= u64::from(*byte);
+            self.compact = self.compact.wrapping_mul(0x100000001b3);
+        }
+        if let Some(strong) = &mut self.strong {
+            strong.update(bytes);
         }
     }
 

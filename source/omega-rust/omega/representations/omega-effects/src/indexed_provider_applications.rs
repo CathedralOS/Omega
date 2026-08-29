@@ -725,7 +725,8 @@ mod tests {
                     may_block: false,
                     terminates_guarantee: false,
                     termination_premises: Vec::new(),
-                    calling_plan_fingerprint: None,
+                    calling_plan_report_fingerprint: None,
+                    calling_plan_commitment: None,
                 }],
             },
             rows: vec![ProviderPlanRow {

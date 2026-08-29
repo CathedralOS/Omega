@@ -242,7 +242,8 @@ pub struct BoundaryCallingPlanRealization {
     pub requirement_machine: psi_symbols::SymbolHandle,
     /// Compact compatibility/report coordinate for typed-tree consumers.
     /// Exact plan custody below remains the authority for realization joins.
-    pub fingerprint: u64,
+    pub report_fingerprint: u64,
+    pub commitment: psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment,
     pub boundary_entry_plan: BoundaryEntryPlan,
     /// Crate-sealed exact evidence minted with the validated realization.
     /// The public fingerprint remains a compact compatibility/report
@@ -260,6 +261,49 @@ pub struct BoundaryCallingPlanRealization {
 impl BoundaryCallingPlanRealization {
     pub const fn exact_boundary_entry_plan(&self) -> &BoundaryEntryPlan {
         &self.exact_boundary_entry_plan
+    }
+
+    pub fn replayed_validated_plan(
+        &self,
+    ) -> Result<ValidatedBoundaryEntryPlan, omega_calling_conventions::PlanDiagnostic> {
+        let signature = CallSignature {
+            parameters: self
+                .boundary_entry_plan
+                .call
+                .parameters
+                .iter()
+                .map(|placement| placement.shape)
+                .collect(),
+            result: self
+                .boundary_entry_plan
+                .call
+                .result
+                .as_ref()
+                .map(|placement| placement.shape),
+        };
+        if self.callback_context_closed {
+            let context = CallbackMaterializationContext {
+                binders: self
+                    .callback_binders
+                    .iter()
+                    .map(|binder| CallbackBinderRequirement {
+                        binder: binder.binder,
+                        requirement: binder.requirement,
+                    })
+                    .collect(),
+                demands: self.callback_demands.clone(),
+            };
+            validate_boundary_entry_plan_with_callback_materializations(
+                self.boundary_entry_plan.clone(),
+                &signature,
+                &context,
+            )
+        } else {
+            omega_calling_conventions::validate_boundary_entry_plan(
+                self.boundary_entry_plan.clone(),
+                &signature,
+            )
+        }
     }
 }
 
@@ -374,9 +418,16 @@ pub fn validate_nominal_callback_placement_bindings(
                 continue;
             }
         };
-        let realized_fingerprint = validated.contract_fingerprint();
-        if realization.fingerprint != realized_fingerprint
-            || placement.boundary_calling_plan_fingerprint != realized_fingerprint
+        let realized_report_fingerprint = validated.contract_fingerprint();
+        let realized_commitment =
+            psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(
+                validated.contract_commitment_digest(),
+            );
+        if realization.report_fingerprint != realized_report_fingerprint
+            || realization.commitment != realized_commitment
+            || realization.exact_boundary_entry_plan() != validated.plan()
+            || placement.boundary_calling_plan_report_fingerprint != realized_report_fingerprint
+            || placement.boundary_calling_plan_commitment != realized_commitment
         {
             diagnostics.push(Diagnostic::error(format!(
                 "nominal callback use for `{}` does not bind its exact evaluated target calling plan",
@@ -406,8 +457,35 @@ pub fn validate_nominal_callback_placement_bindings(
             )));
             continue;
         };
+        let Some(published_contract) = checked.facts.contract_plans.crash_capsule(
+            nominal_use.satisfaction_trait,
+            nominal_use.satisfaction_requirement,
+        ) else {
+            diagnostics.push(Diagnostic::error(format!(
+                "nominal callback use for `{}` is missing its canonical published requirement contract",
+                nominal_use.canonical_requirement_overload
+            )));
+            continue;
+        };
+        if nominal_use
+            .published_requirement_envelope
+            .contract_report_fingerprint
+            != published_contract.target_contract_fingerprint()
+            || nominal_use
+                .published_requirement_envelope
+                .contract_commitment
+                != published_contract.target_contract_commitment()
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "nominal callback use for `{}` does not bind its exact published requirement contract",
+                nominal_use.canonical_requirement_overload
+            )));
+            continue;
+        }
         if placement.resource_receipt.contract_fingerprint()
-            != nominal_use.selected_actual_envelope.contract_fingerprint
+            != nominal_use
+                .selected_actual_envelope
+                .contract_report_fingerprint
             || nominal_use.selected_actual_envelope.contract_commitment
                 != actual_contract.commitment
             || placement
@@ -443,7 +521,7 @@ pub fn validate_nominal_callback_placement_bindings(
             satisfaction_trait: nominal_use.satisfaction_trait,
             satisfaction_requirement: nominal_use.satisfaction_requirement,
             canonical_requirement_overload: nominal_use.canonical_requirement_overload.clone(),
-            boundary_calling_plan_report_fingerprint: realized_fingerprint,
+            boundary_calling_plan_report_fingerprint: realized_report_fingerprint,
             resource_receipt: placement.resource_receipt,
             boundary_entry_plan: validated.plan().clone(),
             private_materialization,
@@ -528,8 +606,13 @@ fn bound_private_callback_materialization(
             &signature,
         )
         .map_err(|error| error.to_string())?;
+        let commitment = psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(
+            validated.contract_commitment_digest(),
+        );
         if validated.plan() != &registrar.boundary_entry_plan
-            || validated.contract_fingerprint() != registrar.fingerprint
+            || validated.plan() != registrar.exact_boundary_entry_plan()
+            || validated.contract_fingerprint() != registrar.report_fingerprint
+            || commitment != registrar.commitment
         {
             return Err(
                 "the exact outbound registrar realization drifted from its retained fingerprint"
@@ -556,8 +639,13 @@ fn bound_private_callback_materialization(
         &context,
     )
     .map_err(|error| error.to_string())?;
+    let commitment = psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(
+        validated.contract_commitment_digest(),
+    );
     if validated.plan() != &registrar.boundary_entry_plan
-        || validated.contract_fingerprint() != registrar.fingerprint
+        || validated.plan() != registrar.exact_boundary_entry_plan()
+        || validated.contract_fingerprint() != registrar.report_fingerprint
+        || commitment != registrar.commitment
     {
         return Err(
             "the exact outbound registrar realization drifted from its retained fingerprint"
@@ -781,7 +869,10 @@ pub fn compute_boundary_calling_plans(
             boundary_trait,
             boundary_arguments,
             requirement_machine,
-            fingerprint: validated.contract_fingerprint(),
+            report_fingerprint: validated.contract_fingerprint(),
+            commitment: psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(
+                validated.contract_commitment_digest(),
+            ),
             boundary_entry_plan: validated.plan().clone(),
             exact_boundary_entry_plan: validated.plan().clone(),
             callback_binders: signature.callback_binders.clone(),
@@ -801,7 +892,8 @@ pub fn compute_boundary_calling_plans(
                 boundary_trait: realization.boundary_trait,
                 boundary_arguments: realization.boundary_arguments.clone(),
                 requirement_machine: realization.requirement_machine,
-                fingerprint: realization.fingerprint,
+                report_fingerprint: realization.report_fingerprint,
+                commitment: realization.commitment,
             },
         );
     }
@@ -869,7 +961,8 @@ pub fn close_outbound_callback_materializations(
             ]);
         }
 
-        let old_fingerprint = realization.fingerprint;
+        let old_report_fingerprint = realization.report_fingerprint;
+        let old_commitment = realization.commitment;
         let mut signature = realization.materialized_signature.clone();
         signature.callback_demands = demands.clone();
         let validated = evaluate_materialized_calling_policy_plan(
@@ -916,7 +1009,11 @@ pub fn close_outbound_callback_materializations(
             ]
         })?;
         let new_fingerprint = validated.contract_fingerprint();
-        realization.fingerprint = new_fingerprint;
+        realization.report_fingerprint = new_fingerprint;
+        realization.commitment =
+            psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(
+                validated.contract_commitment_digest(),
+            );
         realization.boundary_entry_plan = validated.plan().clone();
         realization.exact_boundary_entry_plan = validated.plan().clone();
         realization.callback_demands = demands;
@@ -928,29 +1025,52 @@ pub fn close_outbound_callback_materializations(
                 boundary_trait: realization.boundary_trait,
                 boundary_arguments: realization.boundary_arguments.clone(),
                 requirement_machine: realization.requirement_machine,
-                fingerprint: new_fingerprint,
+                report_fingerprint: new_fingerprint,
+                commitment: realization.commitment,
             },
         );
-        for nominal_use in &mut checked.facts.nominal_machine_uses.uses {
-            if nominal_use.satisfaction_trait == realization.boundary_trait
-                && nominal_use.satisfaction_requirement == realization.requirement_machine
-                && nominal_use.callback_placement.is_some_and(|placement| {
-                    placement.boundary_calling_plan_fingerprint == old_fingerprint
-                })
-            {
-                let resource_receipt = nominal_use
-                    .callback_placement
-                    .expect("matched callback placement")
-                    .resource_receipt;
-                nominal_use.callback_placement =
-                    Some(psi_checked_trees::CheckedCallbackPlacementIdentity {
-                        boundary_calling_plan_fingerprint: new_fingerprint,
-                        resource_receipt,
-                    });
-            }
-        }
+        reconcile_closed_callback_plan_identity(
+            &mut checked.facts.nominal_machine_uses.uses,
+            realization.boundary_trait,
+            realization.requirement_machine,
+            old_report_fingerprint,
+            old_commitment,
+            new_fingerprint,
+            realization.commitment,
+        );
     }
     Ok(())
+}
+
+fn reconcile_closed_callback_plan_identity(
+    nominal_uses: &mut [psi_checked_trees::CheckedNominalMachineUse],
+    boundary_trait: psi_symbols::SymbolHandle,
+    requirement_machine: psi_symbols::SymbolHandle,
+    old_report_fingerprint: u64,
+    old_commitment: psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment,
+    new_report_fingerprint: u64,
+    new_commitment: psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment,
+) {
+    for nominal_use in nominal_uses {
+        if nominal_use.satisfaction_trait == boundary_trait
+            && nominal_use.satisfaction_requirement == requirement_machine
+            && nominal_use.callback_placement.is_some_and(|placement| {
+                placement.boundary_calling_plan_report_fingerprint == old_report_fingerprint
+                    && placement.boundary_calling_plan_commitment == old_commitment
+            })
+        {
+            let resource_receipt = nominal_use
+                .callback_placement
+                .expect("matched callback placement")
+                .resource_receipt;
+            nominal_use.callback_placement =
+                Some(psi_checked_trees::CheckedCallbackPlacementIdentity {
+                    boundary_calling_plan_report_fingerprint: new_report_fingerprint,
+                    boundary_calling_plan_commitment: new_commitment,
+                    resource_receipt,
+                });
+        }
+    }
 }
 
 fn boundary_policy_instances(
@@ -3001,7 +3121,10 @@ mod tests {
             &CallSignature::default(),
         )
         .expect("empty ordinary boundary plan");
-        let fingerprint = validated.contract_fingerprint();
+        let report_fingerprint = validated.contract_fingerprint();
+        let commitment = psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(
+            validated.contract_commitment_digest(),
+        );
         let boundary_trait = psi_symbols::SymbolHandle::from_arena_index(1);
         let requirement = psi_symbols::SymbolHandle::from_arena_index(2);
         let registration_operation = psi_symbols::SymbolHandle::from_arena_index(3);
@@ -3032,26 +3155,27 @@ mod tests {
             canonical_requirement_overload: "Handler::call(i32)->i32".to_owned(),
             published_requirement_envelope:
                 psi_checked_trees::CheckedMachineContractEnvelopeIdentity {
-                    contract_fingerprint: 6,
+                    contract_report_fingerprint: 6,
                     contract_commitment: psi_checked_trees::MachineContractCommitment::from_digest(
                         [6; 32],
                     ),
                 },
             selected_actual_envelope: psi_checked_trees::CheckedMachineContractEnvelopeIdentity {
-                contract_fingerprint: selected_actual_fingerprint,
+                contract_report_fingerprint: selected_actual_fingerprint,
                 contract_commitment: psi_checked_trees::MachineContractCommitment::from_digest(
                     [8; 32],
                 ),
             },
             callback_placement: Some(psi_checked_trees::CheckedCallbackPlacementIdentity {
-                boundary_calling_plan_fingerprint: fingerprint,
+                boundary_calling_plan_report_fingerprint: report_fingerprint,
+                boundary_calling_plan_commitment: commitment,
                 resource_receipt,
             }),
             refinement: psi_checked_trees::CheckedMachineContractRefinement {
-                published_requirement_fingerprint: 6,
+                published_requirement_report_fingerprint: 6,
                 published_requirement_commitment:
                     psi_checked_trees::MachineContractCommitment::from_digest([6; 32]),
-                selected_actual_fingerprint,
+                selected_actual_report_fingerprint: selected_actual_fingerprint,
                 selected_actual_commitment:
                     psi_checked_trees::MachineContractCommitment::from_digest([8; 32]),
             },
@@ -3064,6 +3188,15 @@ mod tests {
             fingerprint: selected_actual_fingerprint,
             commitment: psi_checked_trees::MachineContractCommitment::from_digest([8; 32]),
         }];
+        checked.facts.contract_plans.crash_capsules = vec![
+            psi_checked_trees::CrashContractCapsule::new_with_commitment(
+                boundary_trait,
+                requirement,
+                6,
+                psi_checked_trees::MachineContractCommitment::from_digest([6; 32]),
+                Vec::new(),
+            ),
+        ];
         checked.facts.contract_plans.realized_envelopes = vec![
             psi_checked_trees::RealizedMachineContractEnvelope {
                 machine: selected_machine,
@@ -3096,7 +3229,8 @@ mod tests {
             boundary_trait,
             boundary_arguments: Vec::new(),
             requirement_machine: requirement,
-            fingerprint,
+            report_fingerprint,
+            commitment,
             boundary_entry_plan: validated.plan().clone(),
             exact_boundary_entry_plan: validated.plan().clone(),
             callback_binders: Vec::new(),
@@ -3114,7 +3248,8 @@ mod tests {
             boundary_trait: psi_symbols::SymbolHandle::from_arena_index(9),
             boundary_arguments: Vec::new(),
             requirement_machine: registration_operation,
-            fingerprint,
+            report_fingerprint,
+            commitment,
             boundary_entry_plan: validated.plan().clone(),
             exact_boundary_entry_plan: validated.plan().clone(),
             callback_binders: vec![BoundaryCallbackBinder {
@@ -3164,7 +3299,7 @@ mod tests {
         );
         assert_eq!(
             bound.boundary_calling_plan_report_fingerprint,
-            realizations[0].fingerprint
+            realizations[0].report_fingerprint
         );
         assert_eq!(
             bound.boundary_entry_plan,
@@ -3189,7 +3324,9 @@ mod tests {
         let foreign = psi_checked_trees::CheckedEntryResourceEnvelope::from_checked_contract(
             nominal_use.selected_machine,
             psi_symbols::SymbolHandle::from_arena_index(17),
-            nominal_use.selected_actual_envelope.contract_fingerprint,
+            nominal_use
+                .selected_actual_envelope
+                .contract_report_fingerprint,
         );
         nominal_use
             .callback_placement
@@ -3249,13 +3386,17 @@ mod tests {
             }],
             demands: realization.callback_demands.clone(),
         };
-        realization.fingerprint = validate_boundary_entry_plan_with_callback_materializations(
+        let validated = validate_boundary_entry_plan_with_callback_materializations(
             realization.boundary_entry_plan.clone(),
             &signature,
             &context,
         )
-        .unwrap()
-        .contract_fingerprint();
+        .unwrap();
+        realization.report_fingerprint = validated.contract_fingerprint();
+        realization.commitment =
+            psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(
+                validated.contract_commitment_digest(),
+            );
         realization.exact_boundary_entry_plan = realization.boundary_entry_plan.clone();
         let bound = validate_nominal_callback_placement_bindings(&checked, &realizations)
             .expect("exact retained callback context should replay");
@@ -3273,7 +3414,7 @@ mod tests {
         );
         assert_eq!(
             retained.registrar_calling_plan_report_fingerprint,
-            realizations[1].fingerprint
+            realizations[1].report_fingerprint
         );
 
         let mut ordinal_drift = checked.clone();
@@ -3418,13 +3559,51 @@ mod tests {
             .callback_placement
             .as_mut()
             .expect("callback placement")
-            .boundary_calling_plan_fingerprint ^= 1;
+            .boundary_calling_plan_report_fingerprint ^= 1;
         let drift = validate_nominal_callback_placement_bindings(&checked, &realizations)
             .expect_err("a changed target plan identity must reject");
         assert!(
             drift[0]
                 .message
                 .contains("does not bind its exact evaluated target calling plan")
+        );
+
+        let (mut compact_equal_checked, compact_equal_realizations) = nominal_callback_fixture();
+        compact_equal_checked.facts.nominal_machine_uses.uses[0]
+            .callback_placement
+            .as_mut()
+            .expect("callback placement")
+            .boundary_calling_plan_commitment =
+            psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest([0x5a; 32]);
+        let substitution = validate_nominal_callback_placement_bindings(
+            &compact_equal_checked,
+            &compact_equal_realizations,
+        )
+        .expect_err("a compact-equal strong-plan substitution must reject");
+        assert!(
+            substitution[0]
+                .message
+                .contains("does not bind its exact evaluated target calling plan")
+        );
+
+        let (mut published_substitution, published_realizations) = nominal_callback_fixture();
+        let substituted_contract =
+            psi_checked_trees::MachineContractCommitment::from_digest([0x6a; 32]);
+        published_substitution.facts.nominal_machine_uses.uses[0]
+            .published_requirement_envelope
+            .contract_commitment = substituted_contract;
+        published_substitution.facts.nominal_machine_uses.uses[0]
+            .refinement
+            .published_requirement_commitment = substituted_contract;
+        let substitution = validate_nominal_callback_placement_bindings(
+            &published_substitution,
+            &published_realizations,
+        )
+        .expect_err("a compact-equal published requirement substitution must reject");
+        assert!(
+            substitution[0]
+                .message
+                .contains("does not bind its exact published requirement contract")
         );
 
         checked.facts.nominal_machine_uses.uses[0].callback_placement = None;
@@ -3435,6 +3614,50 @@ mod tests {
                 .message
                 .contains("lost its evaluated boundary calling-plan identity")
         );
+    }
+
+    #[test]
+    fn callback_closure_reconciliation_requires_the_preclosure_strong_commitment() {
+        let (mut checked, realizations) = nominal_callback_fixture();
+        let realization = &realizations[0];
+        let original = checked.facts.nominal_machine_uses.uses[0]
+            .callback_placement
+            .expect("callback placement");
+        let substituted_old =
+            psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest([0x5a; 32]);
+        let closed =
+            psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest([0x6b; 32]);
+
+        reconcile_closed_callback_plan_identity(
+            &mut checked.facts.nominal_machine_uses.uses,
+            realization.boundary_trait,
+            realization.requirement_machine,
+            realization.report_fingerprint,
+            substituted_old,
+            0xfeed,
+            closed,
+        );
+        assert_eq!(
+            checked.facts.nominal_machine_uses.uses[0].callback_placement,
+            Some(original),
+            "compact equality without the pre-closure commitment must not rewrite custody"
+        );
+
+        reconcile_closed_callback_plan_identity(
+            &mut checked.facts.nominal_machine_uses.uses,
+            realization.boundary_trait,
+            realization.requirement_machine,
+            realization.report_fingerprint,
+            realization.commitment,
+            0xfeed,
+            closed,
+        );
+        let reconciled = checked.facts.nominal_machine_uses.uses[0]
+            .callback_placement
+            .expect("reconciled callback placement");
+        assert_eq!(reconciled.boundary_calling_plan_report_fingerprint, 0xfeed);
+        assert_eq!(reconciled.boundary_calling_plan_commitment, closed);
+        assert_eq!(reconciled.resource_receipt, original.resource_receipt);
     }
 
     fn four_f32_array_signature() -> MaterializedBoundarySignature {

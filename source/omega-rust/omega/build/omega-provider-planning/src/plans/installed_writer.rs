@@ -564,6 +564,7 @@ fn validate_selected_provider_writer_source(
         prepared.selected_requirement_identity(),
         prepared.selected_boundary_parameter_count(),
         prepared.selected_boundary_contract_report_fingerprint(),
+        prepared.selected_boundary_contract_commitment(),
         prepared.selected_entry_claims(),
         prepared
             .provider_execution()
@@ -581,6 +582,7 @@ fn validate_selected_provider_written_source(
         written.selected_requirement_identity(),
         written.selected_boundary_parameter_count(),
         written.selected_boundary_contract_report_fingerprint(),
+        written.selected_boundary_contract_commitment(),
         written.selected_entry_claims(),
         written.provider_execution().provider_plan_report_identity(),
         written.provider_plan_digest(),
@@ -592,6 +594,7 @@ fn validate_selected_provider_source(
     requirement_identity: &str,
     boundary_parameter_count: usize,
     boundary_contract_report_fingerprint: u64,
+    boundary_contract_commitment: omega_effects::provider_plan::BoundaryCallingPlanCommitment,
     root_entry_claims: &[omega_external_roots::ExternalRootEntryClaim],
     provider_plan: u64,
     provider_plan_digest: omega_effects::provider_plan::ProviderPlanDigest,
@@ -623,7 +626,8 @@ fn validate_selected_provider_source(
         || method.requirement_owner.is_empty()
         || method.parameter_count != boundary_parameter_count
         || method.parameter_type_identities.len() != method.parameter_count
-        || method.calling_plan_fingerprint != Some(boundary_contract_report_fingerprint)
+        || method.calling_plan_report_fingerprint != Some(boundary_contract_report_fingerprint)
+        || method.calling_plan_commitment != Some(boundary_contract_commitment)
         || selected_entry_claims != root_entry_claims
     {
         return Err(psi_layout_plans::MaterializationDiagnostic(
@@ -1021,6 +1025,7 @@ impl SelectedExternalRootProviderPlan {
             execution.selected_requirement_identity(),
             execution.selected_boundary_parameter_count(),
             execution.selected_boundary_contract_report_fingerprint(),
+            execution.selected_boundary_contract_commitment(),
             execution.selected_entry_claims(),
             execution.provider_plan().normalized_identity(),
             execution.provider_plan_digest(),

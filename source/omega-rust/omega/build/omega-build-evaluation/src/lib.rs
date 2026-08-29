@@ -1622,6 +1622,24 @@ pub fn validate_selected_program_entry_calling_plan(
             physical_matching.len(),
         ))]);
     };
+    for (role, realization) in [
+        ("semantic", *semantic_realization),
+        ("physical", *physical_realization),
+    ] {
+        let validated = realization.replayed_validated_plan().map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "target boundary schema `{schema_name}` retains an invalid {role} calling plan: {error}"
+            ))]
+        })?;
+        if realization.exact_boundary_entry_plan() != validated.plan()
+            || realization.report_fingerprint != validated.contract_fingerprint()
+            || realization.commitment.as_bytes() != validated.contract_commitment_digest()
+        {
+            return Err(vec![Diagnostic::error(format!(
+                "target boundary schema `{schema_name}` does not retain exact {role} calling-plan identity and custody"
+            ))]);
+        }
+    }
     let expected_physical = match physical_convention {
         omega_target::ProgramEntryCallingConvention::MicrosoftX64 => {
             omega_calling_conventions::CallingPolicy::MicrosoftX64
@@ -1684,7 +1702,7 @@ pub fn validate_selected_program_entry_calling_plan(
             .map(|parameter| parameter.identity.into_string())
             .collect(),
         result_type_identity.into_string(),
-        physical_realization.fingerprint,
+        physical_realization.report_fingerprint,
         physical_realization.boundary_entry_plan.clone(),
     )
     .map_err(|diagnostic| vec![Diagnostic::error(diagnostic)])?;

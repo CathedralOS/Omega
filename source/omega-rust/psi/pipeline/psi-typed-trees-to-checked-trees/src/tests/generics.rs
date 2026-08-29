@@ -312,19 +312,23 @@ fn nominal_machine_parameter_accepts_one_explicit_exact_satisfaction_row() {
     assert_eq!(
         nominal_use
             .published_requirement_envelope
-            .contract_fingerprint,
+            .contract_report_fingerprint,
         published_fingerprint
     );
     assert_eq!(
-        nominal_use.selected_actual_envelope.contract_fingerprint,
+        nominal_use
+            .selected_actual_envelope
+            .contract_report_fingerprint,
         actual_fingerprint
     );
     assert_eq!(
-        nominal_use.refinement.published_requirement_fingerprint,
+        nominal_use
+            .refinement
+            .published_requirement_report_fingerprint,
         published_fingerprint
     );
     assert_eq!(
-        nominal_use.refinement.selected_actual_fingerprint,
+        nominal_use.refinement.selected_actual_report_fingerprint,
         actual_fingerprint
     );
     assert_eq!(nominal_use.callback_placement, None);
@@ -594,7 +598,10 @@ fn nominal_callback_use_retains_exact_evaluated_placement_identity() {
         boundary_trait: handler_symbol,
         boundary_arguments: Vec::new(),
         requirement_machine: requirement_symbol,
-        fingerprint: expected_fingerprint,
+        report_fingerprint: expected_fingerprint,
+        commitment: psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(
+            [0x2a; 32],
+        ),
     });
 
     let checked = lower_typed_trees(typed).expect("nominal callback selection should check");
@@ -606,7 +613,7 @@ fn nominal_callback_use_retains_exact_evaluated_placement_identity() {
         .callback_placement
         .expect("nominal callback placement identity");
     assert_eq!(
-        callback_placement.boundary_calling_plan_fingerprint,
+        callback_placement.boundary_calling_plan_report_fingerprint,
         expected_fingerprint
     );
     let published = checked
@@ -621,7 +628,7 @@ fn nominal_callback_use_retains_exact_evaluated_placement_identity() {
         published.target_contract_fingerprint(),
         nominal_use
             .published_requirement_envelope
-            .contract_fingerprint
+            .contract_report_fingerprint
     );
     assert!(published.published_service_reach().is_empty());
     assert!(published.published_synchronous_invocations().is_empty());
@@ -639,7 +646,9 @@ fn nominal_callback_use_retains_exact_evaluated_placement_identity() {
         .expect("selected callback actual envelope");
     assert_eq!(
         actual.contract_fingerprint,
-        nominal_use.selected_actual_envelope.contract_fingerprint
+        nominal_use
+            .selected_actual_envelope
+            .contract_report_fingerprint
     );
     assert!(actual.effective_service_reach.is_empty());
     assert!(actual.effective_synchronous_invocations.is_empty());
@@ -655,7 +664,9 @@ fn nominal_callback_use_retains_exact_evaluated_placement_identity() {
     assert_eq!(resources.entry(), nominal_use.selected_entry);
     assert_eq!(
         resources.contract_fingerprint(),
-        nominal_use.selected_actual_envelope.contract_fingerprint
+        nominal_use
+            .selected_actual_envelope
+            .contract_report_fingerprint
     );
     assert_eq!(
         resources.stack().derivation_obligation(),
@@ -798,10 +809,14 @@ fn nominal_machine_use_identity_survives_forwarded_specialization_rounds() {
     assert!(selected_uses.iter().all(|nominal_use| {
         nominal_use
             .published_requirement_envelope
-            .contract_fingerprint
-            == nominal_use.refinement.published_requirement_fingerprint
-            && nominal_use.selected_actual_envelope.contract_fingerprint
-                == nominal_use.refinement.selected_actual_fingerprint
+            .contract_report_fingerprint
+            == nominal_use
+                .refinement
+                .published_requirement_report_fingerprint
+            && nominal_use
+                .selected_actual_envelope
+                .contract_report_fingerprint
+                == nominal_use.refinement.selected_actual_report_fingerprint
     }));
     assert_eq!(
         selected_uses[0].published_requirement_envelope,
@@ -2040,8 +2055,16 @@ fn explicit_conformance_binder_selects_and_substitutes_one_closed_map() {
         .find(|specialization| specialization.conformance_arguments == [selected])
         .expect("specialization retains the exact conformance argument");
     assert!(specialization.machine_arguments.is_empty());
-    assert_eq!(specialization.conformance_argument_fingerprints.len(), 1);
-    assert_ne!(specialization.conformance_argument_fingerprints[0], 0);
+    assert_eq!(
+        specialization
+            .conformance_argument_report_fingerprints
+            .len(),
+        1
+    );
+    assert_ne!(
+        specialization.conformance_argument_report_fingerprints[0],
+        0
+    );
     let selected_row = checked
         .conformances()
         .iter()
@@ -2125,8 +2148,8 @@ fn explicit_conformance_binders_keep_distinct_closed_maps_as_distinct_instances(
     assert_ne!(instances[0].instance, instances[1].instance);
     assert_ne!(instances[0].fingerprint, instances[1].fingerprint);
     assert_ne!(
-        instances[0].conformance_argument_fingerprints,
-        instances[1].conformance_argument_fingerprints
+        instances[0].conformance_argument_report_fingerprints,
+        instances[1].conformance_argument_report_fingerprints
     );
 }
 
@@ -2181,7 +2204,7 @@ fn nested_generic_conformance_application_closes_its_own_telescope() {
     assert_eq!(application.trait_arguments.len(), 1);
     assert_ne!(application.report_fingerprint, 0);
     assert_eq!(
-        specialization.conformance_argument_fingerprints,
+        specialization.conformance_argument_report_fingerprints,
         [application.report_fingerprint]
     );
 }
@@ -3565,16 +3588,16 @@ fn accepted_template_instances_share_one_commitment_and_pin_argument_contracts()
     assert!(instances.iter().all(|instance| {
         instance.accepted_template_commitment.as_deref() == Some("admitted")
             && instance.template_contract_fingerprint != 0
-            && instance.machine_argument_contract_fingerprints.len() == 1
-            && instance.machine_argument_contract_fingerprints[0] != 0
+            && instance.machine_argument_contract_report_fingerprints.len() == 1
+            && instance.machine_argument_contract_report_fingerprints[0] != 0
     }));
     assert_eq!(
         instances[0].template_contract_fingerprint,
         instances[1].template_contract_fingerprint
     );
     assert_ne!(
-        instances[0].machine_argument_contract_fingerprints,
-        instances[1].machine_argument_contract_fingerprints
+        instances[0].machine_argument_contract_report_fingerprints,
+        instances[1].machine_argument_contract_report_fingerprints
     );
     assert_ne!(instances[0].fingerprint, instances[1].fingerprint);
 }

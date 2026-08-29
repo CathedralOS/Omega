@@ -348,6 +348,7 @@ dependencies = [
  "psi-extents",
  "psi-layout-plans",
  "psi-symbols",
+ "psi-typed-trees",
  "serde_json",
 ]
 
@@ -445,6 +446,7 @@ version = "0.1.0"
 dependencies = [
  "omega-target",
  "psi-arena",
+ "sha2",
 ]
 
 [[package]]
@@ -1177,6 +1179,7 @@ dependencies = [
  "psi-tokens-to-syntax-trees",
  "psi-typed-trees",
  "psi-typed-trees-to-checked-trees",
+ "sha2",
 ]
 
 [[package]]

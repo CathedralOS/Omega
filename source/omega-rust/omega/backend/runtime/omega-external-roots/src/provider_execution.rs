@@ -320,6 +320,14 @@ impl PreparedExternalRootPostHandoffWriterInvocation {
         self.root_evidence.boundary_contract_report_fingerprint
     }
 
+    pub fn selected_boundary_contract_commitment(
+        &self,
+    ) -> omega_effects::provider_plan::BoundaryCallingPlanCommitment {
+        omega_effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(
+            self.root_evidence.boundary.contract_commitment_digest(),
+        )
+    }
+
     pub fn selected_entry_claims(&self) -> &[ExternalRootEntryClaim] {
         &self.root_evidence.candidate.entry_claims
     }
@@ -469,6 +477,14 @@ impl<'mapping, 'bytes> WrittenExternalRootPostHandoffWriterDestination<'mapping,
 
     pub const fn selected_boundary_contract_report_fingerprint(&self) -> u64 {
         self.root_evidence.boundary_contract_report_fingerprint
+    }
+
+    pub fn selected_boundary_contract_commitment(
+        &self,
+    ) -> omega_effects::provider_plan::BoundaryCallingPlanCommitment {
+        omega_effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(
+            self.root_evidence.boundary.contract_commitment_digest(),
+        )
     }
 
     pub fn selected_entry_claims(&self) -> &[ExternalRootEntryClaim] {
@@ -916,6 +932,14 @@ impl ProviderExecution {
 
     pub const fn selected_boundary_contract_report_fingerprint(&self) -> u64 {
         self.root_evidence.boundary_contract_report_fingerprint
+    }
+
+    pub fn selected_boundary_contract_commitment(
+        &self,
+    ) -> omega_effects::provider_plan::BoundaryCallingPlanCommitment {
+        omega_effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(
+            self.root_evidence.boundary.contract_commitment_digest(),
+        )
     }
 
     pub fn selected_entry_claims(&self) -> &[ExternalRootEntryClaim] {

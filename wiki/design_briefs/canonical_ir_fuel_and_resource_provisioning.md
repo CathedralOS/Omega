@@ -424,6 +424,17 @@ non-authoritative report/cache coordinate only; installation and suspension-
 free admission compare the retained demand and evidence rather than accepting
 fingerprint equality.
 
+The final native-fuel transfer-runtime carrier likewise exposes its aggregate
+FNV only as a report/cache coordinate. Evidence remains the exact transfer
+plan, the separate unrelocated and final byte rows for both runtime entries,
+the complete physical state footprint, and the sponsor-stack peak; installation
+must independently rejoin those facts to installed code and sponsor authority.
+The installed sponsor-route carrier therefore retains exact transfer-code
+custody: the admitted plan, terminal Psi identity, opaque installed-occurrence
+context, runtime evidence, and sponsor coordinate. Executable runtime binding
+compares that custody structurally. The aggregate transfer-code and route FNVs
+remain report coordinates and cannot authorize a compact-equal substitution.
+
 A sponsor may execute a certified entry natively without runtime metering when
 trusted lowering and installation establish that the executing bytes came
 from the certified Psi module and the proved ceiling fits the granted fuel. Psi

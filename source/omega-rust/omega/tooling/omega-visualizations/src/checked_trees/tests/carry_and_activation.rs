@@ -149,7 +149,10 @@ fn task_activation_manifest_retains_exact_target_overload_identity() {
             start_requirement: SymbolHandle::invalid(),
             target_machine: machine_symbol,
             target_entry: state_symbol,
-            specialization_fingerprint: 0x1234,
+            specialization_report_fingerprint: 0x1234,
+            specialization_commitment: omega_task_plans::TaskSpecializationCommitment::from_digest(
+                [0x12; 32],
+            ),
             operation: omega_task_plans::TaskStartOperation::Start,
             selected_runtime: omega_task_plans::SelectedTaskRuntimeProviderFact {
                 runtime: omega_task_plans::TaskRuntimeId::from_normalized_identity(7)
@@ -167,5 +170,11 @@ fn task_activation_manifest_retains_exact_target_overload_identity() {
     assert!(
         json.contains("\"target_machine_overload_identity\": \"named-callable(path(Worker::run)")
     );
+    assert!(json.contains("\"specialization_report_fingerprint\": \"0x0000000000001234\""));
+    assert!(json.contains(&format!(
+        "\"specialization_commitment\": \"{}\"",
+        "12".repeat(32)
+    )));
+    assert!(!json.contains("\"specialization_fingerprint\""));
     assert!(json.contains("\"activation_plan_id\": \"0x"));
 }

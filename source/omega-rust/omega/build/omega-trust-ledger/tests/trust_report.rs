@@ -149,7 +149,7 @@ machine Main::exercise(&mut self) {
     let empty_selected_closure =
         omega_effects::SelectedProviderPlanFacts::default().normalized_identity();
     assert!(report.contains(&format!(
-        "selected provider closure: {empty_selected_closure:016x}"
+        "selected provider closure report fingerprint: {empty_selected_closure:016x}"
     )));
     assert!(
         report.contains("admitted commitments: 0"),
@@ -223,7 +223,7 @@ machine Main::exercise(&mut self) {}
         .find(|line| line.contains("accepted fact: combine_commutative"))
         .expect("accepted claim row");
     assert!(accepted_row.contains(&format!(
-        "machine contract: {expected_contract_fingerprint:016x}"
+        "machine contract report fingerprint: {expected_contract_fingerprint:016x}"
     )));
     assert!(accepted_row.contains("service reach: AlgebraAudit"));
     assert!(accepted_row.contains("synchronous invocations: parameter:0"));
@@ -732,7 +732,7 @@ machine Main::exercise(&mut self) {{
         .find(|line| line.starts_with("- accepted fact: admitted_axis --"))
         .expect("nongeneric accepted row");
     assert!(
-        !admitted_row.contains("accepted template:"),
+        !admitted_row.contains("accepted template report fingerprint:"),
         "nongeneric accepted rows have no universal template identity:\n{admitted_row}"
     );
     assert!(report.contains("generic accepted instances: 0"));
@@ -829,13 +829,15 @@ machine Main::exercise(&mut self) {{
         "one universal template grant should produce one trust row:\n{report}"
     );
     assert!(
-        admitted_rows[0].contains(&format!("accepted template: {receipt_identity}")),
+        admitted_rows[0].contains(&format!(
+            "accepted template report fingerprint: {receipt_identity}"
+        )),
         "the trust row must publish the exact receipt identity:\n{}",
         admitted_rows[0]
     );
     let instance_rows = report
         .lines()
-        .filter(|line| line.starts_with("- accepted template: admitted ["))
+        .filter(|line| line.starts_with("- accepted template: admitted --"))
         .collect::<Vec<_>>();
     assert_eq!(
         instance_rows.len(),
@@ -845,7 +847,7 @@ machine Main::exercise(&mut self) {{
     assert!(
         instance_rows
             .iter()
-            .all(|line| line.contains(&format!("admitted [{receipt_identity}]")))
+            .all(|line| line.contains(&format!("template report fingerprint: {receipt_identity}")))
     );
     assert_ne!(
         instance_rows[0], instance_rows[1],
@@ -869,13 +871,13 @@ machine Main::exercise(&mut self) {{
     assert!(
         instance_rows
             .iter()
-            .all(|line| !line.contains("machine argument contracts: none")),
+            .all(|line| !line.contains("machine argument contract report fingerprints: none")),
         "each instance must retain its selected machine contract identity"
     );
     assert!(
         instance_rows
             .iter()
-            .all(|line| !line.ends_with("conformance arguments: none")),
+            .all(|line| !line.contains("conformance argument report fingerprints: none")),
         "each instance must retain its selected closed conformance identity"
     );
     let manifest = std::fs::read_to_string(build_dir.join("05_machine_contracts.json"))
@@ -883,7 +885,7 @@ machine Main::exercise(&mut self) {{
     let instance_contract_fingerprints = instance_rows
         .iter()
         .map(|line| {
-            line.split_once("instance contract: ")
+            line.split_once("instance contract report fingerprint: ")
                 .and_then(|(_, rest)| rest.split_once(" --"))
                 .map(|(fingerprint, _)| fingerprint)
                 .expect("generic accepted instance must render its exact checked contract")
@@ -899,7 +901,7 @@ machine Main::exercise(&mut self) {{
     assert!(manifest.contains("\"type_argument_identities\": [\"named(name(Card))\"]"));
     assert!(manifest.contains("\"const_argument_identities\": [\"named(integer-const(1))\"]"));
     assert!(manifest.contains("\"const_argument_identities\": [\"named(integer-const(2))\"]"));
-    assert!(manifest.contains("\"machine_argument_contract_fingerprints\": [\"0x"));
+    assert!(manifest.contains("\"machine_argument_contract_report_fingerprints\": [\"0x"));
 
     // Changing the authored machine-parameter contract changes the universal
     // template statement under the existing grant. The lockfile gate runs
@@ -1030,7 +1032,7 @@ machine Main::exercise(&mut self) {
     let requirement_row = report
         .lines()
         .find(|line| {
-            line.contains("provider plan: satisfies::Flags [")
+            line.contains("provider plan: satisfies::Flags -- plan report fingerprint:")
                 && line.contains("requirement identity:")
         })
         .expect("exact claim-free provider requirement row");
@@ -1038,7 +1040,8 @@ machine Main::exercise(&mut self) {
     assert!(requirement_row.contains("service schema: Flags"));
     assert!(requirement_row.contains("provider type: <free external>"));
     assert!(requirement_row.contains("target: <all>"));
-    assert!(requirement_row.contains("calling plan: <none>"));
+    assert!(requirement_row.contains("calling plan report fingerprint: <none>"));
+    assert!(requirement_row.contains("calling plan commitment: <none>"));
     assert!(requirement_row.contains("parameter types: <none>"));
     assert!(requirement_row.contains("result type: named(name(i32))"));
     assert!(requirement_row.contains("named-callable(path(Flags::open_read)"));
@@ -1110,7 +1113,7 @@ machine Main::exercise(&mut self) {}
         .expect("Tick service schema");
     let method = &schema.methods[0];
     let expected = method
-        .calling_plan_fingerprint
+        .calling_plan_report_fingerprint
         .expect("evaluated calling-plan identity");
     assert!(method.parameter_type_identities.is_empty());
     assert_eq!(method.result_type_identity, None);
@@ -1125,16 +1128,17 @@ machine Main::exercise(&mut self) {}
     let report = std::fs::read_to_string(build_dir.join("trust_report.md"))
         .expect("trust report should be written");
     assert!(report.contains(&format!(
-        "selected provider closure: {expected_selected_closure:016x}"
+        "selected provider closure report fingerprint: {expected_selected_closure:016x}"
     )));
     let requirement = report
         .lines()
         .find(|line| {
-            line.contains("provider plan: satisfies::Tick [")
+            line.contains("provider plan: satisfies::Tick -- plan report fingerprint:")
                 && line.contains("requirement identity:")
         })
         .expect("Tick provider requirement row");
-    assert!(requirement.contains(&format!("calling plan: {expected:016x}")));
+    assert!(requirement.contains(&format!("calling plan report fingerprint: {expected:016x}")));
+    assert!(requirement.contains("calling plan commitment: 0x"));
     assert!(requirement.contains("service schema: Tick"));
     assert!(requirement.contains("parameter types: <none>"));
     assert!(requirement.contains("result type: <none>"));
@@ -1189,7 +1193,8 @@ machine Main::exercise(&mut self) {}
     let effectful = report
         .lines()
         .find(|line| {
-            line.contains("provider plan: satisfies::Pair [") && line.contains("method: effectful")
+            line.contains("provider plan: satisfies::Pair -- plan report fingerprint:")
+                && line.contains("method: effectful")
         })
         .expect("effectful provider requirement row");
     assert!(effectful.contains("provider origin package: <none>"));
@@ -1203,7 +1208,8 @@ machine Main::exercise(&mut self) {}
     let quiet = report
         .lines()
         .find(|line| {
-            line.contains("provider plan: satisfies::Pair [") && line.contains("method: quiet")
+            line.contains("provider plan: satisfies::Pair -- plan report fingerprint:")
+                && line.contains("method: quiet")
         })
         .expect("quiet provider requirement row");
     assert!(quiet.contains("service reach: Pair"));
@@ -1264,7 +1270,7 @@ machine Main::exercise(&mut self) {}
     let requirement = report
         .lines()
         .find(|line| {
-            line.contains("provider plan: satisfies::SchedulerRuntime [")
+            line.contains("provider plan: satisfies::SchedulerRuntime -- plan report fingerprint:")
                 && line.contains("method: wait")
         })
         .expect("wait provider requirement row");
@@ -1353,7 +1359,9 @@ machine Main::exercise(&mut self) {}
     let extent_rows = report
         .lines()
         .filter(|line| {
-            line.contains("provider plan: StorageEntryProvider::satisfies::StorageEntry [")
+            line.contains(
+                "provider plan: StorageEntryProvider::satisfies::StorageEntry -- plan report fingerprint:",
+            )
                 && line.contains("subject: parameter:")
         })
         .collect::<Vec<_>>();
@@ -1363,7 +1371,7 @@ machine Main::exercise(&mut self) {}
         "expected one routed parameter row:\n{report}"
     );
     let entry_row = extent_rows[0];
-    assert!(entry_row.contains(&format!("[{extent_fingerprint}]")));
+    assert!(entry_row.contains(&format!("plan report fingerprint: {extent_fingerprint}")));
     assert!(entry_row.contains("provider type: StorageEntryProvider"));
     assert!(entry_row.contains("target: <all>"));
     assert!(entry_row.contains("provider origin package: <none>"));
@@ -1387,7 +1395,8 @@ machine Main::exercise(&mut self) {}
     let result_row = report
         .lines()
         .find(|line| {
-            line.contains("provider plan: satisfies::Issuer [") && line.contains("subject: result")
+            line.contains("provider plan: satisfies::Issuer -- plan report fingerprint:")
+                && line.contains("subject: result")
         })
         .expect("routed result row");
     assert!(result_row.contains("provider type: <free external>"));
@@ -1457,7 +1466,8 @@ machine Main::exercise(&mut self) {}
     let row = report
         .lines()
         .find(|line| {
-            line.contains("provider plan: satisfies::Issuer [") && line.contains("subject: result")
+            line.contains("provider plan: satisfies::Issuer -- plan report fingerprint:")
+                && line.contains("subject: result")
         })
         .expect("routed result row");
     assert!(row.contains("root grant (build.omg)"));
@@ -1575,7 +1585,8 @@ machine Main::exercise(&mut self) {}
     let qualification = report
         .lines()
         .find(|line| {
-            line.contains("provider plan: satisfies::Pair [") && line.contains("subject: result")
+            line.contains("provider plan: satisfies::Pair -- plan report fingerprint:")
+                && line.contains("subject: result")
         })
         .expect("bound result qualification row");
     assert!(qualification.contains("requirement identity: named-callable(path(Pair::bound)"));
@@ -1585,7 +1596,7 @@ machine Main::exercise(&mut self) {}
     assert!(qualification.contains("domain: Token::Bound"));
     assert!(!report.contains("subject: result -- flow: returns -- domain: Token::Unbound"));
     assert!(!report.lines().any(|line| {
-        line.contains("provider plan: satisfies::Pair [")
+        line.contains("provider plan: satisfies::Pair -- plan report fingerprint:")
             && line.contains("requirement identity: named-callable(path(Pair::unbound)")
     }));
 
@@ -1717,15 +1728,17 @@ machine Main::exercise(&mut self) {}
     let first_requirement = report
         .lines()
         .find(|line| {
-            line.contains("provider plan: FirstProvider::satisfies::Pair [")
-                && line.contains("requirement identity:")
+            line.contains(
+                "provider plan: FirstProvider::satisfies::Pair -- plan report fingerprint:",
+            ) && line.contains("requirement identity:")
         })
         .expect("first candidate requirement row");
     let second_requirement = report
         .lines()
         .find(|line| {
-            line.contains("provider plan: SecondProvider::satisfies::Pair [")
-                && line.contains("requirement identity:")
+            line.contains(
+                "provider plan: SecondProvider::satisfies::Pair -- plan report fingerprint:",
+            ) && line.contains("requirement identity:")
         })
         .expect("selected requirement row");
     assert!(first_requirement.contains("requirement owner: Pair"));

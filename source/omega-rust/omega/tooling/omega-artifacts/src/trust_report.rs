@@ -2,7 +2,7 @@
 
 use psi_diagnostics::Diagnostic;
 
-use super::{ArtifactWriter, TrustReport};
+use super::{ArtifactWriter, TrustReport, hex_bytes};
 
 impl ArtifactWriter {
     /// GR5: the chapter-10 trust report -- the proof-tier surface the
@@ -17,8 +17,9 @@ impl ArtifactWriter {
         let mut output = String::new();
         output.push_str("# Omega Trust\n\n");
         output.push_str(&format!(
-            "selected provider closure: {:016x}\n\n",
-            trust_report.selected_provider_closure_fingerprint
+            "selected provider closure report fingerprint: {:016x}\n\nselected provider closure digest: {}\n\n",
+            trust_report.selected_provider_closure_report_fingerprint,
+            hex_bytes(trust_report.selected_provider_closure_digest.as_bytes()),
         ));
         output.push_str(&format!(
             "admitted commitments: {}\n\n",
@@ -26,11 +27,21 @@ impl ArtifactWriter {
         ));
         for row in &trust_report.rows {
             output.push_str(&format!("- {} -- {}", row.commitment, row.provenance));
-            if let Some(fingerprint) = row.machine_contract_fingerprint {
-                output.push_str(&format!(" -- machine contract: {fingerprint:016x}"));
+            if let Some(fingerprint) = row.machine_contract_report_fingerprint {
+                output.push_str(&format!(
+                    " -- machine contract report fingerprint: {fingerprint:016x}"
+                ));
             }
-            if let Some(fingerprint) = row.machine_template_fingerprint {
-                output.push_str(&format!(" -- accepted template: {fingerprint:016x}"));
+            if let Some(commitment) = row.machine_contract_commitment {
+                output.push_str(&format!(
+                    " -- machine contract commitment: {}",
+                    hex_bytes(&commitment.as_bytes())
+                ));
+            }
+            if let Some(fingerprint) = row.machine_template_report_fingerprint {
+                output.push_str(&format!(
+                    " -- accepted template report fingerprint: {fingerprint:016x}"
+                ));
             }
             if let Some(service_reach) = &row.machine_service_reach {
                 output.push_str(" -- service reach: ");
@@ -99,11 +110,12 @@ impl ArtifactWriter {
         ));
         for row in &trust_report.generic_accepted_instances {
             output.push_str(&format!(
-                "- accepted template: {} [{:016x}] -- instance: {:016x} -- instance contract: {:016x} -- type argument identities: {} -- const argument identities: {} -- machine argument contracts: {} -- conformance arguments: {}\n",
+                "- accepted template: {} -- template report fingerprint: {:016x} -- instance report fingerprint: {:016x} -- instance contract report fingerprint: {:016x} -- instance contract commitment: {} -- type argument identities: {} -- const argument identities: {} -- machine argument contract report fingerprints: {} -- machine argument contract commitments: {} -- conformance argument report fingerprints: {} -- conformance argument commitments: {}\n",
                 row.template_commitment,
-                row.template_fingerprint,
-                row.instance_fingerprint,
-                row.instance_contract_fingerprint,
+                row.template_report_fingerprint,
+                row.instance_report_fingerprint,
+                row.instance_contract_report_fingerprint,
+                hex_bytes(&row.instance_contract_commitment.as_bytes()),
                 if row.type_argument_identities.is_empty() {
                     "none".to_owned()
                 } else {
@@ -114,21 +126,39 @@ impl ArtifactWriter {
                 } else {
                     row.const_argument_identities.join(", ")
                 },
-                if row.machine_argument_contract_fingerprints.is_empty() {
+                if row.machine_argument_contract_report_fingerprints.is_empty() {
                     "none".to_owned()
                 } else {
-                    row.machine_argument_contract_fingerprints
+                    row.machine_argument_contract_report_fingerprints
                         .iter()
                         .map(|fingerprint| format!("{fingerprint:016x}"))
                         .collect::<Vec<_>>()
                         .join(", ")
                 },
-                if row.conformance_argument_fingerprints.is_empty() {
+                if row.machine_argument_contract_commitments.is_empty() {
                     "none".to_owned()
                 } else {
-                    row.conformance_argument_fingerprints
+                    row.machine_argument_contract_commitments
+                        .iter()
+                        .map(|commitment| hex_bytes(&commitment.as_bytes()))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                },
+                if row.conformance_argument_report_fingerprints.is_empty() {
+                    "none".to_owned()
+                } else {
+                    row.conformance_argument_report_fingerprints
                         .iter()
                         .map(|fingerprint| format!("{fingerprint:016x}"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                },
+                if row.conformance_argument_commitments.is_empty() {
+                    "none".to_owned()
+                } else {
+                    row.conformance_argument_commitments
+                        .iter()
+                        .map(|commitment| hex_bytes(&commitment.as_bytes()))
                         .collect::<Vec<_>>()
                         .join(", ")
                 }
@@ -141,9 +171,10 @@ impl ArtifactWriter {
         ));
         for row in &trust_report.provider_requirements {
             output.push_str(&format!(
-                "- provider plan: {} [{:016x}] -- provider type: {} -- provider type package: {} -- target: {} -- provider origin package: {} -- provider package key: {} -- service schema: {} -- service schema package: {} -- calling plan: {} -- selected: {} -- requirement owner: {} -- requirement owner package: {} -- requirement identity: {} -- method: {} -- parameter types: {} -- result type: {} -- service reach: {} -- synchronous invocations: {} -- may suspend: {} -- may block: {} -- termination guarantee: {} -- progress premises: {} -- realization: {} -- {} -- grant selectors: {}",
+                "- provider plan: {} -- plan report fingerprint: {:016x} -- plan digest: {} -- provider type: {} -- provider type package: {} -- target: {} -- provider origin package: {} -- provider package key: {} -- service schema: {} -- service schema package: {} -- calling plan report fingerprint: {} -- calling plan commitment: {} -- selected: {} -- requirement owner: {} -- requirement owner package: {} -- requirement identity: {} -- method: {} -- parameter types: {} -- result type: {} -- service reach: {} -- synchronous invocations: {} -- may suspend: {} -- may block: {} -- termination guarantee: {} -- progress premises: {} -- realization: {} -- {} -- grant selectors: {}",
                 row.provider_plan,
-                row.provider_plan_fingerprint,
+                row.provider_plan_report_fingerprint,
+                hex_bytes(row.provider_plan_digest.as_bytes()),
                 if row.provider_type.is_empty() {
                     "<free external>"
                 } else {
@@ -163,8 +194,12 @@ impl ArtifactWriter {
                 package_key_text(row.provider_origin_package_identity),
                 row.service_schema,
                 package_key_text(row.service_schema_package_identity),
-                row.calling_plan_fingerprint
+                row.calling_plan_report_fingerprint
                     .map_or_else(|| "<none>".to_owned(), |value| format!("{value:016x}")),
+                row.calling_plan_commitment.map_or_else(
+                    || "<none>".to_owned(),
+                    |commitment| hex_bytes(&commitment.as_bytes()),
+                ),
                 if row.selected { "yes" } else { "no" },
                 row.requirement_owner,
                 package_key_text(row.requirement_owner_package_identity),
@@ -210,9 +245,10 @@ impl ArtifactWriter {
         ));
         for row in &trust_report.qualifications {
             output.push_str(&format!(
-                "- provider plan: {} [{:016x}] -- provider type: {} -- provider type package: {} -- target: {} -- provider origin package: {} -- provider package key: {} -- service schema: {} -- service schema package: {} -- calling plan: {} -- selected: {} -- requirement owner: {} -- requirement owner package: {} -- requirement identity: {} -- method: {} -- subject: {} -- flow: {} -- domain: {} -- carry: {} -- predicate discharge: {} -- {} -- grant selectors: {}",
+                "- provider plan: {} -- plan report fingerprint: {:016x} -- plan digest: {} -- provider type: {} -- provider type package: {} -- target: {} -- provider origin package: {} -- provider package key: {} -- service schema: {} -- service schema package: {} -- calling plan report fingerprint: {} -- calling plan commitment: {} -- selected: {} -- requirement owner: {} -- requirement owner package: {} -- requirement identity: {} -- method: {} -- subject: {} -- flow: {} -- domain: {} -- carry: {} -- predicate discharge: {} -- {} -- grant selectors: {}",
                 row.provider_plan,
-                row.provider_plan_fingerprint,
+                row.provider_plan_report_fingerprint,
+                hex_bytes(row.provider_plan_digest.as_bytes()),
                 if row.provider_type.is_empty() {
                     "<free external>"
                 } else {
@@ -232,8 +268,12 @@ impl ArtifactWriter {
                 package_key_text(row.provider_origin_package_identity),
                 row.service_schema,
                 package_key_text(row.service_schema_package_identity),
-                row.calling_plan_fingerprint
+                row.calling_plan_report_fingerprint
                     .map_or_else(|| "<none>".to_owned(), |value| format!("{value:016x}")),
+                row.calling_plan_commitment.map_or_else(
+                    || "<none>".to_owned(),
+                    |commitment| hex_bytes(&commitment.as_bytes()),
+                ),
                 if row.selected { "yes" } else { "no" },
                 row.requirement_owner,
                 package_key_text(row.requirement_owner_package_identity),

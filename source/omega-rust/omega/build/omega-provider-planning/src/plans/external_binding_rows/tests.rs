@@ -124,7 +124,12 @@ fn fixture_with_inventory(
         name: METHOD_NAME.to_owned(),
         requirement_owner: requirement_owner_name.to_owned(),
         requirement_identity: requirement_identity.clone(),
-        calling_plan_fingerprint: Some(fingerprint),
+        calling_plan_report_fingerprint: Some(fingerprint),
+        calling_plan_commitment: Some(
+            psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(
+                validated.contract_commitment_digest(),
+            ),
+        ),
         ..Default::default()
     };
     let plan = ProviderPlan {
@@ -140,7 +145,10 @@ fn fixture_with_inventory(
         boundary_trait: schema_owner_symbol,
         boundary_arguments: Vec::new(),
         requirement_machine: requirement_symbol,
-        fingerprint,
+        report_fingerprint: fingerprint,
+        commitment: psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(
+            validated.contract_commitment_digest(),
+        ),
         boundary_entry_plan: expected.clone(),
         exact_boundary_entry_plan: expected.clone(),
         callback_binders: Vec::new(),
@@ -615,6 +623,7 @@ fn selected_source_boundary_entry_plan_rejects_realization_drift_exactly() {
         Missing,
         Duplicate,
         Fingerprint,
+        Commitment,
         CollisionEqualPlanSubstitution,
         SchemaOwner,
         Requirement,
@@ -631,6 +640,10 @@ fn selected_source_boundary_entry_plan_rejects_realization_drift_exactly() {
         ),
         (
             Drift::Fingerprint,
+            "resolves to 0 exact calling-plan realizations",
+        ),
+        (
+            Drift::Commitment,
             "resolves to 0 exact calling-plan realizations",
         ),
         (
@@ -652,7 +665,13 @@ fn selected_source_boundary_entry_plan_rejects_realization_drift_exactly() {
         match drift {
             Drift::Missing => fixture.realizations.clear(),
             Drift::Duplicate => fixture.realizations.push(fixture.realizations[0].clone()),
-            Drift::Fingerprint => fixture.realizations[0].fingerprint ^= 1,
+            Drift::Fingerprint => fixture.realizations[0].report_fingerprint ^= 1,
+            Drift::Commitment => {
+                fixture.realizations[0].commitment =
+                    psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(
+                        [9; 32],
+                    )
+            }
             Drift::CollisionEqualPlanSubstitution => {
                 fixture.realizations[0].boundary_entry_plan =
                     evaluate_ordinary_boundary_entry_plan(
@@ -666,7 +685,7 @@ fn selected_source_boundary_entry_plan_rejects_realization_drift_exactly() {
             Drift::SchemaOwner => fixture.realizations[0].boundary_trait = symbol(90),
             Drift::Requirement => fixture.realizations[0].requirement_machine = symbol(91),
             Drift::ZeroFingerprint => {
-                fixture.plans[0].schema.methods[0].calling_plan_fingerprint = Some(0)
+                fixture.plans[0].schema.methods[0].calling_plan_report_fingerprint = Some(0)
             }
         }
         let error = resolve(&fixture, SCHEMA_NAME).expect_err("realization drift must reject");
@@ -680,7 +699,8 @@ fn selected_source_boundary_entry_plan_rejects_realization_drift_exactly() {
 #[test]
 fn selected_source_boundary_entry_plan_allows_none_only_for_exact_absent_fingerprint() {
     let mut fixture = fixture(true);
-    fixture.plans[0].schema.methods[0].calling_plan_fingerprint = None;
+    fixture.plans[0].schema.methods[0].calling_plan_report_fingerprint = None;
+    fixture.plans[0].schema.methods[0].calling_plan_commitment = None;
     fixture.realizations.clear();
     assert_eq!(resolve(&fixture, SCHEMA_NAME), Ok(None));
 

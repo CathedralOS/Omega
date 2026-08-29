@@ -153,9 +153,16 @@ pub fn qualification_evidence_manifest_json(
         })
         .collect::<Vec<_>>();
 
+    let selected_provider_closure_digest = selected_provider_plans
+        .identity_digest()
+        .as_bytes()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
     let mut json = format!(
-        "{{\n  \"selected_provider_closure_fingerprint\": \"0x{:016x}\",\n  \"qualification_evidence\": [",
-        selected_provider_plans.normalized_identity()
+        "{{\n  \"selected_provider_closure_report_fingerprint\": \"0x{:016x}\",\n  \"selected_provider_closure_digest\": \"{}\",\n  \"qualification_evidence\": [",
+        selected_provider_plans.compatibility_report_identity(),
+        selected_provider_closure_digest,
     );
     for (index, (fact, domain_label)) in rows.iter().enumerate() {
         if index > 0 {
@@ -3189,8 +3196,15 @@ pub fn task_activation_manifest_json(
             &machine_overload_identity(program, activation.target_machine)
                 .expect("task activation must name an exact target machine"),
         );
-        json.push_str(",\n      \"specialization_fingerprint\": \"0x");
-        json.push_str(&format!("{:016x}", activation.specialization_fingerprint));
+        json.push_str(",\n      \"specialization_report_fingerprint\": \"0x");
+        json.push_str(&format!(
+            "{:016x}",
+            activation.specialization_report_fingerprint
+        ));
+        json.push_str("\",\n      \"specialization_commitment\": \"");
+        for byte in activation.specialization_commitment.as_bytes() {
+            json.push_str(&format!("{byte:02x}"));
+        }
         json.push_str("\",\n      \"activation_plan_id\": \"0x");
         json.push_str(&format!(
             "{:016x}",
@@ -3512,7 +3526,8 @@ struct ValidatedManifestSpecialization<'program> {
     specialization: &'program psi_typed_trees::typed_trees::MachineSpecialization,
     template: &'program Machine,
     instance: &'program Machine,
-    instance_contract_fingerprint: u64,
+    instance_contract_report_fingerprint: u64,
+    instance_contract_commitment: psi_checked_trees::MachineContractCommitment,
 }
 
 struct ValidatedManifestCrashTarget {
@@ -3727,9 +3742,10 @@ fn validated_manifest_specializations(
             specialization,
             template,
             instance,
-            instance_contract_fingerprint: specialization_instance_contract_fingerprint(
-                program, instance,
-            ),
+            instance_contract_report_fingerprint:
+                specialization_instance_contract_report_fingerprint(program, instance),
+            instance_contract_commitment: exact_manifest_machine_contract(program, instance)
+                .commitment,
         });
     }
     validated
@@ -4124,11 +4140,18 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
         push_json_string(&mut json, row.template.name.as_str());
         json.push_str(",\n      \"instance\": ");
         push_json_string(&mut json, row.instance.name.as_str());
-        json.push_str(",\n      \"instance_fingerprint\": \"0x");
+        json.push_str(",\n      \"instance_report_fingerprint\": \"0x");
         json.push_str(&format!("{:016x}", specialization.fingerprint));
-        json.push_str("\",\n      \"instance_contract_fingerprint\": \"0x");
-        json.push_str(&format!("{:016x}", row.instance_contract_fingerprint));
-        json.push_str("\",\n      \"template_contract_fingerprint\": \"0x");
+        json.push_str("\",\n      \"instance_contract_report_fingerprint\": \"0x");
+        json.push_str(&format!(
+            "{:016x}",
+            row.instance_contract_report_fingerprint
+        ));
+        json.push_str("\",\n      \"instance_contract_commitment\": \"");
+        for byte in row.instance_contract_commitment.as_bytes() {
+            json.push_str(&format!("{byte:02x}"));
+        }
+        json.push_str("\",\n      \"template_contract_report_fingerprint\": \"0x");
         json.push_str(&format!(
             "{:016x}",
             specialization.template_contract_fingerprint
@@ -4147,9 +4170,9 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
         push_json_strings(&mut json, &specialization.type_argument_identities);
         json.push_str("],\n      \"const_argument_identities\": [");
         push_json_strings(&mut json, &specialization.const_argument_identities);
-        json.push_str("],\n      \"machine_argument_contract_fingerprints\": [");
+        json.push_str("],\n      \"machine_argument_contract_report_fingerprints\": [");
         for (identity_index, identity) in specialization
-            .machine_argument_contract_fingerprints
+            .machine_argument_contract_report_fingerprints
             .iter()
             .enumerate()
         {
@@ -4158,9 +4181,9 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
             }
             push_json_string(&mut json, &format!("0x{identity:016x}"));
         }
-        json.push_str("],\n      \"conformance_argument_fingerprints\": [");
+        json.push_str("],\n      \"conformance_argument_report_fingerprints\": [");
         for (identity_index, identity) in specialization
-            .conformance_argument_fingerprints
+            .conformance_argument_report_fingerprints
             .iter()
             .enumerate()
         {
@@ -4168,6 +4191,45 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
                 json.push_str(", ");
             }
             push_json_string(&mut json, &format!("0x{identity:016x}"));
+        }
+        json.push_str("],\n      \"machine_argument_contract_commitments\": [");
+        for (identity_index, argument) in specialization.machine_arguments.iter().enumerate() {
+            if identity_index > 0 {
+                json.push_str(", ");
+            }
+            let owner = program
+                .machines()
+                .iter()
+                .find(|machine| {
+                    machine.symbol == *argument
+                        || program
+                            .machine_states(machine)
+                            .iter()
+                            .any(|state| state.symbol == *argument)
+                })
+                .expect("specialization machine argument must retain one exact owner");
+            let commitment = exact_manifest_machine_contract(program, owner).commitment;
+            let text = commitment
+                .as_bytes()
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>();
+            push_json_string(&mut json, &text);
+        }
+        json.push_str("],\n      \"conformance_argument_commitments\": [");
+        for (identity_index, application) in
+            specialization.conformance_applications.iter().enumerate()
+        {
+            if identity_index > 0 {
+                json.push_str(", ");
+            }
+            let text = application
+                .commitment
+                .as_bytes()
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>();
+            push_json_string(&mut json, &text);
         }
         json.push_str("]\n    }");
     }
@@ -4188,7 +4250,10 @@ fn mutation_frame_state_name<'program>(
         .expect("checked mutation write-frame state must belong to its exact fact machine")
 }
 
-fn specialization_instance_contract_fingerprint(program: &CheckedTrees, instance: &Machine) -> u64 {
+fn specialization_instance_contract_report_fingerprint(
+    program: &CheckedTrees,
+    instance: &Machine,
+) -> u64 {
     exact_manifest_machine_contract(program, instance).fingerprint
 }
 

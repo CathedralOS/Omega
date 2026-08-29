@@ -395,14 +395,15 @@ pub struct TrustReportRow {
     pub commitment: String,
     /// `own-package (dev-active)` or `root grant`.
     pub provenance: String,
-    /// Exact published contract identity for one local accepted machine.
+    /// Compact report coordinate for one local accepted-machine contract.
     /// Provider commitments have no machine contract and retain `None` rather
     /// than a synthesized identity.
-    pub machine_contract_fingerprint: Option<u64>,
-    /// Exact normalized universal-template identity for one generic accepted
-    /// machine. Non-generic accepted machines and every other row retain
-    /// `None`; their ordinary checked contract identity remains separate.
-    pub machine_template_fingerprint: Option<u64>,
+    pub machine_contract_report_fingerprint: Option<u64>,
+    /// Strong commitment to the exact accepted-machine contract.
+    pub machine_contract_commitment: Option<psi_checked_trees::MachineContractCommitment>,
+    /// Compact report coordinate for one generic accepted-machine template.
+    /// Non-generic accepted machines and every other row retain `None`.
+    pub machine_template_report_fingerprint: Option<u64>,
     /// Exact published service-reach ceiling for one local accepted machine.
     /// `Some(Vec::new())` is the explicit public negative guarantee; rows that
     /// do not describe a local accepted machine retain `None`.
@@ -481,7 +482,10 @@ pub struct TrustCrashRouteBucket {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TrustProviderRequirementRow {
     pub provider_plan: String,
-    pub provider_plan_fingerprint: u64,
+    /// Historical compact report coordinate for the provider plan.
+    pub provider_plan_report_fingerprint: u64,
+    /// Collision-resistant commitment to the complete normalized plan.
+    pub provider_plan_digest: omega_effects::provider_plan::ProviderPlanDigest,
     /// Exact normalized provider type; empty denotes a free external leaf.
     pub provider_type: String,
     /// Exact package owning the nominal provider type, when one exists.
@@ -497,8 +501,11 @@ pub struct TrustProviderRequirementRow {
     pub service_schema: String,
     /// Exact package owning the selected service schema.
     pub service_schema_package_identity: Option<psi_core::PackageKeyIdentity>,
-    /// Exact evaluated calling contract identity, when the requirement has one.
-    pub calling_plan_fingerprint: Option<u64>,
+    /// Compact report coordinate for the evaluated calling contract.
+    pub calling_plan_report_fingerprint: Option<u64>,
+    /// Strong commitment to the exact evaluated calling contract.
+    pub calling_plan_commitment:
+        Option<psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment>,
     pub selected: bool,
     pub requirement_owner: String,
     /// Exact package owning the inherited/direct requirement declaration.
@@ -672,7 +679,10 @@ fn hex_bytes(bytes: &[u8]) -> String {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TrustQualificationRow {
     pub provider_plan: String,
-    pub provider_plan_fingerprint: u64,
+    /// Historical compact report coordinate for the provider plan.
+    pub provider_plan_report_fingerprint: u64,
+    /// Collision-resistant commitment to the complete normalized plan.
+    pub provider_plan_digest: omega_effects::provider_plan::ProviderPlanDigest,
     /// Exact normalized provider type; empty denotes a free external leaf.
     pub provider_type: String,
     /// Exact package owning the nominal provider type, when one exists.
@@ -689,8 +699,11 @@ pub struct TrustQualificationRow {
     pub service_schema: String,
     /// Exact package owning the selected service schema.
     pub service_schema_package_identity: Option<psi_core::PackageKeyIdentity>,
-    /// Exact evaluated calling contract identity, when the requirement has one.
-    pub calling_plan_fingerprint: Option<u64>,
+    /// Compact report coordinate for the evaluated calling contract.
+    pub calling_plan_report_fingerprint: Option<u64>,
+    /// Strong commitment to the exact evaluated calling contract.
+    pub calling_plan_commitment:
+        Option<psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment>,
     pub selected: bool,
     /// Readable semantic owner of the exact requirement. This remains
     /// separate from the canonical overload identity because an inherited
@@ -710,8 +723,8 @@ pub struct TrustQualificationRow {
     pub predicate_discharge_required: bool,
     pub provenance: String,
     /// Exact authored root-grant selectors that activated this selected plan.
-    /// The provider-plan fingerprint above remains the selected semantic
-    /// identity; these strings retain its source-level grant provenance.
+    /// The provider-plan digest above remains the selected semantic identity;
+    /// these strings retain its source-level grant provenance.
     pub grant_selectors: Vec<String>,
     pub standing_warning: bool,
 }
@@ -722,26 +735,55 @@ pub struct TrustQualificationRow {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TrustGenericAcceptedInstanceRow {
     pub template_commitment: String,
-    pub template_fingerprint: u64,
-    pub instance_fingerprint: u64,
-    /// Exact normalized checked contract of the specialized machine instance.
-    /// This is independent from the specialization-tuple identity above and
-    /// from every selected static-machine argument contract below.
-    pub instance_contract_fingerprint: u64,
+    /// Historical compact report coordinate for the authored template.
+    pub template_report_fingerprint: u64,
+    /// Historical compact report coordinate for the specialization tuple.
+    /// Exact type/const identities and strong selected-argument commitments
+    /// below remain the replay evidence.
+    pub instance_report_fingerprint: u64,
+    /// Historical compact report coordinate for the checked instance
+    /// contract. Authority-bearing consumers use the adjacent commitment.
+    pub instance_contract_report_fingerprint: u64,
+    /// Domain-separated commitment to the exact checked instance contract.
+    pub instance_contract_commitment: psi_checked_trees::MachineContractCommitment,
     pub type_argument_identities: Vec<String>,
     pub const_argument_identities: Vec<String>,
-    pub machine_argument_contract_fingerprints: Vec<u64>,
-    pub conformance_argument_fingerprints: Vec<u64>,
+    /// Compatibility/report coordinates corresponding positionally to the
+    /// strong commitments below.
+    pub machine_argument_contract_report_fingerprints: Vec<u64>,
+    pub machine_argument_contract_commitments: Vec<psi_checked_trees::MachineContractCommitment>,
+    /// Compatibility/report coordinates corresponding positionally to the
+    /// strong closed-application commitments below.
+    pub conformance_argument_report_fingerprints: Vec<u64>,
+    pub conformance_argument_commitments:
+        Vec<psi_typed_trees::typed_trees::ClosedConformanceApplicationCommitment>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TrustReport {
-    /// Deterministic identity of the complete retained selected-provider set.
-    pub selected_provider_closure_fingerprint: u64,
+    /// Historical compact report coordinate for the selected-provider set.
+    pub selected_provider_closure_report_fingerprint: u64,
+    /// Collision-resistant commitment to the complete selected-provider set.
+    pub selected_provider_closure_digest: omega_effects::SelectedProviderClosureDigest,
     pub rows: Vec<TrustReportRow>,
     pub generic_accepted_instances: Vec<TrustGenericAcceptedInstanceRow>,
     pub provider_requirements: Vec<TrustProviderRequirementRow>,
     pub qualifications: Vec<TrustQualificationRow>,
+}
+
+impl Default for TrustReport {
+    fn default() -> Self {
+        let selected_provider_plans = omega_effects::SelectedProviderPlanFacts::default();
+        Self {
+            selected_provider_closure_report_fingerprint: selected_provider_plans
+                .compatibility_report_identity(),
+            selected_provider_closure_digest: selected_provider_plans.identity_digest(),
+            rows: Vec::new(),
+            generic_accepted_instances: Vec::new(),
+            provider_requirements: Vec::new(),
+            qualifications: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

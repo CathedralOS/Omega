@@ -267,6 +267,26 @@ pub enum TaskStartOperation {
     TryStart,
 }
 
+/// Domain-separated SHA-256 commitment to the exact checked TaskRuntime
+/// requirement, operation, target entry, and target contract selected by one
+/// task activation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TaskSpecializationCommitment([u8; 32]);
+
+impl TaskSpecializationCommitment {
+    pub const fn from_digest(digest: [u8; 32]) -> Self {
+        Self(digest)
+    }
+
+    pub const fn as_bytes(self) -> [u8; 32] {
+        self.0
+    }
+
+    pub fn is_zero(self) -> bool {
+        self.0 == [0; 32]
+    }
+}
+
 /// Exact selected runtime evidence paired with one Omega activation plan.
 /// This is post-check provider realization state, not part of Psi checked
 /// semantics.
@@ -284,7 +304,10 @@ pub struct TaskActivationPlanFact {
     pub start_requirement: psi_symbols::SymbolHandle,
     pub target_machine: psi_symbols::SymbolHandle,
     pub target_entry: psi_symbols::SymbolHandle,
-    pub specialization_fingerprint: u64,
+    /// Historical compact compatibility/report coordinate.
+    pub specialization_report_fingerprint: u64,
+    /// Strong identity of the exact checked specialization structure.
+    pub specialization_commitment: TaskSpecializationCommitment,
     pub operation: TaskStartOperation,
     pub selected_runtime: SelectedTaskRuntimeProviderFact,
     pub plan: ValidatedActivationPlan,
@@ -446,7 +469,8 @@ pub struct TaskRuntimeInvocationReceiptCandidate {
 /// accounting needs only the specialization, operation, provider, and plan.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TaskRuntimeActivationBinding {
-    pub specialization_fingerprint: u64,
+    pub specialization_report_fingerprint: u64,
+    pub specialization_commitment: TaskSpecializationCommitment,
     pub operation: TaskStartOperation,
     pub selected_runtime: SelectedTaskRuntimeProviderFact,
     pub activation_plan: ActivationPlanId,
@@ -488,6 +512,11 @@ pub fn validate_task_runtime_invocation_receipt(
     activation: &TaskActivationPlanFact,
     candidate: TaskRuntimeInvocationReceiptCandidate,
 ) -> Result<ValidatedTaskRuntimeInvocationReceipt, TaskPlanDiagnostic> {
+    if activation.specialization_commitment.is_zero() {
+        return Err(TaskPlanDiagnostic(
+            "task runtime activation has an empty specialization commitment".into(),
+        ));
+    }
     if candidate.runtime != activation.selected_runtime.runtime {
         return Err(TaskPlanDiagnostic(
             "task runtime invocation receipt names a different selected runtime".into(),
@@ -529,7 +558,8 @@ pub fn validate_task_runtime_invocation_receipt(
         )),
         candidate,
         activation: TaskRuntimeActivationBinding {
-            specialization_fingerprint: activation.specialization_fingerprint,
+            specialization_report_fingerprint: activation.specialization_report_fingerprint,
+            specialization_commitment: activation.specialization_commitment,
             operation: activation.operation,
             selected_runtime: activation.selected_runtime.clone(),
             activation_plan: activation.plan.normalized_identity(),
@@ -971,7 +1001,9 @@ fn fingerprint_runtime_invocation(
     fingerprint.string(&candidate.requirement_identity);
     fingerprint.word(candidate.activation_plan.normalized_identity());
     fingerprint.word(executor_selection.identity().normalized_identity());
-    fingerprint.word(activation.specialization_fingerprint);
+    for byte in activation.specialization_commitment.as_bytes() {
+        fingerprint.byte(byte);
+    }
     fingerprint.finish()
 }
 
@@ -1091,7 +1123,8 @@ mod tests {
             start_requirement: psi_symbols::SymbolHandle::invalid(),
             target_machine: psi_symbols::SymbolHandle::invalid(),
             target_entry: psi_symbols::SymbolHandle::invalid(),
-            specialization_fingerprint: 79,
+            specialization_report_fingerprint: 79,
+            specialization_commitment: TaskSpecializationCommitment::from_digest([7; 32]),
             operation: TaskStartOperation::Start,
             selected_runtime: SelectedTaskRuntimeProviderFact {
                 runtime: runtime(),
@@ -1332,8 +1365,12 @@ mod tests {
             .expect("exact invocation receipt");
         assert_eq!(validated.candidate(), &base);
         assert_eq!(
-            validated.activation().specialization_fingerprint,
-            activation.specialization_fingerprint
+            validated.activation().specialization_report_fingerprint,
+            activation.specialization_report_fingerprint
+        );
+        assert_eq!(
+            validated.activation().specialization_commitment,
+            activation.specialization_commitment
         );
         assert_eq!(
             validated.activation().selected_runtime,
@@ -1379,6 +1416,57 @@ mod tests {
                 .0
                 .contains("different activation plan")
         );
+    }
+
+    #[test]
+    fn compact_equal_specialization_commitments_bind_distinct_runtime_invocations() {
+        let plan = validate_activation_plan(candidate()).expect("activation plan");
+        let first = activation_fact(&plan);
+        let mut substituted = first.clone();
+        substituted.specialization_commitment = TaskSpecializationCommitment::from_digest([8; 32]);
+        assert_eq!(
+            first.specialization_report_fingerprint,
+            substituted.specialization_report_fingerprint
+        );
+        let candidate = TaskRuntimeInvocationReceiptCandidate {
+            receipt: id(
+                194,
+                TaskRuntimeInvocationReceiptId::from_normalized_identity,
+            ),
+            invocation: id(195, TaskRuntimeInvocationId::from_normalized_identity),
+            runtime: runtime(),
+            runtime_instance: id(193, TaskRuntimeInstanceId::from_normalized_identity),
+            operation: TaskStartOperation::Start,
+            provider_plan_name: first.selected_runtime.provider_plan_name.clone(),
+            requirement_identity: first.selected_runtime.requirement_identity.clone(),
+            activation_plan: plan.normalized_identity(),
+            preservation: vec![ExecutorPreservationEvidence::new(
+                ExecutorPreservationAxis::Cpu,
+                id(
+                    196,
+                    ExecutorPreservationEvidenceId::from_normalized_identity,
+                ),
+            )],
+        };
+        let first_validated = validate_task_runtime_invocation_receipt(&first, candidate.clone())
+            .expect("first exact specialization");
+        let substituted_validated =
+            validate_task_runtime_invocation_receipt(&substituted, candidate)
+                .expect("substituted exact specialization");
+        assert_ne!(first_validated.identity(), substituted_validated.identity());
+        assert_ne!(
+            first_validated.activation().specialization_commitment,
+            substituted_validated.activation().specialization_commitment
+        );
+
+        let mut report_only = first.clone();
+        report_only.specialization_report_fingerprint ^= 1;
+        let report_only_validated = validate_task_runtime_invocation_receipt(
+            &report_only,
+            first_validated.candidate().clone(),
+        )
+        .expect("report-only coordinate drift does not change authority");
+        assert_eq!(first_validated.identity(), report_only_validated.identity());
     }
 
     #[test]

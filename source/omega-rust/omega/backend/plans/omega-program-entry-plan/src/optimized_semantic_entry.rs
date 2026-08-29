@@ -238,8 +238,9 @@ pub fn bind_optimized_program_storage_semantic_entry_contract(
     })?;
     if physical_contract.target_slot() != slot
         || physical_contract.requirement_identity() == method.requirement_identity
-        || physical_contract.calling_plan_fingerprint() != validated_physical.contract_fingerprint()
-        || physical_contract.calling_plan_fingerprint() == boundary.contract_fingerprint()
+        || physical_contract.calling_plan_report_fingerprint()
+            != validated_physical.contract_fingerprint()
+        || physical_contract.calling_plan_report_fingerprint() == boundary.contract_fingerprint()
         || physical_contract
             .boundary_entry_plan()
             .call
@@ -308,7 +309,9 @@ fn validate_method(
         || method.has_result
         || method.result_type_identity.is_some()
         || !method.result_claims.is_empty()
-        || method.calling_plan_fingerprint != Some(boundary.contract_fingerprint())
+        || method.calling_plan_report_fingerprint != Some(boundary.contract_fingerprint())
+        || method.calling_plan_commitment.map(|value| value.as_bytes())
+            != Some(boundary.contract_commitment_digest())
         || !matches!(
             method.entry_claims.as_slice(),
             [image, storage] if image.parameter_index == 0 && storage.parameter_index == 1
@@ -470,7 +473,7 @@ mod tests {
         }
     }
 
-    fn method(fingerprint: u64) -> ServiceMethod {
+    fn method(boundary: &ValidatedBoundaryEntryPlan) -> ServiceMethod {
         ServiceMethod {
             name: PROGRAM_STORAGE_ENTRY_METHOD.into(),
             requirement_owner: PROGRAM_STORAGE_ENTRY_OWNER.into(),
@@ -478,7 +481,12 @@ mod tests {
             parameter_count: 2,
             parameter_type_identities: vec![IMAGE_TYPE.into(), STORAGE_TYPE.into()],
             entry_claims: vec![claim(0), claim(1)],
-            calling_plan_fingerprint: Some(fingerprint),
+            calling_plan_report_fingerprint: Some(boundary.contract_fingerprint()),
+            calling_plan_commitment: Some(
+                omega_effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(
+                    boundary.contract_commitment_digest(),
+                ),
+            ),
             ..Default::default()
         }
     }
@@ -563,7 +571,7 @@ mod tests {
         SelectedProgramEntrySourceSignature,
     ) {
         let semantic = semantic_plan(CallingPolicy::MicrosoftX64);
-        let selected = selected_with_method(method(semantic.contract_fingerprint()), true);
+        let selected = selected_with_method(method(&semantic), true);
         let source = source(
             ProgramEntrySourceReceiverSignature::Free,
             [
@@ -708,23 +716,23 @@ mod tests {
             ],
         );
         let mut variants = Vec::new();
-        let mut wrong_carrier = method(semantic.contract_fingerprint());
+        let mut wrong_carrier = method(&semantic);
         wrong_carrier.entry_claims[0].carrier_identity = "ExtentLookalike".into();
         variants.push(wrong_carrier);
-        let mut wrong_domain = method(semantic.contract_fingerprint());
+        let mut wrong_domain = method(&semantic);
         wrong_domain.entry_claims[0].domain = "Extent::Observed".into();
         variants.push(wrong_domain);
-        let mut bodyless = method(semantic.contract_fingerprint());
+        let mut bodyless = method(&semantic);
         bodyless.entry_claims[0].predicate_body = DomainPredicateBody::Bodyless;
         variants.push(bodyless);
-        let mut permissive = method(semantic.contract_fingerprint());
+        let mut permissive = method(&semantic);
         permissive.entry_claims[0].effective_carry = CarryPolicy::PERMISSIVE;
         variants.push(permissive);
-        let mut reordered = method(semantic.contract_fingerprint());
+        let mut reordered = method(&semantic);
         reordered.entry_claims.swap(0, 1);
         variants.push(reordered);
-        let mut stale = method(semantic.contract_fingerprint().wrapping_add(1));
-        stale.calling_plan_fingerprint = Some(1);
+        let mut stale = method(&semantic);
+        stale.calling_plan_report_fingerprint = Some(1);
         variants.push(stale);
 
         for method in variants {
@@ -742,7 +750,7 @@ mod tests {
     #[test]
     fn paired_physical_plan_is_required_but_never_invoked() {
         let semantic = semantic_plan(CallingPolicy::MicrosoftX64);
-        let selected = selected_with_method(method(semantic.contract_fingerprint()), false);
+        let selected = selected_with_method(method(&semantic), false);
         let source = source(
             ProgramEntrySourceReceiverSignature::Free,
             [

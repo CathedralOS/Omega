@@ -11,3 +11,4 @@ path = "src/lib.rs"
 [dependencies]
 psi-arena = { path = "../../../psi/foundation/psi-arena" }
 omega-target = { path = "../omega-target" }
+sha2 = "0.10.9"
