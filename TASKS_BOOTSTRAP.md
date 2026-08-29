@@ -125,8 +125,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     wait for the physical Gamma/Delta compiler artifacts.
   - [ ] **DEPENDENCY-BLOCKED — Q14, missing Gamma/Delta compilers, and missing
     `D`.** Materialize the resulting `omega0_compiler_bytecode.tape` only after
-    the predecessor chain and source closure exist. Section 6 owns completion
-    of the existing `build.omg`/`main.omg` closure and its tape.
+    the predecessor chain and source closure exist. Section 5 owns `D → omega₀`;
+    section 6 owns completion of the existing `build.omg`/`main.omg` closure and
+    `C → omega`.
 - [x] Update path-hygiene and lattice runners to enumerate only the canonical
   owners above. They must fail if a lower rung imports source or a semantic
   executable from beyond its immediate successor. `lattice_path` now accepts
@@ -369,10 +370,13 @@ code, discover a closure, manufacture proof premises, or decide admission.
   and emit exact Alpha tape directly. No Beta translator, Gamma evaluator
   subprocess, host encoder/decoder, native assembler stream, or older compiler
   participates.
-- [ ] **DEPENDENCY-BLOCKED — Q13/Q14 and missing `delta_compiler.gamma`.** After
-  Q13 freezes Delta, derive positive, negative, trap, and `Incomplete`
-  conformance for the real compiler. Do not recreate cases that merely pin
-  quirks of the removed translator.
+- [ ] **DESIGN-BLOCKED — Q13.** Derive compact positive, negative, trap, and
+  private-budget `Incomplete` conformance directly from the frozen Delta
+  contract. Do not recreate cases that merely pin quirks of the removed
+  translator.
+- [ ] **DEPENDENCY-BLOCKED — Q14 and missing `delta_compiler.gamma`.** Run that
+  contract-derived suite through the real Gamma-written compiler and bind every
+  outcome to its no-partial-tape behavior.
   - [x] Delete `exprc.delta` and `minic.delta`; both were demonstrations of the
     removed Darwin-native route rather than authoritative Delta observations.
   - [x] Delete the unrun 43-file pre-migration Delta corpus rather than

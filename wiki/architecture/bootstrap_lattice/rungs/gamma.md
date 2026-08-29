@@ -14,12 +14,14 @@ Beta understand Delta.
 - a small monomorphic static type system; and
 - explicit, bounded evaluation resources.
 
-Gamma's source semantics remain independently fixed by its language contract
-and Beta-written reference implementation. The required compiler artifact is
-also written in Beta and emits Alpha tape for arbitrary accepted Gamma source.
-An interpreter may serve as an early correctness route, but the canonical edge
-must yield a standalone tape for the Gamma-written Delta compiler without an
-external Beta compiler or host transformation.
+Gamma's intended source semantics must be fixed independently of every
+implementation, but Q14 has not yet selected one executable language from the
+current disconnected interpreter and type-checker surfaces. The required
+compiler artifact is written in Beta and emits Alpha tape for arbitrary source
+accepted by the eventual contract. An interpreter may serve as an early
+correctness route, but the canonical edge must yield a standalone tape for the
+Gamma-written Delta compiler without an external Beta compiler or host
+transformation.
 
 ## Direct responsibility
 
@@ -36,17 +38,18 @@ for a Beta-written translator that already parsed Delta.
 
 ## Current migration
 
-`source/gamma/interp.beta` and `typeck.beta` are genuine Beta-written Gamma
-semantics and useful implementation material. They do not yet constitute the
-standalone Gamma-to-Alpha compiler required by D11. The former Beta-written
-Delta-to-Gamma route was outside Gamma ownership and is deleted rather than
-retained as the Delta edge or a compatibility layer.
+`source/gamma/interp.beta` and `typeck.beta` are bounded, disconnected semantic
+oracles and useful implementation material. Neither defines Gamma before Q14,
+and together they do not yet constitute the standalone Gamma-to-Alpha compiler
+required by D11. The former Beta-written Delta-to-Gamma route was outside Gamma
+ownership and is deleted rather than retained as the Delta edge or a
+compatibility layer.
 
 ## Must not contain
 
 No mutable host memory, hardware boundary, package manager, product optimizer,
 or Delta parser hidden in Beta. Proof checking is not a Gamma language feature;
-Gamma merely hosts one independent implementation of the Alpha-owned kernel.
+the universal checker remains Alpha-owned and outside the language rung.
 
 ## Implementation frontiers
 

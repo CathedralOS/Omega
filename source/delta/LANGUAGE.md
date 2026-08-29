@@ -1,15 +1,21 @@
-# Delta v1 language contract
+# Delta v1 language-contract draft — DESIGN-BLOCKED Q13
 
 Delta is the last implementation language in the audited bootstrap spine. It
 is a small, deterministic, C-like language for writing the compiler that
 directly builds the first Omega compiler. Delta is not Alpha with nicer
 spelling, an Omega subset, or an alternate definition of Omega.
 
-This document is the normative Delta v1 source and execution contract. Its
-static and small-step dynamic rules are independent of every implementation.
-The canonical Delta compiler is written in Gamma and emits Alpha tape; neither
-that compiler, the superseded Beta translator, the accepted corpus, nor Omega
-documentation defines or amends Delta.
+This document is non-authoritative decision material until Q13 is resolved. It
+records a candidate source and execution contract, including alternatives that
+are still internally inconsistent; no compiler or conformance suite may treat
+those choices as Delta v1. Q13 must select and reconcile the result taxonomy,
+keywords, optional domains/contracts, builtin resolution, Console/string ABI,
+scalar-transition miss behavior, and source-closure presentation. After that
+ruling, this file must be rewritten as one self-consistent normative contract.
+
+The eventual canonical Delta compiler is written in Gamma and emits Alpha
+tape. Neither that compiler, the superseded Beta translator, a sample corpus,
+nor Omega documentation defines or amends the language contract.
 
 ## 1. Subjects and results
 

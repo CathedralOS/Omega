@@ -169,7 +169,8 @@ remain useful regression oracles, but agreement is diagnostic only.
 The ordered work is in
 [`TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRAP.md). The principal open edges are:
 
-- make the Alpha-written Beta construction the canonical Beta edge;
+- finish admission and exact source-to-tape refinement for the already
+  canonical Alpha-written Beta construction;
 - turn the Beta-written Gamma implementation into the compiler artifact needed
   to consume Gamma and emit Alpha tape;
 - implement the Delta compiler in Gamma;
