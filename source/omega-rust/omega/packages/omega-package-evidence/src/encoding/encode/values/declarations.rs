@@ -1,8 +1,8 @@
-use crate::encoding::PackageReviewEncodingError;
-use crate::encoding::encode::declarations::{
+use super::super::declarations::{
     encode_data_properties, encode_type_identity, encode_type_parameter,
 };
-use crate::encoding::encode::encoder::Encoder;
+use super::super::encoder::Encoder;
+use crate::encoding::PackageReviewEncodingError;
 use crate::evidence::{
     PackageReviewConstShape, PackageReviewEvidenceInterface, PackageReviewOperatorCoordinate,
     PackageReviewOperatorShape, PackageReviewPropositionBinder, PackageReviewPropositionBinderKind,

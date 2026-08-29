@@ -1,11 +1,11 @@
 use super::PackageReviewEncodingError;
 use super::encoder::Encoder;
-use crate::encoding::values::contracts::{encode_callable_contract, encode_contract_fact};
-use crate::encoding::values::crashes::encode_crash_route;
-use crate::encoding::values::declarations::encode_evidence_interface;
-use crate::encoding::values::effects::{encode_synchronous_invocation, encode_termination};
-use crate::encoding::values::expressions::encode_contract_static_argument;
-use crate::encoding::values::identity::encode_nominal;
+use super::values::contracts::{encode_callable_contract, encode_contract_fact};
+use super::values::crashes::encode_crash_route;
+use super::values::declarations::encode_evidence_interface;
+use super::values::effects::{encode_synchronous_invocation, encode_termination};
+use super::values::expressions::encode_contract_static_argument;
+use super::values::identity::encode_nominal;
 use crate::evidence::{
     PackageReviewConformanceBound, PackageReviewConformanceShape, PackageReviewConformanceSubject,
     PackageReviewDangerousAuthority, PackageReviewDangerousAuthorityClass,

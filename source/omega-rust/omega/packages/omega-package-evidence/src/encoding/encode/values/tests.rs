@@ -1,7 +1,7 @@
-use crate::encoding::encode::PackageReviewEncodingLimits;
-use crate::encoding::encode::encoder::Encoder;
-use crate::encoding::encode::review::{encode, encode_with_limits};
-use crate::encoding::encode::rows::{encode_rows, encode_rows_with_limits};
+use super::super::PackageReviewEncodingLimits;
+use super::super::encoder::Encoder;
+use super::super::review::{encode, encode_with_limits};
+use super::super::rows::{encode_rows, encode_rows_with_limits};
 use crate::evidence::package::PackageReviewCanonicalRowSources;
 use crate::evidence::{
     CheckedPackageProviderFamilyCoordinateReview,

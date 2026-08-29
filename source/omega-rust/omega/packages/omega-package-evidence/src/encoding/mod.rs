@@ -5,21 +5,20 @@
 
 use crate::evidence::{CheckedPackageReviewProjection, PackageReviewCanonicalRow};
 
-mod decode;
 mod encode;
-mod values;
+mod recovery;
 
-pub use decode::{
+pub use encode::{
+    PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION,
+    PackageReviewEncodingError,
+};
+pub use recovery::{
     DecodedPackageReviewCanonicalRow, PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION,
     PackageReviewCanonicalRowRecoveryError, PackageReviewCanonicalRowRecoveryLimits,
     decode_package_review_canonical_row, decode_package_review_canonical_row_with_limits,
     encode_package_review_canonical_row, encode_package_review_canonical_row_with_limits,
 };
-pub(crate) use decode::{canonical_row_framing_for_ledger, canonical_row_subject_for_ledger};
-pub use encode::{
-    PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION,
-    PackageReviewEncodingError,
-};
+pub(crate) use recovery::{canonical_row_framing_for_ledger, canonical_row_subject_for_ledger};
 impl CheckedPackageReviewProjection {
     /// Versioned, source-handle-free comparison bytes for this review-only
     /// projection. These bytes are not a package certificate and must not be
