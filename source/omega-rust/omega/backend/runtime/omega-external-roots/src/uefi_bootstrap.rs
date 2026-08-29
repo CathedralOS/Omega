@@ -8,6 +8,7 @@
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use omega_program_entry_plan::ProgramEntryPhysicalContractPlan;
 use omega_target::{
     TargetProfile, ValidatedUefiSystemTableHeaderIntegrity, ValidatedUefiSystemTableNativeLayout,
     plan_uefi_system_table_native_layout,
@@ -15,7 +16,8 @@ use omega_target::{
 
 use crate::{
     ExternalRootDiagnostic, UefiApplicationBootstrapLedgerId, UefiBootServicesPhaseLeaseId,
-    UefiFirmwareSessionId, UefiPhysicalInvocationId, UefiSystemTableOccurrenceId,
+    UefiFirmwareSessionId, UefiImageHandleOccurrenceId, UefiPhysicalInvocationId,
+    UefiSystemTableOccurrenceId,
 };
 
 static NEXT_LEDGER_AUTHORITY: AtomicU64 = AtomicU64::new(1);
@@ -47,6 +49,8 @@ pub struct UefiApplicationFirmwareLedger<'occurrence> {
     session: UefiFirmwareSessionId,
     invocation: UefiPhysicalInvocationId,
     phase: ReturningApplicationPhase,
+    image_handle: Option<UefiImageHandleOccurrenceId>,
+    image_handle_provenance_issued: bool,
     occurrence: Option<UefiSystemTableOccurrenceId>,
     table_bytes: Option<&'occurrence [u8]>,
     provenance_issued: bool,
@@ -62,6 +66,11 @@ impl std::fmt::Debug for UefiApplicationFirmwareLedger<'_> {
             .field("session", &self.session)
             .field("invocation", &self.invocation)
             .field("phase", &self.phase)
+            .field("image_handle", &self.image_handle)
+            .field(
+                "image_handle_provenance_issued",
+                &self.image_handle_provenance_issued,
+            )
             .field("occurrence", &self.occurrence)
             .field("table_byte_len", &self.table_bytes.map(<[u8]>::len))
             .field("provenance_issued", &self.provenance_issued)
@@ -86,6 +95,8 @@ impl<'occurrence> UefiApplicationFirmwareLedger<'occurrence> {
             session,
             invocation,
             phase: ReturningApplicationPhase::BootServicesLive,
+            image_handle: None,
+            image_handle_provenance_issued: false,
             occurrence: None,
             table_bytes: None,
             provenance_issued: false,
@@ -104,6 +115,34 @@ impl<'occurrence> UefiApplicationFirmwareLedger<'occurrence> {
 
     pub const fn physical_invocation(&self) -> UefiPhysicalInvocationId {
         self.invocation
+    }
+
+    /// Admit the opaque image-handle occurrence supplied by physical arrival.
+    /// Admission is single-shot and retains no raw handle value or storage
+    /// projection.
+    pub fn admit_image_handle_occurrence(
+        &mut self,
+        occurrence: UefiImageHandleOccurrenceId,
+    ) -> Result<UefiImageHandleProvenance, ExternalRootDiagnostic> {
+        if self.phase != ReturningApplicationPhase::BootServicesLive {
+            return Err(ExternalRootDiagnostic(
+                "UEFI image handle arrived after the returning firmware phase began".into(),
+            ));
+        }
+        if self.image_handle_provenance_issued || self.image_handle.is_some() {
+            return Err(ExternalRootDiagnostic(
+                "UEFI physical invocation already admitted an image-handle occurrence".into(),
+            ));
+        }
+        self.image_handle = Some(occurrence);
+        self.image_handle_provenance_issued = true;
+        Ok(UefiImageHandleProvenance {
+            authority: self.authority,
+            ledger: self.ledger,
+            session: self.session,
+            invocation: self.invocation,
+            occurrence,
+        })
     }
 
     /// Admit the exact byte range supplied by physical arrival. Admission is
@@ -239,6 +278,14 @@ impl<'occurrence> UefiApplicationFirmwareLedger<'occurrence> {
                 .is_some_and(|bytes| std::ptr::eq(bytes, provenance.table_bytes))
     }
 
+    fn matches_image_handle(&self, provenance: &UefiImageHandleProvenance) -> bool {
+        provenance.authority == self.authority
+            && provenance.ledger == self.ledger
+            && provenance.session == self.session
+            && provenance.invocation == self.invocation
+            && Some(provenance.occurrence) == self.image_handle
+    }
+
     fn matches_lease(&self, lease: &UefiBootServicesPhaseLease) -> bool {
         self.phase == ReturningApplicationPhase::BootServicesLive
             && lease.authority == self.authority
@@ -247,6 +294,30 @@ impl<'occurrence> UefiApplicationFirmwareLedger<'occurrence> {
             && lease.invocation == self.invocation
             && Some(lease.lease) == self.active_lease
             && lease.generation == self.phase_generation
+    }
+}
+
+/// Opaque provenance for the image handle supplied to one exact physical
+/// invocation. The carrier deliberately retains no raw handle address and
+/// cannot be projected into storage authority.
+#[must_use = "UEFI image-handle provenance is a linear physical-arrival input"]
+pub struct UefiImageHandleProvenance {
+    authority: u64,
+    ledger: UefiApplicationBootstrapLedgerId,
+    session: UefiFirmwareSessionId,
+    invocation: UefiPhysicalInvocationId,
+    occurrence: UefiImageHandleOccurrenceId,
+}
+
+impl std::fmt::Debug for UefiImageHandleProvenance {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("UefiImageHandleProvenance")
+            .field("ledger", &self.ledger)
+            .field("session", &self.session)
+            .field("invocation", &self.invocation)
+            .field("occurrence", &self.occurrence)
+            .finish_non_exhaustive()
     }
 }
 
@@ -505,10 +576,192 @@ fn reject_join<'occurrence>(
     }))
 }
 
+/// Non-authorizing custody of both physical inputs under one exact UEFI entry
+/// contract. This carrier establishes neither firmware-provider access nor
+/// program-storage roots, a shell invocation, or native execution.
+#[must_use = "UEFI physical arrival retains both linear physical inputs"]
+pub struct UefiApplicationPhysicalArrival<'occurrence> {
+    image_handle: UefiImageHandleProvenance,
+    system_table: LifecycleScopedUefiSystemTable<'occurrence>,
+    physical_contract: ProgramEntryPhysicalContractPlan,
+}
+
+impl std::fmt::Debug for UefiApplicationPhysicalArrival<'_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("UefiApplicationPhysicalArrival")
+            .field("ledger", &self.ledger_id())
+            .field("session", &self.firmware_session())
+            .field("invocation", &self.physical_invocation())
+            .field("image_handle_occurrence", &self.image_handle_occurrence())
+            .field("system_table_occurrence", &self.system_table_occurrence())
+            .field(
+                "physical_requirement_identity",
+                &self.physical_contract.requirement_identity(),
+            )
+            .field(
+                "calling_plan_report_fingerprint",
+                &self.physical_contract.calling_plan_report_fingerprint(),
+            )
+            .finish_non_exhaustive()
+    }
+}
+
+impl UefiApplicationPhysicalArrival<'_> {
+    pub const fn ledger_id(&self) -> UefiApplicationBootstrapLedgerId {
+        self.image_handle.ledger
+    }
+
+    pub const fn firmware_session(&self) -> UefiFirmwareSessionId {
+        self.image_handle.session
+    }
+
+    pub const fn physical_invocation(&self) -> UefiPhysicalInvocationId {
+        self.image_handle.invocation
+    }
+
+    pub const fn image_handle_occurrence(&self) -> UefiImageHandleOccurrenceId {
+        self.image_handle.occurrence
+    }
+
+    pub const fn system_table_occurrence(&self) -> UefiSystemTableOccurrenceId {
+        self.system_table.occurrence_id()
+    }
+
+    pub const fn physical_contract(&self) -> &ProgramEntryPhysicalContractPlan {
+        &self.physical_contract
+    }
+}
+
+/// Recoverable physical-arrival rejection retaining both linear inputs and the
+/// immutable contract plan for a corrected join attempt.
+#[derive(Debug)]
+#[must_use = "UEFI physical-arrival rejection retains all join inputs"]
+pub struct UefiApplicationPhysicalArrivalJoinError<'occurrence> {
+    image_handle: UefiImageHandleProvenance,
+    system_table: LifecycleScopedUefiSystemTable<'occurrence>,
+    physical_contract: ProgramEntryPhysicalContractPlan,
+    diagnostic: ExternalRootDiagnostic,
+}
+
+impl<'occurrence> UefiApplicationPhysicalArrivalJoinError<'occurrence> {
+    pub const fn diagnostic(&self) -> &ExternalRootDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        UefiImageHandleProvenance,
+        LifecycleScopedUefiSystemTable<'occurrence>,
+        ProgramEntryPhysicalContractPlan,
+        ExternalRootDiagnostic,
+    ) {
+        (
+            self.image_handle,
+            self.system_table,
+            self.physical_contract,
+            self.diagnostic,
+        )
+    }
+}
+
+impl std::fmt::Display for UefiApplicationPhysicalArrivalJoinError<'_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.diagnostic.fmt(formatter)
+    }
+}
+
+impl std::error::Error for UefiApplicationPhysicalArrivalJoinError<'_> {}
+
+/// Join the two physical inputs only after replaying the exact target-owned
+/// UEFI requirement and complete Microsoft-x64 entry plan. Success remains
+/// pre-provider and pre-installation; no firmware or storage authority is
+/// introduced here.
+pub fn join_uefi_application_physical_arrival<'occurrence>(
+    ledger: &UefiApplicationFirmwareLedger<'occurrence>,
+    image_handle: UefiImageHandleProvenance,
+    system_table: LifecycleScopedUefiSystemTable<'occurrence>,
+    physical_contract: ProgramEntryPhysicalContractPlan,
+) -> Result<
+    UefiApplicationPhysicalArrival<'occurrence>,
+    Box<UefiApplicationPhysicalArrivalJoinError<'occurrence>>,
+> {
+    if !ledger.matches_image_handle(&image_handle) {
+        return reject_physical_arrival_join(
+            image_handle,
+            system_table,
+            physical_contract,
+            "UEFI image-handle provenance belongs to a different physical invocation",
+        );
+    }
+    if !ledger.matches_provenance(&system_table.provenance)
+        || !ledger.matches_lease(&system_table.phase_lease)
+    {
+        return reject_physical_arrival_join(
+            image_handle,
+            system_table,
+            physical_contract,
+            "UEFI system-table scope belongs to a different or inactive physical invocation",
+        );
+    }
+    if image_handle.ledger != system_table.ledger_id()
+        || image_handle.session != system_table.firmware_session()
+        || image_handle.invocation != system_table.physical_invocation()
+    {
+        return reject_physical_arrival_join(
+            image_handle,
+            system_table,
+            physical_contract,
+            "UEFI image handle and system table do not belong to the same physical invocation",
+        );
+    }
+    if !physical_contract.matches_exact_uefi_x64_physical_contract() {
+        return reject_physical_arrival_join(
+            image_handle,
+            system_table,
+            physical_contract,
+            "UEFI physical arrival does not retain the exact target requirement, types, result, and Microsoft-x64 entry plan",
+        );
+    }
+    Ok(UefiApplicationPhysicalArrival {
+        image_handle,
+        system_table,
+        physical_contract,
+    })
+}
+
+fn reject_physical_arrival_join<'occurrence>(
+    image_handle: UefiImageHandleProvenance,
+    system_table: LifecycleScopedUefiSystemTable<'occurrence>,
+    physical_contract: ProgramEntryPhysicalContractPlan,
+    message: impl Into<String>,
+) -> Result<
+    UefiApplicationPhysicalArrival<'occurrence>,
+    Box<UefiApplicationPhysicalArrivalJoinError<'occurrence>>,
+> {
+    Err(Box::new(UefiApplicationPhysicalArrivalJoinError {
+        image_handle,
+        system_table,
+        physical_contract,
+        diagnostic: ExternalRootDiagnostic(message.into()),
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use omega_target::{UEFI_SYSTEM_TABLE_SIGNATURE, validate_uefi_system_table_occurrence};
+    use omega_calling_conventions::{MachineRegister, ValueLocation};
+    use omega_program_entry_plan::{
+        UEFI_X64_IMAGE_HANDLE_TYPE_IDENTITY, UEFI_X64_PHYSICAL_REQUIREMENT_IDENTITY,
+        UEFI_X64_STATUS_TYPE_IDENTITY, UEFI_X64_SYSTEM_TABLE_REFERENCE_TYPE_IDENTITY,
+        exact_uefi_x64_physical_boundary_entry_plan,
+        exact_uefi_x64_physical_contract_package_source_digest,
+    };
+    use omega_target::{
+        ProgramEntryPhysicalContractPackage, UEFI_SYSTEM_TABLE_SIGNATURE,
+        validate_uefi_system_table_occurrence,
+    };
 
     const REVISION: u32 = (2 << 16) | 100;
 
@@ -588,6 +841,71 @@ mod tests {
         !crc
     }
 
+    fn physical_contract(
+        requirement_identity: &str,
+        mutate_plan: impl FnOnce(&mut omega_calling_conventions::BoundaryEntryPlan),
+    ) -> ProgramEntryPhysicalContractPlan {
+        let expected = exact_uefi_x64_physical_boundary_entry_plan();
+        let mut plan = expected.plan().clone();
+        mutate_plan(&mut plan);
+        ProgramEntryPhysicalContractPlan::new(
+            TargetProfile::UefiX64.program_entry_slot(),
+            requirement_identity.into(),
+            ProgramEntryPhysicalContractPackage::UefiX64,
+            exact_uefi_x64_physical_contract_package_source_digest(),
+            0xfeed,
+            vec![
+                UEFI_X64_IMAGE_HANDLE_TYPE_IDENTITY.into(),
+                UEFI_X64_SYSTEM_TABLE_REFERENCE_TYPE_IDENTITY.into(),
+            ],
+            UEFI_X64_STATUS_TYPE_IDENTITY.into(),
+            expected.contract_report_fingerprint(),
+            plan,
+        )
+        .unwrap()
+    }
+
+    fn exact_physical_contract() -> ProgramEntryPhysicalContractPlan {
+        physical_contract(UEFI_X64_PHYSICAL_REQUIREMENT_IDENTITY, |_| {})
+    }
+
+    fn item_block<'a>(source: &'a str, declaration: &str) -> &'a str {
+        let start = source.find(declaration).expect("source declaration");
+        let body = &source[start..];
+        let mut depth = 0_u32;
+        let mut opened = false;
+        for (index, character) in body.char_indices() {
+            match character {
+                '{' => {
+                    opened = true;
+                    depth += 1;
+                }
+                '}' if opened => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return &body[..=index];
+                    }
+                }
+                _ => {}
+            }
+        }
+        panic!("unterminated source declaration {declaration}")
+    }
+
+    fn public_method_names(block: &str) -> Vec<&str> {
+        block
+            .lines()
+            .filter_map(|line| {
+                let line = line.trim();
+                if !line.starts_with("pub ") {
+                    return None;
+                }
+                let function = line.find("fn ")?;
+                line[function + 3..].split('(').next()
+            })
+            .collect()
+    }
+
     #[test]
     fn joins_exact_occurrence_and_live_phase_without_pointer_projection() {
         let bytes = valid_occurrence(120);
@@ -619,6 +937,243 @@ mod tests {
                 ))
                 .is_err()
         );
+    }
+
+    #[test]
+    fn joins_both_physical_inputs_under_the_exact_non_authorizing_contract() {
+        let bytes = valid_occurrence(120);
+        let mut ledger = ledger(70);
+        let image_handle = ledger
+            .admit_image_handle_occurrence(id(
+                73,
+                UefiImageHandleOccurrenceId::from_normalized_identity,
+            ))
+            .unwrap();
+        let (integrity, provenance, lease) = inputs(&mut ledger, &bytes, 74, 75);
+        let system_table =
+            join_lifecycle_scoped_uefi_system_table(&ledger, integrity, provenance, lease).unwrap();
+        let arrival = join_uefi_application_physical_arrival(
+            &ledger,
+            image_handle,
+            system_table,
+            exact_physical_contract(),
+        )
+        .unwrap();
+
+        assert_eq!(arrival.ledger_id(), ledger.ledger_id());
+        assert_eq!(arrival.firmware_session(), ledger.firmware_session());
+        assert_eq!(arrival.physical_invocation(), ledger.physical_invocation());
+        assert_eq!(
+            arrival.physical_contract().requirement_identity(),
+            UEFI_X64_PHYSICAL_REQUIREMENT_IDENTITY
+        );
+
+        let UefiApplicationPhysicalArrival {
+            image_handle: _,
+            system_table,
+            physical_contract: _,
+        } = arrival;
+        ledger
+            .release_lifecycle_scoped_system_table(system_table)
+            .unwrap();
+    }
+
+    #[test]
+    fn physical_arrival_public_surface_has_no_handle_or_storage_projection() {
+        let source = include_str!("uefi_bootstrap.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("production UEFI source");
+        let handle = item_block(source, "pub struct UefiImageHandleProvenance");
+        let compact_handle = handle
+            .chars()
+            .filter(|character| !character.is_whitespace())
+            .collect::<String>();
+        assert_eq!(
+            compact_handle,
+            "pubstructUefiImageHandleProvenance{authority:u64,ledger:UefiApplicationBootstrapLedgerId,session:UefiFirmwareSessionId,invocation:UefiPhysicalInvocationId,occurrence:UefiImageHandleOccurrenceId,}"
+        );
+        let compact_source = source
+            .chars()
+            .filter(|character| !character.is_whitespace())
+            .collect::<String>();
+        assert!(!compact_source.contains("implUefiImageHandleProvenance{"));
+        assert_eq!(
+            compact_source
+                .matches("forUefiImageHandleProvenance{")
+                .count(),
+            1,
+            "image-handle provenance must implement only report-only Debug",
+        );
+        assert!(compact_source.contains("implstd::fmt::DebugforUefiImageHandleProvenance{"));
+
+        let arrival = item_block(
+            source,
+            "pub struct UefiApplicationPhysicalArrival<'occurrence>",
+        );
+        let compact_arrival = arrival
+            .chars()
+            .filter(|character| !character.is_whitespace())
+            .collect::<String>();
+        assert_eq!(
+            compact_arrival,
+            "pubstructUefiApplicationPhysicalArrival<'occurrence>{image_handle:UefiImageHandleProvenance,system_table:LifecycleScopedUefiSystemTable<'occurrence>,physical_contract:ProgramEntryPhysicalContractPlan,}"
+        );
+        let arrival_impl = item_block(source, "impl UefiApplicationPhysicalArrival<'_>");
+        assert_eq!(
+            public_method_names(arrival_impl),
+            [
+                "ledger_id",
+                "firmware_session",
+                "physical_invocation",
+                "image_handle_occurrence",
+                "system_table_occurrence",
+                "physical_contract",
+            ]
+        );
+        assert_eq!(
+            compact_source
+                .matches("forUefiApplicationPhysicalArrival<'_>{")
+                .count(),
+            1,
+            "physical-arrival custody must implement only report-only Debug",
+        );
+
+        for forbidden in [
+            "psi_extents::Extent",
+            "pub fn raw_",
+            "pub const fn raw_",
+            "pub fn address",
+            "pub const fn address",
+            "impl From<UefiImageHandleProvenance",
+            "impl Into<UefiImageHandleProvenance",
+            "impl From<UefiApplicationPhysicalArrival",
+            "impl Into<UefiApplicationPhysicalArrival",
+        ] {
+            assert!(
+                !source.contains(forbidden),
+                "forbidden UEFI physical-arrival API appeared: {forbidden}"
+            );
+        }
+    }
+
+    #[test]
+    fn image_handle_provenance_is_issued_only_once() {
+        let mut ledger = ledger(80);
+        let _handle = ledger
+            .admit_image_handle_occurrence(id(
+                83,
+                UefiImageHandleOccurrenceId::from_normalized_identity,
+            ))
+            .unwrap();
+        let error = ledger
+            .admit_image_handle_occurrence(id(
+                84,
+                UefiImageHandleOccurrenceId::from_normalized_identity,
+            ))
+            .unwrap_err();
+        assert!(error.0.contains("already admitted"));
+    }
+
+    #[test]
+    fn foreign_image_handle_rejects_even_when_report_ids_match() {
+        let bytes = valid_occurrence(120);
+        let mut exact = ledger(90);
+        let mut foreign = ledger(90);
+        let image_handle = foreign
+            .admit_image_handle_occurrence(id(
+                93,
+                UefiImageHandleOccurrenceId::from_normalized_identity,
+            ))
+            .unwrap();
+        let (integrity, provenance, lease) = inputs(&mut exact, &bytes, 94, 95);
+        let system_table =
+            join_lifecycle_scoped_uefi_system_table(&exact, integrity, provenance, lease).unwrap();
+
+        let error = join_uefi_application_physical_arrival(
+            &exact,
+            image_handle,
+            system_table,
+            exact_physical_contract(),
+        )
+        .unwrap_err();
+        assert!(
+            error
+                .diagnostic()
+                .0
+                .contains("different physical invocation")
+        );
+        let (_image_handle, system_table, _contract, _) = error.into_parts();
+        exact
+            .release_lifecycle_scoped_system_table(system_table)
+            .unwrap();
+    }
+
+    #[test]
+    fn drifted_physical_plan_rejects_and_returns_inputs_for_retry() {
+        let bytes = valid_occurrence(120);
+        let mut ledger = ledger(100);
+        let image_handle = ledger
+            .admit_image_handle_occurrence(id(
+                103,
+                UefiImageHandleOccurrenceId::from_normalized_identity,
+            ))
+            .unwrap();
+        let (integrity, provenance, lease) = inputs(&mut ledger, &bytes, 104, 105);
+        let system_table =
+            join_lifecycle_scoped_uefi_system_table(&ledger, integrity, provenance, lease).unwrap();
+        let drifted = physical_contract(UEFI_X64_PHYSICAL_REQUIREMENT_IDENTITY, |plan| {
+            plan.call.parameters[0].locations[0] = ValueLocation::Register {
+                register: MachineRegister::X86R8,
+                value_byte_offset: 0,
+                byte_size: 8,
+            };
+        });
+
+        let error =
+            join_uefi_application_physical_arrival(&ledger, image_handle, system_table, drifted)
+                .unwrap_err();
+        assert!(error.diagnostic().0.contains("exact target requirement"));
+        let (image_handle, system_table, _drifted, _) = error.into_parts();
+        let arrival = join_uefi_application_physical_arrival(
+            &ledger,
+            image_handle,
+            system_table,
+            exact_physical_contract(),
+        )
+        .unwrap();
+        let UefiApplicationPhysicalArrival { system_table, .. } = arrival;
+        ledger
+            .release_lifecycle_scoped_system_table(system_table)
+            .unwrap();
+    }
+
+    #[test]
+    fn semantic_requirement_conflation_rejects() {
+        let bytes = valid_occurrence(120);
+        let mut ledger = ledger(110);
+        let image_handle = ledger
+            .admit_image_handle_occurrence(id(
+                113,
+                UefiImageHandleOccurrenceId::from_normalized_identity,
+            ))
+            .unwrap();
+        let (integrity, provenance, lease) = inputs(&mut ledger, &bytes, 114, 115);
+        let system_table =
+            join_lifecycle_scoped_uefi_system_table(&ledger, integrity, provenance, lease).unwrap();
+        let conflated = physical_contract(
+            "named-callable(path(ProgramStorageEntry::enter),parameters(),result-dispatch())",
+            |_| {},
+        );
+
+        let error =
+            join_uefi_application_physical_arrival(&ledger, image_handle, system_table, conflated)
+                .unwrap_err();
+        assert!(error.diagnostic().0.contains("exact target requirement"));
+        let (_image_handle, system_table, _contract, _) = error.into_parts();
+        ledger
+            .release_lifecycle_scoped_system_table(system_table)
+            .unwrap();
     }
 
     #[test]

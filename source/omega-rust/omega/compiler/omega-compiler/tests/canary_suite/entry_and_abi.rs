@@ -100,9 +100,46 @@ fn checked_uefi_compilation_retains_source_and_two_surface_entry_custody() {
         source.visible_parameters()[1].role(),
         omega_program_entry_plan::ProgramStorageEntryRootRole::InitialStorage
     );
+    let physical_contract = plans
+        .storage_entry
+        .physical_contract()
+        .expect("the retained semantic storage plan must keep its distinct physical contract");
+    assert_eq!(
+        physical_contract.requirement_identity(),
+        omega_program_entry_plan::UEFI_X64_PHYSICAL_REQUIREMENT_IDENTITY,
+    );
+    assert_eq!(
+        physical_contract.parameter_type_identities(),
+        [
+            omega_program_entry_plan::UEFI_X64_IMAGE_HANDLE_TYPE_IDENTITY,
+            omega_program_entry_plan::UEFI_X64_SYSTEM_TABLE_REFERENCE_TYPE_IDENTITY,
+        ],
+    );
+    assert_eq!(
+        physical_contract.result_type_identity(),
+        omega_program_entry_plan::UEFI_X64_STATUS_TYPE_IDENTITY,
+    );
+    assert_eq!(
+        physical_contract.target_slot(),
+        omega_target::TargetProfile::UefiX64.program_entry_slot(),
+    );
+    assert_eq!(
+        physical_contract.target_package(),
+        omega_target::ProgramEntryPhysicalContractPackage::UefiX64,
+    );
+    let expected_physical_plan =
+        omega_program_entry_plan::exact_uefi_x64_physical_boundary_entry_plan();
+    assert_eq!(
+        physical_contract.boundary_entry_plan(),
+        expected_physical_plan.plan(),
+    );
+    assert_eq!(
+        physical_contract.calling_plan_report_fingerprint(),
+        expected_physical_plan.contract_report_fingerprint(),
+    );
     assert!(
-        plans.storage_entry.physical_contract().is_some(),
-        "the retained semantic storage plan must keep its distinct physical contract"
+        physical_contract.matches_exact_uefi_x64_physical_contract(),
+        "build evaluation must produce the exact canonical normalized UEFI physical contract: {physical_contract:#?}"
     );
     assert_eq!(
         plans.semantic_boundary_entry_plan.call.policy,
