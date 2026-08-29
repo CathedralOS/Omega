@@ -84,7 +84,6 @@ closed. Compiler-issued package review remains non-admitting.
   - remaining semantic-role, operator, selected-provider grant, installation,
     permission-frontier, crash-refinement, and compiler-intrinsic ownership
     joins;
-  - an exact trust-bearing association for operator-bound external supply;
   - generic/exact-application boundary-provider family evidence under
     **BOUNDARY-OPERATOR-FAMILY-SELECTION**;
   - complete exact semantic-subject commitments, certificate closure, and
