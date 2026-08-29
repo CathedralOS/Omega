@@ -3044,6 +3044,73 @@ fn selected_structural_unit_validation_cannot_reenter_its_producer() {
 }
 
 #[test]
+fn selected_construction_has_one_visible_scalar_family_catalog() {
+    let root = workspace_root();
+    let construction = root.join(
+        "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction",
+    );
+    let entrance = std::fs::read_to_string(construction.join("mod.rs"))
+        .expect("read selected construction entrance");
+    for required in ["scalar::build", "unit::build", "structural_unit::build"] {
+        assert!(
+            entrance.contains(required),
+            "selected construction entrance must visibly coordinate {required}",
+        );
+    }
+    assert!(
+        !entrance.contains("SourceLeafValue"),
+        "the complete-plan entrance must not classify scalar leaf mechanics",
+    );
+
+    let scalar = construction.join("scalar");
+    let scalar_entrance =
+        std::fs::read_to_string(scalar.join("mod.rs")).expect("read scalar construction entrance");
+    assert!(scalar_entrance.contains("let body = catalog::build(&context)?"));
+    let catalog = std::fs::read_to_string(scalar.join("catalog.rs"))
+        .expect("read scalar construction catalog");
+    for family in [
+        "immediate-pair",
+        "entry-parameter-pair",
+        "exact-add-pair",
+        "exact-subtract-pair",
+        "widened-exact-add-pair",
+        "widened-exact-subtract-pair",
+        "active-resident-exact-add-chain",
+    ] {
+        assert!(
+            catalog.contains(family),
+            "scalar construction catalog must visibly name {family}",
+        );
+    }
+    assert!(
+        catalog.contains("AmbiguousSourceShape"),
+        "overlapping scalar construction rows must fail closed",
+    );
+    assert!(
+        !construction.join("plan.rs").exists() && !construction.join("scalar.rs").exists(),
+        "the former flat plan/scalar coordinators must not return",
+    );
+
+    for leaf in [
+        "active_resident_exact_add_chain.rs",
+        "exact_binary_pair.rs",
+        "immediate_pair.rs",
+        "parameter_pair.rs",
+    ] {
+        let source = std::fs::read_to_string(scalar.join(leaf))
+            .unwrap_or_else(|error| panic!("read scalar construction family {leaf}: {error}"));
+        assert!(
+            source.contains("ConstructedScalarBody"),
+            "scalar family {leaf} must return registers and blocks together",
+        );
+        assert!(
+            !source.contains("SelectedInstructionPlan"),
+            "scalar family {leaf} must not assemble the complete plan",
+        );
+    }
+}
+
+#[test]
 fn ranked_countdown_object_replay_cannot_reenter_machine_emission() {
     let root = workspace_root();
     let image_root = root.join("source/omega-rust/omega/backend/images/omega-image-emission");

@@ -77,6 +77,11 @@ pub enum SelectedInstructionError {
     UnsupportedSourceShape {
         function: usize,
     },
+    AmbiguousSourceShape {
+        function: usize,
+        first: &'static str,
+        second: &'static str,
+    },
     UnsupportedIntegerShape {
         function: usize,
     },

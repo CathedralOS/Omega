@@ -167,6 +167,18 @@ constraint instead of importing producer construction. Leaf replay has a
 exact-arithmetic validation, immediate validation, and fuel replay. The former
 1,022-line replay catch-all is gone, and no replacement exceeds 464 lines.
 
+Selected construction now descends literally beneath that selection join. A
+52-line `construction/mod.rs` owns scalar/plain-Unit/structural-Unit roster
+assembly. The structural entrance joins `layout.rs`, optional `call.rs`, and
+return construction. The scalar entrance reconstructs common condition input,
+then walks the sole ordered `SCALAR_FAMILIES` catalog. Its seven exact rows
+select immediate, entry-parameter, direct and widened add/subtract, or
+active-resident add-chain bodies. Every leaf returns registers and blocks
+together, so the source family cannot be classified independently for two
+projections. The architecture gate requires all three real entrances, the
+catalog, ambiguity rejection, and removal of the former flat `plan.rs` and
+966-line `scalar.rs` files.
+
 Mandatory legalization carries the Squalr-style registry shape directly: one
 adjacent twelve-row `LEGALIZATION_FORMS` catalog owns precedence, typed recipe,
 shape, and descriptive planning-cost data for seven scalar, one plain Unit, and

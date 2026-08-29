@@ -36,6 +36,16 @@ the entire program. Selected rules may fold exact incoming immediates or choose
 equivalent target forms, but must preserve operation, edge, trap, provenance,
 and fuel identities.
 
+Selected-plan construction has one 52-line roster entrance over scalar, plain
+Unit, and structural Unit results. Scalar construction reconstructs common
+condition context and selects exactly one row from its adjacent seven-row
+catalog. Immediate, entry-parameter, direct and widened exact-add/subtract, and
+active-resident exact-add-chain leaves each return their whole virtual-register
+and block body, eliminating the former duplicated source-family matches.
+Structural selection separately joins ABI layout, optional whole-root call,
+and return. Catalog omission rejects and ambiguity names both conflicting
+families; neither path falls back to transitional assignment.
+
 The disjoint unoptimized ranked-`u32` lane now reaches unmetered object custody
 without borrowing its machine-code producer as a validator. Each ISA owns an
 opaque decoder result for its exact countdown body; the image boundary joins
@@ -60,10 +70,11 @@ relocations remain confined to the appended transfer/resume suffix.
 The mandatory lowering crate has two explicit entrances. `legalization/mod.rs`
 joins canonical source projection to independent whole-plan replay;
 `selection/mod.rs` joins selected-plan construction to independent validation.
-Structural, scalar-function, leaf-expression, constraint, identity, and
-fixture mechanics descend below those joins. The crate-level `lib.rs` is only
-the 21-line responsibility map between the two stages, not a hidden third
-coordinator.
+Construction then has its own meaningful roster entrance and scalar catalog
+rung; it is not a forwarding wall. Structural, scalar-function,
+leaf-expression, constraint, identity, and fixture mechanics descend below
+those joins. The crate-level `lib.rs` is only the responsibility map between
+the two stages, not a hidden third coordinator.
 
 Immediately below the legalization entrance, `catalog.rs` is the sole ordered
 inventory for all twelve current forms: seven scalar, one plain Unit, and four

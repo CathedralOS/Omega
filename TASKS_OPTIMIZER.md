@@ -17,6 +17,20 @@ another broad alias while executing this plan.
 
 ## Current stopping point
 
+[x] Mandatory selected-instruction construction now has the same visible
+coordination shape as the optimizer catalogs it feeds. The 52-line
+`construction/mod.rs` owns the complete scalar/plain-Unit/structural-Unit
+function-roster join; structural ABI layout and optional-call mechanics descend
+through their own entrance and leaves. Scalar construction enters through a
+small context-to-catalog-to-complete-body join. Its sole seven-row ordered
+catalog classifies immediate, entry-parameter, exact add/subtract, widened exact
+add/subtract, and active-resident exact-add-chain families exactly once; each
+selected leaf returns virtual registers and blocks together. Omission rejects
+as unsupported and overlap fails closed with both family names. The former
+332-line mixed plan file, 966-line duplicated scalar classifier, and six-line
+forwarding entrance are gone, and architecture gates pin the real joins and
+catalog.
+
 [x] Abstract-to-target translation validation now has a sub-100-line independent
 entrance that binds Psi identity, the requested target, entry, and the complete
 function roster before descending into exact family replay. The adjacent
@@ -624,6 +638,9 @@ parallel route or optional coordinator field.
 ## P4 — Lowering optimizer
 
 - [x] Target/legalized operation and selected-instruction validation.
+- [x] Make mandatory selected construction catalog-driven: one visible ordered
+  scalar family inventory produces each complete virtual-register-plus-block
+  body after one exact-zero-or-one classification.
 - [x] Exact incoming u12 add/subtract immediate folds.
 - [x] Generalize legalization into one ordered declarative catalog of target
   forms, constraints, costs, producer matcher kinds, and independent validator
@@ -780,3 +797,6 @@ rewrite or opt a program into lossy floating-point semantics.
 23. [x] Add exact Boolean-not-parameter replay, retaining operand/result and
     operation/edge identities, while descending source grammar and catalog
     adapters into explicit subfolders before either entrance could grow opaque.
+24. [x] Replace selected construction's forwarding wall, mixed plan file, and
+    duplicated 966-line scalar classifier with meaningful result-family
+    entrances and one seven-row scalar construction catalog.

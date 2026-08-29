@@ -26,24 +26,21 @@ carrier.
 
 ## Current Admitted Shape
 
-The initial selector intentionally accepts two exact three-block forms under
-one runtime Boolean parameter. In the first, each successor block contains one
-leaf-local unsigned 64-bit constant followed by a cleanup-free return. In the
-second, one additional unsigned 64-bit entry parameter is returned directly
-from either cleanup-free leaf. Other shapes reject rather than falling back or
-entering transitional assignment.
+The selector accepts seven exact three-block scalar families under one runtime
+Boolean parameter: immediate pairs, entry-parameter pairs, exact-add pairs,
+exact-subtract pairs, widened exact-add pairs, widened exact-subtract pairs, and
+an active-resident exact-add chain paired with one false-arm immediate. One
+ordered catalog is the complete source-shape inventory. It selects exactly zero
+or one family; omission rejects as unsupported and overlap fails closed.
 
-The selected plan contains three virtual registers and six instructions:
-compare, conditional branch, two materializations, and two returns. The
-condition's ABI view and each return view are fixed constraints, not assigned
-homes. x86-64 obtains RFLAGS/RIP effects and AArch64 obtains NZCV/PC effects
-from their independently validated ISA-owned catalog rows.
-
-The forwarded-parameter form has two ABI-constrained entry VRegs and four
-instructions: compare, branch, and two returns. The shared result VReg remains
-live on both exact successor edges. Its entry view and later fixed return views
-are separate constraint sites; no copy, split, or physical home is invented by
-selection.
+Every family constructs its virtual-register roster and blocks as one body.
+The common entry compares the condition and branches to the two exact source
+successors. Leaves then materialize, forward, or compute their unsigned 64-bit
+result and return it with exact operation, obligation, value, edge, definition,
+and fuel provenance. Fixed ABI views are constraints, not assigned homes.
+x86-64 obtains RFLAGS/RIP effects and AArch64 obtains NZCV/PC effects from their
+independently validated ISA-owned catalog rows. Other shapes reject rather than
+falling back or entering transitional assignment.
 
 ## Semantic Custody
 
@@ -67,6 +64,14 @@ selection.
 - `pipeline/omega-target-operations-to-selected-instructions` owns
   production, independent validation, source-custody joins, and content
   identity construction.
+- `selection/construction/mod.rs` owns the complete scalar, plain-Unit, and
+  structural-Unit roster join.
+- `selection/construction/scalar/mod.rs` reconstructs common condition context,
+  selects one row from the adjacent `catalog.rs`, and assembles the complete
+  selected function from that row's register-plus-block body.
+- `selection/construction/structural_unit/mod.rs` joins independently
+  reconstructed ABI layout, optional structural call, and Unit return; layout
+  and call mechanics descend into named leaves.
 - `pipeline/optimization/omega-optimization-pipeline/src/stages/selection/selection.rs` owns the opaque
   cross-stage carrier, injects exact ISA/ABI constraints, and binds the physical
   model, constraint catalog, active reservation profile, and selected keys into
@@ -77,9 +82,10 @@ selection.
 ## Known Gaps
 
 The selected CFG must expand to the complete legalized instruction vocabulary,
-including calls, memory, cleanup, suspension, proof-bearing operations, loops,
-and general value flow. Bounded block/instruction liveness and CFG-aware range
-fragments now exist for these two exact three-block shapes, but general
+including scalar calls, memory, cleanup, suspension, additional proof-bearing
+operations, loops, and general value flow. Bounded block/instruction liveness
+and CFG-aware range fragments now exist for the admitted exact three-block
+families, but general
 liveness, range splitting, allocation, spills, frame assignment, and
 independent physical-realization validation remain later stages. The existing
 scratch-cycling assigned-operation route is transitional and is not evidence
