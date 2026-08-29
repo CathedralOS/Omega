@@ -17,6 +17,13 @@ another broad alias while executing this plan.
 
 ## Current stopping point
 
+[x] Global value numbering now has a separate two-row obligation-free wrapping
+multiplication annihilation family: `0 * x -> 0` and `x * 0 -> 0`. It appends
+candidate tags 8/9 and catalog row 11 under GVN v10, retains exactly the
+law-defining zero-literal fact, and has an independently reconstructed
+validator identity. The `0*1`/`1*0` overlap is confluent and the earlier
+multiply-one rule wins deterministically; `0*0` chooses the left-zero row.
+
 [x] Exact release rollback now has catalog-wide disabled-selection coverage.
 Every source-visible `Optimization::ALL` name is independently subtracted from
 the full suite, excluded from every phase projection, and reapplied to prove
@@ -485,9 +492,8 @@ parallel route or optional coordinator field.
   arithmetic identity partition and independent validator reconstruction.
 - [>] Extend GVN and scalar identities to further exact operation families only
   with exhaustive producer/validator partitions. The separate wrapping-shift
-  zero-count family is complete; saturating neutral arithmetic, wrapping
-  multiply annihilation, and bitwise identities remain unselected future
-  families.
+  zero-count and wrapping multiply-zero families are complete; saturating
+  neutral arithmetic and bitwise identities remain unselected future families.
 - [ ] Implement loop-invariant code motion after cyclic Terminal-Psi semantics
   are resolved.
 - [?] Define suspension/resume edges for CFG analyses.

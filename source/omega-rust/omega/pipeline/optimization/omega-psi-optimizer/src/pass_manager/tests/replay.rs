@@ -262,7 +262,6 @@ fn external_decision_record_and_replay_preserve_compatible_policy_phi_gvn() {
     assert!(points.iter().any(|point| {
         point.rule() == crate::rules::WrappingShiftZeroCountIdentityRule::contract().identity()
     }));
-
     let replayed = replay_psi_pipeline(
         verified_compatible_policy_phi_gvn_unit(),
         &selections,

@@ -1,17 +1,17 @@
-//! Independent neutral-literal fact reconstruction.
+//! Independent law-literal fact reconstruction.
 
 use super::classification::IndependentTotalScalarIdentity;
 use super::*;
 
-pub(super) fn independently_validate_neutral_literal(
+pub(super) fn independently_validate_law_literal(
     input: &PsiOptimizationUnit,
     function: &PsiOptimizationFunction,
     shape: IndependentTotalScalarIdentity,
     candidate: &PsiRewriteCandidate,
 ) -> Result<(), OptimizationUnitValidationError> {
-    let definition = scalar_value_definition(function, shape.identity_operand)
+    let definition = scalar_value_definition(function, shape.law_operand)
         .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
-    if definition.scalar_type != ScalarType::Integer(shape.identity_operand_type) {
+    if definition.scalar_type != ScalarType::Integer(shape.law_operand_type) {
         return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
     }
     let ValueDefinitionSite::Node { block, node } = definition.site else {
@@ -36,16 +36,16 @@ pub(super) fn independently_validate_neutral_literal(
     else {
         return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
     };
-    if result != shape.identity_operand
-        || scalar_type != ScalarType::Integer(shape.identity_operand_type)
-        || value != shape.identity_constant
+    if result != shape.law_operand
+        || scalar_type != ScalarType::Integer(shape.law_operand_type)
+        || value != shape.law_constant
         || !function.facts.iter().any(|fact| {
             matches!(fact, OptimizationFact::IntegerConstant {
                 value: fact_value,
                 constant,
                 support: fact_support,
-            } if *fact_value == shape.identity_operand
-                && *constant == shape.identity_constant
+            } if *fact_value == shape.law_operand
+                && *constant == shape.law_constant
                 && *fact_support == support)
         })
     {
@@ -55,7 +55,7 @@ pub(super) fn independently_validate_neutral_literal(
         input.identity,
         function.machine,
         definition,
-        ScalarConstantValue::Integer(shape.identity_constant),
+        ScalarConstantValue::Integer(shape.law_constant),
         support,
     )
     .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;

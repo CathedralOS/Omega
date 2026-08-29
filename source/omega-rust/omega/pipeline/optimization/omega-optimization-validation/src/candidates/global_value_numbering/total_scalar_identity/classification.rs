@@ -7,10 +7,10 @@ pub(super) struct IndependentTotalScalarIdentity {
     pub source_operation: OperationId,
     pub result: ValueId,
     pub replacement: ValueId,
-    pub identity_operand: ValueId,
+    pub law_operand: ValueId,
     pub scalar_type: IntegerType,
-    pub identity_operand_type: IntegerType,
-    pub identity_constant: IntegerValue,
+    pub law_operand_type: IntegerType,
+    pub law_constant: IntegerValue,
 }
 
 pub(super) fn independently_classify_total_scalar_identity(
@@ -21,10 +21,10 @@ pub(super) fn independently_classify_total_scalar_identity(
         source_operation,
         result,
         replacement,
-        identity_operand,
+        law_operand,
         scalar_type,
-        identity_operand_type,
-        identity_constant,
+        law_operand_type,
+        law_constant,
     ) = match (operation, identity) {
         (
             O::WrappingIntegerAdd {
@@ -154,16 +154,52 @@ pub(super) fn independently_classify_total_scalar_identity(
             *count_type,
             independently_typed_integer(*count_type, 0),
         ),
+        (
+            O::WrappingIntegerMultiply {
+                psi_operation,
+                result,
+                scalar_type,
+                left,
+                ..
+            },
+            TotalScalarIdentityKind::WrappingIntegerMultiplyZeroLeft,
+        ) => (
+            *psi_operation,
+            *result,
+            *left,
+            *left,
+            *scalar_type,
+            *scalar_type,
+            independently_typed_integer(*scalar_type, 0),
+        ),
+        (
+            O::WrappingIntegerMultiply {
+                psi_operation,
+                result,
+                scalar_type,
+                right,
+                ..
+            },
+            TotalScalarIdentityKind::WrappingIntegerMultiplyZeroRight,
+        ) => (
+            *psi_operation,
+            *result,
+            *right,
+            *right,
+            *scalar_type,
+            *scalar_type,
+            independently_typed_integer(*scalar_type, 0),
+        ),
         _ => return None,
     };
     Some(IndependentTotalScalarIdentity {
         source_operation,
         result,
         replacement,
-        identity_operand,
+        law_operand,
         scalar_type,
-        identity_operand_type,
-        identity_constant,
+        law_operand_type,
+        law_constant,
     })
 }
 

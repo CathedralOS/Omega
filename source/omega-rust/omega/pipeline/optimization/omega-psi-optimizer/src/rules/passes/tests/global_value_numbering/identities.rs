@@ -79,7 +79,9 @@ fn wrapping_identity_rules_are_disabled_by_default_and_cataloged_once() {
     let contract = WrappingNeutralArithmeticIdentityRule::contract();
     assert_eq!(
         contract.pass(),
-        OptimizationPassIdentity::from_canonical_bytes(b"omega.psi-pass.global-value-numbering.v9")
+        OptimizationPassIdentity::from_canonical_bytes(
+            b"omega.psi-pass.global-value-numbering.v10",
+        )
     );
     let expected = contract.identity();
     assert_eq!(identities.get(9), Some(&expected));
@@ -99,6 +101,18 @@ fn wrapping_identity_rules_are_disabled_by_default_and_cataloged_once() {
         registry
             .contracts()
             .filter(|contract| contract.identity() == shift)
+            .count(),
+        1
+    );
+    let annihilation = WrappingMultiplyZeroAnnihilationRule::contract().identity();
+    assert_eq!(
+        registry.contracts().nth(11).map(|row| row.identity()),
+        Some(annihilation)
+    );
+    assert_eq!(
+        registry
+            .contracts()
+            .filter(|contract| contract.identity() == annihilation)
             .count(),
         1
     );

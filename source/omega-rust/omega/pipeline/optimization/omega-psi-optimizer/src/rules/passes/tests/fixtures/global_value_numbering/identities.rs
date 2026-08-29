@@ -161,3 +161,76 @@ pub(crate) fn wrapping_neutral_identity_unit_with_value_and_identity_types_and_l
     )
     .unwrap()
 }
+
+pub(crate) fn wrapping_multiply_literal_pair_unit(
+    left_value: IntegerValue,
+    right_value: IntegerValue,
+) -> PsiOptimizationUnit {
+    let machine = id(1_951, MachineId::new);
+    let block = id(1_952, BlockId::new);
+    let left = id(1_953, ValueId::new);
+    let right = id(1_954, ValueId::new);
+    let result = id(1_955, ValueId::new);
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let scalar_type = ScalarType::Integer(integer);
+    reconstruct_psi_optimization_unit_seed(
+        &AbstractOperationPlan {
+            psi: TerminalPsiIdentity {
+                vocabulary_marker: VocabularyMarker::CURRENT,
+                program_fingerprint: SemanticFingerprint::from_bytes([50; 32]),
+            },
+            entry: machine,
+            structural_types: Vec::new(),
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            functions: vec![AbstractFunction {
+                machine,
+                attachment: None,
+                entry: block,
+                parameters: Vec::new(),
+                structural_parameters: Vec::new(),
+                result: AbstractFunctionResult::Scalar(AbstractResult {
+                    value: result,
+                    scalar_type,
+                }),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                block_entries: vec![AbstractBlockEntry {
+                    block,
+                    parameters: Vec::new(),
+                    operation_offset: 0,
+                }],
+                operations: vec![
+                    O::IntegerConstant {
+                        psi_operation: id(1_956, OperationId::new),
+                        result: left,
+                        scalar_type,
+                        value: left_value,
+                    },
+                    O::IntegerConstant {
+                        psi_operation: id(1_957, OperationId::new),
+                        result: right,
+                        scalar_type,
+                        value: right_value,
+                    },
+                    O::WrappingIntegerMultiply {
+                        psi_operation: id(1_958, OperationId::new),
+                        result,
+                        scalar_type: integer,
+                        left,
+                        right,
+                    },
+                    O::Return {
+                        psi_edge: id(1_959, EdgeId::new),
+                        result,
+                        value: result,
+                        scalar_type,
+                        cleanup_actions: Vec::new(),
+                    },
+                ],
+            }],
+        },
+        FuelScheduleIdentity::new(1).unwrap(),
+    )
+    .unwrap()
+}

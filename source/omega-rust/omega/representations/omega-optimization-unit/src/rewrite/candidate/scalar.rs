@@ -178,9 +178,9 @@ impl PsiRewriteCandidate {
         )
     }
 
-    /// Eliminate one wrapping arithmetic identity whose neutral operand is
+    /// Eliminate one wrapping scalar law whose defining operand is
     /// independently bound to a literal fact. No proof obligation is needed:
-    /// wrapping arithmetic makes these five laws total over the integer type.
+    /// the closed wrapping laws are total over their declared integer types.
     #[allow(clippy::too_many_arguments)]
     pub fn new_total_scalar_identity(
         input: OptimizationUnitIdentity,

@@ -76,17 +76,14 @@ pub(super) fn propose_total_scalar_identities(
                     continue;
                 }
                 let Some((shape, constant_fact)) = shapes.into_iter().find_map(|shape| {
-                    if value_types.get(&shape.identity_operand)
-                        != Some(&ScalarType::Integer(shape.identity_operand_type))
+                    if value_types.get(&shape.law_operand)
+                        != Some(&ScalarType::Integer(shape.law_operand_type))
                     {
                         return None;
                     }
-                    let (actual, fact) = literal_integer_constant(
-                        constants,
-                        function.machine,
-                        shape.identity_operand,
-                    )?;
-                    (actual == shape.expected_identity_value).then_some((shape, fact))
+                    let (actual, fact) =
+                        literal_integer_constant(constants, function.machine, shape.law_operand)?;
+                    (actual == shape.expected_law_value).then_some((shape, fact))
                 }) else {
                     continue;
                 };

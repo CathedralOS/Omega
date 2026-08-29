@@ -422,6 +422,11 @@ accepts a rule-local shape classifier; the independent validator maps each
 closed identity kind back to exactly one rule and validator. Both sides retain
 the shifted value type separately from the shift-count literal type, so a
 mixed-width shift cannot be admitted through same-type assumptions.
+Wrapping multiply-zero annihilation is a third adjacent rule with its own
+identity and a focused `multiply_zero.rs` test leaf. The shared conveyor calls
+its proving constant the law-defining literal rather than assuming every law
+uses a neutral element. Catalog order makes its overlap with multiply-one
+explicit and deterministic without merging their rule custody.
 Independent dead-scalar validation exposes one custody-and-analysis-contract
 entrance above its exact rule catalog, exhaustive closed operation partition,
 and rewrite replay. A new operation or dead-scalar rule therefore has one

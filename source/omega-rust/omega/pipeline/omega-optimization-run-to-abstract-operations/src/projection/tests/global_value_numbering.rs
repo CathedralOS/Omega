@@ -237,7 +237,7 @@ fn global_value_numbering_projects_proof_certified_phi_custody() {
 }
 
 #[test]
-fn compatible_policy_phi_gvn_projects_and_lowers_in_both_target_families() {
+fn compatible_policy_phi_gvn_and_wrapping_shift_identities_project_and_lower() {
     let selections = OptimizationSelections::new([Optimization::GlobalValueNumbering]).unwrap();
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let optimized = project_optimization_run(run(
@@ -254,7 +254,9 @@ fn compatible_policy_phi_gvn_projects_and_lowers_in_both_target_families() {
             .iter()
             .find(|block| block.id == join)
             .unwrap();
-        assert_eq!(optimized.commits().len(), 1);
+        // The compatible-policy phi rewrite is followed by one exact
+        // zero-count shift elimination on each predecessor.
+        assert_eq!(optimized.commits().len(), 3);
         assert_eq!(join_block.parameters[1].value, redundant);
         assert_eq!(join_block.nodes.len(), 1);
         assert_eq!(optimized.unit().accepted_obligation_facts.len(), 1);
@@ -271,13 +273,13 @@ fn compatible_policy_phi_gvn_projects_and_lowers_in_both_target_families() {
                 .filter(|edge| edge.target == join)
                 .map(|edge| edge.bindings[1].argument)
                 .collect::<BTreeSet<_>>(),
-            BTreeSet::from([ValueId::new(1_460).unwrap(), ValueId::new(1_461).unwrap(),])
+            BTreeSet::from([ValueId::new(1_457).unwrap(), ValueId::new(1_458).unwrap(),])
         );
         let lowered = lower_optimized_to_target_operations(optimized, target).unwrap();
         assert_eq!(lowered.target(), target);
         assert_eq!(
             lowered.optimized().transformation_ledger().records().len(),
-            1
+            3
         );
     }
 }

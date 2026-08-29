@@ -331,6 +331,8 @@ pub(super) fn encode_candidate(
                 TotalScalarIdentityKind::WrappingIntegerMultiplyOneRight => 5,
                 TotalScalarIdentityKind::WrappingIntegerShiftLeftZeroCount => 6,
                 TotalScalarIdentityKind::WrappingIntegerShiftRightZeroCount => 7,
+                TotalScalarIdentityKind::WrappingIntegerMultiplyZeroLeft => 8,
+                TotalScalarIdentityKind::WrappingIntegerMultiplyZeroRight => 9,
             });
         }
     }
