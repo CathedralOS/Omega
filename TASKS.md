@@ -9960,12 +9960,19 @@ boundary without its corresponding checked law.
   Independent replay rederives every semantic target, range/alignment rule,
   mutable mask, encoded field, and unchanged byte; rejection returns the
   complete file-envelope owner and the retained `FinalImage` is not mutated.
-  Runnable ELF emission remains fail closed before image mutation: optional
-  `.gnu.hash`, payload and fragment placement into one image, image mutation,
-  and independent final-byte replay remain unimplemented. Validated semantic
-  tags, absolute geometry, applied section-header/`.dynamic` bytes, the file-
-  envelope fragments, and resolved procedure-linkage fragments do not
-  constitute a dynamic image.
+  Exact non-runnable file assembly is now complete as a following consuming
+  rung. It places the header/program-header prefix, retained source text/data,
+  all eleven non-null section payloads, resolved procedure-linkage and
+  `.dynamic` fragments, file-only `.shstrtab`, and the applied section-header
+  table into one owned buffer at their absolute file offsets. A typed fragment
+  ledger and independent replay check exact source bytes, file extents,
+  non-overlap, complete coverage, and canonical zero-filled alignment/page
+  gaps; BSS remains memory-only, rejection returns the complete resolved-
+  linkage owner, and the retained `FinalImage` remains immutable. Runnable ELF
+  emission remains fail closed before image mutation: optional `.gnu.hash`,
+  consuming `FinalImage` mutation, and independent final-byte admission remain
+  unimplemented. The assembled file carrier does not constitute a dynamic
+  image or grant loader, publication, or runnable authority.
   The generic contextual byte-literal rung is also live for owned direct
   `[u8; N]` destinations used by final results, locals/owned initializers,
   exact resolved call arguments, and record/case fields. It copies source bytes
