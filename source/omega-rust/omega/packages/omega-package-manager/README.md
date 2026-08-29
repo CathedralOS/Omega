@@ -58,7 +58,7 @@ resolution/closure/
 └── identity/        canonical identity of the exact closure
     ├── subject.rs   canonical closure question and fingerprint
     ├── codec/       encode framing, source identities, and selections
-    └── validation.rs reject non-canonical closure questions
+    └── validation/  reject invalid graphs, requests, and source custody
 ```
 
 Directory entrances are maps: `mod.rs` names the responsibility and points to
