@@ -8,7 +8,7 @@ use omega_selected_instructions::{
 };
 use psi_core::{FuelScheduleIdentity, MachineId};
 
-use crate::literal_fold_identity::encode_terminal_literal_fold_content;
+use crate::rules::literal_fold::identity::encode_terminal_literal_fold_content;
 use crate::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, LiveRangeIdentity, LiveRangePoint,
     RecoveryClassificationIdentity, SpillChoiceIdentity,

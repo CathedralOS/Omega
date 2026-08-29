@@ -12,7 +12,7 @@ use psi_core::{
     ObligationId, OperationId, ScalarType, ValueId,
 };
 
-use crate::recovery_classification_identity::encode_terminal_recovery_classification_content;
+use crate::analyses::recovery_classification::identity::encode_terminal_recovery_classification_content;
 use crate::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, LiveRangeIdentity, LiveRangePoint,
     SpillChoiceIdentity,

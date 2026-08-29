@@ -3396,6 +3396,38 @@ the complete-unit entrance separately owns reconstructible unit invariants and
 verified-context custody. This layout must remain independently testable even
 when producer and validator modules happen to use parallel family names.
 
+The register allocator demonstrates the physical-analysis and exact-rule
+variant:
+
+```text
+omega-regalloc/src/
+  lib.rs                                  # analyses + allocation + rules
+  analyses/
+    mod.rs                                # read-only fact catalog
+    liveness/                             # selected-CFG dataflow
+    live_ranges/                          # fragments + interference
+    allocator_availability/               # selected view policy
+    allocation_legality/                  # per-point legal views
+    recovery_classification/              # recovery eligibility
+  allocation/
+    mod.rs                                # allocation-decision catalog
+    home_assignment/                      # transition-free assignments
+    spill_choice/                         # bounded victim selection
+    post_allocation_manifest.rs
+  rules/
+    mod.rs                                # exact transformation catalog
+    fixed_view_copy/                      # copy insertion + CFG replay
+    literal_fold/                         # exact incoming-literal fold
+    pressure_rematerialization/           # exact resident split
+```
+
+Every folder leaf has a small entrance that owns its public
+compute-to-independent-validation operation; model, identity, computation,
+validation, codec, and transform mechanics remain below it. Tests stay with
+those leaves, so a reader reaches the rule implementation and its preservation
+checks through the same path. The public compatibility facade and serialized
+semantic identities remain unchanged.
+
 ## Testing strategy
 
 Each rule has positive, negative, boundary, and fact-expiry tests. The full

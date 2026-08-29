@@ -2,7 +2,7 @@ use omega_register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnviro
 use omega_selected_instructions::VirtualRegisterId;
 use psi_core::MachineId;
 
-use crate::home_assignment_identity::encode_terminal_register_home_content;
+use crate::allocation::home_assignment::identity::encode_terminal_register_home_content;
 use crate::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, LiveRangeIdentity,
     register_home_identity,

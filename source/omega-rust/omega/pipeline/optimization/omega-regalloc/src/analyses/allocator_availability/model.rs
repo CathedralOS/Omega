@@ -3,7 +3,7 @@ use omega_register_model::{
     TargetRegisterEnvironmentIdentity,
 };
 
-use crate::allocator_availability_identity::encode_terminal_allocator_availability_content;
+use crate::analyses::allocator_availability::identity::encode_terminal_allocator_availability_content;
 
 const ALLOCATOR_AVAILABILITY_MAGIC: &[u8; 8] = b"OMGAVA\0\0";
 const ALLOCATOR_AVAILABILITY_VERSION: u32 = 1;

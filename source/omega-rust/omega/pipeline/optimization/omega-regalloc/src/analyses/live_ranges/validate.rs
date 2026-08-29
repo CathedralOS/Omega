@@ -1142,15 +1142,17 @@ mod tests {
         };
         assert_eq!(
             super::independently_derive_ties(0, &live).unwrap(),
-            crate::live_range_compute::derive_tied_pairs(0, &live).unwrap()
+            crate::analyses::live_ranges::compute::derive_tied_pairs(0, &live).unwrap()
         );
     }
 
     #[test]
     fn multiple_early_clobber_rows_replay_and_reject_individual_corruption() {
-        let selected = crate::compute::tests::supported_multiple_early_clobber_function();
-        let live = crate::compute::compute_function(0, &selected).unwrap();
-        let expected = crate::live_range_compute::derive_early_clobbers(0, &live).unwrap();
+        let selected =
+            crate::analyses::liveness::compute::tests::supported_multiple_early_clobber_function();
+        let live = crate::analyses::liveness::compute::compute_function(0, &selected).unwrap();
+        let expected =
+            crate::analyses::live_ranges::compute::derive_early_clobbers(0, &live).unwrap();
         let replayed = independently_derive_early_clobbers(0, &live).unwrap();
         assert_eq!(expected, replayed);
         assert_eq!(expected.len(), 2);
@@ -1179,14 +1181,15 @@ mod tests {
 
     #[test]
     fn isolated_tied_early_clobber_replay_rejects_malformed_and_corrupt_rows() {
-        let selected = crate::compute::tests::supported_isolated_tied_early_clobber_function();
-        let live = crate::compute::compute_function(0, &selected).unwrap();
-        let expected = crate::live_range_compute::derive_early_clobbers(0, &live).unwrap();
+        let selected = crate::analyses::liveness::compute::tests::supported_isolated_tied_early_clobber_function();
+        let live = crate::analyses::liveness::compute::compute_function(0, &selected).unwrap();
+        let expected =
+            crate::analyses::live_ranges::compute::derive_early_clobbers(0, &live).unwrap();
         let replayed = independently_derive_early_clobbers(0, &live).unwrap();
         assert_eq!(expected, replayed);
         assert_eq!(
             super::independently_derive_ties(0, &live).unwrap(),
-            crate::live_range_compute::derive_tied_pairs(0, &live).unwrap()
+            crate::analyses::live_ranges::compute::derive_tied_pairs(0, &live).unwrap()
         );
         assert_eq!(expected[0].uses.len(), 1);
         assert_eq!(expected[0].uses[0].virtual_register, VirtualRegisterId(1));
@@ -1228,15 +1231,15 @@ mod tests {
 
     #[test]
     fn component_tied_early_clobber_replay_matches_and_rejects_a_second_early_member() {
-        let selected = crate::compute::tests::supported_component_tied_early_clobber_function();
-        let live = crate::compute::compute_function(0, &selected).unwrap();
+        let selected = crate::analyses::liveness::compute::tests::supported_component_tied_early_clobber_function();
+        let live = crate::analyses::liveness::compute::compute_function(0, &selected).unwrap();
         assert_eq!(
             independently_derive_early_clobbers(0, &live).unwrap(),
-            crate::live_range_compute::derive_early_clobbers(0, &live).unwrap()
+            crate::analyses::live_ranges::compute::derive_early_clobbers(0, &live).unwrap()
         );
         assert_eq!(
             super::independently_derive_ties(0, &live).unwrap(),
-            crate::live_range_compute::derive_tied_pairs(0, &live).unwrap()
+            crate::analyses::live_ranges::compute::derive_tied_pairs(0, &live).unwrap()
         );
 
         let mut two_early = live;
@@ -1262,7 +1265,7 @@ mod tests {
             Err(LiveRangeError::UnsupportedEarlyClobber { .. })
         ));
         assert!(matches!(
-            crate::live_range_compute::derive_early_clobbers(0, &two_early),
+            crate::analyses::live_ranges::compute::derive_early_clobbers(0, &two_early),
             Err(LiveRangeError::UnsupportedEarlyClobber { .. })
         ));
     }

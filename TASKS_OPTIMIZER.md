@@ -1286,9 +1286,21 @@ prove every enabled rule phase is actually scheduled.
   fixtures mirror those responsibilities; no production or test file reaches
   2,000 lines.
 
-  Remaining work: organize register allocation into `analyses`, `allocation`,
-  and exact `rules`; make optimization-pipeline stage catalogs navigable without
-  a flat `#[path]`/re-export wall; and split their monolithic test modules beside
+  Register allocation is now the fourth reference slice. Its former 439-line
+  flat crate entrance is 40 lines and names three semantic rungs: `analyses`,
+  `allocation`, and exact `rules`. Analysis folders own liveness, live ranges,
+  allocator availability, allocation legality, and recovery classification;
+  allocation folders own home assignment, spill choice, and the
+  post-allocation manifest; rule folders own fixed-view copy insertion,
+  incoming-literal folding, and pressure rematerialization. Each 22–61-line
+  family entrance owns the public compute-to-independent-validation join and
+  points directly to its model, identity, compute, validation, transform, or
+  codec leaves. The 66 tests remain beside those exact responsibilities, every
+  source file is below 1,500 lines, all 34 public function names are unchanged,
+  and all 11 serialized `omega.*` identities match the pre-split tree.
+
+  Remaining work: make optimization-pipeline stage catalogs navigable without
+  a flat `#[path]`/re-export wall and split any monolithic test modules beside
   the family they exercise. Do not create one crate per rule or combine
   independent producer and validator implementations merely to reduce line
   counts.

@@ -986,7 +986,7 @@ mod tests {
 
     fn plan(policy: FixedViewCopyPolicy) -> FixedViewCopyPlan {
         let (_, _, _, copy, mut function) =
-            crate::fixed_view_copy_compute::tests::computed_shared_fixture();
+            crate::rules::fixed_view_copy::compute::tests::computed_shared_fixture();
         let operation = OperationId::new(1).unwrap();
         function.provenance.operations.push(operation);
         function.blocks[0].instructions[0]

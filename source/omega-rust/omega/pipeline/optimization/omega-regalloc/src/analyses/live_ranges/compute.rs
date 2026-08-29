@@ -891,8 +891,8 @@ mod tests {
 
     #[test]
     fn isolated_tied_early_clobber_separates_tie_from_unrelated_hazard_uses() {
-        let selected = crate::compute::tests::supported_isolated_tied_early_clobber_function();
-        let live = crate::compute::compute_function(0, &selected).unwrap();
+        let selected = crate::analyses::liveness::compute::tests::supported_isolated_tied_early_clobber_function();
+        let live = crate::analyses::liveness::compute::compute_function(0, &selected).unwrap();
         let ties = derive_tied_pairs(0, &live).unwrap();
         let rows = derive_early_clobbers(0, &live).unwrap();
 
@@ -922,16 +922,16 @@ mod tests {
         );
 
         let selected =
-            crate::compute::tests::supported_multiple_isolated_tied_early_clobber_function();
-        let live = crate::compute::compute_function(0, &selected).unwrap();
+            crate::analyses::liveness::compute::tests::supported_multiple_isolated_tied_early_clobber_function();
+        let live = crate::analyses::liveness::compute::compute_function(0, &selected).unwrap();
         assert_eq!(derive_tied_pairs(0, &live).unwrap().len(), 2);
         assert_eq!(derive_early_clobbers(0, &live).unwrap().len(), 2);
     }
 
     #[test]
     fn component_tied_early_clobber_keeps_transitive_ties_and_only_unrelated_hazards() {
-        let selected = crate::compute::tests::supported_component_tied_early_clobber_function();
-        let live = crate::compute::compute_function(0, &selected).unwrap();
+        let selected = crate::analyses::liveness::compute::tests::supported_component_tied_early_clobber_function();
+        let live = crate::analyses::liveness::compute::compute_function(0, &selected).unwrap();
         let ties = derive_tied_pairs(0, &live).unwrap();
         let rows = derive_early_clobbers(0, &live).unwrap();
 
@@ -959,8 +959,8 @@ mod tests {
         );
 
         let multiple =
-            crate::compute::tests::supported_multiple_component_tied_early_clobber_function();
-        let live = crate::compute::compute_function(0, &multiple).unwrap();
+            crate::analyses::liveness::compute::tests::supported_multiple_component_tied_early_clobber_function();
+        let live = crate::analyses::liveness::compute::compute_function(0, &multiple).unwrap();
         assert_eq!(derive_tied_pairs(0, &live).unwrap().len(), 4);
         assert_eq!(derive_early_clobbers(0, &live).unwrap().len(), 2);
     }

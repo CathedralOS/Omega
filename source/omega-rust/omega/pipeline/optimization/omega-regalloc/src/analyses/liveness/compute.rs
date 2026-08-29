@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::model::{
+use crate::analyses::liveness::model::{
     BlockLiveness, EntryDefinition, FunctionLiveness, InstructionLiveness, LivenessError,
     LivenessPlan, LivenessPosition, OperandPosition, SuccessorLiveness,
 };

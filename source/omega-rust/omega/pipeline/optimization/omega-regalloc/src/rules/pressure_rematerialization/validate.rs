@@ -569,9 +569,9 @@ mod tests {
     #[test]
     fn independent_replay_matches_proposal_and_rejects_recipe_corruption() {
         let (selected, ranges, recovery, row) =
-            crate::pressure_rematerialization_compute::tests::fixture();
+            crate::rules::pressure_rematerialization::compute::tests::fixture();
         let candidate = recovery.functions[0].classification.as_ref().unwrap();
-        let (functions, proposed) = crate::pressure_rematerialization_compute::build_functions(
+        let (functions, proposed) = crate::rules::pressure_rematerialization::compute::build_functions(
             &selected,
             &ranges,
             &recovery,
@@ -613,13 +613,14 @@ mod tests {
     #[test]
     fn independent_replay_reconstructs_multiple_use_suffix_and_rejects_rewrite_corruption() {
         let (selected, ranges, recovery, row) =
-            crate::pressure_rematerialization_compute::tests::multiple_future_fixture();
+            crate::rules::pressure_rematerialization::compute::tests::multiple_future_fixture();
         let candidate = recovery.functions[0].classification.as_ref().unwrap();
         let policy = PressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1;
-        let (functions, proposed) = crate::pressure_rematerialization_compute::build_functions(
-            &selected, &ranges, &recovery, &row, policy,
-        )
-        .unwrap();
+        let (functions, proposed) =
+            crate::rules::pressure_rematerialization::compute::build_functions(
+                &selected, &ranges, &recovery, &row, policy,
+            )
+            .unwrap();
         let action = functions[0].action.as_ref().unwrap();
         validate_action(
             0,
