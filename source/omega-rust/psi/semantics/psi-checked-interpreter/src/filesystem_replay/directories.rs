@@ -121,17 +121,6 @@ pub(crate) fn output_directory_record_from_attempt(
     FilesystemOutputDirectoryReplayRecord::new(rooted.root, rooted.relative_path.clone())
 }
 
-pub(crate) fn output_directory_records_from_attempts(
-    attempts: &[FilesystemOperationAttempt],
-) -> Result<Vec<FilesystemOutputDirectoryReplayRecord>, String> {
-    let directories = attempts
-        .iter()
-        .map(output_directory_record_from_attempt)
-        .collect::<Result<Vec<_>, _>>()?;
-    validate_output_directory_records(&directories)?;
-    Ok(directories)
-}
-
 pub(crate) fn validate_output_directory_attempt(
     attempt: &FilesystemOperationAttempt,
 ) -> Result<(), String> {

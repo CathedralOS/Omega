@@ -119,9 +119,7 @@ fn typed_record_rejects_source_output_root_alias() {
 
 #[test]
 fn typed_record_rejects_empty_or_mixed_root_directory_trees() {
-    assert!(
-        FilesystemInputOutputDirectoryReplayRecord::new(source_input(), Vec::new()).is_err()
-    );
+    assert!(FilesystemInputOutputDirectoryReplayRecord::new(source_input(), Vec::new()).is_err());
     let first = FilesystemOutputDirectoryReplayRecord::new(root(2), b"first".to_vec())
         .expect("first directory");
     let second = FilesystemOutputDirectoryReplayRecord::new(root(3), b"second".to_vec())

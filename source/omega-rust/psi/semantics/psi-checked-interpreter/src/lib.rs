@@ -91,17 +91,18 @@ mod value;
 pub use build_time::BuildTimeValue;
 pub use filesystem_replay::{
     FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_MODE, FilesystemInputOutputDirectoryReplayRecord,
-    FilesystemOutputDirectoryReplayRecord, FilesystemOutputDuplicateReplayRecord,
-    FilesystemOutputLockReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES,
+    FilesystemInputOutputTreeReplayRecord, FilesystemOutputDirectoryReplayRecord,
+    FilesystemOutputDuplicateReplayRecord, FilesystemOutputLockReplayRecord,
+    FilesystemOutputTreeEntryReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES,
     MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_PATH_BYTES,
     MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_RETAINED_PATH_BYTES,
     MAX_FILESYSTEM_REPLAY_OUTPUT_DUPLICATES, MAX_FILESYSTEM_REPLAY_OUTPUT_LOCK_PAIRS,
 };
 use filesystem_replay::{
-    output_directory_attempt, output_directory_records_from_attempts, output_duplicate_attempts,
+    output_directory_attempt, output_directory_record_from_attempt, output_duplicate_attempts,
     output_duplicate_record_from_attempts, output_lock_attempts, output_lock_record_from_attempts,
-    output_logical_handle_identities, source_attempts_use_root, validate_output_duplicate_replay,
-    validate_output_lock_replay,
+    output_logical_handle_identities, validate_observed_output_tree_records,
+    validate_output_duplicate_replay, validate_output_lock_replay,
 };
 pub use filesystem_sponsor::{
     COMPILER_DEFAULT_STAGING_ENTRY_LIMIT, COMPILER_DEFAULT_STAGING_MAX_OBJECT_EXTENT,
@@ -2499,16 +2500,22 @@ impl FilesystemReplay {
         let Some(output_start) = self
             .attempts
             .iter()
-            .position(|attempt| attempt.operation_tag() == 1)
+            .position(|attempt| matches!(attempt.operation_tag(), 1 | 11))
         else {
             return Vec::new();
         };
-        output_file_records_from_attempts(&self.attempts[output_start..])
-            .expect("validated filesystem replay retains exact Output files")
+        output_tree_entries_from_attempts(&self.attempts[output_start..])
+            .expect("validated filesystem replay retains exact Output entries")
+            .into_iter()
+            .filter_map(|entry| match entry {
+                FilesystemOutputTreeEntryReplayRecord::Directory(_) => None,
+                FilesystemOutputTreeEntryReplayRecord::File(file) => Some(file),
+            })
+            .collect()
     }
 
-    /// Reconstruct the exact ordered empty Output directory tree retained by
-    /// this replay. File and source-only records return an empty vector.
+    /// Reconstruct the exact ordered Output directories retained by this
+    /// replay. File-only and source-only records return an empty vector.
     pub fn output_directories(&self) -> Vec<FilesystemOutputDirectoryReplayRecord> {
         let Some(output_start) = self
             .attempts
@@ -2517,11 +2524,14 @@ impl FilesystemReplay {
         else {
             return Vec::new();
         };
-        if self.attempts[output_start].operation_tag() != 11 {
-            return Vec::new();
-        }
-        output_directory_records_from_attempts(&self.attempts[output_start..])
-            .expect("validated filesystem replay retains an exact Output directory tree")
+        output_tree_entries_from_attempts(&self.attempts[output_start..])
+            .expect("validated filesystem replay retains exact Output entries")
+            .into_iter()
+            .filter_map(|entry| match entry {
+                FilesystemOutputTreeEntryReplayRecord::Directory(directory) => Some(directory),
+                FilesystemOutputTreeEntryReplayRecord::File(_) => None,
+            })
+            .collect()
     }
 
     /// Generated-source coordinates expected during Output replay, in exact
@@ -2567,43 +2577,11 @@ impl FilesystemReplay {
             );
         }
         validate_source_input_attempts(&attempts[..output_start])?;
-        if attempts[output_start].operation_tag() == 11 {
-            let directories = output_directory_records_from_attempts(&attempts[output_start..])?;
-            if source_attempts_use_root(&attempts[..output_start], directories[0].output_root()) {
-                return Err("filesystem replay Source and Output roots must be distinct".to_owned());
-            }
-            if !observations.build_included_sources().is_empty() {
-                return Err(
-                    "filesystem replay empty Output directory tree cannot publish a generated source"
-                        .to_owned(),
-                );
-            }
-            return Ok(Self {
-                attempts: attempts.to_vec().into(),
-                expected_included_sources: std::sync::Arc::from([]),
-            });
-        }
-        let outputs = output_file_records_from_attempts(&attempts[output_start..])?;
-        validate_output_duplicate_replay(&outputs)?;
-        validate_output_replay_extents(&outputs)?;
-        for output in &outputs {
-            if output_logical_handle_identities(output).any(|identity| {
-                source_attempts_overlap_output(
-                    &attempts[..output_start],
-                    output.output_root,
-                    identity,
-                )
-            }) {
-                return Err(
-                    "filesystem replay Source and Output roots and descriptors must be distinct"
-                        .to_owned(),
-                );
-            }
-        }
-        validate_expected_included_sources(
-            &outputs,
+        let output_entries = output_tree_entries_from_attempts(&attempts[output_start..])?;
+        validate_observed_output_tree_records(
+            &attempts[..output_start],
+            &output_entries,
             observations.build_included_sources(),
-            output_start,
         )?;
         Ok(Self {
             attempts: attempts.to_vec().into(),
@@ -2626,6 +2604,31 @@ impl FilesystemReplay {
         Ok(Self {
             attempts: attempts.into(),
             expected_included_sources: record.expected_included_sources.into(),
+        })
+    }
+
+    /// Construct the bounded Source-input plus ordered Output-tree grammar
+    /// from typed compiler-owned records. Directory and complete file entries
+    /// retain their authored order.
+    pub fn from_input_output_tree_record(
+        record: FilesystemInputOutputTreeReplayRecord,
+    ) -> Result<Self, String> {
+        let (source_input, output_entries, expected_included_sources) = record.into_parts();
+        let mut attempts = source_input_record_attempts(source_input);
+        for entry in output_entries {
+            match entry {
+                FilesystemOutputTreeEntryReplayRecord::Directory(directory) => {
+                    attempts.push(output_directory_attempt(directory));
+                }
+                FilesystemOutputTreeEntryReplayRecord::File(file) => {
+                    attempts.extend(output_file_attempts(file));
+                }
+            }
+        }
+        validate_filesystem_replay_size(&attempts)?;
+        Ok(Self {
+            attempts: attempts.into(),
+            expected_included_sources: expected_included_sources.into(),
         })
     }
 
@@ -3430,94 +3433,100 @@ fn output_write_record_from_attempt(
     }
 }
 
-fn output_file_records_from_attempts(
+fn output_file_attempt_end(
     attempts: &[FilesystemOperationAttempt],
-) -> Result<Vec<FilesystemOutputFileReplayRecord>, String> {
-    if attempts.is_empty() {
-        return Err(
-            "bounded filesystem replay requires complete create-operation*-close Output files"
-                .to_owned(),
-        );
+    start: usize,
+) -> Result<usize, String> {
+    if attempts
+        .get(start)
+        .is_none_or(|attempt| attempt.operation_tag() != 1)
+    {
+        return Err("filesystem replay Output file must begin with create".to_owned());
     }
-    let mut outputs = Vec::new();
-    let mut cursor = 0;
-    while cursor < attempts.len() {
-        let start = cursor;
-        if attempts[cursor].operation_tag() != 1 {
-            return Err("filesystem replay Output file must begin with create".to_owned());
-        }
-        let Some(root_identity) = attempts[cursor]
-            .logical_handle_output
-            .map(|output| output.identity)
-        else {
-            return Err("filesystem replay Output create has no descriptor identity".to_owned());
-        };
-        cursor += 1;
-        loop {
-            if cursor == attempts.len() {
-                return Err(
-                    "bounded filesystem replay requires complete create-operation*-close Output files"
-                        .to_owned(),
-                );
-            }
-            if matches!(
-                attempts[cursor].operation_tag(),
-                5 | 7 | 10 | 17 | 41 | 42 | 43 | 44
-            ) {
-                cursor += 1;
-                continue;
-            }
-            if attempts[cursor].operation_tag() == 45 {
-                if cursor + 1 >= attempts.len() || attempts[cursor + 1].operation_tag() != 8 {
-                    return Err(
-                        "filesystem replay Output duplicate must be immediately retired".to_owned(),
-                    );
-                }
-                cursor += 2;
-                continue;
-            }
-            if attempts[cursor].operation_tag() == 46 {
-                if cursor + 1 >= attempts.len() || attempts[cursor + 1].operation_tag() != 46 {
-                    return Err(
-                        "filesystem replay Output lock must be immediately released".to_owned()
-                    );
-                }
-                cursor += 2;
-                continue;
-            }
-            let closes_root = attempts[cursor].operation_tag() == 8
-                && matches!(
-                    attempts[cursor].logical_handle_inputs.as_slice(),
-                    [FilesystemLogicalHandleInput {
-                        resolution: FilesystemLogicalHandleInputResolution::Resolved(identity),
-                        ..
-                    }] if *identity == root_identity
-                );
-            if closes_root {
-                break;
-            }
+    let Some(root_identity) = attempts[start]
+        .logical_handle_output
+        .map(|output| output.identity)
+    else {
+        return Err("filesystem replay Output create has no descriptor identity".to_owned());
+    };
+    let mut cursor = start + 1;
+    loop {
+        if cursor == attempts.len() {
             return Err(
                 "bounded filesystem replay requires complete create-operation*-close Output files"
                     .to_owned(),
             );
         }
-        cursor += 1;
-        let output = output_file_record_from_attempts(&attempts[start..cursor])?;
-        if outputs
-            .iter()
-            .any(|prior: &FilesystemOutputFileReplayRecord| {
-                (prior.output_root == output.output_root
-                    && prior.output_relative_path == output.output_relative_path)
-                    || prior.logical_handle_identity == output.logical_handle_identity
-            })
-        {
-            return Err(
-                "filesystem replay Output paths and descriptors must be distinct".to_owned(),
-            );
+        if matches!(
+            attempts[cursor].operation_tag(),
+            5 | 7 | 10 | 17 | 41 | 42 | 43 | 44
+        ) {
+            cursor += 1;
+            continue;
         }
-        outputs.push(output);
+        if attempts[cursor].operation_tag() == 45 {
+            if cursor + 1 >= attempts.len() || attempts[cursor + 1].operation_tag() != 8 {
+                return Err(
+                    "filesystem replay Output duplicate must be immediately retired".to_owned(),
+                );
+            }
+            cursor += 2;
+            continue;
+        }
+        if attempts[cursor].operation_tag() == 46 {
+            if cursor + 1 >= attempts.len() || attempts[cursor + 1].operation_tag() != 46 {
+                return Err("filesystem replay Output lock must be immediately released".to_owned());
+            }
+            cursor += 2;
+            continue;
+        }
+        let closes_root = attempts[cursor].operation_tag() == 8
+            && matches!(
+                attempts[cursor].logical_handle_inputs.as_slice(),
+                [FilesystemLogicalHandleInput {
+                    resolution: FilesystemLogicalHandleInputResolution::Resolved(identity),
+                    ..
+                }] if *identity == root_identity
+            );
+        if closes_root {
+            return Ok(cursor + 1);
+        }
+        return Err(
+            "bounded filesystem replay requires complete create-operation*-close Output files"
+                .to_owned(),
+        );
     }
-    Ok(outputs)
+}
+
+fn output_tree_entries_from_attempts(
+    attempts: &[FilesystemOperationAttempt],
+) -> Result<Vec<FilesystemOutputTreeEntryReplayRecord>, String> {
+    if attempts.is_empty() {
+        return Err("bounded filesystem replay requires Output entries".to_owned());
+    }
+    let mut entries = Vec::new();
+    let mut cursor = 0;
+    while cursor < attempts.len() {
+        match attempts[cursor].operation_tag() {
+            11 => {
+                entries.push(FilesystemOutputTreeEntryReplayRecord::Directory(
+                    output_directory_record_from_attempt(&attempts[cursor])?,
+                ));
+                cursor += 1;
+            }
+            1 => {
+                let end = output_file_attempt_end(attempts, cursor)?;
+                entries.push(FilesystemOutputTreeEntryReplayRecord::File(
+                    output_file_record_from_attempts(&attempts[cursor..end])?,
+                ));
+                cursor = end;
+            }
+            _ => {
+                return Err("bounded filesystem replay requires ordered Output entries".to_owned());
+            }
+        }
+    }
+    Ok(entries)
 }
 
 fn output_file_attempts(
