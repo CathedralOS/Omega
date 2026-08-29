@@ -226,7 +226,8 @@ impl<'program> Evaluator<'program> {
         }
         let outputs = replay.output_files();
         let output_directories = replay.output_directories();
-        if outputs.is_empty() && output_directories.is_empty() {
+        let output_symlinks = replay.output_symlinks();
+        if outputs.is_empty() && output_directories.is_empty() && output_symlinks.is_empty() {
             if !self.build_included_sources.is_empty() {
                 return trap("source-only filesystem replay observed generated-source handoff");
             }
@@ -265,12 +266,21 @@ impl<'program> Evaluator<'program> {
                 path
             })
             .collect::<std::collections::BTreeSet<_>>();
+        let expected_symlinks = output_symlinks
+            .into_iter()
+            .map(|symlink| {
+                let mut path = format!("/root/{}", symlink.output_root().get()).into_bytes();
+                path.push(b'/');
+                path.extend_from_slice(symlink.output_relative_path());
+                (path, symlink.target_spelling().to_vec())
+            })
+            .collect::<std::collections::BTreeMap<_, _>>();
         if self.virtual_files != expected_files
             || !self.virtual_fds.is_empty()
             || self.virtual_dirs != expected_directories
             || !self.virtual_finds.is_empty()
             || self.virtual_perms != expected_permissions
-            || !self.virtual_symlinks.is_empty()
+            || self.virtual_symlinks != expected_symlinks
             || self.virtual_times != expected_times
             || !self.virtual_flocks.is_empty()
         {

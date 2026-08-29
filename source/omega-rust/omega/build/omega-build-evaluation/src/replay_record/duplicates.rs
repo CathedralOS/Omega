@@ -49,7 +49,7 @@ pub(super) fn validate_output_duplicate_shapes(
 fn only_output_duplicate_lanes(attempt: &AttemptShape<'_>) -> bool {
     attempt.scalars.is_empty()
         && attempt.byte_operands.is_empty()
-        && attempt.path_like_operand_count == 0
+        && attempt.path_like_operands.is_empty()
         && attempt.rooted_paths.is_empty()
         && attempt.returned_path_count == 0
         && attempt.observed_regions.is_empty()

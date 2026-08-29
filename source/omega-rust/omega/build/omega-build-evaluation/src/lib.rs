@@ -303,7 +303,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 43;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 44;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -2574,8 +2574,14 @@ struct ReceiptedOutputFile {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum ReceiptedOutputEntry {
-    Directory { relative_path: Vec<u8> },
+    Directory {
+        relative_path: Vec<u8>,
+    },
     File(ReceiptedOutputFile),
+    Symlink {
+        relative_path: Vec<u8>,
+        target_spelling: Vec<u8>,
+    },
 }
 
 fn receipted_output_entries(
@@ -2611,6 +2617,15 @@ fn receipted_output_entries(
                     bytes,
                     executable: output.replayed_executable(),
                 }))
+            }
+            psi_checked_interpreter::FilesystemOutputTreeEntryReplayRecord::Symlink(symlink) => {
+                (symlink.output_root() == BUILD_OUTPUT_ROOT_IDENTITY
+                    && symlink.result() == 0
+                    && symlink.post_error() == 0)
+                    .then(|| ReceiptedOutputEntry::Symlink {
+                        relative_path: symlink.output_relative_path().to_vec(),
+                        target_spelling: symlink.target_spelling().to_vec(),
+                    })
             }
         })
         .collect()
@@ -3190,6 +3205,12 @@ pub fn compute_build_config(
                             &file.bytes,
                             file.executable,
                         ),
+                        ReceiptedOutputEntry::Symlink {
+                            relative_path,
+                            target_spelling,
+                        } => {
+                            ReplayedBuildOutputEntry::symbolic_link(relative_path, target_spelling)
+                        }
                     })
                     .collect::<Vec<_>>();
                 replayed_output_tree(&replayed_entries)

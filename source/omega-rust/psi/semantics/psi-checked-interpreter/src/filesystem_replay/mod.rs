@@ -12,6 +12,7 @@ mod locks;
 mod output_tree;
 #[cfg(test)]
 mod output_tree_tests;
+mod symlinks;
 
 pub use directories::{
     FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_MODE, FilesystemInputOutputDirectoryReplayRecord,
@@ -38,3 +39,7 @@ pub(crate) use output_tree::validate_observed_output_tree_records;
 pub use output_tree::{
     FilesystemInputOutputTreeReplayRecord, FilesystemOutputTreeEntryReplayRecord,
 };
+pub use symlinks::{
+    FilesystemOutputSymlinkReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_SYMLINK_TARGET_BYTES,
+};
+pub(crate) use symlinks::{output_symlink_attempt, output_symlink_record_from_attempt};

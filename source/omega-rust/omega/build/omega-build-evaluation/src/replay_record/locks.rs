@@ -57,7 +57,7 @@ fn lock_error(phase: &'static str) -> BuildFilesystemReplayRecordError {
 
 fn only_output_lock_lanes(attempt: &AttemptShape<'_>) -> bool {
     attempt.byte_operands.is_empty()
-        && attempt.path_like_operand_count == 0
+        && attempt.path_like_operands.is_empty()
         && attempt.rooted_paths.is_empty()
         && attempt.returned_path_count == 0
         && attempt.observed_regions.is_empty()
