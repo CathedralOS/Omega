@@ -35,3 +35,15 @@ explorers remain outside `C` unless the compiler executable imports them.
 
 Implementation work is tracked in [`../../TASKS.md`](../../TASKS.md); bootstrap
 closure is tracked in [`../../TASKS_BOOTSTRAP.md`](../../TASKS_BOOTSTRAP.md).
+
+## Retention inventory
+
+| Retained file | Canonical role | Deletion condition |
+| --- | --- | --- |
+| `build.omg`, `main.omg` | Current roots of Omega-written compiler closure `C`; the closure is incomplete but is extended in place. | Delete or replace only when an exact package-root ruling changes `C`; do not preserve alternate hosted roots. |
+| `ENTRYPOINT.md` | States the current hosted slice and package boundary. | Delete when the complete `C` source makes this status note redundant. |
+| `BACKEND.md` | Fixes the shared D/C target-realization ownership and Alpha-tape compiler identity. | Delete only when the same contract is absorbed by a normative product/backend specification. |
+
+`omega_compiler.delta` (`D`) and both descriptive compiler tapes are absent and
+remain required tasks. No placeholder, generated source closure, viewer, or
+standalone bootstrap owner is retained while those artifacts are absent.

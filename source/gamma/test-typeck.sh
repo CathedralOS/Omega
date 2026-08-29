@@ -19,7 +19,7 @@ fi
 cd "$OMEGA_GATE_DIR"
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+T=$(mktemp -d); trap 'trash "$T"' EXIT
 stamp_beta_compiler "$T/bc.exe" >/dev/null
 "$T/bc.exe" < typeck.beta > "$T/tc.tape" || { echo "bc(typeck.beta) failed"; exit 1; }
 stamp_seed "$T/tc.tape" "$SEED" "$T/tc.exe" >/dev/null 2>&1

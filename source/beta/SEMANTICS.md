@@ -220,7 +220,7 @@ fuel limit and ROOT execution remain tests, not divergence evidence.
 - `reference/beta-correctness-fuzz.sh` compares interpreted and compiled runs;
 - `reference/beta-io-exhaust.sh` exhausts all 256 single-byte inputs for its
   admitted programs;
-- `compiler/cold-start/test.sh` exercises arbitrary accepted/rejected source
+- `compiler/test.sh` exercises arbitrary accepted/rejected source
   against the canonical Alpha-written compiler; and
 - `compiler/validation/admission/bc-artifact-structure.sh` is a generic
   reachable-instruction and procedure-region checker for the canonical tape.

@@ -1,6 +1,6 @@
 # Direct compiler lattice — active work
 
-Last pruned: 2026-08-28.
+Last pruned: 2026-08-29.
 
 This queue exists to construct exactly one sequence:
 
@@ -51,9 +51,12 @@ the implementation of the agreed chain.
   report, receipt, `bootstrap/`, or canary tree remains in the Alpha–Delta
   lattice. Retained wrappers now divide into exact seed/assembler construction,
   below-Beta checker construction and soundness tests, exact seed/assembler and
-  Beta artifact reconstruction, one structure check, one Alpha-written exact
-  encoding reconstructor, and a bounded compiler differential. The duplicate
-  Beta self-host wrapper was deleted.
+  Beta artifact reconstruction, one structure check, and one Alpha-written exact
+  encoding reconstructor. The duplicate
+  Beta self-host wrapper was deleted. The Alpha checker was subsequently cut
+  from a 293-file theorem/prover/adapter and overlapping-gate tree to one
+  authoritative Beta source/tape, one complete independent reference, one
+  bounded semantic seam, and compact positive/negative discriminators.
 
 ## Non-negotiable edge contract
 
@@ -78,7 +81,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 | Alpha seed | written semantics, two native seeds, assembler, checker | keep trust floor small and exact |
 | Alpha-written Beta compiler | canonical `beta_compiler.alpha` and direct tape artifact | close remaining language/resource checks and exact source-to-tape refinement |
 | Beta-written Gamma compiler | `interp.beta`, `typeck.beta`, Gamma semantics/tests | standalone Gamma-to-Alpha compiler tape and refinement |
-| Gamma-written Delta compiler | Delta contract and test corpus | compiler source, tape, and refinement |
+| Gamma-written Delta compiler | Delta contract and feature ledger | compiler source, spec-derived tests, tape, and refinement |
 | `D → omega₀` | full Omega/Rust implementation as a nonauthoritative reference | correctly owned complete Delta closure `D`, full Omega acceptance, tape, and refinement |
 | `C → omega` | Omega/Psi product work and Rust comparator | exact Omega closure, self-build tape, and independent refinement |
 
@@ -101,14 +104,21 @@ code, discover a closure, manufacture proof premises, or decide admission.
   - [x] Move the existing Beta tape adjacent to `beta_compiler.alpha`, delete
     its otherwise content-free `artifacts/` bucket, and make path hygiene reject
     nested artifact buckets for every canonical compiler owner.
-- [ ] Update path-hygiene and lattice runners to enumerate only the canonical
+- [x] Update path-hygiene and lattice runners to enumerate only the canonical
   owners above. They must fail if a lower rung imports source or a semantic
-  executable from beyond its immediate successor.
-- [ ] Make retention mechanically auditable: every non-specification subtree
-  under the six canonical owners must name its canonical edge and bounded
+  executable from beyond its immediate successor. `lattice_path` now accepts
+  only the five chain-owner roles, the default runner contains only the closed
+  Alpha row, exact compiler source/tape names are positively enumerated, and
+  owner-aware scans reject forward imports and alternate native artifacts.
+- [x] Make retention mechanically auditable: every non-specification subtree
+  under the canonical Alpha-through-Omega owners must name its canonical edge and bounded
   failure-detection or proof role in the adjacent README. Delete unowned
   wrappers, comparators, corpora, reports, and generators; do not create an
-  indefinite “diagnostic” exemption.
+  indefinite “diagnostic” exemption. `test-paths.sh` now enumerates every live
+  Alpha-through-Omega support child and requires an adjacent retention row plus
+  deletion condition. The unrun 43-file Delta native-route corpus, completed
+  Alpha extent-migration script, checker theorem museum/prover/adapters, and
+  misleading Beta `cold-start/` owner were removed.
 - [x] Make every rung/compiler README distinguish the language accepted by a compiler from
   the language in which it is implemented. The source suffix names the latter;
   the owner directory names the former. The Alpha/Beta/Gamma/Delta/Omega roots,
@@ -188,11 +198,13 @@ code, discover a closure, manufacture proof premises, or decide admission.
   Adapt general Alpha-machine decoding and proof-DAG machinery to the actual
   Alpha-written compiler edge. Delete source-specific
   machinery that exists only to prove the noncanonical Beta fixed point.
-  The retained surface is one generic artifact-structure check and a reduced
-  bounded symbolic differential. The toy FOL seam, source-only loop checker,
-  duplicated Alpha/checker fixtures, and redundant symbolic cases were deleted;
-  they reconstructed no canonical source/tape proposition or duplicated cheaper
-  owners. About 65,000 historical source-specific lines had already been removed.
+  The retained surface is one generic artifact-structure check and one exact
+  Alpha-written encoding reconstructor. The toy FOL seam, source-only loop
+  checker, duplicated Alpha/checker fixtures, and symbolic differential were
+  deleted; they reconstructed no canonical checked source/tape proposition or
+  duplicated cheaper owners. The final symbolic differential had also drifted
+  to 13/18 while returning success, making it a false-green parallel semantics.
+  About 65,000 historical source-specific lines had already been removed.
 - [x] Delete the historical Beta self-host after promotion. Its full-source
   migration comparison helped pin the direct emitter, but it had zero remaining
   executable consumers and no bounded comparison gate; constructing a new gate
@@ -260,9 +272,12 @@ code, discover a closure, manufacture proof premises, or decide admission.
   quirks of the removed translator.
   - [x] Delete `exprc.delta` and `minic.delta`; both were demonstrations of the
     removed Darwin-native route rather than authoritative Delta observations.
-  - [ ] Classify `contextual-state-identifiers.delta`, `fieldsat.delta`, the
-    range/contracts portion of `discharge.delta`, and `calls.delta` after Q13.
-    They currently contradict the written keyword/domain/result/builtin rules.
+  - [x] Delete the unrun 43-file pre-migration Delta corpus rather than
+    classifying native-backend slices as language tests. It mixed retired
+    Darwin/ARM layout and trap assumptions, deleted `contracts.sh` workflows,
+    demonstrations, and unresolved keyword/domain/result/builtin proposals.
+    After Q13 freezes Delta v1, derive a compact positive/negative suite from
+    the frozen contract and run it through the actual Gamma-written compiler.
 - [ ] Check exact Gamma-source-to-Alpha-tape refinement, including realistic
   source closures large enough to compile `D`.
 

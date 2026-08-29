@@ -3,10 +3,8 @@
 # gamma/LANGUAGE.md + interp.beta's grammar, NOT ported from interp.beta. Reads a Gamma program on stdin,
 # prints the signed decimal result, and exits with its low byte (matching interp.beta).
 #
-# WHY THIS EXISTS — Gamma is where meaning lives: interp.beta is the canonical definition of what programs
-# MEAN, and the proof kernel proves theorems ABOUT that meaning, so interp.beta's correctness underpins the proof edifice.
-# interp.beta is cross-checked on fixed corpora and (for arithmetic) against the proof kernel's normalizer, but its
-# ADT/match/recursion EVALUATION has no independent implementation to diamond against. This is that
+# WHY THIS EXISTS — interp.beta is the current executable Gamma semantics, but
+# its ADT/match/recursion evaluation needs one independent discriminator. This is that
 # implementation. gamma-diamond-py.sh runs random Gamma programs through BOTH interp.beta and gamma_ref.py
 # and asserts they agree. UNTRUSTED and checked, like the other *_ref tools; the runtime never runs it.
 #

@@ -21,7 +21,7 @@ SEED="$OMEGA_PATH_ALPHA/$ALPHA_SEED"
 ARTIFACT=${1:-"$OMEGA_PATH_BETA_COMPILER_TAPE"}
 [ -f "$ARTIFACT" ] || { echo "missing Alpha tape: $ARTIFACT" >&2; exit 2; }
 T=$(mktemp -d)
-trap 'rm -rf "$T"' EXIT
+trap 'trash "$T"' EXIT
 
 "$ASM" < "$GATE_DIR/bc-artifact-structure.alpha" > "$T/artifact_structure_checker_bytecode.tape"
 stamp_seed "$T/artifact_structure_checker_bytecode.tape" "$SEED" "$T/check" >/dev/null

@@ -32,3 +32,11 @@ publication machinery does not belong here.
 
 The active migration order lives in
 [`TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRAP.md).
+
+## Deletion condition
+
+This currently empty implementation owner is retained because its exact path is
+part of the canonical lattice contract. Delete any future child subtree that
+does not reconstruct, implement, or test
+`delta_compiler.gamma → delta_compiler_bytecode.tape`; replace the owner only
+atomically with a changed, explicitly ruled lattice topology.

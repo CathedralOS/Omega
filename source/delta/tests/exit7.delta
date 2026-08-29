@@ -1,9 +1,0 @@
-// Slice 1: the smallest Alpha program — exit with a constant code.
-// Alpha invents no syntax; this is restricted Omega.
-boundary trait Console { machine exit_process(return_code: i32); }
-
-data Main { console: Console; }
-
-machine Main::main(&mut self) {
-    self.console.exit_process(7)
-}

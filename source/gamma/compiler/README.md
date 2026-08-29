@@ -26,3 +26,11 @@ this owner.
 
 The implementation order is tracked in
 [`TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRAP.md).
+
+## Deletion condition
+
+This currently empty implementation owner is retained because its exact path is
+part of the canonical lattice contract. Delete any future child subtree that
+does not reconstruct, implement, or test
+`gamma_compiler.beta → gamma_compiler_bytecode.tape`; replace the owner only
+atomically with a changed, explicitly ruled lattice topology.

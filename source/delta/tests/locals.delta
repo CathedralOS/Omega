@@ -1,7 +1,0 @@
-boundary trait Console { machine exit_process(return_code: i32); }
-data Main { console: Console; }
-machine Main::main(&mut self) {
-    let a: i32 = 10;
-    let b: i32 = a - 3;
-    self.console.exit_process(b * 2)
-}

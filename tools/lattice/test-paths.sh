@@ -155,7 +155,18 @@ for inventoried_owner in \
   source/alpha/checker/artifacts \
   source/alpha/checker/corpus \
   source/alpha/checker/gates \
-  source/alpha/checker/implementations
+  source/alpha/checker/implementations \
+  source/beta \
+  source/beta/compiler \
+  source/beta/compiler/validation \
+  source/beta/compiler/validation/admission \
+  source/beta/reference \
+  source/gamma \
+  source/gamma/compiler \
+  source/gamma/reference \
+  source/delta \
+  source/delta/compiler \
+  source/omega
 do
   require_retention_inventory "$inventoried_owner"
 done
@@ -218,7 +229,7 @@ for diagnostic in \
   'admission/bc-artifact-structure.sh' \
   'test-interp.sh' \
   'test-typeck.sh' \
-  'cold-start/rebuild-artifact.sh' \
+  'compiler/rebuild-artifact.sh' \
   'source-closure-snapshot-v1.sh' \
   'lower-rooted-assembly-publication-v1-test.sh'
 do
