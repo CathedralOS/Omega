@@ -84,8 +84,9 @@ and no-selection compatibility remain enforced.
   against `Optimization::ALL`; no hidden second registry.
 - [x] Keep preferred entrance files below 100 lines. Any entrance above 200
   lines needs a documented semantic reason. No optimizer production file may
-  exceed 1,500 lines or mix catalog, unrelated rule mechanics, validator, codec,
-  and broad fixtures.
+  exceed 1,300 lines; dedicated test fixtures retain a 1,500-line ceiling.
+  Files may not mix catalog, unrelated rule mechanics, validator, codec, and
+  broad fixtures.
 - [x] Clear the current production-file size violations by semantic split, not
   line shuffling. Pipeline `whole_function_exit_contract`,
   `resolved_selected_form_layout`, `x86_branch_relaxation`, and
@@ -185,6 +186,9 @@ and no-selection compatibility remain enforced.
 - [x] Split current-ownership validation into entry model, ordered CFG replay,
   frontier mutation, cleanup, structural-placement, and residual-affine leaves
   below one current-entry reconstruction-to-replay entrance.
+- [x] Split complete-unit structural catalogs into ordered type/domain indexing,
+  content projection, type declarations, function-local catalogs, witnesses,
+  provider specialization, and path-resolution leaves below one catalog join.
 - [>] Replace remaining flat executable stages and mixed-responsibility files
   with semantic folders whose small `mod.rs` owns the real stage join. Tighten
   the production-file ceiling as each named legacy leaf is removed.
