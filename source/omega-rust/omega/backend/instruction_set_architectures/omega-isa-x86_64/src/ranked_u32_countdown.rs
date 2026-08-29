@@ -1,5 +1,7 @@
 //! Exact Linux System-V `u32` countdown in the canonical incoming `edi` home.
 
+use psi_diagnostics::Diagnostic;
+
 pub const X86_64_RANKED_U32_COUNTDOWN_BYTE_COUNT: usize = 21;
 pub const X86_64_RANKED_U32_PREHEADER_BRANCH_OFFSET: usize = 0;
 pub const X86_64_RANKED_U32_PREHEADER_BRANCH_BYTE_COUNT: usize = 5;
@@ -167,6 +169,50 @@ pub fn validate_x86_64_ranked_u32_countdown_in_edi(
         bytes: *bytes,
         layout: X86_64RankedU32CountdownLayout { _private: () },
     })
+}
+
+/// Rebase only the three canonical relative fields after a caller expands the
+/// semantic layout with independently owned instrumentation.
+pub fn rebase_ranked_u32_countdown_branches(
+    bytes: &mut [u8],
+    preheader_offset: usize,
+    header_offset: usize,
+    exit_branch_offset: usize,
+    exit_offset: usize,
+    backward_branch_offset: usize,
+) -> Result<(), Diagnostic> {
+    patch_rel32(bytes, preheader_offset, 5, 1, header_offset, &[0xe9])?;
+    patch_rel32(bytes, exit_branch_offset, 6, 2, exit_offset, &[0x0f, 0x84])?;
+    patch_rel32(bytes, backward_branch_offset, 5, 1, header_offset, &[0xe9])
+}
+
+fn patch_rel32(
+    bytes: &mut [u8],
+    instruction_offset: usize,
+    instruction_size: usize,
+    immediate_offset: usize,
+    target_offset: usize,
+    opcode: &[u8],
+) -> Result<(), Diagnostic> {
+    if bytes.get(instruction_offset..instruction_offset + opcode.len()) != Some(opcode) {
+        return Err(Diagnostic::error("ranked x86-64 branch opcode drifted"));
+    }
+    let origin = instruction_offset
+        .checked_add(instruction_size)
+        .ok_or_else(|| Diagnostic::error("ranked x86-64 branch origin overflowed"))?;
+    let distance = isize::try_from(target_offset)
+        .ok()
+        .and_then(|target| isize::try_from(origin).ok().map(|origin| target - origin))
+        .and_then(|distance| i32::try_from(distance).ok())
+        .ok_or_else(|| Diagnostic::error("ranked x86-64 branch is out of rel32 range"))?;
+    let immediate = instruction_offset
+        .checked_add(immediate_offset)
+        .ok_or_else(|| Diagnostic::error("ranked x86-64 branch field overflowed"))?;
+    bytes
+        .get_mut(immediate..immediate + 4)
+        .ok_or_else(|| Diagnostic::error("ranked x86-64 branch field is outside code"))?
+        .copy_from_slice(&distance.to_le_bytes());
+    Ok(())
 }
 
 #[cfg(test)]

@@ -1,9 +1,10 @@
 //! Independent object-boundary replay of native logical-fuel instrumentation.
 //!
 //! Source semantics are admitted through the ordinary object constructor. This
-//! owner then reconstructs every inserted hot charge and appended cold dispatch
-//! from the immutable source plan and rejects any producer-owned offset or byte
-//! claim that differs. The result deliberately is not yet an executable object:
+//! owner then reconstructs every inserted hot charge, ranked internal-branch
+//! rebase, and appended cold dispatch from the immutable source plan and rejects
+//! any producer-owned offset or byte claim that differs. The result deliberately
+//! is not yet an executable object:
 //! relocation and symbol translation remain a later, separately validated step.
 
 use omega_installation_evidence::{FuelAttributionSite, NativeFuelTargetPlanProjection};
@@ -320,6 +321,9 @@ fn replay_function(
     if bytes.len() != semantic_end_offset {
         return Err(NativeFuelValidationError::RecordMismatch(source.machine));
     }
+    if source.ranked_u32_countdown.is_some() {
+        rebase_ranked_countdown_branches(architecture, &source.fuel_attribution, &mut bytes)?;
+    }
     for charge in &charges {
         let retry_text_offset = function_text_offset
             .checked_add(charge.charge_code_offset)
@@ -407,6 +411,75 @@ fn signed_distance(target: usize, origin: usize) -> Result<isize, NativeFuelVali
     isize::try_from(target)
         .map_err(|_| NativeFuelValidationError::SizeOverflow)?
         .checked_sub(isize::try_from(origin).map_err(|_| NativeFuelValidationError::SizeOverflow)?)
+        .ok_or(NativeFuelValidationError::SizeOverflow)
+}
+
+fn rebase_ranked_countdown_branches(
+    architecture: Architecture,
+    attributions: &[NativeFuelAttribution],
+    bytes: &mut [u8],
+) -> Result<(), NativeFuelValidationError> {
+    let translated = |source_offset, include_charges_at_offset| {
+        translated_ranked_offset(
+            source_offset,
+            attributions,
+            include_charges_at_offset,
+            architecture,
+        )
+    };
+    match architecture {
+        Architecture::X86_64 => omega_isa_x86_64::rebase_ranked_u32_countdown_branches(
+            bytes,
+            translated(
+                omega_isa_x86_64::X86_64_RANKED_U32_PREHEADER_BRANCH_OFFSET,
+                true,
+            )?,
+            translated(omega_isa_x86_64::X86_64_RANKED_U32_HEADER_OFFSET, false)?,
+            translated(omega_isa_x86_64::X86_64_RANKED_U32_EXIT_BRANCH_OFFSET, true)?,
+            translated(omega_isa_x86_64::X86_64_RANKED_U32_EXIT_OFFSET, false)?,
+            translated(
+                omega_isa_x86_64::X86_64_RANKED_U32_BACKWARD_BRANCH_OFFSET,
+                true,
+            )?,
+        )
+        .map_err(|diagnostic| NativeFuelValidationError::Encoding(diagnostic.to_string())),
+        Architecture::Aarch64 => omega_isa_aarch64::rebase_ranked_u32_countdown_branches(
+            bytes,
+            translated(
+                omega_isa_aarch64::AARCH64_RANKED_U32_PREHEADER_BRANCH_OFFSET,
+                true,
+            )?,
+            translated(omega_isa_aarch64::AARCH64_RANKED_U32_HEADER_OFFSET, false)?,
+            translated(
+                omega_isa_aarch64::AARCH64_RANKED_U32_EXIT_BRANCH_OFFSET,
+                true,
+            )?,
+            translated(omega_isa_aarch64::AARCH64_RANKED_U32_EXIT_OFFSET, false)?,
+            translated(
+                omega_isa_aarch64::AARCH64_RANKED_U32_BACKWARD_BRANCH_OFFSET,
+                true,
+            )?,
+        )
+        .map_err(|diagnostic| NativeFuelValidationError::Encoding(diagnostic.to_string())),
+    }
+}
+
+fn translated_ranked_offset(
+    source_offset: usize,
+    attributions: &[NativeFuelAttribution],
+    include_charges_at_offset: bool,
+    architecture: Architecture,
+) -> Result<usize, NativeFuelValidationError> {
+    let charge_count = attributions.partition_point(|row| {
+        row.code_offset < source_offset
+            || (include_charges_at_offset && row.code_offset == source_offset)
+    });
+    source_offset
+        .checked_add(
+            hot_charge_byte_count(architecture)
+                .checked_mul(charge_count)
+                .ok_or(NativeFuelValidationError::SizeOverflow)?,
+        )
         .ok_or(NativeFuelValidationError::SizeOverflow)
 }
 
