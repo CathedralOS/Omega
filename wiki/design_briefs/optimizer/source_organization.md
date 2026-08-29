@@ -228,6 +228,10 @@ metadata, result signatures, structural roots, fact reconstruction, and
 provenance/fuel/effect replay. The entrance retains the joins to value,
 ownership, service, and structural-catalog validation rather than becoming a
 re-export wall.
+Its derived-metadata evidence service also has an explicit place-and-claim
+admission entrance above dominance/control-flow, declared-place, scalar-value,
+provenance, successor-edge, and ownership reconstruction leaves. This is a
+validation taxonomy, not a second rule catalog.
 Liveness computation and pre-allocation machine-effect encoding also keep
 their broad fixtures in sibling test leaves, so production file size measures
 production responsibility.
