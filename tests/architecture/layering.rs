@@ -1247,13 +1247,14 @@ fn production_subject_projection_is_report_owned() {
     let compiler = root.join("source/omega-rust/omega/compiler/omega-compiler/src");
     let driver = std::fs::read_to_string(compiler.join("compiler/driver.rs"))
         .expect("read compiler product driver");
-    let projection = std::fs::read_to_string(
-        compiler.join("pipeline/reporting/production_subject.rs"),
-    )
-    .expect("read production-subject report projection");
+    let projection =
+        std::fs::read_to_string(compiler.join("pipeline/reporting/production_subject.rs"))
+            .expect("read production-subject report projection");
 
     assert_eq!(
-        driver.matches("reporting::project_production_subject(").count(),
+        driver
+            .matches("reporting::project_production_subject(")
+            .count(),
         2,
         "Terminal and native product stops must consume the report-owned projection"
     );
@@ -1273,6 +1274,54 @@ fn production_subject_projection_is_report_owned() {
             "the report-owned production-subject projection lost `{forbidden}`"
         );
     }
+}
+
+#[test]
+fn optimization_rollback_settlement_is_owner_complete() {
+    let root = workspace_root();
+    let compiler = root.join("source/omega-rust/omega/compiler/omega-compiler/src/compiler");
+    let driver =
+        std::fs::read_to_string(compiler.join("driver.rs")).expect("read compiler product driver");
+    let owner = std::fs::read_to_string(compiler.join("optimization_rollback.rs"))
+        .expect("read optimization rollback owner");
+
+    for required in [
+        "struct OptimizationRollbackSettlement",
+        "pub(crate) fn settle(",
+        "pub const fn effective(",
+        "pub fn into_receipt(",
+    ] {
+        assert!(
+            owner.contains(required),
+            "optimization rollback owner lost complete settlement operation `{required}`"
+        );
+    }
+    for required in [
+        ".settle(checked.optimization_selections())",
+        "rollback_settlement.effective()",
+        "rollback_settlement.into_receipt()",
+    ] {
+        assert!(
+            driver.contains(required),
+            "native product stop lost rollback settlement view `{required}`"
+        );
+    }
+    for forbidden in [
+        ".reconcile(checked.optimization_selections())",
+        "optimization_rollback.as_ref().map_or_else(",
+        "optimization_rollback.is_empty()",
+        "optimization_rollback.requested_disabled()",
+    ] {
+        assert!(
+            !driver.contains(forbidden),
+            "the product driver must not reconstruct rollback policy through `{forbidden}`"
+        );
+    }
+    assert_eq!(
+        driver.matches("checked.optimization_selections()").count(),
+        1,
+        "the driver must pass build selection to the rollback owner exactly once"
+    );
 }
 
 #[test]

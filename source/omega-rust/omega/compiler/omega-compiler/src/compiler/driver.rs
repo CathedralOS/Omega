@@ -50,8 +50,7 @@ fn terminal_report(
 ) -> Result<CompileReport, Vec<Diagnostic>> {
     let request = request.into_inner();
     reject_unconsumed_callback_placements("terminal-artifact", &checked)?;
-    let production_subject =
-        crate::pipeline::reporting::project_production_subject(&checked)?;
+    let production_subject = crate::pipeline::reporting::project_production_subject(&checked)?;
     let source_file_count = checked.source_file_count();
     let entry_machine = checked
         .selected_program_entry_machine()
@@ -83,8 +82,7 @@ fn native_report(
 ) -> Result<CompileReport, Vec<Diagnostic>> {
     let request = request.into_inner();
     reject_unconsumed_callback_placements("native-artifact", &checked)?;
-    let production_subject =
-        crate::pipeline::reporting::project_production_subject(&checked)?;
+    let production_subject = crate::pipeline::reporting::project_production_subject(&checked)?;
     let source_file_count = checked.source_file_count();
     let selected_program_entry = checked.selected_program_entry().ok_or_else(|| {
         vec![Diagnostic::error(
@@ -100,13 +98,9 @@ fn native_report(
     crate::pipeline::component_progress::reject_undischarged_build_bound_progress(
         checked.component_progress(),
     )?;
-    let optimization_rollback = request
+    let rollback_settlement = request
         .optimization_rollback
-        .reconcile(checked.optimization_selections());
-    let effective_optimizations = optimization_rollback.as_ref().map_or_else(
-        || checked.optimization_selections(),
-        |receipt| receipt.effective(),
-    );
+        .settle(checked.optimization_selections());
     let artifact =
         psi_checked_trees_to_terminal::produce_terminal_artifact(&checked, &entry_machine)
             .map_err(|error| {
@@ -128,7 +122,7 @@ fn native_report(
             subsystem: checked.subsystem(),
             profile: &request.terminal_admission_profile,
             program_entry,
-            optimization_selections: effective_optimizations,
+            optimization_selections: rollback_settlement.effective(),
             selected_provider_plans: checked.selected_provider_plans(),
             settlements: &[],
         },
@@ -137,7 +131,7 @@ fn native_report(
         request.options.root_path,
         source_file_count,
         native_artifact,
-        optimization_rollback,
+        rollback_settlement.into_receipt(),
         production_subject,
     )
     .map_err(|message| vec![Diagnostic::error(message)])
