@@ -17,6 +17,16 @@ another broad alias while executing this plan.
 
 ## Current stopping point
 
+[x] Physical phase composition now has one catalog-backed route-policy
+entrance instead of dispersed conditionals. Its closed result distinguishes
+baseline, selected-lowering, allocation-recovery, post-allocation-machine, and
+function-relative-layout routes, including the two admitted cross-phase
+compositions. The exhaustive matrix covers every unordered pair of all 15
+exact names on x86-64 and AArch64 (210 cells): 120 admitted, 50 composition
+rejections, and 40 typed target rejections. It also proves exact Psi registry
+projection, full-Psi overlay invariance, and higher-order selected-lowering
+composition anchors.
+
 [x] External Psi policy schema v2 is now a fact-complete, governed boundary.
 Its 86-line entrance owns canonical candidate-set and decision-log joins, then
 descends into `model`, `identity`, `codec`, and focused tests. The pass manager
@@ -683,7 +693,7 @@ rewrite or opt a program into lossy floating-point semantics.
   idempotence, and corruption suites. Disabled-selection coverage is complete
   for every exact public name and phase projection; the remaining dimensions
   still require a catalog-wide evidence matrix and focused gap closure.
-- [ ] Cross-rule phase-composition matrix, including deliberate fail-closed
+- [x] Cross-rule phase-composition matrix, including deliberate fail-closed
   unsupported combinations.
 - [ ] Randomized valid-Psi and selected-machine differential corpus.
 - [ ] Supported target/OS allocator, encoding, unwind, object, and callable
@@ -727,3 +737,6 @@ rewrite or opt a program into lossy floating-point semantics.
 16. [x] Add x86 MOV-r32-imm32 zero-extended i64 materialization as one exact
     catalog rule, and route it through the closed generic materialization and
     publication carriers without a new vertical pipeline.
+17. [x] Centralize physical phase-composition policy and exhaustively classify
+    all 210 exact-name pair/architecture cells, with higher-order composition
+    anchors and full-Psi overlay invariance.
