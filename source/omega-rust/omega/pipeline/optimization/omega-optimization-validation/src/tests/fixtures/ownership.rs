@@ -177,6 +177,116 @@ pub(crate) fn partial_affine_place_unit() -> PsiOptimizationUnit {
     reconstruct_psi_optimization_unit_seed(&plan, FuelScheduleIdentity::new(1).unwrap()).unwrap()
 }
 
+pub(crate) fn partial_affine_quartet_unit() -> PsiOptimizationUnit {
+    let caller = id(4_870, MachineId::new);
+    let callee = id(4_871, MachineId::new);
+    let caller_block = id(4_872, BlockId::new);
+    let callee_block = id(4_873, BlockId::new);
+    let token = id(4_874, StructuralTypeId::new);
+    let quartet = id(4_875, StructuralTypeId::new);
+    let caller_place = id(4_876, PlaceId::new);
+    let callee_place = id(4_877, PlaceId::new);
+    let parameter = |place, structural_type| psi_terminal::StructuralParameterDeclaration {
+        place,
+        position: 0,
+        is_self: false,
+        structural_type,
+        multiplicity: psi_terminal::StructuralMultiplicity::Affine,
+        access: psi_terminal::StructuralAccess::Owned,
+        qualifications: Vec::new(),
+    };
+    let projected_call = |psi_operation, index| AbstractOperation::CallUnit {
+        psi_operation,
+        callee,
+        structural_arguments: vec![psi_terminal::StructuralArgument {
+            place: caller_place,
+            path: vec![psi_terminal::StructuralPathSegment::FixedIndex(index)],
+            access: psi_terminal::StructuralAccess::Owned,
+        }],
+        claim_transfers: Vec::new(),
+    };
+    let residual = |index| {
+        psi_terminal::TerminalAffineCleanupAction::DiscardResidual(
+            psi_terminal::StructuralAffineDiscard {
+                place: caller_place,
+                path: vec![psi_terminal::StructuralPathSegment::FixedIndex(index)],
+                structural_type: token,
+            },
+        )
+    };
+    let plan = AbstractOperationPlan {
+        psi: TerminalPsiIdentity {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            program_fingerprint: SemanticFingerprint::from_bytes([50; 32]),
+        },
+        entry: caller,
+        structural_types: vec![
+            psi_terminal::StructuralTypeDeclaration {
+                id: token,
+                identity: "validation::quartet-token".into(),
+                shape: psi_terminal::StructuralTypeShape::Record { fields: Vec::new() },
+            },
+            psi_terminal::StructuralTypeDeclaration {
+                id: quartet,
+                identity: "validation::affine-quartet".into(),
+                shape: psi_terminal::StructuralTypeShape::FixedArray {
+                    element: token,
+                    length: 4,
+                },
+            },
+        ],
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        functions: vec![
+            AbstractFunction {
+                machine: caller,
+                attachment: None,
+                entry: caller_block,
+                parameters: Vec::new(),
+                structural_parameters: vec![parameter(caller_place, quartet)],
+                result: AbstractFunctionResult::Unit,
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                block_entries: vec![AbstractBlockEntry {
+                    block: caller_block,
+                    parameters: Vec::new(),
+                    operation_offset: 0,
+                }],
+                operations: vec![
+                    projected_call(id(4_878, OperationId::new), 1),
+                    projected_call(id(4_879, OperationId::new), 3),
+                    AbstractOperation::ReturnUnit {
+                        psi_edge: id(4_880, EdgeId::new),
+                        cleanup_actions: vec![residual(2), residual(0)],
+                    },
+                ],
+            },
+            AbstractFunction {
+                machine: callee,
+                attachment: None,
+                entry: callee_block,
+                parameters: Vec::new(),
+                structural_parameters: vec![parameter(callee_place, token)],
+                result: AbstractFunctionResult::Unit,
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                block_entries: vec![AbstractBlockEntry {
+                    block: callee_block,
+                    parameters: Vec::new(),
+                    operation_offset: 0,
+                }],
+                operations: vec![AbstractOperation::ReturnUnit {
+                    psi_edge: id(4_881, EdgeId::new),
+                    cleanup_actions: vec![psi_terminal::TerminalAffineCleanupAction::DiscardRoot(
+                        callee_place,
+                    )],
+                }],
+            },
+        ],
+    };
+    reconstruct_psi_optimization_unit_seed(&plan, FuelScheduleIdentity::new(1).unwrap()).unwrap()
+}
+
 pub(crate) fn affine_place_join_unit(settle_false_arm: bool) -> PsiOptimizationUnit {
     let mut unit = affine_claim_join_unit(settle_false_arm);
     let function = &mut unit.functions[0];

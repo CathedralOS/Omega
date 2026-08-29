@@ -259,7 +259,7 @@ pub(super) fn expected_maximal_residual_subtrees(
         let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
             return None;
         };
-        if !matches!((length, moved.len()), (2, 1) | (3, 1 | 2))
+        if !matches!((length, moved.len()), (2, 1) | (3, 1 | 2) | (4, 2))
             || moved.iter().any(|(_, moved_type)| *moved_type != element)
             || !matches!(
                 declarations
@@ -300,7 +300,7 @@ pub(super) fn is_partial_cleanup_path(path: &[StructuralPathSegment]) -> bool {
     (!path.is_empty()
         && path.iter().all(
             |segment| matches!(segment, StructuralPathSegment::Field(identity) if !identity.is_empty()),
-        )) || matches!(path, [StructuralPathSegment::FixedIndex(0 | 1 | 2)])
+        )) || matches!(path, [StructuralPathSegment::FixedIndex(0 | 1 | 2 | 3)])
 }
 
 pub(super) fn append_maximal_residual_subtrees(

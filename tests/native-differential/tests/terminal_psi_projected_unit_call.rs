@@ -107,6 +107,17 @@ const PARTIAL_AFFINE_TRIPLE_SOURCE: &str = r#"
     }
 "#;
 
+const PARTIAL_AFFINE_QUARTET_SOURCE: &str = r#"
+    data Token { value: u64; }
+    data Helper {}
+    machine Helper::take(token: Token) {}
+    data Root {}
+    machine Root::enter(values: [Token; 4]) {
+        Helper::take(values[1]);
+        Helper::take(values[3]);
+    }
+"#;
+
 const MIXED_SCALAR_PARTIAL_AFFINE_SOURCE: &str = r#"
     domain [u8; 3]::Utf8
     requires
@@ -439,6 +450,24 @@ fn partial_affine_triple_plan() -> omega_abstract_operations::AbstractOperationP
         encode_proof_bundle(&terminal.proof_bundle).expect("encode partial affine triple proof");
     lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
         .expect("verified partial affine triple artifact enters Omega")
+}
+
+fn partial_affine_quartet_plan() -> omega_abstract_operations::AbstractOperationPlan {
+    let tokens = Lexer::new(PARTIAL_AFFINE_QUARTET_SOURCE)
+        .tokenize()
+        .expect("tokenize partial affine quartet source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse partial affine quartet source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve partial affine quartet source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type partial affine quartet source");
+    let checked = lower_typed_trees(typed).expect("check partial affine quartet source");
+    let terminal =
+        lower_machine(&checked, "Root::enter").expect("lower partial affine quartet Psi");
+    let semantics =
+        encode_module(&terminal.semantic_module).expect("encode partial affine quartet Psi");
+    let proof =
+        encode_proof_bundle(&terminal.proof_bundle).expect("encode partial affine quartet proof");
+    lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
+        .expect("verified partial affine quartet artifact enters Omega")
 }
 
 fn mixed_scalar_partial_affine_plan() -> omega_abstract_operations::AbstractOperationPlan {
@@ -1529,6 +1558,219 @@ fn partial_affine_triple_retains_two_calls_and_one_installed_residual_on_all_tar
         duplicate_installed_path[projection_offset + 20..projection_offset + 28]
             .copy_from_slice(&2_u64.to_le_bytes());
         assert!(decode_installation_record(&duplicate_installed_path).is_err());
+    }
+}
+
+#[test]
+fn partial_affine_quartet_retains_two_calls_and_decreasing_cleanup_on_all_targets() {
+    let plan = partial_affine_quartet_plan();
+    let caller_machine = plan.entry;
+    let caller = plan
+        .functions
+        .iter()
+        .find(|function| function.machine == caller_machine)
+        .expect("entry caller remains present");
+    let root_place = caller.structural_parameters[0].place;
+    let root_type = caller.structural_parameters[0].structural_type;
+    let declaration = plan
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == root_type)
+        .expect("quartet declaration remains present");
+    let StructuralTypeShape::FixedArray {
+        element: element_type,
+        length: 4,
+    } = declaration.shape
+    else {
+        panic!("caller root remains an exact four-element array")
+    };
+    let residuals = caller
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            omega_abstract_operations::AbstractOperation::ReturnUnit {
+                cleanup_actions, ..
+            } => Some(
+                cleanup_actions
+                    .iter()
+                    .filter_map(|action| match action {
+                        TerminalAffineCleanupAction::DiscardResidual(residual) => {
+                            Some(residual.clone())
+                        }
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>(),
+            ),
+            _ => None,
+        })
+        .expect("quartet return retains its residuals");
+    assert_eq!(
+        residuals
+            .iter()
+            .map(|residual| residual.path.clone())
+            .collect::<Vec<_>>(),
+        vec![
+            vec![StructuralPathSegment::FixedIndex(2)],
+            vec![StructuralPathSegment::FixedIndex(0)],
+        ],
+    );
+    assert!(residuals.iter().all(|residual| {
+        residual.place == root_place && residual.structural_type == element_type
+    }));
+
+    let mut increasing_cleanup = plan.clone();
+    let return_actions = increasing_cleanup
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == caller_machine)
+        .unwrap()
+        .operations
+        .iter_mut()
+        .find_map(|operation| match operation {
+            omega_abstract_operations::AbstractOperation::ReturnUnit {
+                cleanup_actions, ..
+            } => Some(cleanup_actions),
+            _ => None,
+        })
+        .unwrap();
+    return_actions.reverse();
+    assert!(
+        lower_to_target_operations(&increasing_cleanup, NativeTarget::linux_x64()).is_err(),
+        "target lowering independently rejects increasing residual order",
+    );
+
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let target_plan = lower_to_target_operations(&plan, target).unwrap();
+        let target_caller = target_plan
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .unwrap();
+        let TargetOperation::UnitBody(body) = &target_caller.operation else {
+            panic!("quartet caller remains Unit")
+        };
+        assert_eq!(body.parameters[0].shape, ValueShape::integer(32, 8));
+
+        let assigned = assign_registers(&target_plan).unwrap();
+        let mut duplicate_assigned = assigned.clone();
+        let assigned_caller = duplicate_assigned
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller_machine)
+            .unwrap();
+        let omega_assigned_target_operations::AssignedOperation::UnitBody(assigned_body) =
+            &mut assigned_caller.operation
+        else {
+            panic!("assigned quartet caller remains Unit")
+        };
+        let duplicate = assigned_body.operations[0].clone();
+        assigned_body.operations[1] = duplicate;
+        assert!(
+            emit_machine_code(&duplicate_assigned).is_err(),
+            "assigned duplicate projection rejects",
+        );
+
+        let machine = emit_machine_code(&assigned).unwrap();
+        let emitted = machine
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .expect("quartet machine code exists");
+        let [first, second] = emitted.internal_unit_calls.as_slice() else {
+            panic!("quartet retains exactly two calls")
+        };
+        assert_eq!(
+            [
+                first.arguments[0].path.clone(),
+                second.arguments[0].path.clone(),
+            ],
+            [
+                vec![StructuralPathSegment::FixedIndex(1)],
+                vec![StructuralPathSegment::FixedIndex(3)],
+            ],
+        );
+        assert_eq!(
+            [
+                first.arguments[0].source_byte_offset,
+                second.arguments[0].source_byte_offset,
+            ],
+            [8, 24],
+        );
+        for call in [first, second] {
+            let argument = &call.arguments[0];
+            assert_eq!(argument.root_structural_type, root_type);
+            assert_eq!(argument.structural_type, element_type);
+            assert_eq!(argument.fixed_array_length, Some(4));
+            assert_eq!(argument.element_stride, Some(8));
+        }
+        assert_eq!(
+            emitted
+                .fuel_attribution
+                .iter()
+                .map(|attribution| attribution.operation_ordinal)
+                .collect::<Vec<_>>(),
+            vec![0, 1, 2],
+            "two calls and one return retain canonical fuel ordinals",
+        );
+        let cleanup = emitted
+            .unit_affine_cleanup
+            .as_ref()
+            .expect("quartet return retains cleanup custody");
+        assert_eq!(
+            cleanup.actions,
+            residuals
+                .iter()
+                .cloned()
+                .map(TerminalAffineCleanupAction::DiscardResidual)
+                .collect::<Vec<_>>(),
+        );
+
+        let mut wrong_machine_order = machine.clone();
+        wrong_machine_order
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller_machine)
+            .unwrap()
+            .unit_affine_cleanup
+            .as_mut()
+            .unwrap()
+            .actions
+            .reverse();
+        assert!(
+            build_object_artifact(&wrong_machine_order).is_err(),
+            "object replay rejects reordered cleanup custody",
+        );
+
+        let object = build_object_artifact(&machine).unwrap();
+        let image = emit_executable_image(&object, 3).unwrap();
+        let installation =
+            build_installation_record(&image, ProfileDecisionId::new(1).unwrap()).unwrap();
+        let installed = installation
+            .functions()
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .unwrap();
+        assert_eq!(
+            installed.unit_affine_cleanup.as_ref().unwrap().actions,
+            cleanup.actions
+        );
+        assert_eq!(
+            installation
+                .internal_unit_calls()
+                .iter()
+                .filter(|call| call.machine == caller_machine)
+                .count(),
+            2,
+        );
+        validate_installation_record(&installation, &image).unwrap();
+        let encoded = encode_installation_record(&installation).unwrap();
+        assert_eq!(decode_installation_record(&encoded), Ok(installation));
     }
 }
 

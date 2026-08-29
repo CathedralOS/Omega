@@ -73,7 +73,7 @@ use boundary_results::boundary_result_is_exact;
 use byte_sequence_custody::linux_write_line_custody_is_exact;
 use completion_receipts::{CompletionCustodyError, validate_completion_custody};
 use fully_consumed_affine_pair::{
-    exact_fully_consumed_affine_pair, exact_partially_consumed_affine_triple,
+    exact_fully_consumed_affine_pair, exact_partially_consumed_affine_array,
 };
 use scalar_cleanup_preservation::validate_scalar_cleanup_preservation;
 use scalar_conditional_call_paths::{conditional_call_path, conditional_paths_are_exclusive};
@@ -680,7 +680,7 @@ pub fn build_object_artifact(plan: &MachineCodePlan) -> Result<ObjectArtifact, O
             &function.internal_unit_calls,
             default_affine_cleanup,
         );
-        let partially_consumed_affine_triple = exact_partially_consumed_affine_triple(
+        let partially_consumed_affine_array = exact_partially_consumed_affine_array(
             parameter_homes,
             &function.internal_unit_calls,
             default_affine_cleanup,
@@ -783,7 +783,7 @@ pub fn build_object_artifact(plan: &MachineCodePlan) -> Result<ObjectArtifact, O
                 cleanup,
                 false,
                 fully_consumed_affine_pair,
-                partially_consumed_affine_triple,
+                partially_consumed_affine_array,
             )?,
             (None, None) => {}
             _ => {

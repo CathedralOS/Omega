@@ -613,7 +613,7 @@ pub(super) fn ordinary_projected_call_is_supported(
     let bounded_affine_array_index_path = if allow_field_path_projection
         && matches!(
             arguments[0].path.as_slice(),
-            [CheckedUnitStructuralPathSegment::FixedIndex(0 | 1 | 2)]
+            [CheckedUnitStructuralPathSegment::FixedIndex(0 | 1 | 2 | 3)]
         ) {
         let mut type_reference = caller_source_parameters[0].type_reference;
         loop {
@@ -628,7 +628,7 @@ pub(super) fn ordinary_projected_call_is_supported(
         matches!(
             program.type_reference_table.type_reference(type_reference),
             TypeReferenceNode::FixedArray {
-                length: psi_typed_trees::types::FixedArrayLength::Literal(2 | 3),
+                length: psi_typed_trees::types::FixedArrayLength::Literal(2 | 3 | 4),
                 ..
             }
         )

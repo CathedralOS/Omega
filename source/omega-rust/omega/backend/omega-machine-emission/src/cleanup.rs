@@ -1069,7 +1069,7 @@ fn append_expected_partial_residuals(
         else {
             return None;
         };
-        if !matches!((length, moved.len()), (2, 1) | (3, 1 | 2))
+        if !matches!((length, moved.len()), (2, 1) | (3, 1 | 2) | (4, 2))
             || moved.iter().any(|(_, moved_type)| *moved_type != element)
             || !matches!(
                 declarations

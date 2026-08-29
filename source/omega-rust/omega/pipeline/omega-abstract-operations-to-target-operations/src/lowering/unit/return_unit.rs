@@ -158,6 +158,7 @@ pub(super) fn lower_unit_return(
                         StructuralTypeShape::FixedArray { length: 3, .. } => {
                             Some(moved_arguments.len())
                         }
+                        StructuralTypeShape::FixedArray { length: 4, .. } => Some(2),
                         _ => None,
                     });
                 if parameter.multiplicity != psi_terminal::StructuralMultiplicity::Affine

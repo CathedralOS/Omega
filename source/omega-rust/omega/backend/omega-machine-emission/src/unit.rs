@@ -127,7 +127,7 @@ fn exact_fully_consumed_affine_pair_root(
         .then_some(parameter.place)
 }
 
-fn exact_partially_consumed_affine_triple_root(
+fn exact_partially_consumed_affine_array_root(
     body: &AssignedUnitBody,
     return_ordinal: usize,
 ) -> Option<psi_core::PlaceId> {
@@ -159,10 +159,13 @@ fn exact_partially_consumed_affine_triple_root(
         .structural_types
         .iter()
         .find(|declaration| declaration.id == parameter.structural_type)?;
-    let psi_terminal::StructuralTypeShape::FixedArray { element, length: 3 } = declaration.shape
+    let psi_terminal::StructuralTypeShape::FixedArray { element, length } = declaration.shape
     else {
         return None;
     };
+    if !matches!((length, return_ordinal), (3, 1 | 2) | (4, 2)) {
+        return None;
+    }
     if !matches!(
         body.structural_types
             .iter()
@@ -197,9 +200,7 @@ fn exact_partially_consumed_affine_triple_root(
         let [copy] = copies.as_slice() else {
             return None;
         };
-        let [psi_terminal::StructuralPathSegment::FixedIndex(index @ (0 | 1 | 2))] =
-            copy.path.as_slice()
-        else {
+        let [psi_terminal::StructuralPathSegment::FixedIndex(index)] = copy.path.as_slice() else {
             return None;
         };
         let stride = copy.element_stride?;
@@ -210,12 +211,14 @@ fn exact_partially_consumed_affine_triple_root(
             && copy.access == psi_terminal::StructuralAccess::Owned
             && copy.root_structural_type == parameter.structural_type
             && copy.structural_type == element
-            && copy.fixed_array_length == Some(3)
+            && *index < length
+            && copy.fixed_array_length == Some(length)
             && stride == expected_stride
             && copy.source == parameter.placement
             && copy.source.shape == parameter.shape
             && copy.source.shape.alignment == copy.shape.alignment
-            && u32::from(copy.source.shape.byte_size) == stride.checked_mul(3)?
+            && u32::from(copy.source.shape.byte_size)
+                == stride.checked_mul(u32::try_from(length).ok()?)?
             && copy.source_byte_offset == stride.checked_mul(u32::try_from(*index).ok()?)?)
         .then_some((*index, copy.shape, stride))
     };
@@ -232,7 +235,7 @@ fn exact_partially_consumed_affine_triple_root(
     {
         return None;
     }
-    let expected_residuals = (0_u64..3)
+    let expected_residuals = (0_u64..length)
         .rev()
         .filter(|index| !moved_indexes.contains(index))
         .collect::<Vec<_>>();
@@ -636,8 +639,8 @@ pub(super) fn emit_unit_body(
             } => {
                 let fully_consumed_affine_pair =
                     exact_fully_consumed_affine_pair_root(body, operation_ordinal);
-                let partially_consumed_affine_triple =
-                    exact_partially_consumed_affine_triple_root(body, operation_ordinal);
+                let partially_consumed_affine_array =
+                    exact_partially_consumed_affine_array_root(body, operation_ordinal);
                 let transferred_roots = body.operations[..operation_ordinal]
                     .iter()
                     .filter_map(|operation| match operation {
@@ -729,10 +732,10 @@ pub(super) fn emit_unit_body(
                                     !matches!(
                                         declaration.shape,
                                         psi_terminal::StructuralTypeShape::FixedArray {
-                                            length: 3,
+                                            length: 3 | 4,
                                             ..
                                         }
-                                    ) || partially_consumed_affine_triple == Some(root)
+                                    ) || partially_consumed_affine_array == Some(root)
                                 })
                         })
                         && !residuals.is_empty()
@@ -975,7 +978,9 @@ fn is_partial_cleanup_path(path: &[psi_terminal::StructuralPathSegment]) -> bool
         }))
         || matches!(
             path,
-            [psi_terminal::StructuralPathSegment::FixedIndex(0 | 1 | 2)]
+            [psi_terminal::StructuralPathSegment::FixedIndex(
+                0 | 1 | 2 | 3
+            )]
         )
 }
 

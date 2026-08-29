@@ -199,6 +199,11 @@ pub(crate) fn is_bounded_partial_affine_path(
                     ) | (
                         psi_terminal::StructuralTypeShape::FixedArray { length: 3, .. },
                         [psi_terminal::StructuralPathSegment::FixedIndex(0 | 1 | 2)]
+                    ) | (
+                        psi_terminal::StructuralTypeShape::FixedArray { length: 4, .. },
+                        [psi_terminal::StructuralPathSegment::FixedIndex(
+                            0 | 1 | 2 | 3
+                        )]
                     )
                 )
             }))
