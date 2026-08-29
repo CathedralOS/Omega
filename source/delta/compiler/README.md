@@ -1,28 +1,38 @@
-# Delta compiler
+# Delta compiler owner
 
-This directory owns the canonical Delta-written compiler source. `main.delta` is
-the current physical path of the single translation unit consumed by the
-lower-rung publication route; it is a compiler input, not a sample or a
-separate bootstrap bridge.
+The canonical compiler owned here accepts Delta, is implemented in Gamma, and
+emits platform-independent Alpha tape:
 
-D10 retired `.alp` for Delta and selected `.delta`. The atomic migration
-updated the locations companion and every consumer while preserving the exact
-source bytes and path-independent closure identity. Delta may share source
-spelling with Omega, but its meaning is self-contained and independent of both
-Alpha and Omega. Splitting the translation unit into ordinary Delta modules is
-permitted once the language and source-closure rules define that module
-surface; the closure manifest, rather than concatenation in a runner, must own
-the resulting source graph.
+```text
+delta_compiler.gamma → delta_compiler_bytecode.tape
+```
 
-No unbound compiler executable is checked in here. After the exact lower-rung
-producer edge and custody receipt close, the admitted Darwin ARM64 result has
-one six-file installation under `artifacts/darwin-arm64-v1/`: the compiler,
-the assembly-publication receipt, realization observation, artifact-custody
-receipt, one canonical raw execution, and a non-authoritative installation
-inventory. `artifact_env.sh` exposes that fixed installation and fails when it
-is absent; it never rebuilds or substitutes an ambient compiler.
+That implementation does not yet exist.
 
-[`validation/`](validation/) owns the exact source-closure, publication,
-artifact-custody, install, and reconstruction checks adjacent to the compiler
-they admit. The active work order is in
+## Current misplaced implementation
+
+`main.delta` is not a Gamma-written Delta compiler. It is Delta-written compiler
+work intended to accept the source used for the first Omega build. Under D6 and
+D11 that role is the first Omega compiler implementation source closure `D`, so
+it belongs under `source/omega/` once its accepted language and full-Omega
+contract are reconciled.
+
+The superseded Beta Delta-to-Gamma route and Darwin-native publication tree are
+deleted rather than retained as an alternate compiler architecture.
+
+## Required replacement
+
+- author `delta_compiler.gamma` against the independent Delta contract;
+- compile it with `gamma_compiler_bytecode.tape`;
+- emit one exact Alpha tape without external older-rung semantic tools;
+- reconstruct Gamma source and Alpha artifact semantics independently;
+- check direct source-to-tape refinement and negative mutations; and
+- keep any native execution as transparent Alpha-seed packaging or an optional
+  checked general Alpha realization.
+
+Any new validation placed here must reconstruct the Gamma-source-to-Alpha-tape
+edge for `delta_compiler.gamma`. Generic custody, repeated-execution, or native
+publication machinery does not belong here.
+
+The active migration order lives in
 [`TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRAP.md).

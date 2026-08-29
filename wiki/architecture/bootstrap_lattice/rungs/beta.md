@@ -1,83 +1,60 @@
 # Rung: Beta — structured compiler construction
 
-[Lattice overview](../bootstrap_lattice.md) | Prev: [Alpha](alpha.md) | Next: [Gamma](gamma.md)
+[Lattice overview](../bootstrap_lattice.md) | Prev: [Alpha](alpha.md) | Next:
+[Gamma](gamma.md)
 
 Beta turns raw Alpha construction into a small language suitable for writing
-compilers. It deliberately resembles Omega control flow without importing the
-types, ownership, effects, or proof machinery of higher rungs.
+the Gamma compiler. It resembles Omega control flow without importing higher
+types, effects, ownership, or proofs.
 
 ## Adds
 
 - named procedures, parameters, locals, calls, and recursion;
 - explicit stack frames and a fixed calling convention;
-- CFG/Omega-shaped `state` blocks and guarded `to` transitions;
-- one `i64` scalar plus raw byte/word memory;
-- byte I/O, character literals, and fixed-text emission.
+- CFG-shaped state blocks and guarded transitions;
+- one fixed-width scalar plus raw byte/word memory; and
+- deterministic byte I/O and fixed-text emission.
 
-Beta has no `if` or `while`; loops and branches are explicit state-graph edges.
-That gives later compilers an Omega-like control representation while keeping
-the implementation small.
+Beta's meaning is the written small-step
+[`SEMANTICS.md`](../../../../source/beta/SEMANTICS.md). The canonical Beta
+compiler is written in Alpha and emits Alpha tape. Its output is the standalone
+compiler used to consume the Beta-written Gamma compiler source.
 
-## Implementation and meaning
+## Current migration
 
-Beta's runtime meaning is fixed by its written small-step
-[`SEMANTICS.md`](../../../../source/beta/SEMANTICS.md). Beta compiles
-structurally to Alpha assembly, which the Alpha assembler lowers to a tape
-governed by Alpha's written semantics. The steady-state compiler is
-`source/beta/compiler/bc.beta`, written in Beta and self-hosted to a byte-identical
-fixed point. The persisted artifact is reconstructed by the Alpha-written
-cold-start compiler and contains no external producer in its lineage. Its
-adjacent validation tree reconstructs extensive maximal-observation obligations
-against `bc.beta` for the supported `B_bc1` profile. The authoritative Beta
-checker tape is constructed by the Alpha-written cold compiler below `bc`;
-the full source/artifact refinement claim is not yet encoded in that checker's
-calculus. The settled route uses Beta's existing small-step semantics as a
-constructive total trace and proves symbolic synchronization, observation
-agreement, and well-founded silent stuttering with the checker's existing
-first-order induction rules. It adds no coinductive kernel judgment. The fixed
-point proves only deterministic dependency closure.
+The repository currently promotes the self-hosted `bc.beta` fixed point as the
+Beta compiler and keeps the Alpha-written implementation under
+`compiler/cold-start/bc-alpha.alpha`. D11 reverses that authority relationship:
+the Alpha-written compiler must become or construct the complete canonical Beta
+compiler edge. The `bc.beta` fixed point may remain valuable differential and
+self-host evidence, but it is not an extra required rung.
 
-The Alpha assembler formerly lived in `compiler/beta/`, but it is an Alpha tool:
-it is written in Alpha assembly and translates Alpha assembly to Alpha tapes.
-Its canonical owner is now `source/alpha/assembler/`; the old entry is
-retired. “Beta” without qualification means the
-structured language compiled by `bc`.
+Existing source/artifact refinement work against the persisted Beta tape
+remains useful only where its exact source proposition matches the new canonical
+Alpha-written compiler edge. Evidence tied specifically to “Beta source admits
+the Beta compiler” must be reclassified rather than silently reused.
 
 ## Must not contain
 
-No algebraic data types, pattern matching, safe type hierarchy, ownership,
-regions, effects, generics, or proofs. Gamma and Omega own the facilities they
-specify; provisional Delta retains only the independent facilities its compiler
-source and direct product edge justify.
-Beta remains a small compiler-construction substrate with raw memory.
+No algebraic data types, pattern matching, safe ownership, regions, effects,
+generics, or proof language. Beta does not parse Delta or manufacture Delta
+semantics. Its only upward compiler responsibility is Gamma.
 
-## Current repository reality
+## Canonical artifact
 
-- `source/alpha/assembler/assembler.alpha` — self-hosting Alpha assembler;
-- `source/beta/compiler/bc.beta` — self-hosting Beta compiler;
-- `source/beta/reference/` — untrusted executable Python semantic
-  reference, parser, and fuzzing;
-- `source/beta/compiler/validation/` — symbolic/refinement reconstruction;
-- `source/beta/CALLING_CONVENTION.md` — Beta's frame and register
-  discipline over Alpha;
-- `source/beta/LANGUAGE.md` — current Beta surface.
-- `source/beta/SEMANTICS.md` — canonical small-step runtime meaning and
-  maximal observations.
+```text
+Alpha-written Beta compiler source
+  └─ audited Alpha construction/refinement ─▶ beta_compiler_bytecode.tape
+```
 
-`source/beta/compiler/cold-start/rebuild-artifact.sh --check` reconstructs the
-fixed-point artifact without changing it, and
-`source/beta/compiler/validation/admission/bc-block-control.sh` owns the exact
-source/artifact admission. `source/beta/compiler/cold-start/test.sh` and
-`source/beta/test.sh` retain focused language behavior tests; they are not
-additional compiler edges. The obsolete Python backend and gate were removed
-because they added no unique semantic or lower-rooted refinement coverage.
+The tape is platform-independent. Native seeds merely execute it.
 
 ## Implementation frontiers
 
-- Guard the explicit data stack against overflow.
-- Keep the canonical `bc.beta`/persisted-artifact ROOT reconstruction green when
-  the compiler or `B_bc1` profile changes. Encode its full constructive-trace
-  and synchronization theorem in the rooted checker before declaring
-  source/artifact admission closed; ROOT success remains differential evidence.
-- Extend resource budgets only when a higher-rung implementation demonstrates a
-  concrete need; do not import higher-rung language machinery speculatively.
+- complete the Alpha-written compiler for the Beta surface required by the
+  Gamma compiler;
+- guard explicit data/return stacks and expose fail-closed resources;
+- retain useful existing Beta/Alpha refinement lemmas under the corrected
+  source subject; and
+- escalate rather than extend Alpha locally if realistic Gamma compiler source
+  creates unacceptable tape verbosity or performance.

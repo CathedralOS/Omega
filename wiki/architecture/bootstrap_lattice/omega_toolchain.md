@@ -3,64 +3,66 @@
 [Lattice overview](bootstrap_lattice.md) | [Delta](rungs/delta.md) |
 [Compiler source profile](compiler_source_profile.md)
 
-Omega is the product-language endpoint, not another small bootstrap language.
-Psi owns source processing through terminal portable IR. Omega consumes that IR
-and owns target closure, optimization, and native emission.
+Omega is the product-language endpoint. Psi remains an internal target-neutral
+product compiler boundary; it is not a bootstrap rung.
 
 ```text
-language capability: Alpha → Beta → Gamma → Delta → Omega
+Gamma-written Delta compiler ─▶ delta_compiler.tape
 
-Delta compiler source
-  └─ lower-rung publication ─▶ Delta-produced compiler
+Delta-written Omega D
+  └─ delta_compiler.tape ─────▶ omega₀.tape
 
-exact ordinary-Omega product source C
-  └─ Delta-produced compiler ─▶ omega₀
-
-the same C
-  └─ omega₀ ─────────────────▶ omega
+Omega-written Omega C
+  └─ omega₀.tape ─────────────▶ omega.tape
 ```
 
-There is no additional compiler role between Delta and `omega₀`. The first
-product artifact may be conservative and slow. It must nevertheless implement
-the accepted source with exact Omega semantics. The rebuild changes artifact
-quality and closes self-hosting; it does not introduce a new language or source
-generation.
+`omega₀` and `omega` are full Omega compilers represented canonically as Alpha
+tapes. `omega₀` may itself be unoptimized, but the optimizer implemented by its
+Delta-written source can run while compiling `C`, producing a better `omega`.
 
 ## Source ownership
 
-- `source/psi/` owns the target-neutral product compiler half.
-- `source/omega/` consumes terminal Psi and owns target
-  realization and the product entrypoint.
-- `source/omega-rust/{psi,omega}/` is the current working Rust implementation
-  and comparator. It is useful during migration but grants no authority.
-- `source/delta/` owns the compiler that performs the first product build and
-  the lower-rung meaning used to publish it.
+- `source/delta/compiler/` owns the Gamma-written compiler that accepts Delta.
+- the Delta-written first Omega compiler source closure `D` belongs under
+  `source/omega/`, even though its files end in `.delta`;
+- `source/{psi,omega}/` owns the Omega-written self-hosting closure `C` and the
+  product target-neutral/target-specific split; and
+- `source/omega-rust/{psi,omega}/` remains the working Rust implementation and
+  comparator without bootstrap authority.
 
-## The source subset used by `C`
+The currently committed `source/delta/compiler/main.delta` has the role of
+Delta-written Omega implementation work, not a Gamma-written Delta compiler.
+Its source ownership must move to Omega when the implementation is reconciled
+with `D`; preserving its historical path does not preserve the old role.
+
+## The source profile used by `C`
 
 `C` deliberately uses only a compositional subset of ordinary Omega. It has no
-private syntax or altered semantics, and the subset is not a named language or
-dialect. The Delta-produced compiler may reject Omega programs using forms not
-needed by `C`, but every admitted program retains normal Omega meaning.
+private syntax or altered semantics, and the subset is not a named dialect.
+`omega₀` must accept the complete Omega language. The conservative profile
+constrains only how `C` is authored; it does not narrow the language `omega₀`
+implements. The compiler built from `C` implements that same complete language.
 
-The product compiler built from `C` implements the complete Omega language for
-users. A feature may therefore be absent from the compiler's own implementation
-source while still being parsed, checked, and lowered by that compiler.
+The source manifest demonstrates closure under general compositional forms; it
+must not become a file allowlist or a collection of hard-coded AST shapes.
 
-The source manifest demonstrates closure under general compositional forms;
-it must not become a file allowlist or a collection of hard-coded AST shapes.
+## Product targets versus bootstrap target
+
+The compiler programs themselves remain Alpha tapes. Omega may emit native user
+artifacts for ARM64, x86-64, UEFI, or other targets and may attach PCC evidence
+to those artifacts. That product target machinery does not require Beta, Gamma,
+or Delta to emit native code.
+
+An optional general Alpha AOT realization can accelerate execution of
+`omega₀.tape` or `omega.tape`, but it is checked against Alpha semantics and may
+not specialize recognized compiler functions.
 
 ## Assurance
 
-Hosting does not prove compiler correctness. Every edge binds exact source and
-artifact subjects to canonical semantics, an observation profile, target
-semantics, reconstructed obligations, certificates, and disclosed admissions.
-The proof kernel checks derivations independently of the producer.
+Both Omega tapes owe direct source-to-Alpha refinement. The first uses Delta
+semantics for `D`; the second uses Omega semantics for `C`. Their different
+source languages and expected different bytes are explicit. Neither a
+self-build nor agreement with Rust substitutes for either proposition.
 
-Terminal Psi remains the boundary between product halves, not a mandatory IR
-for the Delta implementation itself. The Delta compiler may lower the
-ordinary-Omega source used by `C` conservatively by any checked route. It
-merely cannot redefine the accepted source meaning.
-
-The exact execution order and unfinished edges live in
+The exact execution order lives in
 [`TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRAP.md).

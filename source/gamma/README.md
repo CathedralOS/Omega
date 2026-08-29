@@ -1,15 +1,15 @@
 # `source/gamma/` — safe definitional computation
 
 Gamma is the pure functional rung above Beta. It supplies algebraic data,
-pattern matching, recursion, fuel-bounded reference evaluation, and a small
-static type system. It is suitable for parsers, validators, interpreters, and an
-alternate implementation of the Alpha-owned derivation checker.
+pattern matching, recursion, bounded reference evaluation, and a small static
+type system. It is suitable for implementing the Delta compiler as well as
+parsers, validators, interpreters, and an alternate Alpha-owned checker.
 
 The reference evaluator implements proper tail calls and uses variable-size AST
 nodes, immediate nonnegative `u32` integers with a boxed fallback, and headerless
 two-word representations for ordinary `Cons` cells and the `Node` and `Chunks`
-constructors used by the Delta meaning elaborator's bounded persistent-array
-carrier. Its parsed AST is an immutable pinned heap prefix. Evaluation values
+constructors used by bounded persistent-array workloads. Its parsed AST is an
+immutable pinned heap prefix. Evaluation values
 occupy a stable-address 40 MiB heap with a separate byte-per-word allocation,
 representation-kind, and mark map. When that heap fills, a non-moving
 conservative mark/sweep validates every candidate root against an exact
@@ -47,17 +47,25 @@ top 1 MiB remains reserved below Alpha's descending return stack. Exhaustion
 after collection exits 254 without partial output instead of falling into
 Alpha's undefined out-of-range-memory edge.
 
-The canonical implementation path is Rust-free:
+The current reference implementation path is Rust-free but is migration and
+semantic-oracle infrastructure, not a canonical compiler edge:
 
 ```text
 interp.beta / typeck.beta --bc.beta--> Alpha assembly --assembler--> tape --seed-->
     canonical interpreter / type checker consuming Gamma source
 ```
 
+D11 requires one Beta-written Gamma compiler artifact that accepts
+Gamma and emits Alpha tape. `interp.beta` and `typeck.beta` are reusable
+specification/implementation material for that edge, but the interpreter is not
+permission to keep an older compiler as an external runtime dependency.
+
 Principal artifacts:
 
 - `interp.beta` — canonical Gamma reference interpreter, written in Beta;
 - `typeck.beta` — monomorphic Gamma type checker, written in Beta;
+- future `compiler/gamma_compiler.beta` — immediate-predecessor compiler emitting
+  `gamma_compiler_bytecode.tape`;
 - `reference/` — optional Python evaluator, fuzz generator, and differential
   runner;
 - `source/alpha/checker/implementations/gamma/` — independent
@@ -82,8 +90,9 @@ verification permutations under the Gamma language owner.
 
 ## Ownership classification
 
-Only `LANGUAGE.md`, `interp.beta`, and `typeck.beta` define Gamma's accepted
-surface, canonical evaluation, and static checking. The independent Python
+`LANGUAGE.md` defines Gamma's accepted surface. `interp.beta` and `typeck.beta`
+are the current canonical executable interpretation and checking components
+pending the standalone compiler. The independent Python
 evaluator and the focused gates are conformance tools; agreement with them does
 not override `interp.beta`.
 
@@ -92,10 +101,9 @@ no live artifact admission consumed it. Being written in Gamma did not make it
 part of Gamma meaning; artifact-specific reconstruction belongs beside the
 artifact being admitted.
 
-The older compiler-first imperative language, its native artifact, scripts, and
-private examples were retired after confirming no canonical gate or external
-consumer used them. Git history retains that experiment; Gamma has one meaning
-route rather than a parked second compiler.
+The older compiler-first imperative experiment does not select the new compiler
+edge. The required Gamma compiler must implement the current Gamma language and
+emit Alpha tape; it is not a revival of an unrelated historical language.
 
 See [LANGUAGE.md](LANGUAGE.md) for the canonical surface and
 [`rungs/gamma.md`](../../wiki/architecture/bootstrap_lattice/rungs/gamma.md) for

@@ -3,61 +3,64 @@
 [Lattice overview](bootstrap_lattice.md) · [Decisions](decisions.md) ·
 [Proof kernel](proof_kernel.md)
 
-The bootstrap chain does not become trustworthy merely because each compiler
-was built by the previous one. Each source-to-artifact edge must be checked
-against an independently fixed semantic subject.
+Hosting does not establish correctness. Every compiler source is checked
+directly against the exact Alpha tape that executes it:
 
 ```text
-Delta compiler source
-  └─ lower-rung publication/refinement ─▶ Delta compiler artifact
-
-exact ordinary-Omega compiler source C
-  └─ checked Delta-produced compilation ─▶ omega₀
-
-the same C
-  └─ checked omega₀ compilation ─────────▶ omega
+Alpha-written Beta compiler  ─▶ beta_compiler.tape
+Beta-written Gamma compiler  ─▶ gamma_compiler.tape
+Gamma-written Delta compiler ─▶ delta_compiler.tape
+Delta-written Omega D        ─▶ omega₀.tape
+Omega-written Omega C        ─▶ omega.tape
 ```
 
-There is no separately owned bridge or bridge refinement. The first product
-edge is simply the Delta-produced compiler compiling `C`.
+Each arrow means “the tape refines the exact source semantics under the
+reconstructed observation and resource profiles,” not merely “the compiler on
+the left emitted these bytes.”
 
-## What transfers from the lower refinement work
+## Uniform artifact-side proof
 
-- Reconstruct obligations from the source and produced artifact; do not accept
-  the producer's description of its own question.
-- Bind every claim to exact source, artifact, semantics, observation profile,
-  target semantics, and certificate identity.
-- Use negative controls that perturb source, artifacts, or derivations and must
-  reject.
-- Refuse unsupported shapes loudly. Missing coverage is not permission to skip
-  an obligation.
-- Keep proof search and compilation untrusted. The small checker validates the
-  resulting derivation.
+Common Alpha targeting fixes the artifact half of every proposition:
 
-## New work at the Omega edge
+- one tape decoder and instruction semantics;
+- one memory, call, I/O, halt, trap, and exhaustion model;
+- one resource-profile vocabulary; and
+- one native-VM realization obligation per supported host.
 
-Omega adds data-dependent control, compound values, effects, target
-realization, and a much larger obligation set. Those require richer meanings
-and certificate production, but not another compiler identity. The Rust
-implementation under `source/omega-rust/` may help compare behavior while the
-Omega-written path is completed; agreement with it grants no authority.
+The source half remains language-specific. A checker must reconstruct exact
+source parsing, names, types, and operational semantics; it may not trust a
+producer's AST or description of its own obligation.
 
-`source/delta/meaning/` owns the Rust-free Delta-to-Gamma elaboration used by
-Delta publication. D10 requires the checker to reconstruct that relation from
-Delta's self-contained contract; the current translator and any source file
-that also parses as Omega cannot select the relation or grant Omega meaning.
+High-level-to-Alpha distance may make certificates large. Checked intermediate
+relations—typed blocks, CFGs, layouts, or local simulation lemmas—may compose the
+proof. They are proof vocabulary under the same kernel, not additional
+executables or permanent build dependencies.
 
 ## Required joins
 
-The proof kernel checks derivations; it does not choose their semantic subject.
-Every accepted edge therefore records:
+Every accepted edge records:
 
-- the exact source closure;
-- the exact produced artifact;
-- the canonical semantics and observation profile;
-- target-semantics dependencies where realization occurs;
-- reconstructed obligations and their certificates;
-- any irreducible admissions, transitively disclosed.
+- exact source closure and exact Alpha tape;
+- canonical source semantics and Alpha semantics;
+- exact input, observation, and resource profiles;
+- reconstructed obligations and checked certificates;
+- tape-format and seed-container identity where execution is requested; and
+- transitively disclosed admissions.
 
-The live order and remaining closure work are tracked only in
+Native stamping is a transparent container join. An optional Alpha-to-native
+realization has a separate translation-validation proof and never replaces the
+canonical tape proposition.
+
+## Trusting trust
+
+A malicious or defective predecessor may emit a bad tape, but it cannot select
+the source semantics, observation profile, or reconstructed proposition. The
+bad tape fails direct refinement. This is why diversified double compilation is
+diagnostic rather than a required trust mechanism.
+
+The first and self-hosted Omega compilers use different source closures, `D`
+and `C`, so byte equality is neither expected nor required. Each independently
+owes refinement to the full Omega language it implements.
+
+The remaining work is tracked only in
 [`TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRAP.md).

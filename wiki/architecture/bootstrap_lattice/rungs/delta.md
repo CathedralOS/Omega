@@ -3,87 +3,68 @@
 [Lattice overview](../bootstrap_lattice.md) | Prev: [Gamma](gamma.md) | Next:
 [Omega product toolchain](../omega_toolchain.md)
 
-> **Status: open publication and product edges.** Delta's language, compiler
-> experiments, and lower-rung meaning exist. Publishing the canonical compiler
-> without an external producer and using it to build the exact Omega compiler
-> source closure remain open.
-
-Delta is the terminal small-language rung:
-
-```text
-Alpha → Beta → Gamma → Delta
-```
-
-It is an independently specified deterministic compiler-host language, not an
-Omega subset and not an extra product compiler. It may share familiar spelling
-with Omega, but no Delta rule is defined by an Omega rule or by acceptance in
-the current translator. Delta v1 is selected from the
-complete source needed for its canonical compiler and the direct Omega-source
-compilation edge, together with compiler-host safety and maintainability needs.
-The old sample corpus or a temporary producer cannot define the language by
-accident.
+Delta is the robust C-like implementation language used to write the first full
+Omega compiler. It is independently specified, not an Omega subset and not a
+Gamma macro surface.
 
 ## Direct responsibility
 
-The published Delta compiler is the compiler that performs the first product
-build:
-
 ```text
-Delta compiler source
-  └─ Delta→Gamma elaboration + Gamma execution ─▶ Delta compiler artifact
+Gamma-written Delta compiler source
+  └─ gamma_compiler.tape ─▶ delta_compiler_bytecode.tape
 
-exact ordinary-Omega compiler source C
-  └─ Delta compiler artifact ───────────────────▶ omega₀
-
-the same C
-  └─ omega₀ ────────────────────────────────────▶ omega
+Delta-written Omega compiler source D
+  └─ delta_compiler.tape ─▶ omega0_compiler_bytecode.tape
 ```
 
-No standalone bootstrap compiler exists between these edges. `omega₀` is the
-first product compiler artifact. It may be slow or conservatively lowered, but
-accepted Omega programs retain their exact Omega meaning.
+The Delta compiler accepts Delta and emits Alpha tape. The Delta-written program
+`D` accepts Omega and is the first full Omega compiler. Calling both artifacts
+“the Delta compiler” obscures this boundary and is forbidden in current docs.
+
+## Language boundary
+
+Delta provides deterministic state-machine control, checked scalar arithmetic,
+finite aggregates, fixed storage or explicit allocation failure, sealed byte
+I/O, and enough modularity to maintain `D`. It does not inherit Omega's proof
+surface, dependent types, packages, optimizer, or target model merely because
+`D` implements those facilities for Omega users.
+
+Every source-visible bound, resource-profile parameter, and private
+implementation budget is distinguished. Private exhaustion returns
+`Incomplete` and publishes no tape.
 
 ## Implementation owners
 
-- `source/delta/compiler/main.delta` is the current physical path of the
-  Delta-written compiler experiment. D10's completed path-only migration
-  preserved its source and closure identities.
-- `source/delta/meaning/delta2gamma.beta` and its encoding tools provide the
-  Rust-free lower-rung meaning route used to publish Delta artifacts.
-- `source/delta/compiler/artifacts/` is reserved for exact artifacts admitted
-  by the lower-rung producer edge; it remains absent until publication closes.
-- `source/delta/compiler/validation/` owns publication verification and custody
-  adjacent to the compiler artifact those checks admit.
-- `source/delta/FEATURE_LEDGER.md` records candidate Delta facilities and the
-  evidence still needed to retain them.
+- `source/delta/LANGUAGE.md` owns Delta syntax and semantics;
+- the target compiler source is `source/delta/compiler/delta_compiler.gamma`;
+- `source/delta/compiler/artifacts/delta_compiler_bytecode.tape` is the future
+  canonical artifact; and
+- adjacent validation owns Gamma-source/Alpha-tape refinement.
 
-The meaning tools are part of Delta's publication proof, not a separate
-language or bridge stage.
-
-## Trust boundary
-
-Delta's bootstrap host surface stays narrow: source bytes in; artifact and
-diagnostic bytes out; explicit target/configuration input; deterministic exit.
-Filesystem, environment, time, network, spawning, MMIO, and arbitrary foreign
-calls are absent unless a complete source closure demonstrates an unavoidable
-need and the admission is recorded explicitly.
-
-The canonical observation profile also fixes the sealed input-byte domain and
-admissible input profile. Source-visible exhaustion is specified by Delta;
-exhausting a private translator, evaluator, or checker budget yields
-`Incomplete` and no publishable semantic result.
+The former `source/delta/meaning/delta2gamma.beta` route is deleted. The current
+`source/delta/compiler/main.delta` is Delta-written Omega compiler work
+and should move under Omega ownership as `D` after its role is reconciled. Its
+Darwin assembly/native publication machinery cannot admit the new Delta
+compiler edge.
 
 ## Closure criteria
 
 Delta closes when:
 
-1. its language contract covers the complete canonical compiler source;
-2. the compiler artifact is published through the lower-rung route without
-   Rust defining the result;
-3. that artifact accepts the compositional ordinary-Omega surface exercised by
-   `C`, rejecting unsupported source rather than approximating it;
-4. it builds the exact product source closure `C` into `omega₀`; and
-5. the resulting `omega₀` rebuilds that same `C` into the product compiler.
+1. its independent language contract is complete;
+2. a Gamma-written compiler accepts that language and emits exact Alpha tape;
+3. the tape directly refines the Gamma compiler source under Gamma and Alpha
+   semantics;
+4. the compiler accepts the exact Delta source closure `D`; and
+5. compiling `D` yields an `omega₀` tape refining the full Omega compiler it
+   implements.
+
+## Owner escalation
+
+Escalate rather than locally redesign when `D` compilation has terrible
+performance or tape size, Alpha seems too verbose, a special native accelerator
+appears necessary, proof checking becomes prohibitive, or Delta compilation
+requires any external older-rung semantic tool.
 
 The exact work order lives in
 [`TASKS_BOOTSTRAP.md`](../../../../TASKS_BOOTSTRAP.md).

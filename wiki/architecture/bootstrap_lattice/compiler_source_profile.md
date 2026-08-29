@@ -3,103 +3,99 @@
 [Lattice overview](bootstrap_lattice.md) | [Decisions](decisions.md) |
 [Omega toolchain](omega_toolchain.md)
 
-Two source facts govern the top of the lattice:
+Three independent facts govern the top of the lattice:
 
-| Contract | Kind | Selected from |
+| Subject | Language | Purpose |
 | --- | --- | --- |
-| Delta v1 | independent language specification | the complete canonical Delta compiler source plus compiler-host safety and maintainability requirements |
-| compiler-source usage | incidental compositional subset of ordinary Omega | the complete Omega product compiler source closure `C` |
+| Delta v1 | independently specified Delta | language accepted by the Gamma-written Delta compiler |
+| `D` | Delta source closure | first complete Omega compiler implementation |
+| `C` | ordinary Omega source closure | optimized self-hosting Omega compiler implementation |
 
-Full Omega is already the product language specification. It is not a third
-bootstrap source profile.
+`D` and `C` implement the same full Omega specification. They are not the same
+source closure and neither defines the product language.
 
 ## Required artifacts
 
 ```text
-canonical Delta compiler source ∈ Delta v1
-  └─ Delta→Gamma/Gamma publication ─▶ Delta-produced compiler
+Gamma-written Delta compiler source
+  └─ Gamma compiler ───────────────▶ delta_compiler.tape
 
-exact ordinary-Omega product source closure C
-  └─ Delta-produced compiler ────────▶ omega₀
+Delta-written Omega source D
+  └─ delta_compiler.tape ──────────▶ omega₀.tape
 
-the exact same C
-  └─ omega₀ ─────────────────────────▶ omega
+Omega-written Omega source C
+  └─ omega₀.tape ──────────────────▶ omega.tape
 ```
 
-The Delta-produced compiler must accept every ordinary-Omega form exercised by
-`C` with exact Omega meaning and reject unsupported source. `omega₀` and
-`omega` are two artifacts of the same product compiler source, not two compiler
-designs.
+Every output above is canonical Alpha tape. A host-specific VM seed may execute
+or package it, but native container bytes do not replace the tape identity.
 
 ## Delta v1
 
 Delta is a small deterministic systems/compiler-host language. It may share
-spelling with Omega, but its grammar, static rules, elaboration, resources, and
-observations are defined without consulting Omega. A source file accepted by
-both languages receives only the meaning of the selected route. Delta is not
-restricted to valid Omega and does not inherit Omega complexity merely for
-spelling consistency. Its contract is justified by the source and safety needs
-of the canonical compiler, not by whatever a temporary implementation happens
-to accept.
+spelling with Omega, but its grammar, static rules, execution, resources, and
+observations are self-contained. Its compiler is written in Gamma and lowers
+Delta directly to Alpha tape. Neither the superseded Beta translator nor the
+sample corpus defines Delta.
 
-Candidate facilities must earn their place by reducing total implementation
-and assurance cost or by materially improving correctness and maintainability.
-Omission is not a goal by itself. Delta still needs a coherent compiler-host
-floor: structured control, scalar and aggregate data, modules, deterministic
-storage/allocation with explicit exhaustion, and sealed byte/artifact/
-diagnostic/exit boundaries.
+Delta needs a coherent C-like floor: structured state-machine control, scalar
+and aggregate data, fixed storage or explicit allocation failure, sealed byte
+I/O, deterministic traps, and sufficient modularity to maintain `D`. It does
+not inherit Omega proofs, dependent types, packages, or optimizer machinery.
 
-The contract fixes sealed input bytes and the admissible input profile before
-stating refinement. It classifies each fixed capacity while defining its
-resource section: source-visible bounds and explicit profile parameters are
-semantic; private implementation budgets are not. Exhausting the latter yields
-`Incomplete`, never a Delta rejection, termination result, or artifact claim.
+Every bound is source-visible semantics, an explicit profile parameter, or a
+private budget whose exhaustion returns `Incomplete` and publishes no tape.
 
-## Compiler-source usage
+## Delta-written Omega implementation `D`
 
-`C` may deliberately omit advanced Omega features from its own implementation
-source. That authoring choice does not constrain what the resulting compiler
-implements for users and does not define a named dialect.
+`D` is allowed to be conservative and operationally plain. It must nevertheless
+implement the complete Omega language required of a product compiler. In
+particular, omitting advanced language features from Delta itself does not
+permit `D` to omit them from the Omega compiler it implements.
 
-For every candidate Omega facility, record separately:
+`D` may avoid optimizer sophistication in the code generated for `omega₀`.
+That makes the first compiler artifact slow or large; it does not weaken the
+Omega programs `omega₀` accepts. The optimizer implemented by `D` runs when
+`omega₀` compiles `C` and may therefore produce a materially better `omega`
+tape than the Delta compiler produced for `omega₀`.
+
+## Omega-written implementation `C`
+
+`C` is ordinary Omega deliberately authored with a conservative incidental
+feature profile. That profile is not a named language or dialect. For every
+candidate facility, record separately:
 
 1. whether `C` uses it;
-2. whether the Delta-produced compiler admits the form used by `C`;
-3. whether production `omega` implements it for users; and
-4. whether any adjacent tool using it belongs to the actual compiler closure.
+2. whether `omega₀` accepts that use with exact Omega meaning;
+3. whether the resulting compiler implements it for users; and
+4. whether an adjacent tool using it actually belongs to `C`.
 
-Those facts must not collapse into one “supported” bit.
+The initial likely omissions from `C` include mathematical proof authoring and
+linear dependent types. Domains, generics, named fields, mixed data/case forms,
+and rich transitions remain candidates only if concrete implementation work
+shows they materially obstruct the first self-build. Rejection by `omega₀` must
+be structural and compositional, never a file or AST allowlist.
 
 ## Closure rules
 
-- `C` is determined by package resolution and the accepted source graph, not a
-  hand-maintained file list.
-- The accepted surface is structural and compositional. A compiler must not recognize
-  only the particular trees present in the current source.
-- Unsupported source rejects loudly; there is no approximate bootstrap
-  meaning.
-- Resource ceilings are explicit inputs or contract bounds, not hidden host
+- `D` and `C` are independently package-resolved exact closures.
+- The first edge compiles Delta; the second compiles Omega. No compiler pretends
+  the two source languages are interchangeable.
+- Unsupported source rejects loudly; there is no approximate meaning.
+- Resource ceilings are explicit inputs or semantic bounds, not hidden host
   limits.
-- Target realization dependencies stay symbolic until target closure and enter
-  artifact compatibility identity.
-- The first and second product builds use the same exact `C`.
-
-## What conservative generation permits
-
-`omega₀` may be large, slow, or poorly optimized. That says nothing about the
-language implemented by its source. The optimizer and advanced lowering are
-ordinary modules in `C`; they run when `omega₀` compiles later programs even if
-the Delta compiler did not optimize `omega₀` itself.
+- Both compiler artifacts are Alpha tapes and use the same Alpha observation
+  model.
+- Target-specific product dependencies remain symbolic until Omega target
+  realization. They do not leak into Delta compilation.
 
 ## What scripts may do
 
-Shell or host-language runners may invoke stages, compare outputs, and report
-failures. They are replaceable conveniences. They may not discover the source
-closure, parse or lower accepted source, manufacture certificates, or define
-the semantics of a compiler edge. If deleting a runner changes the meaning of
-the chain rather than merely how it is invoked, the runner has become an
-undeclared compiler stage.
+Shell or host-language runners may invoke a compiler, stamp a tape, compare
+outputs, and report failures. They may not discover `D` or `C`, parse or lower
+accepted source, manufacture certificates, or define an edge. If deleting a
+runner changes chain meaning, it has become an undeclared compiler stage.
 
-The current execution queue is
-[`TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRAP.md); this document defines the
-contracts, not a second task list.
+The execution queue is
+[`TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRAP.md); this document defines
+contracts, not a parallel task list.

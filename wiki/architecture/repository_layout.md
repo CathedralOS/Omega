@@ -163,17 +163,18 @@ Omega/
 |   |   `-- checker/                                       # Universal derivation checker and checker tests.
 |   |-- beta/                                              # Beta language, reference meaning, and gates.
 |   |   `-- compiler/                                      # Compiler source, artifact, cold start, and validation.
-|   |-- gamma/                                             # Gamma language, interpreter, and type checker.
-|   |-- delta/                                             # Delta language, compiler, meaning, tests, and artifacts.
-|   |   |-- compiler/                                     # Canonical compiler source, validation, and admitted artifacts.
-|   |   |-- meaning/                                      # Lower-rung Delta-to-Gamma elaboration.
+|   |-- gamma/                                             # Gamma language and Beta-written compiler owner.
+|   |   `-- compiler/                                      # Gamma compiler source, Alpha tape, and validation.
+|   |-- delta/                                             # Delta language, compiler, tests, and artifacts.
+|   |   |-- compiler/                                     # Gamma-written compiler, Alpha tape, and validation.
 |   |   `-- tests/                                        # Delta language cases.
 |   |-- library/                                           # Core, allocation, and standard library source.
 |   |   |-- core/                                          # Always-available language package.
 |   |   |-- alloc/                                         # Allocation facilities.
 |   |   `-- std/                                           # Higher-level standard package surface.
 |   |-- psi/                                               # Omega-written target-neutral phases through terminal Psi.
-|   |-- omega/                                             # Omega-written Terminal-Psi consumer and product root.
+|   |-- omega/                                             # Delta- and Omega-written product compiler implementations.
+|   |   |-- omega_compiler.delta                          # Delta-written full Omega compiler D.
 |   |   |-- build.omg                                      # Product build/composition entrypoint.
 |   |   |-- main.omg                                       # Product machine entrypoint.
 |   `-- omega-rust/                                        # Current Rust product implementation and comparator.
@@ -217,10 +218,12 @@ tools/                                 other repository maintenance scripts
 Each rung remains the semantic owner of its language and lattice-built
 artifacts. A Rust producer nested beneath that rung is tooling for the same
 concept, not a second semantic owner. The root proof checker belongs to Alpha.
-Validation belongs beside the artifact it admits, so the Beta compiler's
-source/artifact reconstruction lives under `source/beta/compiler/validation/`
-and Delta publication/custody lives under
-`source/delta/compiler/validation/`.
+Validation belongs beside the artifact it admits. The Beta compiler's current
+source/artifact reconstruction lives under `source/beta/compiler/validation/`;
+the replacement Delta validation will live under
+`source/delta/compiler/validation/` only after a Gamma-written compiler and its
+Alpha tape exist. The removed Delta-to-Gamma/native-publication tree is not a
+validation precedent.
 
 The package library now lives at `source/library/`. The relocation deliberately
 has no compatibility symlink. Package-manager task

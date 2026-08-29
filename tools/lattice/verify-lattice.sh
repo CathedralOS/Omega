@@ -35,8 +35,5 @@ step() { # label owner-role script [arguments...]
 step "alpha — seed behavior and exact assembler construction" alpha verify.sh --edge
 step "alpha — below-Beta checker construction" alpha-checker reconstruct-artifact.sh
 
-step "beta — Alpha-rooted compiler construction" beta-compiler cold-start/rebuild-artifact.sh --check
-step "beta — maximal-observation reconstruction" beta-validation admission/bc-block-control.sh
-
 echo ""
-echo "DIRECT LATTICE GATES PASS — Alpha → bc; Gamma/Delta production and both Omega builds remain open"
+echo "LATTICE FLOOR GATES PASS — canonical Beta, Gamma, Delta, omega₀, and omega edges remain open"
