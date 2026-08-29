@@ -599,7 +599,11 @@ Current ownership is:
   possible suspension. Lexical roots are statement-bound; attached-data and
   compatibility machine-owned field paths additionally follow reachable state
   transitions. `checks/carry/intra_statement.rs` preserves the shared
-  preorder call identity while walking actual left-to-right evaluation order.
+  preorder call identity while walking the language's closed evaluation
+  schedule: attached receiver before arguments, eager siblings left to right,
+  and aggregate fields in authored literal order. Strict binary operators share
+  that order; `&&` and `||` retain their explicit short-circuit control, and a
+  transition evaluates its subject once before only the selected arm.
   The settled call surface rejects a suspending call nested inside an argument,
   operator, aggregate, or condition, so partially evaluated operands never
   become hidden continuation state. Blocking-only calls may remain nested and

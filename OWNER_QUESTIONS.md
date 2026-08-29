@@ -561,54 +561,7 @@ special status to identifiers or values.
 - Tempting but wrong: call literals raw bytes while silently converting a
   codepoint escape into UTF-8.
 
-## Q10 — Evaluation order for call arguments and aggregate fields
-
-### Context
-
-Chapter 5 fixes increasing-index evaluation for fixed-array literals, but says
-call-argument order is still a language ruling. Aggregate-literal field order
-is also not normative. Current lowering walks call arguments and authored
-record/case field expressions in source order, while static-value
-canonicalization orders aggregate fields by their declarations. Pure values
-hide the distinction; effects, traps, moves, and partial construction make it
-observable.
-
-### Problem statement
-
-Choose whether call arguments and aggregate field initializers have one
-portable evaluation order, and whether aggregate evaluation follows authored
-literal order or declaration order. The choice controls which effects and
-traps occur first, when moved inputs cease to be available, which established
-aggregate prefix requires cleanup after ordinary abandonment, and whether an
-optimizer may reorder computations that are not proven independent. Layout
-field order is separately compiler-controlled and must not accidentally decide
-source evaluation semantics.
-
-### Proposed direction
-
-Evaluate every call argument exactly once from left to right in authored
-argument order. Evaluate every aggregate-literal field expression exactly once
-in authored literal order, independent of declaration order, canonical static
-identity, or physical layout. Ordinary partial-construction cleanup follows the
-established-value order required by the cleanup model; traps and nuclear aborts
-retain their existing no-successor behavior. Reordering is legal only after
-proof that it preserves all observable effects, failures, moves, and cleanup.
-
-### Alternates
-
-- Acceptable: evaluate aggregate fields in declaration order after validating
-  the complete named field set, provided the guide makes this explicit and
-  diagnostics expose the authored-to-declaration scheduling boundary.
-- Acceptable as a narrower first release: require separate bindings whenever
-  two call arguments or aggregate fields can trap, move overlapping authority,
-  or carry observable effects, so accepted compound expressions remain order
-  insensitive.
-- Tempting but wrong: let source-order storage in one IR or declaration-order
-  canonicalization in another silently define the language.
-- Tempting but wrong: let backends or optimization levels choose different
-  orders for expressions whose effects or failure are observable.
-
-## Q11 — Explicit sum discriminants under zero initialization
+## Q10 — Explicit sum discriminants under zero initialization
 
 ### Context
 

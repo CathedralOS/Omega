@@ -29,6 +29,48 @@ cleanup-bearing edge abandons a partially constructed array, the successfully
 established prefix is cleaned in reverse order. A trap or nuclear abort has no
 successor edge and performs no cleanup.
 
+## Evaluation Schedule
+
+The existing multi-child expression forms governed here, plus adjacent
+transition dispatch, have one closed evaluation schedule:
+
+| Form | Semantic evaluation order |
+| --- | --- |
+| attached call | receiver, then authored arguments left to right |
+| free or path-qualified call | authored arguments left to right |
+| strict binary operator | left operand, then right operand |
+| `left && right` | left; right only when left is `true` |
+| `left || right` | left; right only when left is `false` |
+| index | collection, then index |
+| range | present start, then present end |
+| fixed-array literal | increasing index |
+| record or case literal | authored field-expression order |
+| `transition` | subject exactly once before dispatch; only the selected arm runs |
+
+Each evaluated child runs exactly once. Unary operations, borrows, casts,
+membership tests, and member access have only one immediate runtime child and
+therefore introduce no relative-order choice. The `&&`, `||`, and transition
+rows are the complete current selective set within this expression grammar; a
+future lazy or selective form must extend this table explicitly rather than
+inherit an open exception.
+
+Named aggregate fields are scheduled where the literal writes them, not where
+the data declaration places them. For `data Pair { first: T; second: T; }`, the
+literal `Pair { second: make_second(), first: make_first() }` calls
+`make_second()` first. Successfully evaluated values are then installed into
+their named fields. Declaration order still defines completed-value canonical
+identity and structural cleanup, while selected physical layout defines byte
+placement; neither reschedules the source computation.
+
+If an ordinary cleanup-bearing edge abandons a partially staged call or
+aggregate, only the established prefix exists and it is cleaned in reverse
+establishment order. Once an aggregate is complete, its fields instead follow
+the recursive reverse-declaration cleanup rule in
+[Chapter 17](chapter_17_drops_and_cleanup.md). A trap or nuclear abort still has
+no cleanup successor. Reordering is legal only after proving
+that results, effects, failures, moves, and cleanup remain observationally
+unchanged.
+
 ## Assignment
 
 Assignment writes a value into a place.
@@ -50,11 +92,11 @@ let command: Command = self.parser.resolve(&self.line);
 self.view.render_room(&self.room);
 ```
 
-Argument evaluation order remains a language ruling. Left-to-right is the
-current implementation direction because it is easiest to reason about and
-diagnose, but this paragraph is not yet normative. Until the ruling lands,
-portable source and bootstrap profiles must not rely on relative ordering among
-effectful or trapping argument expressions.
+An attached receiver evaluates first, followed by every authored argument from
+left to right. A free or path-qualified call evaluates its arguments from left
+to right. Each receiver and argument is evaluated exactly once; ordinary
+abandonment of partial staging follows the evaluation-schedule cleanup rule
+above.
 
 Calls whose statically known operational envelope may pause execution while
 live state remains held require an exact acknowledgement:
@@ -153,9 +195,9 @@ tightest to loosest:
 | multiplicative | `*`, `/`, `%` | left |
 | additive | `+`, `-` | left |
 
-This table fixes expression grouping only. It does not establish an observable
-runtime evaluation order between operand computations; the separate evaluation-
-order boundaries in this chapter continue to apply.
+This table fixes expression grouping. The evaluation-schedule table above
+separately fixes strict binary operands left to right and names `&&` and `||` as
+the two current short-circuit connective forms.
 
 One declaration binds at most one fixed token. Several declarations may bind
 the same token when their normalized operand/domain shapes distinguish them;

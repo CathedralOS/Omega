@@ -291,6 +291,15 @@ structural order. An ordinary edge abandoning partial construction cleans the
 established prefix in reverse; trap and nuclear-abort edges clean nothing. No
 runtime liveness bitmap or data-dependent cleanup loop is introduced.
 
+Named record and case literals generalize the construction half without
+changing completed-value ownership. Field expressions establish exactly once in
+authored literal order. Ordinary abandonment cleans that established prefix in
+reverse establishment order; after successful completion, the aggregate owns
+its fields structurally and later cleanup returns to recursive reverse
+declaration order. Partial call-argument staging uses the same reverse-
+establishment rule. Canonical static field order and physical layout do not
+participate in this schedule.
+
 An internal call may now continue that same whole-root result through one
 explicit terminal operation-result place. The checked slice is intentionally
 narrow: one final direct call, one whole linear qualified argument, one exact

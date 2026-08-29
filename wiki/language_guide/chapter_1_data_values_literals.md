@@ -163,7 +163,10 @@ them as one thing. Mixed shapes are LIVE with these rules:
   gold: 5 }`); every common field NOT named zero-initializes -- construction
   replaces the whole value, and ZII makes the zero valid. Because of that
   rule, common fields may not declare default initializers (a default would
-  silently never apply), and -- first cut -- must be scalar primitives.
+  silently never apply), and -- first cut -- must be scalar primitives. Every
+  named field expression evaluates exactly once in authored literal order,
+  independently of declaration order and physical layout, under
+  [Chapter 5's evaluation schedule](chapter_5_expressions_evaluation.md#evaluation-schedule).
 - ACCESS: common fields read and write WITHOUT case knowledge
   (`event.consumed`); payload fields stay case-bound (arm bindings).
 - EQUALITY: synthesized structural `==` is common fields AND tag AND the
