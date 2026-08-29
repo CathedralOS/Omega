@@ -31,6 +31,6 @@ protocol and recommendations are optional and never participate in acceptance.
 
 Design references:
 
-- [`manager/SOURCE_RESOLVER_SECURITY.md`](manager/SOURCE_RESOLVER_SECURITY.md)
+- [`source/acquisition/SOURCE_RESOLVER_SECURITY.md`](source/acquisition/SOURCE_RESOLVER_SECURITY.md)
 - [`package_manager_first_draft.md`](../../../../wiki/design_briefs/package_manager_first_draft.md)
 - [`build_and_package_model.md`](../../../../wiki/design_briefs/build_and_package_model.md)
