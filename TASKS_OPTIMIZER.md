@@ -241,6 +241,11 @@ and no-selection compatibility remain enforced.
   proof-question, ownership-frontier, payloadless, ordinary-machine, and
   structural-machine mechanics descend through named leaves, and the
   architecture gate governs the entire stage.
+- [x] Replace the 1,860-line optimized ProgramStorage semantic-wrapper object
+  file with one small owning stage entrance above retained models, semantic
+  validation, object composition/validation/manifest construction, custody,
+  codecs, and focused fixtures. The architecture gate governs this slice and
+  requires each real coordination seam to remain visible.
 - [>] Replace remaining flat executable stages and mixed-responsibility files
   with semantic folders whose small `mod.rs` owns the real stage join. Tighten
   the production-file ceiling as each named legacy leaf is removed.
