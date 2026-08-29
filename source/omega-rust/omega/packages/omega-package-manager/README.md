@@ -16,7 +16,7 @@ and package semantics live in the design references below.
 ```text
 src/
 |-- lib.rs                 Public facade; no package behavior lives here.
-|-- declarations/          Read and conservatively edit build.omg.
+|-- manifest/              Read and conservatively edit build.omg.
 |   |-- dependency_projection/ Extract and validate checked dependency requests.
 |   `-- dependency_edit/   Plan and render conservative declaration patches.
 |-- source/                Package sources, from names to retained snapshots.
@@ -39,7 +39,7 @@ src/
 |       |-- observations/  Issue resolved-source, execution, and accounting records.
 |       `-- custody/       Tree checks, host policy, locks, and atomic publication.
 |-- closure/               Resolve and identify one complete package closure.
-|   |-- traversal/         Connect declarations to workspace, local, and Git sources.
+|   |-- traversal/         Connect manifest requests to workspace, local, and Git sources.
 |   |   |-- mod.rs         Root-source workflow facade and public entry points.
 |   |   |-- workspace.rs   Explicit workspace-member roots.
 |   |   |-- git.rs         Immutable Git roots and request matching.

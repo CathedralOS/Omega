@@ -12,7 +12,7 @@ packages/
 |-- README.md                    # This map and ownership boundary.
 |-- omega-package-manager/       # Workflow entrance and public Rust API.
 |   `-- src/
-|       |-- declarations/        # Read and conservatively edit build.omg.
+|       |-- manifest/            # Read and conservatively edit build.omg.
 |       |-- source/              # Identify, resolve, acquire, and audit sources.
 |       |-- closure/             # Reconcile and identify the dependency graph.
 |       |-- review/              # Compiler review, comparison, triage, and policy.
