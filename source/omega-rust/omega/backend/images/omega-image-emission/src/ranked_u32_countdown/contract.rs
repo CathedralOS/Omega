@@ -13,7 +13,7 @@ use psi_terminal::{
     TerminalRankedSuccessorArgument, Terminator,
 };
 
-use crate::ObjectError;
+use crate::{ObjectArtifact, ObjectError, ObjectFunction};
 
 pub(super) fn replay_ranked_countdown_contract(
     plan: &MachineCodePlan,
@@ -106,6 +106,90 @@ pub(super) fn replay_ranked_countdown_contract(
     }
 
     replay_calling_and_structural_contract(plan.target, record).ok_or_else(invalid)?;
+    replay_structural_frontier(record).ok_or_else(invalid)?;
+    Ok(())
+}
+
+pub(super) fn replay_ranked_countdown_object_contract(
+    artifact: &ObjectArtifact,
+    function: &ObjectFunction,
+    record: &RankedU32CountdownMachineCodeRecord,
+) -> Result<(), ObjectError> {
+    let invalid = || ObjectError::InvalidRankedCountdown(function.machine);
+    if artifact.functions().len() != 1
+        || artifact.entry() != function.machine
+        || record.custody.fixed_fuel.terminal_psi() != artifact.psi()
+        || record.custody.fixed_fuel.entry() != function.machine
+        || record.custody.structural_frontiers.machine != function.machine
+        || record.custody.fixed_fuel.schedule()
+            != psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity()
+        || record.custody.fixed_fuel.ceiling_units() != 5 + 6 * u64::from(u32::MAX)
+        || !record
+            .custody
+            .fixed_fuel
+            .relevant_preconditions()
+            .is_empty()
+        || function.attachment.is_none()
+        || record
+            .structural_types
+            .iter()
+            .filter(|declaration| Some(declaration.id) == function.attachment)
+            .count()
+            != 1
+        || !ranked_object_body_is_exclusive(artifact, function)
+    {
+        return Err(invalid());
+    }
+
+    let graph = record.custody.graph;
+    let component = &record.custody.ranked_scc;
+    let [covered] = component.covered_cyclic_edges.as_slice() else {
+        return Err(invalid());
+    };
+    let TerminalRankedGuard::UnsignedParameterPositive {
+        block: guard_block,
+        edge: guard_edge,
+        parameter: guard_parameter,
+        ..
+    } = covered.guard;
+    let TerminalRankedSuccessorArgument::UnsignedParameterMinusOne {
+        argument_index,
+        source_parameter,
+        target_parameter,
+        ..
+    } = covered.successor_argument;
+    let expected_provenance = TerminalPsiProvenance {
+        operations: vec![
+            graph.zero_operation,
+            graph.compare_operation,
+            graph.one_operation,
+            graph.subtract_operation,
+        ],
+        edges: vec![
+            graph.preheader_edge,
+            guard_edge,
+            graph.false_exit_edge,
+            covered.edge,
+            graph.return_edge,
+        ],
+    };
+    if component.rank_type != IntegerType::new(IntegerSign::Unsigned, 32).expect("u32 is valid")
+        || component.lower_bound != IntegerValue::Unsigned(0)
+        || component.upper_bound != IntegerValue::Unsigned(u128::from(u32::MAX))
+        || covered.target != component.header
+        || guard_block != component.header
+        || guard_parameter != component.rank_parameter
+        || source_parameter != component.rank_parameter
+        || target_parameter != component.rank_parameter
+        || argument_index != 0
+        || graph.entry == component.header
+        || graph.done_block == component.header
+        || function.provenance != expected_provenance
+    {
+        return Err(invalid());
+    }
+
+    replay_calling_and_structural_contract(artifact.target(), record).ok_or_else(invalid)?;
     replay_structural_frontier(record).ok_or_else(invalid)?;
     Ok(())
 }
@@ -414,4 +498,22 @@ fn ranked_body_is_exclusive(function: &MachineCodeFunction) -> bool {
         && function.port_effects.is_empty()
         && function.boundary_settlements.is_empty()
         && function.structural_return.is_none()
+}
+
+fn ranked_object_body_is_exclusive(artifact: &ObjectArtifact, function: &ObjectFunction) -> bool {
+    function.unit_stack.is_none()
+        && function.scalar_stack.is_none()
+        && function.unit_call_stacks.is_empty()
+        && function.scalar_call_stacks.is_empty()
+        && function.internal_unit_calls.is_empty()
+        && function.unit_parameters.is_empty()
+        && function.unit_parameter_homes.is_empty()
+        && function.unit_affine_cleanup.is_none()
+        && function.scalar_affine_cleanup.is_none()
+        && function.scalar_control_affine_cleanups.is_empty()
+        && function.scalar_structural_parameters.is_empty()
+        && function.scalar_structural_parameter_homes.is_empty()
+        && function.structural_return.is_none()
+        && artifact.port_effects().is_empty()
+        && artifact.boundary_settlements().is_empty()
 }

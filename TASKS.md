@@ -498,10 +498,18 @@ Remaining:
   map each original branch instruction after its own hot charge, map the header
   and exit to the first charge at those semantic sites, rewrite all three x86
   or AArch64 immediates, and reject metered-byte mutation. The stripped-custody
-  shape cannot enter instrumentation. Final image emission retains its named
-  ranked-custody fence rather than silently granting publication. The next
-  substep is final image/install/native-artifact custody and native rank 0, 1,
-  and 3 schedule comparison before retrying the product build.
+  shape cannot enter instrumentation. Final-image, installation, and native-
+  artifact custody are now complete for the unmetered carrier. Final-image
+  emission and source-free native-artifact validation independently replay the
+  ranked contract, target decoding, and all nine object fuel rows. Canonical
+  installation format 43 retains an explicit disjoint ranked-body tag, rejects
+  mixed body custody, round-trips it, and binds it back to the exact emitted
+  image. The canonical Terminal artifact ledger now reconstructs the complete
+  interpretable proof question for ranked modules rather than incorrectly
+  requiring the ordinary acyclic execution carrier; native and fixed-fuel
+  admission remain separate mandatory replays. The resulting native artifact
+  validates for both Linux ISAs. The next substep is native rank 0, 1, and 3
+  schedule comparison before retrying the product build.
   Later product-required slices must then add persistent mutable receiver and
   subplace custody, mixed operations in multi-state blocks, structural-result
   boundary calls and payload cases, nested field/index reads and writes, and

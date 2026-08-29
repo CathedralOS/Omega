@@ -3704,6 +3704,17 @@ conversion are checked; an unrepresentable ceiling rejects. Ranked safe-point
 segments, tail calls, and relevant-precondition refinements require later
 vertical slices.
 
+The same exact ranked countdown has a disjoint unmetered native carrier.
+Object admission reconstructs its proof/fixed-fuel identity, graph, ABI,
+structural frontier and cleanup, target instructions, and nine logical fuel
+rows. Final-image emission and source-free native-artifact validation replay
+those facts again before accepting the object/image join. Canonical
+installation format 43 retains a ranked-body tag and rejects combining it with
+ordinary Unit, scalar, boundary, or port custody. The canonical Terminal
+artifact manifest derives its obligation ledger through the interpretable
+ranked validation carrier; this binds the same complete proof question without
+misrepresenting the module as accepted by ordinary acyclic execution.
+
 Omega may use a certificate only for the exact installed terminal bytes,
 architecture, entry stub, and external-root context it names. Recomputable Psi
 fuel evidence carries no provider receipt.

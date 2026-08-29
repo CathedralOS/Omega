@@ -78,7 +78,7 @@ pub fn emit_executable_image(
     artifact: &ObjectArtifact,
     subsystem: u16,
 ) -> Result<ExecutableImage, Diagnostic> {
-    super::ranked_u32_countdown::reject_ranked_u32_countdown_final_image(&artifact.functions)?;
+    super::ranked_u32_countdown::replay_ranked_u32_countdown_final_image(artifact)?;
     if !can_emit_executable_image(artifact.target) {
         return Err(Diagnostic::error(format!(
             "cannot emit terminal-Psi executable image for {:?}",
@@ -144,7 +144,7 @@ pub fn validate_executable_image(
     artifact: &ObjectArtifact,
     image: &ExecutableImage,
 ) -> Result<(), Diagnostic> {
-    super::ranked_u32_countdown::reject_ranked_u32_countdown_final_image(&artifact.functions)?;
+    super::ranked_u32_countdown::replay_ranked_u32_countdown_final_image(artifact)?;
     if artifact.psi() != image.psi()
         || artifact.target() != image.target()
         || artifact.functions() != image.functions()
