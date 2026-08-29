@@ -1447,6 +1447,15 @@ large extension followed by truncation cannot evade replay limits. Negative or
 unrepresentable lengths, failures, malformed lanes, and wrong descriptors
 remain non-receipted.
 
+Observation summary v36 and compiler replay-record v17 admit successful
+canonical seeks within a fresh Output file. `SEEK_SET`, `SEEK_CUR`, and
+`SEEK_END` bind exact signed offset, whence, same live descriptor, nonnegative
+result, and zero post-error state. The checker recomputes the result from the
+current cursor and extent with checked arithmetic before accepting it; replay
+then updates only the sequential cursor. Unsupported whence values, negative or
+overflowing results, mismatched claimed results, failures, malformed lanes, and
+wrong descriptors remain non-receipted.
+
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities reject negative, wrapped, or

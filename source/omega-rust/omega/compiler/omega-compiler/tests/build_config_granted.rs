@@ -353,7 +353,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 35);
+    assert_eq!(checked_observations.schema_version(), 36);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -4029,6 +4029,84 @@ fn output_set_len_replays_exact_truncation() {
 
     let _ = std::fs::remove_dir_all(&project);
     let _ = std::fs::remove_dir_all(rooted_build_session(&project, "resized-output-review"));
+}
+
+#[test]
+fn output_seek_replays_exact_cursor_transition() {
+    let (project, profile) = rooted_build_probe_project(
+        "seeked-output-file",
+        r#"    let input: &[u8] in Path = builder.source.resolve("main.omg");
+    self.descriptor = self.filesystem.open(input, 0);
+    self.result = self.filesystem.read(self.descriptor, &mut self.buffer, 23);
+    self.code = self.filesystem.close(self.descriptor);
+    let generated: &[u8] in Path = builder.output.resolve("seeked.omg");
+    self.descriptor = self.filesystem.create(generated, 438);
+    self.result = self.filesystem.write(self.descriptor, "xxxx Seeked {}\n");
+    self.result = self.filesystem.seek(self.descriptor, 0, 0);
+    self.result = self.filesystem.write(self.descriptor, "data");
+    self.code = self.filesystem.close(self.descriptor);
+    builder.output.include_source(generated);"#,
+    );
+    let checked =
+        compile_rooted_probe_with_sponsored_output(&project, profile, "seeked-output-review")
+            .expect("successful canonical Output seek should receipt");
+    let summary = checked.build_observation_summary().unwrap();
+    assert!(summary.operation_replay_verified());
+    assert_eq!(summary.realized(), BuildObservationClass::Receipted);
+    assert_eq!(
+        summary
+            .filesystem_operation_attempts()
+            .iter()
+            .map(|attempt| attempt.operation_tag())
+            .collect::<Vec<_>>(),
+        vec![2, 4, 8, 1, 5, 10, 5, 8]
+    );
+    assert_eq!(
+        checked
+            .typed
+            .symbols
+            .source_files()
+            .find(|source| source.path.ends_with("seeked.omg"))
+            .unwrap()
+            .source
+            .as_ref(),
+        "data Seeked {}\n"
+    );
+
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let record = capture_verified_build_filesystem_replay_record(summary, limits)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        recover_review_only_build_filesystem_replay_record(record.canonical_bytes(), limits)
+            .unwrap(),
+        record
+    );
+    let package = PackageKeyIdentity::from_digest([106; 32]).unwrap();
+    set_canonical_source_tree_permissions(&project, true);
+    let source = PackageSourceBinding::new(package, "seeked-output", project.clone())
+        .with_canonical_source_metadata()
+        .unwrap();
+    let inputs = PackageCompilationInputs::new(package, vec![source], Vec::new()).unwrap();
+    std::fs::write(
+        rooted_build_session(&project, "seeked-output-review").join("output/seeked.omg"),
+        "data Spoofed {}\n",
+    )
+    .unwrap();
+    let replayed = compile_to_checked_with_packages_and_replay_record(
+        &project.join("main.omg"),
+        Some(profile.target_name()),
+        inputs,
+        record,
+    )
+    .expect("seek replay ignores physical Output drift");
+    set_canonical_source_tree_permissions(&project, false);
+    assert!(replayed.typed.symbols.source_files().any(|source| {
+        source.path.ends_with("seeked.omg") && source.source.as_ref() == "data Seeked {}\n"
+    }));
+
+    let _ = std::fs::remove_dir_all(&project);
+    let _ = std::fs::remove_dir_all(rooted_build_session(&project, "seeked-output-review"));
 }
 
 #[test]
