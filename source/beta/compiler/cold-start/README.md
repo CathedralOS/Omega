@@ -72,7 +72,7 @@ source names.
 This accepts arbitrary programs in the bounded surface above.
 [`rebuild-artifact.sh`](rebuild-artifact.sh) assembles the canonical Alpha source
 directly. Its `--check` mode reconstructs
-[`../artifacts/beta_compiler_bytecode.tape`](../artifacts/README.md) byte-for-byte without changing
+[`../beta_compiler_bytecode.tape`](../beta_compiler_bytecode.tape) byte-for-byte without changing
 the repository; its default mode deliberately installs that reconstruction.
 The focused [`test.sh`](test.sh) exercises the compiler's accepted and
 rejected Beta surface, but that regression suite is not a compiler-lattice

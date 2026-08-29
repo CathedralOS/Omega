@@ -37,7 +37,7 @@ implementation budget is distinguished. Private exhaustion returns
 
 - `source/delta/LANGUAGE.md` owns Delta syntax and semantics;
 - the target compiler source is `source/delta/compiler/delta_compiler.gamma`;
-- `source/delta/compiler/artifacts/delta_compiler_bytecode.tape` is the future
+- `source/delta/compiler/delta_compiler_bytecode.tape` is the future
   canonical artifact; and
 - adjacent validation owns Gamma-source/Alpha-tape refinement.
 

@@ -18,7 +18,7 @@ beta_compiler.alpha --(Alpha seed + assembler)--> beta_compiler_bytecode.tape
 
 [`compiler/cold-start/`](compiler/cold-start/README.md) owns the lower-rooted
 construction. It rebuilds the accepted
-[`compiler/artifacts/beta_compiler_bytecode.tape`](compiler/artifacts/README.md)
+[`compiler/beta_compiler_bytecode.tape`](compiler/beta_compiler_bytecode.tape)
 directly, without a Rust producer or Beta self-host stage. The current tape is
 20,977 bytes.
 

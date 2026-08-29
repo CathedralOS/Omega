@@ -18,7 +18,7 @@ unset OMEGA_PATH_PARENT
 
 ASM="$OMEGA_PATH_ALPHA_ASSEMBLER/$BETA_SEED"
 SEED="$OMEGA_PATH_ALPHA/$ALPHA_SEED"
-ARTIFACT=${1:-"$OMEGA_PATH_BETA_COMPILER/artifacts/beta_compiler_bytecode.tape"}
+ARTIFACT=${1:-"$OMEGA_PATH_BETA_COMPILER/beta_compiler_bytecode.tape"}
 [ -f "$ARTIFACT" ] || { echo "missing Alpha tape: $ARTIFACT" >&2; exit 2; }
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT

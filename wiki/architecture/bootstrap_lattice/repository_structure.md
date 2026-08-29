@@ -18,23 +18,20 @@ source/
   beta/                          Beta language
     compiler/
       beta_compiler.alpha        canonical compiler implementation
-      artifacts/
-        beta_compiler_bytecode.tape
+      beta_compiler_bytecode.tape
       validation/                Alpha-source/Beta-compiler tape refinement
 
   gamma/                         Gamma language
     compiler/
       gamma_compiler.beta        canonical compiler/reference implementation
-      artifacts/
-        gamma_compiler_bytecode.tape
+      gamma_compiler_bytecode.tape
       validation/                Beta-source/Gamma-compiler tape refinement
     reference/                   optional differential implementations
 
   delta/                         Delta language
     compiler/
       delta_compiler.gamma       canonical compiler implementation
-      artifacts/
-        delta_compiler_bytecode.tape
+      delta_compiler_bytecode.tape
       validation/                Gamma-source/Delta-compiler tape refinement
     tests/                       Delta language cases
 
@@ -42,9 +39,8 @@ source/
   omega/                         Omega language and both Omega implementations
     omega_compiler.delta         Delta-written source closure D
     main.omg / build.omg         Omega-written source closure C
-    artifacts/
-      omega0_compiler_bytecode.tape
-      omega_compiler_bytecode.tape
+    omega0_compiler_bytecode.tape
+    omega_compiler_bytecode.tape
     validation/                  D→omega₀ and C→omega refinement
 
   library/                       core, allocation, and standard-library source
