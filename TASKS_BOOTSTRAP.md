@@ -182,6 +182,15 @@ Canonical subjects:
     step, and a missing successor. The focused gate reports certificate bytes,
     rooted check time, and peak child storage. This is an expressiveness seam,
     not `bc.beta` admission.
+  - [x] The 1,856-byte reusable
+    `source/alpha/checker/corpus/proofs/operational-refinement-core.elab`
+    theorem derives observation preservation for every finite symbolic walk
+    from three owner-reconstructed premises: zero-step endpoint identity,
+    successor decomposition into a shorter walk plus one unmatched step, and
+    silence of that unmatched step. It uses ordinary Nat induction and
+    `def`/`use`; all three checker implementations accept it. This replaces
+    per-length unrolling without granting a producer control over a machine,
+    relation schema, or premise.
   - [ ] Bind the first exact-subject theorem tranche to `bc.beta`'s
     `main.resource` cleanup: one Beta return maps to the independently decoded
     Alpha load/epilogue/root-halt sequence, preserves empty stdout and the

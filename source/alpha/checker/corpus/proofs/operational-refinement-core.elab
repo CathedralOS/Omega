@@ -1,0 +1,92 @@
+; Generic finite-prefix observation theorem for deterministic operational
+; refinement.  IDs are a fixed schema, not quantified second-order objects:
+;
+;   Walk(n,x,z) = Rel 910 (Pair n x) z
+;   Silent(y,z) = Rel 911 y z
+;   Obs(x)      = f 30 x
+;
+; If a zero-step walk identifies its endpoints, every successor walk exposes a
+; shorter walk followed by one silent step, and silent steps preserve Obs, then
+; every finite walk preserves Obs.  Exact machine owners reconstruct the three
+; premises; they cannot be supplied by a proof producer.
+(data 50 2 0 0)
+
+(def 0
+  (all x (all y (-> (= x y) (= y x))))
+  (gen x
+    (gen y
+      (lam xy (= x y)
+        (eqelim hole (= hole x) xy (refl x))))))
+
+(def 1
+  (all x (all y (all z (-> (= x y) (-> (= y z) (= x z))))))
+  (gen x
+    (gen y
+      (gen z
+        (lam xy (= x y)
+          (lam yz (= y z)
+            (eqelim hole (= x hole) yz xy)))))))
+
+(-> (all x (all end
+      (-> (rel 910 (k 50 z x) end)
+          (= x end))))
+    (-> (all n (all x (all end
+          (-> (rel 910 (k 50 (s n) x) end)
+              (ex y
+                (& (rel 910 (k 50 n x) y)
+                   (rel 911 y end)))))))
+        (-> (all y (all end
+              (-> (rel 911 y end)
+                  (= (f 30 y) (f 30 end)))))
+            (all n (all x (all end
+              (-> (rel 910 (k 50 n x) end)
+                  (= (f 30 x) (f 30 end)))))))))
+(lam walk0
+  (all x (all end
+    (-> (rel 910 (k 50 z x) end)
+        (= x end))))
+  (lam walkstep
+    (all n (all x (all end
+      (-> (rel 910 (k 50 (s n) x) end)
+          (ex y
+            (& (rel 910 (k 50 n x) y)
+               (rel 911 y end)))))))
+    (lam silent_obs
+      (all y (all end
+        (-> (rel 911 y end)
+            (= (f 30 y) (f 30 end)))))
+      (natind n
+        (all x (all end
+          (-> (rel 910 (k 50 n x) end)
+              (= (f 30 x) (f 30 end)))))
+        (gen x
+          (gen end
+            (lam walk (rel 910 (k 50 z x) end)
+              (have xend (= x end)
+                (app* (inst* walk0 x end) walk)
+                (eqelim hole
+                  (= (f 30 x) (f 30 hole))
+                  xend
+                  (refl (f 30 x)))))))
+        (gen n
+          (lam ih
+            (all x (all end
+              (-> (rel 910 (k 50 n x) end)
+                  (= (f 30 x) (f 30 end)))))
+            (gen x
+              (gen end
+                (lam walk
+                  (rel 910 (k 50 (s n) x) end)
+                  (unpack
+                    (app* (inst* walkstep n x end) walk)
+                    (gen y
+                      (lam parts
+                        (& (rel 910 (k 50 n x) y)
+                           (rel 911 y end))
+                        (have xy (= (f 30 x) (f 30 y))
+                          (app* (inst* ih x y) (fst parts))
+                          (have yend (= (f 30 y) (f 30 end))
+                            (app* (inst* silent_obs y end) (snd parts))
+                            (app* (inst* (use 1)
+                              (f 30 x) (f 30 y) (f 30 end))
+                              xy yend)))))))))))))))
