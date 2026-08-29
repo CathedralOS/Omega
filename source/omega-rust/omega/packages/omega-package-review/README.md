@@ -16,7 +16,7 @@ src/
 |   |-- public_api.rs         domain and data API shapes
 |   |-- contracts/            expressions, propositions, declarations, and callable contracts
 |   |-- authority.rs          reach, capability, mutation, crash, and termination
-|   |-- projection.rs         complete review aggregate and internal row pairings
+|   |-- review/               callables, providers, package aggregate, and source pairings
 |   `-- rows.rs               canonical row and source-coordinate carriers
 |-- projection/               checked compiler state -> review evidence
 |   |-- orchestration/        validation, surface collection, providers, and assembly

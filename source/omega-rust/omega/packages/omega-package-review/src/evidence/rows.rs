@@ -4,12 +4,12 @@ use super::{
         PackageReviewConstShape, PackageReviewOperatorShape, PackageReviewPropositionShape,
     },
     identity::{PackageReviewSemanticDependency, PackageReviewToolchainSourceIdentity},
-    projection::{
-        CheckedPackageCallableReview, CheckedPackageProviderFamilyReview,
-        CheckedPackageProviderReview, CheckedPackageReviewProjection,
-    },
     public_api::{
         PackageReviewDataShape, PackageReviewDomainShape, PackageReviewRepresentationTcb,
+    },
+    review::{
+        CheckedPackageCallableReview, CheckedPackageProviderFamilyReview,
+        CheckedPackageProviderReview, CheckedPackageReviewProjection,
     },
     signatures::{
         PackageReviewConformanceShape, PackageReviewExternalExecutableSupply,
