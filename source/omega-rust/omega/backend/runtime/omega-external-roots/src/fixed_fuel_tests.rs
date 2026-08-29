@@ -84,18 +84,31 @@ fn installed_code(
     installed_identity: u64,
     entry: EntryStubId,
 ) -> InstalledCode {
+    let artifact_constraints = constraints();
+    let contracts = normalized(0x7110, MachineContractSetId::from_normalized_identity);
+    let footprint = normalized(0x7111, MachineFootprintId::from_normalized_identity);
     let artifact = Artifact::from_canonical_decode(
         normalized(artifact_identity, ArtifactId::from_normalized_identity),
         omega_target::Architecture::X86_64,
         vec![0; 64],
-        normalized(0x7110, MachineContractSetId::from_normalized_identity),
-        normalized(0x7111, MachineFootprintId::from_normalized_identity),
+        contracts,
+        footprint,
         normalized(0x7112, PlacementPlanId::from_normalized_identity),
-        constraints(),
+        artifact_constraints,
         normalized(0x7113, EntrySetId::from_normalized_identity),
         vec![ArtifactEntry::from_canonical_decode(entry, 16)],
         normalized(0x7114, RelocationSetId::from_normalized_identity),
         Vec::new(),
+        omega_executable_installation::ArtifactAuthorityCommitments::from_canonical_evidence(
+            contracts,
+            b"test-machine-contracts-v1",
+            footprint,
+            b"test-machine-footprint-v1",
+            None,
+            artifact_constraints
+                .installation_scope()
+                .map(|scope| (scope, b"test-installation-scope-v1".as_slice())),
+        ),
     )
     .expect("test artifact");
     let admitted = admit_executable(

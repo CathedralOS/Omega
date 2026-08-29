@@ -1,5 +1,5 @@
 use psi_core::{IntegerValue, Proposition};
-use psi_proof_admission::{AdmissionProfile, EvidenceRoute, PrimitiveJudgment, ProofRule};
+use psi_proof_admission::{AdmissionProfile, EvidenceRoute, ProofRule};
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
@@ -55,10 +55,18 @@ fn landed_negative_one_and_nonminimum_dividend_use_closed_exact_certificates() {
         let EvidenceRoute::CertificateDerived(certificate) = &evidence.route else {
             panic!("closed signed exact operation has a recursive certificate")
         };
-        assert_eq!(certificate.proof.conclusion, Proposition::Truth);
+        let Proposition::Disjunction(disjuncts) = &certificate.proof.conclusion else {
+            panic!("signed exact division uses the canonical three-arm definedness goal")
+        };
+        assert_eq!(disjuncts.len(), 3);
+        let ProofRule::DisjunctionIntroduction { disjunct, index } = &certificate.proof.rule else {
+            panic!("landed -1 and nonminimum dividend select the exceptional arm")
+        };
+        assert_eq!(*index, 2);
+        assert_eq!(disjunct.conclusion, disjuncts[2]);
         assert!(matches!(
-            certificate.proof.rule,
-            ProofRule::Primitive(PrimitiveJudgment::Truth)
+            disjunct.rule,
+            ProofRule::ConjunctionIntroduction(ref conjuncts) if conjuncts.len() == 2
         ));
     }
 

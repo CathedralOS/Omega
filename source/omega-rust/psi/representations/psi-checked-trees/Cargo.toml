@@ -19,3 +19,4 @@ psi-numerics = { path = "../../foundation/psi-numerics" }
 psi-source = { path = "../../foundation/psi-source" }
 psi-symbols = { path = "../../foundation/psi-symbols" }
 psi-typed-trees = { path = "../psi-typed-trees" }
+sha2 = "0.10"

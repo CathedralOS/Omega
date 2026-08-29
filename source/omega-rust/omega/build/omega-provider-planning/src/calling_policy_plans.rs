@@ -395,8 +395,21 @@ pub fn validate_nominal_callback_placement_bindings(
             )));
             continue;
         };
+        let Some(actual_contract) = checked
+            .facts
+            .contract_plans
+            .for_machine(nominal_use.selected_machine)
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "nominal callback use for `{}` is missing its canonical selected contract",
+                nominal_use.canonical_requirement_overload
+            )));
+            continue;
+        };
         if placement.resource_receipt.contract_fingerprint()
             != nominal_use.selected_actual_envelope.contract_fingerprint
+            || nominal_use.selected_actual_envelope.contract_commitment
+                != actual_contract.commitment
             || placement
                 .resource_receipt
                 .validate_against(resource_envelope)
@@ -3020,9 +3033,15 @@ mod tests {
             published_requirement_envelope:
                 psi_checked_trees::CheckedMachineContractEnvelopeIdentity {
                     contract_fingerprint: 6,
+                    contract_commitment: psi_checked_trees::MachineContractCommitment::from_digest(
+                        [6; 32],
+                    ),
                 },
             selected_actual_envelope: psi_checked_trees::CheckedMachineContractEnvelopeIdentity {
                 contract_fingerprint: selected_actual_fingerprint,
+                contract_commitment: psi_checked_trees::MachineContractCommitment::from_digest(
+                    [8; 32],
+                ),
             },
             callback_placement: Some(psi_checked_trees::CheckedCallbackPlacementIdentity {
                 boundary_calling_plan_fingerprint: fingerprint,
@@ -3030,14 +3049,27 @@ mod tests {
             }),
             refinement: psi_checked_trees::CheckedMachineContractRefinement {
                 published_requirement_fingerprint: 6,
+                published_requirement_commitment:
+                    psi_checked_trees::MachineContractCommitment::from_digest([6; 32]),
                 selected_actual_fingerprint,
+                selected_actual_commitment:
+                    psi_checked_trees::MachineContractCommitment::from_digest([8; 32]),
             },
         };
         let mut checked = psi_checked_trees::CheckedTrees::default();
+        checked.facts.contract_plans.machines = vec![psi_checked_trees::MachineContractPlan {
+            machine: selected_machine,
+            closed_scalar_values: Default::default(),
+            crash: Default::default(),
+            fingerprint: selected_actual_fingerprint,
+            commitment: psi_checked_trees::MachineContractCommitment::from_digest([8; 32]),
+        }];
         checked.facts.contract_plans.realized_envelopes = vec![
             psi_checked_trees::RealizedMachineContractEnvelope {
                 machine: selected_machine,
                 contract_fingerprint: selected_actual_fingerprint,
+                contract_commitment:
+                    psi_checked_trees::MachineContractCommitment::from_digest([8; 32]),
                 effective_service_reach: Vec::new(),
                 concrete_service_reach: Vec::new(),
                 unresolved_installation_reaches: Vec::new(),

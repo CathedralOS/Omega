@@ -1608,6 +1608,53 @@ fn program_local_root_cohort_keys_do_not_collapse_to_compact_schema_identity() {
 }
 
 #[test]
+fn component_era_artifact_occurrence_joins_require_strong_installation_evidence() {
+    let root = workspace_root();
+    let installation_path = root
+        .join("source/omega-rust/omega/backend/runtime/omega-executable-installation/src/lib.rs");
+    let installation = std::fs::read_to_string(&installation_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", installation_path.display()));
+    let effects_path = root.join(
+        "source/omega-rust/omega/representations/omega-effects/src/component_era_entry_ledger.rs",
+    );
+    let effects = std::fs::read_to_string(&effects_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", effects_path.display()));
+    let publication_path =
+        root.join("source/omega-rust/omega/backend/runtime/omega-component-publication/src/lib.rs");
+    let publication = std::fs::read_to_string(&publication_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", publication_path.display()));
+    let cohort_path = root.join(
+        "source/omega-rust/omega/backend/runtime/omega-external-roots/src/program_local_roots.rs",
+    );
+    let cohort = std::fs::read_to_string(&cohort_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", cohort_path.display()));
+
+    assert!(
+        installation.contains("omega.installed-artifact-occurrence.sha256.v1\\0")
+            && installation.contains("pub fn occurrence_digest(&self)"),
+        "executable installation must derive a domain-separated commitment from exact installed occurrence evidence"
+    );
+    assert!(
+        effects.contains("artifact_occurrence_digest: InstalledArtifactOccurrenceDigest")
+            && effects.contains("artifact_instance_compatibility_report_identity: u64")
+            && !effects.contains("pub artifact_instance_identity: u64"),
+        "component-era candidates, receipts, and leases must distinguish strong occurrence evidence from compact report compatibility"
+    );
+    assert!(
+        publication.contains(
+            "candidate.artifact_occurrence_digest != runnable.installed().occurrence_digest()",
+        ),
+        "runnable publication must replay the strong installed occurrence commitment"
+    );
+    assert!(
+        cohort.contains("member.epoch_lease.artifact_occurrence_digest()")
+            && cohort.contains(".installed_code\n                        .occurrence_digest()")
+            && !cohort.contains("epoch_lease.artifact_instance_identity()"),
+        "program-local cohort sealing must not authorize a lease through the compact installed-code report identity alone"
+    );
+}
+
+#[test]
 fn optimization_projection_stops_before_target_realization() {
     let root = workspace_root();
     let projection_root =
@@ -2347,5 +2394,65 @@ fn final_image_symbol_authority_binds_exact_entry_and_data_rows() {
         publication
             .contains("digest.update(artifact.image().final_image_symbol_digest().as_bytes());"),
         "native publication certificates must bind the exact final-image symbol evidence",
+    );
+}
+
+#[test]
+fn executable_container_v2_retains_strong_imported_authority_commitments() {
+    let root = workspace_root();
+    let installation_path = root
+        .join("source/omega-rust/omega/backend/runtime/omega-executable-installation/src/lib.rs");
+    let installation = std::fs::read_to_string(&installation_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", installation_path.display()));
+    for domain in [
+        "omega.imported-contract-set.sha256.v1\\0",
+        "omega.declared-machine-footprint.sha256.v1\\0",
+        "omega.machine-regime.sha256.v1\\0",
+        "omega.artifact-installation-scope.sha256.v1\\0",
+    ] {
+        assert!(
+            installation.contains(domain),
+            "executable installation must retain domain-separated {domain} authority",
+        );
+    }
+    assert!(
+        installation.contains("authority_commitments: Option<ArtifactAuthorityCommitments>")
+            && installation.contains(
+                "container-v1 compatibility candidates lack strong authority commitments and cannot be admitted",
+            ),
+        "compact-only container-v1 candidates must remain decodable but non-admissible",
+    );
+    assert!(
+        installation.contains("imported_contract_report_identity: u64")
+            && installation.contains("declared_footprint_report_identity: u64")
+            && installation.contains("machine_regime_report_identity: u64")
+            && installation.contains("installation_scope_report_identity: u64")
+            && !installation.contains("pub const fn from_digest(digest: [u8; 32])"),
+        "compact authority coordinates must stay explicitly report-only and strong digests must not expose raw constructors",
+    );
+
+    let codec_path = root.join(
+        "source/omega-rust/omega/backend/runtime/omega-executable-installation/src/container_bytes.rs",
+    );
+    let codec = std::fs::read_to_string(&codec_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", codec_path.display()));
+    assert!(
+        codec.contains("const SECTION_AUTHORITY_COMMITMENTS: u16 = 9;")
+            && codec.contains("OMEGA_EXECUTABLE_CONTAINER_V2_MARKER")
+            && codec.contains("encode_executable_container_v1_compatibility")
+            && codec.contains("container-v2 encoding requires strong authority commitments"),
+        "the ordinary encoder must emit v2 strong evidence while v1 remains an explicit compatibility path",
+    );
+
+    let materializer_path = root.join(
+        "source/omega-rust/omega/backend/runtime/omega-executable-installation/src/materializer.rs",
+    );
+    let materializer = std::fs::read_to_string(&materializer_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", materializer_path.display()));
+    assert!(
+        materializer.contains("admission: AdmittedArtifact")
+            && materializer.contains("record.content")
+            && materializer.contains("normalized_final_bytes_identity("),
+        "materialization must retain exact admitted authority evidence and bind it through content into final bytes",
     );
 }

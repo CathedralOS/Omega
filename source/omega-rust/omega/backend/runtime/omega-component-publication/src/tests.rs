@@ -363,18 +363,28 @@ fn install_terminal_text(
     let constraints = PlacementConstraints::new(None, 16, PlacementPhase::Load, None, Some(scope))
         .expect("constraints");
     let entry = psi_layout_plans::EntryStubId::from_normalized_identity(1).expect("entry");
+    let contracts = install_id(2, MachineContractSetId::from_normalized_identity);
+    let footprint = install_id(3, MachineFootprintId::from_normalized_identity);
     let artifact = Artifact::from_canonical_decode(
         install_id(artifact_identity, ArtifactId::from_normalized_identity),
         object.target().architecture,
         object.text_bytes().to_vec(),
-        install_id(2, MachineContractSetId::from_normalized_identity),
-        install_id(3, MachineFootprintId::from_normalized_identity),
+        contracts,
+        footprint,
         install_id(4, PlacementPlanId::from_normalized_identity),
         constraints,
         install_id(5, EntrySetId::from_normalized_identity),
         vec![ArtifactEntry::from_canonical_decode(entry, 0)],
         install_id(6, RelocationSetId::from_normalized_identity),
         Vec::new(),
+        omega_executable_installation::ArtifactAuthorityCommitments::from_canonical_evidence(
+            contracts,
+            b"test-machine-contracts-v1",
+            footprint,
+            b"test-machine-footprint-v1",
+            None,
+            Some((scope, b"test-installation-scope-v1")),
+        ),
     )
     .expect("artifact");
     let admitted = admit_executable(
@@ -486,10 +496,13 @@ fn lifecycle() -> RunnableComponentEraLedger {
     )
 }
 
-fn candidate(era: u64, installed: InstalledCodeId) -> ComponentEraCandidate {
+fn candidate(era: u64, runnable: &InstalledRunnableComponent) -> ComponentEraCandidate {
     ComponentEraCandidate {
         era_identity: era,
-        artifact_instance_identity: installed.normalized_identity(),
+        artifact_occurrence_digest: runnable.installed().occurrence_digest(),
+        artifact_instance_compatibility_report_identity: runnable
+            .installed_code()
+            .normalized_identity(),
         binding_contract_identity: "CodecBinding/v1".into(),
         entry_contract_identity: "CodecEntry/v1".into(),
         entry_plan_identity: format!("entry-plan:{era}"),
@@ -504,7 +517,7 @@ fn runnable_publication_retains_opaque_progress_until_successful_retirement() {
     let second = runnable_fixture(20_000);
     let mut ledger = lifecycle();
 
-    let first_candidate = candidate(10, first.installed_code);
+    let first_candidate = candidate(10, &first.runnable);
     let first_receipt = ComponentEraPublicationReceipt::from_runtime(
         100,
         ledger.lifecycle(),
@@ -525,7 +538,7 @@ fn runnable_publication_retains_opaque_progress_until_successful_retirement() {
     assert!(error.diagnostic().contains("noncurrent"));
     assert!(ledger.retained_component(10).is_some());
 
-    let second_candidate = candidate(11, second.installed_code);
+    let second_candidate = candidate(11, &second.runnable);
     let second_receipt = ComponentEraPublicationReceipt::from_runtime(
         101,
         ledger.lifecycle(),
@@ -563,8 +576,8 @@ fn runnable_publication_retains_opaque_progress_until_successful_retirement() {
 fn runnable_publication_rejection_returns_candidate_receipt_and_opaque_evidence() {
     let fixture = runnable_fixture(30_000);
     let mut ledger = lifecycle();
-    let mut wrong = candidate(10, fixture.installed_code);
-    wrong.artifact_instance_identity ^= 1;
+    let mut wrong = candidate(10, &fixture.runnable);
+    wrong.artifact_instance_compatibility_report_identity ^= 1;
     let receipt =
         ComponentEraPublicationReceipt::from_runtime(300, ledger.lifecycle(), &wrong, true, false);
     let error = ledger
@@ -574,6 +587,31 @@ fn runnable_publication_rejection_returns_candidate_receipt_and_opaque_evidence(
     let (_, _, runnable) = error.into_parts();
     assert!(runnable.progress().is_some());
     assert_eq!(runnable.installed().identity(), fixture.installed_code);
+    assert_eq!(ledger.current_era(), None);
+}
+
+#[test]
+fn runnable_publication_rejects_compact_equal_different_artifact_occurrence() {
+    let fixture = runnable_fixture(31_000);
+    let substituted = runnable_fixture(32_000);
+    let mut ledger = lifecycle();
+    let mut wrong = candidate(10, &fixture.runnable);
+    wrong.artifact_occurrence_digest = substituted.runnable.installed().occurrence_digest();
+    assert_eq!(
+        wrong.artifact_instance_compatibility_report_identity,
+        fixture.installed_code.normalized_identity()
+    );
+    assert_ne!(
+        wrong.artifact_occurrence_digest,
+        fixture.runnable.installed().occurrence_digest()
+    );
+    let receipt =
+        ComponentEraPublicationReceipt::from_runtime(301, ledger.lifecycle(), &wrong, true, false);
+
+    let error = ledger
+        .publish(wrong, receipt, fixture.runnable)
+        .expect_err("compact-equal artifact occurrence substitution rejects");
+    assert!(error.diagnostic().contains("different installed artifact"));
     assert_eq!(ledger.current_era(), None);
 }
 
@@ -597,7 +635,7 @@ fn journal_acceptance() -> ComponentDeploymentAcceptanceSnapshot {
 fn deployment_journal_roundtrips_all_phases_and_leaves_recovery_policy_open() {
     let fixture = runnable_fixture(40_000);
     let mut ledger = lifecycle();
-    let current_candidate = candidate(20, fixture.installed_code);
+    let current_candidate = candidate(20, &fixture.runnable);
     let receipt = ComponentEraPublicationReceipt::from_runtime(
         400,
         ledger.lifecycle(),
@@ -666,7 +704,7 @@ fn deployment_journal_roundtrips_all_phases_and_leaves_recovery_policy_open() {
     ));
 
     let next = runnable_fixture(45_000);
-    let next_candidate = candidate(21, next.installed_code);
+    let next_candidate = candidate(21, &next.runnable);
     let next_receipt = ComponentEraPublicationReceipt::from_runtime(
         401,
         ledger.lifecycle(),
@@ -703,7 +741,7 @@ fn deployment_journal_roundtrips_all_phases_and_leaves_recovery_policy_open() {
 fn deployment_journal_rejects_tamper_and_failed_activation_returns_custody() {
     let fixture = runnable_fixture(50_000);
     let mut ledger = lifecycle();
-    let wrong = candidate(30, fixture.installed_code);
+    let wrong = candidate(30, &fixture.runnable);
     let receipt =
         ComponentEraPublicationReceipt::from_runtime(500, ledger.lifecycle(), &wrong, false, false);
     let prepared = prepare_component_deployment(
@@ -747,7 +785,7 @@ fn deployment_journal_finalization_rejects_collision_equal_installed_substitutio
     );
 
     let mut first_ledger = lifecycle();
-    let first_candidate = candidate(32, first.installed_code);
+    let first_candidate = candidate(32, &first.runnable);
     let first_receipt = ComponentEraPublicationReceipt::from_runtime(
         520,
         first_ledger.lifecycle(),
@@ -771,7 +809,7 @@ fn deployment_journal_finalization_rejects_collision_equal_installed_substitutio
     let first_activated_durable = first_activated.record().clone();
 
     let mut substituted_ledger = lifecycle();
-    let substituted_candidate = candidate(32, substituted.installed_code);
+    let substituted_candidate = candidate(32, &substituted.runnable);
     let substituted_receipt = ComponentEraPublicationReceipt::from_runtime(
         520,
         substituted_ledger.lifecycle(),
@@ -811,7 +849,7 @@ fn deployment_journal_finalization_rejects_collision_equal_installed_substitutio
 fn durable_deployment_journal_storage_is_no_clobber_and_replays_exact_bytes() {
     let fixture = runnable_fixture(55_000);
     let ledger = lifecycle();
-    let candidate = candidate(35, fixture.installed_code);
+    let candidate = candidate(35, &fixture.runnable);
     let receipt = ComponentEraPublicationReceipt::from_runtime(
         550,
         ledger.lifecycle(),

@@ -1037,6 +1037,7 @@ pub struct CheckedUnitEffectMachinePlan {
     /// Canonical sorted domains from `QualificationFacts`.
     pub body_qualifications: Vec<SemanticDomainId>,
     pub contract_fingerprint: u64,
+    pub contract_commitment: crate::MachineContractCommitment,
     pub contract_service_reach: ServiceReachPlan,
     pub service_reach: ServiceReachSummary,
     pub operations: Vec<CheckedUnitEffectOperationPlan>,
@@ -1065,6 +1066,7 @@ pub struct CheckedBoundaryMachinePlan {
     /// membership facts in the boundary contract.
     pub domain_requirements: Vec<CheckedUnitStructuralDomainRequirementPlan>,
     pub contract_fingerprint: u64,
+    pub contract_commitment: crate::MachineContractCommitment,
     pub contract_service_reach: ServiceReachPlan,
     pub service_reach: ServiceReachSummary,
 }

@@ -1232,6 +1232,9 @@ fn hard_root_checked_fixture() -> CheckedTrees {
                 },
             ],
             contract_fingerprint: 0x303,
+            contract_commitment: psi_checked_trees::MachineContractCommitment::from_digest(
+                [0x03; 32],
+            ),
             contract_service_reach: contract_reach,
             service_reach: reach,
         }],
@@ -1246,6 +1249,9 @@ fn hard_root_checked_fixture() -> CheckedTrees {
                 entry_claims: vec![entry_claim(root, root_state)],
                 body_qualifications: vec![domain],
                 contract_fingerprint: 0x101,
+                contract_commitment: psi_checked_trees::MachineContractCommitment::from_digest(
+                    [0x01; 32],
+                ),
                 contract_service_reach: contract_reach,
                 service_reach: reach,
                 operations: vec![
@@ -1289,6 +1295,9 @@ fn hard_root_checked_fixture() -> CheckedTrees {
                 entry_claims: vec![entry_claim(helper, helper_state)],
                 body_qualifications: vec![domain],
                 contract_fingerprint: 0x202,
+                contract_commitment: psi_checked_trees::MachineContractCommitment::from_digest(
+                    [0x02; 32],
+                ),
                 contract_service_reach: contract_reach,
                 service_reach: reach,
                 operations: vec![
@@ -1336,6 +1345,29 @@ fn hard_root_checked_fixture() -> CheckedTrees {
             },
         ],
     };
+    checked.facts.contract_plans.machines = vec![
+        psi_checked_trees::MachineContractPlan {
+            machine: root,
+            closed_scalar_values: Default::default(),
+            crash: Default::default(),
+            fingerprint: 0x101,
+            commitment: psi_checked_trees::MachineContractCommitment::from_digest([0x01; 32]),
+        },
+        psi_checked_trees::MachineContractPlan {
+            machine: helper,
+            closed_scalar_values: Default::default(),
+            crash: Default::default(),
+            fingerprint: 0x202,
+            commitment: psi_checked_trees::MachineContractCommitment::from_digest([0x02; 32]),
+        },
+        psi_checked_trees::MachineContractPlan {
+            machine: boundary,
+            closed_scalar_values: Default::default(),
+            crash: Default::default(),
+            fingerprint: 0x303,
+            commitment: psi_checked_trees::MachineContractCommitment::from_digest([0x03; 32]),
+        },
+    ];
     checked
 }
 

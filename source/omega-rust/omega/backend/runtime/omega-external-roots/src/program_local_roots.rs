@@ -876,7 +876,14 @@ impl ProgramLocalRootInstallationLedger {
                 );
             }
             if member.epoch_lease.entry_contract_identity() != canonical.requirement_identity
-                || member.epoch_lease.artifact_instance_identity()
+                || member.epoch_lease.artifact_occurrence_digest()
+                    != canonical
+                        .installed_root_evidence
+                        .installed_code
+                        .occurrence_digest()
+                || member
+                    .epoch_lease
+                    .artifact_instance_compatibility_report_identity()
                     != canonical.identity.installed_code.normalized_identity()
             {
                 return reject(

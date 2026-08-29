@@ -660,6 +660,12 @@ impl InstalledExternalRoot<'_> {
     pub const fn installed_code(&self) -> InstalledCodeId {
         self.installed_code.identity()
     }
+
+    pub fn installed_artifact_occurrence_digest(
+        &self,
+    ) -> omega_installation_evidence::InstalledArtifactOccurrenceDigest {
+        self.installed_code.occurrence_digest()
+    }
 }
 
 /// Provider evidence for one concrete invocation of an installed interrupt

@@ -9,6 +9,23 @@
 
 use std::collections::BTreeSet;
 
+/// Collision-resistant commitment to one exact installed executable
+/// occurrence. The executable-installation owner derives the bytes from its
+/// private artifact, placement, final-byte, and provider evidence; lower
+/// lifecycle representations only retain and compare the commitment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct InstalledArtifactOccurrenceDigest([u8; 32]);
+
+impl InstalledArtifactOccurrenceDigest {
+    pub const fn from_sha256(digest: [u8; 32]) -> Self {
+        Self(digest)
+    }
+
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+}
+
 mod native_fuel;
 pub use native_fuel::{
     NativeFuelActivationStateSlot, NativeFuelContextLayout, NativeFuelRuntimeEntryIdentity,

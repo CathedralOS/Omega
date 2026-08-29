@@ -12,4 +12,5 @@ path = "src/lib.rs"
 psi-extents = { path = "../../../../psi/foundation/psi-extents" }
 psi-layout-plans = { path = "../../../../psi/foundation/psi-layout-plans" }
 omega-target = { path = "../../../representations/omega-target" }
+omega-installation-evidence = { path = "../../../representations/omega-installation-evidence" }
 sha2 = "0.10.9"

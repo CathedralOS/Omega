@@ -219,6 +219,7 @@ fn machine_contract_manifest_keeps_interface_and_witness_separate() {
             closed_scalar_values: Default::default(),
             crash,
             fingerprint: 0x1234,
+            commitment: psi_checked_trees::MachineContractCommitment::from_digest([1; 32]),
         });
     program
         .facts

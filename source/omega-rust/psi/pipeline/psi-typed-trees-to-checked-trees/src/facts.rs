@@ -248,10 +248,12 @@ fn build_nominal_machine_use_facts(
             )]);
         };
         let published_fingerprint = published.target_contract_fingerprint();
+        let published_commitment = published.target_contract_commitment();
         let actual_fingerprint = actual.fingerprint;
         if published_fingerprint == 0
             || actual_fingerprint == 0
             || actual_envelope.contract_fingerprint != actual_fingerprint
+            || actual_envelope.contract_commitment != actual.commitment
         {
             return Err(vec![psi_diagnostics::Diagnostic::error(
                 "admitted nominal machine use retained an empty contract-envelope identity",
@@ -311,14 +313,18 @@ fn build_nominal_machine_use_facts(
             published_requirement_envelope:
                 psi_checked_trees::CheckedMachineContractEnvelopeIdentity {
                     contract_fingerprint: published_fingerprint,
+                    contract_commitment: published_commitment,
                 },
             selected_actual_envelope: psi_checked_trees::CheckedMachineContractEnvelopeIdentity {
                 contract_fingerprint: actual_fingerprint,
+                contract_commitment: actual.commitment,
             },
             callback_placement,
             refinement: psi_checked_trees::CheckedMachineContractRefinement {
                 published_requirement_fingerprint: published_fingerprint,
+                published_requirement_commitment: published_commitment,
                 selected_actual_fingerprint: actual_fingerprint,
+                selected_actual_commitment: actual.commitment,
             },
         });
     }
@@ -767,7 +773,7 @@ fn build_contract_plans(
         ));
         canonical_facts.sort();
         let closed_scalar_values = build_closed_scalar_value_contract_plan(program, machine);
-        let fingerprint = psi_checked_trees::contract_fingerprint(
+        let identity = psi_checked_trees::contract_identity(
             machine.supply_mode,
             &published_service_names,
             synchronous_invocation.interface,
@@ -782,7 +788,8 @@ fn build_contract_plans(
             machine: machine.symbol,
             closed_scalar_values,
             crash,
-            fingerprint,
+            fingerprint: identity.compatibility_fingerprint,
+            commitment: identity.commitment,
         });
     }
     let crash_capsules = build_crash_contract_capsules(program, &content_conservation);
@@ -844,6 +851,7 @@ fn build_contract_plans(
             psi_checked_trees::RealizedMachineContractEnvelope {
                 machine: contract.machine,
                 contract_fingerprint: contract.fingerprint,
+                contract_commitment: contract.commitment,
                 effective_service_reach,
                 concrete_service_reach,
                 unresolved_installation_reaches: service_fact
@@ -1152,7 +1160,7 @@ fn build_crash_contract_capsules(
             let termination = psi_language_semantics::TerminationInterface::Published(
                 signature.termination_guarantee.clone(),
             );
-            let fingerprint = psi_checked_trees::contract_fingerprint(
+            let identity = psi_checked_trees::contract_identity(
                 psi_language_semantics::MachineSupplyMode::Requirement,
                 &published_service_names,
                 psi_language_semantics::SynchronousInvocationInterface::PublishedCeiling,
@@ -1165,10 +1173,11 @@ fn build_crash_contract_capsules(
                 &termination,
                 &canonical_facts,
             );
-            psi_checked_trees::CrashContractCapsule::new(
+            psi_checked_trees::CrashContractCapsule::new_with_commitment(
                 target_machine,
                 target_state,
-                fingerprint,
+                identity.compatibility_fingerprint,
+                identity.commitment,
                 published,
             )
             .with_operational_envelope(
