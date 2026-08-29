@@ -1,4 +1,4 @@
-use super::encoding::ROW_MAGIC;
+use super::ROW_MAGIC;
 use super::*;
 use omega_target::TargetProfile;
 use psi_core::PackageKeyIdentity;
