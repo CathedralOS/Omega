@@ -5,8 +5,8 @@ use std::collections::BTreeMap;
 use std::ffi::OsStr;
 
 use crate::source::error::SourceResolveError;
-use crate::source::git::GitExecutor;
-use crate::source::git::cache::VerifiedGitRepository;
+use crate::source::git::cache::repository::VerifiedGitRepository;
+use crate::source::git::executable::executor::GitExecutor;
 use crate::source::identity::GitObjectIdAlgorithm;
 
 use super::identity::{

@@ -1,7 +1,9 @@
 //! Bounded stream capture, deadlines, and process-group cleanup.
 
 use crate::source::SourceResolveError;
-use crate::source::git::executable::{CapturedOutputLimitExceeded, GitCapturedOutputBudget};
+use crate::source::git::executable::budget::{
+    CapturedOutputLimitExceeded, GitCapturedOutputBudget,
+};
 use crate::source::limits::{GIT_COMMAND_CLEANUP_TIMEOUT, PROCESS_POLL_INTERVAL};
 use omega_resolver_execution::{
     ResolverExecutionChild, ResolverExecutionCompletionObservation, ResolverPreparedExecution,

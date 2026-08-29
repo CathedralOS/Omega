@@ -12,7 +12,7 @@ use super::platform::{
 };
 use crate::records::atomic_file::{RecordFileLimits, RecordFileRoot};
 use crate::source::SourceResolveError;
-use crate::source::git::cache::{cache_invalid, local_snapshot_invalid};
+use crate::source::git::cache::identity::{cache_invalid, local_snapshot_invalid};
 use crate::source::limits::{
     CACHE_CUSTODY_DEPTH_LIMIT, CACHE_CUSTODY_ENTRY_LIMIT, CACHE_CUSTODY_FIXED_BYTE_ALLOWANCE,
     GIT_CACHE_CUSTODY_ABSOLUTE_BYTE_LIMIT, LOCAL_CACHE_CUSTODY_ABSOLUTE_BYTE_LIMIT,

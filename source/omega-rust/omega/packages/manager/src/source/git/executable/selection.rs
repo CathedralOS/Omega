@@ -6,7 +6,7 @@ use super::identity::{
 };
 use crate::source::SourceResolveError;
 use crate::source::git::request::GitExecutionTransport;
-use crate::source::observations::GitTransportExecutableIdentity;
+use crate::source::observations::execution::GitTransportExecutableIdentity;
 #[cfg(unix)]
 use nix::unistd::{Uid, User};
 use omega_resolver_execution::RESOLVER_CONNECT_HELPER_BASENAME;

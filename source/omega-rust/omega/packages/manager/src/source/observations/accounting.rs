@@ -7,7 +7,7 @@ use omega_resolver_execution::{
     ResolverExecutionEndpointOutcome, ResolverExecutionPolicyObservation,
 };
 
-use super::GitCommandExecutionObservation;
+use super::execution::GitCommandExecutionObservation;
 
 /// Compiler-owned cumulative stdout/stderr accounting for one Git resolution.
 ///

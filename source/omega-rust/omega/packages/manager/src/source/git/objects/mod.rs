@@ -1,42 +1,23 @@
 //! Git object parsing, graph authentication, and bounded blob transfer.
 
-mod authentication;
-mod batch;
-mod identity;
-mod tree;
+pub(in crate::source) mod authentication;
+pub(in crate::source) mod batch;
+pub(in crate::source) mod identity;
+pub(in crate::source) mod tree;
 
 use std::ffi::OsStr;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-#[allow(unused_imports)]
-pub(in crate::source) use authentication::{
-    authenticate_git_commit, authenticate_git_commit_payload, authenticate_git_tree,
-    verify_exact_git_revision,
-};
-#[cfg(test)]
-pub(in crate::source) use batch::read_git_blobs_batch_from_path;
-// Preserve the former module's crate-internal facade; several consumers are test-only.
-#[allow(unused_imports)]
-pub(in crate::source) use batch::{
-    PendingGitBatchRequest, assign_git_batch_output, git_batch_output_limit,
-};
-#[allow(unused_imports)]
-pub(in crate::source) use identity::{
-    finalize_checked_sha1, git_object_algorithm, git_object_identity, git_object_invalid,
-    hex_digit, is_object_id, verify_git_object_identity,
-};
-#[allow(unused_imports)]
-pub(in crate::source) use tree::{
-    git_directory_paths, git_tree_invalid, parse_git_tree_entries, validate_git_symlink_target,
-};
-
 use crate::source::error::SourceResolveError;
-use crate::source::git::GitExecutor;
-use crate::source::git::cache::{VerifiedGitRepository, cache_invalid};
+use crate::source::git::cache::identity::cache_invalid;
+use crate::source::git::cache::repository::VerifiedGitRepository;
+use crate::source::git::executable::executor::GitExecutor;
 use crate::source::limits::LocalSourceLimits;
 
 use self::batch::read_git_blobs_batch;
+use self::identity::is_object_id;
+use self::tree::parse_git_tree_entries;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::source) struct GitTreeEntry {

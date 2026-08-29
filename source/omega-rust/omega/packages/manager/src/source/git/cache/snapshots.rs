@@ -3,13 +3,16 @@
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
-use crate::source::{
-    CacheCustodyKind, CapabilityDirectory, CapabilityMetadata, GIT_CACHE_SNAPSHOTS,
-    SourceResolveError, direct_cache_child_name, io_error,
-};
+use cap_std::fs::{Dir as CapabilityDirectory, Metadata as CapabilityMetadata};
 
-use super::cache_invalid;
+use crate::source::SourceResolveError;
+use crate::source::custody::publication::direct_cache_child_name;
+use crate::source::custody::tree::CacheCustodyKind;
+use crate::source::limits::GIT_CACHE_SNAPSHOTS;
+use crate::source::local::capture::io_error;
+
 use super::custody::verify_retained_git_directory_identity;
+use super::identity::cache_invalid;
 
 pub(in crate::source) struct RetainedGitSnapshots {
     pub(in crate::source) path: PathBuf,

@@ -4,18 +4,20 @@ use std::ffi::OsStr;
 use std::path::Path;
 
 use cap_fs_ext::DirExt;
+use cap_std::fs::Dir as CapabilityDirectory;
 
+use crate::source::SourceResolveError;
+use crate::source::custody::platform::same_capability_file_identity;
 #[cfg(test)]
-use crate::source::{
-    CacheCustodyKind, direct_cache_child_name, open_absolute_directory_nofollow,
-    verify_git_cache_root_custody,
-};
-use crate::source::{
-    CapabilityDirectory, GIT_CACHE_METADATA, SourceResolveError, io_error,
-    same_capability_file_identity,
-};
+use crate::source::custody::publication::direct_cache_child_name;
+#[cfg(test)]
+use crate::source::custody::tree::{CacheCustodyKind, verify_git_cache_root_custody};
+use crate::source::limits::GIT_CACHE_METADATA;
+use crate::source::local::capture::io_error;
+#[cfg(test)]
+use crate::source::local::capture::open_absolute_directory_nofollow;
 
-use super::cache_invalid;
+use super::identity::cache_invalid;
 
 #[cfg(test)]
 pub(in crate::source) fn invalidate_git_cache_entry_from_retained_parent(

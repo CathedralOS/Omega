@@ -1,7 +1,7 @@
 //! Stable executable metadata and bounded content identities.
 
 use crate::source::SourceResolveError;
-use crate::source::git::format_sha256;
+use crate::source::git::process::identity::format_sha256;
 use crate::source::limits::GIT_EXECUTABLE_BYTE_LIMIT;
 use sha2::{Digest, Sha256};
 use std::fs::File;

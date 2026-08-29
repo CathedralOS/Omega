@@ -1,12 +1,17 @@
 //! Retained staging directories and atomic snapshot publication.
 
-use crate::source::{
-    CacheCustodyKind, STAGING_SEQUENCE, SourceResolveError, cache_custody_invalid,
-    direct_cache_child_name, io_error, publish_cache_directory_from_open_parent,
-    same_capability_file_identity,
+use crate::source::SourceResolveError;
+use crate::source::custody::platform::same_capability_file_identity;
+use crate::source::custody::publication::{
+    direct_cache_child_name, publish_cache_directory_from_open_parent,
 };
 #[cfg(test)]
-use crate::source::{open_absolute_directory_nofollow, verify_cache_custody_root};
+use crate::source::custody::tree::verify_cache_custody_root;
+use crate::source::custody::tree::{CacheCustodyKind, cache_custody_invalid};
+use crate::source::limits::STAGING_SEQUENCE;
+use crate::source::local::capture::io_error;
+#[cfg(test)]
+use crate::source::local::capture::open_absolute_directory_nofollow;
 use cap_fs_ext::DirExt;
 use cap_std::fs::Dir as CapabilityDirectory;
 use std::ffi::OsString;

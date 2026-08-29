@@ -1,12 +1,13 @@
 use crate::source::git::request::GitTransportProfile;
-use crate::source::local::ResolvedLocalSource;
+use crate::source::local::model::ResolvedLocalSource;
 use omega_resolver_execution::ResolverExecutionPolicyObservation;
 use std::path::{Path, PathBuf};
 
-use super::{
-    GitCapturedOutputObservation, GitCommandExecutionObservation, GitExecutableIdentity,
-    GitNetworkTransferObservation, GitSourceResolutionObservation, GitTransportExecutableIdentity,
+use super::accounting::{GitCapturedOutputObservation, GitNetworkTransferObservation};
+use super::execution::{
+    GitCommandExecutionObservation, GitExecutableIdentity, GitTransportExecutableIdentity,
 };
+use super::resolution::GitSourceResolutionObservation;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedGitSource {

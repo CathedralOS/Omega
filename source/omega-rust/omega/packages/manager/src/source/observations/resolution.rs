@@ -1,6 +1,6 @@
 use crate::source::SourceResolveError;
-use crate::source::git::format_sha256;
-use crate::source::git::objects::{git_object_algorithm, git_object_invalid};
+use crate::source::git::objects::identity::{git_object_algorithm, git_object_invalid};
+use crate::source::git::process::identity::format_sha256;
 use crate::source::identity::GitObjectIdAlgorithm;
 use crate::source::limits::{
     GIT_CACHE_POLICY, GIT_FIXED_COMMAND_ALLOWANCE, GIT_RESOLUTION_OBSERVATION_DOMAIN,
@@ -14,7 +14,8 @@ use super::accounting::{
     git_captured_output_observation, git_network_transfer_observation,
     git_resolution_captured_output_ceiling, git_resolution_network_transfer_ceiling,
 };
-use super::{GitTransportExecutableIdentity, PendingResolvedGitSource};
+use super::execution::GitTransportExecutableIdentity;
+use super::resolved::PendingResolvedGitSource;
 
 /// Compact canonical identity of one locally successful Git resolution.
 ///

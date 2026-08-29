@@ -15,20 +15,25 @@ use super::capture::{
 use super::model::{ResolvedLocalSnapshot, ResolvedLocalSource};
 use super::observation::issue_local_source_resolution_observation;
 use super::operations::resolve_local_source;
+use crate::source::SourceResolveError;
+use crate::source::custody::lock::CacheEntryLock;
 #[cfg(test)]
-use crate::source::custody::verify_local_cache_root_custody;
-use crate::source::custody::{CacheCustodyKind, CacheEntryLock, verify_local_cache_custody};
-use crate::source::git::format_sha256;
-use crate::source::git::{
-    PendingMaterializedSnapshot, create_snapshot_symlink_from_open_root, local_snapshot_invalid,
-    local_snapshot_metadata, make_open_snapshot_read_only, open_or_create_snapshot_directory,
-    verify_local_snapshot, write_snapshot_file_from_open_root,
+use crate::source::custody::tree::verify_local_cache_root_custody;
+use crate::source::custody::tree::{CacheCustodyKind, verify_local_cache_custody};
+use crate::source::git::cache::identity::local_snapshot_invalid;
+use crate::source::git::process::identity::format_sha256;
+use crate::source::git::snapshot::construction::{
+    create_snapshot_symlink_from_open_root, open_or_create_snapshot_directory,
+    write_snapshot_file_from_open_root,
+};
+use crate::source::git::snapshot::metadata::{local_snapshot_metadata, verify_local_snapshot};
+use crate::source::git::snapshot::permissions::make_open_snapshot_read_only;
+use crate::source::git::snapshot::publication::PendingMaterializedSnapshot;
+use crate::source::limits::{
+    LOCAL_CACHE_SNAPSHOTS, LOCAL_SNAPSHOT_CUSTODY_POLICY, LOCAL_SNAPSHOT_METADATA,
+    LOCAL_SNAPSHOT_SOURCE, LocalSourceLimits,
 };
 use crate::source::storage::RetainedStorageLane;
-use crate::source::{
-    LOCAL_CACHE_SNAPSHOTS, LOCAL_SNAPSHOT_CUSTODY_POLICY, LOCAL_SNAPSHOT_METADATA,
-    LOCAL_SNAPSHOT_SOURCE, LocalSourceLimits, SourceResolveError,
-};
 
 #[cfg(test)]
 pub(in crate::source) fn publish_local_snapshot(

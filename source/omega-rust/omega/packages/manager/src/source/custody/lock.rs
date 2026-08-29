@@ -8,7 +8,7 @@ use super::platform::{
 use super::publication::direct_cache_child_name;
 use super::tree::{CacheCustodyKind, cache_custody_invalid, verify_cache_custody_root};
 use crate::source::SourceResolveError;
-use crate::source::git::GitExecutor;
+use crate::source::git::executable::executor::GitExecutor;
 use crate::source::limits::{LOCAL_SNAPSHOT_LOCK_TIMEOUT, PROCESS_POLL_INTERVAL};
 use crate::source::local::capture::{io_error, open_absolute_directory_nofollow};
 use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};

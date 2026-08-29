@@ -1,14 +1,22 @@
 //! Authenticated Git tree materialization and immutable snapshot verification.
 
-use crate::source::{
-    CANONICAL_DIRECTORY_MODE, CacheCustodyKind, CapturedLocalEntry, CapturedLocalEntryKind,
-    GIT_SNAPSHOT_METADATA, GIT_SNAPSHOT_SOURCE, GitBlobBytes, GitExecutor, GitTreeEntry,
-    GitTreeEntryKind, LocalSourceLimits, ResolvedLocalSource, SourceIdentityHasher,
-    SourceResolveError, SourceTreePolicy, VerifiedGitRepository, authenticate_git_tree,
-    cache_invalid, capture_local_source_from_open_root, git_directory_paths, git_tree_invalid,
-    io_error, open_absolute_directory_nofollow, read_bounded_cache_record,
-    reconcile_git_cache_operation_result,
+use crate::source::SourceResolveError;
+use crate::source::custody::tree::{CacheCustodyKind, read_bounded_cache_record};
+use crate::source::git::cache::identity::cache_invalid;
+use crate::source::git::cache::repository::VerifiedGitRepository;
+use crate::source::git::executable::executor::GitExecutor;
+use crate::source::git::objects::authentication::authenticate_git_tree;
+use crate::source::git::objects::tree::{git_directory_paths, git_tree_invalid};
+use crate::source::git::objects::{GitBlobBytes, GitTreeEntry, GitTreeEntryKind};
+use crate::source::git::process::reconciliation::reconcile_git_cache_operation_result;
+use crate::source::limits::{
+    CANONICAL_DIRECTORY_MODE, GIT_SNAPSHOT_METADATA, GIT_SNAPSHOT_SOURCE, LocalSourceLimits,
 };
+use crate::source::local::capture::{
+    CapturedLocalEntry, CapturedLocalEntryKind, SourceIdentityHasher, SourceTreePolicy,
+    capture_local_source_from_open_root, io_error, open_absolute_directory_nofollow,
+};
+use crate::source::local::model::ResolvedLocalSource;
 use cap_fs_ext::DirExt;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

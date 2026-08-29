@@ -5,7 +5,7 @@ use super::command::sealed_git_command_with_route;
 use super::identity::{GitCommandStdinIdentity, git_command_configuration_identity};
 use super::reconciliation::reconcile_git_command_endpoint_result;
 use crate::source::SourceResolveError;
-use crate::source::git::executable::GitExecutor;
+use crate::source::git::executable::executor::GitExecutor;
 use crate::source::limits::{GIT_STDERR_LIMIT, GIT_STDOUT_LIMIT};
 use omega_resolver_execution::{
     ResolverExecutionEndpointObservation, ResolverExecutionEndpointOutcome,

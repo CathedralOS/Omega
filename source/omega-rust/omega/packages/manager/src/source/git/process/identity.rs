@@ -2,7 +2,7 @@
 
 use crate::source::SourceResolveError;
 use crate::source::git::objects::{GitTreeEntry, GitTreeEntryKind};
-use crate::source::local::hash_bytes;
+use crate::source::local::capture::hash_bytes;
 use omega_resolver_execution::{ResolverExecutionPhase, ResolverPreparedExecution};
 use sha2::{Digest, Sha256};
 
@@ -68,11 +68,11 @@ pub(in crate::source) fn git_command_configuration_identity(
     Ok(format_sha256(&hasher.finalize()))
 }
 
-pub(super) fn format_sha256(bytes: &[u8]) -> String {
+pub(in crate::source) fn format_sha256(bytes: &[u8]) -> String {
     format_hex(bytes)
 }
 
-pub(super) fn format_hex(bytes: &[u8]) -> String {
+pub(in crate::source) fn format_hex(bytes: &[u8]) -> String {
     let mut out = String::with_capacity(bytes.len() * 2);
     for byte in bytes {
         out.push_str(&format!("{byte:02x}"));

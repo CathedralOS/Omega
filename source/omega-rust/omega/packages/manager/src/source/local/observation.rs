@@ -6,8 +6,8 @@ use std::path::Path;
 use super::capture::hash_bytes;
 use super::model::{LocalSourceResolutionObservation, ResolvedLocalSource};
 use super::snapshot::local_snapshot_custody_identity;
-use crate::source::git::format_sha256;
-use crate::source::{
+use crate::source::git::process::identity::format_sha256;
+use crate::source::limits::{
     LOCAL_RESOLUTION_OBSERVATION_DOMAIN, LOCAL_RESOLUTION_OBSERVATION_SCHEMA_VERSION,
     LOCAL_SNAPSHOT_CUSTODY_POLICY, LOCAL_SNAPSHOT_POLICY, LocalSourceLimits,
 };

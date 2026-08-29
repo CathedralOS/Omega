@@ -5,12 +5,7 @@
 //! per-entry serialization, and [`publication`] owns private staging and
 //! atomic publication.
 
-mod lock;
-mod platform;
-mod publication;
-mod tree;
-
-pub(super) use lock::*;
-pub(super) use platform::*;
-pub(super) use publication::*;
-pub(super) use tree::*;
+pub(in crate::source) mod lock;
+pub(in crate::source) mod platform;
+pub(in crate::source) mod publication;
+pub(in crate::source) mod tree;

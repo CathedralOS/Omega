@@ -1,13 +1,13 @@
 //! Canonical snapshot modes, immutable-tree verification, and cleanup permissions.
 
+use crate::source::SourceResolveError;
+use crate::source::custody::platform::same_capability_file_identity;
+use crate::source::custody::tree::{CacheCustodyKind, cache_custody_invalid};
 #[cfg(unix)]
-use crate::source::CANONICAL_DIRECTORY_MODE;
+use crate::source::limits::CANONICAL_DIRECTORY_MODE;
+use crate::source::local::capture::io_error;
 #[cfg(test)]
-use crate::source::is_executable;
-use crate::source::{
-    CacheCustodyKind, SourceResolveError, cache_custody_invalid, io_error,
-    same_capability_file_identity,
-};
+use crate::source::local::capture::is_executable;
 use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt};
 use cap_std::fs::{
     Dir as CapabilityDirectory, Metadata as CapabilityMetadata,

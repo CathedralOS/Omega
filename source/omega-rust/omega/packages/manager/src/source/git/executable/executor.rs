@@ -11,16 +11,19 @@ use super::selection::{
     verify_git_transport_executable,
 };
 use crate::source::SourceResolveError;
+use crate::source::git::process::capture::{BoundedCommandOutput, duration_millis};
+use crate::source::git::process::identity::format_sha256;
 use crate::source::git::request::GitExecutionTransport;
-use crate::source::git::{BoundedCommandOutput, duration_millis, format_sha256};
 use crate::source::limits::{
     GIT_COMMAND_TIMEOUT, GIT_FIXED_COMMAND_ALLOWANCE, GIT_RESOLUTION_TIMEOUT, LocalSourceLimits,
 };
-use crate::source::observations::{
-    GitCapturedOutputObservation, GitCommandExecutionObservation, GitExecutableIdentity,
-    GitNetworkTransferObservation, git_captured_output_observation,
+use crate::source::observations::accounting::{
+    GitCapturedOutputObservation, GitNetworkTransferObservation, git_captured_output_observation,
     git_network_transfer_observation, git_resolution_captured_output_ceiling,
     git_resolution_network_transfer_ceiling,
+};
+use crate::source::observations::execution::{
+    GitCommandExecutionObservation, GitExecutableIdentity,
 };
 use omega_resolver_execution::{
     ResolverExecutionBackend, ResolverExecutionEndpointObservation,

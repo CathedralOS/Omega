@@ -1,22 +1,35 @@
 //! Canonical Git cache entry construction and object-format discovery.
 
 use std::ffi::{OsStr, OsString};
+use std::io::Write;
 use std::path::Path;
 
-use cap_fs_ext::OpenOptionsFollowExt;
-
-use crate::source::{
-    CacheCustodyKind, CapabilityDirectory, CapabilityOpenOptions, FollowSymlinks,
-    GIT_CACHE_METADATA, GIT_CACHE_REPOSITORY, GIT_CONFIG_SHA1, GIT_CONFIG_SHA256,
-    GitExecutionTransport, GitExecutor, GitObjectIdAlgorithm, LocalSourceLimits, PendingCacheEntry,
-    ResolverExecutionPhase, SourceResolveError, Write, git_object_algorithm, io_error,
-    is_object_id, reconcile_git_cache_operation_result, replace_canonical_git_control_file,
-    run_git, run_git_bytes_stdout, verify_capability_cache_node_owner_and_mode,
-};
+use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
+use cap_std::fs::{Dir as CapabilityDirectory, OpenOptions as CapabilityOpenOptions};
 #[cfg(unix)]
-use crate::source::{CapabilityOpenOptionsExt, CapabilityPermissionsExt};
+use cap_std::fs::{
+    OpenOptionsExt as CapabilityOpenOptionsExt, PermissionsExt as CapabilityPermissionsExt,
+};
+use omega_resolver_execution::ResolverExecutionPhase;
 
-use super::{VerifiedGitRepository, cache_invalid, git_cache_metadata};
+use crate::source::SourceResolveError;
+use crate::source::custody::platform::verify_capability_cache_node_owner_and_mode;
+use crate::source::custody::publication::PendingCacheEntry;
+use crate::source::custody::tree::CacheCustodyKind;
+use crate::source::git::executable::executor::GitExecutor;
+use crate::source::git::objects::identity::{git_object_algorithm, is_object_id};
+use crate::source::git::process::invocation::{run_git, run_git_bytes_stdout};
+use crate::source::git::process::reconciliation::reconcile_git_cache_operation_result;
+use crate::source::git::request::GitExecutionTransport;
+use crate::source::git::resolve::replace_canonical_git_control_file;
+use crate::source::identity::GitObjectIdAlgorithm;
+use crate::source::limits::{
+    GIT_CACHE_METADATA, GIT_CACHE_REPOSITORY, GIT_CONFIG_SHA1, GIT_CONFIG_SHA256, LocalSourceLimits,
+};
+use crate::source::local::capture::io_error;
+
+use super::identity::{cache_invalid, git_cache_metadata};
+use super::repository::VerifiedGitRepository;
 
 pub(in crate::source) fn create_git_cache_entry(
     executor: &GitExecutor,
