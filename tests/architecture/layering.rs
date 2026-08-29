@@ -2933,7 +2933,7 @@ fn ranked_countdown_object_replay_cannot_reenter_machine_emission() {
 }
 
 #[test]
-fn ranked_native_fuel_replay_is_decoder_owned_and_publication_fenced() {
+fn ranked_native_fuel_replay_is_decoder_owned_through_final_publication() {
     let root = workspace_root();
     let image_root = root.join("source/omega-rust/omega/backend/images/omega-image-emission");
     let image_manifest = std::fs::read_to_string(image_root.join("Cargo.toml"))
@@ -2948,17 +2948,24 @@ fn ranked_native_fuel_replay_is_decoder_owned_and_publication_fenced() {
     );
 
     let replay_root = image_root.join("src/native_fuel");
-    let replay = ["mod.rs", "general.rs", "ranked_u32_countdown.rs"]
-        .into_iter()
-        .map(|name| {
-            let source = std::fs::read_to_string(replay_root.join(name))
-                .unwrap_or_else(|error| panic!("failed to read native-fuel {name}: {error}"));
-            source
-                .split_once("#[cfg(test)]")
-                .map_or_else(|| source.clone(), |(production, _)| production.to_owned())
-        })
-        .collect::<Vec<_>>()
-        .join("\n");
+    let replay = [
+        "mod.rs",
+        "general.rs",
+        "ranked_u32_countdown/mod.rs",
+        "ranked_u32_countdown/coordinates.rs",
+        "ranked_u32_countdown/object.rs",
+        "ranked_u32_countdown/publication.rs",
+    ]
+    .into_iter()
+    .map(|name| {
+        let source = std::fs::read_to_string(replay_root.join(name))
+            .unwrap_or_else(|error| panic!("failed to read native-fuel {name}: {error}"));
+        source
+            .split_once("#[cfg(test)]")
+            .map_or_else(|| source.clone(), |(production, _)| production.to_owned())
+    })
+    .collect::<Vec<_>>()
+    .join("\n");
     for forbidden in [
         "omega_machine_emission",
         "instrument_native_fuel",
@@ -2980,7 +2987,10 @@ fn ranked_native_fuel_replay_is_decoder_owned_and_publication_fenced() {
         "validate_x86_64_rebased_ranked_u32_countdown_branches",
         "validate_aarch64_rebased_ranked_u32_countdown_branches",
         "replay_rebased_branches",
-        "reject_ranked_native_fuel_final_image",
+        "replay_ranked_native_fuel_final_image",
+        "replay_final_image",
+        "validate_charge",
+        "validate_cold_dispatch",
     ] {
         assert!(
             replay.contains(required),
@@ -3032,8 +3042,18 @@ fn ranked_native_fuel_replay_is_decoder_owned_and_publication_fenced() {
         image_output
             .matches("reject_ranked_native_fuel_final_image")
             .count(),
+        0,
+        "ranked final-image admission must not retain a pre-emission rejection fence",
+    );
+    let final_image_validation =
+        std::fs::read_to_string(image_root.join("src/final_image_validation.rs"))
+            .expect("read final-image validation");
+    assert_eq!(
+        final_image_validation
+            .matches("replay_ranked_native_fuel_final_image")
+            .count(),
         2,
-        "both direct and transfer-runtime native-fuel image routes must retain the ranked publication fence",
+        "direct and transfer-runtime validators must both replay ranked custody from final bytes",
     );
     let carrier = std::fs::read_to_string(
         root.join("source/omega-rust/omega/representations/omega-machine-code/src/lib.rs"),

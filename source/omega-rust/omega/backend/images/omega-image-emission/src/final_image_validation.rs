@@ -230,11 +230,13 @@ pub(super) fn validate_terminal_native_fuel_image(
             )));
         }
     }
-    validate_final_text_relocation_envelope(
+    let validation = validate_final_text_relocation_envelope(
         artifact.text_bytes(),
         &output.final_text_bytes,
         artifact.relocations(),
-    )
+    )?;
+    super::native_fuel::replay_ranked_native_fuel_final_image(artifact, &output.final_text_bytes)?;
+    Ok(validation)
 }
 
 pub(super) fn validate_terminal_native_fuel_transfer_runtime_image(
@@ -317,6 +319,10 @@ pub(super) fn validate_terminal_native_fuel_transfer_runtime_image(
         artifact.text_bytes(),
         &output.final_text_bytes,
         artifact.relocations(),
+    )?;
+    super::native_fuel::replay_ranked_native_fuel_final_image(
+        artifact.metered_artifact(),
+        &output.final_text_bytes,
     )?;
     validate_runtime_relocation_targets(artifact, output, &encoding)?;
 

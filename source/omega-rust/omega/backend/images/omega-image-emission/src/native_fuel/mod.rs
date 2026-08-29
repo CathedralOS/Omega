@@ -12,7 +12,6 @@ pub use general::{
 };
 
 use omega_machine_code::NativeFuelInstrumentedPlan;
-use psi_diagnostics::Diagnostic;
 
 use super::build_object_artifact;
 
@@ -30,8 +29,9 @@ pub fn validate_native_fuel_plan(
     general::validate_native_fuel_after_semantics(plan, semantic_artifact, ranked_machine)
 }
 
-pub(super) fn reject_ranked_native_fuel_final_image(
+pub(super) fn replay_ranked_native_fuel_final_image(
     artifact: &ValidatedNativeFuelArtifact,
-) -> Result<(), Diagnostic> {
-    ranked_u32_countdown::reject_final_image(artifact)
+    final_text: &[u8],
+) -> Result<(), psi_diagnostics::Diagnostic> {
+    ranked_u32_countdown::replay_final_image(artifact, final_text)
 }
