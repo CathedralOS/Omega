@@ -4,7 +4,7 @@ use super::format::{RenderByteCounter, render_conflict_set, review_role_token};
 use crate::identity::PackageKey;
 use crate::resolution::DependencyRequestPath;
 use crate::review::records::ReviewOnlySourceConsumptionCommitment;
-use omega_package_review::{
+use omega_package_review::evidence::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
 };
 use omega_package_source::ImmutableSourceResolution;

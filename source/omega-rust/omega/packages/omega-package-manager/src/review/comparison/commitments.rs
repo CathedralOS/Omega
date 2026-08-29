@@ -7,7 +7,7 @@ use super::model::*;
 use crate::identity::PackageKey;
 use crate::resolution::{DependencyRequestPath, ResolvedPackageSourceClosure};
 use crate::review::records::PackageReviewEvidence;
-use omega_package_review::{
+use omega_package_review::evidence::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
     PackageReviewSourceLocationOwner,
 };

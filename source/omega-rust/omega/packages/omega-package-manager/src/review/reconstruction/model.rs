@@ -1,6 +1,6 @@
 use crate::identity::PackageKey;
 use crate::resolution::{CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits};
-use omega_package_review::OrdinaryPackageObligationLedger;
+use omega_package_review::obligation_ledger::OrdinaryPackageObligationLedger;
 use std::fmt;
 
 const ABSOLUTE_RECORD_BYTE_LIMIT: usize = 128 * 1024 * 1024;

@@ -1,9 +1,10 @@
 //! Review-only commitment and canonical-row value types.
 
 use omega_package_compilation::PackageSourceConsumptionCommitment;
-use omega_package_review::{
-    DecodedPackageReviewCanonicalRow, PackageReviewCanonicalRow, PackageReviewCanonicalRowKind,
-    PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
+use omega_package_review::encoding::DecodedPackageReviewCanonicalRow;
+use omega_package_review::evidence::{
+    PackageReviewCanonicalRow, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
+    PackageReviewCanonicalRowSource,
 };
 
 /// Review-only identity of the exact package/toolchain source bytes consumed

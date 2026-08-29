@@ -282,10 +282,11 @@ reaches FilesystemHost
         .expect("dangerous slack has authority and callable provenance");
     assert!(slack_locations.iter().any(|location| {
         location.role()
-            == omega_package_review::PackageReviewSourceLocationRole::AuthorityDeclaration
+            == omega_package_review::evidence::PackageReviewSourceLocationRole::AuthorityDeclaration
     }));
     assert!(slack_locations.iter().any(|location| {
-        location.role() == omega_package_review::PackageReviewSourceLocationRole::AuthorityExposure
+        location.role()
+            == omega_package_review::evidence::PackageReviewSourceLocationRole::AuthorityExposure
             && location.relative_path() == "main.omg"
     }));
     let slack_triage = triage_review_update(
@@ -297,7 +298,7 @@ reaches FilesystemHost
         decision
             .reasons()
             .contains(&PackageTriageReason::DangerousAuthoritySlack(
-                omega_package_review::PackageReviewDangerousAuthorityClass::Filesystem,
+                omega_package_review::evidence::PackageReviewDangerousAuthorityClass::Filesystem,
             ))
     }));
 }

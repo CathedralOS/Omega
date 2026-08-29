@@ -14,13 +14,15 @@ use omega_package_manager::review::{
     triage_initial_install, triage_review_update, triage_review_update_from_baseline,
     triage_update_without_admission_baseline,
 };
-use omega_package_review::{
+use omega_package_review::evidence::{
     CheckedPackageReviewProjection, PackageReviewCallableRole, PackageReviewCanonicalRowKind,
     PackageReviewCanonicalRowRisk, PackageReviewCheckedServiceReach,
     PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractKind,
     PackageReviewDangerousAuthorityClass, PackageReviewNominalOwner,
     PackageReviewPropositionEvidence, PackageReviewRepresentationAbiCommitment,
     PackageReviewRepresentationMechanism, PackageReviewSourceLocationRole,
+};
+use omega_package_review::obligation_ledger::{
     decode_ordinary_package_obligation_ledger, encode_ordinary_package_obligation_ledger,
 };
 use omega_package_source::{

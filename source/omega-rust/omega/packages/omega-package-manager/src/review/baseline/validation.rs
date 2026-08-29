@@ -5,9 +5,8 @@ use crate::identity::{AliasName, PackageKey};
 use crate::resolution::ResolvedPackageClosure;
 use crate::review::records::ReviewOnlyCanonicalRow;
 use omega_build_evaluation::BuildFilesystemReplayRecordLimits;
-use omega_package_review::{
-    PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRecoveryLimits,
-};
+use omega_package_review::encoding::PackageReviewCanonicalRowRecoveryLimits;
+use omega_package_review::evidence::PackageReviewCanonicalRowKind;
 use omega_package_source::ImmutableSourceResolution;
 use std::collections::{BTreeMap, VecDeque};
 

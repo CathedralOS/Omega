@@ -16,10 +16,11 @@ use crate::review::package_compilation_inputs_for;
 use crate::review::records::ReviewOnlyCanonicalRow;
 use omega_compiler::compile_to_checked_with_packages_in_sponsored_build_dir;
 use omega_package_compilation::PackageCompilationInputError;
-use omega_package_review::{
-    ordinary_package_obligation_ledger_from_compiler_rows, project_checked_package_review,
+use omega_package_review::obligation_ledger::{
+    ordinary_package_obligation_ledger_from_compiler_rows,
     validate_ordinary_package_obligation_ledger,
 };
+use omega_package_review::project_checked_package_review;
 use psi_checked_interpreter::FilesystemSponsor;
 use psi_diagnostics::Diagnostic;
 use std::path::Path;
