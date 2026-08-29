@@ -643,13 +643,15 @@ Field-level extraction uses `Placed` partial-move state instead. A future
 multi-object resident map requires an explicit closed algebra and is not
 inferred from adjacency.
 
-Three core operations remain distinct: `view` interprets existing content,
-`initialize` encodes a newly constructed `T` into exclusive `Vacant` Stable
-storage, and `validate` inspects Stable content with one structurally checked
-static validator. A provider-specific adopt/open machine first establishes its
-external qualification and then uses `view`; there is no generic adopt route or
-cast-authorization registry. Generic initialization never expands into a
-device-programming sequence.
+Three logical operation families remain distinct: view interprets existing
+content, initialize encodes a newly constructed `T` into exclusive `Vacant`
+Stable storage, and validate inspects Stable content with one structurally
+checked static validator. Each family has separate `_borrowed` and `_owned`
+source operations because rejection ends a loan in the former and returns an
+owned extent in the latter. A provider-specific adopt/open machine first
+establishes its external qualification and then uses the appropriate view
+operation; there is no generic adopt route or cast-authorization registry.
+Generic initialization never expands into a device-programming sequence.
 
 `view` and `validate` over a non-resident range reject a `T` with represented
 non-copy fields: decoding bytes cannot establish custody. Such a value comes
@@ -680,19 +682,35 @@ dormant carrier exposes neither field access nor a route to a bare `Extent`.
 
 Known plan, supply, rights, and geometry incompatibility rejects compilation or
 installation. Genuinely dynamic geometry, validation, or establishment-time
-revision checks return ordinary cases. The instantiated core operation derives
-its Type-only rejection payload from its canonical formal input row. Every
-moved Type input has an explicit per-outcome disposition: embedded in the live
-view, returned now, or consumed by one named authorized operation. Every borrow
-is retained by the view or released. Prop terms have no custody disposition.
-Missing output is never accepted as proof of consumption.
+revision checks return ordinary cases through the declared generic
+`PlacementOutcome<View, Returned, Reason>` family. The compiler never invents a
+source-visible result or returned-row declaration.
 
-Unconditional non-runtime Type fields become ordinary by-value inputs keyed by
-canonical declaration path; whether they are represented, zero-layout, or
-explicitly erased does not change their origin or multiplicity. Case-dependent
-Type custody requires an authored establishment machine that classifies first
-and transfers the selected authority. Outcome evidence stays in the separate
-proof-output lane after `;` and is never packaged with Type payloads.
+Unconditional non-runtime Type fields travel in an ordinary author-declared
+custody record. One explicitly selected named conformance
+`C satisfies PlacementCustody<P, T>` proves exact agreement between that record
+and the evaluated plan's non-runtime Type projection, by canonical field path,
+type, and multiplicity. The plan decides whether a field is represented or
+custody-carried, so a failed agreement diagnostic cites the exact plan machine
+and normalized field decision, including represented offset and width where
+applicable. The conformance is ordinary checked evidence retained through its
+normal closure, package-review, encoding, and replay paths; it grants no
+storage, provider, content, or domain authority.
+
+Borrowed and owned establishment use distinct source operations because their
+rejection carriers differ. Borrowed rejection releases the source loan and
+returns the custody record. Owned rejection returns
+`PlacementReturn<Extent in Granted, C>`, preserving both the exact extent and
+the authored custody value. Every moved Type input has an explicit per-outcome
+disposition: embedded in the live view, returned now, or consumed by one named
+authorized operation. Every borrow is retained by the view or released. Prop
+terms have no custody disposition, and proof outputs remain in the separate
+lane after `;`. Missing output is never accepted as proof of consumption.
+
+Case-dependent Type custody still requires an authored establishment machine
+that classifies first and transfers the selected authority. A generic caller
+names both `C` and its exact `PlacementCustody<P, T>` conformance; neither
+ambient structural matching nor a call-site-generated identity is permitted.
 
 Retirement is reconstructed from the successful disposition row. Borrowed
 initialization constructs and destroys `T` wholly inside the exclusive borrow,

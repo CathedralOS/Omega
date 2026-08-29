@@ -280,7 +280,8 @@ resident content, initialize vacant storage, or validate existing contents. A
 non-resident range cannot be viewed or validated as a `T` with represented
 non-copy fields: bytes and proof do not establish custody. External content is
 opened by a provider-specific wrapper that first establishes its existing
-qualification and then uses `view`; there is no generic adopt or cast registry.
+qualification and then uses the appropriate view operation; there is no
+generic adopt or cast registry.
 Encoding, decoding, representability, and legal transfer derivation are checked
 per field and operation. The compiler never invents a fitting domain, emits a
 generic External RMW, assembles an External field from several reads, or hides
@@ -332,10 +333,15 @@ accessors whose named read, destructive-take, write, stable-compound, and
 atomic-family methods are the only routes to a sealed primitive request. See
 [`os_memory_and_hardware_foundation.md`](os_memory_and_hardware_foundation.md)
 for the full `AccessPlan`, `ResourceProfile`, compatibility, and `Placed<P, T>`
-model. Establishment uses distinct core `view`, `initialize`, and `validate`
-operations with per-outcome Type-custody dispositions; providers establish
-external qualifications before `view`, and proof results remain in the
-separate `;` output lane. Source compilation now derives unique opaque
+model. Establishment uses distinct borrowed and owned entry points for the
+view, initialize, and validate families. Non-runtime Type custody travels in
+an ordinary authored data record, and an explicitly selected named
+`PlacementCustody<P, T>` conformance checks that record against the exact
+evaluated plan. Borrowed rejection releases the loan and returns custody;
+owned rejection returns both the `Extent in Granted` and custody through the
+authored `PlacementReturn` carrier. Providers establish external
+qualifications before viewing, and proof results remain in the separate `;`
+output lane. Source compilation now derives unique opaque
 stable/external accessors
 for concrete `Placed<P, T>` spellings and omits inaccessible or unauthorized
 operations. Atomic fields now derive exact `bool`/`u32`/`u64` operation-family

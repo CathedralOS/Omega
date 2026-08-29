@@ -691,12 +691,12 @@ they do different things to content:
 
 | Operation | Meaning |
 |---|---|
-| `Placement::view<P, T>` | interpret existing content without running a content validator |
-| `Placement::initialize<P, T>` | encode a newly constructed `T` into exclusive `Vacant` Stable storage |
-| `Placement::validate<P, T>` | inspect Stable existing content with one checked static validator and establish its guarded facts |
+| `Placement::view_borrowed` / `view_owned` | interpret existing content without running a content validator |
+| `Placement::initialize_borrowed` / `initialize_owned` | encode a newly constructed `T` into exclusive `Vacant` Stable storage |
+| `Placement::validate_borrowed` / `validate_owned` | inspect Stable existing content with one checked static validator and establish its guarded facts |
 
 There is no generic `adopt` operation. A provider-specific open/adopt machine
-establishes its external domain and custody, then calls `view`. Generic
+establishes its external domain and custody, then calls the appropriate view operation. Generic
 initialization is never synthesized for `External`: programming a device is an
 authored protocol whose ordering and side effects belong in its machine
 contract.
@@ -742,12 +742,12 @@ exact source. Geometry and access demand come from normalized `P`; total decode,
 encodability, and default-domain predicates come from `T`; facts about external
 reality require existing admitted provider qualifications. Proof may establish
 a proposition but may not manufacture a Type value. Every unconditional
-non-runtime Type field is therefore an ordinary by-value input, recursively
-keyed by its canonical declaration path, regardless of whether it is
-structurally zero-layout or explicitly `[erased]`. Proposition witnesses use
-the proof lane after `;`. Case-dependent Type custody is not flattened into a
-generic argument row: an authored establishment machine first classifies the
-content and then transfers the authority for the selected case.
+non-runtime Type field therefore appears in one ordinary by-value custody
+record, recursively keyed by canonical declaration path, regardless of whether
+it is structurally zero-layout or explicitly `[erased]`. Proposition witnesses
+use the proof lane after `;`. Case-dependent Type custody is not flattened into
+that record: an authored establishment machine first classifies the content and
+then transfers the authority for the selected case.
 
 Validation selects an ordinary static machine parameter with a complete
 structural `where machine` contract. That contract includes its input/result,
@@ -763,31 +763,91 @@ or an establishment-time revision comparison. Runtime rejection is ordinary
 cased data, never an exception or hidden trap. Validator-specific errors retain
 their own declared sum rather than collapsing into an opaque error code.
 
-A generic placement operation derives the Type-only payload of its rejection
-case from its normalized formal input row. The row identity belongs to the
-operation plus instantiated `P`, `T`, and canonical by-value inputs, never to a
-source call site. Returned fields are named by canonical input path. Type and
-Prop are not packaged together: ordinary outcome payloads stay before `;`, and
-selected evidence outputs use the separate proof-output lane from chapter 10.
-
-Conceptually the outer result remains an ordinary declared sum:
+Placement outcome and recovery identities are ordinary authored core data:
 
 ```omega
-data PlacementResult<View, Returned> {
+data PlacementOutcome<View, Returned, Reason> {
     case Ready(view: View);
-    case Rejected(
-        reason: PlacementError,
-        returned: Returned
-    );
+    case Rejected(returned: Returned, reason: Reason);
+}
+
+data PlacementReturn<Source, Custody> {
+    source: Source;
+    custody: Custody;
 }
 ```
 
-The instantiated core operation supplies the compiler-derived, Type-only
-`Returned` row. `PlacementError` is itself a real sum over the dynamic failures
-the operation can observe, such as dynamic range or alignment mismatch and an
-establishment-time stale revision. `validate` additionally preserves its
-validator's declared content-error sum; it never erases that information into
-a number, string, or undifferentiated `InvalidContent` code.
+Each operation uses an authored operation-specific reason sum over only the
+dynamic failures it can observe, such as range or alignment mismatch and an
+establishment-time stale revision. Validate additionally carries its selected
+validator's declared content-error sum as an ordinary type parameter; it never
+erases that information into a number, string, or undifferentiated
+`InvalidContent` code.
+
+The custody payload is authored rather than synthesized. For a semantic type
+with one non-runtime authority field:
+
+```omega
+pub trait PlacementCustody<P, T> { }
+
+data PacketCustody {
+    authority: DeviceAuthority;
+}
+
+pub PacketNativeCustody:
+    PacketCustody satisfies PlacementCustody<Native, Packet>;
+```
+
+`PlacementCustody<P, T>` is a compiler-checked ordinary trait relationship.
+The named conformance proves that the custody record agrees exactly with the
+non-runtime Type projection chosen by the evaluated `Placement::plan`: every
+required canonical field path appears once with the exact type and
+multiplicity, and no represented field appears. The compiler retains this as
+ordinary conformance evidence through closure, package review, canonical
+encoding, and replay. It does not manufacture a source-visible returned-row
+type or a placement-specific evidence category.
+
+The plan is part of the agreement subject. If a policy revision moves a field
+between representation and custody, the conformance rejects. Its diagnostic
+names the exact plan machine and normalized field decision—for example that
+`Packet.bits` is represented at offset 0 with width 4—rather than reporting an
+unexplained field-set difference.
+
+A generic placement operation carries both the custody type and the exact
+selected conformance:
+
+```omega
+machine inspect<P, T, C, Evidence: C satisfies PlacementCustody<P, T>>(
+    extent: Extent in Granted,
+    custody: C
+);
+```
+
+Concrete calls explicitly name that evidence, including its owned arguments;
+the custody type alone never triggers ambient conformance search. The complete
+owned call has this result shape:
+
+```omega
+Placement::view_owned<
+    Native,
+    Packet,
+    PacketCustody,
+    PacketNativeCustody
+>(move extent, move custody)
+    -> PlacementOutcome<
+        Placed<Native, Packet>,
+        PlacementReturn<Extent in Granted, PacketCustody>,
+        ViewRejection
+    >;
+```
+
+The six source operations are named separately because Omega does not infer
+ownership polymorphism. Borrowed rejection ends the source loan and returns
+the moved custody value `C`. Owned rejection returns
+`PlacementReturn<Extent in Granted, C>`, so neither the extent nor custody can
+disappear. Type and Prop are not packaged together: ordinary outcome payloads
+stay before `;`, and selected evidence outputs use the separate proof-output
+lane from chapter 10.
 
 Every formal input has an explicit disposition on every outcome:
 
@@ -800,42 +860,46 @@ Every formal input has an explicit disposition on every outcome:
 
 Absence from an outcome does not prove consumption. A consumed disposition
 names the exact authorized consumer or cleanup operation. An embedded input
-becomes retirement debt; a returned input appears exactly in the rejection
-payload. At a placement call site, `move` marks moved arguments; it never
-decorates the corresponding formal parameter declaration:
+becomes retirement debt; a returned input appears exactly in the authored
+rejection carrier. At a placement call site, `move` marks moved arguments; it
+never decorates the corresponding formal parameter declaration:
 
 ```omega
-transition Placement::validate<P, T>(
-    &mut source,
-    Validator,
-    move authority,
+transition Placement::validate_owned<
+    P,
+    T,
+    PacketCustody,
+    PacketNativeCustody,
+    Validator
+>(
+    move source,
+    move custody,
     move revision_ticket
 ) {
-    PlacementResult::Ready { view } ->
+    PlacementOutcome::Ready { view } ->
         use(view)
 
-    PlacementResult::Rejected {
-        reason,
-        returned: {
-            authority: returned_authority
-        }
+    PlacementOutcome::Rejected {
+        returned: { source, custody },
+        reason
     } ->
-        recover(source, move returned_authority, reason)
+        recover(move source, move custody, reason)
 }
 ```
 
-Here `source` is retained by `view` on `Ready` and its loan is released on
-`Rejected`; it is not a returned value. `authority` is embedded on `Ready` and
-returned on `Rejected`. If revision checking consumes `revision_ticket` on both
-paths, both disposition rows name that checking operation.
+Here the owned `source` and `custody` are embedded on `Ready` and returned
+unchanged on `Rejected`. If revision checking consumes `revision_ticket` on
+both paths, both disposition rows name that checking operation. The borrowed
+counterpart instead retains the source loan in the ready view, releases it on
+rejection, and returns only `custody`.
 
 A statically discharged dynamic check narrows the result to `Ready`; it does not
 coerce the sum to its payload. General irrefutable case destructuring extracts
 the view while keeping the proof obligation visible:
 
 ```omega
-let PlacementResult::Ready { view: pair } =
-    Placement::view<Native, Pair>(&mut bytes[0..8]);
+let PlacementOutcome::Ready { view: pair } =
+    Placement::view_borrowed<P, T, C, Evidence>(&mut source, move custody);
 ```
 
 The pattern is accepted only when the fact catalog proves that `Rejected` is

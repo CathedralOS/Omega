@@ -38,7 +38,7 @@ scanners, or receipts.
 
 ## Trusted-core simplification
 
-- [ ] **DESIGN-BLOCKED — OWNER Q12. KEEP-TERMINAL-VERIFICATION-NONSEARCHING.** Separate deterministic
+- [ ] **DESIGN-BLOCKED — OWNER Q11. KEEP-TERMINAL-VERIFICATION-NONSEARCHING.** Separate deterministic
   reconstruction of the complete Terminal-Psi obligation set from discovery
   of proof routes. The producer may search and must serialize the selected
   derivation. The verifier checks that explicit derivation against the
@@ -56,7 +56,7 @@ scanners, or receipts.
   malformed producer-selected edge rejects even when the verifier could have
   rediscovered a primitive route. Mirrored candidate selectors are test-only
   for these paths. Completion is language-design blocked on
-  [`Q12`](OWNER_QUESTIONS.md#q12--canonical-kernel-propositions-for-exact-scalar-operations):
+  [`Q11`](OWNER_QUESTIONS.md#q11--canonical-kernel-propositions-for-exact-scalar-operations):
   exact cast, exact shift-left representability, and exact add/subtract/multiply
   still have no settled canonical kernel proposition and therefore retain the
   legacy sufficient-form reducer.
@@ -585,7 +585,7 @@ Remaining:
   distinct strong identity. The standalone metered object-container publication
   API was deleted once it no longer strengthened a consumer edge. Transfer-
   runtime replay now additionally requires its exact activation slots to
-  preserve the ABI rank carrier. **OWNER-BLOCKED — Q14 (ranked native-fuel sponsor):** honest ranked runtime
+  preserve the ABI rank carrier. **OWNER-BLOCKED — Q13 (ranked native-fuel sponsor):** honest ranked runtime
   execution still needs a sponsor-ownership ruling: the binder requires an
   already-owned in-object sponsor function, while the admitted ranked artifact
   is exactly one countdown function and cannot use itself as sponsor. Native
@@ -1855,20 +1855,41 @@ Owners:
 
 - Implement the settled borrowed/owned `Placed<P, T>` establishment and
   retirement model from `Extent in Granted`, using ordinary subrange borrows
-  and no source-visible admission intermediate. Add the distinct core `view`,
-  `initialize`, and `validate` operations; provider-specific adopt/open wrappers
-  establish their external domains before `view`. Derive unconditional
-  non-runtime Type inputs by canonical declaration path, keep proposition
-  inputs and outputs in the `;` proof lanes, reject generic case-dependent Type
-  custody, and emit the canonical per-outcome disposition table. The Type-only
-  rejection payload returns exactly the formal inputs marked `returned`;
-  embedded inputs become retirement debt and consumed inputs cite their exact
-  consumer. Finish owned destruction/move-out evidence before returning
-  `Granted & Vacant`.
-  The first source-visible establishment carrier is design-blocked on
-  [OWNER_QUESTIONS.md Q2](OWNER_QUESTIONS.md#q2--source-result-schema-for-placed-view-establishment):
-  the core operation signatures and nominal outcome/returned-row schema must
-  be fixed before source typing can publish an owned `Placed<P, T>` call.
+  and no source-visible admission intermediate. Declare opaque core
+  `Placed<P, T>`, `Vacant`, and invariant `Resident<P, T>` identities; ordinary
+  generic `PlacementOutcome<View, Returned, Reason>` and
+  `PlacementReturn<Source, Custody>` data; operation-specific rejection sums;
+  and distinct `view_borrowed`/`view_owned`,
+  `initialize_borrowed`/`initialize_owned`, and
+  `validate_borrowed`/`validate_owned` operations. Provider-specific adopt/open
+  wrappers establish their external domains before the appropriate view.
+
+  Custody identity is authored, not synthesized. Add the compiler-checked
+  `PlacementCustody<P, T>` relationship: a named conformance proves that one
+  ordinary custody data declaration agrees exactly, by canonical field path,
+  type, and multiplicity, with the unconditional non-runtime Type fields
+  selected by the evaluated placement plan. Generic operations carry both the
+  custody type and exact selected conformance; concrete calls explicitly name
+  that evidence, including all of its owned arguments. Retain the ordinary
+  conformance through closure, package review, canonical encoding, and replay;
+  add no placement-specific evidence category.
+
+  Borrowed rejection releases the source loan and returns the authored custody
+  value. Owned rejection returns `PlacementReturn<Extent in Granted, C>` so the
+  source extent and custody cannot disappear. Proof inputs and outputs remain
+  in the `;` lanes. Every moved Type input has an explicit disposition on every
+  outcome: embedded in the successful view, returned in the authored carrier,
+  or consumed by one exact named operation. Embedded inputs become retirement
+  debt; absence never proves consumption. Finish owned destruction/move-out
+  evidence before returning `Granted & Vacant`. Validator-specific error sums
+  remain ordinary generic parameters rather than erased codes.
+
+  Diagnostics for a failed custody conformance must cite the exact evaluated
+  `Placement::plan` identity and normalized field decision—for example, that a
+  declared custody field is represented at one offset and width—not merely
+  report a field-set difference. Pin acceptance, missing/extra/wrong-type and
+  multiplicity failures, explicit conformance selection, policy-change drift,
+  borrowed rejection, and owned rejection returning both extent and custody.
   Existing Rust admission and occurrence identifiers remain implementation
   scaffolding and must not be promoted into a source ABI.
   A source-to-foundation evidence canary now takes the exact Stable placement
@@ -6475,7 +6496,7 @@ Owners:
   use legality, cleanup, Terminal resource row, or distinction between final
   retirement and discard. Promoting this classification to usable or Terminal
   authority is design-blocked on
-  [OWNER_QUESTIONS.md Q3](OWNER_QUESTIONS.md#q3--reborrow-restoration-disposition).
+  [OWNER_QUESTIONS.md Q2](OWNER_QUESTIONS.md#q2--reborrow-restoration-disposition).
 
   Loan formation freezes exact owner/place occurrences and evaluated range
   values. Every premise must dominate the formation event and be valid at the
