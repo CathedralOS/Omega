@@ -2866,6 +2866,122 @@ fn ranked_countdown_object_replay_cannot_reenter_machine_emission() {
 }
 
 #[test]
+fn ranked_native_fuel_replay_is_decoder_owned_and_publication_fenced() {
+    let root = workspace_root();
+    let image_root = root.join("source/omega-rust/omega/backend/images/omega-image-emission");
+    let image_manifest = std::fs::read_to_string(image_root.join("Cargo.toml"))
+        .expect("read image-emission manifest");
+    let image_production_dependencies = image_manifest
+        .split("[dev-dependencies]")
+        .next()
+        .expect("image manifest has a production prefix");
+    assert!(
+        !image_production_dependencies.contains("omega-machine-emission"),
+        "native-fuel replay must not depend on its machine-code producer",
+    );
+
+    let replay_root = image_root.join("src/native_fuel");
+    let replay = ["mod.rs", "general.rs", "ranked_u32_countdown.rs"]
+        .into_iter()
+        .map(|name| {
+            let source = std::fs::read_to_string(replay_root.join(name))
+                .unwrap_or_else(|error| panic!("failed to read native-fuel {name}: {error}"));
+            source
+                .split_once("#[cfg(test)]")
+                .map_or_else(|| source.clone(), |(production, _)| production.to_owned())
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    for forbidden in [
+        "omega_machine_emission",
+        "instrument_native_fuel",
+        "encode_native_fuel_charge",
+        "encode_native_fuel_cold_dispatch",
+        "encode_x86_64_rebased_ranked_u32_countdown_branches",
+        "encode_aarch64_rebased_ranked_u32_countdown_branches",
+    ] {
+        assert!(
+            !replay.contains(forbidden),
+            "independent native-fuel replay must decode producer output; found {forbidden}",
+        );
+    }
+    for required in [
+        "validate_x86_native_fuel_charge",
+        "validate_x86_native_fuel_cold_dispatch",
+        "validate_aarch64_native_fuel_charge",
+        "validate_aarch64_native_fuel_cold_dispatch",
+        "validate_x86_64_rebased_ranked_u32_countdown_branches",
+        "validate_aarch64_rebased_ranked_u32_countdown_branches",
+        "replay_rebased_branches",
+        "reject_ranked_native_fuel_final_image",
+    ] {
+        assert!(
+            replay.contains(required),
+            "native-fuel replay must visibly own `{required}`",
+        );
+    }
+
+    for (path, forbidden) in [
+        (
+            "source/omega-rust/omega/backend/instruction_set_architectures/omega-isa-x86_64/src/native_fuel_validation.rs",
+            [
+                "encode_native_fuel_charge",
+                "encode_native_fuel_cold_dispatch",
+            ],
+        ),
+        (
+            "source/omega-rust/omega/backend/instruction_set_architectures/omega-isa-aarch64/src/native_fuel_validation.rs",
+            [
+                "encode_native_fuel_charge",
+                "encode_native_fuel_cold_dispatch",
+            ],
+        ),
+    ] {
+        let source = std::fs::read_to_string(root.join(path))
+            .unwrap_or_else(|error| panic!("failed to read {path}: {error}"));
+        let production = source
+            .split_once("#[cfg(test)]")
+            .map_or(source.as_str(), |(production, _)| production);
+        for forbidden in forbidden {
+            assert!(
+                !production.contains(forbidden),
+                "target native-fuel decoder in {path} must not call `{forbidden}`",
+            );
+        }
+    }
+
+    let machine_root =
+        root.join("source/omega-rust/omega/backend/omega-machine-emission/src/native_fuel");
+    let machine_entrance = std::fs::read_to_string(machine_root.join("mod.rs"))
+        .expect("read native-fuel producer entrance");
+    assert!(
+        machine_entrance.contains("ranked_u32_countdown::classify")
+            && machine_entrance.contains("general::instrument_classified_native_fuel"),
+        "native-fuel producer entrance must visibly join ranked classification to general instrumentation",
+    );
+    let image_output =
+        std::fs::read_to_string(image_root.join("src/image_output.rs")).expect("read image output");
+    assert_eq!(
+        image_output
+            .matches("reject_ranked_native_fuel_final_image")
+            .count(),
+        2,
+        "both direct and transfer-runtime native-fuel image routes must retain the ranked publication fence",
+    );
+    let carrier = std::fs::read_to_string(
+        root.join("source/omega-rust/omega/representations/omega-machine-code/src/lib.rs"),
+    )
+    .expect("read machine-code carrier");
+    assert!(
+        carrier.contains("pub struct NativeFuelRankedU32CountdownRebaseRecord")
+            && carrier.contains(
+                "pub ranked_u32_countdown: Option<NativeFuelRankedU32CountdownRebaseRecord>",
+            ),
+        "metered functions must retain typed ranked branch-rebase custody",
+    );
+}
+
+#[test]
 fn selected_form_encoding_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let stage = root.join(

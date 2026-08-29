@@ -77,8 +77,14 @@ subtrees, all pinned by the source-organization gate.
 through target-owned x86-64/AArch64 decoders and independent image-owned
 contract/fuel replay. Object custody retains the full ranked record; missing
 custody, corrupted bytes/ABI/frontier/provenance/fuel, and mixed body evidence
-reject. Native-fuel rebasing and final-image publication remain explicitly
-fenced as later stages.
+reject. Final-image publication remains explicitly fenced as a later stage.
+
+[x] Ranked native-fuel instrumentation now rebases the preheader, false-exit,
+and backedge branches to the first charge in each destination-site group and
+retains a typed coordinate record. Metered-object replay independently decodes
+both ISA charge/cold fragments and the three rebased branches, reconstructs the
+record, and admits object containers. Direct and transfer-runtime executable
+images remain explicitly fenced pending publication custody.
 
 [x] Layout-independent selected-form encoding now has an independent
 validation rung. Its small entrance coordinates ordinary rows, structural
@@ -410,9 +416,9 @@ selection identity.
   structural-Unit encodings, and resolved function-relative layouts now replay
   independently. Structural-Unit selected validation also reconstructs ABI
   layout and call constraints without construction helpers. The unmetered
-  ranked-`u32` machine carrier now has target-decoder-led object replay while
-  ranked native-fuel and final-image/publication routes remain fenced; remaining
-  lowering and publication routes still need closure.
+  ranked-`u32` machine carrier now has target-decoder-led unmetered and
+  native-fuel object replay. Ranked final-image/publication routes remain
+  fenced; remaining lowering and publication routes still need closure.
 - [ ] Add generated differential testing across interpreter/reference native
   execution for exact integer, float, trap, atomic, placed-memory, cleanup, and
   transition cases.

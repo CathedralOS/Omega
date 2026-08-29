@@ -28,7 +28,9 @@ const LEGACY_PRODUCTION_FILE_CEILINGS: &[(&str, usize)] = &[];
 /// Keep these roots explicit: silently losing a moved or renamed tree must
 /// fail this test rather than shrinking its jurisdiction.
 const GOVERNED_ROOTS: &[&str] = &[
+    "source/omega-rust/omega/backend/images/omega-image-emission/src/native_fuel",
     "source/omega-rust/omega/backend/images/omega-image-emission/src/ranked_u32_countdown",
+    "source/omega-rust/omega/backend/omega-machine-emission/src/native_fuel",
     "source/omega-rust/omega/pipeline/optimization",
     "source/omega-rust/omega/representations/omega-legalized-operations",
     "source/omega-rust/omega/representations/omega-optimization-core",
@@ -81,8 +83,16 @@ struct RequiredCoordinationEntrance {
 /// and leaving a re-export wall must fail this architecture test.
 const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/backend/images/omega-image-emission/src/native_fuel/mod.rs",
+        coordination_marker: "pub fn validate_native_fuel_plan",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/backend/images/omega-image-emission/src/ranked_u32_countdown/mod.rs",
         coordination_marker: "pub(super) fn replay_ranked_u32_countdown",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/backend/omega-machine-emission/src/native_fuel/mod.rs",
+        coordination_marker: "pub fn instrument_native_fuel",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/representations/omega-optimization-unit/src/model.rs",

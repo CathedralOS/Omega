@@ -298,6 +298,7 @@ pub fn emit_native_fuel_executable_image(
     artifact: &ValidatedNativeFuelArtifact,
     subsystem: u16,
 ) -> Result<NativeFuelExecutableImage, Diagnostic> {
+    super::native_fuel::reject_ranked_native_fuel_final_image(artifact)?;
     let target = artifact.semantic_artifact().target();
     if !can_emit_executable_image(target) {
         return Err(Diagnostic::error(format!(
@@ -346,6 +347,7 @@ pub fn emit_native_fuel_transfer_runtime_executable_image(
     artifact: &ValidatedNativeFuelTransferRuntimeArtifact,
     subsystem: u16,
 ) -> Result<NativeFuelTransferRuntimeExecutableImage, Diagnostic> {
+    super::native_fuel::reject_ranked_native_fuel_final_image(artifact.metered_artifact())?;
     let target = artifact.metered_artifact().semantic_artifact().target();
     if !can_emit_executable_image(target) {
         return Err(Diagnostic::error(format!(

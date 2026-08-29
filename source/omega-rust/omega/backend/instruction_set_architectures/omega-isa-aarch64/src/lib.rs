@@ -5,6 +5,7 @@
 
 mod machine_effects;
 mod native_fuel_runtime;
+mod native_fuel_validation;
 mod post_handoff_writer;
 mod ranked_u32_countdown;
 mod register_model;
@@ -15,6 +16,10 @@ pub use machine_effects::{
 };
 pub use native_fuel_runtime::{
     Aarch64NativeFuelTransferRuntimeEncoding, encode_native_fuel_transfer_runtime,
+};
+pub use native_fuel_validation::{
+    Aarch64NativeFuelValidationError, validate_aarch64_native_fuel_charge,
+    validate_aarch64_native_fuel_cold_dispatch,
 };
 pub use post_handoff_writer::{
     encode_generated_post_handoff_writer_bytes,

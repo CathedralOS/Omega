@@ -23,8 +23,16 @@ without borrowing its machine-code producer as a validator. Each ISA owns an
 opaque decoder result for its exact countdown body; the image boundary joins
 that decoded layout to independent rank, fixed-fuel, ABI, affine-frontier,
 cleanup, provenance, and nine-row fuel replay. The complete ranked record is
-retained on the object function. Native-fuel branch rebasing and final-image
-publication remain named later boundaries.
+retained on the object function.
+
+The adjacent native-fuel transform has matching small producer and replay
+entrances. Producer classification joins generic charge insertion to one ranked
+branch-rebase leaf and retains the five physical coordinates that determine the
+three control fragments. Independent image replay reconstructs those
+coordinates and consumes target-owned decoders for every hot charge, cold
+dispatch, and rebased branch. Destination branches enter charge-group starts;
+they never target a relocated semantic instruction after its charges.
+Executable-image publication remains a separate named boundary.
 
 The mandatory lowering crate has two explicit entrances. `legalization/mod.rs`
 joins canonical source projection to independent whole-plan replay;
