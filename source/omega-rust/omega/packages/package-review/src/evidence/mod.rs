@@ -29,8 +29,8 @@ pub use contracts::{
     PackageReviewPropositionBinderArgument, PackageReviewPropositionBinderKind,
     PackageReviewPropositionBinderValue, PackageReviewPropositionEvidence,
     PackageReviewPropositionParameterApplication, PackageReviewPropositionShape,
-    PackageReviewPublicPropositionBody, PackageReviewResultCaseIdentity,
-    PackageReviewSynchronousInvocation,
+    PackageReviewPublicPropositionBody, PackageReviewReferenceAccess,
+    PackageReviewResultCaseIdentity, PackageReviewSynchronousInvocation,
 };
 pub use identity::{
     PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewSemanticDependency,

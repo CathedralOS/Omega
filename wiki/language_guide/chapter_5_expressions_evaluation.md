@@ -926,6 +926,14 @@ self.view.render_line(RoomFormatter::title(&room));
 The checker must ensure temporary storage outlives every borrow derived from it
 and is cleaned up on every exit edge.
 
+Shared lending may be implicit when an expression is supplied to a shared-
+reference parameter. Mutable and write-only lending are explicit expression
+forms (`&mut value` and `&write value`) and retain that access distinction in
+checked semantic identity. Compiler consumers which persist public contracts
+must rejoin an explicit reference argument with the declared parameter type;
+they may not reconstruct access from source text or erase it as diagnostic
+spelling.
+
 When lifetime or proof facts become hard to read, prefer explicit locals.
 
 ## Blocks
