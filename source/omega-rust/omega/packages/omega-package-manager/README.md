@@ -80,6 +80,10 @@ Canonical source-closure encoding v3 binds root and dependency selectors plus
 one stable navigation value for every package. Review revalidates the complete
 authenticated repository commitment before opening a selected member subtree;
 it never compares a member-only digest to the repository digest.
+Operational custody separately retains the selected package materialization
+commitment and its file/byte counts. This keeps one repository commit/root-tree
+resolution shareable across members while every compilation root remains
+independently recheckable.
 
 ## Review
 

@@ -61,9 +61,13 @@ fn custody(
     snapshot_root: &str,
     dependency_requests: Vec<DependencySourceRequest>,
 ) -> PackageSourceCustody {
+    let resolution = resolution(marker);
+    let materialization =
+        crate::resolution::PackageSourceMaterialization::synthetic(resolution.content().clone());
     PackageSourceCustody::from_resolved_parts(
         key(name, repository),
-        resolution(marker),
+        resolution,
+        materialization,
         PathBuf::from(snapshot_root),
         PathBuf::from(snapshot_root),
         crate::resolution::PackageSourceNavigation::Root,

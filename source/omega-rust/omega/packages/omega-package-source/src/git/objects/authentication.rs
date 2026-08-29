@@ -102,8 +102,40 @@ pub(crate) fn authenticate_git_tree(
     expected_tree: &str,
     entries: &[GitTreeEntry],
 ) -> Result<(), SourceResolveError> {
+    authenticate_git_tree_graph(expected_tree, entries)?;
+    authenticate_git_tree_payloads(expected_tree, entries)
+}
+
+/// Authenticate every mode/name/object edge back to the selected root tree.
+///
+/// Blob object IDs commit to their payloads, so graph authentication does not
+/// need to open every blob. Any blob that is later consumed or materialized
+/// must still pass [`authenticate_git_tree_payloads`].
+pub(crate) fn authenticate_git_tree_graph(
+    expected_tree: &str,
+    entries: &[GitTreeEntry],
+) -> Result<(), SourceResolveError> {
     let algorithm = git_object_algorithm(expected_tree)?;
     let mut root = AuthenticatedGitDirectory::default();
+    for entry in entries {
+        insert_authenticated_git_entry(&mut root, entry)?;
+    }
+    let actual_tree = authenticate_git_directory(&root, algorithm)?;
+    if actual_tree != expected_tree {
+        return Err(git_object_invalid(
+            expected_tree,
+            "authenticated tree graph does not reconstruct the selected root tree",
+        ));
+    }
+    Ok(())
+}
+
+/// Authenticate the bytes of every populated blob entry against its graph ID.
+pub(crate) fn authenticate_git_tree_payloads(
+    expected_tree: &str,
+    entries: &[GitTreeEntry],
+) -> Result<(), SourceResolveError> {
+    let algorithm = git_object_algorithm(expected_tree)?;
     for entry in entries {
         match &entry.kind {
             GitTreeEntryKind::Tree => {}
@@ -119,14 +151,6 @@ pub(crate) fn authenticate_git_tree(
                 )?;
             }
         }
-        insert_authenticated_git_entry(&mut root, entry)?;
-    }
-    let actual_tree = authenticate_git_directory(&root, algorithm)?;
-    if actual_tree != expected_tree {
-        return Err(git_object_invalid(
-            expected_tree,
-            "authenticated tree graph does not reconstruct the selected root tree",
-        ));
     }
     Ok(())
 }

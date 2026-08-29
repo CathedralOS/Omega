@@ -6,7 +6,7 @@ use super::{PackageSourcePatchError, PackageSourcePatchLimits, PackageSourcePatc
 use crate::resolution::PackageSourceCustody;
 use omega_package_source::{
     GitObjectIdAlgorithm, ImmutableSourceResolution, LocalSourceLimits, VerifiedPackageSourceEntry,
-    VerifiedPackageSourceEntryKind, capture_verified_package_source_snapshot, resolve_local_source,
+    VerifiedPackageSourceEntryKind, capture_verified_package_source_snapshot,
     verify_package_source_snapshot,
 };
 use sha2::{Digest, Sha256};
@@ -85,17 +85,9 @@ pub(super) fn capture_snapshot(
         custody.source_limits(),
     )
     .map_err(|error| PackageSourcePatchError::SourceCustody { side, error })?;
-    let selected_content = match custody.navigation() {
-        crate::resolution::PackageSourceNavigation::Root => custody.resolution().content().clone(),
-        crate::resolution::PackageSourceNavigation::Member(_) => {
-            let selected = resolve_local_source(custody.snapshot_root(), review_limits)
-                .map_err(|error| PackageSourcePatchError::SourceCustody { side, error })?;
-            omega_package_source::SourceContentDigest::derive(selected.content_identity.as_bytes())
-        }
-    };
     let entries = capture_verified_package_source_snapshot(
         custody.snapshot_root(),
-        &selected_content,
+        custody.materialization().content(),
         review_limits,
     )
     .map_err(|error| PackageSourcePatchError::SourceCustody { side, error })?;
@@ -138,7 +130,18 @@ pub(super) fn revalidate_snapshot(
         custody.resolution().content(),
         custody.source_limits(),
     )
-    .map_err(|error| PackageSourcePatchError::SourceCustody { side, error })
+    .map_err(|error| PackageSourcePatchError::SourceCustody { side, error })?;
+    if custody.snapshot_root() != custody.acquisition_root()
+        || custody.materialization().content() != custody.resolution().content()
+    {
+        verify_package_source_snapshot(
+            custody.snapshot_root(),
+            custody.materialization().content(),
+            custody.source_limits(),
+        )
+        .map_err(|error| PackageSourcePatchError::SourceCustody { side, error })?;
+    }
+    Ok(())
 }
 
 pub(super) fn render_entry(
