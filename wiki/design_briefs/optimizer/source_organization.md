@@ -193,6 +193,10 @@ Pre-physical manifest custody now has the same visible shape: its entrance owns
 candidate projection followed by independent replay, while model, projection,
 validation, canonical codec/identity, human rendering, and focused rendering
 tests descend into named leaves.
+Complete-unit operation-contract validation now exposes one per-node entrance
+that preserves value-use, node-contract, and binding order, then descends into
+value flow, scalar typing, service/call, structural-access, claim-transfer,
+payloadless-case, and boundary leaves.
 Liveness computation and pre-allocation machine-effect encoding also keep
 their broad fixtures in sibling test leaves, so production file size measures
 production responsibility.
