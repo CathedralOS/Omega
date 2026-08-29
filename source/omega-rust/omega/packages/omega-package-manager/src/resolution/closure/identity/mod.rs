@@ -1,6 +1,6 @@
 //! Canonical, recoverable identity of one complete resolved source closure.
 
-mod encoding;
+mod codec;
 mod subject;
 mod validation;
 

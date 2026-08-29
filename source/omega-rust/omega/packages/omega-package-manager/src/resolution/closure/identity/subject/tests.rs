@@ -274,23 +274,19 @@ fn recovery_rejects_unknown_version_trailing_bytes_and_tight_limits() {
     let version_offset = SOURCE_CLOSURE_SUBJECT_MAGIC.len();
     unknown_version[version_offset..version_offset + 2]
         .copy_from_slice(&(SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION + 1).to_le_bytes());
-    assert!(
-        CanonicalSourceClosureSubject::recover(
-            &unknown_version,
-            CanonicalSourceClosureSubjectLimits::default()
-        )
-        .is_err()
-    );
+    assert!(CanonicalSourceClosureSubject::recover(
+        &unknown_version,
+        CanonicalSourceClosureSubjectLimits::default()
+    )
+    .is_err());
 
     let mut trailing = subject.canonical_bytes.clone();
     trailing.push(0);
-    assert!(
-        CanonicalSourceClosureSubject::recover(
-            &trailing,
-            CanonicalSourceClosureSubjectLimits::default()
-        )
-        .is_err()
-    );
+    assert!(CanonicalSourceClosureSubject::recover(
+        &trailing,
+        CanonicalSourceClosureSubjectLimits::default()
+    )
+    .is_err());
 
     let limits = CanonicalSourceClosureSubjectLimits {
         maximum_record_bytes: subject.canonical_bytes.len() - 1,
