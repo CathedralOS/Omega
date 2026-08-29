@@ -10,7 +10,7 @@ const PLAN_ENTRY_CAPACITY: usize = 64;
 pub(crate) fn validate_plan(
     plan: &BuildTimeValue,
     schema_fields: &[SchemaFieldInfo],
-    schema_identity: u64,
+    schema_report_fingerprint: u64,
     policy_machine: &str,
 ) -> Result<LayoutPlanReport, String> {
     let fail =
@@ -465,7 +465,7 @@ pub(crate) fn validate_plan(
         .then(|| offsets_by_field.into_iter().map(Option::unwrap).collect());
 
     Ok(LayoutPlanReport {
-        schema_identity,
+        schema_report_fingerprint,
         entries,
         offsets,
         size: (!size_is_dynamic).then_some(size_fixed),

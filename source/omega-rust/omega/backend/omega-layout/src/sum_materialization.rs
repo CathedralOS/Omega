@@ -156,7 +156,9 @@ pub fn project_conventional_sum_materialization_layout(
         .collect::<Result<Vec<_>, Diagnostic>>()?;
 
     Ok(ConventionalSumLayoutReport {
-        schema_identity: psi_typed_trees::identity::normalized_schema_identity(program, definition),
+        schema_report_fingerprint: psi_typed_trees::identity::normalized_schema_report_fingerprint(
+            program, definition,
+        ),
         tag_offset: 0,
         tag_size: ENUM_TAG_BYTES as u64,
         tag_align: ENUM_TAG_BYTES as u64,

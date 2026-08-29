@@ -354,12 +354,16 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
                 continue;
             };
             assert_ne!(
-                operator_use.provider_plan_identity, 0,
+                operator_use.provider_plan_report_fingerprint, 0,
                 "{target} {expected_intrinsic} use must retain the selected ProviderPlan identity"
+            );
+            assert!(
+                !operator_use.provider_plan_commitment.is_empty(),
+                "{target} {expected_intrinsic} use must retain the exact ProviderPlan commitment"
             );
             let plan = checked
                 .selected_provider_plans()
-                .plan_by_identity(operator_use.provider_plan_identity)
+                .plan_by_report_fingerprint(operator_use.provider_plan_report_fingerprint)
                 .expect("operator evidence must resolve to one retained selected plan");
             assert_eq!(plan.target, target);
             assert_eq!(
@@ -535,7 +539,7 @@ fn primitive_float_arithmetic_and_comparisons_execute_in_both_engines() {
         }
         let plan = checked
             .selected_provider_plans()
-            .plan_by_identity(operator_use.provider_plan_identity)
+            .plan_by_report_fingerprint(operator_use.provider_plan_report_fingerprint)
             .expect("primitive float evidence must retain its selected plan");
         let [row] = plan.rows.as_slice() else {
             panic!("primitive float plan must retain one exact realization row");
@@ -672,7 +676,7 @@ fn named_float_format_conversion_requirements_execute_in_both_engines() {
         .filter_map(|operator_use| {
             let plan = checked
                 .selected_provider_plans()
-                .plan_by_identity(operator_use.provider_plan_identity)?;
+                .plan_by_report_fingerprint(operator_use.provider_plan_report_fingerprint)?;
             let [row] = plan.rows.as_slice() else {
                 return None;
             };
@@ -693,7 +697,7 @@ fn named_float_format_conversion_requirements_execute_in_both_engines() {
         selected_plan_identities.push(
             checked
                 .selected_provider_plans()
-                .plan_by_identity(operator_use.provider_plan_identity)
+                .plan_by_report_fingerprint(operator_use.provider_plan_report_fingerprint)
                 .expect("format conversion evidence must retain its selected plan")
                 .report_fingerprint(),
         );
@@ -740,7 +744,7 @@ fn named_float_format_conversion_requirements_execute_in_both_engines() {
         .filter_map(|operator_use| {
             let plan = checked
                 .selected_provider_plans()
-                .plan_by_identity(operator_use.provider_plan_identity)?;
+                .plan_by_report_fingerprint(operator_use.provider_plan_report_fingerprint)?;
             let [row] = plan.rows.as_slice() else {
                 return None;
             };
@@ -750,8 +754,10 @@ fn named_float_format_conversion_requirements_execute_in_both_engines() {
                 return None;
             };
             let name = selected_intrinsic_diagnostic_label(&checked, plan);
-            (name == "F32::is_infinite.f32")
-                .then_some((operator_use.expression, operator_use.provider_plan_identity))
+            (name == "F32::is_infinite.f32").then_some((
+                operator_use.expression,
+                operator_use.provider_plan_report_fingerprint,
+            ))
         })
         .collect::<Vec<_>>();
     let classification_plan_evidence =
@@ -849,7 +855,7 @@ fn named_integer_to_float_requirements_execute_in_both_engines() {
         .filter_map(|operator_use| {
             let plan = checked
                 .selected_provider_plans()
-                .plan_by_identity(operator_use.provider_plan_identity)?;
+                .plan_by_report_fingerprint(operator_use.provider_plan_report_fingerprint)?;
             let [row] = plan.rows.as_slice() else {
                 return None;
             };
@@ -981,7 +987,7 @@ fn named_float_to_integer_requirements_execute_in_both_engines() {
         .filter_map(|operator_use| {
             let plan = checked
                 .selected_provider_plans()
-                .plan_by_identity(operator_use.provider_plan_identity)?;
+                .plan_by_report_fingerprint(operator_use.provider_plan_report_fingerprint)?;
             let [row] = plan.rows.as_slice() else {
                 return None;
             };
@@ -1034,7 +1040,7 @@ fn named_float_to_integer_requirements_execute_in_both_engines() {
         .map(|(operator_use, _)| {
             checked
                 .selected_provider_plans()
-                .plan_by_identity(operator_use.provider_plan_identity)
+                .plan_by_report_fingerprint(operator_use.provider_plan_report_fingerprint)
                 .expect("float-to-integer evidence must retain its selected plan")
                 .report_fingerprint()
         })
@@ -1227,12 +1233,12 @@ fn named_float_provider_calls_rewrite_to_selected_builtins() {
     let mut selected_plan_identities = Vec::new();
     let mut selected_contract_rows = std::collections::BTreeMap::new();
     for operator_use in checked.facts.operators.named_uses() {
-        if operator_use.provider_plan_identity == 0 {
+        if operator_use.provider_plan_report_fingerprint == 0 {
             continue;
         }
         let plan = checked
             .selected_provider_plans()
-            .plan_by_identity(operator_use.provider_plan_identity)
+            .plan_by_report_fingerprint(operator_use.provider_plan_report_fingerprint)
             .expect("named operator evidence must resolve to its retained plan");
         let [row] = plan.rows.as_slice() else {
             panic!("named float plan must contain exactly one row");
@@ -1469,12 +1475,12 @@ fn named_float_negate_and_is_nan_preserve_selected_roots_and_execute() {
     let mut selected_intrinsics = std::collections::BTreeSet::new();
     let mut selected_plan_identities = Vec::new();
     for operator_use in checked.facts.operators.named_uses() {
-        if operator_use.provider_plan_identity == 0 {
+        if operator_use.provider_plan_report_fingerprint == 0 {
             continue;
         }
         let plan = checked
             .selected_provider_plans()
-            .plan_by_identity(operator_use.provider_plan_identity)
+            .plan_by_report_fingerprint(operator_use.provider_plan_report_fingerprint)
             .expect("named operator evidence must resolve to its retained plan");
         let [row] = plan.rows.as_slice() else {
             panic!("named float plan must contain exactly one row");
@@ -1637,12 +1643,12 @@ fn named_float_classification_predicates_select_and_execute() {
     let mut selected_intrinsics = std::collections::BTreeSet::new();
     let mut selected_plan_identities = Vec::new();
     for operator_use in checked.facts.operators.named_uses() {
-        if operator_use.provider_plan_identity == 0 {
+        if operator_use.provider_plan_report_fingerprint == 0 {
             continue;
         }
         let plan = checked
             .selected_provider_plans()
-            .plan_by_identity(operator_use.provider_plan_identity)
+            .plan_by_report_fingerprint(operator_use.provider_plan_report_fingerprint)
             .expect("named classification evidence must retain its plan");
         let [row] = plan.rows.as_slice() else {
             panic!("named classification plan must contain one row");
@@ -1822,12 +1828,12 @@ fn named_float_classify_preserves_enum_layout_and_executes() {
     let mut selected_intrinsics = std::collections::BTreeSet::new();
     let mut selected_plan_identities = Vec::new();
     for operator_use in checked.facts.operators.named_uses() {
-        if operator_use.provider_plan_identity == 0 {
+        if operator_use.provider_plan_report_fingerprint == 0 {
             continue;
         }
         let plan = checked
             .selected_provider_plans()
-            .plan_by_identity(operator_use.provider_plan_identity)
+            .plan_by_report_fingerprint(operator_use.provider_plan_report_fingerprint)
             .expect("named classify evidence must retain its plan");
         let [row] = plan.rows.as_slice() else {
             panic!("named classify plan must contain one row");
@@ -1983,22 +1989,22 @@ fn named_float_multiply_then_add_preserves_two_roundings_and_executes() {
         outer_add.spelling,
         psi_language_core::operator_spelling::OperatorSpelling::Add
     );
-    assert_ne!(outer_add.provider_plan_identity, 0);
+    assert_ne!(outer_add.provider_plan_report_fingerprint, 0);
     assert!(
         checked
             .selected_provider_plans()
-            .plan_by_identity(outer_add.provider_plan_identity)
+            .plan_by_report_fingerprint(outer_add.provider_plan_report_fingerprint)
             .is_some()
     );
     let mut selected_intrinsics = std::collections::BTreeSet::new();
     let mut selected_plan_identities = Vec::new();
     for operator_use in checked.facts.operators.named_uses() {
-        if operator_use.provider_plan_identity == 0 {
+        if operator_use.provider_plan_report_fingerprint == 0 {
             continue;
         }
         let plan = checked
             .selected_provider_plans()
-            .plan_by_identity(operator_use.provider_plan_identity)
+            .plan_by_report_fingerprint(operator_use.provider_plan_report_fingerprint)
             .expect("named operator evidence must resolve to its retained plan");
         let [row] = plan.rows.as_slice() else {
             panic!("named float plan must contain exactly one row");
@@ -2125,12 +2131,12 @@ fn named_float_fused_multiply_add_selects_aarch64_fmadd_and_executes() {
     let mut selected_intrinsics = std::collections::BTreeSet::new();
     let mut selected_plan_identities = Vec::new();
     for operator_use in checked.facts.operators.named_uses() {
-        if operator_use.provider_plan_identity == 0 {
+        if operator_use.provider_plan_report_fingerprint == 0 {
             continue;
         }
         let plan = checked
             .selected_provider_plans()
-            .plan_by_identity(operator_use.provider_plan_identity)
+            .plan_by_report_fingerprint(operator_use.provider_plan_report_fingerprint)
             .expect("named FMA evidence must resolve to its retained plan");
         let [row] = plan.rows.as_slice() else {
             panic!("named FMA plan must contain exactly one row");
@@ -2259,7 +2265,7 @@ fn named_float_directed_fused_multiply_add_selects_aarch64_fmadd_and_executes() 
     for operator_use in checked.facts.operators.named_uses() {
         let Some(plan) = checked
             .selected_provider_plans()
-            .plan_by_identity(operator_use.provider_plan_identity)
+            .plan_by_report_fingerprint(operator_use.provider_plan_report_fingerprint)
         else {
             continue;
         };
@@ -2502,7 +2508,7 @@ fn named_float_directed_add_selects_exact_plans_and_restores_control_state() {
     for operator_use in checked.facts.operators.named_uses() {
         let Some(plan) = checked
             .selected_provider_plans()
-            .plan_by_identity(operator_use.provider_plan_identity)
+            .plan_by_report_fingerprint(operator_use.provider_plan_report_fingerprint)
         else {
             continue;
         };
@@ -2644,7 +2650,7 @@ fn named_float_directed_subtract_selects_exact_plans_and_restores_control_state(
     for operator_use in checked.facts.operators.named_uses() {
         let Some(plan) = checked
             .selected_provider_plans()
-            .plan_by_identity(operator_use.provider_plan_identity)
+            .plan_by_report_fingerprint(operator_use.provider_plan_report_fingerprint)
         else {
             continue;
         };
@@ -2787,7 +2793,7 @@ fn named_float_directed_multiply_selects_exact_plans_and_restores_control_state(
     for operator_use in checked.facts.operators.named_uses() {
         let Some(plan) = checked
             .selected_provider_plans()
-            .plan_by_identity(operator_use.provider_plan_identity)
+            .plan_by_report_fingerprint(operator_use.provider_plan_report_fingerprint)
         else {
             continue;
         };
@@ -2930,7 +2936,7 @@ fn named_float_directed_divide_selects_exact_plans_and_restores_control_state() 
     for operator_use in checked.facts.operators.named_uses() {
         let Some(plan) = checked
             .selected_provider_plans()
-            .plan_by_identity(operator_use.provider_plan_identity)
+            .plan_by_report_fingerprint(operator_use.provider_plan_report_fingerprint)
         else {
             continue;
         };
@@ -3073,7 +3079,7 @@ fn named_float_directed_square_root_selects_exact_plans_and_restores_control_sta
     for operator_use in checked.facts.operators.named_uses() {
         let Some(plan) = checked
             .selected_provider_plans()
-            .plan_by_identity(operator_use.provider_plan_identity)
+            .plan_by_report_fingerprint(operator_use.provider_plan_report_fingerprint)
         else {
             continue;
         };
@@ -3271,11 +3277,11 @@ fn nested_attached_float_policy_operators_retain_checked_selected_evidence() {
             operator_use.policy_adapter,
             psi_checked_trees::CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly { .. }
         ));
-        assert_ne!(operator_use.provider_plan_identity, 0);
+        assert_ne!(operator_use.provider_plan_report_fingerprint, 0);
         assert!(
             checked
                 .selected_provider_plans()
-                .plan_by_identity(operator_use.provider_plan_identity)
+                .plan_by_report_fingerprint(operator_use.provider_plan_report_fingerprint)
                 .is_some()
         );
     }
@@ -3382,7 +3388,7 @@ fn float_policy_adapters_retain_differential_results() {
             };
             let plan = checked
                 .selected_provider_plans()
-                .plan_by_identity(operator_use.provider_plan_identity)
+                .plan_by_report_fingerprint(operator_use.provider_plan_report_fingerprint)
                 .expect("policy-adapted float evidence must retain its selected plan");
             let [row] = plan.rows.as_slice() else {
                 panic!("policy-adapted float plan must retain one realization row");

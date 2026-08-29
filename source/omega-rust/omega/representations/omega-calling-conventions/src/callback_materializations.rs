@@ -4,6 +4,11 @@ use crate::plans::PlanDiagnostic;
 
 macro_rules! nominal_plan_id {
     ($name:ident) => {
+        /// Compact discriminator inside one compiler-retained callback catalog.
+        ///
+        /// This value is not authority by itself. Authority-bearing consumers
+        /// must retain and replay the exact owning requirement/layout catalog
+        /// and reject collisions between distinct exact rows.
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub struct $name(u64);
 
@@ -25,19 +30,23 @@ nominal_plan_id!(LayoutPlanId);
 nominal_plan_id!(LayoutSlotId);
 nominal_plan_id!(CallbackRequirementId);
 
-fn callback_nominal_identity(domain: &[u8], parts: &[&[u8]]) -> u64 {
-    let mut identity = 0xcbf2_9ce4_8422_2325u64;
+fn callback_nominal_report_fingerprint(domain: &[u8], parts: &[&[u8]]) -> u64 {
+    let mut report_fingerprint = 0xcbf2_9ce4_8422_2325u64;
     for bytes in std::iter::once(domain).chain(parts.iter().copied()) {
         for byte in (bytes.len() as u64)
             .to_le_bytes()
             .into_iter()
             .chain(bytes.iter().copied())
         {
-            identity ^= u64::from(byte);
-            identity = identity.wrapping_mul(0x0000_0100_0000_01b3);
+            report_fingerprint ^= u64::from(byte);
+            report_fingerprint = report_fingerprint.wrapping_mul(0x0000_0100_0000_01b3);
         }
     }
-    if identity == 0 { 1 } else { identity }
+    if report_fingerprint == 0 {
+        1
+    } else {
+        report_fingerprint
+    }
 }
 
 /// Compiler-issued identity of one canonical callback requirement overload.
@@ -45,7 +54,7 @@ fn callback_nominal_identity(domain: &[u8], parts: &[&[u8]]) -> u64 {
 /// layout demands, so matching text cannot be rebound through a second hash
 /// convention.
 pub fn callback_requirement_id(canonical_requirement: &str) -> CallbackRequirementId {
-    CallbackRequirementId::new(callback_nominal_identity(
+    CallbackRequirementId::new(callback_nominal_report_fingerprint(
         b"omega.callback-requirement.v1",
         &[canonical_requirement.as_bytes()],
     ))
@@ -59,7 +68,7 @@ pub fn callback_native_parameter_id(
     canonical_requirement: &str,
     parameter_ordinal: u32,
 ) -> NativeParameterId {
-    NativeParameterId::new(callback_nominal_identity(
+    NativeParameterId::new(callback_nominal_report_fingerprint(
         b"omega.callback-native-parameter.v1",
         &[
             canonical_requirement.as_bytes(),
@@ -77,7 +86,7 @@ pub fn callback_layout_plan_id(
     pointer_size: usize,
     pointer_alignment: usize,
 ) -> LayoutPlanId {
-    LayoutPlanId::new(callback_nominal_identity(
+    LayoutPlanId::new(callback_nominal_report_fingerprint(
         b"omega.callback-layout-plan.v1",
         &[
             &native_layout_report_fingerprint.to_le_bytes(),
@@ -98,7 +107,7 @@ pub fn callback_plan_laid_layout_id(
     pointer_size: usize,
     pointer_alignment: usize,
 ) -> LayoutPlanId {
-    LayoutPlanId::new(callback_nominal_identity(
+    LayoutPlanId::new(callback_nominal_report_fingerprint(
         b"omega.callback-plan-laid-layout.v1",
         &[
             &native_layout_report_fingerprint.to_le_bytes(),
@@ -115,7 +124,7 @@ pub fn callback_plan_laid_layout_id(
 /// layout. The physical offset is already retained by the complete layout
 /// identity and is never repeated as slot identity.
 pub fn callback_layout_slot_id(layout: LayoutPlanId, canonical_slot: &str) -> LayoutSlotId {
-    LayoutSlotId::new(callback_nominal_identity(
+    LayoutSlotId::new(callback_nominal_report_fingerprint(
         b"omega.callback-layout-slot.v1",
         &[&layout.get().to_le_bytes(), canonical_slot.as_bytes()],
     ))
@@ -126,7 +135,7 @@ pub fn callback_layout_slot_id(layout: LayoutPlanId, canonical_slot: &str) -> La
 /// target-closed callback path. Its domain is distinct from terminal private
 /// callback slots even when canonical spellings coincide.
 pub fn callback_layout_field_slot_id(layout: LayoutPlanId, canonical_field: &str) -> LayoutSlotId {
-    LayoutSlotId::new(callback_nominal_identity(
+    LayoutSlotId::new(callback_nominal_report_fingerprint(
         b"omega.callback-layout-field-slot.v1",
         &[&layout.get().to_le_bytes(), canonical_field.as_bytes()],
     ))

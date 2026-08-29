@@ -1918,7 +1918,7 @@ mod tests {
             policy_symbol: psi_symbols::SymbolHandle::from_arena_index(5),
             policy_plan_machine_symbol: psi_symbols::SymbolHandle::from_arena_index(6),
             validated_layout: psi_layout_plans::LayoutPlanReport {
-                schema_identity: 0x51,
+                schema_report_fingerprint: 0x51,
                 entries: vec![psi_layout_plans::LayoutFieldEntryReport {
                     field: "payload".to_owned(),
                     member_identity: None,

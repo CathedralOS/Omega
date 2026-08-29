@@ -775,9 +775,9 @@ mod tests {
         ResourceProfileReceiptId::from_normalized_identity(identity).expect("profile receipt")
     }
 
-    fn test_placement(schema_identity: u64) -> ValidatedPlacementPlan {
+    fn test_placement(schema_report_fingerprint: u64) -> ValidatedPlacementPlan {
         let layout = LayoutPlanReport {
-            schema_identity,
+            schema_report_fingerprint,
             entries: Vec::new(),
             offsets: Some(Vec::new()),
             size: Some(0),
@@ -1020,7 +1020,7 @@ mod tests {
         assert_drift(&revision_drift);
 
         let mut placement_drift = context.clone();
-        placement_drift.placement.layout.schema_identity = 45;
+        placement_drift.placement.layout.schema_report_fingerprint = 45;
         assert_drift(&placement_drift);
     }
 }

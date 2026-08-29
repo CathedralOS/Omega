@@ -9,6 +9,29 @@ use psi_typed_trees::types::TypeReferenceHandle;
 
 pub use psi_numerics::arithmetic::ArithmeticPolicyAdapter as CheckedArithmeticPolicyAdapter;
 
+/// Collision-resistant commitment to the exact selected ProviderPlan.
+///
+/// Psi owns this opaque byte carrier so checked operator evidence can retain
+/// Omega's plan digest without introducing an upward dependency on
+/// `omega-effects`. The provider-planning boundary is responsible for copying
+/// the digest from the exact selected plan.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CheckedProviderPlanCommitment([u8; 32]);
+
+impl CheckedProviderPlanCommitment {
+    pub const fn from_digest(digest: [u8; 32]) -> Self {
+        Self(digest)
+    }
+
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+
+    pub fn is_empty(self) -> bool {
+        self.0 == [0; 32]
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum CheckedOperatorResolutionStatus {
     #[default]
@@ -38,9 +61,11 @@ pub struct CheckedOperatorUseFact {
     pub origin: CheckedValueOrigin,
     pub spelling: OperatorSpelling,
     pub policy_adapter: CheckedArithmeticPolicyAdapter,
-    /// Exact selected ProviderPlan identity for a migrated boundary-operator
-    /// realization. Zero means the operator still uses bootstrap lowering.
-    pub provider_plan_identity: u64,
+    /// Compact report coordinate for the selected ProviderPlan. Authority uses
+    /// the adjacent exact commitment. Zero with an empty commitment means the
+    /// operator still uses bootstrap lowering.
+    pub provider_plan_report_fingerprint: u64,
+    pub provider_plan_commitment: CheckedProviderPlanCommitment,
     pub selected_operator_symbol: SymbolHandle,
     pub candidates: HandleSpan<CheckedOperatorCandidateFact>,
     pub candidate_count: usize,
@@ -57,7 +82,8 @@ pub struct CheckedNamedOperatorUseFact {
     pub origin: CheckedValueOrigin,
     pub selected_operator_symbol: SymbolHandle,
     pub policy_adapter: CheckedArithmeticPolicyAdapter,
-    pub provider_plan_identity: u64,
+    pub provider_plan_report_fingerprint: u64,
+    pub provider_plan_commitment: CheckedProviderPlanCommitment,
 }
 
 impl Default for CheckedOperatorUseFact {
@@ -67,7 +93,8 @@ impl Default for CheckedOperatorUseFact {
             origin: CheckedValueOrigin::default(),
             spelling: OperatorSpelling::Index,
             policy_adapter: CheckedArithmeticPolicyAdapter::None,
-            provider_plan_identity: 0,
+            provider_plan_report_fingerprint: 0,
+            provider_plan_commitment: CheckedProviderPlanCommitment::default(),
             selected_operator_symbol: SymbolHandle::invalid(),
             candidates: HandleSpan::empty(),
             candidate_count: 0,
@@ -530,18 +557,32 @@ impl CheckedOperatorFacts {
             .unwrap_or_default()
     }
 
-    pub fn provider_plan_identity_for_expression_in_origin(
+    pub fn provider_plan_report_fingerprint_for_expression_in_origin(
         &self,
         expression: ExpressionHandle,
         origin: CheckedValueOrigin,
     ) -> Option<u64> {
         self.expression_use_in_origin(expression, origin)
-            .map(|operator_use| operator_use.provider_plan_identity)
+            .map(|operator_use| operator_use.provider_plan_report_fingerprint)
             .or_else(|| {
                 self.named_expression_use_in_origin(expression, origin)
-                    .map(|operator_use| operator_use.provider_plan_identity)
+                    .map(|operator_use| operator_use.provider_plan_report_fingerprint)
             })
             .filter(|identity| *identity != 0)
+    }
+
+    pub fn provider_plan_commitment_for_expression_in_origin(
+        &self,
+        expression: ExpressionHandle,
+        origin: CheckedValueOrigin,
+    ) -> Option<CheckedProviderPlanCommitment> {
+        self.expression_use_in_origin(expression, origin)
+            .map(|operator_use| operator_use.provider_plan_commitment)
+            .or_else(|| {
+                self.named_expression_use_in_origin(expression, origin)
+                    .map(|operator_use| operator_use.provider_plan_commitment)
+            })
+            .filter(|commitment| !commitment.is_empty())
     }
 
     pub fn missing_uses(&self) -> impl Iterator<Item = &CheckedOperatorUseFact> {
@@ -689,7 +730,8 @@ mod tests {
             origin: CheckedValueOrigin::default(),
             spelling: OperatorSpelling::Index,
             policy_adapter: CheckedArithmeticPolicyAdapter::None,
-            provider_plan_identity: 0,
+            provider_plan_report_fingerprint: 0,
+            provider_plan_commitment: CheckedProviderPlanCommitment::default(),
             selected_operator_symbol: SymbolHandle::from_arena_index(2),
             candidates: resolved_candidates,
             candidate_count: 1,
@@ -700,7 +742,8 @@ mod tests {
             origin: CheckedValueOrigin::default(),
             spelling: OperatorSpelling::Range,
             policy_adapter: CheckedArithmeticPolicyAdapter::None,
-            provider_plan_identity: 0,
+            provider_plan_report_fingerprint: 0,
+            provider_plan_commitment: CheckedProviderPlanCommitment::default(),
             selected_operator_symbol: SymbolHandle::invalid(),
             candidates: ambiguous_candidates,
             candidate_count: 2,
@@ -716,7 +759,8 @@ mod tests {
             policy_adapter: CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite {
                 format: FloatFormat::BINARY64,
             },
-            provider_plan_identity: 0,
+            provider_plan_report_fingerprint: 0,
+            provider_plan_commitment: CheckedProviderPlanCommitment::default(),
         });
 
         let facts =

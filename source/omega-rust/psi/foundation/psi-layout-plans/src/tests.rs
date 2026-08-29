@@ -8,7 +8,7 @@ fn entry() -> RelocationTarget {
 
 fn split_layout() -> LayoutPlanReport {
     LayoutPlanReport {
-        schema_identity: 1,
+        schema_report_fingerprint: 1,
         entries: vec![
             LayoutFieldEntryReport {
                 field: "address".into(),
@@ -51,7 +51,7 @@ fn split_layout() -> LayoutPlanReport {
 }
 
 #[test]
-fn normalized_layout_identity_is_order_independent_and_geometry_bound() {
+fn normalized_layout_report_fingerprint_is_order_independent_and_geometry_bound() {
     let forward = split_layout();
     let mut reversed = forward.clone();
     reversed.entries.reverse();
@@ -72,9 +72,9 @@ fn normalized_layout_identity_is_order_independent_and_geometry_bound() {
 }
 
 #[test]
-fn conventional_sum_identity_binds_ordinals_geometry_and_unnumbered_names() {
+fn conventional_sum_report_fingerprint_binds_ordinals_geometry_and_unnumbered_names() {
     let baseline = ConventionalSumLayoutReport {
-        schema_identity: 7,
+        schema_report_fingerprint: 7,
         tag_offset: 0,
         tag_size: 4,
         tag_align: 4,
@@ -128,7 +128,7 @@ fn conventional_sum_identity_binds_ordinals_geometry_and_unnumbered_names() {
 #[test]
 fn conventional_sum_replay_uses_numbered_identity_and_exact_geometry() {
     let original = ConventionalSumLayoutReport {
-        schema_identity: 7,
+        schema_report_fingerprint: 7,
         tag_offset: 0,
         tag_size: 4,
         tag_align: 4,
@@ -186,7 +186,7 @@ fn conventional_sum_replay_uses_numbered_identity_and_exact_geometry() {
 #[test]
 fn stable_member_identity_makes_source_rename_presentation_only() {
     let mut original = split_layout();
-    original.schema_identity = 0x44;
+    original.schema_report_fingerprint = 0x44;
     for entry in &mut original.entries {
         entry.member_identity = Some(7);
     }
@@ -223,7 +223,7 @@ fn stable_member_identity_makes_source_rename_presentation_only() {
     assert!(!layout_plan_reports_match_for_replay(&aliased, &aliased));
 
     let mut changed_schema = renamed;
-    changed_schema.schema_identity = 0x45;
+    changed_schema.schema_report_fingerprint = 0x45;
     assert_ne!(
         normalized_layout_plan_report_fingerprint(&original),
         normalized_layout_plan_report_fingerprint(&changed_schema)
@@ -296,7 +296,7 @@ fn materializers_reject_layout_identity_aliases_before_observable_work() {
     assert_eq!(resolutions, 0);
 
     let aggregate_layout = LayoutPlanReport {
-        schema_identity: 1,
+        schema_report_fingerprint: 1,
         entries: vec![
             LayoutFieldEntryReport {
                 field: "legacy_payload".into(),
@@ -331,7 +331,7 @@ fn materializers_reject_layout_identity_aliases_before_observable_work() {
 #[test]
 fn normalized_layout_identity_distinguishes_dynamic_from_full_width_size() {
     let dynamic = LayoutPlanReport {
-        schema_identity: 1,
+        schema_report_fingerprint: 1,
         entries: Vec::new(),
         offsets: Some(Vec::new()),
         size: None,
@@ -351,7 +351,7 @@ fn normalized_layout_identity_distinguishes_dynamic_from_full_width_size() {
 #[test]
 fn owned_aggregate_materializer_places_complete_values_atomically() {
     let layout = LayoutPlanReport {
-        schema_identity: 1,
+        schema_report_fingerprint: 1,
         entries: vec![
             LayoutFieldEntryReport {
                 field: "header".into(),
@@ -415,7 +415,7 @@ fn owned_aggregate_materializer_places_complete_values_atomically() {
 #[test]
 fn numbered_aggregate_materialization_rejoins_renamed_fields_by_identity() {
     let layout = LayoutPlanReport {
-        schema_identity: 1,
+        schema_report_fingerprint: 1,
         entries: vec![LayoutFieldEntryReport {
             field: "legacy_payload".into(),
             member_identity: Some(7),
@@ -442,7 +442,7 @@ fn numbered_aggregate_materialization_rejoins_renamed_fields_by_identity() {
     assert_eq!(unchanged, [0x5a; 12]);
 
     let repeated_layout = LayoutPlanReport {
-        schema_identity: 2,
+        schema_report_fingerprint: 2,
         entries: [0, 8]
             .into_iter()
             .map(|offset| LayoutFieldEntryReport {
@@ -484,7 +484,7 @@ fn repeated_aggregate_materializer_rejects_invalid_geometry_atomically() {
             .expect("complete repeated aggregate"),
     ];
     let layout = |offsets: &[u64]| LayoutPlanReport {
-        schema_identity: 1,
+        schema_report_fingerprint: 1,
         entries: offsets
             .iter()
             .map(|offset| LayoutFieldEntryReport {
@@ -525,7 +525,7 @@ fn repeated_aggregate_materializer_rejects_invalid_geometry_atomically() {
 #[test]
 fn ordinary_scalar_materializer_packs_a_fragmented_control_word() {
     let layout = LayoutPlanReport {
-        schema_identity: 1,
+        schema_report_fingerprint: 1,
         entries: vec![
             LayoutFieldEntryReport {
                 field: "enabled".into(),
@@ -616,7 +616,7 @@ fn ordinary_scalar_materializer_packs_a_fragmented_control_word() {
 #[test]
 fn numbered_scalar_materialization_and_decode_rejoin_renamed_fields_by_identity() {
     let layout = LayoutPlanReport {
-        schema_identity: 1,
+        schema_report_fingerprint: 1,
         entries: vec![
             LayoutFieldEntryReport {
                 field: "legacy_counter".into(),
@@ -721,7 +721,7 @@ fn numbered_scalar_materialization_and_decode_rejoin_renamed_fields_by_identity(
 #[test]
 fn ordinary_scalar_materializer_round_trips_stored_integers() {
     let layout = LayoutPlanReport {
-        schema_identity: 1,
+        schema_report_fingerprint: 1,
         entries: vec![
             LayoutFieldEntryReport {
                 field: "signed".into(),
@@ -787,7 +787,7 @@ fn ordinary_scalar_materializer_round_trips_stored_integers() {
 #[test]
 fn ordinary_scalar_stored_integer_write_is_fit_checked_and_atomic() {
     let layout = LayoutPlanReport {
-        schema_identity: 1,
+        schema_report_fingerprint: 1,
         entries: vec![LayoutFieldEntryReport {
             field: "value".into(),
             member_identity: None,
@@ -826,7 +826,7 @@ fn ordinary_scalar_stored_integer_write_is_fit_checked_and_atomic() {
 #[test]
 fn scalar_materialization_is_complete_and_atomic() {
     let layout = LayoutPlanReport {
-        schema_identity: 1,
+        schema_report_fingerprint: 1,
         entries: vec![
             LayoutFieldEntryReport {
                 field: "low".into(),
@@ -956,7 +956,7 @@ fn numbered_symbolic_materialization_rejoins_renamed_fields_by_identity() {
 #[test]
 fn symbolic_write_geometry_rejects_before_any_resolver_invocation() {
     let layout = LayoutPlanReport {
-        schema_identity: 1,
+        schema_report_fingerprint: 1,
         entries: vec![
             LayoutFieldEntryReport {
                 field: "first".into(),
@@ -1007,7 +1007,7 @@ fn symbolic_value_constraints_reject_before_unrelated_target_resolution() {
         EntryStubId::from_normalized_identity(0x66bb).expect("unrelated entry identity"),
     );
     let layout = LayoutPlanReport {
-        schema_identity: 1,
+        schema_report_fingerprint: 1,
         entries: vec![
             LayoutFieldEntryReport {
                 field: "first".into(),
@@ -1714,7 +1714,7 @@ fn fixed_entry_constant_folds_split_little_endian_bytes() {
 #[test]
 fn symbolic_stored_integer_fit_is_enforced_before_each_consumption_phase() {
     let layout = LayoutPlanReport {
-        schema_identity: 1,
+        schema_report_fingerprint: 1,
         entries: vec![LayoutFieldEntryReport {
             field: "address".into(),
             member_identity: None,
@@ -1850,7 +1850,7 @@ fn unresolved_loader_consumed_fragments_reject() {
 #[test]
 fn whole_pointer_uses_loader_native_relocation() {
     let layout = LayoutPlanReport {
-        schema_identity: 1,
+        schema_report_fingerprint: 1,
         entries: vec![LayoutFieldEntryReport {
             field: "entry".into(),
             member_identity: None,

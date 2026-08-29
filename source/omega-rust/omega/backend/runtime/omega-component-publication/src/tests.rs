@@ -200,7 +200,7 @@ fn runnable_fixture_at(seed: u64, placement_base: u64) -> RunnableFixture {
             [ProviderOccurrencePlanBinding::new(
                 provider_plan,
                 selected
-                    .plan_by_identity(provider_plan)
+                    .plan_by_report_fingerprint(provider_plan)
                     .expect("selected fixture plan")
                     .clone(),
                 ProviderOccurrenceInstallationReceipt::from_provider(

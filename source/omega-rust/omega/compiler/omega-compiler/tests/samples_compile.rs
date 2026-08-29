@@ -662,8 +662,13 @@ fn temperature_sample_retains_exact_float_operator_evidence() {
     );
     assert!(
         uses.iter()
-            .all(|operator_use| operator_use.provider_plan_identity != 0),
+            .all(|operator_use| operator_use.provider_plan_report_fingerprint != 0),
         "both nested operations must retain their exact selected ProviderPlan"
+    );
+    assert!(
+        uses.iter()
+            .all(|operator_use| !operator_use.provider_plan_commitment.is_empty()),
+        "both nested operations must retain exact selected ProviderPlan commitments"
     );
 }
 

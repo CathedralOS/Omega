@@ -291,12 +291,12 @@ fn plan_laid_value_types_are_placed_by_their_plan() {
     checked.typed.plan_laid_layouts[0].schema_symbol = schema_symbol;
     checked.typed.plan_laid_layouts[0].schema_field_symbols = schema_field_symbols;
 
-    let schema_identity = checked.typed.plan_laid_layouts[0]
+    let schema_report_fingerprint = checked.typed.plan_laid_layouts[0]
         .validated_layout
-        .schema_identity;
+        .schema_report_fingerprint;
     checked.typed.plan_laid_layouts[0]
         .validated_layout
-        .schema_identity ^= 1;
+        .schema_report_fingerprint ^= 1;
     let diagnostics = psi_validation::validate_program(&checked.typed)
         .expect_err("substituted normalized schema identity must fail closed");
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -306,7 +306,7 @@ fn plan_laid_value_types_are_placed_by_their_plan() {
     }));
     checked.typed.plan_laid_layouts[0]
         .validated_layout
-        .schema_identity = schema_identity;
+        .schema_report_fingerprint = schema_report_fingerprint;
 
     let report_first_offset = checked.typed.plan_laid_layouts[0]
         .validated_layout
@@ -2969,7 +2969,7 @@ machine Main::main(&mut self) { }
         Some(41),
         "the first authored case has runtime discriminant zero, but its reflected stable identity remains #41"
     );
-    assert_ne!(report.schema_identity, 0);
+    assert_ne!(report.schema_report_fingerprint, 0);
 
     let reordered_path = write_program(
         "stable-case-schema-reordered",
@@ -3002,7 +3002,7 @@ machine Main::main(&mut self) { }
     let reordered_report = compute_layout_plan(&reordered.typed, "InspectCases::plan", "Choice")
         .expect("reordered case schema should normalize");
     assert_eq!(
-        report.schema_identity, reordered_report.schema_identity,
+        report.schema_report_fingerprint, reordered_report.schema_report_fingerprint,
         "numbered case names and authored order are presentation/runtime-discriminant inputs, not stable schema identity"
     );
 }

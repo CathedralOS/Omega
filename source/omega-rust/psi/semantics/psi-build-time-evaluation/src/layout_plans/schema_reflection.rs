@@ -109,14 +109,14 @@ pub(crate) fn schema_fields(
             SCHEMA_FIELD_CAPACITY
         ));
     }
-    Ok((fields, normalized_schema_identity(typed, data)))
+    Ok((fields, normalized_schema_report_fingerprint(typed, data)))
 }
 
-pub fn normalized_schema_identity(
+pub fn normalized_schema_report_fingerprint(
     typed: &TypedTrees,
     data: &psi_typed_trees::data::DataDefinition,
 ) -> u64 {
-    psi_typed_trees::identity::normalized_schema_identity(typed, data)
+    psi_typed_trees::identity::normalized_schema_report_fingerprint(typed, data)
 }
 
 fn declared_source_bits(

@@ -77,9 +77,12 @@ pub fn elaborate_task_activation_plans(
             contract.report_fingerprint,
             MachineContractId::from_normalized_identity,
         )?;
-        let entry_identity = entry_identity(program, target_machine, entry);
-        let entry_id = normalized_id(entry_identity, MachineEntryId::from_normalized_identity)?;
-        let argument_layout_identity = signature_layout_identity(
+        let entry_report_fingerprint = entry_report_fingerprint(program, target_machine, entry);
+        let entry_id = normalized_id(
+            entry_report_fingerprint,
+            MachineEntryId::from_normalized_identity,
+        )?;
+        let argument_layout_report_fingerprint = signature_layout_report_fingerprint(
             program,
             target,
             program
@@ -89,23 +92,26 @@ pub fn elaborate_task_activation_plans(
                 .map(|parameter| parameter.type_reference),
         )?;
         let argument_layout = normalized_id(
-            argument_layout_identity,
+            argument_layout_report_fingerprint,
             ValueLayoutId::from_normalized_identity,
         )?;
-        let outcome_layout_identity =
-            signature_layout_identity(program, target, std::iter::once(entry.return_type))?;
-        let terminal_outcome_layout = normalized_id(
-            outcome_layout_identity,
-            ValueLayoutId::from_normalized_identity,
-        )?;
-        let calling_plan_identity = calling_plan_identity(
+        let outcome_layout_report_fingerprint = signature_layout_report_fingerprint(
+            program,
             target,
-            entry_identity,
-            argument_layout_identity,
-            outcome_layout_identity,
+            std::iter::once(entry.return_type),
+        )?;
+        let terminal_outcome_layout = normalized_id(
+            outcome_layout_report_fingerprint,
+            ValueLayoutId::from_normalized_identity,
+        )?;
+        let calling_plan_report_fingerprint = calling_plan_report_fingerprint(
+            target,
+            entry_report_fingerprint,
+            argument_layout_report_fingerprint,
+            outcome_layout_report_fingerprint,
         );
         let calling_plan = normalized_id(
-            calling_plan_identity,
+            calling_plan_report_fingerprint,
             CallingPlanId::from_normalized_identity,
         )?;
 
@@ -126,7 +132,7 @@ pub fn elaborate_task_activation_plans(
         let (stack_bytes, stack_alignment) =
             fixed_stack_layout(program, target, &layouts, target_machine, &crossings.root)?;
         let stack_representation = normalized_id(
-            stack_representation_identity(target),
+            stack_representation_report_fingerprint(target),
             StackRepresentationId::from_normalized_identity,
         )?;
 
@@ -1176,7 +1182,11 @@ fn append_task_start_selection(
             .identity()
             .as_str(),
     );
-    hash.u64(entry_identity(program, target_machine, target_entry));
+    hash.u64(entry_report_fingerprint(
+        program,
+        target_machine,
+        target_entry,
+    ));
     let selection = TaskStartSelection {
         requirement_owner: definition.symbol,
         requirement,
@@ -1366,7 +1376,7 @@ fn symbol_identity(program: &CheckedTrees, symbol: psi_symbols::SymbolHandle) ->
     None
 }
 
-fn stack_representation_identity(target: NativeTarget) -> u64 {
+fn stack_representation_report_fingerprint(target: NativeTarget) -> u64 {
     let mut hash = StableHash::new();
     hash.byte(0x53);
     hash.string("fixed-nonmoving-stack-v1");
@@ -1384,7 +1394,7 @@ fn stack_representation_identity(target: NativeTarget) -> u64 {
     hash.finish()
 }
 
-fn signature_layout_identity(
+fn signature_layout_report_fingerprint(
     program: &CheckedTrees,
     target: NativeTarget,
     types: impl IntoIterator<Item = psi_checked_trees::types::TypeReferenceHandle>,
@@ -1402,7 +1412,7 @@ fn signature_layout_identity(
     Ok(hash.finish())
 }
 
-fn entry_identity(
+fn entry_report_fingerprint(
     program: &CheckedTrees,
     machine: &psi_checked_trees::machine::Machine,
     entry: &psi_checked_trees::state::State,
@@ -1425,7 +1435,12 @@ fn entry_identity(
     hash.finish()
 }
 
-fn calling_plan_identity(target: NativeTarget, entry: u64, arguments: u64, outcome: u64) -> u64 {
+fn calling_plan_report_fingerprint(
+    target: NativeTarget,
+    entry_report_fingerprint: u64,
+    arguments_report_fingerprint: u64,
+    outcome_report_fingerprint: u64,
+) -> u64 {
     let mut hash = StableHash::new();
     hash.byte(match target.architecture {
         Architecture::Aarch64 => 1,
@@ -1438,9 +1453,9 @@ fn calling_plan_identity(target: NativeTarget, entry: u64, arguments: u64, outco
     });
     hash.usize(target.pointer_size);
     hash.usize(target.pointer_alignment);
-    hash.u64(entry);
-    hash.u64(arguments);
-    hash.u64(outcome);
+    hash.u64(entry_report_fingerprint);
+    hash.u64(arguments_report_fingerprint);
+    hash.u64(outcome_report_fingerprint);
     hash.finish()
 }
 

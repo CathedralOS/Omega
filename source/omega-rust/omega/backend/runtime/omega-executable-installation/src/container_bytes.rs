@@ -1389,7 +1389,7 @@ fn encode_record_at(
 
 fn scalar_layout(size: u64, fields: &[(&str, u64, u16)]) -> LayoutPlanReport {
     LayoutPlanReport {
-        schema_identity: 1,
+        schema_report_fingerprint: 1,
         entries: fields
             .iter()
             .map(|(field, offset, _)| LayoutFieldEntryReport {

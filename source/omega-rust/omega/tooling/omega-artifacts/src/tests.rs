@@ -527,17 +527,17 @@ fn normalized_foreign_locator_mutations_change_trust_identity_and_exact_output()
     let changed_export = normalized_windows_import(b"opaque\xff.dll", b"invoke_next");
 
     assert_ne!(
-        baseline.normalized_foreign_locator_identity(),
-        changed_library.normalized_foreign_locator_identity(),
+        baseline.foreign_locator_compatibility_report_identity(),
+        changed_library.foreign_locator_compatibility_report_identity(),
     );
     assert_ne!(
-        baseline.normalized_foreign_locator_identity(),
-        changed_export.normalized_foreign_locator_identity(),
+        baseline.foreign_locator_compatibility_report_identity(),
+        changed_export.foreign_locator_compatibility_report_identity(),
     );
 
     let text = baseline.report_text();
     let identity = baseline
-        .normalized_foreign_locator_identity()
+        .foreign_locator_compatibility_report_identity()
         .expect("normalized import identity");
     assert!(text.contains(&format!("PeByName [{identity:016x}]")));
     assert!(text.contains("target `windows_x64`"));
@@ -549,7 +549,10 @@ fn normalized_foreign_locator_mutations_change_trust_identity_and_exact_output()
         library: "opaque.dll".to_owned(),
         symbol: "invoke_raw".to_owned(),
     };
-    assert_eq!(bootstrap.normalized_foreign_locator_identity(), None);
+    assert_eq!(
+        bootstrap.foreign_locator_compatibility_report_identity(),
+        None
+    );
     assert!(
         bootstrap
             .report_text()

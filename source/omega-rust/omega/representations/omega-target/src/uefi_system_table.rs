@@ -152,11 +152,6 @@ impl ValidatedUefiSystemTableNativeLayout {
 
     /// Compatibility accessor for the compact layout report fingerprint.
     /// Runtime admission must use [`Self::matches_exact_plan`] instead.
-    pub const fn layout_identity(&self) -> u64 {
-        self.non_authoritative_layout_report_fingerprint
-    }
-
-    /// Explicitly non-authoritative compact report/cache coordinate.
     pub const fn non_authoritative_layout_report_fingerprint(&self) -> u64 {
         self.non_authoritative_layout_report_fingerprint
     }
@@ -555,7 +550,7 @@ mod tests {
         assert_eq!(layout.table_header_size(), 24);
         assert_eq!(layout.known_prefix_byte_size(), 120);
         assert_eq!(layout.alignment(), 8);
-        assert_ne!(layout.layout_identity(), 0);
+        assert_ne!(layout.non_authoritative_layout_report_fingerprint(), 0);
         assert_eq!(
             layout
                 .field_layout(UefiSystemTableNativeField::ConsoleOut)

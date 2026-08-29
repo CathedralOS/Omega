@@ -817,7 +817,7 @@ mod tests {
             }
         );
         assert_eq!(
-            normalized.normalized_foreign_locator_identity(),
+            normalized.foreign_locator_compatibility_report_identity(),
             Some(locator.non_authoritative_compatibility_fingerprint()),
         );
 
@@ -834,7 +834,10 @@ mod tests {
                 symbol: "invoke_raw".to_owned(),
             }
         );
-        assert_eq!(bootstrap.normalized_foreign_locator_identity(), None);
+        assert_eq!(
+            bootstrap.foreign_locator_compatibility_report_identity(),
+            None
+        );
     }
 
     #[test]

@@ -198,7 +198,7 @@ impl IndexedProviderApplicationSubstitution {
 pub struct ConcreteIndexedProviderApplication {
     schema: IndexedProviderRequirementSchema,
     arguments: Vec<IndexedProviderConcreteArgument>,
-    identity: u64,
+    report_fingerprint: u64,
 }
 
 impl ConcreteIndexedProviderApplication {
@@ -207,11 +207,11 @@ impl ConcreteIndexedProviderApplication {
         arguments: Vec<IndexedProviderConcreteArgument>,
     ) -> Result<Self, IndexedProviderApplicationClosureError> {
         validate_arity(&schema, arguments.len(), "concrete application")?;
-        let identity = application_report_fingerprint(&schema, &arguments);
+        let report_fingerprint = application_report_fingerprint(&schema, &arguments);
         Ok(Self {
             schema,
             arguments,
-            identity,
+            report_fingerprint,
         })
     }
 
@@ -223,8 +223,8 @@ impl ConcreteIndexedProviderApplication {
         &self.arguments
     }
 
-    pub const fn identity(&self) -> u64 {
-        self.identity
+    pub const fn report_fingerprint(&self) -> u64 {
+        self.report_fingerprint
     }
 }
 
@@ -239,7 +239,7 @@ pub struct ProviderAssertedIndexedApplicationCoverage {
     provider_plan_report_identity: u64,
     schema: IndexedProviderRequirementSchema,
     kind: IndexedApplicationCoverageKind,
-    identity: u64,
+    report_fingerprint: u64,
 }
 
 impl ProviderAssertedIndexedApplicationCoverage {
@@ -249,12 +249,13 @@ impl ProviderAssertedIndexedApplicationCoverage {
     ) -> Result<Self, IndexedProviderApplicationClosureError> {
         validate_provider_plan_report_identity(provider_plan_report_identity)?;
         let kind = IndexedApplicationCoverageKind::Generic;
-        let identity = coverage_report_fingerprint(provider_plan_report_identity, &schema, &kind);
+        let report_fingerprint =
+            coverage_report_fingerprint(provider_plan_report_identity, &schema, &kind);
         Ok(Self {
             provider_plan_report_identity,
             schema,
             kind,
-            identity,
+            report_fingerprint,
         })
     }
 
@@ -284,12 +285,13 @@ impl ProviderAssertedIndexedApplicationCoverage {
             ));
         }
         let kind = IndexedApplicationCoverageKind::Exact(applications);
-        let identity = coverage_report_fingerprint(provider_plan_report_identity, &schema, &kind);
+        let report_fingerprint =
+            coverage_report_fingerprint(provider_plan_report_identity, &schema, &kind);
         Ok(Self {
             provider_plan_report_identity,
             schema,
             kind,
-            identity,
+            report_fingerprint,
         })
     }
 
@@ -301,8 +303,8 @@ impl ProviderAssertedIndexedApplicationCoverage {
         &self.schema
     }
 
-    pub const fn identity(&self) -> u64 {
-        self.identity
+    pub const fn report_fingerprint(&self) -> u64 {
+        self.report_fingerprint
     }
 
     pub const fn covers_generically(&self) -> bool {
@@ -345,7 +347,7 @@ pub struct ClosedIndexedProviderApplicationSet {
     schema: IndexedProviderRequirementSchema,
     applications: Vec<ConcreteIndexedProviderApplication>,
     coverage: ProviderAssertedIndexedApplicationCoverage,
-    identity: u64,
+    report_fingerprint: u64,
 }
 
 impl ClosedIndexedProviderApplicationSet {
@@ -366,15 +368,15 @@ impl ClosedIndexedProviderApplicationSet {
     }
 
     pub const fn coverage_report_fingerprint(&self) -> u64 {
-        self.coverage.identity()
+        self.coverage.report_fingerprint()
     }
 
     pub const fn coverage(&self) -> &ProviderAssertedIndexedApplicationCoverage {
         &self.coverage
     }
 
-    pub const fn identity(&self) -> u64 {
-        self.identity
+    pub const fn report_fingerprint(&self) -> u64 {
+        self.report_fingerprint
     }
 }
 
@@ -506,18 +508,18 @@ pub fn close_indexed_provider_applications(
         {
             return Err(error(format!(
                 "selected provider does not cover demanded indexed application {:#018x}",
-                missing.identity()
+                missing.report_fingerprint()
             )));
         }
     }
 
     let selected_provider_closure_report_identity = selected.report_fingerprint();
-    let identity = closed_set_report_fingerprint(
+    let report_fingerprint = closed_set_report_fingerprint(
         selected_provider_closure_report_identity,
         plan_identity,
         schema,
         &applications,
-        coverage.identity,
+        coverage.report_fingerprint,
     );
     Ok(ClosedIndexedProviderApplicationSet {
         selected_provider_closure_report_identity,
@@ -525,7 +527,7 @@ pub fn close_indexed_provider_applications(
         schema: schema.clone(),
         applications,
         coverage: (*coverage).clone(),
-        identity,
+        report_fingerprint,
     })
 }
 
@@ -602,7 +604,7 @@ fn coverage_report_fingerprint(
             hash.byte(2);
             hash.usize(applications.len());
             for application in applications {
-                hash.u64(application.identity);
+                hash.u64(application.report_fingerprint);
             }
         }
     }
@@ -622,7 +624,7 @@ fn closed_set_report_fingerprint(
     hash.schema(schema);
     hash.usize(applications.len());
     for application in applications {
-        hash.u64(application.identity);
+        hash.u64(application.report_fingerprint);
     }
     hash.u64(coverage_report_fingerprint);
     hash.finish_nonzero()
@@ -823,7 +825,7 @@ mod tests {
         };
         let first = close(first_demands, first_substitutions);
         let second = close(second_demands, second_substitutions);
-        assert_eq!(first.identity(), second.identity());
+        assert_eq!(first.report_fingerprint(), second.report_fingerprint());
         assert_eq!(first.applications().len(), 2);
         assert!(first.coverage().covers_generically());
         assert_eq!(first.coverage().schema(), &schema());

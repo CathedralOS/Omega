@@ -6011,7 +6011,7 @@ fn provider_occurrence_binding(
     ProviderOccurrencePlanBinding::new(
         plan,
         selected
-            .plan_by_identity(plan)
+            .plan_by_report_fingerprint(plan)
             .expect("fixture plan belongs to the selected closure")
             .clone(),
         ProviderOccurrenceInstallationReceipt::from_provider(

@@ -288,7 +288,8 @@ fn shared_provider_binding_publishes_exact_operator_identity_without_mutating_re
         .map(|(handle, operator_use)| (handle, *operator_use))
         .next()
         .expect("one named boundary-operator use");
-    assert_eq!(use_before.provider_plan_identity, 0);
+    assert_eq!(use_before.provider_plan_report_fingerprint, 0);
+    assert!(use_before.provider_plan_commitment.is_empty());
     let original_contents = checked.clone();
     let original = Arc::new(checked);
     let selected = omega_effects::SelectedProviderPlanFacts::from_selection(
@@ -310,7 +311,7 @@ fn shared_provider_binding_publishes_exact_operator_identity_without_mutating_re
             .operators
             .named_uses
             .get(use_handle)
-            .provider_plan_identity,
+            .provider_plan_report_fingerprint,
         0
     );
     assert_eq!(
@@ -319,8 +320,18 @@ fn shared_provider_binding_publishes_exact_operator_identity_without_mutating_re
             .operators
             .named_uses
             .get(use_handle)
-            .provider_plan_identity,
+            .provider_plan_report_fingerprint,
         plan.report_fingerprint()
+    );
+    assert_eq!(
+        bound
+            .facts
+            .operators
+            .named_uses
+            .get(use_handle)
+            .provider_plan_commitment
+            .as_bytes(),
+        plan.identity_digest().as_bytes(),
     );
     assert!(selected.installation_reach_resolutions().is_empty());
 }
@@ -361,8 +372,17 @@ fn late_reach_rejection_publishes_no_staged_operator_updates() {
             .operators
             .named_uses
             .get(use_handle)
-            .provider_plan_identity,
+            .provider_plan_report_fingerprint,
         0
+    );
+    assert!(
+        original
+            .facts
+            .operators
+            .named_uses
+            .get(use_handle)
+            .provider_plan_commitment
+            .is_empty()
     );
 }
 

@@ -148,7 +148,7 @@ fn target_neutral_report_matches(
     schema_fields: &[&psi_typed_trees::data::DataField],
 ) -> bool {
     let report = &plan.validated_layout;
-    if report.schema_identity != normalized_schema_identity(program, schema) {
+    if report.schema_report_fingerprint != normalized_schema_report_fingerprint(program, schema) {
         return false;
     }
 
@@ -180,7 +180,7 @@ fn target_neutral_report_matches(
     matched_entries == report.entries.len() && report.offsets == expected_offsets
 }
 
-fn normalized_schema_identity(
+fn normalized_schema_report_fingerprint(
     program: &TypedTrees,
     data: &psi_typed_trees::data::DataDefinition,
 ) -> u64 {
