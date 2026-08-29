@@ -1,20 +1,22 @@
 use omega_isa_aarch64::{
-    AARCH64_AAPCS64_RETURN, AARCH64_AAPCS64_RETURN_UNIT, AARCH64_ADD_I64,
+    AARCH64_AAPCS64_CALL, AARCH64_AAPCS64_RETURN, AARCH64_AAPCS64_RETURN_UNIT, AARCH64_ADD_I64,
     AARCH64_ADD_I64_IMMEDIATE, AARCH64_COMPARE_I64_ZERO, AARCH64_CONDITIONAL_BRANCH,
-    AARCH64_COPY_I64, AARCH64_DARWIN_RETURN, AARCH64_DARWIN_RETURN_UNIT, AARCH64_MATERIALIZE_I64,
-    AARCH64_SUBTRACT_I64, AARCH64_SUBTRACT_I64_IMMEDIATE, aarch64_physical_register_model,
-    aarch64_register_constraint_catalog,
+    AARCH64_COPY_I64, AARCH64_DARWIN_CALL, AARCH64_DARWIN_RETURN, AARCH64_DARWIN_RETURN_UNIT,
+    AARCH64_MATERIALIZE_I64, AARCH64_SUBTRACT_I64, AARCH64_SUBTRACT_I64_IMMEDIATE,
+    aarch64_physical_register_model, aarch64_register_constraint_catalog,
 };
 use omega_isa_x86_64::{
     X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_COMPARE_I64_ZERO, X86_64_CONDITIONAL_BRANCH,
-    X86_64_COPY_I64, X86_64_MATERIALIZE_I64, X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR,
-    X86_64_MICROSOFT_RETURN, X86_64_MICROSOFT_RETURN_UNIT, X86_64_SUBTRACT_I64,
-    X86_64_SUBTRACT_I64_IMMEDIATE, X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT,
+    X86_64_COPY_I64, X86_64_MATERIALIZE_I64, X86_64_MICROSOFT_CALL,
+    X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR, X86_64_MICROSOFT_RETURN,
+    X86_64_MICROSOFT_RETURN_UNIT, X86_64_SUBTRACT_I64, X86_64_SUBTRACT_I64_IMMEDIATE,
+    X86_64_SYSTEM_V_CALL, X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT,
     x86_64_physical_register_model, x86_64_register_constraint_catalog,
 };
 use omega_register_model::{
-    PhysicalRegisterModel, RegisterConstraintCatalog, RegisterReservationProfile,
-    TargetRegisterEnvironmentConstraintKeys, ValidatedPhysicalRegisterModel,
+    PhysicalRegisterModel, RegisterConstraintCatalog, RegisterConstraintKey,
+    RegisterReservationProfile, TargetRegisterEnvironmentConstraintKeys,
+    ValidatedPhysicalRegisterModel,
 };
 use omega_selected_instructions::SelectedConstraintKeys;
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
@@ -127,6 +129,21 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             return_i64: AARCH64_DARWIN_RETURN,
             return_unit: AARCH64_DARWIN_RETURN_UNIT,
         }),
+        _ => None,
+    }
+}
+
+/// Exact scalar-call ABI row selected by one native target. General selected
+/// call lowering is not implemented yet; this mapping makes the future entry
+/// explicit without adding call authority to the current selected CFG.
+pub(super) const fn scalar_call_constraint_key(
+    target: NativeTarget,
+) -> Option<RegisterConstraintKey> {
+    match (target.architecture, target.object_format) {
+        (Architecture::X86_64, ObjectFormat::Elf) => Some(X86_64_SYSTEM_V_CALL),
+        (Architecture::X86_64, ObjectFormat::Coff) => Some(X86_64_MICROSOFT_CALL),
+        (Architecture::Aarch64, ObjectFormat::Elf) => Some(AARCH64_AAPCS64_CALL),
+        (Architecture::Aarch64, ObjectFormat::MachO) => Some(AARCH64_DARWIN_CALL),
         _ => None,
     }
 }

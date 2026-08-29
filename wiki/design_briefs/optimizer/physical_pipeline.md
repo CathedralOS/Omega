@@ -146,8 +146,15 @@ it must not encode an optimization name in top-level route variants.
   full selection identity.
 
 Current XOR-zero coverage proves both direct and selected-lowering routes
-through fragment, object, and callable publication. The broader target/ABI
-corruption matrix remains open coverage.
+through fragment, object, and callable publication. Target-register-environment
+coverage selects and corrupts the exact scalar-call ABI row for System V AMD64,
+Microsoft x64, AAPCS64, and Darwin AAPCS64 across Linux x64, Windows x64, UEFI
+x64, Linux Arm64, and macOS Arm64. It checks argument/result views, implicit
+control and stack facts, every individual call clobber, preserved-unit
+injection, platform ABI substitution, preservation-convention drift, and the
+Microsoft structural-Unit call row. This does not claim general call-crossing
+allocation coverage: general scalar calls are not yet represented in the
+selected CFG.
 
 The ordinary empty-selection compiler route is deliberately outside this
 optimizer custody chain. Its four-target byte and artifact-metadata baseline is

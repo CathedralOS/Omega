@@ -77,6 +77,13 @@ impl ValidatedTargetRegisterEnvironment {
             .find(|constraint| constraint.key == key)
     }
 
+    /// Target-selected scalar-call constraint. This is validated environment
+    /// data only; it does not claim that the selected CFG can lower a general
+    /// scalar call yet.
+    pub fn scalar_call_constraint(&self) -> Option<&RegisterInstructionConstraint> {
+        self.constraint(super::catalog::scalar_call_constraint_key(self.target)?)
+    }
+
     pub const fn selected_keys(&self) -> SelectedConstraintKeys {
         self.selected_keys
     }
