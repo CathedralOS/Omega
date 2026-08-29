@@ -30,7 +30,7 @@ src/
 |   |-- contracts/            checked facts, propositions, and expressions
 |   |   |-- checked/          evidence, operations, parameters, reach, and source custody
 |   |   `-- expressions/      calls, members, constructors, names, and operators
-|   |-- providers/           selection, families, intrinsics, conformances, and external supply
+|   |-- providers/           selection, installation, families, intrinsics, conformances, and external supply
 |   |-- behavior/             reach, invocation, mutation, crash, termination, and flow rows
 |   `-- semantics/            declarations, types, signatures, facts, and conformances
 |-- encoding/                 public canonical persistence boundaries; no compiler IR
@@ -126,6 +126,15 @@ Terminal claim.
 Explicit boundary-operator family review rows retain one exact family and
 provider identity, selected target, selection authority, complete-declaration
 coverage, and the canonical exact-coordinate-to-plan mapping. Independent
-single-coordinate selections are not inferred into a family.
+single-coordinate selections are not inferred into a family. Exact static
+application coverage is schema v87 / row v45.
 
-The canonical review schema is version 86 and row schema version 44.
+Installation-bound selected-provider rows now retain the exact published
+service ceiling and the exact checked realization reach beneath their existing
+package-qualified requirement and realization identities. Projection rejoins
+the selected resolution with the typed requirement, checked service row, and
+realized contract envelope; missing, orphaned, or drifted resolutions reject.
+Rendered service names remain reconciliation data and never become canonical
+service identity. This is schema v88 / row v46.
+
+The canonical review schema is version 88 and row schema version 46.

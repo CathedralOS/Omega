@@ -4,6 +4,7 @@ use crate::evidence::{
     CheckedPackageProviderFamilyReview, CheckedPackageProviderReview,
     PackageReviewCompilerIntrinsicExecution, PackageReviewProviderFamilyApplicationCoverage,
     PackageReviewProviderFamilyCoverage, PackageReviewProviderSelectionAuthority,
+    PackageReviewSelectedInstallationReach,
 };
 use omega_effects::provider_plan::{
     ProviderBinding, ServiceEntryAuthorityFlow, ServiceProgressEstablishmentRouteKind,
@@ -32,8 +33,17 @@ pub(crate) fn encode_provider(
         encoder.option(
             row.compiler_intrinsic_execution.as_ref(),
             encode_compiler_intrinsic_execution,
-        )
+        )?;
+        encoder.option(row.installation_reach.as_ref(), encode_installation_reach)
     })
+}
+
+fn encode_installation_reach(
+    encoder: &mut Encoder,
+    reach: &PackageReviewSelectedInstallationReach,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.sequence(&reach.upper_bound, encode_nominal)?;
+    encoder.sequence(&reach.resolved, encode_nominal)
 }
 
 pub(crate) fn encode_provider_family(

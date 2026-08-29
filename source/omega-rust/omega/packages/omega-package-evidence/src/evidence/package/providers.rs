@@ -22,6 +22,7 @@ pub struct CheckedPackageProviderRowIdentity {
     pub(crate) requirement: PackageReviewNominalIdentity,
     pub(crate) realization: PackageReviewNominalIdentity,
     pub(crate) compiler_intrinsic_execution: Option<PackageReviewCompilerIntrinsicExecution>,
+    pub(crate) installation_reach: Option<PackageReviewSelectedInstallationReach>,
 }
 
 impl CheckedPackageProviderRowIdentity {
@@ -51,6 +52,34 @@ impl CheckedPackageProviderRowIdentity {
             | Some(PackageReviewCompilerIntrinsicExecution::NamedFloatConversion { .. })
             | None => None,
         }
+    }
+
+    /// Exact checked reach selected for an installation-bound requirement.
+    ///
+    /// The owning provider row supplies the exact requirement and realization
+    /// identities. This child retains only their compiler-reconciled authority
+    /// rows; diagnostic service names and private row handles never enter the
+    /// evidence vocabulary.
+    pub const fn installation_reach(&self) -> Option<&PackageReviewSelectedInstallationReach> {
+        self.installation_reach.as_ref()
+    }
+}
+
+/// One installation-bound provider requirement's published ceiling and exact
+/// checked realization reach.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageReviewSelectedInstallationReach {
+    pub(crate) upper_bound: Vec<PackageReviewNominalIdentity>,
+    pub(crate) resolved: Vec<PackageReviewNominalIdentity>,
+}
+
+impl PackageReviewSelectedInstallationReach {
+    pub fn upper_bound(&self) -> &[PackageReviewNominalIdentity] {
+        &self.upper_bound
+    }
+
+    pub fn resolved(&self) -> &[PackageReviewNominalIdentity] {
+        &self.resolved
     }
 }
 

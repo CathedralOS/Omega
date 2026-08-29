@@ -57,6 +57,7 @@ pub use package::{
     CheckedPackageReviewProjection, PackageReviewCheckedServiceReach,
     PackageReviewCompilerIntrinsicExecution, PackageReviewProviderFamilyApplicationCoverage,
     PackageReviewProviderFamilyCoverage, PackageReviewProviderSelectionAuthority,
+    PackageReviewSelectedInstallationReach,
 };
 pub use rows::{
     PackageReviewCanonicalRow, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
