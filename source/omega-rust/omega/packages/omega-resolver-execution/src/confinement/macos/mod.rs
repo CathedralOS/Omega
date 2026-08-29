@@ -12,6 +12,7 @@ pub(crate) use executable::{
 
 pub(crate) const MACOS_SANDBOX_EXECUTABLE: &str = "/usr/bin/sandbox-exec";
 
+#[cfg(test)]
 pub fn macos_confined_metadata_paths(
     executable: &std::path::Path,
     additional_executables: &[std::path::PathBuf],
@@ -20,6 +21,7 @@ pub fn macos_confined_metadata_paths(
     policy::macos_confined_metadata_paths(executable, additional_executables, confined_read_roots)
 }
 
+#[cfg(test)]
 pub fn macos_helper_metadata_roots(
     additional_executables: &[std::path::PathBuf],
 ) -> std::io::Result<Vec<std::path::PathBuf>> {
