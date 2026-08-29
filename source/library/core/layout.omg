@@ -134,7 +134,9 @@ pub data Plan {
 // Compiler-known relationship for one semantic-field-free native slot. The
 // machine argument is an exact signature-free callback requirement; declaring
 // a conformance is inert until an authoritative layout policy explicitly cites
-// it through `Plan::place_private<Conformance>`.
+// it through `Plan::place_private<Conformance>`. A callback occupying a whole
+// foreign ABI parameter is instead declared once in its registrar requirement's
+// native telescope; it is not a layout slot and does not use this relationship.
 pub trait PrivateCallbackSlot<machine Requirement> {
 }
 

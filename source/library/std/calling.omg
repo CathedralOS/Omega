@@ -62,11 +62,18 @@ data AbiValueShape {
 
 // These fields carry compiler-issued nominal identities. Publishing the
 // binder/signature and validated layout-demand catalogs that supply them is a
-// separate compiler step. A private layout demand originates only from one
+// separate compiler step. `Parameter` names one interleaved native-only
+// callback parameter declared by the registrar requirement; it has no Omega
+// runtime value or source-call argument. `Field.parameter` names an entry in
+// the same native-parameter identity space whose source is an ordinary semantic
+// formal. Parameter names establish nominal identity, while authored native-
+// telescope order separately establishes ABI position. A private layout demand
+// originates only from one
 // explicitly cited named `PrivateCallbackSlot<Requirement>` conformance in the
 // authoritative layout plan; its physical offset is not repeated here. A
 // policy cannot establish an identity by inventing an integer, and unknown
-// values reject during plan validation.
+// values reject during plan validation. Calling policy may place declared
+// native entries but cannot create, reorder, or retarget them.
 data NativePlace {
     case Parameter(parameter: u64);
     case Field(

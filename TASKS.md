@@ -1492,12 +1492,12 @@ Owners:
   admission and provider-content adoption. Exact interpretation mismatch
   returns the complete Extent and content grant, and withdrawal/re-admission
   retries successfully under the correct retained plan without minting a
-  placed occurrence or choosing Q12's source result schema.
+  placed occurrence or choosing Q9's source result schema.
   A second source-to-foundation canary takes an exact source-retained External
   plan through provider schema/device correspondence. Wrong-plan and wrong-
   profile receipt joins return the exact loan and correspondence for retry;
   the exact join then withdraws both unchanged. It likewise stops before a
-  placed view or occurrence identity and therefore does not choose Q12's ABI.
+  placed view or occurrence identity and therefore does not choose Q9's ABI.
   Source-retained provider-profile admission also covers two exact operation
   families transactionally: Atomic `load + fetch_add` rejects load-only supply,
   and External destructive `Take` rejects Repeatable supply. Both failures
@@ -6041,7 +6041,7 @@ Owners:
   use legality, cleanup, Terminal resource row, or distinction between final
   retirement and discard. Promoting this classification to usable or Terminal
   authority is design-blocked on
-  [OWNER_QUESTIONS.md Q11](OWNER_QUESTIONS.md#q11--reborrow-restoration-disposition).
+  [OWNER_QUESTIONS.md Q10](OWNER_QUESTIONS.md#q10--reborrow-restoration-disposition).
 
   Loan formation freezes exact owner/place occurrences and evaluated range
   values. Every premise must dominate the formation event and be valid at the
@@ -7943,8 +7943,9 @@ Owners:
   The registrar-occurrence join is now complete through the next address-free
   seam. `HostCallPlan` and `AbstractBoundarySummary` retain the exact statement
   or expression site, registrar operation and canonical overload, state/
-  statement/call ordinal, lowering identity, and ordered formal/
-  `NativeParameterId` rows. Backend planning binds each private demand to one
+  statement/call ordinal, lowering identity, and ordered native-parameter rows
+  carrying `NativeParameterId` plus semantic-formal identity where one exists.
+  Backend planning binds each private demand to one
   exact registrar occurrence and root native argument; nested `Field` places
   preserve their layout identity and full ordered slot path, and distinct paths
   may share one root argument. Independent replay rejects site, target,
@@ -7967,13 +7968,15 @@ Owners:
   formal or ABI-placement drift, target-architecture mismatch, and identity or
   geometry drift reject. Reference, array, variant, and deeper field descent
   remain fenced engineering extensions. Direct-parameter construction remains
-  synthetic-only pending Q13. This carrier still owns no selected/assigned
+  synthetic-only pending direct native-parameter implementation. This carrier
+  still owns no selected/assigned
   operation, object symbol, relocation kind, bytes, runtime address,
   registration authority, or lease. The exact assigned-operand
   prerequisite is now complete for the custom/unknown outbound registrar
   branch. Selection retains the exact source host-call handle, call/operation
-  ordinals, and ordered formal/native-parameter-to-abstract-operand rows while
-  excluding the result pseudo-argument. Target lowering rejoins exactly one
+  ordinals, and ordered native-parameter-to-abstract-operand rows, with optional
+  semantic-formal identity, while excluding the result pseudo-argument. Target
+  lowering rejoins exactly one
   registrar occurrence and boundary edge and preserves exact abstract/target
   operand handles; backend planning binds those to the prior physical
   destination and assigned instruction/operand identity. Independent replay
@@ -8017,7 +8020,7 @@ Owners:
   instruction-kind, relocation, byte, entry, requirement, architecture, or
   installed-occurrence drift rejects with retry custody. This still grants no
   resolved address, registrar invocation, source-level `Registration`, live-
-  registration capacity, lease, or publication authority; `DataAddress`, Q13
+  registration capacity, lease, or publication authority; `DataAddress`,
   direct parameters, and bounded two-hop physical paths remain fenced.
 
   The first source canary cohort is live: the exact target-selected registrar
@@ -8029,14 +8032,37 @@ Owners:
   owner, a cited slot whose callback requirement differs from the binder,
   duplicate cited placement, and a machine requirement substituted for the
   required named slot conformance. Two distinct cited slots at one physical
-  extent also reject as overlapping supply. The direct-parameter pass canary is
-  design-blocked on
-  [OWNER_QUESTIONS.md Q10](OWNER_QUESTIONS.md#q10--declaring-a-direct-native-parameter-callback-destination):
-  normalized `NativePlace::Parameter` exists, but the source model has no
-  declaration that marks one already-declared runtime native parameter as the
-  callback destination and binds its exact callback requirement. Settle that
-  declaration without exposing a raw ordinal, inferring binder order, or
-  appending a hidden ABI parameter. Add the same
+  extent also reject as overlapping supply. The direct-parameter design is
+  settled and its pass canary is now an engineering task. Add an interleaved
+  native-only callback parameter to a registrar requirement. It has one
+  authored nominal identity and position in the ordered native telescope,
+  binds one static-machine parameter and its exact requirement, contributes no
+  Omega runtime parameter or address value, and is omitted from source call
+  arguments. Extend `BoundarySignature` with the ordered native telescope
+  rather than reinterpreting its semantic shape roots. Each entry distinguishes
+  a semantic-formal projection from a private callback, carries the compiler-
+  issued nominal `NativeParameterId` and exact target-closed shape, and is
+  validated one-to-one against the ordered calling-plan placement.
+  `NativePlace::Parameter` and `NativePlace::Field.parameter` both index this
+  one native-parameter identity space; existing field roots are semantic-
+  formal projections, while the direct form is a private-callback projection.
+  The calling policy places declared entries but cannot create, reorder, or
+  retarget them.
+
+  Split reusable physical `CallPlan` identity from exact boundary-plan
+  application identity. The latter must fingerprint the requirement, ordered
+  native telescope, every nominal parameter-to-`ValuePlacement` row, callback
+  materializations, and physical plan. This rejects reordering two ABI-
+  identical parameters even when their raw register sequence is unchanged.
+  Migrate ordinal-derived parameter identities to declaration-derived nominal
+  identities under a new fingerprint/domain version and deliberately reissue
+  every affected boundary plan, callback-placement receipt, and downstream
+  replay artifact; old and new rows must never compare or translate
+  heuristically. Add pass coverage with a callback between ordinary parameters
+  and negative coverage for an authored `addr`, undeclared trailing insertion,
+  inferred position, duplicate/wrong binder or requirement, policy-created
+  parameters, same-shaped native reorder, stale application fingerprint, and
+  stale pre-migration identity. Add the same
   target-neutral requirement placed at different x86/x64 offsets once the
   target catalog gains its missing 32-bit x86 engineering support; its present
   native targets are X86-64 and AArch64 only. The raw-offset canary now proves

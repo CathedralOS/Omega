@@ -1623,15 +1623,51 @@ uses it as slot identity.
 
 The registrar's evaluated outbound `CallPlan` separately maps the nominal
 `Procedure` binder slot to one declared private native place. A direct callback
-argument names a native parameter; a nested callback names a field through its
-validated layout identity. The plan never uses binder order as an ABI ordinal,
-never appends an undeclared argument, and never stores a byte offset. A nested
-field is a private layout demand absent from the source specification; complete
-plan validation requires one compatible supply and rejects missing, duplicate,
+is an interleaved native-only parameter on the registrar requirement:
+
+```omega
+machine install<machine Handler>(
+    hook: HookKind,
+    native callback procedure from Handler,
+    module: ModuleHandle,
+    thread: ThreadId,
+) -> Registration
+where machine Handler satisfies HookProcedure::call;
+
+install<ApplicationHook>(hook, module, thread)
+```
+
+The source call omits `procedure`. It has no Omega runtime type or address
+value, but its declaration contributes a nominal private-callback entry at the
+authored position in the native ABI telescope. The compiler supplies its exact
+target function-pointer shape and `NativePlace::Parameter` demand. The calling
+policy may place that entry; it cannot create, reorder, or retarget it. This
+single declaration is sufficient because the registrar requirement owns the
+parameter list. A nested callback instead names a field through an
+independently owned validated layout and therefore retains the explicit named-
+conformance citation.
+
+Both destination cases use one nominal native-parameter identity space:
+ordinary entries originate in semantic formals, while native-only entries
+originate in exact callback binder/requirement pairs. Declaration order fixes
+ABI position but is not parameter identity. The plan never infers binder order
+as an ABI ordinal, never appends an undeclared trailing argument, and never
+stores a byte offset. A nested field is a private layout demand absent from the
+source specification; complete plan validation requires one compatible supply
+and rejects missing, duplicate,
 overlapping, or unresolved rows. The normalized registrar-plan fingerprint is
 independent of the selected callback machine. Per-use identity retains that
 machine and its entry plan, and lowering joins the two only to emit a private
 relocation.
+
+The reusable physical `CallPlan` fingerprint is not the complete replay key.
+The boundary-plan application identity additionally covers the exact
+requirement, ordered native telescope, every nominal parameter-to-placement
+row, and callback materialization. Consequently reordering two equally shaped
+parameters rejects even when their raw register assignments appear unchanged.
+The migration from ordinal-derived parameter IDs is format-versioned and
+reissues affected plans and receipts; old rows are never reinterpreted as new
+nominal identities.
 
 Native argument backing is not a callback-row property. Direct placement uses
 the declared register/stack destination; a copying registrar may use ordinary

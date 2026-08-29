@@ -316,9 +316,11 @@ Rules:
   cannot be stored, converted to an address, placed into a relocation field, or
   returned as a runtime callback reference. Compile-time substitution alone
   supplies only a direct call in the specialized body. Registered callback
-  lowering is contextual instead: a foreign binding parameter names one exact
-  callback requirement, selects a named static satisfying machine, and emits
-  its thunk/relocation privately without producing a general runtime machine
+  lowering is contextual instead: a registrar's static binder names one exact
+  callback requirement and selects a named satisfying machine. A nested native
+  layout or an interleaved native-only parameter declares where its private
+  thunk relocation is materialized. The latter contributes no runtime argument
+  to the Omega call. Neither form produces a general runtime machine or address
   value.
 - When a public package surface contains a static machine parameter, package
   review retains its category rather than only the `machine` kind.

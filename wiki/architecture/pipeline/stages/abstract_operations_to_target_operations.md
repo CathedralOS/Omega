@@ -33,7 +33,7 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
 | Calls | Host/runtime operation ordinals become target operation keys and ABI bindings. |
 | Transitions | Preserved as target-aware branch/jump/return operations, not re-scheduled. |
 | Effects | Carried through as concrete runtime/host operation choices. |
-| Boundary edges | Preserve abstract source-boundary, exact host-call occurrence/native-formal, host-operation boundary, and source-to-lowered link summaries while recording target policy checks for linked, unlinked, and unbound host operations. |
+| Boundary edges | Preserve abstract source-boundary, exact host-call occurrence/ordered native-parameter telescope, host-operation boundary, and source-to-lowered link summaries while recording target policy checks for linked, unlinked, and unbound host operations. |
 
 ## Ownership Rules
 

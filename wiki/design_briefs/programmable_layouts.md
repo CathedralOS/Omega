@@ -129,6 +129,14 @@ as source-visible `addr` data. `Placed<P, T>` may carry staging or retained
 native storage after validation, but it does not remove this plan entry: `T`
 still has no semantic member from which the private demand could be derived.
 
+This two-step declaration/citation is specific to a destination independently
+owned by a layout. A callback occupying a whole foreign ABI parameter is
+declared once, interleaved in the registrar requirement's ordered native
+telescope. That native-only parameter has no semantic value; the requirement
+itself authorizes the demand, and the calling policy only places its nominal
+identity. It does not reuse `PrivateCallbackSlot` or permit a layout policy to
+inject parameters into another declaration.
+
 ## Plan validation
 
 The validator proves deterministic structural rules such as:

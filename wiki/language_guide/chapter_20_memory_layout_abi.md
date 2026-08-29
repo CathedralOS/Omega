@@ -235,10 +235,18 @@ not another source signature or architecture-specific language construct.
 
 An outbound registrar plan may additionally contain private callback-
 materialization rows. Each maps one nominal static-machine binder slot to an
-already-declared native parameter or to a field path through one validated
-native layout. A static-machine parameter has no ABI ordinal of its own. Nested
-callback fields are typed private layout demands absent from the semantic data
-schema. A target package declares one as a named conformance such as
+explicit native-only callback parameter or to a field path through one
+validated native layout. A static-machine parameter has no ABI ordinal of its
+own. A direct destination is declared interleaved at its real position in the
+registrar requirement's ordered native telescope. It has a nominal parameter
+identity and target-closed function-pointer shape but no Omega runtime type,
+value, or source-call argument. The requirement owns that parameter and one
+declaration creates its typed demand; calling policy may place but not create,
+reorder, or retarget it.
+
+Nested callback fields are typed private layout demands absent from the
+semantic data schema. A target package declares one as a named conformance such
+as
 `WndClassWindowProcedureSlot: WndClassLayout satisfies
 PrivateCallbackSlot<WindowProcedure::call>;`; the layout plan explicitly cites
 that evidence when it places the slot. The declaration is inert until cited,
@@ -248,6 +256,16 @@ the physical offset; the materialization row names only the validated slot.
 The rows carry no source-visible address and do not describe whether the
 foreign side copies or retains argument storage—that remains the ordinary
 parameter lifetime/custody disposition.
+
+Both `NativePlace::Parameter` and `NativePlace::Field.parameter` index one
+nominal native-parameter space. Existing field roots originate in semantic
+formals; direct callback entries originate in exact binder/requirement pairs.
+Authored telescope order separately fixes ABI position. Exact replay uses a
+boundary-plan application fingerprint covering that ordered identity-to-
+placement mapping in addition to the reusable physical plan, so equally shaped
+parameter reorder cannot hide behind an unchanged register sequence. The
+ordinal-to-nominal identity migration is a versioned reissue of affected
+artifacts, not a reinterpretation.
 
 A boundary requirement names its convention through the ordinary generic policy
 relationship `Calling<C>`, where `C` satisfies `CallingPolicy`. The policy's

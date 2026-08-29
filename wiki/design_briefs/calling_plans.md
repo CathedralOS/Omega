@@ -42,6 +42,21 @@ data NativePlace {
     );
 }
 
+data NativeParameterSource {
+    case SemanticFormal(formal: ParameterId);
+    case PrivateCallback(
+        binder: StaticMachineBinderId,
+        requirement: CallbackRequirementId,
+    );
+}
+
+data NativeParameterApplication {
+    parameter: NativeParameterId;
+    source: NativeParameterSource;
+    shape: AbiValueShape;
+    placement: Placement;
+}
+
 data CallbackMaterialization {
     binder: StaticMachineBinderId;
     destination: NativePlace;
@@ -59,6 +74,12 @@ data BoundaryEntryPlan {
     call: CallPlan;
     state: StatePlan;
 }
+
+data BoundaryPlanApplication {
+    requirement: BoundaryRequirementId;
+    native_parameters: [NativeParameterApplication]; // authored ABI order
+    plan: BoundaryEntryPlan;
+}
 ```
 
 `CallPlan` owns parameter/result placement, private callback materialization,
@@ -67,6 +88,22 @@ and ordinary ABI behavior.
 the state an entry stub preserves, and the state the handler and its callees may
 use. Their projections coincide for many ordinary calls; that is not a reason to
 fuse their identities.
+
+`NativeParameterId` names one entry in a single native-parameter identity
+space. An ordinary source formal contributes a `SemanticFormal` entry. A
+direct callback contributes a `PrivateCallback` entry that has no Omega runtime
+value. `NativePlace::Parameter` names the whole entry;
+`NativePlace::Field.parameter` names an ordinary entry whose native layout owns
+the selected private field. Declaration order fixes ABI position, while the
+declared name fixes nominal identity. A multi-register aggregate remains one
+entry with a multi-location placement.
+
+The physical `CallPlan` fingerprint is reusable across declarations with the
+same ABI recipe. The boundary-plan application fingerprint is stricter: it
+includes the exact requirement, ordered native telescope, every nominal
+parameter-to-placement row, callback materializations, and physical plan.
+Consequently swapping two equally shaped parameters rejects even when the raw
+register sequence is unchanged.
 
 ## Policies are ordinary trait relationships
 
@@ -226,12 +263,16 @@ the graph vocabulary: case-bearing data and unresolved generic aggregates remain
 unclassifiable until their own public ABI shapes are specified.
 
 `BoundarySignature` presents that structure as a bounded flat graph rather than
-as recursively embedded values: parameter and result roots index `ValueShape`
-nodes; fixed-array nodes name their element root and count; record nodes name a
-contiguous `ValueField` range whose entries carry child roots and exact byte
-offsets. The policy returns a separate `AbiValueShape` for each placement. The
-compiler checks that classification against the semantic graph and selected
-convention before accepting and fingerprinting the plan.
+as recursively embedded values: semantic parameter and result roots index
+`ValueShape` nodes; fixed-array nodes name their element root and count; record
+nodes name a contiguous `ValueField` range whose entries carry child roots and
+exact byte offsets. A separate ordered native telescope projects those semantic
+formals and interleaves any declared native-only callback entries. Each entry
+retains nominal identity, origin, and shape; a private callback receives the
+selected target's function-pointer shape without acquiring a semantic graph
+node. The policy returns a separate `AbiValueShape` and placement for each
+native entry. The compiler checks classification against both the semantic
+graph and native telescope before accepting and fingerprinting the application.
 
 Omega never performs C source-level array decay. A native function that receives
 a fixed aggregate by value is declared with `[T; N]`. A C declaration such as
@@ -669,11 +710,42 @@ CallbackMaterialization {
 ```
 
 The source name resolves to the binder slot in the registrar's normalized
-static-machine telescope, not to the machine later substituted at a call. A
-direct callback instead uses `NativePlace::Parameter`. Native parameter and
-layout-slot identities are nominal plan values; authored native ordinals,
-field byte offsets, inferred binder order, and appended hidden ABI parameters
-are not placement forms.
+static-machine telescope, not to the machine later substituted at a call.
+Nested placement is only half the native surface. A direct callback parameter
+is declared in the registrar requirement's native telescope, interleaved at
+its actual foreign-ABI position:
+
+```omega
+boundary trait HookRegistrar: Calling<MicrosoftX64, MicrosoftX64Policy> {
+    machine install<machine Handler>(
+        hook: HookKind,
+        native callback procedure from Handler,
+        module: ModuleHandle,
+        thread: ThreadId,
+    ) -> Registration
+    where machine Handler satisfies HookProcedure::call;
+}
+
+HookRegistrar::install<ApplicationHook>(hook, module, thread)
+```
+
+`procedure` contributes no Omega runtime argument and the source call omits it.
+It is nevertheless an explicitly authored native parameter, not a trailing
+argument invented during lowering. Its declaration binds the exact `Handler`
+binder and therefore the exact `HookProcedure::call` requirement. The compiler
+mints its nominal `NativeParameterId`, adds its target-closed function-pointer
+shape to the ordered native telescope, and publishes the corresponding demand
+as `NativePlace::Parameter`. The calling policy assigns declared entries to
+registers or stack locations; it cannot create, reorder, or retarget them.
+
+Native parameter and layout-slot identities are nominal plan values. Native
+position is separately the authored telescope order. Raw native ordinals,
+field byte offsets, inferred binder order, address-typed callback values, and
+undeclared hidden parameters are not placement forms. One declaration is
+sufficient for a direct parameter because the registrar requirement owns both
+the parameter and the telescope. A nested field keeps the separate named-
+conformance citation because its independently owned layout must authorize the
+demand.
 
 The requirement supplies the complete callable signature, contracts,
 operational ceilings, and evaluated calling/entry plan; the binder does not
@@ -713,6 +785,22 @@ from actual to published. The foreign protocol relies on the published
 envelope; installation, resource, reach, and crash reasoning may use the
 narrower actual envelope.
 
+That evaluated identity is a boundary-plan application, not merely the
+reusable physical `CallPlan`. It fingerprints the requirement's complete
+ordered native telescope and each nominal `NativeParameterId` paired with its
+validated `ValuePlacement`. Hashing only the ordered placements is
+insufficient: two pointer-shaped parameters could trade positions without
+changing the register sequence. Parameter identity is derived from the owning
+requirement plus the declared parameter symbol; authored order is retained as
+separate ABI metadata. Changing either invalidates replay for the appropriate
+reason.
+
+The earlier ordinal-derived parameter IDs and callback-placement fingerprint
+domain are not reinterpreted. Moving to nominal IDs and the application
+fingerprint is an explicit format-version migration: affected plans,
+callback-placement receipts, and downstream artifacts are reissued, and rows
+from the two versions never compare or translate heuristically.
+
 The first private-relocation planner remains deliberately address-free. It
 selects the callback handler's inbound plan only from the exact satisfaction
 trait/requirement and independently selects the registrar's outbound
@@ -732,10 +820,11 @@ host-call and abstract-boundary spine without granting any of those later
 authorities. One outbound `HostCallPlan` row records its exact authored
 statement or expression site, resolved registration-operation symbol,
 canonical registrar overload, state/statement/call ordinal, and exact platform
-lowering identity. Its authored arguments retain ordered pairs of formal
-ordinal and compiler-derived `NativeParameterId`; a synthetic result-place
-operand is explicitly outside that list. Abstract lowering reconstructs and
-replays one occurrence row and one ordered native-formal span, and every
+lowering identity. Its native telescope retains ordered nominal
+`NativeParameterId` rows and, for semantic-formal entries, the exact source
+formal identity; a private callback has no formal ordinal. A synthetic result-
+place operand is explicitly outside that list. Abstract lowering reconstructs
+and replays one occurrence row and one ordered native-parameter span, and every
 host-operation edge points back to that occurrence. A source boundary edge may
 link only when its resolved target symbol agrees in addition to the ordinary
 state/statement/call coordinates. The target semantic summary preserves these
@@ -745,11 +834,13 @@ callback lifetime.
 
 At the first backend-plan point where both catalogs coexist, one
 `CallbackRegistrarArgumentBinding` joins each ordered private-relocation demand
-to exactly one retained registrar occurrence and one ordered native-formal row.
+to exactly one retained registrar occurrence and one ordered native-parameter
+row.
 Independent replay first revalidates the complete placement/thunk/demand
 catalog, then checks the authored site, resolved registrar target, canonical
-overload, state/statement/call coordinates, platform-lowering identity, formal
-order, and overload-derived `NativeParameterId`. A direct destination selects
+overload, state/statement/call coordinates, platform-lowering identity,
+authored native order, and declaration-derived `NativeParameterId`. A direct
+destination selects
 that parameter row; a field destination selects the same root while preserving
 its complete nominal layout identity and ordered field path. Multiple field
 demands may share one root but remain distinct through those paths. Missing,
@@ -775,21 +866,24 @@ extent/alignment inside the root. Missing, duplicate, colliding, reordered,
 short, overlong, reference-indirected, array, variant, or deeper paths reject.
 The composed offset remains layout evidence and never becomes a materialization
 identity. Direct parameter placement is covered only by synthetic compiler
-tests pending Q13. The recipe grants no selected or assigned operation, object
+tests pending the settled source/native-telescope implementation. The recipe
+grants no selected or assigned operation, object
 symbol, relocation, bytes, runtime address, registration authority, or callback
 lifetime.
 
 The selected/assigned registrar-operand prerequisite is now complete for the
 closed custom/unknown outbound host-operation branch. Instruction selection
 retains the exact source-call arena identity, call and operation ordinals, and
-an ordered formal/`NativeParameterId` to abstract-operand map; result-storage
-pseudo-arguments are excluded. Target lowering resolves that source handle to
+an ordered `NativeParameterId` to abstract-operand map with semantic-formal
+identity only where one exists; result-storage pseudo-arguments are excluded.
+Target lowering resolves that source handle to
 exactly one registrar occurrence and boundary edge and carries exact abstract
 and target operand handles. At backend-plan coexistence, one
 `CallbackRegistrarAssignedOperandBinding` joins the prior physical destination
 to its abstract, target, and assigned instruction/operand identities. Replay
 rejects same-coordinate call collisions, missing or duplicated edges and
-operations, formal/cardinality drift, stale handles, and operand-shape drift.
+operations, native-telescope/cardinality drift, stale handles, and operand-
+shape drift.
 Generic host operations remain outside this opt-in carrier. The row still owns
 no object symbol, relocation, bytes, runtime address, registration authority,
 or callback lifetime.
@@ -801,7 +895,8 @@ runtime-storage region and base, target-closed slot/destination geometry, the
 canonical BSS owner symbol snapshot, and the exact private callback text-symbol
 snapshot. Construction and replay rejoin every preceding catalog and reject
 missing/duplicate symbols, wrong section or kind, bounds/alignment drift,
-`DataAddress`, and the Q13-gated direct-parameter form. These symbols are
+`DataAddress`, and the not-yet-implemented direct-parameter form. These symbols
+are
 identity evidence rather than resolved-address authority. The following closed
 compiler rung now inserts one exact `WriteFunctionAddressToRuntimeStorage`
 operation immediately before its registrar host call, preserving the registrar
@@ -1499,6 +1594,15 @@ from the callback's inbound entry plan. The address-free backend demand now
 replays that separation against the exact emitted thunk/root schedule, but does
 not yet choose a relocation kind, section, offset, encoded bytes, or runtime
 lease.
+
+The direct `NativePlace::Parameter` variant and callback-demand carrier exist,
+but source can currently originate only layout-field demands. The remaining
+direct-parameter work is to parse an interleaved native-only callback entry,
+construct the complete ordered native telescope and target pointer shape,
+derive nominal rather than ordinal parameter identities, validate the keyed
+identity-to-placement application, version and reissue affected fingerprints,
+and then remove the synthetic-only backend fence. This is engineering work
+under the settled model, not an open language-design question.
 
 Compiler-body memory operations likewise retain their exact plan-selected place
 and relocation recipes through emission and replay validation. Current

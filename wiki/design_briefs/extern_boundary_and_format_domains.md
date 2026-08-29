@@ -700,8 +700,40 @@ lowering joins those identities only when emitting the private relocation.
 Signature coincidence and unique visibility are not
 selection rules. A signature-free requirement path must resolve uniquely or
 reject, consistently with domain `established by` clauses. The source surface
-does not need
-a general function-pointer value.
+does not need a general function-pointer value.
+
+A direct callback is an interleaved native-only parameter owned by the
+registrar requirement. For example, a foreign ABI shaped as
+`install(kind, procedure, module, thread)` may be declared conceptually as:
+
+```omega
+machine install<machine Handler>(
+    kind: HookKind,
+    native callback procedure from Handler,
+    module: ModuleHandle,
+    thread: ThreadId,
+) -> Registration
+where machine Handler satisfies HookProcedure::call;
+```
+
+Source calls omit `procedure`; it has no Omega runtime type or value. The
+declaration contributes one nominal private-callback entry at that exact
+position in the ordered native telescope, and the compiler publishes its
+target-closed function-pointer shape and `NativePlace::Parameter` demand. The
+policy places the entry but cannot create, reorder, or retarget it. A trailing
+hidden argument, an `addr`-typed callback formal, or a position inferred from
+binder order is not an equivalent declaration.
+
+Ordinary semantic-formal projections and private callbacks share one nominal
+native-parameter identity space. `NativePlace::Field.parameter` names an
+ordinary entry whose validated layout owns the field; `NativePlace::Parameter`
+names a whole entry. Native order is fingerprinted separately from those
+stable identities. Exact replay consumes a boundary-plan application identity
+covering the requirement, ordered native telescope, each identity-to-placement
+row, callback materializations, and reusable physical plan. This catches an
+equally shaped parameter reorder that a placement-only fingerprint would miss.
+The migration from ordinal-derived IDs uses a new fingerprint version and
+reissues affected artifacts rather than reinterpreting them.
 
 A projected native callback field is a typed private-materialization demand in
 the normalized layout plan, not a field of the source-visible specification.

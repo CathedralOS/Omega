@@ -155,7 +155,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     source were byte-identical to the removed text-plus-assembler route; both
     resulting tapes pass the generic structural gate. Checker construction and
     refinement diagnostics now consume the direct tape.
-  - [ ] **DESIGN-BLOCKED — Q18:** Enforce Beta definite initialization across
+  - [ ] **DESIGN-BLOCKED — Q17:** Enforce Beta definite initialization across
     state/transition CFGs after fixing the flat-block formation and guarded-edge
     well-formedness rules. A source-order symbol-table pass alone does not prove
     initialization on every path; the byte-vector must-analysis and bounded
@@ -186,11 +186,11 @@ code, discover a closure, manufacture proof premises, or decide admission.
 
 ## 3. Beta-written Gamma compiler
 
-- [ ] **DESIGN-BLOCKED — Q17: BUILD-GAMMA-COMPILER.** Define the complete Gamma source contract, then
+- [ ] **DESIGN-BLOCKED — Q16: BUILD-GAMMA-COMPILER.** Define the complete Gamma source contract, then
   implement `source/gamma/compiler/gamma_compiler.beta` as a standalone
   compiler from Gamma source to Alpha tape. It may reuse or reorganize
   `interp.beta` and `typeck.beta`; no external interpreter may remain part of
-  compilation. Q17 must first select one typed executable grammar, entry/stream
+  compilation. Q16 must first select one typed executable grammar, entry/stream
   ABI, outcome model, and fuel/resource meaning. The current interpreter and
   type checker implement disconnected untyped-executable and typed-nonexecuting
   languages, so choosing either in code would invent Gamma semantics.
@@ -203,14 +203,14 @@ code, discover a closure, manufacture proof premises, or decide admission.
 
 ## 4. Gamma-written Delta compiler
 
-- [ ] **DESIGN-BLOCKED — Q16: FREEZE-DELTA-V1.** Finish one self-contained Delta grammar, static
+- [ ] **DESIGN-BLOCKED — Q15: FREEZE-DELTA-V1.** Finish one self-contained Delta grammar, static
   semantics, deterministic execution model, sealed byte I/O contract, and
   resource taxonomy. Delta is an independent robust C-like compiler-host
-  language; it does not inherit Omega meaning merely by sharing spelling. Q16
+  language; it does not inherit Omega meaning merely by sharing spelling. Q15
   must close the contradictory `Incomplete` placement, exact reject/trap
   taxonomy, keyword policy, optional domains/contracts, builtin resolution,
   Console/string ABI, scalar-transition miss, and closure presentation.
-- [ ] **DESIGN-BLOCKED — Q16: BUILD-DELTA-COMPILER.** Implement
+- [ ] **DESIGN-BLOCKED — Q15: BUILD-DELTA-COMPILER.** Implement
   `source/delta/compiler/delta_compiler.gamma` to consume arbitrary valid Delta
   and emit exact Alpha tape directly. No Beta translator, Gamma evaluator
   subprocess, host encoder/decoder, native assembler stream, or older compiler
@@ -221,7 +221,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   - [x] Delete `exprc.delta` and `minic.delta`; both were demonstrations of the
     removed Darwin-native route rather than authoritative Delta observations.
   - [ ] Classify `contextual-state-identifiers.delta`, `fieldsat.delta`, the
-    range/contracts portion of `discharge.delta`, and `calls.delta` after Q16.
+    range/contracts portion of `discharge.delta`, and `calls.delta` after Q15.
     They currently contradict the written keyword/domain/result/builtin rules.
 - [ ] Check exact Gamma-source-to-Alpha-tape refinement, including realistic
   source closures large enough to compile `D`.
@@ -231,7 +231,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 - [ ] **OWN-OMEGA-D.** Author one exact package-resolved closure `D` at
   `source/omega/omega_compiler.delta`; do not preserve historical filenames,
   snapshots, or native-publication adapters as authorities. This is downstream
-  of Q16. The deleted prototype remains available in Git for selectively
+  of Q15. The deleted prototype remains available in Git for selectively
   re-deriving an isolated algorithm, but it cannot be restored or copied as a
   compiler-shaped starting point.
 - [ ] Make `D` implement the complete Omega specification, including difficult

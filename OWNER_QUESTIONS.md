@@ -427,64 +427,7 @@ outputs outside the runtime result.
 - Tempting but wrong: derive result identity from source spelling, call-site
   order, accessor names, parameter ordinals, or compact plan fingerprints.
 
-## Q10 — Declaring a direct native-parameter callback destination
-
-### Context
-
-The settled outbound callback model maps one nominal static-machine binder to
-one compiler-issued `NativePlace`. A nested destination comes from an
-authoritative layout's explicitly cited `PrivateCallbackSlot<Requirement>`
-demand. A registrar whose native ABI already has a direct callback parameter
-instead needs `NativePlace::Parameter` naming that existing runtime parameter;
-it must not append a hidden argument or expose a raw code address.
-
-The compiler internally derives a nominal native-parameter identity for each
-runtime parameter, but the source `BoundarySignature` publishes only semantic
-shape roots, callback binders, and layout-derived private demands. No source
-declaration associates one exact runtime parameter with a callback requirement
-or makes its compiler-issued native-parameter identity available to the calling
-policy.
-
-### Problem statement
-
-The language does not say where a registrar declares that an already-authored
-runtime parameter is the destination for one exact callback requirement.
-Inferring the association from parameter order, type shape, binder order, or a
-unique pointer-sized placement is unstable and loses nominal requirement
-identity. Letting policy source author a numeric `NativeParameterId` would turn
-an internal coordinate into forgeable ABI authority. Adding a hidden callback
-argument would change the public requirement rather than describe its existing
-native ABI.
-
-### Proposed direction
-
-Add one declaration relationship on the registrar requirement's existing
-runtime parameter that explicitly names the nominal static-machine binder (or
-its exact requirement) as that parameter's private callback destination. The
-compiler resolves both parameter and binder by symbol, publishes their paired
-compiler-issued identities in the target-closed `BoundarySignature`, and lets
-the policy select only that declared `NativePlace::Parameter`. Require exactly
-one compatible supply per cited binder and reject duplicate destinations,
-wrong requirements, non-runtime parameters, inferred order, and declarations
-that would add or reorder ABI parameters.
-
-### Alternates
-
-- Acceptable: publish a compiler-derived native-parameter catalog plus a
-  separate explicit requirement-level mapping operation, provided source names
-  parameters and binders nominally rather than indexing either catalog.
-- Acceptable for a narrower first release: support only layout-field callback
-  destinations and reject direct native callback parameters until the
-  declaration relationship is ratified.
-- Tempting but wrong: reuse the semantic shape identity in
-  `BoundarySignature.parameters` as native-parameter identity.
-- Tempting but wrong: select the first pointer-sized argument, the binder with
-  the same ordinal, or the only parameter whose target placement happens to
-  fit a function pointer.
-- Tempting but wrong: expose a raw parameter ordinal, physical register/stack
-  location, or callback code address to source policy.
-
-## Q11 — Reborrow restoration disposition
+## Q10 — Reborrow restoration disposition
 
 ### Context
 
@@ -533,7 +476,7 @@ post-return use, cleanup, or Terminal resource claim may be derived from them.
 - Tempting but wrong: skip retired projected parents and return authority
   directly to a root without retaining and validating the complete path.
 
-## Q12 — Nominal result carriers for observing compare-exchange
+## Q11 — Nominal result carriers for observing compare-exchange
 
 ### Context
 
@@ -604,7 +547,7 @@ operation requirement identities separate from these value-type identities.
 - Tempting but wrong: expose `Uncommitted` on the decisive result merely because
   one larger runtime layout would be convenient.
 
-## Q13 — Strict SSH trust and credential authority
+## Q12 — Strict SSH trust and credential authority
 
 ### Context
 
@@ -653,7 +596,7 @@ producer claim.
 - Tempting but wrong: serialize private keys, tokens, or reusable credentials in
   `omega.lock` or source-resolution evidence.
 
-## Q14 — Suspension as control-flow exit or resumable continuation
+## Q13 — Suspension as control-flow exit or resumable continuation
 
 ### Context
 
@@ -692,7 +635,7 @@ and its custody.
 - Tempting but wrong: classify every `MaySuspend` call as a local CFG exit
   without retaining its continuation and outcome-specific state.
 
-## Q15 — Cyclic control flow in Terminal Psi
+## Q14 — Cyclic control flow in Terminal Psi
 
 ### Context
 
@@ -732,7 +675,7 @@ block-loop API.
   validation before loop-carried SSA, ownership, cleanup, and fuel semantics
   exist.
 
-## Q16 — Close the Delta v1 semantic contract
+## Q15 — Close the Delta v1 semantic contract
 
 ### Context
 
@@ -812,7 +755,7 @@ out of Delta without weakening its ability to host a robust compiler.
 - Tempting but wrong: retain the old translator's private capacities, exit
   codes, or Darwin output behavior as language rules.
 
-## Q17 — Select one typed executable Gamma contract
+## Q16 — Select one typed executable Gamma contract
 
 ### Context
 
@@ -882,7 +825,7 @@ failures.
 - Tempting but wrong: make Alpha I/O effects directly callable from arbitrary
   Gamma source merely to avoid defining the compiler-entry adapter.
 
-## Q18 — Fix Beta block formation and definite-initialization reachability
+## Q17 — Fix Beta block formation and definite-initialization reachability
 
 ### Context
 
