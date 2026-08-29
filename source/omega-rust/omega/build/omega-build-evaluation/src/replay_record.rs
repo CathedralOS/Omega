@@ -12,7 +12,7 @@ use std::fmt;
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 16;
+const VERSION: u16 = 17;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -277,6 +277,24 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
                 )
             })?;
         for operation in operations {
+            if operation.operation == 10 {
+                let [(1, ShapeScalar::I64(offset)), (2, ShapeScalar::I32(whence))] =
+                    operation.scalars.as_slice()
+                else {
+                    unreachable!("validated Output seek has exact offset and whence")
+                };
+                let ShapeResult::Scalar(result) = operation.result else {
+                    unreachable!("validated Output seek returns a scalar")
+                };
+                operation_records.push(
+                    psi_checked_interpreter::FilesystemOutputFileOperationReplayRecord::Seek {
+                        offset: *offset,
+                        whence: *whence,
+                        result,
+                    },
+                );
+                continue;
+            }
             if operation.operation == 41 {
                 let [(1, ShapeScalar::I64(length))] = operation.scalars.as_slice() else {
                     unreachable!("validated Output set_len has one i64 length")
@@ -1269,7 +1287,8 @@ fn output_file_ranges(
             ));
         }
         cursor += 1;
-        while cursor < shapes.len() && matches!(shapes[cursor].operation, 5 | 7 | 41 | 43 | 44) {
+        while cursor < shapes.len() && matches!(shapes[cursor].operation, 5 | 7 | 10 | 41 | 43 | 44)
+        {
             cursor += 1;
         }
         if cursor == shapes.len() || shapes[cursor].operation != 8 {
@@ -1408,6 +1427,10 @@ fn validate_output_file(
     let mut extent = 0usize;
     let mut peak_extent = 0usize;
     for operation in operations {
+        if operation.operation == 10 {
+            cursor = validate_output_seek_shape(operation, output.identity, cursor, extent)?;
+            continue;
+        }
         if operation.operation == 41 {
             extent = validate_output_set_length_shape(operation, output.identity)?;
             peak_extent = peak_extent.max(extent);
@@ -1492,6 +1515,62 @@ fn validate_output_file(
         ));
     }
     Ok(peak_extent)
+}
+
+fn validate_output_seek_shape(
+    operation: &AttemptShape<'_>,
+    identity: u64,
+    cursor: usize,
+    extent: usize,
+) -> Result<usize, BuildFilesystemReplayRecordError> {
+    let [(1, ShapeScalar::I64(offset)), (2, ShapeScalar::I32(whence))] =
+        operation.scalars.as_slice()
+    else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "receipted build output seek has no exact offset and whence",
+        ));
+    };
+    let [input] = operation.inputs.as_slice() else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "receipted build output seek has no unique descriptor input",
+        ));
+    };
+    let base = match whence {
+        0 => 0i64,
+        1 => i64::try_from(cursor).map_err(|_| {
+            BuildFilesystemReplayRecordError::new("receipted build output cursor exceeds i64")
+        })?,
+        2 => i64::try_from(extent).map_err(|_| {
+            BuildFilesystemReplayRecordError::new("receipted build output extent exceeds i64")
+        })?,
+        _ => {
+            return Err(BuildFilesystemReplayRecordError::new(
+                "receipted build output seek whence is unsupported",
+            ));
+        }
+    };
+    let expected = base.checked_add(*offset).ok_or_else(|| {
+        BuildFilesystemReplayRecordError::new("receipted build output seek result overflowed")
+    })?;
+    let result = usize::try_from(expected).map_err(|_| {
+        BuildFilesystemReplayRecordError::new("receipted build output seek result is negative")
+    })?;
+    if operation.provider != 2
+        || operation.result != ShapeResult::Scalar(expected)
+        || operation.post_error != 0
+        || *input
+            != (ShapeLogicalInput {
+                ordinal: 0,
+                kind: 0,
+                resolution: Some(identity),
+            })
+        || !only_output_seek_lanes(operation)
+    {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "receipted build output seek is internally inconsistent",
+        ));
+    }
+    Ok(result)
 }
 
 fn validate_output_set_length_shape(
@@ -1945,6 +2024,23 @@ fn only_output_set_length_lanes(attempt: &AttemptShape<'_>) -> bool {
         && attempt.refusal_count == 0
 }
 
+fn only_output_seek_lanes(attempt: &AttemptShape<'_>) -> bool {
+    attempt.byte_operands.is_empty()
+        && attempt.path_like_operand_count == 0
+        && attempt.rooted_paths.is_empty()
+        && attempt.returned_path_count == 0
+        && attempt.observed_regions.is_empty()
+        && attempt.metadata.is_empty()
+        && attempt.mutable_byte_resolutions.is_empty()
+        && attempt.mutable_i64_resolution_count == 0
+        && attempt.mutable_bytes.is_empty()
+        && attempt.mutable_i64_count == 0
+        && attempt.authorized_paths.is_empty()
+        && attempt.output.is_none()
+        && attempt.retired.is_empty()
+        && attempt.refusal_count == 0
+}
+
 fn record_commitment(bytes: &[u8]) -> [u8; 32] {
     let mut digest = Sha256::new();
     digest.update(COMMITMENT_DOMAIN);
@@ -2224,6 +2320,28 @@ mod first_rung_validation_tests {
         let mut wrong_ordinal = shapes.clone();
         wrong_ordinal[5].scalars = vec![(0, ShapeScalar::I64(3))];
         assert!(validate_first_rung(&wrong_ordinal).is_err());
+
+        let mut wrong_descriptor = shapes;
+        wrong_descriptor[5].inputs[0].resolution = Some(9);
+        assert!(validate_first_rung(&wrong_descriptor).is_err());
+    }
+
+    #[test]
+    fn output_seek_requires_exact_recomputed_result_and_lineage() {
+        let mut shapes = exact_input_output_shapes();
+        let mut seek = empty_shape(10, ShapeResult::Scalar(5));
+        seek.scalars = vec![(1, ShapeScalar::I64(-2)), (2, ShapeScalar::I32(2))];
+        seek.inputs = shapes[4].inputs.clone();
+        shapes.insert(5, seek);
+        assert!(validate_first_rung(&shapes).is_ok());
+
+        let mut wrong_result = shapes.clone();
+        wrong_result[5].result = ShapeResult::Scalar(4);
+        assert!(validate_first_rung(&wrong_result).is_err());
+
+        let mut bad_whence = shapes.clone();
+        bad_whence[5].scalars[1] = (2, ShapeScalar::I32(9));
+        assert!(validate_first_rung(&bad_whence).is_err());
 
         let mut wrong_descriptor = shapes;
         wrong_descriptor[5].inputs[0].resolution = Some(9);

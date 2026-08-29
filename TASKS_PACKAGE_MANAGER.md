@@ -95,8 +95,9 @@ closed. Compiler-issued package review remains non-admitting.
 
 - [ ] **BUILD-OBSERVATION-EVIDENCE.** Generalize the existing exact
   Source-input/empty-Output and repeated direct-child
-  `create`/zero-or-more full sequential-or-positioned writes, successful
-  length changes, and successful syncs/`close` output replay lanes,
+  `create`/zero-or-more full sequential-or-positioned writes, exact successful
+  seeks, successful length changes, and successful syncs/`close` output replay
+  lanes,
   including exact cursor-independent positioned offsets and exact ordered
   generated-source subsets, into a complete receipted build-operation and
   output grammar. Add replay for every remaining admitted service and staged-

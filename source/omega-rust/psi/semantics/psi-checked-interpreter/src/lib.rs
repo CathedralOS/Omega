@@ -1967,7 +1967,14 @@ impl FilesystemOutputWriteReplayRecord {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FilesystemOutputFileOperationReplayRecord {
     Write(FilesystemOutputWriteReplayRecord),
-    SetLength { length: i64 },
+    Seek {
+        offset: i64,
+        whence: i32,
+        result: i64,
+    },
+    SetLength {
+        length: i64,
+    },
     Sync,
     SyncData,
 }
@@ -2118,6 +2125,11 @@ impl FilesystemOutputFileReplayRecord {
         let mut cursor = 0usize;
         for operation in &self.operations {
             let FilesystemOutputFileOperationReplayRecord::Write(write) = operation else {
+                if let FilesystemOutputFileOperationReplayRecord::Seek { result, .. } = operation {
+                    cursor = usize::try_from(*result).map_err(|_| {
+                        "filesystem replay Output seek result exceeds this host".to_owned()
+                    })?;
+                }
                 if let FilesystemOutputFileOperationReplayRecord::SetLength { length } = operation {
                     let length = usize::try_from(*length).map_err(|_| {
                         "filesystem replay Output length exceeds this host".to_owned()
@@ -2165,6 +2177,38 @@ impl FilesystemOutputFileReplayRecord {
         let mut peak_extent = 0usize;
         for operation in &self.operations {
             let FilesystemOutputFileOperationReplayRecord::Write(write) = operation else {
+                if let FilesystemOutputFileOperationReplayRecord::Seek {
+                    offset,
+                    whence,
+                    result,
+                } = operation
+                {
+                    let base = match whence {
+                        0 => 0i64,
+                        1 => i64::try_from(cursor).map_err(|_| {
+                            "filesystem replay Output cursor exceeds i64".to_owned()
+                        })?,
+                        2 => i64::try_from(extent).map_err(|_| {
+                            "filesystem replay Output extent exceeds i64".to_owned()
+                        })?,
+                        _ => {
+                            return Err(
+                                "filesystem replay Output seek whence is invalid".to_owned()
+                            );
+                        }
+                    };
+                    let expected = base.checked_add(*offset).ok_or_else(|| {
+                        "filesystem replay Output seek result overflowed".to_owned()
+                    })?;
+                    if expected < 0 || expected != *result {
+                        return Err(
+                            "filesystem replay Output seek result is inconsistent".to_owned()
+                        );
+                    }
+                    cursor = usize::try_from(expected).map_err(|_| {
+                        "filesystem replay Output seek result exceeds this host".to_owned()
+                    })?;
+                }
                 if let FilesystemOutputFileOperationReplayRecord::SetLength { length } = operation {
                     extent = usize::try_from(*length).map_err(|_| {
                         "filesystem replay Output length must be nonnegative and fit this host"
@@ -2779,6 +2823,7 @@ fn output_file_record_from_attempts(
             5 | 7 => FilesystemOutputFileOperationReplayRecord::Write(
                 output_write_record_from_attempt(operation, create_result)?,
             ),
+            10 => output_seek_record_from_attempt(operation, create_result)?,
             41 => output_set_length_record_from_attempt(operation, create_result)?,
             43 | 44 => output_sync_record_from_attempt(operation, create_result)?,
             _ => return Err("filesystem replay Output operation is unsupported".to_owned()),
@@ -2830,6 +2875,60 @@ fn output_file_record_from_attempts(
         operation_records,
         close_post_error,
     )
+}
+
+fn output_seek_record_from_attempt(
+    operation: &FilesystemOperationAttempt,
+    identity: FilesystemLogicalHandleIdentity,
+) -> Result<FilesystemOutputFileOperationReplayRecord, String> {
+    let [
+        FilesystemScalarOperand {
+            operand_ordinal: 1,
+            value: FilesystemScalarOperandValue::I64(offset),
+        },
+        FilesystemScalarOperand {
+            operand_ordinal: 2,
+            value: FilesystemScalarOperandValue::I32(whence),
+        },
+    ] = operation.scalar_operands.as_slice()
+    else {
+        return Err("filesystem replay Output seek has no exact offset and whence".to_owned());
+    };
+    let [input] = operation.logical_handle_inputs.as_slice() else {
+        return Err("filesystem replay Output seek lanes are inconsistent".to_owned());
+    };
+    let Some(FilesystemOperationResult::Scalar(result)) = operation.result() else {
+        return Err("filesystem replay Output seek did not return a scalar".to_owned());
+    };
+    if !matches!(*whence, 0 | 1 | 2)
+        || result < 0
+        || operation.provider != FilesystemObservationProvider::RealScoped
+        || operation.post_error() != Some(0)
+        || input.operand_ordinal != 0
+        || input.kind != FilesystemLogicalHandleKind::Descriptor
+        || input.resolution != FilesystemLogicalHandleInputResolution::Resolved(identity)
+        || !operation.byte_operands.is_empty()
+        || !operation.path_like_operands.is_empty()
+        || !operation.rooted_path_operand_resolutions.is_empty()
+        || !operation.returned_paths.is_empty()
+        || !operation.observed_byte_regions.is_empty()
+        || !operation.metadata_observations.is_empty()
+        || !operation.mutable_byte_operand_resolutions.is_empty()
+        || !operation.mutable_i64_operand_resolutions.is_empty()
+        || !operation.mutable_byte_operands.is_empty()
+        || !operation.mutable_i64_operands.is_empty()
+        || !operation.authorized_paths.is_empty()
+        || operation.logical_handle_output.is_some()
+        || !operation.retired_logical_handles.is_empty()
+        || !operation.grant_refusals.is_empty()
+    {
+        return Err("filesystem replay Output seek lanes are inconsistent".to_owned());
+    }
+    Ok(FilesystemOutputFileOperationReplayRecord::Seek {
+        offset: *offset,
+        whence: *whence,
+        result,
+    })
 }
 
 fn output_set_length_record_from_attempt(
@@ -3010,7 +3109,7 @@ fn output_file_records_from_attempts(
         }
         cursor += 1;
         while cursor < attempts.len()
-            && matches!(attempts[cursor].operation_tag(), 5 | 7 | 41 | 43 | 44)
+            && matches!(attempts[cursor].operation_tag(), 5 | 7 | 10 | 41 | 43 | 44)
         {
             cursor += 1;
         }
@@ -3170,6 +3269,47 @@ fn output_file_operation_attempt(
             retired_logical_handles: Vec::new(),
             grant_refusals: Vec::new(),
         },
+        FilesystemOutputFileOperationReplayRecord::Seek {
+            offset,
+            whence,
+            result,
+        } => FilesystemOperationAttempt {
+            operation_tag: 10,
+            provider: FilesystemObservationProvider::RealScoped,
+            outcome: Some(FilesystemOperationAttemptOutcome::Returned {
+                result: FilesystemOperationResult::Scalar(result),
+                post_error: 0,
+            }),
+            scalar_operands: vec![
+                FilesystemScalarOperand {
+                    operand_ordinal: 1,
+                    value: FilesystemScalarOperandValue::I64(offset),
+                },
+                FilesystemScalarOperand {
+                    operand_ordinal: 2,
+                    value: FilesystemScalarOperandValue::I32(whence),
+                },
+            ],
+            byte_operands: Vec::new(),
+            path_like_operands: Vec::new(),
+            rooted_path_operand_resolutions: Vec::new(),
+            returned_paths: Vec::new(),
+            observed_byte_regions: Vec::new(),
+            metadata_observations: Vec::new(),
+            mutable_byte_operand_resolutions: Vec::new(),
+            mutable_i64_operand_resolutions: Vec::new(),
+            mutable_byte_operands: Vec::new(),
+            mutable_i64_operands: Vec::new(),
+            authorized_paths: Vec::new(),
+            logical_handle_inputs: vec![FilesystemLogicalHandleInput {
+                operand_ordinal: 0,
+                kind: FilesystemLogicalHandleKind::Descriptor,
+                resolution: FilesystemLogicalHandleInputResolution::Resolved(identity),
+            }],
+            logical_handle_output: None,
+            retired_logical_handles: Vec::new(),
+            grant_refusals: Vec::new(),
+        },
         FilesystemOutputFileOperationReplayRecord::SetLength { length } => {
             FilesystemOperationAttempt {
                 operation_tag: 41,
@@ -3209,6 +3349,7 @@ fn output_file_operation_attempt(
                 FilesystemOutputFileOperationReplayRecord::Sync => 43,
                 FilesystemOutputFileOperationReplayRecord::SyncData => 44,
                 FilesystemOutputFileOperationReplayRecord::Write(_)
+                | FilesystemOutputFileOperationReplayRecord::Seek { .. }
                 | FilesystemOutputFileOperationReplayRecord::SetLength { .. } => unreachable!(),
             },
             provider: FilesystemObservationProvider::RealScoped,
@@ -3772,6 +3913,92 @@ mod filesystem_replay_record_tests {
         );
         let mut malformed = replay.attempts().to_vec();
         malformed[5].scalar_operands[0].operand_ordinal = 0;
+        let observations =
+            EvaluationObservations::from_filesystem_operation_attempts(malformed, Vec::new());
+        assert!(FilesystemReplay::from_input_output_observations(&observations).is_err());
+    }
+
+    #[test]
+    fn typed_output_file_replays_exact_seek_cursor_transitions() {
+        let output = FilesystemOutputFileReplayRecord::with_operations(
+            root(2),
+            b"seeked.bin".to_vec(),
+            2,
+            0,
+            vec![
+                FilesystemOutputFileOperationReplayRecord::Write(
+                    FilesystemOutputWriteReplayRecord::new(b"abcdef".to_vec(), 6, 0).unwrap(),
+                ),
+                FilesystemOutputFileOperationReplayRecord::Seek {
+                    offset: 2,
+                    whence: 0,
+                    result: 2,
+                },
+                FilesystemOutputFileOperationReplayRecord::Write(
+                    FilesystemOutputWriteReplayRecord::new(b"XY".to_vec(), 2, 0).unwrap(),
+                ),
+                FilesystemOutputFileOperationReplayRecord::Seek {
+                    offset: -1,
+                    whence: 2,
+                    result: 5,
+                },
+                FilesystemOutputFileOperationReplayRecord::Write(
+                    FilesystemOutputWriteReplayRecord::new(b"Z".to_vec(), 1, 0).unwrap(),
+                ),
+                FilesystemOutputFileOperationReplayRecord::Seek {
+                    offset: -3,
+                    whence: 1,
+                    result: 3,
+                },
+                FilesystemOutputFileOperationReplayRecord::Write(
+                    FilesystemOutputWriteReplayRecord::new(b"Q".to_vec(), 1, 0).unwrap(),
+                ),
+            ],
+            0,
+        )
+        .unwrap();
+        assert_eq!(output.replayed_bytes().unwrap(), b"abXQeZ");
+        let record =
+            FilesystemInputOutputReplayRecord::new(source_input(1), vec![output], Vec::new())
+                .unwrap();
+        let replay = FilesystemReplay::from_input_output_record(record).unwrap();
+        assert_eq!(
+            replay
+                .attempts()
+                .iter()
+                .map(FilesystemOperationAttempt::operation_tag)
+                .collect::<Vec<_>>(),
+            vec![2, 4, 8, 1, 5, 10, 5, 10, 5, 10, 5, 8]
+        );
+        let decoded = FilesystemReplay::from_input_output_observations(
+            &EvaluationObservations::from_filesystem_operation_attempts(
+                replay.attempts().to_vec(),
+                Vec::new(),
+            ),
+        )
+        .expect("successful canonical seeks are exact Output operations");
+        assert_eq!(
+            decoded.output_files()[0].replayed_bytes().unwrap(),
+            b"abXQeZ"
+        );
+
+        assert!(
+            FilesystemOutputFileReplayRecord::with_operations(
+                root(2),
+                b"bad-seek.bin".to_vec(),
+                3,
+                0,
+                vec![FilesystemOutputFileOperationReplayRecord::Seek {
+                    offset: 1,
+                    whence: 0,
+                    result: 2,
+                }],
+                0,
+            )
+            .is_err()
+        );
+        let mut malformed = replay.attempts().to_vec();
+        malformed[5].scalar_operands[1].value = FilesystemScalarOperandValue::I32(9);
         let observations =
             EvaluationObservations::from_filesystem_operation_attempts(malformed, Vec::new());
         assert!(FilesystemReplay::from_input_output_observations(&observations).is_err());
