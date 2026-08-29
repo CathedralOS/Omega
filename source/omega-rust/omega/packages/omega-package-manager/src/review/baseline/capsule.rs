@@ -13,10 +13,12 @@ use super::{
     CHECKSUM_BYTES, MAGIC, REVIEW_ONLY_ARTIFACT_CLASS, ReviewOnlyBaselineError,
     ReviewOnlyBaselineLimits, VERSION,
 };
-use crate::review::closure::{validate_review_only_closure, validate_review_only_records};
 use crate::review::evidence::{
     PackageReviewEvidence, ReviewOnlyCanonicalRow, ReviewOnlyCompilerExecutableCommitment,
     ReviewOnlySourceConsumptionCommitment, build_observation_commitment, whole_review_commitment,
+};
+use crate::review::review_set_validation::{
+    validate_review_only_closure, validate_review_only_records,
 };
 use crate::{
     AliasName, CompilerIssuedPackageReviewSet, ImmutableSourceResolution, PackageKey,

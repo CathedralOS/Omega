@@ -1,9 +1,9 @@
 //! High-level comparison, triage, and source-review operations.
 
 use super::ReviewOnlyBaselineCapsule;
+use crate::review::advisory_review::assemble_update_source_review_records;
 use crate::review::comparison::compare_review_only_capability_records;
-use crate::review::source_review::assemble_update_source_review_records;
-use crate::review::source_triage::triage_review_update_records;
+use crate::review::review_triage::triage_review_update_records;
 use crate::{
     CompilerIssuedPackageReviewSet, CompilerReviewTriage, PackageKey, PackageSourceCustody,
     PackageSourceReviewError, PackageSourceReviewInput, PackageSourceReviewLimits,

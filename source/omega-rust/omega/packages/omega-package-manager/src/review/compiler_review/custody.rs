@@ -1,5 +1,5 @@
 use super::{CompileResolvedPackageReviewsError, PackageSourceVerificationPhase};
-use crate::review::compiler_handoff::reachable_package_keys;
+use crate::review::compilation_inputs::reachable_package_keys;
 use crate::source::acquisition::verify_package_source_snapshot;
 use crate::{ImmutableSourceResolution, PackageKey, ResolvedPackageSourceClosure};
 use std::collections::BTreeSet;

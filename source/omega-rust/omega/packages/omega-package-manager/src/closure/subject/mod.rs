@@ -1,7 +1,7 @@
 //! Canonical, recoverable identity of one complete resolved source closure.
 
 use super::graph::ResolvedSourceIdentity;
-use super::reconcile::ResolvedPackageSourceClosure;
+use super::reconciliation::ResolvedPackageSourceClosure;
 use crate::declarations::dependency_projection::DependencySourceRequest;
 use crate::source::identity::{
     AliasName, ExternalSourceContext, PackageKey, PackageName, SourceLineage, WorkspaceMemberPath,

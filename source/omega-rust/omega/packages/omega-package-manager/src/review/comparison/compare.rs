@@ -4,11 +4,11 @@ use super::format::{
     change_tag, row_kind_tag, row_risk_tag, source_location_role_tag, synthetic_source_kind_tag,
 };
 use super::model::*;
-use crate::review::closure::{
+use crate::review::evidence::{PackageReviewEvidence, ReviewOnlyCanonicalRow};
+use crate::review::review_set_validation::{
     ReviewOnlyClosureValidationError, ReviewOnlySetValidationError, validate_review_only_closure,
     validate_review_only_records,
 };
-use crate::review::evidence::{PackageReviewEvidence, ReviewOnlyCanonicalRow};
 use crate::{
     CompilerIssuedPackageReviewSet, DependencyRequestPath, ImmutableSourceResolution, PackageKey,
     ResolvedPackageSourceClosure,
