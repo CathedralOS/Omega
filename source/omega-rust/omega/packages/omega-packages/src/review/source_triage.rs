@@ -1,6 +1,6 @@
 //! Deterministic source and provenance triage dispositions.
 
-use crate::review::capability_conflict::changed_review_risk;
+use crate::review::comparison::changed_review_risk;
 use crate::review::evidence::PackageReviewEvidence;
 use crate::{CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet, PackageKey};
 use omega_package_review::{

@@ -30,8 +30,10 @@ src/
 |       `-- custody/       Tree checks, host policy, locks, and atomic publication.
 |-- review/
 |   |-- compiler_review.rs Compile a resolved closure into compiler-issued evidence.
-|   |-- capability_conflict.rs
-|   |                       Compare candidate and baseline capabilities.
+|   |-- comparison/        Compare candidate and baseline capabilities.
+|   |   |-- model.rs       Bounded conflict and error vocabulary.
+|   |   |-- compare.rs     Exact row comparison and closure commitments.
+|   |   `-- format.rs      Fixed review rendering and canonical tags.
 |   |-- source_patch.rs    Produce bounded source changes for human/LLM review.
 |   |-- source_triage.rs   Derive deterministic blockers and audit recommendations.
 |   |-- source_review.rs   Assemble and invoke the advisory-review boundary.

@@ -1,8 +1,8 @@
 //! Compiler review, candidate comparison, advisory triage, and root policy.
 
 pub(crate) mod baseline;
-pub(crate) mod capability_conflict;
 pub(crate) mod closure;
+pub mod comparison;
 pub(crate) mod compiler_handoff;
 pub(crate) mod compiler_review;
 pub(crate) mod evidence;
@@ -19,7 +19,7 @@ pub use baseline::{
     assemble_update_source_review_from_baseline, compare_review_only_capabilities_from_baseline,
     triage_review_update_from_baseline,
 };
-pub use capability_conflict::{
+pub use comparison::{
     ReviewOnlyCandidateClosureCommitment, ReviewOnlyCapabilityConflict,
     ReviewOnlyCapabilityConflictChange, ReviewOnlyCapabilityConflictError,
     ReviewOnlyCapabilityConflictFingerprint, ReviewOnlyCapabilityConflictLimits,
