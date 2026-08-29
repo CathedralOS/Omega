@@ -1,7 +1,7 @@
 use super::super::api::operators::project_operator_coordinate;
 use super::super::semantics::declarations::{nominal_identity, trait_requirement_identity};
 use super::super::semantics::types::review_signature_type_identity_with_binders;
-use super::boundary_operator_selection::{
+use super::boundary_operators::{
     validate_selected_boundary_operator_checked_adapter,
     validate_selected_boundary_operator_external_supply,
 };
@@ -20,7 +20,7 @@ use psi_diagnostics::Diagnostic;
 use psi_language_semantics::MachineSupplyMode;
 use psi_symbols::SymbolHandle;
 
-pub(crate) fn project_callable_conformances(
+pub(super) fn project_callable_conformances(
     compilation: &CheckedCompilation,
     machine: &psi_typed_trees::machine::Machine,
     callable_identity: &PackageReviewNominalIdentity,

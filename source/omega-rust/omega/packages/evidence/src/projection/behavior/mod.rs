@@ -9,7 +9,9 @@ mod termination;
 
 pub(crate) use crash::{project_crash, project_crash_cause, project_crash_routes};
 pub(crate) use flow::project_capability_flow;
-pub(crate) use invocations::project_synchronous_invocations;
+pub(crate) use invocations::{
+    canonical_checked_invocation_targets, project_synchronous_invocations,
+};
 pub(crate) use mutation::project_mutation;
 pub(crate) use reach::{project_installation_reaches, project_service_row};
 pub(crate) use termination::{

@@ -24,7 +24,7 @@ use crate::evidence::{
     PackageReviewContractCallTarget, PackageReviewContractExpression,
     PackageReviewContractOperatorMeaning, PackageReviewFloatLiteral, PackageReviewReferenceAccess,
 };
-use crate::projection::contracts::callables::ContractProjectionContext;
+use crate::projection::contracts::facts::ContractProjectionContext;
 use crate::projection::semantics::types::review_signature_type_identity_with_binders;
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;

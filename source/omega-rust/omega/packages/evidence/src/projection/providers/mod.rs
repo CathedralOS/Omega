@@ -4,9 +4,6 @@
 //! external binding custody live beside it as independently discoverable
 //! validation responsibilities.
 
-mod boundary_operator_selection;
-pub(super) mod callable_conformances;
-mod external_supply;
 pub(super) mod families;
 pub(super) mod installation;
 pub(super) mod intrinsics;

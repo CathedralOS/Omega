@@ -9,10 +9,10 @@ mod authority;
 mod behavior;
 mod callables;
 mod contracts;
+mod package;
 mod providers;
 mod representation;
-mod review;
 mod semantics;
 mod source;
 
-pub use review::project_checked_package_review;
+pub use package::project_checked_package_review;

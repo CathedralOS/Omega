@@ -3,7 +3,7 @@ use super::members::{
     project_contract_member_expression,
 };
 use crate::evidence::PackageReviewContractExpression;
-use crate::projection::contracts::callables::ContractProjectionContext;
+use crate::projection::contracts::facts::ContractProjectionContext;
 use crate::projection::semantics::declarations::nominal_identity;
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;

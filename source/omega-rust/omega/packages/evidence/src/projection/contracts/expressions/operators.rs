@@ -3,7 +3,7 @@ use crate::evidence::{
     PackageReviewContractUnaryOperator,
 };
 use crate::projection::api::operators::project_operator_coordinate;
-use crate::projection::contracts::callables::ContractProjectionContext;
+use crate::projection::contracts::facts::ContractProjectionContext;
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 

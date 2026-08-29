@@ -1,10 +1,8 @@
 use super::{
-    operations::{
-        project_signature_invocation_source_locations,
-        project_signature_operational_source_locations,
-    },
+    contracts::project_contract_source_locations,
+    invocations::project_signature_invocation_source_locations,
     service_reach::project_signature_service_reach_source_locations,
-    source_locations::project_contract_source_locations,
+    suspension::project_signature_operational_source_locations,
 };
 use crate::evidence::PackageReviewSourceLocationRole;
 use crate::projection::source::ProjectedNestedSourceLocation;

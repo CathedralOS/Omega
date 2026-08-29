@@ -23,16 +23,16 @@ src/
 |   |-- package/              callables, providers, package aggregate, and source pairings
 |   `-- rows.rs               canonical row and source-coordinate carriers
 |-- projection/               private checked compiler state -> package evidence
-|   |-- review/               complete validation, projection, and assembly operation
+|   |-- package/              whole-package validation, collection, and assembly
 |   |-- authority.rs          reached authority and intrinsic risk classes
 |   |-- representation.rs     semantic dependencies and representation TCB
-|   |-- source/               compiler-private pairings and final canonical source custody
+|   |-- source/               authored source custody, private row pairings, and finalization
 |   |-- api/                  public domains, data, propositions, constants, operators, traits, and conformances
-|   |-- callables.rs          callable envelope projection
-|   |-- contracts/            callables, evidence, operations, parameters, reach, and source custody
+|   |-- callables/            callable review, realization, and external supply
+|   |-- contracts/            contract facts, evidence, expressions, and propositions
 |   |   |-- expressions/      calls, members, constructors, names, and operators
 |   |   `-- propositions/     application, binders, endpoints, and evidence
-|   |-- providers/           selection, installation, families, intrinsics, conformances, and external supply
+|   |-- providers/            selected plans, installation reach, families, and intrinsics
 |   |-- behavior/             reach, invocation, mutation, crash, termination, and flow rows
 |   `-- semantics/            declarations, types, signatures, facts, and conformances
 |-- encoding/                 public canonical persistence boundaries; no compiler IR

@@ -1,10 +1,10 @@
-use super::super::contracts::parameters::collect_type_parameter_source_locations;
 use super::super::contracts::propositions::evidence::collect_evidence_requirements;
 use super::super::semantics::declarations::{
     nominal_identity, reviewed_package_owns, trait_requirement_identity,
 };
 use super::super::semantics::signatures::parameters::project_type_parameters;
 use super::super::semantics::types::review_signature_type_identity_with_binders;
+use super::super::source::parameters::collect_type_parameter_source_locations;
 use crate::evidence::{
     PackageReviewConformanceShape, PackageReviewConformanceSubject, PackageReviewEvidenceInterface,
 };

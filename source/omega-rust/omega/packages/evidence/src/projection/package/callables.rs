@@ -1,13 +1,12 @@
 use super::super::callables::{project_callable, project_private_external_executable_supply};
-use super::super::contracts::operations::{
-    project_machine_invocation_source_locations, project_machine_operational_source_locations,
-};
-use super::super::contracts::parameters::{
+use super::super::semantics::declarations::nominal_identity;
+use super::super::source::contracts::project_contract_source_locations;
+use super::super::source::invocations::project_machine_invocation_source_locations;
+use super::super::source::parameters::{
     collect_callable_parameter_source_locations, collect_type_parameter_source_locations,
 };
-use super::super::contracts::service_reach::project_machine_service_reach_source_locations;
-use super::super::contracts::source_locations::project_contract_source_locations;
-use super::super::semantics::declarations::nominal_identity;
+use super::super::source::service_reach::project_machine_service_reach_source_locations;
+use super::super::source::suspension::project_machine_operational_source_locations;
 use crate::evidence::{
     CheckedPackageCallableReview, PackageReviewCallableRole, PackageReviewExternalExecutableSupply,
     PackageReviewNominalOwner, PackageReviewSourceLocationRole,
