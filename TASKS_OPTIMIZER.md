@@ -225,6 +225,11 @@ and no-selection compatibility remain enforced.
   replay/validation, identities, constraints, structural/scalar families, and
   focused fixtures descend through named leaves, and the architecture gate now
   governs the entire lowering crate.
+- [x] Replace the 4,930-line abstract-to-target lowering entrance and
+  2,714-line fixture monolith with settlement/function coordination,
+  per-result routing, scalar setup/special/conditional/straight-line families,
+  structural routes/layout, Unit lowering, boundary settlement, cleanup, and
+  mirrored test families. The architecture gate now governs this entire stage.
 - [>] Replace remaining flat executable stages and mixed-responsibility files
   with semantic folders whose small `mod.rs` owns the real stage join. Tighten
   the production-file ceiling as each named legacy leaf is removed.

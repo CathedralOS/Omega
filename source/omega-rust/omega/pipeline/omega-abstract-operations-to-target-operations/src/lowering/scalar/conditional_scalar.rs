@@ -1,3 +1,5 @@
+//! Scalar operations shared by straight-line and conditional lowering.
+
 use super::*;
 
 pub(super) fn lower_conditional_scalar_operation(

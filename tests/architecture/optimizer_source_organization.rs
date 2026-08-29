@@ -23,6 +23,7 @@ const GOVERNED_ROOTS: &[&str] = &[
     "source/omega-rust/omega/pipeline/optimization",
     "source/omega-rust/omega/representations/omega-optimization-core",
     "source/omega-rust/omega/representations/omega-optimization-unit",
+    "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations",
     "source/omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations",
     "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions",
 ];
@@ -76,6 +77,22 @@ struct RequiredCoordinationEntrance {
 /// keeping these paths small is insufficient: deleting the coordination seam
 /// and leaving a re-export wall must fail this architecture test.
 const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/mod.rs",
+        coordination_marker: "pub fn lower_to_target_operations_with_provider_executions_and_installation",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/function/mod.rs",
+        coordination_marker: "pub(super) fn lower_function",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/scalar/mod.rs",
+        coordination_marker: "pub(super) fn lower_scalar_function",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/structural/mod.rs",
+        coordination_marker: "pub(super) fn lower_structural_function",
+    },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/mod.rs",
         coordination_marker: "pub fn legalize_target_operations",

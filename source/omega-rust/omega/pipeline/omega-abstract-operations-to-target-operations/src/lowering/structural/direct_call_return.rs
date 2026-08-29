@@ -14,9 +14,11 @@ use omega_target_operations::{
 use psi_core::{MachineId, StructuralTypeId};
 use psi_terminal::{StructuralAccess, StructuralMultiplicity, StructuralTypeDeclaration};
 
-use super::{LoweringError, require_direct_structural_fragments, structural_shape};
+use super::require_direct_structural_fragments;
+use crate::LoweringError;
+use crate::lowering::structural_layout::structural_shape;
 
-pub(super) fn lower_direct_return(
+pub(in crate::lowering) fn lower_direct_return(
     function: &AbstractFunction,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
