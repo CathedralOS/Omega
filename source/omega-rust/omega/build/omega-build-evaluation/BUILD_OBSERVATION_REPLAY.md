@@ -87,3 +87,22 @@ One replay retains at most 4,096 directories, 4,096 bytes per path, and 16 MiB
 of aggregate path spelling. Files and directories still do not mix. Missing or
 late parents, duplicate paths, root changes, generated-source handoffs,
 alternate operations, and failed outcomes remain observed but non-receipted.
+
+## Mixed Output tree (summary v43, replay record v24)
+
+The bounded Output grammar now retains one ordered sequence of directory
+creates and complete regular-file chains. A file chain uses the already
+admitted `create`/operation*/`close` grammar and remains contiguous. Every
+nested directory or file must follow its exact parent directory; replay never
+invents a parent from the final tree. Exact path collisions, a file used as a
+parent, missing or late parents, root changes, and descriptor reuse reject.
+
+Generated-source handoffs may name nested regular files and remain bound to
+their exact post-close filesystem-attempt ordinal. Provider-free replay
+reproduces the complete authored sequence and requires exact attempts, mixed
+virtual namespace, teardown, handoff sequence, and sponsored staged-tree
+equality. One tree retains at most 4,096 entries, 4,096 bytes per path, and
+16 MiB of aggregate path spelling; existing operation, descriptor, extent, and
+content ceilings still apply. Symlinks, hard links, implicit parents,
+interleaved file chains, other namespace operations, and failed outcomes remain
+outside this increment.

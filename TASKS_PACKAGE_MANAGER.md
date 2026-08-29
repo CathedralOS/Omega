@@ -102,8 +102,9 @@ closed. Compiler-issued package review remains non-admitting.
   bounded adjacent nonblocking exclusive lock/unlock pairs on the original
   Output descriptor, and successful syncs/`close` output replay lanes,
   including exact cursor-independent positioned offsets, exact ordered
-  generated-source subsets, and bounded parent-before-child empty Output
-  directory trees, into a complete receipted build-operation and
+  generated-source subsets, and bounded parent-before-child mixed Output trees
+  containing directories and complete regular-file chains, including nested
+  generated sources, into a complete receipted build-operation and
   output grammar. Add replay for every remaining admitted service and staged-
   output shape, exact staged-output
   commitments, failure/denial outcomes, and a complete replay verdict. Enforce

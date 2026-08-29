@@ -63,8 +63,8 @@ use omega_optimization_core::{Optimization, OptimizationSelections};
 use omega_provider_planning::{ProviderSelection, ProviderSelectionIdentity};
 
 use omega_build_output::{
-    BuildStagedOutputTree, PackageGeneratedSource, capture, empty, replayed_empty_directories,
-    replayed_files, select_included_sources,
+    BuildStagedOutputTree, PackageGeneratedSource, ReplayedBuildOutputEntry, capture, empty,
+    replayed_output_tree, select_included_sources,
 };
 
 const BUILD_MACHINE: &str = "build";
@@ -303,7 +303,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 42;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 43;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -2572,49 +2572,46 @@ struct ReceiptedOutputFile {
     executable: bool,
 }
 
-fn receipted_output_files(
-    replay: &psi_checked_interpreter::FilesystemReplay,
-) -> Option<Vec<ReceiptedOutputFile>> {
-    let outputs = replay.output_files();
-    if outputs.is_empty() {
-        return None;
-    }
-    outputs
-        .into_iter()
-        .map(|output| {
-            if output.output_root() != BUILD_OUTPUT_ROOT_IDENTITY
-                || output.output_relative_path().contains(&b'/')
-                || output.create_post_error() != 0
-                || output.close_post_error() != 0
-            {
-                return None;
-            }
-            let bytes = output.replayed_bytes().ok()?;
-            Some(ReceiptedOutputFile {
-                relative_path: output.output_relative_path().to_vec(),
-                bytes,
-                executable: output.replayed_executable(),
-            })
-        })
-        .collect()
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ReceiptedOutputEntry {
+    Directory { relative_path: Vec<u8> },
+    File(ReceiptedOutputFile),
 }
 
-fn receipted_output_directories(
+fn receipted_output_entries(
     replay: &psi_checked_interpreter::FilesystemReplay,
-) -> Option<Vec<Vec<u8>>> {
-    let directories = replay.output_directories();
-    if directories.is_empty() {
+) -> Option<Vec<ReceiptedOutputEntry>> {
+    let entries = replay.output_entries();
+    if entries.is_empty() {
         return None;
     }
-    directories
+    entries
         .into_iter()
-        .map(|directory| {
-            (directory.output_root() == BUILD_OUTPUT_ROOT_IDENTITY
+        .map(|entry| match entry {
+            psi_checked_interpreter::FilesystemOutputTreeEntryReplayRecord::Directory(
+                directory,
+            ) => (directory.output_root() == BUILD_OUTPUT_ROOT_IDENTITY
                 && directory.mode()
                     == psi_checked_interpreter::FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_MODE
                 && directory.result() == 0
                 && directory.post_error() == 0)
-                .then(|| directory.output_relative_path().to_vec())
+                .then(|| ReceiptedOutputEntry::Directory {
+                    relative_path: directory.output_relative_path().to_vec(),
+                }),
+            psi_checked_interpreter::FilesystemOutputTreeEntryReplayRecord::File(output) => {
+                if output.output_root() != BUILD_OUTPUT_ROOT_IDENTITY
+                    || output.create_post_error() != 0
+                    || output.close_post_error() != 0
+                {
+                    return None;
+                }
+                let bytes = output.replayed_bytes().ok()?;
+                Some(ReceiptedOutputEntry::File(ReceiptedOutputFile {
+                    relative_path: output.output_relative_path().to_vec(),
+                    bytes,
+                    executable: output.replayed_executable(),
+                }))
+            }
         })
         .collect()
 }
@@ -3149,8 +3146,7 @@ pub fn compute_build_config(
     };
     let source_only_replay =
         replay.is_some() && is_source_input_replay_record(measured.observations());
-    let receipted_outputs = replay.as_ref().and_then(receipted_output_files);
-    let receipted_directories = replay.as_ref().and_then(receipted_output_directories);
+    let receipted_output_entries = replay.as_ref().and_then(receipted_output_entries);
     let source_inputs_replay_verified = if let Some(replay) = replay {
         let replayed = psi_build_time_evaluation::evaluate_build_machine_arguments_measured(
             &prepared,
@@ -3179,24 +3175,24 @@ pub fn compute_build_config(
     };
     let replayed_output_tree = if source_only_replay {
         Some(empty())
-    } else if let Some(directories) = receipted_directories.as_ref() {
-        let paths = directories.iter().map(Vec::as_slice).collect::<Vec<_>>();
-        Some(replayed_empty_directories(&paths)?)
     } else {
-        receipted_outputs
+        receipted_output_entries
             .as_ref()
-            .map(|outputs| {
-                let files = outputs
+            .map(|entries| {
+                let replayed_entries = entries
                     .iter()
-                    .map(|output| {
-                        (
-                            output.relative_path.as_slice(),
-                            output.bytes.as_slice(),
-                            output.executable,
-                        )
+                    .map(|entry| match entry {
+                        ReceiptedOutputEntry::Directory { relative_path } => {
+                            ReplayedBuildOutputEntry::directory(relative_path)
+                        }
+                        ReceiptedOutputEntry::File(file) => ReplayedBuildOutputEntry::regular_file(
+                            &file.relative_path,
+                            &file.bytes,
+                            file.executable,
+                        ),
                     })
                     .collect::<Vec<_>>();
-                replayed_files(&files)
+                replayed_output_tree(&replayed_entries)
             })
             .transpose()?
     };
