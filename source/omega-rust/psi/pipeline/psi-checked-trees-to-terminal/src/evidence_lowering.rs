@@ -1297,7 +1297,7 @@ fn lower_static_requirement_dispatch(
     let Some(dispatch) = invocation.static_requirement_dispatch else {
         return Ok(None);
     };
-    if dispatch.application_fingerprint == 0
+    if dispatch.application_report_fingerprint == 0
         || dispatch.application_commitment.is_zero()
         || invocation.target_machine_symbol != dispatch.realization_machine
         || invocation.target_state_symbol != dispatch.realization_state
@@ -1333,7 +1333,7 @@ fn lower_static_requirement_dispatch(
         .filter(|specialization| specialization.instance == invocation.caller_machine_symbol)
         .flat_map(|specialization| &specialization.conformance_applications)
         .filter(|application| {
-            application.fingerprint == dispatch.application_fingerprint
+            application.report_fingerprint == dispatch.application_report_fingerprint
                 && application.commitment == dispatch.application_commitment
         })
         .collect::<Vec<_>>();
@@ -1391,7 +1391,7 @@ fn lower_static_requirement_dispatch(
             "static requirement proof output has no unique lowered conformance application",
         );
     };
-    if application.fingerprint == 0 || application.commitment.is_zero() {
+    if application.report_fingerprint == 0 || application.commitment.is_zero() {
         return Err(LoweringError::Unsupported(
             "static requirement proof output lost its closed conformance application",
         ));
@@ -1413,7 +1413,7 @@ fn lower_static_requirement_dispatch(
         );
     }
     Ok(Some(StaticRequirementDispatch {
-        conformance_application_fingerprint: application.fingerprint,
+        conformance_application_report_fingerprint: application.report_fingerprint,
         conformance_application_commitment: application.commitment,
         public_requirement_identity,
         declaring_trait_identity,

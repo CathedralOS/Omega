@@ -357,7 +357,7 @@ pub struct CheckedTraitOperatorScalarReturnMachinePlan {
     pub return_statement_ordinal: u32,
     pub conformance: SymbolHandle,
     /// Compact report coordinate; authority uses the adjacent commitment.
-    pub conformance_application_fingerprint: u64,
+    pub conformance_application_report_fingerprint: u64,
     pub conformance_application_commitment:
         psi_typed_trees::typed_trees::ClosedConformanceApplicationCommitment,
     pub requirement: SymbolHandle,

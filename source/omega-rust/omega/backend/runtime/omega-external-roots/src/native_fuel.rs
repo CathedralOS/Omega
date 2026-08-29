@@ -548,22 +548,27 @@ pub fn bind_installed_native_fuel_sponsor_route(
     fingerprint.u64(transfer_code.fingerprint);
     fingerprint.u64(sponsor_root.root.normalized_identity());
     fingerprint.u64(provider_execution.identity().normalized_identity());
-    fingerprint.u64(provider_execution.normalized_identity());
+    fingerprint.u64(provider_execution.normalized_report_identity());
     fingerprint.u64(entry.normalized_identity());
     fingerprint.u64(transfer_code.sponsor_text_offset as u64);
     fingerprint.u64(sponsor_path.fixed.demand.composition_fingerprint());
     fingerprint.u64(sponsor_path.fixed.provision.normalized_identity());
     fingerprint.u64(sponsor_path.fixed.granted_units);
     fingerprint.u64(sponsor_path.suspension_free.composition_fingerprint());
-    fingerprint.u64(sponsor_root.evidence.root.normalized_identity());
-    fingerprint.u64(sponsor_root.evidence.root.boundary_contract_fingerprint());
+    fingerprint.u64(sponsor_root.evidence.root.normalized_report_identity());
+    fingerprint.u64(
+        sponsor_root
+            .evidence
+            .root
+            .boundary_contract_report_fingerprint(),
+    );
 
     Ok(InstalledNativeFuelSponsorRoute {
         sponsor_path,
         transfer_code_fingerprint: transfer_code.fingerprint,
         root: sponsor_root.root,
         provider_execution: provider_execution.identity(),
-        provider_execution_fingerprint: provider_execution.normalized_identity(),
+        provider_execution_fingerprint: provider_execution.normalized_report_identity(),
         entry,
         installed_code: installed_code.identity(),
         installed_code_context: installed_code.receipt_context(),

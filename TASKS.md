@@ -141,7 +141,13 @@ scanners, or receipts.
   still requires borrowed non-constructible admitted evidence; native custody
   retains the strong selected-closure digest plus exact requirement strings
   and plan requirement catalogs, and exact-requirement substitution rejects
-  even when every compact execution coordinate is held equal. External-root
+  even when every compact execution coordinate is held equal. The producing
+  external-root ledger now applies the same classification: normalized root,
+  provider execution, opaque exit, stack, fuel, boundary-contract, and closure
+  summaries are report coordinates beside the full validated root, boundary,
+  resource columns, and exit assurance. Installed root reports additionally
+  retain the strong selected-provider-closure digest; compact-equal root-policy
+  substitution still rejects through exact structural replay. External-root
   producer-schema cohorts now use a
   domain-separated SHA-256 commitment over the complete resolved schema for
   prebinding uniqueness, aggregation, lifecycle ownership, and epoch grouping;
@@ -168,7 +174,9 @@ scanners, or receipts.
   typed, checked, and Terminal Psi; dispatch selects by owner plus strong
   commitment and then replays the exact row, while compact values are report/
   index coordinates only. Terminal vocabulary 38 serializes and verifies those
-  commitments. Content-projection and conservation FNV values are now named
+  commitments. Typed, checked, and Terminal carriers now name every one of
+  those compact coordinates as a report fingerprint without changing wire
+  order. Content-projection and conservation FNV values are now named
   report fingerprints throughout semantic, codec, verifier, optimizer, image,
   runtime, and visualization consumers; authority remains the exact owner
   definition, algebra, structural places, substitution, producer call, and
@@ -195,6 +203,11 @@ scanners, or receipts.
   fingerprints. Replay retains and compares the exact typed value, complete
   layout report, target byte order, selected sum case, and staged bytes, so a
   compact-equal layout substitution rejects before materialization or copying.
+  Build evaluation now binds target-owned physical-entry package provenance
+  with a domain-separated SHA-256 commitment to the exact package identity,
+  canonical source path, and source bytes. Its former package-source FNV is an
+  explicitly non-authoritative report fingerprint, and compact-equal source
+  substitution rejects through the retained strong commitment.
   Package-review provider projections likewise label plan FNV values as report
   coordinates beside the exact package owners, schema, target, rows, and
   declaration coordinates retained in canonical review evidence.
@@ -202,11 +215,20 @@ scanners, or receipts.
   their compact values only as report fingerprints beside domain-separated
   byte/text/inventory digests. Native publication certificates and flat/bundle
   replay retain the strong inventory digest, so compact-equal inventory-digest
-  substitution rejects. Remaining work is the broader compact-identity
-  inventory and repository-wide enforcement, including residual compiler/image
-  report projections, external-root execution summaries, task-specialization
-  coordinates, checked-Psi carriers, tooling views, and the build-evaluation
-  package discriminator.
+  substitution rejects. Residual native-image callback placement, boundary,
+  fixed/body mechanics, composed-footprint, final-region, validation, and text
+  coordinates are explicitly named report fingerprints across output,
+  certificate, installation-codec, and publication consumers. Exact relocated
+  text, relocation envelopes, placed-region rows, entry-region custody, and
+  state footprints retain their domain-separated commitments; the compact
+  summary fields do not recreate those authorities. A repository-wide
+  architecture test now scans every exported Rust `u64` fingerprint field:
+  explicit report/cache/compatibility names pass, while the remaining legacy
+  inventory is a shrinking per-owner ceiling that rejects new fields or
+  duplicate occurrences. Remaining work is the broader compact-identity
+  inventory and repository-wide enforcement, including task-specialization
+  coordinates, checked-Psi carriers, tooling views, and private/local fields
+  outside the exported-field scanner.
 
   Acceptance: an automated architecture test rejects new authoritative
   `u64`-only identities, every retained FNV use has a local non-authoritative

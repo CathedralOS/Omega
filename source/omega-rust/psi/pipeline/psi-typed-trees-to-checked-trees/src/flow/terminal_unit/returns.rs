@@ -1317,10 +1317,11 @@ fn build_trait_operator_scalar_return_machine(
         .iter()
         .find(|application| {
             application.declaration == candidate.conformance_symbol
-                && application.fingerprint == candidate.conformance_application_fingerprint
+                && application.report_fingerprint
+                    == candidate.conformance_application_report_fingerprint
                 && application.commitment == candidate.conformance_application_commitment
         })?;
-    if application.fingerprint == 0
+    if application.report_fingerprint == 0
         || !application.rows.iter().any(|row| {
             row.requirement == candidate.trait_requirement_symbol
                 && row.realization_machine == candidate.realization_machine_symbol
@@ -1445,7 +1446,8 @@ fn build_trait_operator_scalar_return_machine(
         result_type: program.primitive_type_reference(state.return_type)?,
         return_statement_ordinal: 0,
         conformance: candidate.conformance_symbol,
-        conformance_application_fingerprint: candidate.conformance_application_fingerprint,
+        conformance_application_report_fingerprint: candidate
+            .conformance_application_report_fingerprint,
         conformance_application_commitment: candidate.conformance_application_commitment,
         requirement: candidate.trait_requirement_symbol,
         realization_machine: candidate.realization_machine_symbol,

@@ -46,7 +46,7 @@ pub(super) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                 (
                     application.owner,
                     application.declaration_identity.as_str(),
-                    application.fingerprint,
+                    application.report_fingerprint,
                 )
             }),
     ) {

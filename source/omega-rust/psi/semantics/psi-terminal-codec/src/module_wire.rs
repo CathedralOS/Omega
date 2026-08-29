@@ -176,7 +176,7 @@ pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
         )?;
         writer.boolean(invocation.static_requirement_dispatch.is_some());
         if let Some(dispatch) = &invocation.static_requirement_dispatch {
-            writer.u64(dispatch.conformance_application_fingerprint);
+            writer.u64(dispatch.conformance_application_report_fingerprint);
             writer.bytes(&dispatch.conformance_application_commitment.as_bytes());
             writer.string(
                 "static public requirement identity",
@@ -293,7 +293,7 @@ pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
                 &row.realization_identity,
             )?;
         }
-        writer.u64(application.fingerprint);
+        writer.u64(application.report_fingerprint);
         writer.bytes(&application.commitment.as_bytes());
     }
     writer.len(
@@ -433,7 +433,7 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
                 .boolean()?
                 .then(|| {
                     Ok(StaticRequirementDispatch {
-                        conformance_application_fingerprint: reader.u64()?,
+                        conformance_application_report_fingerprint: reader.u64()?,
                         conformance_application_commitment:
                             ClosedConformanceApplicationCommitment::from_digest(reader.array()?),
                         public_requirement_identity: reader
@@ -536,7 +536,7 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
                         .string("closed conformance row realization identity")?,
                 })
             })?,
-            fingerprint: reader.u64()?,
+            report_fingerprint: reader.u64()?,
             commitment: ClosedConformanceApplicationCommitment::from_digest(reader.array()?),
         })
     })?;

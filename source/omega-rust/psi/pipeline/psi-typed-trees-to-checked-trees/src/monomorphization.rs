@@ -1236,7 +1236,7 @@ fn unique_complete_selections(
                         binding.as_ref().expect("complete selection"),
                     )
                     .expect("validated complete conformance application")
-                    .fingerprint
+                    .report_fingerprint
                 })
                 .collect(),
         };
@@ -1986,7 +1986,7 @@ fn candidate_conformance_fingerprint_arguments(
                 format!(
                     "{}#{:016x}",
                     conformance_symbol_identity(program, application.declaration),
-                    application.fingerprint
+                    application.report_fingerprint
                 )
             }),
     );
@@ -3235,7 +3235,7 @@ fn evidence_requirement_rewrites(
                     .as_ref()
                     .map_or_else(Box::default, |application| application.arguments.clone()),
                 dispatch: psi_typed_trees::typed_trees::StaticRequirementDispatch {
-                    application_fingerprint: application.fingerprint,
+                    application_report_fingerprint: application.report_fingerprint,
                     application_commitment: application.commitment,
                     declaring_trait: row.declaring_trait,
                     requirement: row.requirement,
@@ -4451,7 +4451,7 @@ pub(crate) fn bind_specialization_contract_identities(
                         )));
                         return None;
                     }
-                    Some(application.fingerprint)
+                    Some(application.report_fingerprint)
                 })
                 .collect();
             (machine_identities, conformance_identities)

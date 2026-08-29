@@ -2934,6 +2934,68 @@ fn uefi_target_layout_fingerprint_is_report_only_beside_exact_replay() {
 }
 
 #[test]
+fn external_root_execution_summaries_are_report_only_beside_exact_evidence() {
+    let root = workspace_root();
+    let runtime = root.join("source/omega-rust/omega/backend/runtime/omega-external-roots/src");
+
+    let validation = std::fs::read_to_string(runtime.join("root_validation.rs"))
+        .expect("read external-root validation");
+    assert!(
+        validation.contains("selected_provider_closure_report_fingerprint: u64")
+            && validation
+                .contains("selected_provider_closure_digest: SelectedProviderClosureDigest")
+            && validation.contains("boundary_contract_report_fingerprint: u64")
+            && validation.contains("normalized_report_identity: u64")
+            && validation.contains("candidate: ExternalRootCandidate")
+            && validation.contains("boundary: ValidatedBoundaryEntryPlan")
+            && !validation.contains("selected_provider_closure_fingerprint: u64")
+            && !validation.contains("pub(crate) normalized_identity: u64"),
+        "validated external roots must retain exact root/contract evidence beside compact reports",
+    );
+
+    let execution = std::fs::read_to_string(runtime.join("provider_execution.rs"))
+        .expect("read provider execution");
+    assert!(
+        execution.contains("root_evidence: ValidatedExternalRoot")
+            && execution.contains("exit_assurance: OpaqueProviderExitAssurance")
+            && execution.contains("normalized_root_report_identity: u64")
+            && execution.contains("stack_artifact_composition_report_fingerprint: u64")
+            && execution.contains("stack_demand_report_fingerprint: u64")
+            && execution.contains("logical_fuel_report_fingerprint: u64")
+            && execution.contains("exit_assurance_report_fingerprint: u64")
+            && execution.contains("normalized_report_identity: u64")
+            && !execution.contains("pub(super) stack_demand_fingerprint: u64")
+            && !execution.contains("pub(super) normalized_identity: u64"),
+        "provider execution must not present compact resource and exit summaries as authority",
+    );
+
+    let ledger =
+        std::fs::read_to_string(runtime.join("lib.rs")).expect("read external-root ledger");
+    assert!(
+        ledger.contains("pub normalized_root_report_identity: u64")
+            && ledger.contains("pub provider_execution_report_fingerprint: u64")
+            && ledger.contains("pub provider_exit_assurance_report_fingerprint: u64")
+            && ledger.contains("pub native_fuel_report_fingerprint: u64")
+            && ledger.contains("pub selected_provider_closure_digest:")
+            && ledger.contains("pub boundary: BoundaryEntryPlan")
+            && ledger.contains("pub stack: StackResourceColumn")
+            && ledger.contains("pub logical_fuel: LogicalFuelResourceColumn"),
+        "installed-root reports must retain strong/exact authority beside compact coordinates",
+    );
+
+    let adversarial = std::fs::read_to_string(runtime.join("tests.rs"))
+        .expect("read external-root adversarial tests");
+    assert!(
+        adversarial
+            .contains("provider_execution_retains_exact_root_facts_beyond_the_compact_identity")
+            && adversarial
+                .contains("second.normalized_report_identity = first.normalized_report_identity",)
+            && adversarial.contains("record.selected_provider_closure_digest"),
+        "external-root tests must keep compact-equal exact-root substitution and strong closure coverage",
+    );
+}
+
+#[test]
 fn external_root_stack_and_fuel_fingerprints_are_report_only() {
     let root = workspace_root();
     let runtime = root.join("source/omega-rust/omega/backend/runtime/omega-external-roots/src");
@@ -3066,5 +3128,48 @@ fn build_time_const_layout_fingerprints_are_report_only_beside_exact_replay() {
             && !sum_carrier.contains("\n    layout_fingerprint: u64")
             && !sum_carrier.contains("\n    identity: u64"),
         "sum const materialization must retain exact replay carriers beside report-only FNV values",
+    );
+}
+
+#[test]
+fn build_evaluation_physical_package_source_uses_strong_commitment() {
+    let root = workspace_root();
+    let plan_path = root.join(
+        "source/omega-rust/omega/backend/plans/omega-program-entry-plan/src/program_entry_physical.rs",
+    );
+    let plan = std::fs::read_to_string(&plan_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", plan_path.display()));
+    let carrier = plan
+        .split("impl ProgramEntryPhysicalContractPlan")
+        .next()
+        .expect("physical-contract carrier precedes its implementation");
+    assert!(
+        plan.contains("pub struct ProgramEntryPhysicalContractPackageSourceDigest")
+            && plan.contains("bytes: [u8; 32]")
+            && plan.contains("omega.program-entry-physical-contract-package-source.v1")
+            && plan.contains(
+                "target_package_source_digest: ProgramEntryPhysicalContractPackageSourceDigest",
+            )
+            && plan.contains("non_authoritative_target_package_source_report_fingerprint: u64",)
+            && plan.contains("pub fn target_package_source_matches")
+            && plan.contains(
+                "compact_equal_package_source_substitution_is_rejected_by_strong_commitment",
+            )
+            && !carrier.contains("\n    target_package_fingerprint: u64"),
+        "physical-contract package provenance must retain a strong source commitment beside its compact report coordinate",
+    );
+
+    let evaluation_path =
+        root.join("source/omega-rust/omega/build/omega-build-evaluation/src/lib.rs");
+    let evaluation = std::fs::read_to_string(&evaluation_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", evaluation_path.display()));
+    assert!(
+        evaluation.contains("source_file.origin != psi_source::SourceOrigin::Toolchain")
+            && evaluation.contains("expected_package.package_relative_source()")
+            && evaluation
+                .contains("ProgramEntryPhysicalContractPackageSourceDigest::from_package_source")
+            && evaluation.contains("non_authoritative_package_source_report_fingerprint: u64")
+            && !evaluation.contains("\n    package_fingerprint: u64"),
+        "build evaluation must derive the strong commitment only after exact toolchain package/source validation",
     );
 }

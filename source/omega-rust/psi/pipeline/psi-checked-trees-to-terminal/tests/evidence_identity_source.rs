@@ -1423,7 +1423,8 @@ fn static_requirement_proof_output_keeps_public_identity_and_private_dispatch_se
         .iter()
         .find(|application| {
             application.owner == invocation.caller
-                && application.fingerprint == dispatch.conformance_application_fingerprint
+                && application.report_fingerprint
+                    == dispatch.conformance_application_report_fingerprint
                 && application.commitment == dispatch.conformance_application_commitment
         })
         .expect("the dispatch rejoins its exact closed application");
@@ -1530,7 +1531,7 @@ fn static_requirement_proof_output_keeps_public_identity_and_private_dispatch_se
         ));
     };
     rejects(lowered.semantic_module.clone(), |dispatch| {
-        dispatch.conformance_application_fingerprint ^= 1;
+        dispatch.conformance_application_report_fingerprint ^= 1;
     });
     let original_application = lowered.semantic_module.closed_conformance_applications[0].clone();
     let mut compact_equal_substitute = original_application.clone();
@@ -1545,10 +1546,10 @@ fn static_requirement_proof_output_keeps_public_identity_and_private_dispatch_se
         .static_requirement_dispatch
         .as_mut()
         .expect("static dispatch");
-    let compact_coordinate = dispatch.conformance_application_fingerprint;
+    let compact_coordinate = dispatch.conformance_application_report_fingerprint;
     dispatch.conformance_application_commitment = substitute_commitment;
     assert_eq!(
-        dispatch.conformance_application_fingerprint,
+        dispatch.conformance_application_report_fingerprint,
         compact_coordinate
     );
     assert!(matches!(
@@ -1599,13 +1600,14 @@ fn static_requirement_proof_output_keeps_public_identity_and_private_dispatch_se
     application.rows[0]
         .public_requirement_identity
         .push_str("::forged");
-    application.fingerprint = psi_terminal::closed_conformance_application_fingerprint(application);
+    application.report_fingerprint =
+        psi_terminal::closed_conformance_application_report_fingerprint(application);
     application.commitment = psi_terminal::closed_conformance_application_commitment(application);
     renamed_row.proof_output_calls[0]
         .static_requirement_dispatch
         .as_mut()
         .expect("static dispatch")
-        .conformance_application_fingerprint = application.fingerprint;
+        .conformance_application_report_fingerprint = application.report_fingerprint;
     renamed_row.proof_output_calls[0]
         .static_requirement_dispatch
         .as_mut()
@@ -1623,13 +1625,14 @@ fn static_requirement_proof_output_keeps_public_identity_and_private_dispatch_se
         .find(|application| application.owner == deleted_entry)
         .expect("entry closed application");
     application.rows.clear();
-    application.fingerprint = psi_terminal::closed_conformance_application_fingerprint(application);
+    application.report_fingerprint =
+        psi_terminal::closed_conformance_application_report_fingerprint(application);
     application.commitment = psi_terminal::closed_conformance_application_commitment(application);
     deleted_row.proof_output_calls[0]
         .static_requirement_dispatch
         .as_mut()
         .expect("static dispatch")
-        .conformance_application_fingerprint = application.fingerprint;
+        .conformance_application_report_fingerprint = application.report_fingerprint;
     deleted_row.proof_output_calls[0]
         .static_requirement_dispatch
         .as_mut()
@@ -1647,13 +1650,14 @@ fn static_requirement_proof_output_keeps_public_identity_and_private_dispatch_se
         .find(|application| application.owner == widened_entry)
         .expect("entry closed application");
     application.trait_arguments.push("forged".to_owned());
-    application.fingerprint = psi_terminal::closed_conformance_application_fingerprint(application);
+    application.report_fingerprint =
+        psi_terminal::closed_conformance_application_report_fingerprint(application);
     application.commitment = psi_terminal::closed_conformance_application_commitment(application);
     widened_application.proof_output_calls[0]
         .static_requirement_dispatch
         .as_mut()
         .expect("static dispatch")
-        .conformance_application_fingerprint = application.fingerprint;
+        .conformance_application_report_fingerprint = application.report_fingerprint;
     widened_application.proof_output_calls[0]
         .static_requirement_dispatch
         .as_mut()

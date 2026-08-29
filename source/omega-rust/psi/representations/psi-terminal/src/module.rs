@@ -156,7 +156,7 @@ pub struct ClosedConformanceApplication {
     pub rows: Vec<ClosedConformanceRow>,
     /// Historical compact report/index coordinate. It cannot authorize a
     /// dispatch or replay without the adjacent strong commitment.
-    pub fingerprint: u64,
+    pub report_fingerprint: u64,
     /// Domain-separated SHA-256 commitment to the exact source-free
     /// application structure.
     pub commitment: ClosedConformanceApplicationCommitment,
@@ -204,7 +204,7 @@ pub struct ClosedConformanceRow {
     pub realization_identity: String,
 }
 
-pub fn closed_conformance_application_fingerprint(
+pub fn closed_conformance_application_report_fingerprint(
     application: &ClosedConformanceApplication,
 ) -> u64 {
     const OFFSET: u64 = 0xcbf29ce484222325;
@@ -791,7 +791,7 @@ pub struct ProofOutputCall {
 pub struct StaticRequirementDispatch {
     /// Non-authoritative compatibility coordinate for the exact application
     /// owned by `ProofOutputCall::caller`.
-    pub conformance_application_fingerprint: u64,
+    pub conformance_application_report_fingerprint: u64,
     /// Authority-bearing join to the complete closed application.
     pub conformance_application_commitment: ClosedConformanceApplicationCommitment,
     /// Canonical public requirement overload exposed to the caller. This is

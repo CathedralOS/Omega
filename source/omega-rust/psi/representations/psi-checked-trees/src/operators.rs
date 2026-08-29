@@ -90,7 +90,7 @@ pub struct CheckedOperatorCandidateFact {
     pub realization_machine_symbol: SymbolHandle,
     pub realization_state_symbol: SymbolHandle,
     /// Compact report coordinate; authority uses the adjacent commitment.
-    pub conformance_application_fingerprint: u64,
+    pub conformance_application_report_fingerprint: u64,
     pub conformance_application_commitment:
         psi_typed_trees::typed_trees::ClosedConformanceApplicationCommitment,
     pub receiver_type: TypeReferenceHandle,
@@ -111,7 +111,7 @@ impl CheckedOperatorCandidateFact {
             trait_requirement_symbol: SymbolHandle::invalid(),
             realization_machine_symbol: SymbolHandle::invalid(),
             realization_state_symbol: SymbolHandle::invalid(),
-            conformance_application_fingerprint: 0,
+            conformance_application_report_fingerprint: 0,
             conformance_application_commitment:
                 psi_typed_trees::typed_trees::ClosedConformanceApplicationCommitment::from_digest(
                     [0; 32],
@@ -134,7 +134,7 @@ impl CheckedOperatorCandidateFact {
             trait_requirement_symbol: SymbolHandle::invalid(),
             realization_machine_symbol: SymbolHandle::invalid(),
             realization_state_symbol: SymbolHandle::invalid(),
-            conformance_application_fingerprint: 0,
+            conformance_application_report_fingerprint: 0,
             conformance_application_commitment:
                 psi_typed_trees::typed_trees::ClosedConformanceApplicationCommitment::from_digest(
                     [0; 32],
@@ -158,7 +158,7 @@ impl CheckedOperatorCandidateFact {
         conformance_symbol: SymbolHandle,
         realization_machine_symbol: SymbolHandle,
         realization_state_symbol: SymbolHandle,
-        conformance_application_fingerprint: u64,
+        conformance_application_report_fingerprint: u64,
         conformance_application_commitment:
             psi_typed_trees::typed_trees::ClosedConformanceApplicationCommitment,
     ) -> Self {
@@ -169,7 +169,7 @@ impl CheckedOperatorCandidateFact {
             trait_requirement_symbol: requirement_symbol,
             realization_machine_symbol,
             realization_state_symbol,
-            conformance_application_fingerprint,
+            conformance_application_report_fingerprint,
             conformance_application_commitment,
             receiver_type: TypeReferenceHandle::invalid(),
             return_type: TypeReferenceHandle::invalid(),

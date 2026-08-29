@@ -29,6 +29,10 @@ name = "conformance_application_identity"
 path = "conformance_application_identity.rs"
 
 [[test]]
+name = "compact_identity_inventory"
+path = "compact_identity_inventory.rs"
+
+[[test]]
 name = "native_image_identity"
 path = "native_image_identity.rs"
 

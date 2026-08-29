@@ -969,7 +969,7 @@ fn external_root_manifest_is_complete_normalized_and_address_free() {
     .expect("stack composition");
     let record = InstalledRootRecord {
         root: root_identity,
-        normalized_root_identity: 0x101,
+        normalized_root_report_identity: 0x101,
         entry,
         installed_code: installed_code.identity(),
         artifact: installed_code.artifact(),
@@ -977,7 +977,7 @@ fn external_root_manifest_is_complete_normalized_and_address_free() {
         owner: root_id(6, RootSlotOwnerId::from_normalized_identity),
         admission: root_id(7, RootAdmissionId::from_normalized_identity),
         provider_execution: root_id(30, ProviderExecutionId::from_normalized_identity),
-        provider_execution_fingerprint: 0x3030,
+        provider_execution_report_fingerprint: 0x3030,
         provider_exit_assurance: OpaqueProviderExitAssurance::AcceptedClaim {
             realization: ProviderExitRealization {
                 control: boundary.plan().call.entry_control,
@@ -985,18 +985,20 @@ fn external_root_manifest_is_complete_normalized_and_address_free() {
             },
             validation_receipt: root_id(10, TrustReceiptId::from_normalized_identity),
         },
-        provider_exit_assurance_fingerprint: 0x3031,
+        provider_exit_assurance_report_fingerprint: 0x3031,
         provider_plan: root_id(31, ProviderPlanId::from_normalized_identity),
         native_fuel_kind: NativeFuelRealizationKind::FixedProvision,
-        native_fuel_fingerprint: 0x3032,
+        native_fuel_report_fingerprint: 0x3032,
         requirement_identity: "TestRoot::entry".into(),
         entry_claims: Vec::new(),
         acknowledgement_parameter_index: None,
         interrupt_mask_guard_claim: None,
         service_reach: vec!["MachineControl".into()],
-        selected_provider_closure_fingerprint: 0x3033,
+        selected_provider_closure_report_fingerprint: 0x3033,
+        selected_provider_closure_digest: omega_effects::SelectedProviderPlanFacts::default()
+            .identity_digest(),
         installation_reach_resolutions: Vec::new(),
-        boundary_contract_fingerprint: boundary.contract_fingerprint(),
+        boundary_contract_report_fingerprint: boundary.contract_fingerprint(),
         boundary: boundary.plan().clone(),
         provider: root_id(8, RootProviderId::from_normalized_identity),
         effects: BTreeSet::from([root_id(9, RootEffectId::from_normalized_identity)]),
@@ -1040,7 +1042,7 @@ fn external_root_manifest_is_complete_normalized_and_address_free() {
     assert_eq!(first, second);
     assert_eq!(parsed["root_count"], 1);
     assert_eq!(
-        parsed["roots"][0]["normalized_root_identity"],
+        parsed["roots"][0]["normalized_root_report_identity"],
         "0x0000000000000101"
     );
     assert_eq!(parsed["roots"][0]["entry"], "0x0000000000000002");
@@ -1051,8 +1053,19 @@ fn external_root_manifest_is_complete_normalized_and_address_free() {
     assert_eq!(parsed["roots"][0]["provider_plan"], "0x000000000000001f");
     assert_eq!(parsed["roots"][0]["native_fuel"]["kind"], "fixed_provision");
     assert_eq!(
-        parsed["roots"][0]["native_fuel"]["fingerprint"],
+        parsed["roots"][0]["native_fuel"]["report_fingerprint"],
         "0x0000000000003032"
+    );
+    assert_eq!(
+        parsed["roots"][0]["selected_provider_closure_report_fingerprint"],
+        "0x0000000000003033"
+    );
+    assert_eq!(
+        parsed["roots"][0]["selected_provider_closure_digest"]
+            .as_str()
+            .expect("selected closure digest")
+            .len(),
+        66
     );
     assert_eq!(
         parsed["roots"][0]["boundary_plan"]["call"]["policy"],

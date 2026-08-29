@@ -1668,7 +1668,8 @@ pub fn validate_selected_program_entry_calling_plan(
         selected.slot,
         physical.requirement_identity,
         physical_source.package,
-        physical_source.package_fingerprint,
+        physical_source.package_source_digest,
+        physical_source.non_authoritative_package_source_report_fingerprint,
         physical
             .parameters
             .into_iter()
@@ -1690,7 +1691,9 @@ pub fn validate_selected_program_entry_calling_plan(
 
 struct TargetOwnedPhysicalContractSource {
     package: omega_target::ProgramEntryPhysicalContractPackage,
-    package_fingerprint: u64,
+    package_source_digest:
+        omega_program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest,
+    non_authoritative_package_source_report_fingerprint: u64,
 }
 
 fn target_owned_physical_contract_source(
@@ -1741,17 +1744,23 @@ fn target_owned_physical_contract_source(
             source_file.path.display()
         )));
     }
-    let package_fingerprint = physical_contract_package_fingerprint(
+    let package_source_digest =
+        omega_program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest::from_package_source(
+            expected_package,
+            source_file.source.as_bytes(),
+        );
+    let package_source_report_fingerprint = physical_contract_package_source_report_fingerprint(
         expected_package.manifest_identity().as_bytes(),
         source_file.source.as_bytes(),
     );
     Ok(TargetOwnedPhysicalContractSource {
         package: expected_package,
-        package_fingerprint,
+        package_source_digest,
+        non_authoritative_package_source_report_fingerprint: package_source_report_fingerprint,
     })
 }
 
-fn physical_contract_package_fingerprint(identity: &[u8], source: &[u8]) -> u64 {
+fn physical_contract_package_source_report_fingerprint(identity: &[u8], source: &[u8]) -> u64 {
     let mut hash = 0xcbf29ce484222325u64;
     for bytes in [
         b"omega.uefi-physical-package.v1".as_slice(),

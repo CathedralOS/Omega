@@ -317,7 +317,7 @@ pub fn close_conformance_application(
         trait_definition: trait_definition.symbol,
         trait_arguments,
         rows: row_identities,
-        fingerprint: identity.compatibility_fingerprint,
+        report_fingerprint: identity.compatibility_fingerprint,
         commitment: identity.commitment,
     })
 }

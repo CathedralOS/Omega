@@ -81,7 +81,7 @@ pub fn expected_macos_app_bundle_executable_path(
 pub fn executable_installation_evidence_digest(
     destination: ExecutablePublicationDestination,
     publication_evidence_digest: NativePublicationEvidenceDigest,
-    callback_placement_identity_fingerprint: u64,
+    callback_placement_identity_report_fingerprint: u64,
     output_path: &std::path::Path,
     container_byte_count: usize,
     container_digest: ExecutableContainerDigest,
@@ -89,7 +89,7 @@ pub fn executable_installation_evidence_digest(
     let mut digest = Sha256::new();
     digest.update(b"omega.installed-executable-publication-evidence.sha256.v1\0");
     digest.update(publication_evidence_digest.as_bytes());
-    digest.update(callback_placement_identity_fingerprint.to_le_bytes());
+    digest.update(callback_placement_identity_report_fingerprint.to_le_bytes());
     digest.update([match destination {
         ExecutablePublicationDestination::FlatOutput => 0,
         ExecutablePublicationDestination::MacOsAppBundle => 1,
@@ -118,9 +118,9 @@ pub fn executable_publication_pair_matches(
         && expected_macos_app_bundle_executable_path(root_path, &flat.output_path).as_deref()
             == Some(bundle.output_path.as_path())
         && flat.certificate_digest == bundle.certificate_digest
-        && flat.callback_placement_identity_fingerprint
-            == bundle.callback_placement_identity_fingerprint
-        && flat.boundary_contract_fingerprint == bundle.boundary_contract_fingerprint
+        && flat.callback_placement_identity_report_fingerprint
+            == bundle.callback_placement_identity_report_fingerprint
+        && flat.boundary_contract_report_fingerprint == bundle.boundary_contract_report_fingerprint
         && flat.inventory_digest == bundle.inventory_digest
         && flat.inventory_report_fingerprint == bundle.inventory_report_fingerprint
         && flat.compiler_text_validation_digest == bundle.compiler_text_validation_digest
@@ -133,13 +133,13 @@ pub fn executable_publication_pair_matches(
         && flat.installation_evidence_digest != bundle.installation_evidence_digest
 }
 
-fn publication_boundary_contract_fingerprint(
+fn publication_boundary_contract_report_fingerprint(
     validation: omega_image::CompilerFunctionValidationEvidence,
 ) -> Result<Option<u64>, String> {
     let body = (validation.body_specification_instruction_count > 0)
-        .then_some(validation.body_specification_boundary_contract_fingerprint);
+        .then_some(validation.body_specification_boundary_contract_report_fingerprint);
     let mechanics = (validation.fixed_mechanics_instruction_count > 0)
-        .then_some(validation.fixed_mechanics_boundary_contract_fingerprint);
+        .then_some(validation.fixed_mechanics_boundary_contract_report_fingerprint);
     match (body, mechanics) {
         (Some(left), Some(right)) if left != right => {
             Err("native artifact final validation names inconsistent boundary contracts".to_owned())
@@ -151,7 +151,7 @@ fn publication_boundary_contract_fingerprint(
 
 fn native_publication_certificate_digest(
     artifact: &RetainedNativeArtifact,
-    boundary_contract_fingerprint: Option<u64>,
+    boundary_contract_report_fingerprint: Option<u64>,
     text_validation_digest: omega_image::CompilerTextDerivationDigest,
     function_validation_digest: omega_image::CompilerFunctionValidationDigest,
     function_validation_report_fingerprint: u64,
@@ -177,9 +177,9 @@ fn native_publication_certificate_digest(
     digest.update((target.pointer_size as u64).to_le_bytes());
     digest.update((target.pointer_alignment as u64).to_le_bytes());
     digest.update(artifact.image().final_image_symbol_digest().as_bytes());
-    digest.update([u8::from(boundary_contract_fingerprint.is_some())]);
+    digest.update([u8::from(boundary_contract_report_fingerprint.is_some())]);
     digest.update(
-        boundary_contract_fingerprint
+        boundary_contract_report_fingerprint
             .unwrap_or_default()
             .to_le_bytes(),
     );
@@ -193,7 +193,7 @@ fn native_publication_certificate_digest(
 
 fn native_publication_evidence_digest(
     certificate_digest: NativePublicationCertificateDigest,
-    callback_placement_identity_fingerprint: u64,
+    callback_placement_identity_report_fingerprint: u64,
     inventory_digest: omega_image::PlacedExecutableRegionInventoryDigest,
     inventory_report_fingerprint: u64,
     text_validation_digest: omega_image::CompilerTextDerivationDigest,
@@ -208,7 +208,7 @@ fn native_publication_evidence_digest(
     digest.update(function_validation_digest.as_bytes());
     digest.update(inventory_digest.as_bytes());
     for value in [
-        callback_placement_identity_fingerprint,
+        callback_placement_identity_report_fingerprint,
         inventory_report_fingerprint,
         function_validation_report_fingerprint,
         container_byte_count as u64,
@@ -286,16 +286,21 @@ pub struct ExecutablePublicationReceipt {
     destination: ExecutablePublicationDestination,
     output_path: PathBuf,
     certificate_digest: NativePublicationCertificateDigest,
-    callback_placement_identity_fingerprint: u64,
-    boundary_contract_fingerprint: Option<u64>,
+    /// Compact report coordinate. Exact callback placements are structurally
+    /// replayed before this publication receipt can be produced.
+    callback_placement_identity_report_fingerprint: u64,
+    /// Compact report coordinate; exact final footprint authority is retained
+    /// by the placed-region inventory and certificate digest.
+    boundary_contract_report_fingerprint: Option<u64>,
     inventory_digest: omega_image::PlacedExecutableRegionInventoryDigest,
     /// Compact report compatibility only. Publication and replay authority is
     /// `inventory_digest`.
     inventory_report_fingerprint: u64,
     compiler_text_validation_digest: omega_image::CompilerTextDerivationDigest,
     compiler_function_validation_digest: omega_image::CompilerFunctionValidationDigest,
-    /// Compact report compatibility only. Publication and replay authority is
-    /// `compiler_function_validation_digest`.
+    /// Compact report compatibility only. The validation digest preserves this
+    /// summary's custody, while exact text and inventory commitments retain the
+    /// underlying publication and replay authority.
     compiler_function_validation_report_fingerprint: u64,
     publication_evidence_digest: NativePublicationEvidenceDigest,
     container_byte_count: usize,
@@ -308,8 +313,8 @@ impl ExecutablePublicationReceipt {
         destination: ExecutablePublicationDestination,
         output_path: PathBuf,
         certificate_digest: NativePublicationCertificateDigest,
-        callback_placement_identity_fingerprint: u64,
-        boundary_contract_fingerprint: Option<u64>,
+        callback_placement_identity_report_fingerprint: u64,
+        boundary_contract_report_fingerprint: Option<u64>,
         inventory_digest: omega_image::PlacedExecutableRegionInventoryDigest,
         inventory_report_fingerprint: u64,
         compiler_text_validation_digest: omega_image::CompilerTextDerivationDigest,
@@ -324,8 +329,8 @@ impl ExecutablePublicationReceipt {
             destination,
             output_path,
             certificate_digest,
-            callback_placement_identity_fingerprint,
-            boundary_contract_fingerprint,
+            callback_placement_identity_report_fingerprint,
+            boundary_contract_report_fingerprint,
             inventory_digest,
             inventory_report_fingerprint,
             compiler_text_validation_digest,
@@ -350,12 +355,12 @@ impl ExecutablePublicationReceipt {
         self.certificate_digest
     }
 
-    pub const fn callback_placement_identity_fingerprint(&self) -> u64 {
-        self.callback_placement_identity_fingerprint
+    pub const fn callback_placement_identity_report_fingerprint(&self) -> u64 {
+        self.callback_placement_identity_report_fingerprint
     }
 
-    pub const fn boundary_contract_fingerprint(&self) -> Option<u64> {
-        self.boundary_contract_fingerprint
+    pub const fn boundary_contract_report_fingerprint(&self) -> Option<u64> {
+        self.boundary_contract_report_fingerprint
     }
 
     pub const fn inventory_digest(&self) -> omega_image::PlacedExecutableRegionInventoryDigest {
@@ -402,7 +407,7 @@ impl ExecutablePublicationReceipt {
         self.publication_evidence_digest
             == native_publication_evidence_digest(
                 self.certificate_digest,
-                self.callback_placement_identity_fingerprint,
+                self.callback_placement_identity_report_fingerprint,
                 self.inventory_digest,
                 self.inventory_report_fingerprint,
                 self.compiler_text_validation_digest,
@@ -415,7 +420,7 @@ impl ExecutablePublicationReceipt {
                 == executable_installation_evidence_digest(
                     self.destination,
                     self.publication_evidence_digest,
-                    self.callback_placement_identity_fingerprint,
+                    self.callback_placement_identity_report_fingerprint,
                     &self.output_path,
                     self.container_byte_count,
                     self.container_digest,
@@ -551,9 +556,9 @@ impl CompileReport {
         let function_validation_digest = function_validation.evidence_digest();
         let function_validation_report_fingerprint =
             function_validation.evidence_report_fingerprint();
-        let boundary_contract_fingerprint = output
+        let boundary_contract_report_fingerprint = output
             .compiler_function_validation
-            .map(publication_boundary_contract_fingerprint)
+            .map(publication_boundary_contract_report_fingerprint)
             .transpose()?
             .flatten();
 
@@ -569,7 +574,7 @@ impl CompileReport {
         let container_digest = executable_container_digest(&output.bytes);
         let certificate_digest = native_publication_certificate_digest(
             artifact,
-            boundary_contract_fingerprint,
+            boundary_contract_report_fingerprint,
             text_validation_digest,
             function_validation_digest,
             function_validation_report_fingerprint,
@@ -578,7 +583,7 @@ impl CompileReport {
         );
         let publication_evidence_digest = native_publication_evidence_digest(
             certificate_digest,
-            output.callback_placement_identity_fingerprint,
+            output.callback_placement_identity_report_fingerprint,
             output.executable_regions.inventory_digest,
             output.executable_regions.inventory_report_fingerprint,
             text_validation_digest,
@@ -590,7 +595,7 @@ impl CompileReport {
         let installation_evidence_digest = executable_installation_evidence_digest(
             ExecutablePublicationDestination::FlatOutput,
             publication_evidence_digest,
-            output.callback_placement_identity_fingerprint,
+            output.callback_placement_identity_report_fingerprint,
             &output_path,
             output.bytes.len(),
             container_digest,
@@ -599,8 +604,8 @@ impl CompileReport {
             ExecutablePublicationDestination::FlatOutput,
             output_path,
             certificate_digest,
-            output.callback_placement_identity_fingerprint,
-            boundary_contract_fingerprint,
+            output.callback_placement_identity_report_fingerprint,
+            boundary_contract_report_fingerprint,
             output.executable_regions.inventory_digest,
             output.executable_regions.inventory_report_fingerprint,
             text_validation_digest,
@@ -822,7 +827,7 @@ mod tests {
     };
 
     fn function_validation_digest(
-        validation_fingerprint: u64,
+        validation_report_fingerprint: u64,
     ) -> omega_image::CompilerFunctionValidationDigest {
         omega_image::CompilerFunctionValidationEvidence {
             function_count: 1,
@@ -830,16 +835,16 @@ mod tests {
             zero_width_instruction_count: 0,
             checked_assembly_instruction_count: 0,
             fixed_mechanics_instruction_count: 2,
-            fixed_mechanics_validation_fingerprint: 3,
-            fixed_mechanics_boundary_contract_fingerprint: 2,
-            fixed_mechanics_footprint_fingerprint: 4,
+            fixed_mechanics_validation_report_fingerprint: 3,
+            fixed_mechanics_boundary_contract_report_fingerprint: 2,
+            fixed_mechanics_footprint_report_fingerprint: 4,
             body_specification_instruction_count: 0,
-            body_specification_validation_fingerprint: 0,
-            body_specification_boundary_contract_fingerprint: 0,
-            body_specification_footprint_fingerprint: 0,
-            composed_footprint_fingerprint: 5,
-            final_region_binding_fingerprint: 6,
-            validation_fingerprint,
+            body_specification_validation_report_fingerprint: 0,
+            body_specification_boundary_contract_report_fingerprint: 0,
+            body_specification_footprint_report_fingerprint: 0,
+            composed_footprint_report_fingerprint: 5,
+            final_region_binding_report_fingerprint: 6,
+            validation_report_fingerprint,
         }
         .evidence_digest()
     }
@@ -1121,7 +1126,7 @@ mod tests {
         assert!(!changed.has_consistent_executable_publication_custody());
         assert!(changed.checked_native_executable_path().is_none());
         let mut changed = bundle.clone();
-        changed.callback_placement_identity_fingerprint ^= 1;
+        changed.callback_placement_identity_report_fingerprint ^= 1;
         let changed = report(
             true,
             CompileOutputKind::NativeExecutable,
@@ -1131,7 +1136,7 @@ mod tests {
         assert!(!changed.has_consistent_executable_publication_custody());
         assert!(changed.checked_native_executable_path().is_none());
         let mut changed = bundle.clone();
-        changed.boundary_contract_fingerprint = Some(99);
+        changed.boundary_contract_report_fingerprint = Some(99);
         let changed = report(
             true,
             CompileOutputKind::NativeExecutable,

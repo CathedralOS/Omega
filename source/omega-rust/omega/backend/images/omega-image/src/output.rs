@@ -41,7 +41,9 @@ pub struct ExecutableImageOutput {
 pub struct EmittedImageOutput {
     pub bytes: Vec<u8>,
     pub final_text_bytes: Vec<u8>,
-    pub callback_placement_identity_fingerprint: u64,
+    /// Compact reporting coordinate. Exact callback-placement rows are replayed
+    /// before image emission; this value does not recreate that authority.
+    pub callback_placement_identity_report_fingerprint: u64,
     pub file_name: String,
     pub format: String,
     pub kind: ImageOutputKind,
@@ -79,7 +81,9 @@ pub struct CompilerEntryRegionBindingEvidence {
     pub inventory_digest: crate::PlacedExecutableRegionInventoryDigest,
     /// Compact report compatibility only.
     pub inventory_report_fingerprint: u64,
-    pub final_region_binding_fingerprint: u64,
+    /// Compact report coordinate beside this row's exact structural binding and
+    /// collision-resistant evidence digest.
+    pub final_region_binding_report_fingerprint: u64,
     pub evidence_digest: CompilerEntryRegionBindingDigest,
     /// Compact report compatibility only.
     pub evidence_report_fingerprint: u64,
@@ -122,7 +126,7 @@ impl CompilerEntryRegionBindingEvidence {
         digest.update((self.byte_count as u64).to_le_bytes());
         digest.update(self.byte_digest.as_bytes());
         digest.update(self.inventory_digest.as_bytes());
-        digest.update(self.final_region_binding_fingerprint.to_le_bytes());
+        digest.update(self.final_region_binding_report_fingerprint.to_le_bytes());
         CompilerEntryRegionBindingDigest::from_digest(digest.finalize().into())
     }
 
@@ -189,7 +193,7 @@ impl CompilerEntryRegionBindingEvidence {
         fingerprint_bytes(&mut hash, &self.inventory_report_fingerprint.to_le_bytes());
         fingerprint_bytes(
             &mut hash,
-            &self.final_region_binding_fingerprint.to_le_bytes(),
+            &self.final_region_binding_report_fingerprint.to_le_bytes(),
         );
         hash
     }
@@ -203,7 +207,9 @@ pub struct CompilerEntryFootprintBindingEvidence {
     pub entry_region_evidence_digest: CompilerEntryRegionBindingDigest,
     /// Compact report compatibility only.
     pub entry_region_evidence_report_fingerprint: u64,
-    pub final_region_binding_fingerprint: u64,
+    /// Compact report coordinate; `entry_region_evidence_digest` retains the
+    /// exact final-region binding authority.
+    pub final_region_binding_report_fingerprint: u64,
     pub prior_inventory_digest: crate::PlacedExecutableRegionInventoryDigest,
     /// Compact report compatibility only.
     pub prior_inventory_report_fingerprint: u64,
@@ -223,7 +229,7 @@ impl CompilerEntryFootprintBindingEvidence {
         let mut digest = Sha256::new();
         digest.update(b"omega.compiler-entry-footprint-binding.sha256.v1\0");
         digest.update(self.entry_region_evidence_digest.as_bytes());
-        digest.update(self.final_region_binding_fingerprint.to_le_bytes());
+        digest.update(self.final_region_binding_report_fingerprint.to_le_bytes());
         digest.update(self.prior_inventory_digest.as_bytes());
         digest.update(self.footprint_digest.as_bytes());
         digest.update(self.resulting_inventory_digest.as_bytes());
@@ -234,7 +240,7 @@ impl CompilerEntryFootprintBindingEvidence {
         let mut hash = 0xcbf2_9ce4_8422_2325u64;
         for value in [
             self.entry_region_evidence_report_fingerprint,
-            self.final_region_binding_fingerprint,
+            self.final_region_binding_report_fingerprint,
             self.prior_inventory_report_fingerprint,
             self.footprint_report_fingerprint,
             self.resulting_inventory_report_fingerprint,
@@ -246,7 +252,7 @@ impl CompilerEntryFootprintBindingEvidence {
 
     pub fn validate_identity(self) -> bool {
         self.entry_region_evidence_report_fingerprint != 0
-            && self.final_region_binding_fingerprint != 0
+            && self.final_region_binding_report_fingerprint != 0
             && self.prior_inventory_report_fingerprint != 0
             && self.footprint_report_fingerprint != 0
             && self.resulting_inventory_report_fingerprint != 0
@@ -256,9 +262,11 @@ impl CompilerEntryFootprintBindingEvidence {
     }
 }
 
-/// Exact final-byte binding for the compiler function/instruction partition.
-/// This proves complete instruction-boundary enumeration; individual ordinary
-/// instruction footprint decoding remains a separate certificate class.
+/// Reporting summary for the compiler function/instruction partition after
+/// exact final-byte validation. The counters and compact coordinates describe
+/// the completed validation but do not recreate it. Exact final text, placed
+/// regions, entry-region custody, and state footprints remain in their own
+/// structural carriers and domain-separated commitments.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CompilerFunctionValidationEvidence {
     pub function_count: usize,
@@ -266,25 +274,26 @@ pub struct CompilerFunctionValidationEvidence {
     pub zero_width_instruction_count: usize,
     pub checked_assembly_instruction_count: usize,
     pub fixed_mechanics_instruction_count: usize,
-    pub fixed_mechanics_validation_fingerprint: u64,
-    pub fixed_mechanics_boundary_contract_fingerprint: u64,
-    pub fixed_mechanics_footprint_fingerprint: u64,
+    pub fixed_mechanics_validation_report_fingerprint: u64,
+    pub fixed_mechanics_boundary_contract_report_fingerprint: u64,
+    pub fixed_mechanics_footprint_report_fingerprint: u64,
     pub body_specification_instruction_count: usize,
-    pub body_specification_validation_fingerprint: u64,
-    pub body_specification_boundary_contract_fingerprint: u64,
-    pub body_specification_footprint_fingerprint: u64,
-    pub composed_footprint_fingerprint: u64,
-    /// Exact join from every compiler-private function identity through its
-    /// object symbol to one placed final executable-region row.
-    pub final_region_binding_fingerprint: u64,
-    pub validation_fingerprint: u64,
+    pub body_specification_validation_report_fingerprint: u64,
+    pub body_specification_boundary_contract_report_fingerprint: u64,
+    pub body_specification_footprint_report_fingerprint: u64,
+    pub composed_footprint_report_fingerprint: u64,
+    /// Compact report coordinate for the exact join retained separately by
+    /// `CompilerEntryRegionBindingEvidence` and the placed-region inventory.
+    pub final_region_binding_report_fingerprint: u64,
+    pub validation_report_fingerprint: u64,
 }
 
 impl CompilerFunctionValidationEvidence {
-    /// Collision-resistant commitment to the complete normalized validation
-    /// summary. Imported compact identities remain visible report fields, but
-    /// consumers must carry this digest rather than treating their aggregate
-    /// FNV value as publication or replay authority.
+    /// Collision-resistant commitment to the complete normalized reporting
+    /// summary. This preserves custody of the summary as a whole; it does not
+    /// promote any imported compact coordinate into underlying authority.
+    /// Publication and replay also retain the exact text and region-inventory
+    /// commitments described above.
     pub fn evidence_digest(self) -> CompilerFunctionValidationDigest {
         let mut digest = Sha256::new();
         digest.update(b"omega.compiler-function-validation.sha256.v1\0");
@@ -299,15 +308,15 @@ impl CompilerFunctionValidationEvidence {
             digest.update((value as u64).to_le_bytes());
         }
         for value in [
-            self.fixed_mechanics_validation_fingerprint,
-            self.fixed_mechanics_boundary_contract_fingerprint,
-            self.fixed_mechanics_footprint_fingerprint,
-            self.body_specification_validation_fingerprint,
-            self.body_specification_boundary_contract_fingerprint,
-            self.body_specification_footprint_fingerprint,
-            self.composed_footprint_fingerprint,
-            self.final_region_binding_fingerprint,
-            self.validation_fingerprint,
+            self.fixed_mechanics_validation_report_fingerprint,
+            self.fixed_mechanics_boundary_contract_report_fingerprint,
+            self.fixed_mechanics_footprint_report_fingerprint,
+            self.body_specification_validation_report_fingerprint,
+            self.body_specification_boundary_contract_report_fingerprint,
+            self.body_specification_footprint_report_fingerprint,
+            self.composed_footprint_report_fingerprint,
+            self.final_region_binding_report_fingerprint,
+            self.validation_report_fingerprint,
         ] {
             digest.update(value.to_le_bytes());
         }
@@ -319,23 +328,27 @@ impl CompilerFunctionValidationEvidence {
     pub fn evidence_report_fingerprint(self) -> u64 {
         let mut hash = 0xcbf2_9ce4_8422_2325u64;
         for bytes in [
-            self.validation_fingerprint.to_le_bytes(),
+            self.validation_report_fingerprint.to_le_bytes(),
             (self.function_count as u64).to_le_bytes(),
             (self.instruction_count as u64).to_le_bytes(),
             (self.zero_width_instruction_count as u64).to_le_bytes(),
             (self.checked_assembly_instruction_count as u64).to_le_bytes(),
             (self.fixed_mechanics_instruction_count as u64).to_le_bytes(),
-            self.fixed_mechanics_validation_fingerprint.to_le_bytes(),
-            self.fixed_mechanics_boundary_contract_fingerprint
+            self.fixed_mechanics_validation_report_fingerprint
                 .to_le_bytes(),
-            self.fixed_mechanics_footprint_fingerprint.to_le_bytes(),
+            self.fixed_mechanics_boundary_contract_report_fingerprint
+                .to_le_bytes(),
+            self.fixed_mechanics_footprint_report_fingerprint
+                .to_le_bytes(),
             (self.body_specification_instruction_count as u64).to_le_bytes(),
-            self.body_specification_validation_fingerprint.to_le_bytes(),
-            self.body_specification_boundary_contract_fingerprint
+            self.body_specification_validation_report_fingerprint
                 .to_le_bytes(),
-            self.body_specification_footprint_fingerprint.to_le_bytes(),
-            self.composed_footprint_fingerprint.to_le_bytes(),
-            self.final_region_binding_fingerprint.to_le_bytes(),
+            self.body_specification_boundary_contract_report_fingerprint
+                .to_le_bytes(),
+            self.body_specification_footprint_report_fingerprint
+                .to_le_bytes(),
+            self.composed_footprint_report_fingerprint.to_le_bytes(),
+            self.final_region_binding_report_fingerprint.to_le_bytes(),
         ] {
             for byte in bytes {
                 hash ^= u64::from(byte);
@@ -392,20 +405,20 @@ pub struct CompilerTextValidationEvidence {
     pub derivation_digest: CompilerTextDerivationDigest,
     /// Legacy compact report fingerprint. It is not an authority key; use
     /// `encoded_text_digest` or exact byte replay.
-    pub encoded_text_fingerprint: u64,
+    pub encoded_text_report_fingerprint: u64,
     /// Legacy compact report fingerprint. It is not an authority key; use
     /// `final_compiler_text_digest` or exact byte replay.
-    pub final_compiler_text_fingerprint: u64,
+    pub final_compiler_text_report_fingerprint: u64,
     /// Legacy compact report fingerprint. It is not an authority key; use the
     /// strong relocation-envelope digest.
-    pub relocation_envelope_fingerprint: u64,
+    pub relocation_envelope_report_fingerprint: u64,
     /// Checked-assembly instructions whose fixed encoding or normalized
     /// privilege-bearing envelope was validated at retained final boundaries.
-    pub checked_instruction_validation_fingerprint: u64,
-    pub checked_instruction_footprint_fingerprint: u64,
+    pub checked_instruction_validation_report_fingerprint: u64,
+    pub checked_instruction_footprint_report_fingerprint: u64,
     /// Legacy compact report fingerprint retained for current report
     /// compatibility. `derivation_digest` is the collision-resistant join.
-    pub derivation_fingerprint: u64,
+    pub derivation_report_fingerprint: u64,
     pub text_relocation_count: usize,
     pub checked_instruction_validation_count: usize,
 }
@@ -417,14 +430,17 @@ impl CompilerTextValidationEvidence {
         digest.update(self.encoded_text_digest.as_bytes());
         digest.update(self.final_compiler_text_digest.as_bytes());
         digest.update(self.relocation_envelope_digest.as_bytes());
-        digest.update(self.encoded_text_fingerprint.to_le_bytes());
-        digest.update(self.final_compiler_text_fingerprint.to_le_bytes());
-        digest.update(self.relocation_envelope_fingerprint.to_le_bytes());
+        digest.update(self.encoded_text_report_fingerprint.to_le_bytes());
+        digest.update(self.final_compiler_text_report_fingerprint.to_le_bytes());
+        digest.update(self.relocation_envelope_report_fingerprint.to_le_bytes());
         digest.update(
-            self.checked_instruction_validation_fingerprint
+            self.checked_instruction_validation_report_fingerprint
                 .to_le_bytes(),
         );
-        digest.update(self.checked_instruction_footprint_fingerprint.to_le_bytes());
+        digest.update(
+            self.checked_instruction_footprint_report_fingerprint
+                .to_le_bytes(),
+        );
         digest.update((self.text_relocation_count as u64).to_le_bytes());
         digest.update((self.checked_instruction_validation_count as u64).to_le_bytes());
         CompilerTextDerivationDigest::from_digest(digest.finalize().into())
@@ -444,7 +460,7 @@ pub fn emitted_direct_executable_output(output: ExecutableImageOutput) -> Emitte
     EmittedImageOutput {
         bytes: output.bytes,
         final_text_bytes: output.final_text_bytes,
-        callback_placement_identity_fingerprint: 0,
+        callback_placement_identity_report_fingerprint: 0,
         file_name: output.file_name,
         format: output.format,
         kind: ImageOutputKind::DirectExecutable,
@@ -474,12 +490,12 @@ mod tests {
             final_compiler_text_digest: FinalCompilerTextDigest::from_digest([2; 32]),
             relocation_envelope_digest: CompilerTextRelocationEnvelopeDigest::from_digest([3; 32]),
             derivation_digest: CompilerTextDerivationDigest::from_digest([0; 32]),
-            encoded_text_fingerprint: 11,
-            final_compiler_text_fingerprint: 12,
-            relocation_envelope_fingerprint: 13,
-            checked_instruction_validation_fingerprint: 14,
-            checked_instruction_footprint_fingerprint: 15,
-            derivation_fingerprint: 16,
+            encoded_text_report_fingerprint: 11,
+            final_compiler_text_report_fingerprint: 12,
+            relocation_envelope_report_fingerprint: 13,
+            checked_instruction_validation_report_fingerprint: 14,
+            checked_instruction_footprint_report_fingerprint: 15,
+            derivation_report_fingerprint: 16,
             text_relocation_count: 17,
             checked_instruction_validation_count: 18,
         };
@@ -494,16 +510,16 @@ mod tests {
             zero_width_instruction_count: 3,
             checked_assembly_instruction_count: 4,
             fixed_mechanics_instruction_count: 5,
-            fixed_mechanics_validation_fingerprint: 6,
-            fixed_mechanics_boundary_contract_fingerprint: 7,
-            fixed_mechanics_footprint_fingerprint: 8,
+            fixed_mechanics_validation_report_fingerprint: 6,
+            fixed_mechanics_boundary_contract_report_fingerprint: 7,
+            fixed_mechanics_footprint_report_fingerprint: 8,
             body_specification_instruction_count: 9,
-            body_specification_validation_fingerprint: 10,
-            body_specification_boundary_contract_fingerprint: 11,
-            body_specification_footprint_fingerprint: 12,
-            composed_footprint_fingerprint: 13,
-            final_region_binding_fingerprint: 14,
-            validation_fingerprint: 15,
+            body_specification_validation_report_fingerprint: 10,
+            body_specification_boundary_contract_report_fingerprint: 11,
+            body_specification_footprint_report_fingerprint: 12,
+            composed_footprint_report_fingerprint: 13,
+            final_region_binding_report_fingerprint: 14,
+            validation_report_fingerprint: 15,
         }
     }
 
@@ -513,10 +529,13 @@ mod tests {
         let second = text_evidence([99; 32]);
 
         assert_eq!(
-            first.encoded_text_fingerprint,
-            second.encoded_text_fingerprint
+            first.encoded_text_report_fingerprint,
+            second.encoded_text_report_fingerprint
         );
-        assert_eq!(first.derivation_fingerprint, second.derivation_fingerprint);
+        assert_eq!(
+            first.derivation_report_fingerprint,
+            second.derivation_report_fingerprint
+        );
         assert_ne!(first.encoded_text_digest, second.encoded_text_digest);
         assert_ne!(first.derivation_digest, second.derivation_digest);
         assert!(first.has_valid_derivation_digest());
@@ -543,22 +562,22 @@ mod tests {
             },
             {
                 let mut drifted = evidence;
-                drifted.fixed_mechanics_validation_fingerprint ^= 1;
+                drifted.fixed_mechanics_validation_report_fingerprint ^= 1;
                 drifted
             },
             {
                 let mut drifted = evidence;
-                drifted.body_specification_footprint_fingerprint ^= 1;
+                drifted.body_specification_footprint_report_fingerprint ^= 1;
                 drifted
             },
             {
                 let mut drifted = evidence;
-                drifted.final_region_binding_fingerprint ^= 1;
+                drifted.final_region_binding_report_fingerprint ^= 1;
                 drifted
             },
             {
                 let mut drifted = evidence;
-                drifted.validation_fingerprint ^= 1;
+                drifted.validation_report_fingerprint ^= 1;
                 drifted
             },
         ] {

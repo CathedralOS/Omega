@@ -238,12 +238,15 @@ pub struct FinalFootprintCertificate {
     /// Compact report compatibility only.
     pub coverage_report_fingerprint: u64,
     pub coverage: FinalFootprintCoverage,
-    pub boundary_contract_fingerprint: Option<u64>,
+    /// Compact report coordinate beside exact retained state footprints.
+    pub boundary_contract_report_fingerprint: Option<u64>,
     /// Compact report compatibility only; exact footprint and inventory
     /// commitments carry authority.
     pub implementation_evidence_report_fingerprint: u64,
     pub implementation_fragment_count: usize,
-    pub callback_placement_identity_fingerprint: u64,
+    /// Compact report coordinate for callback rows structurally replayed before
+    /// image emission.
+    pub callback_placement_identity_report_fingerprint: u64,
     pub compiler_text_validation: CompilerTextValidationEvidence,
     pub compiler_function_validation: CompilerFunctionValidationEvidence,
     pub compiler_entry_footprint_binding: Option<CompilerEntryFootprintBindingEvidence>,
@@ -255,10 +258,10 @@ pub struct FinalFootprintCertificate {
 
 impl FinalFootprintCertificate {
     pub fn current(
-        boundary_contract_fingerprint: Option<u64>,
+        boundary_contract_report_fingerprint: Option<u64>,
         implementation_evidence_report_fingerprint: u64,
         implementation_fragment_count: usize,
-        callback_placement_identity_fingerprint: u64,
+        callback_placement_identity_report_fingerprint: u64,
         compiler_text_validation: CompilerTextValidationEvidence,
         compiler_function_validation: CompilerFunctionValidationEvidence,
         compiler_entry_footprint_binding: Option<CompilerEntryFootprintBindingEvidence>,
@@ -276,9 +279,10 @@ impl FinalFootprintCertificate {
             ));
         }
         if compiler_function_validation.body_specification_instruction_count > 0
-            && boundary_contract_fingerprint
+            && boundary_contract_report_fingerprint
                 != Some(
-                    compiler_function_validation.body_specification_boundary_contract_fingerprint,
+                    compiler_function_validation
+                        .body_specification_boundary_contract_report_fingerprint,
                 )
         {
             return Err(Diagnostic::error(
@@ -286,15 +290,18 @@ impl FinalFootprintCertificate {
             ));
         }
         if compiler_function_validation.fixed_mechanics_instruction_count > 0
-            && boundary_contract_fingerprint
-                != Some(compiler_function_validation.fixed_mechanics_boundary_contract_fingerprint)
+            && boundary_contract_report_fingerprint
+                != Some(
+                    compiler_function_validation
+                        .fixed_mechanics_boundary_contract_report_fingerprint,
+                )
         {
             return Err(Diagnostic::error(
                 "final call-return footprint evidence names a different boundary contract",
             ));
         }
         validate_entry_footprint_binding(
-            boundary_contract_fingerprint,
+            boundary_contract_report_fingerprint,
             implementation_evidence_report_fingerprint,
             compiler_function_validation,
             compiler_entry_footprint_binding,
@@ -305,20 +312,20 @@ impl FinalFootprintCertificate {
         let coverage_digest = coverage.digest();
         let coverage_report_fingerprint = coverage.report_fingerprint();
         let boundary_placement_binding_digest = placement_binding_digest(
-            boundary_contract_fingerprint,
+            boundary_contract_report_fingerprint,
             implementation_evidence_report_fingerprint,
             implementation_fragment_count,
-            callback_placement_identity_fingerprint,
+            callback_placement_identity_report_fingerprint,
             &compiler_text_validation,
             compiler_function_validation,
             compiler_entry_footprint_binding,
             &inventory,
         );
         let boundary_placement_binding_report_fingerprint = placement_binding_report_fingerprint(
-            boundary_contract_fingerprint,
+            boundary_contract_report_fingerprint,
             implementation_evidence_report_fingerprint,
-            callback_placement_identity_fingerprint,
-            compiler_text_validation.derivation_fingerprint,
+            callback_placement_identity_report_fingerprint,
+            compiler_text_validation.derivation_report_fingerprint,
             compiler_function_validation.evidence_report_fingerprint(),
             compiler_entry_footprint_binding
                 .map(|binding| binding.evidence_report_fingerprint)
@@ -328,7 +335,7 @@ impl FinalFootprintCertificate {
         let certificate_report_fingerprint = certificate_report_fingerprint(
             coverage_report_fingerprint,
             boundary_placement_binding_report_fingerprint,
-            compiler_text_validation.derivation_fingerprint,
+            compiler_text_validation.derivation_report_fingerprint,
             compiler_function_validation.evidence_report_fingerprint(),
             compiler_entry_footprint_binding
                 .map(|binding| binding.evidence_report_fingerprint)
@@ -350,10 +357,10 @@ impl FinalFootprintCertificate {
             coverage_digest,
             coverage_report_fingerprint,
             coverage,
-            boundary_contract_fingerprint,
+            boundary_contract_report_fingerprint,
             implementation_evidence_report_fingerprint,
             implementation_fragment_count,
-            callback_placement_identity_fingerprint,
+            callback_placement_identity_report_fingerprint,
             compiler_text_validation,
             compiler_function_validation,
             compiler_entry_footprint_binding,
@@ -380,10 +387,10 @@ impl FinalFootprintCertificate {
             .compiler_function_validation
             .body_specification_instruction_count
             > 0
-            && self.boundary_contract_fingerprint
+            && self.boundary_contract_report_fingerprint
                 != Some(
                     self.compiler_function_validation
-                        .body_specification_boundary_contract_fingerprint,
+                        .body_specification_boundary_contract_report_fingerprint,
                 )
         {
             return Err(Diagnostic::error(
@@ -394,10 +401,10 @@ impl FinalFootprintCertificate {
             .compiler_function_validation
             .fixed_mechanics_instruction_count
             > 0
-            && self.boundary_contract_fingerprint
+            && self.boundary_contract_report_fingerprint
                 != Some(
                     self.compiler_function_validation
-                        .fixed_mechanics_boundary_contract_fingerprint,
+                        .fixed_mechanics_boundary_contract_report_fingerprint,
                 )
         {
             return Err(Diagnostic::error(
@@ -411,7 +418,7 @@ impl FinalFootprintCertificate {
             ));
         }
         validate_entry_footprint_binding(
-            self.boundary_contract_fingerprint,
+            self.boundary_contract_report_fingerprint,
             self.implementation_evidence_report_fingerprint,
             self.compiler_function_validation,
             self.compiler_entry_footprint_binding,
@@ -430,10 +437,10 @@ impl FinalFootprintCertificate {
             ));
         }
         let expected_binding_digest = placement_binding_digest(
-            self.boundary_contract_fingerprint,
+            self.boundary_contract_report_fingerprint,
             self.implementation_evidence_report_fingerprint,
             self.implementation_fragment_count,
-            self.callback_placement_identity_fingerprint,
+            self.callback_placement_identity_report_fingerprint,
             &self.compiler_text_validation,
             self.compiler_function_validation,
             self.compiler_entry_footprint_binding,
@@ -445,10 +452,10 @@ impl FinalFootprintCertificate {
             ));
         }
         let expected_binding = placement_binding_report_fingerprint(
-            self.boundary_contract_fingerprint,
+            self.boundary_contract_report_fingerprint,
             self.implementation_evidence_report_fingerprint,
-            self.callback_placement_identity_fingerprint,
-            self.compiler_text_validation.derivation_fingerprint,
+            self.callback_placement_identity_report_fingerprint,
+            self.compiler_text_validation.derivation_report_fingerprint,
             self.compiler_function_validation
                 .evidence_report_fingerprint(),
             self.compiler_entry_footprint_binding
@@ -464,7 +471,7 @@ impl FinalFootprintCertificate {
         let expected_certificate = certificate_report_fingerprint(
             expected_coverage,
             expected_binding,
-            self.compiler_text_validation.derivation_fingerprint,
+            self.compiler_text_validation.derivation_report_fingerprint,
             self.compiler_function_validation
                 .evidence_report_fingerprint(),
             self.compiler_entry_footprint_binding
@@ -495,13 +502,13 @@ impl FinalFootprintCertificate {
 }
 
 fn validate_entry_footprint_binding(
-    boundary_contract_fingerprint: Option<u64>,
+    boundary_contract_report_fingerprint: Option<u64>,
     implementation_evidence_report_fingerprint: u64,
     compiler_function_validation: CompilerFunctionValidationEvidence,
     binding: Option<CompilerEntryFootprintBindingEvidence>,
     inventory: &PlacedExecutableRegionInventory,
 ) -> Result<(), Diagnostic> {
-    match (boundary_contract_fingerprint, binding) {
+    match (boundary_contract_report_fingerprint, binding) {
         (None, None) => Ok(()),
         (None, Some(_)) => Err(Diagnostic::error(
             "final footprint certificate retains entry-footprint custody without a boundary contract",
@@ -513,8 +520,8 @@ fn validate_entry_footprint_binding(
             if !binding.validate_identity()
                 || binding.footprint_report_fingerprint
                     != implementation_evidence_report_fingerprint
-                || binding.final_region_binding_fingerprint
-                    != compiler_function_validation.final_region_binding_fingerprint
+                || binding.final_region_binding_report_fingerprint
+                    != compiler_function_validation.final_region_binding_report_fingerprint
                 || binding.resulting_inventory_report_fingerprint
                     != inventory.inventory_report_fingerprint
                 || binding.resulting_inventory_digest != inventory.inventory_digest
@@ -532,10 +539,10 @@ fn validate_entry_footprint_binding(
 }
 
 fn placement_binding_digest(
-    boundary_contract_fingerprint: Option<u64>,
+    boundary_contract_report_fingerprint: Option<u64>,
     implementation_evidence_report_fingerprint: u64,
     implementation_fragment_count: usize,
-    callback_placement_identity_fingerprint: u64,
+    callback_placement_identity_report_fingerprint: u64,
     compiler_text_validation: &CompilerTextValidationEvidence,
     compiler_function_validation: CompilerFunctionValidationEvidence,
     compiler_entry_footprint_binding: Option<CompilerEntryFootprintBindingEvidence>,
@@ -543,15 +550,15 @@ fn placement_binding_digest(
 ) -> FinalFootprintPlacementBindingDigest {
     let mut digest = Sha256::new();
     digest.update(b"omega.final-footprint-placement-binding.sha256.v1\0");
-    digest.update([u8::from(boundary_contract_fingerprint.is_some())]);
+    digest.update([u8::from(boundary_contract_report_fingerprint.is_some())]);
     digest.update(
-        boundary_contract_fingerprint
+        boundary_contract_report_fingerprint
             .unwrap_or_default()
             .to_le_bytes(),
     );
     digest.update(implementation_evidence_report_fingerprint.to_le_bytes());
     digest.update((implementation_fragment_count as u64).to_le_bytes());
-    digest.update(callback_placement_identity_fingerprint.to_le_bytes());
+    digest.update(callback_placement_identity_report_fingerprint.to_le_bytes());
     digest.update(compiler_text_validation.derivation_digest.as_bytes());
     update_compiler_function_validation_digest(&mut digest, compiler_function_validation);
     match compiler_entry_footprint_binding {
@@ -601,9 +608,9 @@ fn update_compiler_function_validation_digest(
 }
 
 fn placement_binding_report_fingerprint(
-    boundary_contract_fingerprint: Option<u64>,
+    boundary_contract_report_fingerprint: Option<u64>,
     implementation_evidence_report_fingerprint: u64,
-    callback_placement_identity_fingerprint: u64,
+    callback_placement_identity_report_fingerprint: u64,
     compiler_text_derivation_report_fingerprint: u64,
     compiler_function_validation_report_fingerprint: u64,
     compiler_entry_footprint_binding_report_fingerprint: u64,
@@ -613,7 +620,7 @@ fn placement_binding_report_fingerprint(
     fingerprint_bytes(
         &mut hash,
         &[
-            u8::from(boundary_contract_fingerprint.is_some()),
+            u8::from(boundary_contract_report_fingerprint.is_some()),
             0x42,
             0x50,
             0x42,
@@ -621,7 +628,7 @@ fn placement_binding_report_fingerprint(
     );
     fingerprint_bytes(
         &mut hash,
-        &boundary_contract_fingerprint
+        &boundary_contract_report_fingerprint
             .unwrap_or_default()
             .to_le_bytes(),
     );
@@ -631,7 +638,7 @@ fn placement_binding_report_fingerprint(
     );
     fingerprint_bytes(
         &mut hash,
-        &callback_placement_identity_fingerprint.to_le_bytes(),
+        &callback_placement_identity_report_fingerprint.to_le_bytes(),
     );
     fingerprint_bytes(
         &mut hash,
@@ -721,7 +728,7 @@ mod tests {
                 [20; 32],
             ),
             entry_region_evidence_report_fingerprint: 20,
-            final_region_binding_fingerprint: 19,
+            final_region_binding_report_fingerprint: 19,
             prior_inventory_digest: crate::PlacedExecutableRegionInventoryDigest::from_digest(
                 [12; 32],
             ),
@@ -744,12 +751,12 @@ mod tests {
             final_compiler_text_digest: FinalCompilerTextDigest::from_digest([2; 32]),
             relocation_envelope_digest: CompilerTextRelocationEnvelopeDigest::from_digest([3; 32]),
             derivation_digest: CompilerTextDerivationDigest::from_digest([0; 32]),
-            encoded_text_fingerprint: 4,
-            final_compiler_text_fingerprint: 5,
-            relocation_envelope_fingerprint: 6,
-            checked_instruction_validation_fingerprint: 7,
-            checked_instruction_footprint_fingerprint: 18,
-            derivation_fingerprint: 8,
+            encoded_text_report_fingerprint: 4,
+            final_compiler_text_report_fingerprint: 5,
+            relocation_envelope_report_fingerprint: 6,
+            checked_instruction_validation_report_fingerprint: 7,
+            checked_instruction_footprint_report_fingerprint: 18,
+            derivation_report_fingerprint: 8,
             text_relocation_count: 9,
             checked_instruction_validation_count: 10,
         };
@@ -763,12 +770,12 @@ mod tests {
             final_compiler_text_digest: FinalCompilerTextDigest::from_digest([0; 32]),
             relocation_envelope_digest: CompilerTextRelocationEnvelopeDigest::from_digest([0; 32]),
             derivation_digest: CompilerTextDerivationDigest::from_digest([0; 32]),
-            encoded_text_fingerprint: 0,
-            final_compiler_text_fingerprint: 0,
-            relocation_envelope_fingerprint: 0,
-            checked_instruction_validation_fingerprint: 0,
-            checked_instruction_footprint_fingerprint: 0,
-            derivation_fingerprint: 0,
+            encoded_text_report_fingerprint: 0,
+            final_compiler_text_report_fingerprint: 0,
+            relocation_envelope_report_fingerprint: 0,
+            checked_instruction_validation_report_fingerprint: 0,
+            checked_instruction_footprint_report_fingerprint: 0,
+            derivation_report_fingerprint: 0,
             text_relocation_count: 0,
             checked_instruction_validation_count: 0,
         };
@@ -791,16 +798,16 @@ mod tests {
                 zero_width_instruction_count: 0,
                 checked_assembly_instruction_count: 0,
                 fixed_mechanics_instruction_count: 2,
-                fixed_mechanics_validation_fingerprint: 14,
-                fixed_mechanics_boundary_contract_fingerprint: 1,
-                fixed_mechanics_footprint_fingerprint: 17,
+                fixed_mechanics_validation_report_fingerprint: 14,
+                fixed_mechanics_boundary_contract_report_fingerprint: 1,
+                fixed_mechanics_footprint_report_fingerprint: 17,
                 body_specification_instruction_count: 3,
-                body_specification_validation_fingerprint: 15,
-                body_specification_boundary_contract_fingerprint: 1,
-                body_specification_footprint_fingerprint: 16,
-                composed_footprint_fingerprint: 18,
-                final_region_binding_fingerprint: 19,
-                validation_fingerprint: 11,
+                body_specification_validation_report_fingerprint: 15,
+                body_specification_boundary_contract_report_fingerprint: 1,
+                body_specification_footprint_report_fingerprint: 16,
+                composed_footprint_report_fingerprint: 18,
+                final_region_binding_report_fingerprint: 19,
+                validation_report_fingerprint: 11,
             },
             Some(binding),
             inventory,
@@ -829,17 +836,17 @@ mod tests {
             },
             {
                 let mut value = certificate.clone();
-                value.boundary_contract_fingerprint = Some(99);
+                value.boundary_contract_report_fingerprint = Some(99);
                 value
             },
             {
                 let mut value = certificate.clone();
-                value.callback_placement_identity_fingerprint = 99;
+                value.callback_placement_identity_report_fingerprint = 99;
                 value
             },
             {
                 let mut value = certificate.clone();
-                value.compiler_text_validation.derivation_fingerprint = 99;
+                value.compiler_text_validation.derivation_report_fingerprint = 99;
                 value
             },
             {
@@ -850,7 +857,9 @@ mod tests {
             },
             {
                 let mut value = certificate.clone();
-                value.compiler_function_validation.validation_fingerprint = 99;
+                value
+                    .compiler_function_validation
+                    .validation_report_fingerprint = 99;
                 value
             },
             {
@@ -862,7 +871,7 @@ mod tests {
                 let mut value = certificate.clone();
                 value
                     .compiler_function_validation
-                    .final_region_binding_fingerprint = 99;
+                    .final_region_binding_report_fingerprint = 99;
                 value
             },
             {
@@ -896,7 +905,7 @@ mod tests {
     }
 
     #[test]
-    fn compact_certificate_identity_cannot_substitute_strong_inventory_evidence() {
+    fn compact_certificate_identity_cannot_substitute_strong_native_evidence() {
         let certificate = certificate();
         let mut substituted = certificate.clone();
         substituted.inventory.inventory_digest =
@@ -919,6 +928,26 @@ mod tests {
             .expect("entry binding");
         binding.footprint_digest = crate::StateFootprintEvidenceDigest::from_digest([99; 32]);
         binding.evidence_digest = binding.recomputed_evidence_digest();
+        assert_eq!(
+            substituted.certificate_report_fingerprint,
+            certificate.certificate_report_fingerprint
+        );
+        assert!(substituted.validate_identity().is_err());
+
+        let mut substituted = certificate.clone();
+        let binding = substituted
+            .compiler_entry_footprint_binding
+            .as_mut()
+            .expect("entry binding");
+        binding.entry_region_evidence_digest =
+            crate::CompilerEntryRegionBindingDigest::from_digest([98; 32]);
+        assert_eq!(
+            binding.entry_region_evidence_report_fingerprint,
+            certificate
+                .compiler_entry_footprint_binding
+                .expect("original entry binding")
+                .entry_region_evidence_report_fingerprint
+        );
         assert_eq!(
             substituted.certificate_report_fingerprint,
             certificate.certificate_report_fingerprint
@@ -982,16 +1011,16 @@ mod tests {
                     zero_width_instruction_count: 0,
                     checked_assembly_instruction_count: 0,
                     fixed_mechanics_instruction_count: 0,
-                    fixed_mechanics_validation_fingerprint: 0,
-                    fixed_mechanics_boundary_contract_fingerprint: 0,
-                    fixed_mechanics_footprint_fingerprint: 0,
+                    fixed_mechanics_validation_report_fingerprint: 0,
+                    fixed_mechanics_boundary_contract_report_fingerprint: 0,
+                    fixed_mechanics_footprint_report_fingerprint: 0,
                     body_specification_instruction_count: 0,
-                    body_specification_validation_fingerprint: 0,
-                    body_specification_boundary_contract_fingerprint: 0,
-                    body_specification_footprint_fingerprint: 0,
-                    composed_footprint_fingerprint: 0,
-                    final_region_binding_fingerprint: 0,
-                    validation_fingerprint: 0,
+                    body_specification_validation_report_fingerprint: 0,
+                    body_specification_boundary_contract_report_fingerprint: 0,
+                    body_specification_footprint_report_fingerprint: 0,
+                    composed_footprint_report_fingerprint: 0,
+                    final_region_binding_report_fingerprint: 0,
+                    validation_report_fingerprint: 0,
                 },
                 None,
                 inventory,

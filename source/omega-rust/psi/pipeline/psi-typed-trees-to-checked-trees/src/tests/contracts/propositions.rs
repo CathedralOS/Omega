@@ -669,7 +669,10 @@ fn closed_generic_proof_output_retains_its_concrete_application() {
         ["named(name(Card))"]
     );
     assert_eq!(specialization.conformance_applications.len(), 1);
-    assert_ne!(specialization.conformance_applications[0].fingerprint, 0);
+    assert_ne!(
+        specialization.conformance_applications[0].report_fingerprint,
+        0
+    );
     assert_eq!(
         output.instantiated_proposition,
         argument.instantiated_proposition

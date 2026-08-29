@@ -437,11 +437,11 @@ pub struct RootAdmission {
     identity: RootAdmissionId,
     root_evidence: ValidatedExternalRoot,
     provider_execution_evidence: ProviderExecution,
-    root_identity: u64,
+    root_report_identity: u64,
     provider_execution: ProviderExecutionId,
-    provider_execution_fingerprint: u64,
+    provider_execution_report_fingerprint: u64,
     provider_exit_assurance: OpaqueProviderExitAssurance,
-    provider_exit_assurance_fingerprint: u64,
+    provider_exit_assurance_report_fingerprint: u64,
     provider_plan: ProviderPlanId,
     installed_code: InstalledCodeId,
     installed_code_context: InstalledCodeContext,
@@ -558,11 +558,11 @@ impl RootAdmission {
             identity,
             root_evidence: root.clone(),
             provider_execution_evidence: execution.clone(),
-            root_identity: root.normalized_identity,
+            root_report_identity: root.normalized_report_identity,
             provider_execution: execution.identity,
-            provider_execution_fingerprint: execution.normalized_identity,
+            provider_execution_report_fingerprint: execution.normalized_report_identity,
             provider_exit_assurance: execution.exit_assurance,
-            provider_exit_assurance_fingerprint: execution.exit_assurance_fingerprint,
+            provider_exit_assurance_report_fingerprint: execution.exit_assurance_report_fingerprint,
             provider_plan: execution.provider_plan,
             installed_code: installed_code.identity(),
             installed_code_context: installed_code.receipt_context(),
@@ -579,15 +579,17 @@ impl RootAdmission {
     }
 }
 
-/// Reportable root record. It contains normalized identities and the complete
-/// boundary plan, never a numeric code address.
+/// Reportable root record. Compact execution summaries are explicitly named
+/// report coordinates and remain beside the complete boundary, stack, fuel,
+/// service-reach, provider-exit, and machine-state evidence, never a numeric
+/// code address.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstalledRootRecord {
     pub root: ExternalRootId,
     /// Normalizer-owned identity of the complete root candidate plus its
     /// validated boundary contract. This is distinct from the friendly/root
     /// slot identity and remains stable across installation placement.
-    pub normalized_root_identity: u64,
+    pub normalized_root_report_identity: u64,
     pub entry: EntryStubId,
     pub installed_code: InstalledCodeId,
     pub artifact: ArtifactId,
@@ -595,12 +597,12 @@ pub struct InstalledRootRecord {
     pub owner: RootSlotOwnerId,
     pub admission: RootAdmissionId,
     pub provider_execution: ProviderExecutionId,
-    pub provider_execution_fingerprint: u64,
+    pub provider_execution_report_fingerprint: u64,
     pub provider_exit_assurance: OpaqueProviderExitAssurance,
-    pub provider_exit_assurance_fingerprint: u64,
+    pub provider_exit_assurance_report_fingerprint: u64,
     pub provider_plan: ProviderPlanId,
     pub native_fuel_kind: NativeFuelRealizationKind,
-    pub native_fuel_fingerprint: u64,
+    pub native_fuel_report_fingerprint: u64,
     pub requirement_identity: String,
     pub entry_claims: Vec<ExternalRootEntryClaim>,
     pub acknowledgement_parameter_index: Option<usize>,
@@ -608,11 +610,14 @@ pub struct InstalledRootRecord {
     /// Final service row after substituting every installation-bound provider
     /// requirement in this exact root closure.
     pub service_reach: Vec<String>,
-    /// Fingerprint of the selected provider closure that supplied the rows.
-    pub selected_provider_closure_fingerprint: u64,
+    /// Non-authoritative report fingerprint of the selected provider closure
+    /// that supplied the rows.
+    pub selected_provider_closure_report_fingerprint: u64,
+    /// Collision-resistant identity of the complete selected provider closure.
+    pub selected_provider_closure_digest: omega_effects::SelectedProviderClosureDigest,
     /// Exact bounded requirement resolutions retained for audit and replay.
     pub installation_reach_resolutions: Vec<omega_effects::InstallationReachResolution>,
-    pub boundary_contract_fingerprint: u64,
+    pub boundary_contract_report_fingerprint: u64,
     pub boundary: BoundaryEntryPlan,
     pub provider: RootProviderId,
     pub effects: BTreeSet<RootEffectId>,
@@ -1000,10 +1005,10 @@ pub struct InterruptAcknowledgement {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstalledInterruptCompletionRoute {
     root: ExternalRootId,
-    normalized_root_identity: u64,
+    normalized_root_report_identity: u64,
     entry_provider_plan: ProviderPlanId,
     provider_execution: ProviderExecutionId,
-    provider_execution_fingerprint: u64,
+    provider_execution_report_fingerprint: u64,
     completion_requirement_identity: String,
     resolution: omega_effects::InstallationReachResolution,
     entry_receipt: InterruptEntryReceiptId,
@@ -1059,10 +1064,12 @@ impl InstalledInterruptCompletionRoute {
         }
         Ok(Self {
             root: acknowledgement.root,
-            normalized_root_identity: root.normalized_identity,
+            normalized_root_report_identity: root.normalized_report_identity,
             entry_provider_plan: installed.provider_execution.provider_plan,
             provider_execution: acknowledgement.provider_execution,
-            provider_execution_fingerprint: installed.provider_execution.normalized_identity,
+            provider_execution_report_fingerprint: installed
+                .provider_execution
+                .normalized_report_identity,
             completion_requirement_identity: completion_requirement_identity.into(),
             resolution: resolution.clone(),
             entry_receipt: acknowledgement.invocation_evidence.entry_receipt,
@@ -1085,12 +1092,12 @@ impl InstalledInterruptCompletionRoute {
                 });
         installed.provider_execution.matches_root(root)
             && self.root == acknowledgement.root
-            && self.normalized_root_identity == root.normalized_identity
+            && self.normalized_root_report_identity == root.normalized_report_identity
             && self.entry_provider_plan == installed.provider_execution.provider_plan
             && self.provider_execution == acknowledgement.provider_execution
             && self.provider_execution == installed.provider_execution.identity
-            && self.provider_execution_fingerprint
-                == installed.provider_execution.normalized_identity
+            && self.provider_execution_report_fingerprint
+                == installed.provider_execution.normalized_report_identity
             && self.completion_requirement_identity == self.resolution.requirement_identity
             && replayed_resolution == Some(&self.resolution)
             && root
@@ -1580,17 +1587,20 @@ impl InstalledRootLedger {
         let mut hash = Fnv1a::new();
         hash.u64(self.roots.len() as u64);
         for record in self.roots.values() {
-            hash.u64(record.normalized_root_identity);
+            hash.u64(record.normalized_root_report_identity);
             hash.u64(record.installed_code.normalized_identity());
             hash.u64(record.artifact.normalized_identity());
             hash.u64(record.slot.normalized_identity());
             hash.u64(record.owner.normalized_identity());
             hash.u64(record.admission.normalized_identity());
             hash.u64(record.provider_execution.normalized_identity());
-            hash.u64(record.provider_execution_fingerprint);
-            hash.u64(record.provider_exit_assurance_fingerprint);
+            hash.u64(record.provider_execution_report_fingerprint);
+            hash.u64(record.provider_exit_assurance_report_fingerprint);
             hash.u64(record.provider_plan.normalized_identity());
-            hash.u64(record.native_fuel_fingerprint);
+            hash.u64(record.native_fuel_report_fingerprint);
+            hash.u64(record.selected_provider_closure_report_fingerprint);
+            hash.bytes(record.selected_provider_closure_digest.as_bytes());
+            hash.u64(record.boundary_contract_report_fingerprint);
         }
         hash.finish()
     }
@@ -1667,9 +1677,11 @@ impl InstalledRootLedger {
         if admission.root_evidence != root
             || admission.provider_execution_evidence.root_evidence != root
             || admission.provider_execution_evidence.identity != admission.provider_execution
-            || admission.provider_execution_evidence.normalized_identity
-                != admission.provider_execution_fingerprint
-            || admission.root_identity != root.normalized_identity
+            || admission
+                .provider_execution_evidence
+                .normalized_report_identity
+                != admission.provider_execution_report_fingerprint
+            || admission.root_report_identity != root.normalized_report_identity
             || admission.installed_code != installed_code.identity()
             || admission.installed_code_context != installed_code.receipt_context()
             || admission.artifact != installed_code.artifact()
@@ -1705,7 +1717,7 @@ impl InstalledRootLedger {
         };
         let record = InstalledRootRecord {
             root: root.candidate.identity,
-            normalized_root_identity: root.normalized_identity,
+            normalized_root_report_identity: root.normalized_report_identity,
             entry: root.candidate.entry,
             installed_code: installed_code.identity(),
             artifact: installed_code.artifact(),
@@ -1713,23 +1725,28 @@ impl InstalledRootLedger {
             owner: slot.owner,
             admission: admission.identity,
             provider_execution: admission.provider_execution,
-            provider_execution_fingerprint: admission.provider_execution_fingerprint,
+            provider_execution_report_fingerprint: admission.provider_execution_report_fingerprint,
             provider_exit_assurance: admission.provider_exit_assurance,
-            provider_exit_assurance_fingerprint: admission.provider_exit_assurance_fingerprint,
+            provider_exit_assurance_report_fingerprint: admission
+                .provider_exit_assurance_report_fingerprint,
             provider_plan: admission.provider_plan,
             native_fuel_kind: admission.native_fuel.kind(),
-            native_fuel_fingerprint: admission.native_fuel.fingerprint(),
+            native_fuel_report_fingerprint: admission.native_fuel.fingerprint(),
             requirement_identity: root.candidate.requirement_identity,
             entry_claims: root.candidate.entry_claims,
             acknowledgement_parameter_index: root.candidate.acknowledgement_parameter_index,
             interrupt_mask_guard_claim: root.candidate.interrupt_mask_guard_claim,
             service_reach: root.candidate.service_reach.effective().to_vec(),
-            selected_provider_closure_fingerprint: root
+            selected_provider_closure_report_fingerprint: root
                 .candidate
                 .service_reach
-                .selected_provider_closure_fingerprint(),
+                .selected_provider_closure_report_fingerprint(),
+            selected_provider_closure_digest: root
+                .candidate
+                .service_reach
+                .selected_provider_closure_digest(),
             installation_reach_resolutions: root.candidate.service_reach.resolutions().to_vec(),
-            boundary_contract_fingerprint: root.boundary_contract_fingerprint,
+            boundary_contract_report_fingerprint: root.boundary_contract_report_fingerprint,
             boundary: root.boundary.plan().clone(),
             provider: root.candidate.provider,
             effects: root.candidate.effects,
