@@ -72,9 +72,11 @@ closed. Compiler-issued package review remains non-admitting.
   selected from exact compiler state, never spelling. The existing closed floor
   covers builtin types, all compiler-installed builtin functions (including
   `min`, `max`, and `sqrt`), unary operators, byte predicates, and collection
-  length. Remaining work includes intrinsic provider-binding ownership and any
-  source-free child still represented as unresolved nominal ownership.
-  Package-authored lookalikes must remain ordinary package nominals.
+  length. Builtin-backed boundary-operator provider rows now retain and
+  rederive their exact builtin execution child. Remaining work includes closed
+  identities for non-builtin intrinsic provider executions and any source-free
+  child still represented as unresolved nominal ownership. Package-authored
+  lookalikes must remain ordinary package nominals.
 
 - [ ] **COMPLETE-CONFORMANCE-IDENTITY.** Retain complete public conformance
   applications, including target-trait lifetime arguments once OWNER Q6 is

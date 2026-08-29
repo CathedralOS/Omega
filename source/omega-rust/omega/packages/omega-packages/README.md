@@ -983,6 +983,11 @@ selection to identify the same exact fixed root slot and symbol kind, then
 encodes the stable closed builtin ordinal. The call spelling is diagnostic only;
 late root, nested, package-authored, and generated same-spelled symbols do not
 classify. Static arguments and target-symbol custody disagreement reject.
+Review v78 and canonical row v36 retain that same closed builtin identity for
+builtin-backed boundary-operator provider execution. The compiler-owned sidecar
+is row-aligned and separate from the authored realization machine; projection
+rederives and cross-checks it from checked overload identity. Missing,
+mismatched, spoofed, and still-unclosed primitive-expression children reject.
 Authored unary `!` and `~` operators retain their exact operator-token spans,
 including when nested in a public proposition or contract. Checked lowering
 must finalize that exact occurrence as the closed builtin-operator meaning,
@@ -1445,7 +1450,7 @@ Other nested clause/use-site coordinates remain unfinished engineering work; non
 independently motivates nominal Chi. Checked invocation facts retain exact
 symbolic published and inferred targets before provider settlement, and package
 review consumes those facts rather than re-inferring from transformed typed
-calls. Package review v77/row v35,
+calls. Package review v78/row v36,
 canonical recovery v13, conflict fingerprint v16, and conflict renderer V15 bind
 the current source-role vocabulary. The package layer
 does now validate a complete in-memory
