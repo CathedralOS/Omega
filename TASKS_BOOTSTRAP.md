@@ -177,7 +177,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 
 ## 2. Alpha-written Beta compiler
 
-- [ ] **DESIGN-BLOCKED — Q15/Q16: ADMIT-ALPHA-BETA-COMPILER.** Audit the canonical
+- [ ] **BLOCKED — DESIGN Q15 / OWNER Q16: ADMIT-ALPHA-BETA-COMPILER.** Audit the canonical
   `source/beta/compiler/beta_compiler.alpha` against the complete Beta v1
   contract. Its exact directly assembled Alpha tape is now the canonical Beta
   compiler artifact. It must accept arbitrary valid Beta within explicit
@@ -219,7 +219,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     guards are necessarily dominated by the smaller tape extent and are
     documented as corruption teeth rather than falsely advertised independent
     source capacities.
-  - [ ] **DESIGN-BLOCKED — Q16:** Project malformed source and each private
+  - [ ] **OWNER-BLOCKED — Q16:** Project malformed source and each private
     capacity failure to exact, typed no-partial-artifact outcomes. The Alpha
     boundary currently exposes raw success bytes plus a halt code and has no
     selected canonical carrier for `Complete`, `Reject`, `Incomplete`, and
@@ -412,7 +412,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
 
 ## 6. Omega-written full compiler `C`
 
-- [ ] Publish one deterministic package-resolved Omega closure `C` rooted at
+- [ ] **DEPENDENCY-BLOCKED — Q19 and current ranked-runtime acceptance.**
+  Publish one deterministic package-resolved Omega closure `C` rooted at
   `source/omega/build.omg`. Psi modules are included only when imported by the
   compiler executable; interpreters, viewers, REPLs, proof explorers, and other
   adjacent tools are excluded unless truly required.
@@ -424,7 +425,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
   and gates are already deleted rather than retained as a second bootstrap
   observation. Freeze that final checked production closure only when `C`
   itself is complete; do not revive an inspection-only precursor.
-- [ ] Author `C` with a conservative compositional subset of ordinary Omega to
+- [ ] **DEPENDENCY-BLOCKED — Q19 and current ranked-runtime acceptance.**
+  Author `C` with a conservative compositional subset of ordinary Omega to
   simplify the first self-build. This is an incidental source profile, never a
   named dialect or permission for `omega₀` to implement less than full Omega.
 - [ ] **DEPENDENCY-BLOCKED — missing `omega0` and complete `C`.** Run `omega₀ C → omega` without rewriting or selectively replacing any
