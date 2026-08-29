@@ -1,6 +1,6 @@
 //! Validated closure custody and exact source-selection views.
 
-use super::super::validation::{ResolvedPackageClosure, ResolvedSourceIdentity};
+use super::super::{ResolvedPackageClosure, ResolvedSourceIdentity};
 use super::model::{DependencyRequestPath, DependencyRequestPathStep};
 use crate::manifest::dependencies::read::DependencySourceRequest;
 use crate::resolution::binding::PackageSourceCustody;

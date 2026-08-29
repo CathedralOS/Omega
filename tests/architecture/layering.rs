@@ -929,9 +929,14 @@ fn package_subsystem_has_deliberate_entrances() {
         "omega-package-manager/src/resolution/mod.rs",
         "omega-package-manager/src/resolution/binding/mod.rs",
         "omega-package-manager/src/resolution/closure/mod.rs",
+        "omega-package-manager/src/resolution/closure/model.rs",
+        "omega-package-manager/src/resolution/closure/identity/mod.rs",
         "omega-package-manager/src/review/mod.rs",
         "omega-package-manager/src/review/audit_input/mod.rs",
+        "omega-package-manager/src/review/baseline/mod.rs",
         "omega-package-manager/src/review/records/mod.rs",
+        "omega-package-manager/src/review/source_diff/mod.rs",
+        "omega-package-manager/src/review/triage/mod.rs",
         "omega-package-advisory/README.md",
         "omega-package-advisory/src/lib.rs",
         "omega-package-review/src/lib.rs",
@@ -974,6 +979,7 @@ fn package_subsystem_has_deliberate_entrances() {
         "omega-package-manager/src/graph",
         "omega-package-manager/src/resolution/package",
         "omega-package-manager/src/resolution/graph",
+        "omega-package-manager/src/resolution/closure/validation",
         "omega-package-manager/src/commands/source_audit",
         "omega-package-manager/SOURCE_RESOLVER_SECURITY.md",
         "omega-package-manager/src/storage",
@@ -1000,6 +1006,32 @@ fn package_subsystem_has_deliberate_entrances() {
             !packages.join(retired).exists(),
             "retired package junk-drawer path must not return: {retired}"
         );
+    }
+
+    let manager_source_root = packages.join("omega-package-manager/src");
+    let mut manager_directories = vec![manager_source_root];
+    while let Some(directory) = manager_directories.pop() {
+        for entry in std::fs::read_dir(&directory).expect("read package manager module directory") {
+            let entry = entry.expect("read package manager module entry");
+            let path = entry.path();
+            if path.is_dir() {
+                manager_directories.push(path);
+                continue;
+            }
+            let is_entrance = path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| matches!(name, "lib.rs" | "mod.rs"));
+            if !is_entrance {
+                continue;
+            }
+            let source = std::fs::read_to_string(&path).expect("read package manager entrance");
+            assert!(
+                source.lines().count() <= 100,
+                "package manager entrances are navigational maps; move substantive implementation into named files: {}",
+                path.display()
+            );
+        }
     }
 
     let mut pending = vec![packages];
@@ -3821,10 +3853,7 @@ fn allocation_recovery_has_one_route_and_one_realization_carrier() {
         pipeline.join("stages/artifacts/function_fragment_emission/source.rs"),
     )
     .expect("read fragment source taxonomy");
-    assert!(
-        fragment_source.contains(
-            "AllocationRecovery(Box<StagedAllocationRecoveryFunctionRelativeRealization>)"
-        )
-    );
+    assert!(fragment_source
+        .contains("AllocationRecovery(Box<StagedAllocationRecoveryFunctionRelativeRealization>)"));
     assert!(!fragment_source.contains("ActiveResidentRematerialization("));
 }

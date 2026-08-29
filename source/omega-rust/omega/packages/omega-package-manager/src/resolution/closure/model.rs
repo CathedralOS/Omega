@@ -1,4 +1,4 @@
-//! Typed package graph reconciliation over immutable source identities.
+//! Validated package-closure model over immutable source identities.
 
 use omega_package_source::{AliasName, IdentityError, ImmutableSourceResolution, PackageKey};
 use std::collections::{BTreeMap, BTreeSet};
@@ -12,9 +12,6 @@ pub struct ResolvedSourceIdentity {
     key: PackageKey,
     resolution: ImmutableSourceResolution,
 }
-
-#[cfg(test)]
-mod tests;
 
 impl ResolvedSourceIdentity {
     pub fn new(

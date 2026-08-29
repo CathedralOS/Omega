@@ -1,4 +1,4 @@
-use super::super::validation::PackageClosureValidationError;
+use super::super::PackageClosureValidationError;
 use super::*;
 use crate::manifest::dependencies::read::DependencySourceRequest;
 use crate::resolution::{

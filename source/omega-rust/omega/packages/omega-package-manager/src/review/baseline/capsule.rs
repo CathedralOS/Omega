@@ -1,34 +1,34 @@
 //! In-memory baseline packages and restart-stable capsules.
 
 use super::encoding::{
-    Decoder, Encoder, capsule_checksum, clone_baseline_bytes, decode_package_key,
-    decode_replay_record_option, decode_resolution, encode_package_key,
-    encode_replay_record_option, encode_resolution, ensure_bounded_string, replay_parent_binding,
-    validate_package_key_bounds, validate_recovery_row,
+    capsule_checksum, clone_baseline_bytes, decode_package_key, decode_replay_record_option,
+    decode_resolution, encode_package_key, encode_replay_record_option, encode_resolution,
+    ensure_bounded_string, replay_parent_binding, validate_package_key_bounds,
+    validate_recovery_row, Decoder, Encoder,
 };
 use super::validation::{
-    PendingPackage, canonical_graph, graph_depth, replay_record_limits, row_limits, validate_rows,
+    canonical_graph, graph_depth, replay_record_limits, row_limits, validate_rows, PendingPackage,
 };
 use super::{
-    CHECKSUM_BYTES, MAGIC, REVIEW_ONLY_ARTIFACT_CLASS, ReviewOnlyBaselineError,
-    ReviewOnlyBaselineLimits, VERSION,
+    ReviewOnlyBaselineError, ReviewOnlyBaselineLimits, CHECKSUM_BYTES, MAGIC,
+    REVIEW_ONLY_ARTIFACT_CLASS, VERSION,
 };
 use crate::resolution::{
     ResolvedDependency, ResolvedPackageClosure, ResolvedPackageNode, ResolvedPackageSourceClosure,
     ResolvedSourceIdentity,
 };
-use crate::review::CompilerIssuedPackageReviewSet;
 use crate::review::records::validation::{
     validate_review_only_closure, validate_review_only_records,
 };
 use crate::review::records::{
-    PackageReviewEvidence, ReviewOnlyCanonicalRow, ReviewOnlySourceConsumptionCommitment,
-    build_observation_commitment, whole_review_commitment,
+    build_observation_commitment, whole_review_commitment, PackageReviewEvidence,
+    ReviewOnlyCanonicalRow, ReviewOnlySourceConsumptionCommitment,
 };
+use crate::review::CompilerIssuedPackageReviewSet;
 use omega_build_evaluation::{
-    BuildFilesystemReplayRecordLimits, ReviewOnlyBuildFilesystemReplayRecord,
     capture_verified_build_filesystem_replay_record,
-    recover_review_only_build_filesystem_replay_record,
+    recover_review_only_build_filesystem_replay_record, BuildFilesystemReplayRecordLimits,
+    ReviewOnlyBuildFilesystemReplayRecord,
 };
 use omega_package_review::{
     decode_package_review_canonical_row_with_limits,

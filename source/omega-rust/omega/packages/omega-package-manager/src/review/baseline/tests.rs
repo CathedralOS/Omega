@@ -1,6 +1,6 @@
 use super::encoding::{
-    Decoder, Encoder, decode_replay_record_option, encode_replay_record_option,
-    replay_parent_binding,
+    decode_replay_record_option, encode_replay_record_option, replay_parent_binding, Decoder,
+    Encoder,
 };
 use super::validation::replay_record_limits;
 use super::*;
