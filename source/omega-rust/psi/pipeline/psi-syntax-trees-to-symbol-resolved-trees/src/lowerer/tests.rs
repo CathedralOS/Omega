@@ -1898,6 +1898,55 @@ fn distinguishes_public_contract_expressions_from_public_machine_bodies() {
 }
 
 #[test]
+fn retains_authored_expression_exposure_for_embedded_type_lowering() {
+    let source = r#"
+        data Marker {}
+        pub proposition public_zero() =
+            zero_value<Marker>() == zero_value<Marker>();
+        proposition private_zero() =
+            zero_value<Marker>() == zero_value<Marker>();
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize expression type exposure");
+    let syntax = parse_syntax_trees(&tokens).expect("parse expression type exposure");
+    let program = lower_syntax_trees(&syntax).expect("resolve expression type exposure");
+    let mut exposures = program
+        .tables
+        .bodies
+        .expressions
+        .iter_expressions()
+        .filter_map(|(expression, node)| {
+            matches!(
+                node,
+                psi_symbol_resolved_trees::expression::ExpressionNode::ZeroValue(_)
+            )
+            .then(|| {
+                program
+                    .tables
+                    .bodies
+                    .expressions
+                    .authored_expression_exposure(expression)
+                    .expect("authored zero-value expression exposure")
+            })
+        })
+        .collect::<Vec<_>>();
+    exposures.sort_by_key(|exposure| match exposure {
+        psi_symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation => 0,
+        psi_symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface => 1,
+    });
+    assert_eq!(
+        exposures,
+        [
+            psi_symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+            psi_symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+            psi_symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface,
+            psi_symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface,
+        ]
+    );
+}
+
+#[test]
 fn qualification_cast_domains_retain_exact_expression_custody() {
     let source = r#"
         domain u16::Tagged;

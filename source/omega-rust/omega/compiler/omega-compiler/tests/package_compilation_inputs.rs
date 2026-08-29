@@ -1703,6 +1703,72 @@ requires (value as u64 in Trusted) == 1
 }
 
 #[test]
+fn public_zero_value_type_requires_the_selected_declaration_owner() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let middle = tree.package("middle");
+    let leaf = tree.package("leaf");
+
+    TempTree::write(
+        root.join("main.omg"),
+        r#"use middle::middle;
+pub proposition root_zero() =
+    zero_value<LeafValue>() == zero_value<LeafValue>();
+"#,
+    );
+    TempTree::write(
+        middle.join("middle.omg"),
+        "use leaf::leaf;\npub machine middle_effect() { }\n",
+    );
+    TempTree::write(leaf.join("leaf.omg"), "pub data LeafValue {}\n");
+
+    let transitive_only = PackageCompilationInputs::new(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "middle", middle.clone()),
+            PackageSourceBinding::new(identity(3), "leaf", leaf.clone()),
+        ],
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("transitive package graph should validate structurally");
+
+    let diagnostics =
+        compile_to_checked_with_packages(&root.join("main.omg"), None, transitive_only)
+            .expect_err("a public zero-value type may not select a transitive-only declaration");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("`root`")
+                && diagnostic.message.contains("`leaf`")
+                && diagnostic.message.contains("LeafValue")
+                && diagnostic.message.contains("direct dependency")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+
+    let directly_admitted = PackageCompilationInputs::new(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "middle", middle),
+            PackageSourceBinding::new(identity(3), "leaf", leaf),
+        ],
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(1), "leaf", identity(3)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("direct leaf admission should validate");
+
+    compile_to_checked_with_packages(&root.join("main.omg"), None, directly_admitted)
+        .expect("direct dependency should admit the public zero-value type selection");
+}
+
+#[test]
 fn ordinary_declaration_visibility_gates_cross_package_selection() {
     let cases = [
         (

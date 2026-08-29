@@ -41,6 +41,10 @@ fn expression_occurrences_support_multiple_ids_and_survive_resolved_copies() {
     let expression = source.insert(ExpressionNode::Integer(
         psi_numerics::literals::IntegerLiteral::from_value(7),
     ));
+    source.set_authored_expression_exposure(
+        expression,
+        AuthoredDeclarationSelectionExposure::PublicInterface,
+    );
     source.attach_authored_selection_occurrences(expression, occurrences);
 
     assert_eq!(
@@ -58,6 +62,10 @@ fn expression_occurrences_support_multiple_ids_and_survive_resolved_copies() {
             .collect::<Vec<_>>(),
         occurrences
     );
+    assert_eq!(
+        copied.authored_expression_exposure(copied_expression),
+        Some(AuthoredDeclarationSelectionExposure::PublicInterface)
+    );
 
     let self_copied_expression = source.copy_from_self(expression);
     assert_eq!(
@@ -65,6 +73,10 @@ fn expression_occurrences_support_multiple_ids_and_survive_resolved_copies() {
             .authored_selection_occurrences(self_copied_expression)
             .collect::<Vec<_>>(),
         occurrences
+    );
+    assert_eq!(
+        source.authored_expression_exposure(self_copied_expression),
+        Some(AuthoredDeclarationSelectionExposure::PublicInterface)
     );
 }
 

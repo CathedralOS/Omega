@@ -260,6 +260,131 @@ fn retains_exact_nominal_type_selections_with_declaration_exposure() {
 }
 
 #[test]
+fn expression_embedded_zero_value_types_keep_contract_exposure() {
+    use psi_language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionExposure as Exposure, AuthoredDeclarationSelectionKind as Kind,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
+
+    let source = r#"
+        data Marker {}
+        pub proposition public_zero() =
+            zero_value<Marker>() == zero_value<Marker>();
+        proposition private_zero() =
+            zero_value<Marker>() == zero_value<Marker>();
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let marker = resolved
+        .data_definitions
+        .iter()
+        .find(|definition| definition.name.as_str() == "Marker")
+        .expect("Marker data")
+        .symbol;
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let mut exposures = typed
+        .authored_declaration_selections()
+        .iter()
+        .filter_map(|selection| {
+            (selection.kind() == Kind::TypeReference
+                && matches!(
+                    selection.target(),
+                    Target::Resolved(target) if target.selected_symbol() == marker
+                ))
+            .then_some(selection.exposure())
+        })
+        .collect::<Vec<_>>();
+    exposures.sort_by_key(|exposure| match exposure {
+        Exposure::PrivateImplementation => 0,
+        Exposure::PublicInterface => 1,
+    });
+    assert_eq!(
+        exposures,
+        [
+            Exposure::PrivateImplementation,
+            Exposure::PrivateImplementation,
+            Exposure::PublicInterface,
+            Exposure::PublicInterface,
+        ]
+    );
+}
+
+#[test]
+fn expression_embedded_cast_targets_keep_contract_exposure() {
+    use psi_language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionExposure as Exposure, AuthoredDeclarationSelectionKind as Kind,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
+
+    let source = r#"
+        data Marker {}
+        pub proposition public_cast(value: Marker) = (value as Marker) == value;
+        proposition private_cast(value: Marker) = (value as Marker) == value;
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let marker = resolved
+        .data_definitions
+        .iter()
+        .find(|definition| definition.name.as_str() == "Marker")
+        .expect("Marker data")
+        .symbol;
+    let cast_targets = resolved
+        .tables
+        .bodies
+        .expressions
+        .iter_expressions()
+        .filter_map(|(_, expression)| {
+            let psi_symbol_resolved_trees::expression::ExpressionNode::Cast(cast) = expression
+            else {
+                return None;
+            };
+            Some(resolved.child_type_reference(cast.target_type).clone())
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(cast_targets.len(), 2, "cast targets: {cast_targets:#?}");
+    let cast_target_spans = cast_targets
+        .iter()
+        .filter_map(|target| {
+            let psi_symbol_resolved_trees::types::TypeReference::Named { symbol, name } = target
+            else {
+                return None;
+            };
+            (*symbol == marker).then_some(name.source_span())
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        cast_target_spans.len(),
+        2,
+        "cast targets: {cast_targets:#?}"
+    );
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let mut exposures = typed
+        .authored_declaration_selections()
+        .iter()
+        .filter_map(|selection| {
+            (selection.kind() == Kind::TypeReference
+                && cast_target_spans.contains(&selection.source_span())
+                && matches!(
+                    selection.target(),
+                    Target::Resolved(target) if target.selected_symbol() == marker
+                ))
+            .then_some(selection.exposure())
+        })
+        .collect::<Vec<_>>();
+    exposures.sort_by_key(|exposure| match exposure {
+        Exposure::PrivateImplementation => 0,
+        Exposure::PublicInterface => 1,
+    });
+    assert_eq!(
+        exposures,
+        [Exposure::PrivateImplementation, Exposure::PublicInterface,]
+    );
+}
+
+#[test]
 fn retains_public_operator_visibility_and_signature_exposure() {
     use psi_language_semantics::declaration_selection::{
         AuthoredDeclarationSelectionExposure as Exposure, AuthoredDeclarationSelectionKind as Kind,

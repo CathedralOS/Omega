@@ -665,6 +665,25 @@ pub proposition zero_is_none<{binder}>() =
     assert_eq!(first_bytes, renamed.canonical_review_bytes().unwrap());
     let changed = project(source("Item", "Alternate"));
     assert_ne!(first_bytes, changed.canonical_review_bytes().unwrap());
+
+    package.write(
+        "main.omg",
+        r#"data Hidden {}
+pub proposition hidden_zero() =
+    zero_value<Hidden>() == zero_value<Hidden>();
+"#,
+    );
+    let diagnostics = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect_err("a public zero-value target must not expose a private data declaration");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("public interface selects private data `Hidden`")
+    }));
 }
 
 #[test]
