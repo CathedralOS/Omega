@@ -236,6 +236,11 @@ Current-value-range validation exposes one fact-first entrance that preserves
 the validation-before-applicability order. Independent fact reconstruction,
 current-operation availability, canonical proof-goal mapping, and exact
 integer interval algebra descend into named evidence leaves.
+Optimized abstract-plan projection exposes its acceptance order directly:
+transformed unit and ledger, identity bundle, pass manifests, then
+reconstructible projection shape. Receipt/error models, source custody,
+manifest replay, source-roster partitioning, and equivalence checks descend
+into named leaves, with broad custody fixtures isolated in `tests.rs`.
 Liveness computation and pre-allocation machine-effect encoding also keep
 their broad fixtures in sibling test leaves, so production file size measures
 production responsibility.
