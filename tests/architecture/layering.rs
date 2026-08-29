@@ -1448,26 +1448,24 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         "Psi must own the exact checked-to-canonical-Terminal-artifact handoff"
     );
 
-    let realization_path = root.join(
-        "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/mod.rs",
+    let realization_root = root.join(
+        "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization",
     );
+    let realization_path = realization_root.join("mod.rs");
     let realization = std::fs::read_to_string(&realization_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", realization_path.display()));
-    let production_realization = realization
-        .split("#[cfg(test)]")
-        .next()
-        .expect("native realization has a production source prefix");
-    assert!(
-        production_realization.contains("pub fn realize_native_artifact(")
-            && production_realization
-                .contains("artifact: psi_terminal_codec::CanonicalTerminalArtifact"),
-        "Omega native realization must receive the complete Psi-owned artifact by value"
-    );
-    let machine_code_path = root.join(
-        "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/machine_code.rs",
-    );
+    let machine_code_path = realization_root.join("machine_code.rs");
     let machine_code = std::fs::read_to_string(&machine_code_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", machine_code_path.display()));
+    let input_path = realization_root.join("input.rs");
+    let input = std::fs::read_to_string(&input_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", input_path.display()));
+    let production_realization = format!("{realization}\n{input}\n{machine_code}");
+    assert!(
+        realization.contains("pub fn realize_native_artifact(")
+            && realization.contains("artifact: psi_terminal_codec::CanonicalTerminalArtifact"),
+        "Omega native realization must receive the complete Psi-owned artifact by value"
+    );
     assert!(
         machine_code.contains("optimize_verified_psi_input(")
             && machine_code
@@ -2102,16 +2100,20 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
         "leaves.rs",
         "shared.rs",
         "structural.rs",
+        "validators.rs",
     ]
     .into_iter()
-    .map(|file| {
-        let path = legalization_replay.join(file);
+    .map(|leaf| {
+        let path = legalization_replay.join(leaf);
         std::fs::read_to_string(&path)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()))
     })
-    .collect::<String>();
+    .collect::<Vec<_>>()
+    .join("\n");
     for forbidden in [
         "derive_source_functions",
+        "match_scalar_form",
+        "ScalarLegalizationMatcherKind",
         "crate::source",
         "source::",
         "omega_register_model",
@@ -2122,6 +2124,43 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
             "independent legalization replay must not consume producer or selection helpers; found {forbidden}"
         );
     }
+    let legalization_producer_source = ["functions.rs", "leaves.rs", "matchers.rs", "shared.rs"]
+        .into_iter()
+        .map(|leaf| {
+            let path = legalization_replay
+                .parent()
+                .expect("replay has legalization parent")
+                .join("source")
+                .join(leaf);
+            std::fs::read_to_string(&path)
+                .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()))
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    for forbidden in ["validator_accepts", "ScalarLegalizationValidatorKind"] {
+        assert!(
+            !legalization_producer_source.contains(forbidden),
+            "legalization producer must not consume replay validators; found {forbidden}"
+        );
+    }
+    let legalization_catalog = legalization_replay
+        .parent()
+        .expect("replay has legalization parent")
+        .join("catalog.rs");
+    let legalization_catalog_source = std::fs::read_to_string(&legalization_catalog)
+        .unwrap_or_else(|error| {
+            panic!("failed to read {}: {error}", legalization_catalog.display())
+        });
+    for forbidden in [
+        "TargetIntegerExpression",
+        "match_scalar_form",
+        "validator_accepts",
+    ] {
+        assert!(
+            !legalization_catalog_source.contains(forbidden),
+            "legalization catalog must remain declarative contract data; found {forbidden}"
+        );
+    }
     assert!(
         selection_manifest_source.contains("omega-legalized-operations"),
         "the checked legalization/selection pipeline must retain its legalized representation dependency"
@@ -2129,7 +2168,7 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
     let selection_source = std::fs::read_to_string(root.join(
         "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/mod.rs",
     ))
-    .expect("read target legalization and selection pipeline");
+    .expect("read target legalization coordination entrance");
     assert!(
         selection_source
             .contains("replay_terminal_legalized_plan(target, abstract_plan, unit, &plan)?"),

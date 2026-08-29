@@ -26,6 +26,14 @@ fixture mechanics descend below those joins. The crate-level `lib.rs` is only
 the 21-line responsibility map between the two stages, not a hidden third
 coordinator.
 
+Immediately below the legalization entrance, `catalog.rs` is the sole ordered
+inventory for the seven current scalar forms. Each row names its recipe,
+producer matcher kind, exact source-shape constraints, non-authoritative
+structural cost, and independent validator kind. `source/matchers.rs` walks
+that catalog to recognize a form; `replay/validators.rs` reconstructs the same
+membership without calling producer code. Plain Unit and structural Unit
+families remain distinct mandatory forms and are the next catalog slice.
+
 ## Register allocation
 
 Allocation computes selected-CFG liveness, live-range fragments,

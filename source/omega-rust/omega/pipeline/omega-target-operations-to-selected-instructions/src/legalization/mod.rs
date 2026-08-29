@@ -1,5 +1,11 @@
 //! Mandatory target legalization: construct the canonical plan, then replay it independently.
+//!
+//! Start with `catalog` for admitted scalar forms, descend into `source` for
+//! producer projection, and into `replay` for independent acceptance.
 
+mod catalog;
+#[cfg(test)]
+mod catalog_tests;
 mod model;
 mod replay;
 mod source;

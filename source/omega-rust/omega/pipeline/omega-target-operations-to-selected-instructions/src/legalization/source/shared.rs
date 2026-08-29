@@ -1,8 +1,7 @@
 pub(super) use omega_abstract_operations::{AbstractOperation, AbstractOperationPlan};
 pub(super) use omega_calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
 pub(super) use omega_legalized_operations::{
-    LegalizationRecipe, LegalizationTheorem,
-    LegalizedActiveResidentExactAddChain as SourceActiveResidentExactAddChain,
+    LegalizationTheorem, LegalizedActiveResidentExactAddChain as SourceActiveResidentExactAddChain,
     LegalizedBoundarySettlement, LegalizedCallUnit, LegalizedCallUnitArgument,
     LegalizedCallUnitParameter, LegalizedExactAdd as SourceExactAdd,
     LegalizedFunction as SourceFunction, LegalizedImmediate as SourceImmediate,

@@ -1,6 +1,5 @@
-use super::leaves::{
-    derive_leaf, exact_edge_fuel, is_active_resident_exact_add_chain, source_operations,
-};
+use super::leaves::{derive_leaf, exact_edge_fuel, source_operations};
+use super::matchers::match_scalar_form;
 use super::shared::*;
 
 pub(super) fn derive_source_unit_function(
@@ -123,218 +122,19 @@ pub(super) fn derive_source_function(
     {
         return Err(Error::UnsupportedIntegerShape { function });
     }
-    let constant_leaves = matches!(
-        (when_true.control.as_ref(), when_false.control.as_ref()),
-        (
-            TargetIntegerControl::Return {
-                expression: TargetIntegerExpression::Immediate { .. },
-                ..
-            },
-            TargetIntegerControl::Return {
-                expression: TargetIntegerExpression::Immediate { .. },
-                ..
-            }
-        )
-    );
-    let parameter_leaves = matches!(
-        (when_true.control.as_ref(), when_false.control.as_ref()),
-        (
-            TargetIntegerControl::Return {
-                expression: TargetIntegerExpression::Parameter { .. },
-                ..
-            },
-            TargetIntegerControl::Return {
-                expression: TargetIntegerExpression::Parameter { .. },
-                ..
-            }
-        )
-    );
-    let exact_add_leaves = matches!(
-        (when_true.control.as_ref(), when_false.control.as_ref()),
-        (
-            TargetIntegerControl::Return {
-                expression: TargetIntegerExpression::ExactAdd {
-                    left,
-                    right,
-                    ..
-                },
-                ..
-            },
-            TargetIntegerControl::Return {
-                expression: TargetIntegerExpression::ExactAdd {
-                    left: false_left,
-                    right: false_right,
-                    ..
-                },
-                ..
-            }
-        ) if matches!(
-            (left.as_ref(), right.as_ref(), false_left.as_ref(), false_right.as_ref()),
-            (
-                TargetIntegerExpression::Immediate { .. },
-                TargetIntegerExpression::Immediate { .. },
-                TargetIntegerExpression::Immediate { .. },
-                TargetIntegerExpression::Immediate { .. },
-            )
-        )
-    );
-    let exact_subtract_leaves = matches!(
-        (when_true.control.as_ref(), when_false.control.as_ref()),
-        (
-            TargetIntegerControl::Return {
-                expression: TargetIntegerExpression::ExactSubtract {
-                    left,
-                    right,
-                    ..
-                },
-                ..
-            },
-            TargetIntegerControl::Return {
-                expression: TargetIntegerExpression::ExactSubtract {
-                    left: false_left,
-                    right: false_right,
-                    ..
-                },
-                ..
-            }
-        ) if matches!(
-            (left.as_ref(), right.as_ref(), false_left.as_ref(), false_right.as_ref()),
-            (
-                TargetIntegerExpression::Immediate { .. },
-                TargetIntegerExpression::Immediate { .. },
-                TargetIntegerExpression::Immediate { .. },
-                TargetIntegerExpression::Immediate { .. },
-            )
-        )
-    );
-    let u8_integer_type = psi_core::IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
-    let widened_u8_exact_add_leaves = matches!(
-        (when_true.control.as_ref(), when_false.control.as_ref()),
-        (
-            TargetIntegerControl::Return {
-                expression: TargetIntegerExpression::IntegerWiden {
-                    source_type,
-                    operand,
-                    ..
-                },
-                ..
-            },
-            TargetIntegerControl::Return {
-                expression: TargetIntegerExpression::IntegerWiden {
-                    source_type: false_source_type,
-                    operand: false_operand,
-                    ..
-                },
-                ..
-            }
-        ) if *source_type == u8_integer_type
-            && *false_source_type == u8_integer_type
-            && matches!(
-                (operand.as_ref(), false_operand.as_ref()),
-                (
-                    TargetIntegerExpression::ExactAdd { left, right, .. },
-                    TargetIntegerExpression::ExactAdd {
-                        left: false_left,
-                        right: false_right,
-                        ..
-                    }
-                ) if matches!(
-                    (left.as_ref(), right.as_ref(), false_left.as_ref(), false_right.as_ref()),
-                    (
-                        TargetIntegerExpression::Immediate { .. },
-                        TargetIntegerExpression::Immediate { .. },
-                        TargetIntegerExpression::Immediate { .. },
-                        TargetIntegerExpression::Immediate { .. },
-                    )
-                )
-            )
-    );
-    let widened_u8_exact_subtract_leaves = matches!(
-        (when_true.control.as_ref(), when_false.control.as_ref()),
-        (
-            TargetIntegerControl::Return {
-                expression: TargetIntegerExpression::IntegerWiden {
-                    source_type,
-                    operand,
-                    ..
-                },
-                ..
-            },
-            TargetIntegerControl::Return {
-                expression: TargetIntegerExpression::IntegerWiden {
-                    source_type: false_source_type,
-                    operand: false_operand,
-                    ..
-                },
-                ..
-            }
-        ) if *source_type == u8_integer_type
-            && *false_source_type == u8_integer_type
-            && matches!(
-                (operand.as_ref(), false_operand.as_ref()),
-                (
-                    TargetIntegerExpression::ExactSubtract { left, right, .. },
-                    TargetIntegerExpression::ExactSubtract {
-                        left: false_left,
-                        right: false_right,
-                        ..
-                    }
-                ) if matches!(
-                    (left.as_ref(), right.as_ref(), false_left.as_ref(), false_right.as_ref()),
-                    (
-                        TargetIntegerExpression::Immediate { .. },
-                        TargetIntegerExpression::Immediate { .. },
-                        TargetIntegerExpression::Immediate { .. },
-                        TargetIntegerExpression::Immediate { .. },
-                    )
-                )
-            )
-    );
-    let active_resident_chain = matches!(
-        (when_true.control.as_ref(), when_false.control.as_ref()),
-        (
-            TargetIntegerControl::Return { expression, .. },
-            TargetIntegerControl::Return {
-                expression: TargetIntegerExpression::Immediate { .. },
-                ..
-            }
-        ) if is_active_resident_exact_add_chain(expression)
-    );
-    let expected_offsets = if constant_leaves {
-        [0, 1, 3]
-    } else if parameter_leaves {
-        [0, 1, 2]
-    } else if exact_add_leaves || exact_subtract_leaves {
-        [0, 1, 5]
-    } else if widened_u8_exact_add_leaves || widened_u8_exact_subtract_leaves {
-        [0, 1, 6]
-    } else if active_resident_chain {
-        [0, 1, 8]
-    } else {
-        return Err(Error::UnsupportedSourceShape { function });
-    };
-    let (expected_operation_count, expected_leaf_node_counts) = if constant_leaves {
-        (5, [2, 2])
-    } else if parameter_leaves {
-        (3, [1, 1])
-    } else if widened_u8_exact_add_leaves || widened_u8_exact_subtract_leaves {
-        (11, [5, 5])
-    } else if active_resident_chain {
-        (10, [7, 2])
-    } else {
-        (9, [4, 4])
-    };
-    let expected_parameter_count = if parameter_leaves { 2 } else { 1 };
-    if abstracted.operations.len() != expected_operation_count
-        || abstracted.parameters.len() != expected_parameter_count
-        || optimized.parameters.len() != expected_parameter_count
+    let form = match_scalar_form(when_true.control.as_ref(), when_false.control.as_ref())
+        .ok_or(Error::UnsupportedSourceShape { function })?;
+    let constraints = form.constraints;
+    if abstracted.operations.len() != constraints.operation_count
+        || abstracted.parameters.len() != constraints.parameter_count
+        || optimized.parameters.len() != constraints.parameter_count
         || abstracted
             .block_entries
             .iter()
-            .zip(expected_offsets)
+            .zip(constraints.block_offsets)
             .any(|(entry, offset)| entry.operation_offset != offset)
-        || optimized.blocks[1].nodes.len() != expected_leaf_node_counts[0]
-        || optimized.blocks[2].nodes.len() != expected_leaf_node_counts[1]
+        || optimized.blocks[1].nodes.len() != constraints.leaf_node_counts[0]
+        || optimized.blocks[2].nodes.len() != constraints.leaf_node_counts[1]
     {
         return Err(Error::UnsupportedSourceShape { function });
     }
@@ -397,7 +197,7 @@ pub(super) fn derive_source_function(
         function,
         when_true.psi_edge,
         when_true.control.as_ref(),
-        &abstracted.operations[expected_offsets[1]..expected_offsets[2]],
+        &abstracted.operations[constraints.block_offsets[1]..constraints.block_offsets[2]],
         &optimized.blocks[1].nodes,
         abstracted,
         optimized,
@@ -408,7 +208,7 @@ pub(super) fn derive_source_function(
         function,
         when_false.psi_edge,
         when_false.control.as_ref(),
-        &abstracted.operations[expected_offsets[2]..],
+        &abstracted.operations[constraints.block_offsets[2]..],
         &optimized.blocks[2].nodes,
         abstracted,
         optimized,
@@ -454,21 +254,7 @@ pub(super) fn derive_source_function(
         machine: target.machine,
         attachment: target.attachment,
         provenance: target.provenance.clone(),
-        recipe: if constant_leaves {
-            LegalizationRecipe::ReturnU64ImmediateConditionalV1
-        } else if parameter_leaves {
-            LegalizationRecipe::ReturnU64EntryParameterConditionalV1
-        } else if exact_add_leaves {
-            LegalizationRecipe::ReturnU64ExactAddImmediateConditionalV1
-        } else if widened_u8_exact_add_leaves {
-            LegalizationRecipe::ReturnU64WidenedU8ExactAddImmediateConditionalV1
-        } else if widened_u8_exact_subtract_leaves {
-            LegalizationRecipe::ReturnU64WidenedU8ExactSubtractImmediateConditionalV1
-        } else if active_resident_chain {
-            LegalizationRecipe::ReturnU64ActiveResidentExactAddChainConditionalV1
-        } else {
-            LegalizationRecipe::ReturnU64ExactSubtractImmediateConditionalV1
-        },
+        recipe: form.recipe,
         condition_source: *condition_source,
         condition_parameter_index: *condition_parameter_index,
         condition_register: *condition_register,

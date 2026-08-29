@@ -61,6 +61,11 @@ a test, not a second production registry.
 unsupported targets reject for a named reason rather than relying on leaf
 failure.
 
+[x] Mandatory scalar legalization now has one ordered seven-form catalog.
+Producer matching and independent replay descend into separate leaves and
+share only recipe, shape, and non-authoritative cost data; the former duplicate
+decision tables are gone. Unit and structural-Unit catalog coverage remains.
+
 ## Completed foundation
 
 - [x] Exact source-visible `Optimization` vocabulary and versioned canonical
@@ -341,8 +346,9 @@ failure.
 
 - [x] Target/legalized operation and selected-instruction validation.
 - [x] Exact incoming u12 add/subtract immediate folds.
-- [ ] Generalize legalization into an ordered declarative catalog of target
-  forms, constraints, costs, and validators.
+- [>] Generalize legalization into ordered declarative catalogs of target
+  forms, constraints, costs, and validators. The seven scalar forms are
+  cataloged; plain Unit and structural Unit families remain.
 - [ ] Add exact address-mode folding, compare/branch selection, extension
   elimination, and constant materialization rules one named family at a time.
 - [ ] Validate ABI operands, calls, clobbers, effects, traps, provenance, and
@@ -447,6 +453,6 @@ rewrite or opt a program into lossy floating-point semantics.
    post-allocation-machine catalogs to their rule-owning crate entrances, and
    make the navigation gate enforce those ownership points.
 9. [x] Add global exact-name-to-rule-stage disposition coverage.
-10. [>] Add exact target-applicability dispositions at the owning catalogs.
-11. [ ] Finish workspace validation and rollout canaries before promoting any
+10. [x] Add exact target-applicability dispositions at the owning catalogs.
+11. [>] Finish workspace validation and rollout canaries before promoting any
    rule beyond explicit opt-in.
