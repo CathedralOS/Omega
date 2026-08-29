@@ -2,9 +2,36 @@ use super::{
     Lexer, lower_symbol_resolved_trees, lower_syntax_trees, lower_typed_trees, parse_syntax_trees,
 };
 use psi_language_semantics::declaration_selection::{
-    AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionKind,
-    AuthoredDeclarationSelectionTarget,
+    AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionIntrinsic,
+    AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionLateBinding,
+    AuthoredDeclarationSelectionTarget, AuthoredDeclarationSelections,
 };
+
+#[test]
+fn successful_checking_rejects_any_unresolved_authored_selection() {
+    let mut typed = psi_typed_trees::TypedTrees::default();
+    let mut selections = AuthoredDeclarationSelections::default();
+    selections
+        .record_late_bound(
+            psi_source::SourceSpan::default(),
+            AuthoredDeclarationSelectionExposure::PublicInterface,
+            AuthoredDeclarationSelectionKind::StaticArgument,
+            AuthoredDeclarationSelectionLateBinding::CheckedStaticArgument,
+        )
+        .expect("fixture selection enters the bounded ledger");
+    typed.retain_authored_declaration_selections(selections);
+
+    let diagnostic = crate::authored_selections::finalize_checked_authored_selections(
+        &mut typed,
+        &psi_checked_trees::CheckFacts::default(),
+    )
+    .expect_err("unjoinable authored selection must fail before checked trees are issued");
+
+    assert!(diagnostic.message.contains(
+        "authored StaticArgument declaration selection occurrence 0 remained unresolved"
+    ));
+    assert!(!typed.authored_declaration_selections().all_finalized());
+}
 
 #[test]
 fn successful_checking_finalizes_authored_call_occurrences() {

@@ -152,6 +152,14 @@ use operator_calls::{
     append_operator_statement_ensures, operator_statement_call_mutated_places,
     resolve_operator_for_call, resolve_operator_statement_call,
 };
+
+pub(crate) fn resolved_operator_statement_symbol(
+    program: &psi_typed_trees::TypedTrees,
+    call: &psi_typed_trees::statement::TableCall,
+) -> Option<psi_symbols::SymbolHandle> {
+    operator_calls::resolve_operator_statement_call(program, call)
+        .map(|resolved| resolved.operator.symbol)
+}
 pub(crate) use ownership::{
     DiscoveredMoveEvent, FlowOwnershipEventSource, canonical_place_type_reference,
     discover_state_move_events, expression_type_reference_in_state, normalized_event_place_root,

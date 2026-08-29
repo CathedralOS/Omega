@@ -1,6 +1,6 @@
 # Tasks: Package Manager
 
-Status: remaining work only, 2026-08-28.
+Status: remaining work only, 2026-08-29.
 
 This file is the forward queue for the Cargo-like source/package service under
 `omega`. Completed milestones live in Git history and in the subsystem notes;
@@ -62,20 +62,6 @@ closed. Compiler-issued package review remains non-admitting.
   design-blocked on OWNER Q10; the other bullets are engineering work.
 
 ## P1 — Total package semantic identity
-
-- [ ] **COMPLETE-AUTHORED-SELECTION-CUSTODY.** Finish exact-symbol custody for
-  every independently selectable source occurrence that can affect a package
-  interface, build behavior, provider choice, proof, or capability result.
-
-  Existing coverage includes ordinary nominal references, calls, operators,
-  conformance arguments, `satisfies` coordinates, establishment routes,
-  machine-parameter requirements, qualification-cast semantic domains,
-  expression-embedded cast/zero-value type references, unary compiler
-  intrinsics, ordinary member paths, and computed nominal members in transparent
-  public propositions. Remaining visibility-dependent
-  nested positions must either retain exact authored selection and source
-  custody or fail before review. Toolchain-authored bodies remain outside
-  ordinary package admission.
 
 - [ ] **COMPLETE-CONFORMANCE-IDENTITY.** Retain complete public conformance
   applications, including target-trait lifetime arguments once OWNER Q4 is

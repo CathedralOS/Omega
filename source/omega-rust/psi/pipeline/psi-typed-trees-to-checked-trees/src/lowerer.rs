@@ -33,6 +33,8 @@ fn lower_typed_trees_with_crash_admission(
     // contract, so bind it before specialization captures the universal
     // template fingerprint. Normalize again afterward to cover cloned
     // expression handles and concrete substitutions.
+    crate::authored_selections::bind_pre_specialization_authored_selections(&mut program)
+        .map_err(|diagnostic| vec![diagnostic])?;
     crate::normalize_open_index_identities(&mut program)?;
     let nominal_machine_uses =
         crate::specialize_static_machine_calls_with_nominal_uses(&mut program)?;
@@ -128,6 +130,8 @@ fn lower_typed_trees_with_crash_admission(
     facts.flow.semantic_dependencies =
         crate::flow::derive_checked_semantic_dependencies(&program, &facts);
 
+    crate::authored_selections::bind_checked_intrinsic_call_facts(&program, &mut facts)
+        .map_err(|diagnostic| vec![diagnostic])?;
     crate::authored_selections::finalize_checked_authored_selections(&mut program, &facts)
         .map_err(|diagnostic| vec![diagnostic])?;
     psi_validation::validate_reserved_cleanup_selections(&program)?;

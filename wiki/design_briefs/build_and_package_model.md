@@ -2307,6 +2307,15 @@ and requirement coordinates at signature-free normalization, after uniqueness
 and subject authorization are proved. Each source occurrence inherits the
 domain's exposure even when the normalized semantic route set deduplicates an
 equivalent alternative.
+
+The occurrence key is the exact authored token plus its declaration-owned
+exposure and selection kind. Compiler-derived expression copies share that one
+key; an exact resolved target dominates an unresolved provisional copy, while
+two conflicting resolved targets reject. Checked-only compiler vocabulary is
+retained as a closed intrinsic identity. Private termination rankings keep
+exact typed expression roots beside their normalized rendered witness, so
+neither package admission nor termination checking reconstructs ownership from
+display text.
 Nominal callable machine-parameter contracts preserve the complete authored
 `Trait::requirement` path after signature-free resolution. Typed lowering emits
 the exact trait and requirement selections under the enclosing declaration's

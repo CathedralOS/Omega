@@ -3,6 +3,20 @@ use crate::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use crate::machine::Machine;
 use crate::state::State;
 
+/// Exact typed-expression custody for one machine's private ranking witness.
+///
+/// The normalized termination plan carries stable semantic text for artifact
+/// identity and diagnostics. Checked semantics must not use that text to
+/// rediscover source expressions, so lowering retains the exact typed handles
+/// separately here.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RankingExpressionCustody {
+    pub machine: psi_symbols::SymbolHandle,
+    pub subjects: Vec<ExpressionHandle>,
+    pub view_arguments: Vec<ExpressionHandle>,
+    pub rank_range: Option<ExpressionHandle>,
+}
+
 /// Resolve the normalized private ranking witness back to the typed
 /// expressions retained for its root state. Semantic consumers use this
 /// bridge instead of parallel authored spans on `Machine`.
@@ -11,6 +25,10 @@ pub fn resolve_machine_witness_subjects(
     machine: &Machine,
 ) -> Option<Vec<ExpressionHandle>> {
     let witness = machine.termination_plan.implementation_witness.as_ref()?;
+    if let Some(custody) = program.ranking_expression_custody_for(machine.symbol) {
+        return (custody.subjects.len() == witness.subjects.len())
+            .then(|| custody.subjects.clone());
+    }
     resolve_machine_witness_expressions(program, machine, &witness.subjects)
 }
 
@@ -19,6 +37,10 @@ pub fn resolve_machine_witness_view_arguments(
     machine: &Machine,
 ) -> Option<Vec<ExpressionHandle>> {
     let witness = machine.termination_plan.implementation_witness.as_ref()?;
+    if let Some(custody) = program.ranking_expression_custody_for(machine.symbol) {
+        return (custody.view_arguments.len() == witness.view_arguments.len())
+            .then(|| custody.view_arguments.clone());
+    }
     resolve_machine_witness_expressions(program, machine, &witness.view_arguments)
 }
 

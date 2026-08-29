@@ -65,6 +65,7 @@ fn builds_definition_fact_plan_for_domains() {
             value: expression,
             domain: HandleSpan::empty(),
             domain_symbol: valid_domain_symbol,
+            authored_domain_selection: None,
         }));
     assert_eq!(membership.arena_index(), fact.arena_index() + 1);
     program.push_domain_definition(DomainDefinition {
@@ -181,6 +182,7 @@ fn builds_checked_ownership_for_every_data_where_fact_form() {
             value: membership_value,
             domain: HandleSpan::empty(),
             domain_symbol,
+            authored_domain_selection: None,
         }));
     let proposition_fact =
         program
@@ -378,6 +380,7 @@ fn domain_membership_queries_follow_domain_imports() {
             value: expression,
             domain: HandleSpan::empty(),
             domain_symbol: valid_domain_symbol,
+            authored_domain_selection: None,
         }));
     program.push_domain_definition(DomainDefinition {
         symbol: alive_domain_symbol,

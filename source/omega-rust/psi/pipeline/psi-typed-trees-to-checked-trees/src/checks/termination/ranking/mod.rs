@@ -5,7 +5,9 @@ mod slice;
 mod struct_view;
 
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use psi_typed_trees::ranking::resolve_witness_expressions;
+use psi_typed_trees::ranking::{
+    resolve_machine_witness_subjects, resolve_machine_witness_view_arguments,
+};
 
 use super::graph;
 use super::order::{AmbiguousDefault, OrderResolution, RankingOrder, decreasing_value_text};
@@ -115,7 +117,7 @@ pub(crate) fn proven_nat_countdown_sccs(
     let states = program.machine_states(machine);
     let root_state = states.first()?;
     let witness = machine.termination_plan.implementation_witness.as_ref()?;
-    let subjects = resolve_witness_expressions(program, root_state, &witness.subjects)?;
+    let subjects = resolve_machine_witness_subjects(program, machine)?;
     let [decreases] = subjects.as_slice() else {
         return None;
     };
@@ -248,15 +250,13 @@ pub(super) fn machine_decrease_outcome(
     let Some(witness) = machine.termination_plan.implementation_witness.as_ref() else {
         return DecreaseOutcome::Unproven;
     };
-    let Some(subjects) = resolve_witness_expressions(program, root_state, &witness.subjects) else {
+    let Some(subjects) = resolve_machine_witness_subjects(program, machine) else {
         return DecreaseOutcome::Rejected(
             "internal: normalized ranking-witness subjects did not resolve in the root state"
                 .to_string(),
         );
     };
-    let Some(view_arguments) =
-        resolve_witness_expressions(program, root_state, &witness.view_arguments)
-    else {
+    let Some(view_arguments) = resolve_machine_witness_view_arguments(program, machine) else {
         return DecreaseOutcome::Rejected(
             "internal: normalized ranking-view arguments did not resolve in the root state"
                 .to_string(),
@@ -438,12 +438,10 @@ pub(in crate::checks::termination) fn machine_resolved_view_path(
     let Some(root_state) = program.machine_states(machine).first() else {
         return String::new();
     };
-    let Some(subjects) = resolve_witness_expressions(program, root_state, &witness.subjects) else {
+    let Some(subjects) = resolve_machine_witness_subjects(program, machine) else {
         return String::new();
     };
-    let Some(view_arguments) =
-        resolve_witness_expressions(program, root_state, &witness.view_arguments)
-    else {
+    let Some(view_arguments) = resolve_machine_witness_view_arguments(program, machine) else {
         return String::new();
     };
     let ranking_view = witness

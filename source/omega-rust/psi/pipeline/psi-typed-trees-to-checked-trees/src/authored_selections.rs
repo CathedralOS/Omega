@@ -8,6 +8,8 @@ use psi_language_semantics::declaration_selection::{
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::{TypedTrees, expression::ExpressionNode};
 
+mod contexts;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct CheckedResolution {
     occurrence: AuthoredDeclarationSelectionOccurrenceId,
@@ -19,6 +21,125 @@ struct CheckedResolution {
 enum CheckedResolutionTarget {
     Declaration(SymbolHandle),
     Intrinsic(AuthoredDeclarationSelectionIntrinsic),
+}
+
+pub(crate) fn bind_checked_intrinsic_call_facts(
+    program: &TypedTrees,
+    facts: &mut CheckFacts,
+) -> Result<(), Diagnostic> {
+    let mut intrinsic_calls = Vec::new();
+    for (expression, node) in program.expression_table.iter_expressions() {
+        let ExpressionNode::Call(call) = node else {
+            continue;
+        };
+        let Some(intrinsic) = contexts::checked_collection_view_intrinsic_from_exact_owner(
+            program, facts, expression, call,
+        ) else {
+            continue;
+        };
+        if intrinsic_calls
+            .iter()
+            .any(|fact: &psi_checked_trees::CheckedIntrinsicCallFact| {
+                fact.expression == expression && fact.intrinsic != intrinsic
+            })
+        {
+            return Err(Diagnostic::error(
+                "one checked call expression selected conflicting compiler intrinsics",
+            )
+            .with_source_span(program.expression_table.source_span(expression)));
+        }
+        if !intrinsic_calls
+            .iter()
+            .any(|fact| fact.expression == expression && fact.intrinsic == intrinsic)
+        {
+            intrinsic_calls.push(psi_checked_trees::CheckedIntrinsicCallFact {
+                expression,
+                intrinsic,
+            });
+        }
+    }
+    facts.intrinsic_calls = intrinsic_calls;
+    Ok(())
+}
+
+pub(crate) fn bind_pre_specialization_authored_selections(
+    program: &mut TypedTrees,
+) -> Result<(), Diagnostic> {
+    let facts = CheckFacts::default();
+    let mut resolutions = Vec::new();
+    for (expression, node) in program.expression_table.iter_expressions() {
+        for occurrence in program
+            .expression_table
+            .authored_selection_occurrences(expression)
+        {
+            let Some(selection) = program.authored_declaration_selections().get(occurrence) else {
+                return Err(Diagnostic::error(format!(
+                    "expression retains unknown authored declaration selection occurrence {}",
+                    occurrence.ordinal(),
+                )));
+            };
+            let AuthoredDeclarationSelectionTarget::LateBound(binding) = selection.target() else {
+                continue;
+            };
+            let target = match (binding, node) {
+                (
+                    AuthoredDeclarationSelectionLateBinding::CheckedMember,
+                    ExpressionNode::Member(member),
+                ) => contexts::checked_member_target_from_exact_owner(
+                    program, &facts, expression, member,
+                )
+                .map(|target| match target {
+                    contexts::OwnerMemberTarget::Declaration(symbol) => {
+                        CheckedResolutionTarget::Declaration(symbol)
+                    }
+                    contexts::OwnerMemberTarget::CollectionLength => {
+                        CheckedResolutionTarget::Intrinsic(
+                            AuthoredDeclarationSelectionIntrinsic::CollectionLength,
+                        )
+                    }
+                }),
+                (
+                    AuthoredDeclarationSelectionLateBinding::CheckedCall,
+                    ExpressionNode::Call(call),
+                ) => exact_named_operator_call(program, call)
+                    .and_then(|operator| declaration_target(operator.symbol))
+                    .or_else(|| {
+                        contexts::checked_machine_call_target_from_exact_owner(
+                            program, expression, call,
+                        )
+                        .and_then(declaration_target)
+                    }),
+                _ => None,
+            };
+            let Some(target) = target else {
+                continue;
+            };
+            push_consistent_resolution(
+                &mut resolutions,
+                CheckedResolution {
+                    occurrence,
+                    binding,
+                    target,
+                },
+            )?;
+        }
+    }
+    collect_checked_transition_target_selections(program, &mut resolutions)?;
+
+    let mut selections = program.authored_declaration_selections().clone();
+    for resolution in resolutions {
+        match resolution.target {
+            CheckedResolutionTarget::Declaration(symbol) => {
+                selections.finalize_late_bound(resolution.occurrence, resolution.binding, symbol)
+            }
+            CheckedResolutionTarget::Intrinsic(intrinsic) => {
+                selections.finalize_intrinsic(resolution.occurrence, resolution.binding, intrinsic)
+            }
+        }
+        .map_err(|error| finalization_diagnostic(resolution, error))?;
+    }
+    program.retain_authored_declaration_selections(selections);
+    Ok(())
 }
 
 pub(crate) fn finalize_checked_authored_selections(
@@ -44,9 +165,13 @@ pub(crate) fn finalize_checked_authored_selections(
             if selection.kind() == AuthoredDeclarationSelectionKind::Call
                 && let ExpressionNode::Call(call) = node
             {
-                for selected_symbol in
-                    checked_call_conformance_targets(program, facts, expression, call.target_symbol)
-                {
+                for selected_symbol in checked_call_conformance_targets(
+                    program,
+                    facts,
+                    expression,
+                    call.target_symbol,
+                    selection.source_span(),
+                ) {
                     let inferred = (
                         selection.source_span(),
                         selection.exposure(),
@@ -77,23 +202,25 @@ pub(crate) fn finalize_checked_authored_selections(
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedCall,
                     ExpressionNode::Call(call),
-                ) => checked_call_intrinsic(
-                    program,
-                    call.target.as_str(),
-                    call.target_symbol,
-                    call.receiver,
-                )
-                .map_or_else(
-                    || {
+                ) => checked_intrinsic_call_target(facts, expression)
+                    .or_else(|| {
+                        checked_call_intrinsic(
+                            program,
+                            call.target.as_str(),
+                            call.target_symbol,
+                            call.receiver,
+                        )
+                    })
+                    .map(|intrinsic| CheckedResolutionTarget::Intrinsic(intrinsic))
+                    .or_else(|| {
                         declaration_target(checked_call_target(
                             program,
                             facts,
                             expression,
                             call.target_symbol,
+                            selection.source_span(),
                         ))
-                    },
-                    |intrinsic| Some(CheckedResolutionTarget::Intrinsic(intrinsic)),
-                ),
+                    }),
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedMember,
                     ExpressionNode::Member(member),
@@ -161,6 +288,7 @@ pub(crate) fn finalize_checked_authored_selections(
         &mut resolutions,
         &mut inferred_conformances,
     )?;
+    collect_checked_proof_membership_selections(program, facts, &mut resolutions)?;
 
     let mut selections = program.authored_declaration_selections().clone();
     for resolution in resolutions {
@@ -199,10 +327,97 @@ pub(crate) fn finalize_checked_authored_selections(
                         "failed to retain checked authored conformance selection: {error:?}"
                     ))
                     .with_source_span(source_span)
-                })?;
+            })?;
         }
     }
+    if let Some(selection) = selections.iter().find(|selection| {
+        matches!(
+            selection.target(),
+            AuthoredDeclarationSelectionTarget::LateBound(_)
+        )
+    }) {
+        let AuthoredDeclarationSelectionTarget::LateBound(binding) = selection.target() else {
+            unreachable!("guarded late-bound authored selection")
+        };
+        return Err(Diagnostic::error(format!(
+            "authored {:?} declaration selection occurrence {} remained unresolved after successful checking ({binding:?})",
+            selection.kind(),
+            selection.occurrence_id().ordinal(),
+        ))
+        .with_source_span(selection.source_span()));
+    }
     program.retain_authored_declaration_selections(selections);
+    Ok(())
+}
+
+fn collect_checked_proof_membership_selections(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    resolutions: &mut Vec<CheckedResolution>,
+) -> Result<(), Diagnostic> {
+    for (fact_handle, fact) in program.proof_facts.iter() {
+        let psi_typed_trees::domain::ProofFact::Membership(membership) = fact else {
+            continue;
+        };
+        let Some(occurrence) = membership.authored_domain_selection else {
+            continue;
+        };
+        let Some(selection) = program.authored_declaration_selections().get(occurrence) else {
+            return Err(Diagnostic::error(format!(
+                "proof membership retains unknown authored selection occurrence {}",
+                occurrence.ordinal(),
+            )));
+        };
+        if selection.kind() != AuthoredDeclarationSelectionKind::DomainMembership {
+            return Err(Diagnostic::error(
+                "proof membership retains mismatched authored domain-selection evidence",
+            )
+            .with_source_span(selection.source_span()));
+        }
+        if selection.target()
+            != AuthoredDeclarationSelectionTarget::LateBound(
+                AuthoredDeclarationSelectionLateBinding::CheckedDomainMembership,
+            )
+        {
+            continue;
+        }
+
+        let target = declaration_target(membership.domain_symbol).or_else(|| {
+            let mut permission = None;
+            for (_, checked_fact) in facts.semantic.facts.iter() {
+                let psi_facts::FactPayload::ContractCarryPermission {
+                    fact,
+                    permission: candidate,
+                    ..
+                } = checked_fact.payload
+                else {
+                    continue;
+                };
+                if fact != fact_handle {
+                    continue;
+                }
+                if permission.is_some_and(|retained| retained != candidate) {
+                    return None;
+                }
+                permission = Some(candidate);
+            }
+            permission.map(|permission| {
+                CheckedResolutionTarget::Intrinsic(
+                    AuthoredDeclarationSelectionIntrinsic::CarryPermission(permission),
+                )
+            })
+        });
+        if let Some(target) = target {
+            push_consistent_resolution(
+                resolutions,
+                CheckedResolution {
+                    occurrence,
+                    binding: AuthoredDeclarationSelectionLateBinding::CheckedDomainMembership,
+                    target,
+                },
+            )?;
+        }
+    }
     Ok(())
 }
 
@@ -280,6 +495,10 @@ fn collect_checked_statement_selections(
                 }
                 let resolution_target = checked_statement_call_intrinsic(program, state, call)
                     .map(CheckedResolutionTarget::Intrinsic)
+                    .or_else(|| {
+                        crate::flow::resolved_operator_statement_symbol(program, call)
+                            .and_then(declaration_target)
+                    })
                     .or_else(|| declaration_target(target));
                 if selection.target()
                     == AuthoredDeclarationSelectionTarget::LateBound(
@@ -295,6 +514,109 @@ fn collect_checked_statement_selections(
                             target,
                         },
                     )?;
+                }
+            }
+        }
+    }
+    collect_checked_transition_target_selections(program, resolutions)?;
+    Ok(())
+}
+
+fn collect_checked_transition_target_selections(
+    program: &TypedTrees,
+    resolutions: &mut Vec<CheckedResolution>,
+) -> Result<(), Diagnostic> {
+    for machine in program.machines() {
+        if program
+            .machine_specializations
+            .iter()
+            .any(|specialization| {
+                specialization.instance == machine.symbol
+                    && specialization.template != specialization.instance
+            })
+        {
+            continue;
+        }
+        for state in program.machine_states(machine) {
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                let psi_typed_trees::statement::StatementNode::Transition(transition) = statement
+                else {
+                    continue;
+                };
+                for target in [transition.target, transition.continuation] {
+                    if !target.is_valid() {
+                        continue;
+                    }
+                    let psi_typed_trees::statement::TransitionTargetNode::Named {
+                        path,
+                        source_span,
+                        authored_call_selection: Some(occurrence),
+                        ..
+                    } = program.statement_table.transition_target(target)
+                    else {
+                        continue;
+                    };
+                    let Some(selection) =
+                        program.authored_declaration_selections().get(*occurrence)
+                    else {
+                        return Err(Diagnostic::error(format!(
+                            "transition target retains unknown authored selection occurrence {}",
+                            occurrence.ordinal(),
+                        ))
+                        .with_source_span(*source_span));
+                    };
+                    if selection.kind() != AuthoredDeclarationSelectionKind::Call
+                        || selection.source_span() != *source_span
+                    {
+                        return Err(Diagnostic::error(
+                            "transition target retains mismatched authored call-selection evidence",
+                        )
+                        .with_source_span(*source_span));
+                    }
+                    if selection.target()
+                        == AuthoredDeclarationSelectionTarget::LateBound(
+                            AuthoredDeclarationSelectionLateBinding::CheckedCall,
+                        )
+                    {
+                        let target_symbol = if path.symbol.is_valid() {
+                            path.symbol
+                        } else {
+                            let Some(target_name) = program
+                                .statement_table
+                                .name_path_members(path.members)
+                                .last()
+                            else {
+                                continue;
+                            };
+                            let matching = program
+                                .machine_type_parameters(machine)
+                                .iter()
+                                .filter(|parameter| {
+                                    parameter.name == *target_name
+                                        && matches!(
+                                            parameter.kind,
+                                            psi_typed_trees::data::TypeParameterKind::Machine { .. }
+                                        )
+                                })
+                                .map(|parameter| parameter.symbol)
+                                .collect::<Vec<_>>();
+                            let [target] = matching.as_slice() else {
+                                continue;
+                            };
+                            *target
+                        };
+                        if !target_symbol.is_valid() {
+                            continue;
+                        }
+                        push_consistent_resolution(
+                            resolutions,
+                            CheckedResolution {
+                                occurrence: *occurrence,
+                                binding: AuthoredDeclarationSelectionLateBinding::CheckedCall,
+                                target: CheckedResolutionTarget::Declaration(target_symbol),
+                            },
+                        )?;
+                    }
                 }
             }
         }
@@ -324,6 +646,21 @@ fn checked_statement_call_intrinsic(
         call.target_symbol,
         psi_typed_trees::expression::ExpressionHandle::invalid(),
     )
+}
+
+fn checked_intrinsic_call_target(
+    facts: &CheckFacts,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> Option<AuthoredDeclarationSelectionIntrinsic> {
+    let mut matching = facts
+        .intrinsic_calls
+        .iter()
+        .filter(|fact| fact.expression == expression)
+        .map(|fact| fact.intrinsic);
+    let selected = matching.next()?;
+    matching
+        .all(|candidate| candidate == selected)
+        .then_some(selected)
 }
 
 fn checked_call_intrinsic(
@@ -481,8 +818,15 @@ fn checked_call_conformance_targets(
     facts: &CheckFacts,
     expression: psi_typed_trees::expression::ExpressionHandle,
     authored_target: SymbolHandle,
+    authored_source_span: psi_source::SourceSpan,
 ) -> Vec<SymbolHandle> {
-    let target = checked_call_target(program, facts, expression, authored_target);
+    let target = checked_call_target(
+        program,
+        facts,
+        expression,
+        authored_target,
+        authored_source_span,
+    );
     checked_target_conformance_targets(program, target)
 }
 
@@ -556,9 +900,38 @@ fn checked_call_target(
     facts: &CheckFacts,
     expression: psi_typed_trees::expression::ExpressionHandle,
     authored_target: SymbolHandle,
+    authored_source_span: psi_source::SourceSpan,
 ) -> SymbolHandle {
     if authored_target.is_valid() {
         return authored_target;
+    }
+    let mut checked_named_target = None;
+    for use_fact in facts
+        .operators
+        .named_uses()
+        .filter(|use_fact| use_fact.expression == expression)
+    {
+        if !use_fact.selected_operator_symbol.is_valid()
+            || checked_named_target
+                .is_some_and(|target| target != use_fact.selected_operator_symbol)
+        {
+            return SymbolHandle::invalid();
+        }
+        checked_named_target = Some(use_fact.selected_operator_symbol);
+    }
+    if let Some(target) = checked_named_target {
+        return target;
+    }
+    if let ExpressionNode::Call(call) = program.expression_table.expression(expression)
+        && let Some(operator) = exact_named_operator_call(program, call)
+    {
+        return operator.symbol;
+    }
+    if let ExpressionNode::Call(call) = program.expression_table.expression(expression)
+        && let Some(target) =
+            contexts::checked_machine_call_target_from_exact_owner(program, expression, call)
+    {
+        return target;
     }
     for (_, state) in facts.flow.control.states.iter() {
         for call in facts.flow.control.calls.span_or_empty(state.calls) {
@@ -578,7 +951,67 @@ fn checked_call_target(
             }
         }
     }
+    let mut checked_source_target = None;
+    for (_, state) in facts.flow.control.states.iter() {
+        for call in facts.flow.control.calls.span_or_empty(state.calls) {
+            if !call.authored_source_custody_valid
+                || call.authored_source_span != Some(authored_source_span)
+                || !call.target_symbol.is_valid()
+            {
+                continue;
+            }
+            if checked_source_target.is_some_and(|target| target != call.target_symbol) {
+                return SymbolHandle::invalid();
+            }
+            checked_source_target = Some(call.target_symbol);
+        }
+    }
+    if let Some(target) = checked_source_target {
+        return target;
+    }
+    let mut checked_fact_target = None;
+    for projection in &facts.fact_call_projections {
+        if projection.call_expression != expression || !projection.target_state.is_valid() {
+            continue;
+        }
+        if checked_fact_target.is_some_and(|target| target != projection.target_state) {
+            return SymbolHandle::invalid();
+        }
+        checked_fact_target = Some(projection.target_state);
+    }
+    if let Some(target) = checked_fact_target {
+        return target;
+    }
     SymbolHandle::invalid()
+}
+
+fn exact_named_operator_call<'program>(
+    program: &'program TypedTrees,
+    call: &psi_typed_trees::expression::TableCallExpression,
+) -> Option<&'program psi_typed_trees::operator::OperatorDefinition> {
+    psi_typed_trees::operator::resolve_named_expression_call(program, call).or_else(|| {
+        let ExpressionNode::Name(path) = program.expression_table.expression(call.receiver) else {
+            return None;
+        };
+        let static_segments = program
+            .expression_table
+            .name_path_members(path.members)
+            .iter()
+            .map(|segment| segment.as_str())
+            .collect::<Vec<_>>();
+        (!static_segments.is_empty()).then_some(())?;
+        psi_typed_trees::operator::resolve_named_call(
+            program,
+            call.target_symbol,
+            Some(&static_segments),
+            call.target.as_str(),
+            program
+                .expression_table
+                .expression_handles(call.arguments)
+                .len(),
+            false,
+        )
+    })
 }
 
 fn checked_name_path_segment_target(
@@ -1063,6 +1496,20 @@ fn checked_member_target(
         member,
     ))
     .or_else(|| {
+        contexts::checked_member_target_from_exact_owner(program, facts, expression, member).map(
+            |target| match target {
+                contexts::OwnerMemberTarget::Declaration(symbol) => {
+                    CheckedResolutionTarget::Declaration(symbol)
+                }
+                contexts::OwnerMemberTarget::CollectionLength => {
+                    CheckedResolutionTarget::Intrinsic(
+                        AuthoredDeclarationSelectionIntrinsic::CollectionLength,
+                    )
+                }
+            },
+        )
+    })
+    .or_else(|| {
         let matching = facts
             .fact_call_projections
             .iter()
@@ -1073,9 +1520,44 @@ fn checked_member_target(
         };
         declaration_target(projection.field)
     })
+    .or_else(|| checked_value_member_target(program, facts, member))
     .or_else(|| authored_member_target(program, member))
     .or_else(|| contextual_domain_member_target(program, expression, member))
     .or_else(|| contextual_statement_member_target(program, expression, member))
+}
+
+fn checked_value_member_target(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    member: &psi_typed_trees::expression::TableMemberExpression,
+) -> Option<CheckedResolutionTarget> {
+    let mut resolved = None;
+    for (_, value) in facts.values.expression_values(member.receiver) {
+        if !value.type_reference.is_valid() {
+            continue;
+        }
+        let target = member_symbol_from_type_reference(
+            program,
+            value.type_reference,
+            member.member.as_str(),
+        )
+        .and_then(declaration_target)
+        .or_else(|| {
+            (member.member.as_str() == "len"
+                && type_reference_is_collection(program, value.type_reference))
+            .then_some(CheckedResolutionTarget::Intrinsic(
+                AuthoredDeclarationSelectionIntrinsic::CollectionLength,
+            ))
+        });
+        let Some(target) = target else {
+            continue;
+        };
+        if resolved.is_some_and(|candidate| candidate != target) {
+            return None;
+        }
+        resolved = Some(target);
+    }
+    resolved
 }
 
 fn authored_member_target(

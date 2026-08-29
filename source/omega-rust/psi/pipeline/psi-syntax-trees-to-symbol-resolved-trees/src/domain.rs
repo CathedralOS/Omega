@@ -173,6 +173,7 @@ pub(crate) fn lower_proof_facts(
                     value,
                     domain,
                     domain_symbol: SymbolHandle::invalid(),
+                    authored_domain_selection: None,
                 })
             }
         };
