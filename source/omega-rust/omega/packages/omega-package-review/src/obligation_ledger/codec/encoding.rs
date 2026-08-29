@@ -27,6 +27,11 @@ pub fn encode_ordinary_package_obligation_ledger(
     encoder.package_identity(ledger.package());
     encoder.string(ledger.target().target_name())?;
     encoder.package_identity(ledger.dependency_closure().root());
+    encoder.byte(match ledger.dependency_closure().root_role() {
+        omega_package_compilation::BuildDeclarationKind::Package => 0,
+        omega_package_compilation::BuildDeclarationKind::Application => 1,
+        omega_package_compilation::BuildDeclarationKind::Workspace => 2,
+    });
     encoder.usize(ledger.dependency_closure().packages().len())?;
     for package in ledger.dependency_closure().packages() {
         encoder.package_identity(*package);
@@ -108,6 +113,10 @@ impl LedgerEncoder {
 
     fn u16(&mut self, value: u16) {
         self.append(&value.to_le_bytes());
+    }
+
+    fn byte(&mut self, value: u8) {
+        self.append(&[value]);
     }
 
     fn u64(&mut self, value: u64) {

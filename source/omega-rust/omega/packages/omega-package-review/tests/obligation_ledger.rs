@@ -3,6 +3,71 @@ mod support;
 use support::*;
 
 #[test]
+fn obligation_ledger_binds_and_recovers_application_root_role() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let application = TempPackage::new();
+    application.write("main.omg", "pub data Token { value: u64; }\n");
+    application.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.application("review-application"); }
+"#,
+    );
+    let identity = package_identity();
+    let inputs = PackageCompilationInputs::new(
+        identity,
+        BuildDeclarationKind::Application,
+        vec![PackageSourceBinding::new(
+            identity,
+            "review-application",
+            application.0.clone(),
+        )],
+        vec![],
+    )
+    .expect("application package graph");
+    let checked =
+        compile_to_checked_with_packages(&application.0.join("main.omg"), Some(target), inputs)
+            .expect("application root should check");
+    let rows = project_checked_package_review(&checked)
+        .expect("application review")
+        .canonical_rows()
+        .expect("application rows");
+    let ledger = ordinary_package_obligation_ledger_from_compiler_rows(
+        checked
+            .dependency_closure()
+            .cloned()
+            .expect("compiler retains dependency closure"),
+        &rows,
+    )
+    .expect("application obligation ledger");
+    assert_eq!(
+        ledger.dependency_closure().root_role(),
+        BuildDeclarationKind::Application
+    );
+    let encoded = encode_ordinary_package_obligation_ledger(&ledger).expect("encode ledger");
+    let decoded = decode_ordinary_package_obligation_ledger(&encoded).expect("recover ledger");
+    assert_eq!(
+        decoded.dependency_closure().root_role(),
+        BuildDeclarationKind::Application
+    );
+
+    let mut workspace_role = encoded;
+    let role_offset = ledger_target_range(&workspace_role).end + 32;
+    workspace_role[role_offset] = 2;
+    assert!(
+        decode_ordinary_package_obligation_ledger(&workspace_role)
+            .expect_err("workspace role cannot enter a package ledger")
+            .message()
+            .contains("workspace role")
+    );
+}
+
+#[test]
 fn ordinary_package_obligation_ledger_requires_exact_local_reconstruction() {
     let Some(target) = host_target_name() else {
         return;
@@ -173,7 +238,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     let dependency_identity =
         PackageKeyIdentity::from_digest([42; 32]).expect("dependency package identity");
     let graph_inputs = |root_path: &Path, dependency_path: &Path, alias: &str| {
-        PackageCompilationInputs::new(
+        PackageCompilationInputs::new_package(
             root_identity,
             vec![
                 PackageSourceBinding::new(root_identity, "review-fixture", root_path.to_owned()),
@@ -310,7 +375,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
 
     let different_root =
         PackageKeyIdentity::from_digest([99; 32]).expect("different root package identity");
-    let wrong_root_closure = PackageCompilationInputs::new(
+    let wrong_root_closure = PackageCompilationInputs::new_package(
         different_root,
         vec![PackageSourceBinding::new(
             different_root,
@@ -460,7 +525,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     let dependency_identity =
         PackageKeyIdentity::from_digest([42; 32]).expect("dependency package identity");
     let graph_inputs = |alias: &str| {
-        PackageCompilationInputs::new(
+        PackageCompilationInputs::new_package(
             root_identity,
             vec![
                 PackageSourceBinding::new(root_identity, "graph-root", graph_root.0.clone()),

@@ -65,7 +65,12 @@ pub fn package_compilation_inputs_for(
         })
         .collect();
 
-    PackageCompilationInputs::new(root.identity(), packages, dependencies)
+    let root_role = if root == closure.graph().root() {
+        closure.root_role()
+    } else {
+        crate::manifest::BuildDeclarationKind::Package
+    };
+    PackageCompilationInputs::new(root.identity(), root_role, packages, dependencies)
 }
 
 fn binding_with_canonical_source_metadata(

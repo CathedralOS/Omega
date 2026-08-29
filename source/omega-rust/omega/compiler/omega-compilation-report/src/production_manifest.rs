@@ -6,7 +6,7 @@ use omega_package_compilation::PackageCompilationSubject;
 use psi_terminal_codec::{CanonicalTerminalArtifact, TerminalArtifactIdentity};
 use sha2::{Digest, Sha256};
 
-const MANIFEST_DOMAIN: &[u8] = b"OMEGA-PRODUCTION-COMPILATION-MANIFEST-V1\0";
+const MANIFEST_DOMAIN: &[u8] = b"OMEGA-PRODUCTION-COMPILATION-MANIFEST-V2\0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProductionCompilationManifestIdentity([u8; 32]);
@@ -191,6 +191,13 @@ fn canonical_manifest_bytes(
     let package = &subject.package;
     append_field(&mut bytes, &package.root().digest());
     let closure = package.dependency_closure();
+    bytes.push(match closure.root_role() {
+        omega_package_compilation::BuildDeclarationKind::Package => 0,
+        omega_package_compilation::BuildDeclarationKind::Application => 1,
+        omega_package_compilation::BuildDeclarationKind::Workspace => {
+            unreachable!("workspace roots cannot enter a package compilation subject")
+        }
+    });
     append_count(&mut bytes, closure.packages().len());
     for identity in closure.packages() {
         append_field(&mut bytes, &identity.digest());

@@ -121,6 +121,16 @@ fn project_resolution_retains_an_application_root_role() {
         recovered.root_role(),
         crate::manifest::BuildDeclarationKind::Application
     );
+    let compiler_inputs = crate::review::package_compilation_inputs(&closure)
+        .expect("application role enters compiler handoff");
+    assert_eq!(
+        compiler_inputs.root_role(),
+        crate::manifest::BuildDeclarationKind::Application
+    );
+    assert_eq!(
+        compiler_inputs.dependency_closure().root_role(),
+        crate::manifest::BuildDeclarationKind::Application
+    );
 
     let _ = std::fs::remove_dir_all(source);
     let _ = std::fs::remove_dir_all(cache);

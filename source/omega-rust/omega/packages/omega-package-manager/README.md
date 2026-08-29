@@ -107,6 +107,14 @@ role. Resolution must carry that role through closure, lock, review,
 compiler-handoff, and audit evidence instead of coercing an application
 declaration into a package declaration after admission.
 
+Compiler handoff uses that same `BuildDeclarationKind` rather than a second
+role vocabulary. `PackageCompilationInputs`, its path-free dependency closure,
+and ordinary obligation-ledger v2 recovery retain it; a workspace catalog
+cannot enter compilation, and re-rooting a dependency gives that independently
+compiled dependency its already-enforced package role. Source-consumption v3
+and production-manifest v2 identities bind the role as part of exact compiler
+custody.
+
 Workspaces are member catalogs, not keyed graph nodes. Each selected application
 member forms its own closure; membership alone does not combine applications or
 include unrelated packages.

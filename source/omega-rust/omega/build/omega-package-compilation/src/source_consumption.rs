@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use std::path::{Component, Path};
 
 const SOURCE_CONTENT_DOMAIN: &[u8] = b"OMEGA-CONSUMED-SOURCE-CONTENT-V1\0";
-const SOURCE_CONSUMPTION_DOMAIN: &[u8] = b"OMEGA-PACKAGE-SOURCE-CONSUMPTION-V2\0";
+const SOURCE_CONSUMPTION_DOMAIN: &[u8] = b"OMEGA-PACKAGE-SOURCE-CONSUMPTION-V3\0";
 
 /// Exact owner class of one source unit consumed by the final checked
 /// frontend closure.
@@ -94,6 +94,10 @@ impl PackageCompilationSubject {
         &self.dependency_closure
     }
 
+    pub const fn root_role(&self) -> super::BuildDeclarationKind {
+        self.dependency_closure.root_role()
+    }
+
     pub const fn source_consumption_commitment(&self) -> PackageSourceConsumptionCommitment {
         self.source_consumption_commitment
     }
@@ -145,6 +149,7 @@ pub fn derive_source_consumption_commitment(
     let mut digest = Sha256::new();
     digest.update(SOURCE_CONSUMPTION_DOMAIN);
     hash_field(&mut digest, &inputs.root().digest());
+    digest.update([canonical_root_role(inputs.root_role())]);
     let packages = inputs
         .packages()
         .map(|(identity, _)| identity)
@@ -179,6 +184,16 @@ pub fn derive_source_consumption_commitment(
     Ok(PackageSourceConsumptionCommitment {
         digest: digest.finalize().into(),
     })
+}
+
+fn canonical_root_role(role: super::BuildDeclarationKind) -> u8 {
+    match role {
+        super::BuildDeclarationKind::Package => 0,
+        super::BuildDeclarationKind::Application => 1,
+        super::BuildDeclarationKind::Workspace => {
+            unreachable!("workspace roots reject before source-consumption commitment")
+        }
+    }
 }
 
 /// Derive the one canonical source projection from the final checked closure.

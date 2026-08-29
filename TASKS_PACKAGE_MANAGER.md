@@ -318,12 +318,18 @@ explicitly.
   Source projection no longer coerces `ApplicationDeclaration` into a package.
   Source custody and reconciliation retain the exact root role, reject an
   application behind every dependency edge, and bind the role into canonical
-  source-closure v4 and review-baseline v4 recovery.
+  source-closure v4 and review-baseline v4 recovery. Explicit project-root
+  entry points cover external-local, Git, named Git member, and workspace
+  sources. Compiler handoff retains the same `BuildDeclarationKind` in
+  `PackageCompilationInputs`, its source-path-free dependency closure, and
+  ordinary obligation-ledger v2 recovery. Source-consumption v3 and production
+  manifest v2 identities bind it; package-only callers use the explicit
+  `new_package` constructor.
 
   Remaining work:
 
-  - retain `{ PackageKey, BuildDeclarationKind }` through compiler handoff,
-    accepted lock rows, manifest review, diagnostics, and audit output;
+  - retain `{ PackageKey, BuildDeclarationKind }` through accepted lock rows,
+    command diagnostics, and audit output;
   - compare root-role changes directionally and add package/application replay,
     tampering, and role-change fixtures at each downstream boundary.
 
