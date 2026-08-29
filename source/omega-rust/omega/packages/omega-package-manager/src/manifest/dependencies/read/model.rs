@@ -1,4 +1,7 @@
 use crate::identity::{AliasName, PackageName};
+use crate::manifest::dependencies::read::active_aliases::{
+    ActiveDependencyAliasError, validate_active_alias_uniqueness,
+};
 use crate::manifest::roles::BuildDeclaration;
 use omega_target::{TargetProfile, TargetProfileIdentity};
 
@@ -147,6 +150,19 @@ impl ProjectedDependencies {
 
     pub fn has_target_conditions(&self) -> bool {
         !self.by_profile.is_empty()
+    }
+
+    /// Validate requester-local aliases after every selected package name is
+    /// known, without choosing or flattening a target profile.
+    ///
+    /// `selected_package_names` follows the authoritative authored occurrence
+    /// roster. The validator checks `common` once and then each complete
+    /// `common + by_profile[P]` active set independently.
+    pub fn validate_active_aliases(
+        &self,
+        selected_package_names: &[PackageName],
+    ) -> Result<(), ActiveDependencyAliasError> {
+        validate_active_alias_uniqueness(self, selected_package_names)
     }
 }
 
