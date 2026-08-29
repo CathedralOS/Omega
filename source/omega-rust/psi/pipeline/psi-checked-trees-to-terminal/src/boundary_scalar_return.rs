@@ -11,7 +11,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
         coordinate,
         target_machine,
         target_state,
-        target_contract_fingerprint,
+        target_contract_report_fingerprint,
         service_reach,
         scalar_arguments,
         structural_arguments,
@@ -35,7 +35,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
     ))?;
     if matches.next().is_some()
         || boundary.state != *target_state
-        || boundary.contract_fingerprint != *target_contract_fingerprint
+        || boundary.contract_report_fingerprint != *target_contract_report_fingerprint
         || boundary.result_type != Some(plan.result_type)
         || !checked_unit_target_reach_matches(*service_reach, boundary.contract_service_reach)
     {
@@ -44,13 +44,13 @@ pub(super) fn lower_boundary_scalar_return_machine(
     let exact_identity = checked
         .facts
         .contract_plans
-        .for_machine(boundary.machine)
-        .map(|contract| (contract.fingerprint, contract.commitment))
+        .for_machine(boundary.contract_owner)
+        .map(|contract| (contract.report_fingerprint, contract.commitment))
         .or_else(|| {
             checked
                 .facts
                 .contract_plans
-                .crash_capsule(boundary.machine, boundary.state)
+                .crash_capsule(boundary.contract_owner, boundary.state)
                 .map(|capsule| {
                     (
                         capsule.target_contract_fingerprint(),
@@ -58,14 +58,14 @@ pub(super) fn lower_boundary_scalar_return_machine(
                     )
                 })
         })
-        .or_else(|| {
-            (!boundary.contract_commitment.is_zero())
-                .then_some((boundary.contract_fingerprint, boundary.contract_commitment))
-        })
         .ok_or(LoweringError::Unsupported(
             "result-bearing boundary target is missing its canonical contract identity",
         ))?;
-    if (boundary.contract_fingerprint, boundary.contract_commitment) != exact_identity {
+    if (
+        boundary.contract_report_fingerprint,
+        boundary.contract_commitment,
+    ) != exact_identity
+    {
         return unsupported(
             "result-bearing boundary target contract compatibility coordinate or strong commitment drifted",
         );

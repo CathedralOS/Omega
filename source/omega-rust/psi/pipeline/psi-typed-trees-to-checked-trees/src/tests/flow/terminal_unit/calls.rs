@@ -453,9 +453,9 @@ fn retains_static_attached_root_helper_port_and_boundary_settlement() {
     assert!(helper.service_reach.direct.is_valid());
     assert!(helper.service_reach.transitive.is_valid());
     assert!(settle.service_reach.direct.is_valid());
-    assert_ne!(root.contract_fingerprint, 0);
-    assert_ne!(helper.contract_fingerprint, 0);
-    assert_ne!(settle.contract_fingerprint, 0);
+    assert_ne!(root.contract_report_fingerprint, 0);
+    assert_ne!(helper.contract_report_fingerprint, 0);
+    assert_ne!(settle.contract_report_fingerprint, 0);
 
     let port_values = checked
         .facts

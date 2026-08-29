@@ -74,7 +74,7 @@ pub fn elaborate_task_activation_plans(
             target_machine.name.as_str(),
         )?;
         let machine_contract = normalized_id(
-            contract.fingerprint,
+            contract.report_fingerprint,
             MachineContractId::from_normalized_identity,
         )?;
         let entry_identity = entry_identity(program, target_machine, entry);
@@ -1523,14 +1523,14 @@ mod tests {
                 machine: target,
                 closed_scalar_values: Default::default(),
                 crash: Default::default(),
-                fingerprint: 0x1111,
+                report_fingerprint: 0x1111,
                 commitment: psi_checked_trees::MachineContractCommitment::from_digest([1; 32]),
             },
             psi_checked_trees::MachineContractPlan {
                 machine: unrelated,
                 closed_scalar_values: Default::default(),
                 crash: Default::default(),
-                fingerprint: 0x2222,
+                report_fingerprint: 0x2222,
                 commitment: psi_checked_trees::MachineContractCommitment::from_digest([2; 32]),
             },
         ];
@@ -1589,7 +1589,7 @@ mod tests {
         assert_eq!(
             exact_task_machine_contract(&program, target, "Target")
                 .expect("exact contract")
-                .fingerprint,
+                .report_fingerprint,
             0x1111
         );
         assert!(
@@ -1653,7 +1653,7 @@ mod tests {
     fn activation_operational_rejects_duplicate_contract() {
         let (mut program, target, _) = activation_operational_fixture();
         let mut duplicate = program.facts.contract_plans.machines[0].clone();
-        duplicate.fingerprint = 0x3333;
+        duplicate.report_fingerprint = 0x3333;
         program.facts.contract_plans.machines.push(duplicate);
 
         assert!(

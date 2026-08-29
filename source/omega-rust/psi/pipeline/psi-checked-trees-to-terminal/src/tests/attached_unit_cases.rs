@@ -428,7 +428,7 @@ fn attached_unit_hard_root_fails_closed_on_missing_transitive_member() {
         .flow
         .terminal_unit_effects
         .machines
-        .retain(|machine| machine.contract_fingerprint != 0x202);
+        .retain(|machine| machine.contract_report_fingerprint != 0x202);
 
     assert!(matches!(
         lower_machine(&checked, "example::Root::enter"),
@@ -436,6 +436,46 @@ fn attached_unit_hard_root_fails_closed_on_missing_transitive_member() {
             "attached Unit closure is missing a checked transitive machine plan"
         ))
     ));
+}
+
+#[test]
+fn attached_unit_boundary_rejects_missing_canonical_contract_custody() {
+    let mut checked = hard_root_checked_fixture();
+    let boundary = checked.facts.flow.terminal_unit_effects.boundary_machines[0].machine;
+    checked
+        .facts
+        .contract_plans
+        .machines
+        .retain(|contract| contract.machine != boundary);
+    checked
+        .facts
+        .contract_plans
+        .crash_capsules
+        .retain(|capsule| capsule.target_machine() != boundary);
+
+    assert_eq!(
+        lower_machine(&checked, "example::Root::enter"),
+        Err(LoweringError::Unsupported(
+            "Unit boundary target is missing its canonical checked contract identity",
+        )),
+    );
+}
+
+#[test]
+fn attached_unit_boundary_rejects_compact_equal_commitment_substitution() {
+    let mut checked = hard_root_checked_fixture();
+    let boundary = &mut checked.facts.flow.terminal_unit_effects.boundary_machines[0];
+    let retained_report = boundary.contract_report_fingerprint;
+    boundary.contract_commitment =
+        psi_checked_trees::MachineContractCommitment::from_digest([0x5a; 32]);
+    assert_eq!(boundary.contract_report_fingerprint, retained_report);
+
+    assert_eq!(
+        lower_machine(&checked, "example::Root::enter"),
+        Err(LoweringError::Unsupported(
+            "Unit boundary target contract compatibility coordinate or strong commitment drifted",
+        )),
+    );
 }
 
 #[test]
@@ -448,7 +488,7 @@ fn attached_unit_port_write_requires_exact_direct_checked_port_service() {
         .terminal_unit_effects
         .machines
         .iter_mut()
-        .find(|machine| machine.contract_fingerprint == 0x202)
+        .find(|machine| machine.contract_report_fingerprint == 0x202)
         .expect("helper plan");
     let CheckedUnitEffectOperationPlan::PortWrite { service_reach, .. } = &mut helper.operations[0]
     else {

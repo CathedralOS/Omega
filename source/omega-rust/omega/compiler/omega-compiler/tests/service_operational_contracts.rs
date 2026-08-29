@@ -102,7 +102,7 @@ fn contract_fingerprint_for(source: &str, machine_name: &str) -> u64 {
         .contract_plans
         .for_machine(machine.symbol)
         .expect("machine contract plan")
-        .fingerprint;
+        .report_fingerprint;
     let _ = fs::remove_dir_all(main_path.parent().expect("temporary program directory"));
     fingerprint
 }
@@ -310,7 +310,7 @@ machine Main::main(&mut self) {}
 
     let without_edge = with_edge.replace("invokes handler;\n{\n    handler.handle();\n}", "{\n}");
     assert_ne!(
-        contract.fingerprint,
+        contract.report_fingerprint,
         contract_fingerprint_for(&without_edge, "Published::entry")
     );
     let _ = fs::remove_dir_all(main_path.parent().expect("temporary program directory"));

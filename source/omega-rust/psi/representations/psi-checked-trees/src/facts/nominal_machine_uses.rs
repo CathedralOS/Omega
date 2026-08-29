@@ -64,7 +64,7 @@ impl CheckedCallbackResourceReceipt {
         Ok(Self {
             machine: envelope.machine(),
             entry: envelope.entry(),
-            contract_report_fingerprint: envelope.contract_fingerprint(),
+            contract_report_fingerprint: envelope.contract_report_fingerprint(),
             stack_report_fingerprint: envelope.stack().fingerprint(),
             logical_structural_work_report_fingerprint: envelope
                 .logical_structural_work()
@@ -122,7 +122,7 @@ impl CheckedCallbackResourceReceipt {
         envelope.validate()?;
         if self.machine != envelope.machine()
             || self.entry != envelope.entry()
-            || self.contract_report_fingerprint != envelope.contract_fingerprint()
+            || self.contract_report_fingerprint != envelope.contract_report_fingerprint()
             || self.stack_report_fingerprint != envelope.stack().fingerprint()
             || self.logical_structural_work_report_fingerprint
                 != envelope.logical_structural_work().fingerprint()

@@ -660,12 +660,13 @@ pub(super) fn build_boundary_machine(
     Some(CheckedBoundaryMachinePlan {
         machine: machine.symbol,
         state: state.symbol,
+        contract_owner: machine.symbol,
         attachment_type_identity: Some(attachment_type_identity),
         structural_parameters,
         scalar_parameters,
         result_type,
         domain_requirements,
-        contract_fingerprint: contract.fingerprint,
+        contract_report_fingerprint: contract.report_fingerprint,
         contract_commitment: contract.commitment,
         contract_service_reach: facts.service_reaches.plan_for_machine(machine.symbol)?,
         service_reach: state_flow.service_reach.clone(),
@@ -817,12 +818,13 @@ pub(super) fn build_static_boundary_requirements(
             plans.push(CheckedBoundaryMachinePlan {
                 machine: signature.symbol,
                 state: signature.symbol,
+                contract_owner: definition.symbol,
                 attachment_type_identity: None,
                 structural_parameters,
                 scalar_parameters,
                 result_type,
                 domain_requirements,
-                contract_fingerprint: capsule.target_contract_fingerprint(),
+                contract_report_fingerprint: capsule.target_contract_fingerprint(),
                 contract_commitment: capsule.target_contract_commitment(),
                 contract_service_reach: psi_language_semantics::ServiceReachPlan {
                     interface: psi_language_semantics::ServiceReachInterface::PublishedCeiling(
@@ -974,7 +976,7 @@ pub(super) fn build_checked_machine(
         trivial_affine_locals,
         entry_claims,
         body_qualifications,
-        contract_fingerprint: contract.fingerprint,
+        contract_report_fingerprint: contract.report_fingerprint,
         contract_commitment: contract.commitment,
         contract_service_reach: facts.service_reaches.plan_for_machine(machine.symbol)?,
         service_reach: state_flow.service_reach.clone(),

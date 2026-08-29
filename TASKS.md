@@ -165,7 +165,11 @@ scanners, or receipts.
   the complete canonical public contract beside their historical compact report
   coordinate. Checked plans, crash capsules/call sites, realized envelopes,
   Terminal handoff, nominal refinement, and provider callback selection replay
-  that commitment. The default executable container is now v2: a required
+  that commitment. Every exported checked contract coordinate is now named as
+  a report fingerprint. Contract-plan replay rejects an empty strong
+  commitment, and boundary lowering refuses to treat a boundary row's own
+  stored digest as authority when its canonical checked plan or crash capsule
+  is absent. The default executable container is now v2: a required
   authority section carries independent imported-contract-set, declared-
   footprint, machine-regime, and installation-scope commitments, all four enter
   executable content identity, and admission rejects v1 candidates. Container

@@ -3185,7 +3185,7 @@ mod tests {
             machine: selected_machine,
             closed_scalar_values: Default::default(),
             crash: Default::default(),
-            fingerprint: selected_actual_fingerprint,
+            report_fingerprint: selected_actual_fingerprint,
             commitment: psi_checked_trees::MachineContractCommitment::from_digest([8; 32]),
         }];
         checked.facts.contract_plans.crash_capsules = vec![
@@ -3200,7 +3200,7 @@ mod tests {
         checked.facts.contract_plans.realized_envelopes = vec![
             psi_checked_trees::RealizedMachineContractEnvelope {
                 machine: selected_machine,
-                contract_fingerprint: selected_actual_fingerprint,
+                contract_report_fingerprint: selected_actual_fingerprint,
                 contract_commitment:
                     psi_checked_trees::MachineContractCommitment::from_digest([8; 32]),
                 effective_service_reach: Vec::new(),

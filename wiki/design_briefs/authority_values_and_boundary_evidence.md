@@ -223,6 +223,12 @@ accepted directly; every remaining legacy field is held to a shrinking
 path-and-count ceiling, so new unclassified fields and duplicate occurrences
 fail before they can become an accidental authority convention.
 
+Checked machine-contract carriers apply that rule end to end. Their compact
+FNV values are named contract report fingerprints beside the canonical
+domain-separated `MachineContractCommitment`. Replay rejects an empty strong
+commitment, and a boundary row cannot authorize itself with a locally stored
+digest when the canonical checked contract plan or crash capsule is missing.
+
 ### Content-bearing claims
 
 A content-bearing exact qualification publishes one owner-unique conformance

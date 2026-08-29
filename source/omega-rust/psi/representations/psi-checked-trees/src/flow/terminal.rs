@@ -650,7 +650,7 @@ pub struct CheckedStructuralCallPlan {
     pub coordinate: CheckedUnitCallCoordinate,
     pub target_machine: SymbolHandle,
     pub target_state: SymbolHandle,
-    pub target_contract_fingerprint: u64,
+    pub target_contract_report_fingerprint: u64,
     pub service_reach: ServiceReachSummary,
     pub structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
     pub claim_transfers: Vec<CheckedUnitClaimTransferPlan>,
@@ -955,7 +955,7 @@ pub struct CheckedUnitNominalAffineCleanupPlan {
     pub type_identity: String,
     pub cleanup_machine: SymbolHandle,
     pub cleanup_state: SymbolHandle,
-    pub cleanup_contract_fingerprint: u64,
+    pub cleanup_contract_report_fingerprint: u64,
     /// Source-independent preconditions proved at this exact implicit cleanup
     /// edge. The contextual slice admits a finite canonical set of direct
     /// relevant Boolean fields of the cleanup receiver.
@@ -989,7 +989,7 @@ pub enum CheckedUnitEffectOperationPlan {
         coordinate: CheckedUnitCallCoordinate,
         target_machine: SymbolHandle,
         target_state: SymbolHandle,
-        target_contract_fingerprint: u64,
+        target_contract_report_fingerprint: u64,
         service_reach: ServiceReachSummary,
         structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
         claim_transfers: Vec<CheckedUnitClaimTransferPlan>,
@@ -998,7 +998,7 @@ pub enum CheckedUnitEffectOperationPlan {
         coordinate: CheckedUnitCallCoordinate,
         target_machine: SymbolHandle,
         target_state: SymbolHandle,
-        target_contract_fingerprint: u64,
+        target_contract_report_fingerprint: u64,
         service_reach: ServiceReachSummary,
         /// Checked primitive arguments in the boundary declaration's dense
         /// scalar-parameter order. Structural arguments retain their separate
@@ -1039,7 +1039,7 @@ pub struct CheckedUnitEffectMachinePlan {
     pub entry_claims: Vec<CheckedUnitEntryClaimPlan>,
     /// Canonical sorted domains from `QualificationFacts`.
     pub body_qualifications: Vec<SemanticDomainId>,
-    pub contract_fingerprint: u64,
+    pub contract_report_fingerprint: u64,
     pub contract_commitment: crate::MachineContractCommitment,
     pub contract_service_reach: ServiceReachPlan,
     pub service_reach: ServiceReachSummary,
@@ -1057,6 +1057,10 @@ pub struct CheckedProviderAttachmentRequirementPlan {
 pub struct CheckedBoundaryMachinePlan {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
+    /// Exact owner of the canonical contract carrier. For an attached
+    /// boundary declaration this is `machine`; for a boundary-trait
+    /// requirement it is the declaring trait that owns the crash capsule.
+    pub contract_owner: SymbolHandle,
     /// Present for a bodyless attached boundary declaration; absent for a
     /// static boundary-trait requirement, which has no runtime provider value.
     pub attachment_type_identity: Option<String>,
@@ -1068,7 +1072,7 @@ pub struct CheckedBoundaryMachinePlan {
     /// Canonical `(argument_index, domain)` order derived from exact normalized
     /// membership facts in the boundary contract.
     pub domain_requirements: Vec<CheckedUnitStructuralDomainRequirementPlan>,
-    pub contract_fingerprint: u64,
+    pub contract_report_fingerprint: u64,
     pub contract_commitment: crate::MachineContractCommitment,
     pub contract_service_reach: ServiceReachPlan,
     pub service_reach: ServiceReachSummary,

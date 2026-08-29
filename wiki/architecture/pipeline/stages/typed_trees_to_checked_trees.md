@@ -611,8 +611,11 @@ Current ownership is:
   public contract. Its settled crash axis is a canonical set of cause buckets
   with source-handle-free predicate identities; route-less and explicit-`true`
   clauses normalize to the same unconditional route. Public
-  fingerprints, reports, and terminal production consume this checked carrier
-  rather than re-reading typed crash clauses. The same plan keeps an
+  report fingerprints, reports, and terminal production consume this checked
+  carrier rather than re-reading typed crash clauses. Authority-bearing joins
+  additionally replay its domain-separated machine-contract commitment, and
+  an empty commitment rejects even beside a nonzero compact report value. The
+  same plan keeps an
   independent, non-fingerprinted checked-site layer keyed by state and
   state-local statement ordinal. Each site records the body-derived cause,
   selected published coverage, exact incoming guard conjunction, open invariant
@@ -635,8 +638,8 @@ Current ownership is:
   promoted only when every case segment on its claim path has matching
   membership evidence. A sibling
   checked-call layer uses the flow graph's state/statement/call coordinate,
-  retains the callee target and contract fingerprint, and stores the surviving
-  selected summary after invocation argument substitution. Published buckets
+  retains the callee target and contract report fingerprint, and stores the
+  surviving selected summary after invocation argument substitution. Published buckets
   are selected for authored interfaces. Same-unit private bodies instead use a
   conservative monotone summary fixed point over the viable invocation graph:
   every explicit site becomes an unconditional cause bucket, a site-free leaf
@@ -683,7 +686,10 @@ Current ownership is:
   to the selected machine's normalized declared contract commitment and retains
   an explicit admission-refinement receipt over those endpoints. Historical
   compact contract, refinement, and calling-plan fingerprints remain report
-  compatibility coordinates only. Target planning recomputes the calling-plan
+  compatibility coordinates only. Checked boundary lowering must rejoin the
+  strong contract commitment to the canonical checked machine plan or crash
+  capsule; the boundary row cannot self-authenticate its own stored digest.
+  Target planning recomputes the calling-plan
   commitment from the exact validated plan and rejects a compact-equal
   substitution. The
   published capsule separately carries canonical service reach, synchronous

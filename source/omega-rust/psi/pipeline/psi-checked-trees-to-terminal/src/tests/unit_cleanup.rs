@@ -234,7 +234,7 @@ fn nominal_affine_unit_cleanup_lowering_rejects_stale_checked_joins() {
     ));
 
     let mut stale = original.clone();
-    stale.cleanups[0].cleanup_contract_fingerprint ^= 1;
+    stale.cleanups[0].cleanup_contract_report_fingerprint ^= 1;
     assert!(matches!(
         lower_nominal_affine_unit_cleanup_machine(&checked, &stale),
         Err(LoweringError::Unsupported(
@@ -257,8 +257,9 @@ fn nominal_affine_unit_cleanup_lowering_rejects_stale_checked_joins() {
         .iter_mut()
         .find(|machine| machine.machine == stale_plan.cleanups[0].cleanup_machine)
         .expect("cleanup target plan");
-    cleanup_target.contract_fingerprint ^= 1;
-    stale_plan.cleanups[0].cleanup_contract_fingerprint = cleanup_target.contract_fingerprint;
+    cleanup_target.contract_report_fingerprint ^= 1;
+    stale_plan.cleanups[0].cleanup_contract_report_fingerprint =
+        cleanup_target.contract_report_fingerprint;
     assert!(matches!(
         lower_nominal_affine_unit_cleanup_machine(&stale_checked, &stale_plan),
         Err(LoweringError::Unsupported(

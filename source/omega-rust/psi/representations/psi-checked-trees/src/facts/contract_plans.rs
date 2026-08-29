@@ -3,11 +3,12 @@
 //! manifests, proof artifacts, provider admission, and hot-swap checks
 //! reference this identity, never re-derived booleans. The checked public
 //! axes publish independently; this carrier retains the remaining contract
-//! plans plus their deterministic fingerprint, which still incorporates the
-//! published supply and canonical service reach.
+//! plans plus their domain-separated commitment. Its compact FNV projection
+//! is report/cache data only and still incorporates the published supply and
+//! canonical service reach.
 //! Prover-independence (acceptance 8: a stronger prover cannot change an
 //! exported contract ID) holds BY CONSTRUCTION: only declared/published
-//! halves enter the fingerprint, never inferred rows or witnesses.
+//! halves enter either projection, never inferred rows or witnesses.
 
 use psi_language_semantics::{
     BlockingInterface, MachineSupplyMode, SuspensionInterface, SynchronousInvocationInterface,
@@ -1113,8 +1114,15 @@ impl MachineContractPlans {
     /// a target footprint, or an installation receipt as an input.
     pub fn validate_resource_envelopes(&self) -> Result<(), &'static str> {
         for contract in &self.machines {
-            if contract.fingerprint == 0 {
-                return Err("checked resource envelope requires a nonzero exact contract identity");
+            if contract.report_fingerprint == 0 {
+                return Err(
+                    "checked resource envelope requires a nonzero contract report coordinate",
+                );
+            }
+            if contract.commitment.is_zero() {
+                return Err(
+                    "checked resource envelope requires a nonzero machine contract commitment",
+                );
             }
             let mut matching = self
                 .realized_envelopes
@@ -1126,7 +1134,7 @@ impl MachineContractPlans {
             if matching.next().is_some() {
                 return Err("checked resource envelope has duplicate realized machine rows");
             }
-            if realized.contract_fingerprint != contract.fingerprint
+            if realized.contract_report_fingerprint != contract.report_fingerprint
                 || realized.contract_commitment != contract.commitment
             {
                 return Err(
@@ -1135,7 +1143,7 @@ impl MachineContractPlans {
             }
             realized.resources.validate()?;
             if realized.resources.machine != contract.machine
-                || realized.resources.contract_fingerprint != contract.fingerprint
+                || realized.resources.contract_fingerprint != contract.report_fingerprint
             {
                 return Err(
                     "checked resource roster does not bind its exact realized machine contract",
@@ -1216,7 +1224,7 @@ impl CheckedResourceAxisAnchor {
         self.machine
     }
 
-    pub const fn contract_fingerprint(&self) -> u64 {
+    pub const fn contract_report_fingerprint(&self) -> u64 {
         self.contract_fingerprint
     }
 
@@ -1330,7 +1338,7 @@ impl CheckedEntryResourceEnvelope {
         self.machine
     }
 
-    pub const fn contract_fingerprint(&self) -> u64 {
+    pub const fn contract_report_fingerprint(&self) -> u64 {
         self.contract_fingerprint
     }
 
@@ -1552,12 +1560,12 @@ fn checked_resource_report_fingerprint(bytes: impl IntoIterator<Item = u8>) -> u
 
 /// Complete currently-checkable implementation envelope for one concrete
 /// machine. These axes are evidence, not a replacement public contract
-/// fingerprint. The resource field is an exact derivation-obligation anchor,
+/// commitment. The resource field is an exact derivation-obligation anchor,
 /// not a claim that downstream resource realizations already exist.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RealizedMachineContractEnvelope {
     pub machine: SymbolHandle,
-    pub contract_fingerprint: u64,
+    pub contract_report_fingerprint: u64,
     pub contract_commitment: MachineContractCommitment,
     pub effective_service_reach: Vec<String>,
     /// Concrete reach with installation-selected upper-bound contributions
@@ -1566,7 +1574,7 @@ pub struct RealizedMachineContractEnvelope {
     pub concrete_service_reach: Vec<String>,
     /// Installation-selected reach requirements still awaiting provider-row
     /// substitution. These are implementation evidence and therefore do not
-    /// enter the machine's published contract fingerprint.
+    /// enter the machine's published contract identity.
     pub unresolved_installation_reaches: Vec<psi_effects::InstallationReachRequirement>,
     pub effective_synchronous_invocations: Vec<String>,
     pub checked_may_suspend: bool,
@@ -1593,7 +1601,7 @@ pub struct MachineContractPlan {
     pub crash: CrashPlan,
     /// Historical compact compatibility coordinate. This is report/cache data
     /// and never sufficient contract authority without `commitment`.
-    pub fingerprint: u64,
+    pub report_fingerprint: u64,
     /// Domain-separated SHA-256 commitment to the complete canonical public
     /// contract structure.
     pub commitment: MachineContractCommitment,
@@ -1807,7 +1815,7 @@ pub fn contract_identity(
     }
 }
 
-pub fn contract_fingerprint(
+pub fn contract_report_fingerprint(
     supply_mode: MachineSupplyMode,
     published_service_names: &[String],
     invocation_interface: SynchronousInvocationInterface,
@@ -1848,13 +1856,13 @@ mod tests {
                 machine,
                 closed_scalar_values: ClosedScalarValueContractPlan::default(),
                 crash: CrashPlan::default(),
-                fingerprint: compact,
+                report_fingerprint: compact,
                 commitment: expected,
             }],
             crash_capsules: Vec::new(),
             realized_envelopes: vec![RealizedMachineContractEnvelope {
                 machine,
-                contract_fingerprint: compact,
+                contract_report_fingerprint: compact,
                 contract_commitment: substituted,
                 effective_service_reach: Vec::new(),
                 concrete_service_reach: Vec::new(),
@@ -1879,6 +1887,50 @@ mod tests {
                 .validate_resource_envelopes()
                 .expect_err("compact-equal structural contract substitution must reject")
                 .contains("contract identity disagrees")
+        );
+    }
+
+    #[test]
+    fn zero_machine_contract_commitment_rejects_even_with_nonzero_report_coordinate() {
+        let machine = SymbolHandle::from_arena_index(17);
+        let entry = SymbolHandle::from_arena_index(18);
+        let compact = 0xfeed;
+        let plans = MachineContractPlans {
+            machines: vec![MachineContractPlan {
+                machine,
+                closed_scalar_values: ClosedScalarValueContractPlan::default(),
+                crash: CrashPlan::default(),
+                report_fingerprint: compact,
+                commitment: MachineContractCommitment::from_digest([0; 32]),
+            }],
+            crash_capsules: Vec::new(),
+            realized_envelopes: vec![RealizedMachineContractEnvelope {
+                machine,
+                contract_report_fingerprint: compact,
+                contract_commitment: MachineContractCommitment::from_digest([0; 32]),
+                effective_service_reach: Vec::new(),
+                concrete_service_reach: Vec::new(),
+                unresolved_installation_reaches: Vec::new(),
+                effective_synchronous_invocations: Vec::new(),
+                checked_may_suspend: false,
+                checked_may_block: false,
+                checked_termination: TerminationGuarantee::NoGuarantee,
+                checked_crash: CrashPlan::default(),
+                mutation: Vec::new(),
+                capabilities: Vec::new(),
+                resources: CheckedMachineResourceEnvelopes::from_checked_contract_entries(
+                    machine,
+                    compact,
+                    [entry],
+                ),
+            }],
+        };
+
+        assert_eq!(
+            plans
+                .validate_resource_envelopes()
+                .expect_err("zero strong authority must reject before compact replay"),
+            "checked resource envelope requires a nonzero machine contract commitment",
         );
     }
 
@@ -1908,7 +1960,7 @@ mod tests {
         envelope.validate().expect("canonical resource anchor");
         assert_eq!(envelope.machine(), machine);
         assert_eq!(envelope.entry(), entry);
-        assert_eq!(envelope.contract_fingerprint(), 0xfeed);
+        assert_eq!(envelope.contract_report_fingerprint(), 0xfeed);
         assert_eq!(
             envelope.stack().derivation_obligation(),
             CheckedResourceDerivationObligation::TerminalAndTargetStackClosure
@@ -2223,7 +2275,7 @@ mod tests {
     #[test]
     fn operational_interfaces_participate_independently_in_contract_identity() {
         let fingerprint = |suspension, blocking| {
-            contract_fingerprint(
+            contract_report_fingerprint(
                 MachineSupplyMode::Boundary,
                 &[],
                 SynchronousInvocationInterface::PublishedCeiling,
@@ -2255,7 +2307,7 @@ mod tests {
     #[test]
     fn external_binding_mechanism_participates_in_contract_identity() {
         let fingerprint = |mechanism| {
-            contract_fingerprint(
+            contract_report_fingerprint(
                 MachineSupplyMode::ExternalRealization {
                     binding: psi_language_semantics::ExternalBindingId(1),
                     mechanism,
@@ -2302,7 +2354,7 @@ mod tests {
             }),
         };
         let fingerprint = |plan: &psi_language_semantics::MachineTerminationPlan| {
-            contract_fingerprint(
+            contract_report_fingerprint(
                 MachineSupplyMode::CheckedBody,
                 &[],
                 SynchronousInvocationInterface::InternalInferred,
@@ -2322,7 +2374,7 @@ mod tests {
     #[test]
     fn symbol_resolved_service_names_participate_in_contract_identity() {
         let fingerprint = |services: &[String]| {
-            contract_fingerprint(
+            contract_report_fingerprint(
                 MachineSupplyMode::Boundary,
                 services,
                 SynchronousInvocationInterface::PublishedCeiling,
@@ -2347,7 +2399,7 @@ mod tests {
     #[test]
     fn synchronous_invocation_ceiling_participates_in_contract_identity() {
         let fingerprint = |interface, invocations: &[String]| {
-            contract_fingerprint(
+            contract_report_fingerprint(
                 MachineSupplyMode::Boundary,
                 &[],
                 interface,
@@ -2381,7 +2433,7 @@ mod tests {
     #[test]
     fn internal_derivation_differs_from_published_omission() {
         let fingerprint = |termination| {
-            contract_fingerprint(
+            contract_report_fingerprint(
                 MachineSupplyMode::CheckedBody,
                 &[],
                 SynchronousInvocationInterface::InternalInferred,
