@@ -149,6 +149,10 @@ selection identity.
   exact patch validation, identity encoding, and immutable admission, with
   scalar/control-flow constructors and accessors in named leaves; the former
   1,253-line file is gone and the largest replacement is below 400 lines.
+  Straight-line scalar lowering is complete as well: its 50-line entrance owns
+  ordered evaluation and terminal sealing, then descends into exhaustive
+  routing, integer arithmetic, integer conversion, and exit leaves; the former
+  1,238-line file is gone and the largest replacement is below 600 lines.
   Continue through the exact exception table in the architecture guard,
   removing each exception as its file falls below the 1,000-line default.
 - [x] Clear the current production-file size violations by semantic split, not
