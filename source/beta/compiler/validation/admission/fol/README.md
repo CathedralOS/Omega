@@ -14,6 +14,16 @@ system or coinduction rule.
 - a primitive-recursive two-state cycle whose every indexed state remains
   running and observationally silent.
 
+`bc-main-resource-refinement.elab` is the 4,254-byte proof-authoring form for
+the first exact-subject tranche. It models the exact four-instruction Alpha
+cleanup against the single Beta resource return, carries an arbitrary sticky
+resource identity to typed `Exhaust`, proves every internal step silent,
+decreases instruction debt exactly, and makes terminal and Invalid states
+self-loop. Its final proposition instantiates the five canonical structural
+resource origins. It remains a candidate until an Alpha-owned ledger emits the
+same declarations and goal from the canonical `bc.beta`, tape, and `B_bc1`;
+the proof source cannot bind those subjects by naming them itself.
+
 It also checks a reusable induction lemma over opaque source/target trace
 functions, an opaque synchronization function, and a binary symbolic relation
 schema.  This is the generic proof-DAG boundary that exact `bc.beta` relation

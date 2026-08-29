@@ -191,6 +191,15 @@ Canonical subjects:
     `def`/`use`; all three checker implementations accept it. This replaces
     per-length unrolling without granting a producer control over a machine,
     relation schema, or premise.
+  - [x] The 4,254-byte `bc-main-resource-refinement.elab` proof-authoring
+    candidate models the exact cleanup shape: one Beta resource return, four
+    Alpha successors, empty observations on every internal step, exact
+    instruction-debt decrease, typed `Exhaust` payload preservation, terminal
+    self-loops, and Invalid self-loops. Its final proposition instantiates all
+    five root-reachable structural resource origins and passes the same
+    three-checker seam. It does not become exact-subject evidence merely by
+    naming those identities; the remaining owner-binding item below is
+    intentionally still open.
   - [ ] Bind the first exact-subject theorem tranche to `bc.beta`'s
     `main.resource` cleanup: one Beta return maps to the independently decoded
     Alpha load/epilogue/root-halt sequence, preserves empty stdout and the
