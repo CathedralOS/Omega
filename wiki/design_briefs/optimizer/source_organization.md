@@ -186,6 +186,9 @@ behind one small entrance.
 Bounded target-operation assignment now separates retained model, source
 lowering routes, assignment construction, and independent custody replay; its
 entrance alone admits the constructed assignment after that replay succeeds.
+The preceding optimized target-operation boundary likewise keeps its retained
+owning carrier separate from exact lowering mechanics, while its entrance owns
+all lowering-to-custody joins and checked-provider-installation retention.
 Liveness computation and pre-allocation machine-effect encoding also keep
 their broad fixtures in sibling test leaves, so production file size measures
 production responsibility.
