@@ -1131,8 +1131,52 @@ fn encode_compiler_intrinsic_execution(
                 psi_numerics::literals::FloatFormat::F64 => 1,
             });
         }
+        PackageReviewCompilerIntrinsicExecution::NamedFloatConversion {
+            source,
+            target,
+            domain,
+        } => {
+            encoder.byte(2);
+            encode_compiler_numeric_type(encoder, *source);
+            encode_compiler_numeric_type(encoder, *target);
+            encode_compiler_arithmetic_domain(encoder, *domain);
+        }
     }
     Ok(())
+}
+
+fn encode_compiler_numeric_type(
+    encoder: &mut Encoder,
+    numeric_type: omega_provider_planning::plans::CompilerNumericType,
+) {
+    use omega_provider_planning::plans::CompilerNumericType;
+
+    encoder.byte(match numeric_type {
+        CompilerNumericType::I8 => 0,
+        CompilerNumericType::I16 => 1,
+        CompilerNumericType::I32 => 2,
+        CompilerNumericType::I64 => 3,
+        CompilerNumericType::U8 => 4,
+        CompilerNumericType::U16 => 5,
+        CompilerNumericType::U32 => 6,
+        CompilerNumericType::U64 => 7,
+        CompilerNumericType::F32 => 8,
+        CompilerNumericType::F64 => 9,
+    });
+}
+
+fn encode_compiler_arithmetic_domain(
+    encoder: &mut Encoder,
+    domain: psi_numerics::arithmetic::ArithmeticDomain,
+) {
+    use psi_numerics::arithmetic::ArithmeticDomain;
+
+    encoder.byte(match domain {
+        ArithmeticDomain::Exact => 0,
+        ArithmeticDomain::Wrapping => 1,
+        ArithmeticDomain::Saturating => 2,
+        ArithmeticDomain::Trapping => 3,
+    });
 }
 
 pub(crate) fn encode_service_schema(
@@ -1373,10 +1417,77 @@ mod tests {
         let negate_f64 = encoded(PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(
             psi_numerics::literals::FloatFormat::F64,
         ));
+        let conversion = encoded(
+            PackageReviewCompilerIntrinsicExecution::NamedFloatConversion {
+                source: omega_provider_planning::plans::CompilerNumericType::F64,
+                target: omega_provider_planning::plans::CompilerNumericType::F32,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        );
         assert_ne!(builtin, negate_f32);
         assert_ne!(negate_f32, negate_f64);
         assert_eq!(negate_f32, [1, 0]);
         assert_eq!(negate_f64, [1, 1]);
+        assert_eq!(conversion, [2, 9, 8, 0]);
+    }
+
+    #[test]
+    fn compiler_conversion_encoding_has_explicit_numeric_and_domain_tags() {
+        use omega_provider_planning::plans::CompilerNumericType;
+        use psi_numerics::arithmetic::ArithmeticDomain;
+
+        fn encoded(execution: PackageReviewCompilerIntrinsicExecution) -> Vec<u8> {
+            let mut encoder = Encoder::bounded(16);
+            encode_compiler_intrinsic_execution(&mut encoder, &execution)
+                .expect("encode closed compiler conversion");
+            encoder.finish().expect("bounded encoding")
+        }
+
+        let numeric_types = [
+            CompilerNumericType::I8,
+            CompilerNumericType::I16,
+            CompilerNumericType::I32,
+            CompilerNumericType::I64,
+            CompilerNumericType::U8,
+            CompilerNumericType::U16,
+            CompilerNumericType::U32,
+            CompilerNumericType::U64,
+            CompilerNumericType::F32,
+            CompilerNumericType::F64,
+        ];
+        for (tag, numeric_type) in numeric_types.into_iter().enumerate() {
+            assert_eq!(
+                encoded(
+                    PackageReviewCompilerIntrinsicExecution::NamedFloatConversion {
+                        source: numeric_type,
+                        target: CompilerNumericType::F32,
+                        domain: ArithmeticDomain::Exact,
+                    }
+                ),
+                [2, tag as u8, 8, 0],
+            );
+        }
+
+        for (tag, domain) in [
+            ArithmeticDomain::Exact,
+            ArithmeticDomain::Wrapping,
+            ArithmeticDomain::Saturating,
+            ArithmeticDomain::Trapping,
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            assert_eq!(
+                encoded(
+                    PackageReviewCompilerIntrinsicExecution::NamedFloatConversion {
+                        source: CompilerNumericType::F64,
+                        target: CompilerNumericType::F32,
+                        domain,
+                    }
+                ),
+                [2, 9, 8, tag as u8],
+            );
+        }
     }
 
     pub(crate) fn empty_review() -> CheckedPackageReviewProjection {

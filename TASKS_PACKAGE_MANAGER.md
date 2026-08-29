@@ -95,13 +95,13 @@ closed. Compiler-issued package review remains non-admitting.
   covers builtin types, all compiler-installed builtin functions (including
   `min`, `max`, and `sqrt`), unary operators, byte predicates, and collection
   length. Builtin-backed boundary-operator provider rows now retain and
-  rederive their exact builtin execution child. Named-float negation provider
-  rows likewise retain a closed `f32`/`f64` execution atom independently of
-  their authored realization machine. Remaining work includes complete
-  source/target identity for named-float conversions, other non-builtin
-  intrinsic provider executions, and any source-free child still represented
-  as unresolved nominal ownership. Package-authored lookalikes must remain
-  ordinary package nominals.
+  rederive their exact builtin execution child. Named-float negation and
+  conversion provider rows likewise retain closed execution atoms independently
+  of their authored realization machines; conversion commits its numeric source
+  type, numeric target type, and arithmetic domain together. Remaining work
+  includes other non-builtin intrinsic provider executions and any source-free
+  child still represented as unresolved nominal ownership. Package-authored
+  lookalikes must remain ordinary package nominals.
 
 - [ ] **COMPLETE-CONFORMANCE-IDENTITY.** Retain complete public conformance
   applications, including target-trait lifetime arguments once OWNER Q6 is

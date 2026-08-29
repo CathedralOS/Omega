@@ -993,8 +993,12 @@ negation atoms for `f32` and `f64`. Compiler dispatch selects the atom from the
 checked overload and external realization join rather than from the authored
 machine name; the package-qualified realization nominal remains independently
 reviewed. Projection rederives the atom and rejects missing, cross-format,
-non-intrinsic, or spoofed state. Conversion remains fail-closed until one atom
-commits its source type, target type, and arithmetic policy together.
+non-intrinsic, or spoofed state.
+Review v80 and canonical row v38 add named-float conversion atoms. Each commits
+the exact checked numeric source type, numeric target type, and arithmetic
+domain together, so width, signedness, and integer overflow policy cannot drift
+independently. Projection rederives every coordinate from the exact checked
+overload and rejects missing, mismatched, or spoofed state.
 Authored unary `!` and `~` operators retain their exact operator-token spans,
 including when nested in a public proposition or contract. Checked lowering
 must finalize that exact occurrence as the closed builtin-operator meaning,

@@ -68,6 +68,11 @@ impl PackageReviewCheckedServiceReach {
 pub enum PackageReviewCompilerIntrinsicExecution {
     BuiltinFunction(psi_symbols::BuiltinFunction),
     NamedFloatNegation(psi_numerics::literals::FloatFormat),
+    NamedFloatConversion {
+        source: omega_provider_planning::plans::CompilerNumericType,
+        target: omega_provider_planning::plans::CompilerNumericType,
+        domain: psi_numerics::arithmetic::ArithmeticDomain,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -99,7 +104,9 @@ impl CheckedPackageProviderRowIdentity {
             Some(PackageReviewCompilerIntrinsicExecution::BuiltinFunction(function)) => {
                 Some(function)
             }
-            Some(PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(_)) | None => None,
+            Some(PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(_))
+            | Some(PackageReviewCompilerIntrinsicExecution::NamedFloatConversion { .. })
+            | None => None,
         }
     }
 }
