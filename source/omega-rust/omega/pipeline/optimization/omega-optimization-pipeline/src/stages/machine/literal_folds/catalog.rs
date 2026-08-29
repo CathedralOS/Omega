@@ -3,9 +3,7 @@
 use omega_optimization_core::{Optimization, OptimizationSelections};
 use omega_regalloc::LiteralFoldPolicy;
 
-use super::literal_folds::{
-    OptimizedLiteralFoldCustodyError, SelectedLoweringOptimizationSchedule,
-};
+use super::{OptimizedLiteralFoldCustodyError, SelectedLoweringOptimizationSchedule};
 
 /// Canonical selected-lowering rule order. Combined execution is an explicit
 /// composition of these two exact names, not another source-visible suite.

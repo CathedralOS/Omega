@@ -125,7 +125,10 @@ that must remain in each migrated executable-stage entrance and requires one
 local rule catalog for every Psi pass; a small re-export wall no longer passes
 that check. The optimized ordinary-callable-entry stage is a physical example:
 its `mod.rs` owns build/replay, with records in `model.rs`, semantic
-reconstruction in `reconstruction.rs`, and wire format in `codec.rs`.
+reconstruction in `reconstruction.rs`, and wire format in `codec.rs`. The
+selected-lowering literal-fold stage follows the same rule: its entrance owns
+phase projection plus catalog dispatch, then descends through `model`,
+`execution`, and `accounting`.
 
 Migration is not complete merely because every file is under the hard ceiling.
 Remaining flat executable-stage leaves are tracked in `TASKS_OPTIMIZER.md` and

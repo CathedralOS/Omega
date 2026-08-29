@@ -103,6 +103,9 @@ and no-selection compatibility remain enforced.
 - [x] Split the flat optimized ordinary-callable-entry stage into a subfolder;
   its small entrance owns build/replay while model, reconstruction, and codec
   descend into named leaves.
+- [x] Split the flat selected-lowering literal-fold stage; its entrance owns
+  exact selection projection and catalog dispatch while carriers, execution,
+  replay, identities, and work accounting descend into named leaves.
 - [>] Replace remaining flat executable stages and mixed-responsibility files
   with semantic folders whose small `mod.rs` owns the real stage join. Tighten
   the production-file ceiling as each named legacy leaf is removed.
