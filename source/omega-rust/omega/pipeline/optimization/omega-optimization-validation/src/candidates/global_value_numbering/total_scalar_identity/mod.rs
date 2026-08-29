@@ -1,10 +1,9 @@
 //! Obligation-free total scalar-identity validation.
 //!
-//! `classification` reconstructs wrapping neutral arithmetic, zero-count
-//! shifts, multiply-zero annihilation, and saturating neutral arithmetic.
-//! `evidence` authenticates the independently typed literal, `validation`
-//! joins exact rule custody, and `application` realizes the independently
-//! admitted rewrite.
+//! `classification` reconstructs wrapping, saturating, and distinct bitwise
+//! neutral/absorbing families. `evidence` authenticates the independently
+//! typed law literal, `validation` joins exact rule custody, and `application`
+//! realizes the independently admitted rewrite.
 
 use super::super::*;
 

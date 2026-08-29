@@ -17,6 +17,15 @@ another broad alias while executing this plan.
 
 ## Current stopping point
 
+[x] The GVN total-scalar identity rung now follows the catalog literally.
+Seven catalog rows descend into seven same-named folders; each small `mod.rs`
+owns one exact rule contract and its proposal join, and each `laws.rs` owns
+only that rule's closed semantic partition. The former mixed `rule.rs` and
+`shapes.rs` catch-alls are gone. The architecture gate pins every folder,
+requires both the proposal join and classifier, and rejects restoration of the
+two catch-alls. This is the Squalr navigation shape at the exact-rule rung,
+with Omega's independent validator remaining across the trust boundary.
+
 [x] Global value numbering now keeps absorbing bitwise literals in their own
 four-row obligation-free family: `0 & x`, `x & 0`, `all_ones | x`, and
 `x | all_ones`. Candidate tags 23-26 and catalog row 15 are append-only under

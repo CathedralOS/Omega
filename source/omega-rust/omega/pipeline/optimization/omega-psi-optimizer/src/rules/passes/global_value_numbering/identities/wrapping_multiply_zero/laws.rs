@@ -1,17 +1,14 @@
-//! Closed saturating multiplication annihilation partition.
+//! Closed wrapping multiplication annihilation partition.
 
 use omega_abstract_operations::AbstractOperation as O;
 use omega_optimization_unit::TotalScalarIdentityKind;
 use psi_core::{IntegerSign, IntegerType, IntegerValue};
 
-use super::TotalScalarIdentityShape;
+use super::super::TotalScalarIdentityShape;
 
-/// Return the two saturating multiplication annihilation laws in canonical
-/// left-zero/right-zero order. The zero operand is also the replacement.
-pub(in crate::rules::passes) fn saturating_multiply_zero_annihilation_shapes(
-    operation: &O,
-) -> Vec<TotalScalarIdentityShape> {
-    let O::SaturatingIntegerMultiply {
+/// Return left-zero then right-zero so ties remain deterministic.
+pub(super) fn classify(operation: &O) -> Vec<TotalScalarIdentityShape> {
+    let O::WrappingIntegerMultiply {
         psi_operation,
         result,
         scalar_type,
@@ -29,7 +26,7 @@ pub(in crate::rules::passes) fn saturating_multiply_zero_annihilation_shapes(
             law_operand: *left,
             scalar_type: *scalar_type,
             law_operand_type: *scalar_type,
-            identity: TotalScalarIdentityKind::SaturatingIntegerMultiplyZeroLeft,
+            identity: TotalScalarIdentityKind::WrappingIntegerMultiplyZeroLeft,
             expected_law_value: integer_zero(*scalar_type),
         },
         TotalScalarIdentityShape {
@@ -39,7 +36,7 @@ pub(in crate::rules::passes) fn saturating_multiply_zero_annihilation_shapes(
             law_operand: *right,
             scalar_type: *scalar_type,
             law_operand_type: *scalar_type,
-            identity: TotalScalarIdentityKind::SaturatingIntegerMultiplyZeroRight,
+            identity: TotalScalarIdentityKind::WrappingIntegerMultiplyZeroRight,
             expected_law_value: integer_zero(*scalar_type),
         },
     ]
