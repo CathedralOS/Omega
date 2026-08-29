@@ -360,6 +360,8 @@ fn spawn_stdin_copy(
                 .and_then(|_| child_stdin.flush())
                 .map(|_| ())
                 .map_err(|error| error.to_string());
+            drop(child_stdin);
+            drop(input);
             let _ = sender.send(CommandWorkerResult::Stdin(result));
         })?;
     Ok(())

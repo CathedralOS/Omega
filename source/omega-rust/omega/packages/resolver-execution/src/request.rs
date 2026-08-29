@@ -46,6 +46,22 @@ pub(crate) fn require_canonical_bounded_path(path: &Path, name: &str) -> io::Res
     Ok(())
 }
 
+pub(crate) fn require_regular_file(path: &Path, name: &str) -> io::Result<()> {
+    let metadata = std::fs::metadata(path).map_err(|error| {
+        io::Error::new(
+            error.kind(),
+            format!("cannot inspect {name} as a regular file: {error}"),
+        )
+    })?;
+    if !metadata.is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("{name} is not a regular file"),
+        ));
+    }
+    Ok(())
+}
+
 fn path_encoding_length(path: &Path) -> usize {
     #[cfg(unix)]
     {

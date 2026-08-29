@@ -1,7 +1,7 @@
 use crate::network::ResolverExecutionEndpointRoutePolicy;
 use std::path::{Path, PathBuf};
 
-const RESOLVER_EXECUTION_OBSERVATION_SCHEMA_VERSION: u32 = 14;
+const RESOLVER_EXECUTION_OBSERVATION_SCHEMA_VERSION: u32 = 15;
 const RESOLVER_EXECUTION_CANONICAL_BYTE_LIMIT: usize = 2 * 1024 * 1024;
 
 /// One compiler-owned source-resolution phase.

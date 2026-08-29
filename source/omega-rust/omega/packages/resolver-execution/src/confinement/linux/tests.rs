@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 static TEST_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[test]
-fn landlock_observation_claims_only_write_and_execution_confinement() {
+fn landlock_observation_does_not_overclaim_partial_write_or_execution_controls() {
     let Some(backend) = landlock_backend() else {
         return;
     };
@@ -34,11 +34,11 @@ fn landlock_observation_claims_only_write_and_execution_confinement() {
             &policy,
             ResolverExecutionGuarantee::FilesystemWritesConfined
         ),
-        ResolverExecutionGuaranteeDisposition::Enforced
+        ResolverExecutionGuaranteeDisposition::Unavailable
     );
     assert_eq!(
         disposition(&policy, ResolverExecutionGuarantee::ExecutablePathsConfined),
-        ResolverExecutionGuaranteeDisposition::Enforced
+        ResolverExecutionGuaranteeDisposition::Unavailable
     );
     for unavailable in [
         ResolverExecutionGuarantee::FilesystemReadsConfined,
@@ -200,6 +200,9 @@ fn run_executable_canary(
 }
 
 fn landlock_backend() -> Option<ResolverExecutionBackend> {
+    if !backend_available() {
+        return None;
+    }
     let backend = ResolverExecutionBackend::open().expect("open Linux resolver backend");
     matches!(
         backend.identity(),

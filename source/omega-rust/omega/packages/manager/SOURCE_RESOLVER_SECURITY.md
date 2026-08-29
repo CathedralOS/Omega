@@ -547,17 +547,23 @@ equivalent through this rlimit path. Each compiler ceiling intersects the
 inherited soft and hard limits and therefore never loosens a stricter host
 limit. These Unix limits are inherited per process, not an aggregate descendant,
 process-count, or object-store budget. The separate broker transfer budget spans
-the whole resolution. On Linux, a fully available Landlock ABI-v5 backend now
-handles every ABI-v5 filesystem right before spawning the child from a
-dedicated restricted thread. It grants broad reads, ordinary mutation only
-beneath the exact mutable root, device writes only to `/dev/null`, and execution
-only for the exact primary and bounded additional executable paths. The backend
-requires `FullyEnforced` plus `no_new_privs` and marks every non-standard
-inherited descriptor close-on-exec before package code runs; unsupported or
-disabled kernels fall back to resource limits and claim neither write nor execution confinement.
-Landlock does not mediate every metadata read or bind network connections to an
-exact destination address, so filesystem-read, network-denial, and endpoint
-rows remain unavailable. Windows creates each command suspended and assigns it
+the whole resolution. Linux atomically marks all non-standard ambient
+descriptors close-on-exec before package code runs. Other Unix hosts mark the
+descriptor set observed through `/dev/fd`; a hostile concurrent opener remains
+outside their incomplete strict boundary. On Linux, a fully available Landlock
+ABI-v5 backend handles every ABI-v5 filesystem right before spawning the child
+from a dedicated restricted thread. It grants broad reads, handled content and
+namespace mutation only beneath the exact mutable root, device writes only to
+`/dev/null`, and path-based execution only for verified regular files in the
+exact primary and bounded helper set. The backend requires `FullyEnforced` plus
+`no_new_privs`. Landlock does not mediate mode, owner, timestamp, xattr, and
+other metadata mutations, nor executable memfds or anonymous executable code.
+The complete filesystem-write and executable-path rows therefore remain
+unavailable despite those narrower controls. Package resolution rejects Linux
+hosts that would otherwise fall back to resource limits alone. Landlock also
+does not mediate every metadata read or bind network connections to an exact
+destination address, so filesystem-read, network-denial, and endpoint rows
+remain unavailable. Windows creates each command suspended and assigns it
 to a resolver-owned Job Object before resume. That job kills on close and
 enforces 16 active processes, 2 GiB committed memory per process, 4 GiB aggregate committed memory,
 and 120 aggregate user-CPU seconds. It still lacks filesystem, executable, and
@@ -569,9 +575,10 @@ execution on a Windows worker. macOS native canaries exercise denied
 writes, denied unlisted descendant execution, denied inspection networking,
 and admitted discovery networking. Hermetic loopback canaries also exercise the
 selected production HTTPS helper and fixed shell/SSH executable chains through
-the same allowlist. Linux has write, inherited-descriptor, and exact-executable
-canaries that cross-compile but still require execution on a native ABI-v5
-worker. The full Git source suite runs through this boundary.
+the same allowlist. Linux has handled-write, inherited-descriptor, and path-
+based executable control canaries that cross-compile but still require
+execution on a native ABI-v5 worker; they do not upgrade the unavailable
+complete guarantees. The full Git source suite runs through this boundary.
 
 Before initializing a cache for a symbolic selector, one bounded `ls-remote`
 request asks only for `HEAD` and that selector and rejects absent, malformed,
