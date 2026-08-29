@@ -32,18 +32,25 @@
 ;   524568 STATE_COUNT 524576 EDGE_COUNT 524584 ASSIGN_SLOT
 ;   524592 PROC_STATE_COUNT 524600 PROC_EDGE_COUNT
 ;   524608 STATE_CURSOR 524616 EDGE_CURSOR 524624 CALL_CURSOR
-;   524640 STORE_WIDTH
+;   524640 STORE_WIDTH 524648 MAIN_PROC 524656 FIXUP_COUNT
+;   524664 EXPECT_OUTLEN
 ; Buffers:
 ;   1048576 SOURCE (1048576-byte checked compiler extent)
-;   2097152 decimal output scratch
+;   2097152 TAPE_BUFFER (262140-byte checked Alpha payload extent)
 ;   540000 PROC_TABLE (128 x 32: start, len, params, slots)
+;   545000 PROC_PC (128 x 8)
 ;   550000 CALL_TABLE (1024 x 24: start, len, argc)
+;   575000 CALL_TARGET_PROC (1024 x 8)
 ;   600000 SLOT_TABLE (64 x 16: start, len)
 ;   610000 NAME_STACK (64 x 24: start, len, argc)
 ;   620000 CMP_STACK (65 x 8: comparison opcode at depths 0..64)
 ;   621000 WIDTH_STACK (64 x 8: nested memory-load widths)
 ;   630000 STATE_TABLE (1024 x 24: start, len, proc index)
+;   655360 STATE_PC (1024 x 8)
 ;   680000 EDGE_TABLE (1024 x 24: start, len, proc index)
+;   705000 EDGE_TARGET_STATE (1024 x 8)
+;   2621440 INTERNAL_PC (65536 x 8)
+;   3145728 FIXUP_TABLE (32768 x 24: operand offset, kind, identity)
 
 ; ---------------- entry and checked slurp ----------------
         imm   r6, 0
@@ -86,10 +93,19 @@ source_done:
         load  r0, r0
         jnz   r0, invalid_source
 
-        ; The same parser runs again with publication enabled. The first pass
-        ; proved that this pass cannot discover a source error after output.
+        imm   r0, 524400
+        load  r1, r0
+        imm   r0, 524664
+        store r0, r1
+
+        ; Replay frozen semantic rows into a private Alpha tape. Nothing is
+        ; published until every address fixup and extent check succeeds.
         imm   r0, 524296
         imm   r1, 0
+        store r0, r1
+        imm   r0, 524400
+        store r0, r1
+        imm   r0, 524656
         store r0, r1
         imm   r0, 524312
         imm   r1, 1
@@ -98,6 +114,17 @@ source_done:
         imm   r0, 524304
         load  r0, r0
         jnz   r0, internal_error
+        imm   r0, 524400
+        load  r1, r0
+        imm   r0, 524664
+        load  r2, r0
+        jeq   r1, r2, source_patch
+        jmp   internal_error
+source_patch:
+        call  patch_fixups
+        call  error_value
+        jnz   r0, internal_error
+        call  publish_tape
         imm   r0, 0
         halt  r0
 source_too_large:
@@ -125,9 +152,7 @@ parse_program:
         store r0, r1
         imm   r0, 524624
         store r0, r1
-        imm   r0, out_program_prelude
-        imm   r1, 60
-        call  emit_fixed
+        call  emit_program_prelude
 pp_loop:
         call  skip_trivia
         imm   r0, 524296
@@ -250,12 +275,10 @@ ppr_check_slots:
         call  error_value
         jnz   r0, ppr_return
 ppr_epilogue:
-        imm   r0, out_fallthrough_zero
-        imm   r1, 9
-        call  emit_fixed
-        imm   r0, out_epilogue
-        imm   r1, 42
-        call  emit_fixed
+        imm   r0, 0
+        imm   r1, 0
+        call  emit_imm
+        call  emit_epilogue
         imm   r0, 524480
         load  r1, r0
         imm   r2, 1
@@ -365,9 +388,7 @@ ps_return_stmt:
         call  parse_expr
         call  error_value
         jnz   r0, ps_done
-        imm   r0, out_epilogue
-        imm   r1, 42
-        call  emit_fixed
+        call  emit_epilogue
         ret
 ps_state:
         call  parse_identifier
@@ -568,9 +589,8 @@ pe_add:
         call  parse_term
         call  error_value
         jnz   r0, pe_return
-        imm   r0, out_pop_add
-        imm   r1, 45
-        call  emit_fixed
+        imm   r0, 3
+        call  emit_pop_binary
         jmp   pe_loop
 pe_sub:
         call  consume_one
@@ -578,9 +598,8 @@ pe_sub:
         call  parse_term
         call  error_value
         jnz   r0, pe_return
-        imm   r0, out_pop_sub
-        imm   r1, 45
-        call  emit_fixed
+        imm   r0, 4
+        call  emit_pop_binary
         jmp   pe_loop
 pe_return:
         ret
@@ -604,9 +623,8 @@ pt_mul:
         call  parse_factor
         call  error_value
         jnz   r0, pt_return
-        imm   r0, out_pop_mul
-        imm   r1, 45
-        call  emit_fixed
+        imm   r0, 5
+        call  emit_pop_binary
         jmp   pt_loop
 pt_div:
         call  consume_one
@@ -614,9 +632,8 @@ pt_div:
         call  parse_factor
         call  error_value
         jnz   r0, pt_return
-        imm   r0, out_pop_div
-        imm   r1, 45
-        call  emit_fixed
+        imm   r0, 6
+        call  emit_pop_binary
         jmp   pt_loop
 pt_mod:
         call  consume_one
@@ -624,9 +641,8 @@ pt_mod:
         call  parse_factor
         call  error_value
         jnz   r0, pt_return
-        imm   r0, out_pop_mod
-        imm   r1, 45
-        call  emit_fixed
+        imm   r0, 7
+        call  emit_pop_binary
         jmp   pt_loop
 pt_return:
         ret
@@ -762,41 +778,60 @@ parse_call_return:
         ret
 
 emit_push:
-        imm   r0, out_push
-        imm   r1, 26
-        call  emit_fixed
+        imm   r0, 4
+        imm   r1, 15
+        imm   r2, 13
+        call  emit_rr
+        imm   r0, 11
+        imm   r1, 15
+        imm   r2, 0
+        call  emit_rr
         ret
 
 ; Input r0=slot. Emit a frame-slot load into r0.
 emit_load_slot:
-        mov   r7, r0
-        imm   r0, out_load_slot_a
-        imm   r1, 18
-        call  emit_fixed
+        mov   r10, r0
+        imm   r0, 2
+        imm   r1, 0
+        imm   r2, 14
+        call  emit_rr
         imm   r0, 8
-        imm   r1, 8
-        mul   r1, r7
-        add   r0, r1
-        call  emit_unsigned
-        imm   r0, out_load_slot_b
-        imm   r1, 22
-        call  emit_fixed
+        mul   r10, r0
+        add   r10, r0
+        imm   r0, 1
+        mov   r1, r10
+        call  emit_imm
+        imm   r0, 4
+        imm   r1, 0
+        imm   r2, 1
+        call  emit_rr
+        imm   r0, 10
+        imm   r1, 0
+        imm   r2, 0
+        call  emit_rr
         ret
 
 ; Input r0=slot. The generated expression result remains in runtime r0.
 emit_store_slot:
-        mov   r7, r0
-        imm   r0, out_store_slot_a
-        imm   r1, 19
-        call  emit_fixed
+        mov   r10, r0
+        imm   r0, 2
+        imm   r1, 1
+        imm   r2, 14
+        call  emit_rr
         imm   r0, 8
-        imm   r1, 8
-        mul   r1, r7
-        add   r0, r1
-        call  emit_unsigned
-        imm   r0, out_store_slot_b
-        imm   r1, 23
-        call  emit_fixed
+        mul   r10, r0
+        add   r10, r0
+        imm   r0, 2
+        mov   r1, r10
+        call  emit_imm
+        imm   r0, 4
+        imm   r1, 1
+        imm   r2, 2
+        call  emit_rr
+        imm   r0, 11
+        imm   r1, 1
+        imm   r2, 0
+        call  emit_rr
         ret
 
 ; Input r0 is 1 or 8. Memory-load brackets consume one checked expression
@@ -834,32 +869,35 @@ finish_memory_load:
         load  r6, r0
         imm   r0, 1
         jeq   r6, r0, fml_byte
-        imm   r0, out_load_word
-        imm   r1, 12
-        call  emit_fixed
+        imm   r0, 10
+        imm   r1, 0
+        imm   r2, 0
+        call  emit_rr
         ret
 fml_byte:
-        imm   r0, out_load_byte
-        imm   r1, 13
-        call  emit_fixed
+        imm   r0, 8
+        imm   r1, 0
+        imm   r2, 0
+        call  emit_rr
         ret
 
 emit_memory_store:
-        imm   r0, out_pop_r1
-        imm   r1, 25
-        call  emit_fixed
+        imm   r0, 1
+        call  emit_pop_register
         imm   r0, 524640
         load  r0, r0
         imm   r1, 1
         jeq   r0, r1, ems_byte
-        imm   r0, out_store_word
-        imm   r1, 12
-        call  emit_fixed
+        imm   r0, 11
+        imm   r1, 1
+        imm   r2, 0
+        call  emit_rr
         ret
 ems_byte:
-        imm   r0, out_store_byte
-        imm   r1, 13
-        call  emit_fixed
+        imm   r0, 9
+        imm   r1, 1
+        imm   r2, 0
+        call  emit_rr
         ret
 
 restore_tmp_name:
@@ -873,40 +911,20 @@ restore_tmp_name:
         store r0, r1
         ret
 
-; Emit `$S<procedure-index>$<NAME>`. `$` is impossible in a Beta identifier,
-; so scoped state labels cannot collide with any user-authored label.
-emit_scoped_ref:
-        imm   r0, out_state_prefix
-        imm   r1, 2
-        call  emit_fixed
-        imm   r0, 524448
-        load  r0, r0
-        call  emit_unsigned
-        imm   r0, out_scope_sep
-        imm   r1, 1
-        call  emit_fixed
-        imm   r0, 524320
-        load  r0, r0
-        imm   r1, 524328
-        load  r1, r1
-        call  emit_span
-        ret
-
 emit_state_label:
-        call  emit_scoped_ref
-        imm   r0, out_label_suffix
-        imm   r1, 2
-        call  emit_fixed
+        imm   r0, 524608
+        load  r0, r0
+        imm   r1, 1
+        sub   r0, r1
+        call  record_state_pc
         ret
 
 emit_jump_target:
-        imm   r0, out_jump
-        imm   r1, 4
-        call  emit_fixed
-        call  emit_scoped_ref
-        imm   r0, out_newline
+        call  load_selected_edge_target
+        mov   r2, r0
+        imm   r0, 12
         imm   r1, 1
-        call  emit_fixed
+        call  emit_ref0
         ret
 
 emit_guarded_target:
@@ -918,38 +936,21 @@ emit_guarded_target:
         add   r6, r1
         imm   r0, 524536
         store r0, r6
-        imm   r0, out_guard_false
-        imm   r1, 6
-        call  emit_fixed
-        imm   r0, 524544
-        load  r0, r0
-        call  emit_internal_ref
-        imm   r0, out_newline
-        imm   r1, 1
-        call  emit_fixed
+        imm   r0, 13
+        imm   r1, 0
+        imm   r2, 2
+        imm   r3, 524544
+        load  r3, r3
+        call  emit_ref1
         call  emit_jump_target
         imm   r0, 524544
         load  r0, r0
-        call  emit_internal_ref
-        imm   r0, out_label_suffix
-        imm   r1, 2
-        call  emit_fixed
-        ret
-
-; Emit the reserved, Beta-unspellable Alpha label `$L<decimal>`.
-emit_internal_ref:
-        mov   r7, r0
-        imm   r0, out_internal_prefix
-        imm   r1, 2
-        call  emit_fixed
-        mov   r0, r7
-        call  emit_unsigned
+        call  record_internal_pc
         ret
 
 emit_comparison:
-        imm   r0, out_cmp_pop
-        imm   r1, 25
-        call  emit_fixed
+        imm   r0, 1
+        call  emit_pop_register
         imm   r0, 524536
         load  r6, r0
         imm   r0, 524544
@@ -983,92 +984,86 @@ emit_comparison:
         jeq   r6, r0, ecmp_le
         jmp   ecmp_ge
 ecmp_lt:
-        imm   r0, out_cmp_lt
-        imm   r1, 10
-        call  emit_fixed
+        imm   r4, 15
+        imm   r5, 1
+        imm   r6, 0
         jmp   ecmp_branch_done
 ecmp_gt:
-        imm   r0, out_cmp_gt
-        imm   r1, 10
-        call  emit_fixed
+        imm   r4, 15
+        imm   r5, 0
+        imm   r6, 1
         jmp   ecmp_branch_done
 ecmp_eq:
-        imm   r0, out_cmp_eq
-        imm   r1, 10
-        call  emit_fixed
+        imm   r4, 16
+        imm   r5, 1
+        imm   r6, 0
         jmp   ecmp_branch_done
 ecmp_ne:
         imm   r0, 524560
         imm   r1, 1
         store r0, r1
-        imm   r0, out_cmp_eq
-        imm   r1, 10
-        call  emit_fixed
+        imm   r4, 16
+        imm   r5, 1
+        imm   r6, 0
         jmp   ecmp_branch_done
 ecmp_le:
         imm   r0, 524560
         imm   r1, 1
         store r0, r1
-        imm   r0, out_cmp_gt
-        imm   r1, 10
-        call  emit_fixed
+        imm   r4, 15
+        imm   r5, 0
+        imm   r6, 1
         jmp   ecmp_branch_done
 ecmp_ge:
         imm   r0, 524560
         imm   r1, 1
         store r0, r1
-        imm   r0, out_cmp_lt
-        imm   r1, 10
-        call  emit_fixed
+        imm   r4, 15
+        imm   r5, 1
+        imm   r6, 0
 ecmp_branch_done:
-        imm   r0, 524544
-        load  r0, r0
-        call  emit_internal_ref
-        imm   r0, out_newline
-        imm   r1, 1
-        call  emit_fixed
+        mov   r0, r4
+        mov   r1, r5
+        mov   r2, r6
+        imm   r3, 2
+        imm   r4, 524544
+        load  r4, r4
+        call  emit_ref2
         imm   r0, 524560
         load  r0, r0
         jnz   r0, ecmp_inverted
-        imm   r0, out_false_jump
-        imm   r1, 13
-        call  emit_fixed
+        imm   r0, 0
+        imm   r1, 0
+        call  emit_imm
         jmp   ecmp_fall_done
 ecmp_inverted:
-        imm   r0, out_true_jump
-        imm   r1, 13
-        call  emit_fixed
-ecmp_fall_done:
-        imm   r0, 524552
-        load  r0, r0
-        call  emit_internal_ref
-        imm   r0, out_newline
+        imm   r0, 0
         imm   r1, 1
-        call  emit_fixed
+        call  emit_imm
+ecmp_fall_done:
+        imm   r0, 12
+        imm   r1, 2
+        imm   r2, 524552
+        load  r2, r2
+        call  emit_ref0
         imm   r0, 524544
         load  r0, r0
-        call  emit_internal_ref
-        imm   r0, out_label_suffix
-        imm   r1, 2
-        call  emit_fixed
+        call  record_internal_pc
         imm   r0, 524560
         load  r0, r0
         jnz   r0, ecmp_hit_false
-        imm   r0, out_imm_true
-        imm   r1, 9
-        call  emit_fixed
+        imm   r0, 0
+        imm   r1, 1
+        call  emit_imm
         jmp   ecmp_hit_done
 ecmp_hit_false:
-        imm   r0, out_imm_false
-        imm   r1, 9
-        call  emit_fixed
+        imm   r0, 0
+        imm   r1, 0
+        call  emit_imm
 ecmp_hit_done:
         imm   r0, 524552
         load  r0, r0
-        call  emit_internal_ref
-        imm   r0, out_label_suffix
-        imm   r1, 2
-        call  emit_fixed
+        call  record_internal_pc
         ret
 
 ; ---------------- literals ----------------
@@ -1127,14 +1122,9 @@ pd_done:
         store r0, r6
         imm   r0, 524376
         store r0, r7
-        imm   r0, out_imm_prefix
-        imm   r1, 7
-        call  emit_fixed
-        imm   r0, 524368
-        load  r0, r0
-        imm   r1, 524376
-        load  r1, r1
-        call  emit_span
+        imm   r0, 0
+        mov   r1, r10
+        call  emit_imm
         ret
 pd_error:
         call  set_error
@@ -1210,11 +1200,9 @@ pc_closed:
         add   r6, r0
         imm   r0, 524296
         store r0, r6
-        imm   r0, out_imm_prefix
-        imm   r1, 7
-        call  emit_fixed
-        mov   r0, r7
-        call  emit_unsigned
+        imm   r0, 0
+        mov   r1, r7
+        call  emit_imm
         ret
 pc_error:
         call  set_error
@@ -1272,14 +1260,12 @@ pes_literal_escape:
 pes_escape_done:
         call  consume_one
 pes_emit:
-        imm   r0, out_imm_prefix
-        imm   r1, 7
-        call  emit_fixed
-        mov   r0, r7
-        call  emit_unsigned
-        imm   r0, out_emit_write
-        imm   r1, 10
-        call  emit_fixed
+        imm   r0, 0
+        mov   r1, r7
+        call  emit_imm
+        imm   r0, 18
+        imm   r1, 0
+        call  emit_r
         jmp   pes_loop
 pes_close:
         call  consume_one
@@ -1546,14 +1532,21 @@ finish_proc:
         ret
 
 emit_proc_header:
-        imm   r0, 524432
+        imm   r0, 524448
         load  r0, r0
-        imm   r1, 524440
-        load  r1, r1
-        call  emit_span
-        imm   r0, out_proc_prologue
-        imm   r1, 40
-        call  emit_fixed
+        call  record_proc_pc
+        imm   r0, 4
+        imm   r1, 15
+        imm   r2, 13
+        call  emit_rr
+        imm   r0, 11
+        imm   r1, 15
+        imm   r2, 14
+        call  emit_rr
+        imm   r0, 2
+        imm   r1, 14
+        imm   r2, 15
+        call  emit_rr
         imm   r0, 524448
         load  r6, r0
         imm   r0, 32
@@ -1567,16 +1560,15 @@ emit_proc_header:
         imm   r0, 0
         jeq   r6, r0, eph_params
         mov   r7, r6
-        imm   r0, out_frame_a
-        imm   r1, 7
-        call  emit_fixed
-        mov   r0, r7
         imm   r1, 8
-        mul   r0, r1
-        call  emit_unsigned
-        imm   r0, out_frame_b
-        imm   r1, 12
-        call  emit_fixed
+        mul   r7, r1
+        imm   r0, 5
+        mov   r1, r7
+        call  emit_imm
+        imm   r0, 4
+        imm   r1, 15
+        imm   r2, 5
+        call  emit_rr
 eph_params:
         imm   r0, 524448
         load  r6, r0
@@ -1589,32 +1581,42 @@ eph_params:
         store r0, r6
         imm   r0, 0
         jeq   r6, r0, eph_done
-        imm   r5, 0
+        imm   r0, 524496
+        imm   r1, 0
+        store r0, r1
 eph_param_loop:
+        imm   r0, 524496
+        load  r5, r0
         imm   r0, 524456
         load  r6, r0
         jlt   r5, r6, eph_param
         ret
 eph_param:
-        imm   r0, out_param_a
-        imm   r1, 18
-        call  emit_fixed
-        mov   r0, r5
+        imm   r0, 2
+        imm   r1, 5
+        imm   r2, 14
+        call  emit_rr
+        mov   r7, r5
         imm   r1, 8
-        mul   r0, r1
+        mul   r7, r1
         imm   r1, 8
-        add   r0, r1
-        call  emit_unsigned
-        imm   r0, out_param_b
-        imm   r1, 21
-        call  emit_fixed
-        mov   r0, r5
-        call  emit_unsigned
-        imm   r0, out_newline
+        add   r7, r1
+        imm   r0, 4
+        mov   r1, r7
+        call  emit_imm
+        imm   r0, 4
+        imm   r1, 5
+        imm   r2, 4
+        call  emit_rr
+        imm   r0, 11
+        imm   r1, 5
+        mov   r2, r5
+        call  emit_rr
+        imm   r0, 524496
+        load  r5, r0
         imm   r1, 1
-        call  emit_fixed
-        imm   r0, 1
-        add   r5, r0
+        add   r5, r1
+        store r0, r5
         jmp   eph_param_loop
 eph_done:
         ret
@@ -1747,42 +1749,32 @@ fc_emit_args:
         jeq   r6, r0, fc_pop0
         jmp   fc_emit_call
 fc_pop3:
-        imm   r0, out_pop_r3
-        imm   r1, 25
-        call  emit_fixed
+        imm   r0, 3
+        call  emit_pop_register
 fc_pop2:
-        imm   r0, out_pop_r2
-        imm   r1, 25
-        call  emit_fixed
+        imm   r0, 2
+        call  emit_pop_register
 fc_pop1:
-        imm   r0, out_pop_r1
-        imm   r1, 25
-        call  emit_fixed
+        imm   r0, 1
+        call  emit_pop_register
 fc_pop0:
-        imm   r0, out_pop_r0
-        imm   r1, 25
-        call  emit_fixed
+        imm   r0, 0
+        call  emit_pop_register
 fc_emit_call:
-        imm   r0, out_call
-        imm   r1, 5
-        call  emit_fixed
-        load  r0, r7
-        imm   r1, 8
-        add   r1, r7
-        load  r1, r1
-        call  emit_span
-        imm   r0, out_newline
-        imm   r1, 1
-        call  emit_fixed
+        call  load_selected_call_target
+        mov   r2, r0
+        imm   r0, 19
+        imm   r1, 0
+        call  emit_ref0
         jmp   fc_leave
 fc_read_byte:
         imm   r0, 16
         add   r0, r7
         load  r0, r0
         jnz   r0, fc_builtin_error
-        imm   r0, out_read_byte
-        imm   r1, 8
-        call  emit_fixed
+        imm   r0, 17
+        imm   r1, 0
+        call  emit_r
         jmp   fc_leave
 fc_write_byte:
         imm   r0, 16
@@ -1792,12 +1784,11 @@ fc_write_byte:
         jeq   r0, r1, fc_write_ok
         jmp   fc_builtin_error
 fc_write_ok:
-        imm   r0, out_pop_r0
-        imm   r1, 25
-        call  emit_fixed
-        imm   r0, out_write_byte
-        imm   r1, 9
-        call  emit_fixed
+        imm   r0, 0
+        call  emit_pop_register
+        imm   r0, 18
+        imm   r1, 0
+        call  emit_r
 fc_leave:
         imm   r0, 524392
         load  r1, r0
@@ -2205,6 +2196,10 @@ vp_main_check:
         imm   r0, 524488
         imm   r1, 1
         store r0, r1
+        imm   r0, 524496
+        load  r1, r0
+        imm   r0, 524648
+        store r0, r1
 vp_main_next:
         imm   r0, 524496
         load  r6, r0
@@ -2277,6 +2272,15 @@ vp_target_next:
 vp_call_valid:
         imm   r0, 524496
         load  r6, r0
+        imm   r0, 8
+        mul   r0, r6
+        imm   r1, 575000
+        add   r0, r1
+        imm   r1, 524488
+        load  r1, r1
+        store r0, r1
+        imm   r0, 524496
+        load  r6, r0
         imm   r1, 1
         add   r6, r1
         store r0, r6
@@ -2346,6 +2350,15 @@ ve_state_next:
         store r0, r6
         jmp   ve_state_loop
 ve_valid:
+        imm   r0, 524496
+        load  r6, r0
+        imm   r0, 8
+        mul   r0, r6
+        imm   r1, 705000
+        add   r0, r1
+        imm   r1, 524488
+        load  r1, r1
+        store r0, r1
         imm   r0, 524496
         load  r6, r0
         imm   r1, 1
@@ -2711,112 +2724,455 @@ iic_yes:
         imm   r0, 1
         ret
 
-; ---------------- output helpers ----------------
-emit_fixed:
-        imm   r2, 524312
-        load  r2, r2
-        imm   r3, 0
-        jeq   r2, r3, ef_reserve
-        imm   r6, 0
-ef_loop:
-        jlt   r6, r1, ef_byte
-        ret
-ef_byte:
-        mov   r2, r0
-        add   r2, r6
-        loadb r3, r2
-        write r3
-        imm   r4, 1
-        add   r6, r4
-        jmp   ef_loop
-ef_done:
-        ret
-ef_reserve:
-        call  reserve_output
-        ret
-
-emit_span:
-        imm   r2, 524312
-        load  r2, r2
-        imm   r3, 0
-        jeq   r2, r3, es_reserve
-        imm   r6, 0
-es_loop:
-        jlt   r6, r1, es_byte
-        ret
-es_byte:
-        imm   r2, 1048576
-        add   r2, r0
-        add   r2, r6
-        loadb r3, r2
-        write r3
-        imm   r4, 1
-        add   r6, r4
-        jmp   es_loop
-es_done:
-        ret
-es_reserve:
-        call  reserve_output
+; ---------------- direct Alpha tape output ----------------
+; The validation pass reserves exact instruction widths. The publication pass
+; writes the same bytes into a private buffer, records symbolic address fixups,
+; patches them after EOF, and only then writes stdout.
+emit_program_prelude:
+        imm   r0, 15
+        imm   r1, 1048576
+        call  emit_imm
+        imm   r0, 14
+        imm   r1, 1048576
+        call  emit_imm
+        imm   r0, 13
+        imm   r1, 8
+        call  emit_imm
+        imm   r0, 524648
+        load  r2, r0
+        imm   r0, 19
+        imm   r1, 0
+        call  emit_ref0
+        imm   r0, 0
+        imm   r1, 0
+        call  emit_r
         ret
 
-emit_unsigned:
+emit_epilogue:
+        imm   r0, 2
+        imm   r1, 15
+        imm   r2, 14
+        call  emit_rr
+        imm   r0, 10
+        imm   r1, 14
+        imm   r2, 15
+        call  emit_rr
+        imm   r0, 3
+        imm   r1, 15
+        imm   r2, 13
+        call  emit_rr
+        imm   r0, 20
+        call  emit_op0
+        ret
+
+; Input r0 is the generated register to pop.
+emit_pop_register:
+        mov   r5, r0
+        imm   r0, 10
+        mov   r1, r5
+        imm   r2, 15
+        call  emit_rr
+        imm   r0, 3
+        imm   r1, 15
+        imm   r2, 13
+        call  emit_rr
+        ret
+
+; Input r0 is add/sub/mul/div/mod. Pop the left operand and leave r0=result.
+emit_pop_binary:
+        mov   r10, r0
+        imm   r0, 1
+        call  emit_pop_register
+        mov   r0, r10
+        imm   r1, 1
+        imm   r2, 0
+        call  emit_rr
+        imm   r0, 2
+        imm   r1, 0
+        imm   r2, 1
+        call  emit_rr
+        ret
+
+emit_op0:
+        call  emit_byte
+        ret
+
+; Input r0=opcode, r1=register.
+emit_r:
+        mov   r6, r0
+        mov   r7, r1
+        mov   r0, r6
+        call  emit_byte
+        mov   r0, r7
+        call  emit_byte
+        ret
+
+; Input r0=opcode, r1=first register, r2=second register.
+emit_rr:
+        mov   r4, r0
+        mov   r6, r1
+        mov   r7, r2
+        mov   r0, r4
+        call  emit_byte
+        mov   r0, r6
+        call  emit_byte
+        mov   r0, r7
+        call  emit_byte
+        ret
+
+; Input r0=register, r1=immediate.
+emit_imm:
+        mov   r6, r0
+        mov   r7, r1
+        imm   r0, 1
+        call  emit_byte
+        mov   r0, r6
+        call  emit_byte
+        mov   r0, r7
+        call  emit_u64
+        ret
+
+; Input r0=opcode, r1=kind, r2=identity.
+emit_ref0:
+        mov   r4, r0
+        mov   r6, r1
+        mov   r7, r2
+        mov   r0, r4
+        call  emit_byte
+        imm   r0, 524400
+        load  r0, r0
+        mov   r1, r6
+        mov   r2, r7
+        call  add_fixup
+        imm   r0, 0
+        call  emit_u64
+        ret
+
+; Input r0=opcode, r1=register, r2=kind, r3=identity.
+emit_ref1:
+        mov   r4, r0
+        mov   r5, r1
+        mov   r6, r2
+        mov   r7, r3
+        mov   r0, r4
+        call  emit_byte
+        mov   r0, r5
+        call  emit_byte
+        imm   r0, 524400
+        load  r0, r0
+        mov   r1, r6
+        mov   r2, r7
+        call  add_fixup
+        imm   r0, 0
+        call  emit_u64
+        ret
+
+; Input r0=opcode, r1/r2=registers, r3=kind, r4=identity.
+emit_ref2:
+        mov   r10, r4
+        mov   r4, r0
+        mov   r5, r1
+        mov   r6, r2
+        mov   r7, r3
+        mov   r0, r4
+        call  emit_byte
+        mov   r0, r5
+        call  emit_byte
+        mov   r0, r6
+        call  emit_byte
+        imm   r0, 524400
+        load  r0, r0
+        mov   r1, r7
+        mov   r2, r10
+        call  add_fixup
+        imm   r0, 0
+        call  emit_u64
+        ret
+
+; Input r0=word. Append little-endian bytes.
+emit_u64:
         mov   r6, r0
         imm   r7, 0
-        imm   r1, 0
-        jeq   r6, r1, eu_zero
-eu_digits:
+eu64_loop:
+        imm   r0, 8
+        jeq   r7, r0, eu64_done
         mov   r0, r6
-        imm   r1, 10
+        imm   r1, 256
         mod   r0, r1
-        imm   r1, 48
-        add   r0, r1
-        imm   r2, 2097152
-        add   r2, r7
-        storeb r2, r0
-        imm   r1, 10
+        call  emit_byte
+        imm   r1, 256
         div   r6, r1
-        imm   r1, 1
-        add   r7, r1
-        imm   r1, 0
-        jeq   r6, r1, eu_write
-        jmp   eu_digits
-eu_zero:
-        imm   r1, 524312
-        load  r1, r1
-        imm   r2, 0
-        jeq   r1, r2, eu_reserve_one
-        imm   r0, 48
-        write r0
-        ret
-eu_write:
-        imm   r1, 524312
-        load  r1, r1
-        imm   r2, 0
-        jeq   r1, r2, eu_reserve_digits
-eu_write_loop:
-        imm   r1, 0
-        jeq   r7, r1, eu_done
-        imm   r1, 1
-        sub   r7, r1
-        imm   r2, 2097152
-        add   r2, r7
-        loadb r0, r2
-        write r0
-        jmp   eu_write_loop
-eu_reserve_one:
-        imm   r1, 1
-        call  reserve_output
-        ret
-eu_reserve_digits:
-        mov   r1, r7
-        call  reserve_output
-eu_done:
+        imm   r0, 1
+        add   r7, r0
+        jmp   eu64_loop
+eu64_done:
         ret
 
-; Input r1=prospective byte count. Validation reserves against the Alpha
-; assembler's 1 MiB source region before any output is published.
+; Input r0=byte. This is the sole tape-buffer mutation tooth.
+emit_byte:
+        mov   r4, r0
+        call  error_value
+        jnz   r0, eb_done
+        imm   r0, 524312
+        load  r0, r0
+        jnz   r0, eb_store
+        imm   r1, 1
+        call  reserve_output
+        ret
+eb_store:
+        imm   r0, 524400
+        load  r1, r0
+        imm   r2, 262140
+        jeq   r1, r2, eb_error
+        imm   r2, 2097152
+        add   r2, r1
+        storeb r2, r4
+        imm   r2, 1
+        add   r1, r2
+        store r0, r1
+eb_done:
+        ret
+eb_error:
+        call  set_error
+        ret
+
+; Input r0=operand offset, r1=identity kind (0 proc, 1 state, 2 internal),
+; r2=identity. Validation reserves bytes but owns no provisional fixups.
+add_fixup:
+        imm   r3, 524312
+        load  r3, r3
+        jz    r3, af_done
+        mov   r4, r0
+        mov   r5, r1
+        mov   r6, r2
+        imm   r0, 524656
+        load  r7, r0
+        imm   r1, 32768
+        jeq   r7, r1, af_error
+        imm   r1, 24
+        mul   r1, r7
+        imm   r2, 3145728
+        add   r1, r2
+        store r1, r4
+        imm   r2, 8
+        add   r1, r2
+        store r1, r5
+        add   r1, r2
+        store r1, r6
+        imm   r1, 1
+        add   r7, r1
+        store r0, r7
+af_done:
+        ret
+af_error:
+        call  set_error
+        ret
+
+; Input r0=procedure identity.
+record_proc_pc:
+        imm   r1, 524312
+        load  r1, r1
+        jz    r1, rpc_done
+        mov   r6, r0
+        imm   r0, 524408
+        load  r1, r0
+        jlt   r6, r1, rpc_store
+        jmp   rpc_error
+rpc_store:
+        imm   r0, 8
+        mul   r0, r6
+        imm   r1, 545000
+        add   r0, r1
+        imm   r1, 524400
+        load  r1, r1
+        store r0, r1
+rpc_done:
+        ret
+rpc_error:
+        call  set_error
+        ret
+
+; Input r0=state identity.
+record_state_pc:
+        imm   r1, 524312
+        load  r1, r1
+        jz    r1, rsp_done
+        mov   r6, r0
+        imm   r0, 524568
+        load  r1, r0
+        jlt   r6, r1, rsp_store
+        jmp   rsp_error
+rsp_store:
+        imm   r0, 8
+        mul   r0, r6
+        imm   r1, 655360
+        add   r0, r1
+        imm   r1, 524400
+        load  r1, r1
+        store r0, r1
+rsp_done:
+        ret
+rsp_error:
+        call  set_error
+        ret
+
+; Input r0=internal numeric identity.
+record_internal_pc:
+        imm   r1, 524312
+        load  r1, r1
+        jz    r1, rip_done
+        mov   r6, r0
+        imm   r1, 65536
+        jlt   r6, r1, rip_store
+        jmp   rip_error
+rip_store:
+        imm   r0, 8
+        mul   r0, r6
+        imm   r1, 2621440
+        add   r0, r1
+        imm   r1, 524400
+        load  r1, r1
+        store r0, r1
+rip_done:
+        ret
+rip_error:
+        call  set_error
+        ret
+
+load_selected_call_target:
+        imm   r0, 524312
+        load  r0, r0
+        jz    r0, lsct_zero
+        imm   r0, 524624
+        load  r6, r0
+        imm   r1, 1
+        sub   r6, r1
+        imm   r0, 8
+        mul   r0, r6
+        imm   r1, 575000
+        add   r0, r1
+        load  r0, r0
+        ret
+lsct_zero:
+        imm   r0, 0
+        ret
+
+load_selected_edge_target:
+        imm   r0, 524312
+        load  r0, r0
+        jz    r0, lset_zero
+        imm   r0, 524616
+        load  r6, r0
+        imm   r1, 1
+        sub   r6, r1
+        imm   r0, 8
+        mul   r0, r6
+        imm   r1, 705000
+        add   r0, r1
+        load  r0, r0
+        ret
+lset_zero:
+        imm   r0, 0
+        ret
+
+patch_fixups:
+        imm   r6, 0
+pfu_loop:
+        imm   r0, 524656
+        load  r7, r0
+        jlt   r6, r7, pfu_row
+        ret
+pfu_row:
+        imm   r0, 24
+        mul   r0, r6
+        imm   r1, 3145728
+        add   r0, r1
+        mov   r5, r0
+        load  r4, r5
+        imm   r1, 8
+        add   r5, r1
+        load  r7, r5
+        add   r5, r1
+        load  r10, r5
+        imm   r0, 0
+        jeq   r7, r0, pfu_proc
+        imm   r0, 1
+        jeq   r7, r0, pfu_state
+        imm   r0, 2
+        jeq   r7, r0, pfu_internal
+        jmp   pfu_error
+pfu_proc:
+        imm   r0, 524408
+        load  r1, r0
+        jlt   r10, r1, pfu_proc_load
+        jmp   pfu_error
+pfu_proc_load:
+        imm   r0, 8
+        mul   r0, r10
+        imm   r1, 545000
+        add   r0, r1
+        load  r10, r0
+        jmp   pfu_patch
+pfu_state:
+        imm   r0, 524568
+        load  r1, r0
+        jlt   r10, r1, pfu_state_load
+        jmp   pfu_error
+pfu_state_load:
+        imm   r0, 8
+        mul   r0, r10
+        imm   r1, 655360
+        add   r0, r1
+        load  r10, r0
+        jmp   pfu_patch
+pfu_internal:
+        imm   r0, 524536
+        load  r1, r0
+        jlt   r10, r1, pfu_internal_load
+        jmp   pfu_error
+pfu_internal_load:
+        imm   r0, 8
+        mul   r0, r10
+        imm   r1, 2621440
+        add   r0, r1
+        load  r10, r0
+pfu_patch:
+        imm   r0, 524400
+        load  r1, r0
+        mov   r2, r4
+        imm   r3, 8
+        add   r2, r3
+        jlt   r1, r2, pfu_error
+        imm   r0, 2097152
+        add   r0, r4
+        store r0, r10
+        imm   r0, 1
+        add   r6, r0
+        jmp   pfu_loop
+pfu_error:
+        call  set_error
+        ret
+
+publish_tape:
+        imm   r6, 0
+ptape_loop:
+        imm   r0, 524400
+        load  r7, r0
+        jlt   r6, r7, ptape_byte
+        ret
+ptape_byte:
+        imm   r0, 2097152
+        add   r0, r6
+        loadb r0, r0
+        write r0
+        imm   r0, 1
+        add   r6, r0
+        jmp   ptape_loop
+
+; Input r1=prospective byte count. Both passes enforce Alpha's actual maximum
+; runnable payload before any output is published.
 reserve_output:
-        imm   r2, 1048576
+        imm   r2, 262140
         sub   r2, r1
         imm   r3, 524400
         load  r4, r3
@@ -2864,95 +3220,3 @@ kw_write_byte:
         db "write_byte"
 kw_main:
         db "main"
-out_program_prelude:
-        db "imm r15,1048576\nimm r14,1048576\nimm r13,8\ncall main\nhalt r0\n"
-out_proc_prologue:
-        db ":\nsub r15,r13\nstore r15,r14\nmov r14,r15\n"
-out_frame_a:
-        db "imm r5,"
-out_frame_b:
-        db "\nsub r15,r5\n"
-out_param_a:
-        db "mov r5,r14\nimm r4,"
-out_param_b:
-        db "\nsub r5,r4\nstore r5,r"
-out_epilogue:
-        db "\nmov r15,r14\nload r14,r15\nadd r15,r13\nret\n"
-out_fallthrough_zero:
-        db "imm r0,0\n"
-out_imm_prefix:
-        db "imm r0,"
-out_push:
-        db "\nsub r15,r13\nstore r15,r0\n"
-out_pop_add:
-        db "\nload r1,r15\nadd r15,r13\nadd r1,r0\nmov r0,r1\n"
-out_pop_sub:
-        db "\nload r1,r15\nadd r15,r13\nsub r1,r0\nmov r0,r1\n"
-out_pop_mul:
-        db "\nload r1,r15\nadd r15,r13\nmul r1,r0\nmov r0,r1\n"
-out_pop_div:
-        db "\nload r1,r15\nadd r15,r13\ndiv r1,r0\nmov r0,r1\n"
-out_pop_mod:
-        db "\nload r1,r15\nadd r15,r13\nmod r1,r0\nmov r0,r1\n"
-out_load_slot_a:
-        db "mov r0,r14\nimm r1,"
-out_load_slot_b:
-        db "\nsub r0,r1\nload r0,r0\n"
-out_store_slot_a:
-        db "\nmov r1,r14\nimm r2,"
-out_store_slot_b:
-        db "\nsub r1,r2\nstore r1,r0\n"
-out_load_byte:
-        db "\nloadb r0,r0\n"
-out_load_word:
-        db "\nload r0,r0\n"
-out_store_byte:
-        db "storeb r1,r0\n"
-out_store_word:
-        db "store r1,r0\n"
-out_pop_r3:
-        db "\nload r3,r15\nadd r15,r13\n"
-out_pop_r2:
-        db "\nload r2,r15\nadd r15,r13\n"
-out_pop_r1:
-        db "\nload r1,r15\nadd r15,r13\n"
-out_pop_r0:
-        db "\nload r0,r15\nadd r15,r13\n"
-out_call:
-        db "call "
-out_read_byte:
-        db "read r0\n"
-out_write_byte:
-        db "write r0\n"
-out_emit_write:
-        db "\nwrite r0\n"
-out_newline:
-        db "\n"
-out_internal_prefix:
-        db "$L"
-out_state_prefix:
-        db "$S"
-out_scope_sep:
-        db "$"
-out_label_suffix:
-        db ":\n"
-out_jump:
-        db "jmp "
-out_guard_false:
-        db "jz r0,"
-out_cmp_pop:
-        db "\nload r1,r15\nadd r15,r13\n"
-out_cmp_lt:
-        db "jlt r1,r0,"
-out_cmp_gt:
-        db "jlt r0,r1,"
-out_cmp_eq:
-        db "jeq r1,r0,"
-out_false_jump:
-        db "imm r0,0\njmp "
-out_true_jump:
-        db "imm r0,1\njmp "
-out_imm_false:
-        db "imm r0,0\n"
-out_imm_true:
-        db "imm r0,1\n"

@@ -10,7 +10,6 @@ edge or prove compiler correctness.
 ```text
 compiler/     bc source, artifact, Alpha cold start, and adjacent validation
 reference/    optional executable reference meaning
-test.sh       focused Beta language gate
 ```
 
 ## Current construction and migration
@@ -47,7 +46,6 @@ producer edges, not another compiler rung.
 Run the migration and diagnostic gates directly with:
 
 ```sh
-sh source/beta/test.sh
 sh source/beta/compiler/cold-start/rebuild-artifact.sh --check
 sh source/beta/compiler/cold-start/test.sh
 sh source/beta/compiler/validation/admission/bc-artifact-structure.sh
