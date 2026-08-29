@@ -13,55 +13,7 @@ decision's durable identity does not change when this queue is pruned.
 
 Last pruned: 2026-08-29.
 
-## Q1 — Explicit transport authority for quotient preconditions
-
-### Context
-
-Quotient representative checking now admits exact substituted public `Q` facts
-and strict integer `ProofFact::Expression` entailment. The arithmetic rung uses
-the complete ordered public-`Q` premise roster, exact side-specific symbol,
-static, and literal substitution, and a deterministic `Proven` judgment with
-canonical replay evidence. Quotient-domain membership facts and opaque
-proposition families are intentionally outside that engine language.
-
-### Problem statement
-
-A carrier-facing representative precondition `P` may follow from a
-quotient-facing public condition `Q` through a transport or weakening theorem,
-but the language does not say which declaration owns that theorem or how one is
-selected for each left and right representative application. Inferring the
-authority from ambient domain links, visibility search, same-spelled
-propositions, or an opaque solver verdict would make acceptance depend on
-context rather than authored relation identity. It would also leave no stable
-identity or premise/application record for Terminal replay.
-
-### Proposed direction
-
-Require one explicit authored selection at a settled declaration locus in the
-quotient or law-bearing relation surface. Resolve the selected transport or
-weakening theorem to canonical identity and apply it independently to each
-representative side with exact `Q` premises and `P` goal coordinates. Retain
-the theorem identity, ordered premises, side, substitutions, and resulting
-application evidence so validation and Terminal replay consume the same proof
-object. Omission, ambiguity, inapplicability, or identity drift must fail
-closed.
-
-### Alternates
-
-- Acceptable if proposition families themselves own transport: require an
-  explicit canonical transport declaration on each family and have the
-  quotient select that declaration by identity rather than visibility.
-- Acceptable if relations own transport: add explicit left/right theorem
-  selections to the relation declaration, even when both sides select the same
-  theorem.
-- Tempting but wrong: treat a quotient-to-carrier domain link as proof of every
-  membership or proposition implication between those domains.
-- Tempting but wrong: search visible theorems and choose the unique theorem
-  that happens to type-check at the use site.
-- Tempting but wrong: retain only a solver `Proven` verdict without the selected
-  theorem identity, ordered premises, per-side application, and replay data.
-
-## Q2 — Strict SSH trust and credential authority
+## Q1 — Strict SSH trust and credential authority
 
 ### Context
 
@@ -110,7 +62,7 @@ producer claim.
 - Tempting but wrong: serialize private keys, tokens, or reusable credentials in
   `omega.lock` or source-resolution evidence.
 
-## Q3 — Close the Delta v1 semantic contract
+## Q2 — Close the Delta v1 semantic contract
 
 ### Context
 
@@ -190,7 +142,7 @@ out of Delta without weakening its ability to host a robust compiler.
 - Tempting but wrong: retain the old translator's private capacities, exit
   codes, or Darwin output behavior as language rules.
 
-## Q4 — Select one typed executable Gamma contract
+## Q3 — Select one typed executable Gamma contract
 
 ### Context
 
@@ -260,7 +212,7 @@ failures.
 - Tempting but wrong: make Alpha I/O effects directly callable from arbitrary
   Gamma source merely to avoid defining the compiler-entry adapter.
 
-## Q5 — Fix Beta block formation and definite-initialization reachability
+## Q4 — Fix Beta block formation and definite-initialization reachability
 
 ### Context
 
@@ -325,7 +277,7 @@ semantic acceptance independent of optimizer sophistication.
 - Tempting but wrong: zero-initialize generated frame slots and call the gap
   closed; that changes Beta's written local semantics and hides skipped stores.
 
-## Q6 — Select the canonical Beta compiler outcome carrier
+## Q5 — Select the canonical Beta compiler outcome carrier
 
 ### Context
 
@@ -389,7 +341,7 @@ impossible fixup/table condition maps to `InternalFailure`.
 - Tempting but wrong: prepend a success tag to Alpha tape and thereby change the
   canonical artifact bytes or require a stripping stage.
 
-## Q7 — Compose the exact Alpha-to-Beta edge within checker capacity
+## Q6 — Compose the exact Alpha-to-Beta edge within checker capacity
 
 ### Context
 
@@ -451,7 +403,7 @@ of adding an assembly-specific evaluator path.
   primitive, trust a producer receipt, compare hashes, or weaken exact total
   partitioning.
 
-## Q8 — Own the ranked native-fuel sponsor entry
+## Q7 — Own the ranked native-fuel sponsor entry
 
 ### Context
 
@@ -499,7 +451,7 @@ prove the final call target is exactly that admitted sponsor entry.
 - Tempting but wrong: append an anonymous helper, magic host callback, script,
   or test-only trampoline and treat successful execution as chain evidence.
 
-## Q9 — Semantic loci for the remaining dangerous-authority classes
+## Q8 — Semantic loci for the remaining dangerous-authority classes
 
 ### Context
 
@@ -554,7 +506,7 @@ inventing a nominal declaration solely for package review.
 - Tempting but wrong: treat a package-wide role or a reviewer/model verdict as
   the authority identity.
 
-## Q10 — Normative identifier and string-literal lexical contract
+## Q9 — Normative identifier and string-literal lexical contract
 
 ### Context
 
@@ -609,7 +561,7 @@ special status to identifiers or values.
 - Tempting but wrong: call literals raw bytes while silently converting a
   codepoint escape into UTF-8.
 
-## Q11 — Evaluation order for call arguments and aggregate fields
+## Q10 — Evaluation order for call arguments and aggregate fields
 
 ### Context
 
@@ -656,7 +608,7 @@ proof that it preserves all observable effects, failures, moves, and cleanup.
 - Tempting but wrong: let backends or optimization levels choose different
   orders for expressions whose effects or failure are observable.
 
-## Q12 — Explicit sum discriminants under zero initialization
+## Q11 — Explicit sum discriminants under zero initialization
 
 ### Context
 

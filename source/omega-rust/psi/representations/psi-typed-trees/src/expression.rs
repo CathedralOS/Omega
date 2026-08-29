@@ -2189,8 +2189,9 @@ pub enum QuotientOperationKind {
     Define,
 }
 
-/// Exact source-selected identities for `Quotient::lift<F, Theorem>` and
-/// `Quotient::define<F, Theorem>`. This typed boundary deliberately carries no
+/// Exact source-selected identities for `Quotient::lift<F, Congruence>` and
+/// `Quotient::define<F, Congruence>`. The optional explicit transport theorem
+/// remains queued for this boundary. It deliberately carries no
 /// derived quotient admission or executable lowering authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QuotientOperationRequest {
