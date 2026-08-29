@@ -17,21 +17,18 @@ another broad alias while executing this plan.
 
 ## Current stopping point
 
-[x] `X86SelectXorZeroI64MaterializationV1` replaces x86-64
-`MOV r64, imm64(0)` with canonical `XOR r64, r64` only when independent
-selected-CFG liveness reconstruction proves every canonical RFLAGS unit
-dead-out.
+[x] The ordinary no-selection path now bypasses optimizer-only artifact
+lowering, optimizer-unit construction, pass management, and optimized-plan
+projection. A focused compiler canary runs on every supported host and checks
+all four hosted native targets. It pins empty selection/reporting, exact
+acceptance and diagnostics, interpreter output, two-build raw native-byte
+determinism, and reviewed per-target artifact metadata/digests. UEFI remains
+outside this direct-native matrix until its physical adapter/publication chain
+exists.
 
-CBNZ, MOVN, and XOR-zero now share one catalog-driven post-allocation result,
-one function-relative realization carrier/source, and one fragment source.
-The named CBNZ/MOVN complete-route owners are removed. Function-relative
-realization uses manifest v9; fragment and text publication use v7 and retain
-the exact optimization name. The x86 rule has direct and selected-lowering
-coverage through fragment, object, and callable publication.
-
-[>] Next, close the remaining rollout gates: add no-selection golden canaries
-and broader target/ABI matrices, then continue the general allocator/frame
-work. The source-organization and closed-vocabulary gates are enforced.
+[>] Next, add the broader four-ABI corruption matrix, then continue the general
+allocator/frame work. The source-organization, closed-vocabulary, and
+no-selection compatibility gates are enforced.
 
 ## Completed foundation
 
@@ -100,7 +97,7 @@ work. The source-organization and closed-vocabulary gates are enforced.
 - [x] Duplicate, unknown, noncanonical, trailing, and old-version rejection.
 - [x] Full selection identity retained across phase projections.
 - [x] Empty selection preserves ordinary compilation.
-- [ ] Add golden canaries comparing no-selection source acceptance,
+- [x] Add golden canaries comparing no-selection source acceptance,
   diagnostics, interpreter output, native bytes, and artifact metadata on every
   supported host/target pair.
 - [ ] Add an exact per-rule disable/rollback path to release tooling.
@@ -246,5 +243,5 @@ rewrite or opt a program into lossy floating-point semantics.
 5. [x] Retain exact build opt-in and direct/selected XOR-zero coverage through
    publication and callable entry.
 6. [ ] Add the broader target/ABI corruption matrix.
-7. [ ] Finish the remaining organization checks, workspace validation, and
+7. [x] Finish the remaining organization checks, workspace validation, and
    rollout canaries before promoting any rule beyond explicit opt-in.

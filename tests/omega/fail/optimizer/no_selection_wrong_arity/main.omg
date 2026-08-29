@@ -1,0 +1,4 @@
+// A target-independent front-end rejection for the no-selection firewall.
+data Main { }
+machine Main::pick(&mut self, a: i32, b: i32) -> i32 { 42 }
+machine Main::main(&mut self) { let result: i32 = self.pick(1); }

@@ -14,6 +14,21 @@ No optimization is enabled by target, build mode, compiler default, environment
 variable, or broad level. Empty selection takes the pre-existing compiler path
 and must produce the same acceptance, diagnostics, and output.
 
+The empty path is also a construction boundary, not merely a semantic no-op.
+It uses ordinary artifact-to-abstract lowering and ordinary target assignment;
+it does not construct a verified optimization input, optimization unit, pass
+manager, ledger, or optimized-plan projection. Provider-installation replay
+has distinct ordinary and explicit-optimizer entrances for the same reason.
+
+`omega-compiler/tests/no_selection_golden.rs` is the executable firewall. Its
+small entrance descends into acceptance/diagnostic and native-artifact leaves.
+On every supported host it evaluates all four hosted native targets
+(`linux_x64`, `linux_arm64`, `macos_arm64`, and `windows_x64`), compiles each
+retained artifact twice, compares raw bytes, and checks reviewed target-local
+metadata/digest files under `tests/omega/golden/optimizer/no_selection/`.
+UEFI is not included until its physical adapter and publication chain are
+implemented.
+
 ## Compatibility firewall
 
 While experimental:

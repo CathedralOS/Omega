@@ -158,7 +158,8 @@ names. Rule-specific mechanics must not leak upward into complete-route files.
 ## Resolved decisions
 
 - Exact named suites are the only user-facing selection mechanism.
-- Empty selection preserves the non-optimizer path.
+- Empty selection preserves the non-optimizer path and never constructs the
+  optimizer-only verifier carrier, unit, pass manager, or projection.
 - Terminal Psi is the first optimization IR; checked-tree shortcuts are not.
 - Target selection precedes allocation; physical rewriting follows allocation.
 - Register allocation is a constraint problem, not modulo scratch assignment.
