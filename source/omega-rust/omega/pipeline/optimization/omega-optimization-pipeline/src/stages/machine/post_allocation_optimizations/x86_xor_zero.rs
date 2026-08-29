@@ -208,6 +208,7 @@ fn stage_with_inputs<S: ValidatedSelectedAnalysis>(
     let phase = require_post_allocation_machine_rule(
         selections,
         Optimization::X86SelectXorZeroI64MaterializationV1,
+        machine.machine().plan().target.architecture,
     )?;
     let materialization = optimize_x86_materialize_i64_zero_with_xor(
         selected,
@@ -240,6 +241,7 @@ fn validate_with_inputs<S: ValidatedSelectedAnalysis>(
     let phase = require_post_allocation_machine_rule(
         selections,
         Optimization::X86SelectXorZeroI64MaterializationV1,
+        machine.machine().plan().target.architecture,
     )?;
     if staged.materialization.plan().budget != budget {
         return Err(OptimizedPostAllocationMachineOptimizationError::ReceiptMismatch);

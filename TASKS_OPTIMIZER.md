@@ -57,7 +57,7 @@ pins both the entrances and their tables.
 every `Optimization::ALL` name occurs exactly once in its declared phase. It is
 a test, not a second production registry.
 
-[>] Add explicit target-applicability dispositions to rule descriptors so
+[x] Add explicit target-applicability dispositions to rule descriptors so
 unsupported targets reject for a named reason rather than relying on leaf
 failure.
 
@@ -305,9 +305,9 @@ failure.
 - [x] Add one obvious ordered post-allocation machine catalog at the
   machine-rule entrance and route its typed result through one complete
   physical realization carrier.
-- [ ] Unify common catalog descriptors without erasing representation-specific
+- [x] Unify common catalog descriptors without erasing representation-specific
   candidate and validator types.
-- [ ] Add catalog coverage tests proving every selected name is scheduled once
+- [x] Add catalog coverage tests proving every selected name is scheduled once
   or rejected for an explicit phase/target reason.
 
 ## P2 — Validation and publication

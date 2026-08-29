@@ -151,6 +151,32 @@ optimization_vocabulary! {
     },
 }
 
+/// Common source-visible catalog header with a representation-specific
+/// payload. Target predicates, candidate constructors, validators, and route
+/// types remain owned by the stage that understands them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OptimizationCatalogDescriptor<Payload> {
+    optimization: Optimization,
+    payload: Payload,
+}
+
+impl<Payload> OptimizationCatalogDescriptor<Payload> {
+    pub const fn new(optimization: Optimization, payload: Payload) -> Self {
+        Self {
+            optimization,
+            payload,
+        }
+    }
+
+    pub const fn optimization(&self) -> Optimization {
+        self.optimization
+    }
+
+    pub const fn payload(&self) -> &Payload {
+        &self.payload
+    }
+}
+
 /// A canonical, duplicate-free set of explicitly selected optimizations.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct OptimizationSelections {
@@ -336,7 +362,8 @@ impl std::error::Error for SelectionDecodeError {}
 #[cfg(test)]
 mod tests {
     use super::{
-        Optimization, OptimizationExecutionPhase, OptimizationSelections, SelectionDecodeError,
+        Optimization, OptimizationCatalogDescriptor, OptimizationExecutionPhase,
+        OptimizationSelections, SelectionDecodeError,
     };
     use std::collections::BTreeSet;
 
@@ -363,6 +390,19 @@ mod tests {
             Optimization::from_build_case_name("CopyPropagationV2"),
             None
         );
+    }
+
+    #[test]
+    fn generic_catalog_descriptor_retains_exact_name_and_typed_payload() {
+        let descriptor = OptimizationCatalogDescriptor::new(
+            Optimization::X86SelectXorZeroI64MaterializationV1,
+            ("x86-64", 7_u16),
+        );
+        assert_eq!(
+            descriptor.optimization(),
+            Optimization::X86SelectXorZeroI64MaterializationV1
+        );
+        assert_eq!(descriptor.payload(), &("x86-64", 7));
     }
 
     #[test]

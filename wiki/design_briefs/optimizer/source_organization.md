@@ -41,6 +41,13 @@ There is one visibly named catalog per rule stage. It owns:
 - coverage tests proving every declared rule is either scheduled or rejected
   for a stated target/phase reason.
 
+Every catalog uses the same small generic name/payload descriptor from
+`omega-optimization-core`. The payload stays stage-owned: Psi retains its rule
+registry constructor, register allocation retains its lowering policy, and
+machine/layout stages retain canonical architecture applicability. Ordered-name
+arrays, where compatibility still needs them, are const projections of those
+descriptor catalogs and are never edited independently.
+
 No second match table may silently become an alternate registry. Build
 vocabulary, reports, and codecs derive from or exhaustively test against the
 closed `Optimization::ALL` vocabulary.
@@ -81,10 +88,10 @@ The current source-visible rule paths are:
 | Post-allocation machine | `omega-machine-optimizer/src/rules/mod.rs` | `rules/catalog.rs` | `rules/<isa>/<exact-rule>/` |
 | Function-relative layout | `omega-optimization-pipeline/src/stages/layout/x86_branch_relaxation/mod.rs` | adjacent `catalog.rs` | `compute`, `validation`, and typed stage model |
 
-The architecture gate requires the three shared rule entrances to retain their
-selection function and adjacent order table. It also guards each migrated
-pipeline custody join independently, so making the registry clear cannot turn
-the stage entrance into a re-export wall.
+The architecture gate requires all four rule-stage entrances to retain their
+selection/application function and adjacent primary descriptor catalog. It
+also guards each migrated pipeline custody join independently, so making the
+registry clear cannot turn the stage entrance into a re-export wall.
 
 ## Test placement
 

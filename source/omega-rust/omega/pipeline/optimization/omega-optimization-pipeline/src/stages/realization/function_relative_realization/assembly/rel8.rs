@@ -3,9 +3,10 @@ use super::super::prelude::*;
 
 pub(in crate::stages::realization::function_relative_realization) fn rel8_selected(
     selections: &OptimizationSelections,
+    architecture: omega_target::Architecture,
 ) -> Result<bool, FunctionRelativeOptimizationRealizationError> {
-    crate::stages::layout::x86_branch_relaxation::x86_rel8_selected(selections)
-        .map_err(|_| FunctionRelativeOptimizationRealizationError::RootMismatch)
+    crate::stages::layout::x86_branch_relaxation::x86_rel8_selected(selections, architecture)
+        .map_err(FunctionRelativeOptimizationRealizationError::RuleCatalog)
 }
 
 pub(in crate::stages::realization::function_relative_realization) fn stage_selected_relaxation<
@@ -20,7 +21,7 @@ pub(in crate::stages::realization::function_relative_realization) fn stage_selec
     budget: OptimizationWorkBudget,
 ) -> Result<Option<StagedOptimizedX86BranchRelaxation>, FunctionRelativeOptimizationRealizationError>
 {
-    if !rel8_selected(selections)? {
+    if !rel8_selected(selections, baseline_layout.target().architecture)? {
         return Ok(None);
     }
     stage_optimized_x86_branch_relaxation(
@@ -46,7 +47,10 @@ pub(in crate::stages::realization::function_relative_realization) fn validate_se
     relaxation: Option<&StagedOptimizedX86BranchRelaxation>,
     selections: &OptimizationSelections,
 ) -> Result<(), FunctionRelativeOptimizationRealizationError> {
-    match (rel8_selected(selections)?, relaxation) {
+    match (
+        rel8_selected(selections, baseline_layout.target().architecture)?,
+        relaxation,
+    ) {
         (false, None) => Ok(()),
         (true, Some(relaxation)) => validate_optimized_x86_branch_relaxation(
             selected,
@@ -138,7 +142,10 @@ pub(in crate::stages::realization::function_relative_realization) fn validate_re
     relaxation: Option<&StagedOptimizedX86BranchRelaxation>,
     selections: &OptimizationSelections,
 ) -> Result<(), FunctionRelativeOptimizationRealizationError> {
-    match (rel8_selected(selections)?, relaxation) {
+    match (
+        rel8_selected(selections, baseline_layout.target().architecture)?,
+        relaxation,
+    ) {
         (false, None) => Ok(()),
         (true, Some(relaxation))
             if relaxation.source() == baseline_layout.identity()

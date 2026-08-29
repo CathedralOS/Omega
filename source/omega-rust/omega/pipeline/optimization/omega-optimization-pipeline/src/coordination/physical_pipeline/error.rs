@@ -25,6 +25,9 @@ pub enum OptimizedVerifiedPhysicalPipelineError {
     SelectedLoweringHomes(OptimizedPostSelectedLoweringHomeCustodyError),
     PostAllocationMachine(OptimizedPostAllocationMachinePipelineError),
     PostAllocationMachineOptimization(OptimizedPostAllocationMachineOptimizationError),
+    PostAllocationMachineRuleCatalog(
+        omega_machine_optimizer::PostAllocationMachineRuleCatalogError,
+    ),
     FixedViewCopies(OptimizedFixedViewCopyCustodyError),
     SelectedReanalysis(OptimizedSelectedReanalysisError),
     PostCopyRegisterHomes(OptimizedPostCopyRegisterHomeCustodyError),

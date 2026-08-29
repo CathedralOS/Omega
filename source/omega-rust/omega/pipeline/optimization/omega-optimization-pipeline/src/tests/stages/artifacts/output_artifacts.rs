@@ -1056,8 +1056,12 @@ fn x86_rel8_selection_rejects_a_non_x86_target_without_a_realization() {
         ),
         Err(
             OptimizedVerifiedPhysicalPipelineError::FunctionRelativeRealization(
-                FunctionRelativeOptimizationRealizationError::X86BranchRelaxation(
-                    OptimizedX86BranchRelaxationError::UnsupportedTarget(_)
+                FunctionRelativeOptimizationRealizationError::RuleCatalog(
+                    FunctionRelativeLayoutCatalogError::UnsupportedTarget {
+                        optimization: Optimization::X86RelaxConditionalBranchesToRel8V1,
+                        required: omega_target::Architecture::X86_64,
+                        actual: omega_target::Architecture::Aarch64,
+                    }
                 )
             )
         )

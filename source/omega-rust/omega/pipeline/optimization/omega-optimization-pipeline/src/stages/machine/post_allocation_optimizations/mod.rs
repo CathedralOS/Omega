@@ -21,6 +21,11 @@ pub enum OptimizedPostAllocationMachineOptimizationError {
     Source(crate::OptimizedPostAllocationMachinePipelineError),
     MissingPostAllocationMachineOptimization,
     UnsupportedPostAllocationMachineOptimization(omega_optimization_core::Optimization),
+    UnsupportedPostAllocationMachineOptimizationTarget {
+        optimization: omega_optimization_core::Optimization,
+        required: omega_target::Architecture,
+        actual: omega_target::Architecture,
+    },
     Fusion(omega_machine_optimizer::Aarch64CbnzFusionError),
     MovnMaterialization(omega_machine_optimizer::Aarch64MovnMaterializationError),
     X86XorZeroMaterialization(omega_machine_optimizer::X86XorZeroMaterializationError),
@@ -43,6 +48,15 @@ impl From<omega_machine_optimizer::PostAllocationMachineRuleCatalogError>
             ) => {
                 Self::UnsupportedPostAllocationMachineOptimization(optimization)
             }
+            omega_machine_optimizer::PostAllocationMachineRuleCatalogError::UnsupportedTarget {
+                optimization,
+                required,
+                actual,
+            } => Self::UnsupportedPostAllocationMachineOptimizationTarget {
+                optimization,
+                required,
+                actual,
+            },
         }
     }
 }

@@ -37,7 +37,12 @@ pub fn stage_optimized_post_allocation_machine_optimization(
         .optimized_target()
         .optimized()
         .selections();
-    match selected_post_allocation_machine_rule(selections)?.0 {
+    match selected_post_allocation_machine_rule(
+        selections,
+        machine.machine().plan().target.architecture,
+    )?
+    .0
+    {
         Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 => {
             stage_optimized_aarch64_cbnz_fusion(source, machine)
                 .map(StagedOptimizedPostAllocationMachineOptimization::Aarch64Cbnz)
@@ -90,7 +95,12 @@ pub fn stage_optimized_post_allocation_machine_optimization_after_selected_lower
         .optimized_target()
         .optimized()
         .selections();
-    match selected_post_allocation_machine_rule(selections)?.0 {
+    match selected_post_allocation_machine_rule(
+        selections,
+        machine.machine().plan().target.architecture,
+    )?
+    .0
+    {
         Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 => {
             stage_optimized_aarch64_cbnz_fusion_after_selected_lowering(source, machine)
                 .map(StagedOptimizedPostAllocationMachineOptimization::Aarch64Cbnz)

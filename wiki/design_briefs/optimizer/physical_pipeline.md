@@ -70,6 +70,16 @@ fragment source route. The former named CBNZ/MOVN complete-route carriers have
 been removed; rule-specific values remain typed leaves borrowed from the shared
 result.
 
+The adjacent machine catalog is also the architecture-admission point. CBNZ
+and MOVN require AArch64; XOR-zero requires x86-64. Function-relative rel8
+relaxation declares x86-64 in its adjacent layout catalog. Unsupported target
+selection is rejected with the exact optimization, required architecture, and
+actual architecture before rule dispatch; custody errors preserve this reason
+instead of converting it to a generic phase-composition or root mismatch.
+Linux, Windows, and UEFI x64 share x86-64 applicability, while Linux and macOS
+Arm64 share AArch64 applicability. UEFI applicability does not grant its still
+unimplemented publication authority.
+
 ## Encoding and layout
 
 ISA crates own canonical form encoding/decoding and reconstructed effects. A
@@ -144,6 +154,11 @@ it must not encode an optimization name in top-level route variants.
 - every custody boundary rejects one-field identity corruption; and
 - direct, selected-lowering-composed, and final artifact paths retain the same
   full selection identity.
+
+The catalog matrix covers all 14 current exact names across all five native
+target constructors: 60 admitted cells and 10 typed architecture rejections.
+Target-independent Psi, selected-lowering, and allocation-recovery rules are
+explicit declarations, not untested fallthrough behavior.
 
 Current XOR-zero coverage proves both direct and selected-lowering routes
 through fragment, object, and callable publication. Target-register-environment

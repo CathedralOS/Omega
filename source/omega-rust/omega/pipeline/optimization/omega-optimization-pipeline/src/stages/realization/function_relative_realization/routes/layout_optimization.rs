@@ -23,7 +23,10 @@ pub fn stage_function_relative_layout_optimization_realization(
     let physical = selected_stage.register_environment().physical();
     let optimized = selected_stage.optimized_target().optimized();
     let selections = optimized.selections();
-    if !rel8_selected(selections)? {
+    if !rel8_selected(
+        selections,
+        selected_stage.optimized_target().target().architecture,
+    )? {
         return Err(
             FunctionRelativeOptimizationRealizationError::MissingFunctionRelativeLayoutOptimization,
         );
@@ -103,7 +106,10 @@ pub fn validate_function_relative_layout_optimization_realization_custody(
     let selected = selected_stage.selected();
     let physical = selected_stage.register_environment().physical();
     let selections = selected_stage.optimized_target().optimized().selections();
-    if !rel8_selected(selections)? {
+    if !rel8_selected(
+        selections,
+        selected_stage.optimized_target().target().architecture,
+    )? {
         return Err(
             FunctionRelativeOptimizationRealizationError::MissingFunctionRelativeLayoutOptimization,
         );

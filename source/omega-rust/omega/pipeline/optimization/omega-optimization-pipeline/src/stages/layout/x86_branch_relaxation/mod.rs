@@ -9,8 +9,11 @@ mod model;
 mod tests;
 mod validation;
 
-pub use catalog::ORDERED_FUNCTION_RELATIVE_LAYOUT_RULES;
 pub(crate) use catalog::x86_rel8_selected;
+pub use catalog::{
+    FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG, FunctionRelativeLayoutCatalogError,
+    FunctionRelativeLayoutRuleCatalogEntry, ORDERED_FUNCTION_RELATIVE_LAYOUT_RULES,
+};
 pub use error::*;
 pub use model::*;
 

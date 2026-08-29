@@ -149,6 +149,10 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn selected_post_allocation_machine_rule",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/layout/x86_branch_relaxation/mod.rs",
+        coordination_marker: "pub fn stage_optimized_x86_branch_relaxation",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/pressure_rematerialization/mod.rs",
         coordination_marker: "pub fn rematerialize_selected_active_resident",
     },
@@ -369,15 +373,23 @@ struct RequiredRuleCatalog {
 const REQUIRED_RULE_CATALOGS: &[RequiredRuleCatalog] = &[
     RequiredRuleCatalog {
         path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/catalog.rs",
-        order_marker: "ORDERED_ALLOCATION_RECOVERY_RULES",
+        order_marker: "ALLOCATION_RECOVERY_RULE_CATALOG",
     },
     RequiredRuleCatalog {
         path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/catalog.rs",
-        order_marker: "ORDERED_SELECTED_LOWERING_RULES",
+        order_marker: "SELECTED_LOWERING_RULE_CATALOG",
     },
     RequiredRuleCatalog {
         path: "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/catalog.rs",
-        order_marker: "ORDERED_POST_ALLOCATION_MACHINE_RULES",
+        order_marker: "POST_ALLOCATION_MACHINE_RULE_CATALOG",
+    },
+    RequiredRuleCatalog {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/catalog.rs",
+        order_marker: "PSI_PASS_CATALOG",
+    },
+    RequiredRuleCatalog {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/layout/x86_branch_relaxation/catalog.rs",
+        order_marker: "FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG",
     },
     RequiredRuleCatalog {
         path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/control_flow_cleanup/catalog.rs",

@@ -1,6 +1,7 @@
 //! Built-in rule-catalog selection and deterministic-order tests.
 
 use super::*;
+use crate::PsiPassTargetApplicability;
 
 #[test]
 fn ordered_catalog_covers_every_declared_psi_optimization_once() {
@@ -9,6 +10,9 @@ fn ordered_catalog_covers_every_declared_psi_optimization_once() {
         ORDERED_PSI_PASSES,
         "the compatibility order must be derived from the descriptor catalog",
     );
+    assert!(PSI_PASS_CATALOG.iter().all(|entry| {
+        entry.target_applicability() == PsiPassTargetApplicability::TargetIndependent
+    }));
     let mut declared = Optimization::ALL
         .into_iter()
         .filter(|optimization| {
