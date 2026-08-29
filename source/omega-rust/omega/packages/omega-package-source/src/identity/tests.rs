@@ -12,7 +12,6 @@ fn git_resolution(seed: u8) -> ImmutableSourceResolution {
     ImmutableSourceResolution::git(
         GitCommitId::parse_hex(&format!("{seed:02x}").repeat(20)).unwrap(),
         GitTreeId::parse_hex(&format!("{:02x}", seed.wrapping_add(1)).repeat(20)).unwrap(),
-        SourceContentDigest::derive(&[seed]),
     )
     .unwrap()
 }
@@ -349,21 +348,34 @@ fn package_key_identity_uses_canonical_name_and_source_lineage() {
 }
 
 #[test]
-fn commit_tree_and_content_each_independently_change_source_resolution() {
-    fn source(commit: u8, tree: u8, content: u8) -> ImmutableSourceResolution {
+fn commit_and_tree_each_change_git_source_resolution() {
+    fn source(commit: u8, tree: u8) -> ImmutableSourceResolution {
         ImmutableSourceResolution::git(
             GitCommitId::parse_hex(&format!("{commit:02x}").repeat(20)).unwrap(),
             GitTreeId::parse_hex(&format!("{tree:02x}").repeat(20)).unwrap(),
-            SourceContentDigest::derive(&[content]),
         )
         .unwrap()
     }
 
-    let base = source(1, 2, 3);
+    let base = source(1, 2);
 
-    assert_ne!(base, source(4, 2, 3));
-    assert_ne!(base, source(1, 4, 3));
-    assert_ne!(base, source(1, 2, 4));
+    assert_ne!(base, source(4, 2));
+    assert_ne!(base, source(1, 4));
+}
+
+#[test]
+fn git_content_identity_is_derived_only_from_the_authenticated_root_tree() {
+    let tree = GitTreeId::parse_hex(&"02".repeat(20)).unwrap();
+    let first = ImmutableSourceResolution::git(
+        GitCommitId::parse_hex(&"01".repeat(20)).unwrap(),
+        tree.clone(),
+    )
+    .unwrap();
+    let second =
+        ImmutableSourceResolution::git(GitCommitId::parse_hex(&"03".repeat(20)).unwrap(), tree)
+            .unwrap();
+
+    assert_eq!(first.content(), second.content());
 }
 
 #[test]
@@ -385,7 +397,7 @@ fn git_object_ids_are_complete_typed_and_canonical() {
         assert!(GitCommitId::parse_hex(&invalid).is_err());
     }
     assert_eq!(
-        ImmutableSourceResolution::git(commit, tree, SourceContentDigest::derive(b"content")),
+        ImmutableSourceResolution::git(commit, tree),
         Err(IdentityError::GitObjectFormatMismatch)
     );
 }

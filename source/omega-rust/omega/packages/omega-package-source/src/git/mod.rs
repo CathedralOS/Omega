@@ -5,5 +5,6 @@ pub(crate) mod executable;
 pub(crate) mod objects;
 pub(crate) mod process;
 pub(crate) mod request;
-pub(crate) mod resolve;
+pub(crate) mod resolution;
 pub(crate) mod snapshot;
+pub mod workspace;

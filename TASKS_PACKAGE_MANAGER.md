@@ -20,6 +20,33 @@ Do not wire mutating `omega install` or `omega update` until the P0 source
 boundary, recheckable evidence, accepted lock, and transaction gates below are
 closed. Compiler-issued package review remains non-admitting.
 
+## Architecture — package subsystem ownership
+
+- [ ] **PACKAGE-SUBSYSTEM-BOUNDARIES.** Finish the responsibility and source-tree
+  cleanup before adding command orchestration. A reader must be able to enter at
+  `packages/README.md`, follow crate entrances, and descend through
+  responsibility-named folders without encountering algorithmic `mod.rs`
+  files, generic junk-drawer modules, or mixed thousand-line workflows.
+
+  Remaining work:
+
+  - move package names, aliases, keys, and authored workspace-member semantics
+    out of `omega-package-source`; source custody should expose only neutral
+    source lineages, immutable resolutions, object identities, commitments, and
+    validated relative paths;
+  - rename manager `resolution/binding` to the responsibility it performs,
+    separate Git request, resolution, workspace planning/evidence, and package
+    binding, then split closure dependency resolution and identity codecs by
+    semantic owner;
+  - split package-review orchestration, callable effects, public traits versus
+    conformances, and misleading evidence/projection modules without changing
+    canonical rows or encodings;
+  - split native execution backend discovery, request validation, policy
+    observation, and platform realization; move large inline test bodies under
+    behavior-named test folders;
+  - narrow flat and `#[doc(hidden)]` cross-crate facades after callers migrate,
+    then refresh each crate map and enforce the intended dependency direction.
+
 ## P0 — Source resolver boundary
 
 - [ ] **HARDEN-SOURCE-RESOLVER.** Finish the hostile-process boundary around
@@ -226,37 +253,6 @@ closed. Compiler-issued package review remains non-admitting.
   state: immutable lineage/pins, dependency paths, declared and realized reach,
   authority flow, provider/trust/proof state, dangerous slack, build
   observations, review state, and the first failed provenance edge.
-
-- [ ] **OMEGA-FETCH-MEMBER.** Add selective authenticated Git
-  acquisition for one declared workspace package without using checkout or
-  lazy object fetching. Parent-authenticated materialization must prove the
-  selected member subtree and every root declaration needed to authenticate
-  its membership.
-
-  Remaining work:
-
-  - feed the landed manager-owned, byte-driven workspace discovery/selection
-    planner from a syntax-agnostic source inspection session held under the one
-    locked exact Git acquisition; the source layer must not learn Omega syntax;
-  - authenticate root/member declaration paths against the retained tree graph,
-    then batch-open only those blobs and the selected member subtree;
-  - publish immutable member snapshots separately from repository resolution
-    and retain the authenticated declaration bytes outside the compilation
-    root. Manager custody already retains and replays exact paths, byte counts,
-    domain-separated commitments, package roles, and the selected member;
-  - extend the landed repository/acquisition/selected-materialization,
-    navigation, and declaration custody through source observations,
-    strict-receipt reconstruction, selective cache reuse, and eventual lock
-    reconstruction. Manager closure reconciliation already compares it, while
-    compiler handoff and source review replay it;
-  - reject missing/changed declaration evidence, forged or omitted tree edges,
-    undeclared/escaping/symlinked members, absent selected blobs, and any
-    checkout, filter, hook, submodule, or lazy-fetch route.
-
-  Portable Git does not guarantee path-selective network transfer. The baseline
-  may perform the current bounded whole commit/object fetch, but it must read and
-  materialize only authenticated required blobs. Do not claim reduced network or
-  object-store use without a separately enforced server capability.
 
 ## P6 — Integration fixtures
 

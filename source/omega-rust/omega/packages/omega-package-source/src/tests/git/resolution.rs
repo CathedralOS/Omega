@@ -17,7 +17,7 @@ fn git_source_resolves_exact_commit_and_local_identity() {
         resolved.command_execution_observations().len(),
         resolved.execution_policy_observations().len()
     );
-    assert_eq!(resolved.resolution_observation().schema_version(), 5);
+    assert_eq!(resolved.resolution_observation().schema_version(), 6);
     assert_eq!(resolved.resolution_observation().identity().len(), 64);
     assert_eq!(
         resolved.resolution_observation().command_count(),

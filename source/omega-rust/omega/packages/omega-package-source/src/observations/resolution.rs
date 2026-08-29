@@ -135,6 +135,12 @@ pub(crate) fn issue_git_source_resolution_observation(
             "final commit and tree use different object algorithms",
         ));
     }
+    if git_object_algorithm(&resolved.materialized_tree)? != object_algorithm {
+        return Err(git_object_invalid(
+            &resolved.materialized_tree,
+            "materialized tree and repository root use different object algorithms",
+        ));
+    }
 
     let mut hasher = Sha256::new();
     hash_resolution_field(&mut hasher, GIT_RESOLUTION_OBSERVATION_DOMAIN);
@@ -157,6 +163,23 @@ pub(crate) fn issue_git_source_resolution_observation(
     );
     hash_resolution_field(&mut hasher, resolved.commit.as_bytes());
     hash_resolution_field(&mut hasher, resolved.tree.as_bytes());
+    hash_resolution_field(&mut hasher, resolved.materialized_tree.as_bytes());
+    match &resolved.workspace_projection {
+        Some(projection) => {
+            hash_resolution_field(&mut hasher, b"workspace-member");
+            hash_resolution_field(
+                &mut hasher,
+                projection.selected_member_path().as_str().as_bytes(),
+            );
+            hash_resolution_field(&mut hasher, projection.selected_member_tree().as_bytes());
+            hash_workspace_declaration(&mut hasher, projection.root_declaration());
+            hash_resolution_usize(&mut hasher, projection.member_declarations().len());
+            for declaration in projection.member_declarations() {
+                hash_workspace_declaration(&mut hasher, declaration);
+            }
+        }
+        None => hash_resolution_field(&mut hasher, b"repository-root"),
+    }
     hash_resolution_path(&mut hasher, &resolved.snapshot_root);
     hash_resolution_path(&mut hasher, &resolved.local.root);
     hash_resolution_usize(&mut hasher, resolved.local.file_count);
@@ -235,6 +258,22 @@ pub(crate) fn issue_git_source_resolution_observation(
         network_transfer_uploaded: resolved.network_transfer_observation.uploaded,
         network_transfer_downloaded: resolved.network_transfer_observation.downloaded,
     })
+}
+
+fn hash_workspace_declaration(
+    hasher: &mut Sha256,
+    declaration: &crate::git::workspace::GitWorkspaceDeclaration,
+) {
+    match declaration.member_path() {
+        Some(member_path) => {
+            hash_resolution_field(hasher, b"member");
+            hash_resolution_field(hasher, member_path.as_str().as_bytes());
+        }
+        None => hash_resolution_field(hasher, b"root"),
+    }
+    hash_resolution_field(hasher, declaration.repository_path().as_bytes());
+    hash_resolution_field(hasher, declaration.object_id().as_bytes());
+    hash_resolution_field(hasher, declaration.bytes());
 }
 
 fn hash_resolution_transport_executable(

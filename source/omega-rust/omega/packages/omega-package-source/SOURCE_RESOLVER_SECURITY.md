@@ -27,12 +27,16 @@ for SSH:
 
 Repository inspection independently reconstructs the complete Git
 mode/name/object-ID tree graph back to the selected root-tree ID before opening
-blob payloads. The current whole-tree resolver subsequently authenticates every
-blob and materializes the complete tree. This separation is the prerequisite
-for future member-selective materialization: an unselected blob ID may remain a
-Merkle edge, but every blob actually read or published must still be opened and
-authenticated against that edge. It grants no lazy-fetch or path-selective
-network claim.
+blob payloads. Root-package resolution authenticates every blob and publishes
+the complete tree. Named workspace-member resolution instead opens the exact
+authenticated root declaration, asks a manager-owned syntax planner for the
+declared member paths, batch-opens only those exact member declarations, and
+then authenticates and publishes only the selected member subtree. The source
+layer never parses Omega declarations or chooses a package; it owns the hostile
+object/session boundary while the manager owns declaration meaning. Raw
+authenticated declarations remain replay custody outside the selected
+compilation root. An unselected payload may remain only as an authenticated
+Merkle edge. This grants no lazy-fetch or path-selective network claim.
 
 Local sources skip transport but still pass through snapshot staging. A hash of
 a live local directory is diagnostic only. Successful snapshot resolution now
@@ -620,11 +624,14 @@ all later Git commands, and the parent restores its byte-exact canonical bare
 configuration after a successful filtered fetch before authenticating objects.
 A required individual blob above the accepted source ceiling therefore remains
 absent and causes fail-closed tree authentication. Exact object-ID pins reuse
-and re-authenticate existing cache custody without transport; symbolic selectors
-still refetch. This bounds unrelated history and individually impossible blobs,
-not the admissible bytes of a still-whole selected root. Selective subtree
-acquisition remains dependent on an exact member-path selector. A whole-
-resolution budget now caps
+and re-authenticate existing cache custody without transport; an
+operation-local acquisition pin also keeps several named members on one exact
+commit/root tree while sharing the same locked cache entry. Unpinned symbolic
+selectors still refetch. This bounds unrelated history and individually
+impossible blobs, not the admissible bytes held in the quarantined object
+store. Named member resolution reads only authenticated declarations and the
+selected member payload, but portable Git may still transfer other admissible
+objects from the selected root. A whole-resolution budget now caps
 launches at 64, independent of package file count, and limits ordinary elapsed execution to ten
 minutes; each command receives only the smaller remaining interval. One exactly
 framed `cat-file --batch` launch reads all validated blobs in tree order. Each

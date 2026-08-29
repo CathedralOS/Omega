@@ -201,9 +201,7 @@ fn validate_review_closure_records<'review, S: SourceRecord, R: ReviewRecord>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use omega_package_source::{
-        GitCommitId, GitTreeId, PackageName, SourceContentDigest, SourceLineage,
-    };
+    use omega_package_source::{GitCommitId, GitTreeId, PackageName, SourceLineage};
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     struct TestSource {
@@ -265,7 +263,6 @@ mod tests {
             GitCommitId::parse_hex(&format!("{marker:02x}").repeat(20)).expect("valid commit"),
             GitTreeId::parse_hex(&format!("{:02x}", marker.wrapping_add(1)).repeat(20))
                 .expect("valid tree"),
-            SourceContentDigest::derive(&[marker]),
         )
         .expect("matching Git identities")
     }

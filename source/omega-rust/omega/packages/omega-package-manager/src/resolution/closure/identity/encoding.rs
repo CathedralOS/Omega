@@ -544,14 +544,22 @@ fn decode_resolution(
             .map_err(|_| CanonicalSourceClosureSubjectError::new("invalid source content digest"))
     };
     match decoder.byte()? {
-        0 => ImmutableSourceResolution::git(
-            GitCommitId::parse_hex(&decoder.string(64)?)
-                .map_err(|_| CanonicalSourceClosureSubjectError::new("invalid Git commit ID"))?,
-            GitTreeId::parse_hex(&decoder.string(64)?)
-                .map_err(|_| CanonicalSourceClosureSubjectError::new("invalid Git tree ID"))?,
-            content(decoder)?,
-        )
-        .map_err(|_| CanonicalSourceClosureSubjectError::new("invalid Git source resolution")),
+        0 => {
+            let commit = GitCommitId::parse_hex(&decoder.string(64)?)
+                .map_err(|_| CanonicalSourceClosureSubjectError::new("invalid Git commit ID"))?;
+            let tree = GitTreeId::parse_hex(&decoder.string(64)?)
+                .map_err(|_| CanonicalSourceClosureSubjectError::new("invalid Git tree ID"))?;
+            let encoded_content = content(decoder)?;
+            let resolution = ImmutableSourceResolution::git(commit, tree).map_err(|_| {
+                CanonicalSourceClosureSubjectError::new("invalid Git source resolution")
+            })?;
+            if resolution.content() != &encoded_content {
+                return Err(CanonicalSourceClosureSubjectError::new(
+                    "Git source content digest does not match its root tree",
+                ));
+            }
+            Ok(resolution)
+        }
         1 => Ok(ImmutableSourceResolution::workspace(content(decoder)?)),
         2 => Ok(ImmutableSourceResolution::external_local(content(decoder)?)),
         _ => Err(CanonicalSourceClosureSubjectError::new(
@@ -745,5 +753,29 @@ impl<'a> Decoder<'a> {
                 "source-closure subject has trailing bytes",
             ))
         }
+    }
+}
+
+#[cfg(test)]
+mod resolution_encoding_tests {
+    use super::*;
+
+    #[test]
+    fn canonical_git_resolution_rejects_content_not_derived_from_its_tree() {
+        let resolution = ImmutableSourceResolution::git(
+            GitCommitId::parse_hex(&"01".repeat(20)).unwrap(),
+            GitTreeId::parse_hex(&"02".repeat(20)).unwrap(),
+        )
+        .unwrap();
+        let mut encoder = Encoder::new();
+        encode_resolution(&mut encoder, &resolution).unwrap();
+        let mut encoded = encoder.finish();
+
+        let mut decoder = Decoder::new(&encoded);
+        assert_eq!(decode_resolution(&mut decoder).unwrap(), resolution);
+        decoder.finish().unwrap();
+
+        *encoded.last_mut().unwrap() ^= 1;
+        assert!(decode_resolution(&mut Decoder::new(&encoded)).is_err());
     }
 }

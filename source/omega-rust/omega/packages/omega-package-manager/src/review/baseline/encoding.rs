@@ -2,15 +2,15 @@
 
 use super::validation::replay_record_limits;
 use super::{
-    ReviewOnlyBaselineError, ReviewOnlyBaselineLimits, CHECKSUM_DOMAIN,
-    REPLAY_PARENT_BINDING_DOMAIN,
+    CHECKSUM_DOMAIN, REPLAY_PARENT_BINDING_DOMAIN, ReviewOnlyBaselineError,
+    ReviewOnlyBaselineLimits,
 };
 use crate::review::records::ReviewOnlyCanonicalRow;
 use omega_build_evaluation::{
-    recover_review_only_build_filesystem_replay_record, ReviewOnlyBuildFilesystemReplayRecord,
+    ReviewOnlyBuildFilesystemReplayRecord, recover_review_only_build_filesystem_replay_record,
 };
 use omega_package_review::{
-    decode_package_review_canonical_row_with_limits, PackageReviewCanonicalRowRecoveryLimits,
+    PackageReviewCanonicalRowRecoveryLimits, decode_package_review_canonical_row_with_limits,
 };
 use omega_package_source::{
     ExternalLocalLineage, ExternalSourceContext, GitCommitId, GitTransport, GitTreeId,
@@ -332,14 +332,21 @@ pub(super) fn decode_resolution(
             .map_err(|_| ReviewOnlyBaselineError::new("invalid source content digest"))
     };
     match decoder.byte()? {
-        0 => ImmutableSourceResolution::git(
-            GitCommitId::parse_hex(decoder.string(64)?)
-                .map_err(|_| ReviewOnlyBaselineError::new("invalid Git commit ID"))?,
-            GitTreeId::parse_hex(decoder.string(64)?)
-                .map_err(|_| ReviewOnlyBaselineError::new("invalid Git tree ID"))?,
-            content(decoder)?,
-        )
-        .map_err(|_| ReviewOnlyBaselineError::new("invalid Git source resolution")),
+        0 => {
+            let commit = GitCommitId::parse_hex(decoder.string(64)?)
+                .map_err(|_| ReviewOnlyBaselineError::new("invalid Git commit ID"))?;
+            let tree = GitTreeId::parse_hex(decoder.string(64)?)
+                .map_err(|_| ReviewOnlyBaselineError::new("invalid Git tree ID"))?;
+            let encoded_content = content(decoder)?;
+            let resolution = ImmutableSourceResolution::git(commit, tree)
+                .map_err(|_| ReviewOnlyBaselineError::new("invalid Git source resolution"))?;
+            if resolution.content() != &encoded_content {
+                return Err(ReviewOnlyBaselineError::new(
+                    "Git source content digest does not match its root tree",
+                ));
+            }
+            Ok(resolution)
+        }
         1 => Ok(ImmutableSourceResolution::workspace(content(decoder)?)),
         2 => Ok(ImmutableSourceResolution::external_local(content(decoder)?)),
         _ => Err(ReviewOnlyBaselineError::new(

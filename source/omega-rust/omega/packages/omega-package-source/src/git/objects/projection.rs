@@ -39,16 +39,23 @@ pub(crate) struct AuthenticatedGitTreeProjection {
 }
 
 impl AuthenticatedGitTreeProjection {
+    #[cfg(test)]
     pub(crate) fn repository_tree_oid(&self) -> &str {
         &self.repository_tree_oid
     }
 
+    #[cfg(test)]
     pub(crate) fn declarations(&self) -> &[GitTreeEntry] {
         &self.declarations
     }
 
+    #[cfg(test)]
     pub(crate) fn member(&self) -> &AuthenticatedGitMemberTree {
         &self.member
+    }
+
+    pub(crate) fn into_member(self) -> AuthenticatedGitMemberTree {
+        self.member
     }
 }
 
@@ -60,6 +67,7 @@ pub(crate) struct AuthenticatedGitMemberTree {
 }
 
 impl AuthenticatedGitMemberTree {
+    #[cfg(test)]
     pub(crate) fn source_path(&self) -> &[u8] {
         &self.source_path
     }
@@ -68,13 +76,12 @@ impl AuthenticatedGitMemberTree {
         &self.tree_oid
     }
 
+    #[cfg(test)]
     pub(crate) fn entries(&self) -> &[GitTreeEntry] {
         &self.entries
     }
 
-    /// Transfer the authenticated rows to the later materialization layer.
-    /// The caller lands separately from this object-layer implementation.
-    #[allow(dead_code)]
+    /// Transfer the authenticated rows to the materialization layer.
     pub(crate) fn into_entries(self) -> Vec<GitTreeEntry> {
         self.entries
     }
@@ -188,6 +195,42 @@ impl GitTreeProjectionPlan {
             },
         })
     }
+}
+
+pub(super) fn select_regular_files(
+    graph: &AuthenticatedGitTreeGraph,
+    exact_paths: Vec<Vec<u8>>,
+    limits: LocalSourceLimits,
+) -> Result<Vec<GitTreeEntry>, SourceResolveError> {
+    let request = GitTreeProjectionRequest::new(exact_paths, Vec::new());
+    validate_request_paths(&request)?;
+    let paths = select_declarations(graph, &request)?;
+    if paths.len() > limits.max_files {
+        return Err(SourceResolveError::TooManyFiles {
+            limit: limits.max_files,
+        });
+    }
+    let mut total_bytes = 0_u64;
+    paths
+        .into_iter()
+        .map(|path| {
+            let entry = graph
+                .entry(&path)
+                .expect("selected declaration path came from authenticated graph");
+            total_bytes =
+                total_bytes
+                    .checked_add(entry.size)
+                    .ok_or(SourceResolveError::TooManyBytes {
+                        limit: limits.max_bytes,
+                    })?;
+            if total_bytes > limits.max_bytes {
+                return Err(SourceResolveError::TooManyBytes {
+                    limit: limits.max_bytes,
+                });
+            }
+            Ok(entry.clone())
+        })
+        .collect()
 }
 
 fn validate_request_paths(request: &GitTreeProjectionRequest) -> Result<(), SourceResolveError> {

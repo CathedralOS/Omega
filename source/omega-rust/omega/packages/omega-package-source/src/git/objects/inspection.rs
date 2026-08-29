@@ -13,10 +13,58 @@ use super::authentication::authenticate_git_tree_graph;
 use super::batch::read_git_blobs_batch;
 use super::graph::AuthenticatedGitTreeGraph;
 use super::identity::is_object_id;
-use super::projection::{
-    AuthenticatedGitTreeProjection, GitTreeProjectionPlan, GitTreeProjectionRequest,
-};
+use super::projection::AuthenticatedGitTreeProjection;
+use super::projection::{GitTreeProjectionPlan, GitTreeProjectionRequest};
 use super::tree::{parse_git_tree_entries, parse_git_tree_graph_entries};
+
+/// One authenticated repository tree graph held across staged declaration
+/// discovery and member selection.
+///
+/// The graph contains modes, paths, sizes, and object IDs, but no blob payloads.
+/// Callers may therefore inspect the root declaration, derive the exact member
+/// declaration paths, and only then open the selected payload closure without
+/// repeating or weakening graph authentication.
+#[derive(Debug)]
+pub(crate) struct AuthenticatedGitTreeInspection {
+    graph: AuthenticatedGitTreeGraph,
+}
+
+impl AuthenticatedGitTreeInspection {
+    pub(crate) fn root_tree_oid(&self) -> &str {
+        self.graph.root_tree_oid()
+    }
+
+    pub(crate) fn open_regular_files(
+        &self,
+        executor: &GitExecutor,
+        repository: &VerifiedGitRepository,
+        exact_paths: impl IntoIterator<Item = Vec<u8>>,
+        limits: LocalSourceLimits,
+    ) -> Result<Vec<GitTreeEntry>, SourceResolveError> {
+        let mut entries = super::projection::select_regular_files(
+            &self.graph,
+            exact_paths.into_iter().collect(),
+            limits,
+        )?;
+        read_git_blobs_batch(executor, repository, &mut entries, limits)?;
+        super::authentication::authenticate_git_tree_payloads(
+            self.graph.root_tree_oid(),
+            &entries,
+        )?;
+        Ok(entries)
+    }
+
+    pub(crate) fn project(
+        &self,
+        executor: &GitExecutor,
+        repository: &VerifiedGitRepository,
+        request: &GitTreeProjectionRequest,
+        limits: LocalSourceLimits,
+    ) -> Result<AuthenticatedGitTreeProjection, SourceResolveError> {
+        GitTreeProjectionPlan::from_graph(&self.graph, request, limits)?
+            .open_and_authenticate(executor, repository, limits)
+    }
+}
 
 pub(crate) fn inspect_git_tree(
     executor: &GitExecutor,
@@ -32,6 +80,7 @@ pub(crate) fn inspect_git_tree(
     Ok(entries)
 }
 
+#[cfg(test)]
 pub(crate) fn inspect_git_tree_projection(
     executor: &GitExecutor,
     repository: &VerifiedGitRepository,
@@ -39,12 +88,21 @@ pub(crate) fn inspect_git_tree_projection(
     request: &GitTreeProjectionRequest,
     limits: LocalSourceLimits,
 ) -> Result<AuthenticatedGitTreeProjection, SourceResolveError> {
+    inspect_git_tree_graph(executor, repository, tree)?
+        .project(executor, repository, request, limits)
+}
+
+pub(crate) fn inspect_git_tree_graph(
+    executor: &GitExecutor,
+    repository: &VerifiedGitRepository,
+    tree: &str,
+) -> Result<AuthenticatedGitTreeInspection, SourceResolveError> {
     validate_tree_oid(repository, tree)?;
     let listing = list_tree(executor, repository, tree)?;
     let entries = parse_git_tree_graph_entries(&listing, repository.path())?;
-    let graph = AuthenticatedGitTreeGraph::authenticate(tree, entries)?;
-    let plan = GitTreeProjectionPlan::from_graph(&graph, request, limits)?;
-    plan.open_and_authenticate(executor, repository, limits)
+    Ok(AuthenticatedGitTreeInspection {
+        graph: AuthenticatedGitTreeGraph::authenticate(tree, entries)?,
+    })
 }
 
 fn validate_tree_oid(

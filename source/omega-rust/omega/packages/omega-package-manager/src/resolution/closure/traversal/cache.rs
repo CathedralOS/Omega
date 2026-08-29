@@ -1,13 +1,15 @@
 use crate::resolution::binding::{
     GitPackageSourceRequest, ResolvePackageSourceError, ResolvedPackageSource,
-    bind_git_package_source, resolve_external_local_package_source_in_lane,
-    resolve_external_local_project_source_in_lane, resolve_workspace_member_package_source_in_lane,
+    resolve_external_local_package_source_in_lane, resolve_external_local_project_source_in_lane,
+    resolve_selected_git_package_source_from_pin_in_lanes,
+    resolve_workspace_member_package_source_in_lane,
 };
+use omega_package_source::RetainedStorageLane;
 use omega_package_source::{ExternalSourceContext, SourceLineage, WorkspaceMemberPath};
 use omega_package_source::{
-    GitSourceRequest, LocalSourceLimits, ResolvedGitSource, ResolvedLocalSnapshot,
+    GitAcquisitionPin, GitSourceRequest, LocalSourceLimits, ResolvedGitSource,
+    ResolvedLocalSnapshot,
 };
-use omega_package_source::{RetainedStorageLane, resolve_git_source_in_lane};
 use std::path::Path;
 
 #[derive(Clone, Copy)]
@@ -17,41 +19,56 @@ pub(super) enum SourceCacheLane<'a> {
 
 #[derive(Default)]
 pub(super) struct GitAcquisitionCache {
-    resolved: Vec<(GitSourceRequest, ResolvedGitSource)>,
+    pins: Vec<(GitSourceRequest, GitAcquisitionPin)>,
+    selected: Vec<(
+        GitPackageSourceRequest,
+        ResolvedPackageSource<ResolvedGitSource>,
+    )>,
 }
 
 impl GitAcquisitionCache {
     pub(super) fn resolve_selected(
         &mut self,
         request: &GitPackageSourceRequest,
-        cache: SourceCacheLane<'_>,
+        git_cache: SourceCacheLane<'_>,
+        member_cache: SourceCacheLane<'_>,
         limits: LocalSourceLimits,
     ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
         let limits = limits.compiler_bounded();
-        let source = if let Some((_, source)) = self
-            .resolved
+        if let Some((_, resolved)) = self
+            .selected
+            .iter()
+            .find(|(selected, _)| selected == request)
+        {
+            return Ok(resolved.clone());
+        }
+        let pin = self
+            .pins
             .iter()
             .find(|(acquisition, _)| acquisition == request.acquisition())
-        {
-            source.clone()
-        } else {
-            let SourceCacheLane::Retained(lane) = cache;
-            let source = resolve_git_source_in_lane(request.acquisition(), lane, limits)?;
-            self.resolved
-                .push((request.acquisition().clone(), source.clone()));
-            source
-        };
-        bind_git_package_source(
-            request.acquisition().lineage().clone(),
-            source,
+            .map(|(_, pin)| pin);
+        let SourceCacheLane::Retained(git_lane) = git_cache;
+        let SourceCacheLane::Retained(member_lane) = member_cache;
+        let resolved = resolve_selected_git_package_source_from_pin_in_lanes(
+            request,
+            pin,
+            git_lane,
+            member_lane,
             limits,
-            request.selection(),
-        )
+        )?;
+        if pin.is_none() {
+            self.pins.push((
+                request.acquisition().clone(),
+                resolved.source().acquisition_pin(),
+            ));
+        }
+        self.selected.push((request.clone(), resolved.clone()));
+        Ok(resolved)
     }
 
     #[cfg(test)]
     pub(super) fn acquisition_count(&self) -> usize {
-        self.resolved.len()
+        self.pins.len()
     }
 }
 

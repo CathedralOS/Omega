@@ -10,11 +10,11 @@ use super::cache::{
 };
 use super::errors::ResolveDependencySourceError;
 use crate::manifest::dependencies::read::DependencySourceRequest;
-use crate::resolution::binding::git_selection::{GitWorkspaceEvidence, GitWorkspaceSelectionPlan};
+use crate::resolution::binding::git_selection::GitWorkspaceEvidence;
 use crate::resolution::binding::{
-    GitPackageSourceRequest, PackageSourceCustody, PackageSourceMaterialization,
-    PackageSourceNavigation, PackageSourceSelectionEvidence, ResolvePackageSourceError,
-    bind_git_member_package_custody,
+    GitPackageSourceRequest, GitWorkspaceSelectionDeclarations, GitWorkspaceSelectionEvidence,
+    PackageSourceCustody, PackageSourceNavigation, PackageSourceSelectionEvidence,
+    ResolvePackageSourceError,
 };
 use omega_package_source::LocalSourceLimits;
 use omega_package_source::{
@@ -27,18 +27,31 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct WorkspaceContext {
     pub(super) root_source: SourceLineage,
-    pub(super) root: PathBuf,
-    pub(super) allows_external_paths: bool,
-    git_repository: Option<GitRepositoryContext>,
+    kind: WorkspaceContextKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum WorkspaceContextKind {
+    Local {
+        root: PathBuf,
+        allows_external_paths: bool,
+    },
+    Git(GitRepositoryContext),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct GitRepositoryContext {
+    request: omega_package_source::GitSourceRequest,
     resolution: ImmutableSourceResolution,
-    acquisition_materialization: PackageSourceMaterialization,
     declared_members: BTreeSet<WorkspaceMemberPath>,
-    workspace_evidence: Option<GitWorkspaceEvidence>,
+    workspace_evidence: Option<GitRepositoryWorkspaceEvidence>,
     source_limits: LocalSourceLimits,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct GitRepositoryWorkspaceEvidence {
+    workspace: GitWorkspaceEvidence,
+    declarations: GitWorkspaceSelectionDeclarations,
 }
 
 impl WorkspaceContext {
@@ -49,9 +62,10 @@ impl WorkspaceContext {
     ) -> Self {
         Self {
             root_source,
-            root,
-            allows_external_paths,
-            git_repository: None,
+            kind: WorkspaceContextKind::Local {
+                root,
+                allows_external_paths,
+            },
         }
     }
 }
@@ -91,14 +105,17 @@ pub(super) fn resolve_registered_package_closure(
                     )?,
                     selection.clone(),
                 );
-                let resolved =
-                    git_acquisitions.resolve_selected(&request, git_cache, source_limits)?;
+                let resolved = git_acquisitions.resolve_selected(
+                    &request,
+                    git_cache,
+                    workspace_cache,
+                    source_limits,
+                )?;
                 register_git_repository(
                     workspaces,
+                    request.acquisition(),
                     resolved.key().source_lineage(),
-                    resolved.acquisition_root(),
                     resolved.resolution(),
-                    resolved.acquisition_materialization(),
                     resolved.selection_evidence(),
                     resolved.source_limits(),
                 )?;
@@ -126,7 +143,7 @@ pub(super) fn resolve_registered_package_closure(
                 })?;
                 match normalize_member_path(base.as_deref(), location) {
                     Ok(member_path) => {
-                        if let Some(git_repository) = &context.git_repository {
+                        if let WorkspaceContextKind::Git(git_repository) = &context.kind {
                             if !git_repository.declared_members.contains(&member_path) {
                                 return Err(
                                     ResolveDependencySourceError::UndeclaredGitWorkspaceMember {
@@ -135,31 +152,57 @@ pub(super) fn resolve_registered_package_closure(
                                     },
                                 );
                             }
-                            bind_git_member_package_custody(
-                                requester.key().source_lineage().clone(),
-                                git_repository.resolution.clone(),
-                                &context.root,
-                                git_repository.acquisition_materialization.clone(),
-                                member_path.clone(),
-                                git_workspace_member_selection(git_repository, &member_path),
-                                git_repository.source_limits,
+                            let selection =
+                                git_workspace_member_selection(git_repository, &member_path);
+                            let package_name = omega_package_source::PackageName::parse(
+                                selection.plan().selected_member().package_name().as_str(),
                             )
-                            .map_err(ResolveDependencySourceError::from)
-                        } else {
+                            .expect("source and build package names share one grammar");
+                            let request = GitPackageSourceRequest::new(
+                                git_repository.request.clone(),
+                                crate::manifest::dependencies::read::PackageSelection::Named(
+                                    package_name,
+                                ),
+                            );
+                            let resolved = git_acquisitions.resolve_selected(
+                                &request,
+                                git_cache,
+                                workspace_cache,
+                                git_repository.source_limits,
+                            )?;
+                            if resolved.navigation()
+                                != &PackageSourceNavigation::Member(member_path.clone())
+                                || resolved.resolution() != &git_repository.resolution
+                            {
+                                return Err(
+                                    ResolveDependencySourceError::ConflictingWorkspaceRoot {
+                                        identity: workspace_identity,
+                                    },
+                                );
+                            }
+                            Ok(resolved.into_custody())
+                        } else if let WorkspaceContextKind::Local { root, .. } = &context.kind {
                             resolve_workspace_member_from_cache(
                                 &context.root_source,
                                 member_path,
-                                &context.root,
+                                root,
                                 workspace_cache,
                                 source_limits,
                             )
                             .map(|resolved| resolved.into_custody())
                             .map_err(ResolveDependencySourceError::from)
+                        } else {
+                            unreachable!("workspace context has one explicit kind")
                         }
                     }
                     Err(_)
-                        if context.allows_external_paths
-                            && external_context.is_some()
+                        if matches!(
+                            &context.kind,
+                            WorkspaceContextKind::Local {
+                                allows_external_paths: true,
+                                ..
+                            }
+                        ) && external_context.is_some()
                             && workspace_path_escapes(base.as_deref(), location) =>
                     {
                         let requester_root = workspace_requester_root(requester, context)?;
@@ -181,32 +224,34 @@ pub(super) fn resolve_registered_package_closure(
 
 pub(super) fn register_git_repository(
     workspaces: &mut BTreeMap<WorkspaceLineageIdentity, WorkspaceContext>,
+    request: &omega_package_source::GitSourceRequest,
     root_source: &SourceLineage,
-    acquisition_root: &Path,
     resolution: &ImmutableSourceResolution,
-    acquisition_materialization: &PackageSourceMaterialization,
     selection_evidence: &PackageSourceSelectionEvidence,
     source_limits: LocalSourceLimits,
 ) -> Result<WorkspaceLineageIdentity, ResolveDependencySourceError> {
     let (declared_members, workspace_evidence) = match selection_evidence {
         PackageSourceSelectionEvidence::Root => (BTreeSet::new(), None),
-        PackageSourceSelectionEvidence::GitWorkspace(plan) => (
-            plan.members()
+        PackageSourceSelectionEvidence::GitWorkspace(evidence) => (
+            evidence
+                .plan()
+                .members()
                 .iter()
                 .map(|member| WorkspaceMemberPath::from(member.member_path().clone()))
                 .collect(),
-            Some(plan.workspace_evidence().clone()),
+            Some(GitRepositoryWorkspaceEvidence {
+                workspace: evidence.plan().workspace_evidence().clone(),
+                declarations: evidence.declarations().clone(),
+            }),
         ),
     };
     let identity = WorkspaceLineageIdentity::from_root_source(root_source)
         .map_err(ResolvePackageSourceError::from)?;
     let context = WorkspaceContext {
         root_source: root_source.clone(),
-        root: acquisition_root.to_path_buf(),
-        allows_external_paths: false,
-        git_repository: Some(GitRepositoryContext {
+        kind: WorkspaceContextKind::Git(GitRepositoryContext {
+            request: request.clone(),
             resolution: resolution.clone(),
-            acquisition_materialization: acquisition_materialization.clone(),
             declared_members,
             workspace_evidence,
             source_limits: source_limits.compiler_bounded(),
@@ -225,13 +270,18 @@ pub(super) fn register_git_repository(
 fn git_workspace_member_selection(
     repository: &GitRepositoryContext,
     member_path: &WorkspaceMemberPath,
-) -> GitWorkspaceSelectionPlan {
+) -> GitWorkspaceSelectionEvidence {
     let shared_path = omega_build_declarations::WorkspaceMemberPath::parse(member_path.as_str())
         .expect("package-source and build-declaration member paths share one grammar");
     repository
         .workspace_evidence
         .as_ref()
-        .and_then(|evidence| evidence.select_declared_member(&shared_path))
+        .and_then(|evidence| {
+            evidence
+                .workspace
+                .select_declared_member(&shared_path)
+                .map(|plan| GitWorkspaceSelectionEvidence::new(plan, evidence.declarations.clone()))
+        })
         .expect("declared Git member set and retained workspace selection are one custody value")
 }
 
@@ -304,7 +354,12 @@ fn workspace_requester_root(
             package: requester.key().clone(),
         });
     };
-    Ok(context.root.join(lineage.member_path().as_str()))
+    let WorkspaceContextKind::Local { root, .. } = &context.kind else {
+        return Err(ResolveDependencySourceError::UnknownWorkspace {
+            package: requester.key().clone(),
+        });
+    };
+    Ok(root.join(lineage.member_path().as_str()))
 }
 
 fn register_external_root(

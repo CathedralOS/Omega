@@ -50,19 +50,38 @@ machine build(builder: &mut Build) {
         .resolve_selected(
             &selected("first"),
             SourceCacheLane::Retained(storage.git_sources()),
+            SourceCacheLane::Retained(storage.workspace_members()),
             LocalSourceLimits::default(),
         )
         .expect("select first member");
+    std::fs::write(
+        repository.join("packages/second/drift.omg"),
+        b"machine Drift::value() {}\n",
+    )
+    .expect("write moving-branch drift");
+    run_test_git(&repository, ["add", "."]);
+    run_test_git(
+        &repository,
+        [
+            "commit",
+            "--quiet",
+            "-m",
+            "move branch after first selection",
+        ],
+    );
     let second = acquisitions
         .resolve_selected(
             &selected("second"),
             SourceCacheLane::Retained(storage.git_sources()),
+            SourceCacheLane::Retained(storage.workspace_members()),
             LocalSourceLimits::default(),
         )
         .expect("select second member");
 
     assert_eq!(acquisitions.acquisition_count(), 1);
-    assert_eq!(first.acquisition_root(), second.acquisition_root());
+    assert_eq!(first.source().commit(), second.source().commit());
+    assert!(!second.snapshot_root().join("drift.omg").exists());
+    assert_ne!(first.snapshot_root(), second.snapshot_root());
     assert_eq!(first.resolution(), second.resolution());
     assert_ne!(first.selection_evidence(), second.selection_evidence());
     assert_eq!(
@@ -80,20 +99,18 @@ machine build(builder: &mut Build) {
     let mut workspaces = BTreeMap::new();
     register_git_repository(
         &mut workspaces,
+        &acquisition,
         first.key().source_lineage(),
-        first.acquisition_root(),
         first.resolution(),
-        first.acquisition_materialization(),
         first.selection_evidence(),
         first.source_limits(),
     )
     .expect("register first selected package");
     register_git_repository(
         &mut workspaces,
+        &acquisition,
         second.key().source_lineage(),
-        second.acquisition_root(),
         second.resolution(),
-        second.acquisition_materialization(),
         second.selection_evidence(),
         second.source_limits(),
     )

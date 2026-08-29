@@ -1,7 +1,8 @@
 //! Authenticated Git tree materialization and immutable snapshot verification.
 
 use crate::SourceResolveError;
-use crate::custody::tree::{CacheCustodyKind, read_bounded_cache_record};
+use crate::custody::lock::CacheEntryLock;
+use crate::custody::tree::{CacheCustodyKind, cache_custody_invalid, read_bounded_cache_record};
 use crate::git::cache::identity::cache_invalid;
 use crate::git::cache::repository::VerifiedGitRepository;
 use crate::git::executable::executor::GitExecutor;
@@ -17,8 +18,11 @@ use crate::local::capture::{
     capture_local_source_from_open_root, io_error, open_absolute_directory_nofollow,
 };
 use crate::local::model::ResolvedLocalSource;
+use crate::storage::RetainedStorageLane;
 use cap_fs_ext::DirExt;
+use cap_std::fs::Dir as CapabilityDirectory;
 use std::collections::BTreeMap;
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
 use super::construction::{
@@ -33,22 +37,99 @@ pub(crate) fn resolve_git_snapshot(
     executor: &GitExecutor,
     repository: &VerifiedGitRepository,
     tree: &str,
-    mut entries: Vec<GitTreeEntry>,
+    entries: Vec<GitTreeEntry>,
     limits: LocalSourceLimits,
 ) -> Result<(PathBuf, ResolvedLocalSource), SourceResolveError> {
     let expected = preflight_git_snapshot(tree, &entries)?;
     let snapshots = repository.open_or_create_snapshots()?;
     let publication = snapshots.path.join(format!("tree-{tree}"));
-    if snapshots.publication_exists(&publication)? {
-        release_git_blob_payloads(&mut entries);
-        let result = verify_git_snapshot(&publication, &expected, &entries, limits);
-        return reconcile_git_cache_operation_result(result, snapshots.verify_identity(), None);
-    }
-
-    let mut pending = PendingMaterializedSnapshot::create_from_open_parent(
+    let publication_exists = snapshots.publication_exists(&publication)?;
+    let result = resolve_git_snapshot_in_collection(
+        executor,
         CacheCustodyKind::Git,
         &snapshots.path,
         &snapshots.directory,
+        tree,
+        entries,
+        &expected,
+        limits,
+        Some(publication_exists),
+    );
+    reconcile_git_cache_operation_result(result, snapshots.verify_identity(), None)
+}
+
+/// Publish an authenticated, re-rooted Git member tree directly beneath a
+/// retained workspace-member lane.
+///
+/// The tree object ID is the publication key. Reuse never trusts that key
+/// alone: metadata, custody, shape, modes, payload bytes, and reconstructed
+/// source identity are verified again while the exact lane and entry lock are
+/// retained.
+pub(crate) fn publish_git_member_snapshot(
+    executor: &GitExecutor,
+    lane: &RetainedStorageLane,
+    tree: &str,
+    entries: Vec<GitTreeEntry>,
+    limits: LocalSourceLimits,
+) -> Result<(PathBuf, ResolvedLocalSource), SourceResolveError> {
+    let expected = preflight_git_snapshot(tree, &entries)?;
+    lane.verify_path_identity()?;
+
+    let lock_name = format!("tree-{tree}.lock");
+    let entry_lock = CacheEntryLock::acquire_local_from_parent(
+        lane.path(),
+        lane.directory(),
+        OsStr::new(&lock_name),
+    )?;
+    lane.verify_path_identity()?;
+
+    let result = resolve_git_snapshot_in_collection(
+        executor,
+        CacheCustodyKind::LocalSnapshot,
+        lane.path(),
+        lane.directory(),
+        tree,
+        entries,
+        &expected,
+        limits,
+        None,
+    );
+    let retained_custody = entry_lock
+        .verify_path_identity()
+        .and_then(|()| lane.verify_path_identity());
+    match retained_custody {
+        Ok(()) => result,
+        Err(error) => Err(error),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn resolve_git_snapshot_in_collection(
+    executor: &GitExecutor,
+    kind: CacheCustodyKind,
+    collection_path: &Path,
+    collection: &CapabilityDirectory,
+    tree: &str,
+    mut entries: Vec<GitTreeEntry>,
+    expected: &GitSnapshotMetadata,
+    limits: LocalSourceLimits,
+    known_publication_exists: Option<bool>,
+) -> Result<(PathBuf, ResolvedLocalSource), SourceResolveError> {
+    let publication_name = format!("tree-{tree}");
+    let publication = collection_path.join(&publication_name);
+    let publication_exists = match known_publication_exists {
+        Some(exists) => exists,
+        None => snapshot_publication_exists(kind, collection, &publication_name, &publication)?,
+    };
+    if publication_exists {
+        release_git_blob_payloads(&mut entries);
+        return verify_git_snapshot(kind, &publication, expected, &entries, limits);
+    }
+
+    let mut pending = PendingMaterializedSnapshot::create_from_open_parent(
+        kind,
+        collection_path,
+        collection,
         &format!(".tree-{tree}.stage"),
     )?;
     let source = pending.root.join(GIT_SNAPSHOT_SOURCE);
@@ -66,7 +147,7 @@ pub(crate) fn resolve_git_snapshot(
         match &entry.kind {
             GitTreeEntryKind::Tree => {
                 open_or_create_snapshot_directory(
-                    CacheCustodyKind::Git,
+                    kind,
                     &source_directory,
                     &entry.relative_path,
                     &source,
@@ -74,7 +155,7 @@ pub(crate) fn resolve_git_snapshot(
             }
             GitTreeEntryKind::File { executable, bytes } => {
                 write_snapshot_file_from_open_root(
-                    CacheCustodyKind::Git,
+                    kind,
                     &source_directory,
                     &entry.relative_path,
                     &source,
@@ -84,7 +165,7 @@ pub(crate) fn resolve_git_snapshot(
             }
             GitTreeEntryKind::Symlink { target_bytes } => {
                 create_snapshot_symlink_from_open_root(
-                    CacheCustodyKind::Git,
+                    kind,
                     &source_directory,
                     &entry.relative_path,
                     &source,
@@ -117,14 +198,14 @@ pub(crate) fn resolve_git_snapshot(
         ));
     }
     write_snapshot_file_from_open_root(
-        CacheCustodyKind::Git,
+        kind,
         pending.directory()?,
         Path::new(GIT_SNAPSHOT_METADATA),
         &pending.root,
         &git_snapshot_metadata(tree, &staged),
         false,
     )?;
-    make_open_snapshot_read_only(CacheCustodyKind::Git, pending.directory()?, &pending.root)?;
+    make_open_snapshot_read_only(kind, pending.directory()?, &pending.root)?;
     let finalized = capture_local_source_from_open_root(
         source.clone(),
         source_directory
@@ -143,12 +224,31 @@ pub(crate) fn resolve_git_snapshot(
             "finalized snapshot did not preserve the authenticated Git tree exactly",
         ));
     }
-    pending.publish(&snapshots.path, &publication)?;
+    pending.publish(collection_path, &publication)?;
 
     // The returned identity is always calculated from the atomically published tree, never from
     // the staging directory or Git's mutable object-cache state.
-    let result = verify_git_snapshot(&publication, &expected, &entries, limits);
-    reconcile_git_cache_operation_result(result, snapshots.verify_identity(), None)
+    verify_git_snapshot(kind, &publication, expected, &entries, limits)
+}
+
+fn snapshot_publication_exists(
+    kind: CacheCustodyKind,
+    collection: &CapabilityDirectory,
+    publication_name: &str,
+    publication: &Path,
+) -> Result<bool, SourceResolveError> {
+    match collection.symlink_metadata(publication_name) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
+            Err(cache_custody_invalid(
+                kind,
+                publication,
+                "Git snapshot publication is not a concrete directory",
+            ))
+        }
+        Ok(_) => Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(io_error(publication, error)),
+    }
 }
 
 pub(crate) fn preflight_git_snapshot(
@@ -237,6 +337,7 @@ fn release_git_blob_payloads(entries: &mut [GitTreeEntry]) {
 }
 
 fn verify_git_snapshot(
+    kind: CacheCustodyKind,
     publication: &Path,
     expected: &GitSnapshotMetadata,
     entries: &[GitTreeEntry],
@@ -244,12 +345,8 @@ fn verify_git_snapshot(
 ) -> Result<(PathBuf, ResolvedLocalSource), SourceResolveError> {
     let source = publication.join(GIT_SNAPSHOT_SOURCE);
     let metadata_path = publication.join(GIT_SNAPSHOT_METADATA);
-    let metadata = read_bounded_cache_record(
-        CacheCustodyKind::Git,
-        publication,
-        Path::new(GIT_SNAPSHOT_METADATA),
-        1024,
-    )?;
+    let metadata =
+        read_bounded_cache_record(kind, publication, Path::new(GIT_SNAPSHOT_METADATA), 1024)?;
     let metadata = parse_git_snapshot_metadata(&metadata, &metadata_path)?;
     if metadata != *expected {
         return Err(cache_invalid(
@@ -259,7 +356,7 @@ fn verify_git_snapshot(
     }
     let publication_directory = open_absolute_directory_nofollow(publication)
         .map_err(|error| cache_invalid(publication, error.to_string()))?;
-    verify_open_snapshot_tree_modes(CacheCustodyKind::Git, &publication_directory, publication)?;
+    verify_open_snapshot_tree_modes(kind, &publication_directory, publication)?;
     let source_directory = publication_directory
         .open_dir_nofollow(GIT_SNAPSHOT_SOURCE)
         .map_err(|error| cache_invalid(&source, error.to_string()))?;
