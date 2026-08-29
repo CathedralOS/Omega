@@ -15,6 +15,7 @@ pub struct AdmittedBoundarySettlement<'execution> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
+    TranslationValidation(crate::AbstractToTargetTranslationValidationError),
     InvalidRankedCountdown(MachineId),
     EntryFunctionMissing(MachineId),
     ProviderInstallationIdentityMismatch,
@@ -170,6 +171,12 @@ pub enum LoweringError {
         expected: usize,
         actual: usize,
     },
+}
+
+impl From<crate::AbstractToTargetTranslationValidationError> for LoweringError {
+    fn from(error: crate::AbstractToTargetTranslationValidationError) -> Self {
+        Self::TranslationValidation(error)
+    }
 }
 
 impl std::fmt::Display for LoweringError {

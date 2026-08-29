@@ -9,7 +9,9 @@ mod model;
 
 pub use model::*;
 
-use omega_abstract_operations_to_target_operations::{AdmittedBoundarySettlement, LoweringError};
+use omega_abstract_operations_to_target_operations::{
+    AdmittedBoundarySettlement, LoweringError, validate_abstract_to_target_translation,
+};
 use omega_optimization_run_to_abstract_operations::ValidatedOptimizedAbstractPlan;
 use omega_psi_to_abstract_operations::AdmittedProviderInstallation;
 use omega_target::NativeTarget;
@@ -19,9 +21,12 @@ pub fn lower_optimized_to_target_operations(
     target: NativeTarget,
 ) -> Result<ValidatedOptimizedTargetOperations, LoweringError> {
     let target_operations = lowering::lower_optimized_plan(&optimized, target)?;
+    let translation_validation =
+        validate_abstract_to_target_translation(optimized.plan(), target, &target_operations)?;
     Ok(ValidatedOptimizedTargetOperations {
         optimized,
         target_operations,
+        translation_validation,
         provider_installation: None,
     })
 }
@@ -33,9 +38,12 @@ pub fn lower_optimized_to_target_operations_with_provider_executions(
 ) -> Result<ValidatedOptimizedTargetOperations, LoweringError> {
     let target_operations =
         lowering::lower_optimized_plan_with_provider_executions(&optimized, target, settlements)?;
+    let translation_validation =
+        validate_abstract_to_target_translation(optimized.plan(), target, &target_operations)?;
     Ok(ValidatedOptimizedTargetOperations {
         optimized,
         target_operations,
+        translation_validation,
         provider_installation: None,
     })
 }
@@ -56,9 +64,12 @@ pub fn lower_optimized_to_target_operations_with_provider_executions_and_install
         settlements,
         &installation,
     )?;
+    let translation_validation =
+        validate_abstract_to_target_translation(optimized.plan(), target, &target_operations)?;
     Ok(ValidatedOptimizedTargetOperations {
         optimized,
         target_operations,
+        translation_validation,
         provider_installation: Some(Box::new(installation)),
     })
 }

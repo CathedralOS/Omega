@@ -2878,6 +2878,49 @@ fn selected_lowering_validation_cannot_reenter_its_producer() {
 }
 
 #[test]
+fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
+    let root = workspace_root();
+    let stage = root.join(
+        "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src",
+    );
+    let validation = recursive_rust_source(&stage.join("validation"));
+    for forbidden in [
+        "crate::lowering",
+        "lower_to_target_operations",
+        "lower_scalar_return",
+        "KnownScalar",
+        "KnownInteger",
+        "insert_value",
+    ] {
+        assert!(
+            !validation.contains(forbidden),
+            "independent abstract-to-target translation validation must not consume producer mechanics; found {forbidden}",
+        );
+    }
+    for required in [
+        "source.functions.len() != target.functions.len()",
+        "straight_line_integer_immediate::is_candidate",
+        "straight_line_integer_immediate::validate",
+    ] {
+        assert!(
+            validation.contains(required),
+            "abstract-to-target validation must visibly own independent `{required}` reconstruction",
+        );
+    }
+
+    let optimized_entrance = std::fs::read_to_string(root.join(
+        "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/selection/optimized_target_operations/mod.rs",
+    ))
+    .expect("read optimized target-operation entrance");
+    assert!(
+        optimized_entrance.contains(
+            "validate_abstract_to_target_translation(optimized.plan(), target, &target_operations)?",
+        ),
+        "the optimized target-operation entrance must join lowering to independent translation validation before carrier construction",
+    );
+}
+
+#[test]
 fn selected_structural_unit_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let selection = root.join(

@@ -262,6 +262,16 @@ and no replacement exceeds 453 lines. The stage, function, scalar,
 straight-line, conditional-scalar, and structural joins are mandatory
 coordination entrances rather than re-export walls.
 
+Abstract-to-target translation validation is a parallel rung, not another
+branch inside producer lowering. Its 80-line `validation/mod.rs` entrance owns
+target/root/roster custody and dispatches exact replay to
+`straight_line_integer_immediate.rs`; immutable receipt and error vocabulary
+remain in `model.rs`. The optimizer's 75-line target-operation entrance owns
+the visible `lower -> independent validation -> retained carrier` join. An
+architecture gate prevents validation from importing lowering helpers, and
+the receipt names covered function families instead of implying that pending
+families were checked.
+
 The temporary target-to-assigned compatibility continuation is governed too.
 Its 33-line stage entrance checks the entry roster and coordinates per-function
 assignment; a 25-line function entrance retains identity and provenance around
