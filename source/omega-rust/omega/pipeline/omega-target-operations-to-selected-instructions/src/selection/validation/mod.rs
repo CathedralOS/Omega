@@ -3,6 +3,7 @@
 mod blocks;
 mod functions;
 mod integrity;
+mod structural_unit;
 mod virtual_registers;
 
 use super::constraints::require_key_rows;

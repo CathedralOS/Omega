@@ -2,9 +2,11 @@ use super::blocks::validate_selected_blocks;
 use super::integrity::{
     validate_block_constraints, validate_def_use, validate_dense, validate_provenance_partition,
 };
+use super::structural_unit::{
+    reconstruct_structural_unit_contract, reconstruct_structural_unit_layout,
+};
 use super::virtual_registers::validate_virtual_registers;
 use crate::selection::constraints::row;
-use crate::selection::construction::{structural_call_row, structural_unit_layout};
 use crate::selection::shared::*;
 
 pub(super) fn validate_function(
@@ -108,7 +110,9 @@ pub(super) fn validate_structural_unit_function(
             function: function_index,
         });
     }
-    let layout = structural_unit_layout(function_index, source)?;
+    let reconstructed =
+        reconstruct_structural_unit_contract(function_index, source, keys, catalog)?;
+    let layout = reconstructed.layout;
     let parameters_match = selected.abi.parameters.len() == source.parameters.len()
         && selected
             .abi
@@ -148,8 +152,8 @@ pub(super) fn validate_structural_unit_function(
             else {
                 return Err(SelectedInstructionError::SourceCustodyMismatch);
             };
-            let callee_layout = structural_unit_layout(function_index, callee)?;
-            let row = structural_call_row(function_index, keys, catalog)?;
+            let callee_layout = reconstruct_structural_unit_layout(function_index, callee)?;
+            let row = reconstructed.reconstruct_call_row()?;
             let arguments_match = selected_call.arguments.len() == source_call.arguments.len()
                 && selected_call
                     .arguments

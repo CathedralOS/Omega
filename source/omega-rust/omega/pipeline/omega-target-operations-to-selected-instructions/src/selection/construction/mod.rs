@@ -3,4 +3,4 @@
 mod plan;
 mod scalar;
 
-pub(super) use plan::{build_plan, structural_call_row, structural_unit_layout};
+pub(super) use plan::build_plan;

@@ -27,12 +27,15 @@ the 21-line responsibility map between the two stages, not a hidden third
 coordinator.
 
 Immediately below the legalization entrance, `catalog.rs` is the sole ordered
-inventory for the seven current scalar forms. Each row names its recipe,
-producer matcher kind, exact source-shape constraints, non-authoritative
-structural cost, and independent validator kind. `source/matchers.rs` walks
-that catalog to recognize a form; `replay/validators.rs` reconstructs the same
-membership without calling producer code. Plain Unit and structural Unit
-families remain distinct mandatory forms and are the next catalog slice.
+inventory for all twelve current forms: seven scalar, one plain Unit, and four
+structural Unit. Each row names its typed recipe, producer matcher kind, exact
+source-shape constraints, non-authoritative structural cost, and independent
+validator kind. `source/matchers/` walks that catalog to recognize a form;
+`replay/validators/` reconstructs membership without calling producer code.
+Removing a row disables the form, and missing or ambiguous recipe lookup fails
+closed. The Unit recipe families are retained in the V9 legalized-plan
+identity. Structural selected-form validation separately reconstructs ABI
+layout and call constraints without importing selection construction helpers.
 
 ## Register allocation
 

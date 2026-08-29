@@ -1,5 +1,6 @@
 //! Independent replay of a proposed legal-operation projection.
 
+mod custody;
 mod functions;
 mod leaf;
 mod shared;
@@ -10,7 +11,7 @@ use functions::{replay_function, replay_unit_function};
 use shared::*;
 use structural::replay_structural_unit_function;
 
-/// Independently replay a proposed V8 legal projection against all three raw
+/// Independently replay a proposed V9 legal projection against all three raw
 /// custody inputs. This module deliberately compares fields in place instead
 /// of constructing a second plan with the producer's derivation strategy.
 pub(crate) fn replay_terminal_legalized_plan(
@@ -19,29 +20,7 @@ pub(crate) fn replay_terminal_legalized_plan(
     unit: &PsiOptimizationUnit,
     proposed: &LegalizedOperationPlan,
 ) -> Result<usize, LegalizationError> {
-    if omega_optimization_validation::validate_psi_optimization_unit(unit).is_err()
-        || omega_optimization_unit::recompute_psi_optimization_unit_identity(unit) != unit.identity
-        || target.psi != abstract_plan.psi
-        || target.psi != unit.psi
-        || target.entry != abstract_plan.entry
-        || target.entry != unit.entry
-        || target.functions.len() != abstract_plan.functions.len()
-        || target.functions.len() != unit.functions.len()
-    {
-        return Err(Error::SourceCustodyMismatch);
-    }
-    if proposed.psi != target.psi
-        || proposed.optimization_unit != unit.identity
-        || proposed.fuel_schedule != unit.fuel_schedule
-        || proposed.target != target.target
-        || proposed.entry != target.entry
-        || proposed.functions.len()
-            + proposed.unit_functions.len()
-            + proposed.structural_unit_functions.len()
-            != target.functions.len()
-    {
-        return Err(Error::NonCanonicalLegalizedPlan);
-    }
+    validate_replay_custody(target, abstract_plan, unit, proposed)?;
 
     let mut decomposition_count = 0usize;
     for (index, target_function) in target.functions.iter().enumerate() {
@@ -112,3 +91,4 @@ pub(crate) fn replay_terminal_legalized_plan(
     }
     Ok(decomposition_count)
 }
+use custody::validate_replay_custody;

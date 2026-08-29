@@ -206,6 +206,39 @@ fn workspace_root() -> std::path::PathBuf {
         .to_path_buf()
 }
 
+fn recursive_rust_source(root: &std::path::Path) -> String {
+    let mut pending = vec![root.to_path_buf()];
+    let mut paths = Vec::new();
+    while let Some(directory) = pending.pop() {
+        for entry in std::fs::read_dir(&directory)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", directory.display()))
+        {
+            let path = entry
+                .unwrap_or_else(|error| {
+                    panic!(
+                        "failed to read an entry below {}: {error}",
+                        directory.display()
+                    )
+                })
+                .path();
+            if path.is_dir() {
+                pending.push(path);
+            } else if path.extension().and_then(|extension| extension.to_str()) == Some("rs") {
+                paths.push(path);
+            }
+        }
+    }
+    paths.sort();
+    paths
+        .into_iter()
+        .map(|path| {
+            std::fs::read_to_string(&path)
+                .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()))
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 fn normal_dependency_tree(package: &str) -> String {
     let manifest = workspace_root().join("source/omega-rust/omega/Cargo.toml");
     let output = Command::new(env!("CARGO"))
@@ -2282,30 +2315,14 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
     let legalization_replay = root.join(
         "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/replay",
     );
-    let legalization_replay_source = [
-        "mod.rs",
-        "functions.rs",
-        "leaf/mod.rs",
-        "leaf/exact_arithmetic.rs",
-        "leaf/fuel.rs",
-        "leaf/immediate.rs",
-        "leaf/recipe.rs",
-        "shared.rs",
-        "structural.rs",
-        "validators.rs",
-    ]
-    .into_iter()
-    .map(|leaf| {
-        let path = legalization_replay.join(leaf);
-        std::fs::read_to_string(&path)
-            .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()))
-    })
-    .collect::<Vec<_>>()
-    .join("\n");
+    let legalization_replay_source = recursive_rust_source(&legalization_replay);
     for forbidden in [
         "derive_source_functions",
         "match_scalar_form",
+        "LegalizationProducerMatcherKind",
         "ScalarLegalizationMatcherKind",
+        "UnitLegalizationMatcherKind",
+        "StructuralUnitLegalizationMatcherKind",
         "crate::source",
         "source::",
         "omega_register_model",
@@ -2316,20 +2333,19 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
             "independent legalization replay must not consume producer or selection helpers; found {forbidden}"
         );
     }
-    let legalization_producer_source = ["functions.rs", "leaves.rs", "matchers.rs", "shared.rs"]
-        .into_iter()
-        .map(|leaf| {
-            let path = legalization_replay
-                .parent()
-                .expect("replay has legalization parent")
-                .join("source")
-                .join(leaf);
-            std::fs::read_to_string(&path)
-                .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()))
-        })
-        .collect::<Vec<_>>()
-        .join("\n");
-    for forbidden in ["validator_accepts", "ScalarLegalizationValidatorKind"] {
+    let legalization_producer_source = recursive_rust_source(
+        &legalization_replay
+            .parent()
+            .expect("replay has legalization parent")
+            .join("source"),
+    );
+    for forbidden in [
+        "validator_accepts",
+        "LegalizationValidatorKind",
+        "ScalarLegalizationValidatorKind",
+        "UnitLegalizationValidatorKind",
+        "StructuralUnitLegalizationValidatorKind",
+    ] {
         assert!(
             !legalization_producer_source.contains(forbidden),
             "legalization producer must not consume replay validators; found {forbidden}"
@@ -2344,9 +2360,14 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
             panic!("failed to read {}: {error}", legalization_catalog.display())
         });
     for forbidden in [
+        "TargetOperation",
+        "TargetUnitOperation",
+        "AbstractOperation",
         "TargetIntegerExpression",
         "match_scalar_form",
         "validator_accepts",
+        "crate::source",
+        "crate::replay",
     ] {
         assert!(
             !legalization_catalog_source.contains(forbidden),
@@ -2658,6 +2679,48 @@ fn selected_lowering_validation_cannot_reenter_its_producer() {
         assert!(
             validation.contains(required),
             "selected-lowering validation must visibly own independent `{required}` reconstruction",
+        );
+    }
+}
+
+#[test]
+fn selected_structural_unit_validation_cannot_reenter_its_producer() {
+    let root = workspace_root();
+    let selection = root.join(
+        "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection",
+    );
+    let validation = recursive_rust_source(&selection.join("validation"));
+    for forbidden in [
+        "crate::selection::construction",
+        "selection::construction",
+        "construction::structural_unit_layout",
+        "construction::structural_call_row",
+    ] {
+        assert!(
+            !validation.contains(forbidden),
+            "independent structural-Unit selection validation must not consume producer mechanics; found {forbidden}",
+        );
+    }
+    for required in [
+        "reconstruct_structural_unit_contract",
+        "reconstruct_structural_unit_layout",
+        "reconstruct_structural_call_row",
+    ] {
+        assert!(
+            validation.contains(required),
+            "structural-Unit selection validation must visibly own independent `{required}` reconstruction",
+        );
+    }
+
+    let construction = recursive_rust_source(&selection.join("construction"));
+    for forbidden_export in [
+        "pub(in crate::selection) fn structural_unit_layout",
+        "pub(in crate::selection) fn structural_call_row",
+        "pub(super) use plan::{build_plan, structural_call_row, structural_unit_layout}",
+    ] {
+        assert!(
+            !construction.contains(forbidden_export),
+            "structural-Unit producer helpers must remain private to construction; found {forbidden_export}",
         );
     }
 }

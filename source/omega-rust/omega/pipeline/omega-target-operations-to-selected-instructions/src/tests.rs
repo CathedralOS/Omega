@@ -185,6 +185,55 @@ fn qualified_fixture_unit(
     unit
 }
 
+fn plain_unit_fixture() -> (
+    AbstractOperationPlan,
+    TargetOperationPlan,
+    PsiOptimizationUnit,
+) {
+    let machine = MachineId::new(1).unwrap();
+    let block = BlockId::new(1).unwrap();
+    let abstract_plan = AbstractOperationPlan {
+        psi: TerminalPsiIdentity {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            program_fingerprint: SemanticFingerprint::from_bytes([0x50; 32]),
+        },
+        entry: machine,
+        structural_types: Vec::new(),
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        functions: vec![AbstractFunction {
+            machine,
+            attachment: None,
+            entry: block,
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: AbstractFunctionResult::Unit,
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            block_entries: vec![AbstractBlockEntry {
+                block,
+                parameters: Vec::new(),
+                operation_offset: 0,
+            }],
+            operations: vec![AbstractOperation::ReturnUnit {
+                psi_edge: EdgeId::new(1).unwrap(),
+                cleanup_actions: Vec::new(),
+            }],
+        }],
+    };
+    let target = omega_abstract_operations_to_target_operations::lower_to_target_operations(
+        &abstract_plan,
+        omega_target::NativeTarget::linux_x64(),
+    )
+    .unwrap();
+    let unit = omega_optimization_unit::reconstruct_psi_optimization_unit_seed(
+        &abstract_plan,
+        FuelScheduleIdentity::new(1).unwrap(),
+    )
+    .unwrap();
+    (abstract_plan, target, unit)
+}
+
 fn installed_provider_legalization_fixture() -> (
     AbstractOperationPlan,
     TargetOperationPlan,
@@ -509,6 +558,39 @@ fn microsoft_selection_environment() -> (
 }
 
 #[test]
+fn plain_unit_catalog_form_is_produced_and_independently_replayed() {
+    let (abstract_plan, target, unit) = plain_unit_fixture();
+    let legalized = legalize_target_operations(&target, &abstract_plan, &unit)
+        .expect("plain Unit return legalizes through its catalog row");
+    assert!(legalized.plan().functions.is_empty());
+    assert!(legalized.plan().structural_unit_functions.is_empty());
+    assert_eq!(legalized.plan().unit_functions.len(), 1);
+    assert_eq!(
+        legalized.plan().unit_functions[0].recipe,
+        omega_legalized_operations::UnitLegalizationRecipe::ReturnUnitV1
+    );
+    assert_eq!(legalized.receipt().function_count(), 1);
+
+    let mut wrong_edge = legalized.plan().clone();
+    wrong_edge.unit_functions[0].return_edge = EdgeId::new(2).unwrap();
+    assert!(validate_legalized_operations(&target, &abstract_plan, &unit, wrong_edge).is_err());
+
+    let mut wrong_machine = legalized.plan().clone();
+    wrong_machine.unit_functions[0].machine = MachineId::new(2).unwrap();
+    assert!(validate_legalized_operations(&target, &abstract_plan, &unit, wrong_machine).is_err());
+
+    let mut duplicate = legalized.plan().clone();
+    duplicate
+        .unit_functions
+        .push(duplicate.unit_functions[0].clone());
+    assert!(validate_legalized_operations(&target, &abstract_plan, &unit, duplicate).is_err());
+
+    let mut erased = legalized.plan().clone();
+    erased.unit_functions.clear();
+    assert!(validate_legalized_operations(&target, &abstract_plan, &unit, erased).is_err());
+}
+
+#[test]
 fn structural_call_and_terminal_callee_are_produced_and_replayed() {
     let (abstract_plan, target, unit) = structural_call_fixture();
     let legalized = legalize_target_operations(&target, &abstract_plan, &unit)
@@ -517,6 +599,14 @@ fn structural_call_and_terminal_callee_are_produced_and_replayed() {
     assert_eq!(legalized.plan().structural_unit_functions.len(), 2);
     assert!(legalized.plan().structural_unit_functions[0].call.is_some());
     assert!(legalized.plan().structural_unit_functions[1].call.is_none());
+    assert_eq!(
+        legalized.plan().structural_unit_functions[0].recipe,
+        omega_legalized_operations::StructuralUnitLegalizationRecipe::AuthoredCallThenReturnUnitV1
+    );
+    assert_eq!(
+        legalized.plan().structural_unit_functions[1].recipe,
+        omega_legalized_operations::StructuralUnitLegalizationRecipe::ReturnUnitV1
+    );
     assert_eq!(legalized.receipt().function_count(), 2);
 
     let (physical, catalog, constraints) = microsoft_selection_environment();
@@ -554,6 +644,10 @@ fn installed_provider_call_legalization_retains_source_and_completion_custody() 
         .call
         .as_ref()
         .expect("installed provider call");
+    assert_eq!(
+        legalized.plan().structural_unit_functions[0].recipe,
+        omega_legalized_operations::StructuralUnitLegalizationRecipe::InstalledProviderCallThenReturnUnitV1
+    );
     let omega_legalized_operations::LegalizedCallUnitSource::InstalledProvider {
         boundary,
         provider,
@@ -675,6 +769,10 @@ fn claim_completion_settlement_is_ordered_metadata_without_instruction_ids() {
     let legalized = legalize_target_operations(&target, &abstract_plan, &unit)
         .expect("two-Extent claim-completion settlement legalizes and replays");
     let caller = &legalized.plan().structural_unit_functions[0];
+    assert_eq!(
+        caller.recipe,
+        omega_legalized_operations::StructuralUnitLegalizationRecipe::ClaimCompletionSettlementsThenReturnUnitV1
+    );
     assert!(caller.call.is_none());
     assert_eq!(caller.boundary_settlements.len(), 2);
     assert_eq!(
@@ -851,6 +949,22 @@ fn selected_structural_replay_rejects_abi_constraint_and_semantic_custody_mutati
 fn independent_replay_rejects_placement_effect_and_roster_erasure() {
     let (abstract_plan, target, unit) = structural_call_fixture();
     let legalized = legalize_target_operations(&target, &abstract_plan, &unit).unwrap();
+
+    let mut corrupted = legalized.plan().clone();
+    corrupted.structural_unit_functions[0].recipe =
+        omega_legalized_operations::StructuralUnitLegalizationRecipe::InstalledProviderCallThenReturnUnitV1;
+    assert!(validate_legalized_operations(&target, &abstract_plan, &unit, corrupted).is_err());
+
+    let mut malformed_target = target.clone();
+    let omega_target_operations::TargetOperation::UnitBody(caller) =
+        &mut malformed_target.functions[0].operation
+    else {
+        panic!("fixture caller is Unit")
+    };
+    caller
+        .operations
+        .push(caller.operations.last().unwrap().clone());
+    assert!(legalize_target_operations(&malformed_target, &abstract_plan, &unit).is_err());
 
     let mut corrupted = legalized.plan().clone();
     corrupted.structural_unit_functions[0]
