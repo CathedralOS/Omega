@@ -2,10 +2,11 @@
 
 use crate::resolution::source::{
     CacheCustodyKind, STAGING_SEQUENCE, SourceResolveError, cache_custody_invalid,
-    direct_cache_child_name, io_error, open_absolute_directory_nofollow,
-    publish_cache_directory_from_open_parent, same_capability_file_identity,
-    verify_cache_custody_root,
+    direct_cache_child_name, io_error, publish_cache_directory_from_open_parent,
+    same_capability_file_identity,
 };
+#[cfg(test)]
+use crate::resolution::source::{open_absolute_directory_nofollow, verify_cache_custody_root};
 use cap_fs_ext::DirExt;
 use cap_std::fs::Dir as CapabilityDirectory;
 use std::ffi::OsString;
@@ -24,6 +25,7 @@ pub(in crate::resolution::source) struct PendingMaterializedSnapshot {
 }
 
 impl PendingMaterializedSnapshot {
+    #[cfg(test)]
     pub(in crate::resolution::source) fn create(
         kind: CacheCustodyKind,
         snapshots: &Path,

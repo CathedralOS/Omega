@@ -21,13 +21,13 @@ pub use reconcile::{
     PackageSourceCustody, ResolvedDependencySourceRequest, ResolvedPackageSourceClosure,
     ResolvedPackageSourceRequestSet, ResolvedRootPackageSourceRequest,
 };
+#[cfg(test)]
+pub(crate) use sources::resolve_external_local_package_closure;
 pub use sources::{
     ResolveDependencySourceError, ResolveExternalLocalPackageClosureError,
     ResolveGitPackageClosureError, ResolveWorkspacePackageClosureError,
-    resolve_external_local_package_closure, resolve_external_local_package_closure_with_storage,
-    resolve_external_local_project_closure, resolve_external_local_project_closure_with_storage,
-    resolve_git_package_closure, resolve_git_package_closure_with_storage,
-    resolve_workspace_package_closure, resolve_workspace_package_closure_in_context,
+    resolve_external_local_package_closure_with_storage,
+    resolve_external_local_project_closure_with_storage, resolve_git_package_closure_with_storage,
     resolve_workspace_package_closure_in_context_with_storage,
     resolve_workspace_package_closure_with_storage,
 };

@@ -6,13 +6,11 @@ use crate::resolution::source::custody::{
 };
 use crate::resolution::source::error::SourceResolveError;
 use crate::resolution::source::limits::{GIT_CONFIG_SHA256, LocalSourceLimits};
-use crate::resolution::source::local::{
-    SourceTreePolicy, capture_local_source, io_error, open_absolute_directory_nofollow,
-};
+use crate::resolution::source::local::{SourceTreePolicy, capture_local_source, io_error};
 use crate::resolution::source::observations::{
     PendingResolvedGitSource, ResolvedGitSource, issue_git_source_resolution_observation,
 };
-use crate::resolution::source::storage::RetainedStorageLane;
+use crate::resolution::source::storage::{RetainedStorageLane, SourceResolverStorage};
 use crate::storage::record_file::{RecordFileLimits, RecordFileRoot};
 use cap_fs_ext::DirExt;
 use cap_std::fs::Dir as CapabilityDirectory;
@@ -35,26 +33,6 @@ use super::request::{GitExecutionTransport, GitSourceRequest};
 use super::snapshot::resolve_git_snapshot;
 use omega_resolver_execution::ResolverExecutionRequestedEndpoint;
 
-pub fn resolve_git_source(
-    request: &GitSourceRequest,
-    cache_dir: impl AsRef<Path>,
-    limits: LocalSourceLimits,
-) -> Result<ResolvedGitSource, SourceResolveError> {
-    let limits = limits.compiler_bounded();
-    let cache_dir = cache_dir.as_ref();
-    std::fs::create_dir_all(cache_dir).map_err(|error| io_error(cache_dir, error))?;
-    let cache_dir = cache_dir
-        .canonicalize()
-        .map_err(|error| io_error(cache_dir, error))?;
-    verify_git_cache_root_custody(&cache_dir)?;
-    let cache_directory = open_absolute_directory_nofollow(&cache_dir)
-        .map_err(|error| io_error(&cache_dir, error))?;
-    let result =
-        resolve_git_source_from_retained_cache(request, &cache_dir, &cache_directory, limits);
-    verify_git_cache_root_custody(&cache_dir)?;
-    result
-}
-
 pub(in crate::resolution) fn resolve_git_source_in_lane(
     request: &GitSourceRequest,
     lane: &RetainedStorageLane,
@@ -68,6 +46,17 @@ pub(in crate::resolution) fn resolve_git_source_in_lane(
         limits.compiler_bounded(),
     );
     lane.verify_path_identity()?;
+    result
+}
+
+pub fn resolve_git_source_with_storage(
+    request: &GitSourceRequest,
+    storage: &SourceResolverStorage,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedGitSource, SourceResolveError> {
+    storage.verify_path_identity()?;
+    let result = resolve_git_source_in_lane(request, storage.git_sources(), limits);
+    storage.verify_path_identity()?;
     result
 }
 

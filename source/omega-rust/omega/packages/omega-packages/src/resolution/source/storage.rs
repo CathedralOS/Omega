@@ -47,6 +47,15 @@ impl SourceResolverStorage {
         Self::create_beneath(&base)
     }
 
+    /// Open an isolated resolver tree beneath a caller-custodied base.
+    ///
+    /// This is the explicit hardened-mode constructor for CI, bootstrap, and
+    /// other infrastructure that supplies its own private storage boundary.
+    /// Ordinary commands must use [`Self::for_current_user`].
+    pub fn for_hardened_base(base: impl AsRef<Path>) -> Result<Self, SourceResolveError> {
+        Self::create_beneath(base.as_ref())
+    }
+
     #[cfg(test)]
     pub(crate) fn root(&self) -> &Path {
         &self.root

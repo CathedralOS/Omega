@@ -27,6 +27,41 @@ pub(super) fn temp_root(name: &str) -> PathBuf {
     ))
 }
 
+pub(super) fn resolve_git_source(
+    request: &GitSourceRequest,
+    hardened_base: impl AsRef<Path>,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedGitSource, SourceResolveError> {
+    let storage = SourceResolverStorage::for_hardened_base(hardened_base)?;
+    resolve_git_source_with_storage(request, &storage, limits)
+}
+
+pub(super) fn resolve_local_source_snapshot(
+    root: impl AsRef<Path>,
+    hardened_base: impl AsRef<Path>,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedLocalSnapshot, SourceResolveError> {
+    let storage = SourceResolverStorage::for_hardened_base(hardened_base)?;
+    resolve_local_source_snapshot_with_storage(root, &storage, limits)
+}
+
+pub(super) fn git_storage_lane(hardened_base: &Path) -> PathBuf {
+    resolver_storage_root(hardened_base).join("git-sources")
+}
+
+#[cfg(unix)]
+pub(super) fn external_local_storage_lane(hardened_base: &Path) -> PathBuf {
+    resolver_storage_root(hardened_base).join("external-local-sources")
+}
+
+fn resolver_storage_root(hardened_base: &Path) -> PathBuf {
+    hardened_base
+        .join("CathedralOS")
+        .join("Omega")
+        .join("source")
+        .join("v1")
+}
+
 #[cfg(target_os = "macos")]
 pub(super) fn change_macos_acl(path: &Path, arguments: &[&str]) {
     let status = Command::new("/bin/chmod")
@@ -152,24 +187,30 @@ pub(super) fn package_fixtures_root() -> PathBuf {
 }
 
 pub(super) fn git_cache_entry_root(cache: &Path, request: &GitSourceRequest) -> PathBuf {
-    cache.join(format!(
+    git_storage_lane(cache).join(git_cache_entry_name(request))
+}
+
+fn git_cache_entry_name(request: &GitSourceRequest) -> String {
+    format!(
         "git-{}",
         git_cache_identity(
             request.locator_identity(),
             request.requested_revision(),
             request.execution_transport(),
         )
-    ))
+    )
 }
 
 pub(super) fn open_verified_git_repository(
     cache: &Path,
     request: &GitSourceRequest,
 ) -> VerifiedGitRepository {
-    let canonical_cache = cache.canonicalize().expect("canonicalize Git cache");
+    let canonical_cache = git_storage_lane(cache)
+        .canonicalize()
+        .expect("canonicalize Git cache");
     let cache_directory =
         open_absolute_directory_nofollow(&canonical_cache).expect("retain Git cache parent");
-    let entry_root = git_cache_entry_root(&canonical_cache, request);
+    let entry_root = canonical_cache.join(git_cache_entry_name(request));
     let entry_name = entry_root.file_name().expect("Git cache entry has a name");
     VerifiedGitRepository::open(
         &cache_directory,

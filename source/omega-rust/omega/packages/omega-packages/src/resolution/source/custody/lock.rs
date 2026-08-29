@@ -4,6 +4,7 @@ use super::platform::{
     same_capability_file_identity, verify_capability_cache_node_owner_and_mode,
     verify_macos_open_cache_extended_acl_custody, verify_windows_open_cache_custody,
 };
+#[cfg(test)]
 use super::publication::direct_cache_child_name;
 use super::tree::{CacheCustodyKind, cache_custody_invalid, verify_cache_custody_root};
 use crate::resolution::source::SourceResolveError;
@@ -81,6 +82,7 @@ impl CacheEntryLock {
         Ok((file, parent, lock_name.to_os_string()))
     }
 
+    #[cfg(test)]
     pub(in crate::resolution::source) fn open_retained(
         kind: CacheCustodyKind,
         path: &Path,
@@ -225,12 +227,14 @@ impl CacheEntryLock {
         })
     }
 
+    #[cfg(test)]
     pub(in crate::resolution::source) fn acquire_local(
         path: &Path,
     ) -> Result<Self, SourceResolveError> {
         Self::acquire_local_with_timeout(path, LOCAL_SNAPSHOT_LOCK_TIMEOUT)
     }
 
+    #[cfg(test)]
     pub(in crate::resolution::source) fn acquire_local_with_timeout(
         path: &Path,
         timeout: Duration,

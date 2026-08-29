@@ -22,31 +22,6 @@ closed. Compiler-issued package review remains non-admitting.
 
 ## P0 — Source resolver boundary
 
-- [ ] **PRIVATE-RESOLVER-STORAGE-BY-DEFAULT.** Replace the ambient-filesystem
-  custody model completely. Ordinary command paths now use a versioned private
-  per-user `SourceResolverStorage`; project-local, environment-overridden, and
-  `%TEMP%` defaults are gone. Manager-owned components are created privately,
-  the root is retained and path-reconciled around closure operations, and Git
-  and local publication staging remains beneath it.
-
-  Git, workspace-member, and external-local cache lanes are now created,
-  retained, and path-reconciled separately. Ordinary closure and audit entry
-  points carry those retained handles through package binding and closure
-  traversal into Git locking/cache acquisition and local locking/staging;
-  pathname reconciliation checks identity but does not grant acquisition
-  authority. Remaining work is to make the explicit-path source/closure APIs
-  test-only or hardened-mode-only and migrate their tests to the production
-  private-root constructor. Cached
-  content must remain authenticated by immutable source identity and
-  publication must remain an in-root atomic rename throughout that migration.
-
-  Ordinary host-installed tools now retain exact selected path/content/node
-  identity without treating installation ancestry as package-cache custody.
-  Direct executable ownership, mutation authority, unsafe modes, ACL/DACL, and
-  replacement still reject. A future stronger executable-custody mode must be
-  explicit and disclose its trust policy; normal Windows must continue to
-  accept standard Git beneath `Program Files`.
-
 - [ ] **HARDEN-SOURCE-RESOLVER.** Finish the hostile-process boundary around
   local and Git resolution.
 

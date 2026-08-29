@@ -19,9 +19,11 @@ fn resolves_repository_root_git_closure_and_retains_the_exact_request() {
         "https://github.com/CathedralOS/network-root.git",
     )
     .expect("validated local Git root request");
-    let resolved = resolve_git_package_source(
+    let storage = SourceResolverStorage::for_hardened_base(&cache)
+        .expect("create retained Git resolver storage");
+    let resolved = crate::resolve_git_package_source_with_storage(
         &request,
-        cache.join("git-sources"),
+        &storage,
         LocalSourceLimits::default(),
     )
     .expect("resolve root for exact request validation");
@@ -53,9 +55,9 @@ fn resolves_repository_root_git_closure_and_retains_the_exact_request() {
         resolved.key().source_lineage()
     ));
 
-    let closure = resolve_git_package_closure(
+    let closure = resolve_git_package_closure_with_storage(
         &request,
-        &cache,
+        &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
     )

@@ -316,9 +316,11 @@ workspace-member, and external-local lanes are retained separately and
 reconciled around ordinary closure operations. Their handles now remain intact
 through package binding and closure traversal into Git locking/cache
 acquisition and local locking/staging. The public source-audit path requires
-storage; its caller-path implementation is test-only. Other explicit-path
-resolver harnesses remain only while their tests are migrated to the production
-private-root constructor and that production surface is removed.
+storage. Production resolver, package-source, and closure APIs no longer accept
+cache paths. CI/bootstrap callers can select a private base explicitly through
+`SourceResolverStorage::for_hardened_base`, which creates the same retained
+production tree; tests use this path. Direct path helpers remain only as
+crate-internal topology probes and are absent from the production facade.
 Mutable local-package snapshots omit only `.git` metadata and the reserved
 root-level `build/` compiler output; package-authored ignore files do not control
 source identity, nested `build` directories remain source, and immutable Git

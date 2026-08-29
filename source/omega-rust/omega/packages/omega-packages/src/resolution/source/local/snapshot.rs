@@ -1,6 +1,8 @@
 //! Local snapshot staging, publication, reuse, and topology checks.
 
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsStr;
+#[cfg(test)]
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 use cap_fs_ext::DirExt;
@@ -12,8 +14,10 @@ use super::capture::{
 };
 use super::model::{ResolvedLocalSnapshot, ResolvedLocalSource};
 use super::operations::resolve_local_source;
+#[cfg(test)]
+use crate::resolution::source::custody::verify_local_cache_root_custody;
 use crate::resolution::source::custody::{
-    CacheCustodyKind, CacheEntryLock, verify_local_cache_custody, verify_local_cache_root_custody,
+    CacheCustodyKind, CacheEntryLock, verify_local_cache_custody,
 };
 use crate::resolution::source::git::execution::format_sha256;
 use crate::resolution::source::git::{
@@ -27,6 +31,7 @@ use crate::resolution::source::{
     LOCAL_SNAPSHOT_SOURCE, LocalSourceLimits, SourceResolveError,
 };
 
+#[cfg(test)]
 pub(in crate::resolution::source) fn publish_local_snapshot(
     requested_root: PathBuf,
     captured: CapturedLocalTree,
@@ -151,6 +156,7 @@ fn publish_local_snapshot_in_retained_collection(
     }
 }
 
+#[cfg(test)]
 fn validate_local_snapshot_topology(
     canonical_live_root: &Path,
     cache_dir: &Path,
@@ -199,6 +205,7 @@ pub(in crate::resolution::source) fn local_snapshot_custody_identity(
     format_sha256(&hasher.finalize())
 }
 
+#[cfg(test)]
 fn canonicalize_prospective_path(path: &Path) -> Result<PathBuf, SourceResolveError> {
     let mut existing = if path.is_absolute() {
         path.to_path_buf()
@@ -239,6 +246,7 @@ fn canonicalize_prospective_path(path: &Path) -> Result<PathBuf, SourceResolveEr
     }
 }
 
+#[cfg(test)]
 fn materialize_local_snapshot(
     snapshots: &Path,
     publication: &Path,

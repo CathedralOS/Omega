@@ -1,8 +1,9 @@
 use omega_packages::{
     GitSourceRequest, LocalSourceLimits, PackageKey, PackageName, PackageSourceClosureLimits,
-    SourceLineage, compile_resolved_package_reviews, extract_dependency_projection,
-    extract_package_declaration, resolve_git_package_closure, resolve_git_package_source,
-    resolve_git_source, resolve_local_source,
+    SourceLineage, SourceResolverStorage, compile_resolved_package_reviews,
+    extract_dependency_projection, extract_package_declaration,
+    resolve_git_package_closure_with_storage, resolve_git_package_source_with_storage,
+    resolve_git_source_with_storage, resolve_local_source,
 };
 use std::collections::BTreeSet;
 use std::path::PathBuf;
@@ -106,6 +107,8 @@ fn remote_fixture_pins_are_exact_and_match_local_package_names() {
 fn remote_fixture_pins_resolve_to_local_fixture_contents() {
     let cache = temp_root("cache");
     std::fs::create_dir_all(&cache).expect("cache root should be creatable");
+    let storage = SourceResolverStorage::for_hardened_base(&cache)
+        .expect("create remote fixture resolver storage");
     for pin in remote_pins() {
         let request = GitSourceRequest::new(ssh_url(&pin), Some(pin.commit.clone()))
             .expect("remote fixture request must be valid");
@@ -115,14 +118,15 @@ fn remote_fixture_pins_resolve_to_local_fixture_contents() {
             PackageName::parse(&pin.package).expect("remote fixture package name"),
             expected_lineage.clone(),
         );
-        let resolved = resolve_git_source(&request, &cache, LocalSourceLimits::default())
-            .unwrap_or_else(|error| {
-                panic!(
-                    "remote fixture {} at {} should resolve: {error}",
-                    pin.package,
-                    ssh_url(&pin)
-                )
-            });
+        let resolved =
+            resolve_git_source_with_storage(&request, &storage, LocalSourceLimits::default())
+                .unwrap_or_else(|error| {
+                    panic!(
+                        "remote fixture {} at {} should resolve: {error}",
+                        pin.package,
+                        ssh_url(&pin)
+                    )
+                });
         let local = resolve_local_source(
             local_package_root(&pin.package),
             LocalSourceLimits::default(),
@@ -154,13 +158,17 @@ fn remote_fixture_pins_resolve_to_local_fixture_contents() {
             pin.package
         );
 
-        let declared = resolve_git_package_source(&request, &cache, LocalSourceLimits::default())
-            .unwrap_or_else(|error| {
-                panic!(
-                    "remote fixture {} should bind its declared identity: {error}",
-                    pin.package
-                )
-            });
+        let declared = resolve_git_package_source_with_storage(
+            &request,
+            &storage,
+            LocalSourceLimits::default(),
+        )
+        .unwrap_or_else(|error| {
+            panic!(
+                "remote fixture {} should bind its declared identity: {error}",
+                pin.package
+            )
+        });
         assert_eq!(declared.key().name().as_str(), pin.package);
         assert_eq!(
             declared.dependency_requests(),
@@ -185,9 +193,9 @@ fn remote_fixture_pins_resolve_to_local_fixture_contents() {
             continue;
         }
 
-        let closure = resolve_git_package_closure(
+        let closure = resolve_git_package_closure_with_storage(
             &request,
-            cache.join("package-closure"),
+            &storage,
             LocalSourceLimits::default(),
             PackageSourceClosureLimits::default(),
         )

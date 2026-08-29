@@ -49,15 +49,20 @@ pub use resolution::{
     SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION, SourceAdapter, SourceContentDigest, SourceLineage,
     SourceResolveError, SourceResolverStorage, WorkspaceLineageIdentity, WorkspaceMemberLineage,
     WorkspaceMemberPath, audit_package_source, audit_package_source_locator,
-    resolve_external_local_package_closure, resolve_external_local_package_closure_with_storage,
-    resolve_external_local_package_source, resolve_external_local_project_closure,
-    resolve_external_local_project_closure_with_storage, resolve_external_local_project_source,
-    resolve_git_package_closure, resolve_git_package_closure_with_storage,
-    resolve_git_package_source, resolve_git_source, resolve_local_source,
-    resolve_local_source_snapshot, resolve_workspace_member_package_source,
-    resolve_workspace_package_closure, resolve_workspace_package_closure_in_context,
+    resolve_external_local_package_closure_with_storage,
+    resolve_external_local_package_source_with_storage,
+    resolve_external_local_project_closure_with_storage,
+    resolve_external_local_project_source_with_storage, resolve_git_package_closure_with_storage,
+    resolve_git_package_source_with_storage, resolve_git_source_with_storage, resolve_local_source,
+    resolve_local_source_snapshot_with_storage,
+    resolve_workspace_member_package_source_with_storage,
     resolve_workspace_package_closure_in_context_with_storage,
     resolve_workspace_package_closure_with_storage,
+};
+#[cfg(test)]
+pub(crate) use resolution::{
+    resolve_external_local_package_closure, resolve_external_local_package_source,
+    resolve_workspace_member_package_source,
 };
 pub use review::{
     CanonicalPackageReconstructionEntry, CanonicalPackageReconstructionQuestion,

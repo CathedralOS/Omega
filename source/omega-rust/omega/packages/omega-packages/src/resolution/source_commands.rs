@@ -2,7 +2,7 @@
 
 use crate::resolution::source::{RetainedStorageLane, resolve_git_source_in_lane};
 #[cfg(test)]
-use crate::source::resolve_git_source;
+use crate::source::resolve_git_source_with_storage;
 use crate::source::{
     GitSourceRequest, GitSourceRequestError, LocalSourceLimits, SourceResolveError,
     SourceResolverStorage, resolve_local_source,
@@ -199,7 +199,8 @@ pub(crate) fn audit_package_source_in_cache(
             })
         }
         PackageSourceRequest::Git(request) => {
-            let resolved = resolve_git_source(&request, cache_dir, limits)?;
+            let storage = SourceResolverStorage::for_hardened_base(cache_dir)?;
+            let resolved = resolve_git_source_with_storage(&request, &storage, limits)?;
             let network_transfer = resolved.network_transfer_observation();
             Ok(PackageSourceAudit {
                 source_kind: "git".to_owned(),

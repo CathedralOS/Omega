@@ -7,11 +7,13 @@ mod snapshot;
 
 pub use model::{ResolvedLocalSnapshot, ResolvedLocalSource};
 pub(crate) use model::{VerifiedPackageSourceEntry, VerifiedPackageSourceEntryKind};
+#[cfg(test)]
+pub(in crate::resolution) use operations::resolve_local_source_snapshot_at_path;
 pub(in crate::resolution) use operations::resolve_local_source_snapshot_in_lane;
 pub(crate) use operations::{
     capture_verified_package_source_snapshot, verify_package_source_snapshot,
 };
-pub use operations::{resolve_local_source, resolve_local_source_snapshot};
+pub use operations::{resolve_local_source, resolve_local_source_snapshot_with_storage};
 
 #[cfg(any(test, not(unix)))]
 #[allow(unused_imports)] // Preserve the former platform-dependent facade.
@@ -25,7 +27,7 @@ pub(in crate::resolution::source) use capture::{
     hash_length, io_error, open_absolute_directory_nofollow, open_canonical_source_root,
     open_captured_directory, raw_os_bytes, read_capability_file_bounded,
 };
-#[allow(unused_imports)] // Preserve the former source-internal local facade explicitly.
-pub(in crate::resolution::source) use snapshot::{
-    local_snapshot_custody_identity, publish_local_snapshot,
-};
+#[allow(unused_imports)] // Used by the source regression facade on supported targets.
+pub(in crate::resolution::source) use snapshot::local_snapshot_custody_identity;
+#[cfg(test)]
+pub(in crate::resolution::source) use snapshot::publish_local_snapshot;

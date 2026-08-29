@@ -199,12 +199,14 @@ fn workspace_member_resolution_rejects_member_path_symlink_escape() {
     let member = workspace.join("packages/escaped");
     symlink(&outside, &member).expect("create escaping member symlink");
 
-    let error = resolve_workspace_member_package_source(
+    let storage = crate::SourceResolverStorage::for_hardened_base(&cache)
+        .expect("create retained workspace storage");
+    let error = crate::resolve_workspace_member_package_source_with_storage(
         &SourceLineage::git("https://github.com/CathedralOS/workspace.git")
             .expect("workspace lineage"),
         WorkspaceMemberPath::parse("packages/escaped").expect("member path"),
         &workspace,
-        &cache,
+        &storage,
         LocalSourceLimits::default(),
     )
     .expect_err("member symlink escape must reject");
@@ -214,10 +216,15 @@ fn workspace_member_resolution_rejects_member_path_symlink_escape() {
         ResolvePackageSourceError::WorkspaceMemberEscapesRoot { .. }
     ));
     assert!(
-        !cache.exists(),
-        "rejection must occur before snapshot custody"
+        !storage
+            .workspace_members()
+            .path()
+            .join("local-snapshots")
+            .exists(),
+        "rejection must occur before snapshot publication custody"
     );
 
+    drop(storage);
     let _ = std::fs::remove_dir_all(&workspace);
     let _ = std::fs::remove_dir_all(&outside);
 }

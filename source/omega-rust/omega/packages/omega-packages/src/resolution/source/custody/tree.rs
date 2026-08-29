@@ -105,6 +105,7 @@ pub(in crate::resolution::source) fn verify_local_cache_custody(
     )
 }
 
+#[cfg(test)]
 pub(in crate::resolution::source) fn verify_local_cache_root_custody(
     root: &Path,
 ) -> Result<(), SourceResolveError> {

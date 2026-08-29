@@ -40,9 +40,13 @@ Pathname reconciliation detects replacement but is not reacquired as ordinary
 operation authority. Compile
 dependency resolution, source inspection, and source audit no longer select a
 project-local cache, honor an ambient cache override, or fall back to the host
-temporary directory. Existing lower-level resolver harnesses still accept
-explicit cache paths for their legacy tests; restricting that surface and
-migrating those tests to the production private-root constructor remains open.
+temporary directory. Production resolver, package-source, and closure APIs do
+not accept cache paths. CI and bootstrap infrastructure may explicitly select
+a private base through `SourceResolverStorage::for_hardened_base`; that
+constructor creates and retains the same production-shaped tree. Tests use
+those storage-backed APIs. Only crate-internal topology probes retain direct
+path helpers for validating overlap rejection, and they do not enter the
+production facade.
 
 ## Portable executor floor
 

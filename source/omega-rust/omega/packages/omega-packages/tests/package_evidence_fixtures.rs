@@ -12,19 +12,20 @@ use omega_packages::{
     CompileResolvedPackageReviewsError, LocalSourceLimits, PackageAdvisoryReviewOutput,
     PackageAdvisoryReviewRequest, PackageAdvisoryReviewer, PackageSourceClosureLimits,
     PackageSourceVerificationPhase, PackageTriageDisposition, PackageTriageReason,
+    ResolvePackageSourceError, ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure,
     ReviewOnlyBaselineCapsule, ReviewOnlyBaselineDirectory, ReviewOnlyBaselineFileError,
     ReviewOnlyBaselineLimits, ReviewOnlyBaselineName, ReviewOnlyBaselineNameError,
-    ReviewOnlyCapabilityConflictLimits, SourceLineage, SourceResolveError, WorkspaceMemberPath,
-    assemble_initial_source_review, assemble_update_source_review,
+    ReviewOnlyCapabilityConflictLimits, SourceLineage, SourceResolveError, SourceResolverStorage,
+    WorkspaceMemberPath, assemble_initial_source_review, assemble_update_source_review,
     assemble_update_source_review_from_baseline, compare_review_only_capabilities,
     compare_review_only_capabilities_from_baseline, compile_resolved_package_reviews,
-    invoke_package_advisory_review, resolve_workspace_package_closure, triage_initial_install,
-    triage_review_update, triage_review_update_from_baseline,
+    invoke_package_advisory_review, resolve_workspace_package_closure_with_storage,
+    triage_initial_install, triage_review_update, triage_review_update_from_baseline,
     triage_update_without_admission_baseline,
 };
 use std::collections::BTreeSet;
 use std::convert::Infallible;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const PACKAGES: &[&str] = &[
@@ -85,6 +86,27 @@ fn temp_root(name: &str) -> PathBuf {
         "omega-package-evidence-{name}-{}-{stamp}",
         std::process::id()
     ))
+}
+
+fn resolve_workspace_package_closure(
+    workspace_root_source: &SourceLineage,
+    root_member_path: WorkspaceMemberPath,
+    live_workspace_root: impl AsRef<Path>,
+    cache_dir: impl AsRef<Path>,
+    source_limits: LocalSourceLimits,
+    closure_limits: PackageSourceClosureLimits,
+) -> Result<ResolvedPackageSourceClosure, ResolveWorkspacePackageClosureError> {
+    let storage = SourceResolverStorage::for_hardened_base(cache_dir).map_err(|error| {
+        ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
+    })?;
+    resolve_workspace_package_closure_with_storage(
+        workspace_root_source,
+        root_member_path,
+        live_workspace_root,
+        &storage,
+        source_limits,
+        closure_limits,
+    )
 }
 
 fn assert_fixture_evidence(package: &str, review: &CheckedPackageReviewProjection) {
