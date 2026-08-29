@@ -9,13 +9,14 @@ impl SharedJumpFusionRule {
     pub fn contract() -> OptimizationRuleContract {
         OptimizationRuleContract::new(
             OptimizationRuleIdentity::from_canonical_bytes(
-                b"omega.psi-rule.shared-terminal-jump-fusion.v1",
+                b"omega.psi-rule.shared-terminal-jump-fusion.v2",
             ),
             OptimizationPassIdentity::from_canonical_bytes(CONTROL_FLOW_CLEANUP_PASS_NAME),
-            1,
+            2,
             AnalysisSet::new([
                 AnalysisKind::ControlFlowGraph,
                 AnalysisKind::OwnershipFrontiers,
+                AnalysisKind::PostDominators,
             ]),
             AnalysisInvalidationSet::new([
                 AnalysisKind::ControlFlowGraph,
@@ -43,6 +44,13 @@ impl PsiOptimizationRule for SharedJumpFusionRule {
                 AnalysisKind::ControlFlowGraph,
             ));
         }
+        let Some(AnalysisProduct::PostDominators(post_dominators)) =
+            analyses.get(AnalysisKind::PostDominators)
+        else {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::PostDominators,
+            ));
+        };
         let Some(AnalysisProduct::OwnershipFrontiers(frontiers)) =
             analyses.get(AnalysisKind::OwnershipFrontiers)
         else {
@@ -52,6 +60,13 @@ impl PsiOptimizationRule for SharedJumpFusionRule {
         };
         let mut candidates = Vec::new();
         for function in &unit.functions {
+            let Some((_, function_post_dominators)) = post_dominators
+                .functions
+                .iter()
+                .find(|(machine, _)| *machine == function.machine)
+            else {
+                continue;
+            };
             for predecessor in &function.blocks {
                 let Some((predecessor_index, predecessor_node)) = predecessor
                     .nodes
@@ -74,6 +89,13 @@ impl PsiOptimizationRule for SharedJumpFusionRule {
                 else {
                     continue;
                 };
+                if !function_post_dominators
+                    .iter()
+                    .find(|(block, _)| *block == predecessor.id)
+                    .is_some_and(|(_, blocks)| blocks.contains(target_id))
+                {
+                    continue;
+                }
                 let [terminal] = target.nodes.as_slice() else {
                     continue;
                 };

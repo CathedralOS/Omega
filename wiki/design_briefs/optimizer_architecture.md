@@ -1001,6 +1001,25 @@ A mismatch is an undeclared-invalidation failure and leaves both cache and
 revision untouched. Independent cold analyses may run concurrently, but their
 published bundle is sorted back into canonical analysis order.
 
+The current control-flow family implements canonical reachability,
+predecessor/successor rows, normal/crash exits, dominators,
+all-represented-exit post-dominators, block SCCs, reducible/irreducible cyclic
+regions, direct call-graph SCCs, and recursion. Shared-terminal fusion is the
+first live PostDominators consumer and independently reconstructs the relation
+during candidate acceptance. Mixed normal/crash exits, disconnected machines,
+irreducible SCCs, mutual recursion, and canonical cached/cold/parallel products
+have focused coverage.
+
+Two language decisions fence broader claims. **Suspension as control-flow exit
+or resumable continuation** must define an explicit suspension/resume transfer
+before CFG, ownership, liveness, provenance, or fuel analyses may invent one
+from declaration-level `MaySuspend` knowledge. **Cyclic control flow in
+Terminal Psi** must decide whether block cycles enter the semantic handoff at
+all; total optimizer-unit validation currently rejects `ControlCycle`, so loop
+transforms cannot treat synthetic SCC coverage as production authority. A
+nested loop-forest representation remains ordinary engineering work after that
+semantic boundary is chosen.
+
 `OwnershipFrontiers` is the first verifier-derived semantic analysis product.
 It exposes each immutable catalog row under its exact machine/source-site key
 and binds the view to the current optimization-unit revision. Because that
@@ -1409,22 +1428,25 @@ forged node, fanout, and ownership-fact realization sites, and full artifact
 tests replay the ledger to exact one-block and three-block prephysical
 projections. Candidate v20 and optimization-unit content identity v16 bind its
 rewrite shape; the v5 rule contract consumes the three exact ownership-frontier
-facts under `ControlFlowCleanup` v12. Current prephysical manifest v31 and
-optimized-plan projection validation v32 bind the resulting admission meaning;
+facts under `ControlFlowCleanup` v13. Current prephysical manifest v32 and
+optimized-plan projection validation v33 bind the resulting admission meaning;
 ledger v4 expresses both the many-to-one move and one-to-many fanout. Direct
 terminal fusion retains the terminal edge and removed jump edge
 at the fused node, so return, cleanup, structural-return, crash, and fuel work
 are not classified as empty. Nonadjacent merges and native publication
 for inherited node-edge custody remain fail-closed.
 
-The fifth rule, `shared-terminal-jump-fusion.v1`, removes one unconditional
+The fifth rule, `shared-terminal-jump-fusion.v2`, removes one unconditional
 jump into a shared terminal-only target without moving or deleting that target.
 The target is non-entry, has at least two incoming edges, and contains exactly
 one `Return`, `ReturnUnit`, `ReturnStructural`, or `Crash`. The chosen jump's
 typed bindings replace target parameters only in the cloned terminal; the
 retained target and its parameter declarations remain byte-for-byte unchanged.
 Ownership snapshots at incoming-edge entry, incoming-edge exit, and target
-entry must be identical.
+entry must be identical. The rule also declares PostDominators and requires the
+shared target to post-dominate the selected predecessor. Independent candidate
+validation reconstructs the all-represented-exit post-dominator fixed point
+directly from the input CFG rather than trusting the analysis product.
 
 Custody is an exact one-to-many plus many-to-one relation. The incoming edge is
 realized at the cloned terminal, while the original terminal node is realized
@@ -1435,9 +1457,9 @@ blocks are pairwise incomparable in the output CFG. Duplicate operation
 sources, node/edge cross-kind duplication, same-block duplication, and
 sequentially executable occurrences remain invalid. The rewrite preserves the
 jump node's effect link, rebuilds metadata/facts/places and identity, and
-strictly decreases successor count. Candidate v15, optimization-unit content
-identity v9, `ControlFlowCleanup` v10, prephysical manifest v9, and optimized-
-plan projection validation v10 bind the admitted fanout; ledger v4 already
+strictly decreases successor count. Candidate v24, optimization-unit content
+identity v16, `ControlFlowCleanup` v13, prephysical manifest v32, and optimized-
+plan projection validation v33 bind the admitted fanout; ledger v4 already
 expresses it. Full artifact replay reaches two exact mutually exclusive
 terminal occurrences without classifying return, cleanup, crash, or fuel as
 empty work.
@@ -1565,8 +1587,8 @@ classifiers separately and exhaustively partition the complete abstract-
 operation enum. A newly added operation therefore cannot compile until both
 sides decide whether unused instances belong to one exact safety family or
 remain ineligible. Candidate v24, optimization-unit content identity v16, the
-named v2 pass, prephysical manifest identity v31, and optimized-plan projection
-validation v32 bind this meaning; ledger v4 already represents the many-to-one
+named v2 pass, prephysical manifest identity v32, and optimized-plan projection
+validation v33 bind this meaning; ledger v4 already represents the many-to-one
 moves.
 
 This closes dead scalar work for the current verified-unit vocabulary. Every
@@ -1797,6 +1819,17 @@ keeps ownership of `-1 % -1`. Independent replay reconstructs the type,
 operator policy, operands, facts, observation/liveness boundary, provenance,
 fuel, accounting, and output. Verified projection and x86-64/AArch64 lowering
 retain the typed-zero realization.
+The twelfth rule,
+`live-proof-certified-exact-signed-integer-negative-one-shift-right-elimination.v1`,
+replaces live exact signed fixed-width `-1 >> count` with the existing direct
+typed negative-one operand. Exact signed right shift sign-fills, while the
+verifier-accepted operation obligation proves the authored runtime count is in
+range. Producer and independent validator require the direct literal fact,
+fixed signed carrier, exact right-shift policy, replacement identity,
+observation/liveness boundary, provenance, fuel, and both fact identities.
+Unsigned/address, exact-left, wrapping, nonliteral, and proofless shapes remain
+outside the rule. Verified projection and both native targets retain the
+identity realization.
 Candidate schema remains v24. Optimization-unit identity v16 intentionally
 rekeys revision-bound candidate identities because ordered edge cleanup and
 compressed hidden-operation custody now join the already retained root service
@@ -1804,8 +1837,8 @@ reach, payloadless-call surface, verified machine contracts, and evidence-
 contract lane rosters as input-revision content; deterministic tie breaks
 between otherwise equivalent candidates can therefore change at this schema
 migration.
-The named v11 pass, prephysical manifest identity v26, and optimized-plan
-projection validation v27 bind the expanded eleven-rule schedule.
+The named v12 pass, prephysical manifest identity v32, and optimized-plan
+projection validation v33 bind the expanded twelve-rule schedule.
 Ledger v4 already represents the relocation. Runtime
 policy events, other live proof-bearing identities, and physical checks not
 represented by these exact Psi contracts remain open.
@@ -3364,6 +3397,17 @@ invariant:
 
 ```text
 omega-psi-optimizer/src/
+  lib.rs                              # public semantic-rung entrance
+  analyses/
+    mod.rs                            # product families + public catalog surface
+    catalog.rs                        # closed dependencies and dispatch
+    manager.rs                        # revision cache and invalidation audit
+    semantic.rs                       # semantic product implementations
+    control_flow/
+      mod.rs                          # CFG product vocabulary + leaf catalog
+      {graph,dominance,components,loops,call_graph}.rs
+    tests/
+      {fixtures,control_flow,manager,semantic}.rs
   pass_manager/
     mod.rs                            # cost identity + run/replay surface
     model.rs                          # run carrier + closed failures
@@ -3394,7 +3438,12 @@ omega-psi-optimizer/src/
       tests/                          # matching pass families and fixtures
 ```
 
-`pass_manager/mod.rs` owns the stable cost-policy identity and exposes the four
+The crate entrance is 76 lines and contains no analysis, rule, or test
+mechanics. `analyses/mod.rs` names the product families; `catalog.rs` owns the
+closed dependency and computation dispatch; the control-flow entrance owns the
+shared result vocabulary while graph, dominance, SCC, loop, and call-graph
+leaves answer one exact question each. Its tests descend through the same
+families. `pass_manager/mod.rs` owns the stable cost-policy identity and exposes the four
 exact run/replay operations without containing their mechanics. `rules/mod.rs`
 does not know rule mechanics, while `catalog.rs` visibly owns the only built-in
 ordering. `passes/mod.rs` names every transformation family and preserves the

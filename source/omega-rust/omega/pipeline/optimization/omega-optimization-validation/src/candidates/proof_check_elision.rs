@@ -421,6 +421,30 @@ pub(crate) fn independent_proof_certified_scalar_identity(
             *value_type,
             independent_integer_zero(*value_type),
         ),
+        (
+            O::ExactIntegerShiftRight {
+                psi_operation,
+                obligation,
+                result,
+                value_type,
+                value,
+                ..
+            },
+            ProofCertifiedScalarIdentityKind::ExactIntegerShiftRightNegativeOneValue,
+        ) if value_type.carrier() == IntegerCarrier::Fixed
+            && value_type.sign() == IntegerSign::Signed =>
+        {
+            (
+                *psi_operation,
+                *obligation,
+                *result,
+                *value,
+                *value,
+                *value_type,
+                *value_type,
+                IntegerValue::Signed(-1),
+            )
+        }
         _ => return None,
     };
     Some(IndependentProofCertifiedScalarIdentity {
@@ -475,12 +499,16 @@ pub fn validate_proof_certified_scalar_identity_candidate(
     let zero_value_shift_rule = OptimizationRuleIdentity::from_canonical_bytes(
         b"omega.psi-rule.live-proof-certified-exact-integer-zero-value-shift-elimination.v1",
     );
+    let negative_one_shift_right_rule = OptimizationRuleIdentity::from_canonical_bytes(
+        b"omega.psi-rule.live-proof-certified-exact-signed-integer-negative-one-value-shift-right-elimination.v1",
+    );
     if ![
         exact_identity_rule,
         divide_by_one_rule,
         multiply_by_zero_rule,
         zero_dividend_rule,
         zero_value_shift_rule,
+        negative_one_shift_right_rule,
     ]
     .contains(&candidate.rule())
         || !candidate
@@ -561,6 +589,15 @@ pub fn validate_proof_certified_scalar_identity_candidate(
             ) =>
         {
             b"omega.validator.live-proof-certified-exact-integer-zero-value-shift-elimination.v1"
+                .as_slice()
+        }
+        rule if rule == negative_one_shift_right_rule
+            && matches!(
+                patch.identity,
+                ProofCertifiedScalarIdentityKind::ExactIntegerShiftRightNegativeOneValue
+            ) =>
+        {
+            b"omega.validator.live-proof-certified-exact-signed-integer-negative-one-value-shift-right-elimination.v1"
                 .as_slice()
         }
         _ => return Err(OptimizationUnitValidationError::CandidatePatchMismatch),

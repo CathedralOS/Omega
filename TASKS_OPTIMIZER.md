@@ -996,17 +996,20 @@ These facts constrain the work below.
   successor edges. Validator corruption tests reject forged node, fanout, and
   ownership-fact occurrences, while verified artifact tests reach the exact
   one-block and three-block projections. Its v5 contract consumes the three
-  exact ownership facts and is registered under `ControlFlowCleanup` v12; the
-  current prephysical manifest v31 and optimized-plan projection v32 bind that
+  exact ownership facts and is registered under `ControlFlowCleanup` v13; the
+  current prephysical manifest v32 and optimized-plan projection v33 bind that
   admission meaning. Ledger v4 already represents both moves.
 - The fifth exact `ControlFlowCleanup` rule,
-  `shared-terminal-jump-fusion.v1`, removes one unconditional jump into a
+  `shared-terminal-jump-fusion.v2`, removes one unconditional jump into a
   shared terminal-only block without removing or mutating that target. The
   target must have at least two incoming edges and contain exactly one
   `Return`, `ReturnUnit`, `ReturnStructural`, or `Crash`. Typed parameters are
   substituted only in the cloned terminal, while ownership snapshots must be
   identical at incoming-edge entry, incoming-edge exit, and target entry. The
-  incoming edge is realized at the clone and the original terminal occurrence
+  exact target must additionally post-dominate the selected predecessor under
+  the declared `PostDominators` product; independent validation reconstructs
+  that relation directly from the input CFG. The incoming edge is realized at
+  the clone and the original terminal occurrence
   fans out to the clone plus its retained source site with identical fuel.
   Total-unit validation admits repeated edge provenance at node sites only for
   exact no-successor terminals in pairwise CFG-antichain blocks; operation
@@ -1271,10 +1274,16 @@ prove every enabled rule phase is actually scheduled.
   identities. The pass manager now follows the same shape: its 33-line entrance
   owns the baseline structural cost-policy identity and leads separately to
   `model`, `entry`, `execution`, and `accounting`; its 49 tests descend through
-  shared fixtures, execution, and external-decision replay. The complete crate's
-  148 tests mirror those responsibilities and contain no broad monolithic test
-  file. No public rule or pass-manager name, contract identity, built-in
-  ordinal, registry schedule, or test case changed.
+  shared fixtures, execution, and external-decision replay. The 76-line crate
+  entrance contains no test implementation. Its analysis rung has a 24-line
+  entrance leading to the closed `catalog`, the revision `manager`, semantic
+  products, and a 76-line control-flow entrance. Control flow descends again to
+  graph, dominance, SCC, loop, and call-graph leaves; its tests mirror those
+  families under `analyses/tests`. The complete crate's 152 tests mirror these
+  responsibilities and contain no broad monolithic test file. The organization
+  refactors changed no public name, contract identity, built-in ordinal,
+  registry schedule, or test case; later feature slices version their changed
+  contracts explicitly.
 
   Dead-scalar elimination now follows the same rule-family shape. Its 55-line
   entrance owns the three exact safety families and their pass/contract
@@ -1627,6 +1636,26 @@ alternate semantic handoff.
   Acceptance: irreducible loops, recursion, crash-only exits, suspension exits,
   and disconnected private machines have focused tests.
 
+  Current slice: canonical reachability, predecessor/successor rows,
+  normal/crash exits, dominators, all-represented-exit post-dominators, Tarjan
+  block SCCs, reducible/irreducible cyclic regions, direct call-graph SCCs, and
+  recursion are implemented. Focused tests cover mixed normal/crash
+  post-dominance, disconnected machines, irreducible SCCs, mutual recursion,
+  and canonical cached/cold/parallel reconstruction of every CFG product. The
+  `shared-terminal-jump-fusion.v2` rule is the first live PostDominators
+  consumer; its independent v2 validator rebuilds the relation.
+
+  The family is organized behind a 76-line entrance with separate graph,
+  dominance, SCC, loop, and call-graph leaves. Analysis fixtures and tests now
+  descend through the same taxonomy instead of occupying the crate entrance.
+  Remaining engineering work includes a genuinely nested loop-forest model
+  rather than the current flat cyclic-region roster. Production suspension-exit
+  coverage is blocked on the unresolved **Suspension as control-flow exit or
+  resumable continuation** language decision because the current IR has only
+  declaration/effect knowledge, not a suspension edge. Production loop and
+  irreducible-cycle consumers are blocked on **Cyclic control flow in Terminal
+  Psi** because total unit validation currently rejects `ControlCycle`.
+
 - **OPT-SEMANTIC-ANALYSES.** Implement constant/executable-edge, value-range,
   effect/service, crash, suspension, alias/place, escape/address-stability,
   memory-version, ownership/cleanup, and scalar/place liveness analyses.
@@ -1803,7 +1832,7 @@ alternate semantic handoff.
   location changes; and durably records the rejected edge plus every deleted
   node and its original scheduled fuel as independently proven unreachable and
   uncharged. Successor-edge custody and ledger v3 now distinguish the two
-  conditional arms directly. The v12 pass also includes exact linear empty-jump
+  conditional arms directly. The v13 pass also includes exact linear empty-jump
   threading plus `path-qualified-empty-block-thread.v1`: typed bindings are
   composed, ownership frontiers must be identical across each bypass, and the
   removed outgoing source is realized on every and only mutually exclusive
@@ -1826,8 +1855,10 @@ alternate semantic handoff.
   non-adjacent unique-predecessor block merging in either roster direction,
   with explicit dominance/use-definition evidence, global typed substitution,
   moved-definition reconstruction, dense-effect accounting, and independent
-  replay. Candidate v24, optimization-unit identity v16, ledger v4,
-  prephysical manifest v31, and projection validator v32 bind the current
+  replay. Shared-terminal fusion additionally declares PostDominators and
+  independently reconstructs the target relation. Candidate v24,
+  optimization-unit identity v16, ledger v4, prephysical manifest v32, and
+  projection validator v33 bind the current
   occurrence and function-roster replay.
 
   A standalone pass over blocks that are already unreachable has no admitted
@@ -2016,7 +2047,7 @@ alternate semantic handoff.
   classifiers each exhaustively partition the complete abstract-operation
   enum, so adding an operation is a compile-time request to assign or reject
   its dead-work safety family. Candidate v24, optimization-unit identity v16,
-  the v2 pass, prephysical manifest identity v31, and projection validator v32
+  the v2 pass, prephysical manifest identity v32, and projection validator v33
   bind this meaning; ledger v4 already represents the many-to-one moves.
 
   This is complete for the current scalar vocabulary. Every pure scalar
@@ -2131,10 +2162,21 @@ alternate semantic handoff.
   reconstructs type, policy, operands, both facts, observation/liveness,
   provenance, fuel, accounting, and output; both native lowering targets
   retain the typed-zero realization.
+  The twelfth rule,
+  `live-proof-certified-exact-signed-integer-negative-one-shift-right-elimination.v1`,
+  rewrites live exact signed fixed-width `-1 >> count` to the existing direct
+  typed negative-one operand. Omega's exact signed right shift sign-fills, and
+  the retained accepted obligation independently proves the authored runtime
+  count lies in range. Producer and validator require the direct literal fact,
+  exact right-shift policy, fixed signed carrier, replacement identity,
+  observation/liveness boundary, provenance, fuel, and both fact identities;
+  unsigned/address, left-shift, wrapping, nonliteral, or proofless shapes
+  decline or reject. Verified projection and both native lowering targets
+  retain the identity realization.
   Candidate schema remains v24 so adding the new closed identity tags cannot
   rehash or retie-break existing candidates; optimization-unit identity remains
-  v16. The named v11 pass, prephysical manifest identity v26, and projection
-  validator v27 bind the expanded eleven-rule schedule;
+  v16. The named v12 pass, prephysical manifest identity v32, and projection
+  validator v33 bind the expanded twelve-rule schedule;
   ledger v4 already
   represents the relocations. Runtime policy events, other live proof-bearing
   identities, and physical check recognition remain open.

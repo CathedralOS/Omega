@@ -932,3 +932,82 @@ producer claim.
   `build.omg` select host trust or credential material.
 - Tempting but wrong: serialize private keys, tokens, or reusable credentials in
   `omega.lock` or source-resolution evidence.
+
+## Q19 — Suspension as control-flow exit or resumable continuation
+
+### Context
+
+Terminal Psi currently retains whether a machine or call may suspend as
+declaration and effect knowledge. Its executable control-flow vocabulary has
+normal returns and crash exits, but no suspension terminator, resume edge, or
+continuation identity. Omega's optimizer can therefore preserve conservative
+`MaySuspend` knowledge, but it cannot construct the explicit suspension exits
+required by post-dominance, liveness, ownership, provenance, and fuel analyses.
+
+### Problem statement
+
+Treating suspension as an ordinary no-successor exit would discard the state
+that must survive resumption. Treating it as an ordinary successor would imply
+that resumption is synchronous local control flow. Inferring either model from
+a declaration-level `suspends` flag would silently choose language semantics
+and could make post-dominance or cleanup reasoning unsound.
+
+### Proposed direction
+
+Represent suspension explicitly in Terminal Psi as a semantic transfer with a
+stable continuation/resume identity. Define which values, places, claims,
+cleanup obligations, provider effects, and logical-fuel sites cross that
+transfer. Omega may then model the suspension event as an observable exit from
+the current activation while separately retaining the authorized resume edge
+and its custody.
+
+### Alternates
+
+- Acceptable if suspension never resumes the same activation: define it as a
+  terminal outcome distinct from normal return and crash, with complete exit
+  ownership and fuel semantics.
+- Acceptable if suspension is call-only: keep local CFGs free of suspension
+  terminators, but define an explicit interprocedural call outcome and clarify
+  that block post-dominance deliberately excludes it.
+- Tempting but wrong: classify every `MaySuspend` call as a local CFG exit
+  without retaining its continuation and outcome-specific state.
+
+## Q20 — Cyclic control flow in Terminal Psi
+
+### Context
+
+Omega's analysis vocabulary includes block SCCs, reducible/irreducible loop
+classification, dominators, and post-dominators. Those algorithms are tested on
+synthetic graphs, but total optimizer-unit validation currently rejects every
+`ControlCycle`. Executable repetition is otherwise expressed through machines,
+state transitions, and calls.
+
+### Problem statement
+
+The optimizer cannot exercise loop transforms or production loop-forest
+consumers until the semantic handoff either admits cyclic block graphs or
+declares that Terminal Psi is intentionally acyclic. Admitting cycles requires
+defined SSA edge bindings, loop-carried ownership and cleanup frontiers,
+progress/termination evidence, observation boundaries, and logical-fuel
+accounting. Inventing those only inside the optimizer would create a second
+language semantics.
+
+### Proposed direction
+
+Decide explicitly whether Terminal Psi may contain cyclic block control flow.
+If yes, add a versioned cyclic vocabulary and validator contract that retains
+loop-carried values, ownership/frontier state, progress evidence, provenance,
+and fuel before Omega accepts the first real cycle. If no, make acyclicity a
+durable language/IR invariant and redefine loop optimization over the actual
+machine/state-transition representation rather than maintaining a decorative
+block-loop API.
+
+### Alternates
+
+- Acceptable: admit only structured reducible loops first, leaving irreducible
+  cycles rejected until their ownership and progress contracts are explicit.
+- Acceptable: keep Terminal block CFGs acyclic and expose a separate verified
+  state-machine cycle graph for loop-like optimization.
+- Tempting but wrong: permit cyclic `Jump`/`Conditional` graphs by weakening
+  validation before loop-carried SSA, ownership, cleanup, and fuel semantics
+  exist.
