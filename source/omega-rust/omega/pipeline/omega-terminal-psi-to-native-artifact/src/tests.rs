@@ -1,5 +1,12 @@
 use super::*;
-use omega_effects::provider_plan::{ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema};
+use std::collections::BTreeSet;
+
+use crate::realization::project_selected_provider_adapters_for_requirements;
+use omega_effects::provider_plan::{
+    ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
+};
+use omega_psi_to_abstract_operations::SelectedProviderAdapter;
+use psi_checked_trees_to_terminal::CheckedProgramEntryTerminalReceipt;
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;

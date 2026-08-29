@@ -1361,6 +1361,7 @@ dependencies = [
  "omega-image-emission",
  "omega-installation-evidence",
  "omega-isa-x86_64",
+ "omega-machine-code",
  "omega-machine-emission",
  "omega-native-artifact",
  "omega-object-file",

@@ -28,7 +28,7 @@ const GOVERNED_ROOTS: &[&str] = &[
     "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations",
     "source/omega-rust/omega/pipeline/omega-target-operations-to-assigned-target-operations",
     "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions",
-    "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/optimized_semantic_wrapper_object",
+    "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact",
 ];
 
 #[derive(Clone, Copy)]
@@ -311,6 +311,22 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/realization/unit_function_relative_realization/mod.rs",
         coordination_marker: "pub fn stage_optimized_unit_function_relative_realization",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/entry_settlement/mod.rs",
+        coordination_marker: "pub fn validate_native_program_entry_settlement",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/mod.rs",
+        coordination_marker: "pub fn realize_native_artifact",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/providers/mod.rs",
+        coordination_marker: "pub(crate) fn admit_native_providers",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/optimized_semantic_wrapper_encoding/mod.rs",
+        coordination_marker: "pub fn select_optimized_program_storage_semantic_wrapper_encoding",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/optimized_semantic_wrapper_object/mod.rs",
