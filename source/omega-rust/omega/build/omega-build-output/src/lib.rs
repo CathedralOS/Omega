@@ -2,6 +2,10 @@
 
 //! Retained build-output custody, canonical identity, and materialization.
 
+mod replayed_directories;
+
+pub use replayed_directories::replayed_empty_directory;
+
 use psi_checked_interpreter::{FilesystemSponsor, FilesystemSponsorNamespaceEntryKind};
 use psi_diagnostics::Diagnostic;
 use sha2::{Digest, Sha256};

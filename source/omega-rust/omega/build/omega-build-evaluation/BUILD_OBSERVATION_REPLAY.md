@@ -53,3 +53,24 @@ observed but non-receipted.
 One replay may retain at most 1,024 successful lock/unlock pairs. Locks through
 duplicates, shared or blocking acquisition, delayed release, failed outcomes,
 contention histories, and Win32 ranged locks remain outside this increment.
+
+## Empty Output directory (summary v41, replay record v22)
+
+The bounded Output grammar accepts one exact successful Unix `create_dir`
+attempt after the Source-input prefix:
+
+```text
+create_dir(Output/direct-child, 493 /* 0o755 */) -> 0, post-error 0
+```
+
+The path must be one fresh canonical direct child of the compiler-issued
+Output root. The attempt must use the scoped real provider and retain one exact
+rooted-path resolution and matching write authorization. Provider-free replay
+executes the same attempt in the virtual Output namespace and requires exact
+attempt equality and a final staged tree containing only that empty directory.
+
+This increment admits one directory attempt and at most 4,096 retained path
+bytes. Nested directories, `create_dir_name`, multiple or mixed file/directory
+outputs, alternate modes or providers, failed results, nonzero post-error
+state, and any subsequent child or namespace operation remain outside the
+grammar.

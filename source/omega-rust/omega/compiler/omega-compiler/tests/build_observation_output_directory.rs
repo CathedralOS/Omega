@@ -1,7 +1,7 @@
 use omega_build_evaluation::{
-    BuildFilesystemLogicalHandleInputResolution, BuildFilesystemOperationResult,
-    BuildFilesystemReplayRecordLimits, BuildFilesystemScalarOperandValue, BuildObservationClass,
-    capture_verified_build_filesystem_replay_record,
+    BuildFilesystemGrantAccess, BuildFilesystemOperationResult, BuildFilesystemProvider,
+    BuildFilesystemReplayRecordLimits, BuildFilesystemRoot, BuildFilesystemScalarOperandValue,
+    BuildObservationClass, capture_verified_build_filesystem_replay_record,
     recover_review_only_build_filesystem_replay_record,
 };
 use omega_compiler::{
@@ -25,17 +25,17 @@ impl TestProject {
     fn new() -> Self {
         let identity = NEXT_PROJECT.fetch_add(1, Ordering::Relaxed);
         let source = std::env::temp_dir().join(format!(
-            "omega-build-output-lock-{}-{identity}",
+            "omega-build-output-directory-{}-{identity}",
             std::process::id()
         ));
         let session = std::env::temp_dir().join(format!(
-            "omega-build-output-lock-session-{}-{identity}",
+            "omega-build-output-directory-session-{}-{identity}",
             std::process::id()
         ));
         let _ = std::fs::remove_dir_all(&source);
         let _ = std::fs::remove_dir_all(&session);
-        std::fs::create_dir_all(&source).expect("create descriptor-lock source");
-        std::fs::create_dir_all(&session).expect("create descriptor-lock session");
+        std::fs::create_dir_all(&source).expect("create directory source");
+        std::fs::create_dir_all(&session).expect("create directory session");
         Self { source, session }
     }
 
@@ -50,39 +50,34 @@ target {target} {{}}
 machine build(builder: &mut Build)
 reaches FilesystemHost
 {{
-    builder.package("descriptor-lock");
+    builder.package("empty-directory");
     let input: &[u8] in Path = builder.source.resolve("main.omg");
     let source_descriptor: i32 = builder.filesystem.open(input, 0);
-    let source_buffer: [u8; 23] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-    let source_count: i64 = builder.filesystem.read(source_descriptor, &mut source_buffer, 23);
+    let source_buffer: [u8; 64] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    let source_count: i64 = builder.filesystem.read(source_descriptor, &mut source_buffer, 64);
     let source_close: i32 = builder.filesystem.close(source_descriptor);
-    let generated: &[u8] in Path = builder.output.resolve("locked.omg");
-    let output_descriptor: i32 = builder.filesystem.create(generated, 438);
-    let acquire: i32 = builder.filesystem.lock_file(output_descriptor, 6);
-    let release: i32 = builder.filesystem.lock_file(output_descriptor, 8);
-    let output_count: i64 = builder.filesystem.write(output_descriptor, "data Locked {{}}\n");
-    let output_close: i32 = builder.filesystem.close(output_descriptor);
-    builder.output.include_source(generated);
+    let directory: &[u8] in Path = builder.output.resolve("generated");
+    let directory_result: i32 = builder.filesystem.create_dir(directory, 493);
     builder.freestanding = false;
 }}
 "#,
             ),
         )
-        .expect("write descriptor-lock build source");
+        .expect("write directory build source");
         std::fs::write(self.source.join("main.omg"), "data Main { value: u8; }\n")
-            .expect("write descriptor-lock main source");
+            .expect("write directory main source");
     }
 
     fn sponsored_output(&self) -> (PathBuf, FilesystemSponsor) {
-        let session = std::fs::canonicalize(&self.session).expect("canonicalize lock session");
-        let sponsor = FilesystemSponsor::new(&session).expect("create lock sponsor");
+        let session = std::fs::canonicalize(&self.session).expect("canonicalize session");
+        let sponsor = FilesystemSponsor::new(&session).expect("create sponsor");
         let output = session.join("output");
-        let bound = sponsor.bind_path(&output).expect("bind lock output");
+        let bound = sponsor.bind_path(&output).expect("bind output");
         let prepared = sponsor
             .prepare_create_directory(&bound)
-            .expect("prepare lock output");
-        std::fs::create_dir(&output).expect("create lock output");
-        prepared.commit().expect("commit lock output");
+            .expect("prepare output");
+        std::fs::create_dir(&output).expect("create output");
+        prepared.commit().expect("commit output");
         (output, sponsor)
     }
 }
@@ -99,25 +94,25 @@ impl Drop for TestProject {
 fn set_tree_permissions(root: &Path, sealed: bool) {
     use std::os::unix::fs::PermissionsExt;
 
-    let metadata = std::fs::symlink_metadata(root).expect("inspect lock test source");
+    let metadata = std::fs::symlink_metadata(root).expect("inspect directory test source");
     if metadata.is_dir() {
         if !sealed {
             std::fs::set_permissions(root, std::fs::Permissions::from_mode(0o755))
-                .expect("unseal lock test directory");
+                .expect("unseal directory test directory");
         }
-        for entry in std::fs::read_dir(root).expect("enumerate lock test source") {
-            set_tree_permissions(&entry.expect("read lock test entry").path(), sealed);
+        for entry in std::fs::read_dir(root).expect("enumerate directory test source") {
+            set_tree_permissions(&entry.expect("read directory test entry").path(), sealed);
         }
         if sealed {
             std::fs::set_permissions(root, std::fs::Permissions::from_mode(0o555))
-                .expect("seal lock test directory");
+                .expect("seal directory test directory");
         }
     } else if metadata.is_file() {
         std::fs::set_permissions(
             root,
             std::fs::Permissions::from_mode(if sealed { 0o444 } else { 0o644 }),
         )
-        .expect("set lock test file permissions");
+        .expect("set directory test file permissions");
     }
 }
 
@@ -125,16 +120,16 @@ fn set_tree_permissions(root: &Path, sealed: bool) {
 fn set_tree_permissions(_root: &Path, _sealed: bool) {}
 
 fn package_inputs(source: &Path) -> PackageCompilationInputs {
-    let package = PackageKeyIdentity::from_digest([121; 32]).expect("nonzero package identity");
-    let source = PackageSourceBinding::new(package, "descriptor-lock", source.to_path_buf())
+    let package = PackageKeyIdentity::from_digest([122; 32]).expect("nonzero package identity");
+    let source = PackageSourceBinding::new(package, "empty-directory", source.to_path_buf())
         .with_canonical_source_metadata()
-        .expect("capture descriptor-lock source metadata");
+        .expect("capture directory source metadata");
     PackageCompilationInputs::new_package(package, vec![source], Vec::new())
-        .expect("descriptor-lock package input")
+        .expect("directory package input")
 }
 
 #[test]
-fn successful_output_lock_pair_replays_without_host_output() {
+fn empty_output_directory_replays_without_host_output() {
     let profile = omega_target::TargetProfile::host();
     let project = TestProject::new();
     project.write_sources(profile.target_name());
@@ -148,11 +143,11 @@ fn successful_output_lock_pair_replays_without_host_output() {
         inputs.clone(),
         sponsor,
     )
-    .expect("exact successful Output lock pair should receipt");
+    .expect("exact empty Output directory should receipt");
 
     let summary = checked
         .build_observation_summary()
-        .expect("descriptor-lock build retains observations");
+        .expect("directory build retains observations");
     assert_eq!(summary.schema_version(), 41);
     assert!(summary.operation_replay_verified());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
@@ -162,63 +157,70 @@ fn successful_output_lock_pair_replays_without_host_output() {
             .iter()
             .map(|attempt| attempt.operation_tag())
             .collect::<Vec<_>>(),
-        vec![2, 4, 8, 1, 46, 46, 5, 8]
+        vec![2, 4, 8, 11]
     );
-    let acquire = &summary.filesystem_operation_attempts()[4];
-    let release = &summary.filesystem_operation_attempts()[5];
+    let directory = &summary.filesystem_operation_attempts()[3];
+    assert_eq!(directory.provider(), BuildFilesystemProvider::RealScoped);
     assert_eq!(
-        acquire.scalar_operands()[0].value(),
-        BuildFilesystemScalarOperandValue::I32(6)
+        directory.scalar_operands()[0].value(),
+        BuildFilesystemScalarOperandValue::I32(493)
     );
     assert_eq!(
-        release.scalar_operands()[0].value(),
-        BuildFilesystemScalarOperandValue::I32(8)
+        directory.result(),
+        BuildFilesystemOperationResult::Scalar(0)
     );
-    assert_eq!(acquire.result(), BuildFilesystemOperationResult::Scalar(0));
-    assert_eq!(release.result(), BuildFilesystemOperationResult::Scalar(0));
-    assert_eq!(acquire.post_error(), 0);
-    assert_eq!(release.post_error(), 0);
-    let BuildFilesystemLogicalHandleInputResolution::Resolved(acquire_identity) =
-        acquire.logical_handle_inputs()[0].resolution()
-    else {
-        panic!("lock acquire descriptor must be resolved")
-    };
-    let BuildFilesystemLogicalHandleInputResolution::Resolved(release_identity) =
-        release.logical_handle_inputs()[0].resolution()
-    else {
-        panic!("lock release descriptor must be resolved")
-    };
-    assert_eq!(acquire_identity, release_identity);
+    assert_eq!(directory.post_error(), 0);
+    assert_eq!(
+        directory.rooted_path_operand_resolutions()[0].root(),
+        BuildFilesystemRoot::Output
+    );
+    assert_eq!(
+        directory.rooted_path_operand_resolutions()[0].relative_path(),
+        b"generated"
+    );
+    assert_eq!(
+        directory.authorized_paths()[0].access(),
+        BuildFilesystemGrantAccess::Write
+    );
+    let staged = summary
+        .staged_output_tree()
+        .expect("empty directory has explicit staged custody");
+    assert_eq!(staged.entry_count(), 1);
+    assert_eq!(staged.file_bytes(), 0);
 
     let limits = BuildFilesystemReplayRecordLimits::default();
     let record = capture_verified_build_filesystem_replay_record(summary, limits)
-        .expect("descriptor-lock receipt encodes")
-        .expect("descriptor-lock receipt retains custody");
+        .expect("directory receipt encodes")
+        .expect("directory receipt retains custody");
     assert_eq!(
         recover_review_only_build_filesystem_replay_record(record.canonical_bytes(), limits)
-            .expect("descriptor-lock receipt recovers"),
+            .expect("directory receipt recovers"),
         record
     );
 
-    std::fs::write(output.join("locked.omg"), "data Spoofed {}\n")
-        .expect("drift physical lock output");
+    std::fs::remove_dir(output.join("generated")).expect("remove captured directory");
+    std::fs::write(output.join("generated"), "spoofed file")
+        .expect("replace directory with host file");
     let replayed = compile_to_checked_with_packages_and_replay_record(
         &project.source.join("main.omg"),
         Some(profile.target_name()),
         inputs,
         record,
     )
-    .expect("descriptor-lock replay must not consult drifted host Output");
+    .expect("directory replay must not consult drifted host Output");
     set_tree_permissions(&project.source, false);
     let replayed_summary = replayed
         .build_observation_summary()
-        .expect("replayed descriptor lock retains observations");
+        .expect("replayed directory retains observations");
     assert!(replayed_summary.operation_replay_verified());
     assert_eq!(
         replayed_summary.realized(),
         BuildObservationClass::Receipted
     );
-    assert!(replayed.typed.symbols.source_files().any(|source| {
-        source.path.ends_with("locked.omg") && source.source.as_ref() == "data Locked {}\n"
-    }));
+    assert_eq!(
+        replayed_summary
+            .staged_output_tree()
+            .expect("replayed directory staged custody"),
+        staged
+    );
 }

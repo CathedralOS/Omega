@@ -90,12 +90,16 @@ mod value;
 
 pub use build_time::BuildTimeValue;
 pub use filesystem_replay::{
-    FilesystemOutputDuplicateReplayRecord, FilesystemOutputLockReplayRecord,
-    MAX_FILESYSTEM_REPLAY_OUTPUT_DUPLICATES, MAX_FILESYSTEM_REPLAY_OUTPUT_LOCK_PAIRS,
+    FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_MODE, FilesystemInputOutputDirectoryReplayRecord,
+    FilesystemOutputDirectoryReplayRecord, FilesystemOutputDuplicateReplayRecord,
+    FilesystemOutputLockReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES,
+    MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_PATH_BYTES, MAX_FILESYSTEM_REPLAY_OUTPUT_DUPLICATES,
+    MAX_FILESYSTEM_REPLAY_OUTPUT_LOCK_PAIRS,
 };
 use filesystem_replay::{
-    output_duplicate_attempts, output_duplicate_record_from_attempts, output_lock_attempts,
-    output_lock_record_from_attempts, output_logical_handle_identities,
+    output_directory_attempt, output_directory_record_from_attempt, output_duplicate_attempts,
+    output_duplicate_record_from_attempts, output_lock_attempts, output_lock_record_from_attempts,
+    output_logical_handle_identities, source_attempts_use_root, validate_output_directory_attempt,
     validate_output_duplicate_replay, validate_output_lock_replay,
 };
 pub use filesystem_sponsor::{
@@ -1621,7 +1625,9 @@ pub struct EvaluationObservations {
 /// grammar permits one or more Source input events followed by repeated exact
 /// Output files, each with create, exact rooted-descriptor operations, bounded
 /// immediately retired duplicates, bounded exact lock/unlock pairs on the
-/// original descriptor, and close, plus an ordered generated-source subset.
+/// original descriptor, and close; or one exact fresh direct-child empty
+/// Output directory. Files and directories do not mix in this increment.
+/// File records may carry an ordered generated-source subset.
 /// This remains replay evidence, not a receipt and not a reconstructed
 /// filesystem tree.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2459,7 +2465,7 @@ impl FilesystemReplay {
     pub(crate) fn executes_output_attempt(&self, attempt_index: usize) -> bool {
         self.attempts
             .iter()
-            .position(|attempt| attempt.operation_tag() == 1)
+            .position(|attempt| matches!(attempt.operation_tag(), 1 | 11))
             .is_some_and(|output_start| attempt_index >= output_start)
     }
 
@@ -2499,6 +2505,19 @@ impl FilesystemReplay {
             .expect("validated filesystem replay retains exact Output files")
     }
 
+    /// Reconstruct the exact empty Output directory retained by this replay.
+    /// File and source-only records return `None`.
+    pub fn output_directory(&self) -> Option<FilesystemOutputDirectoryReplayRecord> {
+        self.attempts
+            .iter()
+            .find(|attempt| matches!(attempt.operation_tag(), 1 | 11))
+            .filter(|attempt| attempt.operation_tag() == 11)
+            .map(|attempt| {
+                output_directory_record_from_attempt(attempt)
+                    .expect("validated filesystem replay retains an exact Output directory")
+            })
+    }
+
     /// Generated-source coordinates expected during Output replay, in exact
     /// authored handoff order and with their filesystem-attempt ordinals.
     pub fn expected_included_sources(&self) -> &[BuildIncludedSource] {
@@ -2532,7 +2551,7 @@ impl FilesystemReplay {
         validate_filesystem_replay_size(attempts)?;
         let output_start = attempts
             .iter()
-            .position(|attempt| attempt.operation_tag() == 1)
+            .position(|attempt| matches!(attempt.operation_tag(), 1 | 11))
             .ok_or_else(|| {
                 "bounded filesystem replay requires Source inputs before Output chains".to_owned()
             })?;
@@ -2542,6 +2561,29 @@ impl FilesystemReplay {
             );
         }
         validate_source_input_attempts(&attempts[..output_start])?;
+        if attempts[output_start].operation_tag() == 11 {
+            if attempts.len() != output_start + MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES {
+                return Err(
+                    "filesystem replay Output-directory lane requires exactly one attempt"
+                        .to_owned(),
+                );
+            }
+            validate_output_directory_attempt(&attempts[output_start])?;
+            let directory = output_directory_record_from_attempt(&attempts[output_start])?;
+            if source_attempts_use_root(&attempts[..output_start], directory.output_root()) {
+                return Err("filesystem replay Source and Output roots must be distinct".to_owned());
+            }
+            if !observations.build_included_sources().is_empty() {
+                return Err(
+                    "filesystem replay empty Output directory cannot publish a generated source"
+                        .to_owned(),
+                );
+            }
+            return Ok(Self {
+                attempts: attempts.to_vec().into(),
+                expected_included_sources: std::sync::Arc::from([]),
+            });
+        }
         let outputs = output_file_records_from_attempts(&attempts[output_start..])?;
         validate_output_duplicate_replay(&outputs)?;
         validate_output_replay_extents(&outputs)?;
@@ -2585,6 +2627,21 @@ impl FilesystemReplay {
         Ok(Self {
             attempts: attempts.into(),
             expected_included_sources: record.expected_included_sources.into(),
+        })
+    }
+
+    /// Construct the bounded Source-input plus one empty Output-directory
+    /// grammar from typed compiler-owned records.
+    pub fn from_input_output_directory_record(
+        record: FilesystemInputOutputDirectoryReplayRecord,
+    ) -> Result<Self, String> {
+        let (source_input, output_directory) = record.into_parts();
+        let mut attempts = source_input_record_attempts(source_input);
+        attempts.push(output_directory_attempt(output_directory));
+        validate_filesystem_replay_size(&attempts)?;
+        Ok(Self {
+            attempts: attempts.into(),
+            expected_included_sources: std::sync::Arc::from([]),
         })
     }
 }
@@ -2692,6 +2749,9 @@ fn validate_source_input_attempts(attempts: &[FilesystemOperationAttempt]) -> Re
     let mut cursor = 0;
     let mut event_count = 0;
     while cursor < attempts.len() {
+        if matches!(attempts[cursor].operation_tag(), 1 | 11) {
+            break;
+        }
         if matches!(attempts[cursor].operation_tag(), 38 | 40) {
             if !source_path_metadata_attempt_is_exact(&attempts[cursor]) {
                 return Err("bounded filesystem replay source metadata is inconsistent".to_owned());
