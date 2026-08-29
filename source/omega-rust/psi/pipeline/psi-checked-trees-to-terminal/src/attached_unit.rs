@@ -18,16 +18,19 @@ use call_closure::{
 pub(super) use call_closure::{
     checked_unit_boundary_identity, checked_unit_call_closure_including, unique_unit_machine,
 };
+#[cfg(test)]
+pub(super) use catalog::collect_contract_services;
 pub(super) use catalog::{
-    checked_unit_target_reach_matches, collect_contract_services,
-    collect_installation_machine_contract_services, collect_service_summary,
-    lower_root_service_reach,
+    checked_unit_target_reach_matches, collect_installation_machine_contract_services,
+    collect_published_contract_services, collect_service_summary, lower_root_service_reach,
 };
 use catalog::{
     lower_program_local_root_introductions, lower_provider_candidate_service_ceiling,
     lower_unit_services, lower_unit_structural_domains, lower_unit_structural_types,
     require_valid_service_row,
 };
+#[cfg(test)]
+pub(super) use parameters::lower_contract_service_ceiling;
 pub(super) use parameters::{
     lower_installation_machine_service_ceiling, lower_published_service_ceiling,
     lower_structural_arguments, lower_structural_path, lower_unit_parameters,

@@ -25,30 +25,17 @@ use omega_compiler::{
 use omega_package_compilation::{PackageCompilationInputs, PackageSourceBinding};
 use psi_checked_interpreter::FilesystemSponsor;
 
-fn compile(
+fn compile_terminal(
     options: CompileOptions,
 ) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
-    let build_dir = options.build_dir();
-    let report = omega_compiler::compile(
+    omega_compiler::compile(
         omega_compiler::CompileRequest::new(options)
-            .with_requested_product(omega_compiler::RequestedCompileProduct::NativeArtifact),
-    )?;
-    report
-        .publish_retained_native_artifact(&build_dir)
-        .map_err(|error| vec![psi_diagnostics::Diagnostic::error(error)])
+            .with_requested_product(omega_compiler::RequestedCompileProduct::TerminalArtifact),
+    )
 }
 
 use psi_core::PackageKeyIdentity;
 use std::path::{Path, PathBuf};
-use std::process::Command;
-
-fn executable_name() -> &'static str {
-    if cfg!(windows) {
-        "omega-program.exe"
-    } else {
-        "omega-program"
-    }
-}
 
 #[cfg(unix)]
 fn create_directory_symlink(target: &Path, link: &Path) -> std::io::Result<()> {
@@ -590,30 +577,42 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     );
     assert!(rename.logical_handle_inputs().is_empty());
 
-    let report = compile(
-        CompileOptions {
-            root_path: PathBuf::from(project.join("main.omg")),
-            build_dir: Some(build_dir.clone()),
-            target_name: Some(profile.target_name().to_owned()),
-        },
+    let report = compile_terminal(CompileOptions {
+        root_path: PathBuf::from(project.join("main.omg")),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some(profile.target_name().to_owned()),
+    })
+    .expect("declared filesystem+console build.omg should produce Terminal Psi");
+    assert!(!report.wrote_output());
+    let terminal = psi_terminal_codec::decode_module(
+        report
+            .artifact()
+            .expect("Terminal request retains one canonical artifact")
+            .semantic_bytes(),
     )
-    .expect("declared filesystem+console build.omg should compile (console rows are SERVED, not backstopped)");
-    assert!(report.wrote_output());
+    .expect("decode retained Terminal semantics");
+    let entry = terminal
+        .machines
+        .iter()
+        .find(|machine| machine.id == terminal.entry)
+        .expect("Terminal entry names one retained machine");
+    let entry_reach = entry
+        .published_service_ceiling
+        .iter()
+        .map(|service| {
+            terminal
+                .services
+                .iter()
+                .find(|declaration| declaration.id == *service)
+                .map(|declaration| declaration.identity.as_str())
+                .expect("entry reach names one retained service")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(entry_reach, vec!["Console"]);
 
     let staged = std::fs::read_to_string(stage.join("asset.bin"))
         .expect("the build machine should have staged stage/asset.bin at compile time");
     assert_eq!(staged, "staged by build\n");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("compiled program should run");
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected the staged program to exit 70, got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
-    );
 
     let sponsored_session = rooted_build_session(&project, "sponsored-review");
     let _ = std::fs::remove_dir_all(&sponsored_session);
