@@ -123,6 +123,10 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn validate_liveness",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/post_allocation_manifest/mod.rs",
+        coordination_marker: "pub fn project_post_allocation_optimization_manifest",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/artifact/mod.rs",
         coordination_marker: "pub fn lower_artifact_sections",
     },
@@ -909,6 +913,13 @@ fn optimizer_source_organization_is_bounded_and_navigable() {
                 "global-value-numbering identities retain a mixed catch-all: {obsolete}"
             ));
         }
+    }
+
+    let obsolete_post_allocation_manifest = "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/post_allocation_manifest.rs";
+    if repository.join(obsolete_post_allocation_manifest).exists() {
+        violations.insert(format!(
+            "register allocation retains the mixed post-allocation manifest file: {obsolete_post_allocation_manifest}"
+        ));
     }
 
     let legalization_root = repository.join(

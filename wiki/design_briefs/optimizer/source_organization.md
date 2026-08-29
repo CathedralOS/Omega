@@ -482,6 +482,15 @@ closed operation partition. The former mixed `rule.rs` and `shapes.rs` files
 are forbidden by the architecture gate. Thus the review path is catalog row
 to same-named rule folder to contract/proposal and laws, without a repository
 search or a generic catch-all.
+
+The register-allocation post-allocation manifest now follows the same rule for
+a custody boundary rather than a rewrite catalog. Its 100-line
+`post_allocation_manifest/mod.rs` owns both direct-home and
+selected-lowering projection/validation joins. `model`, `error`, `identity`,
+`codec`, `reconstruction`, `projection`, `validation`, `rendering`, and
+focused-test leaves own the subordinate responsibilities. The former 954-line
+mixed file is gone, no replacement exceeds 315 lines, and the architecture
+gate pins the projection join while forbidding the flat path.
 Independent dead-scalar validation exposes one custody-and-analysis-contract
 entrance above its exact rule catalog, exhaustive closed operation partition,
 and rewrite replay. A new operation or dead-scalar rule therefore has one
