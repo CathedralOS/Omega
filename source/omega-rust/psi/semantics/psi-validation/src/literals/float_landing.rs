@@ -19,8 +19,10 @@ use psi_typed_trees::types::PrimitiveType;
 /// below (struct-literal fields, assignments, let locals) -- keep the two in
 /// lockstep. Already-landed (suffixed) literals are untouched: their landing
 /// was chosen at the spelling, and the suffix-vs-destination check owns any
-/// disagreement. Runs on the still-mutable typed tree BEFORE validation, so
-/// both engines consume one stamped tree.
+/// disagreement. Comparisons against a typed named value, including a
+/// proposition parameter, likewise land the opposite literal tree to that
+/// value's format. Runs on the still-mutable typed tree BEFORE validation, so
+/// every downstream consumer sees one stamped tree.
 pub fn land_float_literal_destinations(program: &mut TypedTrees) {
     use psi_numerics::literals::FloatFormat;
 
@@ -101,6 +103,19 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
                         | psi_typed_trees::expression::BinaryOperator::GreaterOrEqual
                 ) =>
             {
+                if let ExpressionNode::Name(path) = program.expression_table.expression(binary.left)
+                    && let Some(declared) =
+                        crate::expression_types::named_value_type_reference(program, path)
+                {
+                    pairs.push((binary.right, declared));
+                }
+                if let ExpressionNode::Name(path) =
+                    program.expression_table.expression(binary.right)
+                    && let Some(declared) =
+                        crate::expression_types::named_value_type_reference(program, path)
+                {
+                    pairs.push((binary.left, declared));
+                }
                 anonymous_comparisons.push(handle);
             }
             _ => {}

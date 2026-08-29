@@ -212,7 +212,7 @@ pub(crate) fn argument_matches_type_reference_handle(
     }
 }
 
-fn named_value_type_reference(
+pub(crate) fn named_value_type_reference(
     program: &TypedTrees,
     path: &psi_typed_trees::expression::TableNamePath,
 ) -> Option<TypeReferenceHandle> {
@@ -248,6 +248,15 @@ fn named_value_type_reference(
                     return Some(local.type_reference);
                 }
             }
+        }
+    }
+    for proposition in program.propositions() {
+        if let Some(parameter) = program
+            .proposition_parameters(proposition)
+            .iter()
+            .find(|parameter| matches_symbol(parameter.symbol))
+        {
+            return Some(parameter.type_reference);
         }
     }
     None

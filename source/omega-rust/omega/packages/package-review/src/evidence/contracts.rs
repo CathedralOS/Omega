@@ -202,6 +202,9 @@ impl PackageReviewContractCallTarget {
 pub enum PackageReviewContractExpression {
     Boolean(bool),
     Integer(String),
+    /// One width-landed IEEE literal. Exact checked bits, including signed
+    /// zero, are semantic identity; decimal source spelling is not.
+    Float(PackageReviewFloatLiteral),
     /// Ordered structural elements of one checked array literal.
     Array(Vec<PackageReviewContractExpression>),
     Constructor {
@@ -275,6 +278,12 @@ pub enum PackageReviewContractExpression {
         operator: PackageReviewContractUnaryOperator,
         operand: Box<PackageReviewContractExpression>,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewFloatLiteral {
+    F32(u32),
+    F64(u64),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

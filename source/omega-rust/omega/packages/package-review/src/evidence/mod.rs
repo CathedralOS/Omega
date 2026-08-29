@@ -23,7 +23,7 @@ pub use contracts::{
     PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractKind,
     PackageReviewContractOperatorMeaning, PackageReviewContractStaticArgument,
     PackageReviewContractUnaryOperator, PackageReviewEvidenceInterface,
-    PackageReviewEvidenceRequirement, PackageReviewOperatorCoordinate,
+    PackageReviewEvidenceRequirement, PackageReviewFloatLiteral, PackageReviewOperatorCoordinate,
     PackageReviewOperatorRealization, PackageReviewOperatorShape,
     PackageReviewPropositionApplication, PackageReviewPropositionBinder,
     PackageReviewPropositionBinderArgument, PackageReviewPropositionBinderKind,

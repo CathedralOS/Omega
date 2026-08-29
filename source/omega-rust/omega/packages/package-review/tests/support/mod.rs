@@ -18,7 +18,7 @@ pub(crate) use omega_package_review::{
     PackageReviewDangerousAuthorityClass, PackageReviewDataKind, PackageReviewDataMember,
     PackageReviewDomainAliasAtom, PackageReviewDomainClassification,
     PackageReviewDomainEstablishmentKind, PackageReviewDomainSemanticRole,
-    PackageReviewExternalBinding, PackageReviewExternalRequirement,
+    PackageReviewExternalBinding, PackageReviewExternalRequirement, PackageReviewFloatLiteral,
     PackageReviewMachineParameterContract, PackageReviewNominalOwner,
     PackageReviewPropositionBinderKind, PackageReviewPropositionBinderValue,
     PackageReviewPropositionEvidence, PackageReviewPublicPropositionBody,
