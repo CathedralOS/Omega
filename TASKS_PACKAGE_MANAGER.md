@@ -94,9 +94,9 @@ closed. Compiler-issued package review remains non-admitting.
   nominal Chi stage merely to collect private compiler state.
 
 - [ ] **BUILD-OBSERVATION-EVIDENCE.** Generalize the existing exact
-  Source-input/empty-Output, one-file generated-source, and repeated direct-
-  child ordinary-artifact replay lanes into a complete receipted build-
-  operation and output grammar. Add replay for every remaining admitted
+  Source-input/empty-Output and repeated direct-child output replay lanes,
+  including exact ordered generated-source subsets, into a complete receipted
+  build-operation and output grammar. Add replay for every remaining admitted
   service and staged-output shape, exact staged-output
   commitments, failure/denial outcomes, and a complete replay verdict. Enforce
   process CPU/memory and remaining session quotas. A summary or observation

@@ -231,16 +231,8 @@ impl<'program> Evaluator<'program> {
             }
             return Ok(());
         }
-        match replay.expected_included_source() {
-            None if !self.build_included_sources.is_empty() => {
-                return trap("filesystem replay unexpectedly handed off an ordinary output file");
-            }
-            Some(expected)
-                if self.build_included_sources.as_slice() != std::slice::from_ref(&expected) =>
-            {
-                return trap("filesystem replay generated-source handoff changed");
-            }
-            _ => {}
+        if self.build_included_sources.as_slice() != replay.expected_included_sources() {
+            return trap("filesystem replay generated-source handoff sequence changed");
         }
         let mut expected_files = std::collections::BTreeMap::new();
         for output in outputs {
@@ -2372,7 +2364,7 @@ mod tests {
         let mut evaluator = Evaluator::new(&program, &[]);
         evaluator.filesystem_replay = Some(crate::FilesystemReplay {
             attempts: vec![expected.clone()].into(),
-            expected_included_source: None,
+            expected_included_sources: std::sync::Arc::from([]),
         });
 
         assert!(matches!(

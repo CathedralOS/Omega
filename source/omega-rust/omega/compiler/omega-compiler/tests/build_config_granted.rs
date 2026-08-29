@@ -73,6 +73,45 @@ fn replace_unique_bytes(bytes: &[u8], needle: &[u8], replacement: &[u8]) -> Vec<
     changed
 }
 
+fn insert_single_replay_handoff(
+    record_bytes: &[u8],
+    has_canonical_source_metadata: bool,
+    relative_path: &[u8],
+    filesystem_attempt_ordinal: u64,
+) -> Vec<u8> {
+    let handoff_count_offset = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0".len()
+        + 2
+        + 4
+        + 4
+        + 1
+        + if has_canonical_source_metadata {
+            4 + 32
+        } else {
+            0
+        };
+    assert_eq!(
+        &record_bytes[handoff_count_offset..handoff_count_offset + 8],
+        &0u64.to_le_bytes()
+    );
+    let mut handoff = Vec::new();
+    handoff.extend_from_slice(&1u64.to_le_bytes());
+    handoff.extend_from_slice(&replay_handoff_lane(
+        relative_path,
+        filesystem_attempt_ordinal,
+    ));
+    let mut changed = record_bytes.to_vec();
+    changed.splice(handoff_count_offset..handoff_count_offset + 8, handoff);
+    changed
+}
+
+fn replay_handoff_lane(relative_path: &[u8], filesystem_attempt_ordinal: u64) -> Vec<u8> {
+    let mut lane = Vec::new();
+    lane.extend_from_slice(&(relative_path.len() as u64).to_le_bytes());
+    lane.extend_from_slice(relative_path);
+    lane.extend_from_slice(&filesystem_attempt_ordinal.to_le_bytes());
+    lane
+}
+
 fn rooted_build_probe_project(label: &str, body: &str) -> (PathBuf, omega_target::TargetProfile) {
     let profile = omega_target::TargetProfile::host();
     let project = std::env::temp_dir().join(format!(
@@ -314,7 +353,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 29);
+    assert_eq!(checked_observations.schema_version(), 30);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -1886,7 +1925,8 @@ fn source_open_read_close_is_replayed_without_a_filesystem_provider() {
         "record byte ceiling must reject before parsing"
     );
     let mut spoofed_lane = record.canonical_bytes().to_vec();
-    let record_header_bytes = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0".len() + 2 + 4 + 4 + 8;
+    let record_header_bytes =
+        b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0".len() + 2 + 4 + 4 + 1 + 8 + 8;
     let open_byte_lane_offset = record_header_bytes + 2 + 1 + 1 + 8 + 4 + 8 + 1 + 1 + 4;
     let mut fake_byte_operand = Vec::new();
     fake_byte_operand.extend_from_slice(&1u64.to_le_bytes());
@@ -2065,7 +2105,7 @@ fn ordinary_output_file_replays_without_generated_source_handoff() {
     assert!(summary.source_inputs_replay_verified());
     assert!(summary.operation_replay_verified());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
-    assert!(summary.included_source_paths().is_empty());
+    assert!(summary.included_source_handoffs().is_empty());
     let staged = summary
         .staged_output_tree()
         .expect("ordinary output retains exact staged-tree custody");
@@ -2077,19 +2117,12 @@ fn ordinary_output_file_replays_without_generated_source_handoff() {
     let record = capture_verified_build_filesystem_replay_record(summary, limits)
         .expect("ordinary output receipt should encode")
         .expect("ordinary output receipt should retain replay custody");
-    let mut changed_handoff_bytes = record.canonical_bytes().to_vec();
-    let handoff_offset = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0".len()
-        + 2
-        + 4
-        + 4
-        + 1
-        + if summary.canonical_source_metadata_identity().is_some() {
-            4 + 32
-        } else {
-            0
-        };
-    assert_eq!(changed_handoff_bytes[handoff_offset], 0);
-    changed_handoff_bytes[handoff_offset] = 1;
+    let changed_handoff_bytes = insert_single_replay_handoff(
+        record.canonical_bytes(),
+        summary.canonical_source_metadata_identity().is_some(),
+        b"artifact.bin",
+        summary.filesystem_operation_attempts().len() as u64,
+    );
     let changed_handoff =
         recover_review_only_build_filesystem_replay_record(&changed_handoff_bytes, limits)
             .expect("changed handoff disposition remains canonically framed");
@@ -2133,7 +2166,7 @@ fn ordinary_output_file_replays_without_generated_source_handoff() {
         replayed_summary.realized(),
         BuildObservationClass::Receipted
     );
-    assert!(replayed_summary.included_source_paths().is_empty());
+    assert!(replayed_summary.included_source_handoffs().is_empty());
     assert_eq!(
         replayed_summary
             .staged_output_tree()
@@ -2198,7 +2231,7 @@ fn multiple_ordinary_output_files_replay_as_one_exact_tree() {
     assert!(summary.source_inputs_replay_verified());
     assert!(summary.operation_replay_verified());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
-    assert!(summary.included_source_paths().is_empty());
+    assert!(summary.included_source_handoffs().is_empty());
     let staged = summary
         .staged_output_tree()
         .expect("multiple outputs retain exact staged-tree custody");
@@ -2218,26 +2251,6 @@ fn multiple_ordinary_output_files_replay_as_one_exact_tree() {
             .expect("multiple-output replay record should recover"),
         record
     );
-    let mut invented_handoff = record.canonical_bytes().to_vec();
-    let handoff_offset = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0".len()
-        + 2
-        + 4
-        + 4
-        + 1
-        + if summary.canonical_source_metadata_identity().is_some() {
-            4 + 32
-        } else {
-            0
-        };
-    assert_eq!(invented_handoff[handoff_offset], 0);
-    invented_handoff[handoff_offset] = 1;
-    assert_eq!(
-        recover_review_only_build_filesystem_replay_record(&invented_handoff, limits)
-            .expect_err("multiple ordinary outputs cannot acquire a source handoff")
-            .message(),
-        "generated-source filesystem replay requires exactly one Output chain"
-    );
-
     let package = PackageKeyIdentity::from_digest([99; 32]).expect("nonzero package identity");
     set_canonical_source_tree_permissions(&project, true);
     let package_source = PackageSourceBinding::new(package, "multiple-output", project.clone())
@@ -2266,7 +2279,7 @@ fn multiple_ordinary_output_files_replay_as_one_exact_tree() {
         replayed_summary.realized(),
         BuildObservationClass::Receipted
     );
-    assert!(replayed_summary.included_source_paths().is_empty());
+    assert!(replayed_summary.included_source_handoffs().is_empty());
     assert_eq!(
         replayed_summary
             .staged_output_tree()
@@ -3377,6 +3390,165 @@ fn receipted_generated_source_reopens_with_source_custody_and_rejects_source_dri
 
     let _ = std::fs::remove_dir_all(&project);
     let _ = std::fs::remove_dir_all(rooted_build_session(&project, "receipted-review"));
+}
+
+#[test]
+fn multiple_generated_source_handoffs_retain_exact_order_and_ordinals() {
+    let (project, profile) = rooted_build_probe_project(
+        "multiple-generated-source-handoffs",
+        r#"    let input: &[u8] in Path = builder.source.resolve("main.omg");
+    self.descriptor = self.filesystem.open(input, 0);
+    self.result = self.filesystem.read(self.descriptor, &mut self.buffer, 23);
+    self.code = self.filesystem.close(self.descriptor);
+    let alpha: &[u8] in Path = builder.output.resolve("alpha.omg");
+    self.descriptor = self.filesystem.create(alpha, 438);
+    self.result = self.filesystem.write(self.descriptor, "data Alpha {}\n");
+    self.code = self.filesystem.close(self.descriptor);
+    builder.output.include_source(alpha);
+    let artifact: &[u8] in Path = builder.output.resolve("artifact.bin");
+    self.descriptor = self.filesystem.create(artifact, 438);
+    self.result = self.filesystem.write(self.descriptor, "ordinary artifact");
+    self.code = self.filesystem.close(self.descriptor);
+    let beta: &[u8] in Path = builder.output.resolve("beta1.omg");
+    self.descriptor = self.filesystem.create(beta, 438);
+    self.result = self.filesystem.write(self.descriptor, "data Beta {}\n");
+    self.code = self.filesystem.close(self.descriptor);
+    let gamma: &[u8] in Path = builder.output.resolve("gamma.omg");
+    self.descriptor = self.filesystem.create(gamma, 438);
+    self.result = self.filesystem.write(self.descriptor, "data Gamma {}\n");
+    self.code = self.filesystem.close(self.descriptor);
+    builder.output.include_source(gamma);
+    builder.output.include_source(beta);"#,
+    );
+    let checked =
+        compile_rooted_probe_with_sponsored_output(&project, profile, "multiple-generated-review")
+            .expect("multiple generated sources with one ordinary artifact should compile");
+    let summary = checked
+        .build_observation_summary()
+        .expect("multiple generated-source receipt retains observations");
+    assert!(summary.operation_replay_verified());
+    assert_eq!(summary.realized(), BuildObservationClass::Receipted);
+    assert_eq!(
+        summary
+            .included_source_handoffs()
+            .iter()
+            .map(|handoff| (
+                handoff.relative_path(),
+                handoff.filesystem_attempt_ordinal()
+            ))
+            .collect::<Vec<_>>(),
+        vec![
+            (b"alpha.omg".as_slice(), 6),
+            (b"gamma.omg".as_slice(), 15),
+            (b"beta1.omg".as_slice(), 15),
+        ]
+    );
+    assert_eq!(
+        summary
+            .staged_output_tree()
+            .expect("mixed generated and ordinary outputs retain one exact tree")
+            .entry_count(),
+        4
+    );
+    for (path, source) in [
+        ("alpha.omg", "data Alpha {}\n"),
+        ("gamma.omg", "data Gamma {}\n"),
+        ("beta1.omg", "data Beta {}\n"),
+    ] {
+        let generated = checked
+            .typed
+            .symbols
+            .source_files()
+            .find(|candidate| candidate.path.ends_with(path))
+            .unwrap_or_else(|| panic!("generated source {path} enters final compilation"));
+        assert_eq!(generated.source.as_ref(), source);
+    }
+    assert!(
+        checked
+            .typed
+            .symbols
+            .source_files()
+            .all(|source| !source.path.ends_with("artifact.bin"))
+    );
+
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let record = capture_verified_build_filesystem_replay_record(summary, limits)
+        .expect("multiple generated-source receipt should encode")
+        .expect("multiple generated-source receipt should retain replay custody");
+    let mut gamma_then_beta = replay_handoff_lane(b"gamma.omg", 15);
+    gamma_then_beta.extend_from_slice(&replay_handoff_lane(b"beta1.omg", 15));
+    let mut beta_then_gamma = replay_handoff_lane(b"beta1.omg", 15);
+    beta_then_gamma.extend_from_slice(&replay_handoff_lane(b"gamma.omg", 15));
+    let reordered_record = recover_review_only_build_filesystem_replay_record(
+        &replace_unique_bytes(record.canonical_bytes(), &gamma_then_beta, &beta_then_gamma),
+        limits,
+    )
+    .expect("reordered distinct handoffs remain canonically framed");
+    let mut early_gamma = replay_handoff_lane(b"gamma.omg", 15);
+    let early_ordinal_offset = early_gamma.len() - 8;
+    early_gamma[early_ordinal_offset..].copy_from_slice(&14u64.to_le_bytes());
+    assert!(
+        recover_review_only_build_filesystem_replay_record(
+            &replace_unique_bytes(
+                record.canonical_bytes(),
+                &replay_handoff_lane(b"gamma.omg", 15),
+                &early_gamma,
+            ),
+            limits,
+        )
+        .expect_err("handoff before its matching close must reject recovery")
+        .message()
+        .contains("does not follow its Output close")
+    );
+
+    let package = PackageKeyIdentity::from_digest([100; 32]).expect("nonzero package identity");
+    set_canonical_source_tree_permissions(&project, true);
+    let package_source = PackageSourceBinding::new(package, "multiple-generated", project.clone())
+        .with_canonical_source_metadata()
+        .expect("capture multiple-generated canonical metadata");
+    let package_inputs = PackageCompilationInputs::new(package, vec![package_source], Vec::new())
+        .expect("single-package multiple-generated input");
+    let reordered = compile_to_checked_with_packages_and_replay_record(
+        &project.join("main.omg"),
+        Some(profile.target_name()),
+        package_inputs.clone(),
+        reordered_record,
+    )
+    .expect_err("reordered generated-source handoffs must reject authored replay");
+    assert!(reordered.iter().any(|diagnostic| {
+        diagnostic.message.contains("handoff")
+            && (diagnostic
+                .message
+                .contains("requires a scoped build-output grant")
+                || diagnostic.message.contains("sequence changed"))
+    }));
+
+    std::fs::write(
+        rooted_build_session(&project, "multiple-generated-review").join("output/gamma.omg"),
+        "data Spoofed {}\n",
+    )
+    .expect("change one physical generated Output after receipt capture");
+    let replayed = compile_to_checked_with_packages_and_replay_record(
+        &project.join("main.omg"),
+        Some(profile.target_name()),
+        package_inputs,
+        record,
+    )
+    .expect("multiple generated-source replay ignores host Output drift");
+    set_canonical_source_tree_permissions(&project, false);
+    assert_eq!(
+        replayed
+            .build_observation_summary()
+            .expect("reopened multiple-generated receipt retains observations")
+            .included_source_handoffs(),
+        summary.included_source_handoffs()
+    );
+    assert!(replayed.typed.symbols.source_files().any(|source| {
+        source.path.ends_with("gamma.omg") && source.source.as_ref() == "data Gamma {}\n"
+    }));
+
+    let _ = std::fs::remove_dir_all(&project);
+    let _ = std::fs::remove_dir_all(rooted_build_session(&project, "multiple-generated-review"));
 }
 
 #[test]

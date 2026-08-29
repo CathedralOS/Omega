@@ -1382,6 +1382,19 @@ staged-entry, path, and unique-content ceilings remain in force. Nested paths,
 directories, other operations, handled failures, and multiple generated-source
 handoffs remain outside this rung.
 
+Observation summary v30 and compiler replay-record v11 close the explicit-
+publication cardinality for that repeated-file grammar. Any ordered subset of
+the distinct output files may be handed to `include_source`, while unselected
+files remain ordinary artifacts. Each summary and record row binds the exact
+Output-relative path and completed-filesystem-attempt ordinal in authored call
+order. Ordinals are nondecreasing, every path is unique, and no handoff may
+precede its matching successful close; multiple calls may share an ordinal and
+handoff order may differ from output-chain order. Replay authorizes only the
+next exact path at that exact ordinal and requires complete sequence equality
+at teardown. Existing generated-source filename, regular-file, reserved-name,
+final-frontend, sponsored-custody, and resource checks remain unchanged. A
+filename still cannot implicitly publish source.
+
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities reject negative, wrapped, or

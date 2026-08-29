@@ -12,7 +12,7 @@ use std::fmt;
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 10;
+const VERSION: u16 = 11;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -131,14 +131,10 @@ pub fn capture_verified_build_filesystem_replay_record(
             encoder.fixed(&identity.source_content_commitment());
         }
     }
-    match summary.included_source_paths() {
-        [] => encoder.byte(0),
-        [_] => encoder.byte(1),
-        _ => {
-            return Err(BuildFilesystemReplayRecordError::new(
-                "bounded filesystem replay permits at most one included-source handoff",
-            ));
-        }
+    encoder.count(summary.included_source_handoffs().len())?;
+    for handoff in summary.included_source_handoffs() {
+        encoder.bytes(handoff.relative_path())?;
+        encoder.u64(handoff.filesystem_attempt_ordinal());
     }
     encoder.count(summary.filesystem_operation_attempts().len())?;
     for attempt in summary.filesystem_operation_attempts() {
@@ -168,7 +164,7 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
     limits: BuildFilesystemReplayRecordLimits,
 ) -> Result<psi_checked_interpreter::FilesystemReplay, BuildFilesystemReplayRecordError> {
     let decoded = decode_shapes(record.canonical_bytes(), limits)?;
-    let output_has_included_source = decoded.output_has_included_source;
+    let included_sources = decoded.included_sources;
     let shapes = decoded.shapes;
     let output_start = shapes
         .iter()
@@ -294,27 +290,36 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
             })?,
         );
     }
-    let expected_included_source = output_has_included_source
-        .then(|| {
-            let output = output_records
-                .first()
-                .expect("validated generated-source replay has one output");
+    let mut expected_included_sources = Vec::new();
+    expected_included_sources
+        .try_reserve_exact(included_sources.len())
+        .map_err(|_| {
+            BuildFilesystemReplayRecordError::new(
+                "filesystem replay included-source allocation failed",
+            )
+        })?;
+    for included in included_sources {
+        expected_included_sources.push(
             psi_checked_interpreter::BuildIncludedSource::from_coordinate(
                 crate::BUILD_OUTPUT_ROOT_IDENTITY,
-                clone_bytes(output.output_relative_path())?,
-                shapes.len(),
+                clone_bytes(included.relative_path)?,
+                usize::try_from(included.filesystem_attempt_ordinal).map_err(|_| {
+                    BuildFilesystemReplayRecordError::new(
+                        "filesystem replay included-source ordinal exceeds this compiler host",
+                    )
+                })?,
             )
             .map_err(|_| {
                 BuildFilesystemReplayRecordError::new(
                     "filesystem replay generated-source handoff could not be rehydrated",
                 )
-            })
-        })
-        .transpose()?;
+            })?,
+        );
+    }
     let typed_record = psi_checked_interpreter::FilesystemInputOutputReplayRecord::new(
         typed_record,
         output_records,
-        expected_included_source,
+        expected_included_sources,
     )
     .map_err(|_| {
         BuildFilesystemReplayRecordError::new(
@@ -493,8 +498,14 @@ fn rehydrate_read_shape(
 
 struct DecodedReplay<'a> {
     canonical_source_metadata_identity: Option<BuildCanonicalSourceMetadataIdentity>,
-    output_has_included_source: bool,
+    included_sources: Vec<ShapeIncludedSource<'a>>,
     shapes: Vec<AttemptShape<'a>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ShapeIncludedSource<'a> {
+    relative_path: &'a [u8],
+    filesystem_attempt_ordinal: u64,
 }
 
 fn decode_shapes(
@@ -522,15 +533,26 @@ fn decode_shapes(
     }
     let canonical_source_metadata_identity =
         decode_canonical_source_metadata_identity(&mut decoder)?;
-    let output_has_included_source = match decoder.byte()? {
-        0 => false,
-        1 => true,
-        _ => {
-            return Err(BuildFilesystemReplayRecordError::new(
-                "invalid filesystem replay included-source disposition",
-            ));
-        }
-    };
+    let included_source_count = decoder.count()?;
+    if included_source_count > psi_checked_interpreter::MAX_INCLUDED_BUILD_SOURCES {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "filesystem replay exceeds its 256-source handoff ceiling",
+        ));
+    }
+    let mut included_sources = Vec::new();
+    included_sources
+        .try_reserve_exact(included_source_count)
+        .map_err(|_| {
+            BuildFilesystemReplayRecordError::new(
+                "filesystem replay included-source allocation failed",
+            )
+        })?;
+    for _ in 0..included_source_count {
+        included_sources.push(ShapeIncludedSource {
+            relative_path: decoder.bytes()?,
+            filesystem_attempt_ordinal: decoder.u64()?,
+        });
+    }
     let attempt_count = decoder.count()?;
     if attempt_count == 0 {
         return Err(BuildFilesystemReplayRecordError::new(
@@ -546,15 +568,10 @@ fn decode_shapes(
     }
     decoder.finish()?;
     validate_first_rung(&shapes)?;
-    let output_chain_count = shapes.iter().filter(|shape| shape.operation == 1).count();
-    if output_has_included_source && output_chain_count != 1 {
-        return Err(BuildFilesystemReplayRecordError::new(
-            "generated-source filesystem replay requires exactly one Output chain",
-        ));
-    }
+    validate_included_source_shapes(&shapes, &included_sources)?;
     Ok(DecodedReplay {
         canonical_source_metadata_identity,
-        output_has_included_source,
+        included_sources,
         shapes,
     })
 }
@@ -1169,6 +1186,93 @@ fn validate_first_rung(
                 ));
             }
             output_paths.push(rooted.bytes);
+        }
+    }
+    Ok(())
+}
+
+fn validate_included_source_shapes(
+    shapes: &[AttemptShape<'_>],
+    included_sources: &[ShapeIncludedSource<'_>],
+) -> Result<(), BuildFilesystemReplayRecordError> {
+    if included_sources.len() > psi_checked_interpreter::MAX_INCLUDED_BUILD_SOURCES {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "filesystem replay exceeds its 256-source handoff ceiling",
+        ));
+    }
+    if included_sources.is_empty() {
+        return Ok(());
+    }
+    let output_start = shapes
+        .iter()
+        .position(|shape| shape.operation == 1)
+        .ok_or_else(|| {
+            BuildFilesystemReplayRecordError::new(
+                "source-only filesystem replay cannot retain included-source handoffs",
+            )
+        })?;
+    let output_shapes = &shapes[output_start..];
+    let total_attempt_count = u64::try_from(shapes.len()).map_err(|_| {
+        BuildFilesystemReplayRecordError::new(
+            "filesystem replay attempt count exceeds canonical u64",
+        )
+    })?;
+    let mut previous_ordinal = u64::try_from(output_start).map_err(|_| {
+        BuildFilesystemReplayRecordError::new(
+            "filesystem replay Source-prefix count exceeds canonical u64",
+        )
+    })?;
+    for (handoff_index, included) in included_sources.iter().enumerate() {
+        if included.filesystem_attempt_ordinal < previous_ordinal {
+            return Err(BuildFilesystemReplayRecordError::new(
+                "filesystem replay included-source ordinals are not nondecreasing",
+            ));
+        }
+        previous_ordinal = included.filesystem_attempt_ordinal;
+        if included_sources[..handoff_index]
+            .iter()
+            .any(|prior| prior.relative_path == included.relative_path)
+        {
+            return Err(BuildFilesystemReplayRecordError::new(
+                "filesystem replay included-source path appears more than once",
+            ));
+        }
+        let output_index = output_shapes
+            .chunks_exact(3)
+            .position(|chain| {
+                chain[0]
+                    .rooted_paths
+                    .first()
+                    .is_some_and(|rooted| rooted.bytes == included.relative_path)
+            })
+            .ok_or_else(|| {
+                BuildFilesystemReplayRecordError::new(
+                    "filesystem replay included-source path has no matching Output file",
+                )
+            })?;
+        let earliest_ordinal = output_start
+            .checked_add(
+                output_index
+                    .checked_add(1)
+                    .and_then(|index| index.checked_mul(3))
+                    .ok_or_else(|| {
+                        BuildFilesystemReplayRecordError::new(
+                            "filesystem replay included-source ordinal overflowed",
+                        )
+                    })?,
+            )
+            .and_then(|ordinal| u64::try_from(ordinal).ok())
+            .ok_or_else(|| {
+                BuildFilesystemReplayRecordError::new(
+                    "filesystem replay included-source ordinal exceeds canonical u64",
+                )
+            })?;
+        if included.filesystem_attempt_ordinal < earliest_ordinal
+            || included.filesystem_attempt_ordinal > total_attempt_count
+        {
+            return Err(BuildFilesystemReplayRecordError::new(
+                "filesystem replay included-source handoff does not follow its Output close",
+            ));
         }
     }
     Ok(())
