@@ -37,7 +37,11 @@ src/
 |   |-- source_patch.rs    Produce bounded source changes for human/LLM review.
 |   |-- source_triage.rs   Derive deterministic blockers and audit recommendations.
 |   |-- source_review.rs   Assemble and invoke the advisory-review boundary.
-|   |-- baseline.rs        Recover review-only comparison baselines.
+|   |-- baseline/          Capture and recover review-only comparison baselines.
+|   |   |-- capsule.rs     In-memory baseline packages and capsules.
+|   |   |-- storage.rs     Private rooted record persistence.
+|   |   |-- validation.rs  Canonical graph and resource checks.
+|   |   `-- encoding.rs    Canonical binary codec and identity encoding.
 |   `-- policy.rs          Resolve root-owned review policy.
 `-- storage/               Bounded internal record persistence.
 ```
