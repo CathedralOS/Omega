@@ -96,6 +96,14 @@ the package-qualified operator target, and excludes the static namespace from
 the optional value receiver. Target drift and explicit reference-argument type
 drift reject. This adds no new canonical atom beyond schema v84 / row v42.
 
+Operator-bound external supply retains its requirement as the exact existing
+package-qualified operator coordinate in the opaque-blocking executable-supply
+row. Projection rejoins that coordinate with the retained overload symbol and,
+when selected, the exact provider plan; checked rederivation rejects post-check
+requirement drift before any trust row can be issued.
+Disclosure remains distinct from provider selection and makes no audit or
+Terminal claim.
+
 Explicit boundary-operator family review rows retain one exact family and
 provider identity, selected target, selection authority, complete-declaration
 coverage, and the canonical exact-coordinate-to-plan mapping. Independent

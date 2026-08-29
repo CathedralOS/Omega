@@ -69,6 +69,76 @@ machine FloatProvider::minimum<T>(left: f32, right: f32) -> f32
 }
 
 #[test]
+fn external_boundary_operator_supply_rejects_post_check_requirement_drift() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data F32 {}
+pub boundary operator F32::minimum(left: f32, right: f32) -> f32;
+pub boundary operator F32::maximum(left: f32, right: f32) -> f32;
+
+pub data FloatProvider {}
+pub machine FloatProvider::minimum(left: f32, right: f32) -> f32
+    satisfies F32::minimum
+    via Binding::CompilerIntrinsic;
+pub machine FloatProvider::maximum(left: f32, right: f32) -> f32
+    satisfies F32::maximum
+    via Binding::CompilerIntrinsic;
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let mut checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("external boundary-operator drift fixture should check");
+    let wrong_requirement = checked
+        .typed
+        .operators()
+        .iter()
+        .find(|operator| {
+            checked.typed.operator_path_members(operator.name)[1].as_str() == "maximum"
+        })
+        .expect("maximum boundary operator")
+        .symbol;
+    let satisfies = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "FloatProvider::minimum")
+        .expect("minimum external realization")
+        .satisfies;
+    checked
+        .typed
+        .machine_trait_conformances
+        .span_mut_or_empty(satisfies)[0]
+        .requirement_symbol = wrong_requirement;
+
+    let diagnostics = project_checked_package_review(&checked)
+        .expect_err("post-check external requirement drift must fail closed");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains(
+                "checked operator-realization contracts do not equal compiler rederivation",
+            )
+        }),
+        "unexpected diagnostics: {diagnostics:?}"
+    );
+}
+
+#[test]
 fn external_binding_changes_only_the_supply_row_for_a_stable_callable() {
     let Some(target) = host_target_name() else {
         return;
