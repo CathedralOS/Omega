@@ -45,17 +45,14 @@ fn replay_record_option_framing_round_trips_compiler_bytes() {
 
 target windows_x64 { }
 
-data ReplayProbe {
-    filesystem: FilesystemHost;
-    status: i32;
-    bytes: [u8; 144];
-}
-
-machine ReplayProbe::build(&mut self, builder: &mut Build)
+machine build(builder: &mut Build)
 reaches FilesystemHost
+invokes FilesystemHost;
 {
+    builder.application("review-baseline-replay");
     let source: &[u8] in Path = builder.source.resolve("main.omg");
-    self.status = self.filesystem.read_metadata(source, &mut self.bytes);
+    let bytes: [u8; 144];
+    let status: i32 = builder.filesystem.read_metadata(source, &mut bytes);
 }
 "#,
     )
