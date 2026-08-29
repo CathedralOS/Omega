@@ -3,8 +3,8 @@ use crate::encoding::encode::declarations::encode_type_identity;
 use crate::encoding::encode::encoder::Encoder;
 use crate::evidence::{
     PackageReviewCallableContract, PackageReviewContractFact, PackageReviewContractKind,
-    PackageReviewPropositionApplication, PackageReviewPropositionBinderValue,
-    PackageReviewPropositionEvidence,
+    PackageReviewPropositionApplication, PackageReviewPropositionBinderArgumentKind,
+    PackageReviewPropositionBinderValue, PackageReviewPropositionEvidence,
 };
 
 use super::declarations::{encode_evidence_interface, encode_proposition_binder};
@@ -77,9 +77,9 @@ pub(crate) fn encode_proposition_application(
     encoder.sequence(&application.parameter_types, encode_type_identity)?;
     encoder.sequence(&application.binder_arguments, |encoder, argument| {
         encoder.byte(match argument.kind {
-            psi_typed_trees::proposition::PropositionBinderArgumentKind::Type => 0,
-            psi_typed_trees::proposition::PropositionBinderArgumentKind::Const => 1,
-            psi_typed_trees::proposition::PropositionBinderArgumentKind::Machine => 2,
+            PackageReviewPropositionBinderArgumentKind::Type => 0,
+            PackageReviewPropositionBinderArgumentKind::Const => 1,
+            PackageReviewPropositionBinderArgumentKind::Machine => 2,
         });
         match &argument.value {
             PackageReviewPropositionBinderValue::Type(identity) => {

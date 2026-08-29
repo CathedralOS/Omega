@@ -12,7 +12,7 @@ use crate::projection::contracts::checked::source_locations::project_required_pr
 use crate::projection::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::projection::semantics::signatures::parameters::project_type_parameters;
 use crate::projection::semantics::types::{
-    project_data_field, review_signature_type_identity_with_binders,
+    project_data_field, project_data_properties, review_signature_type_identity_with_binders,
 };
 use crate::projection::source::ProjectedReviewRow;
 use crate::projection::source::locations::project_nested_declaration_source_location;
@@ -239,7 +239,7 @@ pub(crate) fn project_public_data(
                 supply: definition.supply_mode,
                 lifetime_parameter_count: definition.lifetime_parameters.len(),
                 type_parameters,
-                properties: definition.properties,
+                properties: project_data_properties(definition.properties),
                 zero_gated: definition.zero_gated,
                 invariants,
                 retired_identities,

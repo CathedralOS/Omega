@@ -4,8 +4,8 @@ use psi_symbols::SymbolHandle;
 
 use crate::evidence::{
     PackageReviewContractExpression, PackageReviewContractKind,
-    PackageReviewPropositionBinderArgument, PackageReviewPropositionBinderValue,
-    PackageReviewTypeIdentity,
+    PackageReviewPropositionBinderArgument, PackageReviewPropositionBinderArgumentKind,
+    PackageReviewPropositionBinderValue, PackageReviewTypeIdentity,
 };
 use crate::projection::contracts::checked::facts::ContractProjectionContext;
 use crate::projection::contracts::expressions::names::portable_parameter_position;
@@ -22,12 +22,23 @@ pub(crate) fn project_proposition_binder_argument(
     argument: &psi_typed_trees::proposition::PropositionBinderArgument,
     substitutions: &[(SymbolHandle, PackageReviewPropositionBinderArgument)],
 ) -> Result<PackageReviewPropositionBinderArgument, Vec<Diagnostic>> {
+    let kind = match argument.kind {
+        psi_typed_trees::proposition::PropositionBinderArgumentKind::Type => {
+            PackageReviewPropositionBinderArgumentKind::Type
+        }
+        psi_typed_trees::proposition::PropositionBinderArgumentKind::Const => {
+            PackageReviewPropositionBinderArgumentKind::Const
+        }
+        psi_typed_trees::proposition::PropositionBinderArgumentKind::Machine => {
+            PackageReviewPropositionBinderArgumentKind::Machine
+        }
+    };
     if let Some((_, substitution)) = substitutions
         .iter()
         .rev()
         .find(|(symbol, _)| *symbol == argument.symbol)
     {
-        if substitution.kind != argument.kind {
+        if substitution.kind != kind {
             return Err(vec![Diagnostic::error(format!(
                 "reviewed {} `{}` proposition binder substitution changes kind",
                 context.subject_kind, context.subject_name
@@ -76,10 +87,7 @@ pub(crate) fn project_proposition_binder_argument(
             context.subject_kind, context.subject_name
         ))]);
     };
-    Ok(PackageReviewPropositionBinderArgument {
-        kind: argument.kind,
-        value,
-    })
+    Ok(PackageReviewPropositionBinderArgument { kind, value })
 }
 
 pub(crate) fn project_proposition_evidence_projection(

@@ -24,8 +24,8 @@ use super::super::semantics::types::lifetimes::lifetime_binder_ordinal;
 use super::super::semantics::types::review_signature_type_identity_with_binders;
 use super::super::source::locations::project_nested_declaration_source_location;
 use crate::evidence::{
-    PackageReviewSourceLocationRole, PackageReviewTraitParent, PackageReviewTraitRequirement,
-    PackageReviewTraitRequirementParameter, PackageReviewTraitShape,
+    PackageReviewSourceLocationRole, PackageReviewTraitCompositionKind, PackageReviewTraitParent,
+    PackageReviewTraitRequirement, PackageReviewTraitRequirementParameter, PackageReviewTraitShape,
 };
 use crate::projection::source::{ProjectedNestedSourceLocation, ProjectedReviewRow};
 use omega_compiler::CheckedCompilation;
@@ -181,9 +181,9 @@ pub(crate) fn project_trait_parent(
     }
     Ok(PackageReviewTraitParent {
         kind: if definition.is_boundary {
-            psi_typed_trees::trait_definition::TraitCompositionKind::ServiceReach
+            PackageReviewTraitCompositionKind::ServiceReach
         } else {
-            psi_typed_trees::trait_definition::TraitCompositionKind::Policy
+            PackageReviewTraitCompositionKind::Policy
         },
         identity: nominal_identity(compilation, definition.symbol)?,
         lifetime_arguments: parent

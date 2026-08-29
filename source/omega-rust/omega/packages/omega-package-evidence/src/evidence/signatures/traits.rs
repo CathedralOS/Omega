@@ -1,15 +1,21 @@
 use super::*;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PackageReviewTraitCompositionKind {
+    Policy,
+    ServiceReach,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewTraitParent {
-    pub(crate) kind: psi_typed_trees::trait_definition::TraitCompositionKind,
+    pub(crate) kind: PackageReviewTraitCompositionKind,
     pub(crate) identity: PackageReviewNominalIdentity,
     pub(crate) lifetime_arguments: Vec<u32>,
     pub(crate) arguments: Vec<PackageReviewTypeIdentity>,
 }
 
 impl PackageReviewTraitParent {
-    pub const fn kind(&self) -> psi_typed_trees::trait_definition::TraitCompositionKind {
+    pub const fn kind(&self) -> PackageReviewTraitCompositionKind {
         self.kind
     }
 

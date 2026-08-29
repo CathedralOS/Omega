@@ -1,6 +1,7 @@
 //! Stable callable-contract, expression, proposition, and declaration vocabulary.
 
 use super::{
+    api::PackageReviewDataProperties,
     authority::PackageReviewCrashRoute,
     identity::PackageReviewNominalIdentity,
     signatures::{

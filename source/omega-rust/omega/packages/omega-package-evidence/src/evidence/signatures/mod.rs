@@ -1,6 +1,7 @@
 //! Stable type, callable, trait, conformance, and external-supply signatures.
 
 use super::{
+    api::PackageReviewDataProperties,
     authority::{PackageReviewCrashRoute, PackageReviewTermination},
     contracts::{
         PackageReviewCallableContract, PackageReviewContractStaticArgument,
