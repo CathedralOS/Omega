@@ -460,11 +460,15 @@ catalog order explicitly resolves its confluent overlap with saturating
 multiply-one without merging their custody.
 Bitwise neutral literals are a sixth exact rule with a six-row
 `bitwise_neutral.rs` producer leaf: AND with exact-width all-ones, OR with zero,
-and XOR with zero, each in both operand positions. Absorbing literals remain a
-separate future rule. Independent classification no longer grows in one mixed
-file: its 47-line exhaustive entrance dispatches to `wrapping`, `saturating`,
-and `bitwise_neutral` semantic leaves above a shared reconstructed-shape model,
-and the architecture gate pins that dispatch seam.
+and XOR with zero, each in both operand positions. Bitwise absorbing literals
+are a seventh exact rule with a separate four-row `bitwise_absorbing.rs` leaf:
+AND with zero and OR with exact-width all-ones, each in both operand positions.
+There is deliberately no XOR absorbing row. Independent classification no
+longer grows in one mixed file: its small exhaustive entrance dispatches to
+`wrapping`, `saturating`, `bitwise_neutral`, and `bitwise_absorbing` semantic
+leaves above a shared reconstructed-shape model, and the architecture gate
+pins that dispatch seam. Focused overlap tests establish that the earlier
+neutral rule wins whenever a neutral and absorbing law both apply.
 Independent dead-scalar validation exposes one custody-and-analysis-contract
 entrance above its exact rule catalog, exhaustive closed operation partition,
 and rewrite replay. A new operation or dead-scalar rule therefore has one

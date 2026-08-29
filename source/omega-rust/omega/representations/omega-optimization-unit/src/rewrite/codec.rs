@@ -346,6 +346,10 @@ pub(super) fn encode_candidate(
                 TotalScalarIdentityKind::IntegerBitwiseOrZeroRight => 20,
                 TotalScalarIdentityKind::IntegerBitwiseXorZeroLeft => 21,
                 TotalScalarIdentityKind::IntegerBitwiseXorZeroRight => 22,
+                TotalScalarIdentityKind::IntegerBitwiseAndZeroLeft => 23,
+                TotalScalarIdentityKind::IntegerBitwiseAndZeroRight => 24,
+                TotalScalarIdentityKind::IntegerBitwiseOrAllOnesLeft => 25,
+                TotalScalarIdentityKind::IntegerBitwiseOrAllOnesRight => 26,
             });
         }
     }
