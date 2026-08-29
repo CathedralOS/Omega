@@ -300,7 +300,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 30;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 31;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -2307,14 +2307,22 @@ fn receipted_output_files(
             if output.output_root() != BUILD_OUTPUT_ROOT_IDENTITY
                 || output.output_relative_path().contains(&b'/')
                 || output.create_post_error() != 0
-                || output.write_post_error() != 0
+                || output.writes().iter().any(|write| write.post_error() != 0)
                 || output.close_post_error() != 0
             {
                 return None;
             }
+            let byte_count = output.writes().iter().try_fold(0usize, |count, write| {
+                count.checked_add(write.bytes().len())
+            })?;
+            let mut bytes = Vec::new();
+            bytes.try_reserve_exact(byte_count).ok()?;
+            for write in output.writes() {
+                bytes.extend_from_slice(write.bytes());
+            }
             Some(ReceiptedOutputFile {
                 relative_path: output.output_relative_path().to_vec(),
-                bytes: output.write_bytes().to_vec(),
+                bytes,
             })
         })
         .collect()
@@ -2816,9 +2824,7 @@ pub fn compute_build_config(
     let usage = measured.usage();
     let replay = if filesystem_reachable {
         let attempts = measured.observations().filesystem_operation_attempts();
-        if source_input_replay_prefix_end(attempts)
-            .is_some_and(|end| end < attempts.len() && (attempts.len() - end) % 3 == 0)
-        {
+        if source_input_replay_prefix_end(attempts).is_some_and(|end| end < attempts.len()) {
             psi_checked_interpreter::FilesystemReplay::from_input_output_observations(
                 measured.observations(),
             )

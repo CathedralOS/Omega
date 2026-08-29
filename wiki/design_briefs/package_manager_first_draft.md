@@ -1395,6 +1395,17 @@ at teardown. Existing generated-source filename, regular-file, reserved-name,
 final-frontend, sponsored-custody, and resource checks remain unchanged. A
 filename still cannot implicitly publish source.
 
+Observation summary v31 and compiler replay-record v12 generalize each file
+chain to `create(438)`, one or more complete sequential writes, and close. Each
+write uses the fresh descriptor, returns its complete immutable operand length,
+and preserves zero post-error state; zero-length writes remain valid. Replay
+executes the exact ordered calls against the fresh virtual cursor and
+reconstructs final bytes by checked concatenation. Interleaving, partial or
+failed writes, seek, positioned writes, descriptor duplication, and reopen
+remain outside the grammar. Handoff validation now uses each variable-length
+chain's actual close ordinal. Existing resource, tree, custody, publication,
+and final-frontend gates remain unchanged.
+
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities reject negative, wrapped, or
