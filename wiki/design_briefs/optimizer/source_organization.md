@@ -144,6 +144,9 @@ separate; its entrance owns policy selection plus the replay-gated stage join.
 Register-home staging preserves baseline-legality and post-copy-reanalysis as
 explicit source families while sharing construction, independent validation,
 custody projection, and model leaves below one replay-gated entrance.
+Post-fold home staging applies the same shape to one-step literal-fold chains
+and complete selected-lowering runs, with manifest projection separated from
+construction and replay.
 Post-allocation machine analysis likewise separates source-route construction
 from replay validation and the sealed model, while its entrance owns the
 common effects-plus-machine custody join. Active-resident rematerialization

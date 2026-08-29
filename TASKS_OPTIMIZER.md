@@ -124,6 +124,9 @@ and no-selection compatibility remain enforced.
 - [x] Split baseline and post-copy register-home staging into construction,
   independent validation, custody projection, and model leaves; the shared
   entrance grants each source family custody only after complete replay.
+- [x] Split post-fold and complete selected-lowering home staging into model,
+  construction, independent validation, manifest projection, and custody
+  leaves below one replay-gated entrance.
 - [x] Split post-allocation machine analysis by source-route construction,
   replay/custody validation, and sealed plan model; its entrance owns the
   common effects-plus-machine custody join.
