@@ -11,18 +11,18 @@ pub use observation::{
 use crate::{
     ResolverExecutionCommandIdentity, ResolverExecutionPolicyObservation, ResolverPreparedExecution,
 };
-use std::process::{ChildStderr, ChildStdout, ExitStatus};
+use std::process::{ChildStderr, ChildStdin, ChildStdout, ExitStatus};
 
-#[cfg(windows)]
-use crate::confinement::windows;
-#[cfg(unix)]
+#[cfg(any(target_os = "linux", windows))]
+use crate::confinement;
+#[cfg(all(unix, not(target_os = "linux")))]
 use command_group::CommandGroup;
 
 pub struct ResolverExecutionChild {
     #[cfg(unix)]
     child: command_group::GroupChild,
     #[cfg(windows)]
-    child: windows::WindowsJobChild,
+    child: confinement::windows::WindowsJobChild,
     #[cfg(not(any(unix, windows)))]
     child: std::process::Child,
     policy: Option<ResolverExecutionPolicyObservation>,
@@ -36,13 +36,24 @@ impl ResolverExecutionChild {
     /// container before any child code may execute.
     pub fn spawn(prepared: ResolverPreparedExecution) -> io::Result<Self> {
         let command_identity = prepared.command_identity()?;
-        let (mut command, policy) = prepared.into_parts();
-        #[cfg(unix)]
-        let child = command.group_spawn()?;
+        let (command, policy) = prepared.into_parts();
+        #[cfg(target_os = "linux")]
+        let child = confinement::linux::spawn(command, &policy)?;
+        #[cfg(all(unix, not(target_os = "linux")))]
+        let child = {
+            let mut command = command;
+            command.group_spawn()?
+        };
         #[cfg(windows)]
-        let child = windows::WindowsJobChild::spawn(command)?;
+        let child = {
+            let mut command = command;
+            confinement::windows::WindowsJobChild::spawn(&mut command)?
+        };
         #[cfg(not(any(unix, windows)))]
-        let child = command.spawn()?;
+        let child = {
+            let mut command = command;
+            command.spawn()?
+        };
         Ok(Self {
             child,
             policy: Some(policy),
@@ -57,6 +68,13 @@ impl ResolverExecutionChild {
         return self.child.take_stdout();
         #[cfg(not(windows))]
         self.inner().stdout.take()
+    }
+
+    pub fn take_stdin(&mut self) -> Option<ChildStdin> {
+        #[cfg(windows)]
+        return self.child.take_stdin();
+        #[cfg(not(windows))]
+        self.inner().stdin.take()
     }
 
     pub fn take_stderr(&mut self) -> Option<ChildStderr> {
@@ -147,8 +165,53 @@ mod tests {
     use super::*;
     use crate::{ResolverExecutionBackend, ResolverExecutionPhase};
     use std::path::Path;
-    use std::process::Stdio;
     use std::time::{Duration, Instant};
+
+    #[test]
+    fn spawn_rejects_implicit_inherited_standard_streams() {
+        let backend = ResolverExecutionBackend::open().expect("open resolver backend");
+        let inspection_root = std::env::temp_dir()
+            .canonicalize()
+            .expect("canonical temporary root");
+        let mut prepared = backend
+            .prepare_inspection(Path::new("/usr/bin/true"), &[], &inspection_root)
+            .expect("prepare inspection execution");
+        prepared.env_clear().current_dir(&inspection_root);
+
+        let error = ResolverExecutionChild::spawn(prepared)
+            .err()
+            .expect("implicit standard streams must be rejected");
+        assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
+        assert!(error.to_string().contains("explicitly null or piped"));
+    }
+
+    #[test]
+    fn command_identity_binds_closed_standard_stream_dispositions() {
+        let backend = ResolverExecutionBackend::open().expect("open resolver backend");
+        let inspection_root = std::env::temp_dir()
+            .canonicalize()
+            .expect("canonical temporary root");
+        let prepare = |piped_stdout: bool| {
+            let mut prepared = backend
+                .prepare_inspection(Path::new("/usr/bin/true"), &[], &inspection_root)
+                .expect("prepare inspection execution");
+            prepared
+                .env_clear()
+                .current_dir(&inspection_root)
+                .stdin_null()
+                .stderr_null();
+            if piped_stdout {
+                prepared.stdout_piped();
+            } else {
+                prepared.stdout_null();
+            }
+            prepared
+                .command_identity()
+                .expect("identify closed standard streams")
+        };
+
+        assert_ne!(prepare(false), prepare(true));
+    }
 
     #[test]
     fn completion_binds_prepared_command_policy_termination_and_reaping() {
@@ -162,9 +225,9 @@ mod tests {
         prepared
             .env_clear()
             .current_dir(&inspection_root)
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null());
+            .stdin_null()
+            .stdout_null()
+            .stderr_null();
         let command = prepared
             .command_identity()
             .expect("identify prepared command");
@@ -203,9 +266,9 @@ mod tests {
         prepared
             .env_clear()
             .current_dir(&inspection_root)
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null());
+            .stdin_null()
+            .stdout_null()
+            .stderr_null();
         let mut child = ResolverExecutionChild::spawn(prepared).expect("spawn prepared execution");
         let deadline = Instant::now() + Duration::from_secs(5);
         while child.try_wait().expect("poll prepared execution").is_none() {

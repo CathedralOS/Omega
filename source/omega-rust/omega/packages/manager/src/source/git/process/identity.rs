@@ -33,10 +33,16 @@ pub(in crate::source) fn git_batch_stdin_identity(
 }
 
 pub(in crate::source) fn git_command_configuration_identity(
-    command: &ResolverPreparedExecution,
+    command: &mut ResolverPreparedExecution,
     phase: ResolverExecutionPhase,
     stdin: &GitCommandStdinIdentity,
 ) -> Result<String, SourceResolveError> {
+    match stdin {
+        GitCommandStdinIdentity::Null => command.stdin_null(),
+        GitCommandStdinIdentity::ExactBytes { .. } => command.stdin_piped(),
+    };
+    command.stdout_piped().stderr_piped();
+
     let mut hasher = Sha256::new();
     hasher.update(b"omega-git-command-configuration-v2\0");
     hasher.update([match phase {

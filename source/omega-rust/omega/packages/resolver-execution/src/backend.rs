@@ -62,7 +62,16 @@ impl ResolverExecutionBackend {
                 sandbox_metadata,
             })
         }
-        #[cfg(all(unix, not(target_os = "macos")))]
+        #[cfg(target_os = "linux")]
+        {
+            let identity = if confinement::linux::backend_available() {
+                ResolverExecutionBackendIdentity::LinuxLandlockV5
+            } else {
+                ResolverExecutionBackendIdentity::UnixResourceLimits
+            };
+            Ok(Self { identity })
+        }
+        #[cfg(all(unix, not(any(target_os = "macos", target_os = "linux"))))]
         {
             Ok(Self {
                 identity: ResolverExecutionBackendIdentity::UnixResourceLimits,
@@ -150,6 +159,16 @@ impl ResolverExecutionBackend {
                     "macOS resolver sandbox executable changed",
                 ));
             }
+        }
+        #[cfg(target_os = "linux")]
+        if matches!(
+            self.identity,
+            ResolverExecutionBackendIdentity::LinuxLandlockV5
+        ) && !confinement::linux::backend_available()
+        {
+            return Err(io::Error::other(
+                "Linux resolver Landlock v5 boundary became unavailable",
+            ));
         }
         Ok(())
     }

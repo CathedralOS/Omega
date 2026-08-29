@@ -6,8 +6,9 @@ use crate::source::limits::{GIT_COMMAND_CLEANUP_TIMEOUT, PROCESS_POLL_INTERVAL};
 use omega_resolver_execution::{
     ResolverExecutionChild, ResolverExecutionCompletionObservation, ResolverPreparedExecution,
 };
-use std::io::Read;
-use std::process::{ExitStatus, Stdio};
+use std::fs::File;
+use std::io::{Read, Write};
+use std::process::{ChildStdin, ExitStatus};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::{Duration, Instant};
 
@@ -46,6 +47,16 @@ struct StreamCapture {
     result: StreamCaptureResult,
 }
 
+pub(in crate::source) enum ResolverCommandInput {
+    Null,
+    File(File),
+}
+
+enum CommandWorkerResult {
+    Stream(StreamCapture),
+    Stdin(Result<(), String>),
+}
+
 #[cfg(test)]
 pub(in crate::source) fn run_command_bounded(
     command: ResolverPreparedExecution,
@@ -74,7 +85,7 @@ pub(in crate::source) fn run_command_bounded_with_budget(
 ) -> Result<BoundedCommandOutput, SourceResolveError> {
     run_command_bounded_with_stdin_and_budget(
         command,
-        Stdio::null(),
+        ResolverCommandInput::Null,
         operation,
         stdout_limit,
         stderr_limit,
@@ -85,7 +96,7 @@ pub(in crate::source) fn run_command_bounded_with_budget(
 
 pub(in crate::source) fn run_command_bounded_with_stdin_and_budget(
     mut command: ResolverPreparedExecution,
-    stdin: Stdio,
+    stdin: ResolverCommandInput,
     operation: &str,
     stdout_limit: usize,
     stderr_limit: usize,
@@ -96,10 +107,13 @@ pub(in crate::source) fn run_command_bounded_with_stdin_and_budget(
     let deadline = started.checked_add(timeout).unwrap_or(started);
     let cleanup_reserve = command_cleanup_reserve(timeout);
     let execution_deadline = deadline.checked_sub(cleanup_reserve).unwrap_or(started);
-    command
-        .stdin(stdin)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+    let stdin_is_piped = matches!(&stdin, ResolverCommandInput::File(_));
+    if stdin_is_piped {
+        command.stdin_piped();
+    } else {
+        command.stdin_null();
+    }
+    command.stdout_piped().stderr_piped();
     let mut child =
         ResolverExecutionChild::spawn(command).map_err(|error| SourceResolveError::Git {
             operation: format!("{operation} spawn"),
@@ -108,6 +122,7 @@ pub(in crate::source) fn run_command_bounded_with_stdin_and_budget(
         })?;
     let stdout = child.take_stdout().expect("command stdout was piped");
     let stderr = child.take_stderr().expect("command stderr was piped");
+    let child_stdin = stdin_is_piped.then(|| child.take_stdin().expect("command stdin was piped"));
     let (sender, receiver) = mpsc::channel();
     if let Err(error) = spawn_stream_capture(
         stdout,
@@ -145,11 +160,26 @@ pub(in crate::source) fn run_command_bounded_with_stdin_and_budget(
             },
         );
     }
+    if let (ResolverCommandInput::File(input), Some(child_stdin)) = (stdin, child_stdin) {
+        if let Err(error) = spawn_stdin_copy(input, child_stdin, &sender) {
+            return fail_after_cleanup_before(
+                &mut child,
+                operation,
+                deadline,
+                SourceResolveError::Git {
+                    operation: format!("{operation} stdin transfer"),
+                    status: None,
+                    stderr: error.to_string(),
+                },
+            );
+        }
+    }
     drop(sender);
 
     let mut status = None;
     let mut stdout = None;
     let mut stderr = None;
+    let mut stdin_complete = !stdin_is_piped;
     loop {
         if Instant::now() >= deadline {
             return fail_after_cleanup_before(
@@ -183,7 +213,7 @@ pub(in crate::source) fn run_command_bounded_with_stdin_and_budget(
                 }
             };
         }
-        if status.is_some() && stdout.is_some() && stderr.is_some() {
+        if status.is_some() && stdout.is_some() && stderr.is_some() && stdin_complete {
             let completion = child.finish().map_err(|error| {
                 SourceResolveError::GitExecutionBoundaryInvalid {
                     message: format!("cannot issue resolver execution completion: {error}"),
@@ -211,7 +241,7 @@ pub(in crate::source) fn run_command_bounded_with_stdin_and_budget(
         }
         let wait = PROCESS_POLL_INTERVAL.min(execution_deadline.saturating_duration_since(now));
         match receiver.recv_timeout(wait) {
-            Ok(capture) => {
+            Ok(CommandWorkerResult::Stream(capture)) => {
                 let bytes = match capture.result {
                     StreamCaptureResult::Complete(bytes) => bytes,
                     StreamCaptureResult::Overflow => {
@@ -258,9 +288,24 @@ pub(in crate::source) fn run_command_bounded_with_stdin_and_budget(
                     CapturedStream::Stderr => stderr = Some(bytes),
                 }
             }
+            Ok(CommandWorkerResult::Stdin(result)) => match result {
+                Ok(()) => stdin_complete = true,
+                Err(message) => {
+                    return fail_after_cleanup_before(
+                        &mut child,
+                        operation,
+                        deadline,
+                        SourceResolveError::Git {
+                            operation: format!("{operation} stdin transfer"),
+                            status: None,
+                            stderr: message,
+                        },
+                    );
+                }
+            },
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => {
-                if stdout.is_none() || stderr.is_none() {
+                if stdout.is_none() || stderr.is_none() || !stdin_complete {
                     return fail_after_cleanup_before(
                         &mut child,
                         operation,
@@ -268,7 +313,8 @@ pub(in crate::source) fn run_command_bounded_with_stdin_and_budget(
                         SourceResolveError::Git {
                             operation: format!("{operation} capture"),
                             status: None,
-                            stderr: "output capture ended before both streams completed".to_owned(),
+                            stderr: "command stream workers ended before all transfers completed"
+                                .to_owned(),
                         },
                     );
                 }
@@ -283,7 +329,7 @@ fn spawn_stream_capture<R>(
     stream: CapturedStream,
     limit: usize,
     captured_output_budget: GitCapturedOutputBudget,
-    sender: &mpsc::Sender<StreamCapture>,
+    sender: &mpsc::Sender<CommandWorkerResult>,
 ) -> std::io::Result<()>
 where
     R: Read + Send + 'static,
@@ -293,7 +339,28 @@ where
         .name(format!("omega-git-{}", stream.name()))
         .spawn(move || {
             let result = capture_stream_bounded_with_budget(reader, limit, &captured_output_budget);
-            let _ = sender.send(StreamCapture { stream, result });
+            let _ = sender.send(CommandWorkerResult::Stream(StreamCapture {
+                stream,
+                result,
+            }));
+        })?;
+    Ok(())
+}
+
+fn spawn_stdin_copy(
+    mut input: File,
+    mut child_stdin: ChildStdin,
+    sender: &mpsc::Sender<CommandWorkerResult>,
+) -> std::io::Result<()> {
+    let sender = sender.clone();
+    std::thread::Builder::new()
+        .name("omega-git-stdin".to_owned())
+        .spawn(move || {
+            let result = std::io::copy(&mut input, &mut child_stdin)
+                .and_then(|_| child_stdin.flush())
+                .map(|_| ())
+                .map_err(|error| error.to_string());
+            let _ = sender.send(CommandWorkerResult::Stdin(result));
         })?;
     Ok(())
 }

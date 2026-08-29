@@ -43,8 +43,8 @@ pub(super) use objects::{
 };
 #[allow(unused_imports)] // Preserve the former source-internal Git facade explicitly.
 pub(super) use process::{
-    BoundedCommandOutput, GitCommandStdinIdentity, StreamCaptureResult, command_cleanup_reserve,
-    duration_millis, format_hex, format_sha256, git_batch_stdin_identity,
+    BoundedCommandOutput, GitCommandStdinIdentity, ResolverCommandInput, StreamCaptureResult,
+    command_cleanup_reserve, duration_millis, format_hex, format_sha256, git_batch_stdin_identity,
     git_command_configuration_identity, git_helper_path, null_device,
     reconcile_git_cache_operation_result, reconcile_git_command_endpoint_result,
     reconcile_git_command_result, run_command_bounded_with_budget,

@@ -1,5 +1,7 @@
 use crate::model::*;
 
+#[cfg(target_os = "linux")]
+pub(crate) mod linux;
 #[cfg(target_os = "macos")]
 pub(crate) mod macos;
 #[cfg(windows)]
@@ -13,7 +15,8 @@ pub(crate) fn guarantee_disposition(
     guarantee: ResolverExecutionGuarantee,
 ) -> ResolverExecutionGuaranteeDisposition {
     use ResolverExecutionBackendIdentity::{
-        MacosSeatbelt, PortableProcessContainer, UnixResourceLimits, WindowsJobObject,
+        LinuxLandlockV5, MacosSeatbelt, PortableProcessContainer, UnixResourceLimits,
+        WindowsJobObject,
     };
     use ResolverExecutionGuarantee::{
         AddressSpaceConfined, AggregateResourcesConfined, CoreDumpsDenied, CpuTimeConfined,
@@ -25,7 +28,7 @@ pub(crate) fn guarantee_disposition(
 
     match guarantee {
         FilesystemWritesConfined | ExecutablePathsConfined
-            if matches!(backend, MacosSeatbelt { .. }) =>
+            if matches!(backend, MacosSeatbelt { .. } | LinuxLandlockV5) =>
         {
             Enforced
         }
@@ -73,11 +76,12 @@ pub(crate) fn guarantee_disposition(
         CpuTimeConfined if matches!(backend, WindowsJobObject) => Enforced,
         CoreDumpsDenied | CpuTimeConfined | SingleFileSizeConfined | OpenFilesConfined => {
             match backend {
-                MacosSeatbelt { .. } | UnixResourceLimits => Enforced,
+                LinuxLandlockV5 | MacosSeatbelt { .. } | UnixResourceLimits => Enforced,
                 WindowsJobObject | PortableProcessContainer => Unavailable,
             }
         }
         AddressSpaceConfined => match backend {
+            LinuxLandlockV5 => Enforced,
             UnixResourceLimits if cfg!(any(target_os = "linux", target_os = "android")) => Enforced,
             MacosSeatbelt { .. }
             | UnixResourceLimits

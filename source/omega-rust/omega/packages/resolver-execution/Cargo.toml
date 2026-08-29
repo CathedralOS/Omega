@@ -15,6 +15,10 @@ sha2 = "0.10.9"
 command-group = "5.0.1"
 rustix = { version = "1.1.4", features = ["process"] }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+landlock = "0.4.7"
+libc = "0.2.186"
+
 [target.'cfg(target_os = "macos")'.dependencies]
 omega-platform-custody = { path = "../../tooling/omega-platform-custody" }
 

@@ -16,8 +16,10 @@ text or containment claims.
 - `src/backend.rs` validates one launch request, selects the verified host
   backend, and constructs an opaque prepared execution with its policy.
 - `src/prepared.rs` owns the only caller-configurable command surface and the
-  bounded identity of its exact program, arguments, environment, and working
-  directory. It exposes no raw command extraction or executable replacement.
+  bounded identity of its exact program, arguments, environment, working
+  directory, and null-or-pipe standard-stream dispositions. It exposes no raw
+  command extraction, executable replacement, inherited streams, or arbitrary
+  caller-opened handles.
 - `src/process/` consumes prepared executions, owns child-container lifecycle
   and compiler-owned process limits, and issues completion only after explicit
   whole-container termination or confirmed absence plus child reaping.
@@ -28,14 +30,13 @@ text or containment claims.
   `mod.rs` is the explicit network facade.
 - `src/confinement/` owns native confinement facts and implementations.
   `macos.rs` owns Seatbelt policy/custody and its native canaries;
+  `linux.rs` owns Landlock ABI-v5 filesystem mutation and execution policy;
   `windows.rs` owns suspended launch, Job Object assignment and limits,
-  whole-job termination, and active-process-zero completion. Linux has no
-  falsely named confinement module: its current enforcement is only the Unix
-  process limits in `src/process/limits.rs`.
+  whole-job termination, and active-process-zero completion.
 
 Tests follow the responsibility they exercise: backend request/observation
 tests live under `src/backend/tests/`, endpoint tests under `src/network/`, and
-native macOS/Windows tests beside their confinement owner.
+native platform tests beside their confinement owner.
 
 ## Dependency direction
 
@@ -47,7 +48,7 @@ lib.rs (public reexports only)
        -> prepared.rs (opaque configured launch)
   -> process/ (owned child lifecycle)
        -> prepared.rs + completion observation
-       -> confinement/windows.rs only on Windows
+       -> confinement/linux.rs or confinement/windows.rs where applicable
   -> network/ (sealed endpoint policy, broker, and connector helper)
 
 confinement/ -> model.rs
@@ -90,6 +91,18 @@ best-effort claims.
 - Unix children intersect compiler CPU, core-file, single-file, and descriptor
   ceilings with stricter inherited limits. Linux and Android additionally
   apply an address-space ceiling.
+- Linux kernels with fully available Landlock ABI v5 handle every ABI-v5
+  filesystem right. A dedicated restricted thread launches the child so Omega's
+  other threads remain unrestricted. Reads remain broad and therefore
+  unclaimed; ordinary writes are admitted only beneath the exact mutable root,
+  device writes only to `/dev/null`, and execution only for the exact primary
+  and bounded additional executable paths. Enforcement requires both
+  `FullyEnforced` and `no_new_privs`; every non-standard inherited descriptor
+  is marked close-on-exec before package code can run, because Landlock cannot
+  revoke authority from an already-open file. Unsupported or disabled kernels
+  retain the resource-limit backend and mark these rows unavailable. Landlock does not yet
+  establish endpoint confinement, direct-egress denial, aggregate descendant
+  custody, or protection against a hostile same-user process.
 - Other Unix hosts currently receive limits without strict filesystem/network
   confinement. Windows commands are created suspended, assigned to a resolver-
   owned kill-on-close Job Object, and resumed only after assignment. The job
@@ -110,10 +123,12 @@ best-effort claims.
   or decoder. Spawning consumes the prepared value. A completion observation is
   issued only after whole-container termination or confirmed absence and reap;
   it binds that policy to the exact command identity, normalized exit status,
-  and cleanup disposition. Standard-input content remains separately bound by
-  the protocol owner because native `Stdio` handles have no portable inspectable
-  identity. This is lifecycle provenance, not executable-content identity or a
-  source receipt; `require_strict` rejects the current backends.
+  and cleanup disposition. Each standard stream must explicitly be null or a
+  compiler-owned pipe before spawn; arbitrary pre-opened handles and ambient
+  inheritance are not representable. Piped standard-input content remains
+  separately bound by the protocol owner. This is lifecycle provenance, not
+  executable-content identity or a source receipt; `require_strict` rejects the
+  current backends.
 
 The broker bounds CONNECT request bytes and headers, the complete DNS result
 set collected before any upstream connection, accepted connections, buffers,
@@ -139,6 +154,6 @@ fetch still permit broad reads, so complete resolver-wide filesystem-read
 confinement remains unavailable. The fixed TLS root
 is not a TLS trust receipt or credential-custody claim. Aggregate CPU, memory,
 and process-count confinement remains unavailable on Unix; during-write object-
-store quotas, Linux/Windows endpoint confinement, and complete strict backends
-remain package-manager tasks. See
+store quotas, Linux/Windows endpoint confinement, native Linux Landlock canary
+execution, and complete strict backends remain package-manager tasks. See
 [`SOURCE_RESOLVER_SECURITY.md`](../manager/SOURCE_RESOLVER_SECURITY.md).
