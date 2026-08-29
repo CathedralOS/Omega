@@ -1,8 +1,9 @@
-use super::commitments::derive_candidate_closure_commitment;
+use super::commitments::{derive_candidate_closure_commitment, derive_candidate_graph_commitment};
 use super::*;
 use crate::identity::PackageKey;
+use crate::manifest::BuildDeclarationKind;
 use crate::resolution::{
-    PackageSourceClosureLimits, ResolvedPackageSourceClosure,
+    PackageSourceClosureLimits, ResolvedPackageClosure, ResolvedPackageSourceClosure,
     resolve_external_local_package_closure,
 };
 use crate::review::records::PackageReviewEvidence;
@@ -156,5 +157,84 @@ fn candidate_closure_binds_review_evidence_from_every_package() {
     }
 
     let _ = std::fs::remove_dir_all(parent);
+    let _ = std::fs::remove_dir_all(cache);
+}
+
+#[test]
+fn candidate_closure_and_directional_review_bind_the_exact_root_role() {
+    let root = temp_root("root-role");
+    let cache = temp_root("root-role-cache");
+    write_package(&root, "role-probe", None);
+    let closure = resolve_external_local_package_closure(
+        &root,
+        ExternalSourceContext::derive(b"candidate-closure-root-role"),
+        &cache,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve one-package source closure");
+    let package_graph = closure.graph().clone();
+    let application_graph = ResolvedPackageClosure::new(
+        package_graph.root().clone(),
+        BuildDeclarationKind::Application,
+        package_graph.packages().to_vec(),
+    )
+    .expect("same package graph may select an application root");
+    let reviews = package_graph
+        .packages()
+        .iter()
+        .map(|package| TestReview {
+            key: package.source().key().clone(),
+            resolution: package.source().resolution().clone(),
+            target: "windows_x64".to_owned(),
+            executable_incident_metadata: [1; 32],
+            source_consumption: ReviewOnlySourceConsumptionCommitment::from_recovered_digest(
+                [2; 32],
+            ),
+            build_observation: None,
+            whole_review: [3; 32],
+            rows: Vec::new(),
+        })
+        .collect::<Vec<_>>();
+    let review_refs = reviews.iter().collect::<Vec<_>>();
+
+    assert_ne!(
+        derive_candidate_graph_commitment(&package_graph, &review_refs)
+            .expect("commit package-root graph"),
+        derive_candidate_graph_commitment(&application_graph, &review_refs)
+            .expect("commit application-root graph"),
+        "candidate closure identity must bind root role"
+    );
+    assert_eq!(
+        compare_review_only_root_role_graphs(&package_graph, &package_graph)
+            .expect("same-role comparison"),
+        None
+    );
+    let dependency_break = compare_review_only_root_role_graphs(&package_graph, &application_graph)
+        .expect("package-to-application comparison")
+        .expect("role changed");
+    assert_eq!(
+        dependency_break.broken_contract(),
+        ReviewOnlyRootRoleContract::DependencyCompatibility
+    );
+    assert_eq!(
+        dependency_break.baseline_role(),
+        BuildDeclarationKind::Package
+    );
+    assert_eq!(
+        dependency_break.candidate_role(),
+        BuildDeclarationKind::Application
+    );
+    assert!(dependency_break.is_blocking());
+
+    let activation_break = compare_review_only_root_role_graphs(&application_graph, &package_graph)
+        .expect("application-to-package comparison")
+        .expect("role changed");
+    assert_eq!(
+        activation_break.broken_contract(),
+        ReviewOnlyRootRoleContract::ApplicationActivation
+    );
+
+    let _ = std::fs::remove_dir_all(root);
     let _ = std::fs::remove_dir_all(cache);
 }

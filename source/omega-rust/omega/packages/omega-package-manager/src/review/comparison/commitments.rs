@@ -5,7 +5,10 @@ use super::format::{
 };
 use super::model::*;
 use crate::identity::PackageKey;
-use crate::resolution::{DependencyRequestPath, ResolvedPackageSourceClosure};
+use crate::manifest::BuildDeclarationKind;
+use crate::resolution::{
+    DependencyRequestPath, ResolvedPackageClosure, ResolvedPackageSourceClosure,
+};
 use crate::review::records::PackageReviewEvidence;
 use omega_package_review::evidence::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
@@ -17,7 +20,7 @@ use sha2::{Digest, Sha256};
 const CONFLICT_FINGERPRINT_DOMAIN: &[u8] = b"OMEGA-PACKAGE-CAPABILITY-CONFLICT\0";
 const CONFLICT_FINGERPRINT_VERSION: u16 = 17;
 const CANDIDATE_CLOSURE_DOMAIN: &[u8] = b"OMEGA-PACKAGE-CANDIDATE-CLOSURE\0";
-const CANDIDATE_CLOSURE_VERSION: u16 = 3;
+const CANDIDATE_CLOSURE_VERSION: u16 = 4;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn derive_conflict_fingerprint<B: PackageReviewEvidence, C: PackageReviewEvidence>(
@@ -66,15 +69,23 @@ pub(super) fn derive_candidate_closure_commitment<C: PackageReviewEvidence>(
     closure: &ResolvedPackageSourceClosure,
     candidate_reviews: &[&C],
 ) -> Result<ReviewOnlyCandidateClosureCommitment, ReviewOnlyCapabilityConflictError> {
+    derive_candidate_graph_commitment(closure.graph(), candidate_reviews)
+}
+
+pub(super) fn derive_candidate_graph_commitment<C: PackageReviewEvidence>(
+    closure: &ResolvedPackageClosure,
+    candidate_reviews: &[&C],
+) -> Result<ReviewOnlyCandidateClosureCommitment, ReviewOnlyCapabilityConflictError> {
     let mut digest = Sha256::new();
     hash_field(&mut digest, CANDIDATE_CLOSURE_DOMAIN);
     digest.update(CANDIDATE_CLOSURE_VERSION.to_le_bytes());
-    hash_field(&mut digest, &closure.graph().root().identity().digest());
+    hash_field(&mut digest, &closure.root().identity().digest());
+    digest.update([root_role_tag(closure.root_role())]);
     let mut packages = Vec::new();
     packages
-        .try_reserve(closure.graph().packages().len())
+        .try_reserve(closure.packages().len())
         .map_err(|_| ReviewOnlyCapabilityConflictError::AllocationFailed)?;
-    packages.extend(closure.graph().packages());
+    packages.extend(closure.packages());
     packages.sort_by(|left, right| left.source().key().cmp(right.source().key()));
     digest.update(
         u64::try_from(packages.len())
@@ -119,6 +130,16 @@ pub(super) fn derive_candidate_closure_commitment<C: PackageReviewEvidence>(
     Ok(ReviewOnlyCandidateClosureCommitment(
         digest.finalize().into(),
     ))
+}
+
+fn root_role_tag(role: BuildDeclarationKind) -> u8 {
+    match role {
+        BuildDeclarationKind::Package => 0,
+        BuildDeclarationKind::Application => 1,
+        BuildDeclarationKind::Workspace => {
+            unreachable!("workspace catalogs cannot enter a resolved package closure")
+        }
+    }
 }
 
 fn hash_resolution(digest: &mut Sha256, resolution: &ImmutableSourceResolution) {

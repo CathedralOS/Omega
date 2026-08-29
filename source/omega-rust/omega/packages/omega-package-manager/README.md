@@ -113,7 +113,10 @@ and ordinary obligation-ledger v2 recovery retain it; a workspace catalog
 cannot enter compilation, and re-rooting a dependency gives that independently
 compiled dependency its already-enforced package role. Source-consumption v3
 and production-manifest v2 identities bind the role as part of exact compiler
-custody.
+custody. Candidate-closure commitment v4 also binds it. Review compares a
+package-to-application change as lost dependency compatibility and an
+application-to-package change as lost activation compatibility; neither is a
+generic symmetric role-change string.
 
 Workspaces are member catalogs, not keyed graph nodes. Each selected application
 member forms its own closure; membership alone does not combine applications or
