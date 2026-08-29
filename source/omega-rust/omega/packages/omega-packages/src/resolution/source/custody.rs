@@ -1437,6 +1437,7 @@ pub(in crate::resolution::source) fn create_private_cache_directory(
 ) -> std::io::Result<()> {
     #[cfg(not(target_os = "wasi"))]
     {
+        #[cfg_attr(not(unix), allow(unused_mut))]
         let mut builder = CapabilityDirBuilder::new();
         #[cfg(unix)]
         builder.mode(0o700);

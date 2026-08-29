@@ -805,7 +805,7 @@ fn git_executor_rejects_relative_paths_and_executable_drift() {
 
 #[cfg(unix)]
 #[test]
-fn git_executor_rejects_unsafe_executable_modes_and_ancestry() {
+fn git_executor_rejects_unsafe_executable_modes_and_direct_mutation() {
     use std::os::unix::fs::PermissionsExt;
 
     let root = temp_root("git-executable-custody");
@@ -835,22 +835,38 @@ fn git_executor_rejects_unsafe_executable_modes_and_ancestry() {
     ));
 
     std::fs::set_permissions(&fake_git, std::fs::Permissions::from_mode(0o700))
-        .expect("restore Git executable before ancestry check");
+        .expect("restore safe Git executable mode");
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[cfg(unix)]
+#[test]
+fn git_executor_normal_custody_does_not_claim_executable_ancestry() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let root = temp_root("git-executable-normal-ancestry");
+    std::fs::create_dir_all(&root).expect("create executable ancestry root");
+    let fake_git = root.join("git");
+    std::fs::write(&fake_git, b"#!/bin/sh\nexit 0\n").expect("write fake Git executable");
+    std::fs::set_permissions(&fake_git, std::fs::Permissions::from_mode(0o700))
+        .expect("make Git executable directly safe");
     std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o720))
-        .expect("make Git executable ancestry externally writable");
-    assert!(matches!(
-        GitExecutor::open(&fake_git),
-        Err(SourceResolveError::GitExecutableInvalid { .. })
-    ));
+        .expect("make executable ancestry externally writable");
+
+    let executor = GitExecutor::open(&fake_git)
+        .expect("normal executable custody must not claim package-cache custody over ancestry");
+    executor
+        .verify()
+        .expect("ancestry mode must remain outside normal executable custody");
 
     std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700))
-        .expect("restore executable custody root");
+        .expect("restore executable ancestry for cleanup");
     let _ = std::fs::remove_dir_all(root);
 }
 
 #[cfg(target_os = "macos")]
 #[test]
-fn git_executor_rejects_extended_acl_allow_entries_on_executable_and_ancestry() {
+fn git_executor_audits_direct_executable_acl_but_not_ancestry_acl() {
     use std::os::unix::fs::PermissionsExt;
 
     let root = temp_root("git-executable-acl-custody");
@@ -865,7 +881,13 @@ fn git_executor_rejects_extended_acl_allow_entries_on_executable_and_ancestry() 
     std::fs::set_permissions(&fake_git, std::fs::Permissions::from_mode(0o700))
         .expect("make fake Git executable private");
 
-    let executor = GitExecutor::open(&fake_git).expect("capture ACL-free Git executable");
+    change_macos_acl(&root, &["+a", "everyone allow write"]);
+    let executor = GitExecutor::open(&fake_git)
+        .expect("an ancestry ACL must remain outside normal executable custody");
+    executor
+        .verify()
+        .expect("an ancestry ACL must not affect repeated direct custody checks");
+
     change_macos_acl(&fake_git, &["+a", "everyone allow write"]);
     let executable_acl_error = executor
         .verify()
@@ -887,23 +909,10 @@ fn git_executor_rejects_extended_acl_allow_entries_on_executable_and_ancestry() 
         .verify()
         .expect("deny-only executable ACL does not broaden custody");
     change_macos_acl(&fake_git, &["-N"]);
-
-    change_macos_acl(&root, &["+a", "everyone allow write"]);
-    let ancestry_acl_error = executor
-        .verify()
-        .expect_err("extended ACL allow on ancestry must reject");
-    assert!(
-        matches!(
-            &ancestry_acl_error,
-            SourceResolveError::GitExecutableInvalid { path, message }
-                if path == &root && message.contains("extended ACL allow")
-        ),
-        "unexpected ancestry ACL error: {ancestry_acl_error:?}"
-    );
     change_macos_acl(&root, &["-N"]);
     executor
         .verify()
-        .expect("removing ancestry ACL should restore custody");
+        .expect("removing an irrelevant ancestry ACL preserves direct custody");
 
     std::fs::remove_file(&fake_git).expect("remove fake Git executable");
     std::fs::remove_dir(&root).expect("remove executable ACL custody root");

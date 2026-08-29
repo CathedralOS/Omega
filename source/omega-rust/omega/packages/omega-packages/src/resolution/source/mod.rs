@@ -53,6 +53,7 @@ mod git;
 mod limits;
 mod local;
 mod observations;
+mod storage;
 
 use custody::*;
 use git::execution::{GitExecutor, format_sha256};
@@ -77,6 +78,7 @@ pub use observations::{
     GitNetworkTransferObservation, GitSourceResolutionObservation, GitTransportExecutableIdentity,
     ResolvedGitSource,
 };
+pub use storage::SourceResolverStorage;
 
 #[cfg(test)]
 mod tests;

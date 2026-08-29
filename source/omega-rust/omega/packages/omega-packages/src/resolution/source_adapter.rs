@@ -15,6 +15,7 @@ use crate::resolution::package_source::{
 };
 use crate::source::{
     GitSourceRequest, GitSourceRequestError, LocalSourceLimits, ResolvedGitSource,
+    SourceResolverStorage,
 };
 use std::collections::BTreeMap;
 use std::fmt;
@@ -185,6 +186,32 @@ pub fn resolve_workspace_package_closure(
     )
 }
 
+/// Resolve a workspace closure beneath the manager-owned private source root.
+pub fn resolve_workspace_package_closure_with_storage(
+    workspace_root_source: &SourceLineage,
+    root_member_path: WorkspaceMemberPath,
+    live_workspace_root: impl AsRef<Path>,
+    storage: &SourceResolverStorage,
+    source_limits: LocalSourceLimits,
+    closure_limits: PackageSourceClosureLimits,
+) -> Result<ResolvedPackageSourceClosure, ResolveWorkspacePackageClosureError> {
+    storage.verify_path_identity().map_err(|error| {
+        ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
+    })?;
+    let result = resolve_workspace_package_closure(
+        workspace_root_source,
+        root_member_path,
+        live_workspace_root,
+        storage.root(),
+        source_limits,
+        closure_limits,
+    );
+    storage.verify_path_identity().map_err(|error| {
+        ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
+    })?;
+    result
+}
+
 /// Resolve an explicit workspace closure while allowing a Path request that
 /// leaves that live workspace to become a context-bound external-local source.
 ///
@@ -329,6 +356,24 @@ pub fn resolve_git_package_closure(
     .map_err(ResolveGitPackageClosureError::Closure)
 }
 
+/// Resolve a Git closure beneath the manager-owned private source root.
+pub fn resolve_git_package_closure_with_storage(
+    request: &GitSourceRequest,
+    storage: &SourceResolverStorage,
+    source_limits: LocalSourceLimits,
+    closure_limits: PackageSourceClosureLimits,
+) -> Result<ResolvedPackageSourceClosure, ResolveGitPackageClosureError> {
+    storage.verify_path_identity().map_err(|error| {
+        ResolveGitPackageClosureError::Root(ResolvePackageSourceError::Source(error))
+    })?;
+    let result =
+        resolve_git_package_closure(request, storage.root(), source_limits, closure_limits);
+    storage.verify_path_identity().map_err(|error| {
+        ResolveGitPackageClosureError::Root(ResolvePackageSourceError::Source(error))
+    })?;
+    result
+}
+
 fn git_root_request_matches(
     request: &GitSourceRequest,
     resolved: &ResolvedGitSource,
@@ -366,6 +411,24 @@ pub fn resolve_external_local_package_closure(
     )
 }
 
+/// Resolve an external-local package closure beneath private resolver storage.
+pub fn resolve_external_local_package_closure_with_storage(
+    live_root: impl AsRef<Path>,
+    source_context: ExternalSourceContext,
+    storage: &SourceResolverStorage,
+    source_limits: LocalSourceLimits,
+    closure_limits: PackageSourceClosureLimits,
+) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
+    resolve_external_local_declared_closure_with_storage(
+        live_root.as_ref(),
+        source_context,
+        storage,
+        source_limits,
+        closure_limits,
+        false,
+    )
+}
+
 /// Resolve a local compilation root and its complete declared dependency
 /// closure. The root may be an application or a package; every dependency is
 /// still required to be a package.
@@ -384,6 +447,49 @@ pub fn resolve_external_local_project_closure(
         closure_limits,
         true,
     )
+}
+
+/// Resolve a local project closure beneath private resolver storage.
+pub fn resolve_external_local_project_closure_with_storage(
+    live_root: impl AsRef<Path>,
+    source_context: ExternalSourceContext,
+    storage: &SourceResolverStorage,
+    source_limits: LocalSourceLimits,
+    closure_limits: PackageSourceClosureLimits,
+) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
+    resolve_external_local_declared_closure_with_storage(
+        live_root.as_ref(),
+        source_context,
+        storage,
+        source_limits,
+        closure_limits,
+        true,
+    )
+}
+
+fn resolve_external_local_declared_closure_with_storage(
+    live_root: &Path,
+    source_context: ExternalSourceContext,
+    storage: &SourceResolverStorage,
+    source_limits: LocalSourceLimits,
+    closure_limits: PackageSourceClosureLimits,
+    application_root_allowed: bool,
+) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
+    storage.verify_path_identity().map_err(|error| {
+        ResolveExternalLocalPackageClosureError::Root(ResolvePackageSourceError::Source(error))
+    })?;
+    let result = resolve_external_local_declared_closure(
+        live_root,
+        source_context,
+        storage.root(),
+        source_limits,
+        closure_limits,
+        application_root_allowed,
+    );
+    storage.verify_path_identity().map_err(|error| {
+        ResolveExternalLocalPackageClosureError::Root(ResolvePackageSourceError::Source(error))
+    })?;
+    result
 }
 
 fn resolve_external_local_declared_closure(
@@ -835,12 +941,15 @@ mod tests {
 
     #[test]
     fn resolves_explicit_workspace_path_closure() {
-        let cache = temp_root("fixture-cache");
-        let closure = resolve_workspace_package_closure(
+        let cache_base = temp_root("fixture-cache");
+        std::fs::create_dir_all(&cache_base).expect("create private storage base");
+        let storage = SourceResolverStorage::create_beneath(&cache_base)
+            .expect("create production-shaped private resolver storage");
+        let closure = resolve_workspace_package_closure_with_storage(
             &fixture_lineage(),
             WorkspaceMemberPath::parse("graph-workbench").expect("root member"),
             fixture_root(),
-            &cache,
+            &storage,
             LocalSourceLimits::default(),
             PackageSourceClosureLimits::default(),
         )
@@ -875,7 +984,8 @@ mod tests {
         assert_eq!(root_binding.selected().key(), closure.graph().root());
         assert_eq!(closure.source_requests().dependencies().count(), 2);
 
-        let _ = std::fs::remove_dir_all(cache);
+        drop(storage);
+        let _ = std::fs::remove_dir_all(cache_base);
     }
 
     #[test]

@@ -28,6 +28,16 @@ for SSH:
 Local sources skip transport but still pass through snapshot staging. A hash of
 a live local directory is diagnostic only.
 
+Ordinary `omega` source resolution now opens one versioned per-user
+`CathedralOS/Omega/source/v1` storage capability under the platform cache
+location. The manager creates every owned component with private permissions,
+retains the final directory, and rejects pathname replacement before and after
+closure operations. Compile dependency resolution, source inspection, and
+source audit no longer select a project-local cache, honor an ambient cache
+override, or fall back to the host temporary directory. Existing lower-level
+resolver harnesses still accept explicit cache paths; moving every internal
+lane and test behind the retained root capability remains open.
+
 ## Portable executor floor
 
 Every helper launch must use:
@@ -357,7 +367,7 @@ Authenticated Git paths, kinds, and
 executable bits are compared with the captured tree rather than ambient
 metadata. On macOS, retained cache directories, regular files, and locks are
 queried for extended ACL allow entries through their descriptors. Concrete
-selected executables and their ancestry are descriptor-queried as well. Cache
+selected executable nodes are descriptor-queried as well. Cache
 root/ancestry ACL facts likewise follow no-follow directory acquisition and
 identity reconciliation; only symlink ACL observations remain path-based.
 Destination exclusion is cooperative rather than an atomic hostile-same-user
@@ -423,10 +433,9 @@ mutation under the same documented same-user race limitation.
 Git subprocesses now select the parent Git binary only from a closed platform
 list of absolute concrete paths; they never search ambient `PATH`. macOS does
 not select Apple's `/usr/bin/git` dispatcher. The resolver canonicalizes the
-selected regular file and, on Unix, requires root/resolver ownership,
-non-writable/non-set-id executable mode, and root/resolver-owned ancestry whose
-externally writable directories have sticky-entry protection. Those custody
-conditions are rechecked around every launch. The resolver hashes the file
+selected regular file and, on Unix, requires root/resolver ownership and a
+non-writable/non-set-id executable mode. Those direct-file custody conditions
+are rechecked around every launch. The resolver hashes the file
 under a 256 MiB ceiling, retains that observation on `ResolvedGitSource`, checks
 stable file identity before and after every launch, and re-hashes the bytes when
 the complete resolution returns. HTTPS requests select `git-remote-https` from
@@ -443,24 +452,24 @@ v28, so a cache fetched before these executable-custody, cumulative-output,
 transport-authority, endpoint-brokerage, nonnetwork descendant-denial, and
 Windows owner/DACL floors is not silently reused.
 This identifies observed parent bytes and closes ordinary cross-user path
-ownership on Unix. On Windows, each invocation entry, canonical target, and
-ancestor is opened no-follow and queried by handle; its owner must be the
-current user, LocalSystem, or BUILTIN Administrators, while a null DACL,
+ownership on Unix. On Windows, each invocation entry and canonical target is
+opened no-follow and queried by handle; its owner must be the current user,
+LocalSystem, or BUILTIN Administrators, while a null DACL,
 unknown granting ACE, or mutation grant to another SID rejects. Inherit-only
 ACEs do not apply to the current object; other inheritable ACEs do. This does not
 certify Git, the HTTPS helper, or SSH, bind other executable components, protect
 against trusted-principal replacement, bind TLS or SSH host trust, or
 prove that an observed file equals an already loaded image. On macOS, every
-concrete selected executable, transport invocation entry, canonical transport
-target, and executable ancestor is opened no-follow, required to preserve its
+concrete selected executable, transport invocation entry, and canonical
+transport target is opened no-follow, required to preserve its
 classified file identity, and read through the descriptor form of the native
 extended-ACL surface. Symlink invocation entries use the path-oriented native
 link ACL interface. The narrow platform wrapper classifies only native
 allow/deny tags and does not resolve ACL principals through ambient identity
 services. Any allow entry rejects; deny-only entries cannot broaden custody.
 Failure to inspect an ACL rejects rather than degrading to mode-only checks.
-These ACL checks run at the same repeated custody points as owner, mode,
-ancestry, and executable identity checks. They close ordinary extended-ACL
+These ACL checks run at the same repeated custody points as owner, mode, and
+executable identity checks. They close ordinary extended-ACL
 grant substitution, not hostile same-user replacement or loaded-image
 identity.
 Each launch clears the complete inherited environment, installs only the fixed

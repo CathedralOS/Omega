@@ -2,7 +2,7 @@
 
 use crate::source::{
     GitSourceRequest, GitSourceRequestError, LocalSourceLimits, SourceResolveError,
-    resolve_git_source, resolve_local_source,
+    SourceResolverStorage, resolve_git_source, resolve_local_source,
 };
 use std::path::{Path, PathBuf};
 
@@ -213,6 +213,18 @@ pub fn audit_package_source(
     }
 }
 
+/// Audit one source using manager-owned private resolver storage.
+pub fn audit_package_source_with_storage(
+    request: PackageSourceRequest,
+    storage: &SourceResolverStorage,
+    limits: LocalSourceLimits,
+) -> Result<PackageSourceAudit, SourceResolveError> {
+    storage.verify_path_identity()?;
+    let result = audit_package_source(request, storage.root(), limits);
+    storage.verify_path_identity()?;
+    result
+}
+
 pub fn audit_package_source_locator(
     adapter: SourceAdapter,
     locator: impl Into<String>,
@@ -223,6 +235,19 @@ pub fn audit_package_source_locator(
     let request = PackageSourceRequest::parse(adapter, locator, rev)
         .map_err(PackageSourceAuditCommandError::Parse)?;
     audit_package_source(request, cache_dir, limits)
+        .map_err(PackageSourceAuditCommandError::Resolve)
+}
+
+pub fn audit_package_source_locator_with_storage(
+    adapter: SourceAdapter,
+    locator: impl Into<String>,
+    rev: Option<String>,
+    storage: &SourceResolverStorage,
+    limits: LocalSourceLimits,
+) -> Result<PackageSourceAudit, PackageSourceAuditCommandError> {
+    let request = PackageSourceRequest::parse(adapter, locator, rev)
+        .map_err(PackageSourceAuditCommandError::Parse)?;
+    audit_package_source_with_storage(request, storage, limits)
         .map_err(PackageSourceAuditCommandError::Resolve)
 }
 

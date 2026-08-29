@@ -1,8 +1,6 @@
 use std::ffi::OsString;
-use std::path::PathBuf;
 
-const SOURCE_USAGE: &str =
-    "usage: omega audit source --kind <local|git> <locator> [--rev <rev>] [--cache-dir <dir>]";
+const SOURCE_USAGE: &str = "usage: omega audit source --kind <local|git> <locator> [--rev <rev>]";
 
 pub(super) fn run(arguments: impl Iterator<Item = OsString>) {
     let mut arguments = arguments;
@@ -36,11 +34,18 @@ fn source(arguments: impl Iterator<Item = OsString>) {
             std::process::exit(2);
         }
     };
-    match omega_packages::audit_package_source_locator(
+    let storage = match omega_packages::SourceResolverStorage::for_current_user() {
+        Ok(storage) => storage,
+        Err(error) => {
+            eprintln!("cannot open private source resolver storage: {error}");
+            std::process::exit(1);
+        }
+    };
+    match omega_packages::audit_package_source_locator_with_storage(
         adapter,
         arguments.locator,
         arguments.rev,
-        &arguments.cache_dir,
+        &storage,
         omega_packages::LocalSourceLimits::default(),
     ) {
         Ok(report) => print!("{}", report.to_text()),
@@ -64,7 +69,6 @@ struct SourceArguments {
     source_kind: String,
     locator: String,
     rev: Option<String>,
-    cache_dir: PathBuf,
 }
 
 fn parse_source_arguments(
@@ -73,7 +77,6 @@ fn parse_source_arguments(
     let mut locator = None;
     let mut source_kind = None;
     let mut rev = None;
-    let mut cache_dir = None;
     while let Some(argument) = arguments.next() {
         if argument == "--kind" {
             if source_kind.is_some() {
@@ -91,14 +94,6 @@ fn parse_source_arguments(
             rev.as_ref()?;
             continue;
         }
-        if argument == "--cache-dir" {
-            if cache_dir.is_some() {
-                return None;
-            }
-            cache_dir = arguments.next().map(PathBuf::from);
-            cache_dir.as_ref()?;
-            continue;
-        }
         if locator.is_some() || argument.to_string_lossy().starts_with('-') {
             return None;
         }
@@ -108,6 +103,5 @@ fn parse_source_arguments(
         source_kind: source_kind?,
         locator: locator?,
         rev,
-        cache_dir: cache_dir.unwrap_or_else(|| PathBuf::from(".omega/package-cache")),
     })
 }

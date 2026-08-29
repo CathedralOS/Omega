@@ -4,6 +4,9 @@ use super::*;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SourceResolveError {
+    PrivateStorageUnavailable {
+        message: String,
+    },
     Io {
         path: PathBuf,
         message: String,
@@ -118,6 +121,9 @@ pub enum SourceResolveError {
 impl fmt::Display for SourceResolveError {
     fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::PrivateStorageUnavailable { message } => {
+                write!(output, "private resolver storage is unavailable: {message}")
+            }
             Self::Io { path, message } => write!(output, "{}: {message}", path.display()),
             Self::NotDirectory { path } => {
                 write!(

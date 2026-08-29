@@ -62,7 +62,7 @@ pub(crate) fn run() {
     }
     let Some(arguments) = parse_arguments() else {
         eprintln!(
-            "usage: omega [--check] [--output-only] [--build-dir <dir>] [--target <name>] <root.omg>\n       omega run [--both] [--keep] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source --kind <local|git> <locator> [--rev <rev>] [--cache-dir <dir>]\n       omega source-snapshot --repository-root <dir> [--target <name>] [--feature-census] <root.omg>\n       omega refresh-samples [samples-dir]"
+            "usage: omega [--check] [--output-only] [--build-dir <dir>] [--target <name>] <root.omg>\n       omega run [--both] [--keep] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source --kind <local|git> <locator> [--rev <rev>]\n       omega source-snapshot --repository-root <dir> [--target <name>] [--feature-census] <root.omg>\n       omega refresh-samples [samples-dir]"
         );
         std::process::exit(2);
     };
@@ -150,11 +150,11 @@ fn reconcile_declared_local_dependencies(
                 project_root.display()
             )
         })?;
-    let cache_root = local_source_cache_root();
-    let closure = omega_packages::resolve_external_local_project_closure(
+    let storage = local_source_storage()?;
+    let closure = omega_packages::resolve_external_local_project_closure_with_storage(
         &project_root,
         omega_packages::ExternalSourceContext::derive(b"omega-local-project-v1"),
-        cache_root,
+        &storage,
         omega_packages::LocalSourceLimits::default(),
         omega_packages::PackageSourceClosureLimits::default(),
     )
@@ -168,20 +168,9 @@ fn reconcile_declared_local_dependencies(
         .map_err(|errors| format!("cannot construct compiler package graph: {errors:?}"))
 }
 
-fn local_source_cache_root() -> PathBuf {
-    if let Some(configured) = std::env::var_os("OMEGA_SOURCE_CACHE_DIR") {
-        return PathBuf::from(configured);
-    }
-    if let Some(cache) = std::env::var_os("XDG_CACHE_HOME") {
-        return PathBuf::from(cache).join("omega/source");
-    }
-    if let Some(cache) = std::env::var_os("LOCALAPPDATA") {
-        return PathBuf::from(cache).join("Omega/source");
-    }
-    if let Some(home) = std::env::var_os("HOME") {
-        return PathBuf::from(home).join(".cache/omega/source");
-    }
-    std::env::temp_dir().join("omega-source-cache")
+fn local_source_storage() -> Result<omega_packages::SourceResolverStorage, String> {
+    omega_packages::SourceResolverStorage::for_current_user()
+        .map_err(|error| format!("cannot open private source resolver storage: {error}"))
 }
 
 struct CliArguments {
