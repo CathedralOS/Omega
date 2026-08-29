@@ -244,6 +244,13 @@ may reuse an alias, while a common alias conflicts with the same alias in every
 column. No `DependencyCondition`, `depend_when`, condition string, or evaluated
 manifest path is introduced.
 
+The landed projector owns each authored request once and stores common/profile
+membership as occurrence indices. It closes unconditional and exact target
+paths by fixpoint, retains stable identities for exactly the referenced
+profiles, and rejects wildcard, runtime-subject, mixed, unreachable, and
+profile-less-resolution cases. Active-set alias checking, profile-aware closure
+resolution, review identity, and lock sections remain downstream work.
+
 ```omega
 machine build(builder: &mut Build) {
     builder.depend(Source::Path {

@@ -281,31 +281,25 @@ explicitly.
   `Real`, wrong opaque subject, lookalike representation traits, provider drift,
   descriptor replay drift, and illegal carrier cleanup/multiplicity changes.
 
-- [ ] **STATIC-TARGET-CONDITIONED-DEPENDENCIES — project ordinary target transitions without executing `build.omg`.**
-  Extend the syntax projector to derive a target-independent
-  `ProjectedDependencies { common, by_profile }` map from the finite build
-  state graph. Follow unconditional transitions and exact
-  `transition builder.target` arms; intersect nested exact constraints, merge
-  shared states, handle cycles by fixpoint, and project each authored call once.
-  A dependency occurrence must have an authorized path and no path tainted by a
-  wildcard target arm or transition on another runtime subject. Reject tainted,
-  mixed-path, and unreachable occurrences with the dependency span plus the
-  transition/arm provenance and a directed repair. Do not add `depend_when`,
-  `depend_as_when`, condition strings, or a second dependency grammar.
+- [ ] **STATIC-TARGET-CONDITIONED-DEPENDENCIES — consume the projected profile
+  columns downstream.** The syntax projector now closes unconditional and exact
+  `transition builder.target` paths by fixpoint, retains each request once with
+  indexed common/profile membership, validates stable referenced profile
+  identities, and rejects wildcard, runtime-subject, mixed, unreachable, and
+  profile-less-resolution cases.
 
-  Validate exact profile keys against the trusted toolchain target catalog at
-  projection time. Retain the condition-schema version and identities of only
-  the profiles actually referenced. Alias uniqueness is checked within
-  `common + by_profile[P]`: mutually exclusive profile columns may reuse an
-  alias, while a common alias conflicts in every column. Make package review
-  distinguish the complete projected map for that one fetched package from an
-  unresolved transitive graph. Extend the one workspace lock with independently
-  populated per-profile closure/review sections; locked resolution of an absent
-  column rejects without network access, while an explicit operation may
-  populate all columns. Add canaries for unconditional factoring, nested exact
-  intersections, shared states, cycles, wildcard and runtime-subject taint,
-  mixed paths, unreachable calls, alias reuse/conflict, catalog growth, stale
-  profile identity, and missing locked columns.
+  Remaining work:
+
+  - enforce alias uniqueness over `common + by_profile[P]` while allowing reuse
+    between mutually exclusive columns;
+  - make closure resolution select one explicit profile without flattening the
+    complete per-package projection;
+  - bind the condition schema, referenced profile identities, and complete
+    projected map into source-closure and package-review identity;
+  - add independently populated per-profile accepted-lock/review sections,
+    fail-closed missing-column behavior, and explicit all-column population;
+  - add alias reuse/conflict, catalog-growth, stale-profile-identity, selected-
+    closure, replay/tamper, and missing-locked-column canaries.
 
 - [ ] **APPLICATION-ROOT-ROLE-EVIDENCE — retain the admitted root role after resolution.**
   Source projection no longer coerces `ApplicationDeclaration` into a package.
