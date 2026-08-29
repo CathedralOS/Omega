@@ -1921,6 +1921,12 @@ selection to the same fixed root slot and symbol kind, and encodes the stable
 closed builtin ordinal rather than its spelling. Same-spelled late-root, nested,
 package-authored, and generated symbols remain non-builtin; static arguments or
 target-symbol custody disagreement reject.
+Review v78 and canonical row v36 extend that closed identity to selected
+boundary-operator provider execution. Compiler settlement retains the exact
+builtin function beside, but distinct from, the authored realization machine;
+projection rederives it from the checked overload and fixed builtin root slot.
+Missing, mismatched, or non-intrinsic spoofed state rejects. Primitive-expression
+intrinsics remain fail-closed until they receive their own closed atoms.
 Review v75 and canonical row v33 likewise admit the compiler-owned collection-
 length projection in public contract expressions. Checked proof-static member
 resolution derives the receiver type from its retained declaration symbol,

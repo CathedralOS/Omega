@@ -32,6 +32,24 @@ enum NamedFloatRealization {
     Convert(ArithmeticDomain),
 }
 
+/// Closed compiler-owned execution child selected for one exact
+/// `CompilerIntrinsic` boundary-operator row.
+///
+/// Primitive-expression realizations deliberately remain distinct from
+/// builtin functions. Package review must reject `NonBuiltin` until those
+/// children receive their own closed identities.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SelectedCompilerIntrinsicExecutionIdentity {
+    BuiltinFunction(BuiltinFunction),
+    NonBuiltin,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SelectedCompilerIntrinsicRealization {
+    NamedFloat(NamedFloatRealization),
+    OtherCompilerPath,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum DirectedFloatBinaryOperation {
     Add,
@@ -260,33 +278,19 @@ fn resolve_float_intrinsic_call(
         )));
     }
 
-    let ProviderBinding::CompilerIntrinsic { machine, .. } = &row.binding else {
+    let Some(selected_realization) = selected_compiler_intrinsic_realization(
+        checked,
+        plan,
+        operator_use.selected_operator_symbol,
+    )?
+    else {
         return Ok(None);
     };
-    if !omega_provider_planning::plans::intrinsic_realization_matches_operator(
-        &checked.typed,
-        machine,
-        operator,
-    ) {
+    let SelectedCompilerIntrinsicRealization::NamedFloat(realization) = selected_realization else {
         return Err(Diagnostic::error(format!(
-            "selected named-float ProviderPlan `{}` binds realization `{machine}`, but it does not satisfy exact overload `{overload_identity}` as an external leaf",
-            plan.name,
+            "selected named-float overload `{overload_identity}` has no named-float execution realization",
         )));
-    }
-    let expected = omega_provider_planning::plans::compiler_intrinsic_diagnostic_label(
-        &checked.typed,
-        operator,
-    )
-    .ok_or_else(|| {
-        Diagnostic::error(format!(
-            "selected named-float overload `{overload_identity}` has no compiler-known intrinsic realization",
-        ))
-    })?;
-    let realization = named_float_realization_from_operator(&checked.typed, operator).ok_or_else(|| {
-        Diagnostic::error(format!(
-            "selected named-float overload `{overload_identity}` has no execution realization for compiler catalog entry `{expected}`",
-        ))
-    })?;
+    };
     let ExpressionNode::Call(call) = checked
         .typed
         .expression_table
@@ -331,6 +335,136 @@ fn resolve_float_intrinsic_call(
         realization,
         execution,
     }))
+}
+
+/// Rederive the closed execution child for one exact selected provider row.
+///
+/// This consumes the selected plan and the checked requirement symbol. The
+/// realization-machine string is validated only as an authored-plan join; it
+/// is never parsed into compiler identity. A package-authored function with a
+/// builtin spelling cannot enter the returned `BuiltinFunction` lane.
+pub fn derive_selected_compiler_intrinsic_execution_identity(
+    checked: &CheckedTrees,
+    plan: &omega_effects::provider_plan::ProviderPlan,
+    requirement_symbol: psi_symbols::SymbolHandle,
+) -> Result<Option<SelectedCompilerIntrinsicExecutionIdentity>, Diagnostic> {
+    let Some(selected_realization) =
+        selected_compiler_intrinsic_realization(checked, plan, requirement_symbol)?
+    else {
+        return Ok(None);
+    };
+    let SelectedCompilerIntrinsicRealization::NamedFloat(realization) = selected_realization else {
+        return Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::NonBuiltin));
+    };
+    if matches!(
+        realization,
+        NamedFloatRealization::Negate(_) | NamedFloatRealization::Convert(_)
+    ) {
+        return Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::NonBuiltin));
+    }
+    let function = named_float_realization_builtin(realization)?;
+    let symbol = checked
+        .typed
+        .symbols
+        .builtin_function_symbol(function)
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "compiler builtin `{}` is absent while deriving selected provider review identity",
+                function.name(),
+            ))
+        })?;
+    if checked.typed.symbols.builtin_function_for_symbol(symbol) != Some(function) {
+        return Err(Diagnostic::error(format!(
+            "compiler builtin `{}` does not round-trip through its exact root slot",
+            function.name(),
+        )));
+    }
+    Ok(Some(
+        SelectedCompilerIntrinsicExecutionIdentity::BuiltinFunction(function),
+    ))
+}
+
+fn selected_compiler_intrinsic_realization(
+    checked: &CheckedTrees,
+    plan: &omega_effects::provider_plan::ProviderPlan,
+    requirement_symbol: psi_symbols::SymbolHandle,
+) -> Result<Option<SelectedCompilerIntrinsicRealization>, Diagnostic> {
+    let operators = checked
+        .typed
+        .operators()
+        .iter()
+        .filter(|operator| operator.symbol == requirement_symbol)
+        .collect::<Vec<_>>();
+    let [operator] = operators.as_slice() else {
+        return Err(Diagnostic::error(format!(
+            "selected ProviderPlan `{}` resolves requirement symbol {:?} to {} operator declarations",
+            plan.name,
+            requirement_symbol,
+            operators.len(),
+        )));
+    };
+    if !operator.is_boundary {
+        return Err(Diagnostic::error(format!(
+            "selected ProviderPlan `{}` compiler intrinsic does not realize a boundary operator",
+            plan.name,
+        )));
+    }
+    let overload_identity =
+        psi_typed_trees::operator::boundary_operator_requirement_identity(&checked.typed, operator);
+    if overload_identity.is_empty() {
+        return Err(Diagnostic::error(format!(
+            "selected ProviderPlan `{}` compiler intrinsic has an empty canonical overload identity",
+            plan.name,
+        )));
+    }
+    let [method] = plan.schema.methods.as_slice() else {
+        return Err(Diagnostic::error(format!(
+            "selected compiler-intrinsic ProviderPlan `{}` must retain exactly one schema method",
+            plan.name,
+        )));
+    };
+    let [row] = plan.rows.as_slice() else {
+        return Err(Diagnostic::error(format!(
+            "selected compiler-intrinsic ProviderPlan `{}` must retain exactly one realization row",
+            plan.name,
+        )));
+    };
+    if plan.schema.trait_name != overload_identity
+        || method.name != "realize"
+        || method.requirement_owner != overload_identity
+        || method.requirement_identity != overload_identity
+        || row.requirement_identity != overload_identity
+        || !plan.schema.row_binds_method(row, method)
+    {
+        return Err(Diagnostic::error(format!(
+            "selected compiler-intrinsic ProviderPlan `{}` does not bind exact overload `{overload_identity}`",
+            plan.name,
+        )));
+    }
+    let ProviderBinding::CompilerIntrinsic { machine } = &row.binding else {
+        return Ok(None);
+    };
+    if !omega_provider_planning::plans::intrinsic_realization_matches_operator(
+        &checked.typed,
+        machine,
+        operator,
+    ) {
+        return Err(Diagnostic::error(format!(
+            "selected compiler-intrinsic ProviderPlan `{}` binds realization `{machine}`, but it does not satisfy exact overload `{overload_identity}` as an external leaf",
+            plan.name,
+        )));
+    }
+    omega_provider_planning::plans::compiler_intrinsic_diagnostic_label(&checked.typed, operator)
+        .ok_or_else(|| {
+        Diagnostic::error(format!(
+            "selected overload `{overload_identity}` has no compiler-known intrinsic realization",
+        ))
+    })?;
+    Ok(Some(
+        named_float_realization_from_operator(&checked.typed, operator)
+            .map(SelectedCompilerIntrinsicRealization::NamedFloat)
+            .unwrap_or(SelectedCompilerIntrinsicRealization::OtherCompilerPath),
+    ))
 }
 
 const fn named_float_realization_arity(realization: NamedFloatRealization) -> usize {
@@ -988,6 +1122,37 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn review_identity_uses_exact_operator_and_builtin_root_slot() {
+        let fixture = fixture();
+        assert_eq!(
+            derive_selected_compiler_intrinsic_execution_identity(
+                &fixture.checked,
+                &fixture.minimum_plan,
+                fixture.operator_use.selected_operator_symbol,
+            )
+            .expect("exact selected minimum must rederive")
+            .expect("minimum is a compiler intrinsic"),
+            SelectedCompilerIntrinsicExecutionIdentity::BuiltinFunction(BuiltinFunction::Min),
+        );
+
+        let mut spoofed = fixture.minimum_plan.clone();
+        spoofed.rows[0].binding = ProviderBinding::CompilerIntrinsic {
+            machine: "F32::maximum.f32".into(),
+        };
+        let diagnostic = derive_selected_compiler_intrinsic_execution_identity(
+            &fixture.checked,
+            &spoofed,
+            fixture.operator_use.selected_operator_symbol,
+        )
+        .expect_err("a cross-operator realization string must not spoof builtin identity");
+        assert!(
+            diagnostic
+                .message
+                .contains("does not satisfy exact overload")
+        );
     }
 
     fn selected_fixture() -> (

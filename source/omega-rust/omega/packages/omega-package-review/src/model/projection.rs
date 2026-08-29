@@ -68,6 +68,7 @@ impl PackageReviewCheckedServiceReach {
 pub struct CheckedPackageProviderRowIdentity {
     pub(crate) requirement: PackageReviewNominalIdentity,
     pub(crate) realization: PackageReviewNominalIdentity,
+    pub(crate) compiler_intrinsic_builtin: Option<psi_symbols::BuiltinFunction>,
 }
 
 impl CheckedPackageProviderRowIdentity {
@@ -77,6 +78,12 @@ impl CheckedPackageProviderRowIdentity {
 
     pub const fn realization(&self) -> &PackageReviewNominalIdentity {
         &self.realization
+    }
+
+    /// Closed compiler-owned execution child, retained separately from the
+    /// authored realization machine.
+    pub const fn compiler_intrinsic_builtin(&self) -> Option<psi_symbols::BuiltinFunction> {
+        self.compiler_intrinsic_builtin
     }
 }
 
@@ -89,8 +96,9 @@ impl CheckedPackageProviderRowIdentity {
 /// package-qualified or authored-toolchain declaration identities, and review
 /// rejects if those owners disagree with the selected plan. Readable provider-
 /// plan strings remain execution/audit data and are not asked to stand in for
-/// those declarations. The authored toolchain-source commitment does not yet
-/// seal whole-compiler or source-free compiler-intrinsic identity.
+/// those declarations. Builtin-backed compiler-intrinsic rows additionally
+/// retain a closed compiler-function atom; primitive-expression intrinsic
+/// children remain inadmissible until they receive their own closed identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedPackageProviderReview {
     pub(crate) plan_name: String,

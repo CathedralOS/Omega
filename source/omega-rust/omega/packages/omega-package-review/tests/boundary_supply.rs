@@ -294,6 +294,7 @@ fn review_joins_external_boundary_operator_supply_without_implying_visibility() 
         r#"pub data F32 {}
 pub boundary operator F32::minimum(left: f32, right: f32) -> f32;
 pub boundary operator F32::maximum(left: f32, right: f32) -> f32;
+pub boundary operator F32::square_root(value: f32) -> f32;
 
 pub data FloatProvider {}
 pub machine FloatProvider::minimum(left: f32, right: f32) -> f32
@@ -301,6 +302,9 @@ pub machine FloatProvider::minimum(left: f32, right: f32) -> f32
     via Binding::CompilerIntrinsic;
 machine FloatProvider::maximum(left: f32, right: f32) -> f32
     satisfies F32::maximum
+    via Binding::CompilerIntrinsic;
+machine FloatProvider::square_root(value: f32) -> f32
+    satisfies F32::square_root
     via Binding::CompilerIntrinsic;
 "#,
     );
@@ -322,8 +326,12 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     let review = project_checked_package_review(&checked)
         .expect("external boundary-operator supply should project exactly");
 
-    assert_eq!(review.external_executable_supply().len(), 2);
-    for requirement in ["minimum", "maximum"] {
+    assert_eq!(review.external_executable_supply().len(), 3);
+    for (requirement, expected_builtin) in [
+        ("minimum", psi_symbols::BuiltinFunction::Min),
+        ("maximum", psi_symbols::BuiltinFunction::Max),
+        ("square_root", psi_symbols::BuiltinFunction::Sqrt),
+    ] {
         let callable_path = format!("FloatProvider::{requirement}");
         let declaration = review
             .public_operators()
@@ -362,6 +370,11 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
             selected_row.requirement().owner(),
             declaration.coordinate().identity().owner()
         );
+        assert_eq!(
+            selected_row.compiler_intrinsic_builtin(),
+            Some(expected_builtin),
+            "selected provider review must retain the closed builtin child separately from the authored realization",
+        );
         assert!(matches!(
             selected.rows()[0].binding,
             omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
@@ -393,7 +406,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         .iter()
         .filter(|row| row.kind() == PackageReviewCanonicalRowKind::ExternalExecutableSupply)
         .collect::<Vec<_>>();
-    assert_eq!(supply_rows.len(), 2);
+    assert_eq!(supply_rows.len(), 3);
     assert!(supply_rows.iter().all(|row| {
         row.risk() == PackageReviewCanonicalRowRisk::OpaqueBlocking
             && row.source().authored_locations().is_some_and(|locations| {
@@ -426,10 +439,23 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         );
         assert_eq!(decoded.key_bytes(), row.key_bytes());
     }
+    let selected_provider_row = rows
+        .iter()
+        .find(|row| row.kind() == PackageReviewCanonicalRowKind::SelectedProviderSet)
+        .expect("canonical selected-provider identity");
+    let encoded = encode_package_review_canonical_row(selected_provider_row)
+        .expect("selected-provider recovery envelope should encode");
+    let decoded = decode_package_review_canonical_row(&encoded)
+        .expect("selected-provider recovery envelope should decode");
+    assert_eq!(
+        decoded.canonical_bytes(),
+        selected_provider_row.canonical_bytes(),
+        "canonical recovery must preserve the builtin ordinals",
+    );
 }
 
 #[test]
-fn external_boundary_operator_overloads_keep_distinct_requirement_coordinates() {
+fn non_builtin_external_boundary_operator_overloads_remain_fail_closed() {
     let Some(target) = host_target_name() else {
         return;
     };
@@ -466,43 +492,11 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         package_inputs(&package.0),
     )
     .expect("external boundary-operator overloads should select independently");
-    let review = project_checked_package_review(&checked)
-        .expect("external boundary-operator overloads should project exactly");
-    let overloads = review
-        .public_operators()
-        .iter()
-        .filter(|operator| operator.coordinate().identity().path() == "Float::add")
-        .collect::<Vec<_>>();
-    assert_eq!(overloads.len(), 2);
-    assert_ne!(
-        overloads[0].coordinate().parameter_dispatch(),
-        overloads[1].coordinate().parameter_dispatch()
-    );
-
-    for (callable, primitive) in [("F32Provider::add", "f32"), ("F64Provider::add", "f64")] {
-        let supply = review
-            .external_executable_supply()
-            .iter()
-            .find(|supply| supply.callable().path() == callable)
-            .unwrap_or_else(|| panic!("missing external supply for {callable}"));
-        let operator = supply.operator().expect("operator requirement");
-        assert!(operator.parameter_dispatch().contains(primitive));
-        assert!(
-            overloads
-                .iter()
-                .any(|declaration| declaration.coordinate() == operator)
-        );
-        let callable_row = review
-            .callables()
-            .iter()
-            .find(|candidate| candidate.identity() == supply.callable())
-            .expect("public external leaf callable");
-        let [realization] = callable_row.operator_realizations() else {
-            panic!("one exact external operator realization")
-        };
-        assert_eq!(realization.coordinate(), operator);
-        assert_eq!(realization.alias(), None);
-    }
+    let diagnostics = project_checked_package_review(&checked)
+        .expect_err("primitive-expression intrinsic children have no closed review identity");
+    assert!(diagnostics.iter().any(|diagnostic| diagnostic
+        .message
+        .contains("without a closed package-review identity")));
 }
 
 #[test]

@@ -2,6 +2,7 @@ use super::callables::*;
 use super::contracts::*;
 use super::evidence::*;
 use super::exact_identity::*;
+use super::provider_intrinsics::project_compiler_intrinsic_builtin;
 use super::public_api::*;
 use super::public_traits::*;
 use crate::model::*;
@@ -223,6 +224,7 @@ pub fn project_checked_package_review(
         if retained.plan != *plan
             || retained.provider.row_requirements.len() != plan.rows.len()
             || retained.provider.row_realizations.len() != plan.rows.len()
+            || retained.row_compiler_intrinsic_builtins.len() != plan.rows.len()
         {
             return Err(vec![Diagnostic::error(format!(
                 "selected provider plan `{}` has incomplete or misaligned declaration provenance",
@@ -234,7 +236,9 @@ pub fn project_checked_package_review(
             .row_requirements
             .iter()
             .zip(&retained.provider.row_realizations)
-            .map(|(requirement, realization)| {
+            .zip(&retained.row_compiler_intrinsic_builtins)
+            .zip(&plan.rows)
+            .map(|(((requirement, realization), retained_builtin), row)| {
                 Ok(CheckedPackageProviderRowIdentity {
                     requirement: provider_requirement_identity(
                         compilation,
@@ -242,6 +246,17 @@ pub fn project_checked_package_review(
                         *requirement,
                     )?,
                     realization: nominal_identity(compilation, *realization)?,
+                    compiler_intrinsic_builtin: project_compiler_intrinsic_builtin(
+                        compilation,
+                        plan,
+                        row,
+                        matches!(
+                            retained.provider.schema,
+                            omega_provider_planning::plans::ProviderSchemaDeclaration::BoundaryOperator(_)
+                        ),
+                        *requirement,
+                        *retained_builtin,
+                    )?,
                 })
             })
             .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;

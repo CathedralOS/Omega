@@ -1017,6 +1017,7 @@ dependencies = [
  "omega-effects",
  "omega-package-compilation",
  "omega-provider-planning",
+ "omega-selected-dispatch",
  "omega-target",
  "psi-arena",
  "psi-checked-trees",

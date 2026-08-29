@@ -62,4 +62,4 @@ reconstruction before recovered rows can be compared.
 
 The crate root exports the stable external surface. Cross-responsibility
 construction helpers and fields remain `pub(crate)` and are not external API.
-The canonical review schema remains version 77 and row schema version 35.
+The canonical review schema is version 78 and row schema version 36.

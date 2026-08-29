@@ -751,7 +751,7 @@ fn compile_to_checked_inner_with_replay(
         &typed,
         &selected_semantic_plans,
     )?;
-    let (selected_provider_plan_facts, selected_provider_provenance) =
+    let (selected_provider_plan_facts, mut selected_provider_provenance) =
         crate::pipeline::provider_plans::selected_provider_plan_facts_with_provenance(
             &typed,
             selected_provider_plans,
@@ -816,6 +816,11 @@ fn compile_to_checked_inner_with_replay(
     omega_selected_dispatch::settle_selected_float_intrinsic_dispatch(
         &mut checked.program,
         &selected_provider_plan_facts,
+    )?;
+    omega_selected_dispatch::retain_selected_compiler_intrinsic_review_identities(
+        &checked.program,
+        &selected_provider_plan_facts,
+        &mut selected_provider_provenance,
     )?;
     // Preserve boundary-requirement proof/evidence at checking time, then
     // redirect only execution to the selected checked adapter.

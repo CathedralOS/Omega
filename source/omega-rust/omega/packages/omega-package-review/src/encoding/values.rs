@@ -1103,7 +1103,18 @@ pub(crate) fn encode_provider(
     encoder.sequence(&provider.rows, encode_provider_row)?;
     encoder.sequence(&provider.row_declarations, |encoder, row| {
         encode_nominal(encoder, &row.requirement)?;
-        encode_nominal(encoder, &row.realization)
+        encode_nominal(encoder, &row.realization)?;
+        encoder.option(
+            row.compiler_intrinsic_builtin.as_ref(),
+            |encoder, function| {
+                encoder.u16(u16::try_from(function.ordinal()).map_err(|_| {
+                    PackageReviewEncodingError::new(
+                        "compiler builtin-function ordinal exceeds the portable encoding range",
+                    )
+                })?);
+                Ok(())
+            },
+        )
     })
 }
 
