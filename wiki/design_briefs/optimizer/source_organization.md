@@ -241,6 +241,11 @@ transformed unit and ledger, identity bundle, pass manifests, then
 reconstructible projection shape. Receipt/error models, source custody,
 manifest replay, source-roster partitioning, and equivalence checks descend
 into named leaves, with broad custody fixtures isolated in `tests.rs`.
+Verified and transformed optimizer-context validation shares one entrance that
+owns the initial-revision policy and preserves complete-unit, immutable-context,
+seed/fact, and surviving-frontier validation order. Proof-question projection,
+ownership-frontier projection, immutable signature/roster custody, and seed
+reconstruction descend into named leaves.
 Liveness computation and pre-allocation machine-effect encoding also keep
 their broad fixtures in sibling test leaves, so production file size measures
 production responsibility.
