@@ -64,14 +64,14 @@ pub const SELECTED_LOWERING_RULE_CATALOG: [SelectedLoweringRuleCatalogEntry; 2] 
         Optimization::SelectedIncomingU12ExactAddImmediate,
         SelectedLoweringRuleCatalogPayload {
             target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
-            policy: LiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1,
+            policy: LiteralFoldPolicy::EXACT_ADD_V1,
         },
     ),
     SelectedLoweringRuleCatalogEntry::new(
         Optimization::SelectedIncomingU12ExactSubtractImmediate,
         SelectedLoweringRuleCatalogPayload {
             target: RegisterAllocationRuleTargetApplicability::TargetIndependent,
-            policy: LiteralFoldPolicy::SelectedIncomingU12ExactSubtractImmediateV1,
+            policy: LiteralFoldPolicy::EXACT_SUBTRACT_V1,
         },
     ),
 ];

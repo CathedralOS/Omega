@@ -352,8 +352,9 @@ parallel route or optional coordinator field.
   descend into named leaves.
 - [x] Split the flat selected-lowering literal-fold stage; the regalloc rule
   entrance owns exact selection projection and catalog order while pipeline
-  carriers, execution, replay, schedule receipts, and work accounting descend
-  into named leaves.
+  carriers, execution, replay, and work accounting descend into named leaves.
+  The proxy schedule registry and hidden whole-catalog combined policy are
+  removed; exact catalog rows now compose their own payloads append-safely.
 - [x] Move selected-lowering, allocation-recovery, and post-allocation-machine
   enable/order tables to their rule-owning crate entrances. Remove the proxy
   pipeline catalogs and enforce each meaningful entrance plus adjacent catalog

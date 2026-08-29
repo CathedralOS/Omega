@@ -224,7 +224,7 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/mod.rs",
-        coordination_marker: "pub fn selected_lowering_rule_policy",
+        coordination_marker: "pub fn resolve_selected_lowering_rules",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/literal_fold/mod.rs",
@@ -920,6 +920,39 @@ fn optimizer_source_organization_is_bounded_and_navigable() {
         violations.insert(format!(
             "register allocation retains the mixed post-allocation manifest file: {obsolete_post_allocation_manifest}"
         ));
+    }
+
+    let obsolete_selected_lowering_schedule = "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/machine/literal_folds/schedule.rs";
+    if repository
+        .join(obsolete_selected_lowering_schedule)
+        .exists()
+    {
+        violations.insert(format!(
+            "selected lowering retains a proxy schedule beside its owning rule catalog: {obsolete_selected_lowering_schedule}"
+        ));
+    }
+    for path in source_lines.keys().filter(|path| {
+        !is_test_source(path)
+            && (path.starts_with(
+                "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/",
+            ) || path.starts_with(
+                "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/machine/literal_folds/",
+            ))
+    }) {
+        match fs::read_to_string(repository.join(path)) {
+            Ok(contents)
+                if contents.contains("SelectedIncomingU12ExactAddAndSubtractImmediateV1")
+                    || contents.contains("SelectedLoweringOptimizationSchedule") =>
+            {
+                violations.insert(format!(
+                    "selected lowering retains a hidden combined policy or proxy schedule in {path}"
+                ));
+            }
+            Ok(_) => {}
+            Err(error) => {
+                violations.insert(format!("cannot read {path}: {error}"));
+            }
+        }
     }
 
     let legalization_root = repository.join(

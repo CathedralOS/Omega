@@ -1,10 +1,10 @@
 use sha2::{Digest, Sha256};
 
-use crate::{LiteralFoldIdentity, LiteralFoldPlan, LiteralFoldPolicy};
+use crate::{LiteralFoldIdentity, LiteralFoldPlan};
 
 pub fn literal_fold_identity(plan: &LiteralFoldPlan) -> LiteralFoldIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-literal-fold.v2\0");
+    bytes.extend_from_slice(b"omega.terminal-literal-fold.v3\0");
     bytes.extend_from_slice(&encode_terminal_literal_fold_content(plan));
     LiteralFoldIdentity(Sha256::digest(bytes).into())
 }
@@ -20,11 +20,7 @@ pub(crate) fn encode_terminal_literal_fold_content(plan: &LiteralFoldPlan) -> Ve
     bytes.extend_from_slice(&plan.allocator_availability.bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
     bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
-    bytes.push(match plan.policy {
-        LiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1 => 0,
-        LiteralFoldPolicy::SelectedIncomingU12ExactSubtractImmediateV1 => 1,
-        LiteralFoldPolicy::SelectedIncomingU12ExactAddAndSubtractImmediateV1 => 2,
-    });
+    bytes.push(plan.policy.canonical_bits());
     bytes.extend_from_slice(&plan.budget.encode());
     bytes.extend_from_slice(&plan.usage.encode());
     length(&mut bytes, plan.functions.len());
@@ -96,7 +92,7 @@ mod tests {
             allocator_availability: AllocatorAvailabilityIdentity::from_bytes([7; 32]),
             optimization_unit: OptimizationUnitIdentity::from_bytes([8; 32]),
             fuel_schedule: FuelScheduleIdentity::new(9).unwrap(),
-            policy: LiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1,
+            policy: LiteralFoldPolicy::EXACT_ADD_V1,
             budget: OptimizationWorkBudget::new(10, 10, 20, 10, 1).unwrap(),
             usage: OptimizationWorkUsage {
                 rule_evaluations: 1,

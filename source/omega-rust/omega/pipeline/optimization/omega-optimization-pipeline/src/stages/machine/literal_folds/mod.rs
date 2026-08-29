@@ -15,7 +15,7 @@ use omega_regalloc::{
     ValidatedLiveRanges, ValidatedLiveness, ValidatedRecoveryClassifications,
     ValidatedSelectedAnalysis, ValidatedSpillChoices, analyze_allocation_legality,
     analyze_live_ranges, analyze_liveness, choose_spill_victims, classify_pressure_recovery,
-    fold_selected_incoming_literal, selected_lowering_rule_policy,
+    fold_selected_incoming_literal, resolve_selected_lowering_rules,
 };
 use omega_selected_instructions::SelectedInstructionPlanIdentity;
 
@@ -28,7 +28,6 @@ use crate::{
 mod accounting;
 mod execution;
 mod model;
-mod schedule;
 
 pub use execution::{
     stage_first_optimized_literal_fold, stage_next_optimized_literal_fold,
@@ -36,8 +35,6 @@ pub use execution::{
 };
 pub use model::*;
 pub use omega_regalloc::ORDERED_SELECTED_LOWERING_RULES;
-
-use schedule::selected_lowering_schedule;
 
 impl From<omega_regalloc::SelectedLoweringRuleCatalogError> for OptimizedLiteralFoldCustodyError {
     fn from(error: omega_regalloc::SelectedLoweringRuleCatalogError) -> Self {
@@ -64,13 +61,6 @@ pub fn run_selected_lowering_optimizations(
         .optimized()
         .selections()
         .clone();
-    let (selected, fold_policy) = selected_lowering_rule_policy(&selections)?;
-    let schedule = selected_lowering_schedule(fold_policy);
-    execution::execute_selected_lowering_optimizations(
-        source,
-        selections,
-        selected,
-        schedule,
-        fold_policy,
-    )
+    let (selected, fold_policy) = resolve_selected_lowering_rules(&selections)?;
+    execution::execute_selected_lowering_optimizations(source, selections, selected, fold_policy)
 }

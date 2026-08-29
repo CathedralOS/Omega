@@ -1,10 +1,10 @@
 use omega_optimization_core::{Optimization, OptimizationExecutionPhase, OptimizationSelections};
 
 use super::{
-    ALLOCATION_RECOVERY_RULE_CATALOG, AllocationRecoveryRuleCatalogError,
+    ALLOCATION_RECOVERY_RULE_CATALOG, AllocationRecoveryRuleCatalogError, LiteralFoldPolicy,
     ORDERED_ALLOCATION_RECOVERY_RULES, ORDERED_SELECTED_LOWERING_RULES,
     RegisterAllocationRuleTargetApplicability, SELECTED_LOWERING_RULE_CATALOG,
-    selected_allocation_recovery_rule, selected_lowering_rule_policy,
+    resolve_selected_lowering_rules, selected_allocation_recovery_rule,
 };
 
 #[test]
@@ -54,10 +54,23 @@ fn catalog_exactly_matches_the_selected_lowering_vocabulary() {
     assert!(SELECTED_LOWERING_RULE_CATALOG.iter().all(|entry| {
         entry.payload().target() == RegisterAllocationRuleTargetApplicability::TargetIndependent
     }));
-    for optimization in ORDERED_SELECTED_LOWERING_RULES {
-        let selections = OptimizationSelections::new([optimization]).unwrap();
-        assert!(selected_lowering_rule_policy(&selections).is_ok());
+    for entry in SELECTED_LOWERING_RULE_CATALOG {
+        let selections = OptimizationSelections::new([entry.optimization()]).unwrap();
+        let (selected, policy) = resolve_selected_lowering_rules(&selections).unwrap();
+        assert_eq!(selected, selections);
+        assert_eq!(policy, entry.payload().policy());
     }
     let composition = OptimizationSelections::new(ORDERED_SELECTED_LOWERING_RULES).unwrap();
-    assert!(selected_lowering_rule_policy(&composition).is_ok());
+    let (selected, policy) = resolve_selected_lowering_rules(&composition).unwrap();
+    assert_eq!(selected.as_slice(), ORDERED_SELECTED_LOWERING_RULES);
+    assert_eq!(
+        policy,
+        SELECTED_LOWERING_RULE_CATALOG
+            .into_iter()
+            .fold(LiteralFoldPolicy::empty(), |resolved, entry| {
+                resolved.union(entry.payload().policy())
+            })
+    );
+    assert!(policy.enables_exact_add());
+    assert!(policy.enables_exact_subtract());
 }

@@ -58,7 +58,6 @@ pub(super) fn selected_lowering_custody_receipt(
     usage: OptimizationWorkUsage,
     iteration_bound: usize,
     action_count: usize,
-    schedule: SelectedLoweringOptimizationSchedule,
 ) -> StagedSelectedLoweringOptimizationCustodyReceipt {
     let (final_selected, final_liveness, final_ranges, final_legality) = match steps.last() {
         Some(step) => (
@@ -90,7 +89,6 @@ pub(super) fn selected_lowering_custody_receipt(
         source: source_receipt,
         selections: selections.identity(),
         selected_lowering_selections: selected_lowering_selections.identity(),
-        schedule,
         budget,
         usage,
         iteration_bound,
@@ -115,7 +113,7 @@ pub(super) fn selected_lowering_completion_identity(
     receipt: &StagedSelectedLoweringOptimizationCustodyReceipt,
 ) -> SelectedLoweringOptimizationCompletionIdentity {
     let mut canonical = Vec::new();
-    canonical.extend_from_slice(b"omega.selected-lowering-optimization-completion.v2\0");
+    canonical.extend_from_slice(b"omega.selected-lowering-optimization-completion.v3\0");
     let source = receipt.source;
     for identity in [
         source.optimization().bytes(),
@@ -131,11 +129,6 @@ pub(super) fn selected_lowering_completion_identity(
     ] {
         canonical.extend_from_slice(&identity);
     }
-    canonical.push(match receipt.schedule {
-        SelectedLoweringOptimizationSchedule::SelectedIncomingU12ExactAddImmediateToNoChangeV1 => 1,
-        SelectedLoweringOptimizationSchedule::SelectedIncomingU12ExactSubtractImmediateToNoChangeV1 => 2,
-        SelectedLoweringOptimizationSchedule::SelectedIncomingU12ExactAddAndSubtractImmediateToNoChangeV1 => 3,
-    });
     canonical.extend_from_slice(&receipt.budget.encode());
     canonical.extend_from_slice(&receipt.usage.encode());
     for count in [
@@ -213,11 +206,7 @@ pub(super) fn recovery_policy_tag(policy: RecoveryClassificationPolicy) -> u8 {
 }
 
 pub(super) fn literal_fold_policy_tag(policy: LiteralFoldPolicy) -> u8 {
-    match policy {
-        LiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1 => 1,
-        LiteralFoldPolicy::SelectedIncomingU12ExactSubtractImmediateV1 => 2,
-        LiteralFoldPolicy::SelectedIncomingU12ExactAddAndSubtractImmediateV1 => 3,
-    }
+    policy.canonical_bits()
 }
 
 pub(super) fn encode_count(canonical: &mut Vec<u8>, count: usize) {
@@ -323,7 +312,7 @@ pub(super) fn ensure_selected_lowering_budget(
     }
 }
 
-pub(super) fn validate_selected_lowering_schedule(
+pub(super) fn validate_selected_lowering_policies(
     choices: &ValidatedSpillChoices,
     recovery: &ValidatedRecoveryClassifications,
     fold: &ValidatedLiteralFold,

@@ -6,8 +6,8 @@ use omega_optimization_core::{Optimization, OptimizationExecutionPhase, Optimiza
 use omega_psi_optimizer::{PSI_PASS_CATALOG, PsiPassTargetApplicability, built_in_psi_registries};
 use omega_regalloc::{
     ALLOCATION_RECOVERY_RULE_CATALOG, RegisterAllocationRuleTargetApplicability,
-    SELECTED_LOWERING_RULE_CATALOG, selected_allocation_recovery_rule,
-    selected_lowering_rule_policy,
+    SELECTED_LOWERING_RULE_CATALOG, resolve_selected_lowering_rules,
+    selected_allocation_recovery_rule,
 };
 use omega_target::{Architecture, NativeTarget};
 
@@ -148,7 +148,7 @@ fn every_exact_optimization_has_an_exhaustive_named_target_disposition() {
                     assert_eq!(built_in_psi_registries(&selections).unwrap().len(), 1);
                 }
                 (OptimizationExecutionPhase::SelectedLowering, true) => {
-                    selected_lowering_rule_policy(&selections).unwrap();
+                    resolve_selected_lowering_rules(&selections).unwrap();
                 }
                 (OptimizationExecutionPhase::AllocationRecovery, true) => {
                     assert_eq!(

@@ -308,8 +308,11 @@ validation descend through separate roots, constraint, work-accounting,
 action-reconstruction, and selected-plan reconstruction leaves; validation
 cannot import producer transformation mechanics. The architecture gate names
 this entrance and rejects any producer dependency from its complete validation
-subtree. Pipeline custody then descends through `model`, `schedule`,
-`execution`, and `accounting`.
+subtree. Pipeline custody then descends through `model`, `execution`, and
+`accounting`. It retains the owning catalog's selected-rule identity and must
+not introduce a second schedule enum or a special whole-catalog combination.
+Each catalog row contributes one composable policy payload, so adding a rule
+cannot silently reuse an older combination's behavior.
 Fragment admission consumes the resulting phase carrier through one
 `SelectedLowering` source kind. The exact add/subtract rules and optional rel8
 layout result remain below that carrier; none owns a parallel publication
