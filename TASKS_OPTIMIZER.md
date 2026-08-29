@@ -172,6 +172,11 @@ selection identity.
   `PsiOptimizationUnit` above graph, proof, range, ownership, and one-time
   attachment leaves; the former 1,023-line file is gone and no replacement
   exceeds 323 lines.
+  Fixed-view-copy computation is complete as well: the existing rule entrance
+  retains explicit policy selection and compute-to-validation custody, while
+  its application loop descends into source preflight, shared-entry policy,
+  CFG mutation, and focused tests; the former 1,022-line file is gone and no
+  replacement exceeds 278 lines.
   Continue through the exact exception table in the architecture guard,
   removing each exception as its file falls below the 1,000-line default.
 - [x] Clear the current production-file size violations by semantic split, not

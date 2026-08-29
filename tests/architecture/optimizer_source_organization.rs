@@ -24,10 +24,6 @@ const MAX_ENTRANCE_LINES: usize = 200;
 /// never enter this table.
 const LEGACY_PRODUCTION_FILE_CEILINGS: &[(&str, usize)] = &[
     (
-        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/fixed_view_copy/compute.rs",
-        1_022,
-    ),
-    (
         "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/replay/leaves.rs",
         1_022,
     ),
