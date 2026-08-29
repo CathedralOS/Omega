@@ -14,12 +14,13 @@ use super::providers::intrinsics::project_compiler_intrinsic_execution;
 use super::providers::selection::{
     selected_provider_row_source, validate_selected_provider_declaration_owner,
 };
+use super::public_api::conformances::project_public_conformances;
 use super::public_api::constants::project_public_consts;
 use super::public_api::data::projection::project_public_data;
 use super::public_api::domains::projection::project_public_domains;
 use super::public_api::operators::project_public_operators;
 use super::public_api::propositions::project_public_propositions;
-use super::public_api::traits::{project_public_conformances, project_public_traits};
+use super::public_api::traits::project_public_traits;
 use super::semantics::{project_representation_tcb, project_semantic_dependencies};
 use super::source_custody::finalization::{
     finalize_dangerous_authority_rows, finalize_dangerous_authority_slack_rows,
