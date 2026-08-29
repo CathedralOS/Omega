@@ -1,6 +1,6 @@
 # Design Brief: Extern Boundaries And Foreign Formats
 
-Current as of 2026-08-24. This brief defines the durable extern model. Concrete
+Current as of 2026-08-28. This brief defines the durable extern model. Concrete
 binding/layout grammar remains subject to the referenced subsystem briefs.
 
 ## Abstract API, target binding
@@ -23,7 +23,8 @@ code. Authors provide three inputs:
 1. boundary-trait requirements;
 2. ordinary checked machines that explicitly `satisfy` those requirements;
    and
-3. irreducible external leaves declared with `satisfies ... via <Binding>`.
+3. irreducible bodyless boundary leaves declared with `satisfies ...`, using
+   `via <Binding>` only for an undiscoverable payload.
 
 The binding vocabulary is an ordinary closed sum, not a growing family of
 keywords:
@@ -55,8 +56,7 @@ data Binding<
         import: DllImport<ObjectLength, SymbolLength, VersionLength>
     );
     case Syscall(number: u64);
-    case Firmware(table: FirmwareTable, slot: u32);
-    case CompilerIntrinsic;
+    case VtableField(field: NativeFieldIdentity);
 }
 ```
 
@@ -64,6 +64,10 @@ Exact cases may grow only when a genuinely different irreducible binding
 mechanism exists. Host-specific flags and `host:` mini-languages are not part
 of Omega. Foreign struct offsets and bit positions belong to programmable
 layout/format declarations, not a generic `Binding::Value` escape hatch.
+Foreign table calls name a field in that validated layout; authored numeric
+slot ordinals are not binding identity. Compiler intrinsics carry no binding
+value at all: the exact realization declaration, signature, and selected target
+select the sealed catalog entry.
 Privileged target instructions belong to parsed, contract-emitting `asm {}`;
 `Binding::Instruction` is retired rather than preserving two ways to state the
 same operation with different visibility to effect and authority analysis.
@@ -82,7 +86,7 @@ windows_x64 machine WindowsBindings::write_file() -> Binding<12, 9, 0> {
     }
 }
 
-machine Kernel32::write_file(handle: WinHandle, bytes: &[u8]) -> WriteResult
+boundary machine Kernel32::write_file(handle: WinHandle, bytes: &[u8]) -> WriteResult
     satisfies Kernel32Requirements::write_file
     via WindowsBindings::write_file();
 ```
@@ -103,15 +107,15 @@ relationship. Evaluating that policy against the normalized signature produces
 the `CallPlan`; the binding mechanism must refine it but never carries or
 reselects a duplicate plan.
 
-Binding identity is never reconstructed by looking up text. The complete
+Binding identity is never reconstructed by looking up text. Every explicit
 evaluated `Binding` is normalized and fingerprinted together with its producer
-closure and selected target. For `Binding::CompilerIntrinsic`, the exact
-resolved realization-machine symbol, normalized signature, and selected target
-key the sealed compiler catalog, so the variant needs no duplicate payload.
-For a DLL import, the typed locator variant owns all physical coordinates as one
-value; a raw library, export, version, or ordinal is neither an Omega symbol nor
-a requirement/provider-selection key. `build.omg` may select the target package
-or provider but cannot replace fields inside its evaluated binding.
+closure and selected target. Compiler-intrinsic identity instead comes directly
+from the exact boundary-machine symbol, signature, and selected target; there is
+no empty binding value to retain. For a DLL import, the typed locator variant
+owns all physical coordinates as one value; a raw library, export, version, or
+ordinal is neither an Omega symbol nor a requirement/provider-selection key.
+`build.omg` may select the target package or provider but cannot replace fields
+inside its evaluated binding.
 
 Validation is variant- and target-specific: it checks required nonempty fields,
 forbidden terminators/bytes, ordinal ranges, object-format encoding, target
@@ -426,9 +430,10 @@ no provider admission, selection, ABI, or execution authority.
 There is no parallel source-level primitive-provider registry. The retired
 top-level `provider Name : Category;` declaration and operator-local
 `provider Name` clause are bootstrap artifacts; requirement declarations do not
-select their implementations. Checked satisfiers and `via` leaves declare
-candidates, while target defaults, `build.omg`, or installation choose admitted
-provider plans through owned slots.
+select their implementations. Checked satisfiers and bodyless boundary
+satisfiers declare candidates; only leaves with an undiscoverable payload carry
+`via`. Target defaults, `build.omg`, or installation choose admitted provider
+plans through owned slots.
 
 The normalized service schema also retains each linear routed parameter
 qualification as a structured entry claim. Its carrier-aware semantic-domain

@@ -1001,9 +1001,12 @@ realizing machine. Projection repeats the exact symbol, slot, checked-adapter
 binding, package, and machine join. A named-boundary canary covers unique
 selection. Fixed-token boundary operators remain fail-closed until checked-
 adapter token dispatch exists. Authored override of a same-path overloaded
-operator family remains OWNER Q9. The projection never substitutes an overload
-display name or a runtime-layout-only
-type identity for this contract surface.
+operator family is atomic: package review retains the canonical coordinate set,
+selected nominal provider, complete per-coordinate mapping, and generic or
+exact-application coverage. Adding a family coordinate invalidates an
+incomplete recorded override. The projection never substitutes an overload
+display name, declaration order, or a runtime-layout-only type identity for
+this contract surface.
 
 The older standalone trust-lock lane cannot admit package claims. Domain names
 and unmatched strings reject rather than becoming FNV receipts or bare accepted-

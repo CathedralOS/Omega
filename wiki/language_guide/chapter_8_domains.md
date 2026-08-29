@@ -334,8 +334,9 @@ and admission. Public ordinary conformances are allowed when the domain author
 deliberately publishes an open checked route.
 
 `established by` is a domain clause, not a realization clause. Omega reserves
-`satisfies Requirement via Binding` for supplying an irreducible external
-machine realization; using bare `via` after a domain conformance would attach
+`boundary machine ... satisfies Requirement`, with `via Binding` only when a
+payload is required, for supplying an irreducible external machine
+realization; using bare `via` after a domain conformance would attach
 to the wrong relation. The retired `{ Trait::requirement; }` domain body rejects
 with directed `established by` migration guidance. Domain predicates remain in
 `requires`, operators remain ordinary top-level declarations, and

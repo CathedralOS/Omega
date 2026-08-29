@@ -58,8 +58,9 @@ Working interpretation:
   must satisfy; it does not name or choose that realization.
 - The boundary report records boundary operators, library/authority boundary
   clauses, target policies, and accepted policies.
-- Realizations use the same checked-body or `satisfies ... via <Binding>` supply
-  forms as every other boundary requirement. The target profile or an
+- Realizations use the same checked-body or bodyless `boundary machine ...
+  satisfies ...` supply forms as every other boundary requirement; `via`
+  appears only for a binding payload. The target profile or an
   authorized `build.omg` slot override selects one admitted candidate.
 
 Users can inspect `Slice::index` and its proof contract without depending on the
@@ -893,7 +894,7 @@ admission approves that exact closure. Accepting a boundary-level word and then
 discarding its host/name distinction during lowering is never a compatibility
 strategy.
 
-The target's core/std package declares leaf machines satisfying the raw syscall
+The target's core/std package declares boundary leaf machines satisfying the raw syscall
 requirements `via Binding::Syscall { ... }` and ordinary checked adapter
 machines satisfying Console. The compiler derives their normalized plan from
 the explicit conformance closure, validates it, admits it with trust receipts,
@@ -948,8 +949,9 @@ This is the same proof shape as a library import:
 
 - Omega proves caller-side type and state invariants.
 - The imported boundary is accepted to satisfy its declared guarantees.
-- The irreducible mapping is authored as a compile-time `Binding` value on a
-  `via` declaration and retained on the exact realization row.
+- An undiscoverable locator is authored as a compile-time `Binding` value on a
+  `via` declaration; a compiler intrinsic is derived from exact realization
+  identity instead. Either route is retained on the exact realization row.
 - The build artifact records the exact selected realization, normalized
   binding, admission receipt, and provider-plan identity.
 
@@ -959,9 +961,11 @@ and a newly introduced package require an exact root-policy decision for that
 row. An unchanged accepted baseline remains visible without a recurring
 blanket-approval prompt. A claim-free boundary declaration emits no such row.
 
-`via` bindings are the external-provider supply form of otherwise ordinary
-machines. Raw syscall numbers, imported DLL functions, firmware jumps,
-compiler intrinsics, and instruction leaves are binding details; sequences,
+Bodyless `boundary machine ... satisfies ...` declarations are the external-
+provider supply form. `via` appears only when it carries an undiscoverable
+payload such as a syscall number, DLL locator, or validated foreign-table
+field. Compiler and instruction intrinsics are found from exact declaration,
+signature, and target identity without an empty binding clause. Sequences,
 argument reshaping, newline policy, caching, and other composition are normal
 checked Omega machines. The satisfied requirement contributes the public
 service-reach, suspension, blocking, and guarded-crash ceilings, while the
@@ -1078,10 +1082,16 @@ guarantees are normalized provider/entry-plan facts surfaced by the build
 artifact and checked or accepted through the ordinary admission spine.
 
 The selected provider binding does not choose a calling convention from its
-mechanism name. `DllImport`, `Syscall`, `VtableSlot`, and similar realizations
+mechanism name. `DllImport`, `Syscall`, `VtableField`, and similar realizations
 must validate against the policy already pinned by the satisfied requirement.
 Provider-specific register allocation and footprint certificates remain
 implementation evidence behind that published plan identity.
+
+`VtableField(name)` denotes a function-pointer field through one validated
+foreign layout, principally for firmware protocol tables. Authored numeric
+`VtableSlot(n)` is retired: an ordinal is neither stable slot identity nor an
+adequate substitute for the native schema. Legacy slot spellings remain only as
+rejection/compatibility tests while named fields migrate.
 
 Hardware entry points with no Omega caller are external artifact roots. Their
 reach, trust receipts, state footprints, stack domains, nesting relations,
@@ -1363,7 +1373,8 @@ See
 ## Boundary Realization Catalog
 
 Omega has one provider model. A boundary declaration publishes a requirement;
-an ordinary checked machine or an irreducible `via` machine satisfies it; the
+an ordinary checked machine or an irreducible bodyless `boundary machine`
+satisfies it; the
 toolchain derives a candidate `ProviderPlan`; and the selected target profile,
 `build.omg`, or installation binding chooses one admitted candidate for the
 owned slot. A requirement never embeds that choice.
@@ -1371,19 +1382,20 @@ owned slot. A requirement never embeds that choice.
 Compiler intrinsics use the same shape:
 
 ```omega
-machine CoreSliceProvider::index<T>(items: &[T], index: u64) -> T
-    satisfies Slice::index
-    via Binding::CompilerIntrinsic;
+boundary machine CoreSliceProvider::index<T>(items: &[T], index: u64) -> T
+    satisfies Slice::index;
 ```
 
 `CompilerIntrinsic` has no authored string identifier. The exact realization
 machine already has a resolved package-qualified symbol and normalized
 signature. Together with the selected target, that identity keys a sealed
 toolchain catalog entry containing the lowering and its checked operational
-contract. An absent entry, wrong signature, inapplicable target, unauthorized
+contract. Therefore no payload-free `via Binding::CompilerIntrinsic` clause is
+authored. An absent entry, wrong signature, inapplicable target, unauthorized
 origin package, or non-refining implementation rejects.
 
-Other irreducible bindings use ordinary typed compile-time values produced by
+`via` is earned only when it carries an undiscoverable binding payload. Other
+irreducible bindings use ordinary typed compile-time values produced by
 target-package machines. `DllImport` carries one object-format locator sum case
 whose case keeps a PE library/export pair, a PE library/ordinal pair, or an ELF
 object/symbol/version triple inseparable. The satisfied requirement's
@@ -1543,7 +1555,7 @@ windows_x64 machine User32Bindings::register_window_procedure()
     }
 }
 
-machine User32::register_window_procedure<machine Procedure>(
+boundary machine User32::register_window_procedure<machine Procedure>(
     specification: &WindowClassSpecification
 ) -> Registration
 where machine Procedure satisfies WindowProcedure::call

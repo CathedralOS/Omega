@@ -419,20 +419,25 @@ monomorphization, although both may share backend cloning and cache machinery.
 
 ## Selection and bindings
 
-Plans exist only at boundaries. Most callers do not name one: an external
-`Binding` and satisfied requirement determine the pinned policy. Explicit policy
-identity is authored on the requirement, never inferred from a DLL name,
-syscall number, or friendly target string.
+Plans exist only at boundaries. Most callers do not name one: the satisfied
+requirement and exact selected realization determine the pinned policy. An
+external `Binding` contributes only when the realization needs an
+undiscoverable locator or selector payload. Explicit policy identity is authored
+on the requirement, never inferred from a DLL name, syscall number, or friendly
+target string.
 
-The compiler derives provider-plan rows from `satisfies` and `via`; build-time
-machines may compute policy results or select among declared candidates, but do
-not imperatively assemble a second plan table. A builder that restates
+The compiler derives provider-plan rows from `satisfies` and, when present, a
+payload-bearing `via`; build-time machines may compute policy results or select
+among declared candidates, but do not imperatively assemble a second plan
+table. A builder that restates
 requirement-to-implementation edges would duplicate `satisfies` and remains
 rejected independently of machine-parameter implementation progress.
 
-Provider plans remain derived from explicit `satisfies` declarations and `via`
-leaves. Admission proves or accepts that a realization refines the complete
-boundary plan. See
+Provider plans remain derived from explicit `satisfies` declarations. A
+bodyless boundary satisfier is an external leaf; `via` is retained only when it
+carries binding data that exact declaration, signature, and target identity do
+not already determine. Admission proves or accepts that a realization refines
+the complete boundary plan. See
 [`extern_boundary_and_format_domains.md`](extern_boundary_and_format_domains.md).
 
 ### Local dynamic dispatch
@@ -642,7 +647,7 @@ windows_x64 machine User32Bindings::register_window_procedure()
     }
 }
 
-machine User32::register_window_procedure<machine Selected>(
+boundary machine User32::register_window_procedure<machine Selected>(
     specification: &WindowClassSpecification
 ) -> Registration
 where machine Selected satisfies WindowProcedure::call

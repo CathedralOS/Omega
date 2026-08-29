@@ -325,6 +325,32 @@ Remaining:
   receiver, target-scope, and duplicate/default precedence rules;
   do not generalize that compatibility suffix into the live closure.
 
+  **BOUNDARY-OPERATOR-FAMILY-SELECTION** must extend the typed build selection
+  subject from one boundary-trait type to either an exact boundary trait or an
+  exact package-qualified boundary-operator family. Select every overload
+  coordinate atomically; retain a deduplicated set canonically ordered by
+  coordinate identity, the nominal provider, per-coordinate plan, selected
+  target, and generic or exact-application coverage. Partial coverage, reach-
+  selected subsets, display signatures, ordinals, declaration order, and
+  ambiguous coordinates reject. Adding a public overload must invalidate an
+  incomplete existing override with a diagnostic naming the new coordinate.
+  Permit composite providers to call explicitly public exact realization
+  machines without redispatch, while an operator spelling inside its own
+  provider remains recursive.
+
+  In the same migration, make external provider leaves bodyless `boundary
+  machine ... satisfies ...` declarations. Infer compiler-intrinsic supply from
+  exact package, machine, signature, and target identity; remove the payload-
+  free `via Binding::CompilerIntrinsic` source/IR form across target libraries.
+  Retain `via` only for bindings carrying an undiscoverable payload such as a
+  DLL locator, syscall number, or validated foreign-table field. Retire authored
+  numeric `Binding::VtableSlot`; migrate genuine firmware/native-table users to
+  `Binding::VtableField` and retain ordinal spellings only as rejection or
+  compatibility fixtures. Add pass/fail canaries for complete and partial
+  family overrides, canonical reorder stability, generic/exact-family coverage,
+  exact-leaf delegation versus recursive redispatch, missing intrinsic catalog
+  entries, payload-bearing bindings, and retired numeric slots.
+
   The lexical claim is design-blocked at explicit specification conflicts. The
   current Omega-written lexer accepts Unicode XID identifiers despite the
   guide's ASCII-transparent/source-payload-only wording, accepts `\u{...}`
@@ -1408,7 +1434,7 @@ Owners:
   consumer. Finish owned destruction/move-out evidence before returning
   `Granted & Vacant`.
   The first source-visible establishment carrier is design-blocked on
-  [OWNER_QUESTIONS.md Q11](OWNER_QUESTIONS.md#q11--source-result-schema-for-placed-view-establishment):
+  [OWNER_QUESTIONS.md Q10](OWNER_QUESTIONS.md#q10--source-result-schema-for-placed-view-establishment):
   the core operation signatures and nominal outcome/returned-row schema must
   be fixed before source typing can publish an owned `Placed<P, T>` call.
   Existing Rust admission and occurrence identifiers remain implementation
@@ -5967,7 +5993,7 @@ Owners:
   use legality, cleanup, Terminal resource row, or distinction between final
   retirement and discard. Promoting this classification to usable or Terminal
   authority is design-blocked on
-  [OWNER_QUESTIONS.md Q13](OWNER_QUESTIONS.md#q13--reborrow-restoration-disposition).
+  [OWNER_QUESTIONS.md Q12](OWNER_QUESTIONS.md#q12--reborrow-restoration-disposition).
 
   Loan formation freezes exact owner/place occurrences and evaluated range
   values. Every premise must dominate the formation event and be valid at the
@@ -7957,7 +7983,7 @@ Owners:
   required named slot conformance. Two distinct cited slots at one physical
   extent also reject as overlapping supply. The direct-parameter pass canary is
   design-blocked on
-  [OWNER_QUESTIONS.md Q12](OWNER_QUESTIONS.md#q12--declaring-a-direct-native-parameter-callback-destination):
+  [OWNER_QUESTIONS.md Q11](OWNER_QUESTIONS.md#q11--declaring-a-direct-native-parameter-callback-destination):
   normalized `NativePlace::Parameter` exists, but the source model has no
   declaration that marks one already-declared runtime native parameter as the
   callback destination and binds its exact callback requirement. Settle that
@@ -8138,7 +8164,7 @@ state through a raw address.
     producers contain no service-bearing boundary operation, so there is no
     additional producer row to populate today; verifier reconstruction remains
     the fail-closed fence if one gains such an operation.
-    **Design-blocked on `OWNER_QUESTIONS.md` Q10:** settle how a realization
+    **Design-blocked on `OWNER_QUESTIONS.md` Q9:** settle how a realization
     supplies one exact top-level bodyless boundary requirement. The existing
     `satisfies Trait::requirement` surface selects trait/operator requirements;
     no approved source form yet binds a provider to a top-level requirement
@@ -9095,7 +9121,7 @@ Remaining N6/N8 work:
   Terminal replay remain fail-closed, so stage 3 is not complete and stage 4 remains
   open. Arithmetic `Expression` entailment is implemented; transport
   of quotient-domain membership and opaque proposition families is
-  language-design blocked on **OWNER_QUESTIONS Q9**. Q9 must settle the
+  language-design blocked on **OWNER_QUESTIONS Q8**. Q8 must settle the
   explicit selection locus, per-side transport/weakening application, and
   canonical theorem identity and replay evidence. Ambient domain linking,
   visibility search, or an opaque solver verdict cannot supply that authority.
@@ -9943,8 +9969,9 @@ checked-result arithmetic decision listed below.
     checked core.
 - Replace the provider-switchboard fixture's transitional `clock: ClockHost`
   field with `Service<ClockHost> in Bound` once that carrier lands. Keep its
-  provider as checked Omega code; `Binding::VtableSlot` remains only for real
-  foreign vtable/protocol leaves.
+  provider as checked Omega code. Real foreign protocol tables use validated
+  named `Binding::VtableField` leaves; authored numeric `VtableSlot` is retired
+  under **BOUNDARY-OPERATOR-FAMILY-SELECTION**.
 - **FFIVAL:** run the narrow Windows `user32` boundary-coherence slice after
   ENT4, using existing activation, custody, registration, stack, and reach
   machinery.

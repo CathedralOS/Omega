@@ -1145,8 +1145,9 @@ identifies the active plan and rejoins its exact requirement and realizing
 machine. Projection repeats the exact symbol, slot, checked-adapter binding,
 package, and machine join. A named-boundary canary covers unique selection.
 Fixed-token boundary operators remain fail-closed until checked-adapter token
-dispatch exists. Authored same-path overload-family override remains OWNER Q9.
-Public callable `requires`
+dispatch exists. Atomic same-path overload-family selection, canonical
+membership, and complete provider coverage remain implementation work under
+**BOUNDARY-OPERATOR-FAMILY-SELECTION**. Public callable `requires`
 and `ensures` retain exact structural rows for the closed
 boolean/integer expression subset over parameter ordinals, `result`, generic
 binders, and package-qualified nominals. Domain-membership rows retain the exact
