@@ -1242,6 +1242,40 @@ fn compiler_product_stops_delegate_component_progress_admission() {
 }
 
 #[test]
+fn production_subject_projection_is_report_owned() {
+    let root = workspace_root();
+    let compiler = root.join("source/omega-rust/omega/compiler/omega-compiler/src");
+    let driver = std::fs::read_to_string(compiler.join("compiler/driver.rs"))
+        .expect("read compiler product driver");
+    let projection = std::fs::read_to_string(
+        compiler.join("pipeline/reporting/production_subject.rs"),
+    )
+    .expect("read production-subject report projection");
+
+    assert_eq!(
+        driver.matches("reporting::project_production_subject(").count(),
+        2,
+        "Terminal and native product stops must consume the report-owned projection"
+    );
+    for forbidden in [
+        "package_compilation_subject()",
+        "selected_build_machine_identity()",
+        "build_evaluation_usage()",
+        "build_observation_summary()",
+        "ProductionCompilationSubject::from_checked(",
+    ] {
+        assert!(
+            !driver.contains(forbidden),
+            "the product driver must not reconstruct production-subject detail `{forbidden}`"
+        );
+        assert!(
+            projection.contains(forbidden),
+            "the report-owned production-subject projection lost `{forbidden}`"
+        );
+    }
+}
+
+#[test]
 fn compiler_options_cannot_hide_product_or_publication_policy() {
     let root = workspace_root();
     let options_path =

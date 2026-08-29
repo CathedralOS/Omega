@@ -2744,11 +2744,15 @@ Remaining:
   `write_output` compatibility Boolean are now retired. Component-progress
   admission now remains wholly with its provider-planning owner: the native
   product stop passes the complete manifest to that owner and cannot inspect
-  pending rows itself. The remaining work is to move report-facing production-
-  subject projection and any other product-stop policy into complete owner
-  artifacts rather than growing another coordinator. The callback-placement
-  rejection remains an intentional fail-closed Terminal handoff fence until
-  canonical callback-use custody lands as a PSIIR vertical slice.
+  pending rows itself. Report-facing production-subject projection now also
+  consumes one complete `CheckedCompilation` under `pipeline/reporting`; the
+  driver receives only the resulting report-owned subject and no longer
+  reconstructs package/build/target custody itself. Remaining cleanup is
+  limited to domain policy discovered inside product stopping; requested-
+  product stopping and final report assembly remain coordinator work. The
+  callback-placement rejection remains an intentional fail-closed Terminal
+  handoff fence until canonical callback-use custody lands as a PSIIR vertical
+  slice.
 
   The first request-normalization rung is live. One typed `CompileRequest`
   now owns the production compile options, requested product, artifact policy,
@@ -2854,7 +2858,13 @@ Remaining:
   measurements. The driver no longer owns trust-report algorithms, writers,
   snapshot arguments, timing output, or observation-policy branching, and the
   checked snapshot writer is no longer re-exported from the pipeline root.
-  Request-owned product admission is now explicit as well. Consuming
+  Production-compilation subject projection lives beside those reporting
+  observations and consumes the complete checked result in its original
+  diagnostic order. It alone joins package identity, build-machine identity,
+  evaluation usage, observation custody, target profile, and native target into
+  the `omega-compilation-report` artifact; architecture tests prevent the
+  driver from recovering those fields directly. Request-owned product
+  admission is now explicit as well. Consuming
   `CompileRequest::validate_for_execution` returns a private
   `ValidatedCompileRequest` before the driver may acquire source. The request
   owner enforces the existing cross-field rule that a nonempty optimization
