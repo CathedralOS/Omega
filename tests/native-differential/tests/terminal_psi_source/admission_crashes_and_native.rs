@@ -1580,8 +1580,14 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
             psi_artifact: substituted_stack_artifact,
             object: object_artifact.clone(),
             image: image.clone(),
-            selected_provider_closure_identity: omega_effects::SelectedProviderPlanFacts::default()
-                .normalized_identity(),
+            selected_provider_closure_report_identity:
+                omega_effects::SelectedProviderPlanFacts::default().compatibility_report_identity(),
+            selected_provider_closure_digest:
+                omega_component_candidate::NativeSelectedProviderClosureDigest::from_digest(
+                    *omega_effects::SelectedProviderPlanFacts::default()
+                        .identity_digest()
+                        .as_bytes(),
+                ),
             selected_provider_plans: Vec::new(),
             provider_executions: Vec::new(),
         })
@@ -1603,8 +1609,14 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         psi_artifact: deployment_artifact,
         object: object_artifact,
         image: image.clone(),
-        selected_provider_closure_identity: omega_effects::SelectedProviderPlanFacts::default()
-            .normalized_identity(),
+        selected_provider_closure_report_identity:
+            omega_effects::SelectedProviderPlanFacts::default().compatibility_report_identity(),
+        selected_provider_closure_digest:
+            omega_component_candidate::NativeSelectedProviderClosureDigest::from_digest(
+                *omega_effects::SelectedProviderPlanFacts::default()
+                    .identity_digest()
+                    .as_bytes(),
+            ),
         selected_provider_plans: Vec::new(),
         provider_executions: Vec::new(),
     })

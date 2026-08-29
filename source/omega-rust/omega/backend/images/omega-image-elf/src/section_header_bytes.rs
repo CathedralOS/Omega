@@ -39,7 +39,7 @@ const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 pub struct ValidatedElfSectionHeaderTableTemplate {
     roster: ValidatedElfDynamicSectionRoster,
     contents: ElfSectionHeaderTableTemplateContents,
-    template_identity: u64,
+    non_authoritative_template_compatibility_fingerprint: u64,
 }
 
 impl ValidatedElfSectionHeaderTableTemplate {
@@ -62,8 +62,8 @@ impl ValidatedElfSectionHeaderTableTemplate {
     /// Compatibility fingerprint of the exact roster identity, ELF64-LSB
     /// bytes, and typed placement-fixup coordinates. This is not placed-header
     /// or final-image identity.
-    pub const fn template_identity(&self) -> u64 {
-        self.template_identity
+    pub const fn non_authoritative_template_compatibility_fingerprint(&self) -> u64 {
+        self.non_authoritative_template_compatibility_fingerprint
     }
 
     #[allow(dead_code)]
@@ -147,7 +147,7 @@ struct DecodedElf64SectionHeader {
 struct Candidate {
     roster: ValidatedElfDynamicSectionRoster,
     contents: ElfSectionHeaderTableTemplateContents,
-    template_identity: u64,
+    non_authoritative_template_compatibility_fingerprint: u64,
 }
 
 struct CandidateValidationError {
@@ -172,11 +172,12 @@ pub fn serialize_elf_section_header_table(
             }));
         }
     };
-    let template_identity = template_identity(&roster, &contents);
+    let non_authoritative_template_compatibility_fingerprint =
+        non_authoritative_template_compatibility_fingerprint(&roster, &contents);
     let candidate = Candidate {
         roster,
         contents,
-        template_identity,
+        non_authoritative_template_compatibility_fingerprint,
     };
     match validate_candidate(candidate) {
         Ok(validated) => Ok(validated),
@@ -262,16 +263,24 @@ fn validate_candidate(
             diagnostic,
         });
     }
-    if candidate.template_identity != template_identity(&candidate.roster, &candidate.contents) {
+    if candidate.non_authoritative_template_compatibility_fingerprint
+        != non_authoritative_template_compatibility_fingerprint(
+            &candidate.roster,
+            &candidate.contents,
+        )
+    {
         return Err(CandidateValidationError {
             candidate,
-            diagnostic: Diagnostic::error("ELF section-header template identity does not replay"),
+            diagnostic: Diagnostic::error(
+                "ELF section-header template compatibility fingerprint does not replay",
+            ),
         });
     }
     Ok(ValidatedElfSectionHeaderTableTemplate {
         roster: candidate.roster,
         contents: candidate.contents,
-        template_identity: candidate.template_identity,
+        non_authoritative_template_compatibility_fingerprint: candidate
+            .non_authoritative_template_compatibility_fingerprint,
     })
 }
 
@@ -527,13 +536,17 @@ fn require(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
         .ok_or_else(|| Diagnostic::error(message))
 }
 
-fn template_identity(
+fn non_authoritative_template_compatibility_fingerprint(
     roster: &ValidatedElfDynamicSectionRoster,
     contents: &ElfSectionHeaderTableTemplateContents,
 ) -> u64 {
     let mut hash = Fnv1a::new();
     hash.bytes(b"omega.elf-section-header-table-template.v1");
-    hash.bytes(&roster.roster_identity().to_le_bytes());
+    hash.bytes(
+        &roster
+            .non_authoritative_roster_compatibility_fingerprint()
+            .to_le_bytes(),
+    );
     hash.bytes(&contents.bytes);
     hash.bytes(&(contents.placement_fixups.len() as u64).to_le_bytes());
     for fixup in &contents.placement_fixups {
@@ -719,11 +732,12 @@ mod tests {
     fn candidate(target: TargetProfile) -> Candidate {
         let roster = roster(target, &IMPORTS);
         let contents = encode_contents(&roster).expect("encoded section-header table");
-        let template_identity = template_identity(&roster, &contents);
+        let non_authoritative_template_compatibility_fingerprint =
+            non_authoritative_template_compatibility_fingerprint(&roster, &contents);
         Candidate {
             roster,
             contents,
-            template_identity,
+            non_authoritative_template_compatibility_fingerprint,
         }
     }
 
@@ -754,7 +768,10 @@ mod tests {
             assert_eq!(decoded[11].name_offset, 59);
             assert_eq!(decoded[11].payload_size, 102);
             assert_eq!((decoded[11].address, decoded[11].file_offset), (0, 0));
-            assert_ne!(template.template_identity(), 0);
+            assert_ne!(
+                template.non_authoritative_template_compatibility_fingerprint(),
+                0
+            );
             validate_contents(template.roster(), &template.contents).unwrap();
         }
     }
@@ -818,19 +835,33 @@ mod tests {
         let arm = serialize_elf_section_header_table(roster(TargetProfile::LinuxArm64, &IMPORTS))
             .unwrap();
         assert_eq!(forward.contents, reverse.contents);
-        assert_eq!(forward.template_identity(), reverse.template_identity());
-        assert_ne!(forward.template_identity(), arm.template_identity());
+        assert_eq!(
+            forward.non_authoritative_template_compatibility_fingerprint(),
+            reverse.non_authoritative_template_compatibility_fingerprint()
+        );
+        assert_ne!(
+            forward.non_authoritative_template_compatibility_fingerprint(),
+            arm.non_authoritative_template_compatibility_fingerprint()
+        );
     }
 
     #[test]
     fn every_serialized_byte_corruption_rejects_with_roster_custody() {
         for offset in 0..SECTION_COUNT * ELF64_SECTION_HEADER_SIZE {
             let mut candidate = candidate(TargetProfile::LinuxX64);
-            let expected_identity = candidate.roster.roster_identity();
+            let expected_identity = candidate
+                .roster
+                .non_authoritative_roster_compatibility_fingerprint();
             candidate.contents.bytes[offset] ^= 1;
             let error = validate_candidate(candidate)
                 .expect_err("mutated ELF section-header byte must reject");
-            assert_eq!(error.candidate.roster.roster_identity(), expected_identity);
+            assert_eq!(
+                error
+                    .candidate
+                    .roster
+                    .non_authoritative_roster_compatibility_fingerprint(),
+                expected_identity
+            );
         }
     }
 
@@ -862,15 +893,25 @@ mod tests {
                 candidate.contents.placement_fixups[0].kind =
                     ElfSectionHeaderPlacementFixupKind::FileOffset
             }),
-            Box::new(|candidate| candidate.template_identity ^= 1),
+            Box::new(|candidate| {
+                candidate.non_authoritative_template_compatibility_fingerprint ^= 1
+            }),
         ];
         for corrupt in corruptions {
             let mut candidate = candidate(TargetProfile::LinuxArm64);
-            let expected_identity = candidate.roster.roster_identity();
+            let expected_identity = candidate
+                .roster
+                .non_authoritative_roster_compatibility_fingerprint();
             corrupt(&mut candidate);
             let error = validate_candidate(candidate)
                 .expect_err("corrupt section-header candidate must reject");
-            assert_eq!(error.candidate.roster.roster_identity(), expected_identity);
+            assert_eq!(
+                error
+                    .candidate
+                    .roster
+                    .non_authoritative_roster_compatibility_fingerprint(),
+                expected_identity
+            );
         }
     }
 

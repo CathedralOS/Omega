@@ -105,10 +105,12 @@ scanners, or receipts.
   separate strong digest fields; installation format 42 serializes them and
   rejects drift. Compiler publication uses strong certificate, publication,
   container, compiler-text, and destination-installation digest types rather
-  than FNV-only receipt identities. The global item remains open: imported
-  contract, footprint, entry/data-symbol, regime, and installation-scope
-  identities still need canonical commitments and a later container version.
-  Final compiler text partitions now bind every region and gap, exact
+  than FNV-only receipt identities. Native final images now retain a
+  domain-separated SHA-256 commitment to the exact target, entry handle, and
+  every function/data symbol row; native replay recomputes it before
+  publication, whose certificate also binds it, so same-handle symbol
+  substitutions reject. Final compiler text partitions now bind every region
+  and gap, exact
   structural state-footprint evidence, ordered executable inventory, entry
   binding, coverage, placement, and final-footprint certificate with distinct
   domain-separated SHA-256 types; replay rejects compact-collision
@@ -117,17 +119,43 @@ scanners, or receipts.
   same-ID structural substitutes reject. Provider plans now additionally own a
   domain-separated SHA-256 identity over the complete normalized plan, retained
   through selection and external-root execution; compact-ID-equal structural
-  substitutions reject at the sealed bridge. Function validation, the
-  standalone component candidate's artifact report identity, broader
-  external-root cohort joins, Psi, and format-specific image fingerprints still
-  require the same audit/hardening.
+  substitutions reject at the sealed bridge. The format-specific image audit is
+  also live: Mach-O and PE introduce no local compact hash, while every ELF FNV
+  value is retained only beside the exact owned planning carrier, independently
+  replayed, and named as a non-authoritative compatibility fingerprint. An
+  architecture inventory rejects a newly exported format-specific compact
+  identity. Compiler-function validation now exposes a domain-separated SHA-256
+  commitment to its complete normalized summary. Final-footprint identity and
+  publication receipts carry that commitment, while the historical aggregate
+  FNV value remains report compatibility only; publication replay rejects a
+  digest substitution even when the compact report value is unchanged. The
+  standalone component candidate now independently rejoins a domain-separated
+  SHA-256 commitment to the complete selected-provider closure; native
+  artifacts retain the historical FNV value only as a compatibility report
+  coordinate. Exact plans, execution scope, indexed coverage, opaque
+  admissions, and installation-reach resolutions enter the commitment, and an
+  architecture inventory plus adversarial test reject a compact-equal
+  structural substitution. External-root producer-schema cohorts now use a
+  domain-separated SHA-256 commitment over the complete resolved schema for
+  prebinding uniqueness, aggregation, lifecycle ownership, and epoch grouping;
+  the historical schema FNV is report compatibility only. Required-slot
+  closures and snapshots already retain their exact members and evidence.
+  Psi access, placement, and resource-profile FNV values are now explicitly
+  non-authoritative compatibility fingerprints beside exact retained plans.
+  Provider-existing-content grants additionally bind a domain-separated digest
+  over canonical layout, access policy, and reach, and build-time schema FNV
+  keys are collision-checked local discriminators. Remaining engineering work
+  includes the component-era lease-to-installed-occurrence join, the checked
+  machine public-contract fingerprint across the semantic/native pipeline, and
+  the imported-contract, footprint, regime, and installation-scope commitments
+  needed for the next executable-container version.
 
   Acceptance: an automated architecture test rejects new authoritative
   `u64`-only identities, every retained FNV use has a local non-authoritative
   owner, and adversarial collision tests cannot substitute an artifact,
   certificate, provider plan, or installed image.
 
-- [ ] **QUARANTINE-SPECULATIVE-COMPONENT-RUNTIME.** Keep component deployment,
+- [x] **QUARANTINE-SPECULATIVE-COMPONENT-RUNTIME.** Keep component deployment,
   executable installation, external-root, era, and native-fuel experiments
   outside the ordinary compiler and package-manager production dependency
   graph until one real checked Omega provider is independently emitted,
@@ -147,9 +175,10 @@ scanners, or receipts.
   deployment owners. Default program-entry planning and Terminal-native
   realization now exclude executable installation and external roots; only the
   explicit provider-planning `installed-writer` feature composes the
-  post-handoff runtime. The item remains open because provider planning and
-  build evaluation still carry those experiments into the ordinary compiler
-  closure transitively.
+  post-handoff runtime. Provider planning now keeps that bridge behind the
+  same opt-in feature, so default provider-planning, build-evaluation,
+  compiler, and package-manager closures do not carry executable installation
+  or external roots transitively.
 
   Acceptance: the normal compiler/package closure imports none of the
   speculative runtime deployment crates, and reintegration is driven by the

@@ -1182,6 +1182,7 @@ fn implicit_selection_returns_the_unique_covering_candidate() {
 }
 
 #[test]
+#[cfg(feature = "installed-writer")]
 fn external_root_bridge_requires_one_exact_retained_boundary_slot() {
     let mut first = selection_plan("FirstProvider", &["run"], &["run"]);
     first.schema.trait_name = "first::Pair".into();
@@ -1207,6 +1208,7 @@ fn external_root_bridge_requires_one_exact_retained_boundary_slot() {
 }
 
 #[test]
+#[cfg(feature = "installed-writer")]
 fn external_root_bridge_rejects_compact_equal_exact_plan_substitution() {
     let plan = selection_plan("Provider", &["run"], &["run"]);
     let facts = omega_effects::SelectedProviderPlanFacts::from_selected_plans(vec![plan])

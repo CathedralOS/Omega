@@ -23,18 +23,19 @@ pub use model::{
     FinalExecutableRegion, FinalExecutableRegionOrigin, FinalExecutableTextDigest, FinalImage,
     FinalImageImport, FinalImageImportPlan, FinalImageLayout, FinalImageMemory,
     FinalImageRelocation, FinalImageRelocationTable, FinalImageSection, FinalImageSymbol,
-    FinalImageSymbolHandle, FinalImageSymbolTable, PlacedExecutableGap,
+    FinalImageSymbolDigest, FinalImageSymbolHandle, FinalImageSymbolTable, PlacedExecutableGap,
     PlacedExecutableGapBytesDigest, PlacedExecutableRegion, PlacedExecutableRegionBytesDigest,
     PlacedExecutableRegionInventory, PlacedExecutableRegionInventoryDigest,
-    StateFootprintEvidenceDigest, bind_compiler_entry_footprint, place_executable_regions,
-    validate_placed_executable_region_inventory,
+    StateFootprintEvidenceDigest, bind_compiler_entry_footprint, final_image_symbol_digest,
+    place_executable_regions, validate_placed_executable_region_inventory,
 };
 pub use output::{
     CompilerEntryFootprintBindingDigest, CompilerEntryFootprintBindingEvidence,
     CompilerEntryRegionBindingDigest, CompilerEntryRegionBindingEvidence,
-    CompilerFunctionValidationEvidence, CompilerTextDerivationDigest,
-    CompilerTextRelocationEnvelopeDigest, CompilerTextValidationEvidence, EmittedImageOutput,
-    EncodedCompilerTextDigest, ExecutableImageOutput, FinalCompilerTextDigest, ImageOutputKind,
+    CompilerFunctionValidationDigest, CompilerFunctionValidationEvidence,
+    CompilerTextDerivationDigest, CompilerTextRelocationEnvelopeDigest,
+    CompilerTextValidationEvidence, EmittedImageOutput, EncodedCompilerTextDigest,
+    ExecutableImageOutput, FinalCompilerTextDigest, ImageOutputKind,
     emitted_direct_executable_output,
 };
 pub use relocation_envelope::validate_final_text_relocation_envelope;

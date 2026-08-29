@@ -37,7 +37,7 @@ const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 pub struct ValidatedElfProcedureLinkageRelocationPlan {
     descriptors: ValidatedElfDynamicSectionDescriptorPlan,
     contents: ElfProcedureLinkageRelocationContents,
-    linkage_identity: u64,
+    non_authoritative_linkage_compatibility_fingerprint: u64,
 }
 
 impl ValidatedElfProcedureLinkageRelocationPlan {
@@ -70,8 +70,8 @@ impl ValidatedElfProcedureLinkageRelocationPlan {
     /// Compatibility fingerprint of the exact descriptor identity, target,
     /// logical PLT/GOT slots, semantic JUMP_SLOT rows, and canonical call-site
     /// mapping. This is not an address, layout, or runnable-image identity.
-    pub const fn linkage_identity(&self) -> u64 {
-        self.linkage_identity
+    pub const fn non_authoritative_linkage_compatibility_fingerprint(&self) -> u64 {
+        self.non_authoritative_linkage_compatibility_fingerprint
     }
 
     pub(crate) const fn contents(&self) -> &ElfProcedureLinkageRelocationContents {
@@ -151,7 +151,7 @@ pub(crate) struct ElfSemanticJumpSlotRelocation {
 struct Candidate {
     descriptors: ValidatedElfDynamicSectionDescriptorPlan,
     contents: ElfProcedureLinkageRelocationContents,
-    linkage_identity: u64,
+    non_authoritative_linkage_compatibility_fingerprint: u64,
 }
 
 struct CandidateValidationError {
@@ -181,11 +181,12 @@ pub fn plan_elf_procedure_linkage_relocations(
             }));
         }
     };
-    let linkage_identity = linkage_identity(&descriptors, &contents);
+    let non_authoritative_linkage_compatibility_fingerprint =
+        non_authoritative_linkage_compatibility_fingerprint(&descriptors, &contents);
     let candidate = Candidate {
         descriptors,
         contents,
-        linkage_identity,
+        non_authoritative_linkage_compatibility_fingerprint,
     };
     match validate_candidate(candidate) {
         Ok(validated) => Ok(validated),
@@ -388,16 +389,24 @@ fn validate_candidate(
             diagnostic,
         });
     }
-    if candidate.linkage_identity != linkage_identity(&candidate.descriptors, &candidate.contents) {
+    if candidate.non_authoritative_linkage_compatibility_fingerprint
+        != non_authoritative_linkage_compatibility_fingerprint(
+            &candidate.descriptors,
+            &candidate.contents,
+        )
+    {
         return Err(CandidateValidationError {
             candidate,
-            diagnostic: Diagnostic::error("ELF procedure-linkage identity does not replay"),
+            diagnostic: Diagnostic::error(
+                "ELF procedure-linkage compatibility fingerprint does not replay",
+            ),
         });
     }
     Ok(ValidatedElfProcedureLinkageRelocationPlan {
         descriptors: candidate.descriptors,
         contents: candidate.contents,
-        linkage_identity: candidate.linkage_identity,
+        non_authoritative_linkage_compatibility_fingerprint: candidate
+            .non_authoritative_linkage_compatibility_fingerprint,
     })
 }
 
@@ -483,13 +492,17 @@ fn require(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
         .ok_or_else(|| Diagnostic::error(message))
 }
 
-fn linkage_identity(
+fn non_authoritative_linkage_compatibility_fingerprint(
     descriptors: &ValidatedElfDynamicSectionDescriptorPlan,
     contents: &ElfProcedureLinkageRelocationContents,
 ) -> u64 {
     let mut hash = Fnv1a::new();
     hash.bytes(b"omega.elf-procedure-linkage-relocations.v1");
-    hash.bytes(&descriptors.descriptor_identity().to_le_bytes());
+    hash.bytes(
+        &descriptors
+            .non_authoritative_descriptor_compatibility_fingerprint()
+            .to_le_bytes(),
+    );
     hash.bytes(
         descriptors
             .payloads()
@@ -713,11 +726,12 @@ mod tests {
     fn candidate(target: TargetProfile) -> Candidate {
         let descriptors = descriptors(target, &IMPORTS);
         let contents = derive_contents(&descriptors).expect("derived procedure linkage");
-        let linkage_identity = linkage_identity(&descriptors, &contents);
+        let non_authoritative_linkage_compatibility_fingerprint =
+            non_authoritative_linkage_compatibility_fingerprint(&descriptors, &contents);
         Candidate {
             descriptors,
             contents,
-            linkage_identity,
+            non_authoritative_linkage_compatibility_fingerprint,
         }
     }
 
@@ -730,7 +744,10 @@ mod tests {
             assert_eq!(plan.procedure_relocation_count(), 3);
             assert_eq!(plan.direct_call_site_count(), 4);
             assert_eq!(plan.general_dynamic_relocation_count(), 0);
-            assert_ne!(plan.linkage_identity(), 0);
+            assert_ne!(
+                plan.non_authoritative_linkage_compatibility_fingerprint(),
+                0
+            );
 
             let expected_source_kind = match target {
                 TargetProfile::LinuxX64 => RelocationKind::X86_64Relative32,
@@ -794,8 +811,14 @@ mod tests {
         ))
         .expect("AArch64 procedure linkage");
 
-        assert_eq!(forward.linkage_identity(), reverse.linkage_identity());
-        assert_ne!(forward.linkage_identity(), arm.linkage_identity());
+        assert_eq!(
+            forward.non_authoritative_linkage_compatibility_fingerprint(),
+            reverse.non_authoritative_linkage_compatibility_fingerprint()
+        );
+        assert_ne!(
+            forward.non_authoritative_linkage_compatibility_fingerprint(),
+            arm.non_authoritative_linkage_compatibility_fingerprint()
+        );
         assert_eq!(forward.logical_slot_count(), 3);
         assert_eq!(forward.direct_call_site_count(), 4);
         assert_eq!(
@@ -860,11 +883,15 @@ mod tests {
             let (mut image, handles) = image(TargetProfile::LinuxX64, &IMPORTS);
             mutate(&mut image, &handles);
             let descriptors = descriptors_from_image(TargetProfile::LinuxX64, image);
-            let expected_identity = descriptors.descriptor_identity();
+            let expected_identity =
+                descriptors.non_authoritative_descriptor_compatibility_fingerprint();
             let error = plan_elf_procedure_linkage_relocations(descriptors)
                 .expect_err("invalid imported call must reject before linkage sealing");
             let (returned, _) = error.into_parts();
-            assert_eq!(returned.descriptor_identity(), expected_identity);
+            assert_eq!(
+                returned.non_authoritative_descriptor_compatibility_fingerprint(),
+                expected_identity
+            );
         }
 
         let (mut arm_image, arm_handles) = image(TargetProfile::LinuxArm64, &IMPORTS);
@@ -874,11 +901,15 @@ mod tests {
             .get_mut(arm_handles[0])
             .offset = 1;
         let descriptors = descriptors_from_image(TargetProfile::LinuxArm64, arm_image);
-        let expected_identity = descriptors.descriptor_identity();
+        let expected_identity =
+            descriptors.non_authoritative_descriptor_compatibility_fingerprint();
         let error = plan_elf_procedure_linkage_relocations(descriptors)
             .expect_err("misaligned AArch64 BL relocation must reject");
         assert_eq!(
-            error.into_parts().0.descriptor_identity(),
+            error
+                .into_parts()
+                .0
+                .non_authoritative_descriptor_compatibility_fingerprint(),
             expected_identity
         );
     }
@@ -916,17 +947,24 @@ mod tests {
             }),
             Box::new(|candidate| candidate.contents.jump_slot_relocations[0].relocation_type += 1),
             Box::new(|candidate| candidate.contents.jump_slot_relocations[0].addend += 1),
-            Box::new(|candidate| candidate.linkage_identity ^= 1),
+            Box::new(|candidate| {
+                candidate.non_authoritative_linkage_compatibility_fingerprint ^= 1
+            }),
         ];
 
         for corrupt in corruptions {
             let mut candidate = candidate(TargetProfile::LinuxX64);
-            let expected_identity = candidate.descriptors.descriptor_identity();
+            let expected_identity = candidate
+                .descriptors
+                .non_authoritative_descriptor_compatibility_fingerprint();
             corrupt(&mut candidate);
             let error = validate_candidate(candidate)
                 .expect_err("corrupt procedure-linkage candidate must reject");
             assert_eq!(
-                error.candidate.descriptors.descriptor_identity(),
+                error
+                    .candidate
+                    .descriptors
+                    .non_authoritative_descriptor_compatibility_fingerprint(),
                 expected_identity,
                 "validation failure retains exact descriptor custody",
             );

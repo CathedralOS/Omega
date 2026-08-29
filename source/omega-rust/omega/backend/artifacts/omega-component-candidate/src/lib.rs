@@ -11,7 +11,8 @@
 //! provision, lease, installed-root admission, or external-entry headroom.
 
 pub use omega_native_artifact::{
-    NativeArtifact, NativeArtifactParts, NativeProviderExecution, NativeSelectedProviderPlan,
+    NativeArtifact, NativeArtifactParts, NativeProviderExecution,
+    NativeSelectedProviderClosureDigest, NativeSelectedProviderPlan,
 };
 
 pub type ComponentProviderExecution = NativeProviderExecution;
@@ -40,7 +41,10 @@ impl ComponentCandidate {
         parts.native_artifact.validate()?;
         validate_terminal_component_stack_demand(&parts.native_artifact, &parts.stack_demand)?;
         validate_selected_provider_closure(
-            parts.native_artifact.selected_provider_closure_identity(),
+            parts
+                .native_artifact
+                .selected_provider_closure_report_identity(),
+            parts.native_artifact.selected_provider_closure_digest(),
             parts.native_artifact.selected_provider_plans(),
             &parts.selected_provider_plans,
         )?;
@@ -143,13 +147,19 @@ fn validate_terminal_component_stack_demand(
 }
 
 fn validate_selected_provider_closure(
-    native_closure_identity: u64,
+    native_closure_report_identity: u64,
+    native_closure_digest: NativeSelectedProviderClosureDigest,
     native_plans: &[NativeSelectedProviderPlan],
     selected: &omega_effects::SelectedProviderPlanFacts,
 ) -> Result<(), &'static str> {
-    if selected.normalized_identity() != native_closure_identity {
+    if selected.compatibility_report_identity() != native_closure_report_identity {
         return Err(
-            "component candidate selected provider closure identity disagrees with its native artifact",
+            "component candidate selected provider closure report identity disagrees with its native artifact",
+        );
+    }
+    if selected.identity_digest().as_bytes() != native_closure_digest.as_bytes() {
+        return Err(
+            "component candidate selected provider closure digest disagrees with its native artifact",
         );
     }
     let mut projected = selected
@@ -272,17 +282,65 @@ mod tests {
             ])
             .expect("exact coverage attaches to the same selected slot");
         let native_plans = projected(&plan);
+        assert_ne!(generic.identity_digest(), exact.identity_digest());
 
-        validate_selected_provider_closure(generic.normalized_identity(), &native_plans, &generic)
-            .expect("exact selected closure identity replays");
+        validate_selected_provider_closure(
+            generic.compatibility_report_identity(),
+            NativeSelectedProviderClosureDigest::from_digest(*generic.identity_digest().as_bytes()),
+            &native_plans,
+            &generic,
+        )
+        .expect("exact selected closure identity replays");
         assert_eq!(
             validate_selected_provider_closure(
-                generic.normalized_identity(),
+                generic.compatibility_report_identity(),
+                NativeSelectedProviderClosureDigest::from_digest(
+                    *generic.identity_digest().as_bytes(),
+                ),
                 &native_plans,
                 &exact,
             ),
             Err(
-                "component candidate selected provider closure identity disagrees with its native artifact"
+                "component candidate selected provider closure report identity disagrees with its native artifact"
+            )
+        );
+    }
+
+    #[test]
+    fn component_replay_rejects_compact_equal_provider_plan_substitution() {
+        let original_plan = selected_plan();
+        let mut substituted_plan = original_plan.clone();
+        substituted_plan.schema.methods[0].requirement_owner = "OtherIndexedRequirement".into();
+        assert_eq!(
+            original_plan.identity_fingerprint(),
+            substituted_plan.identity_fingerprint(),
+            "the legacy compact plan identity omits the readable requirement owner"
+        );
+
+        let original = SelectedProviderPlanFacts::from_selected_plans(vec![original_plan.clone()])
+            .expect("original selected closure");
+        let substituted =
+            SelectedProviderPlanFacts::from_selected_plans(vec![substituted_plan.clone()])
+                .expect("compact-equal substituted closure");
+        assert_eq!(
+            original.compatibility_report_identity(),
+            substituted.compatibility_report_identity(),
+        );
+        assert_ne!(original.identity_digest(), substituted.identity_digest());
+
+        let native_plans = projected(&original_plan);
+        assert_eq!(native_plans, projected(&substituted_plan));
+        assert_eq!(
+            validate_selected_provider_closure(
+                original.compatibility_report_identity(),
+                NativeSelectedProviderClosureDigest::from_digest(
+                    *original.identity_digest().as_bytes(),
+                ),
+                &native_plans,
+                &substituted,
+            ),
+            Err(
+                "component candidate selected provider closure digest disagrees with its native artifact"
             )
         );
     }

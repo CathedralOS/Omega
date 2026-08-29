@@ -6,7 +6,7 @@ use super::{
     AccessExposure, AccessFieldEntry, AccessPermissions, AccessPlan, AccessPlanDiagnostic,
     ExternalRead, FieldAccess, FieldAccessDescriptor, LogicalFieldExtent, LogicalFieldFragment,
     ObservationModel, RelativeEffectFootprint, ValidatedAccessPlan,
-    normalized_access_plan_identity,
+    non_authoritative_access_plan_compatibility_fingerprint,
 };
 
 /// Validate one complete normalized access policy against its retained layout.
@@ -65,7 +65,8 @@ pub fn validate_access_plan(
     validate_atomic_transfer_units(&descriptors)?;
 
     let layout_fingerprint = plan.layout_fingerprint;
-    let identity = normalized_access_plan_identity(&plan, layout_fingerprint);
+    let identity =
+        non_authoritative_access_plan_compatibility_fingerprint(&plan, layout_fingerprint);
     Ok(ValidatedAccessPlan {
         identity,
         layout_fingerprint,

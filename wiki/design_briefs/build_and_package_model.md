@@ -752,12 +752,16 @@ substitutions, schema/arity/plan drift, and missing exact-family members reject.
 The result retains the selected provider closure, plan, concrete applications,
 and complete coverage assertion, but it neither derives the demand or coverage
 total from verified artifacts nor binds an issuance occurrence. Those
-derivation, composition, and installation joins remain open. native
-realization commits the exact nonzero selected-closure identity next to the
-source-free provider-plan projection, and component-candidate replay requires
-both to match. Consequently indexed coverage or resolved-reach drift cannot
-pass merely because the selected plan rows are unchanged; this replay is still
-non-authorizing.
+derivation, composition, and installation joins remain open. Native realization
+retains the selected closure's compact compatibility report identity and a
+domain-separated SHA-256 commitment beside the source-free provider-plan
+projection. The commitment covers the exact plans, execution scope, indexed
+coverage, opaque executable admissions, and installation-reach resolutions.
+Component-candidate replay independently recomputes it from the complete
+source-selected facts and requires both the commitment and report-coordinate
+drift check to match. Consequently a compact-collision substitution, coverage
+change, or resolved-reach change cannot pass merely because the projected plan
+rows are unchanged; this replay is still non-authorizing.
 
 Provider selection also determines executable TCB provenance. Static selection
 of an opaque in-process realization contributes a known executable entry even

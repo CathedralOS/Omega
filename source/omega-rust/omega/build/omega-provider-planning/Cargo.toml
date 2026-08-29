@@ -8,15 +8,23 @@ version.workspace = true
 name = "omega_provider_planning"
 path = "src/lib.rs"
 
+[features]
+default = []
+installed-writer = [
+    "dep:omega-executable-installation",
+    "dep:omega-external-roots",
+    "omega-program-entry-plan/installed-writer",
+]
+
 [dependencies]
 omega-calling-conventions = { path = "../../representations/omega-calling-conventions" }
 omega-backend-plan = { path = "../../backend/plans/omega-backend-plan" }
 omega-effects = { path = "../../representations/omega-effects" }
-omega-executable-installation = { path = "../../backend/runtime/omega-executable-installation" }
-omega-external-roots = { path = "../../backend/runtime/omega-external-roots" }
+omega-executable-installation = { path = "../../backend/runtime/omega-executable-installation", optional = true }
+omega-external-roots = { path = "../../backend/runtime/omega-external-roots", optional = true }
 omega-layout = { path = "../../backend/omega-layout" }
 omega-package-compilation = { path = "../omega-package-compilation" }
-omega-program-entry-plan = { path = "../../backend/plans/omega-program-entry-plan", features = ["installed-writer"] }
+omega-program-entry-plan = { path = "../../backend/plans/omega-program-entry-plan" }
 omega-target = { path = "../../representations/omega-target" }
 omega-task-plans = { path = "../../representations/omega-task-plans" }
 omega-trust-model = { path = "../omega-trust-model" }

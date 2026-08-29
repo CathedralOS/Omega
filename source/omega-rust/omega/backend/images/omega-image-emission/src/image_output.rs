@@ -91,6 +91,7 @@ pub fn emit_executable_image(
         text_bytes: &artifact.text_bytes,
         data_bytes: &[],
     });
+    let final_image_symbol_digest = omega_image::final_image_symbol_digest(&image);
     let output = match (artifact.target.object_format, artifact.target.architecture) {
         (ObjectFormat::Elf, Architecture::Aarch64) => {
             omega_image_elf::emit_elf_aarch64_executable(image)
@@ -128,6 +129,7 @@ pub fn emit_executable_image(
         fuel_attribution: artifact.fuel_attribution.clone(),
         port_effects: artifact.port_effects.clone(),
         boundary_settlements: artifact.boundary_settlements.clone(),
+        final_image_symbol_digest,
         output,
     })
 }
@@ -150,6 +152,20 @@ pub fn validate_executable_image(
     {
         return Err(Diagnostic::error(
             "terminal object and executable image have different semantic or evidence identity",
+        ));
+    }
+    let replayed_final_image = omega_image::build_final_image(FinalImageInput {
+        target: artifact.target(),
+        object: artifact.object(),
+        relocations: artifact.relocations(),
+        text_bytes: artifact.text_bytes(),
+        data_bytes: &[],
+    });
+    if image.final_image_symbol_digest
+        != omega_image::final_image_symbol_digest(&replayed_final_image)
+    {
+        return Err(Diagnostic::error(
+            "terminal executable image symbol evidence does not match its exact object entry/data-symbol table",
         ));
     }
     let recomputed = validate_terminal_image(
@@ -493,6 +509,13 @@ impl NativeFuelExecutableImage {
 
     pub(crate) fn semantic_installation_view(&self) -> ExecutableImage {
         let semantic = self.artifact.semantic_artifact();
+        let semantic_final_image = omega_image::build_final_image(FinalImageInput {
+            target: semantic.target(),
+            object: semantic.object(),
+            relocations: semantic.relocations(),
+            text_bytes: semantic.text_bytes(),
+            data_bytes: &[],
+        });
         ExecutableImage {
             psi: semantic.psi(),
             target: semantic.target(),
@@ -501,6 +524,9 @@ impl NativeFuelExecutableImage {
             fuel_attribution: semantic.fuel_attribution().to_vec(),
             port_effects: semantic.port_effects().to_vec(),
             boundary_settlements: semantic.boundary_settlements().to_vec(),
+            final_image_symbol_digest: omega_image::final_image_symbol_digest(
+                &semantic_final_image,
+            ),
             output: self.output.clone(),
         }
     }
@@ -596,6 +622,7 @@ pub struct ExecutableImage {
     fuel_attribution: Vec<ObjectFuelAttribution>,
     port_effects: Vec<ObjectPortEffect>,
     boundary_settlements: Vec<ObjectBoundarySettlement>,
+    final_image_symbol_digest: omega_image::FinalImageSymbolDigest,
     output: EmittedImageOutput,
 }
 
@@ -632,6 +659,10 @@ impl ExecutableImage {
 
     pub fn fuel_attribution(&self) -> &[ObjectFuelAttribution] {
         &self.fuel_attribution
+    }
+
+    pub const fn final_image_symbol_digest(&self) -> omega_image::FinalImageSymbolDigest {
+        self.final_image_symbol_digest
     }
 }
 

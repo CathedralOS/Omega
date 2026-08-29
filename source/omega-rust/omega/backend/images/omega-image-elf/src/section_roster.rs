@@ -50,7 +50,7 @@ const CANONICAL_KINDS: [ElfDynamicRosterSectionKind; SECTION_COUNT] = [
 pub struct ValidatedElfDynamicSectionRoster {
     section_names: ValidatedElfSectionNameTablePlan,
     contents: ElfDynamicSectionRosterContents,
-    roster_identity: u64,
+    non_authoritative_roster_compatibility_fingerprint: u64,
 }
 
 impl ValidatedElfDynamicSectionRoster {
@@ -67,10 +67,10 @@ impl ValidatedElfDynamicSectionRoster {
     }
 
     /// Compatibility fingerprint of the exact name-table owner and every
-    /// numeric section-row field. This is roster identity, not layout or final
+    /// numeric section-row field. This is a roster compatibility coordinate, not layout or final
     /// image identity.
-    pub const fn roster_identity(&self) -> u64 {
-        self.roster_identity
+    pub const fn non_authoritative_roster_compatibility_fingerprint(&self) -> u64 {
+        self.non_authoritative_roster_compatibility_fingerprint
     }
 
     pub(crate) const fn contents(&self) -> &ElfDynamicSectionRosterContents {
@@ -154,7 +154,7 @@ pub(crate) struct ElfNumericSectionDescriptor {
 struct Candidate {
     section_names: ValidatedElfSectionNameTablePlan,
     contents: ElfDynamicSectionRosterContents,
-    roster_identity: u64,
+    non_authoritative_roster_compatibility_fingerprint: u64,
 }
 
 struct CandidateValidationError {
@@ -181,11 +181,12 @@ pub fn plan_elf_dynamic_section_roster(
             }));
         }
     };
-    let roster_identity = roster_identity(&section_names, &contents);
+    let non_authoritative_roster_compatibility_fingerprint =
+        non_authoritative_roster_compatibility_fingerprint(&section_names, &contents);
     let candidate = Candidate {
         section_names,
         contents,
-        roster_identity,
+        non_authoritative_roster_compatibility_fingerprint,
     };
     match validate_candidate(candidate) {
         Ok(validated) => Ok(validated),
@@ -357,16 +358,24 @@ fn validate_candidate(
             diagnostic,
         });
     }
-    if candidate.roster_identity != roster_identity(&candidate.section_names, &candidate.contents) {
+    if candidate.non_authoritative_roster_compatibility_fingerprint
+        != non_authoritative_roster_compatibility_fingerprint(
+            &candidate.section_names,
+            &candidate.contents,
+        )
+    {
         return Err(CandidateValidationError {
             candidate,
-            diagnostic: Diagnostic::error("ELF dynamic section-roster identity does not replay"),
+            diagnostic: Diagnostic::error(
+                "ELF dynamic section-roster compatibility fingerprint does not replay",
+            ),
         });
     }
     Ok(ValidatedElfDynamicSectionRoster {
         section_names: candidate.section_names,
         contents: candidate.contents,
-        roster_identity: candidate.roster_identity,
+        non_authoritative_roster_compatibility_fingerprint: candidate
+            .non_authoritative_roster_compatibility_fingerprint,
     })
 }
 
@@ -598,13 +607,17 @@ fn require(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
         .ok_or_else(|| Diagnostic::error(message))
 }
 
-fn roster_identity(
+fn non_authoritative_roster_compatibility_fingerprint(
     section_names: &ValidatedElfSectionNameTablePlan,
     contents: &ElfDynamicSectionRosterContents,
 ) -> u64 {
     let mut hash = Fnv1a::new();
     hash.bytes(b"omega.elf-dynamic-section-roster.v1");
-    hash.bytes(&section_names.table_identity().to_le_bytes());
+    hash.bytes(
+        &section_names
+            .non_authoritative_table_compatibility_fingerprint()
+            .to_le_bytes(),
+    );
     hash.bytes(&contents.section_name_table_index.to_le_bytes());
     hash.bytes(&(contents.rows.len() as u64).to_le_bytes());
     for row in &contents.rows {
@@ -793,11 +806,12 @@ mod tests {
     fn candidate(target: TargetProfile) -> Candidate {
         let section_names = section_names(target, &IMPORTS);
         let contents = derive_contents(&section_names).expect("derived section roster");
-        let roster_identity = roster_identity(&section_names, &contents);
+        let non_authoritative_roster_compatibility_fingerprint =
+            non_authoritative_roster_compatibility_fingerprint(&section_names, &contents);
         Candidate {
             section_names,
             contents,
-            roster_identity,
+            non_authoritative_roster_compatibility_fingerprint,
         }
     }
 
@@ -833,7 +847,10 @@ mod tests {
                 validate_name(roster.section_names.contents().bytes.as_slice(), row).unwrap();
                 validate_row_against_owner(roster.section_names(), row).unwrap();
             }
-            assert_ne!(roster.roster_identity(), 0);
+            assert_ne!(
+                roster.non_authoritative_roster_compatibility_fingerprint(),
+                0
+            );
             validate_contents(roster.section_names(), &roster.contents).unwrap();
         }
     }
@@ -904,8 +921,14 @@ mod tests {
             plan_elf_dynamic_section_roster(section_names(TargetProfile::LinuxArm64, &IMPORTS))
                 .unwrap();
         assert_eq!(forward.contents, reverse.contents);
-        assert_eq!(forward.roster_identity(), reverse.roster_identity());
-        assert_ne!(forward.roster_identity(), arm.roster_identity());
+        assert_eq!(
+            forward.non_authoritative_roster_compatibility_fingerprint(),
+            reverse.non_authoritative_roster_compatibility_fingerprint()
+        );
+        assert_ne!(
+            forward.non_authoritative_roster_compatibility_fingerprint(),
+            arm.non_authoritative_roster_compatibility_fingerprint()
+        );
     }
 
     #[test]
@@ -931,16 +954,21 @@ mod tests {
             Box::new(|candidate| candidate.contents.rows[1].link = 2),
             Box::new(|candidate| candidate.contents.rows[1].info = 1),
             Box::new(|candidate| candidate.contents.section_name_table_index = 10),
-            Box::new(|candidate| candidate.roster_identity ^= 1),
+            Box::new(|candidate| candidate.non_authoritative_roster_compatibility_fingerprint ^= 1),
         ];
         for corrupt in corruptions {
             let mut candidate = candidate(TargetProfile::LinuxArm64);
-            let expected_identity = candidate.section_names.table_identity();
+            let expected_identity = candidate
+                .section_names
+                .non_authoritative_table_compatibility_fingerprint();
             corrupt(&mut candidate);
             let error = validate_candidate(candidate)
                 .expect_err("corrupt numeric roster candidate must reject");
             assert_eq!(
-                error.candidate.section_names.table_identity(),
+                error
+                    .candidate
+                    .section_names
+                    .non_authoritative_table_compatibility_fingerprint(),
                 expected_identity,
             );
         }
@@ -960,7 +988,9 @@ mod tests {
             (ElfDynamicRosterSectionKind::GnuVersionRequirement, false),
         ] {
             let mut candidate = candidate(TargetProfile::LinuxX64);
-            let expected_identity = candidate.section_names.table_identity();
+            let expected_identity = candidate
+                .section_names
+                .non_authoritative_table_compatibility_fingerprint();
             let row = &mut candidate.contents.rows[index_for_kind(kind) as usize];
             if field {
                 row.link = row.link.saturating_add(1);
@@ -969,7 +999,10 @@ mod tests {
             }
             let error = validate_candidate(candidate).expect_err("reference drift must reject");
             assert_eq!(
-                error.candidate.section_names.table_identity(),
+                error
+                    .candidate
+                    .section_names
+                    .non_authoritative_table_compatibility_fingerprint(),
                 expected_identity,
             );
         }

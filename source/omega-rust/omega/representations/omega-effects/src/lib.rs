@@ -67,4 +67,6 @@ pub use process_static_services::{
     ProcessStaticServicePolicy, ProcessStaticServiceRegistry, ServiceHandoverCompletion,
     ServiceHandoverError, ServiceRegistrationCandidate, ServiceRegistrationError,
 };
-pub use selected_provider_plans::{InstallationReachResolution, SelectedProviderPlanFacts};
+pub use selected_provider_plans::{
+    InstallationReachResolution, SelectedProviderClosureDigest, SelectedProviderPlanFacts,
+};

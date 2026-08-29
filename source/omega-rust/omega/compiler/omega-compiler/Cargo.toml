@@ -67,6 +67,7 @@ serde_json = "1"
 [dev-dependencies]
 omega-executable-installation = { path = "../../backend/runtime/omega-executable-installation" }
 omega-external-roots = { path = "../../backend/runtime/omega-external-roots" }
+omega-provider-planning = { path = "../../build/omega-provider-planning", features = ["installed-writer"] }
 omega-layout = { path = "../../backend/omega-layout" }
 omega-object-file = { path = "../../backend/object/omega-object-file" }
 omega-program-entry-plan = { path = "../../backend/plans/omega-program-entry-plan" }

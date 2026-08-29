@@ -367,7 +367,7 @@ fn exact_origin(
         prebinding.installed_code().normalized_identity(),
         prebinding.root().normalized_identity(),
         prebinding.slot().normalized_identity(),
-        prebinding.schema_identity(),
+        root.prebinding().schema_compatibility_report_identity(),
         occurrence.lifecycle_ledger().normalized_identity(),
         occurrence.lifecycle_epoch(),
         root.invocation().normalized_identity(),

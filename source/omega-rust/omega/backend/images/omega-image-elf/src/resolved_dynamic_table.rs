@@ -121,7 +121,7 @@ impl ElfAppliedDynamicAddress {
 pub struct ValidatedElfResolvedDynamicTable {
     placed_section_headers: ValidatedElfPlacedSectionHeaderTable,
     contents: ElfResolvedDynamicTableContents,
-    resolved_identity: u64,
+    non_authoritative_resolved_compatibility_fingerprint: u64,
 }
 
 impl ValidatedElfResolvedDynamicTable {
@@ -137,8 +137,8 @@ impl ValidatedElfResolvedDynamicTable {
         &self.contents.applications
     }
 
-    pub const fn resolved_identity(&self) -> u64 {
-        self.resolved_identity
+    pub const fn non_authoritative_resolved_compatibility_fingerprint(&self) -> u64 {
+        self.non_authoritative_resolved_compatibility_fingerprint
     }
 
     #[allow(dead_code)]
@@ -193,7 +193,7 @@ struct DecodedElfDynamicRow {
 struct Candidate {
     placed_section_headers: ValidatedElfPlacedSectionHeaderTable,
     contents: ElfResolvedDynamicTableContents,
-    resolved_identity: u64,
+    non_authoritative_resolved_compatibility_fingerprint: u64,
 }
 
 struct CandidateValidationError {
@@ -215,11 +215,12 @@ pub fn apply_elf_dynamic_address_fixups(
             }));
         }
     };
-    let resolved_identity = resolved_identity(&placed_section_headers, &contents);
+    let non_authoritative_resolved_compatibility_fingerprint =
+        non_authoritative_resolved_compatibility_fingerprint(&placed_section_headers, &contents);
     let candidate = Candidate {
         placed_section_headers,
         contents,
-        resolved_identity,
+        non_authoritative_resolved_compatibility_fingerprint,
     };
     validate_candidate(candidate).map_err(|error| {
         Box::new(ElfDynamicAddressApplicationError {
@@ -322,18 +323,25 @@ fn validate_candidate(
             diagnostic,
         });
     }
-    let expected_identity =
-        resolved_identity(&candidate.placed_section_headers, &candidate.contents);
-    if candidate.resolved_identity == 0 || candidate.resolved_identity != expected_identity {
+    let expected_identity = non_authoritative_resolved_compatibility_fingerprint(
+        &candidate.placed_section_headers,
+        &candidate.contents,
+    );
+    if candidate.non_authoritative_resolved_compatibility_fingerprint == 0
+        || candidate.non_authoritative_resolved_compatibility_fingerprint != expected_identity
+    {
         return Err(CandidateValidationError {
             candidate,
-            diagnostic: Diagnostic::error("resolved ELF dynamic-table identity does not replay"),
+            diagnostic: Diagnostic::error(
+                "resolved ELF dynamic-table compatibility fingerprint does not replay",
+            ),
         });
     }
     Ok(ValidatedElfResolvedDynamicTable {
         placed_section_headers: candidate.placed_section_headers,
         contents: candidate.contents,
-        resolved_identity: candidate.resolved_identity,
+        non_authoritative_resolved_compatibility_fingerprint: candidate
+            .non_authoritative_resolved_compatibility_fingerprint,
     })
 }
 
@@ -682,13 +690,17 @@ fn require(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
         .ok_or_else(|| Diagnostic::error(message))
 }
 
-fn resolved_identity(
+fn non_authoritative_resolved_compatibility_fingerprint(
     placed: &ValidatedElfPlacedSectionHeaderTable,
     contents: &ElfResolvedDynamicTableContents,
 ) -> u64 {
     let mut hash = Fnv1a::new();
     hash.bytes(b"omega.elf.resolved-dynamic-table.v1");
-    hash.bytes(&placed.placed_identity().to_le_bytes());
+    hash.bytes(
+        &placed
+            .non_authoritative_placed_compatibility_fingerprint()
+            .to_le_bytes(),
+    );
     hash.bytes(&contents.bytes);
     hash.bytes(&(contents.applications.len() as u64).to_le_bytes());
     for application in &contents.applications {
@@ -850,11 +862,15 @@ mod tests {
     fn candidate(target: TargetProfile) -> Candidate {
         let placed_section_headers = standard_placed(target);
         let contents = derive_contents(&placed_section_headers).unwrap();
-        let resolved_identity = resolved_identity(&placed_section_headers, &contents);
+        let non_authoritative_resolved_compatibility_fingerprint =
+            non_authoritative_resolved_compatibility_fingerprint(
+                &placed_section_headers,
+                &contents,
+            );
         Candidate {
             placed_section_headers,
             contents,
-            resolved_identity,
+            non_authoritative_resolved_compatibility_fingerprint,
         }
     }
 
@@ -870,7 +886,10 @@ mod tests {
         for target in [TargetProfile::LinuxX64, TargetProfile::LinuxArm64] {
             let resolved = apply_elf_dynamic_address_fixups(standard_placed(target)).unwrap();
             assert_eq!(resolved.applied_addresses().len(), 7);
-            assert_ne!(resolved.resolved_identity(), 0);
+            assert_ne!(
+                resolved.non_authoritative_resolved_compatibility_fingerprint(),
+                0
+            );
             assert_eq!(
                 resolved
                     .applied_addresses()
@@ -945,9 +964,18 @@ mod tests {
         .unwrap();
         assert_eq!(first.bytes(), second.bytes());
         assert_eq!(first.applied_addresses(), second.applied_addresses());
-        assert_eq!(first.resolved_identity(), second.resolved_identity());
-        assert_ne!(first.resolved_identity(), arm.resolved_identity());
-        assert_ne!(first.resolved_identity(), other.resolved_identity());
+        assert_eq!(
+            first.non_authoritative_resolved_compatibility_fingerprint(),
+            second.non_authoritative_resolved_compatibility_fingerprint()
+        );
+        assert_ne!(
+            first.non_authoritative_resolved_compatibility_fingerprint(),
+            arm.non_authoritative_resolved_compatibility_fingerprint()
+        );
+        assert_ne!(
+            first.non_authoritative_resolved_compatibility_fingerprint(),
+            other.non_authoritative_resolved_compatibility_fingerprint()
+        );
     }
 
     #[test]
@@ -978,17 +1006,26 @@ mod tests {
                     ElfPlacedDynamicSectionKind::SystemVHash
             }),
             Box::new(|candidate| candidate.contents.applications[0].value ^= 1),
-            Box::new(|candidate| candidate.resolved_identity = 0),
-            Box::new(|candidate| candidate.resolved_identity ^= 1),
+            Box::new(|candidate| {
+                candidate.non_authoritative_resolved_compatibility_fingerprint = 0
+            }),
+            Box::new(|candidate| {
+                candidate.non_authoritative_resolved_compatibility_fingerprint ^= 1
+            }),
         ];
         for corrupt in corruptions {
             let mut candidate = candidate(TargetProfile::LinuxArm64);
-            let expected_custody = candidate.placed_section_headers.placed_identity();
+            let expected_custody = candidate
+                .placed_section_headers
+                .non_authoritative_placed_compatibility_fingerprint();
             corrupt(&mut candidate);
             let error = validate_candidate(candidate)
                 .expect_err("corrupt resolved dynamic ledger must reject");
             assert_eq!(
-                error.candidate.placed_section_headers.placed_identity(),
+                error
+                    .candidate
+                    .placed_section_headers
+                    .non_authoritative_placed_compatibility_fingerprint(),
                 expected_custody
             );
         }

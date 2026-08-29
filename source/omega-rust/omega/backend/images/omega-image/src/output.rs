@@ -19,6 +19,7 @@ macro_rules! image_evidence_digest {
 
 image_evidence_digest!(CompilerEntryRegionBindingDigest);
 image_evidence_digest!(CompilerEntryFootprintBindingDigest);
+image_evidence_digest!(CompilerFunctionValidationDigest);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutableImageOutput {
@@ -280,6 +281,41 @@ pub struct CompilerFunctionValidationEvidence {
 }
 
 impl CompilerFunctionValidationEvidence {
+    /// Collision-resistant commitment to the complete normalized validation
+    /// summary. Imported compact identities remain visible report fields, but
+    /// consumers must carry this digest rather than treating their aggregate
+    /// FNV value as publication or replay authority.
+    pub fn evidence_digest(self) -> CompilerFunctionValidationDigest {
+        let mut digest = Sha256::new();
+        digest.update(b"omega.compiler-function-validation.sha256.v1\0");
+        for value in [
+            self.function_count,
+            self.instruction_count,
+            self.zero_width_instruction_count,
+            self.checked_assembly_instruction_count,
+            self.fixed_mechanics_instruction_count,
+            self.body_specification_instruction_count,
+        ] {
+            digest.update((value as u64).to_le_bytes());
+        }
+        for value in [
+            self.fixed_mechanics_validation_fingerprint,
+            self.fixed_mechanics_boundary_contract_fingerprint,
+            self.fixed_mechanics_footprint_fingerprint,
+            self.body_specification_validation_fingerprint,
+            self.body_specification_boundary_contract_fingerprint,
+            self.body_specification_footprint_fingerprint,
+            self.composed_footprint_fingerprint,
+            self.final_region_binding_fingerprint,
+            self.validation_fingerprint,
+        ] {
+            digest.update(value.to_le_bytes());
+        }
+        CompilerFunctionValidationDigest::from_digest(digest.finalize().into())
+    }
+
+    /// Compact report compatibility only. This is not evidence, admission,
+    /// publication, or replay authority; use [`Self::evidence_digest`].
     pub fn evidence_fingerprint(self) -> u64 {
         let mut hash = 0xcbf2_9ce4_8422_2325u64;
         for bytes in [
@@ -451,6 +487,26 @@ mod tests {
         evidence
     }
 
+    fn function_evidence() -> CompilerFunctionValidationEvidence {
+        CompilerFunctionValidationEvidence {
+            function_count: 1,
+            instruction_count: 2,
+            zero_width_instruction_count: 3,
+            checked_assembly_instruction_count: 4,
+            fixed_mechanics_instruction_count: 5,
+            fixed_mechanics_validation_fingerprint: 6,
+            fixed_mechanics_boundary_contract_fingerprint: 7,
+            fixed_mechanics_footprint_fingerprint: 8,
+            body_specification_instruction_count: 9,
+            body_specification_validation_fingerprint: 10,
+            body_specification_boundary_contract_fingerprint: 11,
+            body_specification_footprint_fingerprint: 12,
+            composed_footprint_fingerprint: 13,
+            final_region_binding_fingerprint: 14,
+            validation_fingerprint: 15,
+        }
+    }
+
     #[test]
     fn compact_collision_cannot_substitute_strong_compiler_text_evidence() {
         let first = text_evidence([1; 32]);
@@ -472,5 +528,41 @@ mod tests {
         let mut evidence = text_evidence([1; 32]);
         evidence.final_compiler_text_digest = FinalCompilerTextDigest::from_digest([77; 32]);
         assert!(!evidence.has_valid_derivation_digest());
+    }
+
+    #[test]
+    fn function_validation_digest_binds_every_normalized_field() {
+        let evidence = function_evidence();
+        let expected = evidence.evidence_digest();
+
+        for drifted in [
+            {
+                let mut drifted = evidence;
+                drifted.function_count += 1;
+                drifted
+            },
+            {
+                let mut drifted = evidence;
+                drifted.fixed_mechanics_validation_fingerprint ^= 1;
+                drifted
+            },
+            {
+                let mut drifted = evidence;
+                drifted.body_specification_footprint_fingerprint ^= 1;
+                drifted
+            },
+            {
+                let mut drifted = evidence;
+                drifted.final_region_binding_fingerprint ^= 1;
+                drifted
+            },
+            {
+                let mut drifted = evidence;
+                drifted.validation_fingerprint ^= 1;
+                drifted
+            },
+        ] {
+            assert_ne!(drifted.evidence_digest(), expected);
+        }
     }
 }

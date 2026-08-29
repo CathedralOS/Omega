@@ -47,7 +47,7 @@ const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 pub struct ValidatedElfProcedureLinkageSectionDescriptorPlan {
     templates: ValidatedElfProcedureLinkageTemplatePlan,
     contents: ElfProcedureLinkageSectionDescriptorContents,
-    descriptor_identity: u64,
+    non_authoritative_descriptor_compatibility_fingerprint: u64,
 }
 
 impl ValidatedElfProcedureLinkageSectionDescriptorPlan {
@@ -69,9 +69,9 @@ impl ValidatedElfProcedureLinkageSectionDescriptorPlan {
 
     /// Compatibility fingerprint of the exact target-template identity,
     /// append-only name seed, typed links/info, and every ABI metadata field.
-    /// This is content identity, not layout or image authority.
-    pub const fn descriptor_identity(&self) -> u64 {
-        self.descriptor_identity
+    /// This is a content compatibility coordinate, not layout or image authority.
+    pub const fn non_authoritative_descriptor_compatibility_fingerprint(&self) -> u64 {
+        self.non_authoritative_descriptor_compatibility_fingerprint
     }
 
     pub(crate) const fn contents(&self) -> &ElfProcedureLinkageSectionDescriptorContents {
@@ -168,7 +168,7 @@ pub(crate) struct ElfProcedureLinkageSectionDescriptor {
 struct Candidate {
     templates: ValidatedElfProcedureLinkageTemplatePlan,
     contents: ElfProcedureLinkageSectionDescriptorContents,
-    descriptor_identity: u64,
+    non_authoritative_descriptor_compatibility_fingerprint: u64,
 }
 
 struct CandidateValidationError {
@@ -198,11 +198,12 @@ pub fn plan_elf_procedure_linkage_section_descriptors(
             ));
         }
     };
-    let descriptor_identity = descriptor_identity(&templates, &contents);
+    let non_authoritative_descriptor_compatibility_fingerprint =
+        non_authoritative_descriptor_compatibility_fingerprint(&templates, &contents);
     let candidate = Candidate {
         templates,
         contents,
-        descriptor_identity,
+        non_authoritative_descriptor_compatibility_fingerprint,
     };
     match validate_candidate(candidate) {
         Ok(validated) => Ok(validated),
@@ -348,18 +349,24 @@ fn validate_candidate(
             diagnostic,
         });
     }
-    if candidate.descriptor_identity
-        != descriptor_identity(&candidate.templates, &candidate.contents)
+    if candidate.non_authoritative_descriptor_compatibility_fingerprint
+        != non_authoritative_descriptor_compatibility_fingerprint(
+            &candidate.templates,
+            &candidate.contents,
+        )
     {
         return Err(CandidateValidationError {
             candidate,
-            diagnostic: Diagnostic::error("ELF linkage-descriptor identity does not replay"),
+            diagnostic: Diagnostic::error(
+                "ELF linkage-descriptor compatibility fingerprint does not replay",
+            ),
         });
     }
     Ok(ValidatedElfProcedureLinkageSectionDescriptorPlan {
         templates: candidate.templates,
         contents: candidate.contents,
-        descriptor_identity: candidate.descriptor_identity,
+        non_authoritative_descriptor_compatibility_fingerprint: candidate
+            .non_authoritative_descriptor_compatibility_fingerprint,
     })
 }
 
@@ -491,13 +498,17 @@ fn require(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
         .ok_or_else(|| Diagnostic::error(message))
 }
 
-fn descriptor_identity(
+fn non_authoritative_descriptor_compatibility_fingerprint(
     templates: &ValidatedElfProcedureLinkageTemplatePlan,
     contents: &ElfProcedureLinkageSectionDescriptorContents,
 ) -> u64 {
     let mut hash = Fnv1a::new();
     hash.bytes(b"omega.elf-procedure-linkage-section-descriptors.v1");
-    hash.bytes(&templates.template_identity().to_le_bytes());
+    hash.bytes(
+        &templates
+            .non_authoritative_template_compatibility_fingerprint()
+            .to_le_bytes(),
+    );
     hash.bytes(&contents.section_name_table_seed);
     hash.bytes(&(contents.descriptors.len() as u64).to_le_bytes());
     for row in &contents.descriptors {
@@ -681,11 +692,12 @@ mod tests {
     fn candidate(target: TargetProfile) -> Candidate {
         let templates = templates(target, &IMPORTS);
         let contents = derive_contents(&templates).expect("derived linkage descriptors");
-        let descriptor_identity = descriptor_identity(&templates, &contents);
+        let non_authoritative_descriptor_compatibility_fingerprint =
+            non_authoritative_descriptor_compatibility_fingerprint(&templates, &contents);
         Candidate {
             templates,
             contents,
-            descriptor_identity,
+            non_authoritative_descriptor_compatibility_fingerprint,
         }
     }
 
@@ -783,7 +795,10 @@ mod tests {
                     ),
                 },
             );
-            assert_ne!(plan.descriptor_identity(), 0);
+            assert_ne!(
+                plan.non_authoritative_descriptor_compatibility_fingerprint(),
+                0
+            );
             validate_contents(plan.templates(), &plan.contents)
                 .expect("independent linkage-descriptor replay");
         }
@@ -830,9 +845,15 @@ mod tests {
         ))
         .unwrap();
 
-        assert_eq!(forward.descriptor_identity(), reverse.descriptor_identity());
+        assert_eq!(
+            forward.non_authoritative_descriptor_compatibility_fingerprint(),
+            reverse.non_authoritative_descriptor_compatibility_fingerprint()
+        );
         assert_eq!(forward.contents, reverse.contents);
-        assert_ne!(forward.descriptor_identity(), arm.descriptor_identity());
+        assert_ne!(
+            forward.non_authoritative_descriptor_compatibility_fingerprint(),
+            arm.non_authoritative_descriptor_compatibility_fingerprint()
+        );
         assert_ne!(
             row(
                 &forward.contents,
@@ -856,12 +877,17 @@ mod tests {
             .section_name_seed_byte_count();
         for offset in base_len..base_len + PROCEDURE_LINKAGE_NAME_SUFFIX.len() {
             let mut candidate = candidate(TargetProfile::LinuxX64);
-            let expected_identity = candidate.templates.template_identity();
+            let expected_identity = candidate
+                .templates
+                .non_authoritative_template_compatibility_fingerprint();
             candidate.contents.section_name_table_seed[offset] ^= 1;
             let error =
                 validate_candidate(candidate).expect_err("mutated linkage name seed must reject");
             assert_eq!(
-                error.candidate.templates.template_identity(),
+                error
+                    .candidate
+                    .templates
+                    .non_authoritative_template_compatibility_fingerprint(),
                 expected_identity
             );
         }
@@ -914,17 +940,24 @@ mod tests {
                         ElfProcedureLinkageSectionKind::ProcedureLinkage,
                     )
             }),
-            Box::new(|candidate| candidate.descriptor_identity ^= 1),
+            Box::new(|candidate| {
+                candidate.non_authoritative_descriptor_compatibility_fingerprint ^= 1
+            }),
         ];
 
         for corrupt in corruptions {
             let mut candidate = candidate(TargetProfile::LinuxX64);
-            let expected_identity = candidate.templates.template_identity();
+            let expected_identity = candidate
+                .templates
+                .non_authoritative_template_compatibility_fingerprint();
             corrupt(&mut candidate);
             let error = validate_candidate(candidate)
                 .expect_err("corrupt linkage descriptor candidate must reject");
             assert_eq!(
-                error.candidate.templates.template_identity(),
+                error
+                    .candidate
+                    .templates
+                    .non_authoritative_template_compatibility_fingerprint(),
                 expected_identity,
                 "linkage-descriptor rejection retains exact template custody",
             );

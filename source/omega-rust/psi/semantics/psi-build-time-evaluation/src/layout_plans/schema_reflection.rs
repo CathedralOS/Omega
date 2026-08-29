@@ -3,7 +3,7 @@
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::types::PrimitiveType;
 
-use super::{SCHEMA_FIELD_CAPACITY, field_key};
+use super::{SCHEMA_FIELD_CAPACITY, local_schema_field_discriminator};
 
 #[derive(Debug, Clone)]
 pub(crate) struct SchemaFieldInfo {
@@ -69,13 +69,13 @@ pub(crate) fn schema_fields(
         if size == 0 {
             continue;
         }
-        let key = field_key(schema_data, field.name.as_str());
+        let key = local_schema_field_discriminator(schema_data, field.name.as_str());
         if fields
             .iter()
             .any(|existing: &SchemaFieldInfo| existing.key == key)
         {
             return Err(format!(
-                "schema data `{schema_data}` has a compiler field-key collision involving `{}`",
+                "schema data `{schema_data}` has a compiler-local field discriminator collision involving `{}`",
                 field.name
             ));
         }

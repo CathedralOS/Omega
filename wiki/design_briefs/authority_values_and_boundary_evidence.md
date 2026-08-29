@@ -881,6 +881,14 @@ carry-policy facts bound by the provider-plan receipt. Content-bearing reports
 additionally retain the normalized projection, receipt backing, root lineage,
 outcome mapping, and n-ary conservation witness.
 
+A compact hash is never artifact, image, installation, replay, or admission
+authority. A boundary making one of those decisions retains the canonical bytes
+or exact structural carrier, or uses a domain-separated collision-resistant
+digest over them. Format-specific planning stages may keep a compact FNV value
+only as an explicitly non-authoritative compatibility fingerprint while
+independently replaying the exact owned carrier; final-image and installation
+authority cannot be reconstructed from that compact value.
+
 For hardware-entered provider slots, the selected service schema records a
 linear routed parameter qualification as a structured `accepts` row. The row
 uses the carrier-aware semantic-domain identity, begins with the strict

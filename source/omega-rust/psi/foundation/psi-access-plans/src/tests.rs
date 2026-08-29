@@ -10,6 +10,30 @@ use psi_layout_plans::{
 };
 
 #[test]
+fn compact_fnv_plan_inventory_is_explicitly_non_authoritative() {
+    let source = include_str!("normalized_identities.rs");
+    assert_eq!(
+        source.matches("0xcbf29ce484222325u64").count(),
+        3,
+        "every compact FNV plan family must remain in the reviewed local inventory"
+    );
+    for name in [
+        "non_authoritative_access_plan_compatibility_fingerprint",
+        "non_authoritative_placement_compatibility_fingerprint",
+        "non_authoritative_resource_profile_compatibility_fingerprint",
+    ] {
+        assert!(
+            source.contains(name),
+            "compact plan fingerprints must advertise their non-authoritative role: {name}"
+        );
+    }
+    assert!(
+        source.contains("omega.placement-plan.authoritative.v1\\0") && source.contains("Sha256"),
+        "provider-content interpretation must retain a domain-separated strong commitment"
+    );
+}
+
+#[test]
 fn stored_integer_geometry_uses_the_exact_encoded_width() {
     let layout = LayoutPlanReport {
         schema_identity: 1,
@@ -1717,10 +1741,7 @@ fn provider_existing_content(
         .mint_provider_existing_content(
             base,
             length,
-            extent_id(
-                plan.identity().normalized_identity(),
-                psi_extents::ExtentContentInterpretationId::from_normalized_identity,
-            ),
+            plan.content_interpretation(),
             extent_id(receipt_seed + 2, ResidentClaimId::from_normalized_identity),
             extent_id(
                 receipt_seed,
@@ -4913,9 +4934,12 @@ fn provider_existing_content_must_name_the_actual_placement() {
         .mint_provider_existing_content(
             0xa200,
             4,
-            extent_id(
-                plan.identity().normalized_identity() + 1,
-                psi_extents::ExtentContentInterpretationId::from_normalized_identity,
+            psi_extents::ExtentContentInterpretation::from_sha256_commitment(
+                extent_id(
+                    plan.identity().compatibility_fingerprint() + 1,
+                    psi_extents::ExtentContentInterpretationId::from_normalized_identity,
+                ),
+                plan.content_interpretation().commitment(),
             ),
             extent_id(104, ResidentClaimId::from_normalized_identity),
             extent_id(
@@ -4937,6 +4961,67 @@ fn provider_existing_content_must_name_the_actual_placement() {
     let rejection = adopt_owned_stable(admission, content)
         .expect_err("provider interpretation must match the actual admitted placement");
     assert!(rejection.diagnostic().0.contains("interpretation"));
+}
+
+#[test]
+fn provider_content_rejects_compact_equal_structural_substitution() {
+    let original = stable_word_placement();
+    let layout = original.layout().clone();
+    let mut substituted = validate_placement_plan(PlacementPlan {
+        access: AccessPlan::inaccessible(&layout).expect("inaccessible alternate access policy"),
+        layout,
+        reach: BoundaryReach::default(),
+    })
+    .expect("structurally distinct alternate placement");
+    assert_ne!(
+        original.content_interpretation().commitment(),
+        substituted.content_interpretation().commitment(),
+        "the authoritative commitment must cover the complete access policy"
+    );
+    let substituted_commitment = substituted.content_interpretation().commitment();
+    substituted.identity = original.identity;
+    substituted.content_interpretation =
+        psi_extents::ExtentContentInterpretation::from_sha256_commitment(
+            original
+                .content_interpretation()
+                .compatibility_fingerprint(),
+            substituted_commitment,
+        );
+    assert_eq!(
+        original.identity(),
+        substituted.identity(),
+        "the adversarial fixture deliberately forces equal compact coordinates"
+    );
+    assert_eq!(
+        original
+            .content_interpretation()
+            .compatibility_fingerprint(),
+        substituted
+            .content_interpretation()
+            .compatibility_fingerprint(),
+        "the adversarial fixture deliberately forces equal report fingerprints"
+    );
+
+    let (extent, content) = provider_existing_content(&original, 0xa240, 4, 108, 109);
+    let profile = stable_word_profile(&extent);
+    let admission = admit_owned_placement(
+        PlacementAdmissionId::from_normalized_identity(112).expect("admission"),
+        extent,
+        &substituted,
+        &profile,
+    )
+    .expect("the alternate inaccessible placement is resource-compatible");
+
+    let rejection = adopt_owned_stable(admission, content)
+        .expect_err("compact-equal placement substitution must not inherit content authority");
+    assert!(
+        rejection
+            .diagnostic()
+            .0
+            .contains("interpretation commitment"),
+        "{}",
+        rejection.diagnostic()
+    );
 }
 
 #[test]

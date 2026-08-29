@@ -32,7 +32,7 @@ const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 pub struct ValidatedElfDynamicTablePayload {
     plan: ValidatedElfDynamicTagPlan,
     contents: ElfDynamicTablePayloadContents,
-    payload_identity: u64,
+    non_authoritative_payload_compatibility_fingerprint: u64,
 }
 
 impl ValidatedElfDynamicTablePayload {
@@ -55,8 +55,8 @@ impl ValidatedElfDynamicTablePayload {
     /// Compatibility fingerprint of the exact semantic tag identity,
     /// ELF64-LSB bytes, and typed byte-coordinate fixups. This is not final-
     /// byte, placement, loader, or publication identity.
-    pub const fn payload_identity(&self) -> u64 {
-        self.payload_identity
+    pub const fn non_authoritative_payload_compatibility_fingerprint(&self) -> u64 {
+        self.non_authoritative_payload_compatibility_fingerprint
     }
 
     pub(crate) const fn contents(&self) -> &ElfDynamicTablePayloadContents {
@@ -125,7 +125,7 @@ struct DecodedElfDynamicRow {
 struct Candidate {
     plan: ValidatedElfDynamicTagPlan,
     contents: ElfDynamicTablePayloadContents,
-    payload_identity: u64,
+    non_authoritative_payload_compatibility_fingerprint: u64,
 }
 
 struct CandidateValidationError {
@@ -151,11 +151,12 @@ pub fn serialize_elf_dynamic_table(
             }));
         }
     };
-    let payload_identity = payload_identity(&plan, &contents);
+    let non_authoritative_payload_compatibility_fingerprint =
+        non_authoritative_payload_compatibility_fingerprint(&plan, &contents);
     let candidate = Candidate {
         plan,
         contents,
-        payload_identity,
+        non_authoritative_payload_compatibility_fingerprint,
     };
     match validate_candidate(candidate) {
         Ok(validated) => Ok(validated),
@@ -228,16 +229,21 @@ fn validate_candidate(
             diagnostic,
         });
     }
-    if candidate.payload_identity != payload_identity(&candidate.plan, &candidate.contents) {
+    if candidate.non_authoritative_payload_compatibility_fingerprint
+        != non_authoritative_payload_compatibility_fingerprint(&candidate.plan, &candidate.contents)
+    {
         return Err(CandidateValidationError {
             candidate,
-            diagnostic: Diagnostic::error("ELF dynamic payload identity does not replay"),
+            diagnostic: Diagnostic::error(
+                "ELF dynamic payload compatibility fingerprint does not replay",
+            ),
         });
     }
     Ok(ValidatedElfDynamicTablePayload {
         plan: candidate.plan,
         contents: candidate.contents,
-        payload_identity: candidate.payload_identity,
+        non_authoritative_payload_compatibility_fingerprint: candidate
+            .non_authoritative_payload_compatibility_fingerprint,
     })
 }
 
@@ -391,13 +397,17 @@ fn require(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
         .ok_or_else(|| Diagnostic::error(message))
 }
 
-fn payload_identity(
+fn non_authoritative_payload_compatibility_fingerprint(
     plan: &ValidatedElfDynamicTagPlan,
     contents: &ElfDynamicTablePayloadContents,
 ) -> u64 {
     let mut hash = Fnv1a::new();
     hash.bytes(b"omega.elf-dynamic-table-payload.v1");
-    hash.bytes(&plan.tag_identity().to_le_bytes());
+    hash.bytes(
+        &plan
+            .non_authoritative_tag_compatibility_fingerprint()
+            .to_le_bytes(),
+    );
     hash.bytes(&contents.bytes);
     hash.bytes(&(contents.address_fixups.len() as u64).to_le_bytes());
     for fixup in &contents.address_fixups {
@@ -573,11 +583,12 @@ mod tests {
     fn candidate(target: TargetProfile) -> Candidate {
         let plan = tag_plan(target, &IMPORTS);
         let contents = encode_contents(&plan).expect("encoded dynamic bytes");
-        let payload_identity = payload_identity(&plan, &contents);
+        let non_authoritative_payload_compatibility_fingerprint =
+            non_authoritative_payload_compatibility_fingerprint(&plan, &contents);
         Candidate {
             plan,
             contents,
-            payload_identity,
+            non_authoritative_payload_compatibility_fingerprint,
         }
     }
 
@@ -594,7 +605,10 @@ mod tests {
             assert_eq!(payload.row_count(), 15);
             assert_eq!(payload.byte_count(), 240);
             assert_eq!(payload.address_fixup_count(), 7);
-            assert_ne!(payload.payload_identity(), 0);
+            assert_ne!(
+                payload.non_authoritative_payload_compatibility_fingerprint(),
+                0
+            );
 
             let bytes = &payload.contents.bytes;
             let first_needed = match payload.plan.contents().rows[0].value {
@@ -708,9 +722,15 @@ mod tests {
         let arm =
             serialize_elf_dynamic_table(tag_plan(TargetProfile::LinuxArm64, &IMPORTS)).unwrap();
         assert_eq!(forward.contents, reverse.contents);
-        assert_eq!(forward.payload_identity(), reverse.payload_identity());
+        assert_eq!(
+            forward.non_authoritative_payload_compatibility_fingerprint(),
+            reverse.non_authoritative_payload_compatibility_fingerprint()
+        );
         assert_eq!(forward.contents.bytes, arm.contents.bytes);
-        assert_ne!(forward.payload_identity(), arm.payload_identity());
+        assert_ne!(
+            forward.non_authoritative_payload_compatibility_fingerprint(),
+            arm.non_authoritative_payload_compatibility_fingerprint()
+        );
     }
 
     #[test]
@@ -731,16 +751,23 @@ mod tests {
                 candidate.contents.bytes.pop();
             }),
             Box::new(|candidate| candidate.contents.bytes.push(0)),
-            Box::new(|candidate| candidate.payload_identity ^= 1),
+            Box::new(|candidate| {
+                candidate.non_authoritative_payload_compatibility_fingerprint ^= 1
+            }),
         ];
         for corrupt in corruptions {
             let mut candidate = candidate(TargetProfile::LinuxX64);
-            let expected_identity = candidate.plan.tag_identity();
+            let expected_identity = candidate
+                .plan
+                .non_authoritative_tag_compatibility_fingerprint();
             corrupt(&mut candidate);
             let error =
                 validate_candidate(candidate).expect_err("corrupt Elf64_Dyn payload must reject");
             assert_eq!(
-                error.candidate.plan.tag_identity(),
+                error
+                    .candidate
+                    .plan
+                    .non_authoritative_tag_compatibility_fingerprint(),
                 expected_identity,
                 "dynamic-byte rejection retains exact semantic-plan custody",
             );
@@ -769,11 +796,19 @@ mod tests {
         ];
         for corrupt in corruptions {
             let mut candidate = candidate(TargetProfile::LinuxArm64);
-            let expected_identity = candidate.plan.tag_identity();
+            let expected_identity = candidate
+                .plan
+                .non_authoritative_tag_compatibility_fingerprint();
             corrupt(&mut candidate);
             let error = validate_candidate(candidate)
                 .expect_err("corrupt Elf64_Dyn address fixup must reject");
-            assert_eq!(error.candidate.plan.tag_identity(), expected_identity);
+            assert_eq!(
+                error
+                    .candidate
+                    .plan
+                    .non_authoritative_tag_compatibility_fingerprint(),
+                expected_identity
+            );
         }
     }
 

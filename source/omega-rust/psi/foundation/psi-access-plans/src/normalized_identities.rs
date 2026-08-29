@@ -3,14 +3,17 @@ use super::{
     ExternalCapability, ExternalRead, ExternalReadBehavior, FieldAccess, PlacementPlanId,
     ResourceProfileId, ResourceRegion, StableCapability, TransferRule,
 };
+use psi_extents::{ExtentContentInterpretation, ExtentContentInterpretationId};
+use psi_layout_plans::{IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport};
+use sha2::{Digest, Sha256};
 
-pub(super) fn normalized_placement_plan_identity(
+pub(super) fn non_authoritative_placement_compatibility_fingerprint(
     access: AccessPlanId,
     reach: &BoundaryReach,
 ) -> PlacementPlanId {
     let mut hash = 0xcbf29ce484222325u64;
     hash_bytes(&mut hash, b"omega.placement-plan.v1");
-    hash_u64(&mut hash, access.normalized_identity());
+    hash_u64(&mut hash, access.compatibility_fingerprint());
     hash_u64(&mut hash, reach.services().len() as u64);
     for service in reach.services() {
         hash_u64(&mut hash, service.normalized_identity());
@@ -18,7 +21,181 @@ pub(super) fn normalized_placement_plan_identity(
     PlacementPlanId(if hash == 0 { 1 } else { hash })
 }
 
-pub(super) fn normalized_resource_profile_identity(
+/// Collision-resistant identity for the complete canonical placement policy.
+///
+/// Unlike the compact FNV compatibility fingerprint above, this value may be
+/// used to rejoin provider content evidence to its exact interpretation.
+pub(super) fn authoritative_placement_interpretation(
+    plan: &super::ValidatedPlacementPlan,
+) -> ExtentContentInterpretation {
+    let mut digest = Sha256::new();
+    digest.update(b"omega.placement-plan.authoritative.v1\0");
+    hash_canonical_layout(&mut digest, &plan.layout);
+    hash_u64_sha(&mut digest, plan.access.plan.entries.len() as u64);
+    for entry in &plan.access.plan.entries {
+        hash_u64_sha(&mut digest, u64::from(entry.key.slot));
+        hash_field_access_sha(&mut digest, &entry.access);
+    }
+    hash_u64_sha(&mut digest, plan.reach.services().len() as u64);
+    for service in plan.reach.services() {
+        hash_u64_sha(&mut digest, service.normalized_identity());
+    }
+    let commitment: [u8; 32] = digest.finalize().into();
+    let compatibility_fingerprint = ExtentContentInterpretationId::from_normalized_identity(
+        plan.identity.compatibility_fingerprint(),
+    )
+    .expect("validated placement compatibility fingerprints are nonzero");
+    ExtentContentInterpretation::from_sha256_commitment(compatibility_fingerprint, commitment)
+}
+
+fn hash_canonical_layout(digest: &mut Sha256, layout: &psi_layout_plans::LayoutPlanReport) {
+    hash_u64_sha(digest, layout.schema_identity);
+    match layout.size {
+        Some(size) => {
+            digest.update([1]);
+            hash_u64_sha(digest, size);
+        }
+        None => digest.update([0]),
+    }
+    hash_u64_sha(digest, layout.align);
+    let mut entries = layout
+        .entries
+        .iter()
+        .map(canonical_layout_entry_bytes)
+        .collect::<Vec<_>>();
+    entries.sort_unstable();
+    hash_u64_sha(digest, entries.len() as u64);
+    for entry in entries {
+        hash_u64_sha(digest, entry.len() as u64);
+        digest.update(entry);
+    }
+}
+
+fn canonical_layout_entry_bytes(entry: &LayoutFieldEntryReport) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    match entry.member_identity {
+        Some(identity) => {
+            bytes.push(1);
+            bytes.extend(identity.to_le_bytes());
+        }
+        None => {
+            bytes.push(0);
+            bytes.extend((entry.field.len() as u64).to_le_bytes());
+            bytes.extend(entry.field.as_bytes());
+        }
+    }
+    match entry.placement {
+        LayoutPlacementReport::At { offset } => {
+            bytes.push(0);
+            bytes.extend(offset.to_le_bytes());
+        }
+        LayoutPlacementReport::IntegerAt {
+            offset,
+            stored_width,
+            interpretation,
+        } => {
+            bytes.push(1);
+            bytes.extend(offset.to_le_bytes());
+            bytes.extend(stored_width.to_le_bytes());
+            bytes.push(match interpretation {
+                IntegerInterpretation::Signed => 0,
+                IntegerInterpretation::Unsigned => 1,
+            });
+        }
+        LayoutPlacementReport::Bits {
+            container,
+            container_width,
+            destination_lsb,
+            source_lsb,
+            width,
+        } => {
+            bytes.push(2);
+            for value in [
+                container,
+                container_width,
+                destination_lsb,
+                source_lsb,
+                width,
+            ] {
+                bytes.extend(value.to_le_bytes());
+            }
+        }
+    }
+    bytes
+}
+
+fn hash_field_access_sha(digest: &mut Sha256, access: &FieldAccess) {
+    match access {
+        FieldAccess::Inaccessible => digest.update([0]),
+        FieldAccess::Stable {
+            transfer_width_bits,
+            read,
+            write,
+            exposure,
+        } => {
+            digest.update([1]);
+            hash_u64_sha(digest, u64::from(*transfer_width_bits));
+            digest.update([u8::from(*read), u8::from(*write)]);
+            hash_exposure_sha(digest, *exposure);
+        }
+        FieldAccess::External {
+            transfer_width_bits,
+            read,
+            write,
+            exposure,
+        } => {
+            digest.update([2]);
+            hash_u64_sha(digest, u64::from(*transfer_width_bits));
+            digest.update([
+                match read {
+                    ExternalRead::None => 0,
+                    ExternalRead::Read => 1,
+                    ExternalRead::Take => 2,
+                },
+                u8::from(*write),
+            ]);
+            hash_exposure_sha(digest, *exposure);
+        }
+        FieldAccess::Atomic {
+            transfer_width_bits,
+            operations,
+            exposure,
+        } => {
+            digest.update([3]);
+            hash_u64_sha(digest, u64::from(*transfer_width_bits));
+            for enabled in [
+                operations.load,
+                operations.store,
+                operations.fetch_add,
+                operations.fetch_sub,
+                operations.fetch_xor,
+                operations.fetch_or,
+                operations.fetch_and,
+                operations.swap,
+                operations.compare_exchange,
+                operations.compare_exchange_once,
+                operations.try_exchange,
+                operations.try_exchange_once,
+            ] {
+                digest.update([u8::from(enabled)]);
+            }
+            hash_exposure_sha(digest, *exposure);
+        }
+    }
+}
+
+fn hash_exposure_sha(digest: &mut Sha256, exposure: AccessExposure) {
+    digest.update([match exposure {
+        AccessExposure::Exported => 0,
+        AccessExposure::BindingPrivate => 1,
+    }]);
+}
+
+fn hash_u64_sha(digest: &mut Sha256, value: u64) {
+    digest.update(value.to_le_bytes());
+}
+
+pub(super) fn non_authoritative_resource_profile_compatibility_fingerprint(
     length: u64,
     regions: &[ResourceRegion],
 ) -> ResourceProfileId {
@@ -108,7 +285,7 @@ fn hash_atomic_permissions(hash: &mut u64, permissions: AtomicPermissions) {
     }
 }
 
-pub(super) fn normalized_access_plan_identity(
+pub(super) fn non_authoritative_access_plan_compatibility_fingerprint(
     plan: &AccessPlan,
     layout_fingerprint: u64,
 ) -> AccessPlanId {

@@ -101,8 +101,10 @@ use access_plan_validation::validate_entry_geometry;
 use authorization::{authorize_descriptor, validate_operation_ordering};
 use field_projection::project_placed_field;
 use normalized_identities::{
-    normalized_access_plan_identity, normalized_placement_plan_identity,
-    normalized_resource_profile_identity,
+    authoritative_placement_interpretation,
+    non_authoritative_access_plan_compatibility_fingerprint,
+    non_authoritative_placement_compatibility_fingerprint,
+    non_authoritative_resource_profile_compatibility_fingerprint,
 };
 use owned_resident_custody::{
     replay_owned_admission_resources, validate_owned_content_binding,
@@ -510,7 +512,9 @@ pub struct ResourceProfile {
 pub struct ResourceProfileId(u64);
 
 impl ResourceProfileId {
-    pub const fn normalized_identity(self) -> u64 {
+    /// Compact report/cache coordinate. Admission retains and replays the
+    /// complete normalized resource profile rather than trusting this value.
+    pub const fn compatibility_fingerprint(self) -> u64 {
         self.0
     }
 }
@@ -606,7 +610,9 @@ fn canonical_field_identity_label(identity: &CanonicalFieldIdentity) -> String {
 pub struct AccessPlanId(u64);
 
 impl AccessPlanId {
-    pub const fn normalized_identity(self) -> u64 {
+    /// Compact report/cache coordinate. Access authority retains the complete
+    /// validated layout and access decisions rather than trusting this value.
+    pub const fn compatibility_fingerprint(self) -> u64 {
         self.0
     }
 }
@@ -859,7 +865,9 @@ pub struct PlacementPlan {
 pub struct PlacementPlanId(u64);
 
 impl PlacementPlanId {
-    pub const fn normalized_identity(self) -> u64 {
+    /// Compact compatibility coordinate. Provider-content authority uses
+    /// [`ValidatedPlacementPlan::content_interpretation`] instead.
+    pub const fn compatibility_fingerprint(self) -> u64 {
         self.0
     }
 }
@@ -867,6 +875,7 @@ impl PlacementPlanId {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedPlacementPlan {
     identity: PlacementPlanId,
+    content_interpretation: psi_extents::ExtentContentInterpretation,
     layout: LayoutPlanReport,
     access: ValidatedAccessPlan,
     reach: BoundaryReach,
@@ -875,6 +884,13 @@ pub struct ValidatedPlacementPlan {
 impl ValidatedPlacementPlan {
     pub const fn identity(&self) -> PlacementPlanId {
         self.identity
+    }
+
+    /// Exact identity used when provider-existing content is joined to this
+    /// placement. The embedded `u64` is compatibility/report data; authority
+    /// additionally requires the domain-separated SHA-256 commitment.
+    pub const fn content_interpretation(&self) -> psi_extents::ExtentContentInterpretation {
+        self.content_interpretation
     }
 
     pub const fn layout(&self) -> &LayoutPlanReport {
@@ -1071,13 +1087,22 @@ pub fn validate_placement_plan(
         reach,
     } = plan;
     let access = validate_access_plan(access, &layout)?;
-    let identity = normalized_placement_plan_identity(access.identity(), &reach);
-    Ok(ValidatedPlacementPlan {
+    let identity = non_authoritative_placement_compatibility_fingerprint(access.identity(), &reach);
+    let mut validated = ValidatedPlacementPlan {
         identity,
+        content_interpretation: psi_extents::ExtentContentInterpretation::from_sha256_commitment(
+            psi_extents::ExtentContentInterpretationId::from_normalized_identity(
+                identity.compatibility_fingerprint(),
+            )
+            .map_err(|diagnostic| AccessPlanDiagnostic(diagnostic.to_string()))?,
+            [0; 32],
+        ),
         layout,
         access,
         reach,
-    })
+    };
+    validated.content_interpretation = authoritative_placement_interpretation(&validated);
+    Ok(validated)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

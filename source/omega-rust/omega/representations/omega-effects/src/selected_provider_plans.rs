@@ -1,5 +1,24 @@
 use crate::provider_plan::ProviderPlan;
+use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
+
+/// Collision-resistant identity of one complete selected-provider closure.
+///
+/// This commits the exact selected plans and every attached closure fact. The
+/// existing compact normalized identity remains a compatibility/report
+/// coordinate and must not authorize artifact replay by itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SelectedProviderClosureDigest([u8; 32]);
+
+impl SelectedProviderClosureDigest {
+    const fn from_digest(digest: [u8; 32]) -> Self {
+        Self(digest)
+    }
+
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+}
 
 /// The exact provider plans selected by the compiler for one checked program.
 ///
@@ -185,6 +204,43 @@ impl SelectedProviderPlanFacts {
 
     pub const fn normalized_identity(&self) -> u64 {
         self.normalized_identity
+    }
+
+    /// Non-authoritative compatibility/report identity retained for existing
+    /// artifact formats and diagnostics.
+    pub const fn compatibility_report_identity(&self) -> u64 {
+        self.normalized_identity
+    }
+
+    /// Domain-separated SHA-256 commitment to the complete exact selected
+    /// closure. Artifact replay must use this value or retain the complete
+    /// closure rather than relying on [`Self::compatibility_report_identity`].
+    pub fn identity_digest(&self) -> SelectedProviderClosureDigest {
+        let mut encoder = SelectedProviderClosureDigestEncoder::new();
+        encoder.len(self.plans.len());
+        for plan in &self.plans {
+            encoder.bytes(plan.identity_digest().as_bytes());
+        }
+        encoder.execution_scope(self.execution_scope);
+
+        encoder.len(self.indexed_provider_application_coverage.len());
+        for coverage in &self.indexed_provider_application_coverage {
+            encoder.bytes(&coverage.canonical_bytes());
+        }
+
+        encoder.len(self.opaque_executable_admissions.len());
+        for admission in &self.opaque_executable_admissions {
+            encoder.opaque_executable_admission(admission.candidate());
+        }
+
+        encoder.len(self.installation_reach_resolutions.len());
+        for resolution in &self.installation_reach_resolutions {
+            encoder.string(&resolution.requirement_identity);
+            encoder.u64(resolution.provider_plan_identity);
+            encoder.strings(&resolution.upper_bound);
+            encoder.strings(&resolution.resolved_row);
+        }
+        encoder.finish()
     }
 
     pub const fn execution_scope(&self) -> crate::ExecutionScope {
@@ -514,6 +570,146 @@ fn fingerprint_selected_closure(
         }
     }
     hash
+}
+
+struct SelectedProviderClosureDigestEncoder(Sha256);
+
+impl SelectedProviderClosureDigestEncoder {
+    fn new() -> Self {
+        let mut digest = Sha256::new();
+        digest.update(b"omega.selected-provider-closure.sha256.v1\0");
+        Self(digest)
+    }
+
+    fn finish(self) -> SelectedProviderClosureDigest {
+        SelectedProviderClosureDigest::from_digest(self.0.finalize().into())
+    }
+
+    fn byte(&mut self, value: u8) {
+        self.0.update([value]);
+    }
+
+    fn len(&mut self, value: usize) {
+        self.0.update((value as u64).to_le_bytes());
+    }
+
+    fn u64(&mut self, value: u64) {
+        self.0.update(value.to_le_bytes());
+    }
+
+    fn i64(&mut self, value: i64) {
+        self.0.update(value.to_le_bytes());
+    }
+
+    fn bytes(&mut self, bytes: &[u8]) {
+        self.len(bytes.len());
+        self.0.update(bytes);
+    }
+
+    fn string(&mut self, value: &str) {
+        self.bytes(value.as_bytes());
+    }
+
+    fn strings(&mut self, values: &[String]) {
+        self.len(values.len());
+        for value in values {
+            self.string(value);
+        }
+    }
+
+    fn optional_string(&mut self, value: Option<&str>) {
+        match value {
+            Some(value) => {
+                self.byte(1);
+                self.string(value);
+            }
+            None => self.byte(0),
+        }
+    }
+
+    fn execution_scope(&mut self, scope: crate::ExecutionScope) {
+        match scope {
+            crate::ExecutionScope::CallerAddressSpace => self.byte(0),
+            crate::ExecutionScope::IsolatedProvider(identity) => {
+                self.byte(1);
+                self.u64(identity);
+            }
+        }
+    }
+
+    fn opaque_executable_admission(
+        &mut self,
+        admission: &crate::OpaqueExecutableAdmissionCandidate,
+    ) {
+        self.u64(admission.provider_plan_identity);
+        self.string(&admission.method);
+        self.string(&admission.requirement_identity);
+        self.opaque_binding(&admission.binding);
+        self.string(&admission.executable_identity);
+        self.string(&admission.implementation_evidence_identity);
+        self.execution_scope(admission.execution_scope);
+        self.len(admission.containment.len());
+        for evidence in &admission.containment {
+            self.byte(match evidence.guarantee {
+                crate::ContainmentGuarantee::MemoryIsolation => 0,
+                crate::ContainmentGuarantee::ForcibleTermination => 1,
+                crate::ContainmentGuarantee::FaultContainment => 2,
+                crate::ContainmentGuarantee::BoundedResources => 3,
+            });
+            self.string(&evidence.evidence_identity);
+        }
+        self.optional_string(admission.executable_closure_evidence_identity.as_deref());
+    }
+
+    fn opaque_binding(&mut self, binding: &crate::OpaqueInProcessBinding) {
+        match binding {
+            crate::OpaqueInProcessBinding::Import { locator } => {
+                self.byte(0);
+                self.string(locator.target().target_name());
+                match locator.locator() {
+                    crate::ForeignLocatorCandidate::PeByName { library, export } => {
+                        self.byte(0);
+                        self.bytes(library);
+                        self.bytes(export);
+                    }
+                    crate::ForeignLocatorCandidate::PeByOrdinal { library, ordinal } => {
+                        self.byte(1);
+                        self.bytes(library);
+                        self.0.update(ordinal.to_le_bytes());
+                    }
+                    crate::ForeignLocatorCandidate::ElfVersioned {
+                        object,
+                        symbol,
+                        version,
+                    } => {
+                        self.byte(2);
+                        self.bytes(object);
+                        self.bytes(symbol);
+                        self.bytes(version);
+                    }
+                }
+            }
+            crate::OpaqueInProcessBinding::StringBackedImportBootstrap { library, symbol } => {
+                self.byte(1);
+                self.string(library);
+                self.string(symbol);
+            }
+            crate::OpaqueInProcessBinding::VtableSlot { index } => {
+                self.byte(2);
+                self.i64(*index);
+            }
+            crate::OpaqueInProcessBinding::VtableField { table, field } => {
+                self.byte(3);
+                self.string(table);
+                self.string(field);
+            }
+            crate::OpaqueInProcessBinding::TableFunction { table, field } => {
+                self.byte(4);
+                self.string(table);
+                self.string(field);
+            }
+        }
+    }
 }
 
 #[cfg(test)]

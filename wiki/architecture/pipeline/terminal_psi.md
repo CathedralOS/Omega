@@ -2183,7 +2183,12 @@ installed-code custody, and only then produces a runnable carrier.
 The source-free native carrier belongs to the neutral
 `omega-native-artifact` crate. The component-specific wrapper remains
 in `omega-component-candidate`; compiler and deployment depend on
-those neutral owners without a cycle. Constructing either carrier grants no
+those neutral owners without a cycle. The native carrier labels the retained
+selected-provider `u64` as a compatibility report coordinate and separately
+retains a domain-separated SHA-256 commitment to the complete exact selected
+closure. The component wrapper independently recomputes that commitment before
+accepting the source-policy rejoin, so a compact-equal structural substitute
+cannot cross the handoff. Constructing either carrier grants no
 authority: deployment still independently replays the artifact, installation,
 provider, and progress joins before any registry claim or publication. The
 compiler output owner now accepts a

@@ -110,6 +110,37 @@ normalized_extent_identity!(
 );
 normalized_extent_identity!(ResidentClaimId, "resident-claim");
 
+/// Exact semantic interpretation selected for provider-existing content.
+///
+/// The compact fingerprint remains useful for compatibility reporting, but
+/// consumers must also rejoin the collision-resistant commitment before the
+/// provider's content-validity evidence can be used.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ExtentContentInterpretation {
+    compatibility_fingerprint: ExtentContentInterpretationId,
+    commitment: [u8; 32],
+}
+
+impl ExtentContentInterpretation {
+    pub const fn from_sha256_commitment(
+        compatibility_fingerprint: ExtentContentInterpretationId,
+        commitment: [u8; 32],
+    ) -> Self {
+        Self {
+            compatibility_fingerprint,
+            commitment,
+        }
+    }
+
+    pub const fn compatibility_fingerprint(self) -> ExtentContentInterpretationId {
+        self.compatibility_fingerprint
+    }
+
+    pub const fn commitment(self) -> [u8; 32] {
+        self.commitment
+    }
+}
+
 use std::collections::BTreeSet;
 
 mod mapping;
@@ -470,7 +501,7 @@ pub struct ProviderExistingContentGrant {
     address_space: AddressSpaceId,
     provenance: ExtentProvenanceId,
     era: MappingEraId,
-    interpretation: ExtentContentInterpretationId,
+    interpretation: ExtentContentInterpretation,
     resident_claim: ResidentClaimId,
     validity_receipt: ExtentContentValidityReceiptId,
     custody_receipt: ExtentContentCustodyReceiptId,
@@ -505,7 +536,7 @@ impl ProviderExistingContentGrant {
         self.era
     }
 
-    pub const fn interpretation(&self) -> ExtentContentInterpretationId {
+    pub const fn interpretation(&self) -> ExtentContentInterpretation {
         self.interpretation
     }
 
@@ -614,14 +645,15 @@ impl ExtentRootGrant {
     /// Consume one provider-issued root grant into both its exact Extent and
     /// one-shot existing-content authority.
     ///
-    /// The interpretation identity is provider-admitted input here; its
-    /// consumer must compare it with the actual normalized placement selected
-    /// for the Extent. Failure returns the complete root grant for retry.
+    /// The interpretation is provider-admitted input here; its consumer must
+    /// compare both its report fingerprint and strong commitment with the
+    /// actual normalized placement selected for the Extent. Failure returns
+    /// the complete root grant for retry.
     pub fn mint_provider_existing_content(
         self,
         base: u64,
         length: u64,
-        interpretation: ExtentContentInterpretationId,
+        interpretation: ExtentContentInterpretation,
         resident_claim: ResidentClaimId,
         validity_receipt: ExtentContentValidityReceiptId,
         custody_receipt: ExtentContentCustodyReceiptId,
@@ -2089,7 +2121,10 @@ mod tests {
             .mint_provider_existing_content(
                 0x8000,
                 64,
-                id(82, ExtentContentInterpretationId::from_normalized_identity),
+                ExtentContentInterpretation::from_sha256_commitment(
+                    id(82, ExtentContentInterpretationId::from_normalized_identity),
+                    [0x82; 32],
+                ),
                 id(85, ResidentClaimId::from_normalized_identity),
                 id(83, ExtentContentValidityReceiptId::from_normalized_identity),
                 id(84, ExtentContentCustodyReceiptId::from_normalized_identity),
@@ -2101,7 +2136,13 @@ mod tests {
         assert_eq!(content.address_space(), extent.address_space());
         assert_eq!(content.provenance(), extent.provenance());
         assert_eq!(content.era(), extent.era());
-        assert_eq!(content.interpretation().normalized_identity(), 82);
+        assert_eq!(
+            content
+                .interpretation()
+                .compatibility_fingerprint()
+                .normalized_identity(),
+            82
+        );
         assert_eq!(content.resident_claim().normalized_identity(), 85);
         assert_eq!(content.validity_receipt().normalized_identity(), 83);
         assert_eq!(content.custody_receipt().normalized_identity(), 84);
@@ -2113,7 +2154,10 @@ mod tests {
             .mint_provider_existing_content(
                 0xa000,
                 64,
-                id(92, ExtentContentInterpretationId::from_normalized_identity),
+                ExtentContentInterpretation::from_sha256_commitment(
+                    id(92, ExtentContentInterpretationId::from_normalized_identity),
+                    [0x92; 32],
+                ),
                 id(93, ResidentClaimId::from_normalized_identity),
                 id(94, ExtentContentValidityReceiptId::from_normalized_identity),
                 id(95, ExtentContentCustodyReceiptId::from_normalized_identity),
@@ -2123,7 +2167,10 @@ mod tests {
             .mint_provider_existing_content(
                 0xa000,
                 64,
-                id(92, ExtentContentInterpretationId::from_normalized_identity),
+                ExtentContentInterpretation::from_sha256_commitment(
+                    id(92, ExtentContentInterpretationId::from_normalized_identity),
+                    [0x92; 32],
+                ),
                 id(97, ResidentClaimId::from_normalized_identity),
                 id(94, ExtentContentValidityReceiptId::from_normalized_identity),
                 id(95, ExtentContentCustodyReceiptId::from_normalized_identity),
@@ -2147,7 +2194,10 @@ mod tests {
             .mint_provider_existing_content(
                 0x9000,
                 64,
-                id(87, ExtentContentInterpretationId::from_normalized_identity),
+                ExtentContentInterpretation::from_sha256_commitment(
+                    id(87, ExtentContentInterpretationId::from_normalized_identity),
+                    [0x87; 32],
+                ),
                 id(90, ResidentClaimId::from_normalized_identity),
                 id(88, ExtentContentValidityReceiptId::from_normalized_identity),
                 id(89, ExtentContentCustodyReceiptId::from_normalized_identity),

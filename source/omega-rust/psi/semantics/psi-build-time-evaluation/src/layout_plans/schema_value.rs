@@ -5,8 +5,11 @@ use psi_typed_trees::data::{DataMember, DataShapeKind};
 
 use super::{BuildTimeValue, SCHEMA_FIELD_CAPACITY, SchemaFieldInfo, reflected_field_layout};
 
-pub(super) fn field_key(schema: &str, field: &str) -> u64 {
-    // Stable FNV-1a. Zero remains the unused-tail sentinel.
+pub(crate) fn local_schema_field_discriminator(schema: &str, field: &str) -> u64 {
+    // Stable FNV-1a. This value is only a compiler-policy-local lookup key:
+    // every reflected scope rejects collisions before exposing it, and exact
+    // schema structure supplies durable identity. Zero remains the unused-tail
+    // sentinel.
     let mut hash = 0xcbf29ce484222325_u64;
     for byte in schema.bytes().chain([b':', b':']).chain(field.bytes()) {
         hash ^= u64::from(byte);
@@ -97,6 +100,16 @@ pub(crate) fn build_schema_value(
             SCHEMA_FIELD_CAPACITY
         ));
     }
+    reject_local_discriminator_collisions(
+        schema_data,
+        "case",
+        variants.iter().map(|variant| {
+            (
+                variant.name.to_string(),
+                local_schema_field_discriminator(schema_data, variant.name.as_str()),
+            )
+        }),
+    )?;
     let mut cases = Vec::with_capacity(SCHEMA_FIELD_CAPACITY);
     for index in 0..SCHEMA_FIELD_CAPACITY {
         let Some(variant) = variants.get(index).copied() else {
@@ -135,6 +148,15 @@ pub(crate) fn build_schema_value(
                 variant.name, SCHEMA_FIELD_CAPACITY
             ));
         }
+        reject_local_discriminator_collisions(
+            schema_data,
+            "payload field",
+            payload.iter().map(|field| {
+                let qualified = format!("{}::{}", variant.name, field.name);
+                let key = local_schema_field_discriminator(schema_data, qualified.as_str());
+                (field.name.to_string(), key)
+            }),
+        )?;
         let payload_fields = (0..SCHEMA_FIELD_CAPACITY)
             .map(|payload_index| {
                 let info = payload.get(payload_index).map(|field| {
@@ -144,7 +166,7 @@ pub(crate) fn build_schema_value(
                     SchemaFieldInfo {
                         name: field.name.to_string(),
                         identity: field.identity,
-                        key: field_key(
+                        key: local_schema_field_discriminator(
                             schema_data,
                             format!("{}::{}", variant.name, field.name).as_str(),
                         ),
@@ -165,7 +187,10 @@ pub(crate) fn build_schema_value(
             fields: vec![
                 (
                     "key".to_owned(),
-                    BuildTimeValue::Int(field_key(schema_data, variant.name.as_str()) as i64),
+                    BuildTimeValue::Int(local_schema_field_discriminator(
+                        schema_data,
+                        variant.name.as_str(),
+                    ) as i64),
                 ),
                 ("identity".to_owned(), optional_identity(variant.identity)),
                 (
@@ -225,4 +250,36 @@ pub(crate) fn build_schema_value(
             ),
         ],
     })
+}
+
+fn reject_local_discriminator_collisions(
+    schema: &str,
+    scope: &str,
+    entries: impl IntoIterator<Item = (String, u64)>,
+) -> Result<(), String> {
+    let mut seen = std::collections::BTreeMap::new();
+    for (name, discriminator) in entries {
+        if let Some(prior) = seen.insert(discriminator, name.clone()) {
+            return Err(format!(
+                "schema data `{schema}` has a compiler-local {scope} discriminator collision between `{prior}` and `{name}`"
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::reject_local_discriminator_collisions;
+
+    #[test]
+    fn local_schema_discriminator_collisions_fail_closed() {
+        let error = reject_local_discriminator_collisions(
+            "Packet",
+            "field",
+            [("header".to_owned(), 7), ("payload".to_owned(), 7)],
+        )
+        .expect_err("compact-equal schema discriminators must reject");
+        assert!(error.contains("`header`") && error.contains("`payload`"));
+    }
 }
