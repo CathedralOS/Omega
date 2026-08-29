@@ -1,6 +1,6 @@
 //! Revalidated package-aware inputs handed from source custody to the compiler.
 
-use crate::closure::ResolvedPackageSourceClosure;
+use crate::resolution::closure::ResolvedPackageSourceClosure;
 use omega_package_compilation::{
     PackageCompilationInputError, PackageCompilationInputs, PackageDependencyBinding,
     PackageSourceBinding,
@@ -27,7 +27,7 @@ pub fn package_compilation_inputs(
 /// unreachable-package check.
 pub fn package_compilation_inputs_for(
     closure: &ResolvedPackageSourceClosure,
-    root: &crate::source::identity::PackageKey,
+    root: &crate::resolution::identity::PackageKey,
 ) -> Result<PackageCompilationInputs, Vec<PackageCompilationInputError>> {
     let reachable = reachable_package_keys(closure, root);
     let packages = closure
@@ -68,10 +68,10 @@ pub fn package_compilation_inputs_for(
 }
 
 fn binding_with_canonical_source_metadata(
-    custody: &crate::closure::PackageSourceCustody,
+    custody: &crate::resolution::closure::PackageSourceCustody,
     binding: PackageSourceBinding,
 ) -> Result<PackageSourceBinding, PackageCompilationInputError> {
-    crate::source::acquisition::capture_verified_package_source_snapshot(
+    crate::resolution::acquisition::capture_verified_package_source_snapshot(
         custody.snapshot_root(),
         custody.resolution().content(),
         custody.source_limits(),
@@ -92,8 +92,8 @@ fn binding_with_canonical_source_metadata(
 
 pub(crate) fn reachable_package_keys(
     closure: &ResolvedPackageSourceClosure,
-    root: &crate::source::identity::PackageKey,
-) -> BTreeSet<crate::source::identity::PackageKey> {
+    root: &crate::resolution::identity::PackageKey,
+) -> BTreeSet<crate::resolution::identity::PackageKey> {
     let mut reachable = BTreeSet::new();
     let mut pending = vec![root.clone()];
     while let Some(package) = pending.pop() {
@@ -116,10 +116,10 @@ pub(crate) fn reachable_package_keys(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::closure::reconciliation::resolve_package_source_closure;
-    use crate::closure::{PackageRootSourceRequest, PackageSourceCustody};
     use crate::manifest::dependency_projection::DependencySourceRequest;
-    use crate::source::identity::{
+    use crate::resolution::closure::reconciliation::resolve_package_source_closure;
+    use crate::resolution::closure::{PackageRootSourceRequest, PackageSourceCustody};
+    use crate::resolution::identity::{
         GitCommitId, GitTreeId, ImmutableSourceResolution, PackageKey, PackageName,
         SourceContentDigest, SourceLineage,
     };

@@ -1,6 +1,6 @@
 use super::error::DependencyProjectionError;
 use super::model::DependencySourceRequest;
-use crate::source::identity::AliasName;
+use crate::resolution::identity::AliasName;
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 

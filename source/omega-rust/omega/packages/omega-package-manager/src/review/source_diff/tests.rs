@@ -1,6 +1,6 @@
 use super::diff::{Edit, render_hunks};
 use super::*;
-use crate::source::acquisition::VerifiedPackageSourceEntryKind;
+use crate::resolution::acquisition::VerifiedPackageSourceEntryKind;
 use crate::{ExternalSourceContext, LocalSourceLimits, resolve_external_local_package_source};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
