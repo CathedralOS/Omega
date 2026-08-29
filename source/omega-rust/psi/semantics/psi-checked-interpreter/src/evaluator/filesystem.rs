@@ -1493,14 +1493,17 @@ impl<'program> Evaluator<'program> {
             PreparedFilesystemCall::HardLink { original, link } => {
                 // `link(original, link)`: a second name for the same inode.
                 // ENOENT if the original is absent; EEXIST if the link name is
-                // taken. The hermetic FS has no inodes, so this COPIES the bytes
-                // (approximate: a later write to one name won't show in the
-                // other — see TASKS_FS.md). Enough to model create+readback.
-                if self.virtual_files.contains_key(&link) || self.virtual_dirs.contains(&link) {
+                // taken. The hermetic FS has no inodes, so this snapshots the
+                // modeled file state. A later mutation still will not propagate
+                // between names, but the snapshot is exact when neither name is
+                // subsequently mutated.
+                if self.virtual_files.contains_key(&link)
+                    || self.virtual_dirs.contains(&link)
+                    || self.virtual_symlinks.contains_key(&link)
+                {
                     self.virtual_errno = 17; // EEXIST
                     -1
-                } else if let Some(content) = self.virtual_files.get(&original).cloned() {
-                    self.virtual_files.insert(link, content);
+                } else if self.virtual_hard_link_file(&original, link) {
                     0
                 } else {
                     self.virtual_errno = 2; // ENOENT
@@ -1516,13 +1519,15 @@ impl<'program> Evaluator<'program> {
                 // hard-link primitive (session slice 3): the ARG ORDER is
                 // (new link, existing), REVERSED from `hard_link`, and the
                 // result is BOOL (1 success / 0 failure). Same hermetic
-                // copy-the-bytes model as `hard_link` above. virtual_errno is
+                // snapshot model as `hard_link` above. virtual_errno is
                 // also the provider's Win32 last-error slot for GetLastError.
-                if self.virtual_files.contains_key(&link) || self.virtual_dirs.contains(&link) {
+                if self.virtual_files.contains_key(&link)
+                    || self.virtual_dirs.contains(&link)
+                    || self.virtual_symlinks.contains_key(&link)
+                {
                     self.virtual_errno = 183; // ERROR_ALREADY_EXISTS
                     0
-                } else if let Some(content) = self.virtual_files.get(&existing).cloned() {
-                    self.virtual_files.insert(link, content);
+                } else if self.virtual_hard_link_file(&existing, link) {
                     1
                 } else {
                     self.virtual_errno = 2; // ERROR_FILE_NOT_FOUND
@@ -2171,6 +2176,36 @@ impl<'program> Evaluator<'program> {
         Some(bytes.len())
     }
 
+    /// Snapshot the complete file state modeled by the virtual provider under
+    /// a second name. Hard-link aliasing after this operation is intentionally
+    /// outside the model; this is exact only while neither name is mutated.
+    fn virtual_hard_link_file(&mut self, existing: &[u8], link: Vec<u8>) -> bool {
+        let Some(content) = self.virtual_files.get(existing).cloned() else {
+            return false;
+        };
+        let permissions = self.virtual_perms.get(existing).copied();
+        let modification_time = self.virtual_times.get(existing).copied();
+
+        self.virtual_files.insert(link.clone(), content);
+        match permissions {
+            Some(mode) => {
+                self.virtual_perms.insert(link.clone(), mode);
+            }
+            None => {
+                self.virtual_perms.remove(&link);
+            }
+        }
+        match modification_time {
+            Some(time) => {
+                self.virtual_times.insert(link, time);
+            }
+            None => {
+                self.virtual_times.remove(&link);
+            }
+        }
+        true
+    }
+
     /// `open(path, flags)`: model the O_CREAT/O_TRUNC/O_APPEND/access bits.
     /// Returns a fresh fd, or -1 if the path is absent and O_CREAT is not set.
     fn virtual_open_flags(&mut self, path: Vec<u8>, flags: i32) -> i32 {
@@ -2467,6 +2502,110 @@ mod tests {
                 host: MAX_FILESYSTEM_TRANSFER_BYTES,
             })
         );
+    }
+
+    #[test]
+    fn virtual_hard_link_variants_copy_all_modeled_file_metadata() {
+        let program = TypedTrees::default();
+        let mut evaluator = Evaluator::new(&program, &[]);
+        let source = b"source".to_vec();
+        let unix_link = b"unix-link".to_vec();
+        let windows_link = b"windows-link".to_vec();
+        evaluator
+            .virtual_files
+            .insert(source.clone(), b"payload".to_vec());
+        evaluator.virtual_perms.insert(source.clone(), 0o751);
+        evaluator.virtual_times.insert(source.clone(), 1_234_567);
+
+        let unix_result = evaluator
+            .serve_filesystem_call(PreparedFilesystemCall::HardLink {
+                original: source.clone(),
+                link: unix_link.clone(),
+            })
+            .unwrap_or_else(|_| panic!("virtual unix hard link is served"));
+        assert!(matches!(unix_result, Value::Int(0)));
+
+        let windows_result = evaluator
+            .serve_filesystem_call(PreparedFilesystemCall::CreateHardLink {
+                link: windows_link.clone(),
+                existing: source,
+                security_attributes: 0,
+            })
+            .unwrap_or_else(|_| panic!("virtual Win32 hard link is served"));
+        assert!(matches!(windows_result, Value::Int(1)));
+
+        for link in [unix_link, windows_link] {
+            assert_eq!(
+                evaluator.virtual_files.get(&link),
+                Some(&b"payload".to_vec())
+            );
+            assert_eq!(evaluator.virtual_perms.get(&link), Some(&0o751));
+            assert_eq!(evaluator.virtual_times.get(&link), Some(&1_234_567));
+        }
+    }
+
+    #[test]
+    fn virtual_hard_link_variants_reject_all_occupied_destination_kinds() {
+        let program = TypedTrees::default();
+        let mut evaluator = Evaluator::new(&program, &[]);
+        let source = b"source".to_vec();
+        let file = b"occupied-file".to_vec();
+        let directory = b"occupied-directory".to_vec();
+        let symlink = b"occupied-symlink".to_vec();
+        evaluator
+            .virtual_files
+            .insert(source.clone(), b"source bytes".to_vec());
+        evaluator
+            .virtual_files
+            .insert(file.clone(), b"existing bytes".to_vec());
+        evaluator.virtual_dirs.insert(directory.clone());
+        evaluator
+            .virtual_symlinks
+            .insert(symlink.clone(), b"target".to_vec());
+        evaluator.virtual_perms.insert(file.clone(), 0o600);
+        evaluator.virtual_times.insert(file.clone(), 99);
+        evaluator.virtual_perms.insert(directory.clone(), 0o700);
+        evaluator.virtual_times.insert(directory.clone(), 100);
+
+        for destination in [&file, &directory, &symlink] {
+            let result = evaluator
+                .serve_filesystem_call(PreparedFilesystemCall::HardLink {
+                    original: source.clone(),
+                    link: destination.clone(),
+                })
+                .unwrap_or_else(|_| panic!("virtual unix collision is served"));
+            assert!(matches!(result, Value::Int(-1)));
+            assert_eq!(evaluator.virtual_errno, 17);
+        }
+
+        for destination in [&file, &directory, &symlink] {
+            let result = evaluator
+                .serve_filesystem_call(PreparedFilesystemCall::CreateHardLink {
+                    link: destination.clone(),
+                    existing: source.clone(),
+                    security_attributes: 0,
+                })
+                .unwrap_or_else(|_| panic!("virtual Win32 collision is served"));
+            assert!(matches!(result, Value::Int(0)));
+            assert_eq!(evaluator.virtual_errno, 183);
+        }
+
+        assert_eq!(
+            evaluator.virtual_files.get(&file),
+            Some(&b"existing bytes".to_vec())
+        );
+        assert!(!evaluator.virtual_files.contains_key(&directory));
+        assert!(!evaluator.virtual_files.contains_key(&symlink));
+        assert_eq!(
+            evaluator.virtual_symlinks.get(&symlink),
+            Some(&b"target".to_vec())
+        );
+        assert_eq!(evaluator.virtual_perms.get(&file), Some(&0o600));
+        assert_eq!(evaluator.virtual_times.get(&file), Some(&99));
+        assert_eq!(evaluator.virtual_perms.get(&directory), Some(&0o700));
+        assert_eq!(evaluator.virtual_times.get(&directory), Some(&100));
+        assert!(!evaluator.virtual_perms.contains_key(&symlink));
+        assert!(!evaluator.virtual_times.contains_key(&symlink));
     }
 
     #[test]
