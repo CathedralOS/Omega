@@ -331,10 +331,11 @@ Remaining:
   module, library, generated/compile-time source, build input, and tool imported
   by that build.
 
-  The lattice-built Delta compiler performs the first required build of this
-  source into `omega₀`. `omega₀` then rebuilds the exact same source closure into
-  production `omega`; this is one compiler source rebuilt across two checked
-  edges, not a separate bridge or a second source task.
+  The lattice-built Delta compiler builds the separate Delta-written closure
+  `D` into `omega₀`; `omega₀` then builds this Omega-written closure `C` into
+  production `omega`. `D` and `C` implement the same complete Omega language
+  but are different source closures in different implementation languages.
+  This task owns `C`; `TASKS_BOOTSTRAP.md` owns `D` and both checked top edges.
 
   Author this source against the working compiler-source policy in
   `wiki/architecture/bootstrap_lattice/compiler_source_profile.md`; this task
@@ -361,14 +362,13 @@ Remaining:
   Keep adjacent tools outside the closure unless the compiler executable
   imports them.
 
-  Deriving the exact surface used by `C`, extending the Delta-produced compiler,
-  and validating the direct build remain in `TASKS_BOOTSTRAP.md`; do not duplicate
+  Deriving the exact surface used by `C`, authoring `D`, and validating
+  `D → omega₀` and `C → omega` remain in `TASKS_BOOTSTRAP.md`; do not duplicate
   product Psi/Omega implementation tasks there. The exact manifest is closure
-  evidence, not permission for the Delta-produced compiler to recognize
-  particular files or AST permutations. Terminal-Psi representation and
-  lowering modules linked into the compiler remain ordinary source
-  dependencies; standalone interpreters, viewers, REPLs, proof explorers, and
-  debuggers do not.
+  evidence, not permission for either compiler to recognize particular files
+  or AST permutations. Terminal-Psi representation and lowering modules linked
+  into the compiler remain ordinary source dependencies; standalone
+  interpreters, viewers, REPLs, proof explorers, and debuggers do not.
 
   Deliver this incrementally through coherent live source slices, each of which
   passes the applicable product suites. Historical `checkpoint-000001`

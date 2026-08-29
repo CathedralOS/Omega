@@ -50,7 +50,8 @@ The tape is platform-independent. Native seeds merely execute it.
 - complete the Alpha-written compiler for the Beta surface required by the
   Gamma compiler;
 - guard explicit data/return stacks and expose fail-closed resources;
-- check the exact Alpha assembly encoding of the compiler artifact, then prove
-  Beta-source-to-emitted-tape correctness as a separate boundary; and
+- check the exact Alpha-assembly-source-to-tape encoding of the compiler
+  artifact, then separately prove that compiler correct for arbitrary admitted
+  Beta source; and
 - escalate rather than extend Alpha locally if realistic Gamma compiler source
   creates unacceptable tape verbosity or performance.
