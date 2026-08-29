@@ -34,14 +34,12 @@ delete it. Git history is the archive; the repository is not.
   decoder, and the entire Darwin-native Delta publication/custody apparatus.
   They crossed the immediate-predecessor boundary and established the wrong
   artifact identity.
-- [ ] Reconcile the current Delta-written native compiler prototype at
-  `source/delta/compiler/main.delta` before moving any useful code into the
-  `source/omega/` closure `D`. The audit found a restricted single-source
-  frontend and Darwin ARM64 assembly backend, not a full Omega compiler. A path
-  move now would be a semantic overclaim. Delete prototype pieces that cannot
-  be economically adapted to the complete Omega frontend/Psi/product backend;
-  retain Delta source tests only when they state Delta semantics or test the
-  Gamma-written replacement compiler.
+- [x] Delete the restricted Delta-written native compiler prototype rather than
+  relabeling it as `D`. Its monolithic single-source frontend and Darwin ARM64
+  backend implemented neither the Gamma-written Delta edge nor full Omega, and
+  no unit-level adaptation was economical. Also delete the 31 `certify-*`
+  proof-application programs; they serialized checker certificates but did not
+  state Delta semantics or test the replacement compiler.
 - [ ] Audit every remaining bootstrap viewer, generated report, repeated-run
   receipt, wrapper, fixed-point gate, and differential implementation. Give it
   one bounded diagnostic or canonical-edge role, or delete it.
@@ -189,13 +187,12 @@ code, discover a closure, manufacture proof premises, or decide admission.
 
 ## 5. Delta-written full Omega compiler `D`
 
-- [ ] **OWN-OMEGA-D.** Reconcile and move the useful portion of current
-  `source/delta/compiler/main.delta` to `source/omega/omega_compiler.delta`.
-  Establish one exact package-resolved closure `D`; do not preserve historical
-  filenames, snapshots, or native-publication adapters as authorities. This is
-  downstream of Q18; the audited prototype has 63 receiver machines and 1,217
-  states but emits only Darwin ARM64 assembly and lacks the complete Omega
-  frontend, checking/Psi pipeline, optimizer, and product target model.
+- [ ] **OWN-OMEGA-D.** Author one exact package-resolved closure `D` at
+  `source/omega/omega_compiler.delta`; do not preserve historical filenames,
+  snapshots, or native-publication adapters as authorities. This is downstream
+  of Q18. The deleted prototype remains available in Git for selectively
+  re-deriving an isolated algorithm, but it cannot be restored or copied as a
+  compiler-shaped starting point.
 - [ ] Make `D` implement the complete Omega specification, including difficult
   features even if `D` itself uses only plain Delta. Conservative lowering and
   poor optimization are allowed; weakened Omega semantics are not.

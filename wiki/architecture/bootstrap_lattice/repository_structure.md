@@ -73,10 +73,9 @@ The committed tree predates D11 in three important places:
 - the former Beta-written Delta-to-Gamma and Darwin-native publication trees
   were deleted because they implemented a superseded cross-rung route. The
   required replacement is a Gamma-written Delta compiler producing Alpha tape.
-  The current
-  `source/delta/compiler/main.delta` is functionally the Delta-written first
-  Omega compiler and belongs under Omega ownership as source closure `D` after
-  its role and contract are reconciled.
+  The restricted Delta-written native compiler prototype was also deleted: it
+  was neither that compiler nor the full Omega closure `D` and had no economical
+  unit-level adaptation into either owner.
 
 These mismatches are migration work, not alternate accepted architectures. A
 legacy file stays only when this document or `TASKS_BOOTSTRAP.md` names its

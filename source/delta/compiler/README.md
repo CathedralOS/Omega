@@ -9,16 +9,12 @@ delta_compiler.gamma → delta_compiler_bytecode.tape
 
 That implementation does not yet exist.
 
-## Current misplaced implementation
-
-`main.delta` is not a Gamma-written Delta compiler. It is Delta-written compiler
-work intended to accept the source used for the first Omega build. Under D6 and
-D11 that role is the first Omega compiler implementation source closure `D`, so
-it belongs under `source/omega/` once its accepted language and full-Omega
-contract are reconciled.
-
-The superseded Beta Delta-to-Gamma route and Darwin-native publication tree are
-deleted rather than retained as an alternate compiler architecture.
+The superseded Beta Delta-to-Gamma route, Darwin-native publication tree, and
+restricted Delta-written native compiler prototype are deleted rather than
+retained as alternate compiler architecture. The prototype implemented neither
+this Gamma-written edge nor full Omega `D`; moving it would have preserved the
+wrong identity, while adapting its monolithic restricted frontend and Darwin
+backend was less economical than authoring the specified direct components.
 
 ## Required replacement
 

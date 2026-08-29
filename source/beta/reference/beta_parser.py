@@ -13,6 +13,7 @@ OPS = [
     '<=', '>=', '==', '!=', '+', '-', '*', '/', '%', '<', '>', '=',
     '(', ')', '{', '}', '[', ']', ',',
 ]
+MAX_WORD = (1 << 64) - 1
 
 
 def lex(src):
@@ -60,7 +61,10 @@ def lex(src):
             j = i
             while j < n and src[j].isdigit():
                 j += 1
-            toks.append(('num', int(src[i:j])))
+            value = int(src[i:j])
+            if value > MAX_WORD:
+                raise SyntaxError('beta parser: decimal literal exceeds Word')
+            toks.append(('num', value))
             i = j
             continue
         if c.isalpha() or c == '_':

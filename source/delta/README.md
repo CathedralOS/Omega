@@ -26,13 +26,10 @@ compilers and must not both be called “the Delta compiler.”
   change control.
 - `compiler/` is the owner of the future `delta_compiler.gamma`, its canonical
   Alpha tape, and refinement evidence.
-- `compiler/main.delta` is existing Delta-written Omega compiler work. Its
-  functional owner is source closure `D` under `source/omega/`; moving it is a
-  migration task, not a new bootstrap or on-ramp layer.
 
 The superseded Beta-written Delta-to-Gamma bridge and Darwin-native publication
-tree are deleted. Git history is sufficient; no compatibility owner replaces
-them.
+tree, including the restricted Delta-written Darwin compiler prototype, are
+deleted. Git history is sufficient; no compatibility owner replaces them.
 
 ## Boundaries
 

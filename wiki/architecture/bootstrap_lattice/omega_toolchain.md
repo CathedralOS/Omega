@@ -30,10 +30,10 @@ Delta-written source can run while compiling `C`, producing a better `omega`.
 - `source/omega-rust/{psi,omega}/` remains the working Rust implementation and
   comparator without bootstrap authority.
 
-The currently committed `source/delta/compiler/main.delta` has the role of
-Delta-written Omega implementation work, not a Gamma-written Delta compiler.
-Its source ownership must move to Omega when the implementation is reconciled
-with `D`; preserving its historical path does not preserve the old role.
+The former restricted Delta-written Darwin compiler prototype was deleted
+rather than relabeled as `D`. It lacked the complete Omega frontend, Psi
+pipeline, optimizer, and product target model; the real closure `D` is authored
+under `source/omega/` from the full contract.
 
 ## The source profile used by `C`
 

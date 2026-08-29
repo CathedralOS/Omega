@@ -43,6 +43,7 @@ load       := 'byte' '[' expr ']'   |   'word' '[' expr ']'
 store      := ('byte' | 'word') '[' expr ']' '=' expr
 cmpop      := '<' | '>' | '==' | '<=' | '>=' | '!='
 CHAR       := "'" (char | '\' ('n'|'t'|'r'|'0'|'\'|"'")) "'"   ; the byte value
+INT        := decimal digits whose mathematical value is in 0..2^64-1
 ```
 
 `;`-to-end-of-line comments. `read_byte()` / `write_byte(x)` are built-in calls
@@ -50,6 +51,8 @@ CHAR       := "'" (char | '\' ('n'|'t'|'r'|'0'|'\'|"'")) "'"   ; the byte value
 alone as a statement (`f(x)`), evaluated for effect with its result discarded.
 A char literal `'a'` is just its byte value (an `INT`), so text-processing code
 reads in characters instead of magic numbers (`peek() - '0'`, `c == '('`).
+Leading zeros are permitted in an `INT`; the range check is on its mathematical
+value and occurs before any wrapping machine accumulation.
 
 `emit("text")` is the one place a string literal is allowed: it writes the bytes
 to stdout (lowering to a `write` per byte). There is **no string type** — it is a

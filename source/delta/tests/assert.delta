@@ -1,9 +1,7 @@
 // `assert <cond>;` — a runtime contract. The condition is evaluated and, like overflow /
 // divide-by-zero / out-of-bounds indexing, a FALSE assertion TRAPS (SIGILL). This is the
-// dynamic half of Omega's contracts (requires/ensures): user-specified invariants the
-// program enforces at runtime, in keeping with delta's "trap everything" rule. (The
-// static, proof-carrying half is the convergence's certify-*.delta.) Here every assertion
-// holds, so the machine runs to exit 42.
+// program enforces at runtime, in keeping with Delta's checked-execution rule. Here every
+// assertion holds, so the machine runs to exit 42.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
 machine Main::main(&mut self) {

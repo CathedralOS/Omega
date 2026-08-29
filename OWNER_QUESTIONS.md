@@ -789,7 +789,7 @@ change source validity or observable meaning. Implementing them ad hoc inside
 `delta_compiler.gamma` would make the compiler, rather than the language
 contract, define Delta.
 
-The current candidate native compiler prototype uses the intended plain core:
+The deleted native compiler prototype demonstrated the intended plain core:
 records, fixed arrays, `i32`/`u8`, receiver machines, states, arithmetic,
 strings, and Console calls. It does not require packages, attributes,
 contracts, proof syntax, range types, or general domains. The broader test

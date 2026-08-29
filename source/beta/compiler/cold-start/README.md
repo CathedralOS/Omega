@@ -30,8 +30,8 @@ args      := expr ("," expr)*
 
 Whitespace and `;` line comments may occur between tokens. Identifiers use
 ASCII letters, digits after the first character, and `_`, with a checked 64-byte
-limit. Decimal literals are nonnegative and limited to nine digits for these
-slices. Character literals cover printable single bytes and `\n`, `\t`, `\r`,
+limit. Decimal literals cover the complete `0..2^64-1` Word range; leading zeros
+are permitted and overflow is rejected before wrapping. Character literals cover printable single bytes and `\n`, `\t`, `\r`,
 `\0`, `\\`, and `\'` escapes. A zero-parameter `main` must exist. Calls may be
 forward, backward, or nested; parameters and arguments are limited to four, and
 locals are function-scoped frame slots under Beta's calling convention. Keywords
