@@ -430,7 +430,7 @@ fn claim_completion_settlement_fixture() -> (
             boundary,
             provider_execution:
                 omega_target_operations::ProviderExecutionBinding::from_execution_record(
-                    omega_target_operations::ProviderPlanIdentity::new(seed).unwrap(),
+                    omega_target_operations::ProviderPlanReportIdentity::new(seed).unwrap(),
                     seed + 1,
                     seed + 2,
                     seed + 3,
@@ -726,7 +726,7 @@ fn claim_completion_settlement_is_ordered_metadata_without_instruction_ids() {
     let mut corrupted = selected.plan().clone();
     corrupted.structural_unit_functions[0].boundary_settlements[0].provider_execution =
         omega_target_operations::ProviderExecutionBinding::from_execution_record(
-            omega_target_operations::ProviderPlanIdentity::new(23).unwrap(),
+            omega_target_operations::ProviderPlanReportIdentity::new(23).unwrap(),
             29,
             31,
             37,

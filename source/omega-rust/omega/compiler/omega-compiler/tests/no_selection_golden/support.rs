@@ -150,8 +150,8 @@ pub(super) fn retained_native_snapshot(target: &str, artifact: &RetainedNativeAr
         executions = artifact.provider_executions().len(),
         provider_closure = artifact.selected_provider_closure_report_identity(),
         text_address = inventory.text_address,
-        text_fingerprint = inventory.text_fingerprint,
-        inventory_fingerprint = inventory.inventory_fingerprint,
+        text_fingerprint = inventory.text_report_fingerprint,
+        inventory_fingerprint = inventory.inventory_report_fingerprint,
         regions = inventory.regions.len(),
         gaps = inventory.unclassified_gaps.len(),
     )

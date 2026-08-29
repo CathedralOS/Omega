@@ -197,7 +197,10 @@ impl<'occurrence> UefiApplicationFirmwareLedger<'occurrence> {
             invocation: self.invocation,
             occurrence: scoped.provenance.occurrence,
             lease: scoped.phase_lease.lease,
-            layout_identity: scoped.integrity.layout().layout_identity(),
+            non_authoritative_layout_report_fingerprint: scoped
+                .integrity
+                .layout()
+                .non_authoritative_layout_report_fingerprint(),
         };
         drop(scoped);
         Ok(report)
@@ -300,7 +303,10 @@ impl std::fmt::Debug for LifecycleScopedUefiSystemTable<'_> {
             .field("invocation", &self.physical_invocation())
             .field("occurrence", &self.occurrence_id())
             .field("phase_lease", &self.phase_lease_id())
-            .field("layout_identity", &self.layout().layout_identity())
+            .field(
+                "non_authoritative_layout_report_fingerprint",
+                &self.layout().non_authoritative_layout_report_fingerprint(),
+            )
             .field("revision", &self.revision())
             .field("header_size", &self.header_size())
             .field("stored_crc32", &self.stored_crc32())
@@ -354,7 +360,7 @@ pub struct ReleasedUefiSystemTableScope {
     pub invocation: UefiPhysicalInvocationId,
     pub occurrence: UefiSystemTableOccurrenceId,
     pub lease: UefiBootServicesPhaseLeaseId,
-    pub layout_identity: u64,
+    pub non_authoritative_layout_report_fingerprint: u64,
 }
 
 /// Recoverable release failure retaining the complete scoped carrier.
@@ -443,10 +449,7 @@ pub fn join_lifecycle_scoped_uefi_system_table<'occurrence>(
 > {
     let expected_layout = plan_uefi_system_table_native_layout(TargetProfile::UefiX64)
         .expect("the closed UEFI x64 target must retain its system-table layout");
-    if integrity.layout().profile() != TargetProfile::UefiX64
-        || integrity.layout().entry_slot() != TargetProfile::UefiX64.program_entry_slot()
-        || integrity.layout().layout_identity() != expected_layout.layout_identity()
-    {
+    if !integrity.layout().matches_exact_plan(&expected_layout) {
         return reject_join(
             integrity,
             provenance,

@@ -175,7 +175,7 @@ fn validate_selected_provider_closure(
             )
         })
         .collect::<Vec<_>>();
-    projected.sort_by_key(NativeSelectedProviderPlan::identity);
+    projected.sort_by_key(NativeSelectedProviderPlan::report_identity);
     if projected != native_plans {
         return Err(
             "component candidate selected provider facts disagree with its native artifact",

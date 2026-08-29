@@ -108,7 +108,7 @@ pub struct ValidatedUefiSystemTableNativeLayout {
     profile: TargetProfile,
     entry_slot: ProgramEntrySlotDeclaration,
     contents: UefiSystemTableNativeLayoutContents,
-    layout_identity: u64,
+    non_authoritative_layout_report_fingerprint: u64,
 }
 
 impl ValidatedUefiSystemTableNativeLayout {
@@ -150,11 +150,23 @@ impl ValidatedUefiSystemTableNativeLayout {
             .find(|row| row.field == field)
     }
 
-    /// Compatibility fingerprint over the exact target/package/calling-plan
-    /// selection and every field row. This is layout identity, not firmware
-    /// occurrence or provider authority.
+    /// Compatibility accessor for the compact layout report fingerprint.
+    /// Runtime admission must use [`Self::matches_exact_plan`] instead.
     pub const fn layout_identity(&self) -> u64 {
-        self.layout_identity
+        self.non_authoritative_layout_report_fingerprint
+    }
+
+    /// Explicitly non-authoritative compact report/cache coordinate.
+    pub const fn non_authoritative_layout_report_fingerprint(&self) -> u64 {
+        self.non_authoritative_layout_report_fingerprint
+    }
+
+    /// Replay the complete target slot and every exact native-layout row.
+    /// The compact report fingerprint is deliberately not consulted.
+    pub fn matches_exact_plan(&self, expected: &Self) -> bool {
+        self.profile == expected.profile
+            && self.entry_slot == expected.entry_slot
+            && self.contents == expected.contents
     }
 
     #[allow(dead_code)]
@@ -205,7 +217,7 @@ struct Candidate {
     profile: TargetProfile,
     entry_slot: ProgramEntrySlotDeclaration,
     contents: UefiSystemTableNativeLayoutContents,
-    layout_identity: u64,
+    non_authoritative_layout_report_fingerprint: u64,
 }
 
 struct CandidateValidationError {
@@ -232,12 +244,13 @@ pub fn plan_uefi_system_table_native_layout(
             }));
         }
     };
-    let layout_identity = layout_identity(entry_slot, &contents);
+    let non_authoritative_layout_report_fingerprint =
+        non_authoritative_layout_report_fingerprint(entry_slot, &contents);
     let candidate = Candidate {
         profile,
         entry_slot,
         contents,
-        layout_identity,
+        non_authoritative_layout_report_fingerprint,
     };
     match validate_candidate(candidate) {
         Ok(validated) => Ok(validated),
@@ -272,17 +285,22 @@ fn validate_candidate(
             diagnostic,
         });
     }
-    if candidate.layout_identity != layout_identity(candidate.entry_slot, &candidate.contents) {
+    if candidate.non_authoritative_layout_report_fingerprint
+        != non_authoritative_layout_report_fingerprint(candidate.entry_slot, &candidate.contents)
+    {
         return Err(CandidateValidationError {
             candidate,
-            diagnostic: Diagnostic::error("UEFI system-table layout identity does not replay"),
+            diagnostic: Diagnostic::error(
+                "UEFI system-table layout report fingerprint does not replay",
+            ),
         });
     }
     Ok(ValidatedUefiSystemTableNativeLayout {
         profile: candidate.profile,
         entry_slot: candidate.entry_slot,
         contents: candidate.contents,
-        layout_identity: candidate.layout_identity,
+        non_authoritative_layout_report_fingerprint: candidate
+            .non_authoritative_layout_report_fingerprint,
     })
 }
 
@@ -407,7 +425,7 @@ const CANONICAL_FIELDS: [UefiSystemTableNativeFieldLayout; FIELD_COUNT] = [
     row(Field::ConfigurationTable, 17, 112, 8, 8, Kind::Pointer),
 ];
 
-fn layout_identity(
+fn non_authoritative_layout_report_fingerprint(
     entry_slot: ProgramEntrySlotDeclaration,
     contents: &UefiSystemTableNativeLayoutContents,
 ) -> u64 {
@@ -519,12 +537,13 @@ mod tests {
         let profile = TargetProfile::UefiX64;
         let entry_slot = profile.program_entry_slot();
         let contents = derive_contents(profile, entry_slot).unwrap();
-        let layout_identity = layout_identity(entry_slot, &contents);
+        let non_authoritative_layout_report_fingerprint =
+            non_authoritative_layout_report_fingerprint(entry_slot, &contents);
         Candidate {
             profile,
             entry_slot,
             contents,
-            layout_identity,
+            non_authoritative_layout_report_fingerprint,
         }
     }
 
@@ -605,7 +624,7 @@ mod tests {
             Box::new(|c| c.entry_slot.physical_calling_convention = None),
             Box::new(|c| c.entry_slot.semantic_calling_convention = None),
             Box::new(|c| c.entry_slot.visible_parameters = ProgramEntryVisibleParameters::None),
-            Box::new(|c| c.layout_identity ^= 1),
+            Box::new(|c| c.non_authoritative_layout_report_fingerprint ^= 1),
         ];
         for corrupt in corruptions {
             let mut candidate = candidate();
@@ -631,5 +650,25 @@ mod tests {
             padding.field(),
             UefiSystemTableNativeField::FirmwareRevisionPadding
         );
+    }
+
+    #[test]
+    fn compact_equal_layout_substitution_does_not_match_the_exact_plan() {
+        let expected = plan_uefi_system_table_native_layout(TargetProfile::UefiX64).unwrap();
+        let mut substituted_contents = expected.contents.clone();
+        substituted_contents.fields.swap(10, 11);
+        let substituted = ValidatedUefiSystemTableNativeLayout {
+            profile: expected.profile,
+            entry_slot: expected.entry_slot,
+            contents: substituted_contents,
+            non_authoritative_layout_report_fingerprint: expected
+                .non_authoritative_layout_report_fingerprint(),
+        };
+
+        assert_eq!(
+            substituted.non_authoritative_layout_report_fingerprint(),
+            expected.non_authoritative_layout_report_fingerprint()
+        );
+        assert!(!substituted.matches_exact_plan(&expected));
     }
 }

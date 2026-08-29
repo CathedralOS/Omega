@@ -186,7 +186,9 @@ fn source_whole_content_custody_exit_reaches_canonical_installation() {
     assert_eq!(provider_custody.source, *source);
     assert_eq!(provider_custody.receipt, receipts[0]);
     assert_eq!(
-        provider_custody.provider_execution.provider_plan,
+        provider_custody
+            .provider_execution
+            .provider_plan_report_identity,
         execution.provider_plan().normalized_identity()
     );
 
@@ -211,7 +213,7 @@ fn source_whole_content_custody_exit_reaches_canonical_installation() {
     let mut substituted_provider = machine.clone();
     substituted_provider.functions[0].boundary_settlements[0].completion_provider_custody[0]
         .provider_execution
-        .provider_plan ^= 1;
+        .provider_plan_report_identity ^= 1;
     assert!(matches!(
         build_object_artifact(&substituted_provider),
         Err(omega_image_emission::ObjectError::InvalidCompletionProviderCustody { .. })

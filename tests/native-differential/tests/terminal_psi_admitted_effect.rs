@@ -628,10 +628,12 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
             .expect("admitted installation composition");
     assert_eq!(
         installation.selected_provider_plans(),
-        [omega_image_emission::SelectedProviderPlanIdentity::new(
-            execution.provider_plan().normalized_identity()
-        )
-        .unwrap()]
+        [
+            omega_image_emission::SelectedProviderPlanReportIdentity::new(
+                execution.provider_plan().normalized_identity()
+            )
+            .unwrap()
+        ]
     );
     assert_eq!(installation.fuel_attribution(), image.fuel_attribution());
     validate_installation_record(&installation, &image).expect("image binding");
@@ -854,7 +856,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     substituted_provider_custody.functions[0].boundary_settlements[0]
         .completion_provider_custody[0]
         .provider_execution
-        .provider_plan ^= 1;
+        .provider_plan_report_identity ^= 1;
     assert!(matches!(
         build_object_artifact(&substituted_provider_custody),
         Err(omega_image_emission::ObjectError::InvalidCompletionProviderCustody { .. })

@@ -140,9 +140,10 @@ impl CheckedPackageProviderRowIdentity {
 
 /// One selected provider plan retained for human/LLM review.
 ///
-/// The realizing package is exact and participates in `plan_fingerprint`.
-/// That existing 64-bit fingerprint is review/execution compatibility data,
-/// not a collision-resistant package-admission identity.
+/// The realizing package is exact and participates in
+/// `plan_report_fingerprint`. That existing 64-bit fingerprint is
+/// review/execution compatibility data, not a collision-resistant
+/// package-admission identity.
 /// Schema, provider type, row requirement, and realizing machine retain exact
 /// package-qualified or authored-toolchain declaration identities, and review
 /// rejects if those owners disagree with the selected plan. Readable provider-
@@ -153,7 +154,7 @@ impl CheckedPackageProviderRowIdentity {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedPackageProviderReview {
     pub(crate) plan_name: String,
-    pub(crate) plan_fingerprint: u64,
+    pub(crate) plan_report_fingerprint: u64,
     pub(crate) realizing_package: Option<PackageKeyIdentity>,
     pub(crate) schema_declaration: PackageReviewNominalIdentity,
     pub(crate) provider_type: String,
@@ -170,8 +171,8 @@ impl CheckedPackageProviderReview {
         &self.plan_name
     }
 
-    pub const fn plan_fingerprint(&self) -> u64 {
-        self.plan_fingerprint
+    pub const fn plan_report_fingerprint(&self) -> u64 {
+        self.plan_report_fingerprint
     }
 
     pub const fn realizing_package(&self) -> Option<PackageKeyIdentity> {
@@ -233,13 +234,14 @@ pub enum PackageReviewProviderFamilyCoverage {
 }
 
 /// One exact overload coordinate mapped to its selected provider plan.
-/// `plan_fingerprint` is checked compatibility data joined to the complete
-/// selected-provider row; it is not a package-admission identity by itself.
+/// `plan_report_fingerprint` is checked compatibility data joined to the
+/// complete selected-provider row; it is not a package-admission identity by
+/// itself.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CheckedPackageProviderFamilyCoordinateReview {
     pub(crate) requirement_identity: String,
     pub(crate) operator_declaration: PackageReviewNominalIdentity,
-    pub(crate) plan_fingerprint: u64,
+    pub(crate) plan_report_fingerprint: u64,
 }
 
 impl CheckedPackageProviderFamilyCoordinateReview {
@@ -251,8 +253,8 @@ impl CheckedPackageProviderFamilyCoordinateReview {
         &self.operator_declaration
     }
 
-    pub const fn plan_fingerprint(&self) -> u64 {
-        self.plan_fingerprint
+    pub const fn plan_report_fingerprint(&self) -> u64 {
+        self.plan_report_fingerprint
     }
 }
 

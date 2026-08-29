@@ -108,13 +108,13 @@ fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
 }
 const MAGIC: &[u8; 8] = b"PSIINST\0";
 
-/// Exact normalized identity of one provider plan selected for this
-/// installation. The current scalar canaries have an empty provider closure;
-/// later call/boundary slices populate this set from their selected plans.
+/// Non-authoritative report identity of one provider plan selected for this
+/// installation. Exact selection authority remains outside the decodable
+/// installation record.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SelectedProviderPlanIdentity(NonZeroU64);
+pub struct SelectedProviderPlanReportIdentity(NonZeroU64);
 
-impl SelectedProviderPlanIdentity {
+impl SelectedProviderPlanReportIdentity {
     pub const fn new(raw: u64) -> Option<Self> {
         match NonZeroU64::new(raw) {
             Some(identity) => Some(Self(identity)),
@@ -202,7 +202,7 @@ pub struct InstallationRecord {
     target: NativeTarget,
     subsystem: Option<u16>,
     profile_decision: ProfileDecisionId,
-    selected_provider_plans: Vec<SelectedProviderPlanIdentity>,
+    selected_provider_plans: Vec<SelectedProviderPlanReportIdentity>,
     component_progress: Option<InstalledComponentProgress>,
     functions: Vec<InstalledFunction>,
     structural_returns: Vec<InstalledStructuralReturn>,
@@ -233,7 +233,7 @@ impl InstallationRecord {
         self.profile_decision
     }
 
-    pub fn selected_provider_plans(&self) -> &[SelectedProviderPlanIdentity] {
+    pub fn selected_provider_plans(&self) -> &[SelectedProviderPlanReportIdentity] {
         &self.selected_provider_plans
     }
 
@@ -533,17 +533,17 @@ where
         .output()
         .compiler_text_validation
         .ok_or(InstallationError::MissingCompilerTextValidation)?;
-    let mut admitted_executions = std::collections::BTreeSet::new();
+    let mut reported_executions = std::collections::BTreeSet::new();
     let mut selected_provider_plan_set = std::collections::BTreeSet::new();
     for identity in selected_provider_plans {
-        let identity = SelectedProviderPlanIdentity::new(identity)
+        let identity = SelectedProviderPlanReportIdentity::new(identity)
             .ok_or(InstallationError::ZeroProviderPlan)?;
         if !selected_provider_plan_set.insert(identity) {
             return Err(InstallationError::DuplicateProviderPlan);
         }
     }
     for execution in provider_executions {
-        if !admitted_executions.insert((
+        if !reported_executions.insert((
             execution.provider_plan(),
             execution.provider_execution_identity(),
             execution.provider_execution_fingerprint(),
@@ -552,7 +552,7 @@ where
         )) {
             return Err(InstallationError::DuplicateProviderExecution);
         }
-        let execution_plan = SelectedProviderPlanIdentity::new(execution.provider_plan())
+        let execution_plan = SelectedProviderPlanReportIdentity::new(execution.provider_plan())
             .ok_or(InstallationError::ZeroProviderPlan)?;
         if !selected_provider_plan_set.contains(&execution_plan) {
             return Err(InstallationError::ProviderExecutionOutsideSelectedClosure);
@@ -564,15 +564,15 @@ where
         .map(|installed| {
             let execution = installed.settlement.provider_execution;
             (
-                execution.provider_plan,
-                execution.provider_execution_identity,
-                execution.provider_execution_fingerprint,
-                execution.normalized_root_identity,
-                execution.boundary_contract_fingerprint,
+                execution.provider_plan_report_identity,
+                execution.provider_execution_report_identity,
+                execution.provider_execution_report_fingerprint,
+                execution.normalized_root_report_identity,
+                execution.boundary_contract_report_fingerprint,
             )
         })
         .collect::<std::collections::BTreeSet<_>>();
-    if admitted_executions != required_executions {
+    if reported_executions != required_executions {
         return Err(InstallationError::ProviderExecutionClosureMismatch);
     }
     let component_progress = component_progress
@@ -1222,7 +1222,12 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
     let required = record
         .boundary_settlements
         .iter()
-        .map(|settlement| settlement.settlement.provider_execution.provider_plan)
+        .map(|settlement| {
+            settlement
+                .settlement
+                .provider_execution
+                .provider_plan_report_identity
+        })
         .collect::<std::collections::BTreeSet<_>>();
     if !required.is_subset(&selected) {
         return Err(InstallationError::ProviderSettlementClosureMismatch);

@@ -350,7 +350,7 @@ mod tests {
         let mut invalid_provider = valid;
         invalid_provider.completion_provider_custody[0]
             .provider_execution
-            .provider_plan = 9;
+            .provider_plan_report_identity = 9;
         assert_eq!(
             validate_completion_custody(&invalid_provider),
             Err(CompletionCustodyError::InvalidProviderCustody)

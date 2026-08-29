@@ -181,7 +181,7 @@ impl FinalFootprintCoverage {
         Ok(())
     }
 
-    pub fn fingerprint(&self) -> u64 {
+    pub fn report_fingerprint(&self) -> u64 {
         let mut hash = FNV_OFFSET;
         fingerprint_bytes(
             &mut hash,
@@ -233,13 +233,15 @@ pub struct FinalFootprintCertificate {
     pub marker: &'static str,
     pub certificate_digest: FinalFootprintCertificateDigest,
     /// Compact report compatibility only.
-    pub certificate_fingerprint: u64,
+    pub certificate_report_fingerprint: u64,
     pub coverage_digest: FinalFootprintCoverageDigest,
     /// Compact report compatibility only.
-    pub coverage_fingerprint: u64,
+    pub coverage_report_fingerprint: u64,
     pub coverage: FinalFootprintCoverage,
     pub boundary_contract_fingerprint: Option<u64>,
-    pub implementation_evidence_fingerprint: u64,
+    /// Compact report compatibility only; exact footprint and inventory
+    /// commitments carry authority.
+    pub implementation_evidence_report_fingerprint: u64,
     pub implementation_fragment_count: usize,
     pub callback_placement_identity_fingerprint: u64,
     pub compiler_text_validation: CompilerTextValidationEvidence,
@@ -248,13 +250,13 @@ pub struct FinalFootprintCertificate {
     pub inventory: PlacedExecutableRegionInventory,
     pub boundary_placement_binding_digest: FinalFootprintPlacementBindingDigest,
     /// Compact report compatibility only.
-    pub boundary_placement_binding_fingerprint: u64,
+    pub boundary_placement_binding_report_fingerprint: u64,
 }
 
 impl FinalFootprintCertificate {
     pub fn current(
         boundary_contract_fingerprint: Option<u64>,
-        implementation_evidence_fingerprint: u64,
+        implementation_evidence_report_fingerprint: u64,
         implementation_fragment_count: usize,
         callback_placement_identity_fingerprint: u64,
         compiler_text_validation: CompilerTextValidationEvidence,
@@ -293,7 +295,7 @@ impl FinalFootprintCertificate {
         }
         validate_entry_footprint_binding(
             boundary_contract_fingerprint,
-            implementation_evidence_fingerprint,
+            implementation_evidence_report_fingerprint,
             compiler_function_validation,
             compiler_entry_footprint_binding,
             &inventory,
@@ -301,10 +303,10 @@ impl FinalFootprintCertificate {
         let coverage = FinalFootprintCoverage::current();
         coverage.validate_normalized()?;
         let coverage_digest = coverage.digest();
-        let coverage_fingerprint = coverage.fingerprint();
+        let coverage_report_fingerprint = coverage.report_fingerprint();
         let boundary_placement_binding_digest = placement_binding_digest(
             boundary_contract_fingerprint,
-            implementation_evidence_fingerprint,
+            implementation_evidence_report_fingerprint,
             implementation_fragment_count,
             callback_placement_identity_fingerprint,
             &compiler_text_validation,
@@ -312,26 +314,26 @@ impl FinalFootprintCertificate {
             compiler_entry_footprint_binding,
             &inventory,
         );
-        let boundary_placement_binding_fingerprint = placement_binding_fingerprint(
+        let boundary_placement_binding_report_fingerprint = placement_binding_report_fingerprint(
             boundary_contract_fingerprint,
-            implementation_evidence_fingerprint,
+            implementation_evidence_report_fingerprint,
             callback_placement_identity_fingerprint,
             compiler_text_validation.derivation_fingerprint,
-            compiler_function_validation.evidence_fingerprint(),
+            compiler_function_validation.evidence_report_fingerprint(),
             compiler_entry_footprint_binding
-                .map(|binding| binding.evidence_fingerprint)
+                .map(|binding| binding.evidence_report_fingerprint)
                 .unwrap_or_default(),
-            inventory.inventory_fingerprint,
+            inventory.inventory_report_fingerprint,
         );
-        let certificate_fingerprint = certificate_fingerprint(
-            coverage_fingerprint,
-            boundary_placement_binding_fingerprint,
+        let certificate_report_fingerprint = certificate_report_fingerprint(
+            coverage_report_fingerprint,
+            boundary_placement_binding_report_fingerprint,
             compiler_text_validation.derivation_fingerprint,
-            compiler_function_validation.evidence_fingerprint(),
+            compiler_function_validation.evidence_report_fingerprint(),
             compiler_entry_footprint_binding
-                .map(|binding| binding.evidence_fingerprint)
+                .map(|binding| binding.evidence_report_fingerprint)
                 .unwrap_or_default(),
-            inventory.inventory_fingerprint,
+            inventory.inventory_report_fingerprint,
         );
         let certificate_digest = certificate_digest(
             coverage_digest,
@@ -344,12 +346,12 @@ impl FinalFootprintCertificate {
         Ok(Self {
             marker: FINAL_FOOTPRINT_CERTIFICATE_MARKER,
             certificate_digest,
-            certificate_fingerprint,
+            certificate_report_fingerprint,
             coverage_digest,
-            coverage_fingerprint,
+            coverage_report_fingerprint,
             coverage,
             boundary_contract_fingerprint,
-            implementation_evidence_fingerprint,
+            implementation_evidence_report_fingerprint,
             implementation_fragment_count,
             callback_placement_identity_fingerprint,
             compiler_text_validation,
@@ -357,7 +359,7 @@ impl FinalFootprintCertificate {
             compiler_entry_footprint_binding,
             inventory,
             boundary_placement_binding_digest,
-            boundary_placement_binding_fingerprint,
+            boundary_placement_binding_report_fingerprint,
         })
     }
 
@@ -410,13 +412,13 @@ impl FinalFootprintCertificate {
         }
         validate_entry_footprint_binding(
             self.boundary_contract_fingerprint,
-            self.implementation_evidence_fingerprint,
+            self.implementation_evidence_report_fingerprint,
             self.compiler_function_validation,
             self.compiler_entry_footprint_binding,
             &self.inventory,
         )?;
-        let expected_coverage = self.coverage.fingerprint();
-        if self.coverage_fingerprint != expected_coverage {
+        let expected_coverage = self.coverage.report_fingerprint();
+        if self.coverage_report_fingerprint != expected_coverage {
             return Err(Diagnostic::error(
                 "final footprint certificate coverage fingerprint mismatch",
             ));
@@ -429,7 +431,7 @@ impl FinalFootprintCertificate {
         }
         let expected_binding_digest = placement_binding_digest(
             self.boundary_contract_fingerprint,
-            self.implementation_evidence_fingerprint,
+            self.implementation_evidence_report_fingerprint,
             self.implementation_fragment_count,
             self.callback_placement_identity_fingerprint,
             &self.compiler_text_validation,
@@ -442,33 +444,35 @@ impl FinalFootprintCertificate {
                 "final footprint certificate strong placement binding mismatch",
             ));
         }
-        let expected_binding = placement_binding_fingerprint(
+        let expected_binding = placement_binding_report_fingerprint(
             self.boundary_contract_fingerprint,
-            self.implementation_evidence_fingerprint,
+            self.implementation_evidence_report_fingerprint,
             self.callback_placement_identity_fingerprint,
             self.compiler_text_validation.derivation_fingerprint,
-            self.compiler_function_validation.evidence_fingerprint(),
+            self.compiler_function_validation
+                .evidence_report_fingerprint(),
             self.compiler_entry_footprint_binding
-                .map(|binding| binding.evidence_fingerprint)
+                .map(|binding| binding.evidence_report_fingerprint)
                 .unwrap_or_default(),
-            self.inventory.inventory_fingerprint,
+            self.inventory.inventory_report_fingerprint,
         );
-        if self.boundary_placement_binding_fingerprint != expected_binding {
+        if self.boundary_placement_binding_report_fingerprint != expected_binding {
             return Err(Diagnostic::error(
                 "final footprint certificate placement binding mismatch",
             ));
         }
-        let expected_certificate = certificate_fingerprint(
+        let expected_certificate = certificate_report_fingerprint(
             expected_coverage,
             expected_binding,
             self.compiler_text_validation.derivation_fingerprint,
-            self.compiler_function_validation.evidence_fingerprint(),
+            self.compiler_function_validation
+                .evidence_report_fingerprint(),
             self.compiler_entry_footprint_binding
-                .map(|binding| binding.evidence_fingerprint)
+                .map(|binding| binding.evidence_report_fingerprint)
                 .unwrap_or_default(),
-            self.inventory.inventory_fingerprint,
+            self.inventory.inventory_report_fingerprint,
         );
-        if self.certificate_fingerprint != expected_certificate {
+        if self.certificate_report_fingerprint != expected_certificate {
             return Err(Diagnostic::error(
                 "final footprint certificate identity mismatch",
             ));
@@ -492,7 +496,7 @@ impl FinalFootprintCertificate {
 
 fn validate_entry_footprint_binding(
     boundary_contract_fingerprint: Option<u64>,
-    implementation_evidence_fingerprint: u64,
+    implementation_evidence_report_fingerprint: u64,
     compiler_function_validation: CompilerFunctionValidationEvidence,
     binding: Option<CompilerEntryFootprintBindingEvidence>,
     inventory: &PlacedExecutableRegionInventory,
@@ -507,12 +511,15 @@ fn validate_entry_footprint_binding(
         )),
         (Some(_), Some(binding)) => {
             if !binding.validate_identity()
-                || binding.footprint_fingerprint != implementation_evidence_fingerprint
+                || binding.footprint_report_fingerprint
+                    != implementation_evidence_report_fingerprint
                 || binding.final_region_binding_fingerprint
                     != compiler_function_validation.final_region_binding_fingerprint
-                || binding.resulting_inventory_fingerprint != inventory.inventory_fingerprint
+                || binding.resulting_inventory_report_fingerprint
+                    != inventory.inventory_report_fingerprint
                 || binding.resulting_inventory_digest != inventory.inventory_digest
-                || binding.prior_inventory_fingerprint == binding.resulting_inventory_fingerprint
+                || binding.prior_inventory_report_fingerprint
+                    == binding.resulting_inventory_report_fingerprint
                 || binding.prior_inventory_digest == binding.resulting_inventory_digest
             {
                 return Err(Diagnostic::error(
@@ -526,7 +533,7 @@ fn validate_entry_footprint_binding(
 
 fn placement_binding_digest(
     boundary_contract_fingerprint: Option<u64>,
-    implementation_evidence_fingerprint: u64,
+    implementation_evidence_report_fingerprint: u64,
     implementation_fragment_count: usize,
     callback_placement_identity_fingerprint: u64,
     compiler_text_validation: &CompilerTextValidationEvidence,
@@ -542,7 +549,7 @@ fn placement_binding_digest(
             .unwrap_or_default()
             .to_le_bytes(),
     );
-    digest.update(implementation_evidence_fingerprint.to_le_bytes());
+    digest.update(implementation_evidence_report_fingerprint.to_le_bytes());
     digest.update((implementation_fragment_count as u64).to_le_bytes());
     digest.update(callback_placement_identity_fingerprint.to_le_bytes());
     digest.update(compiler_text_validation.derivation_digest.as_bytes());
@@ -593,14 +600,14 @@ fn update_compiler_function_validation_digest(
     digest.update(evidence.evidence_digest().as_bytes());
 }
 
-fn placement_binding_fingerprint(
+fn placement_binding_report_fingerprint(
     boundary_contract_fingerprint: Option<u64>,
-    implementation_evidence_fingerprint: u64,
+    implementation_evidence_report_fingerprint: u64,
     callback_placement_identity_fingerprint: u64,
-    compiler_text_derivation_fingerprint: u64,
-    compiler_function_validation_fingerprint: u64,
-    compiler_entry_footprint_binding_fingerprint: u64,
-    inventory_fingerprint: u64,
+    compiler_text_derivation_report_fingerprint: u64,
+    compiler_function_validation_report_fingerprint: u64,
+    compiler_entry_footprint_binding_report_fingerprint: u64,
+    inventory_report_fingerprint: u64,
 ) -> u64 {
     let mut hash = FNV_OFFSET;
     fingerprint_bytes(
@@ -620,7 +627,7 @@ fn placement_binding_fingerprint(
     );
     fingerprint_bytes(
         &mut hash,
-        &implementation_evidence_fingerprint.to_le_bytes(),
+        &implementation_evidence_report_fingerprint.to_le_bytes(),
     );
     fingerprint_bytes(
         &mut hash,
@@ -628,48 +635,48 @@ fn placement_binding_fingerprint(
     );
     fingerprint_bytes(
         &mut hash,
-        &compiler_text_derivation_fingerprint.to_le_bytes(),
+        &compiler_text_derivation_report_fingerprint.to_le_bytes(),
     );
     fingerprint_bytes(
         &mut hash,
-        &compiler_function_validation_fingerprint.to_le_bytes(),
+        &compiler_function_validation_report_fingerprint.to_le_bytes(),
     );
     fingerprint_bytes(
         &mut hash,
-        &compiler_entry_footprint_binding_fingerprint.to_le_bytes(),
+        &compiler_entry_footprint_binding_report_fingerprint.to_le_bytes(),
     );
-    fingerprint_bytes(&mut hash, &inventory_fingerprint.to_le_bytes());
+    fingerprint_bytes(&mut hash, &inventory_report_fingerprint.to_le_bytes());
     hash
 }
 
-fn certificate_fingerprint(
-    coverage_fingerprint: u64,
-    boundary_placement_binding_fingerprint: u64,
-    compiler_text_derivation_fingerprint: u64,
-    compiler_function_validation_fingerprint: u64,
-    compiler_entry_footprint_binding_fingerprint: u64,
-    inventory_fingerprint: u64,
+fn certificate_report_fingerprint(
+    coverage_report_fingerprint: u64,
+    boundary_placement_binding_report_fingerprint: u64,
+    compiler_text_derivation_report_fingerprint: u64,
+    compiler_function_validation_report_fingerprint: u64,
+    compiler_entry_footprint_binding_report_fingerprint: u64,
+    inventory_report_fingerprint: u64,
 ) -> u64 {
     let mut hash = FNV_OFFSET;
     fingerprint_bytes(&mut hash, FINAL_FOOTPRINT_CERTIFICATE_MARKER.as_bytes());
-    fingerprint_bytes(&mut hash, &coverage_fingerprint.to_le_bytes());
+    fingerprint_bytes(&mut hash, &coverage_report_fingerprint.to_le_bytes());
     fingerprint_bytes(
         &mut hash,
-        &boundary_placement_binding_fingerprint.to_le_bytes(),
+        &boundary_placement_binding_report_fingerprint.to_le_bytes(),
     );
     fingerprint_bytes(
         &mut hash,
-        &compiler_text_derivation_fingerprint.to_le_bytes(),
+        &compiler_text_derivation_report_fingerprint.to_le_bytes(),
     );
     fingerprint_bytes(
         &mut hash,
-        &compiler_function_validation_fingerprint.to_le_bytes(),
+        &compiler_function_validation_report_fingerprint.to_le_bytes(),
     );
     fingerprint_bytes(
         &mut hash,
-        &compiler_entry_footprint_binding_fingerprint.to_le_bytes(),
+        &compiler_entry_footprint_binding_report_fingerprint.to_le_bytes(),
     );
-    fingerprint_bytes(&mut hash, &inventory_fingerprint.to_le_bytes());
+    fingerprint_bytes(&mut hash, &inventory_report_fingerprint.to_le_bytes());
     hash
 }
 
@@ -713,21 +720,21 @@ mod tests {
             entry_region_evidence_digest: crate::CompilerEntryRegionBindingDigest::from_digest(
                 [20; 32],
             ),
-            entry_region_evidence_fingerprint: 20,
+            entry_region_evidence_report_fingerprint: 20,
             final_region_binding_fingerprint: 19,
             prior_inventory_digest: crate::PlacedExecutableRegionInventoryDigest::from_digest(
                 [12; 32],
             ),
-            prior_inventory_fingerprint: 12,
+            prior_inventory_report_fingerprint: 12,
             footprint_digest: crate::StateFootprintEvidenceDigest::from_digest([2; 32]),
-            footprint_fingerprint: 2,
+            footprint_report_fingerprint: 2,
             resulting_inventory_digest: inventory.inventory_digest,
-            resulting_inventory_fingerprint: inventory.inventory_fingerprint,
+            resulting_inventory_report_fingerprint: inventory.inventory_report_fingerprint,
             evidence_digest: crate::CompilerEntryFootprintBindingDigest::from_digest([0; 32]),
-            evidence_fingerprint: 0,
+            evidence_report_fingerprint: 0,
         };
         binding.evidence_digest = binding.recomputed_evidence_digest();
-        binding.evidence_fingerprint = binding.recomputed_evidence_fingerprint();
+        binding.evidence_report_fingerprint = binding.recomputed_evidence_report_fingerprint();
         binding
     }
 
@@ -864,7 +871,7 @@ mod tests {
                     .compiler_entry_footprint_binding
                     .as_mut()
                     .expect("entry binding")
-                    .prior_inventory_fingerprint = 99;
+                    .prior_inventory_report_fingerprint = 99;
                 value
             },
             {
@@ -874,7 +881,7 @@ mod tests {
             },
             {
                 let mut value = certificate.clone();
-                value.inventory.inventory_fingerprint = 99;
+                value.inventory.inventory_report_fingerprint = 99;
                 value
             },
             {
@@ -896,12 +903,12 @@ mod tests {
             crate::PlacedExecutableRegionInventoryDigest::from_digest([99; 32]);
 
         assert_eq!(
-            substituted.inventory.inventory_fingerprint,
-            certificate.inventory.inventory_fingerprint
+            substituted.inventory.inventory_report_fingerprint,
+            certificate.inventory.inventory_report_fingerprint
         );
         assert_eq!(
-            substituted.certificate_fingerprint,
-            certificate.certificate_fingerprint
+            substituted.certificate_report_fingerprint,
+            certificate.certificate_report_fingerprint
         );
         assert!(substituted.validate_identity().is_err());
 
@@ -913,8 +920,8 @@ mod tests {
         binding.footprint_digest = crate::StateFootprintEvidenceDigest::from_digest([99; 32]);
         binding.evidence_digest = binding.recomputed_evidence_digest();
         assert_eq!(
-            substituted.certificate_fingerprint,
-            certificate.certificate_fingerprint
+            substituted.certificate_report_fingerprint,
+            certificate.certificate_report_fingerprint
         );
         assert!(substituted.validate_identity().is_err());
     }
@@ -960,7 +967,7 @@ mod tests {
                 address: 0x1000,
                 byte_count: 1,
                 byte_digest: crate::PlacedExecutableGapBytesDigest::from_digest([1; 32]),
-                byte_fingerprint: 1,
+                byte_report_fingerprint: 1,
             });
         assert!(
             FinalFootprintCertificate::current(

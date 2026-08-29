@@ -440,7 +440,7 @@ pub struct ComposedFuelDemand {
     pub(super) summaries: BTreeSet<ProviderFuelSummaryId>,
     pub(super) provider_receipts: BTreeSet<ProviderFuelValidationReceiptId>,
     pub(super) composition_evidence: FixedFuelCompositionEvidence,
-    pub(super) composition_fingerprint: u64,
+    pub(super) non_authoritative_composition_report_fingerprint: u64,
 }
 
 /// Independently admitted proof that one opaque provider cannot transfer into
@@ -497,7 +497,7 @@ impl AdmittedOpaqueFuelSuspensionFree {
 pub struct FuelSuspensionFreeEvidence {
     demand: ComposedFuelDemand,
     opaque_evidence: BTreeMap<ProviderFuelSummaryId, AdmittedOpaqueFuelSuspensionFree>,
-    fingerprint: u64,
+    non_authoritative_report_fingerprint: u64,
 }
 
 impl FuelSuspensionFreeEvidence {
@@ -513,8 +513,14 @@ impl FuelSuspensionFreeEvidence {
         self.demand.units()
     }
 
+    /// Compatibility accessor for the non-authoritative report/cache
+    /// fingerprint. The exact demand and opaque evidence are retained above.
     pub const fn composition_fingerprint(&self) -> u64 {
-        self.fingerprint
+        self.non_authoritative_report_fingerprint
+    }
+
+    pub const fn non_authoritative_composition_report_fingerprint(&self) -> u64 {
+        self.non_authoritative_report_fingerprint
     }
 
     pub fn opaque_validation_receipts(
@@ -593,15 +599,16 @@ pub fn derive_fuel_suspension_free(
         )));
     }
 
-    let fingerprint = fingerprint_fuel_suspension_free(demand, &admitted);
+    let non_authoritative_report_fingerprint =
+        non_authoritative_fuel_suspension_free_report_fingerprint(demand, &admitted);
     Ok(FuelSuspensionFreeEvidence {
         demand: demand.clone(),
         opaque_evidence: admitted,
-        fingerprint,
+        non_authoritative_report_fingerprint,
     })
 }
 
-fn fingerprint_fuel_suspension_free(
+fn non_authoritative_fuel_suspension_free_report_fingerprint(
     demand: &ComposedFuelDemand,
     opaque_evidence: &BTreeMap<ProviderFuelSummaryId, AdmittedOpaqueFuelSuspensionFree>,
 ) -> u64 {
@@ -636,8 +643,14 @@ impl ComposedFuelDemand {
         self.units
     }
 
+    /// Compatibility accessor for the non-authoritative report/cache
+    /// fingerprint. Admission compares the complete composed demand.
     pub const fn composition_fingerprint(&self) -> u64 {
-        self.composition_fingerprint
+        self.non_authoritative_composition_report_fingerprint
+    }
+
+    pub const fn non_authoritative_composition_report_fingerprint(&self) -> u64 {
+        self.non_authoritative_composition_report_fingerprint
     }
 
     pub const fn summaries(&self) -> &BTreeSet<ProviderFuelSummaryId> {
@@ -704,7 +717,8 @@ pub fn compose_fixed_fuel<'a>(
                 .provider_validation_receipt()
         })
         .collect();
-    let composition_fingerprint = fingerprint_fixed_fuel_composition(schedule, &used, &by_identity);
+    let non_authoritative_composition_report_fingerprint =
+        non_authoritative_fixed_fuel_composition_report_fingerprint(schedule, &used, &by_identity);
     let composition_evidence = FixedFuelCompositionEvidence {
         summaries: used
             .iter()
@@ -727,7 +741,7 @@ pub fn compose_fixed_fuel<'a>(
         summaries: used,
         provider_receipts,
         composition_evidence,
-        composition_fingerprint,
+        non_authoritative_composition_report_fingerprint,
     })
 }
 
@@ -798,7 +812,7 @@ fn compose_fixed_fuel_summary(
     Ok(units)
 }
 
-fn fingerprint_fixed_fuel_composition(
+fn non_authoritative_fixed_fuel_composition_report_fingerprint(
     schedule: FuelScheduleIdentity,
     used: &BTreeSet<ProviderFuelSummaryId>,
     summaries: &BTreeMap<ProviderFuelSummaryId, &FixedFuelProviderSummary>,
@@ -812,7 +826,7 @@ fn fingerprint_fixed_fuel_composition(
             .expect("used fixed-fuel summary exists");
         hash.u64(summary.identity.normalized_identity());
         hash.u64(summary.provider.normalized_identity());
-        fingerprint_fixed_fuel_local_evidence(&mut hash, &summary.local_evidence);
+        write_fixed_fuel_local_evidence_to_report_fingerprint(&mut hash, &summary.local_evidence);
         hash.u64(summary.calls.len() as u64);
         for call in &summary.calls {
             hash.u64(call.callee.normalized_identity());
@@ -822,7 +836,10 @@ fn fingerprint_fixed_fuel_composition(
     hash.finish()
 }
 
-fn fingerprint_fixed_fuel_local_evidence(hash: &mut Fnv1a, evidence: &FixedFuelLocalEvidence) {
+fn write_fixed_fuel_local_evidence_to_report_fingerprint(
+    hash: &mut Fnv1a,
+    evidence: &FixedFuelLocalEvidence,
+) {
     match evidence {
         FixedFuelLocalEvidence::TerminalEntry(binding) => {
             hash.u64(0);

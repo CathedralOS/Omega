@@ -4,11 +4,11 @@ use omega_target::NativeTarget;
 use omega_target_operations::{
     BoundaryByteSequenceArgument, BoundaryScalarArgument, LinuxExitGroupI32Realization,
     LinuxWriteLineRealization, MetadataOnlyPortRealization, ProviderExecutionBinding,
-    ProviderPlanIdentity, ScalarParameterLocation, TargetBooleanControl, TargetBooleanExpression,
-    TargetCallArgument, TargetConditionalBooleanArm, TargetConditionalIntegerArm, TargetFunction,
-    TargetIntegerControl, TargetIntegerExpression, TargetOperation, TargetOperationPlan,
-    TargetScalarExpression, TargetStructuralArgument, TargetStructuralParameter, TargetUnitBody,
-    TargetUnitOperation, TerminalPsiProvenance,
+    ProviderPlanReportIdentity, ScalarParameterLocation, TargetBooleanControl,
+    TargetBooleanExpression, TargetCallArgument, TargetConditionalBooleanArm,
+    TargetConditionalIntegerArm, TargetFunction, TargetIntegerControl, TargetIntegerExpression,
+    TargetOperation, TargetOperationPlan, TargetScalarExpression, TargetStructuralArgument,
+    TargetStructuralParameter, TargetUnitBody, TargetUnitOperation, TerminalPsiProvenance,
 };
 use omega_target_operations_to_assigned_target_operations::assign_registers;
 use psi_core::{
@@ -40,7 +40,7 @@ fn linux_exit_group_consumes_i32_and_traps_on_both_linux_architectures() {
     let source_value = psi_core::ValueId::new(990).unwrap();
     let i32_type = psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32).unwrap();
     let provider_execution = ProviderExecutionBinding::from_execution_record(
-        ProviderPlanIdentity::new(990).unwrap(),
+        ProviderPlanReportIdentity::new(990).unwrap(),
         991,
         992,
         993,
@@ -156,7 +156,7 @@ fn linux_write_line_then_exit_owns_exact_code_data_and_argument_custody() {
     let i32_type = psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32).unwrap();
     let provider = |seed| {
         ProviderExecutionBinding::from_execution_record(
-            ProviderPlanIdentity::new(seed).unwrap(),
+            ProviderPlanReportIdentity::new(seed).unwrap(),
             seed + 1,
             seed + 2,
             seed + 3,
@@ -1607,7 +1607,7 @@ fn x86_unit_call_port_write_and_settlement_keep_exact_order() {
     let root_return = EdgeId::new(1).expect("root return");
     let leaf_return = EdgeId::new(2).expect("leaf return");
     let boundary = BoundaryMachineId::new(1).expect("boundary");
-    let provider_plan = ProviderPlanIdentity::new(7).expect("provider");
+    let provider_plan = ProviderPlanReportIdentity::new(7).expect("provider");
     let provider_execution =
         ProviderExecutionBinding::from_execution_record(provider_plan, 8, 9, 10, 11)
             .expect("provider execution");

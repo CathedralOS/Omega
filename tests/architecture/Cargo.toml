@@ -28,6 +28,10 @@ path = "validation_integration.rs"
 name = "conformance_application_identity"
 path = "conformance_application_identity.rs"
 
+[[test]]
+name = "native_image_identity"
+path = "native_image_identity.rs"
+
 [dev-dependencies]
 psi-arena = { path = "../../source/omega-rust/psi/foundation/psi-arena" }
 psi-symbols = { path = "../../source/omega-rust/psi/foundation/psi-symbols" }

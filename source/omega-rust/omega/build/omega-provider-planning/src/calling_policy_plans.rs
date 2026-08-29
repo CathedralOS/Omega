@@ -443,7 +443,7 @@ pub fn validate_nominal_callback_placement_bindings(
             satisfaction_trait: nominal_use.satisfaction_trait,
             satisfaction_requirement: nominal_use.satisfaction_requirement,
             canonical_requirement_overload: nominal_use.canonical_requirement_overload.clone(),
-            boundary_calling_plan_fingerprint: realized_fingerprint,
+            boundary_calling_plan_report_fingerprint: realized_fingerprint,
             resource_receipt: placement.resource_receipt,
             boundary_entry_plan: validated.plan().clone(),
             private_materialization,
@@ -596,7 +596,7 @@ fn bound_private_callback_materialization(
             destination: row.destination.clone(),
             requirement: demand.requirement,
             registrar_boundary_entry_plan: validated.plan().clone(),
-            registrar_calling_plan_fingerprint: validated.contract_fingerprint(),
+            registrar_calling_plan_report_fingerprint: validated.contract_fingerprint(),
             context,
         },
     ))
@@ -3163,7 +3163,7 @@ mod tests {
                 .resource_receipt
         );
         assert_eq!(
-            bound.boundary_calling_plan_fingerprint,
+            bound.boundary_calling_plan_report_fingerprint,
             realizations[0].fingerprint
         );
         assert_eq!(
@@ -3272,7 +3272,7 @@ mod tests {
             realizations[1].boundary_entry_plan
         );
         assert_eq!(
-            retained.registrar_calling_plan_fingerprint,
+            retained.registrar_calling_plan_report_fingerprint,
             realizations[1].fingerprint
         );
 

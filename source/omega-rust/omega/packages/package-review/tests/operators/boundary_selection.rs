@@ -243,12 +243,12 @@ machine build(builder: &mut Build) {
     let selected_fingerprints = review
         .selected_providers()
         .iter()
-        .map(|provider| provider.plan_fingerprint())
+        .map(|provider| provider.plan_report_fingerprint())
         .collect::<std::collections::BTreeSet<_>>();
     assert_eq!(
         coordinates
             .iter()
-            .map(|coordinate| coordinate.plan_fingerprint())
+            .map(|coordinate| coordinate.plan_report_fingerprint())
             .collect::<std::collections::BTreeSet<_>>(),
         selected_fingerprints
     );

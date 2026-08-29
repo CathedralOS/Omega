@@ -28,10 +28,10 @@ pub struct ValidatedConstMaterialization {
     schema_identity: u64,
     value: BuildTimeValue,
     layout: LayoutPlanReport,
-    layout_fingerprint: u64,
+    non_authoritative_layout_report_fingerprint: u64,
     byte_order: ByteOrder,
     bytes: Vec<u8>,
-    identity: u64,
+    non_authoritative_materialization_report_fingerprint: u64,
 }
 
 impl ValidatedConstMaterialization {
@@ -51,8 +51,16 @@ impl ValidatedConstMaterialization {
         &self.layout
     }
 
+    /// Compact report coordinate retained for compatibility and diagnostics.
+    /// Replay authority comes from the exact retained layout, value, and bytes.
     pub fn layout_fingerprint(&self) -> u64 {
-        self.layout_fingerprint
+        self.non_authoritative_layout_report_fingerprint
+    }
+
+    /// Explicitly named accessor for the non-authoritative layout report
+    /// coordinate.
+    pub fn non_authoritative_layout_report_fingerprint(&self) -> u64 {
+        self.non_authoritative_layout_report_fingerprint
     }
 
     pub fn byte_order(&self) -> ByteOrder {
@@ -63,8 +71,16 @@ impl ValidatedConstMaterialization {
         &self.bytes
     }
 
+    /// Compact report coordinate retained for compatibility and diagnostics.
+    /// It is not materialization or replay authority.
     pub fn identity(&self) -> u64 {
-        self.identity
+        self.non_authoritative_materialization_report_fingerprint
+    }
+
+    /// Explicitly named accessor for the non-authoritative materialization
+    /// report coordinate.
+    pub fn non_authoritative_materialization_report_fingerprint(&self) -> u64 {
+        self.non_authoritative_materialization_report_fingerprint
     }
 
     /// Independently replay this evidence against caller-supplied semantic and
@@ -94,8 +110,8 @@ impl ValidatedConstMaterialization {
                 "ConstMaterializable target byte order drifted from retained custody".into(),
             ));
         }
-        let layout_fingerprint = normalized_layout_plan_fingerprint(layout);
-        if layout_fingerprint != self.layout_fingerprint
+        let layout_report_fingerprint = normalized_layout_plan_fingerprint(layout);
+        if layout_report_fingerprint != self.non_authoritative_layout_report_fingerprint
             || !layout_plan_reports_match_for_replay(layout, &self.layout)
         {
             return Err(MaterializationDiagnostic(
@@ -115,17 +131,21 @@ impl ValidatedConstMaterialization {
                     .into(),
             ));
         }
-        let identity = materialization_identity(
-            schema_name,
-            replayed.schema_identity,
-            layout_fingerprint,
-            byte_order,
-            value,
-            &replayed.bytes,
-        );
-        if identity != self.identity {
+        let materialization_report_fingerprint =
+            non_authoritative_materialization_report_fingerprint(
+                schema_name,
+                replayed.schema_identity,
+                layout_report_fingerprint,
+                byte_order,
+                value,
+                &replayed.bytes,
+            );
+        if materialization_report_fingerprint
+            != self.non_authoritative_materialization_report_fingerprint
+        {
             return Err(MaterializationDiagnostic(
-                "ConstMaterializable deterministic identity drifted from exact replay".into(),
+                "ConstMaterializable deterministic report fingerprint drifted from exact replay"
+                    .into(),
             ));
         }
         Ok(())
@@ -171,11 +191,11 @@ pub fn validate_const_materializable_typed_owned_layout(
     byte_order: ByteOrder,
 ) -> Result<ValidatedConstMaterialization, MaterializationDiagnostic> {
     let derived = derive_bytes(typed, schema_name, layout, value, byte_order)?;
-    let layout_fingerprint = normalized_layout_plan_fingerprint(layout);
-    let identity = materialization_identity(
+    let layout_report_fingerprint = normalized_layout_plan_fingerprint(layout);
+    let materialization_report_fingerprint = non_authoritative_materialization_report_fingerprint(
         schema_name,
         derived.schema_identity,
-        layout_fingerprint,
+        layout_report_fingerprint,
         byte_order,
         value,
         &derived.bytes,
@@ -185,10 +205,10 @@ pub fn validate_const_materializable_typed_owned_layout(
         schema_identity: derived.schema_identity,
         value: value.clone(),
         layout: layout.clone(),
-        layout_fingerprint,
+        non_authoritative_layout_report_fingerprint: layout_report_fingerprint,
         byte_order,
         bytes: derived.bytes,
-        identity,
+        non_authoritative_materialization_report_fingerprint: materialization_report_fingerprint,
     })
 }
 
@@ -579,10 +599,10 @@ pub(super) fn value_kind(value: &BuildTimeValue) -> &'static str {
     }
 }
 
-fn materialization_identity(
+fn non_authoritative_materialization_report_fingerprint(
     schema_name: &str,
     schema_identity: u64,
-    layout_fingerprint: u64,
+    layout_report_fingerprint: u64,
     byte_order: ByteOrder,
     value: &BuildTimeValue,
     bytes: &[u8],
@@ -591,7 +611,7 @@ fn materialization_identity(
     hash_bytes(&mut hash, b"omega.const-materializable.v1");
     hash_text(&mut hash, schema_name);
     hash_u64(&mut hash, schema_identity);
-    hash_u64(&mut hash, layout_fingerprint);
+    hash_u64(&mut hash, layout_report_fingerprint);
     hash_byte(
         &mut hash,
         match byte_order {
@@ -872,6 +892,37 @@ mod tests {
             .apply(&typed, &mut destination)
             .expect_err("stored-byte drift rejects before copying");
         assert_eq!(destination, [0x6b; 16]);
+    }
+
+    #[test]
+    fn replay_rejects_layout_substitution_when_compact_report_fingerprint_is_forced_equal() {
+        let typed = typed(SOURCE);
+        let layout = sample_layout(&typed);
+        let value = sample_value();
+        let mut carrier = validate_const_materializable_typed_owned_layout(
+            &typed,
+            "Sample",
+            &layout,
+            &value,
+            ByteOrder::LittleEndian,
+        )
+        .expect("fixture should validate");
+
+        let mut substituted_layout = layout.clone();
+        substituted_layout.size = Some(17);
+        carrier.non_authoritative_layout_report_fingerprint =
+            normalized_layout_plan_fingerprint(&substituted_layout);
+
+        let error = carrier
+            .replay_against(
+                &typed,
+                "Sample",
+                &substituted_layout,
+                &value,
+                ByteOrder::LittleEndian,
+            )
+            .expect_err("exact retained layout rejects a compact-equal substitute");
+        assert!(error.0.contains("layout drifted"));
     }
 
     #[test]

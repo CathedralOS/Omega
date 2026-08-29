@@ -101,6 +101,9 @@ package-qualified operator coordinate in the opaque-blocking executable-supply
 row. Projection rejoins that coordinate with the retained overload symbol and,
 when selected, the exact provider plan; checked rederivation rejects post-check
 requirement drift before any trust row can be issued.
+The plan's compact FNV is exposed only as `plan_report_fingerprint`; review and
+canonical encoding retain the exact plan name, package owners, schema, target,
+rows, and declaration coordinates, so the report value never admits a plan.
 Disclosure remains distinct from provider selection and makes no audit or
 Terminal claim.
 

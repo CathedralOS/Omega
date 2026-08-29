@@ -418,6 +418,12 @@ retains the exact attribution that prevented closure.
 Static premises may be discharged at installation. Invocation-dependent
 premises are ordinary call obligations and must hold at each meter-free call.
 
+External-root fixed-fuel composition retains the complete canonical provider
+summary graph and every admitted opaque-provider receipt. Its compact FNV is a
+non-authoritative report/cache coordinate only; installation and suspension-
+free admission compare the retained demand and evidence rather than accepting
+fingerprint equality.
+
 A sponsor may execute a certified entry natively without runtime metering when
 trusted lowering and installation establish that the executing bytes came
 from the certified Psi module and the proved ceiling fits the granted fuel. Psi

@@ -194,7 +194,7 @@ pub(crate) fn project_selected_provider_families(
             coordinates.push(CheckedPackageProviderFamilyCoordinateReview {
                 requirement_identity: coordinate.requirement_identity.clone(),
                 operator_declaration,
-                plan_fingerprint: selected_provider.plan_fingerprint(),
+                plan_report_fingerprint: selected_provider.plan_report_fingerprint(),
             });
         }
         if coordinates

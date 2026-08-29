@@ -593,12 +593,15 @@ The target profile declares the external-root slot and schema, fixes the
 physical requirement, and owns the bootstrap adapter; `build.omg` binds the
 target-qualified slot to one exact semantic source entry. A generated ABI shell
 implements physical arrival and invokes that adapter. The adapter may interpret
-a validated native service-table layout only through its selected providers; a
-physical handle or pointer is never itself an `Extent`. Slot selection and raw
-geometry authorize no claim. The domain owner's route authorizes what the
-semantic installation edge may introduce, while the physical invocation,
-provider evidence, selected slot, bridge, and installation receipt identify the
-concrete occurrence. Pre-installation rejection calls no source entry and
+a validated native service-table layout only through its selected providers.
+The UEFI lifecycle join replays the complete target entry slot and every exact
+native field and aggregate-layout row; its compact FNV is a report/cache
+coordinate and cannot admit a layout. A physical handle or pointer is never
+itself an `Extent`. Slot selection and raw geometry authorize no claim. The
+domain owner's route authorizes what the semantic installation edge may
+introduce, while the physical invocation, provider evidence, selected slot,
+bridge, and installation receipt identify the concrete occurrence.
+Pre-installation rejection calls no source entry and
 introduces no complete semantic root. The bridge's derived contract and
 provenance compose into the artifact before target supply is admitted.
 
@@ -892,6 +895,25 @@ digest over them. Format-specific planning stages may keep a compact FNV value
 only as an explicitly non-authoritative compatibility fingerprint while
 independently replaying the exact owned carrier; final-image and installation
 authority cannot be reconstructed from that compact value.
+
+Provider execution follows this rule across source-free native lowering. The
+selected plan, execution, normalized root, and boundary-contract `u64` values
+in target operations, machine code, installation encoding, and retained native
+artifacts are report coordinates only. The lowering entrance still borrows the
+ledger-owned, non-constructible admitted execution evidence. Retained native
+custody separately carries the domain-separated selected-provider-closure
+digest and exact requirement strings and plan requirement catalogs; native
+replay compares those exact strings before comparing the compact report rows.
+Consequently a report-equal execution cannot be substituted for another exact
+requirement, and decoding an installation record cannot recreate admission.
+
+The generic native-image inventory follows the same split. Region and gap byte
+coordinates, final-text coordinates, and the aggregate inventory coordinate are
+named report fingerprints and remain beside domain-separated commitments to the
+exact bytes, normalized rows, gaps, and footprint evidence. Compiler publication
+retains the strong inventory commitment through its certificate, publication
+receipt, and flat/bundle equality replay; preserving the compact report value
+while substituting the strong commitment rejects.
 
 For hardware-entered provider slots, the selected service schema records a
 linear routed parameter qualification as a structured `accepts` row. The row

@@ -353,7 +353,7 @@ pub fn project_checked_package_review(
         }
         selected_providers.push(CheckedPackageProviderReview {
             plan_name: plan.name.clone(),
-            plan_fingerprint: plan.identity_fingerprint(),
+            plan_report_fingerprint: plan.identity_fingerprint(),
             realizing_package: plan.origin_package_identity,
             schema_declaration,
             provider_type: plan.provider_type.clone(),
