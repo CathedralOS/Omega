@@ -523,7 +523,7 @@ fn named_git_binding_rejects_missing_and_duplicate_declared_names() {
     assert!(matches!(
         missing,
         ResolvePackageSourceError::GitWorkspaceSelection(
-            super::git_selection::GitWorkspaceSelectionError::PackageMissing { package_name }
+            super::git::workspace::GitWorkspaceSelectionError::PackageMissing { package_name }
         ) if package_name.as_str() == "missing"
     ));
 
@@ -541,7 +541,7 @@ fn named_git_binding_rejects_missing_and_duplicate_declared_names() {
     assert!(matches!(
         duplicate,
         ResolvePackageSourceError::GitWorkspaceSelection(
-            super::git_selection::GitWorkspaceSelectionError::PackageDuplicate {
+            super::git::workspace::GitWorkspaceSelectionError::PackageDuplicate {
                 package_name,
                 member_paths,
             }

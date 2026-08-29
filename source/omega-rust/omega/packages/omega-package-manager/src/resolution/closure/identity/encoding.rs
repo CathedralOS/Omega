@@ -7,8 +7,8 @@ use super::{
     SOURCE_CLOSURE_SUBJECT_MAGIC,
 };
 use crate::manifest::dependencies::read::PackageSelection;
-use crate::resolution::binding::PackageSourceNavigation;
 use crate::resolution::closure::ResolvedSourceIdentity;
+use crate::resolution::source::PackageSourceNavigation;
 use omega_package_source::{
     AliasName, ExternalLocalLineage, ExternalSourceContext, GitCommitId, GitTransport, GitTreeId,
     ImmutableSourceResolution, PackageKey, PackageName, SourceContentDigest, SourceLineage,

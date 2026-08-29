@@ -1,0 +1,89 @@
+//! Bind one resolved Git snapshot to its declared package identity and custody.
+
+use super::super::projection::project_package_build;
+use super::super::{
+    GitWorkspaceSelectionEvidence, PackageSourceMaterialization, PackageSourceNavigation,
+    PackageSourceSelectionEvidence, ResolvePackageSourceError, ResolvedPackageSource,
+};
+use omega_package_source::{
+    GitCommitId, GitTreeId, ImmutableSourceResolution, LocalSourceLimits, PackageKey,
+    ResolvedGitSource, SourceLineage,
+};
+
+pub(super) fn bind_projected_git_package_source(
+    lineage: SourceLineage,
+    source: ResolvedGitSource,
+    limits: LocalSourceLimits,
+    selection_evidence: GitWorkspaceSelectionEvidence,
+) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
+    let projection = source.workspace_projection().ok_or_else(|| {
+        ResolvePackageSourceError::GitWorkspaceMemberNavigation {
+            member_path: omega_package_source::WorkspaceMemberPath::from(
+                selection_evidence.plan().selected_member_path().clone(),
+            ),
+            message: "selective source result omitted workspace projection custody".to_owned(),
+        }
+    })?;
+    let selected_member_path = omega_package_source::WorkspaceMemberPath::from(
+        selection_evidence.plan().selected_member_path().clone(),
+    );
+    if projection.selected_member_path() != &selected_member_path
+        || projection.selected_member_tree() != source.materialized_tree()
+    {
+        return Err(ResolvePackageSourceError::GitWorkspaceMemberNavigation {
+            member_path: selected_member_path,
+            message: "source and manager workspace selection evidence disagree".to_owned(),
+        });
+    }
+    let snapshot_root = source.snapshot_root().to_path_buf();
+    let (declaration, dependency_requests) = project_package_build(&snapshot_root, false)?;
+    let resolution = ImmutableSourceResolution::git(
+        GitCommitId::parse_hex(source.commit())?,
+        GitTreeId::parse_hex(source.tree())?,
+    )?;
+    let materialization = PackageSourceMaterialization::from_local(source.local());
+    selection_evidence.revalidate().map_err(|error| {
+        ResolvePackageSourceError::GitWorkspaceMemberNavigation {
+            member_path: projection.selected_member_path().clone(),
+            message: error.to_string(),
+        }
+    })?;
+
+    Ok(ResolvedPackageSource::from_resolved_parts(
+        PackageKey::new(declaration.name, lineage),
+        resolution,
+        materialization,
+        snapshot_root,
+        PackageSourceNavigation::Member(projection.selected_member_path().clone()),
+        PackageSourceSelectionEvidence::GitWorkspace(selection_evidence),
+        limits,
+        dependency_requests,
+        source,
+    ))
+}
+
+pub(super) fn bind_git_root_package_source(
+    lineage: SourceLineage,
+    source: ResolvedGitSource,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
+    let snapshot_root = source.snapshot_root().to_path_buf();
+    let (declaration, dependency_requests) = project_package_build(&snapshot_root, false)?;
+    let resolution = ImmutableSourceResolution::git(
+        GitCommitId::parse_hex(source.commit())?,
+        GitTreeId::parse_hex(source.tree())?,
+    )?;
+    let materialization = PackageSourceMaterialization::from_local(source.local());
+
+    Ok(ResolvedPackageSource::from_resolved_parts(
+        PackageKey::new(declaration.name, lineage),
+        resolution,
+        materialization,
+        snapshot_root,
+        PackageSourceNavigation::Root,
+        PackageSourceSelectionEvidence::Root,
+        limits,
+        dependency_requests,
+        source,
+    ))
+}

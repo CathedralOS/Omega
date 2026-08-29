@@ -9,7 +9,7 @@ use super::cache::{
 };
 use super::dependency_resolution::resolve_registered_package_closure;
 use super::errors::ResolveExternalLocalPackageClosureError;
-use crate::resolution::binding::ResolvePackageSourceError;
+use crate::resolution::source::ResolvePackageSourceError;
 use omega_package_source::{ExternalSourceContext, PackageKey, SourceLineage};
 use omega_package_source::{LocalSourceLimits, SourceResolverStorage};
 use std::collections::BTreeMap;

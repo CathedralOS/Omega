@@ -10,8 +10,8 @@ use super::cache::{
 };
 use super::errors::ResolveDependencySourceError;
 use crate::manifest::dependencies::read::DependencySourceRequest;
-use crate::resolution::binding::git_selection::GitWorkspaceEvidence;
-use crate::resolution::binding::{
+use crate::resolution::source::git::workspace::GitWorkspaceEvidence;
+use crate::resolution::source::{
     GitPackageSourceRequest, GitWorkspaceSelectionDeclarations, GitWorkspaceSelectionEvidence,
     PackageSourceCustody, PackageSourceNavigation, PackageSourceSelectionEvidence,
     ResolvePackageSourceError,

@@ -2,7 +2,7 @@
 
 use super::super::PackageClosureValidationError;
 use crate::manifest::dependencies::read::DependencySourceRequest;
-use crate::resolution::binding::PackageSourceCustody;
+use crate::resolution::source::PackageSourceCustody;
 use omega_package_source::{AliasName, PackageKey};
 use std::fmt;
 

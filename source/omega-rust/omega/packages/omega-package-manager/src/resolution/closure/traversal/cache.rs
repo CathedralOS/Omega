@@ -1,4 +1,4 @@
-use crate::resolution::binding::{
+use crate::resolution::source::{
     GitPackageSourceRequest, ResolvePackageSourceError, ResolvedPackageSource,
     resolve_external_local_package_source_in_lane, resolve_external_local_project_source_in_lane,
     resolve_selected_git_package_source_from_pin_in_lanes,
