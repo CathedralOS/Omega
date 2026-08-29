@@ -7,8 +7,8 @@ use omega_calling_conventions::{
     validate_entry_stack_realization,
 };
 use omega_executable_installation::{
-    AdmissionReceiptId, Artifact, ArtifactAdmissionEvidence, ArtifactContentId, ArtifactEntry,
-    ArtifactId, CodePlacementAuthority, CodePlacementId, EntrySetId, FinalValidationCertificate,
+    AdmissionReceiptId, Artifact, ArtifactAdmissionEvidence, ArtifactEntry, ArtifactId,
+    CodePlacementAuthority, CodePlacementId, EntrySetId, FinalValidationCertificate,
     FinalValidationId, InstallAuthority, InstallationAudience, InstallationReceipt,
     InstallationScopeId, InstalledCode, InstalledCodeId, MachineContractSetId, MachineFootprintId,
     MaterializationReceipt, PlacementPlanId, RelocationSetId, WxEnforcement, admit_executable,
@@ -252,7 +252,6 @@ fn install_provider_artifact(
             .unwrap();
     let artifact = Artifact::from_canonical_decode(
         install_id(seed + 2, ArtifactId::from_normalized_identity),
-        install_id(seed + 3, ArtifactContentId::from_normalized_identity),
         architecture,
         vec![0; 64],
         install_id(seed + 4, MachineContractSetId::from_normalized_identity),

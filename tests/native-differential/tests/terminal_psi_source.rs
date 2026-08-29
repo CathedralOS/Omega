@@ -37,8 +37,8 @@ use omega_effects::{
     IncompleteScopePolicy, ScopeCompleteness, evaluate_executable_tcb_profile,
 };
 use omega_executable_installation::{
-    AdmissionReceiptId, Artifact, ArtifactAdmissionEvidence, ArtifactContentId, ArtifactEntry,
-    ArtifactId, CodePlacementAuthority, CodePlacementId, EntrySetId, FinalValidationCertificate,
+    AdmissionReceiptId, Artifact, ArtifactAdmissionEvidence, ArtifactEntry, ArtifactId,
+    CodePlacementAuthority, CodePlacementId, EntrySetId, FinalValidationCertificate,
     FinalValidationId, InstallAuthority, InstallationAudience, InstallationReceipt,
     InstallationScopeId, InstalledCode, InstalledCodeId, MachineContractSetId, MachineFootprintId,
     MaterializationReceipt, PlacementPlanId, RelocationSetId, WxEnforcement, admit_executable,
@@ -465,7 +465,6 @@ fn install_terminal_object(
         .expect("terminal placement constraints");
     let artifact = Artifact::from_canonical_decode(
         installation_id(0x5310, ArtifactId::from_normalized_identity),
-        installation_id(0x5311, ArtifactContentId::from_normalized_identity),
         terminal.target().architecture,
         code,
         installation_id(0x5312, MachineContractSetId::from_normalized_identity),

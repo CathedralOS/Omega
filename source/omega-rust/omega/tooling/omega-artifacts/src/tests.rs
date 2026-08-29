@@ -11,14 +11,14 @@ use omega_calling_conventions::{
 };
 use omega_effects::{ForeignLocatorCandidate, normalize_foreign_locator};
 use omega_executable_installation::{
-    AdmissionReceiptId, Artifact, ArtifactAdmissionEvidence, ArtifactContentId, ArtifactEntry,
-    ArtifactId, CodePlacementAuthority, CodePlacementId, ContainerLimits, DecodedArtifactContainer,
-    EntrySetId, FinalValidationCertificate, FinalValidationId, InstallAuthority,
-    InstallationAudience, InstallationDiagnostic, InstallationReceipt, InstallationScopeId,
-    InstalledCode, InstalledCodeId, MachineContractSetId, MachineFootprintId,
-    MaterializationReceipt, PlacementPlanId, RelocationSetId, WxEnforcement, admit_executable,
-    decode_executable_container, install_validated, materialize_admitted_artifact,
-    materialize_and_freeze, normalized_decoded_content_identity, validate_final_placement,
+    AdmissionReceiptId, Artifact, ArtifactAdmissionEvidence, ArtifactEntry, ArtifactId,
+    CodePlacementAuthority, CodePlacementId, ContainerLimits, DecodedArtifactContainer, EntrySetId,
+    FinalValidationCertificate, FinalValidationId, InstallAuthority, InstallationAudience,
+    InstallationDiagnostic, InstallationReceipt, InstallationScopeId, InstalledCode,
+    InstalledCodeId, MachineContractSetId, MachineFootprintId, MaterializationReceipt,
+    PlacementPlanId, RelocationSetId, WxEnforcement, admit_executable, decode_executable_container,
+    install_validated, materialize_admitted_artifact, materialize_and_freeze,
+    normalized_decoded_content_digest, validate_final_placement,
 };
 use omega_external_roots::{
     AcknowledgementPolicyId, ComponentArtifactId, ComponentContractId, ComponentProviderId,
@@ -538,7 +538,6 @@ fn installed_code_fixture(entry: EntryStubId) -> InstalledCode {
     .expect("placement constraints");
     let artifact = Artifact::from_canonical_decode(
         install_id(3, ArtifactId::from_normalized_identity),
-        install_id(13, ArtifactContentId::from_normalized_identity),
         Architecture::X86_64,
         vec![0; 64],
         install_id(30, MachineContractSetId::from_normalized_identity),
@@ -635,11 +634,13 @@ fn executable_container_fixture() -> Artifact {
     let placement_constraints =
         PlacementConstraints::new(None, 1, PlacementPhase::Load, None, None)
             .expect("placement constraints");
-    let decoded = DecodedArtifactContainer {
+    let mut decoded = DecodedArtifactContainer {
         format_marker: omega_executable_installation::OMEGA_EXECUTABLE_CONTAINER_MARKER,
         total_length: 1,
         artifact: artifact_id,
-        content: install_id(907, ArtifactContentId::from_normalized_identity),
+        content_fingerprint:
+            omega_executable_installation::NonAuthoritativeContainerFingerprint64::from_compatibility_value(1)
+                .unwrap(),
         architecture: Architecture::X86_64,
         code_length: code.len() as u64,
         code: code.clone(),
@@ -651,15 +652,16 @@ fn executable_container_fixture() -> Artifact {
         entries: entries.clone(),
         relocation_set,
         relocations: Vec::new(),
-        proof_payload: omega_executable_installation::normalized_proof_payload_identity(b""),
+        proof_payload: omega_executable_installation::normalized_proof_payload_digest(b""),
         proof: Vec::new(),
         sections: Vec::new(),
     };
-    let content =
-        normalized_decoded_content_identity(&decoded).expect("normalized content identity");
-    Artifact::from_canonical_decode(
+    decoded.content_fingerprint =
+        omega_executable_installation::non_authoritative_decoded_container_fingerprint(&decoded)
+            .expect("normalized content fingerprint");
+    let content = normalized_decoded_content_digest(&decoded).expect("normalized content digest");
+    let artifact = Artifact::from_canonical_decode(
         artifact_id,
-        content,
         Architecture::X86_64,
         code,
         contracts,
@@ -671,7 +673,9 @@ fn executable_container_fixture() -> Artifact {
         relocation_set,
         Vec::new(),
     )
-    .expect("canonical artifact")
+    .expect("canonical artifact");
+    assert_eq!(artifact.content(), content);
+    artifact
 }
 
 #[test]

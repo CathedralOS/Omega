@@ -1185,8 +1185,11 @@ The executable-installation foundation implements this ladder with exact,
 non-replayed carriers. Admission, materialization, freezing, validation,
 installation, and retirement bind the complete artifact bytes, relocation and
 proof payload, placement authority/lineage, final-byte snapshot, footprint,
-audience, and provider receipts; compact fingerprints are report keys only.
-Failed linear transitions return their inputs.
+audience, and provider receipts. Content, proof, and final-byte commitments are
+separate domain-framed SHA-256 digest types, while exact bytes and placement
+evidence remain the acceptance comparison. Container v1's 64-bit content value
+is compatibility-only; compact fingerprints are report keys only. Failed
+linear transitions return their inputs.
 
 Materialization resolves only sealed entry/data identities into a private copy.
 Installation separately validates W^X, cache/order visibility, and audience.
@@ -1194,7 +1197,9 @@ Retirement requires exact realization identity plus quiescence, execute removal,
 restored write authority, and completion facts before returning placement.
 The selected provider plan and sealed provider execution now prepare an exact
 installed-entry post-handoff writer context and join it to the matching AOT
-fragment. The bound invocation consumes an activated mapping and an exact
+fragment. The context retains the full installed realization rather than only
+its compact installed/artifact IDs; its FNV replay value is explicitly
+non-authoritative. The bound invocation consumes an activated mapping and an exact
 provider receipt establishing nonempty write rights, pinning, and
 non-publication, writes through the opaque installed-entry context, and returns
 the mapping as written but still unpublished; failures return the complete

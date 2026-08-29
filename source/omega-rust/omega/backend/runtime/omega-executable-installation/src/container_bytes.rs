@@ -27,7 +27,10 @@ const SECTION_ENTRIES: u16 = 6;
 const SECTION_PROOF: u16 = 7;
 const SECTION_INFORMATIONAL: u16 = 8;
 
-pub fn normalized_informational_section_identity(kind: u16, payload: &[u8]) -> u64 {
+pub fn non_authoritative_informational_section_fingerprint(
+    kind: u16,
+    payload: &[u8],
+) -> NonAuthoritativeInformationalFingerprint64 {
     let mut hash = 0xcbf29ce484222325_u64;
     for byte in b"omega.executable-container.information.v1"
         .iter()
@@ -39,7 +42,12 @@ pub fn normalized_informational_section_identity(kind: u16, payload: &[u8]) -> u
         hash ^= u64::from(byte);
         hash = hash.wrapping_mul(0x100000001b3);
     }
-    if hash == 0 { 1 } else { hash }
+    NonAuthoritativeInformationalFingerprint64::from_compatibility_value(if hash == 0 {
+        1
+    } else {
+        hash
+    })
+    .expect("fixed FNV normalization replaces zero")
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -182,14 +190,18 @@ pub fn encode_executable_container(
             ),
             ("total_length", 64, total_length),
             ("artifact", 64, artifact.0.identity.normalized_identity()),
-            ("content", 64, artifact.0.content.normalized_identity()),
+            (
+                "content",
+                64,
+                artifact.0.container_fingerprint.compatibility_value(),
+            ),
             ("reserved1", 64, 0),
             ("reserved2", 64, 0),
         ],
         "container header",
     )?;
 
-    let proof_identity = normalized_proof_payload_identity(proof);
+    let proof_digest = normalized_proof_payload_digest(proof);
     let sections = [
         (SECTION_CODE, 1, 0, offsets[0], payload_lengths[0]),
         (
@@ -395,7 +407,7 @@ pub fn encode_executable_container(
 
     let checked = decode_executable_container(&bytes, limits)?;
     if checked.artifact() != artifact
-        || checked.proof_payload() != proof_identity
+        || checked.proof_payload() != proof_digest
         || checked.proof() != proof
     {
         return Err(InstallationDiagnostic(
@@ -486,7 +498,8 @@ pub fn decode_executable_container(
         }
     };
     let artifact = ArtifactId::from_normalized_identity(header["artifact"])?;
-    let content = ArtifactContentId::from_normalized_identity(header["content"])?;
+    let content_fingerprint =
+        NonAuthoritativeContainerFingerprint64::from_compatibility_value(header["content"])?;
 
     let mut wire_sections = Vec::with_capacity(section_count);
     for index in 0..section_count {
@@ -561,8 +574,9 @@ pub fn decode_executable_container(
                 section.length,
                 "informational section payload",
             )?;
-            let normalized = normalized_informational_section_identity(section.kind, payload);
-            if section.identity != normalized {
+            let normalized =
+                non_authoritative_informational_section_fingerprint(section.kind, payload);
+            if section.identity != normalized.compatibility_value() {
                 return Err(InstallationDiagnostic(format!(
                     "informational artifact section kind {} identity does not match its exact opaque bytes",
                     section.kind
@@ -611,7 +625,7 @@ pub fn decode_executable_container(
         "artifact proof section",
     )?
     .to_vec();
-    let proof_payload = normalized_proof_payload_identity(&proof);
+    let proof_payload = normalized_proof_payload_digest(&proof);
 
     let sections = wire_sections
         .into_iter()
@@ -625,8 +639,10 @@ pub fn decode_executable_container(
                 SECTION_ENTRIES => ContainerSectionKind::Entries(entry_set),
                 SECTION_PROOF => ContainerSectionKind::Proof(proof_payload),
                 SECTION_INFORMATIONAL => ContainerSectionKind::Informational(
-                    InformationalSectionId::from_normalized_identity(section.identity)
-                        .expect("wire identity checked before section construction"),
+                    NonAuthoritativeInformationalFingerprint64::from_compatibility_value(
+                        section.identity,
+                    )
+                    .expect("wire identity checked before section construction"),
                 ),
                 identity => ContainerSectionKind::Unknown {
                     identity: if section.identity == 0 {
@@ -650,7 +666,7 @@ pub fn decode_executable_container(
             format_marker: OMEGA_EXECUTABLE_CONTAINER_MARKER,
             total_length,
             artifact,
-            content,
+            content_fingerprint,
             architecture,
             code_length: code_section.length,
             code,
@@ -1372,32 +1388,35 @@ mod tests {
         let entry_set = EntrySetId::from_normalized_identity(8).unwrap();
         let entry = EntryStubId::from_normalized_identity(9).unwrap();
         let proof = vec![0xa5; 64];
-        let mut decoded = DecodedArtifactContainer {
-            format_marker: OMEGA_EXECUTABLE_CONTAINER_MARKER,
-            total_length,
-            artifact: ArtifactId::from_normalized_identity(1).unwrap(),
-            content: ArtifactContentId::from_normalized_identity(2).unwrap(),
-            architecture: Architecture::X86_64,
-            code_length: 64,
-            code: vec![0x90; 64],
-            contracts,
-            declared_footprint: footprint,
-            placement_plan: placement,
-            placement_constraints: PlacementConstraints::unconstrained(PlacementPhase::Load),
-            entry_set,
-            entries: vec![ArtifactEntry::from_canonical_decode(entry, 16)],
-            relocation_set,
-            relocations: vec![DecodedArtifactRelocation {
-                kind: ArtifactRelocationKind::X86Relative32,
-                destination_offset: 32,
-                target: RelocationTarget::Entry(entry),
-                addend: -4,
-            }],
-            proof_payload: normalized_proof_payload_identity(&proof),
-            proof,
-            sections: Vec::new(),
-        };
-        decoded.content = normalized_decoded_content_identity(&decoded).unwrap();
+        let mut decoded =
+            DecodedArtifactContainer {
+                format_marker: OMEGA_EXECUTABLE_CONTAINER_MARKER,
+                total_length,
+                artifact: ArtifactId::from_normalized_identity(1).unwrap(),
+                content_fingerprint:
+                    NonAuthoritativeContainerFingerprint64::from_compatibility_value(2).unwrap(),
+                architecture: Architecture::X86_64,
+                code_length: 64,
+                code: vec![0x90; 64],
+                contracts,
+                declared_footprint: footprint,
+                placement_plan: placement,
+                placement_constraints: PlacementConstraints::unconstrained(PlacementPhase::Load),
+                entry_set,
+                entries: vec![ArtifactEntry::from_canonical_decode(entry, 16)],
+                relocation_set,
+                relocations: vec![DecodedArtifactRelocation {
+                    kind: ArtifactRelocationKind::X86Relative32,
+                    destination_offset: 32,
+                    target: RelocationTarget::Entry(entry),
+                    addend: -4,
+                }],
+                proof_payload: normalized_proof_payload_digest(&proof),
+                proof,
+                sections: Vec::new(),
+            };
+        decoded.content_fingerprint =
+            non_authoritative_decoded_container_fingerprint(&decoded).unwrap();
 
         let mut bytes = vec![0_u8; total_length as usize];
         write_record(
@@ -1425,7 +1444,11 @@ mod tests {
                 ),
                 ("total_length", 64, total_length),
                 ("artifact", 64, 1),
-                ("content", 64, decoded.content.normalized_identity()),
+                (
+                    "content",
+                    64,
+                    decoded.content_fingerprint.compatibility_value(),
+                ),
                 ("reserved1", 64, 0),
                 ("reserved2", 64, 0),
             ],
@@ -1562,7 +1585,8 @@ mod tests {
         bytes[14..16].copy_from_slice(&8_u16.to_le_bytes());
         let total_length = bytes.len() as u64;
         bytes[24..32].copy_from_slice(&total_length.to_le_bytes());
-        let identity = normalized_informational_section_identity(kind, payload);
+        let identity = non_authoritative_informational_section_fingerprint(kind, payload)
+            .compatibility_value();
         write_record(
             &mut bytes[inserted_directory_offset
                 ..inserted_directory_offset
@@ -1604,9 +1628,21 @@ mod tests {
 
     #[test]
     fn canonical_encoder_round_trips_the_exact_validated_artifact_and_proof() {
-        let source = decode_executable_container(&canonical_bytes(), limits()).expect("source");
+        let canonical = canonical_bytes();
+        let source = decode_executable_container(&canonical, limits()).expect("source");
         let encoded = encode_executable_container(source.artifact(), source.proof(), limits())
             .expect("encode");
+        assert_eq!(
+            encoded, canonical,
+            "container-v1 wire bytes must remain stable"
+        );
+        assert_eq!(
+            u64::from_le_bytes(encoded[40..48].try_into().unwrap()),
+            source
+                .artifact()
+                .non_authoritative_container_fingerprint()
+                .compatibility_value()
+        );
         let decoded = decode_executable_container(&encoded, limits()).expect("round trip");
         assert_eq!(decoded.artifact(), source.artifact());
         assert_eq!(decoded.proof(), source.proof());
@@ -1618,15 +1654,19 @@ mod tests {
         let known = add_optional_section(canonical_bytes(), SECTION_INFORMATIONAL, b"debug");
         let decoded = decode_executable_container(&known, limits()).expect("known information");
         assert_eq!(
-            decoded.informational_sections()[0].normalized_identity(),
-            normalized_informational_section_identity(SECTION_INFORMATIONAL, b"debug")
+            decoded.informational_sections()[0].compatibility_value(),
+            non_authoritative_informational_section_fingerprint(SECTION_INFORMATIONAL, b"debug")
+                .compatibility_value()
         );
 
         let unknown = add_optional_section(canonical_bytes(), 99, b"future");
         let decoded = decode_executable_container(&unknown, limits()).expect("unknown information");
         assert_eq!(
             decoded.unknown_informational_sections(),
-            &[normalized_informational_section_identity(99, b"future")]
+            &[
+                non_authoritative_informational_section_fingerprint(99, b"future")
+                    .compatibility_value()
+            ]
         );
 
         let mut substituted = known;
@@ -1711,6 +1751,6 @@ mod tests {
             + 7 * OMEGA_EXECUTABLE_CONTAINER_SECTION_RECORD_BYTES;
         bytes[directory_end as usize] ^= 1;
         let error = decode_executable_container(&bytes, limits()).expect_err("content drift");
-        assert!(error.0.contains("content identity"));
+        assert!(error.0.contains("content fingerprint"));
     }
 }

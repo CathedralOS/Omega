@@ -599,6 +599,7 @@ dependencies = [
  "omega-target",
  "psi-extents",
  "psi-layout-plans",
+ "sha2",
 ]
 
 [[package]]

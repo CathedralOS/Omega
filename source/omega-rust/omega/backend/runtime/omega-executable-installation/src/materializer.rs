@@ -5,26 +5,33 @@ use super::*;
 /// ladder can consume the corresponding placement and establish execution.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MaterializedArtifactBytes {
-    artifact: ArtifactId,
-    admission: AdmissionReceiptId,
-    placement: CodePlacementId,
+    admission: AdmittedArtifact,
+    placement: CodePlacementEvidence,
     placement_plan: PlacementPlanId,
     base_address: u64,
     bytes: Vec<u8>,
-    final_bytes: FinalBytesId,
+    final_bytes: FinalBytesDigest,
 }
 
 impl MaterializedArtifactBytes {
-    pub const fn artifact(&self) -> ArtifactId {
-        self.artifact
+    pub fn artifact(&self) -> ArtifactId {
+        self.admission.artifact.0.identity
+    }
+
+    pub(super) const fn admission_evidence(&self) -> &AdmittedArtifact {
+        &self.admission
     }
 
     pub const fn admission(&self) -> AdmissionReceiptId {
-        self.admission
+        self.admission.admission
     }
 
     pub const fn placement(&self) -> CodePlacementId {
-        self.placement
+        self.placement.placement
+    }
+
+    pub(super) const fn placement_evidence(&self) -> &CodePlacementEvidence {
+        &self.placement
     }
 
     pub const fn placement_plan(&self) -> PlacementPlanId {
@@ -39,7 +46,7 @@ impl MaterializedArtifactBytes {
         &self.bytes
     }
 
-    pub const fn final_bytes(&self) -> FinalBytesId {
+    pub const fn final_bytes(&self) -> FinalBytesDigest {
         self.final_bytes
     }
 }
@@ -96,9 +103,8 @@ pub fn materialize_admitted_artifact(
         &bytes,
     )?;
     Ok(MaterializedArtifactBytes {
-        artifact: record.identity,
-        admission: artifact.admission,
-        placement: placement.placement,
+        admission: artifact.clone(),
+        placement: CodePlacementEvidence::from_placement(placement),
         placement_plan: record.placement_plan,
         base_address: placement.extent.base(),
         bytes,
@@ -271,26 +277,20 @@ fn write_bytes(
 }
 
 fn normalized_final_bytes_identity(
-    content: ArtifactContentId,
+    content: ArtifactContentDigest,
     base_address: u64,
     architecture: Architecture,
     bytes: &[u8],
-) -> Result<FinalBytesId, InstallationDiagnostic> {
-    let mut hash = 0xcbf2_9ce4_8422_2325u64;
-    for byte in b"omega-materialized-final-bytes-v1"
-        .iter()
-        .copied()
-        .chain(content.normalized_identity().to_le_bytes())
-        .chain(base_address.to_le_bytes())
-        .chain([match architecture {
-            Architecture::Aarch64 => 1,
-            Architecture::X86_64 => 2,
-        }])
-        .chain((bytes.len() as u64).to_le_bytes())
-        .chain(bytes.iter().copied())
-    {
-        hash ^= u64::from(byte);
-        hash = hash.wrapping_mul(0x100_0000_01b3);
-    }
-    FinalBytesId::from_normalized_identity(hash)
+) -> Result<FinalBytesDigest, InstallationDiagnostic> {
+    let mut digest = Sha256::new();
+    digest.update(b"omega.materialized-final-bytes.sha256.v1\0");
+    digest.update(content.digest());
+    digest.update(base_address.to_le_bytes());
+    digest.update([match architecture {
+        Architecture::Aarch64 => 1,
+        Architecture::X86_64 => 2,
+    }]);
+    digest.update((bytes.len() as u64).to_le_bytes());
+    digest.update(bytes);
+    Ok(FinalBytesDigest::from_digest(digest.finalize().into()))
 }

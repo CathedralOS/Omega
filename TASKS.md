@@ -85,6 +85,24 @@ scanners, or receipts.
   byte replay where it already supplies the real check, and rename residual
   fingerprints so their non-authoritative role is unmistakable.
 
+  The executable-installation-local slice is live. Artifact content, retained
+  proof payloads, and materialized final bytes now use separate domain-framed
+  SHA-256 digest types with no public constructors; the canonical artifact
+  constructor derives content internally. Container v1 retains its exact
+  64-bit content field only as an explicitly non-authoritative compatibility
+  fingerprint, and its encoder remains byte-for-byte stable. Materializer
+  output retains the exact admitted artifact and Extent-backed placement
+  evidence; final validation retains that placement evidence plus the strong
+  final-byte digest and exact bytes. Installed writer contexts retain the full
+  installed realization, so collision-equal report IDs cannot transplant a
+  context. The remaining FNV uses are named non-authoritative container/
+  informational compatibility fingerprints and writer replay fingerprints,
+  with a local architecture test policing that inventory. The global item
+  remains open: imported contract, footprint, entry/data-symbol, regime, and
+  installation-scope identities still need canonical commitments and a later
+  container version; retirement-fact, quarantine, component-era journal, and
+  external-root occurrence joins still require the same audit/hardening.
+
   Acceptance: an automated architecture test rejects new authoritative
   `u64`-only identities, every retained FNV use has a local non-authoritative
   owner, and adversarial collision tests cannot substitute an artifact,

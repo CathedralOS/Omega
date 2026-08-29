@@ -15,6 +15,7 @@ use psi_layout_plans::{
     PlacementConstraints, PlacementSite, PostHandoffWriterInvocationPlan, PostHandoffWriterPlan,
     PostHandoffWriterSource, PostHandoffWriterSourceSlot, RelocationTarget,
 };
+use sha2::{Digest, Sha256};
 
 macro_rules! normalized_id {
     ($name:ident, $label:literal) => {
@@ -40,7 +41,6 @@ macro_rules! normalized_id {
 }
 
 normalized_id!(ArtifactId, "artifact");
-normalized_id!(ArtifactContentId, "artifact-content");
 normalized_id!(MachineContractSetId, "machine-contract-set");
 normalized_id!(MachineFootprintId, "machine-footprint");
 normalized_id!(PlacementPlanId, "placement-plan");
@@ -48,17 +48,71 @@ normalized_id!(EntrySetId, "entry-set");
 normalized_id!(AdmissionReceiptId, "admission-receipt");
 normalized_id!(CodePlacementId, "code-placement");
 normalized_id!(InstallationScopeId, "installation-scope");
-normalized_id!(FinalBytesId, "final-bytes");
 normalized_id!(FinalValidationId, "final-validation");
 normalized_id!(InstalledCodeId, "installed-code");
 normalized_id!(RetirementFactId, "retirement-fact");
 normalized_id!(MappingQuarantineId, "mapping-quarantine");
 normalized_id!(RelocationSetId, "relocation-set");
-normalized_id!(ProofPayloadId, "proof-payload");
-normalized_id!(InformationalSectionId, "informational-section");
 normalized_id!(
     DestinationPreparationReceiptId,
     "destination-preparation-receipt"
+);
+
+macro_rules! normalized_digest {
+    ($name:ident) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub struct $name([u8; 32]);
+
+        impl $name {
+            pub(crate) const fn from_digest(digest: [u8; 32]) -> Self {
+                Self(digest)
+            }
+
+            pub const fn digest(self) -> [u8; 32] {
+                self.0
+            }
+        }
+    };
+}
+
+normalized_digest!(ArtifactContentDigest);
+normalized_digest!(ProofPayloadDigest);
+normalized_digest!(FinalBytesDigest);
+
+macro_rules! non_authoritative_fingerprint64 {
+    ($name:ident, $label:literal) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub struct $name(u64);
+
+        impl $name {
+            pub fn from_compatibility_value(value: u64) -> Result<Self, InstallationDiagnostic> {
+                if value == 0 {
+                    return Err(InstallationDiagnostic(format!(
+                        "non-authoritative {} fingerprint cannot be zero",
+                        $label
+                    )));
+                }
+                Ok(Self(value))
+            }
+
+            pub const fn compatibility_value(self) -> u64 {
+                self.0
+            }
+        }
+    };
+}
+
+non_authoritative_fingerprint64!(
+    NonAuthoritativeContainerFingerprint64,
+    "container-v1 compatibility"
+);
+non_authoritative_fingerprint64!(
+    NonAuthoritativeInformationalFingerprint64,
+    "informational-section"
+);
+non_authoritative_fingerprint64!(
+    NonAuthoritativeWriterContextFingerprint64,
+    "writer-context replay"
 );
 
 mod container;
@@ -74,7 +128,8 @@ pub use replacement_quarantine::*;
 #[derive(Debug, PartialEq, Eq)]
 struct ArtifactRecord {
     identity: ArtifactId,
-    content: ArtifactContentId,
+    content: ArtifactContentDigest,
+    container_fingerprint: NonAuthoritativeContainerFingerprint64,
     architecture: Architecture,
     byte_length: u64,
     code: Vec<u8>,
@@ -122,7 +177,6 @@ pub struct Artifact(Arc<ArtifactRecord>);
 impl Artifact {
     pub fn from_canonical_decode(
         identity: ArtifactId,
-        content: ArtifactContentId,
         architecture: Architecture,
         code: Vec<u8>,
         contracts: MachineContractSetId,
@@ -174,9 +228,22 @@ impl Artifact {
         }
         let relocations =
             validate_decoded_relocations(relocations, architecture, byte_length, usize::MAX)?;
+        let (content, container_fingerprint) = derive_artifact_content_commitments(
+            architecture,
+            &code,
+            contracts,
+            declared_footprint,
+            placement_plan,
+            placement_constraints,
+            entry_set,
+            &entries,
+            relocation_set,
+            &relocations,
+        )?;
         Ok(Self(Arc::new(ArtifactRecord {
             identity,
             content,
+            container_fingerprint,
             architecture,
             byte_length,
             code,
@@ -195,8 +262,16 @@ impl Artifact {
         self.0.identity
     }
 
-    pub fn content(&self) -> ArtifactContentId {
+    pub fn content(&self) -> ArtifactContentDigest {
         self.0.content
+    }
+
+    /// Legacy container-v1 checksum retained only for wire compatibility. It
+    /// is never sufficient for admission, replay, or installation authority.
+    pub fn non_authoritative_container_fingerprint(
+        &self,
+    ) -> NonAuthoritativeContainerFingerprint64 {
+        self.0.container_fingerprint
     }
 
     pub fn architecture(&self) -> Architecture {
@@ -275,6 +350,13 @@ impl ArtifactAdmissionEvidence {
 pub struct AdmittedArtifact {
     artifact: Artifact,
     admission: AdmissionReceiptId,
+    container_proof: Option<RetainedContainerProof>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RetainedContainerProof {
+    digest: ProofPayloadDigest,
+    bytes: Vec<u8>,
 }
 
 impl AdmittedArtifact {
@@ -323,6 +405,7 @@ pub fn admit_executable(
     Ok(AdmittedArtifact {
         artifact: artifact.clone(),
         admission: evidence.receipt,
+        container_proof: None,
     })
 }
 
@@ -463,6 +546,27 @@ pub struct CodePlacement {
     extent: Extent,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CodePlacementEvidence {
+    placement: CodePlacementId,
+    scope: InstallationScopeId,
+    audience: InstallationAudience,
+    constraints: PlacementConstraints,
+    extent: CodePlacementExtentEvidence,
+}
+
+impl CodePlacementEvidence {
+    fn from_placement(placement: &CodePlacement) -> Self {
+        Self {
+            placement: placement.placement,
+            scope: placement.scope,
+            audience: placement.audience,
+            constraints: placement.constraints,
+            extent: CodePlacementExtentEvidence::from_extent(&placement.extent),
+        }
+    }
+}
+
 impl CodePlacement {
     pub const fn identity(&self) -> CodePlacementId {
         self.placement
@@ -509,14 +613,12 @@ pub fn materialize_and_freeze(
     materialized: MaterializedArtifactBytes,
     receipt: MaterializationReceipt,
 ) -> Result<FrozenPlacement, Box<MaterializationError>> {
-    let mismatch = if materialized.artifact() != artifact.artifact.0.identity
-        || materialized.admission() != artifact.admission
+    let mismatch = if materialized.admission_evidence() != artifact {
+        Some("canonical materializer output does not retain the exact admitted artifact")
+    } else if materialized.placement_evidence()
+        != &CodePlacementEvidence::from_placement(&placement)
     {
-        Some("canonical materializer output names a different admitted artifact")
-    } else if materialized.placement() != placement.placement {
-        Some("canonical materializer output names a different code placement")
-    } else if materialized.base_address() != placement.extent.base() {
-        Some("canonical materializer output names a different placement base")
+        Some("canonical materializer output does not retain the exact code placement")
     } else if materialized.placement_plan() != artifact.artifact.0.placement_plan {
         Some("canonical materializer output did not use the admitted placement plan")
     } else if materialized.bytes().len() as u64 != artifact.artifact.0.byte_length {
@@ -589,7 +691,7 @@ impl FrozenPlacement {
         self.materialized.bytes()
     }
 
-    pub const fn final_bytes(&self) -> FinalBytesId {
+    pub const fn final_bytes(&self) -> FinalBytesDigest {
         self.materialized.final_bytes()
     }
 }
@@ -599,7 +701,8 @@ pub struct FinalValidationCertificate {
     identity: FinalValidationId,
     artifact: Artifact,
     admission: AdmissionReceiptId,
-    placement: CodePlacementId,
+    placement: CodePlacementEvidence,
+    final_bytes_digest: FinalBytesDigest,
     final_bytes: Vec<u8>,
     realized_footprint: MachineFootprintId,
     accepted: bool,
@@ -618,7 +721,8 @@ impl FinalValidationCertificate {
             identity,
             artifact: frozen.artifact.artifact.clone(),
             admission: frozen.artifact.admission,
-            placement: frozen.placement.placement,
+            placement: CodePlacementEvidence::from_placement(&frozen.placement),
+            final_bytes_digest: frozen.materialized.final_bytes(),
             final_bytes: frozen.materialized.bytes().to_vec(),
             realized_footprint: frozen.realized_footprint,
             accepted,
@@ -633,7 +737,8 @@ pub fn validate_final_placement(
     let matches = certificate.accepted
         && certificate.artifact == frozen.artifact.artifact
         && certificate.admission == frozen.artifact.admission
-        && certificate.placement == frozen.placement.placement
+        && certificate.placement == CodePlacementEvidence::from_placement(&frozen.placement)
+        && certificate.final_bytes_digest == frozen.materialized.final_bytes()
         && certificate.final_bytes == frozen.materialized.bytes()
         && certificate.realized_footprint == frozen.realized_footprint;
     if !matches {
@@ -678,6 +783,7 @@ pub struct ValidatedPlacement {
 /// bytes, placement geometry, authority lineage, and validation result.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ValidatedPlacementEvidence {
+    admission_evidence: AdmittedArtifact,
     artifact: Artifact,
     admission: AdmissionReceiptId,
     placement: CodePlacementId,
@@ -701,6 +807,7 @@ impl ValidatedPlacementEvidence {
         let frozen = &validated.frozen;
         let extent = &frozen.placement.extent;
         Self {
+            admission_evidence: frozen.artifact.clone(),
             artifact: frozen.artifact.artifact.clone(),
             admission: frozen.artifact.admission,
             placement: frozen.placement.placement,
@@ -844,13 +951,14 @@ pub struct InstallationRegistryAuthority {
 /// public accessor and this carrier is deliberately non-clonable.
 #[derive(PartialEq, Eq)]
 pub struct ResolvedPostHandoffEntryWriterContext {
+    installed_evidence: InstalledCodeEvidence,
     installed_code: InstalledCodeId,
     artifact: ArtifactId,
     destination_site: PlacementSite,
     destination_len: usize,
     invocation: PostHandoffWriterInvocationPlan,
     packed_words: Vec<u64>,
-    fingerprint: u64,
+    non_authoritative_fingerprint: NonAuthoritativeWriterContextFingerprint64,
 }
 
 /// Provider receipt establishing the runtime properties needed before a
@@ -1137,8 +1245,10 @@ impl<'mapping, 'bytes> WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
         self.site
     }
 
-    pub const fn writer_context_fingerprint(&self) -> u64 {
-        self.context.fingerprint()
+    pub const fn non_authoritative_writer_context_fingerprint(
+        &self,
+    ) -> NonAuthoritativeWriterContextFingerprint64 {
+        self.context.non_authoritative_fingerprint()
     }
 
     pub fn binds_invocation(&self, invocation: &PostHandoffWriterInvocationPlan) -> bool {
@@ -1240,8 +1350,10 @@ impl<'mapping, 'bytes> ValidatedWrittenPostHandoffWriterDestination<'mapping, 'b
         self.written.site()
     }
 
-    pub const fn writer_context_fingerprint(&self) -> u64 {
-        self.written.writer_context_fingerprint()
+    pub const fn non_authoritative_writer_context_fingerprint(
+        &self,
+    ) -> NonAuthoritativeWriterContextFingerprint64 {
+        self.written.non_authoritative_writer_context_fingerprint()
     }
 
     pub fn binds_invocation(&self, invocation: &PostHandoffWriterInvocationPlan) -> bool {
@@ -1333,7 +1445,13 @@ impl std::fmt::Debug for ResolvedPostHandoffEntryWriterContext {
                 "normalized_fragment_fingerprint",
                 &format_args!("{:016x}", self.invocation.fragment().fingerprint()),
             )
-            .field("fingerprint", &format_args!("{:016x}", self.fingerprint))
+            .field(
+                "non_authoritative_fingerprint",
+                &format_args!(
+                    "{:016x}",
+                    self.non_authoritative_fingerprint.compatibility_value()
+                ),
+            )
             .finish()
     }
 }
@@ -1355,8 +1473,10 @@ impl ResolvedPostHandoffEntryWriterContext {
         self.packed_words.len() * std::mem::size_of::<u64>()
     }
 
-    pub const fn fingerprint(&self) -> u64 {
-        self.fingerprint
+    pub const fn non_authoritative_fingerprint(
+        &self,
+    ) -> NonAuthoritativeWriterContextFingerprint64 {
+        self.non_authoritative_fingerprint
     }
 
     pub const fn context_abi(&self) -> u64 {
@@ -1582,22 +1702,24 @@ impl InstalledCode {
         let mut packed_words = Vec::with_capacity(invocation.sources().len() + 1);
         packed_words.push(destination_site.base_address);
         packed_words.extend(source_values);
-        let fingerprint = fingerprint_post_handoff_entry_writer_context(
-            self.identity,
-            self.artifact(),
-            destination_site,
-            destination_len,
-            &invocation,
-            &packed_words,
-        );
+        let non_authoritative_fingerprint =
+            non_authoritative_post_handoff_entry_writer_context_fingerprint(
+                self.identity,
+                self.artifact(),
+                destination_site,
+                destination_len,
+                &invocation,
+                &packed_words,
+            );
         Ok(ResolvedPostHandoffEntryWriterContext {
+            installed_evidence: InstalledCodeEvidence::from_installed(self),
             installed_code: self.identity,
             artifact: self.artifact(),
             destination_site,
             destination_len,
             invocation,
             packed_words,
-            fingerprint,
+            non_authoritative_fingerprint,
         })
     }
 
@@ -1611,7 +1733,8 @@ impl InstalledCode {
         destination_site: PlacementSite,
     ) -> Result<(), MaterializationDiagnostic> {
         let invocation = plan.lower_reusable_fragment()?;
-        if context.installed_code != self.identity
+        if context.installed_evidence != InstalledCodeEvidence::from_installed(self)
+            || context.installed_code != self.identity
             || context.artifact != self.artifact()
             || context.destination_site != destination_site
             || context.destination_len != destination.len()
@@ -1650,7 +1773,8 @@ impl InstalledCode {
             .invocation
             .validate_structure()
             .map_err(|diagnostic| InstallationDiagnostic(diagnostic.0))?;
-        if context.installed_code != self.identity
+        if context.installed_evidence != InstalledCodeEvidence::from_installed(self)
+            || context.installed_code != self.identity
             || context.artifact != self.artifact()
             || context.destination_site != destination_site
             || context.destination_len != destination_len
@@ -1686,7 +1810,7 @@ impl InstalledCode {
                 )));
             }
         }
-        let replayed_fingerprint = fingerprint_post_handoff_entry_writer_context(
+        let replayed_fingerprint = non_authoritative_post_handoff_entry_writer_context_fingerprint(
             context.installed_code,
             context.artifact,
             context.destination_site,
@@ -1694,9 +1818,10 @@ impl InstalledCode {
             &context.invocation,
             &context.packed_words,
         );
-        if replayed_fingerprint != context.fingerprint {
+        if replayed_fingerprint != context.non_authoritative_fingerprint {
             return Err(InstallationDiagnostic(
-                "written post-handoff destination context fingerprint fails exact replay".into(),
+                "written post-handoff destination context non-authoritative fingerprint fails exact replay"
+                    .into(),
             ));
         }
         Ok(())
@@ -1804,14 +1929,14 @@ impl InstallationRegistryAuthority {
     }
 }
 
-fn fingerprint_post_handoff_entry_writer_context(
+fn non_authoritative_post_handoff_entry_writer_context_fingerprint(
     installed_code: InstalledCodeId,
     artifact: ArtifactId,
     destination_site: PlacementSite,
     destination_len: usize,
     invocation: &PostHandoffWriterInvocationPlan,
     packed_words: &[u64],
-) -> u64 {
+) -> NonAuthoritativeWriterContextFingerprint64 {
     let mut hash = 0xcbf2_9ce4_8422_2325_u64;
     let mut mix = |value: u64| {
         hash ^= value;
@@ -1864,11 +1989,12 @@ fn fingerprint_post_handoff_entry_writer_context(
     for word in packed_words {
         mix(*word);
     }
-    if hash == 0 {
+    NonAuthoritativeWriterContextFingerprint64::from_compatibility_value(if hash == 0 {
         0xcbf2_9ce4_8422_2325
     } else {
         hash
-    }
+    })
+    .expect("fixed FNV normalization replaces zero")
 }
 
 /// One-shot authority to retire one exact installed realization. Required
@@ -2110,7 +2236,6 @@ mod tests {
     fn colliding_artifact(identity: u64, fill: u8) -> Artifact {
         Artifact::from_canonical_decode(
             id(identity, ArtifactId::from_normalized_identity),
-            id(identity + 10, ArtifactContentId::from_normalized_identity),
             Architecture::X86_64,
             vec![fill; 64],
             id(30, MachineContractSetId::from_normalized_identity),
@@ -2136,7 +2261,6 @@ mod tests {
     ) -> Artifact {
         Artifact::from_canonical_decode(
             id(identity, ArtifactId::from_normalized_identity),
-            id(identity + 10, ArtifactContentId::from_normalized_identity),
             Architecture::X86_64,
             vec![0; 64],
             id(30, MachineContractSetId::from_normalized_identity),
@@ -2289,7 +2413,6 @@ mod tests {
     ) -> Artifact {
         Artifact::from_canonical_decode(
             id(identity, ArtifactId::from_normalized_identity),
-            id(identity + 10, ArtifactContentId::from_normalized_identity),
             architecture,
             code,
             id(30, MachineContractSetId::from_normalized_identity),
@@ -2571,6 +2694,48 @@ mod tests {
     }
 
     #[test]
+    fn artifact_content_digest_is_derived_from_exact_semantics() {
+        let first = colliding_artifact(1, 0x90);
+        let second = colliding_artifact(1, 0xcc);
+
+        assert_eq!(first.identity(), second.identity());
+        assert_ne!(first.code(), second.code());
+        assert_ne!(first.content(), second.content());
+        assert_ne!(first.content().digest(), second.content().digest());
+    }
+
+    #[test]
+    fn local_fnv_sites_are_explicitly_non_authoritative() {
+        let root = include_str!("lib.rs");
+        let container = include_str!("container.rs");
+        let container_bytes = include_str!("container_bytes.rs");
+        let materializer = include_str!("materializer.rs");
+
+        for forbidden in [
+            ["normalized_id!", "(ArtifactContent"].concat(),
+            ["normalized_id!", "(ProofPayload"].concat(),
+            ["normalized_id!", "(FinalBytes"].concat(),
+            ["pub const fn", " from_digest"].concat(),
+        ] {
+            assert!(!root.contains(&forbidden));
+        }
+        assert!(root.contains("non_authoritative_post_handoff_entry_writer_context_fingerprint"));
+        assert!(container.contains("NonAuthoritativeContainerFingerprint64"));
+        assert!(container_bytes.contains("non_authoritative_informational_section_fingerprint"));
+        assert!(materializer.contains("FinalBytesDigest"));
+
+        let fnv_offset_basis = ["0x", "cbf"].concat();
+        let fnv_offset_basis_count = [root, container, container_bytes, materializer]
+            .into_iter()
+            .map(|source| source.matches(&fnv_offset_basis).count())
+            .sum::<usize>();
+        assert_eq!(
+            fnv_offset_basis_count, 4,
+            "new FNV sites require explicit non-authoritative classification"
+        );
+    }
+
+    #[test]
     fn materialization_cannot_substitute_another_artifact() {
         let first = admit(&artifact(1));
         let second = admit(&artifact(2));
@@ -2598,8 +2763,8 @@ mod tests {
 
     #[test]
     fn canonical_materializer_output_cannot_substitute_another_artifact() {
-        let first = admit(&artifact(1));
-        let second = admit(&artifact(2));
+        let first = admit(&colliding_artifact(1, 0x90));
+        let second = admit(&colliding_artifact(1, 0xcc));
         let placement = placement_authority(111, 0x9000, 4096)
             .claim(placement_extent(111, 0x9000, 4096))
             .expect("placement");
@@ -2616,9 +2781,29 @@ mod tests {
             error
                 .diagnostic()
                 .0
-                .contains("materializer output names a different admitted artifact")
+                .contains("materializer output does not retain the exact admitted artifact")
         );
         let (_placement, _materialized, _receipt) = (*error).into_parts();
+    }
+
+    #[test]
+    fn final_bytes_digest_binds_content_and_placement_base() {
+        let admitted = admit(&artifact(1));
+        let first_placement = placement_authority(114, 0x4000, 4096)
+            .claim(placement_extent(114, 0x4000, 4096))
+            .expect("first placement");
+        let second_placement = placement_authority(115, 0x8000, 4096)
+            .claim(placement_extent(115, 0x8000, 4096))
+            .expect("second placement");
+        let first = materialize_admitted_artifact(&admitted, &first_placement, |_| None)
+            .expect("first materialization");
+        let second = materialize_admitted_artifact(&admitted, &second_placement, |_| None)
+            .expect("second materialization");
+
+        assert_eq!(first.bytes(), second.bytes());
+        assert_ne!(first.base_address(), second.base_address());
+        assert_ne!(first.final_bytes(), second.final_bytes());
+        assert_ne!(first.final_bytes().digest(), second.final_bytes().digest());
     }
 
     #[test]
@@ -2762,7 +2947,12 @@ mod tests {
             context.normalized_fragment_fingerprint(),
             invocation.fragment().fingerprint()
         );
-        assert_ne!(context.fingerprint(), 0);
+        assert_ne!(
+            context
+                .non_authoritative_fingerprint()
+                .compatibility_value(),
+            0
+        );
         let context_debug = format!("{context:?}");
         assert!(!context_debug.contains("packed_words"));
         assert!(!context_debug.contains("destination_site"));
@@ -2809,6 +2999,46 @@ mod tests {
     }
 
     #[test]
+    fn writer_context_cannot_substitute_collision_equal_installed_realization() {
+        let first = installed_code(&admit(&colliding_artifact(1, 0x90)), 110, 0x8000);
+        let second = installed_code(&admit(&colliding_artifact(1, 0xcc)), 110, 0x8000);
+        let target = RelocationTarget::Entry(entry_id(1001));
+        let writer = PostHandoffWriterPlan {
+            byte_len: 8,
+            byte_order: ByteOrder::LittleEndian,
+            placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
+            steps: vec![PostHandoffWriterStep {
+                write: MaterializationWrite {
+                    field: "address".into(),
+                    target,
+                    container_byte_offset: 0,
+                    container_width_bits: 64,
+                    destination_lsb: 0,
+                    source_lsb: 0,
+                    width: 64,
+                    stored_integer_fit: None,
+                },
+                source: PostHandoffWriterSource::Resolve(target),
+            }],
+        };
+        let site = PlacementSite {
+            base_address: 0x9000,
+            phase: PlacementPhase::PostHandoff,
+            machine_regime: None,
+            installation_scope: None,
+        };
+        let context = second
+            .populate_post_handoff_entry_writer_context(&writer, 8, site)
+            .expect("second realization produces a context");
+        let mut destination = [0xa5; 8];
+        let error = first
+            .execute_populated_post_handoff_entry_writer(&context, &writer, &mut destination, site)
+            .expect_err("exact installed realization mismatch must reject");
+        assert!(error.0.contains("exact installed code"));
+        assert_eq!(destination, [0xa5; 8]);
+    }
+
+    #[test]
     fn prepared_writer_consumes_an_activated_pinned_writable_unpublished_destination() {
         let target = RelocationTarget::Entry(entry_id(1001));
         let installed = installed_code(&admit(&artifact(1)), 106, 0x8000);
@@ -2839,7 +3069,7 @@ mod tests {
         let context = installed
             .populate_post_handoff_entry_writer_context(&writer, 8, site)
             .expect("exact installed writer context");
-        let context_fingerprint = context.fingerprint();
+        let context_fingerprint = context.non_authoritative_fingerprint();
         let invocation = writer
             .lower_reusable_fragment()
             .expect("exact retained invocation");
@@ -2858,9 +3088,16 @@ mod tests {
         assert_eq!(written.installed_code(), installed.identity());
         assert_eq!(written.artifact(), installed.artifact());
         assert_eq!(written.site(), site);
-        assert_eq!(written.writer_context_fingerprint(), context_fingerprint);
+        assert_eq!(
+            written.non_authoritative_writer_context_fingerprint(),
+            context_fingerprint
+        );
         assert!(written.binds_invocation(&invocation));
-        written.context.fingerprint ^= 1;
+        written.context.non_authoritative_fingerprint =
+            NonAuthoritativeWriterContextFingerprint64::from_compatibility_value(
+                context_fingerprint.compatibility_value() ^ 1,
+            )
+            .unwrap();
         let error = written
             .into_validated_for_consumer(&installed)
             .expect_err("consumer replay must reject context corruption");
@@ -2871,7 +3108,7 @@ mod tests {
                 .contains("fingerprint fails exact replay")
         );
         let mut written = (*error).into_written();
-        written.context.fingerprint ^= 1;
+        written.context.non_authoritative_fingerprint = context_fingerprint;
         let written = written
             .into_validated_for_consumer(&installed)
             .expect("repaired exact context supports consumer retry");
@@ -3012,7 +3249,6 @@ mod tests {
         let second = entry_id(2002);
         let candidate = Artifact::from_canonical_decode(
             id(1001, ArtifactId::from_normalized_identity),
-            id(1011, ArtifactContentId::from_normalized_identity),
             Architecture::X86_64,
             vec![0; 64],
             id(30, MachineContractSetId::from_normalized_identity),

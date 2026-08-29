@@ -1,7 +1,7 @@
 use super::*;
 use omega_executable_installation::{
-    AdmissionReceiptId, Artifact, ArtifactAdmissionEvidence, ArtifactContentId, ArtifactEntry,
-    ArtifactId, CodePlacementAuthority, CodePlacementId, EntrySetId, FinalValidationCertificate,
+    AdmissionReceiptId, Artifact, ArtifactAdmissionEvidence, ArtifactEntry, ArtifactId,
+    CodePlacementAuthority, CodePlacementId, EntrySetId, FinalValidationCertificate,
     FinalValidationId, InstallAuthority, InstallationAudience, InstallationReceipt,
     InstallationScopeId, InstalledCodeId, MachineContractSetId, MachineFootprintId,
     MaterializationReceipt, PlacementPlanId, RelocationSetId, WxEnforcement, admit_executable,
@@ -86,10 +86,6 @@ fn installed_code(
 ) -> InstalledCode {
     let artifact = Artifact::from_canonical_decode(
         normalized(artifact_identity, ArtifactId::from_normalized_identity),
-        normalized(
-            artifact_identity + 1,
-            ArtifactContentId::from_normalized_identity,
-        ),
         omega_target::Architecture::X86_64,
         vec![0; 64],
         normalized(0x7110, MachineContractSetId::from_normalized_identity),

@@ -23,12 +23,12 @@ use omega_effects::{
     SelectedProviderPlanFacts, evaluate_executable_tcb_profile,
 };
 use omega_executable_installation::{
-    AdmissionReceiptId, Artifact, ArtifactAdmissionEvidence, ArtifactContentId, ArtifactEntry,
-    CodePlacementAuthority, CodePlacementId, EntrySetId, FinalValidationCertificate,
-    FinalValidationId, InstallAuthority, InstallationAudience, InstallationReceipt,
-    InstallationScopeId, MachineContractSetId, MachineFootprintId, MaterializationReceipt,
-    PlacementPlanId, RelocationSetId, WxEnforcement, admit_executable, install_validated,
-    materialize_admitted_artifact, materialize_and_freeze, validate_final_placement,
+    AdmissionReceiptId, Artifact, ArtifactAdmissionEvidence, ArtifactEntry, CodePlacementAuthority,
+    CodePlacementId, EntrySetId, FinalValidationCertificate, FinalValidationId, InstallAuthority,
+    InstallationAudience, InstallationReceipt, InstallationScopeId, MachineContractSetId,
+    MachineFootprintId, MaterializationReceipt, PlacementPlanId, RelocationSetId, WxEnforcement,
+    admit_executable, install_validated, materialize_admitted_artifact, materialize_and_freeze,
+    validate_final_placement,
 };
 use omega_installation_evidence::{FuelAttributionEvidence, ObjectEvidence, StackDemandEvidence};
 use psi_extents::{
@@ -125,10 +125,6 @@ fn installed_code_with_fill_and_installation_identity(
 ) -> InstalledCode {
     let artifact = Artifact::from_canonical_decode(
         install_id(artifact_identity, ArtifactId::from_normalized_identity),
-        install_id(
-            artifact_identity + 10,
-            ArtifactContentId::from_normalized_identity,
-        ),
         omega_target::Architecture::X86_64,
         vec![fill; 64],
         install_id(30, MachineContractSetId::from_normalized_identity),

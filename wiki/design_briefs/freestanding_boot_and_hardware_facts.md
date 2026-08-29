@@ -455,11 +455,14 @@ transition returns its authority inputs. The reusable artifact retains exact
 code and canonical relocations. Its pure provider materializer resolves only
 sealed targets, patches a private copy with checked target semantics, validates
 AArch64 instruction shapes, and derives a placement/content-bound final-byte
-identity without acquiring destination-write or execute authority.
+SHA-256 digest without acquiring destination-write or execute authority.
 Materialization receipts retain that complete canonical output, while final
 validation evidence is minted from and retains the exact frozen artifact and
-byte snapshot; compact normalized identities remain report keys rather than
-collision-resistant authority. Installation and retirement continue that rule:
+byte snapshot, exact Extent-backed placement evidence, and strong digest.
+Artifact content and validated-container proof payloads likewise use distinct
+domain-framed SHA-256 digest types whose construction remains inside their
+canonical normalizers. Compact normalized identities remain report keys rather
+than collision-resistant authority. Installation and retirement continue that rule:
 their authorities and receipts retain the complete validated placement or
 installed realization, including exact bytes, Extent authority facts, scope,
 audience, validation, and W^X state. Compact lifecycle IDs never substitute for
@@ -501,8 +504,9 @@ The decoder uses the ordinary validated scalar-layout consumer rather than a
 bespoke pointer parser. Its canonical little-endian form is deliberately
 small:
 
-- a 64-byte `OMEGAXE!` header fixes the current format marker, architecture, total length,
-  artifact/content identities, and a section count;
+- a 64-byte `OMEGAXE!` header fixes the current format marker, architecture,
+  total length, artifact report identity, non-authoritative content
+  compatibility fingerprint, and a section count;
 - the section directory starts immediately after the header and uses bounded
   32-byte records (`kind`, required flag, normalized identity, offset, length);
 - code and proof remain exact opaque byte spans; contract and footprint
@@ -520,9 +524,9 @@ sorted ranges must tile every byte after the directory exactly, so gaps and
 unreferenced trailing bytes cannot become an identity-invisible smuggling
 channel. Payload identities must match their directory entries, and the exact
 input length must match the header. The semantic validator then enforces one
-exact copy of every semantic section and derives the normalized executable-
-content and proof identities. The result is an immutable admission candidate,
-never executable eligibility.
+exact copy of every semantic section, checks the legacy content fingerprint,
+and derives normalized executable-content and proof SHA-256 digests. The result
+is an immutable admission candidate, never executable eligibility.
 
 Optional known and unknown informational sections remain opaque and
 identity-invisible to executable admission, but they are not allowed to
@@ -533,7 +537,7 @@ admission authority.
 
 The inverse compiler-side encoder is live over the same layout records. It
 emits only the seven required semantic sections in canonical order, derives the
-proof identity from the exact payload, checks configured section/relocation/
+proof digest from the exact payload, checks configured section/relocation/
 total-size bounds before allocation, and routes its completed bytes back
 through the hostile-input decoder before returning them. Producer and consumer
 therefore share one schema and fail closed on drift; optional informational
@@ -543,10 +547,10 @@ this form: it accepts an already-normalized `Artifact` plus exact proof bytes,
 invokes the canonical encoder, and atomically installs the resulting file. It
 does not accept a final PE/ELF/Mach-O image or a caller-selected byte buffer as
 an executable candidate.
-Verifier evidence retains that exact immutable candidate rather than using its
-compact FNV identities as collision-resistant authority; the proof-payload
-identity is normalizer-derived from and retained beside the exact proof bytes,
-while informational sections remain authority-free.
+Verifier evidence retains that exact immutable candidate, its strong content
+and proof digests, and the exact proof bytes. The remaining FNV content field is
+container-v1 compatibility only, while informational-section fingerprints stay
+authority-free. The encoder reproduces the existing v1 bytes exactly.
 Normalization binds the exact code bytes, instruction-set architecture,
 contracts, footprint, placement, entries, and canonical relocations into
 content identity; proof evidence remains outside that promise. The artifact
@@ -558,6 +562,13 @@ report, and fingerprint. Retaining and translating the compiler's semantic
 code, relocation, contract, footprint, placement, and entry facts into that
 packaging seam remains engineering, as does wrapping the canonical result in
 the target's firmware envelope.
+
+This local hardening does not upgrade semantic identities imported into the
+container. Contract, footprint, placement, entry/data-symbol, regime, and
+installation-scope commitments require canonical upstream bytes or wider
+domain digests and therefore a later container version. Those are engineering
+follow-ups, not permission to treat their current `u64` carriers as collision-
+resistant authority.
 
 The initial image uses the same trust discipline at an earlier phase: the
 current trusted build validates the artifact and signs its admitted identity,
