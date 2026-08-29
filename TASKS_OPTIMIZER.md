@@ -17,6 +17,12 @@ another broad alias while executing this plan.
 
 ## Current stopping point
 
+[x] Same-block and dominating GVN now mirror the phi-translated taxonomy. Their
+32- and 37-line entrances own traversal-specific analysis/invalidation
+contracts and descend into separate obligation-free, proof-certified, and
+compatible-policy leaves. The former 449- and 656-line mixed files are gone;
+no replacement exceeds 212 lines, and the architecture gate pins both joins.
+
 [x] Phi-translated GVN no longer combines three exact catalog rules in one
 824-line leaf. Its 37-line entrance owns their shared analysis, invalidation,
 pass, and version contract, then descends into obligation-free,
