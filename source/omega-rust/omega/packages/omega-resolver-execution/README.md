@@ -9,8 +9,8 @@ text or containment claims.
 
 - `src/lib.rs` is the documented public entrance and reexports only the closed
   request, observation, backend, child-lifecycle, and endpoint types.
-- `src/model.rs` owns closed phases, transports, guarantees, backend identity,
-  resource ceilings, and opaque canonical policy observations.
+- `src/model/` owns closed phases and transports (`phase.rs`), native guarantee
+  vocabulary (`guarantees.rs`), and canonical policy observations (`mod.rs`).
 - `src/request.rs` validates compiler-selected executable and custody paths;
   it does not interpret package-authored locator text.
 - `src/backend.rs` validates one launch request, selects the verified host
