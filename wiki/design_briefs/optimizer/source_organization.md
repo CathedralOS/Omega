@@ -12,9 +12,13 @@ join. It must not contain rule mechanics, codecs, broad fixtures, or hundreds
 of accessors. A pure re-export wall is also insufficient.
 
 Preferred entrance size is below 100 lines. Crossing 200 lines requires a
-specific reason in review. Production files above 1,300 lines fail the
-organization gate; dedicated test fixtures retain a 1,500-line ceiling. Lower
-thresholds are preferred for mixed-responsibility files.
+specific reason in review. New production files have a 1,000-line hard
+ceiling; dedicated test fixtures retain a 1,500-line ceiling. The remaining
+pre-ratchet production leaves between 1,001 and 1,300 lines are named in the
+architecture test with ceilings pinned to their current sizes. They cannot
+grow, new exceptions are forbidden, and an exception becomes stale as soon as
+its file is split below 1,001 lines. These are migration debts, not acceptable
+target sizes.
 
 ## Taxonomy
 
@@ -149,8 +153,8 @@ legalization join and a 30-line selection join. Legal source construction and
 independent replay each descend into structural, scalar-function, and
 leaf-expression families; selected-plan construction and validation descend
 separately through constraints, roster construction, function/block/register
-checks, integrity replay, and canonical identity. No production leaf in that
-crate exceeds the 1,300-line ceiling.
+checks, integrity replay, and canonical identity. Its remaining pre-ratchet
+leaf is pinned and cannot grow while it is split toward the default ceiling.
 
 The scalar legalization family also carries the Squalr-style registry shape
 directly: one adjacent seven-row catalog owns precedence, recipe, shape, and
@@ -183,9 +187,9 @@ per-result function route. Scalar lowering visibly orders setup, special
 forms, conditional routing, and straight-line lowering; structural lowering
 visibly chooses direct-call return or explicit structural return. Unit,
 boundary-settlement, cleanup, structural-layout, and four focused fixture
-families remain separate leaves. No production leaf exceeds the 1,300-line
-ceiling, and the stage, function, scalar, and structural joins are mandatory
-coordination entrances rather than re-export walls.
+families remain separate leaves. Its remaining pre-ratchet leaves are pinned
+and cannot grow, and the stage, function, scalar, and structural joins are
+mandatory coordination entrances rather than re-export walls.
 
 The temporary target-to-assigned compatibility continuation is governed too.
 Its 33-line stage entrance checks the entry roster and coordinates per-function
@@ -222,7 +226,8 @@ function-relative-layout stages expose ordered catalogs with phase coverage
 tests. Validator candidates, semantic analyses, optimization-unit identity and
 rewrite machinery, projection tests, and physical custody tests descend through
 small named entrances rather than monoliths. The repository architecture test
-enforces separate 1,300-line production and 1,500-line dedicated-test ceilings
+enforces a 1,000-line default production ceiling, pinned non-growing legacy
+exceptions no higher than 1,300 lines, and a 1,500-line dedicated-test ceiling,
 plus the entrance exception contract over the governed optimizer roots. It
 additionally names the coordination marker
 that must remain in each migrated executable-stage entrance and requires one
@@ -252,8 +257,12 @@ projection, and independent replay; its entrance owns the exact environment
 through replayed-result custody join. Selected-CFG liveness follows with a
 single analysis-to-independent-replay entrance over separate model, analysis,
 validation, and custody leaves. CFG-aware live ranges repeat that explicit
-analysis/replay custody shape before allocation legality. Allocation-legality
-staging puts each exact availability policy in one visible leaf and keeps
+analysis/replay custody shape before allocation legality. Live-range
+validation has its own 34-line entrance: it first replays liveness custody,
+then descends into independent reconstruction, receipt projection, and focused
+corruption tests. The former 1,294-line validation catch-all is gone; its
+largest leaf is below the new default ceiling. Allocation-legality staging
+puts each exact availability policy in one visible leaf and keeps
 analysis, independent replay, custody projection, and the retained model
 separate; its entrance owns policy selection plus the replay-gated stage join.
 Exact fixed-view-copy recovery then separates model, materialization,
