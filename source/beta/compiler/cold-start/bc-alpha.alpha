@@ -126,7 +126,7 @@ parse_program:
         imm   r0, 524624
         store r0, r1
         imm   r0, out_program_prelude
-        imm   r1, 50
+        imm   r1, 60
         call  emit_fixed
 pp_loop:
         call  skip_trivia
@@ -250,8 +250,11 @@ ppr_check_slots:
         call  error_value
         jnz   r0, ppr_return
 ppr_epilogue:
+        imm   r0, out_fallthrough_zero
+        imm   r1, 9
+        call  emit_fixed
         imm   r0, out_epilogue
-        imm   r1, 50
+        imm   r1, 42
         call  emit_fixed
         imm   r0, 524480
         load  r1, r0
@@ -320,7 +323,7 @@ parse_statement:
         call  emit_store_slot
         ret
 ps_call_stmt:
-        call  pf_call
+        call  parse_call
         ret
 ps_let:
         call  parse_identifier
@@ -363,7 +366,7 @@ ps_return_stmt:
         call  error_value
         jnz   r0, ps_done
         imm   r0, out_epilogue
-        imm   r1, 50
+        imm   r1, 42
         call  emit_fixed
         ret
 ps_state:
@@ -566,7 +569,7 @@ pe_add:
         call  error_value
         jnz   r0, pe_return
         imm   r0, out_pop_add
-        imm   r1, 53
+        imm   r1, 45
         call  emit_fixed
         jmp   pe_loop
 pe_sub:
@@ -576,7 +579,7 @@ pe_sub:
         call  error_value
         jnz   r0, pe_return
         imm   r0, out_pop_sub
-        imm   r1, 53
+        imm   r1, 45
         call  emit_fixed
         jmp   pe_loop
 pe_return:
@@ -602,7 +605,7 @@ pt_mul:
         call  error_value
         jnz   r0, pt_return
         imm   r0, out_pop_mul
-        imm   r1, 53
+        imm   r1, 45
         call  emit_fixed
         jmp   pt_loop
 pt_div:
@@ -612,7 +615,7 @@ pt_div:
         call  error_value
         jnz   r0, pt_return
         imm   r0, out_pop_div
-        imm   r1, 53
+        imm   r1, 45
         call  emit_fixed
         jmp   pt_loop
 pt_mod:
@@ -622,7 +625,7 @@ pt_mod:
         call  error_value
         jnz   r0, pt_return
         imm   r0, out_pop_mod
-        imm   r1, 53
+        imm   r1, 45
         call  emit_fixed
         jmp   pt_loop
 pt_return:
@@ -705,7 +708,7 @@ pf_identifier:
         jnz   r0, pf_return
         call  peek_token_char
         imm   r1, 40
-        jeq   r0, r1, pf_call
+        jeq   r0, r1, pf_call_factor
         call  lookup_name
         imm   r1, 524488
         store r1, r0
@@ -715,44 +718,52 @@ pf_identifier:
         load  r0, r0
         call  emit_load_slot
         ret
-pf_call:
-        call  push_call_name
-        call  error_value
-        jnz   r0, pf_return
-        call  consume_one
-        call  peek_token_char
-        imm   r1, 41
-        jeq   r0, r1, pf_call_done
-pf_arg_loop:
-        call  parse_expr
-        call  error_value
-        jnz   r0, pf_return
-        call  emit_push
-        call  increment_call_arg
-        call  error_value
-        jnz   r0, pf_return
-        call  peek_token_char
-        imm   r1, 44
-        jeq   r0, r1, pf_more_arg
-        jmp   pf_call_done
-pf_more_arg:
-        call  consume_one
-        jmp   pf_arg_loop
-pf_call_done:
-        imm   r0, 41
-        call  expect_char
-        call  error_value
-        jnz   r0, pf_return
-        call  finish_call
+pf_call_factor:
+        call  parse_call
         ret
 pf_error:
         call  set_error
 pf_return:
         ret
 
+; Parse a call after parse_identifier has retained its name and the token cursor
+; is at '('. Keeping this as its own callable region prevents an internal
+; parse_factor target from also becoming a procedure entry.
+parse_call:
+        call  push_call_name
+        call  error_value
+        jnz   r0, parse_call_return
+        call  consume_one
+        call  peek_token_char
+        imm   r1, 41
+        jeq   r0, r1, parse_call_done
+parse_call_arg_loop:
+        call  parse_expr
+        call  error_value
+        jnz   r0, parse_call_return
+        call  emit_push
+        call  increment_call_arg
+        call  error_value
+        jnz   r0, parse_call_return
+        call  peek_token_char
+        imm   r1, 44
+        jeq   r0, r1, parse_call_more_arg
+        jmp   parse_call_done
+parse_call_more_arg:
+        call  consume_one
+        jmp   parse_call_arg_loop
+parse_call_done:
+        imm   r0, 41
+        call  expect_char
+        call  error_value
+        jnz   r0, parse_call_return
+        call  finish_call
+parse_call_return:
+        ret
+
 emit_push:
         imm   r0, out_push
-        imm   r1, 34
+        imm   r1, 26
         call  emit_fixed
         ret
 
@@ -835,7 +846,7 @@ fml_byte:
 
 emit_memory_store:
         imm   r0, out_pop_r1
-        imm   r1, 33
+        imm   r1, 25
         call  emit_fixed
         imm   r0, 524640
         load  r0, r0
@@ -937,7 +948,7 @@ emit_internal_ref:
 
 emit_comparison:
         imm   r0, out_cmp_pop
-        imm   r1, 33
+        imm   r1, 25
         call  emit_fixed
         imm   r0, 524536
         load  r6, r0
@@ -1529,7 +1540,7 @@ emit_proc_header:
         load  r1, r1
         call  emit_span
         imm   r0, out_proc_prologue
-        imm   r1, 48
+        imm   r1, 40
         call  emit_fixed
         imm   r0, 524448
         load  r6, r0
@@ -1725,19 +1736,19 @@ fc_emit_args:
         jmp   fc_emit_call
 fc_pop3:
         imm   r0, out_pop_r3
-        imm   r1, 33
+        imm   r1, 25
         call  emit_fixed
 fc_pop2:
         imm   r0, out_pop_r2
-        imm   r1, 33
+        imm   r1, 25
         call  emit_fixed
 fc_pop1:
         imm   r0, out_pop_r1
-        imm   r1, 33
+        imm   r1, 25
         call  emit_fixed
 fc_pop0:
         imm   r0, out_pop_r0
-        imm   r1, 33
+        imm   r1, 25
         call  emit_fixed
 fc_emit_call:
         imm   r0, out_call
@@ -1770,7 +1781,7 @@ fc_write_byte:
         jmp   fc_builtin_error
 fc_write_ok:
         imm   r0, out_pop_r0
-        imm   r1, 33
+        imm   r1, 25
         call  emit_fixed
         imm   r0, out_write_byte
         imm   r1, 9
@@ -2118,6 +2129,14 @@ name_is_reserved:
         jnz   r0, nir_yes
         imm   r0, kw_emit
         imm   r1, 4
+        call  name_equals_literal
+        jnz   r0, nir_yes
+        imm   r0, kw_read_byte
+        imm   r1, 9
+        call  name_equals_literal
+        jnz   r0, nir_yes
+        imm   r0, kw_write_byte
+        imm   r1, 10
         call  name_equals_literal
         jnz   r0, nir_yes
         imm   r0, 0
@@ -2586,6 +2605,8 @@ st_done:
 
 peek_token_char:
         call  skip_trivia
+        call  peek_raw_char
+        ret
 peek_raw_char:
         imm   r0, 524296
         load  r0, r0
@@ -2832,9 +2853,9 @@ kw_write_byte:
 kw_main:
         db "main"
 out_program_prelude:
-        db "imm r15,1048576\nimm r14,1048576\ncall main\nhalt r0\n"
+        db "imm r15,1048576\nimm r14,1048576\nimm r13,8\ncall main\nhalt r0\n"
 out_proc_prologue:
-        db ":\nimm r5,8\nsub r15,r5\nstore r15,r14\nmov r14,r15\n"
+        db ":\nsub r15,r13\nstore r15,r14\nmov r14,r15\n"
 out_frame_a:
         db "imm r5,"
 out_frame_b:
@@ -2844,21 +2865,23 @@ out_param_a:
 out_param_b:
         db "\nsub r5,r4\nstore r5,r"
 out_epilogue:
-        db "\nmov r15,r14\nload r14,r15\nimm r2,8\nadd r15,r2\nret\n"
+        db "\nmov r15,r14\nload r14,r15\nadd r15,r13\nret\n"
+out_fallthrough_zero:
+        db "imm r0,0\n"
 out_imm_prefix:
         db "imm r0,"
 out_push:
-        db "\nimm r1,8\nsub r15,r1\nstore r15,r0\n"
+        db "\nsub r15,r13\nstore r15,r0\n"
 out_pop_add:
-        db "\nload r1,r15\nimm r2,8\nadd r15,r2\nadd r1,r0\nmov r0,r1\n"
+        db "\nload r1,r15\nadd r15,r13\nadd r1,r0\nmov r0,r1\n"
 out_pop_sub:
-        db "\nload r1,r15\nimm r2,8\nadd r15,r2\nsub r1,r0\nmov r0,r1\n"
+        db "\nload r1,r15\nadd r15,r13\nsub r1,r0\nmov r0,r1\n"
 out_pop_mul:
-        db "\nload r1,r15\nimm r2,8\nadd r15,r2\nmul r1,r0\nmov r0,r1\n"
+        db "\nload r1,r15\nadd r15,r13\nmul r1,r0\nmov r0,r1\n"
 out_pop_div:
-        db "\nload r1,r15\nimm r2,8\nadd r15,r2\ndiv r1,r0\nmov r0,r1\n"
+        db "\nload r1,r15\nadd r15,r13\ndiv r1,r0\nmov r0,r1\n"
 out_pop_mod:
-        db "\nload r1,r15\nimm r2,8\nadd r15,r2\nmod r1,r0\nmov r0,r1\n"
+        db "\nload r1,r15\nadd r15,r13\nmod r1,r0\nmov r0,r1\n"
 out_load_slot_a:
         db "mov r0,r14\nimm r1,"
 out_load_slot_b:
@@ -2876,13 +2899,13 @@ out_store_byte:
 out_store_word:
         db "store r1,r0\n"
 out_pop_r3:
-        db "\nload r3,r15\nimm r5,8\nadd r15,r5\n"
+        db "\nload r3,r15\nadd r15,r13\n"
 out_pop_r2:
-        db "\nload r2,r15\nimm r5,8\nadd r15,r5\n"
+        db "\nload r2,r15\nadd r15,r13\n"
 out_pop_r1:
-        db "\nload r1,r15\nimm r5,8\nadd r15,r5\n"
+        db "\nload r1,r15\nadd r15,r13\n"
 out_pop_r0:
-        db "\nload r0,r15\nimm r5,8\nadd r15,r5\n"
+        db "\nload r0,r15\nadd r15,r13\n"
 out_call:
         db "call "
 out_read_byte:
@@ -2906,7 +2929,7 @@ out_jump:
 out_guard_false:
         db "jz r0,"
 out_cmp_pop:
-        db "\nload r1,r15\nimm r2,8\nadd r15,r2\n"
+        db "\nload r1,r15\nadd r15,r13\n"
 out_cmp_lt:
         db "jlt r1,r0,"
 out_cmp_gt:

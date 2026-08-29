@@ -92,7 +92,6 @@ for diagnostic in \
   'test-interp.sh' \
   'test-typeck.sh' \
   'cold-start/rebuild-artifact.sh' \
-  'admission/bc-block-control.sh' \
   'source-closure-snapshot-v1.sh' \
   'lower-rooted-assembly-publication-v1-test.sh'
 do

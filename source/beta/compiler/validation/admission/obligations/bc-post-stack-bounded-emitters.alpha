@@ -1,8 +1,0 @@
-; Checker-C continuation after the shared absolute stack-potential theorem.
-; The later WSTR-to-cursor bridge consumes the stable SPFX contract established
-; by every realization of the common prefix.
-bc_post_stack_potential:
-        imm r1, 531840
-        imm r2, 1481003091             ; SPFX
-        store r1, r2
-        jmp write_str_summary_init

@@ -1,6 +1,0 @@
-; Extended Checker-B continuation into the conditional lookup theorem.
-bc_post_name_eq:
-        imm r1, 532136
-        imm r2, 1112887120             ; LUPB
-        store r1, r2
-        jmp lookup_summary_init

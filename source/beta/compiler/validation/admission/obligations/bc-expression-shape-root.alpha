@@ -1,9 +1,0 @@
-; Independent exact-shape tranche for the seven recursive expression-family
-; procedures.  The checked call-bound prefix transfers control here; no theorem
-; token is imported from or exported to the semantic executable.
-
-stack_register_custody_init:
-        imm r1, 540000
-        imm r2, 1213420099              ; XSRT
-        store r1, r2
-        jmp expression_family_shape_init

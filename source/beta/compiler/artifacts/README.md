@@ -1,11 +1,11 @@
 # Persisted Beta compiler artifact
 
-`beta_compiler_bytecode.tape` is the platform-independent Alpha tape for the fixed-point Beta
-compiler. D10 selected this descriptive committed name; the atomic naming
+`beta_compiler_bytecode.tape` is currently the platform-independent Alpha tape
+for the historical fixed-point Beta compiler. D10 selected this descriptive committed name; the atomic naming
 migration updated every consumer without changing the tape bytes or content
 hash.
 
-Its only construction lineage is:
+Its migration construction lineage is:
 
 ```text
 Alpha seed + Alpha-written assembler

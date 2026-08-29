@@ -1,6 +1,0 @@
-; Checker-B continuation after the shared absolute stack-potential theorem.
-bc_post_stack_potential:
-        imm r1, 531840
-        imm r2, 1481003091             ; SPFX
-        store r1, r2
-        jmp name_table_domain_init

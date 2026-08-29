@@ -34,7 +34,9 @@ limit. Decimal literals are nonnegative and limited to nine digits for these
 slices. Character literals cover printable single bytes and `\n`, `\t`, `\r`,
 `\0`, `\\`, and `\'` escapes. A zero-parameter `main` must exist. Calls may be
 forward, backward, or nested; parameters and arguments are limited to four, and
-locals are function-scoped frame slots under Beta's calling convention.
+locals are function-scoped frame slots under Beta's calling convention. Keywords
+and the intrinsic names `read_byte` and `write_byte` are reserved from procedure,
+local, parameter, and state declarations.
 Comparisons are signed except full-width equality and materialize exactly zero
 or one. Procedure-scoped `state` labels fall through in source order;
 unconditional `to` jumps, while `to … when expr` jumps only for nonzero guards.
@@ -53,9 +55,11 @@ transition metadata; resolves calls and procedure-scoped edges after EOF; and
 reserves exact output without publishing it. The second parse checks every
 frozen record in source order and streams the assembly. Malformed and exhausted
 inputs therefore halt nonzero with an empty output stream. Generated frames
-preserve `r14`/`r15`, four live argument registers, full epilogues, and
-precedence-correct lowering. Generated `$L…` and `$S…$…` labels use bytes that
-Beta identifiers cannot spell, preventing collisions with source names.
+initialize the reserved word-size register `r13` to eight, preserve `r14`/`r15`,
+carry four live argument registers, return zero on final fallthrough, and retain
+explicit return values through full epilogues. Generated `$L…` and `$S…$…`
+labels use bytes that Beta identifiers cannot spell, preventing collisions with
+source names.
 
 This accepts the exact pinned `bc.beta` profile and closes its external-producer
 dependency for the historical construction. [`rebuild-artifact.sh`](rebuild-artifact.sh)
@@ -65,10 +69,10 @@ self-hosted fixed point. Its `--check` mode reconstructs
 the repository; its default mode deliberately installs that reconstruction.
 The focused [`test.sh`](test.sh) exercises the cold compiler's accepted and
 rejected Beta surface, but that regression suite is not a compiler-lattice
-edge. The separate ROOT gate under `source/beta/compiler/validation/`
-reconstructs the exact persisted `bc.beta` tape and `B_bc1` profile. Its general
-machinery must be adapted to the promoted Alpha source; it does not close the
-canonical Beta edge as written.
+edge. The adjacent validation directory now retains only general artifact
+structure, trace-refinement, stress, and bounded fixed-point comparisons. The
+former exact-`bc.beta` admission forest was deleted because none of its
+source/PC/count-specific propositions transferred to the promoted Alpha source.
 
 ## Full-source target profile
 
