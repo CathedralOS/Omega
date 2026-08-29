@@ -168,6 +168,28 @@ fn canonical_terminal_native_route_uses_one_composition_edge() {
     }
 }
 
+#[test]
+fn typed_to_checked_surface_owns_contract_stand_down_capture() {
+    let repo_root = repo_root();
+    let transition_path = repo_root
+        .join("source/omega-rust/omega/compiler/omega-compiler/src/pipeline/phase_transitions.rs");
+    let transition = fs::read_to_string(&transition_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", transition_path.display()));
+    assert!(
+        transition.contains("collect_contract_entailment_stand_downs(&typed)"),
+        "typed-derived contract stand-downs must be captured at the ownership-moving phase boundary"
+    );
+
+    let driver_path = repo_root
+        .join("source/omega-rust/omega/compiler/omega-compiler/src/pipeline/checked_entry.rs");
+    let driver = fs::read_to_string(&driver_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", driver_path.display()));
+    assert!(
+        !driver.contains("collect_contract_entailment_stand_downs(&typed)"),
+        "checked orchestration must consume the phase-owned ledger instead of couriering a raw typed-derived vector"
+    );
+}
+
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()

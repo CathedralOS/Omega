@@ -755,8 +755,6 @@ fn compile_to_checked_inner_with_replay(
             &selected_provider_plan_facts,
         )?;
     }
-    let contract_entailment_stand_downs =
-        psi_validation::collect_contract_entailment_stand_downs(&typed);
     let mut checked = typed_trees_to_checked_trees(typed, &mut timings)?;
     if let Some(package_inputs) = package_inputs {
         crate::pipeline::package_declaration_admission::validate_authored_declaration_selections(
@@ -872,6 +870,6 @@ fn compile_to_checked_inner_with_replay(
         callback_placements,
         build_evaluation_usage,
         build_observation_summary,
-        contract_entailment_stand_downs,
+        contract_entailment_stand_downs: checked.contract_entailment_stand_downs,
     })
 }

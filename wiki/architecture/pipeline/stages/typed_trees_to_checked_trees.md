@@ -15,9 +15,13 @@ Primary responsibility: validate semantic obligations and build checked facts.
 The current compiler orchestration wraps that checked program in one
 `CheckedProgramSurface`. At the ownership-moving boundary it retains the exact
 Accepted-only machine order and each machine's optional normalized generic-
-template fingerprint. Trust reporting consumes this retained phase result; the
-driver does not keep a separate typed-tree snapshot or rediscover the
-classification after lowering. Missing or duplicate machine rows reject.
+template fingerprint. The same phase surface captures exact machine, contract,
+fact, and closed-reason rows whenever checked-implementation contract
+entailment stands down on the pristine typed predecessor. Trust reporting and
+package review consume those retained phase facts; the driver does not keep a
+separate typed-tree snapshot or courier raw typed-derived rows around checking.
+Missing or duplicate template-classification rows reject, and package review
+rejects every unresolved stand-down.
 
 ## Semantic Ownership
 
