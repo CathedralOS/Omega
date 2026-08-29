@@ -149,6 +149,9 @@ and no-selection compatibility remain enforced.
 - [x] Split machine-effect staging into an exact ISA catalog, analysis,
   source-route construction, independent replay, custody, and model leaves;
   its entrance replay-gates every supported selected-source lineage.
+- [x] Split structural-Unit function-relative realization into model,
+  construction, independent replay, source admission, manifest reconstruction,
+  and custody leaves below one replay-gated entrance.
 - [x] Split the flat optimized object-artifact stage; its small entrance owns
   the terminal/object build-and-replay join while model, reconstruction, and
   canonical codec descend into named leaves.
