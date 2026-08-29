@@ -10,9 +10,11 @@ on failure.
 sh tools/lattice/verify-lattice.sh
 ```
 
-The runner contains only the presently closed floor: selected Alpha seed
-behavior plus exact assembler construction and construction of the below-Beta
-checker. The canonical Beta artifact's generic structure/refinement diagnostics,
+The runner contains only the presently closed chain floor: selected Alpha seed
+behavior plus exact assembler construction. The below-Beta checker is a service
+beside compiler edges, not a top-level lattice row; its construction remains
+independently runnable from `source/alpha/checker/`. The canonical Beta
+artifact's generic structure/refinement diagnostics,
 Gamma program suites, path-policy test, and stress tools remain directly
 runnable diagnostics; repeating them as top-level rows would falsely present
 an open compiler edge as closed.
@@ -30,9 +32,12 @@ Reusable Gamma interpreter/type-checker suites remain locally testable, but are
 not compiler edges and therefore are not default lattice steps. The future
 Beta-written Gamma compiler owns the actual canonical Gamma-to-tape invocation.
 
-`paths.sh` only maps semantic-owner roles to repository locations. Shell and
-Python helpers may coordinate or test commands, but no lattice claim depends
-on this runner, its working directory, or transformations performed by it.
+`paths.sh` exposes exact source/artifact locators and shared service locations,
+but `lattice_path` maps only the five canonical chain owners: Alpha, the Beta
+compiler, the Gamma compiler, the Delta compiler, and the shared Omega owner
+for `D` and `C`. Shell and Python helpers may coordinate or test commands, but
+no lattice claim depends on this runner, its working directory, or
+transformations performed by it.
 
 The retired root `compiler/` cache, `.lattice-cache` receipt profiles, and their
 ignore rules are gone. A role path remains only when it names a current owner or

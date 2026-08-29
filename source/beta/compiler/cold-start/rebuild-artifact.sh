@@ -28,9 +28,9 @@ SEED="$OMEGA_PATH_ALPHA/$ALPHA_SEED"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
-"$ASSEMBLER" < "$OMEGA_PATH_BETA_COMPILER/beta_compiler.alpha" > "$TMP/compiler.tape"
+"$ASSEMBLER" < "$OMEGA_PATH_BETA_COMPILER_SOURCE" > "$TMP/compiler.tape"
 
-ARTIFACT="$OMEGA_PATH_BETA_COMPILER/beta_compiler_bytecode.tape"
+ARTIFACT="$OMEGA_PATH_BETA_COMPILER_TAPE"
 if [ "$MODE" = "--check" ]; then
   cmp "$TMP/compiler.tape" "$ARTIFACT"
   echo "Alpha-written Beta compiler matches the persisted artifact ($(wc -c < "$ARTIFACT" | tr -d ' ') bytes)"
