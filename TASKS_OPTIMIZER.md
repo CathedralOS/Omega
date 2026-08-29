@@ -115,6 +115,9 @@ and no-selection compatibility remain enforced.
 - [x] Move home-assignment compute and fixed-view-copy codec fixtures into
   explicit path-bound sibling leaves without changing their private test scope
   or test names.
+- [x] Split target register-environment custody into a small construction and
+  validation entrance above explicit target catalog, validated model,
+  validation mechanics, and tests.
 - [x] Split the flat optimized object-artifact stage; its small entrance owns
   the terminal/object build-and-replay join while model, reconstruction, and
   canonical codec descend into named leaves.
