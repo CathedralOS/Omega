@@ -53,6 +53,12 @@ pub(super) fn project_package_build(
         Err(error) => return Err(ResolvePackageSourceError::DependencyProjection(error)),
     };
     let (declaration, dependencies) = projection.into_parts();
+    if dependencies.has_target_conditions() {
+        return Err(ResolvePackageSourceError::DependencyProjection(
+            DependencyProjectionError::TargetConditionedResolutionUnavailable,
+        ));
+    }
+    let dependencies = dependencies.common().cloned().collect();
     match declaration {
         BuildDeclaration::Package(package) => Ok(ProjectedPackageBuild {
             name: package.name,
