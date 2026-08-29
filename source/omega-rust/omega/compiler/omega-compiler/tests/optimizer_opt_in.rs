@@ -148,6 +148,7 @@ fn enable_calls_project_the_exact_canonical_named_set() {
     builder.optimizations.enable(Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1);
     builder.optimizations.enable(Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1);
     builder.optimizations.enable(Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1);
+    builder.optimizations.enable(Optimization::X86SelectXorZeroI64MaterializationV1);
 }
 "#,
         ),
@@ -167,6 +168,7 @@ fn enable_calls_project_the_exact_canonical_named_set() {
             Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
             Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
             Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
+            Optimization::X86SelectXorZeroI64MaterializationV1,
         ]
     );
     assert_eq!(
@@ -457,6 +459,39 @@ fn aarch64_movn_materialization_selection_round_trips_but_remains_default_off() 
     assert_eq!(
         checked.optimization_selections().as_slice(),
         &[Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1]
+    );
+    assert_eq!(
+        checked.optimization_selection_identity(),
+        checked.optimization_selections().identity()
+    );
+}
+
+#[test]
+fn x86_xor_zero_materialization_selection_round_trips_but_remains_default_off() {
+    let absent = project("x86-xor-zero-default-off", None);
+    let checked = compile_to_checked(&absent.join("main.omg"), None)
+        .expect("an absent build must leave x86 XOR-zero materialization disabled");
+    assert!(
+        !checked
+            .optimization_selections()
+            .contains(Optimization::X86SelectXorZeroI64MaterializationV1)
+    );
+
+    let selected = project(
+        "x86-xor-zero-selected",
+        Some(
+            r#"machine build(builder: &mut Build) {
+    builder.application("optimizer-x86-xor-zero-selected");
+    builder.optimizations.enable(Optimization::X86SelectXorZeroI64MaterializationV1);
+}
+"#,
+        ),
+    );
+    let checked = compile_to_checked(&selected.join("main.omg"), None)
+        .expect("the named x86 XOR-zero materialization selection should evaluate");
+    assert_eq!(
+        checked.optimization_selections().as_slice(),
+        &[Optimization::X86SelectXorZeroI64MaterializationV1]
     );
     assert_eq!(
         checked.optimization_selection_identity(),

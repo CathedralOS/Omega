@@ -14,3 +14,4 @@ pub use analyses::pre_allocation_effects::*;
 pub use planning::post_allocation::*;
 pub use rules::aarch64::compare_zero_branch_nonzero::*;
 pub use rules::aarch64::materialize_i64_movn::*;
+pub use rules::x86_64::materialize_i64_xor_zero::*;

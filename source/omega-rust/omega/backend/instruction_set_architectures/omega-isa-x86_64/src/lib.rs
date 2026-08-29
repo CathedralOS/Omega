@@ -11,6 +11,7 @@ mod post_handoff_writer;
 mod register_model;
 mod selected_form_encoding;
 mod semantic_unit_wrapper_encoding;
+mod xor_zero_i64_materialization;
 
 pub use fma::{encode_vfmadd132sd, encode_vfmadd132ss};
 pub use machine_effects::{
@@ -77,6 +78,11 @@ pub use semantic_unit_wrapper_encoding::{
     encode_x86_64_semantic_unit_wrapper_template,
     resolve_x86_64_semantic_unit_wrapper_private_continuation,
     validate_x86_64_resolved_semantic_unit_wrapper, validate_x86_64_semantic_unit_wrapper_template,
+};
+pub use xor_zero_i64_materialization::{
+    ValidatedX86_64XorZeroI64Materialization, X86_64DecodedXorZeroI64Materialization,
+    decode_x86_64_xor_zero_i64_materialization, encode_x86_64_xor_zero_i64_materialization,
+    validate_x86_64_xor_zero_i64_materialization,
 };
 
 use omega_calling_conventions::{MachineRegister, RegisterSet};
