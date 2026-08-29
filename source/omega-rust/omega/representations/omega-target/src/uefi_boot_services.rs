@@ -20,6 +20,24 @@ const TABLE_ALIGNMENT: u32 = 8;
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
+/// Structured UEFI protocol identity in specification field order. It is a
+/// name, not a pointer, interface occurrence, or provider admission.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct UefiProtocolGuid {
+    pub data1: u32,
+    pub data2: u16,
+    pub data3: u16,
+    pub data4: [u8; 8],
+}
+
+/// Target-owned identity used for the image-handle `HandleProtocol` query.
+pub const UEFI_LOADED_IMAGE_PROTOCOL_GUID: UefiProtocolGuid = UefiProtocolGuid {
+    data1: 0x5b1b_31a1,
+    data2: 0x9562,
+    data3: 0x11d2,
+    data4: [0x8e, 0x3f, 0x00, 0xa0, 0xc9, 0x69, 0x72, 0x3b],
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
 pub enum UefiBootServicesNativeField {
@@ -542,6 +560,7 @@ mod tests {
             368
         );
         assert_ne!(layout.non_authoritative_layout_report_fingerprint(), 0);
+        assert_eq!(UEFI_LOADED_IMAGE_PROTOCOL_GUID.data1, 0x5b1b_31a1);
         assert!(layout.matches_exact_plan(
             &plan_uefi_boot_services_native_layout(TargetProfile::UefiX64).unwrap()
         ));

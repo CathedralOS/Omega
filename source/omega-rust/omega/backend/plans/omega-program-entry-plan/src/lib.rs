@@ -14,6 +14,7 @@ mod program_entry_physical;
 mod root_role;
 mod selected_entry;
 mod source_signature;
+mod uefi_handle_protocol;
 
 pub use boundary_entry_storage::{
     DerivedBoundaryEntryParameterStorage, DerivedBoundaryEntryStorage,
@@ -31,4 +32,11 @@ pub use source_signature::{
     ProgramEntrySourceExtentValueLayout, ProgramEntrySourceReceiverSignature,
     ProgramEntrySourceResultSignature, ProgramEntrySourceSignatureIdentity,
     ProgramEntrySourceVisibleParameterSignature, SelectedProgramEntrySourceSignature,
+};
+pub use uefi_handle_protocol::{
+    UEFI_HANDLE_PROTOCOL_GUID_POINTER_TYPE_IDENTITY, UEFI_HANDLE_PROTOCOL_HANDLE_TYPE_IDENTITY,
+    UEFI_HANDLE_PROTOCOL_INTERFACE_OUT_TYPE_IDENTITY, UEFI_HANDLE_PROTOCOL_SERVICE_IDENTITY,
+    UEFI_HANDLE_PROTOCOL_STATUS_TYPE_IDENTITY, UefiHandleProtocolInvocationPlan,
+    UefiHandleProtocolInvocationPlanError, UefiHandleProtocolStatus, UefiHandleProtocolStatusRow,
+    plan_uefi_handle_protocol_invocation,
 };

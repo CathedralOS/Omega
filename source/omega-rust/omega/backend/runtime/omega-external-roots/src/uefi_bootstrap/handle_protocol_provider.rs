@@ -10,11 +10,16 @@
 
 use std::num::NonZeroU64;
 
+use omega_program_entry_plan::{
+    UefiHandleProtocolInvocationPlan, UefiHandleProtocolStatus,
+    plan_uefi_handle_protocol_invocation,
+};
 use omega_target::{
     TargetProfile, UefiBootServicesNativeField, UefiBootServicesNativeFieldKind,
     UefiBootServicesNativeFieldLayout, ValidatedUefiBootServicesHeaderIntegrity,
     plan_uefi_boot_services_native_layout,
 };
+pub use omega_target::{UEFI_LOADED_IMAGE_PROTOCOL_GUID, UefiProtocolGuid};
 
 use super::{
     LifecycleScopedUefiBootServicesProjection, ReleasedUefiSystemTableScope,
@@ -29,22 +34,6 @@ const HANDLE_PROTOCOL_FIELD_ORDINAL: u8 = 21;
 const HANDLE_PROTOCOL_FIELD_OFFSET: u32 = 152;
 const HANDLE_PROTOCOL_FIELD_SIZE: u32 = 8;
 const HANDLE_PROTOCOL_FIELD_ALIGNMENT: u32 = 8;
-
-/// Stable structured identity of the UEFI Loaded Image protocol.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct UefiProtocolGuid {
-    pub data1: u32,
-    pub data2: u16,
-    pub data3: u16,
-    pub data4: [u8; 8],
-}
-
-pub const UEFI_LOADED_IMAGE_PROTOCOL_GUID: UefiProtocolGuid = UefiProtocolGuid {
-    data1: 0x5b1b_31a1,
-    data2: 0x9562,
-    data3: 0x11d2,
-    data4: [0x8e, 0x3f, 0x00, 0xa0, 0xc9, 0x69, 0x72, 0x3b],
-};
 
 /// Exact Boot Services occurrence and private `HandleProtocol` slot retained
 /// beneath the physical-arrival lease. The carrier is non-clone and exposes
@@ -265,6 +254,115 @@ fn reject_join<'system_table, 'boot_services>(
     }))
 }
 
+/// One exact address-free outbound invocation plan joined to the live provider
+/// carrier. This remains planning custody only: it contains no argument
+/// pointer values, output slot, call edge, bytes, or execution evidence.
+#[must_use = "planned UEFI HandleProtocol invocation retains provider and physical custody"]
+pub struct PlannedUefiHandleProtocolInvocation<'system_table, 'boot_services> {
+    provider: LifecycleScopedUefiHandleProtocolProvider<'system_table, 'boot_services>,
+    plan: UefiHandleProtocolInvocationPlan,
+}
+
+impl std::fmt::Debug for PlannedUefiHandleProtocolInvocation<'_, '_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("PlannedUefiHandleProtocolInvocation")
+            .field("physical_invocation", &self.physical_invocation())
+            .field("image_handle_occurrence", &self.image_handle_occurrence())
+            .field("service_identity", &self.service_identity())
+            .field(
+                "calling_plan_report_fingerprint",
+                &self.calling_plan_report_fingerprint(),
+            )
+            .finish_non_exhaustive()
+    }
+}
+
+impl PlannedUefiHandleProtocolInvocation<'_, '_> {
+    pub const fn physical_invocation(&self) -> UefiPhysicalInvocationId {
+        self.provider.physical_invocation()
+    }
+    pub const fn image_handle_occurrence(&self) -> UefiImageHandleOccurrenceId {
+        self.provider.image_handle_occurrence()
+    }
+    pub const fn service_identity(&self) -> &'static str {
+        self.plan.service_identity()
+    }
+    pub const fn protocol(&self) -> UefiProtocolGuid {
+        self.plan.protocol()
+    }
+    pub const fn calling_plan_report_fingerprint(&self) -> u64 {
+        self.plan.calling_plan_report_fingerprint()
+    }
+    pub const fn plan(&self) -> &UefiHandleProtocolInvocationPlan {
+        &self.plan
+    }
+}
+
+#[derive(Debug)]
+#[must_use = "UEFI HandleProtocol planning rejection retains provider custody"]
+pub struct UefiHandleProtocolInvocationPlanningError<'system_table, 'boot_services> {
+    provider: LifecycleScopedUefiHandleProtocolProvider<'system_table, 'boot_services>,
+    diagnostic: ExternalRootDiagnostic,
+}
+impl<'system_table, 'boot_services>
+    UefiHandleProtocolInvocationPlanningError<'system_table, 'boot_services>
+{
+    pub const fn diagnostic(&self) -> &ExternalRootDiagnostic {
+        &self.diagnostic
+    }
+    pub fn into_parts(
+        self,
+    ) -> (
+        LifecycleScopedUefiHandleProtocolProvider<'system_table, 'boot_services>,
+        ExternalRootDiagnostic,
+    ) {
+        (self.provider, self.diagnostic)
+    }
+}
+impl std::fmt::Display for UefiHandleProtocolInvocationPlanningError<'_, '_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.diagnostic.fmt(formatter)
+    }
+}
+impl std::error::Error for UefiHandleProtocolInvocationPlanningError<'_, '_> {}
+
+/// Consume the live provider into the exact target-authored HandleProtocol
+/// call shape. The plan fixes RCX/RDX/R8 inputs, RAX status, shadow space,
+/// clobbers, Loaded Image GUID, and the closed status table without performing
+/// the firmware call.
+pub fn prepare_uefi_loaded_image_handle_protocol_invocation<'system_table, 'boot_services>(
+    provider: LifecycleScopedUefiHandleProtocolProvider<'system_table, 'boot_services>,
+) -> Result<
+    PlannedUefiHandleProtocolInvocation<'system_table, 'boot_services>,
+    Box<UefiHandleProtocolInvocationPlanningError<'system_table, 'boot_services>>,
+> {
+    let plan = match plan_uefi_handle_protocol_invocation(TargetProfile::UefiX64) {
+        Ok(plan) => plan,
+        Err(error) => {
+            return Err(Box::new(UefiHandleProtocolInvocationPlanningError {
+                provider,
+                diagnostic: ExternalRootDiagnostic(format!(
+                    "UEFI HandleProtocol invocation plan rejected: {}",
+                    error.diagnostic()
+                )),
+            }));
+        }
+    };
+    if !plan.matches_exact_uefi_x64_plan()
+        || plan.service_field() != provider.field
+        || plan.protocol() != UEFI_LOADED_IMAGE_PROTOCOL_GUID
+    {
+        return Err(Box::new(UefiHandleProtocolInvocationPlanningError {
+            provider,
+            diagnostic: ExternalRootDiagnostic(
+                "UEFI HandleProtocol invocation plan drifted from its lifecycle provider".into(),
+            ),
+        }));
+    }
+    Ok(PlannedUefiHandleProtocolInvocation { provider, plan })
+}
+
 /// Closed provider outcome admitted for the exact Loaded Image query.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UefiHandleProtocolLoadedImageOutcome {
@@ -277,11 +375,21 @@ pub enum UefiHandleProtocolLoadedImageOutcome {
     InvalidParameter,
 }
 
+impl UefiHandleProtocolLoadedImageOutcome {
+    pub const fn status(self) -> UefiHandleProtocolStatus {
+        match self {
+            Self::Success { .. } => UefiHandleProtocolStatus::Success,
+            Self::Unsupported => UefiHandleProtocolStatus::Unsupported,
+            Self::InvalidParameter => UefiHandleProtocolStatus::InvalidParameter,
+        }
+    }
+}
+
 /// Non-root correspondence established by one admitted successful provider
 /// outcome for the exact physical image handle and Loaded Image GUID.
 #[must_use = "Loaded Image correspondence retains HandleProtocol provider and physical custody"]
 pub struct LifecycleScopedUefiLoadedImageCorrespondence<'system_table, 'boot_services> {
-    provider: LifecycleScopedUefiHandleProtocolProvider<'system_table, 'boot_services>,
+    invocation: PlannedUefiHandleProtocolInvocation<'system_table, 'boot_services>,
     _interface_address: NonZeroU64,
     image_base: NonZeroU64,
     image_size: NonZeroU64,
@@ -301,10 +409,10 @@ impl std::fmt::Debug for LifecycleScopedUefiLoadedImageCorrespondence<'_, '_> {
 
 impl LifecycleScopedUefiLoadedImageCorrespondence<'_, '_> {
     pub const fn physical_invocation(&self) -> UefiPhysicalInvocationId {
-        self.provider.physical_invocation()
+        self.invocation.physical_invocation()
     }
     pub const fn image_handle_occurrence(&self) -> UefiImageHandleOccurrenceId {
-        self.provider.image_handle_occurrence()
+        self.invocation.image_handle_occurrence()
     }
     pub const fn protocol(&self) -> UefiProtocolGuid {
         UEFI_LOADED_IMAGE_PROTOCOL_GUID
@@ -323,7 +431,7 @@ impl LifecycleScopedUefiLoadedImageCorrespondence<'_, '_> {
 #[derive(Debug)]
 #[must_use = "UEFI HandleProtocol call rejection retains provider custody"]
 pub struct UefiHandleProtocolLoadedImageCallError<'system_table, 'boot_services> {
-    provider: LifecycleScopedUefiHandleProtocolProvider<'system_table, 'boot_services>,
+    invocation: PlannedUefiHandleProtocolInvocation<'system_table, 'boot_services>,
     outcome: UefiHandleProtocolLoadedImageOutcome,
     diagnostic: ExternalRootDiagnostic,
 }
@@ -339,11 +447,11 @@ impl<'system_table, 'boot_services>
     pub fn into_parts(
         self,
     ) -> (
-        LifecycleScopedUefiHandleProtocolProvider<'system_table, 'boot_services>,
+        PlannedUefiHandleProtocolInvocation<'system_table, 'boot_services>,
         UefiHandleProtocolLoadedImageOutcome,
         ExternalRootDiagnostic,
     ) {
-        (self.provider, self.outcome, self.diagnostic)
+        (self.invocation, self.outcome, self.diagnostic)
     }
 }
 impl std::fmt::Display for UefiHandleProtocolLoadedImageCallError<'_, '_> {
@@ -355,9 +463,9 @@ impl std::error::Error for UefiHandleProtocolLoadedImageCallError<'_, '_> {}
 
 /// Consume one prepared provider occurrence and admit its exact Loaded Image
 /// result. Success validates non-null, nonempty, non-wrapping geometry; all
-/// other outcomes return the complete provider for retry or release.
+/// other outcomes return the complete planned invocation for retry or release.
 pub fn admit_uefi_loaded_image_handle_protocol_outcome<'system_table, 'boot_services>(
-    provider: LifecycleScopedUefiHandleProtocolProvider<'system_table, 'boot_services>,
+    invocation: PlannedUefiHandleProtocolInvocation<'system_table, 'boot_services>,
     outcome: UefiHandleProtocolLoadedImageOutcome,
 ) -> Result<
     LifecycleScopedUefiLoadedImageCorrespondence<'system_table, 'boot_services>,
@@ -370,41 +478,41 @@ pub fn admit_uefi_loaded_image_handle_protocol_outcome<'system_table, 'boot_serv
     } = outcome
     else {
         return reject_call(
-            provider,
+            invocation,
             outcome,
             "UEFI HandleProtocol did not return Loaded Image correspondence",
         );
     };
     let Some(interface_address) = NonZeroU64::new(interface_address) else {
         return reject_call(
-            provider,
+            invocation,
             outcome,
             "UEFI HandleProtocol success returned a null Loaded Image interface",
         );
     };
     let Some(image_base) = NonZeroU64::new(image_base) else {
         return reject_call(
-            provider,
+            invocation,
             outcome,
             "UEFI Loaded Image success returned a null image base",
         );
     };
     let Some(image_size) = NonZeroU64::new(image_size) else {
         return reject_call(
-            provider,
+            invocation,
             outcome,
             "UEFI Loaded Image success returned an empty image",
         );
     };
     if image_base.get().checked_add(image_size.get()).is_none() {
         return reject_call(
-            provider,
+            invocation,
             outcome,
             "UEFI Loaded Image geometry wraps the u64 address carrier",
         );
     }
     Ok(LifecycleScopedUefiLoadedImageCorrespondence {
-        provider,
+        invocation,
         _interface_address: interface_address,
         image_base,
         image_size,
@@ -412,7 +520,7 @@ pub fn admit_uefi_loaded_image_handle_protocol_outcome<'system_table, 'boot_serv
 }
 
 fn reject_call<'system_table, 'boot_services>(
-    provider: LifecycleScopedUefiHandleProtocolProvider<'system_table, 'boot_services>,
+    invocation: PlannedUefiHandleProtocolInvocation<'system_table, 'boot_services>,
     outcome: UefiHandleProtocolLoadedImageOutcome,
     message: impl Into<String>,
 ) -> Result<
@@ -420,7 +528,7 @@ fn reject_call<'system_table, 'boot_services>(
     Box<UefiHandleProtocolLoadedImageCallError<'system_table, 'boot_services>>,
 > {
     Err(Box::new(UefiHandleProtocolLoadedImageCallError {
-        provider,
+        invocation,
         outcome,
         diagnostic: ExternalRootDiagnostic(message.into()),
     }))
@@ -485,7 +593,17 @@ impl<'system_table> UefiApplicationFirmwareLedger<'system_table> {
         ReleasedUefiSystemTableScope,
         Box<UefiHandleProtocolProviderReleaseError<'system_table, 'boot_services>>,
     > {
-        self.release_lifecycle_scoped_handle_protocol_provider(correspondence.provider)
+        self.release_planned_uefi_handle_protocol_invocation(correspondence.invocation)
+    }
+
+    pub fn release_planned_uefi_handle_protocol_invocation<'boot_services>(
+        &mut self,
+        invocation: PlannedUefiHandleProtocolInvocation<'system_table, 'boot_services>,
+    ) -> Result<
+        ReleasedUefiSystemTableScope,
+        Box<UefiHandleProtocolProviderReleaseError<'system_table, 'boot_services>>,
+    > {
+        self.release_lifecycle_scoped_handle_protocol_provider(invocation.provider)
     }
 }
 
@@ -627,8 +745,14 @@ mod tests {
         .unwrap();
         assert_eq!(provider.field_byte_offset(), 152);
         assert_eq!(provider.protocol(), UEFI_LOADED_IMAGE_PROTOCOL_GUID);
+        let invocation = prepare_uefi_loaded_image_handle_protocol_invocation(provider).unwrap();
+        assert_eq!(
+            invocation.service_identity(),
+            omega_program_entry_plan::UEFI_HANDLE_PROTOCOL_SERVICE_IDENTITY
+        );
+        assert!(invocation.plan().matches_exact_uefi_x64_plan());
         let loaded = admit_uefi_loaded_image_handle_protocol_outcome(
-            provider,
+            invocation,
             UefiHandleProtocolLoadedImageOutcome::Success {
                 interface_address: 0x403000,
                 image_base: 0x100000,
@@ -736,8 +860,9 @@ mod tests {
             NonZeroU64::new(boot_address).unwrap(),
         )
         .unwrap();
+        let invocation = prepare_uefi_loaded_image_handle_protocol_invocation(provider).unwrap();
         let error = admit_uefi_loaded_image_handle_protocol_outcome(
-            provider,
+            invocation,
             UefiHandleProtocolLoadedImageOutcome::Unsupported,
         )
         .unwrap_err();
@@ -745,17 +870,22 @@ mod tests {
             error.outcome(),
             UefiHandleProtocolLoadedImageOutcome::Unsupported
         );
-        let (provider, _, _) = error.into_parts();
+        assert_eq!(
+            error.outcome().status(),
+            UefiHandleProtocolStatus::Unsupported
+        );
+        let (invocation, _, _) = error.into_parts();
         let outcome = UefiHandleProtocolLoadedImageOutcome::Success {
             interface_address: 1,
             image_base: u64::MAX - 1,
             image_size: 2,
         };
-        let error = admit_uefi_loaded_image_handle_protocol_outcome(provider, outcome).unwrap_err();
+        let error =
+            admit_uefi_loaded_image_handle_protocol_outcome(invocation, outcome).unwrap_err();
         assert!(error.diagnostic().0.contains("wraps"));
-        let (provider, _, _) = error.into_parts();
+        let (invocation, _, _) = error.into_parts();
         ledger
-            .release_lifecycle_scoped_handle_protocol_provider(provider)
+            .release_planned_uefi_handle_protocol_invocation(invocation)
             .unwrap();
     }
 
@@ -784,5 +914,6 @@ mod tests {
         }
         assert!(!compact.contains("implCloneforLifecycleScopedUefiHandleProtocolProvider"));
         assert!(!compact.contains("implCloneforLifecycleScopedUefiLoadedImageCorrespondence"));
+        assert!(!compact.contains("implCloneforPlannedUefiHandleProtocolInvocation"));
     }
 }
