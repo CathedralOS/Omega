@@ -23,6 +23,12 @@ opaque `omega::core` declaration, currently supplied by
 compiler numeric primitive nor a standard-library/runtime literal format;
 values and laws enter through that package's explicit proof surface.
 
+A fixed-array literal evaluates and establishes its element expressions exactly
+once in increasing index order. That order is semantic: if an ordinary
+cleanup-bearing edge abandons a partially constructed array, the successfully
+established prefix is cleaned in reverse order. A trap or nuclear abort has no
+successor edge and performs no cleanup.
+
 ## Assignment
 
 Assignment writes a value into a place.

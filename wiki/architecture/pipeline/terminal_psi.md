@@ -835,6 +835,16 @@ installation replay independently retain the length-three layout, stride,
 offsets, two-call custody, singleton residual, and operation/edge fuel. Since
 there is only one residual, this carrier makes no cleanup-order choice.
 
+The governing rule for wider fixed-array carriers is already closed: source
+establishes elements in increasing index order, and every ordinary disposing
+edge names the exact live residual indices in decreasing order with moved
+indices absent. Nested arrays apply that order recursively. Terminal validation
+must reconstruct the ordered static sequence from the structural type and
+frontier; producer order, runtime liveness flags, and data-dependent cleanup
+loops confer no authority. Authored projected moves retain authored order.
+Partial construction follows the same rule on its established prefix, while
+trap and nuclear-abort terminators carry no cleanup.
+
 The straight-line Unit return slice carries explicit no-code cleanup for owned
 affine structural parameters that have no claim rows. The checked plan derives
 the list from state-exit permission events in reverse parameter declaration

@@ -290,7 +290,7 @@ admission evidence nor a package instance and has no decoder or public
 constructor.
 
 The post-relocation filesystem-producing two-package canary remains blocked on
-the exact ordinary-package staging-authority role in OWNER Q3. A physical-path
+the exact ordinary-package staging-authority role in OWNER Q2. A physical-path
 or spelling exception would invalidate the authority model; the lower-level
 generated-source custody and import path is independently tested without one.
 

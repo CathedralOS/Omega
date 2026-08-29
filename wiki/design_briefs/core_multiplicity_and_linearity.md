@@ -276,9 +276,20 @@ order; the complement is one typed no-code residual on the caller return. The
 frontier, interpreter, target and machine lowering, and object/image and
 installation replay independently reconstruct that singleton complement,
 canonical length-three layout, element stride, offsets, and five closure fuel
-units. One move would leave two residuals and therefore remains Q5-blocked;
-three moves belong to a separate no-residual rung. Because this rung has only
-one live residual, it establishes no array cleanup ordering rule.
+units. The implemented carrier still rejects one move because it would require
+two ordered residuals; widening that carrier is now engineering work under the
+general rule below. Three moves belong to a separate no-residual rung. Because
+the shipped rung has only one live residual, it did not itself establish an
+array cleanup ordering rule.
+
+The general order is nevertheless fixed. Literal fixed arrays establish
+elements in increasing index order and clean the statically known live residual
+set in decreasing index order, recursively and with discharged indices absent.
+This is the indexed form of reverse establishment: authored projected moves keep
+their authored order, while compiler-generated disposal follows the language's
+structural order. An ordinary edge abandoning partial construction cleans the
+established prefix in reverse; trap and nuclear-abort edges clean nothing. No
+runtime liveness bitmap or data-dependent cleanup loop is introduced.
 
 An internal call may now continue that same whole-root result through one
 explicit terminal operation-result place. The checked slice is intentionally

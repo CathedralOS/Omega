@@ -65,7 +65,7 @@ closed. Compiler-issued package review remains non-admitting.
   - run the existing Windows Job Object process-count, per-process memory,
     aggregate-memory, and aggregate-CPU exhaustion pairs on a native Windows
     worker; cross-compilation is not execution evidence;
-  - narrow macOS SSH discovery/fetch reads after Q8 settles explicit host-key,
+  - narrow macOS SSH discovery/fetch reads after Q7 settles explicit host-key,
     key, credential-provider, and credential-file custody;
   - make the existing broker transfer ceiling complete by denying direct helper
     egress on Linux and Windows; separately enforce whole-operation object-store,
@@ -87,12 +87,12 @@ closed. Compiler-issued package review remains non-admitting.
   The detailed established floor and remaining platform gaps are maintained in
   `source/omega-rust/omega/packages/omega-package-source/SOURCE_RESOLVER_SECURITY.md`.
   Strict SSH trust and credential authority is
-  design-blocked on OWNER Q8; the other bullets are engineering work.
+  design-blocked on OWNER Q7; the other bullets are engineering work.
 
 ## P1 — Total package semantic identity
 
 - [ ] **COMPLETE-CONFORMANCE-IDENTITY.** Retain complete public conformance
-  applications, including target-trait lifetime arguments once OWNER Q2 is
+  applications, including target-trait lifetime arguments once OWNER Q1 is
   settled. Unsupported generic, lifetime-bearing, private, or aliased forms
   must continue to fail closed rather than disappear from review.
 
@@ -214,7 +214,7 @@ closed. Compiler-issued package review remains non-admitting.
   classification for network, dynamic loading, signing, secrets, executable
   installation, DMA/IOMMU, and any future authority-bearing surfaces. Names,
   aliases, paths, and same-spelled package declarations must confer no
-  authority. Ordinary std/provider authority depends on OWNER Q3.
+  authority. Ordinary std/provider authority depends on OWNER Q2.
 
 - [ ] **SOURCE-AND-PROVENANCE-TRIAGE.** Wire an organization-selected advisory
   reviewer into command orchestration with the existing fixed instructions,
@@ -376,11 +376,11 @@ items are still owner-blocked.
   and dependency declarations remain direct statically projected root
   statements and reject inside helpers.
 
-- [ ] **BLOCKED — OWNER Q2: CONFORMANCE-TARGET-LIFETIMES.** Settle and retain
+- [ ] **BLOCKED — OWNER Q1: CONFORMANCE-TARGET-LIFETIMES.** Settle and retain
   the complete target-trait lifetime application before lifetime-parameterized
   public conformances can enter canonical package identity.
 
-- [ ] **BLOCKED — OWNER Q3: ORDINARY-STD-AND-PROVIDER-AUTHORITY.** Replace all
+- [ ] **BLOCKED — OWNER Q2: ORDINARY-STD-AND-PROVIDER-AUTHORITY.** Replace all
   physical `source/library/std` routing and direct filesystem/GUI provider
   injection with exact ordinary graph nodes and explicit authenticated role
   bindings. Only core remains compiler-welded. Removing the declared std edge
@@ -404,7 +404,7 @@ items are still owner-blocked.
   bodylessness, catalog presence, nor build policy may synthesize a requirement
   or satisfier edge.
 
-- [ ] **BLOCKED — OWNER Q8: STRICT-SSH-CUSTODY.** Settle host-key, key,
+- [ ] **BLOCKED — OWNER Q7: STRICT-SSH-CUSTODY.** Settle host-key, key,
   credential-provider, and credential-file authority before narrowing the
   remaining SSH read surface or treating SSH resolution as strict evidence.
 
