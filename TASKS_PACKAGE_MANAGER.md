@@ -23,25 +23,25 @@ closed. Compiler-issued package review remains non-admitting.
 ## P0 — Source resolver boundary
 
 - [ ] **PRIVATE-RESOLVER-STORAGE-BY-DEFAULT.** Replace the ambient-filesystem
-  custody model with package-manager-owned storage. Ordinary resolution must
-  use a private per-user cache and private staging beneath that cache; project
-  build products remain beneath the project's own build root. Do not use a
-  shared writable cache or ambient `%TEMP%` as the default resolution root.
+  custody model completely. Ordinary command paths now use a versioned private
+  per-user `SourceResolverStorage`; project-local, environment-overridden, and
+  `%TEMP%` defaults are gone. Manager-owned components are created privately,
+  the root is retained and path-reconciled around closure operations, and Git
+  and local publication staging remains beneath it.
 
-  Create each root with platform-appropriate private permissions, retain and
-  traverse it handle-relatively, authenticate cached content by its immutable
-  source identity, and publish through an atomic rename inside the same root.
-  Tests must use the production private-root constructor rather than inherit
-  the host test runner's temporary-directory ACL.
+  Remaining work is to carry that retained capability through every internal
+  cache lane instead of reopening root pathnames, make the explicit-path
+  low-level resolver APIs test-only or hardened-mode-only, and migrate their
+  tests to the production private-root constructor. Cached content must remain
+  authenticated by immutable source identity and publication must remain an
+  in-root atomic rename throughout that migration.
 
-  Remove unconditional ACL ancestry auditing of ordinary host-installed tools
-  and do not maintain an ad hoc allowlist that attempts to reproduce Windows
-  trust policy. Resolver tools must be selected explicitly and their exact
-  executable identity recorded. A shared cache or stronger executable-custody
-  audit may exist only as an explicit hardened/multi-tenant mode with its trust
-  policy and resulting evidence disclosed. The normal Windows path must accept
-  a standard Git installation under `Program Files` and must not make package
-  tests depend on ambient host ACL accidents.
+  Ordinary host-installed tools now retain exact selected path/content/node
+  identity without treating installation ancestry as package-cache custody.
+  Direct executable ownership, mutation authority, unsafe modes, ACL/DACL, and
+  replacement still reject. A future stronger executable-custody mode must be
+  explicit and disclose its trust policy; normal Windows must continue to
+  accept standard Git beneath `Program Files`.
 
 - [ ] **HARDEN-SOURCE-RESOLVER.** Finish the hostile-process boundary around
   local and Git resolution.

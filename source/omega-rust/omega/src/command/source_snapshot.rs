@@ -36,12 +36,14 @@ pub(super) fn run(arguments: impl Iterator<Item = OsString>) {
 fn inspect(
     arguments: &Arguments,
 ) -> Result<omega_compiler::SourceClosureSnapshot, Vec<psi_diagnostics::Diagnostic>> {
-    inspect_with_cache(arguments, super::local_source_cache_root())
+    let storage = super::local_source_storage()
+        .map_err(|error| vec![psi_diagnostics::Diagnostic::error(error)])?;
+    inspect_with_storage(arguments, &storage)
 }
 
-fn inspect_with_cache(
+fn inspect_with_storage(
     arguments: &Arguments,
-    source_cache_root: PathBuf,
+    storage: &omega_packages::SourceResolverStorage,
 ) -> Result<omega_compiler::SourceClosureSnapshot, Vec<psi_diagnostics::Diagnostic>> {
     let root_path = arguments.root_path.canonicalize().map_err(|error| {
         vec![psi_diagnostics::Diagnostic::error(format!(
@@ -70,10 +72,10 @@ fn inspect_with_cache(
                 project_root.display()
             ))]
         })?;
-    let closure = omega_packages::resolve_external_local_project_closure(
+    let closure = omega_packages::resolve_external_local_project_closure_with_storage(
         project_root,
         omega_packages::ExternalSourceContext::derive(b"omega-source-inspection-v1"),
-        source_cache_root,
+        storage,
         omega_packages::LocalSourceLimits::default(),
         omega_packages::PackageSourceClosureLimits::default(),
     )

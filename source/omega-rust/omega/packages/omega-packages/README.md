@@ -307,6 +307,14 @@ caller-readable intermediate record can be promoted into future receipt or
 lock authority. Git reports expose the compiler-selected broker-transfer
 ceiling and observed upload/download counts; local reports omit those
 inapplicable rows.
+Ordinary command paths now create and retain one versioned private per-user
+source root beneath the platform cache location. Compile dependency closure,
+source inspection, and source audit use that capability; they no longer choose
+a project-local cache, accept an ambient cache override, or fall back to the
+host temporary directory. Every manager-owned root component is private and
+the retained root is reconciled with its pathname around closure operations.
+Explicit-path resolver harnesses remain while their tests and deeper lane APIs
+are migrated to carry the retained capability directly.
 Mutable local-package snapshots omit only `.git` metadata and the reserved
 root-level `build/` compiler output; package-authored ignore files do not control
 source identity, nested `build` directories remain source, and immutable Git
@@ -388,11 +396,11 @@ directory through `GIT_EXEC_PATH` and `PATH`. SSH retains and rechecks the
 selected client's exact path and content. Both use the same Unix custody floor
 as the parent Git executable and are rechecked around every launch and at
 completion. On macOS that floor also reads native extended ACLs for invocation
-entries, canonical targets, and every ancestor; any allow entry rejects even
+entries and canonical targets; any allow entry rejects even
 when ordinary mode bits appear safe. Deny-only entries do not broaden custody,
 and an unreadable ACL fails closed. Windows applies the equivalent closed
 owner/DACL mutation-authority policy through retained handles to invocation
-entries, canonical targets, and every ancestor. Cache policy v28 separates entries
+entries and canonical targets. Cache policy v28 separates entries
 predating this transport-executable, cumulative-output, endpoint-brokerage,
 network-transfer, nonnetwork descendant-denial, content-read, and nonnetwork-
 metadata/HTTPS-network-metadata/deadline/Windows-Job/Windows-custody floor. HTTPS receives

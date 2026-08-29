@@ -36,14 +36,17 @@ pub use source::{
     GitExecutableIdentity, GitNetworkTransferObservation, GitSourceRequest, GitSourceRequestError,
     GitSourceResolutionObservation, GitTransportExecutableIdentity, GitTransportProfile,
     LocalSourceLimits, ResolvedGitSource, ResolvedLocalSnapshot, ResolvedLocalSource,
-    SourceResolveError, resolve_git_source, resolve_local_source, resolve_local_source_snapshot,
+    SourceResolveError, SourceResolverStorage, resolve_git_source, resolve_local_source,
+    resolve_local_source_snapshot,
 };
 pub use source_adapter::{
     ResolveDependencySourceError, ResolveExternalLocalPackageClosureError,
     ResolveGitPackageClosureError, ResolveWorkspacePackageClosureError,
-    resolve_external_local_package_closure, resolve_external_local_project_closure,
-    resolve_git_package_closure, resolve_workspace_package_closure,
-    resolve_workspace_package_closure_in_context,
+    resolve_external_local_package_closure, resolve_external_local_package_closure_with_storage,
+    resolve_external_local_project_closure, resolve_external_local_project_closure_with_storage,
+    resolve_git_package_closure, resolve_git_package_closure_with_storage,
+    resolve_workspace_package_closure, resolve_workspace_package_closure_in_context,
+    resolve_workspace_package_closure_with_storage,
 };
 pub use source_closure_subject::{
     CanonicalDependencySourceRequest, CanonicalDependencySourceSelection,
@@ -54,5 +57,6 @@ pub use source_closure_subject::{
 pub use source_commands::{
     PackageSourceAudit, PackageSourceAuditCommandError, PackageSourceRequest,
     PackageSourceRequestParseError, SourceAdapter, audit_package_source,
-    audit_package_source_locator,
+    audit_package_source_locator, audit_package_source_locator_with_storage,
+    audit_package_source_with_storage,
 };

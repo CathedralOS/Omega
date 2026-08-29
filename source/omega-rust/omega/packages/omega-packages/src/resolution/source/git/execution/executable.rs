@@ -730,7 +730,7 @@ fn verify_git_transport_invocation_path(
             path: invocation_path.to_path_buf(),
         });
     }
-    verify_git_executable_ancestry(invocation_path)
+    Ok(())
 }
 
 #[cfg(unix)]
@@ -817,53 +817,6 @@ fn verify_git_executable_custody(path: &Path) -> Result<(), SourceResolveError> 
         });
     }
     verify_macos_open_executable_acl_custody(path, &metadata)?;
-
-    verify_git_executable_ancestry(path)
-}
-
-#[cfg(unix)]
-fn verify_git_executable_ancestry(path: &Path) -> Result<(), SourceResolveError> {
-    use std::os::unix::fs::MetadataExt;
-
-    let effective_user = nix::unistd::Uid::effective().as_raw();
-
-    let parent = path
-        .parent()
-        .ok_or_else(|| SourceResolveError::GitExecutableInvalid {
-            path: path.to_path_buf(),
-            message: "resolver executable has no absolute custody ancestry".to_owned(),
-        })?;
-    for ancestor in parent.ancestors() {
-        let metadata = std::fs::symlink_metadata(ancestor).map_err(|error| {
-            SourceResolveError::GitExecutableInvalid {
-                path: ancestor.to_path_buf(),
-                message: error.to_string(),
-            }
-        })?;
-        if metadata.file_type().is_symlink() || !metadata.is_dir() {
-            return Err(SourceResolveError::GitExecutableInvalid {
-                path: ancestor.to_path_buf(),
-                message: "resolver executable ancestry contains a non-directory or symlink"
-                    .to_owned(),
-            });
-        }
-        if metadata.uid() != 0 && metadata.uid() != effective_user {
-            return Err(SourceResolveError::GitExecutableInvalid {
-                path: ancestor.to_path_buf(),
-                message: "resolver executable ancestry is owned by an unrelated user".to_owned(),
-            });
-        }
-        let mode = metadata.mode();
-        if mode & 0o022 != 0 && mode & 0o1000 == 0 {
-            return Err(SourceResolveError::GitExecutableInvalid {
-                path: ancestor.to_path_buf(),
-                message:
-                    "resolver executable ancestry is externally writable without sticky-entry protection"
-                        .to_owned(),
-            });
-        }
-        verify_macos_open_executable_ancestry_acl_custody(ancestor, &metadata)?;
-    }
     Ok(())
 }
 
@@ -940,43 +893,6 @@ pub(in crate::resolution::source) fn verify_macos_open_executable_acl_custody(
 }
 
 #[cfg(target_os = "macos")]
-fn verify_macos_open_executable_ancestry_acl_custody(
-    path: &Path,
-    classified: &std::fs::Metadata,
-) -> Result<(), SourceResolveError> {
-    let directory = open_absolute_directory_nofollow(path).map_err(|error| {
-        SourceResolveError::GitExecutableInvalid {
-            path: path.to_path_buf(),
-            message: format!("could not retain resolver executable ancestry: {error}"),
-        }
-    })?;
-    let opened =
-        directory
-            .dir_metadata()
-            .map_err(|error| SourceResolveError::GitExecutableInvalid {
-                path: path.to_path_buf(),
-                message: format!(
-                    "could not inspect retained resolver executable ancestry: {error}"
-                ),
-            })?;
-    if !opened.is_dir() || !same_std_and_capability_file_identity(classified, &opened) {
-        return Err(SourceResolveError::GitExecutableChanged {
-            path: path.to_path_buf(),
-        });
-    }
-    verify_macos_open_executable_extended_acl_custody(
-        path,
-        &directory
-            .try_clone()
-            .map_err(|error| SourceResolveError::GitExecutableInvalid {
-                path: path.to_path_buf(),
-                message: format!("could not clone retained executable ancestry: {error}"),
-            })?
-            .into_std_file(),
-    )
-}
-
-#[cfg(target_os = "macos")]
 fn verify_macos_open_executable_extended_acl_custody(
     path: &Path,
     file: &File,
@@ -1013,14 +929,6 @@ pub(in crate::resolution::source) fn verify_macos_open_executable_acl_custody(
     Ok(())
 }
 
-#[cfg(all(unix, not(target_os = "macos")))]
-fn verify_macos_open_executable_ancestry_acl_custody(
-    _path: &Path,
-    _classified: &std::fs::Metadata,
-) -> Result<(), SourceResolveError> {
-    Ok(())
-}
-
 #[cfg(windows)]
 fn verify_git_executable_custody(path: &Path) -> Result<(), SourceResolveError> {
     let metadata = std::fs::symlink_metadata(path).map_err(|error| {
@@ -1035,35 +943,7 @@ fn verify_git_executable_custody(path: &Path) -> Result<(), SourceResolveError> 
             message: "canonical resolver executable is not a concrete regular file".to_owned(),
         });
     }
-    verify_windows_executable_path_custody(path, &metadata)?;
-    verify_git_executable_ancestry(path)
-}
-
-#[cfg(windows)]
-fn verify_git_executable_ancestry(path: &Path) -> Result<(), SourceResolveError> {
-    let parent = path
-        .parent()
-        .ok_or_else(|| SourceResolveError::GitExecutableInvalid {
-            path: path.to_path_buf(),
-            message: "resolver executable has no absolute custody ancestry".to_owned(),
-        })?;
-    for ancestor in parent.ancestors() {
-        let metadata = std::fs::symlink_metadata(ancestor).map_err(|error| {
-            SourceResolveError::GitExecutableInvalid {
-                path: ancestor.to_path_buf(),
-                message: error.to_string(),
-            }
-        })?;
-        if metadata.file_type().is_symlink() || !metadata.is_dir() {
-            return Err(SourceResolveError::GitExecutableInvalid {
-                path: ancestor.to_path_buf(),
-                message: "resolver executable ancestry contains a non-directory or reparse point"
-                    .to_owned(),
-            });
-        }
-        verify_windows_executable_directory_custody(ancestor, &metadata)?;
-    }
-    Ok(())
+    verify_windows_executable_path_custody(path, &metadata)
 }
 
 #[cfg(windows)]
@@ -1114,43 +994,6 @@ fn verify_windows_executable_path_custody(
 }
 
 #[cfg(windows)]
-fn verify_windows_executable_directory_custody(
-    path: &Path,
-    classified: &std::fs::Metadata,
-) -> Result<(), SourceResolveError> {
-    let directory = open_absolute_directory_nofollow(path).map_err(|error| {
-        SourceResolveError::GitExecutableInvalid {
-            path: path.to_path_buf(),
-            message: format!("could not retain resolver executable ancestry: {error}"),
-        }
-    })?;
-    let opened =
-        directory
-            .dir_metadata()
-            .map_err(|error| SourceResolveError::GitExecutableInvalid {
-                path: path.to_path_buf(),
-                message: format!(
-                    "could not inspect retained resolver executable ancestry: {error}"
-                ),
-            })?;
-    if !opened.is_dir() || !same_std_and_capability_file_identity(classified, &opened) {
-        return Err(SourceResolveError::GitExecutableChanged {
-            path: path.to_path_buf(),
-        });
-    }
-    verify_windows_open_executable_custody(
-        path,
-        &directory
-            .try_clone()
-            .map_err(|error| SourceResolveError::GitExecutableInvalid {
-                path: path.to_path_buf(),
-                message: format!("could not clone retained executable ancestry: {error}"),
-            })?
-            .into_std_file(),
-    )
-}
-
-#[cfg(windows)]
 fn verify_windows_open_executable_custody(
     path: &Path,
     file: &File,
@@ -1192,17 +1035,6 @@ fn verify_windows_open_executable_custody(
 
 #[cfg(all(not(unix), not(windows)))]
 fn verify_git_executable_custody(_path: &Path) -> Result<(), SourceResolveError> {
-    Ok(())
-}
-
-#[cfg(all(not(unix), not(windows)))]
-fn verify_git_executable_ancestry(path: &Path) -> Result<(), SourceResolveError> {
-    if path.parent().is_none() {
-        return Err(SourceResolveError::GitExecutableInvalid {
-            path: path.to_path_buf(),
-            message: "resolver executable has no absolute custody ancestry".to_owned(),
-        });
-    }
     Ok(())
 }
 
