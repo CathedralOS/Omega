@@ -166,6 +166,15 @@ fn compile_rooted_probe_with_sponsored_output(
     profile: omega_target::TargetProfile,
     label: &str,
 ) -> Result<CheckedCompilation, Vec<psi_diagnostics::Diagnostic>> {
+    compile_rooted_probe_with_sponsored_output_seed(project, profile, label, None)
+}
+
+fn compile_rooted_probe_with_sponsored_output_seed(
+    project: &std::path::Path,
+    profile: omega_target::TargetProfile,
+    label: &str,
+    seed: Option<(&Path, &[u8])>,
+) -> Result<CheckedCompilation, Vec<psi_diagnostics::Diagnostic>> {
     let session = rooted_build_session(project, label);
     let _ = std::fs::remove_dir_all(&session);
     std::fs::create_dir(&session).expect("create generated-source review session");
@@ -180,6 +189,16 @@ fn compile_rooted_probe_with_sponsored_output(
         .expect("prepare generated output");
     std::fs::create_dir(&build_dir).expect("create generated output");
     prepared.commit().expect("commit generated output");
+    if let Some((relative_path, bytes)) = seed {
+        let path = sponsor
+            .bind_path(build_dir.join(relative_path))
+            .expect("bind seeded output");
+        let prepared = sponsor
+            .prepare_create_object(&path, bytes.len() as u64)
+            .expect("prepare seeded output");
+        std::fs::write(build_dir.join(relative_path), bytes).expect("write seeded output");
+        prepared.commit().expect("commit seeded output");
+    }
 
     let _ = std::fs::remove_dir_all(project.join("build"));
     set_canonical_source_tree_permissions(project, true);
@@ -295,7 +314,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 26);
+    assert_eq!(checked_observations.schema_version(), 27);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -1806,6 +1825,9 @@ fn source_open_read_close_is_replayed_without_a_filesystem_provider() {
         .build_observation_summary()
         .expect("filesystem build retains observations");
     assert!(summary.source_inputs_replay_verified());
+    assert!(!summary.operation_replay_verified());
+    assert_eq!(summary.realized(), BuildObservationClass::Volatile);
+    assert!(summary.staged_output_tree().is_none());
     assert_eq!(
         summary
             .filesystem_operation_attempts()
@@ -1891,8 +1913,19 @@ fn source_open_read_close_is_replayed_without_a_filesystem_provider() {
         .build_observation_summary()
         .expect("reopened replay retains observations");
     assert!(replayed_summary.source_inputs_replay_verified());
+    assert!(replayed_summary.operation_replay_verified());
     assert_eq!(replayed_summary.ceiling(), BuildObservationClass::Volatile);
-    assert_eq!(replayed_summary.realized(), BuildObservationClass::Volatile);
+    assert_eq!(
+        replayed_summary.realized(),
+        BuildObservationClass::Receipted
+    );
+    assert_eq!(
+        replayed_summary
+            .staged_output_tree()
+            .expect("provider-free replay reconstructs exact empty Output custody")
+            .entry_count(),
+        0
+    );
     let [_, replayed_read, _] = replayed_summary.filesystem_operation_attempts() else {
         panic!("reopened replay has three events")
     };
@@ -1926,6 +1959,88 @@ fn source_open_read_close_is_replayed_without_a_filesystem_provider() {
         "replay mismatch must identify changed prepared inputs: {diagnostics:?}"
     );
     let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
+fn source_only_replay_requires_exact_empty_sponsored_output_custody() {
+    let (project, profile) = rooted_build_probe_project(
+        "source-only-empty-output-receipt",
+        r#"    let path: &[u8] in Path = builder.source.resolve("main.omg");
+    self.descriptor = self.filesystem.open(path, 0);
+    self.result = self.filesystem.read(self.descriptor, &mut self.buffer, 23);
+    self.code = self.filesystem.close(self.descriptor);"#,
+    );
+    let checked =
+        compile_rooted_probe_with_sponsored_output(&project, profile, "empty-output-receipt")
+            .expect("source-only replay with exact empty Output custody should compile");
+    let summary = checked
+        .build_observation_summary()
+        .expect("source-only receipt retains observations");
+    assert!(summary.source_inputs_replay_verified());
+    assert!(summary.operation_replay_verified());
+    assert_eq!(summary.ceiling(), BuildObservationClass::Volatile);
+    assert_eq!(summary.realized(), BuildObservationClass::Receipted);
+    assert_eq!(
+        summary
+            .staged_output_tree()
+            .expect("empty Output tree remains explicit custody")
+            .entry_count(),
+        0
+    );
+
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let record = capture_verified_build_filesystem_replay_record(summary, limits)
+        .expect("source-only receipt should encode")
+        .expect("source-only receipt should retain replay custody");
+    let package = PackageKeyIdentity::from_digest([97; 32]).expect("nonzero package identity");
+    set_canonical_source_tree_permissions(&project, true);
+    let package_source =
+        PackageSourceBinding::new(package, "source-only-empty-output", project.clone())
+            .with_canonical_source_metadata()
+            .expect("capture source-only replay metadata");
+    let package_inputs = PackageCompilationInputs::new(package, vec![package_source], Vec::new())
+        .expect("single-package source-only replay input");
+    let replayed = compile_to_checked_with_packages_and_replay_record(
+        &project.join("main.omg"),
+        Some(profile.target_name()),
+        package_inputs,
+        record,
+    )
+    .expect("source-only receipt should reopen without host Output custody");
+    set_canonical_source_tree_permissions(&project, false);
+    let replayed_summary = replayed
+        .build_observation_summary()
+        .expect("reopened source-only receipt retains observations");
+    assert!(replayed_summary.operation_replay_verified());
+    assert_eq!(
+        replayed_summary.realized(),
+        BuildObservationClass::Receipted
+    );
+    assert_eq!(
+        replayed_summary
+            .staged_output_tree()
+            .expect("reopened receipt reconstructs empty Output")
+            .entry_count(),
+        0
+    );
+
+    let diagnostics = compile_rooted_probe_with_sponsored_output_seed(
+        &project,
+        profile,
+        "unexpected-output-reject",
+        Some((Path::new("unexpected.bin"), b"unexplained output")),
+    )
+    .expect_err("an unexplained physical Output entry must reject receipt issuance");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("Output tree that differs from sponsored staged-output custody")),
+        "unexpected diagnostics: {diagnostics:?}"
+    );
+
+    let _ = std::fs::remove_dir_all(&project);
+    let _ = std::fs::remove_dir_all(rooted_build_session(&project, "empty-output-receipt"));
+    let _ = std::fs::remove_dir_all(rooted_build_session(&project, "unexpected-output-reject"));
 }
 
 #[test]
