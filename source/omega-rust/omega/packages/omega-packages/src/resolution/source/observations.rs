@@ -1,6 +1,23 @@
 //! Resolver-issued source and execution observations exposed to callers.
 
-use super::*;
+use super::SourceResolveError;
+use super::git::execution::format_sha256;
+use super::git::objects::{git_object_algorithm, git_object_invalid};
+use super::git::request::GitTransportProfile;
+use super::limits::{
+    GIT_CACHE_POLICY, GIT_CAPTURED_OUTPUT_ABSOLUTE_LIMIT, GIT_CAPTURED_OUTPUT_FIXED_ALLOWANCE,
+    GIT_FIXED_COMMAND_ALLOWANCE, GIT_NETWORK_TRANSFER_ABSOLUTE_LIMIT,
+    GIT_NETWORK_TRANSFER_FIXED_ALLOWANCE, GIT_RESOLUTION_OBSERVATION_DOMAIN,
+    GIT_RESOLUTION_OBSERVATION_SCHEMA_VERSION, GIT_SNAPSHOT_POLICY, LocalSourceLimits,
+};
+use super::local::ResolvedLocalSource;
+use crate::resolution::identity::GitObjectIdAlgorithm;
+use omega_resolver_execution::{
+    ResolverExecutionEndpointObservation, ResolverExecutionEndpointOutcome, ResolverExecutionPhase,
+    ResolverExecutionPolicyObservation,
+};
+use sha2::{Digest, Sha256};
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedGitSource {

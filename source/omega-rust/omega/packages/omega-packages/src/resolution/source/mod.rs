@@ -4,10 +4,7 @@
 //! live under [`local`]; Git request validation, object authentication,
 //! materialization, cache custody, and process execution live under [`git`].
 
-use crate::resolution::identity::{
-    GitObjectIdAlgorithm, GitRequestedNetworkEndpoint, GitTransport, IdentityError,
-    SourceContentDigest, SourceLineage,
-};
+use crate::resolution::identity::{GitObjectIdAlgorithm, SourceContentDigest};
 use crate::storage::record_file::{RecordFileLimits, RecordFileRoot};
 use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt};
 #[cfg(unix)]
@@ -21,30 +18,27 @@ use cap_std::{
         OpenOptions as CapabilityOpenOptions,
     },
 };
+#[cfg(test)]
 use omega_resolver_execution::{
     RESOLVER_CONNECT_BROKER_ENVIRONMENT, RESOLVER_CONNECT_HELPER_BASENAME,
-    RESOLVER_CONNECT_TARGET_ENVIRONMENT, ResolverExecutionBackend, ResolverExecutionChild,
-    ResolverExecutionEndpointObservation, ResolverExecutionEndpointOutcome,
-    ResolverExecutionEndpointRoute, ResolverExecutionNetworkTransport, ResolverExecutionPhase,
-    ResolverExecutionPolicyObservation, ResolverExecutionRequestedEndpoint,
-    ResolverExecutionTransferBudget,
+    RESOLVER_CONNECT_TARGET_ENVIRONMENT,
 };
+use omega_resolver_execution::{ResolverExecutionPhase, ResolverExecutionRequestedEndpoint};
 use sha1_checked::Sha1 as CheckedSha1;
 use sha2::{Digest, Sha256};
-use std::cell::{Cell, RefCell};
-use std::collections::{BTreeMap, BTreeSet};
+#[cfg(test)]
+use std::collections::BTreeSet;
 use std::ffi::{OsStr, OsString};
-use std::fmt;
-use std::fs::File;
 #[cfg(test)]
 use std::fs::OpenOptions;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Command, ExitStatus, Stdio};
+#[cfg(test)]
+use std::process::{Command, Stdio};
+#[cfg(test)]
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::mpsc::{self, RecvTimeoutError};
-use std::time::{Duration, Instant, SystemTime};
+#[cfg(test)]
+use std::time::{Duration, Instant};
 
 mod custody;
 mod error;
@@ -73,9 +67,8 @@ pub(crate) use local::{
     capture_verified_package_source_snapshot, verify_package_source_snapshot,
 };
 pub use observations::{
-    GitCapturedOutputObservation, GitCommandExecutionObservation, GitExecutableIdentity,
-    GitNetworkTransferObservation, GitSourceResolutionObservation, GitTransportExecutableIdentity,
-    ResolvedGitSource,
+    GitExecutableIdentity, GitNetworkTransferObservation, GitSourceResolutionObservation,
+    GitTransportExecutableIdentity, ResolvedGitSource,
 };
 pub use storage::SourceResolverStorage;
 
