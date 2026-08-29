@@ -11,40 +11,9 @@ Code, canaries, and settled documentation must cite a stable named decision or
 the governing guide section rather than an owner-question number. A settled
 decision's durable identity does not change when this queue is pruned.
 
-Last pruned: 2026-08-28.
+Last pruned: 2026-08-29.
 
-## Q1 — Application identity in the package graph
-
-### Context
-
-Applications now declare `builder.application("name")`, may own dependencies,
-and form the root of a reconciled package closure. Compiler package handoff
-currently identifies graph roots through `PackageKeyIdentity`.
-
-### Problem statement
-
-Giving applications no source-qualified graph identity requires a second root
-identity system and weakens provenance across application updates. Treating an
-application as an ordinary dependency, however, would erase the role
-distinction and permit consumers to import an artifact root as a library.
-
-### Proposed direction
-
-Give an application the same name-plus-source-lineage `PackageKey` used for a
-stable reach-unit identity, while retaining `Application` as its role. It may
-own dependencies and produce artifacts but cannot satisfy another project's
-package dependency. Exact source and artifact evidence remain instance facts.
-
-### Alternates
-
-- Acceptable if a concrete compiler constraint requires it: define a distinct
-  source-qualified application-root key with the same lineage and instance
-  commitments, then prove the graph handoff cannot confuse it with packages.
-- Tempting but wrong: key an application by its authored name alone.
-- Tempting but wrong: make applications importable packages merely to reuse
-  existing graph code.
-
-## Q2 — Scoped build machines as project manifests
+## Q1 — Scoped build machines as project manifests
 
 ### Context
 
@@ -97,7 +66,7 @@ under the canonical root.
   build; that restores duplicate build roots rather than one authoritative
   entry.
 
-## Q3 — Fixed-array element cleanup order
+## Q2 — Fixed-array element cleanup order
 
 ### Context
 
@@ -140,7 +109,7 @@ sequence.
   unobservable. Cleanup calls can carry effects, requirements, guarantees,
   fuel, and diagnostics, so their sequence is semantic.
 
-## Q4 — Lifetime application on conformance target traits
+## Q3 — Lifetime application on conformance target traits
 
 ### Context
 
@@ -176,7 +145,7 @@ package review.
 - Tempting but wrong: erase the target-trait lifetime application because it
   has no runtime layout effect; it remains proof and public-interface identity.
 
-## Q5 — Authority-bearing roles for ordinary packages
+## Q4 — Authority-bearing roles for ordinary packages
 
 ### Context
 
@@ -234,7 +203,7 @@ role from names.
   as an ordinary package at the import surface; that preserves two identities
   for one dependency and defeats capability review.
 
-## Q6 — Explicit transport authority for quotient preconditions
+## Q5 — Explicit transport authority for quotient preconditions
 
 ### Context
 
@@ -282,7 +251,7 @@ closed.
 - Tempting but wrong: retain only a solver `Proven` verdict without the selected
   theorem identity, ordered premises, per-side application, and replay data.
 
-## Q7 — Source result schema for placed-view establishment
+## Q6 — Source result schema for placed-view establishment
 
 ### Context
 
@@ -344,7 +313,7 @@ outputs outside the runtime result.
 - Tempting but wrong: derive result identity from source spelling, call-site
   order, accessor names, parameter ordinals, or compact plan fingerprints.
 
-## Q8 — Reborrow restoration disposition
+## Q7 — Reborrow restoration disposition
 
 ### Context
 
@@ -393,7 +362,7 @@ post-return use, cleanup, or Terminal resource claim may be derived from them.
 - Tempting but wrong: skip retired projected parents and return authority
   directly to a root without retaining and validating the complete path.
 
-## Q9 — Nominal result carriers for observing compare-exchange
+## Q8 — Nominal result carriers for observing compare-exchange
 
 ### Context
 
@@ -464,7 +433,7 @@ operation requirement identities separate from these value-type identities.
 - Tempting but wrong: expose `Uncommitted` on the decisive result merely because
   one larger runtime layout would be convenient.
 
-## Q10 — Strict SSH trust and credential authority
+## Q9 — Strict SSH trust and credential authority
 
 ### Context
 
@@ -513,7 +482,7 @@ producer claim.
 - Tempting but wrong: serialize private keys, tokens, or reusable credentials in
   `omega.lock` or source-resolution evidence.
 
-## Q11 — Suspension as control-flow exit or resumable continuation
+## Q10 — Suspension as control-flow exit or resumable continuation
 
 ### Context
 
@@ -552,7 +521,7 @@ and its custody.
 - Tempting but wrong: classify every `MaySuspend` call as a local CFG exit
   without retaining its continuation and outcome-specific state.
 
-## Q12 — Cyclic control flow in Terminal Psi
+## Q11 — Cyclic control flow in Terminal Psi
 
 ### Context
 
@@ -592,7 +561,7 @@ block-loop API.
   validation before loop-carried SSA, ownership, cleanup, and fuel semantics
   exist.
 
-## Q13 — Close the Delta v1 semantic contract
+## Q12 — Close the Delta v1 semantic contract
 
 ### Context
 
@@ -672,7 +641,7 @@ out of Delta without weakening its ability to host a robust compiler.
 - Tempting but wrong: retain the old translator's private capacities, exit
   codes, or Darwin output behavior as language rules.
 
-## Q14 — Select one typed executable Gamma contract
+## Q13 — Select one typed executable Gamma contract
 
 ### Context
 
@@ -742,7 +711,7 @@ failures.
 - Tempting but wrong: make Alpha I/O effects directly callable from arbitrary
   Gamma source merely to avoid defining the compiler-entry adapter.
 
-## Q15 — Fix Beta block formation and definite-initialization reachability
+## Q14 — Fix Beta block formation and definite-initialization reachability
 
 ### Context
 
@@ -807,7 +776,7 @@ semantic acceptance independent of optimizer sophistication.
 - Tempting but wrong: zero-initialize generated frame slots and call the gap
   closed; that changes Beta's written local semantics and hides skipped stores.
 
-## Q16 — Select the canonical Beta compiler outcome carrier
+## Q15 — Select the canonical Beta compiler outcome carrier
 
 ### Context
 
@@ -871,7 +840,7 @@ impossible fixup/table condition maps to `InternalFailure`.
 - Tempting but wrong: prepend a success tag to Alpha tape and thereby change the
   canonical artifact bytes or require a stripping stage.
 
-## Q17 — Canonical kernel propositions for exact scalar operations
+## Q16 — Canonical kernel propositions for exact scalar operations
 
 ### Context
 
@@ -928,7 +897,7 @@ and mirrored verifier search tree.
 - Tempting but wrong: serialize only the producer's chosen goal and trust it
   without independently reconstructing the operation-owned proposition.
 
-## Q18 — Compose the exact Alpha-to-Beta edge within checker capacity
+## Q17 — Compose the exact Alpha-to-Beta edge within checker capacity
 
 ### Context
 
@@ -990,7 +959,7 @@ of adding an assembly-specific evaluator path.
   primitive, trust a producer receipt, compare hashes, or weaken exact total
   partitioning.
 
-## Q19 — Own the ranked native-fuel sponsor entry
+## Q18 — Own the ranked native-fuel sponsor entry
 
 ### Context
 

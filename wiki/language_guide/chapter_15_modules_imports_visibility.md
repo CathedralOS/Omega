@@ -43,6 +43,18 @@ separate review metadata for reproduction, cache partitioning, and incident
 response; it never seals the instance or proves that the producer or an audit
 was trustworthy.
 
+Packages and applications use the same `PackageKey`: declared name plus source
+lineage. Role remains an explicit companion fact. A selected root may be either
+role and may own dependencies, but every dependency edge must resolve to a
+package; applications are not importable libraries. The resolver enforces that
+single root/non-root rule for every source kind and retains the root role in
+lock, review, and compiler-handoff evidence. Role is never inferred from an
+entry binding and does not alter the key.
+
+A workspace is a catalog rather than a combined dependency graph. Multiple
+application members are multiple independently selectable roots. Selecting one
+does not pull in the others or package members it cannot reach.
+
 The one graph-forming control-flow exception is an exact branch on immutable
 `builder.target`. Authors use ordinary `depend` and `depend_as` calls in states
 reached by exact `TargetProfile` arms; Omega does not add `depend_when` or string

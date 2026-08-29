@@ -43,7 +43,7 @@ closed. Compiler-issued package review remains non-admitting.
   - run the existing Windows Job Object process-count, per-process memory,
     aggregate-memory, and aggregate-CPU exhaustion pairs on a native Windows
     worker; cross-compilation is not execution evidence;
-  - narrow macOS SSH discovery/fetch reads after Q10 settles explicit host-key,
+  - narrow macOS SSH discovery/fetch reads after Q9 settles explicit host-key,
     key, credential-provider, and credential-file custody;
   - make the existing broker transfer ceiling complete by denying direct helper
     egress on Linux and Windows; separately enforce whole-operation object-store,
@@ -65,12 +65,12 @@ closed. Compiler-issued package review remains non-admitting.
   The detailed established floor and remaining platform gaps are maintained in
   `source/omega-rust/omega/packages/omega-package-source/SOURCE_RESOLVER_SECURITY.md`.
   Strict SSH trust and credential authority is
-  design-blocked on OWNER Q10; the other bullets are engineering work.
+  design-blocked on OWNER Q9; the other bullets are engineering work.
 
 ## P1 — Total package semantic identity
 
 - [ ] **COMPLETE-CONFORMANCE-IDENTITY.** Retain complete public conformance
-  applications, including target-trait lifetime arguments once OWNER Q4 is
+  applications, including target-trait lifetime arguments once OWNER Q3 is
   settled. Unsupported generic, lifetime-bearing, private, or aliased forms
   must continue to fail closed rather than disappear from review.
 
@@ -192,7 +192,7 @@ closed. Compiler-issued package review remains non-admitting.
   classification for network, dynamic loading, signing, secrets, executable
   installation, DMA/IOMMU, and any future authority-bearing surfaces. Names,
   aliases, paths, and same-spelled package declarations must confer no
-  authority. Ordinary std/provider authority depends on OWNER Q5.
+  authority. Ordinary std/provider authority depends on OWNER Q4.
 
 - [ ] **SOURCE-AND-PROVENANCE-TRIAGE.** Wire an organization-selected advisory
   reviewer into command orchestration with the existing fixed instructions,
@@ -340,25 +340,37 @@ items are still owner-blocked.
   mixed paths, unreachable calls, alias reuse/conflict, catalog growth, stale
   profile identity, and missing locked columns.
 
-- [ ] **BLOCKED — OWNER Q1: PACKAGE-NATIVE-GENERATED-SOURCE-TRANSACTION.**
+- [ ] **APPLICATION-ROOT-ROLE-EVIDENCE — retain the admitted root role after resolution.**
+  Keep the existing single root/non-root admission flag: roots may be packages
+  or applications, while every dependency edge remains package-only. Remove the
+  subsequent `ApplicationDeclaration` to `PackageDeclaration` coercion and
+  retain `{ PackageKey, BuildDeclarationKind }` for the selected root through
+  closure reconciliation, lock rows, manifest review, compiler handoff,
+  diagnostics, and audit output. Non-root nodes need no redundant role field
+  because their package role is already enforced. Retain the existing
+  Git/workspace/local dependency-rejection tests and add evidence/replay tests
+  for application and package roots, role tampering, and role-change reporting.
+
+- [ ] **PACKAGE-NATIVE-GENERATED-SOURCE-TRANSACTION.**
   Route native-image production through the sponsored package transaction
   without rerunning `build.omg` or reopening discovery. Lower the exact frozen
   checked program after generated-source handoff, retain the unpublished native
   artifact as an exact subject, reconstruct every source/build/generated/native
-  commitment, and publish only after complete accepted comparison. Q1 must
-  settle application-root identity; exact requested-target identity then comes
-  from **IMMUTABLE-TARGET-ACTIVATION-AND-REACH-CLOSURE** in `TASKS.md`.
+  commitment, and publish only after complete accepted comparison. Consume the
+  retained application-root `PackageKey` and role above; exact requested-target
+  identity comes from **IMMUTABLE-TARGET-ACTIVATION-AND-REACH-CLOSURE** in
+  `TASKS.md`.
 
-- [ ] **BLOCKED — OWNER Q2: SCOPED-BUILD-ROOTS.** Retire the five remaining
+- [ ] **BLOCKED — OWNER Q1: SCOPED-BUILD-ROOTS.** Retire the five remaining
   `Owner::build` compatibility canaries or formally admit one shared scoped-root
   grammar. Package readers and standalone compilation may not continue assigning
   different meanings to the same `build.omg` shape.
 
-- [ ] **BLOCKED — OWNER Q4: CONFORMANCE-TARGET-LIFETIMES.** Settle and retain
+- [ ] **BLOCKED — OWNER Q3: CONFORMANCE-TARGET-LIFETIMES.** Settle and retain
   the complete target-trait lifetime application before lifetime-parameterized
   public conformances can enter canonical package identity.
 
-- [ ] **BLOCKED — OWNER Q5: ORDINARY-STD-AND-PROVIDER-AUTHORITY.** Replace all
+- [ ] **BLOCKED — OWNER Q4: ORDINARY-STD-AND-PROVIDER-AUTHORITY.** Replace all
   physical `source/library/std` routing and direct filesystem/GUI provider
   injection with exact ordinary graph nodes and explicit authenticated role
   bindings. Only core remains compiler-welded. Removing the declared std edge
@@ -382,7 +394,7 @@ items are still owner-blocked.
   bodylessness, catalog presence, nor build policy may synthesize a requirement
   or satisfier edge.
 
-- [ ] **BLOCKED — OWNER Q10: STRICT-SSH-CUSTODY.** Settle host-key, key,
+- [ ] **BLOCKED — OWNER Q9: STRICT-SSH-CUSTODY.** Settle host-key, key,
   credential-provider, and credential-file authority before narrowing the
   remaining SSH read surface or treating SSH resolution as strict evidence.
 

@@ -86,6 +86,17 @@ rejects with all dependency paths. Multiple simultaneous instances per key are
 unsupported because they would require package-instance qualification throughout
 the nominal identity substrate, not merely new aliases.
 
+Package and application roots share `PackageKey`; their explicit
+`BuildDeclarationKind` is carried separately. The existing root/non-root binding
+rule admits either role only at the selected root and requires every dependency
+edge to resolve to a package. Resolution must retain the admitted root role in
+closure, lock, review, compiler-handoff, and audit evidence instead of coercing
+an application declaration into a package declaration after admission.
+
+Workspaces are member catalogs, not keyed graph nodes. Each selected application
+member forms its own closure; membership alone does not combine applications or
+include unrelated packages.
+
 Canonical source-closure encoding v3 binds root and dependency selectors plus
 one stable navigation value for every package. Review revalidates the complete
 authenticated repository commitment before opening a selected member subtree;
