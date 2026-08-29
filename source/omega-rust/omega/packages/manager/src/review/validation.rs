@@ -1,10 +1,10 @@
 //! Exact-key validation across compiler review and resolved source custody.
 
-use crate::review::evidence::PackageReviewEvidence;
-use crate::{
-    CompilerIssuedPackageReviewSet, ImmutableSourceResolution, PackageKey, PackageSourceCustody,
-    ResolvedPackageSourceClosure,
+use crate::resolution::{
+    ImmutableSourceResolution, PackageKey, PackageSourceCustody, ResolvedPackageSourceClosure,
 };
+use crate::review::CompilerIssuedPackageReviewSet;
+use crate::review::evidence::PackageReviewEvidence;
 
 /// A compiler review set validated independently of source custody.
 ///
@@ -69,7 +69,7 @@ pub(crate) fn validate_review_only_closure<'review>(
     sources: &ResolvedPackageSourceClosure,
     reviews: &'review CompilerIssuedPackageReviewSet,
 ) -> Result<
-    ValidatedReviewOnlyClosure<'review, crate::CompilerIssuedPackageReview>,
+    ValidatedReviewOnlyClosure<'review, crate::review::CompilerIssuedPackageReview>,
     ReviewOnlyClosureValidationError,
 > {
     let reviews_by_key = validate_review_closure_records(sources.custodies(), reviews.reviews())?;
@@ -202,7 +202,9 @@ fn validate_review_closure_records<'review, S: SourceRecord, R: ReviewRecord>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{GitCommitId, GitTreeId, PackageName, SourceContentDigest, SourceLineage};
+    use crate::resolution::{
+        GitCommitId, GitTreeId, PackageName, SourceContentDigest, SourceLineage,
+    };
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     struct TestSource {

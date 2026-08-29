@@ -21,7 +21,7 @@ fn resolves_repository_root_git_closure_and_retains_the_exact_request() {
     .expect("validated local Git root request");
     let storage = SourceResolverStorage::for_hardened_base(&cache)
         .expect("create retained Git resolver storage");
-    let resolved = crate::resolve_git_package_source_with_storage(
+    let resolved = crate::resolution::resolve_git_package_source_with_storage(
         &request,
         &storage,
         LocalSourceLimits::default(),

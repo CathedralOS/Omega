@@ -3,7 +3,7 @@ use super::*;
 
 pub(super) fn derive_and_assert(
     scenario: &ExactCompilerRowScenario,
-) -> omega_package_manager::ReviewOnlyCapabilityConflictSet {
+) -> omega_package_manager::review::ReviewOnlyCapabilityConflictSet {
     assert_eq!(
         scenario.baseline_sources.graph().root(),
         scenario.candidate_sources.graph().root()

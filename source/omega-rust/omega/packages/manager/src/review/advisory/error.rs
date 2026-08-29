@@ -1,4 +1,5 @@
-use crate::{PackageKey, PackageSourcePatchError, TriageRenderError};
+use crate::resolution::PackageKey;
+use crate::review::{PackageSourcePatchError, TriageRenderError};
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

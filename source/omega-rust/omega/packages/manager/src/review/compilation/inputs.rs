@@ -131,7 +131,7 @@ mod tests {
 
     fn root_request(root: &PackageSourceCustody) -> PackageRootSourceRequest {
         PackageRootSourceRequest::Git(
-            crate::GitSourceRequest::new(
+            crate::resolution::GitSourceRequest::new(
                 format!(
                     "https://github.com/CathedralOS/{}.git",
                     root.key().name().as_str()
@@ -163,8 +163,11 @@ mod tests {
         let source_root = source_root
             .canonicalize()
             .expect("retain the canonical synthetic source root");
-        let source = crate::resolve_local_source(&source_root, crate::LocalSourceLimits::default())
-            .expect("derive synthetic source identity");
+        let source = crate::resolution::resolve_local_source(
+            &source_root,
+            crate::resolution::LocalSourceLimits::default(),
+        )
+        .expect("derive synthetic source identity");
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -187,7 +190,7 @@ mod tests {
             key,
             resolution,
             source_root,
-            crate::LocalSourceLimits::default(),
+            crate::resolution::LocalSourceLimits::default(),
             dependency_requests,
         )
     }

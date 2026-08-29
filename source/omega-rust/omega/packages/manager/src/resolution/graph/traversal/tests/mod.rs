@@ -1,9 +1,10 @@
 use super::*;
-use crate::{
-    GitTransportProfile, PackageSourceClosureLimitKind, PackageSourceReviewLimits,
-    PackageTriageDisposition, PackageTriageReason, ReviewOnlyCapabilityConflictChange,
-    ReviewOnlyCapabilityConflictLimits, assemble_update_source_review,
-    compare_review_only_capabilities, compile_resolved_package_reviews, triage_review_update,
+use crate::resolution::{GitTransportProfile, PackageSourceClosureLimitKind};
+use crate::review::{
+    PackageSourceReviewLimits, PackageTriageDisposition, PackageTriageReason,
+    ReviewOnlyCapabilityConflictChange, ReviewOnlyCapabilityConflictLimits,
+    assemble_update_source_review, compare_review_only_capabilities,
+    compile_resolved_package_reviews, triage_review_update,
 };
 use omega_package_review::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,

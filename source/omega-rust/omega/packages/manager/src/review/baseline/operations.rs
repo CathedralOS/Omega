@@ -1,13 +1,13 @@
 //! High-level comparison, triage, and source-review operations.
 
 use super::ReviewOnlyBaselineCapsule;
+use crate::resolution::{PackageKey, PackageSourceCustody, ResolvedPackageSourceClosure};
 use crate::review::advisory::assemble_update_source_review_records;
 use crate::review::comparison::compare_review_only_capability_records;
 use crate::review::triage::triage_review_update_records;
-use crate::{
-    CompilerIssuedPackageReviewSet, CompilerReviewTriage, PackageKey, PackageSourceCustody,
-    PackageSourceReviewError, PackageSourceReviewInput, PackageSourceReviewLimits,
-    ResolvedPackageSourceClosure, ReviewOnlyCapabilityConflictError,
+use crate::review::{
+    CompilerIssuedPackageReviewSet, CompilerReviewTriage, PackageSourceReviewError,
+    PackageSourceReviewInput, PackageSourceReviewLimits, ReviewOnlyCapabilityConflictError,
     ReviewOnlyCapabilityConflictLimits, ReviewOnlyCapabilityConflictSet,
 };
 use std::collections::BTreeSet;

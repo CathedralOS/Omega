@@ -3,7 +3,7 @@ use super::*;
 
 pub(super) fn assert_persistence_and_recovery(
     scenario: &ExactCompilerRowScenario,
-    conflicts: &omega_package_manager::ReviewOnlyCapabilityConflictSet,
+    conflicts: &omega_package_manager::review::ReviewOnlyCapabilityConflictSet,
 ) {
     let [package] = conflicts.packages() else {
         panic!("one package has candidate-bound conflicts")

@@ -4,7 +4,7 @@ use super::model::{
     ReviewOnlyCapabilityConflictChange, ReviewOnlyCapabilityConflictSet,
     ReviewOnlyPackageCapabilityConflicts, ReviewSetRole,
 };
-use crate::ImmutableSourceResolution;
+use crate::resolution::ImmutableSourceResolution;
 use omega_package_review::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
     PackageReviewSourceLocationOwner, PackageReviewSourceLocationRole,

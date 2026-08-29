@@ -13,16 +13,16 @@ use super::{
     CHECKSUM_BYTES, MAGIC, REVIEW_ONLY_ARTIFACT_CLASS, ReviewOnlyBaselineError,
     ReviewOnlyBaselineLimits, VERSION,
 };
+use crate::resolution::{
+    AliasName, ImmutableSourceResolution, PackageKey, ResolvedDependency, ResolvedPackageClosure,
+    ResolvedPackageNode, ResolvedPackageSourceClosure, ResolvedSourceIdentity,
+};
+use crate::review::CompilerIssuedPackageReviewSet;
 use crate::review::evidence::{
     PackageReviewEvidence, ReviewOnlyCanonicalRow, ReviewOnlySourceConsumptionCommitment,
     build_observation_commitment, whole_review_commitment,
 };
 use crate::review::validation::{validate_review_only_closure, validate_review_only_records};
-use crate::{
-    AliasName, CompilerIssuedPackageReviewSet, ImmutableSourceResolution, PackageKey,
-    ResolvedDependency, ResolvedPackageClosure, ResolvedPackageNode, ResolvedPackageSourceClosure,
-    ResolvedSourceIdentity,
-};
 use omega_build_evaluation::{
     BuildFilesystemReplayRecordLimits, ReviewOnlyBuildFilesystemReplayRecord,
     capture_verified_build_filesystem_replay_record,

@@ -3,7 +3,7 @@
 use super::diff::{DiffBudget, myers_diff, render_hunks, source_line_count, split_lines};
 use super::output::BoundedOutput;
 use super::{PackageSourcePatchError, PackageSourcePatchLimits, PackageSourcePatchSide};
-use crate::{GitObjectIdAlgorithm, ImmutableSourceResolution, PackageSourceCustody};
+use crate::resolution::{GitObjectIdAlgorithm, ImmutableSourceResolution, PackageSourceCustody};
 use omega_package_source::{
     LocalSourceLimits, VerifiedPackageSourceEntry, VerifiedPackageSourceEntryKind,
     capture_verified_package_source_snapshot, verify_package_source_snapshot,

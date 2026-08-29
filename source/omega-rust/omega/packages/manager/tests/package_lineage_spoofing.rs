@@ -1,7 +1,8 @@
-use omega_package_manager::{
+use omega_package_manager::resolution::{
     ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits, SourceResolverStorage,
-    compile_resolved_package_reviews, resolve_external_local_package_closure_with_storage,
+    resolve_external_local_package_closure_with_storage,
 };
+use omega_package_manager::review::compile_resolved_package_reviews;
 use omega_package_review::PackageReviewCanonicalRowKind;
 use std::fs;
 use std::path::{Path, PathBuf};

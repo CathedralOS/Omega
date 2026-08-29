@@ -3,7 +3,7 @@ use super::*;
 
 pub(super) fn assert_candidate_binding(
     scenario: &ExactCompilerRowScenario,
-    conflicts: &omega_package_manager::ReviewOnlyCapabilityConflictSet,
+    conflicts: &omega_package_manager::review::ReviewOnlyCapabilityConflictSet,
 ) {
     let [package] = conflicts.packages() else {
         panic!("one package has candidate-bound conflicts")

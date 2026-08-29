@@ -1,9 +1,11 @@
-use omega_package_manager::{
-    CanonicalPackageReconstructionQuestion, CanonicalPackageReconstructionQuestionLimits,
+use omega_package_manager::resolution::{
     LocalSourceLimits, PackageSourceClosureLimits, ResolvePackageSourceError,
     ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure, SourceLineage,
-    SourceResolverStorage, WorkspaceMemberPath, compile_resolved_package_reviews,
-    resolve_workspace_package_closure_with_storage,
+    SourceResolverStorage, WorkspaceMemberPath, resolve_workspace_package_closure_with_storage,
+};
+use omega_package_manager::review::{
+    CanonicalPackageReconstructionQuestion, CanonicalPackageReconstructionQuestionLimits,
+    compile_resolved_package_reviews,
 };
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -50,8 +52,8 @@ fn resolve_workspace_package_closure(
 
 fn graph_workbench_question() -> (
     PathBuf,
-    omega_package_manager::ResolvedPackageSourceClosure,
-    omega_package_manager::CompilerIssuedPackageReviewSet,
+    omega_package_manager::resolution::ResolvedPackageSourceClosure,
+    omega_package_manager::review::CompilerIssuedPackageReviewSet,
     CanonicalPackageReconstructionQuestion,
 ) {
     let temporary = temporary_root("graph-workbench");

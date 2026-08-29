@@ -1,4 +1,4 @@
-use omega_package_manager::{
+use omega_package_manager::resolution::{
     CanonicalDependencySourceRequest, CanonicalRootSourceRequest, CanonicalSourceClosureSubject,
     CanonicalSourceClosureSubjectLimits, ExternalSourceContext, LocalSourceLimits,
     PackageSourceClosureLimits, ResolveExternalLocalPackageClosureError, ResolvePackageSourceError,

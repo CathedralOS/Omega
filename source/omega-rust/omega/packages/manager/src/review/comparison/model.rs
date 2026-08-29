@@ -1,8 +1,8 @@
 //! Bounded conflict and error vocabulary.
 
 use super::format::{RenderByteCounter, render_conflict_set, review_role_token};
+use crate::resolution::{DependencyRequestPath, ImmutableSourceResolution, PackageKey};
 use crate::review::evidence::ReviewOnlySourceConsumptionCommitment;
-use crate::{DependencyRequestPath, ImmutableSourceResolution, PackageKey};
 use omega_package_review::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
 };

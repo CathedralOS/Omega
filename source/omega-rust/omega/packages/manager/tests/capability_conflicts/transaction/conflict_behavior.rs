@@ -3,7 +3,7 @@ use super::*;
 
 pub(super) fn assert_comparison_limits_and_risk_classes(
     scenario: &ExactCompilerRowScenario,
-    conflicts: &omega_package_manager::ReviewOnlyCapabilityConflictSet,
+    conflicts: &omega_package_manager::review::ReviewOnlyCapabilityConflictSet,
 ) {
     let repeated = compare_review_only_capabilities(
         &scenario.baseline_reviews,

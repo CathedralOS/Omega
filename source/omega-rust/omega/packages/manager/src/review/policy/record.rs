@@ -3,7 +3,7 @@ use super::resolution::{
     ReviewOnlyRootPolicyResolution, ReviewOnlyRootPolicyResolutionError,
     resolve_review_only_root_policy_decisions,
 };
-use crate::ReviewOnlyCapabilityConflictSet;
+use crate::review::ReviewOnlyCapabilityConflictSet;
 use std::fmt;
 
 const ROOT_POLICY_RECORD_HEADER: &str = "OMEGA_PACKAGE_ROOT_POLICY_RESOLUTION_V1";

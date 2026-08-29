@@ -5,12 +5,12 @@ use super::{
     CHECKSUM_DOMAIN, REPLAY_PARENT_BINDING_DOMAIN, ReviewOnlyBaselineError,
     ReviewOnlyBaselineLimits,
 };
-use crate::review::evidence::ReviewOnlyCanonicalRow;
-use crate::{
+use crate::resolution::{
     ExternalLocalLineage, ExternalSourceContext, GitCommitId, GitTransport, GitTreeId,
     ImmutableSourceResolution, PackageKey, PackageName, SourceContentDigest, SourceLineage,
     WorkspaceLineageIdentity, WorkspaceMemberLineage, WorkspaceMemberPath,
 };
+use crate::review::evidence::ReviewOnlyCanonicalRow;
 use omega_build_evaluation::{
     ReviewOnlyBuildFilesystemReplayRecord, recover_review_only_build_filesystem_replay_record,
 };

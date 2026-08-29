@@ -3,7 +3,7 @@ use super::record::{
     recover_review_only_root_policy_resolution,
 };
 use super::resolution::ReviewOnlyRootPolicyResolution;
-use crate::ReviewOnlyCapabilityConflictSet;
+use crate::review::ReviewOnlyCapabilityConflictSet;
 use omega_platform_custody::record_file::{
     RecordFileError, RecordFileLimits, RecordFileRoot, is_portable_record_file_name,
 };
