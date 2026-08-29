@@ -97,7 +97,8 @@ closed. Compiler-issued package review remains non-admitting.
   Source-input/empty-Output and repeated direct-child
   `create`/zero-or-more full sequential-or-positioned writes, exact successful
   seeks, successful length changes, descriptor-scoped permission and timestamp
-  changes, and successful syncs/`close` output replay lanes,
+  changes, bounded immediately retired successful descriptor duplicates, and
+  successful syncs/`close` output replay lanes,
   including exact cursor-independent positioned offsets and exact ordered
   generated-source subsets, into a complete receipted build-operation and
   output grammar. Add replay for every remaining admitted service and staged-
