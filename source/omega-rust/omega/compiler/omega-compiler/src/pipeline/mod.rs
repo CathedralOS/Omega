@@ -7,18 +7,19 @@ pub(crate) use omega_provider_planning::component_progress;
 pub mod frontend;
 #[path = "package/declaration_admission.rs"]
 mod package_declaration_admission;
+mod phase_transitions;
 mod project;
+mod reporting;
 pub(crate) use omega_provider_planning::approval as provider_approval;
 pub(crate) use omega_provider_planning::plans as provider_plans;
 pub mod source;
+mod source_assembly;
 pub(crate) mod source_inspection;
 mod stage;
-mod stages;
 #[path = "provider/target_machines.rs"]
 mod target_machines;
 pub(crate) use omega_provider_planning::task_plans;
 mod timing;
-mod wire_report;
 
 pub(crate) use crate::compiler::CompileOptions;
 pub(crate) use artifacts::write_checked_snapshot;

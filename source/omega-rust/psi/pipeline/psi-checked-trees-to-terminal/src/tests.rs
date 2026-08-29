@@ -48,14 +48,6 @@ fn program_entry_receipt_binds_checked_source_to_canonical_terminal_entry() {
     )
     .expect("produce checked Unit ProgramEntry artifact");
     let receipt = produced.receipt();
-    let selection = checked
-        .facts
-        .flow
-        .terminal_machines
-        .machines
-        .iter()
-        .find(|machine| machine.name == "Main::launch")
-        .expect("checked terminal selection");
     let decoded = psi_terminal_codec::decode_module(produced.artifact().semantic_bytes())
         .expect("decode canonical semantic module");
 
@@ -63,7 +55,6 @@ fn program_entry_receipt_binds_checked_source_to_canonical_terminal_entry() {
         receipt.source_signature_identity(),
         source_signature_identity
     );
-    assert_eq!(receipt.source_machine(), selection.machine);
     assert_eq!(receipt.source_machine_name(), "Main::launch");
     assert_eq!(receipt.terminal_entry(), decoded.entry);
     assert_eq!(
@@ -126,14 +117,6 @@ fn program_entry_receipt_retains_two_granted_extent_roots_and_their_boundary_han
     )
     .expect("produce exact two-root Unit ProgramEntry artifact");
     let receipt = produced.receipt();
-    let selection = checked
-        .facts
-        .flow
-        .terminal_machines
-        .machines
-        .iter()
-        .find(|machine| machine.name == "ProgramLocalProducer::handoff")
-        .expect("checked ProgramStorage producer selection");
     let decoded = psi_terminal_codec::decode_module(produced.artifact().semantic_bytes())
         .expect("decode canonical two-root semantic module");
 
@@ -141,7 +124,6 @@ fn program_entry_receipt_retains_two_granted_extent_roots_and_their_boundary_han
         receipt.source_signature_identity(),
         source_signature_identity
     );
-    assert_eq!(receipt.source_machine(), selection.machine);
     assert_eq!(
         receipt.source_machine_name(),
         "ProgramLocalProducer::handoff"

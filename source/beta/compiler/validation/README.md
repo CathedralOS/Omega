@@ -41,8 +41,9 @@ the audited seed accepts at most 262,140 tape bytes. Responsibility-specific
 `.alpha` modules are concatenated only into those bounded programs. The
 programs cover source/artifact control and effect custody, frame and stack
 shape, memory-site classification, expression and statement composition,
-bounded emitters, parsing/resource outcomes, and the final greatest-fixed-point
-maximal observation. Responsibility-specific decoded-region descriptors share
+bounded emitters, parsing/resource outcomes, and the final maximal-observation
+executable comparison, including divergent cases. Responsibility-specific
+decoded-region descriptors share
 one parameterized effect census for exact call, return, write, store, and
 raw-byte-access policy. Selected local, memory, primitive, and push rows likewise
 share one canonical exact-table decoder instead of tranche-local copies. Their
@@ -219,13 +220,17 @@ sh source/beta/compiler/validation/admission/bc-block-control.sh
 
 The ROOT conjunction is unique lower-rung executable evidence for exact
 maximal-observation equality over finite `B_bc1` inputs, including typed
-resource outcomes and coinductive divergence. It is not yet a certificate
-accepted by the universal `source/alpha/checker/artifacts/check.tape`:
-the current proof language has no encoded Alpha/Beta simulation relation or
-settled coinduction rule. [`OWNER_QUESTIONS.md`](../../../../OWNER_QUESTIONS.md)
-Q18 owns that language decision. Accordingly the short chain manifest continues to
-disclose complete Beta source/artifact admission as open rather than promoting
-this executable reconstruction by pedigree.
+resource outcomes and divergent cases. It is not yet a certificate accepted by
+the universal `source/alpha/checker/artifacts/check.tape` and cannot be promoted
+to one by pedigree or successful execution.
+
+The language decision is settled: encode the exact relation in the existing
+intuitionistic first-order calculus over constructive total Beta and Alpha
+traces, nondecreasing synchronization points, symbolic relation schemas, exact
+observations, and a well-founded pair-state rank for unmatched silent steps.
+The active implementation task lives in `TASKS_BOOTSTRAP.md`. Accordingly the
+short chain manifest continues to disclose complete Beta source/artifact
+admission as open until that derivation is accepted.
 
 `stress/refinement.sh` separately derives Beta and Alpha symbolic meanings for
 curated and generated program families and asks the rooted checker to validate

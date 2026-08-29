@@ -30,8 +30,12 @@ cold-start compiler and contains no external producer in its lineage. Its
 adjacent validation tree reconstructs extensive maximal-observation obligations
 against `bc.beta` for the supported `B_bc1` profile. The authoritative Beta
 checker tape is constructed by the Alpha-written cold compiler below `bc`;
-the full simulation/coinduction claim is not yet encoded in that checker's
-calculus. The fixed point proves only deterministic dependency closure.
+the full source/artifact refinement claim is not yet encoded in that checker's
+calculus. The settled route uses Beta's existing small-step semantics as a
+constructive total trace and proves symbolic synchronization, observation
+agreement, and well-founded silent stuttering with the checker's existing
+first-order induction rules. It adds no coinductive kernel judgment. The fixed
+point proves only deterministic dependency closure.
 
 The Alpha assembler formerly lived in `compiler/beta/`, but it is an Alpha tool:
 it is written in Alpha assembly and translates Alpha assembly to Alpha tapes.
@@ -71,7 +75,8 @@ lower-rooted refinement coverage.
 
 - Guard the explicit data stack against overflow.
 - Keep the canonical `bc.beta`/persisted-artifact ROOT reconstruction green when
-  the compiler or `B_bc1` profile changes, and encode its full relation in the
-  rooted checker before declaring source/artifact admission closed.
+  the compiler or `B_bc1` profile changes. Encode its full constructive-trace
+  and synchronization theorem in the rooted checker before declaring
+  source/artifact admission closed; ROOT success remains differential evidence.
 - Extend resource budgets only when a higher-rung implementation demonstrates a
   concrete need; do not import higher-rung language machinery speculatively.

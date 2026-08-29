@@ -20,8 +20,9 @@ The Psi product role owns this stage; its hosted source belongs under
 - `source/omega-rust/psi/foundation/psi-source` contains loaded-source records and maps,
   source identities, byte-span coordinates, and source-backed text.
 - `source/omega-rust/psi/foundation/psi-diagnostics` contains source-addressable
-  diagnostics, and `source/omega-rust/psi/foundation/psi-source-loader` implements root-file
-  loading.
+  diagnostics. Source-closure discovery and loading remain at the
+  package/compiler boundary; this lexical stage consumes the resulting loaded
+  source records.
 - `source/omega-rust/psi/representations/psi-tokens` contains token kinds, text, and
   streams.
 - `source/omega-rust/psi/pipeline/psi-source-files-to-tokens` contains the implementation

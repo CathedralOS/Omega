@@ -213,7 +213,6 @@ pub struct LoweredTerminalPsi {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedProgramEntryTerminalReceipt {
     source_signature_identity: [u8; 32],
-    source_machine: psi_symbols::SymbolHandle,
     source_machine_name: String,
     terminal_psi_identity: psi_terminal::TerminalPsiIdentity,
     terminal_entry: MachineId,
@@ -222,10 +221,6 @@ pub struct CheckedProgramEntryTerminalReceipt {
 impl CheckedProgramEntryTerminalReceipt {
     pub const fn source_signature_identity(&self) -> [u8; 32] {
         self.source_signature_identity
-    }
-
-    pub const fn source_machine(&self) -> psi_symbols::SymbolHandle {
-        self.source_machine
     }
 
     pub fn source_machine_name(&self) -> &str {
@@ -1029,7 +1024,6 @@ pub fn produce_program_entry_terminal_artifact(
 ) -> Result<ProducedProgramEntryTerminalArtifact, TerminalArtifactProductionError> {
     let selection = select_terminal_machine(checked, machine_name)
         .map_err(TerminalArtifactProductionError::Lowering)?;
-    let source_machine = selection.machine;
     let source_machine_name = selection.name.clone();
     let lowered =
         lower_machine(checked, machine_name).map_err(TerminalArtifactProductionError::Lowering)?;
@@ -1068,7 +1062,6 @@ pub fn produce_program_entry_terminal_artifact(
         artifact,
         receipt: CheckedProgramEntryTerminalReceipt {
             source_signature_identity,
-            source_machine,
             source_machine_name,
             terminal_psi_identity,
             terminal_entry,

@@ -1,22 +1,14 @@
 use crate::pipeline::PackageCompilationInputs;
 use crate::pipeline::frontend::{
     discover_imports, discover_imports_with_packages, extend_source_storage, lex_sources,
-    load_injected_source, load_package_generated_source, load_sources, parse_sources,
-    read_bundled_std_source,
+    load_package_generated_source, load_sources, parse_sources,
 };
 use crate::pipeline::project::{project_roots, validate_selected_target};
 use crate::pipeline::source::{ImportQueue, SourceStorage};
-use crate::pipeline::stage::{
-    SOURCE_FILES_TO_TOKENS, SYMBOL_RESOLVED_TREES_TO_TYPED_TREES,
-    SYNTAX_TREES_TO_SYMBOL_RESOLVED_TREES, TOKENS_TO_SYNTAX_TREES, TYPED_TREES_TO_CHECKED_TREES,
-};
+use crate::pipeline::stage::{SOURCE_FILES_TO_TOKENS, TOKENS_TO_SYNTAX_TREES};
 use crate::pipeline::timing::CompileTimings;
-use omega_target::NativeTarget;
-use psi_checked_trees::CheckedTrees as CheckedProgram;
 use psi_diagnostics::Diagnostic;
-use psi_symbol_resolved_trees::SymbolResolvedTrees;
 use psi_syntax_trees::SyntaxTrees;
-use psi_typed_trees::TypedTrees;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -123,16 +115,9 @@ pub(super) fn append_retained_generated_sources(
     Ok(retained)
 }
 
-pub(super) struct CheckedProgramSurface {
-    pub(super) program: Arc<CheckedProgram>,
-    pub(super) accepted_template_classifications:
-        omega_trust_ledger::AcceptedTemplateClassifications,
-}
-
 pub(super) fn source_files_to_syntax_trees_for_engine(
     root_path: &Path,
     target_name: Option<&str>,
-    native: bool,
     package_inputs: Option<&PackageCompilationInputs>,
     timings: &mut CompileTimings,
 ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
@@ -229,17 +214,6 @@ pub(super) fn source_files_to_syntax_trees_for_engine(
             &mut imports,
             root_path,
             target_name,
-            package_inputs,
-            timings,
-        )?;
-    }
-
-    if native {
-        substitute_native_gui_provider(
-            &mut source_storage,
-            root_path,
-            target_name,
-            &mut imports,
             package_inputs,
             timings,
         )?;
@@ -859,157 +833,6 @@ fn inject_build_prelude(
     Ok((build_reaches_filesystem, bindings))
 }
 
-/// The darwin boundary-provider substitution (tasks #57/#60). The samples call the
-/// UNCHANGED Win32-shaped `boundary trait Gui` / `boundary trait Input` through
-/// `gui: Gui` / `input: Input` fields. On darwin there is no host lowering for these;
-/// instead the bundled `omega::language::std::macos_gui` module provides `MacosGui` /
-/// `MacosInput` data types that implement every op by composing objc / Core Graphics
-/// boundary calls. This (1) injects that provider module (which the sample never
-/// `use`s) and (2) rewrites each matching FIELD's type to its provider, so
-/// `self.gui.op(..)` / `self.input.op(..)` become ordinary provider value-calls — the
-/// shape proven to run natively (window_demo, fire 25). NATIVE-only: the interpreter's
-/// `compile_to_checked` keeps the abstract boundary traits (its own headless stubs,
-/// item #9). Registry-driven so Clock and future providers follow the same pattern.
-const DARWIN_BOUNDARY_PROVIDERS: &[(&str, &str)] = &[("Gui", "MacosGui"), ("Input", "MacosInput")];
-
-fn substitute_native_gui_provider(
-    source_storage: &mut SourceStorage,
-    root_path: &Path,
-    target_name: Option<&str>,
-    imports: &mut ImportQueue,
-    package_inputs: Option<&PackageCompilationInputs>,
-    timings: &mut CompileTimings,
-) -> Result<(), Vec<Diagnostic>> {
-    // Gate strictly on darwin/Mach-O: on Windows `Gui`/`Input` have real Win32 host
-    // lowerings (do NOT substitute); on linux they have none (a clean diagnostic).
-    let is_darwin = NativeTarget::from_omega_target_name(target_name)
-        .map(|target| target.object_format == omega_target::ObjectFormat::MachO)
-        .unwrap_or(false);
-    if !is_darwin {
-        return Ok(());
-    }
-
-    // Which registered `boundary trait`s does the program declare, and is the provider
-    // module already present? (`MacosGui` names the bundled module; it carries both
-    // MacosGui + MacosInput.)
-    let mut has_any_boundary = false;
-    let mut has_provider_module = false;
-    for (_, file) in source_storage.files.iter() {
-        for root_item in &file.root_items {
-            match source_storage.syntax_trees.root_item(*root_item) {
-                psi_syntax_trees::item::Item::Trait(trait_definition)
-                    if trait_definition.is_boundary
-                        && DARWIN_BOUNDARY_PROVIDERS
-                            .iter()
-                            .any(|(boundary, _)| *boundary == trait_definition.name.as_str()) =>
-                {
-                    has_any_boundary = true;
-                }
-                psi_syntax_trees::item::Item::Data(data) if data.name.as_str() == "MacosGui" => {
-                    has_provider_module = true;
-                }
-                _ => {}
-            }
-        }
-    }
-    if !has_any_boundary {
-        return Ok(());
-    }
-
-    // Inject the bundled provider module, then load its ordinary dependency
-    // closure. Injection happens after the root import queue is exhausted, so
-    // simply parsing its `use` declarations is not enough: newly discovered
-    // imports must re-enter the same queue and recursive loader as authored
-    // sources. This became observable when MacosGui adopted the public numeric
-    // conversion machines.
-    if !has_provider_module {
-        let provider_source = read_bundled_std_source("macos_gui")?;
-        let first_source_id = source_storage.next_source_id();
-        let lexed = timings.record(SOURCE_FILES_TO_TOKENS, || {
-            let sources =
-                load_injected_source("<macos-gui-provider>", &provider_source, first_source_id);
-            lex_sources(sources)
-        })?;
-        let parsed = timings.record(TOKENS_TO_SYNTAX_TREES, || {
-            parse_sources(lexed, &mut source_storage.syntax_trees)
-        })?;
-        let discovered_imports = match package_inputs {
-            Some(package_inputs) => discover_imports_with_packages(
-                &parsed,
-                &source_storage.syntax_trees,
-                target_name,
-                package_inputs,
-            )?,
-            None => discover_imports(
-                &parsed,
-                &source_storage.syntax_trees,
-                root_path,
-                target_name,
-            )?,
-        };
-        imports.enqueue(discovered_imports)?;
-        extend_source_storage(source_storage, parsed)?;
-        load_pending_imports(
-            source_storage,
-            imports,
-            root_path,
-            target_name,
-            package_inputs,
-            timings,
-        )?;
-    }
-
-    // Rewrite each `<field>: <Boundary>` FIELD -> its provider data type. Collect first
-    // (immutable borrows), then mutate, exactly like the plan-laid value-type desugar.
-    let mut rewrites: Vec<(psi_syntax_trees::types::TypeReferenceHandle, &'static str)> =
-        Vec::new();
-    for (_, file) in source_storage.files.iter() {
-        for root_item in &file.root_items {
-            let psi_syntax_trees::item::Item::Data(definition) =
-                source_storage.syntax_trees.root_item(*root_item)
-            else {
-                continue;
-            };
-            let members = definition.members;
-            for member in source_storage
-                .syntax_trees
-                .tables
-                .items
-                .data_members(members)
-            {
-                let psi_syntax_trees::item::DataMember::Field(field) = member else {
-                    continue;
-                };
-                if let psi_syntax_trees::types::TypeReferenceNode::Named(name) = source_storage
-                    .syntax_trees
-                    .tables
-                    .type_references
-                    .type_reference(field.type_reference)
-                    && let Some((_, provider)) = DARWIN_BOUNDARY_PROVIDERS
-                        .iter()
-                        .find(|(boundary, _)| *boundary == name.as_str())
-                {
-                    rewrites.push((field.type_reference, provider));
-                }
-            }
-        }
-    }
-    for (handle, provider) in rewrites {
-        source_storage
-            .syntax_trees
-            .tables
-            .type_references
-            .replace_type_reference(
-                handle,
-                psi_syntax_trees::types::TypeReferenceNode::Named(
-                    psi_syntax_trees::identifier::Identifier::generated(provider.to_string()),
-                ),
-            );
-    }
-
-    Ok(())
-}
-
 fn assemble_syntax(
     sources: SourceStorage,
     build_source_id: Option<psi_source::SourceId>,
@@ -1027,45 +850,6 @@ fn assemble_syntax(
         build_source_id,
         source_scoped_top_level_bindings,
         generated_source_custody,
-    })
-}
-
-pub(super) fn syntax_trees_to_symbol_resolved_trees(
-    syntax: AssembledSyntax,
-    timings: &mut CompileTimings,
-) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    timings.record(SYNTAX_TREES_TO_SYMBOL_RESOLVED_TREES, || {
-        psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources_and_top_level_bindings(
-            &syntax.syntax_trees,
-            syntax.sources,
-            syntax.source_scoped_top_level_bindings,
-        )
-    })
-}
-
-pub(super) fn symbol_resolved_trees_to_typed_trees(
-    resolved: SymbolResolvedTrees,
-    timings: &mut CompileTimings,
-) -> Result<TypedTrees, Vec<Diagnostic>> {
-    timings.record(SYMBOL_RESOLVED_TREES_TO_TYPED_TREES, || {
-        psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_owned(resolved)
-            .map_err(|diagnostic| vec![diagnostic])
-    })
-}
-
-pub(super) fn typed_trees_to_checked_trees(
-    typed: TypedTrees,
-    timings: &mut CompileTimings,
-) -> Result<CheckedProgramSurface, Vec<Diagnostic>> {
-    timings.record(TYPED_TREES_TO_CHECKED_TREES, || {
-        let accepted_template_classifications =
-            omega_trust_ledger::AcceptedTemplateClassifications::capture(&typed);
-        let program = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)?;
-        crate::pipeline::provider_approval::check_boundary_provider_approval(&program)?;
-        Ok(CheckedProgramSurface {
-            program: Arc::new(program),
-            accepted_template_classifications,
-        })
     })
 }
 

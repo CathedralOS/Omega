@@ -1,4 +1,4 @@
-use crate::pipeline::stages::source_files_to_syntax_trees_for_engine;
+use crate::pipeline::source_assembly::source_files_to_syntax_trees_for_engine;
 use crate::pipeline::timing::CompileTimings;
 pub use omega_source_profile::{
     PackageSourceClosureCustodySnapshot, SOURCE_CLOSURE_SNAPSHOT_SCHEMA, SourceClosureSnapshot,
@@ -13,7 +13,6 @@ pub fn inspect_source_closure(
     repository_root: &Path,
     root_path: &Path,
     target_name: Option<&str>,
-    native: bool,
 ) -> Result<SourceClosureSnapshot, Vec<Diagnostic>> {
     let repository_root = repository_root.to_owned();
     let root_path = root_path.to_owned();
@@ -23,7 +22,6 @@ pub fn inspect_source_closure(
             &repository_root,
             &root_path,
             target_name.as_deref(),
-            native,
             None,
             &[],
         )
@@ -34,7 +32,6 @@ pub fn inspect_source_closure_with_packages(
     repository_root: &Path,
     root_path: &Path,
     target_name: Option<&str>,
-    native: bool,
     packages: super::PackageCompilationInputs,
     identity_roots: Vec<SourceInspectionRoot>,
 ) -> Result<SourceClosureSnapshot, Vec<Diagnostic>> {
@@ -46,7 +43,6 @@ pub fn inspect_source_closure_with_packages(
             &repository_root,
             &root_path,
             target_name.as_deref(),
-            native,
             Some(&packages),
             &identity_roots,
         )
@@ -57,7 +53,6 @@ fn inspect_source_closure_inner(
     repository_root: &Path,
     root_path: &Path,
     target_name: Option<&str>,
-    native: bool,
     packages: Option<&super::PackageCompilationInputs>,
     identity_roots: &[SourceInspectionRoot],
 ) -> Result<SourceClosureSnapshot, Vec<Diagnostic>> {
@@ -75,13 +70,8 @@ fn inspect_source_closure_inner(
         &identity_roots,
     )?;
     let mut timings = CompileTimings::default();
-    let (_, assembled) = source_files_to_syntax_trees_for_engine(
-        root_path,
-        target_name,
-        native,
-        packages,
-        &mut timings,
-    )?;
+    let (_, assembled) =
+        source_files_to_syntax_trees_for_engine(root_path, target_name, packages, &mut timings)?;
     let mut sources = Vec::with_capacity(assembled.files.len());
     for parsed in assembled.files.iter() {
         let Some(source) = assembled.sources.get(parsed.source_id) else {
@@ -152,7 +142,6 @@ fn inspect_source_closure_inner(
         entry_source,
         package_source_closure: None,
         selected_target: target_name.map(str::to_owned),
-        native_provider_substitution: native,
         sources,
         syntax: assembled.syntax_trees.snapshot(),
     })

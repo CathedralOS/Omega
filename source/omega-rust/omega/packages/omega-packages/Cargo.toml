@@ -29,6 +29,7 @@ cap-std = "4.0.3"
 command-group = "5.0.1"
 sha1-checked = { version = "0.10.0", default-features = false }
 sha2 = "0.10.9"
+same-file = "1.0.6"
 
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.27", features = ["user"] }

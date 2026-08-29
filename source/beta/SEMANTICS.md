@@ -179,7 +179,40 @@ The `bc.beta` theorem required by `compiler/validation/MAXIMAL_OBSERVATION.md` c
 Beta observation with the exact Alpha tape observation for every finite input
 stream admitted by `B_bc1`.
 
-## 8. Executable evidence
+## 8. Constructive trace presentation for compiler admission
+
+The admission proof uses this existing small-step meaning; it does not define a
+second Beta semantics. Its proof presentation makes successor selection and
+terminal behavior explicit:
+
+```text
+BetaProofState = Running(BetaConfig)
+               | Outcome(Halt | Trap | Exhaust)
+               | Invalid
+
+next_beta(Running(config)) = the unique written Beta transition
+next_beta(Outcome(result)) = Outcome(result)
+next_beta(Invalid)         = Invalid
+
+beta_at(initial, 0)     = initial
+beta_at(initial, n + 1) = next_beta(beta_at(initial, n))
+```
+
+`Invalid` is auxiliary proof state, not a new language observation. It records
+a malformed or semantically undefined transition, including an out-of-range
+access not discharged by the exact subject's bounds proof. A successful
+compiler-refinement certificate proves it unreachable. The admission owner
+constructs `next_beta` from these written rules; it does not infer a successor
+function from a relational `exists!` premise.
+
+The corresponding Alpha trace may run at a different pace. A nondecreasing
+synchronization function identifies corresponding source/artifact states. Any
+step taken by only one side must preserve the observation and decrease a
+well-founded rank over the related state pair. These are ordinary first-order
+obligations proved with natural-number induction in the accepted checker; a
+fuel limit and ROOT execution remain tests, not divergence evidence.
+
+## 9. Executable evidence
 
 - `reference/beta_interp.py` exercises the rules over finite test runs;
 - `reference/beta-correctness-fuzz.sh` compares interpreted and compiled runs;
@@ -194,7 +227,9 @@ stream admitted by `B_bc1`.
 
 These executable gates are evidence for the declared `B_bc1` relation. The
 ROOT conjunction covers memory bounds, call/return discipline, complete output
-traces, traps, exhaustion, and coinductive divergence, but it is not yet a
-certificate accepted by the universal derivation checker. Complete admission
-and soundness of the executable reconstruction against these written semantics
-therefore remain explicit lattice obligations.
+traces, traps, exhaustion, and divergent cases, but it is not a certificate
+accepted by the universal derivation checker. Complete admission requires the
+ordinary first-order trace, synchronization, observation, and well-founded
+stuttering derivation described above. Soundness of the executable
+reconstruction against these written semantics remains an explicit lattice
+obligation.

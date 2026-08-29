@@ -8,9 +8,9 @@ use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::wire::{WireMember, WireSchema};
 
-pub(super) fn validate_wire_protocol(
+pub(in crate::pipeline) fn validate_wire_protocol(
     typed: &TypedTrees,
-    compatibility_demands: &[super::build_config::WireCompatibilityDemand],
+    compatibility_demands: &[crate::pipeline::build_config::WireCompatibilityDemand],
 ) -> Result<(), Vec<Diagnostic>> {
     validate_wire_protocol_report(&build_wire_protocol_report(typed, compatibility_demands))
 }
@@ -49,7 +49,7 @@ fn validate_wire_protocol_report(report: &WireProtocolReport) -> Result<(), Vec<
 
 fn build_wire_protocol_report(
     typed: &TypedTrees,
-    compatibility_demands: &[super::build_config::WireCompatibilityDemand],
+    compatibility_demands: &[crate::pipeline::build_config::WireCompatibilityDemand],
 ) -> WireProtocolReport {
     let mut schemas = typed
         .wire_schemas()
@@ -215,7 +215,7 @@ fn stable_wire_identity<'a>(domain: &[u8], parts: impl IntoIterator<Item = &'a [
 fn compatibility_demand_report(
     typed: &TypedTrees,
     schemas: &[WireSchemaReportEntry],
-    demand: &super::build_config::WireCompatibilityDemand,
+    demand: &crate::pipeline::build_config::WireCompatibilityDemand,
 ) -> WireCompatibilityDemandReportEntry {
     let local = find_schema(schemas, &demand.local_schema);
     let peer = find_schema(schemas, &demand.peer_schema);
@@ -337,7 +337,7 @@ fn fact(required: bool, satisfied: bool, detail: String) -> WireCompatibilityFac
 fn missing_schema_detail(
     local: Option<&WireSchemaReportEntry>,
     peer: Option<&WireSchemaReportEntry>,
-    demand: &super::build_config::WireCompatibilityDemand,
+    demand: &crate::pipeline::build_config::WireCompatibilityDemand,
 ) -> String {
     match (local, peer) {
         (None, None) => format!(

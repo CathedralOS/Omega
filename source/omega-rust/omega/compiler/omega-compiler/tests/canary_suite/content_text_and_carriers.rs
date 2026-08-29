@@ -288,7 +288,7 @@ fn content_conservation_contract_is_normalized_and_reported() {
     assert!(source.contains("old(&whole)"));
     assert!(!source.contains("entry(&whole)"));
     let source_snapshot =
-        omega_compiler::inspect_source_closure(&repo_root(), &canary.join("main.omg"), None, false)
+        omega_compiler::inspect_source_closure(&repo_root(), &canary.join("main.omg"), None)
             .expect("content canary source closure");
     let snapshot_json = source_snapshot.to_json().expect("content source snapshot");
     assert!(snapshot_json.contains("\"text\":\"old\""));
