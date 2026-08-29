@@ -163,6 +163,18 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub(super) fn validate",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations/src/replay/candidate_decisions/mod.rs",
+        coordination_marker: "manifests::validate",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations/src/replay/candidate_decisions/mod.rs",
+        coordination_marker: "declarations::validate",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations/src/replay/candidate_decisions/mod.rs",
+        coordination_marker: "baseline::validate",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations/src/source/mod.rs",
         coordination_marker: "pub(super) fn project_plan",
     },

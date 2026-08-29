@@ -12,6 +12,7 @@ fn empty_selection_projects_the_original_plan_deterministically() {
     assert_eq!(first.plan(), second.plan());
     assert_eq!(first.validation(), second.validation());
     assert!(first.commits().is_empty());
+    assert!(first.validated_candidates().is_empty());
     assert!(first.pass_manifests().is_empty());
 }
 

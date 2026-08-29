@@ -27,8 +27,9 @@ pub use analyses::{
 pub use pass_manager::{
     CandidateContractAxis, ExternalDecisionContextAxis, ExternalDecisionReplayError,
     OptimizationRun, OptimizationRunError, OptimizationRunUsage, PsiOptimizationCommit,
-    VerifiedPsiOptimizationSession, baseline_psi_cost_model_identity, replay_psi_pipeline,
-    replay_psi_registry, run_psi_pipeline, run_psi_registry, validate_external_decision_recording,
+    PsiValidatedCandidateDeclaration, VerifiedPsiOptimizationSession,
+    baseline_psi_cost_model_identity, replay_psi_pipeline, replay_psi_registry, run_psi_pipeline,
+    run_psi_registry, validate_external_decision_recording,
 };
 pub use registry::{
     OrderedRuleRegistry, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,

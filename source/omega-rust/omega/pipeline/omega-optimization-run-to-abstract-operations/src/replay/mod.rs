@@ -1,10 +1,10 @@
 //! Independent run replay entrance.
 //!
 //! The order here is the custody contract: rebuild the selected schedule,
-//! replay every commit, bind Applied decisions to that replay, validate the
-//! ledger/usage records, then validate the external policy mirror.
+//! replay every commit, bind every validated candidate decision to that replay,
+//! validate the ledger/usage records, then validate the external policy mirror.
 
-mod applied_decisions;
+mod candidate_decisions;
 mod commits;
 mod records;
 mod rule_set;
@@ -24,8 +24,8 @@ pub(super) fn validate(
     run: &OptimizationRun,
 ) -> Result<ValidatedRunReplay, OptimizedAbstractProjectionError> {
     let schedule = rule_set::rebuild(run.selections())?;
-    let applied = commits::replay(run, &schedule.registries)?;
-    applied_decisions::validate(run, &schedule.registries, &applied)?;
+    let commits = commits::replay(run, &schedule.registries)?;
+    candidate_decisions::validate(run, &schedule.registries, &commits)?;
     records::validate(run, schedule.ordered_rule_set)?;
     validate_external_decision_recording(run)
         .map_err(|_| OptimizedAbstractProjectionError::ExternalDecisionRecordingMismatch)?;

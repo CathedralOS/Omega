@@ -2097,7 +2097,7 @@ fn optimization_projection_stops_before_target_realization() {
     for required in [
         "rule_set::rebuild",
         "commits::replay",
-        "applied_decisions::validate",
+        "candidate_decisions::validate",
         "records::validate",
         "validate_external_decision_recording",
     ] {
@@ -2106,6 +2106,12 @@ fn optimization_projection_stops_before_target_realization() {
             "run replay must visibly own ordered custody step `{required}`",
         );
     }
+    assert!(
+        !projection_root
+            .join("src/replay/applied_decisions.rs")
+            .exists(),
+        "the retired flat Applied-only decision replay must not return",
+    );
 
     let realization_root = root.join(
         "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/selection/optimized_target_operations",

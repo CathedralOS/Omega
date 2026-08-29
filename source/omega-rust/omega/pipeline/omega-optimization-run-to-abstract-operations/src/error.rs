@@ -20,6 +20,12 @@ pub enum AppliedDecisionCustodyAxis {
     SafetyClass,
     CommitPredictedCostDelta,
     AppliedRoster,
+    ValidatedRoster,
+    ValidatedPass,
+    InputRevision,
+    Verdict,
+    CommitRoster,
+    CommitDeclaration,
     Input,
     Candidate,
     Rule,
@@ -29,6 +35,7 @@ pub enum AppliedDecisionCustodyAxis {
     BaselineRoster,
     BaselineInput,
     BaselineOutcome,
+    BaselineRule,
     PredictedCostDelta,
 }
 

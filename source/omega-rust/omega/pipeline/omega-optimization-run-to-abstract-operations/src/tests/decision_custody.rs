@@ -8,8 +8,8 @@ use omega_optimization_core::{
     OptimizationRuleSetIdentity, OptimizationUnitIdentity, OptimizationValidatorIdentity,
 };
 use omega_optimization_policy::{
-    BaselinePolicy, ExternalCandidateFeatures, ExternalDecisionLog, ExternalDecisionPoint,
-    ValidatedCandidateSummary,
+    BaselinePolicy, ExternalCandidateFeatures, ExternalDecisionAction, ExternalDecisionLog,
+    ExternalDecisionPoint, ValidatedCandidateSummary,
 };
 use omega_psi_optimizer::{OptimizationRun, PSI_PASS_CATALOG};
 
@@ -45,7 +45,7 @@ fn suite_cases() -> [(Optimization, Fixture); 6] {
 }
 
 #[test]
-fn every_psi_suite_replays_applied_contract_and_decision_evidence() {
+fn every_psi_suite_replays_every_validated_candidate_declaration() {
     let cases = suite_cases();
     assert_eq!(
         cases.map(|(optimization, _)| optimization),
@@ -56,6 +56,15 @@ fn every_psi_suite_replays_applied_contract_and_decision_evidence() {
         let selections = OptimizationSelections::new([optimization]).unwrap();
         let optimized = project_optimization_run(run(fixture(), selections)).unwrap();
         assert!(!optimized.commits().is_empty(), "{optimization:?}");
+        assert_eq!(
+            optimized.validated_candidates().len(),
+            optimized
+                .pass_manifests()
+                .iter()
+                .map(|manifest| manifest.decisions().len())
+                .sum::<usize>(),
+            "{optimization:?}"
+        );
         assert_eq!(
             optimized
                 .pass_manifests()
@@ -70,6 +79,158 @@ fn every_psi_suite_replays_applied_contract_and_decision_evidence() {
 }
 
 #[test]
+fn genuine_skipped_candidate_retains_and_replays_its_full_declaration() {
+    let run = externally_skipped_sccp_run();
+    assert!(run.commits().is_empty());
+    assert_eq!(run.validated_candidates().len(), 1);
+    let retained = &run.validated_candidates()[0];
+    let decision = &run.pass_manifests()[0].decisions()[0];
+    assert_eq!(retained.declaration().identity(), decision.candidate());
+    assert_eq!(retained.declaration().input(), decision.input());
+    assert_eq!(retained.declaration().rule(), decision.rule());
+    assert_eq!(retained.validator(), decision.validator().unwrap());
+    assert_eq!(
+        decision.verdict(),
+        OptimizationCandidateVerdict::Skipped(OptimizationReasonCode::NotProfitable)
+    );
+    let projected = project_optimization_run(run).unwrap();
+    assert_eq!(projected.validated_candidates().len(), 1);
+    assert!(projected.commits().is_empty());
+}
+
+#[test]
+fn coordinated_skipped_evidence_corruption_rejects_against_retained_declaration() {
+    let mut analyses_run = externally_skipped_sccp_run();
+    let skipped = first_skipped(&analyses_run);
+    let changed_analyses = skipped
+        .analyses
+        .union(AnalysisSet::new([AnalysisKind::RegisterLiveness]));
+    replace_manifest_evidence(
+        &mut analyses_run,
+        skipped.candidate,
+        changed_analyses,
+        skipped.facts.clone(),
+    );
+    replace_external_features(
+        &mut analyses_run,
+        skipped.candidate,
+        Some(changed_analyses),
+        Some(skipped.facts),
+        None,
+    );
+    assert_axis(
+        project_optimization_run(analyses_run),
+        AppliedDecisionCustodyAxis::ConsumedAnalyses,
+        Optimization::SparseConditionalConstantPropagation,
+    );
+
+    let mut facts_run = externally_skipped_sccp_run();
+    let skipped = first_skipped(&facts_run);
+    let mut changed_facts = skipped.facts.clone();
+    changed_facts.push(OptimizationFactReference::AcceptedObligation(
+        AcceptedObligationFactIdentity::from_bytes([0xfd; 32]),
+    ));
+    changed_facts.sort_unstable();
+    changed_facts.dedup();
+    replace_manifest_evidence(
+        &mut facts_run,
+        skipped.candidate,
+        skipped.analyses,
+        changed_facts.clone(),
+    );
+    replace_external_features(
+        &mut facts_run,
+        skipped.candidate,
+        Some(skipped.analyses),
+        Some(changed_facts),
+        None,
+    );
+    assert_axis(
+        project_optimization_run(facts_run),
+        AppliedDecisionCustodyAxis::ConsumedFacts,
+        Optimization::SparseConditionalConstantPropagation,
+    );
+
+    let mut cost_run = externally_skipped_sccp_run();
+    let skipped = first_skipped(&cost_run);
+    let changed_cost = skipped.predicted_cost_delta - 1;
+    replace_baseline_cost(&mut cost_run, skipped.candidate, changed_cost);
+    replace_external_features(
+        &mut cost_run,
+        skipped.candidate,
+        None,
+        None,
+        Some(changed_cost),
+    );
+    assert_axis(
+        project_optimization_run(cost_run),
+        AppliedDecisionCustodyAxis::PredictedCostDelta,
+        Optimization::SparseConditionalConstantPropagation,
+    );
+}
+
+#[test]
+fn skipped_declaration_roster_pass_validator_and_verdict_fail_closed() {
+    let mut omitted = externally_skipped_sccp_run();
+    omitted.validated_candidates.clear();
+    assert_axis(
+        project_optimization_run(omitted),
+        AppliedDecisionCustodyAxis::ValidatedRoster,
+        Optimization::SparseConditionalConstantPropagation,
+    );
+
+    let mut duplicated = externally_skipped_sccp_run();
+    duplicated
+        .validated_candidates
+        .push(duplicated.validated_candidates[0].clone());
+    assert_axis(
+        project_optimization_run(duplicated),
+        AppliedDecisionCustodyAxis::ValidatedRoster,
+        Optimization::SparseConditionalConstantPropagation,
+    );
+
+    let mut wrong_pass = externally_skipped_sccp_run();
+    wrong_pass.validated_candidates[0].pass =
+        OptimizationPassIdentity::from_canonical_bytes(b"foreign-retained-pass");
+    assert_axis(
+        project_optimization_run(wrong_pass),
+        AppliedDecisionCustodyAxis::ValidatedPass,
+        Optimization::SparseConditionalConstantPropagation,
+    );
+
+    let mut wrong_validator = externally_skipped_sccp_run();
+    wrong_validator.validated_candidates[0].validator =
+        OptimizationValidatorIdentity::from_canonical_bytes(b"foreign-retained-validator");
+    assert_axis(
+        project_optimization_run(wrong_validator),
+        AppliedDecisionCustodyAxis::Validator,
+        Optimization::SparseConditionalConstantPropagation,
+    );
+
+    let mut wrong_verdict = externally_skipped_sccp_run();
+    let decision = wrong_verdict.pass_manifests[0].decisions()[0].clone();
+    replace_decision(
+        &mut wrong_verdict,
+        decision.candidate(),
+        OptimizationDecisionRecord::new(
+            decision.input(),
+            decision.candidate(),
+            decision.rule(),
+            OptimizationCandidateVerdict::Applied,
+            decision.consumed_analyses(),
+            decision.consumed_facts().to_vec(),
+            decision.validator(),
+        )
+        .unwrap(),
+    );
+    assert_axis(
+        project_optimization_run(wrong_verdict),
+        AppliedDecisionCustodyAxis::AppliedRoster,
+        Optimization::SparseConditionalConstantPropagation,
+    );
+}
+
+#[test]
 fn coordinated_manifest_and_external_evidence_corruption_fails_for_every_psi_suite() {
     for (optimization, fixture) in suite_cases() {
         let selections = OptimizationSelections::new([optimization]).unwrap();
@@ -78,7 +239,7 @@ fn coordinated_manifest_and_external_evidence_corruption_fails_for_every_psi_sui
         let changed_analyses = applied
             .analyses
             .union(AnalysisSet::new([AnalysisKind::RegisterLiveness]));
-        replace_applied_manifest_evidence(
+        replace_manifest_evidence(
             &mut analyses_run,
             applied.candidate,
             changed_analyses,
@@ -105,7 +266,7 @@ fn coordinated_manifest_and_external_evidence_corruption_fails_for_every_psi_sui
         ));
         changed_facts.sort_unstable();
         changed_facts.dedup();
-        replace_applied_manifest_evidence(
+        replace_manifest_evidence(
             &mut facts_run,
             applied.candidate,
             applied.analyses,
@@ -332,6 +493,14 @@ struct AppliedEvidence {
     facts: Vec<OptimizationFactReference>,
 }
 
+#[derive(Clone)]
+struct SkippedEvidence {
+    candidate: OptimizationCandidateIdentity,
+    predicted_cost_delta: i64,
+    analyses: AnalysisSet,
+    facts: Vec<OptimizationFactReference>,
+}
+
 fn first_applied(run: &OptimizationRun) -> AppliedEvidence {
     let decision = first_applied_decision(run);
     AppliedEvidence {
@@ -350,7 +519,54 @@ fn first_applied_decision(run: &OptimizationRun) -> OptimizationDecisionRecord {
         .clone()
 }
 
-fn replace_applied_manifest_evidence(
+fn first_skipped(run: &OptimizationRun) -> SkippedEvidence {
+    let decision = run
+        .pass_manifests()
+        .iter()
+        .flat_map(|manifest| manifest.decisions())
+        .find(|decision| matches!(decision.verdict(), OptimizationCandidateVerdict::Skipped(_)))
+        .expect("fixture skips at least one validated candidate");
+    let predicted_cost_delta = run
+        .validated_candidates()
+        .iter()
+        .find(|retained| retained.declaration().identity() == decision.candidate())
+        .unwrap()
+        .declaration()
+        .predicted_cost_delta();
+    SkippedEvidence {
+        candidate: decision.candidate(),
+        predicted_cost_delta,
+        analyses: decision.consumed_analyses(),
+        facts: decision.consumed_facts().to_vec(),
+    }
+}
+
+fn externally_skipped_sccp_run() -> OptimizationRun {
+    let selections =
+        OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation]).unwrap();
+    let baseline = run_pipeline(exact_add_verified(), selections.clone());
+    let [point] = baseline.external_decisions().points() else {
+        panic!("exact-add fixture has one decision point")
+    };
+    let skipped = ExternalDecisionPoint::new(
+        point.input(),
+        point.rule(),
+        point.legal_candidates().iter().cloned(),
+        ExternalDecisionAction::Skip(OptimizationReasonCode::NotProfitable),
+    )
+    .unwrap();
+    let external =
+        ExternalDecisionLog::new(baseline.external_decisions().context(), [skipped]).unwrap();
+    replay_psi_pipeline(
+        exact_add_verified(),
+        &selections,
+        work_budget(),
+        &external.encode(),
+    )
+    .unwrap()
+}
+
+fn replace_manifest_evidence(
     run: &mut OptimizationRun,
     candidate: OptimizationCandidateIdentity,
     analyses: AnalysisSet,
@@ -491,6 +707,7 @@ fn assert_axis(
     expected: AppliedDecisionCustodyAxis,
     optimization: Optimization,
 ) {
+    let actual = result.as_ref().err();
     assert!(
         matches!(
             result,
@@ -499,6 +716,6 @@ fn assert_axis(
                 ..
             }) if axis == expected
         ),
-        "{optimization:?} must fail at {expected:?}"
+        "{optimization:?} must fail at {expected:?}, got {actual:?}"
     );
 }

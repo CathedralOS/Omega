@@ -9,7 +9,9 @@ use omega_optimization_unit::{PsiOptimizationUnit, PsiTransformationLedger};
 use omega_optimization_validation::{
     ValidatedOptimizedAbstractPlanProjection, ValidatedPrePhysicalOptimizationManifest,
 };
-use omega_psi_optimizer::{OptimizationRun, OptimizationRunUsage, PsiOptimizationCommit};
+use omega_psi_optimizer::{
+    OptimizationRun, OptimizationRunUsage, PsiOptimizationCommit, PsiValidatedCandidateDeclaration,
+};
 use omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput;
 
 /// An abstract plan inseparable from independently replayed optimizer custody.
@@ -56,6 +58,9 @@ impl ValidatedOptimizedAbstractPlan {
     }
     pub fn commits(&self) -> &[PsiOptimizationCommit] {
         self.run.commits()
+    }
+    pub fn validated_candidates(&self) -> &[PsiValidatedCandidateDeclaration] {
+        self.run.validated_candidates()
     }
     pub const fn usage(&self) -> OptimizationRunUsage {
         self.run.usage()

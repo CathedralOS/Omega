@@ -581,11 +581,13 @@ Run-to-abstract projection exposes its acceptance order directly in its crate
 entrance: exact Psi selection, independent run replay, source projection,
 independent equivalence validation, then pre-physical publication. Its replay
 entrance visibly orders selected rule-set reconstruction, commit replay,
-Applied-decision custody, ledger/usage replay, and the external-policy mirror;
-rule-set, commit, decision, and record mechanics descend into named leaves.
-Applied custody binds each pass partition and full contract plus independently
-reconstructed analyses, facts, and predicted cost. Source projection separately
-owns active/pruned roster custody before function and parameter/block shape.
+all-candidate decision custody, ledger/usage replay, and the external-policy
+mirror. Its 21-line `candidate_decisions/mod.rs` is a real coordinator, not a
+forwarder: exact manifest binding, independently replayed retained
+declarations, and baseline-policy evidence descend into the `manifests`,
+`declarations`, and `baseline` leaves. Applied candidates require one matching
+commit while skipped candidates require none. Source projection separately owns
+active/pruned roster custody before function and parameter/block shape.
 Retained carrier and typed error vocabulary are sibling leaves, and the former
 422-line mixed `projection.rs` catchall is forbidden by the architecture gate.
 Verified and transformed optimizer-context validation shares one entrance that
