@@ -303,7 +303,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 44;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 45;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -2578,6 +2578,10 @@ enum ReceiptedOutputEntry {
         relative_path: Vec<u8>,
     },
     File(ReceiptedOutputFile),
+    HardLink {
+        existing_relative_path: Vec<u8>,
+        relative_path: Vec<u8>,
+    },
     Symlink {
         relative_path: Vec<u8>,
         target_spelling: Vec<u8>,
@@ -2617,6 +2621,15 @@ fn receipted_output_entries(
                     bytes,
                     executable: output.replayed_executable(),
                 }))
+            }
+            psi_checked_interpreter::FilesystemOutputTreeEntryReplayRecord::HardLink(hard_link) => {
+                (hard_link.output_root() == BUILD_OUTPUT_ROOT_IDENTITY
+                    && hard_link.post_error() == 0
+                    && matches!(hard_link.result(), 0 | 1))
+                .then(|| ReceiptedOutputEntry::HardLink {
+                    existing_relative_path: hard_link.existing_relative_path().to_vec(),
+                    relative_path: hard_link.output_relative_path().to_vec(),
+                })
             }
             psi_checked_interpreter::FilesystemOutputTreeEntryReplayRecord::Symlink(symlink) => {
                 (symlink.output_root() == BUILD_OUTPUT_ROOT_IDENTITY
@@ -3194,7 +3207,39 @@ pub fn compute_build_config(
         receipted_output_entries
             .as_ref()
             .map(|entries| {
-                let replayed_entries = entries
+                let mut regular_files = std::collections::BTreeMap::new();
+                let mut normalized_entries = Vec::with_capacity(entries.len());
+                for entry in entries {
+                    let normalized = match entry {
+                        ReceiptedOutputEntry::Directory { .. }
+                        | ReceiptedOutputEntry::Symlink { .. } => entry.clone(),
+                        ReceiptedOutputEntry::File(file) => {
+                            regular_files.insert(
+                                file.relative_path.clone(),
+                                (file.bytes.clone(), file.executable),
+                            );
+                            entry.clone()
+                        }
+                        ReceiptedOutputEntry::HardLink {
+                            existing_relative_path,
+                            relative_path,
+                        } => {
+                            let (bytes, executable) = regular_files
+                                .get(existing_relative_path)
+                                .expect("validated hard link follows a regular-file name")
+                                .clone();
+                            regular_files
+                                .insert(relative_path.clone(), (bytes.clone(), executable));
+                            ReceiptedOutputEntry::File(ReceiptedOutputFile {
+                                relative_path: relative_path.clone(),
+                                bytes,
+                                executable,
+                            })
+                        }
+                    };
+                    normalized_entries.push(normalized);
+                }
+                let replayed_entries = normalized_entries
                     .iter()
                     .map(|entry| match entry {
                         ReceiptedOutputEntry::Directory { relative_path } => {
@@ -3210,6 +3255,9 @@ pub fn compute_build_config(
                             target_spelling,
                         } => {
                             ReplayedBuildOutputEntry::symbolic_link(relative_path, target_spelling)
+                        }
+                        ReceiptedOutputEntry::HardLink { .. } => {
+                            unreachable!("hard links are normalized before staged commitment")
                         }
                     })
                     .collect::<Vec<_>>();

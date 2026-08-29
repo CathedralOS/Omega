@@ -1,6 +1,7 @@
 use crate::{
     BuildIncludedSource, FilesystemGrantRootIdentity, FilesystemInputOutputTreeReplayRecord,
     FilesystemOutputDirectoryReplayRecord, FilesystemOutputFileReplayRecord,
+    FilesystemOutputHardLinkReplayKind, FilesystemOutputHardLinkReplayRecord,
     FilesystemOutputSymlinkReplayRecord, FilesystemOutputTreeEntryReplayRecord,
     FilesystemOutputWriteReplayRecord, FilesystemReplay, FilesystemReplayReadKind,
     FilesystemReplayReadRecord, FilesystemSourceInputReplayEventRecord,
@@ -67,6 +68,17 @@ fn symlink(path: &[u8], target: &[u8]) -> FilesystemOutputTreeEntryReplayRecord 
     FilesystemOutputTreeEntryReplayRecord::Symlink(
         FilesystemOutputSymlinkReplayRecord::new(root(2), path.to_vec(), target.to_vec())
             .expect("output symlink"),
+    )
+}
+
+fn hard_link(
+    kind: FilesystemOutputHardLinkReplayKind,
+    existing: &[u8],
+    path: &[u8],
+) -> FilesystemOutputTreeEntryReplayRecord {
+    FilesystemOutputTreeEntryReplayRecord::HardLink(
+        FilesystemOutputHardLinkReplayRecord::new(kind, root(2), existing.to_vec(), path.to_vec())
+            .expect("output hard link"),
     )
 }
 
@@ -195,4 +207,119 @@ fn typed_tree_retains_exact_symlink_spelling_and_namespace_order() {
     };
     assert_eq!(link.output_relative_path(), b"links/artifact");
     assert_eq!(link.target_spelling(), b"../artifact");
+}
+
+#[test]
+fn typed_tree_retains_portable_and_windows_hard_link_spelling() {
+    let record = FilesystemInputOutputTreeReplayRecord::new(
+        source_input(),
+        vec![
+            file(b"artifact", 2, b"bytes"),
+            hard_link(
+                FilesystemOutputHardLinkReplayKind::Portable,
+                b"artifact",
+                b"portable-alias",
+            ),
+            hard_link(
+                FilesystemOutputHardLinkReplayKind::Windows,
+                b"portable-alias",
+                b"windows-alias",
+            ),
+        ],
+        Vec::new(),
+    )
+    .expect("hard-link-bearing output tree");
+    let replay = FilesystemReplay::from_input_output_tree_record(record)
+        .expect("hard-link-bearing replay fits custody");
+    assert_eq!(
+        replay
+            .attempts()
+            .iter()
+            .map(|attempt| attempt.operation_tag())
+            .collect::<Vec<_>>(),
+        vec![2, 4, 8, 1, 5, 8, 19, 27]
+    );
+    let hard_links = replay.output_hard_links();
+    assert_eq!(hard_links.len(), 2);
+    assert_eq!(hard_links[0].existing_relative_path(), b"artifact");
+    assert_eq!(hard_links[0].output_relative_path(), b"portable-alias");
+    assert_eq!(hard_links[0].result(), 0);
+    assert_eq!(hard_links[1].existing_relative_path(), b"portable-alias");
+    assert_eq!(hard_links[1].output_relative_path(), b"windows-alias");
+    assert_eq!(hard_links[1].result(), 1);
+}
+
+#[test]
+fn typed_tree_rejects_hard_links_without_a_prior_regular_name() {
+    for entries in [
+        vec![hard_link(
+            FilesystemOutputHardLinkReplayKind::Portable,
+            b"missing",
+            b"alias",
+        )],
+        vec![
+            hard_link(
+                FilesystemOutputHardLinkReplayKind::Portable,
+                b"future",
+                b"alias",
+            ),
+            file(b"future", 2, b"bytes"),
+        ],
+        vec![
+            directory(b"directory"),
+            hard_link(
+                FilesystemOutputHardLinkReplayKind::Portable,
+                b"directory",
+                b"alias",
+            ),
+        ],
+        vec![
+            symlink(b"symbolic", b"target"),
+            hard_link(
+                FilesystemOutputHardLinkReplayKind::Portable,
+                b"symbolic",
+                b"alias",
+            ),
+        ],
+    ] {
+        assert!(
+            FilesystemInputOutputTreeReplayRecord::new(source_input(), entries, Vec::new())
+                .is_err()
+        );
+    }
+}
+
+#[test]
+fn typed_tree_rejects_hard_link_destination_collisions_and_missing_parents() {
+    assert!(
+        FilesystemInputOutputTreeReplayRecord::new(
+            source_input(),
+            vec![
+                file(b"artifact", 2, b"bytes"),
+                directory(b"occupied"),
+                hard_link(
+                    FilesystemOutputHardLinkReplayKind::Portable,
+                    b"artifact",
+                    b"occupied",
+                ),
+            ],
+            Vec::new(),
+        )
+        .is_err()
+    );
+    assert!(
+        FilesystemInputOutputTreeReplayRecord::new(
+            source_input(),
+            vec![
+                file(b"artifact", 2, b"bytes"),
+                hard_link(
+                    FilesystemOutputHardLinkReplayKind::Portable,
+                    b"artifact",
+                    b"links/artifact",
+                ),
+            ],
+            Vec::new(),
+        )
+        .is_err()
+    );
 }

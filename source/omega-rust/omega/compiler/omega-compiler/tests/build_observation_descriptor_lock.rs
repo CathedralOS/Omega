@@ -153,7 +153,7 @@ fn successful_output_lock_pair_replays_without_host_output() {
     let summary = checked
         .build_observation_summary()
         .expect("descriptor-lock build retains observations");
-    assert_eq!(summary.schema_version(), 44);
+    assert_eq!(summary.schema_version(), 45);
     assert!(summary.operation_replay_verified());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(

@@ -1,6 +1,7 @@
 use super::{
-    FilesystemOutputDirectoryReplayRecord, FilesystemOutputSymlinkReplayRecord,
-    MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES, MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_PATH_BYTES,
+    FilesystemOutputDirectoryReplayRecord, FilesystemOutputHardLinkReplayRecord,
+    FilesystemOutputSymlinkReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES,
+    MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_PATH_BYTES,
     MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_RETAINED_PATH_BYTES, output_logical_handle_identities,
     source_attempts_use_root, validate_output_directory_records, validate_output_duplicate_replay,
     validate_output_lock_replay,
@@ -22,6 +23,7 @@ use crate::{
 pub enum FilesystemOutputTreeEntryReplayRecord {
     Directory(FilesystemOutputDirectoryReplayRecord),
     File(FilesystemOutputFileReplayRecord),
+    HardLink(FilesystemOutputHardLinkReplayRecord),
     Symlink(FilesystemOutputSymlinkReplayRecord),
 }
 
@@ -30,6 +32,7 @@ impl FilesystemOutputTreeEntryReplayRecord {
         match self {
             Self::Directory(directory) => directory.output_root(),
             Self::File(file) => file.output_root(),
+            Self::HardLink(hard_link) => hard_link.output_root(),
             Self::Symlink(symlink) => symlink.output_root(),
         }
     }
@@ -38,6 +41,7 @@ impl FilesystemOutputTreeEntryReplayRecord {
         match self {
             Self::Directory(directory) => directory.output_relative_path(),
             Self::File(file) => file.output_relative_path(),
+            Self::HardLink(hard_link) => hard_link.output_relative_path(),
             Self::Symlink(symlink) => symlink.output_relative_path(),
         }
     }
@@ -45,20 +49,27 @@ impl FilesystemOutputTreeEntryReplayRecord {
     pub const fn as_directory(&self) -> Option<&FilesystemOutputDirectoryReplayRecord> {
         match self {
             Self::Directory(directory) => Some(directory),
-            Self::File(_) | Self::Symlink(_) => None,
+            Self::File(_) | Self::HardLink(_) | Self::Symlink(_) => None,
         }
     }
 
     pub const fn as_file(&self) -> Option<&FilesystemOutputFileReplayRecord> {
         match self {
-            Self::Directory(_) | Self::Symlink(_) => None,
+            Self::Directory(_) | Self::HardLink(_) | Self::Symlink(_) => None,
             Self::File(file) => Some(file),
+        }
+    }
+
+    pub const fn as_hard_link(&self) -> Option<&FilesystemOutputHardLinkReplayRecord> {
+        match self {
+            Self::Directory(_) | Self::File(_) | Self::Symlink(_) => None,
+            Self::HardLink(hard_link) => Some(hard_link),
         }
     }
 
     pub const fn as_symlink(&self) -> Option<&FilesystemOutputSymlinkReplayRecord> {
         match self {
-            Self::Directory(_) | Self::File(_) => None,
+            Self::Directory(_) | Self::File(_) | Self::HardLink(_) => None,
             Self::Symlink(symlink) => Some(symlink),
         }
     }
@@ -67,6 +78,7 @@ impl FilesystemOutputTreeEntryReplayRecord {
         match self {
             Self::Directory(_) => Some(1),
             Self::File(file) => output_file_attempt_count(file),
+            Self::HardLink(_) => Some(1),
             Self::Symlink(_) => Some(1),
         }
     }
@@ -195,6 +207,29 @@ fn validate_output_tree_shape(
                         "filesystem replay Output paths and symlink targets exceed their {MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_RETAINED_PATH_BYTES}-byte aggregate ceiling"
                     )
                 })?;
+        }
+        if let Some(hard_link) = entry.as_hard_link() {
+            retained_path_bytes = retained_path_bytes
+                .checked_add(hard_link.existing_relative_path().len())
+                .filter(|bytes| {
+                    *bytes <= MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_RETAINED_PATH_BYTES
+                })
+                .ok_or_else(|| {
+                    format!(
+                        "filesystem replay Output and hard-link paths exceed their {MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_RETAINED_PATH_BYTES}-byte aggregate ceiling"
+                    )
+                })?;
+            let existing = entries[..index]
+                .iter()
+                .find(|prior| prior.output_relative_path() == hard_link.existing_relative_path());
+            if !existing
+                .is_some_and(|prior| prior.as_file().is_some() || prior.as_hard_link().is_some())
+            {
+                return Err(
+                    "filesystem replay Output hard link must follow an existing regular-file name"
+                        .to_owned(),
+                );
+            }
         }
         if entries[..index]
             .iter()
