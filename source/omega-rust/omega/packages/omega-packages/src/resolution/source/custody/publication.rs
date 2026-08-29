@@ -1,6 +1,29 @@
 //! Filesystem custody shared by local snapshots and Git cache entries.
 
-use super::*;
+use super::lock::verify_retained_cache_parent_path;
+use super::platform::{
+    same_capability_file_identity, verify_capability_cache_node_owner_and_mode,
+    verify_macos_open_cache_extended_acl_custody, verify_windows_open_cache_custody,
+};
+#[cfg(test)]
+use super::tree::verify_cache_custody_root;
+use super::tree::{CacheCustodyKind, cache_custody_invalid};
+use crate::resolution::source::SourceResolveError;
+use crate::resolution::source::git::cache::cache_invalid;
+use crate::resolution::source::git::snapshot::make_open_tree_owner_writable;
+use crate::resolution::source::limits::STAGING_SEQUENCE;
+use crate::resolution::source::local::capture::io_error;
+#[cfg(test)]
+use crate::resolution::source::local::capture::open_absolute_directory_nofollow;
+use cap_fs_ext::DirExt;
+#[cfg(unix)]
+use cap_std::fs::DirBuilderExt as CapabilityDirBuilderExt;
+use cap_std::fs::{
+    Dir as CapabilityDirectory, DirBuilder as CapabilityDirBuilder, Metadata as CapabilityMetadata,
+};
+use std::ffi::{OsStr, OsString};
+use std::path::{Path, PathBuf};
+use std::sync::atomic::Ordering;
 #[cfg(test)]
 pub(in crate::resolution::source) fn publish_cache_directory(
     kind: CacheCustodyKind,

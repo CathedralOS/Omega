@@ -5,8 +5,6 @@
 //! per-entry serialization, and [`publication`] owns private staging and
 //! atomic publication.
 
-use super::*;
-
 mod lock;
 mod platform;
 mod publication;
