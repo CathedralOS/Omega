@@ -328,6 +328,10 @@ impl ValidatedElfDynamicLoadLayout {
     pub const fn non_authoritative_layout_compatibility_fingerprint(&self) -> u64 {
         self.non_authoritative_layout_compatibility_fingerprint
     }
+
+    pub(crate) fn into_relative(self) -> ValidatedElfRelativeSectionPayloadLayout {
+        self.relative
+    }
 }
 
 /// Rejected absolute placement with exact relative-layout custody.

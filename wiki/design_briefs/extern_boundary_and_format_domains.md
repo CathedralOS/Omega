@@ -388,11 +388,15 @@ coverage, and zero-filled alignment/page gaps; BSS remains memory-only and the
 retained `FinalImage` remains immutable. Rejection returns the complete
 resolved-linkage owner.
 
-Optional `.gnu.hash`, consuming `FinalImage` mutation, and independent final-
-byte admission remain open. Validated semantic tags, absolute geometry,
-applied section-header/`.dynamic` bytes, resolved procedure-linkage fragments,
-and the assembled file still grant no loader, publication, or runnable-image
-authority. An owned direct `[u8; N]` destination now contextually
+The final-byte admission rung now consumes that assembly, recovers the exact
+retained `FinalImage` through the complete ownership chain, applies only the
+already-resolved source-text bytes, and independently rejoins the complete
+assembled file, Linux target-specific format, image statistics, and placed
+executable-region inventory. Rejection retains the intact assembled owner;
+success retains the mutated image beside exact `ExecutableImageOutput` bytes
+but grants no publication receipt or execution event. Optional `.gnu.hash`,
+production emitter integration, and ordinary source `via` evaluation remain
+open. An owned direct `[u8; N]` destination now contextually
 copies a quoted literal into an ordinary raw-byte array only when `N` is a
 resolved integer literal and the source byte count matches exactly; non-byte
 or unresolved/mismatched widths reject, and hermetic evaluation observes the
