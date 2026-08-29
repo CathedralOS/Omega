@@ -2,6 +2,7 @@ use psi_core::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
     OperationId, PlaceId, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
+use psi_proof_admission::AdmissionProfile;
 use psi_terminal::{
     Block, MachineContract, Operation, OperationKind, OperationResult, StructuralAccess,
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
@@ -10,7 +11,11 @@ use psi_terminal::{
     TerminalRankedSccEdge, TerminalRankedSuccessorArgument, Terminator, ValueDeclaration,
     VocabularyMarker,
 };
-use psi_terminal_verifier::{ModuleError, validate_module, validate_module_representation};
+use psi_terminal_verifier::{
+    ModuleError, ProofBundle, VerificationError, reconstruct_interpretable_operation_obligations,
+    validate_module, validate_module_for_interpretation, validate_module_representation,
+    verify_module, verify_module_for_interpretation,
+};
 
 fn id<T>(raw: u64, constructor: impl FnOnce(u64) -> Option<T>) -> T {
     constructor(raw).expect("nonzero fixture identity")
@@ -246,11 +251,61 @@ fn add_loop_preserved_affine_parameter(module: &mut TerminalModule) -> PlaceId {
 }
 
 #[test]
-fn ranked_countdown_is_representation_only() {
+fn ranked_countdown_has_distinct_interpreter_only_authority() {
     let module = ranked_countdown();
     assert_eq!(validate_module_representation(&module), Ok(()));
+    let interpretable = validate_module_for_interpretation(&module)
+        .expect("exact ranked countdown is interpreter-valid");
+    let obligations = reconstruct_interpretable_operation_obligations(interpretable)
+        .expect("countdown proof question reconstructs over its acyclic skeleton");
+    assert_eq!(obligations.len(), 1);
+    assert_eq!(obligations[0].obligation.id, id(1, ObligationId::new));
+    assert!(
+        obligations[0]
+            .semantic_axioms
+            .contains(&obligations[0].obligation.proposition)
+    );
+    assert!(matches!(
+        verify_module_for_interpretation(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default()
+        ),
+        Err(VerificationError::MissingEvidence(obligation))
+            if obligation == id(1, ObligationId::new)
+    ));
     assert!(matches!(
         validate_module(&module),
+        Err(ModuleError::NonExecutableRankedScc(machine)) if machine == module.entry
+    ));
+    assert!(matches!(
+        verify_module(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default()
+        ),
+        Err(VerificationError::Module(ModuleError::NonExecutableRankedScc(machine)))
+            if machine == module.entry
+    ));
+}
+
+#[test]
+fn interpreter_ranked_countdown_rejects_extra_mixed_work() {
+    let mut module = ranked_countdown();
+    let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+    module.machines[0].blocks[0].operations.push(Operation {
+        id: id(20, OperationId::new),
+        result: OperationResult::Scalar(ValueDeclaration {
+            id: id(20, ValueId::new),
+            scalar_type: ScalarType::Integer(integer),
+        }),
+        kind: OperationKind::IntegerConstant {
+            value: IntegerValue::Unsigned(7),
+        },
+    });
+    assert_eq!(validate_module_representation(&module), Ok(()));
+    assert!(matches!(
+        validate_module_for_interpretation(&module),
         Err(ModuleError::NonExecutableRankedScc(machine)) if machine == module.entry
     ));
 }
@@ -260,6 +315,8 @@ fn ranked_countdown_preserves_a_nonempty_structural_frontier() {
     let mut module = ranked_countdown();
     add_loop_preserved_affine_parameter(&mut module);
     assert_eq!(validate_module_representation(&module), Ok(()));
+    validate_module_for_interpretation(&module)
+        .expect("interpreter accepts a preserved affine countdown frontier");
     assert!(matches!(
         validate_module(&module),
         Err(ModuleError::NonExecutableRankedScc(machine)) if machine == module.entry

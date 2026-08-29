@@ -1,9 +1,9 @@
-//! Representation-only validation for retained ranked control components.
+//! Validation for retained ranked control components.
 //!
 //! This closes source-handle-free identity, graph custody, guard/decrement
-//! reconstruction, and structural-frontier preservation without granting
-//! execution authority. Interpreter, fuel, and native support remain separate
-//! milestones.
+//! reconstruction, and structural-frontier preservation. A separate policy
+//! admits the exact countdown to the interpreter without granting fixed-fuel,
+//! Omega, or native authority.
 
 use super::*;
 use psi_core::{IntegerCarrier, IntegerSign};

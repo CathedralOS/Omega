@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use psi_core::{Proposition, ScalarTerm, ValueId};
+use psi_core::{IntegerSign, IntegerValue, Proposition, ScalarTerm, ValueId};
 
 use super::super::substitution::{substitute_proposition_values, substitute_scalar_term_values};
 
@@ -85,6 +85,7 @@ pub(super) fn append_successor_fact(
     target_block: &psi_terminal::Block,
     arguments: &[ValueId],
     value_term: &impl Fn(ValueId) -> ScalarTerm,
+    derive_discrete_unsigned_positive: bool,
 ) {
     let substitutions = target_block
         .parameters
@@ -93,10 +94,36 @@ pub(super) fn append_successor_fact(
         .map(|(parameter, argument)| (*argument, value_term(parameter.id)))
         .collect::<BTreeMap<_, _>>();
     push_unique(axioms, proposition.clone());
-    push_unique(
-        axioms,
-        substitute_proposition_values(proposition, &substitutions),
-    );
+    let rewritten = substitute_proposition_values(proposition, &substitutions);
+    if derive_discrete_unsigned_positive {
+        append_discrete_unsigned_positive_fact(axioms, proposition);
+        append_discrete_unsigned_positive_fact(axioms, &rewritten);
+    }
+    push_unique(axioms, rewritten);
+}
+
+/// Fixed unsigned integers are discrete: a taken `0 < value` edge also
+/// establishes the exact `1 <= value` premise needed by subtraction of one.
+fn append_discrete_unsigned_positive_fact(
+    propositions: &mut Vec<Proposition>,
+    proposition: &Proposition,
+) {
+    let Proposition::LessThan(
+        ScalarTerm::Integer {
+            scalar_type,
+            value: IntegerValue::Unsigned(0),
+        },
+        right,
+    ) = proposition
+    else {
+        return;
+    };
+    if scalar_type.sign() != IntegerSign::Unsigned {
+        return;
+    }
+    let one = ScalarTerm::integer(*scalar_type, IntegerValue::Unsigned(1))
+        .expect("one belongs to every validated unsigned fixed carrier");
+    push_unique(propositions, Proposition::LessOrEqual(one, right.clone()));
 }
 
 fn push_unique(propositions: &mut Vec<Proposition>, proposition: Proposition) {

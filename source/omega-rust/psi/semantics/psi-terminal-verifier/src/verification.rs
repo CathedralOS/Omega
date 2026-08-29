@@ -11,6 +11,7 @@ use psi_terminal::TerminalModule;
 use crate::{
     ModuleError, ValidatedTerminalModule, VerifiedTerminalStructuralFrontiers,
     reconstruct_validated_structural_ownership_frontiers, validate_module,
+    validate_module_for_interpretation,
 };
 
 mod affine_joins;
@@ -37,7 +38,8 @@ use reconstruction::reconstruct_validated_terminal_obligations;
 pub use reconstruction::{
     ReconstructedOperationObligation, ReconstructedTerminalObligation,
     ReconstructedTerminalObligationOwner, ReconstructedTerminalObligationSet,
-    reconstruct_operation_obligations, reconstruct_terminal_obligations,
+    reconstruct_interpretable_operation_obligations, reconstruct_operation_obligations,
+    reconstruct_terminal_obligations,
 };
 pub(crate) use substitution::{
     substitute_proposition_structural_places, substitute_proposition_values,
@@ -131,6 +133,16 @@ use affine_joins::{
 
 #[derive(Debug)]
 pub struct VerifiedTerminalModule<'module> {
+    state: VerifiedTerminalModuleState<'module>,
+}
+
+#[derive(Debug)]
+pub struct VerifiedInterpretableTerminalModule<'module> {
+    state: VerifiedTerminalModuleState<'module>,
+}
+
+#[derive(Debug)]
+struct VerifiedTerminalModuleState<'module> {
     validated: ValidatedTerminalModule<'module>,
     proof_bundle: ProofBundle,
     reconstructed_obligations: ReconstructedTerminalObligationSet,
@@ -140,30 +152,36 @@ pub struct VerifiedTerminalModule<'module> {
 
 impl<'module> VerifiedTerminalModule<'module> {
     pub const fn module(&self) -> &'module TerminalModule {
-        self.validated.module()
+        self.state.validated.module()
     }
 
     pub fn accepted_facts(&self) -> &[AcceptedFact] {
-        &self.accepted_facts
+        &self.state.accepted_facts
     }
 
     /// Exact artifact evidence accepted for this module. Retaining the bundle
     /// lets artifact consumers re-encode the verified semantic/proof pair
     /// without consulting producer state.
     pub const fn proof_bundle(&self) -> &ProofBundle {
-        &self.proof_bundle
+        &self.state.proof_bundle
     }
 
     /// The complete verifier-reconstructed proof question consumed for this
     /// result. This is retained separately from producer-selected proof routes.
     pub const fn reconstructed_obligations(&self) -> &ReconstructedTerminalObligationSet {
-        &self.reconstructed_obligations
+        &self.state.reconstructed_obligations
     }
 
     /// Exact block-, operation-, and edge-scoped custody snapshots produced by
     /// the same verifier walk that admitted this module.
     pub const fn structural_frontiers(&self) -> &VerifiedTerminalStructuralFrontiers {
-        &self.structural_frontiers
+        &self.state.structural_frontiers
+    }
+}
+
+impl<'module> VerifiedInterpretableTerminalModule<'module> {
+    pub const fn module(&self) -> &'module TerminalModule {
+        self.state.validated.module()
     }
 }
 
@@ -173,6 +191,31 @@ pub fn verify_module<'module>(
     profile: &AdmissionProfile,
 ) -> Result<VerifiedTerminalModule<'module>, VerificationError> {
     let validated = validate_module(module).map_err(VerificationError::Module)?;
+    verify_validated_module(validated, proof_bundle, profile)
+        .map(|state| VerifiedTerminalModule { state })
+}
+
+/// Verify the exact subset accepted by the reference interpreter.
+///
+/// The distinct result carrier cannot be passed to fixed-fuel or native
+/// consumers that require [`VerifiedTerminalModule`].
+pub fn verify_module_for_interpretation<'module>(
+    module: &'module TerminalModule,
+    proof_bundle: &ProofBundle,
+    profile: &AdmissionProfile,
+) -> Result<VerifiedInterpretableTerminalModule<'module>, VerificationError> {
+    let validated =
+        validate_module_for_interpretation(module).map_err(VerificationError::Module)?;
+    verify_validated_module(validated.validated(), proof_bundle, profile)
+        .map(|state| VerifiedInterpretableTerminalModule { state })
+}
+
+fn verify_validated_module<'module>(
+    validated: ValidatedTerminalModule<'module>,
+    proof_bundle: &ProofBundle,
+    profile: &AdmissionProfile,
+) -> Result<VerifiedTerminalModuleState<'module>, VerificationError> {
+    let module = validated.module();
     let structural_frontiers = reconstruct_validated_structural_ownership_frontiers(module)
         .map_err(VerificationError::Module)?;
     let reconstructed_obligations =
@@ -224,7 +267,7 @@ pub fn verify_module<'module>(
     if let Some(obligation) = evidence.keys().next().copied() {
         return Err(VerificationError::UnknownEvidence(obligation));
     }
-    Ok(VerifiedTerminalModule {
+    Ok(VerifiedTerminalModuleState {
         validated,
         proof_bundle: proof_bundle.clone(),
         reconstructed_obligations,

@@ -20,7 +20,6 @@ use psi_terminal::{
     StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachineResult, Terminator,
 };
 use psi_terminal_fuel::{FuelExhaustion, FuelMeterError, TerminalFuelMeter, TerminalFuelUsage};
-use psi_terminal_verifier::VerifiedTerminalModule;
 
 /// Decode, verify, and execute the canonical semantic and proof sections of one
 /// terminal-Psi artifact. This is the reference-interpreter trust boundary for
@@ -458,10 +457,11 @@ impl TerminalExecution {
             .map_err(TerminalArtifactInterpretError::SemanticDecode)?;
         let proof = psi_terminal_codec::decode_proof_bundle(proof_bytes)
             .map_err(TerminalArtifactInterpretError::ProofDecode)?;
-        let verified = psi_terminal_verifier::verify_module(&module, &proof, profile)
-            .map_err(TerminalArtifactInterpretError::Verification)?;
-        Self::start(
-            &verified,
+        let verified =
+            psi_terminal_verifier::verify_module_for_interpretation(&module, &proof, profile)
+                .map_err(TerminalArtifactInterpretError::Verification)?;
+        Self::start_verified_module(
+            verified.module(),
             scalar_arguments,
             structural_arguments,
             structural_boolean_fields,
@@ -486,8 +486,8 @@ impl TerminalExecution {
             .map_err(TerminalArtifactInterpretError::ProofDecode)?;
         let verified = psi_terminal_verifier::verify_module(&module, &proof, profile)
             .map_err(TerminalArtifactInterpretError::Verification)?;
-        Self::start(
-            &verified,
+        Self::start_verified_module(
+            verified.module(),
             scalar_arguments,
             structural_arguments,
             &[],
@@ -496,14 +496,13 @@ impl TerminalExecution {
         .map_err(TerminalArtifactInterpretError::Execution)
     }
 
-    fn start(
-        verified: &VerifiedTerminalModule<'_>,
+    fn start_verified_module(
+        module: &psi_terminal::TerminalModule,
         scalar_arguments: &[TerminalScalarValue],
         structural_arguments: &[TerminalStructuralValue],
         structural_boolean_field_arguments: &[TerminalStructuralBooleanFieldValue],
         installation: Option<&AdmittedProviderInstallation>,
     ) -> Result<Self, TerminalInterpretError> {
-        let module = verified.module();
         let terminal_psi = psi_terminal_codec::terminal_psi_identity(module)
             .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)?;
         if installation.is_some_and(|installation| installation.terminal_psi != terminal_psi) {

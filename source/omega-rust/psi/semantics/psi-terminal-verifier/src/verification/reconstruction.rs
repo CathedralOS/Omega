@@ -11,7 +11,7 @@ use psi_terminal::{OutcomeSpecificGuard, TerminalMachine, TerminalModule};
 use psi_terminal_semantics::CanonicalScalarGoal;
 
 use crate::validation::exact_payloadless_case_return_exits;
-use crate::{ModuleError, validate_module};
+use crate::{ModuleError, ValidatedInterpretableTerminalModule, validate_module};
 
 mod affine_custody;
 mod affine_selection;
@@ -109,6 +109,20 @@ pub fn reconstruct_operation_obligations(
     module: &TerminalModule,
 ) -> Result<Vec<ReconstructedOperationObligation>, ModuleError> {
     validate_module(module)?;
+    let mut obligations = Vec::new();
+    for machine in &module.machines {
+        obligations.extend(reconstruct_machine_semantics(module, machine)?.operation_obligations);
+    }
+    Ok(obligations)
+}
+
+/// Reconstruct operation proof questions for the exact interpreter-admitted
+/// subset. This does not grant the execution-grade carrier consumed by fixed
+/// fuel or native lowering.
+pub fn reconstruct_interpretable_operation_obligations(
+    validated: ValidatedInterpretableTerminalModule<'_>,
+) -> Result<Vec<ReconstructedOperationObligation>, ModuleError> {
+    let module = validated.module();
     let mut obligations = Vec::new();
     for machine in &module.machines {
         obligations.extend(reconstruct_machine_semantics(module, machine)?.operation_obligations);
@@ -229,7 +243,12 @@ pub(super) fn reconstruct_machine_semantics(
     let mut exits = Vec::<Vec<Proposition>>::new();
     let mut outcome_exits = BTreeMap::<OutcomeSpecificGuard, Vec<Vec<Proposition>>>::new();
     let mut operation_obligations = Vec::new();
-    for current in machine_flow::deterministic_block_order(machine) {
+    let ranked_backedges = machine
+        .ranked_scc
+        .iter()
+        .flat_map(|component| component.covered_cyclic_edges.iter().map(|row| row.edge))
+        .collect();
+    for current in machine_flow::deterministic_block_order(machine, &ranked_backedges) {
         let block = context
             .blocks
             .get(&current)
@@ -261,6 +280,7 @@ pub(super) fn reconstruct_machine_semantics(
             outcome_exit_guards.get(&current).copied(),
             &mut outcome_exits,
             &mut operation_obligations,
+            &ranked_backedges,
         );
     }
     Ok(ReconstructedMachineSemantics {

@@ -963,7 +963,7 @@ fn structural_unit_control_fails_closed_on_stale_cleanup_or_signature() {
 }
 
 #[test]
-fn ranked_countdown_lowers_to_source_free_representation_without_execution_authority() {
+fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
     let checked = checked_source(
         r#"
             data Token { value: i32; }
@@ -1032,6 +1032,13 @@ fn ranked_countdown_lowers_to_source_free_representation_without_execution_autho
     ));
     psi_terminal_verifier::validate_module_representation(&lowered.semantic_module)
         .expect("ranked representation policy");
+    psi_terminal_verifier::verify_module_for_interpretation(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &psi_proof_admission::AdmissionProfile::default(),
+    )
+    .expect("ranked proof closes for interpreter admission");
+    assert_eq!(lowered.proof_bundle.evidence.len(), 1);
     assert!(matches!(
         psi_terminal_verifier::validate_module(&lowered.semantic_module),
         Err(psi_terminal_verifier::ModuleError::NonExecutableRankedScc(
@@ -1044,10 +1051,78 @@ fn ranked_countdown_lowers_to_source_free_representation_without_execution_autho
         psi_terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())
     );
+    let lowered = lower_machine(&checked, "Root::countdown")
+        .expect("public lowering admits the interpreter-only ranked slice");
+    let semantic = psi_terminal_codec::encode_module(&lowered.semantic_module)
+        .expect("ranked semantic section encodes");
+    let proof = psi_terminal_codec::encode_proof_bundle(&lowered.proof_bundle)
+        .expect("ranked proof section encodes");
+    let machine = &lowered.semantic_module.machines[0];
+    let structural_parameter = &machine.structural_parameters[0];
+    let structural_argument = psi_terminal_interpreter::TerminalStructuralValue {
+        opaque_identity: 0xc0de,
+        structural_type: structural_parameter.structural_type,
+        qualifications: structural_parameter.qualifications.clone(),
+        path: Vec::new(),
+    };
+    let ScalarType::Integer(rank_type) = machine.parameters[0].scalar_type else {
+        panic!("rank parameter is an integer")
+    };
+    let rank_argument = |remaining| psi_terminal_interpreter::TerminalScalarValue::Integer {
+        scalar_type: rank_type,
+        value: IntegerValue::Unsigned(remaining),
+    };
+
+    for (remaining, expected_units) in [(0, 5), (1, 11), (3, 23)] {
+        let mut execution =
+            psi_terminal_interpreter::TerminalExecution::start_artifact_with_structural_arguments(
+                &semantic,
+                &proof,
+                &psi_proof_admission::AdmissionProfile::default(),
+                &[rank_argument(remaining)],
+                std::slice::from_ref(&structural_argument),
+            )
+            .expect("ranked artifact starts");
+        let mut meter = psi_terminal_fuel::TerminalFuelMeter::unbounded();
+        assert_eq!(
+            execution
+                .resume(&mut meter)
+                .expect("ranked execution resumes"),
+            psi_terminal_interpreter::TerminalExecutionStatus::Complete(
+                psi_terminal_interpreter::TerminalExecutionResult::Unit
+            )
+        );
+        assert_eq!(meter.usage().total_units(), expected_units);
+        assert_eq!(execution.live_affine_frontier().count(), 0);
+    }
+
+    let mut execution =
+        psi_terminal_interpreter::TerminalExecution::start_artifact_with_structural_arguments(
+            &semantic,
+            &proof,
+            &psi_proof_admission::AdmissionProfile::default(),
+            &[rank_argument(3)],
+            std::slice::from_ref(&structural_argument),
+        )
+        .expect("ranked resumable artifact starts");
+    let mut meter = psi_terminal_fuel::TerminalFuelMeter::with_allowance(8);
     assert!(matches!(
-        lower_machine(&checked, "Root::countdown"),
-        Err(LoweringError::InvalidTerminalModule(
-            psi_terminal_verifier::ModuleError::NonExecutableRankedScc(_)
-        ))
+        execution
+            .resume(&mut meter)
+            .expect("ranked execution exhausts cleanly"),
+        psi_terminal_interpreter::TerminalExecutionStatus::SponsorExhausted(_)
     ));
+    assert_eq!(meter.usage().total_units(), 8);
+    assert_eq!(execution.live_affine_frontier().count(), 1);
+    meter.replenish(15).expect("remaining exact grant fits");
+    assert_eq!(
+        execution
+            .resume(&mut meter)
+            .expect("ranked execution completes after refill"),
+        psi_terminal_interpreter::TerminalExecutionStatus::Complete(
+            psi_terminal_interpreter::TerminalExecutionResult::Unit
+        )
+    );
+    assert_eq!(meter.usage().total_units(), 23);
+    assert_eq!(execution.live_affine_frontier().count(), 0);
 }

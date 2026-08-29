@@ -912,7 +912,7 @@ fn lower_ranked_structural_unit_countdown(
             outcome_specific_ensures: Vec::new(),
         },
     };
-    Ok(LoweredTerminalPsi {
+    let mut lowered = LoweredTerminalPsi {
         semantic_module: TerminalModule {
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine.id,
@@ -935,7 +935,9 @@ fn lower_ranked_structural_unit_countdown(
         },
         proof_bundle: ProofBundle::default(),
         debug_map: None,
-    })
+    };
+    finalize_operation_proofs(&mut lowered)?;
+    Ok(lowered)
 }
 
 fn validate_ranked_structural_transfers(

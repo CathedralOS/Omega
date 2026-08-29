@@ -2,10 +2,13 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use psi_core::{BlockId, Proposition};
+use psi_core::{BlockId, EdgeId, Proposition};
 use psi_terminal::{TerminalMachine, Terminator};
 
-pub(super) fn deterministic_block_order(machine: &TerminalMachine) -> Vec<BlockId> {
+pub(super) fn deterministic_block_order(
+    machine: &TerminalMachine,
+    ignored_backedges: &BTreeSet<EdgeId>,
+) -> Vec<BlockId> {
     let mut successors = BTreeMap::<_, Vec<_>>::new();
     let mut indegree = machine
         .blocks
@@ -13,13 +16,16 @@ pub(super) fn deterministic_block_order(machine: &TerminalMachine) -> Vec<BlockI
         .map(|block| (block.id, 0usize))
         .collect::<BTreeMap<_, _>>();
     for block in &machine.blocks {
-        let targets = match &block.terminator {
-            Terminator::Jump { target, .. } => vec![*target],
+        let edges = match &block.terminator {
+            Terminator::Jump { edge, target, .. } => vec![(*edge, *target)],
             Terminator::Conditional {
                 when_true,
                 when_false,
                 ..
-            } => vec![when_true.target, when_false.target],
+            } => vec![
+                (when_true.edge, when_true.target),
+                (when_false.edge, when_false.target),
+            ],
             Terminator::Return { .. }
             | Terminator::ReturnUnit { .. }
             | Terminator::ReturnUnitPartialAffine { .. }
@@ -27,6 +33,10 @@ pub(super) fn deterministic_block_order(machine: &TerminalMachine) -> Vec<BlockI
             | Terminator::ReturnStructural { .. }
             | Terminator::Crash { .. } => Vec::new(),
         };
+        let targets = edges
+            .into_iter()
+            .filter_map(|(edge, target)| (!ignored_backedges.contains(&edge)).then_some(target))
+            .collect::<Vec<_>>();
         for target in &targets {
             *indegree
                 .get_mut(target)

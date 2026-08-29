@@ -110,6 +110,43 @@ pub fn validate_module(
     Ok(ValidatedTerminalModule { module })
 }
 
+/// Validate the exact Terminal-Psi subset admitted by the reference
+/// interpreter.
+///
+/// This is deliberately a different carrier from [`ValidatedTerminalModule`]:
+/// ranked countdowns are not thereby authorized for fixed-fuel derivation,
+/// Omega lowering, or native installation.
+#[derive(Debug, Clone, Copy)]
+pub struct ValidatedInterpretableTerminalModule<'module> {
+    validated: ValidatedTerminalModule<'module>,
+}
+
+impl<'module> ValidatedInterpretableTerminalModule<'module> {
+    pub const fn module(self) -> &'module TerminalModule {
+        self.validated.module()
+    }
+
+    pub fn value_context(
+        self,
+        machine: &TerminalMachine,
+    ) -> Result<PropositionContext, ModuleError> {
+        self.validated.value_context(machine)
+    }
+
+    pub(crate) const fn validated(self) -> ValidatedTerminalModule<'module> {
+        self.validated
+    }
+}
+
+pub fn validate_module_for_interpretation(
+    module: &TerminalModule,
+) -> Result<ValidatedInterpretableTerminalModule<'_>, ModuleError> {
+    validate_module_with_policy(module, ValidationPolicy::Interpretation)?;
+    Ok(ValidatedInterpretableTerminalModule {
+        validated: ValidatedTerminalModule { module },
+    })
+}
+
 /// Validate a Terminal-Psi module and expose the exact deterministic ownership
 /// frontier snapshots computed by the verifier's own custody walk.
 pub fn reconstruct_structural_ownership_frontiers(
@@ -136,16 +173,17 @@ pub(crate) fn reconstruct_validated_structural_ownership_frontiers(
                 .iter()
                 .map(|block| (block.id, block))
                 .collect::<BTreeMap<_, _>>();
-            // Execution validation currently rejects every ranked SCC before
-            // this reconstruction API can be reached. When that fence moves,
-            // this call must receive the already-validated ranked backedges
-            // rather than silently treating cyclic control as acyclic.
+            let ranked_backedges = machine
+                .ranked_scc
+                .iter()
+                .flat_map(|component| component.covered_cyclic_edges.iter().map(|row| row.edge))
+                .collect::<BTreeSet<_>>();
             frontier::validate_structural_frontier(
                 module,
                 machine,
                 &machines,
                 &blocks,
-                &BTreeSet::new(),
+                &ranked_backedges,
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -165,6 +203,7 @@ pub fn validate_module_representation(module: &TerminalModule) -> Result<(), Mod
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ValidationPolicy {
     Execution,
+    Interpretation,
     Representation,
 }
 
@@ -228,6 +267,76 @@ fn validate_module_with_policy(
     }
     root_service_reach::validate_root_service_reach_exact(module)?;
 
+    if policy == ValidationPolicy::Interpretation {
+        validate_interpretable_ranked_countdown_module(module)?;
+    }
+
+    Ok(())
+}
+
+fn validate_interpretable_ranked_countdown_module(
+    module: &TerminalModule,
+) -> Result<(), ModuleError> {
+    let ranked = module
+        .machines
+        .iter()
+        .filter(|machine| machine.ranked_scc.is_some())
+        .collect::<Vec<_>>();
+    let Some(machine) = ranked.first().copied() else {
+        return Ok(());
+    };
+    let reject = || ModuleError::NonExecutableRankedScc(machine.id);
+    if ranked.len() != 1
+        || module.machines.len() != 1
+        || !module.boundary_machines.is_empty()
+        || !module.provider_candidates.is_empty()
+        || machine.result != TerminalMachineResult::Unit
+        || machine.parameters.len() != 1
+        || machine.blocks.len() != 4
+    {
+        return Err(reject());
+    }
+
+    let component = machine.ranked_scc.as_ref().expect("ranked machine");
+    let header = machine
+        .blocks
+        .iter()
+        .find(|block| block.id == component.header)
+        .ok_or_else(reject)?;
+    let row = component.covered_cyclic_edges.first().ok_or_else(reject)?;
+    let decrement = machine
+        .blocks
+        .iter()
+        .find(|block| block.id == row.source)
+        .ok_or_else(reject)?;
+    let Terminator::Conditional {
+        when_false: exit, ..
+    } = &header.terminator
+    else {
+        return Err(reject());
+    };
+    let done = machine
+        .blocks
+        .iter()
+        .find(|block| block.id == exit.target)
+        .ok_or_else(reject)?;
+    let entry = machine
+        .blocks
+        .iter()
+        .find(|block| block.id == machine.entry)
+        .ok_or_else(reject)?;
+
+    if !entry.operations.is_empty()
+        || header.parameters.len() != 1
+        || header.operations.len() != 2
+        || !decrement.parameters.is_empty()
+        || decrement.operations.len() != 2
+        || !done.parameters.is_empty()
+        || !done.operations.is_empty()
+        || !matches!(done.terminator, Terminator::ReturnUnit { .. })
+    {
+        return Err(reject());
+    }
     Ok(())
 }
 

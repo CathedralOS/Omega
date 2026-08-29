@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use psi_core::{BlockId, MachineId, Proposition, ScalarTerm, ValueId};
+use psi_core::{BlockId, EdgeId, MachineId, Proposition, ScalarTerm, ValueId};
 use psi_proof_admission::{Obligation, ObligationClass};
 use psi_terminal::OutcomeSpecificGuard;
 use psi_terminal::{Block, TerminalMachine, Terminator};
@@ -23,11 +23,18 @@ pub(super) fn append_terminator(
     outcome_guard: Option<OutcomeSpecificGuard>,
     outcome_exits: &mut BTreeMap<OutcomeSpecificGuard, Vec<Vec<Proposition>>>,
     operation_obligations: &mut Vec<ReconstructedOperationObligation>,
+    ignored_backedges: &std::collections::BTreeSet<EdgeId>,
 ) {
     match terminator {
         Terminator::Jump {
-            target, arguments, ..
+            edge,
+            target,
+            arguments,
+            ..
         } => {
+            if ignored_backedges.contains(edge) {
+                return;
+            }
             let target_block = blocks.get(target).expect("validator requires jump target");
             path_facts::bind_successor_axioms(
                 &mut axioms,
@@ -46,6 +53,9 @@ pub(super) fn append_terminator(
             let true_fact = path_facts::true_condition_fact(*condition, &axioms, value_term);
             for (successor, condition_fact) in [(when_true, true_fact.as_ref()), (when_false, None)]
             {
+                if ignored_backedges.contains(&successor.edge) {
+                    continue;
+                }
                 let target_block = blocks
                     .get(&successor.target)
                     .expect("validator requires conditional target");
@@ -64,6 +74,7 @@ pub(super) fn append_terminator(
                         target_block,
                         &successor.arguments,
                         value_term,
+                        !ignored_backedges.is_empty(),
                     );
                 }
                 incoming

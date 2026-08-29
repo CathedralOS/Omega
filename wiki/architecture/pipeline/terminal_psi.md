@@ -864,7 +864,15 @@ reject; the exact ranked unsigned-countdown representation is the sole
 exception. Its acyclic skeleton establishes the header frontier, one complete
 covered cycle computes the preservation candidate, and all live claims, owned
 places, and partial-custody paths must match exactly before representation
-admission. Unconditional jumps and conditional arms may additionally pass
+admission. The reference interpreter has a distinct validation and verification
+carrier for only the one-machine structural Unit countdown: its proof scheduler
+removes the already validated covered backedge, reconstructs the taken
+`0 < remaining` edge as the discrete unsigned `1 <= remaining` subtraction
+premise, and requires the exact-subtract evidence before constructing resumable
+execution state. Ordinary verification continues to reject the ranked machine,
+so fixed-fuel and Omega/native consumers cannot acquire authority through the
+interpreter path; provider installation and extra mixed work remain fenced.
+Unconditional jumps and conditional arms may additionally pass
 direct primitive scalar inputs into typed successor block parameters; the edge
 materializes those arguments before committing its structural cleanup.
 Production emits the resulting jump/conditional/return blocks and rejects stale
