@@ -11,6 +11,7 @@ mod compute;
 mod custody;
 mod error;
 mod identity;
+mod materialization;
 mod model;
 mod row_encoding;
 mod stage;

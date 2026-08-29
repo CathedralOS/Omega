@@ -35,6 +35,7 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
     let fusion = optimization.and_then(|optimization| match optimization {
         StagedOptimizedPostAllocationMachineOptimization::Aarch64Cbnz(fusion) => Some(fusion),
         StagedOptimizedPostAllocationMachineOptimization::Aarch64Movn(_)
+        | StagedOptimizedPostAllocationMachineOptimization::X86MovR32Imm32(_)
         | StagedOptimizedPostAllocationMachineOptimization::X86XorZero(_) => None,
     });
     let selected_plan = selected.selected_plan();

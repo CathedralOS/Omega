@@ -8,12 +8,14 @@ mod aarch64_cbnz;
 mod aarch64_movn;
 mod execution;
 mod model;
+mod x86_mov_r32_imm32;
 mod x86_xor_zero;
 
 pub use aarch64_cbnz::*;
 pub use aarch64_movn::*;
 pub use execution::*;
 pub use model::*;
+pub use x86_mov_r32_imm32::*;
 pub use x86_xor_zero::*;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -29,6 +31,7 @@ pub enum OptimizedPostAllocationMachineOptimizationError {
     Fusion(omega_machine_optimizer::Aarch64CbnzFusionError),
     MovnMaterialization(omega_machine_optimizer::Aarch64MovnMaterializationError),
     X86XorZeroMaterialization(omega_machine_optimizer::X86XorZeroMaterializationError),
+    X86MovR32Imm32Materialization(omega_machine_optimizer::X86MovR32Imm32MaterializationError),
     ReceiptMismatch,
 }
 

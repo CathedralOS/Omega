@@ -3,11 +3,13 @@ use omega_isa_aarch64::{
     validate_aarch64_shortest_movn_materialization,
 };
 use omega_isa_x86_64::{
-    validate_x86_64_selected_form_encoding, validate_x86_64_xor_zero_i64_materialization,
+    validate_x86_64_mov_r32_imm32_i64_materialization, validate_x86_64_selected_form_encoding,
+    validate_x86_64_xor_zero_i64_materialization,
 };
 use omega_machine_optimizer::{
     Aarch64CbnzInstructionDisposition, Aarch64MovnInstructionDisposition,
-    PostAllocationMachineInstruction, X86_MOVABS_I64_BYTE_COUNT, X86_XOR_R64_SELF_BYTE_COUNT,
+    PostAllocationMachineInstruction, X86_MOV_R32_IMM32_BASELINE_BYTE_COUNT,
+    X86_MOVABS_I64_BYTE_COUNT, X86_XOR_R64_SELF_BYTE_COUNT, X86MovR32Imm32InstructionDisposition,
     X86XorZeroInstructionDisposition,
 };
 use omega_register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
@@ -20,6 +22,7 @@ use omega_target::Architecture;
 use super::super::{
     DeferredControlEncodingReason, OptimizedSelectedFormEncodingError,
     SelectedFormDecodedFootprint, SelectedFormEncodingRow, SelectedFormEncodingState,
+    materialization::MaterializationDisposition,
 };
 
 pub(super) fn validate(
@@ -28,8 +31,7 @@ pub(super) fn validate(
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
     machine_disposition: &Aarch64CbnzInstructionDisposition,
-    movn_disposition: Option<&Aarch64MovnInstructionDisposition>,
-    xor_zero_disposition: Option<&X86XorZeroInstructionDisposition>,
+    materialization: Option<MaterializationDisposition<'_>>,
     row: &SelectedFormEncodingRow,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
     validate_machine_disposition(
@@ -45,35 +47,45 @@ pub(super) fn validate(
     {
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     }
-    match (selected.kind, movn_disposition, xor_zero_disposition) {
-        (kind @ SelectedInstructionKind::MaterializeI64 { .. }, Some(disposition), None) => {
-            validate_movn(
-                architecture,
-                selected,
-                kind,
-                machine,
-                physical,
-                disposition,
-                &row.state,
-            )
-        }
-        (kind @ SelectedInstructionKind::MaterializeI64 { .. }, None, Some(disposition)) => {
-            validate_xor_zero(
-                architecture,
-                selected,
-                kind,
-                machine,
-                physical,
-                disposition,
-                &row.state,
-            )
-        }
-        (SelectedInstructionKind::ConditionalBranchNonZero, movn, xor_zero)
-            if movn.is_none_or(|disposition| {
-                matches!(disposition, Aarch64MovnInstructionDisposition::RetainedV1)
-            }) && xor_zero.is_none_or(|disposition| {
-                matches!(disposition, X86XorZeroInstructionDisposition::RetainedV1)
-            }) =>
+    match (selected.kind, materialization) {
+        (
+            kind @ SelectedInstructionKind::MaterializeI64 { .. },
+            Some(MaterializationDisposition::Aarch64Movn(disposition)),
+        ) => validate_movn(
+            architecture,
+            selected,
+            kind,
+            machine,
+            physical,
+            disposition,
+            &row.state,
+        ),
+        (
+            kind @ SelectedInstructionKind::MaterializeI64 { .. },
+            Some(MaterializationDisposition::X86XorZero(disposition)),
+        ) => validate_xor_zero(
+            architecture,
+            selected,
+            kind,
+            machine,
+            physical,
+            disposition,
+            &row.state,
+        ),
+        (
+            kind @ SelectedInstructionKind::MaterializeI64 { .. },
+            Some(MaterializationDisposition::X86MovR32Imm32(disposition)),
+        ) => validate_mov_r32_imm32(
+            architecture,
+            selected,
+            kind,
+            machine,
+            physical,
+            disposition,
+            &row.state,
+        ),
+        (SelectedInstructionKind::ConditionalBranchNonZero, materialization)
+            if materialization.is_none_or(MaterializationDisposition::is_retained) =>
         {
             if row.state
                 != (SelectedFormEncodingState::DeferredControl {
@@ -84,18 +96,96 @@ pub(super) fn validate(
             }
             Ok(())
         }
-        (kind, Some(Aarch64MovnInstructionDisposition::RetainedV1), None)
-        | (kind, None, Some(X86XorZeroInstructionDisposition::RetainedV1))
-        | (kind, None, None) => validate_baseline(
-            architecture,
-            selected.id,
-            kind,
-            machine,
-            physical,
-            &row.state,
-        ),
+        (kind, materialization)
+            if materialization.is_none_or(MaterializationDisposition::is_retained) =>
+        {
+            validate_baseline(
+                architecture,
+                selected.id,
+                kind,
+                machine,
+                physical,
+                &row.state,
+            )
+        }
         _ => Err(OptimizedSelectedFormEncodingError::ArtifactMismatch),
     }
+}
+
+fn validate_mov_r32_imm32(
+    architecture: Architecture,
+    selected: &SelectedInstruction,
+    kind: SelectedInstructionKind,
+    machine: &PostAllocationMachineInstruction,
+    physical: &ValidatedPhysicalRegisterModel,
+    disposition: &X86MovR32Imm32InstructionDisposition,
+    state: &SelectedFormEncodingState,
+) -> Result<(), OptimizedSelectedFormEncodingError> {
+    let X86MovR32Imm32InstructionDisposition::MovR32Imm32MaterializationV1 {
+        literal_bits,
+        destination,
+        baseline_byte_count,
+        selected_byte_count,
+        ..
+    } = disposition
+    else {
+        return validate_baseline(architecture, selected.id, kind, machine, physical, state);
+    };
+    let SelectedInstructionKind::MaterializeI64 { value } = kind else {
+        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+    };
+    let destination_matches = machine
+        .operands
+        .first()
+        .filter(|_| machine.operands.len() == 1)
+        .is_some_and(|operand| {
+            architecture == Architecture::X86_64
+                && destination.instruction == selected.id
+                && destination.operand == operand.operand
+                && destination.virtual_register == operand.virtual_register
+                && destination.class == operand.class
+                && destination.destination_view == operand.view
+                && destination.destination_storage_units == operand.storage_units
+                && destination.destination_write_units == operand.write_units
+                && Some(destination.destination_write_semantics) == operand.write_semantics
+        });
+    if !destination_matches
+        || integer_bits(value) != Some(*literal_bits)
+        || *baseline_byte_count != X86_MOV_R32_IMM32_BASELINE_BYTE_COUNT
+    {
+        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+    }
+    let SelectedFormEncodingState::Encoded { bytes, footprint } = state else {
+        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+    };
+    let decoded = validate_x86_64_mov_r32_imm32_i64_materialization(
+        physical,
+        destination.destination_view,
+        value,
+        bytes,
+    )
+    .map_err(OptimizedSelectedFormEncodingError::X86_64MovR32Imm32)?;
+    let decoded_footprint = decoded_footprint(
+        &decoded.footprint().register_reads,
+        &decoded.footprint().register_writes,
+        &decoded.footprint().encoded,
+    );
+    validate_external_operands(selected.id, machine, &decoded_footprint)?;
+    if bytes.len() != usize::from(*selected_byte_count)
+        || decoded.value_bits() != *literal_bits
+        || decoded.destination() != destination.destination_view
+        || decoded.encoded_write_view() != destination.encoded_view
+        || decoded.footprint().writes_rflags
+        || decoded.footprint().encoded_write_view != destination.encoded_view
+        || decoded.footprint().encoded_write_view_units != destination.encoded_storage_units
+        || decoded.footprint().encoded_write_units != destination.encoded_write_units
+        || decoded.footprint().encoded_write_semantics != destination.encoded_write_semantics
+        || decoded.footprint().encoded != machine.alternative.encoded
+        || footprint.as_ref() != &decoded_footprint
+    {
+        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+    }
+    Ok(())
 }
 
 fn validate_baseline(

@@ -8,6 +8,15 @@ use super::{
 
 #[test]
 fn catalog_exactly_matches_the_post_allocation_machine_vocabulary() {
+    assert_eq!(
+        ORDERED_POST_ALLOCATION_MACHINE_RULES,
+        [
+            Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
+            Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
+            Optimization::X86SelectXorZeroI64MaterializationV1,
+            Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1,
+        ]
+    );
     let declared = Optimization::ALL
         .into_iter()
         .filter(|optimization| {

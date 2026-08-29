@@ -8,7 +8,10 @@ use crate::{
 };
 
 use super::{
-    super::{OptimizedSelectedFormEncodingError, SelectedFormEncodingRow},
+    super::{
+        OptimizedSelectedFormEncodingError, SelectedFormEncodingRow,
+        materialization::MaterializationPlan,
+    },
     row,
 };
 
@@ -30,18 +33,7 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
         StagedOptimizedPostAllocationMachineOptimization::Aarch64Cbnz(fusion) => Some(fusion),
         _ => None,
     });
-    let movn = optimization.and_then(|optimization| match optimization {
-        StagedOptimizedPostAllocationMachineOptimization::Aarch64Movn(materialization) => {
-            Some(materialization)
-        }
-        _ => None,
-    });
-    let xor_zero = optimization.and_then(|optimization| match optimization {
-        StagedOptimizedPostAllocationMachineOptimization::X86XorZero(materialization) => {
-            Some(materialization)
-        }
-        _ => None,
-    });
+    let materialization = MaterializationPlan::from_optimization(optimization);
     let mut candidate_rows = rows.iter();
 
     for (function_index, (selected_function, machine_function)) in selected_plan
@@ -57,21 +49,14 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
         }
         let fusion_function =
             fusion.map(|fusion| &fusion.fusion().plan().functions[function_index]);
-        let movn_function = movn.map(|materialization| {
-            &materialization.materialization().plan().functions[function_index]
-        });
-        let xor_zero_function = xor_zero.map(|materialization| {
-            &materialization.materialization().plan().functions[function_index]
-        });
+        let materialization_function = materialization
+            .map(|materialization| materialization.function(function_index))
+            .transpose()?;
         if fusion_function.is_some_and(|row| {
             row.machine != selected_function.machine
                 || row.blocks.len() != selected_function.blocks.len()
-        }) || movn_function.is_some_and(|row| {
-            row.machine != selected_function.machine
-                || row.blocks.len() != selected_function.blocks.len()
-        }) || xor_zero_function.is_some_and(|row| {
-            row.machine != selected_function.machine
-                || row.blocks.len() != selected_function.blocks.len()
+        }) || materialization_function.is_some_and(|row| {
+            !row.matches(selected_function.machine, selected_function.blocks.len())
         }) {
             return Err(OptimizedSelectedFormEncodingError::FunctionRosterMismatch);
         }
@@ -88,17 +73,14 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
                 return Err(OptimizedSelectedFormEncodingError::BlockRosterMismatch);
             }
             let fusion_block = fusion_function.map(|function| &function.blocks[block_index]);
-            let movn_block = movn_function.map(|function| &function.blocks[block_index]);
-            let xor_zero_block = xor_zero_function.map(|function| &function.blocks[block_index]);
+            let materialization_block = materialization_function
+                .map(|function| function.block(block_index))
+                .transpose()?;
             if fusion_block.is_some_and(|row| {
                 row.block != selected_block.id
                     || row.instructions.len() != machine_block.instructions.len()
-            }) || movn_block.is_some_and(|row| {
-                row.block != selected_block.id
-                    || row.instructions.len() != machine_block.instructions.len()
-            }) || xor_zero_block.is_some_and(|row| {
-                row.block != selected_block.id
-                    || row.instructions.len() != machine_block.instructions.len()
+            }) || materialization_block.is_some_and(|row| {
+                !row.matches(selected_block.id, machine_block.instructions.len())
             }) {
                 return Err(OptimizedSelectedFormEncodingError::BlockRosterMismatch);
             }
@@ -113,13 +95,10 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
                     return Err(OptimizedSelectedFormEncodingError::InstructionRosterMismatch);
                 }
                 let fusion_disposition = fusion_block.map(|block| &block.instructions[index]);
-                let movn_disposition = movn_block.map(|block| &block.instructions[index]);
-                let xor_zero_disposition = xor_zero_block.map(|block| &block.instructions[index]);
+                let materialization_disposition = materialization_block
+                    .map(|block| block.disposition(index, selected_instruction.id))
+                    .transpose()?;
                 if fusion_disposition.is_some_and(|row| row.instruction != selected_instruction.id)
-                    || movn_disposition
-                        .is_some_and(|row| row.instruction != selected_instruction.id)
-                    || xor_zero_disposition
-                        .is_some_and(|row| row.instruction != selected_instruction.id)
                 {
                     return Err(OptimizedSelectedFormEncodingError::InstructionRosterMismatch);
                 }
@@ -134,8 +113,7 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
                     fusion_disposition
                         .map(|row| &row.disposition)
                         .unwrap_or(&Aarch64CbnzInstructionDisposition::RetainedV1),
-                    movn_disposition.map(|row| &row.disposition),
-                    xor_zero_disposition.map(|row| &row.disposition),
+                    materialization_disposition,
                     candidate,
                 )?;
             }
@@ -155,12 +133,9 @@ fn validate_optimization_function_count(
         Some(StagedOptimizedPostAllocationMachineOptimization::Aarch64Cbnz(fusion)) => {
             fusion.fusion().plan().functions.len()
         }
-        Some(StagedOptimizedPostAllocationMachineOptimization::Aarch64Movn(materialization)) => {
-            materialization.materialization().plan().functions.len()
-        }
-        Some(StagedOptimizedPostAllocationMachineOptimization::X86XorZero(materialization)) => {
-            materialization.materialization().plan().functions.len()
-        }
+        Some(optimization) => MaterializationPlan::from_optimization(Some(optimization))
+            .map(MaterializationPlan::function_count)
+            .unwrap_or(expected),
         None => expected,
     };
     if actual != expected {

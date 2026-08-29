@@ -17,6 +17,7 @@ use omega_target::Architecture;
 use psi_core::IntegerValue;
 
 use super::{SelectedFormEncodingState, encode_row};
+use crate::stages::encoding::post_allocation_selected_form_encoding::materialization::MaterializationDisposition;
 
 fn fixture() -> (
     ValidatedPhysicalRegisterModel,
@@ -109,8 +110,7 @@ fn xor_zero_admission_reconstructs_canonical_bytes_and_transformed_flags() {
         &machine,
         &physical,
         Aarch64CbnzInstructionDisposition::RetainedV1,
-        None,
-        Some(&disposition),
+        Some(MaterializationDisposition::X86XorZero(&disposition)),
     )
     .unwrap();
     let SelectedFormEncodingState::Encoded { bytes, footprint } = row.state else {
@@ -171,8 +171,7 @@ fn xor_zero_admission_rejects_baseline_destination_count_and_flag_corruption() {
                 &machine,
                 &physical,
                 Aarch64CbnzInstructionDisposition::RetainedV1,
-                None,
-                Some(&disposition),
+                Some(MaterializationDisposition::X86XorZero(&disposition)),
             )
             .is_err()
         );

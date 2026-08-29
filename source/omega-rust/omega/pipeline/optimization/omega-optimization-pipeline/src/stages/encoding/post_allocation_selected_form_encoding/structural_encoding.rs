@@ -89,7 +89,6 @@ pub(super) fn encode_structural_function(
         physical,
         Aarch64CbnzInstructionDisposition::RetainedV1,
         None,
-        None,
     )?;
     if !matches!(
         return_instruction.state,
