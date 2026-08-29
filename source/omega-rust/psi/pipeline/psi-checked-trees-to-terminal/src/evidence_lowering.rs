@@ -2004,17 +2004,18 @@ fn checked_evidence_machine_identity(
             return unsupported("evidence machine has ambiguous generic application identity");
         }
         let replayed_commitment =
-            psi_typed_trees_to_checked_trees::recompute_machine_specialization_commitment(
-                &checked.typed,
-                &checked.facts.contract_plans,
-                specialization,
+            psi_validation::recompute_checked_machine_specialization_commitment(
+                checked,
+                machine.symbol,
             )
             .map_err(|_| {
                 LoweringError::Unsupported(
                     "evidence machine specialization commitment could not be replayed",
                 )
             })?;
-        if specialization.commitment.is_zero() || specialization.commitment != replayed_commitment {
+        if specialization.commitment.is_zero()
+            || specialization.commitment.as_bytes() != replayed_commitment
+        {
             return unsupported("evidence machine specialization commitment does not replay");
         }
         identity = format!(

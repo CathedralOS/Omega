@@ -239,6 +239,46 @@ fn recursive_rust_source(root: &std::path::Path) -> String {
         .join("\n")
 }
 
+fn recursive_production_rust_source(root: &std::path::Path) -> String {
+    let mut pending = vec![root.to_path_buf()];
+    let mut paths = Vec::new();
+    while let Some(directory) = pending.pop() {
+        for entry in std::fs::read_dir(&directory)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", directory.display()))
+        {
+            let path = entry
+                .unwrap_or_else(|error| {
+                    panic!(
+                        "failed to read an entry below {}: {error}",
+                        directory.display()
+                    )
+                })
+                .path();
+            if path.is_dir() {
+                if path.file_name().and_then(|name| name.to_str()) != Some("tests") {
+                    pending.push(path);
+                }
+            } else if path.extension().and_then(|extension| extension.to_str()) == Some("rs")
+                && path.file_name().and_then(|name| name.to_str()) != Some("tests.rs")
+            {
+                paths.push(path);
+            }
+        }
+    }
+    paths.sort();
+    paths
+        .into_iter()
+        .map(|path| {
+            let source = std::fs::read_to_string(&path)
+                .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
+            source
+                .split_once("#[cfg(test)]")
+                .map_or_else(|| source.clone(), |(production, _)| production.to_owned())
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 fn normal_dependency_tree(package: &str) -> String {
     let manifest = workspace_root().join("source/omega-rust/omega/Cargo.toml");
     let output = Command::new(env!("CARGO"))
@@ -1630,8 +1670,6 @@ fn omega_visualizations_consume_psi_semantics_directly() {
         "psi-checked-trees",
         "psi-effects",
         "psi-facts",
-        "psi-symbol-resolved-trees",
-        "psi-syntax-trees",
         "psi-typed-trees",
     ] {
         assert!(
@@ -1730,12 +1768,11 @@ fn checked_semantics_are_psi_owned_without_provider_realization() {
 #[test]
 fn first_psi_source_slice_stays_fail_closed() {
     let root = workspace_root();
-    let path = root.join("source/omega-rust/psi/pipeline/psi-checked-trees-to-terminal/src/lib.rs");
+    let source_root = root.join("source/omega-rust/psi/pipeline/psi-checked-trees-to-terminal/src");
+    let path = source_root.join("lib.rs");
     let source = std::fs::read_to_string(&path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
-    let production_source = source
-        .split_once("#[cfg(test)]")
-        .map_or(source.as_str(), |(production, _)| production);
+    let production_source = recursive_production_rust_source(&source_root);
     let manifest_path =
         root.join("source/omega-rust/psi/pipeline/psi-checked-trees-to-terminal/Cargo.toml");
     let manifest = std::fs::read_to_string(&manifest_path)
@@ -1754,8 +1791,9 @@ fn first_psi_source_slice_stays_fail_closed() {
         "terminal-Psi production must consume checked carriers without a typed-tree dependency"
     );
     assert!(
-        !production_source.contains("psi_typed_trees"),
-        "terminal-Psi production must not reopen typed-tree vocabulary"
+        !production_source.contains("psi_typed_trees")
+            && !production_source.contains("psi_typed_trees_to_checked_trees"),
+        "terminal-Psi production must not reopen typed-tree or typed-to-checked vocabulary"
     );
     assert!(
         !root
