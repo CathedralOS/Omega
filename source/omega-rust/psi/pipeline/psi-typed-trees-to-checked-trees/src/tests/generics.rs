@@ -1424,7 +1424,7 @@ fn static_machine_argument_specializes_body_calls_to_direct_symbols() {
         checked.machine_specializations[0].type_arguments,
         vec!["Card"]
     );
-    assert_ne!(checked.machine_specializations[0].fingerprint, 0);
+    assert_ne!(checked.machine_specializations[0].report_fingerprint, 0);
 
     let direct_call = checked
         .expression_table
@@ -1519,7 +1519,7 @@ fn static_machine_specialization_identity_is_reproducible() {
         lower_typed_trees(typed)
             .expect("specialization should check")
             .machine_specializations[0]
-            .fingerprint
+            .report_fingerprint
     }
 
     let source = r#"
@@ -1535,6 +1535,90 @@ fn static_machine_specialization_identity_is_reproducible() {
         machine Main::run(&mut self) {}
     "#;
     assert_eq!(fingerprint(source), fingerprint(source));
+}
+
+#[test]
+fn specialization_commitment_replays_and_rejects_compact_equal_substitution() {
+    let source = r#"
+        data Card {}
+        data Main {}
+        machine Card::power(value: &Card) {}
+        machine apply<T, machine F>(value: &T)
+        where machine F(item: &T)
+        { F(value); }
+        machine caller(card: &Card) {
+            apply<Card::power>(card);
+        }
+        machine Main::run(&mut self) {}
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let checked = lower_typed_trees(typed).expect("specialization should check");
+    let specialization = &checked.machine_specializations[0];
+    assert!(!specialization.commitment.is_zero());
+    assert_eq!(
+        specialization.machine_argument_contract_commitments.len(),
+        1
+    );
+    assert_eq!(
+        crate::recompute_machine_specialization_commitment(
+            &checked.typed,
+            &checked.facts.contract_plans,
+            specialization,
+        )
+        .expect("exact specialization custody should replay"),
+        specialization.commitment
+    );
+
+    let mut substituted = checked.clone();
+    let compact_report = substituted.typed.machine_specializations[0].report_fingerprint;
+    substituted.typed.machine_specializations[0].type_argument_identities[0]
+        .push_str("|compact-equal-substitute");
+    assert_eq!(
+        substituted.typed.machine_specializations[0].report_fingerprint, compact_report,
+        "the adversary deliberately retains the compact report coordinate"
+    );
+    let contracts = substituted.facts.contract_plans.clone();
+    let diagnostics = crate::monomorphization::bind_specialization_contract_identities(
+        &mut substituted.typed,
+        &contracts,
+    )
+    .expect_err("a compact-equal exact specialization substitution must fail closed");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("stale authoritative commitment")
+    }));
+
+    let mut stale_report_row = checked.clone();
+    stale_report_row.typed.machine_specializations[0]
+        .machine_argument_contract_report_fingerprints[0] ^= 1;
+    let contracts = stale_report_row.facts.contract_plans.clone();
+    assert!(
+        crate::monomorphization::bind_specialization_contract_identities(
+            &mut stale_report_row.typed,
+            &contracts,
+        )
+        .is_err(),
+        "a stale nonzero compact contract row must not be silently refreshed"
+    );
+
+    let mut stale_commitment_row = checked.clone();
+    stale_commitment_row.typed.machine_specializations[0].machine_argument_contract_commitments
+        [0][0] ^= 1;
+    let contracts = stale_commitment_row.facts.contract_plans.clone();
+    assert!(
+        crate::monomorphization::bind_specialization_contract_identities(
+            &mut stale_commitment_row.typed,
+            &contracts,
+        )
+        .is_err(),
+        "a stale nonzero strong contract row must not be silently refreshed"
+    );
 }
 
 #[test]
@@ -2146,7 +2230,10 @@ fn explicit_conformance_binders_keep_distinct_closed_maps_as_distinct_instances(
         .collect::<Vec<_>>();
     assert_eq!(instances.len(), 2);
     assert_ne!(instances[0].instance, instances[1].instance);
-    assert_ne!(instances[0].fingerprint, instances[1].fingerprint);
+    assert_ne!(
+        instances[0].report_fingerprint,
+        instances[1].report_fingerprint
+    );
     assert_ne!(
         instances[0].conformance_argument_report_fingerprints,
         instances[1].conformance_argument_report_fingerprints
@@ -3599,7 +3686,10 @@ fn accepted_template_instances_share_one_commitment_and_pin_argument_contracts()
         instances[0].machine_argument_contract_report_fingerprints,
         instances[1].machine_argument_contract_report_fingerprints
     );
-    assert_ne!(instances[0].fingerprint, instances[1].fingerprint);
+    assert_ne!(
+        instances[0].report_fingerprint,
+        instances[1].report_fingerprint
+    );
 }
 
 #[test]
@@ -3627,7 +3717,7 @@ fn specialization_identity_changes_with_selected_machine_contract() {
         lower_typed_trees(typed)
             .expect("specialization should check")
             .machine_specializations[0]
-            .fingerprint
+            .report_fingerprint
     }
 
     assert_ne!(fingerprint(""), fingerprint("ensures true;"));
@@ -3656,7 +3746,7 @@ fn specialization_identity_ignores_selected_machine_body_edits() {
         lower_typed_trees(typed)
             .expect("specialization should check")
             .machine_specializations[0]
-            .fingerprint
+            .report_fingerprint
     }
 
     assert_eq!(fingerprint(""), fingerprint("let one: i32 = 1;"));
@@ -4239,8 +4329,8 @@ fn const_generic_result_indices_produce_distinct_concrete_machine_instances() {
         ["named(integer-const(2))"]
     );
     assert_ne!(
-        specializations[0].fingerprint,
-        specializations[1].fingerprint
+        specializations[0].report_fingerprint,
+        specializations[1].report_fingerprint
     );
 
     for specialization in specializations {

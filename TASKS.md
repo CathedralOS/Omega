@@ -262,7 +262,16 @@ scanners, or receipts.
   transfer-code custody—plan, Psi, installed occurrence, runtime evidence, and
   sponsor coordinate—rather than rejoining executable runtime authority by the
   aggregate FNV; that compact value remains report-only and a compact-equal Psi
-  substitution rejects. Remaining work is the broader compact-identity
+  substitution rejects. Generic machine specializations now retain the exact
+  pre-substitution template encoding, normalized template and instance
+  identities, exact type/const arguments, selected machine-contract
+  commitments, closed-conformance commitments, and any accepted-template
+  grant. Checked-to-Terminal lowering independently replays a domain-separated
+  SHA-256 specialization commitment and places all 32 bytes in proof-producer
+  identity; the aggregate FNV is report-only, and compact-equal structural or
+  stored-commitment substitution rejects. Accepted universal-template trust
+  admission still relies on the legacy compact template-contract coordinate
+  and remains in the broader inventory. Remaining work is the broader compact-identity
   inventory and repository-wide enforcement, including checked-Psi carriers
   and private/local fields outside the exported-field scanner.
 

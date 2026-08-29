@@ -23,6 +23,15 @@ separate typed-tree snapshot or courier raw typed-derived rows around checking.
 Missing or duplicate template-classification rows reject, and package review
 rejects every unresolved stand-down.
 
+Generic specialization retains the canonical pre-substitution template bytes,
+normalized template/instance identities, exact type and const arguments,
+selected machine-contract commitments, closed-conformance commitments, and any
+accepted-template grant. This stage binds those inputs into a domain-separated
+SHA-256 `MachineSpecializationCommitment`. Checked-to-Terminal lowering replays
+that commitment from retained typed custody and checked contract plans before
+using all 32 bytes as proof-producer identity. The adjacent aggregate FNV is a
+diagnostic and cache report coordinate only.
+
 Target-dependent callback closure crosses this boundary as one explicit
 `TypedToCheckedSettlementInput`. Before checked Psi enters shared ownership,
 the transition closes the exact boundary calling-plan realizations and

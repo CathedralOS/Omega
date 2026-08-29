@@ -128,7 +128,8 @@ pub fn infer_machine_termination_summary(
 
 pub use conformance_applications::close_conformance_application;
 pub use monomorphization::{
-    generic_machine_template_fingerprint, refresh_closed_domain_instance_identities,
+    generic_machine_template_fingerprint, recompute_machine_specialization_commitment,
+    refresh_closed_domain_instance_identities,
 };
 /// The v0 asm-intrinsic discharge gate (asm requires a freestanding boundary
 /// root) -- re-exported for the ORCHESTRATION layer, which owns the

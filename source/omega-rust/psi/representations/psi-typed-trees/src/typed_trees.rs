@@ -251,8 +251,9 @@ fn named_type_reference_through_shells(
 
 /// One compile-time machine specialization. Const arguments are canonical
 /// proof-static identities and static machine arguments are symbols; neither
-/// becomes a runtime value. `fingerprint` is normalized from declaration,
-/// type, const-value, and machine-path identity rather than arena addresses.
+/// becomes a runtime value. `report_fingerprint` is a compact diagnostic/cache
+/// coordinate only; authority-bearing consumers must replay `commitment` from
+/// the retained exact specialization inputs.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MachineSpecialization {
     pub template: psi_symbols::SymbolHandle,
@@ -284,18 +285,58 @@ pub struct MachineSpecialization {
     /// The normalized authored template identity captured before in-place
     /// substitution consumes its generic parameter declarations.
     pub template_contract_fingerprint: u64,
+    /// Exact canonical universal-template encoding captured before in-place
+    /// substitution consumes its generic parameter declarations. This is
+    /// retained so later checked-to-terminal review can independently replay
+    /// the specialization commitment rather than trusting the compact
+    /// template coordinate above.
+    pub canonical_template_contract_bytes: Vec<u8>,
+    /// Package-qualified normalized overload identity of the authored generic
+    /// template before substitution. The concrete `instance` identity is
+    /// rederived from the retained typed program during commitment replay.
+    pub normalized_template_identity: String,
     /// The one accepted-fact commitment this instance relies upon. Every
     /// instance points at the same template commitment; none spends a new
     /// grant. `None` for checked templates.
     pub accepted_template_commitment: Option<String>,
     /// Checked contract identities of the selected static machine arguments.
-    /// Populated after contract-plan construction and folded into
-    /// `fingerprint`, so a selected contract change invalidates the instance.
+    /// Compact report coordinates populated after contract-plan construction.
+    /// Authority uses the adjacent exact commitments.
     pub machine_argument_contract_report_fingerprints: Vec<u64>,
+    /// Exact checked public-contract commitments of the selected static
+    /// machine owners, in specialization argument order.
+    /// Stored as the exact 32-byte digest because the typed representation
+    /// cannot depend cyclically on the checked representation that owns the
+    /// `MachineContractCommitment` newtype.
+    pub machine_argument_contract_commitments: Vec<[u8; 32]>,
     /// Semantic identities of the selected closed conformance maps. These
-    /// commit to the exact requirement-to-realization rows, not arena handles.
+    /// compact values are report coordinates only; exact authority is retained
+    /// by each `conformance_applications[*].commitment`.
     pub conformance_argument_report_fingerprints: Vec<u64>,
-    pub fingerprint: u64,
+    /// Historical compact cache/report coordinate for the complete
+    /// specialization. It is never sufficient authority without `commitment`.
+    pub report_fingerprint: u64,
+    /// Domain-separated SHA-256 commitment to the canonical template, exact
+    /// argument identities, selected machine contracts, closed conformances,
+    /// and accepted-template grant relied upon by this instance.
+    pub commitment: MachineSpecializationCommitment,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct MachineSpecializationCommitment([u8; 32]);
+
+impl MachineSpecializationCommitment {
+    pub const fn from_digest(digest: [u8; 32]) -> Self {
+        Self(digest)
+    }
+
+    pub const fn as_bytes(self) -> [u8; 32] {
+        self.0
+    }
+
+    pub fn is_zero(self) -> bool {
+        self.0 == [0; 32]
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

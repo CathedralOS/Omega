@@ -1194,8 +1194,8 @@ fn closed_indexed_domain_canaries() {
         specializations[1].const_arguments
     );
     assert_ne!(
-        specializations[0].fingerprint,
-        specializations[1].fingerprint
+        specializations[0].report_fingerprint,
+        specializations[1].report_fingerprint
     );
     let contracts = omega_visualizations::machine_contract_manifest_json(&checked);
     assert!(contracts.contains("\"const_arguments\":"));

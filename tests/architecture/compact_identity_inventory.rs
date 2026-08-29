@@ -126,10 +126,6 @@ fn new_exported_u64_fingerprints_require_explicit_classification() {
             1,
         ),
         (
-            "source/omega-rust/psi/representations/psi-typed-trees/src/typed_trees.rs:fingerprint",
-            1,
-        ),
-        (
             "source/omega-rust/psi/representations/psi-typed-trees/src/typed_trees.rs:template_contract_fingerprint",
             1,
         ),
@@ -170,6 +166,33 @@ fn new_exported_u64_fingerprints_require_explicit_classification() {
     assert!(
         stale_or_overstated.is_empty(),
         "the legacy compact-fingerprint ceiling must shrink in the same change that classifies a field; stale or overstated rows: {stale_or_overstated:#?}",
+    );
+}
+
+#[test]
+fn machine_specialization_compact_coordinate_is_report_only_beside_strong_authority() {
+    let root = workspace_root();
+    let typed_path =
+        root.join("source/omega-rust/psi/representations/psi-typed-trees/src/typed_trees.rs");
+    let typed = fs::read_to_string(&typed_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", typed_path.display()));
+    assert!(
+        typed.contains("pub report_fingerprint: u64")
+            && typed.contains("pub commitment: MachineSpecializationCommitment")
+            && typed.contains("pub struct MachineSpecializationCommitment([u8; 32])")
+            && !typed.contains("pub fingerprint: u64"),
+        "machine specializations must label their compact coordinate as a report and retain a strong commitment",
+    );
+
+    let lowering_path = root.join(
+        "source/omega-rust/psi/pipeline/psi-checked-trees-to-terminal/src/evidence_lowering.rs",
+    );
+    let lowering = fs::read_to_string(&lowering_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", lowering_path.display()));
+    assert!(
+        lowering.contains("specialization.commitment.is_zero()")
+            && lowering.contains("specialization.commitment.as_bytes()"),
+        "Terminal evidence identity must replay the strong specialization commitment rather than the report coordinate",
     );
 }
 

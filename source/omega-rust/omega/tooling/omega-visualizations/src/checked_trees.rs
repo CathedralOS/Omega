@@ -4052,7 +4052,7 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
         json.push_str(",\n      \"instance\": ");
         push_json_string(&mut json, row.instance.name.as_str());
         json.push_str(",\n      \"instance_report_fingerprint\": \"0x");
-        json.push_str(&format!("{:016x}", specialization.fingerprint));
+        json.push_str(&format!("{:016x}", specialization.report_fingerprint));
         json.push_str("\",\n      \"instance_contract_report_fingerprint\": \"0x");
         json.push_str(&format!(
             "{:016x}",
