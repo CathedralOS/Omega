@@ -17,8 +17,9 @@
 ; discharge those assumptions.
 ;
 ; The retained per-PC frame state is the canonical product for later phases;
-; consumers must rejoin it through fs_require_visited/fs_require_depth rather
-; than recompute a weaker local fixed point.  Maps indexed by tape PC:
+; consumers must rejoin it through the narrow fs_require_* accessors rather
+; than recompute a weaker local fixed point or read a map directly. Maps
+; indexed by tape PC:
 ;   store family 13516800, visited 13778944, depth 14041088,
 ;   fp kind 16138240, saved-fp token 16400384.
 
@@ -510,8 +511,8 @@ fs_proc_done:
         jmp ranged_transfer_init
 
 ; Checked accessors for consumers of the completed whole-artifact product.
-; Input r20 is the canonical tape PC; fs_require_depth also takes the expected
-; relative depth in r21.  An unreachable PC is never assigned a default depth.
+; Input r20 is the canonical tape PC and r21 is the expected map value where
+; applicable. An unreachable PC is never assigned default frame facts.
 fs_require_visited:
         imm r1, 13778944
         add r1, r20
@@ -533,6 +534,28 @@ fs_require_depth:
         jeq r2, r21, fs_require_depth_ok
         jmp reject
 fs_require_depth_ok:
+        ret
+
+fs_require_fp_kind:
+        mov r22, r20
+        call fs_require_visited
+        imm r1, 16138240
+        add r1, r22
+        loadb r2, r1
+        jeq r2, r21, fs_require_fp_kind_ok
+        jmp reject
+fs_require_fp_kind_ok:
+        ret
+
+fs_require_saved_token:
+        mov r22, r20
+        call fs_require_visited
+        imm r1, 16400384
+        add r1, r22
+        loadb r2, r1
+        jeq r2, r21, fs_require_saved_token_ok
+        jmp reject
+fs_require_saved_token_ok:
         ret
 
 fs_fixedpoint:

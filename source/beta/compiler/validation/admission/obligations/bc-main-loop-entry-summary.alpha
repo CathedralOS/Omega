@@ -26,6 +26,7 @@
 ;   halt payload                       526648
 ;   selected cbyte relation            526656
 ;   public generic loop-test theorem   526664
+;   exact resource frame cutpoint row  638000..638040
 ;
 ; Selected cases: 1=hit NUL, 2=logical end, 3=hit nonzero. Values: 1=zero,
 ; 2=nonzero source byte.  Relation tags denote inherited exact theorem facts,
@@ -33,6 +34,7 @@
 
 main_loop_entry_summary_init:
         call main_loop_require_shape
+        call main_loop_require_resource_frame_cutpoint
         call main_loop_prove_split
         jmp classifier_summary_init
 
@@ -204,6 +206,45 @@ main_loop_require_root_link:
         imm r28, 0
         imm r29, 0
         call summary_require_expr_census
+        ret
+
+; Bind the existing whole-artifact frame product at the exact start of
+; main.resource. This row is deliberately relative: it proves that the main
+; frame is active with one saved caller-FP token, but does not manufacture the
+; caller's absolute r14/r15 values or hidden return slot. Those values remain
+; premises of the later root-entry/returned-call invariant.
+main_loop_require_resource_frame_cutpoint:
+        imm r20, 354
+        imm r21, 69
+        imm r22, 1
+        call exact_block_identity_pc
+        mov r30, r0
+        mov r20, r30
+        imm r21, 16                  ; saved FP plus main's one local
+        call fs_require_depth
+        mov r20, r30
+        imm r21, 1                   ; r14 names the active main frame
+        call fs_require_fp_kind
+        mov r20, r30
+        imm r21, 1                   ; saved caller-FP word remains live
+        call fs_require_saved_token
+
+        imm r20, 638000
+        imm r1, 826492493            ; MFC1
+        store r20, r1
+        imm r1, 8
+        add r20, r1
+        store r20, r30               ; exact pc40251 from block owner
+        add r20, r1
+        imm r2, 16
+        store r20, r2                ; exact relative depth
+        add r20, r1
+        imm r2, 1
+        store r20, r2                ; active-FP kind
+        add r20, r1
+        store r20, r2                ; saved-FP token
+        add r20, r1
+        store r20, r2                ; row complete
         ret
 
 ; ---- Root-reachable relational split ---------------------------------
