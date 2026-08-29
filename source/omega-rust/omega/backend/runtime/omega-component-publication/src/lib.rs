@@ -208,7 +208,8 @@ pub fn bind_installed_runnable_component(
             "component-progress acceptance names a different installed-code occurrence".into(),
         ),
         (Some(committed), Some(progress))
-            if committed.manifest_identity() != progress.manifest().normalized_identity()
+            if committed.manifest_identity()
+                != progress.manifest().compatibility_report_identity()
                 || committed.acceptance_identity()
                     != progress.non_authoritative_report_fingerprint() =>
         {
@@ -218,7 +219,7 @@ pub fn bind_installed_runnable_component(
             )
         }
         (Some(_), Some(progress)) => {
-            (installed_plans != progress.selected_provider_plans()).then(|| {
+            (installed_plans != progress.selected_provider_plan_report_identities()).then(|| {
                 "terminal installation record and progress acceptance retain different selected provider-plan closures"
                     .into()
             })

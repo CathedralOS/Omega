@@ -948,6 +948,16 @@ value, and source-boundary, program-entry, and native-entry consumers replay it
 against the exact evaluated plan. Equal compact coordinates therefore cannot
 replace a selected service requirement's calling convention.
 
+Component-progress and executable-TCB projections preserve the same provider
+authority. Their plan and selected-closure `u64` values are report identities;
+each progress demand, installed provider occurrence, TCB entry, allowance,
+closure-evidence row, and opaque executable admission carries the matching
+`ProviderPlanDigest`. Sealing resolves report plus digest against the retained
+exact selected closure. A compact-equal foreign plan therefore cannot issue a
+progress establishment or authorize an executable entry. Selected-provider
+application and coverage coordinates likewise use report vocabulary beside
+the exact plans, application rows, and strong closure digest.
+
 The external-root producer preserves the same distinction before that
 projection. Its normalized root, provider-execution, opaque-exit, stack, fuel,
 boundary-contract, and selected-closure FNV values are named report
@@ -995,7 +1005,10 @@ locator bytes, interpreter paths, target profiles, relocation envelopes, and
 relocated text digests remain the replay subjects. Layout-plan, generated
 writer, typed-boundary calling-plan, and executable-fragment accessors likewise
 label compact projections as reports; exact structural plans and installed
-contexts continue to decide compatibility and admission.
+contexts continue to decide compatibility and admission. ELF dynamic-import,
+symbol-version, and procedure-linkage rows label their copied locator FNV as a
+compatibility report identity while continuing to replay the exact target,
+object, symbol, version, and relocation sites.
 
 Owner admission follows the same rule before reporting. A provider grant
 retains the complete selected plan and its `ProviderPlanDigest`; a generic

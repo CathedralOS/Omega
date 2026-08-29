@@ -596,7 +596,7 @@ fn selected_interrupt_completion_for(
     .expect("selected interrupt completion provider")
     .with_installation_reach_resolutions(vec![omega_effects::InstallationReachResolution {
         requirement_identity,
-        provider_plan_identity: identity,
+        provider_plan_report_identity: identity,
         upper_bound: vec!["PortIo".into(), "MachineControl".into()],
         resolved_row: resolved_row
             .iter()
@@ -635,7 +635,7 @@ fn root_service_reach_substitutes_selected_rows_and_rejects_absence() {
     assert_eq!(reach.resolutions().len(), 1);
     assert_eq!(
         reach.selected_provider_closure_report_fingerprint(),
-        selected.normalized_identity()
+        selected.report_fingerprint()
     );
     assert_eq!(
         reach.selected_provider_closure_digest(),
@@ -1725,7 +1725,7 @@ fn program_local_tcb_acceptance(seed: u64) -> ExecutableTcbProfileAcceptance {
             known_entries: Vec::new(),
             completeness: ScopeCompleteness::Complete {
                 scope: ExecutionScope::CallerAddressSpace,
-                selected_provider_closure_identity: seed,
+                selected_provider_closure_report_identity: seed,
                 opaque_closure_evidence: Vec::new(),
                 runtime_closure_evidence: Vec::new(),
             },
@@ -4005,7 +4005,7 @@ fn interrupt_completion_route_rejects_every_coordinate_drift_and_returns_retry_c
     assert_eq!(acknowledgement.identity(), acknowledgement_identity);
     receipt.route = exact_route.clone();
 
-    receipt.route.resolution.provider_plan_identity ^= 1;
+    receipt.route.resolution.provider_plan_report_identity ^= 1;
     let error = acknowledgement
         .complete(receipt)
         .expect_err("completion provider-plan drift must reject");
@@ -4641,7 +4641,7 @@ fn installation_records_the_complete_external_root_and_pins_code_liveness() {
     assert_eq!(record.service_reach, ["PortIo", "Timer"]);
     assert_eq!(
         record.selected_provider_closure_report_fingerprint,
-        selected.normalized_identity()
+        selected.report_fingerprint()
     );
     assert_eq!(
         record.selected_provider_closure_digest,
@@ -6002,6 +6002,7 @@ fn progress_installation_fixture() -> (
 
 fn provider_occurrence_binding(
     code: &InstalledCode,
+    selected: &SelectedProviderPlanFacts,
     plan: u64,
     receipt: u64,
     occurrence: u64,
@@ -6009,6 +6010,10 @@ fn provider_occurrence_binding(
 ) -> ProviderOccurrencePlanBinding {
     ProviderOccurrencePlanBinding::new(
         plan,
+        selected
+            .plan_by_identity(plan)
+            .expect("fixture plan belongs to the selected closure")
+            .clone(),
         ProviderOccurrenceInstallationReceipt::from_provider(
             root_id(
                 receipt,
@@ -6074,6 +6079,7 @@ fn component_progress_seals_against_distinct_exact_subject_and_issuer_occurrence
             [
                 provider_occurrence_binding(
                     &code,
+                    &selected,
                     scheduler_plan,
                     54_010,
                     54_020,
@@ -6081,6 +6087,7 @@ fn component_progress_seals_against_distinct_exact_subject_and_issuer_occurrence
                 ),
                 provider_occurrence_binding(
                     &code,
+                    &selected,
                     admission_plan,
                     54_011,
                     54_021,
@@ -6116,7 +6123,7 @@ fn component_progress_seals_against_distinct_exact_subject_and_issuer_occurrence
     let mut expected_provider_plans = vec![scheduler_plan, admission_plan];
     expected_provider_plans.sort_unstable();
     assert_eq!(
-        acceptance.selected_provider_plans(),
+        acceptance.selected_provider_plan_report_identities(),
         expected_provider_plans.as_slice()
     );
     let colliding_code = installed_code_with_fill(54_000, entry_id(54_001), 1);
@@ -6154,6 +6161,7 @@ fn component_progress_sealing_is_transactional_and_receipt_facts_are_reusable() 
             [
                 provider_occurrence_binding(
                     &code,
+                    &selected,
                     scheduler_plan,
                     55_010,
                     55_020,
@@ -6161,6 +6169,7 @@ fn component_progress_sealing_is_transactional_and_receipt_facts_are_reusable() 
                 ),
                 provider_occurrence_binding(
                     &code,
+                    &selected,
                     admission_plan,
                     55_011,
                     55_021,
@@ -6218,6 +6227,7 @@ fn provider_occurrence_and_progress_route_admission_fail_closed() {
             [
                 provider_occurrence_binding(
                     &other_code,
+                    &selected,
                     scheduler_plan,
                     56_010,
                     56_020,
@@ -6225,6 +6235,7 @@ fn provider_occurrence_and_progress_route_admission_fail_closed() {
                 ),
                 provider_occurrence_binding(
                     &code,
+                    &selected,
                     admission_plan,
                     56_011,
                     56_021,
@@ -6241,6 +6252,7 @@ fn provider_occurrence_and_progress_route_admission_fail_closed() {
             [
                 provider_occurrence_binding(
                     &code,
+                    &selected,
                     scheduler_plan,
                     56_010,
                     56_020,
@@ -6248,6 +6260,7 @@ fn provider_occurrence_and_progress_route_admission_fail_closed() {
                 ),
                 provider_occurrence_binding(
                     &code,
+                    &selected,
                     admission_plan,
                     56_011,
                     56_021,
@@ -6301,6 +6314,7 @@ fn progress_receipt_identity_and_grant_invocation_cannot_be_rebound() {
             [
                 provider_occurrence_binding(
                     &code,
+                    &selected,
                     scheduler_plan,
                     57_010,
                     57_020,
@@ -6308,6 +6322,7 @@ fn progress_receipt_identity_and_grant_invocation_cannot_be_rebound() {
                 ),
                 provider_occurrence_binding(
                     &code,
+                    &selected,
                     admission_plan,
                     57_011,
                     57_021,

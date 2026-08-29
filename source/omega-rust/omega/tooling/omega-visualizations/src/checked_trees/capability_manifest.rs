@@ -275,7 +275,7 @@ fn entry_capability_manifest(
             provider_service_package: demand
                 .provider_service_package_identity
                 .map(package_identity_hex),
-            provider_plan_report_identity: demand.provider_plan_identity,
+            provider_plan_report_identity: demand.provider_plan_report_identity,
             requirement: demand.requirement_identity.clone(),
             requirement_owner_package: demand
                 .requirement_owner_package_identity
@@ -326,7 +326,7 @@ fn entry_capability_manifest(
         may_suspend: suspension.plan.checked_may_suspend,
         may_block: blocking.plan.checked_may_block,
         component_progress_manifest_report_identity: component_progress
-            .map(omega_effects::ComponentProgressManifest::normalized_identity),
+            .map(omega_effects::ComponentProgressManifest::compatibility_report_identity),
         build_bound_progress_demands,
         capability_flow_counts: capability_flow_counts(program),
     }
@@ -406,7 +406,7 @@ fn installation_bound_reaches(
                     "capability manifest invariant: selected installation reach bound drifted from checked entry"
                 );
                 ResolvedInstallationReachManifest {
-                    provider_plan_report_identity: resolution.provider_plan_identity,
+                    provider_plan_report_identity: resolution.provider_plan_report_identity,
                     services: resolution.resolved_row.clone(),
                 }
             });
@@ -923,7 +923,7 @@ mod tests {
         let selected = selected_without_reach
             .with_installation_reach_resolutions(vec![omega_effects::InstallationReachResolution {
                 requirement_identity,
-                provider_plan_identity: provider_identity,
+                provider_plan_report_identity: provider_identity,
                 upper_bound: vec!["MachineControl".into(), "PortIo".into()],
                 resolved_row: vec!["PortIo".into()],
             }])

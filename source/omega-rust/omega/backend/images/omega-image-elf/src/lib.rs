@@ -165,12 +165,12 @@ fn emit_elf_executable(
             ),
             ElfImportLocator::Versioned {
                 target_profile,
-                normalized_identity,
+                compatibility_report_identity,
                 object,
                 symbol,
                 version,
             } => format!(
-                "versioned ELF foreign locator 0x{normalized_identity:016x} for target `{}` reached final emission with object {}, symbol {}, version {}, and {} exact relocation site(s); runnable dynamic ELF emission remains fail-closed before image mutation because no target-owned ELF loader plan carries the exact PT_INTERP bytes",
+                "versioned ELF foreign locator report 0x{compatibility_report_identity:016x} for target `{}` reached final emission with object {}, symbol {}, version {}, and {} exact relocation site(s); runnable dynamic ELF emission remains fail-closed before image mutation because no target-owned ELF loader plan carries the exact PT_INTERP bytes",
                 target_profile.target_name(),
                 hex_bytes(object),
                 hex_bytes(symbol),

@@ -1,3 +1,6 @@
+#[cfg(test)]
+use crate::provider_plan::ProviderPlan;
+use crate::provider_plan::ProviderPlanDigest;
 use crate::{
     ContainmentEvidence, ExecutableEntryOrigin, ExecutableIdentity, ExecutableTcbEntry,
     ExecutableTcbManifest, ExecutionScope, ImplementationEvidence, ProviderIdentity,
@@ -9,7 +12,8 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IsolatedExecutableScopeCandidate {
     pub provider_identity: ProviderIdentity,
-    pub provider_plan_identity: u64,
+    pub provider_plan_report_identity: u64,
+    pub provider_plan_digest: ProviderPlanDigest,
     pub endpoint_identity: String,
     pub endpoint_receipt_identity: String,
     pub isolated_manifest_receipt_identity: String,
@@ -98,7 +102,8 @@ impl ExecutableTcbManifestSet {
         let parent_scope = manifest_scope(&self.root);
         let endpoint = ExecutableTcbEntry {
             provider_identity: candidate.provider_identity,
-            provider_plan_identity: candidate.provider_plan_identity,
+            provider_plan_report_identity: candidate.provider_plan_report_identity,
+            provider_plan_digest: candidate.provider_plan_digest,
             selected_requirement: None,
             executable_identity: ExecutableIdentity::IsolatedProviderEndpoint {
                 scope_identity: candidate.isolated_scope_identity,
@@ -139,10 +144,18 @@ fn validate_candidate(candidate: &mut IsolatedExecutableScopeCandidate) -> Resul
     if provider_name.trim().is_empty() {
         return Err("isolated executable scope has no provider identity".into());
     }
-    if candidate.provider_plan_identity == 0 {
+    if candidate.provider_plan_report_identity == 0 {
         return Err(
             "isolated executable scope has the reserved zero provider-plan identity".into(),
         );
+    }
+    if candidate
+        .provider_plan_digest
+        .as_bytes()
+        .iter()
+        .all(|byte| *byte == 0)
+    {
+        return Err("isolated executable scope has a zero provider-plan digest".into());
     }
     if candidate.isolated_scope_identity == 0 {
         return Err("isolated executable scope has the reserved zero scope identity".into());
@@ -229,7 +242,8 @@ mod tests {
     fn candidate(scope_identity: u64) -> IsolatedExecutableScopeCandidate {
         IsolatedExecutableScopeCandidate {
             provider_identity: ProviderIdentity::NominalType("SandboxedCodec".into()),
-            provider_plan_identity: 77,
+            provider_plan_report_identity: 77,
+            provider_plan_digest: ProviderPlan::default().identity_digest(),
             endpoint_identity: "endpoint:codec-v1".into(),
             endpoint_receipt_identity: "receipt:endpoint-v1".into(),
             isolated_manifest_receipt_identity: "receipt:manifest-v1".into(),
@@ -335,7 +349,8 @@ mod tests {
             allow_static_current_artifact_checked_bodies: true,
             exact_allowances: vec![ExactExecutableTcbAllowance {
                 provider_identity: endpoint.provider_identity.clone(),
-                provider_plan_identity: endpoint.provider_plan_identity,
+                provider_plan_report_identity: endpoint.provider_plan_report_identity,
+                provider_plan_digest: endpoint.provider_plan_digest,
                 selected_requirement: endpoint.selected_requirement.clone(),
                 executable_identity: endpoint.executable_identity.clone(),
                 implementation_evidence: endpoint.implementation_evidence.clone(),

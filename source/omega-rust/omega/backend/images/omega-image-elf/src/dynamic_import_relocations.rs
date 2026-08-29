@@ -125,7 +125,7 @@ pub(crate) struct ElfProcedureLinkageRelocationContents {
 pub(crate) struct ElfLogicalProcedureLinkageSlot {
     pub(crate) logical_ordinal: u32,
     pub(crate) request_index: usize,
-    pub(crate) normalized_identity: u64,
+    pub(crate) compatibility_report_identity: u64,
     pub(crate) dynamic_symbol_index: u32,
     pub(crate) version_index: u16,
     pub(crate) call_sites: Vec<ElfDirectImportCallSite>,
@@ -215,10 +215,10 @@ fn derive_contents(
         let request = inputs.imports().get(binding.request_index).ok_or_else(|| {
             Diagnostic::error("ELF dynamic binding request index exceeds canonical imports")
         })?;
-        let normalized_identity = request_normalized_identity(request)?;
+        let compatibility_report_identity = request_compatibility_report_identity(request)?;
         require(
-            normalized_identity == binding.normalized_identity,
-            "ELF dynamic binding identity does not match its canonical import request",
+            compatibility_report_identity == binding.compatibility_report_identity,
+            "ELF dynamic binding report identity does not match its canonical import request",
         )?;
         let call_sites = canonical_call_sites(
             inputs.interpreter().target(),
@@ -229,7 +229,7 @@ fn derive_contents(
         slots.push(ElfLogicalProcedureLinkageSlot {
             logical_ordinal,
             request_index: binding.request_index,
-            normalized_identity,
+            compatibility_report_identity,
             dynamic_symbol_index: binding.dynamic_symbol_index,
             version_index: binding.version_index,
             call_sites,
@@ -259,12 +259,12 @@ fn target_relocation_spec(target: TargetProfile) -> Result<(RelocationKind, u32)
     }
 }
 
-fn request_normalized_identity(request: &ElfImportRequest) -> Result<u64, Diagnostic> {
+fn request_compatibility_report_identity(request: &ElfImportRequest) -> Result<u64, Diagnostic> {
     match &request.locator {
         ElfImportLocator::Versioned {
-            normalized_identity,
+            compatibility_report_identity,
             ..
-        } => Ok(*normalized_identity),
+        } => Ok(*compatibility_report_identity),
         ElfImportLocator::StringBackedBootstrap { .. } => Err(Diagnostic::error(
             "string-backed import reached normalized ELF procedure linkage",
         )),
@@ -429,7 +429,7 @@ fn validate_contents(
         let request = inputs.imports().get(binding.request_index).ok_or_else(|| {
             Diagnostic::error("validated ELF binding exceeds canonical import requests")
         })?;
-        let normalized_identity = request_normalized_identity(request)?;
+        let compatibility_report_identity = request_compatibility_report_identity(request)?;
         let expected_sites = canonical_call_sites(
             inputs.interpreter().target(),
             &inputs.image().memory.text,
@@ -439,7 +439,7 @@ fn validate_contents(
         let expected_slot = ElfLogicalProcedureLinkageSlot {
             logical_ordinal,
             request_index: binding.request_index,
-            normalized_identity,
+            compatibility_report_identity,
             dynamic_symbol_index: binding.dynamic_symbol_index,
             version_index: binding.version_index,
             call_sites: expected_sites,
@@ -451,7 +451,7 @@ fn validate_contents(
             addend: 0,
         };
         require(
-            normalized_identity == binding.normalized_identity
+            compatibility_report_identity == binding.compatibility_report_identity
                 && contents.slots.get(index) == Some(&expected_slot)
                 && contents.jump_slot_relocations.get(index) == Some(&expected_relocation),
             "ELF procedure-linkage slot or JUMP_SLOT row drifted from its exact import binding",
@@ -473,7 +473,8 @@ fn require_unique_semantic_rows(
                 .all(|(other_index, other)| {
                     other_index == index
                         || (other.logical_ordinal != slot.logical_ordinal
-                            && other.normalized_identity != slot.normalized_identity
+                            && other.compatibility_report_identity
+                                != slot.compatibility_report_identity
                             && other.dynamic_symbol_index != slot.dynamic_symbol_index)
                 }),
             "ELF procedure-linkage slots duplicate an ordinal, import identity, or dynamic symbol",
@@ -516,7 +517,7 @@ fn non_authoritative_linkage_compatibility_fingerprint(
     hash.bytes(&(contents.slots.len() as u64).to_le_bytes());
     for slot in &contents.slots {
         hash.bytes(&slot.logical_ordinal.to_le_bytes());
-        hash.bytes(&slot.normalized_identity.to_le_bytes());
+        hash.bytes(&slot.compatibility_report_identity.to_le_bytes());
         hash.bytes(&slot.dynamic_symbol_index.to_le_bytes());
         hash.bytes(&slot.version_index.to_le_bytes());
         hash.bytes(&(slot.call_sites.len() as u64).to_le_bytes());
@@ -926,7 +927,9 @@ mod tests {
             Box::new(|candidate| candidate.contents.slots.swap(0, 1)),
             Box::new(|candidate| candidate.contents.slots[0].logical_ordinal += 1),
             Box::new(|candidate| candidate.contents.slots[0].request_index = usize::MAX),
-            Box::new(|candidate| candidate.contents.slots[0].normalized_identity ^= 1),
+            Box::new(|candidate| {
+                candidate.contents.slots[0].compatibility_report_identity ^= 1;
+            }),
             Box::new(|candidate| candidate.contents.slots[0].dynamic_symbol_index += 1),
             Box::new(|candidate| candidate.contents.slots[0].version_index += 1),
             Box::new(|candidate| {

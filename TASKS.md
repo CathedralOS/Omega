@@ -308,8 +308,13 @@ scanners, or receipts.
   cleared the migration ceiling. Native-fuel target policy also carries a
   domain-separated SHA-256 commitment to the complete canonical transfer plan;
   its historical plan `u64` is a report identity and cannot admit a compact-
-  equal substituted plan. Remaining work is classifying identity-named fields
-  outside both fingerprint scanners.
+  equal substituted plan. Selected-provider closure/application/coverage,
+  component-progress demand, executable-TCB, and ELF dynamic-import compact
+  identity fields now use explicit report vocabulary. Component-progress and
+  executable-TCB admission also retain and replay `ProviderPlanDigest`; a
+  compact-equal candidate with the wrong plan digest rejects. Remaining work
+  is classifying the other identity-named fields outside both fingerprint
+  scanners.
 
   Acceptance: an automated architecture test rejects new authoritative
   `u64`-only identities, every retained FNV use has a local non-authoritative

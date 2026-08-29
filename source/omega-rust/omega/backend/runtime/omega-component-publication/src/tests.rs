@@ -199,6 +199,10 @@ fn runnable_fixture_at(seed: u64, placement_base: u64) -> RunnableFixture {
             &selected,
             [ProviderOccurrencePlanBinding::new(
                 provider_plan,
+                selected
+                    .plan_by_identity(provider_plan)
+                    .expect("selected fixture plan")
+                    .clone(),
                 ProviderOccurrenceInstallationReceipt::from_provider(
                     root_id(
                         seed + 31,
@@ -468,7 +472,7 @@ fn tcb_acceptance(name: &str, closure: u64) -> ExecutableTcbProfileAcceptance {
             known_entries: Vec::new(),
             completeness: ScopeCompleteness::Complete {
                 scope: ExecutionScope::CallerAddressSpace,
-                selected_provider_closure_identity: closure,
+                selected_provider_closure_report_identity: closure,
                 opaque_closure_evidence: Vec::new(),
                 runtime_closure_evidence: Vec::new(),
             },

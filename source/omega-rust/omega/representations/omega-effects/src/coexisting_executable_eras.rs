@@ -1,3 +1,6 @@
+#[cfg(test)]
+use crate::provider_plan::ProviderPlan;
+use crate::provider_plan::ProviderPlanDigest;
 use crate::{
     ContainmentEvidence, ContainmentGuarantee, ExecutableEntryOrigin, ExecutableIdentity,
     ExecutableTcbEntry, ExecutableTcbProfileAcceptance, ExecutionScope, ImplementationEvidence,
@@ -47,7 +50,8 @@ struct ExecutableEntryContribution {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CoexistingExecutableTcbEntry {
     pub provider_identity: ProviderIdentity,
-    pub provider_plan_identity: u64,
+    pub provider_plan_report_identity: u64,
+    pub provider_plan_digest: ProviderPlanDigest,
     pub selected_requirement: Option<SelectedProviderRequirement>,
     pub executable_identity: ExecutableIdentity,
     pub implementation_evidence: ImplementationEvidence,
@@ -343,7 +347,8 @@ fn accumulate_manifest(
         } else {
             entries.push(CoexistingExecutableTcbEntry {
                 provider_identity: entry.provider_identity.clone(),
-                provider_plan_identity: entry.provider_plan_identity,
+                provider_plan_report_identity: entry.provider_plan_report_identity,
+                provider_plan_digest: entry.provider_plan_digest,
                 selected_requirement: entry.selected_requirement.clone(),
                 executable_identity: entry.executable_identity.clone(),
                 implementation_evidence: entry.implementation_evidence.clone(),
@@ -368,7 +373,8 @@ fn same_executable_subject(
     right: &ExecutableTcbEntry,
 ) -> bool {
     left.provider_identity == right.provider_identity
-        && left.provider_plan_identity == right.provider_plan_identity
+        && left.provider_plan_report_identity == right.provider_plan_report_identity
+        && left.provider_plan_digest == right.provider_plan_digest
         && left.selected_requirement == right.selected_requirement
         && left.executable_identity == right.executable_identity
         && left.implementation_evidence == right.implementation_evidence
@@ -387,7 +393,8 @@ mod tests {
     fn entry(name: &str, containment: Vec<ContainmentEvidence>) -> ExecutableTcbEntry {
         ExecutableTcbEntry {
             provider_identity: ProviderIdentity::NominalType("RuntimeServices".into()),
-            provider_plan_identity: 31,
+            provider_plan_report_identity: 31,
+            provider_plan_digest: ProviderPlan::default().identity_digest(),
             selected_requirement: None,
             executable_identity: ExecutableIdentity::CurrentArtifactMachine(name.into()),
             implementation_evidence: ImplementationEvidence::CheckedBody {
@@ -421,7 +428,8 @@ mod tests {
             .requirement_identity = "named-callable:path=Convert::convert;result=Saturating".into();
         let unioned = CoexistingExecutableTcbEntry {
             provider_identity: first.provider_identity.clone(),
-            provider_plan_identity: first.provider_plan_identity,
+            provider_plan_report_identity: first.provider_plan_report_identity,
+            provider_plan_digest: first.provider_plan_digest,
             selected_requirement: first.selected_requirement.clone(),
             executable_identity: first.executable_identity.clone(),
             implementation_evidence: first.implementation_evidence.clone(),
@@ -464,7 +472,7 @@ mod tests {
     fn complete(identity: u64) -> ScopeCompleteness {
         ScopeCompleteness::Complete {
             scope: ExecutionScope::CallerAddressSpace,
-            selected_provider_closure_identity: identity,
+            selected_provider_closure_report_identity: identity,
             opaque_closure_evidence: Vec::new(),
             runtime_closure_evidence: Vec::new(),
         }
@@ -520,7 +528,8 @@ mod tests {
         let mut set = CoexistingExecutableTcbSet::new(baseline).expect("baseline");
         let cause = IncompleteCause::SelectedOpaqueProvider {
             provider_identity: ProviderIdentity::NominalType("OpaqueCodec".into()),
-            provider_plan_identity: 92,
+            provider_plan_report_identity: 92,
+            provider_plan_digest: ProviderPlan::default().identity_digest(),
             method: "decode".into(),
             requirement_identity: "Codec::decode".into(),
             binding: OpaqueInProcessBinding::StringBackedImportBootstrap {
@@ -619,7 +628,7 @@ mod tests {
             known_entries: Vec::new(),
             completeness: ScopeCompleteness::Complete {
                 scope: ExecutionScope::IsolatedProvider(77),
-                selected_provider_closure_identity: 77,
+                selected_provider_closure_report_identity: 77,
                 opaque_closure_evidence: Vec::new(),
                 runtime_closure_evidence: Vec::new(),
             },

@@ -33,7 +33,7 @@ pub fn executable_tcb_manifest_value_json(
     match &manifest.completeness {
         ScopeCompleteness::Complete {
             scope,
-            selected_provider_closure_identity,
+            selected_provider_closure_report_identity,
             opaque_closure_evidence,
             runtime_closure_evidence,
         } => {
@@ -42,14 +42,14 @@ pub fn executable_tcb_manifest_value_json(
             json.push_str(",\n    \"evidence\": [\n      {\"kind\": \"selected_provider_closure\", \"identity\": ");
             push_json_string(
                 &mut json,
-                &format!("0x{selected_provider_closure_identity:016x}"),
+                &format!("0x{selected_provider_closure_report_identity:016x}"),
             );
             json.push('}');
             for evidence in opaque_closure_evidence {
-                json.push_str(",\n      {\"kind\": \"admitted_opaque_executable_closure\", \"provider_plan_identity\": ");
+                json.push_str(",\n      {\"kind\": \"admitted_opaque_executable_closure\", \"provider_plan_report_identity\": ");
                 push_json_string(
                     &mut json,
-                    &format!("0x{:016x}", evidence.provider_plan_identity),
+                    &format!("0x{:016x}", evidence.provider_plan_report_identity),
                 );
                 json.push_str(", \"method\": ");
                 push_json_string(&mut json, &evidence.method);
@@ -87,10 +87,10 @@ pub fn executable_tcb_manifest_value_json(
                 if index > 0 {
                     json.push(',');
                 }
-                json.push_str("\n      {\"kind\": \"admitted_opaque_executable_closure\", \"provider_plan_identity\": ");
+                json.push_str("\n      {\"kind\": \"admitted_opaque_executable_closure\", \"provider_plan_report_identity\": ");
                 push_json_string(
                     &mut json,
-                    &format!("0x{:016x}", evidence.provider_plan_identity),
+                    &format!("0x{:016x}", evidence.provider_plan_report_identity),
                 );
                 json.push_str(", \"method\": ");
                 push_json_string(&mut json, &evidence.method);
@@ -145,14 +145,16 @@ fn push_incomplete_cause_json(json: &mut String, cause: &IncompleteCause) {
     match cause {
         IncompleteCause::SelectedOpaqueProvider {
             provider_identity,
-            provider_plan_identity,
+            provider_plan_report_identity,
+            provider_plan_digest,
             method,
             requirement_identity,
             binding,
         } => {
             push_provider_identity_json(json, provider_identity);
-            json.push_str(",\n        \"provider_plan_identity\": ");
-            push_json_string(json, &format!("0x{provider_plan_identity:016x}"));
+            json.push_str(",\n        \"provider_plan_report_identity\": ");
+            push_json_string(json, &format!("0x{provider_plan_report_identity:016x}"));
+            push_provider_plan_digest_json(json, provider_plan_digest);
             json.push_str(",\n        \"method\": ");
             push_json_string(json, method);
             json.push_str(",\n        \"requirement_identity\": ");
@@ -162,13 +164,15 @@ fn push_incomplete_cause_json(json: &mut String, cause: &IncompleteCause) {
         }
         IncompleteCause::OmegaRuntimeAdmission {
             provider_identity,
-            provider_plan_identity,
+            provider_plan_report_identity,
+            provider_plan_digest,
             executable_identity,
             admission_receipt_identity,
         } => {
             push_provider_identity_json(json, provider_identity);
-            json.push_str(",\n        \"provider_plan_identity\": ");
-            push_json_string(json, &format!("0x{provider_plan_identity:016x}"));
+            json.push_str(",\n        \"provider_plan_report_identity\": ");
+            push_json_string(json, &format!("0x{provider_plan_report_identity:016x}"));
+            push_provider_plan_digest_json(json, provider_plan_digest);
             json.push_str(",\n        \"executable_identity\": ");
             push_json_string(json, executable_identity);
             json.push_str(",\n        \"admission_receipt_identity\": ");
@@ -193,8 +197,11 @@ fn push_runtime_closure_evidence_json(
         has_prior = true;
         json.push_str("\n      {\"kind\": \"omega_runtime_executable_closure\", \"provider\": ");
         push_provider_identity_json(json, &evidence.provider_identity);
-        json.push_str(", \"provider_plan_identity\": ");
-        push_json_string(json, &format!("0x{:016x}", evidence.provider_plan_identity));
+        json.push_str(", \"provider_plan_report_identity\": ");
+        push_json_string(
+            json,
+            &format!("0x{:016x}", evidence.provider_plan_report_identity),
+        );
         json.push_str(", \"executable_identity\": ");
         push_json_string(json, &evidence.executable_identity);
         json.push_str(", \"admission_receipt_identity\": ");
@@ -208,8 +215,12 @@ fn push_runtime_closure_evidence_json(
 fn push_entry_json(json: &mut String, entry: &ExecutableTcbEntry) {
     json.push_str("\n      \"provider\": ");
     push_provider_identity_json(json, &entry.provider_identity);
-    json.push_str(",\n      \"provider_plan_identity\": ");
-    push_json_string(json, &format!("0x{:016x}", entry.provider_plan_identity));
+    json.push_str(",\n      \"provider_plan_report_identity\": ");
+    push_json_string(
+        json,
+        &format!("0x{:016x}", entry.provider_plan_report_identity),
+    );
+    push_provider_plan_digest_json(json, &entry.provider_plan_digest);
     json.push_str(",\n      \"selected_requirement\": ");
     if let Some(requirement) = &entry.selected_requirement {
         json.push_str("{\"method\": ");
@@ -415,6 +426,17 @@ const fn containment_guarantee_name(
     }
 }
 
+fn push_provider_plan_digest_json(
+    json: &mut String,
+    digest: &omega_effects::provider_plan::ProviderPlanDigest,
+) {
+    json.push_str(",\n        \"provider_plan_digest\": \"");
+    for byte in digest.as_bytes() {
+        write!(json, "{byte:02x}").expect("writing to String cannot fail");
+    }
+    json.push('"');
+}
+
 fn push_json_string(output: &mut String, value: &str) {
     output.push('"');
     for ch in value.chars() {
@@ -497,7 +519,8 @@ mod tests {
         assert!(json.contains("\"known_entries\": []"));
         assert!(json.contains("\"status\": \"incomplete\""));
         assert!(json.contains("\"reason\": \"uncontained_opaque_in_process_provider\""));
-        assert!(json.contains("\"provider_plan_identity\": \"0x"));
+        assert!(json.contains("\"provider_plan_report_identity\": \"0x"));
+        assert!(json.contains("\"provider_plan_digest\": \""));
         assert!(!json.contains("omega_runtime_admission"));
     }
 
@@ -534,10 +557,12 @@ mod tests {
             symbol: "read".into(),
         });
         let plan_identity = selected.plans()[0].report_fingerprint();
+        let plan_digest = selected.plans()[0].identity_digest();
         let selected = selected
             .with_opaque_executable_admissions([
                 omega_effects::OpaqueExecutableAdmissionCandidate {
-                    provider_plan_identity: plan_identity,
+                    provider_plan_report_identity: plan_identity,
+                    provider_plan_digest: plan_digest,
                     method: "read".into(),
                     requirement_identity: "Storage::read".into(),
                     binding: OpaqueInProcessBinding::StringBackedImportBootstrap {
@@ -577,7 +602,9 @@ mod tests {
         ledger
             .admit(omega_effects::OmegaRuntimeExecutableAdmissionCandidate {
                 provider_identity: ProviderIdentity::NominalType("RuntimePlugin".into()),
-                provider_plan_identity: 91,
+                provider_plan_report_identity: 91,
+                provider_plan_digest: omega_effects::provider_plan::ProviderPlan::default()
+                    .identity_digest(),
                 executable_identity: "sha256:runtime-plugin-v1".into(),
                 implementation_evidence_identity: "receipt:implementation-v1".into(),
                 admission_receipt_identity: "receipt:omega-loader-v1".into(),
@@ -608,7 +635,9 @@ mod tests {
         let mut set = omega_effects::ExecutableTcbManifestSet::new(root).expect("root manifest");
         set.attach_isolated_scope(omega_effects::IsolatedExecutableScopeCandidate {
             provider_identity: ProviderIdentity::NominalType("SandboxedCodec".into()),
-            provider_plan_identity: 501,
+            provider_plan_report_identity: 501,
+            provider_plan_digest: omega_effects::provider_plan::ProviderPlan::default()
+                .identity_digest(),
             endpoint_identity: "endpoint:codec-v1".into(),
             endpoint_receipt_identity: "receipt:endpoint-v1".into(),
             isolated_manifest_receipt_identity: "receipt:isolated-manifest-v1".into(),

@@ -624,7 +624,7 @@ fn source_terminal_installation_publishes_only_with_retained_code_custody() {
                 known_entries: Vec::new(),
                 completeness: ScopeCompleteness::Complete {
                     scope: ExecutionScope::CallerAddressSpace,
-                    selected_provider_closure_identity: identity,
+                    selected_provider_closure_report_identity: identity,
                     opaque_closure_evidence: Vec::new(),
                     runtime_closure_evidence: Vec::new(),
                 },
@@ -783,8 +783,10 @@ fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
 
     let roots = InstalledRootLedger::claim(&mut installed)
         .expect("exact installation claims its registry before deployment");
+    let stray_plan = omega_effects::provider_plan::ProviderPlan::default();
     let stray_binding = ProviderOccurrencePlanBinding::new(
-        0x55ff,
+        stray_plan.report_fingerprint(),
+        stray_plan,
         ProviderOccurrenceInstallationReceipt::from_provider(
             ProviderOccurrenceInstallationReceiptId::from_normalized_identity(0x55f0)
                 .expect("stray provider receipt"),
@@ -1041,7 +1043,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
     );
     assert_eq!(
         provider.provider_plan().normalized_identity(),
-        demand.provider_plan_identity
+        demand.provider_plan_report_identity
     );
 
     let missing_provider =
@@ -1096,16 +1098,16 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
     assert!(!candidate.semantic_bytes().is_empty());
     assert!(!candidate.proof_bytes().is_empty());
     assert_eq!(
-        candidate.selected_provider_plans().normalized_identity(),
-        checked.selected_provider_plans().normalized_identity()
+        candidate.selected_provider_plans().report_fingerprint(),
+        checked.selected_provider_plans().report_fingerprint()
     );
     assert_eq!(candidate.provider_executions().len(), 1);
     assert_eq!(
         candidate
             .component_progress()
             .expect("staged progress manifest")
-            .normalized_identity(),
-        manifest.normalized_identity()
+            .compatibility_report_identity(),
+        manifest.compatibility_report_identity()
     );
     let entry_offset = u64::try_from(candidate.object().entry_function().text_offset)
         .expect("progress terminal entry offset fits installation geometry");
@@ -1119,12 +1121,13 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
 
     let selected_plan = checked
         .selected_provider_plans()
-        .plan_by_identity(demand.provider_plan_identity)
+        .plan_by_identity(demand.provider_plan_report_identity)
         .expect("progress demand retains its exact selected plan");
     let occurrence = InstalledProviderOccurrenceId::from_normalized_identity(0x5420)
         .expect("installed provider occurrence");
     let provider_bindings = vec![ProviderOccurrencePlanBinding::new(
-        demand.provider_plan_identity,
+        demand.provider_plan_report_identity,
+        selected_plan.clone(),
         ProviderOccurrenceInstallationReceipt::from_provider(
             ProviderOccurrenceInstallationReceiptId::from_normalized_identity(0x5421)
                 .expect("provider occurrence receipt"),
@@ -1141,7 +1144,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
             &installed,
             occurrence,
             occurrence,
-            demand.provider_plan_identity,
+            demand.provider_plan_report_identity,
             ProgressProfileGrantInvocationId::from_normalized_identity(0x5423)
                 .expect("progress grant invocation"),
             demand.profile_identity.clone(),
@@ -1162,7 +1165,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
             provider_closed.installed(),
             occurrence,
             occurrence,
-            demand.provider_plan_identity,
+            demand.provider_plan_report_identity,
             ProgressProfileGrantInvocationId::from_normalized_identity(0x5426)
                 .expect("wrong progress grant invocation"),
             "Scheduler::WrongProfile",
@@ -1226,7 +1229,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
                 known_entries: Vec::new(),
                 completeness: ScopeCompleteness::Complete {
                     scope: ExecutionScope::CallerAddressSpace,
-                    selected_provider_closure_identity: identity,
+                    selected_provider_closure_report_identity: identity,
                     opaque_closure_evidence: Vec::new(),
                     runtime_closure_evidence: Vec::new(),
                 },
@@ -1312,7 +1315,8 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         let occurrence = InstalledProviderOccurrenceId::from_normalized_identity(0x5430)
             .expect("compiler transaction provider occurrence");
         let provider_bindings = vec![ProviderOccurrencePlanBinding::new(
-            demand.provider_plan_identity,
+            demand.provider_plan_report_identity,
+            selected_plan.clone(),
             ProviderOccurrenceInstallationReceipt::from_provider(
                 ProviderOccurrenceInstallationReceiptId::from_normalized_identity(0x5431)
                     .expect("compiler transaction provider receipt"),
@@ -1329,7 +1333,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
                 &installed,
                 occurrence,
                 occurrence,
-                demand.provider_plan_identity,
+                demand.provider_plan_report_identity,
                 ProgressProfileGrantInvocationId::from_normalized_identity(0x5433)
                     .expect("compiler transaction grant invocation"),
                 demand.profile_identity.clone(),

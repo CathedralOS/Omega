@@ -236,7 +236,7 @@ enum IndexedApplicationCoverageKind {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProviderAssertedIndexedApplicationCoverage {
-    provider_plan_identity: u64,
+    provider_plan_report_identity: u64,
     schema: IndexedProviderRequirementSchema,
     kind: IndexedApplicationCoverageKind,
     identity: u64,
@@ -244,14 +244,14 @@ pub struct ProviderAssertedIndexedApplicationCoverage {
 
 impl ProviderAssertedIndexedApplicationCoverage {
     pub fn generic(
-        provider_plan_identity: u64,
+        provider_plan_report_identity: u64,
         schema: IndexedProviderRequirementSchema,
     ) -> Result<Self, IndexedProviderApplicationClosureError> {
-        validate_provider_plan_identity(provider_plan_identity)?;
+        validate_provider_plan_report_identity(provider_plan_report_identity)?;
         let kind = IndexedApplicationCoverageKind::Generic;
-        let identity = coverage_report_fingerprint(provider_plan_identity, &schema, &kind);
+        let identity = coverage_report_fingerprint(provider_plan_report_identity, &schema, &kind);
         Ok(Self {
-            provider_plan_identity,
+            provider_plan_report_identity,
             schema,
             kind,
             identity,
@@ -259,11 +259,11 @@ impl ProviderAssertedIndexedApplicationCoverage {
     }
 
     pub fn exact_family(
-        provider_plan_identity: u64,
+        provider_plan_report_identity: u64,
         schema: IndexedProviderRequirementSchema,
         mut applications: Vec<ConcreteIndexedProviderApplication>,
     ) -> Result<Self, IndexedProviderApplicationClosureError> {
-        validate_provider_plan_identity(provider_plan_identity)?;
+        validate_provider_plan_report_identity(provider_plan_report_identity)?;
         if applications.is_empty() {
             return Err(error(
                 "exact indexed provider coverage family must not be empty",
@@ -284,17 +284,17 @@ impl ProviderAssertedIndexedApplicationCoverage {
             ));
         }
         let kind = IndexedApplicationCoverageKind::Exact(applications);
-        let identity = coverage_report_fingerprint(provider_plan_identity, &schema, &kind);
+        let identity = coverage_report_fingerprint(provider_plan_report_identity, &schema, &kind);
         Ok(Self {
-            provider_plan_identity,
+            provider_plan_report_identity,
             schema,
             kind,
             identity,
         })
     }
 
-    pub const fn provider_plan_identity(&self) -> u64 {
-        self.provider_plan_identity
+    pub const fn provider_plan_report_identity(&self) -> u64 {
+        self.provider_plan_report_identity
     }
 
     pub const fn schema(&self) -> &IndexedProviderRequirementSchema {
@@ -318,7 +318,7 @@ impl ProviderAssertedIndexedApplicationCoverage {
 
     pub(crate) fn canonical_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
-        bytes.extend_from_slice(&self.provider_plan_identity.to_le_bytes());
+        bytes.extend_from_slice(&self.provider_plan_report_identity.to_le_bytes());
         append_schema_bytes(&mut bytes, &self.schema);
         match &self.kind {
             IndexedApplicationCoverageKind::Generic => bytes.push(1),
@@ -340,8 +340,8 @@ impl ProviderAssertedIndexedApplicationCoverage {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClosedIndexedProviderApplicationSet {
-    selected_provider_closure_identity: u64,
-    provider_plan_identity: u64,
+    selected_provider_closure_report_identity: u64,
+    provider_plan_report_identity: u64,
     schema: IndexedProviderRequirementSchema,
     applications: Vec<ConcreteIndexedProviderApplication>,
     coverage: ProviderAssertedIndexedApplicationCoverage,
@@ -349,12 +349,12 @@ pub struct ClosedIndexedProviderApplicationSet {
 }
 
 impl ClosedIndexedProviderApplicationSet {
-    pub const fn selected_provider_closure_identity(&self) -> u64 {
-        self.selected_provider_closure_identity
+    pub const fn selected_provider_closure_report_identity(&self) -> u64 {
+        self.selected_provider_closure_report_identity
     }
 
-    pub const fn provider_plan_identity(&self) -> u64 {
-        self.provider_plan_identity
+    pub const fn provider_plan_report_identity(&self) -> u64 {
+        self.provider_plan_report_identity
     }
 
     pub const fn schema(&self) -> &IndexedProviderRequirementSchema {
@@ -365,7 +365,7 @@ impl ClosedIndexedProviderApplicationSet {
         &self.applications
     }
 
-    pub const fn coverage_identity(&self) -> u64 {
+    pub const fn coverage_report_fingerprint(&self) -> u64 {
         self.coverage.identity()
     }
 
@@ -435,7 +435,7 @@ pub fn close_indexed_provider_applications(
         .indexed_provider_application_coverage()
         .iter()
         .filter(|coverage| {
-            coverage.provider_plan_identity == plan_identity && coverage.schema == *schema
+            coverage.provider_plan_report_identity == plan_identity && coverage.schema == *schema
         })
         .collect::<Vec<_>>();
     let [coverage] = matching_coverage.as_slice() else {
@@ -511,17 +511,17 @@ pub fn close_indexed_provider_applications(
         }
     }
 
-    let selected_provider_closure_identity = selected.normalized_identity();
+    let selected_provider_closure_report_identity = selected.report_fingerprint();
     let identity = closed_set_report_fingerprint(
-        selected_provider_closure_identity,
+        selected_provider_closure_report_identity,
         plan_identity,
         schema,
         &applications,
         coverage.identity,
     );
     Ok(ClosedIndexedProviderApplicationSet {
-        selected_provider_closure_identity,
-        provider_plan_identity: plan_identity,
+        selected_provider_closure_report_identity,
+        provider_plan_report_identity: plan_identity,
         schema: schema.clone(),
         applications,
         coverage: (*coverage).clone(),
@@ -543,10 +543,10 @@ fn validate_arity(
     Ok(())
 }
 
-fn validate_provider_plan_identity(
-    provider_plan_identity: u64,
+fn validate_provider_plan_report_identity(
+    provider_plan_report_identity: u64,
 ) -> Result<(), IndexedProviderApplicationClosureError> {
-    if provider_plan_identity == 0 {
+    if provider_plan_report_identity == 0 {
         return Err(error(
             "indexed provider coverage has the reserved zero provider-plan identity",
         ));
@@ -589,12 +589,12 @@ fn append_text_bytes(bytes: &mut Vec<u8>, value: &str) {
 }
 
 fn coverage_report_fingerprint(
-    provider_plan_identity: u64,
+    provider_plan_report_identity: u64,
     schema: &IndexedProviderRequirementSchema,
     kind: &IndexedApplicationCoverageKind,
 ) -> u64 {
     let mut hash = Fingerprint::new(b"omega.indexed-provider-coverage.v1");
-    hash.u64(provider_plan_identity);
+    hash.u64(provider_plan_report_identity);
     hash.schema(schema);
     match kind {
         IndexedApplicationCoverageKind::Generic => hash.byte(1),
@@ -610,21 +610,21 @@ fn coverage_report_fingerprint(
 }
 
 fn closed_set_report_fingerprint(
-    selected_provider_closure_identity: u64,
-    provider_plan_identity: u64,
+    selected_provider_closure_report_identity: u64,
+    provider_plan_report_identity: u64,
     schema: &IndexedProviderRequirementSchema,
     applications: &[ConcreteIndexedProviderApplication],
-    coverage_identity: u64,
+    coverage_report_fingerprint: u64,
 ) -> u64 {
     let mut hash = Fingerprint::new(b"omega.closed-indexed-provider-applications.v1");
-    hash.u64(selected_provider_closure_identity);
-    hash.u64(provider_plan_identity);
+    hash.u64(selected_provider_closure_report_identity);
+    hash.u64(provider_plan_report_identity);
     hash.schema(schema);
     hash.usize(applications.len());
     for application in applications {
         hash.u64(application.identity);
     }
-    hash.u64(coverage_identity);
+    hash.u64(coverage_report_fingerprint);
     hash.finish_nonzero()
 }
 
@@ -827,7 +827,10 @@ mod tests {
         assert_eq!(first.applications().len(), 2);
         assert!(first.coverage().covers_generically());
         assert_eq!(first.coverage().schema(), &schema());
-        assert_eq!(first.provider_plan_identity(), plan.report_fingerprint());
+        assert_eq!(
+            first.provider_plan_report_identity(),
+            plan.report_fingerprint()
+        );
         assert_eq!(selected.plans().len(), 1, "applications do not mint slots");
     }
 
@@ -903,7 +906,7 @@ mod tests {
         canonical_family.sort();
         assert_eq!(retained, canonical_family);
         assert_eq!(
-            closed.coverage().provider_plan_identity(),
+            closed.coverage().provider_plan_report_identity(),
             plan.report_fingerprint()
         );
 
@@ -931,7 +934,7 @@ mod tests {
     #[test]
     fn coverage_rows_are_canonical_and_change_selected_closure_identity() {
         let (plan, bare) = selected_plan("ResidentTransfer");
-        let bare_identity = bare.normalized_identity();
+        let bare_identity = bare.report_fingerprint();
         let generic = with_generic_coverage(bare.clone(), &plan);
         let exact = bare
             .with_indexed_provider_application_coverage(vec![
@@ -943,8 +946,8 @@ mod tests {
                 .unwrap(),
             ])
             .unwrap();
-        assert_ne!(bare_identity, generic.normalized_identity());
-        assert_ne!(generic.normalized_identity(), exact.normalized_identity());
+        assert_ne!(bare_identity, generic.report_fingerprint());
+        assert_ne!(generic.report_fingerprint(), exact.report_fingerprint());
         assert_eq!(generic.indexed_provider_application_coverage().len(), 1);
 
         let duplicate_error = SelectedProviderPlanFacts::from_selected_plans(vec![plan.clone()])
@@ -981,7 +984,7 @@ mod tests {
         let reach = || {
             vec![crate::InstallationReachResolution {
                 requirement_identity: "ResidentContentTransfer::transfer".to_owned(),
-                provider_plan_identity: plan.report_fingerprint(),
+                provider_plan_report_identity: plan.report_fingerprint(),
                 upper_bound: vec!["MemoryTransfer".to_owned()],
                 resolved_row: vec!["MemoryTransfer".to_owned()],
             }]
@@ -999,8 +1002,8 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            coverage_then_reach.normalized_identity(),
-            reach_then_coverage.normalized_identity()
+            coverage_then_reach.report_fingerprint(),
+            reach_then_coverage.report_fingerprint()
         );
         assert_eq!(
             coverage_then_reach.indexed_provider_application_coverage(),

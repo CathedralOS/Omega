@@ -3,7 +3,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use omega_effects::{
     ComponentBuildBoundProgressDemand, ComponentProgressManifest, SelectedProviderClosureDigest,
     SelectedProviderPlanFacts,
-    provider_plan::{ServiceProgressEstablishmentRoute, ServiceProgressEstablishmentRouteKind},
+    provider_plan::{
+        ProviderPlan, ProviderPlanDigest, ServiceProgressEstablishmentRoute,
+        ServiceProgressEstablishmentRouteKind,
+    },
 };
 use omega_executable_installation::{InstalledCode, InstalledCodeContext};
 
@@ -59,23 +62,37 @@ impl ProviderOccurrenceInstallationReceipt {
 /// atomically, so omitting or padding this list cannot create an installation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderOccurrencePlanBinding {
-    provider_plan_identity: u64,
+    provider_plan_report_identity: u64,
+    provider_plan_digest: ProviderPlanDigest,
+    provider_plan: ProviderPlan,
     receipt: ProviderOccurrenceInstallationReceipt,
 }
 
 impl ProviderOccurrencePlanBinding {
     pub fn new(
-        provider_plan_identity: u64,
+        provider_plan_report_identity: u64,
+        provider_plan: ProviderPlan,
         receipt: ProviderOccurrenceInstallationReceipt,
     ) -> Self {
+        let provider_plan_digest = provider_plan.identity_digest();
         Self {
-            provider_plan_identity,
+            provider_plan_report_identity,
+            provider_plan_digest,
+            provider_plan,
             receipt,
         }
     }
 
-    pub const fn provider_plan_identity(&self) -> u64 {
-        self.provider_plan_identity
+    pub const fn provider_plan_report_identity(&self) -> u64 {
+        self.provider_plan_report_identity
+    }
+
+    pub const fn provider_plan_digest(&self) -> ProviderPlanDigest {
+        self.provider_plan_digest
+    }
+
+    pub const fn provider_plan(&self) -> &ProviderPlan {
+        &self.provider_plan
     }
 
     pub const fn receipt(&self) -> &ProviderOccurrenceInstallationReceipt {
@@ -128,10 +145,6 @@ impl InstalledProviderOccurrenceClosure {
         &self.selected
     }
 
-    pub const fn selected_provider_closure_identity(&self) -> u64 {
-        self.selected.normalized_identity()
-    }
-
     /// Explicitly non-authoritative compatibility/report coordinate.
     pub const fn selected_provider_closure_report_identity(&self) -> u64 {
         self.selected.compatibility_report_identity()
@@ -143,9 +156,9 @@ impl InstalledProviderOccurrenceClosure {
 
     pub fn occurrence_for_plan(
         &self,
-        provider_plan_identity: u64,
+        provider_plan_report_identity: u64,
     ) -> Option<&InstalledProviderOccurrence> {
-        self.by_plan.get(&provider_plan_identity)
+        self.by_plan.get(&provider_plan_report_identity)
     }
 
     pub fn occurrence(
@@ -175,7 +188,7 @@ pub struct ProgressProfileEstablishmentAttestation {
     installed: InstalledCodeContext,
     subject: InstalledProviderOccurrenceId,
     issuer: InstalledProviderOccurrenceId,
-    issuer_provider_plan_identity: u64,
+    issuer_provider_plan_report_identity: u64,
     grant_invocation: ProgressProfileGrantInvocationId,
     profile_identity: String,
     subject_projections: Vec<String>,
@@ -189,7 +202,7 @@ impl ProgressProfileEstablishmentAttestation {
         installed: &InstalledCode,
         subject: InstalledProviderOccurrenceId,
         issuer: InstalledProviderOccurrenceId,
-        issuer_provider_plan_identity: u64,
+        issuer_provider_plan_report_identity: u64,
         grant_invocation: ProgressProfileGrantInvocationId,
         profile_identity: impl Into<String>,
         subject_projections: Vec<String>,
@@ -200,7 +213,7 @@ impl ProgressProfileEstablishmentAttestation {
             installed: installed.receipt_context(),
             subject,
             issuer,
-            issuer_provider_plan_identity,
+            issuer_provider_plan_report_identity,
             grant_invocation,
             profile_identity: profile_identity.into(),
             subject_projections,
@@ -221,7 +234,7 @@ pub struct AdmittedProgressProfileEstablishment {
     selected_provider_closure_digest: SelectedProviderClosureDigest,
     subject: InstalledProviderOccurrenceEvidence,
     issuer: InstalledProviderOccurrenceEvidence,
-    issuer_provider_plan_identity: u64,
+    issuer_provider_plan_report_identity: u64,
     grant_invocation: ProgressProfileGrantInvocationId,
     profile_identity: String,
     subject_projections: Vec<String>,
@@ -241,8 +254,8 @@ impl AdmittedProgressProfileEstablishment {
         self.issuer.occurrence
     }
 
-    pub const fn issuer_provider_plan_identity(&self) -> u64 {
-        self.issuer_provider_plan_identity
+    pub const fn issuer_provider_plan_report_identity(&self) -> u64 {
+        self.issuer_provider_plan_report_identity
     }
 
     pub const fn grant_invocation(&self) -> ProgressProfileGrantInvocationId {
@@ -330,7 +343,7 @@ struct InstalledComponentProgressBinding {
 #[must_use = "installed component progress closure must be retained through publication"]
 pub struct InstalledComponentProgressClosure {
     installed: InstalledCodeContext,
-    selected_provider_plans: Vec<u64>,
+    selected_provider_plan_report_identities: Vec<u64>,
     manifest: ComponentProgressManifest,
     bindings: Vec<InstalledComponentProgressBinding>,
     non_authoritative_report_fingerprint: u64,
@@ -347,8 +360,8 @@ impl InstalledComponentProgressClosure {
     /// Canonical complete selected-plan set sealed by the installation
     /// registry. Runnable publication joins this set to the terminal
     /// installation record rather than reconstructing it from demand rows.
-    pub fn selected_provider_plans(&self) -> &[u64] {
-        &self.selected_provider_plans
+    pub fn selected_provider_plan_report_identities(&self) -> &[u64] {
+        &self.selected_provider_plan_report_identities
     }
 
     pub const fn manifest(&self) -> &ComponentProgressManifest {
@@ -370,7 +383,7 @@ impl omega_installation_evidence::ComponentProgressAcceptanceEvidence
     for InstalledComponentProgressClosure
 {
     fn component_progress_manifest_identity(&self) -> u64 {
-        self.manifest.normalized_identity()
+        self.manifest.compatibility_report_identity()
     }
 
     fn component_progress_acceptance_identity(&self) -> u64 {
@@ -429,7 +442,7 @@ impl InstalledRootLedger {
             .collect::<BTreeSet<_>>();
         let supplied = bindings
             .iter()
-            .map(|binding| binding.provider_plan_identity)
+            .map(|binding| binding.provider_plan_report_identity)
             .collect::<BTreeSet<_>>();
         if bindings.len() != supplied.len() {
             return Err(ExternalRootDiagnostic(
@@ -448,8 +461,20 @@ impl InstalledRootLedger {
         let mut receipt_owners = BTreeMap::new();
         for binding in bindings {
             let plan = selected
-                .plan_by_identity(binding.provider_plan_identity)
-                .expect("exact selected-plan set was checked above");
+                .plan_by_exact_evidence(
+                    binding.provider_plan_report_identity,
+                    &binding.provider_plan,
+                )
+                .filter(|plan| {
+                    plan.identity_digest() == binding.provider_plan_digest
+                        && binding.provider_plan.identity_digest() == binding.provider_plan_digest
+                })
+                .ok_or_else(|| {
+                    ExternalRootDiagnostic(
+                        "provider-occurrence binding does not retain the exact selected provider plan and digest"
+                            .into(),
+                    )
+                })?;
             let receipt = binding.receipt;
             if receipt.installed != self.installed_context {
                 return Err(ExternalRootDiagnostic(
@@ -490,7 +515,7 @@ impl InstalledRootLedger {
                 ));
             }
             by_occurrence.insert(occurrence.identity(), occurrence.clone());
-            by_plan.insert(binding.provider_plan_identity, occurrence);
+            by_plan.insert(binding.provider_plan_report_identity, occurrence);
         }
         let non_authoritative_report_fingerprint =
             non_authoritative_provider_occurrence_report_fingerprint(selected, &by_plan);
@@ -561,7 +586,7 @@ impl InstalledRootLedger {
             ));
         };
         let Some(plan_occurrence) =
-            closure.occurrence_for_plan(attestation.issuer_provider_plan_identity)
+            closure.occurrence_for_plan(attestation.issuer_provider_plan_report_identity)
         else {
             return Err(fail(
                 attestation,
@@ -577,7 +602,7 @@ impl InstalledRootLedger {
         }
         let issuer_plan = closure
             .selected
-            .plan_by_identity(attestation.issuer_provider_plan_identity)
+            .plan_by_identity(attestation.issuer_provider_plan_report_identity)
             .expect("installed plan binding came from selected facts");
         let exact_routes = issuer_plan
             .rows
@@ -601,7 +626,7 @@ impl InstalledRootLedger {
             selected_provider_closure_digest: closure.selected.identity_digest(),
             subject: subject.evidence,
             issuer: issuer.evidence,
-            issuer_provider_plan_identity: attestation.issuer_provider_plan_identity,
+            issuer_provider_plan_report_identity: attestation.issuer_provider_plan_report_identity,
             grant_invocation: attestation.grant_invocation,
             profile_identity: attestation.profile_identity,
             subject_projections: attestation.subject_projections,
@@ -617,7 +642,8 @@ impl InstalledRootLedger {
                         installed: admitted.installed,
                         subject: admitted.subject.occurrence,
                         issuer: admitted.issuer.occurrence,
-                        issuer_provider_plan_identity: admitted.issuer_provider_plan_identity,
+                        issuer_provider_plan_report_identity: admitted
+                            .issuer_provider_plan_report_identity,
                         grant_invocation: admitted.grant_invocation,
                         profile_identity: admitted.profile_identity,
                         subject_projections: admitted.subject_projections,
@@ -635,7 +661,8 @@ impl InstalledRootLedger {
                     installed: admitted.installed,
                     subject: admitted.subject.occurrence,
                     issuer: admitted.issuer.occurrence,
-                    issuer_provider_plan_identity: admitted.issuer_provider_plan_identity,
+                    issuer_provider_plan_report_identity: admitted
+                        .issuer_provider_plan_report_identity,
                     grant_invocation: admitted.grant_invocation,
                     profile_identity: admitted.profile_identity,
                     subject_projections: admitted.subject_projections,
@@ -732,7 +759,20 @@ impl InstalledRootLedger {
                     "component progress binding substitutes divergent receipt evidence".into(),
                 ));
             }
-            let Some(subject) = closure.occurrence_for_plan(demand.provider_plan_identity) else {
+            let Some(selected_plan) = closure
+                .selected
+                .plan_by_identity(demand.provider_plan_report_identity)
+                .filter(|plan| plan.identity_digest() == demand.provider_plan_digest)
+            else {
+                return Err(fail(
+                    manifest,
+                    bindings,
+                    "component progress demand does not retain the selected provider plan digest"
+                        .into(),
+                ));
+            };
+            let Some(subject) = closure.occurrence_for_plan(selected_plan.report_fingerprint())
+            else {
                 return Err(fail(
                     manifest,
                     bindings,
@@ -741,7 +781,7 @@ impl InstalledRootLedger {
             };
             if receipt.subject != subject.evidence
                 || receipt.selected_provider_closure_report_identity
-                    != manifest.selected_provider_closure_identity()
+                    != manifest.selected_provider_closure_report_identity()
                 || receipt.selected_provider_closure_digest
                     != manifest.selected_provider_closure_digest()
                 || receipt.profile_identity != demand.profile_identity
@@ -762,20 +802,20 @@ impl InstalledRootLedger {
             });
         }
         accepted.sort_by(|left, right| left.demand.cmp(&right.demand));
-        let mut selected_provider_plans = closure
+        let mut selected_provider_plan_report_identities = closure
             .selected
             .plans()
             .iter()
             .map(omega_effects::provider_plan::ProviderPlan::report_fingerprint)
             .collect::<Vec<_>>();
-        selected_provider_plans.sort_unstable();
-        selected_provider_plans.dedup();
+        selected_provider_plan_report_identities.sort_unstable();
+        selected_provider_plan_report_identities.dedup();
         let non_authoritative_report_fingerprint =
             non_authoritative_component_progress_report_fingerprint(&manifest, &accepted);
         self.accepted_component_progress.push(manifest.clone());
         Ok(InstalledComponentProgressClosure {
             installed: self.installed_context.clone(),
-            selected_provider_plans,
+            selected_provider_plan_report_identities,
             manifest,
             bindings: accepted,
             non_authoritative_report_fingerprint,
@@ -788,7 +828,7 @@ fn non_authoritative_provider_occurrence_report_fingerprint(
     by_plan: &BTreeMap<u64, InstalledProviderOccurrence>,
 ) -> u64 {
     let mut hash = Fnv1a::new(b"omega.installed-provider-occurrences.v1");
-    hash.u64(selected.normalized_identity());
+    hash.u64(selected.compatibility_report_identity());
     for (plan, occurrence) in by_plan {
         hash.u64(*plan);
         hash.u64(occurrence.identity().normalized_identity());
@@ -803,7 +843,7 @@ fn non_authoritative_component_progress_report_fingerprint(
     bindings: &[InstalledComponentProgressBinding],
 ) -> u64 {
     let mut hash = Fnv1a::new(b"omega.installed-component-progress.v1");
-    hash.u64(manifest.normalized_identity());
+    hash.u64(manifest.compatibility_report_identity());
     for binding in bindings {
         hash.u64(binding.subject.occurrence.normalized_identity());
         hash.u64(binding.receipt.receipt.normalized_identity());

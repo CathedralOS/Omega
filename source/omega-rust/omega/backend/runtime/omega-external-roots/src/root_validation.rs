@@ -496,7 +496,7 @@ fn root_report_fingerprint(candidate: &ExternalRootCandidate, boundary: u64) -> 
     hash.u64(candidate.service_reach.installation_requirements().len() as u64);
     for resolution in candidate.service_reach.resolutions() {
         hash.string(&resolution.requirement_identity);
-        hash.u64(resolution.provider_plan_identity);
+        hash.u64(resolution.provider_plan_report_identity);
         hash.u64(resolution.upper_bound.len() as u64);
         for service in &resolution.upper_bound {
             hash.string(service);

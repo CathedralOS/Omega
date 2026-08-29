@@ -820,7 +820,7 @@ fn qualification_manifest_retains_provider_origin_outside_plan_identity() {
         std::slice::from_ref(&plan.name),
     )
     .expect("complete selected provider plan");
-    let selected_closure_identity = selected.normalized_identity();
+    let selected_closure_identity = selected.report_fingerprint();
 
     let json = qualification_evidence_manifest_json(&CheckedTrees::default(), &selected);
     assert!(json.contains(&format!(

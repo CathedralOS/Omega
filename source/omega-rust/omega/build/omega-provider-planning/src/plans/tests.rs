@@ -201,7 +201,10 @@ fn selected_provider_binds_actual_reach_for_bounded_requirement() {
 
     assert_eq!(resolution.upper_bound, ["MachineControl", "PortIo"]);
     assert_eq!(resolution.resolved_row, ["PortIo"]);
-    assert_eq!(resolution.provider_plan_identity, plan.report_fingerprint());
+    assert_eq!(
+        resolution.provider_plan_report_identity,
+        plan.report_fingerprint()
+    );
 }
 
 #[test]

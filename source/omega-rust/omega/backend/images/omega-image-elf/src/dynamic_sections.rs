@@ -166,14 +166,14 @@ pub(crate) struct ElfVersionNeedAuxiliary {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ElfDynamicImportBinding {
     pub(crate) request_index: usize,
-    pub(crate) normalized_identity: u64,
+    pub(crate) compatibility_report_identity: u64,
     pub(crate) dynamic_symbol_index: u32,
     pub(crate) version_index: u16,
 }
 
 struct OrderedImport<'a> {
     request_index: usize,
-    normalized_identity: u64,
+    compatibility_report_identity: u64,
     object: &'a [u8],
     symbol: &'a [u8],
     version: &'a [u8],
@@ -254,7 +254,7 @@ fn derive_contents(
         versym.push(version_index);
         bindings.push(ElfDynamicImportBinding {
             request_index: import.request_index,
-            normalized_identity: import.normalized_identity,
+            compatibility_report_identity: import.compatibility_report_identity,
             dynamic_symbol_index,
             version_index,
         });
@@ -297,14 +297,14 @@ fn ordered_imports(
         .enumerate()
         .map(|(request_index, request)| match &request.locator {
             ElfImportLocator::Versioned {
-                normalized_identity,
+                compatibility_report_identity,
                 object,
                 symbol,
                 version,
                 ..
             } => Ok(OrderedImport {
                 request_index,
-                normalized_identity: *normalized_identity,
+                compatibility_report_identity: *compatibility_report_identity,
                 object,
                 symbol,
                 version,
@@ -319,13 +319,13 @@ fn ordered_imports(
             left.symbol,
             left.object,
             left.version,
-            left.normalized_identity,
+            left.compatibility_report_identity,
         )
             .cmp(&(
                 right.symbol,
                 right.object,
                 right.version,
-                right.normalized_identity,
+                right.compatibility_report_identity,
             ))
     });
     Ok(ordered)
@@ -554,7 +554,7 @@ fn validate_contents(
         };
         let expected_binding = ElfDynamicImportBinding {
             request_index: import.request_index,
-            normalized_identity: import.normalized_identity,
+            compatibility_report_identity: import.compatibility_report_identity,
             dynamic_symbol_index,
             version_index: expected_version,
         };
@@ -702,7 +702,7 @@ fn non_authoritative_content_compatibility_fingerprint(
         hash.bytes(&needed.to_le_bytes());
     }
     for binding in &contents.bindings {
-        hash.bytes(&binding.normalized_identity.to_le_bytes());
+        hash.bytes(&binding.compatibility_report_identity.to_le_bytes());
         hash.bytes(&binding.dynamic_symbol_index.to_le_bytes());
         hash.bytes(&binding.version_index.to_le_bytes());
     }

@@ -1,3 +1,6 @@
+#[cfg(test)]
+use crate::provider_plan::ProviderPlan;
+use crate::provider_plan::ProviderPlanDigest;
 use crate::{
     ContainmentGuarantee, ExecutableEntryOrigin, ExecutableIdentity, ExecutableTcbEntry,
     ExecutableTcbManifest, ExecutionScope, ImplementationEvidence, IncompleteCause,
@@ -19,7 +22,8 @@ pub enum IncompleteScopePolicy {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExactExecutableTcbAllowance {
     pub provider_identity: ProviderIdentity,
-    pub provider_plan_identity: u64,
+    pub provider_plan_report_identity: u64,
+    pub provider_plan_digest: ProviderPlanDigest,
     pub selected_requirement: Option<SelectedProviderRequirement>,
     pub executable_identity: ExecutableIdentity,
     pub implementation_evidence: ImplementationEvidence,
@@ -84,7 +88,7 @@ pub struct ExecutableTcbProfileRejection {
 pub enum ExecutableTcbProfileViolation {
     EmptyProfileIdentity,
     DuplicateExactAllowance {
-        provider_plan_identity: u64,
+        provider_plan_report_identity: u64,
         executable_identity: ExecutableIdentity,
     },
     ScopeMismatch {
@@ -92,11 +96,11 @@ pub enum ExecutableTcbProfileViolation {
         manifest: ExecutionScope,
     },
     EntryNotAllowed {
-        provider_plan_identity: u64,
+        provider_plan_report_identity: u64,
         executable_identity: ExecutableIdentity,
     },
     MissingContainment {
-        provider_plan_identity: u64,
+        provider_plan_report_identity: u64,
         executable_identity: ExecutableIdentity,
         guarantee: ContainmentGuarantee,
     },
@@ -125,7 +129,8 @@ pub fn evaluate_executable_tcb_profile(
         }
         let Some(allowance) = profile.exact_allowances.iter().find(|allowance| {
             allowance.provider_identity == entry.provider_identity
-                && allowance.provider_plan_identity == entry.provider_plan_identity
+                && allowance.provider_plan_report_identity == entry.provider_plan_report_identity
+                && allowance.provider_plan_digest == entry.provider_plan_digest
                 && allowance.selected_requirement == entry.selected_requirement
                 && allowance.executable_identity == entry.executable_identity
                 && allowance.implementation_evidence == entry.implementation_evidence
@@ -133,7 +138,7 @@ pub fn evaluate_executable_tcb_profile(
                 && allowance.execution_scope == entry.execution_scope
         }) else {
             violations.push(ExecutableTcbProfileViolation::EntryNotAllowed {
-                provider_plan_identity: entry.provider_plan_identity,
+                provider_plan_report_identity: entry.provider_plan_report_identity,
                 executable_identity: entry.executable_identity.clone(),
             });
             continue;
@@ -145,7 +150,7 @@ pub fn evaluate_executable_tcb_profile(
                 .any(|evidence| evidence.guarantee == *guarantee)
             {
                 violations.push(ExecutableTcbProfileViolation::MissingContainment {
-                    provider_plan_identity: entry.provider_plan_identity,
+                    provider_plan_report_identity: entry.provider_plan_report_identity,
                     executable_identity: entry.executable_identity.clone(),
                     guarantee: *guarantee,
                 });
@@ -193,7 +198,7 @@ fn validate_profile(profile: &ExecutableTcbProfile) -> Vec<ExecutableTcbProfileV
             .any(|earlier| same_allowance_subject(earlier, allowance))
         {
             violations.push(ExecutableTcbProfileViolation::DuplicateExactAllowance {
-                provider_plan_identity: allowance.provider_plan_identity,
+                provider_plan_report_identity: allowance.provider_plan_report_identity,
                 executable_identity: allowance.executable_identity.clone(),
             });
         }
@@ -206,7 +211,8 @@ fn same_allowance_subject(
     right: &ExactExecutableTcbAllowance,
 ) -> bool {
     left.provider_identity == right.provider_identity
-        && left.provider_plan_identity == right.provider_plan_identity
+        && left.provider_plan_report_identity == right.provider_plan_report_identity
+        && left.provider_plan_digest == right.provider_plan_digest
         && left.selected_requirement == right.selected_requirement
         && left.executable_identity == right.executable_identity
         && left.implementation_evidence == right.implementation_evidence
@@ -246,7 +252,8 @@ mod tests {
     fn opaque_entry() -> ExecutableTcbEntry {
         ExecutableTcbEntry {
             provider_identity: ProviderIdentity::NominalType("PlatformProvider".into()),
-            provider_plan_identity: 7,
+            provider_plan_report_identity: 7,
+            provider_plan_digest: ProviderPlan::default().identity_digest(),
             selected_requirement: None,
             executable_identity: ExecutableIdentity::PinnedOpaqueArtifact(
                 "platform-baseline:window-v1".into(),
@@ -266,7 +273,8 @@ mod tests {
     fn allowance(entry: &ExecutableTcbEntry) -> ExactExecutableTcbAllowance {
         ExactExecutableTcbAllowance {
             provider_identity: entry.provider_identity.clone(),
-            provider_plan_identity: entry.provider_plan_identity,
+            provider_plan_report_identity: entry.provider_plan_report_identity,
+            provider_plan_digest: entry.provider_plan_digest,
             selected_requirement: entry.selected_requirement.clone(),
             executable_identity: entry.executable_identity.clone(),
             implementation_evidence: entry.implementation_evidence.clone(),
@@ -291,7 +299,7 @@ mod tests {
             known_entries: vec![entry],
             completeness: ScopeCompleteness::Complete {
                 scope: ExecutionScope::CallerAddressSpace,
-                selected_provider_closure_identity: 9,
+                selected_provider_closure_report_identity: 9,
                 opaque_closure_evidence: Vec::new(),
                 runtime_closure_evidence: Vec::new(),
             },
@@ -312,6 +320,21 @@ mod tests {
     #[test]
     fn identity_evidence_and_containment_drift_reject() {
         let entry = opaque_entry();
+        let mut compact_equal_wrong_digest = profile(&entry);
+        let mut structurally_different_plan = ProviderPlan::default();
+        structurally_different_plan.name = "different-plan".into();
+        compact_equal_wrong_digest.exact_allowances[0].provider_plan_digest =
+            structurally_different_plan.identity_digest();
+        let rejected = evaluate_executable_tcb_profile(
+            &complete_manifest(entry.clone()),
+            &compact_equal_wrong_digest,
+        )
+        .expect_err("compact-equal allowance with the wrong plan digest");
+        assert!(matches!(
+            rejected.violations.as_slice(),
+            [ExecutableTcbProfileViolation::EntryNotAllowed { .. }]
+        ));
+
         let mut wrong_identity = profile(&entry);
         wrong_identity.exact_allowances[0].executable_identity =
             ExecutableIdentity::PinnedOpaqueArtifact("platform-baseline:other".into());
@@ -386,7 +409,8 @@ mod tests {
         let entry = opaque_entry();
         let cause = IncompleteCause::SelectedOpaqueProvider {
             provider_identity: entry.provider_identity.clone(),
-            provider_plan_identity: entry.provider_plan_identity,
+            provider_plan_report_identity: entry.provider_plan_report_identity,
+            provider_plan_digest: entry.provider_plan_digest,
             method: "open".into(),
             requirement_identity: "Window::open".into(),
             binding: OpaqueInProcessBinding::StringBackedImportBootstrap {
@@ -422,7 +446,8 @@ mod tests {
     fn local_checked_body_requires_only_the_explicit_class_rule() {
         let checked = ExecutableTcbEntry {
             provider_identity: ProviderIdentity::NominalType("CheckedProvider".into()),
-            provider_plan_identity: 11,
+            provider_plan_report_identity: 11,
+            provider_plan_digest: ProviderPlan::default().identity_digest(),
             selected_requirement: Some(SelectedProviderRequirement {
                 method: "run".into(),
                 requirement_identity: "named-callable(path:CheckedService::run)".into(),
