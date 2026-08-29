@@ -17,6 +17,7 @@ use std::path::{Path, PathBuf};
 pub struct ResolvedPackageSource<S> {
     key: PackageKey,
     resolution: ImmutableSourceResolution,
+    acquisition_materialization: PackageSourceMaterialization,
     materialization: PackageSourceMaterialization,
     acquisition_root: PathBuf,
     snapshot_root: PathBuf,
@@ -31,6 +32,7 @@ impl<S> ResolvedPackageSource<S> {
     pub(super) fn from_resolved_parts(
         key: PackageKey,
         resolution: ImmutableSourceResolution,
+        acquisition_materialization: PackageSourceMaterialization,
         materialization: PackageSourceMaterialization,
         acquisition_root: PathBuf,
         snapshot_root: PathBuf,
@@ -43,6 +45,7 @@ impl<S> ResolvedPackageSource<S> {
         Self {
             key,
             resolution,
+            acquisition_materialization,
             materialization,
             acquisition_root,
             snapshot_root,
@@ -60,6 +63,10 @@ impl<S> ResolvedPackageSource<S> {
 
     pub fn resolution(&self) -> &ImmutableSourceResolution {
         &self.resolution
+    }
+
+    pub const fn acquisition_materialization(&self) -> &PackageSourceMaterialization {
+        &self.acquisition_materialization
     }
 
     pub const fn materialization(&self) -> &PackageSourceMaterialization {
@@ -104,6 +111,7 @@ impl<S> ResolvedPackageSource<S> {
         PackageSourceCustody::from_resolved_parts(
             self.key,
             self.resolution,
+            self.acquisition_materialization,
             self.materialization,
             self.acquisition_root,
             self.snapshot_root,

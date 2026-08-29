@@ -130,6 +130,7 @@ fn bind_external_local_declared_source(
     Ok(ResolvedPackageSource::from_resolved_parts(
         PackageKey::new(declaration.name, lineage),
         resolution,
+        materialization.clone(),
         materialization,
         source.snapshot_root().to_path_buf(),
         source.snapshot_root().to_path_buf(),

@@ -83,6 +83,7 @@ machine build(builder: &mut Build) {
         first.key().source_lineage(),
         first.acquisition_root(),
         first.resolution(),
+        first.acquisition_materialization(),
         first.selection_evidence(),
         first.source_limits(),
     )
@@ -92,6 +93,7 @@ machine build(builder: &mut Build) {
         second.key().source_lineage(),
         second.acquisition_root(),
         second.resolution(),
+        second.acquisition_materialization(),
         second.selection_evidence(),
         second.source_limits(),
     )

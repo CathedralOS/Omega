@@ -16,7 +16,7 @@ pub(super) fn verify_transitive_source_custody(
             .expect("validated source closure retains every reachable custody");
         verify_package_source_snapshot(
             custody.acquisition_root(),
-            custody.resolution().content(),
+            custody.acquisition_materialization().content(),
             custody.source_limits(),
         )
         .map_err(|error| CompileResolvedPackageReviewsError::SourceCustody {
@@ -26,7 +26,7 @@ pub(super) fn verify_transitive_source_custody(
             error,
         })?;
         if custody.snapshot_root() != custody.acquisition_root()
-            || custody.materialization().content() != custody.resolution().content()
+            || custody.materialization() != custody.acquisition_materialization()
         {
             verify_package_source_snapshot(
                 custody.snapshot_root(),

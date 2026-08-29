@@ -134,8 +134,10 @@ pub(crate) fn bind_git_package_source(
         GitTreeId::parse_hex(source.tree())?,
         SourceContentDigest::derive(source.local().content_identity.as_bytes()),
     )?;
+    let acquisition_materialization =
+        super::PackageSourceMaterialization::from_local(source.local());
     let materialization = if snapshot_root == acquisition_root {
-        super::PackageSourceMaterialization::from_local(source.local())
+        acquisition_materialization.clone()
     } else {
         super::PackageSourceMaterialization::from_local(&resolve_local_source(
             &snapshot_root,
@@ -146,6 +148,7 @@ pub(crate) fn bind_git_package_source(
     Ok(ResolvedPackageSource::from_resolved_parts(
         PackageKey::new(declaration.name, lineage),
         resolution,
+        acquisition_materialization,
         materialization,
         acquisition_root,
         snapshot_root,
@@ -243,6 +246,7 @@ pub(crate) fn bind_git_member_package_custody(
     lineage: SourceLineage,
     resolution: ImmutableSourceResolution,
     acquisition_root: &Path,
+    acquisition_materialization: super::PackageSourceMaterialization,
     member_path: omega_package_source::WorkspaceMemberPath,
     selection_plan: GitWorkspaceSelectionPlan,
     limits: LocalSourceLimits,
@@ -256,6 +260,7 @@ pub(crate) fn bind_git_member_package_custody(
     Ok(PackageSourceCustody::from_resolved_parts(
         PackageKey::new(declaration.name, lineage),
         resolution,
+        acquisition_materialization,
         materialization,
         acquisition_root.to_path_buf(),
         snapshot_root,

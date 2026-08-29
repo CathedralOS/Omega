@@ -244,10 +244,11 @@ closed. Compiler-issued package review remains non-admitting.
     and retain the authenticated declaration bytes outside the compilation
     root. Manager custody already retains and replays exact paths, byte counts,
     domain-separated commitments, package roles, and the selected member;
-  - extend the landed repository/materialization/navigation/declaration custody
-    through source observations, strict-receipt reconstruction, selective cache
-    reuse, and eventual lock reconstruction. Manager closure reconciliation
-    already compares it, while compiler handoff and source review replay it;
+  - extend the landed repository/acquisition/selected-materialization,
+    navigation, and declaration custody through source observations,
+    strict-receipt reconstruction, selective cache reuse, and eventual lock
+    reconstruction. Manager closure reconciliation already compares it, while
+    compiler handoff and source review replay it;
   - reject missing/changed declaration evidence, forged or omitted tree edges,
     undeclared/escaping/symlinked members, absent selected blobs, and any
     checkout, filter, hook, submodule, or lazy-fetch route.

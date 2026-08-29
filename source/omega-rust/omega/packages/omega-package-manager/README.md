@@ -100,6 +100,12 @@ complete evidence; review and compiler handoff replay it from retained bytes.
 Declaration text does not enter the compilation root merely to carry this
 evidence.
 
+Repository resolution, acquisition materialization, and selected package
+materialization are distinct custody values. Today the Git acquisition
+materialization is the complete published repository snapshot; the separate
+field allows selective acquisition to replace that operational snapshot
+without changing repository or selected-package identity.
+
 ## Review
 
 ```text

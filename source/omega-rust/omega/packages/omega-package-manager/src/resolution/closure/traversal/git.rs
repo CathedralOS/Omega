@@ -57,6 +57,7 @@ fn resolve_git_package_closure_from_lanes(
         root.key().source_lineage(),
         root.acquisition_root(),
         root.resolution(),
+        root.acquisition_materialization(),
         root.selection_evidence(),
         root.source_limits(),
     )
