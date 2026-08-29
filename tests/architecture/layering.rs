@@ -3122,8 +3122,8 @@ fn ranked_native_fuel_replay_is_decoder_owned_through_final_publication() {
         final_image_validation
             .matches("replay_ranked_native_fuel_final_image")
             .count(),
-        2,
-        "direct and transfer-runtime validators must both replay ranked custody from final bytes",
+        4,
+        "direct and transfer-runtime emission plus retained-custody validation must replay ranked custody from final bytes",
     );
     let carrier = std::fs::read_to_string(
         root.join("source/omega-rust/omega/representations/omega-machine-code/src/lib.rs"),
