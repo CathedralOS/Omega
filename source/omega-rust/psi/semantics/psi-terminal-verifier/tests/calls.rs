@@ -274,7 +274,7 @@ fn payloadless_structural_call_selects_one_exact_guarded_term_without_inventing_
     else {
         unreachable!()
     };
-    *selected_evidence = Some(OutcomeSpecificCallEvidence {
+    selected_evidence.push(OutcomeSpecificCallEvidence {
         guard,
         position,
         callee_obligation,
@@ -330,7 +330,7 @@ fn payloadless_structural_call_selects_one_exact_guarded_term_without_inventing_
     else {
         unreachable!()
     };
-    *selected_evidence = None;
+    selected_evidence.clear();
     omitted.evidence_terms.retain(|term| term.id != output);
     validate_module(&omitted).expect("omitting the named selector remains fact-only");
     verify_module(&omitted, &bundle, &AdmissionProfile::default())
@@ -346,10 +346,12 @@ fn payloadless_structural_call_selects_one_exact_guarded_term_without_inventing_
     let tamper = |mut mutate: Box<dyn FnMut(&mut OutcomeSpecificCallEvidence)>| {
         let mut module = baseline.clone();
         let OperationKind::CallStructural {
-            selected_evidence: Some(binding),
-            ..
+            selected_evidence, ..
         } = &mut module.machines[0].blocks[0].operations[0].kind
         else {
+            unreachable!()
+        };
+        let [binding] = selected_evidence.as_mut_slice() else {
             unreachable!()
         };
         mutate(binding);
@@ -1061,7 +1063,7 @@ fn payloadless_guarded_call_module() -> TerminalModule {
                             returned_claim_transfers: Vec::new(),
                             requirement_obligations: Vec::new(),
                             crash_continuations: Vec::new(),
-                            selected_evidence: None,
+                            selected_evidence: Vec::new(),
                         },
                     }],
                     terminator: Terminator::ReturnStructural {

@@ -28,7 +28,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        38
+        39
     }
 }
 
@@ -1109,8 +1109,8 @@ pub struct OutcomeSpecificEvidence {
 ///
 /// This carrier is proof-only. The guard remains conditional on the runtime
 /// structural result; the binding neither asserts case membership nor adds an
-/// operation. The initial executable slice permits exactly one such selection
-/// on the bounded payloadless structural call.
+/// operation. A bounded payloadless structural call may retain any selected
+/// subset, canonically ordered by guarded row coordinate.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OutcomeSpecificCallEvidence {
     pub guard: OutcomeSpecificGuard,
@@ -1436,10 +1436,10 @@ pub enum OperationKind {
         returned_claim_transfers: Vec<StructuralResultClaimTransfer>,
         requirement_obligations: Vec<ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
-        /// Optional proof-only selection from one exact outcome-specific
-        /// callee row. It is valid only beneath the matching result-case
-        /// refinement and has no runtime representation or fuel cost.
-        selected_evidence: Option<OutcomeSpecificCallEvidence>,
+        /// Canonical proof-only selections from exact outcome-specific callee
+        /// rows. Each is valid only beneath its matching result-case refinement
+        /// and has no runtime representation or fuel cost.
+        selected_evidence: Vec<OutcomeSpecificCallEvidence>,
     },
     /// Invoke one exact bodyless boundary machine. Completion receipts
     /// name every live caller claim consumed by the successful invocation at

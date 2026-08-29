@@ -619,9 +619,9 @@ pub struct CheckedPayloadlessGuardedCallReturnMachinePlan {
     pub call: CheckedUnitCallCoordinate,
     pub target_machine: SymbolHandle,
     pub target_state: SymbolHandle,
-    /// Present only for one explicitly selected named row. Omission retains
-    /// the callee's guarded implication without minting a caller term.
-    pub selected_evidence: Option<CheckedPayloadlessGuardedCallEvidencePlan>,
+    /// Canonically ordered explicitly selected named rows. An empty vector
+    /// retains the callee's guarded implications without minting caller terms.
+    pub selected_evidence: Vec<CheckedPayloadlessGuardedCallEvidencePlan>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

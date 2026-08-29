@@ -97,9 +97,7 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
             });
             encode_ids(bytes, requirement_obligations);
             bytes.slice(crash_continuations, encode_crash_route_bucket);
-            encode_optional(bytes, selected_evidence.as_ref(), |bytes, evidence| {
-                encode_outcome_specific_call_evidence(bytes, evidence)
-            });
+            bytes.slice(selected_evidence, encode_outcome_specific_call_evidence);
         }
         O::BoundaryCall {
             psi_operation,

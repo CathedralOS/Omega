@@ -155,7 +155,9 @@ pub(super) fn lower_unit_return(
                     .get(&parameter.structural_type)
                     .and_then(|declaration| match declaration.shape {
                         StructuralTypeShape::FixedArray { length: 2, .. } => Some(1),
-                        StructuralTypeShape::FixedArray { length: 3, .. } => Some(2),
+                        StructuralTypeShape::FixedArray { length: 3, .. } => {
+                            Some(moved_arguments.len())
+                        }
                         _ => None,
                     });
                 if parameter.multiplicity != psi_terminal::StructuralMultiplicity::Affine

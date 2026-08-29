@@ -259,7 +259,7 @@ pub(super) fn expected_maximal_residual_subtrees(
         let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
             return None;
         };
-        if !matches!((length, moved.len()), (2, 1) | (3, 2))
+        if !matches!((length, moved.len()), (2, 1) | (3, 1 | 2))
             || moved.iter().any(|(_, moved_type)| *moved_type != element)
             || !matches!(
                 declarations
@@ -281,10 +281,11 @@ pub(super) fn expected_maximal_residual_subtrees(
             return None;
         }
         let residuals = (0..length)
+            .rev()
             .filter(|index| !moved_indexes.contains(index))
             .map(|index| (vec![StructuralPathSegment::FixedIndex(index)], element))
             .collect::<Vec<_>>();
-        return (residuals.len() == 1).then_some(residuals);
+        return (!residuals.is_empty()).then_some(residuals);
     }
     let borrowed = moved
         .iter()

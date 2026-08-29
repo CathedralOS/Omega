@@ -201,7 +201,7 @@ fn payloadless_case_operation_adds_one_fixed_fuel_unit() {
                         returned_claim_transfers: Vec::new(),
                         requirement_obligations: Vec::new(),
                         crash_continuations: Vec::new(),
-                        selected_evidence: None,
+                        selected_evidence: Vec::new(),
                     },
                 }],
                 terminator: Terminator::ReturnStructural {

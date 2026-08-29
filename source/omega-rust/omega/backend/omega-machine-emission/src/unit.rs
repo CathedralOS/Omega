@@ -136,7 +136,7 @@ fn exact_partially_consumed_affine_triple_root(
     };
     if parameter.multiplicity != psi_terminal::StructuralMultiplicity::Affine
         || parameter.access != psi_terminal::StructuralAccess::Owned
-        || return_ordinal != 2
+        || !matches!(return_ordinal, 1 | 2)
         || body
             .structural_types
             .windows(2)
@@ -172,16 +172,18 @@ fn exact_partially_consumed_affine_triple_root(
     ) {
         return None;
     }
-    let [
-        first,
-        second,
+    let (
         AssignedUnitOperation::Return {
             cleanup_actions, ..
         },
-    ] = body.operations.as_slice()
+        calls,
+    ) = body.operations.split_last()?
     else {
         return None;
     };
+    if calls.len() != return_ordinal {
+        return None;
+    }
     let moved_index = |operation: &AssignedUnitOperation| {
         let AssignedUnitOperation::Call {
             result: None,
@@ -217,23 +219,35 @@ fn exact_partially_consumed_affine_triple_root(
             && copy.source_byte_offset == stride.checked_mul(u32::try_from(*index).ok()?)?)
         .then_some((*index, copy.shape, stride))
     };
-    let first = moved_index(first)?;
-    let second = moved_index(second)?;
-    if first.0 == second.0 || first.1 != second.1 || first.2 != second.2 {
+    let moved = calls.iter().map(moved_index).collect::<Option<Vec<_>>>()?;
+    let (_, first_shape, first_stride) = *moved.first()?;
+    let moved_indexes = moved
+        .iter()
+        .map(|(index, _, _)| *index)
+        .collect::<std::collections::BTreeSet<_>>();
+    if moved_indexes.len() != moved.len()
+        || moved
+            .iter()
+            .any(|(_, shape, stride)| *shape != first_shape || *stride != first_stride)
+    {
         return None;
     }
-    let residual_index = (0_u64..3).find(|index| *index != first.0 && *index != second.0)?;
-    let [psi_terminal::TerminalAffineCleanupAction::DiscardResidual(residual)] =
-        cleanup_actions.as_slice()
-    else {
-        return None;
-    };
-    (residual.place == parameter.place
-        && residual.structural_type == element
-        && residual.path
-            == [psi_terminal::StructuralPathSegment::FixedIndex(
-                residual_index,
-            )])
+    let expected_residuals = (0_u64..3)
+        .rev()
+        .filter(|index| !moved_indexes.contains(index))
+        .collect::<Vec<_>>();
+    (cleanup_actions.len() == expected_residuals.len()
+        && cleanup_actions
+            .iter()
+            .zip(expected_residuals)
+            .all(|(action, residual_index)| {
+                matches!(action,
+                    psi_terminal::TerminalAffineCleanupAction::DiscardResidual(residual)
+                        if residual.place == parameter.place
+                            && residual.structural_type == element
+                            && residual.path
+                                == [psi_terminal::StructuralPathSegment::FixedIndex(residual_index)])
+            }))
     .then_some(parameter.place)
 }
 

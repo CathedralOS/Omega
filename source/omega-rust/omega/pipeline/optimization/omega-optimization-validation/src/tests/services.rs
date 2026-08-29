@@ -251,7 +251,7 @@ fn replays_every_call_reach_lane_and_provider_service_refinement() {
             returned_claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
-            selected_evidence: None,
+            selected_evidence: Vec::new(),
         },
     ];
     for call in &calls {
@@ -522,7 +522,7 @@ fn root_service_reach_traverses_every_internal_call_lane_and_ignores_detached_ef
             returned_claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
-            selected_evidence: None,
+            selected_evidence: Vec::new(),
         },
     ];
     for call in calls {

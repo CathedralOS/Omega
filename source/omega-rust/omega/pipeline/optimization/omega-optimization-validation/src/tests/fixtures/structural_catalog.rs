@@ -599,7 +599,7 @@ pub(crate) fn structural_result_call_unit() -> PsiOptimizationUnit {
                         ],
                         requirement_obligations: Vec::new(),
                         crash_continuations: Vec::new(),
-                        selected_evidence: None,
+                        selected_evidence: Vec::new(),
                     },
                     AbstractOperation::ReturnStructural {
                         psi_edge: id(358, EdgeId::new),

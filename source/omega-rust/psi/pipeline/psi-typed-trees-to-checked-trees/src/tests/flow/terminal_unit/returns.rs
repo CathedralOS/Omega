@@ -38,7 +38,7 @@ fn retains_exact_payloadless_guarded_identity_call() {
     assert!(plan.result.qualifications.is_empty());
     let selected = plan
         .selected_evidence
-        .as_ref()
+        .first()
         .expect("the named guarded row should retain its selected caller term");
     assert_eq!(selected.arm_statement_index, 3);
     assert_eq!(

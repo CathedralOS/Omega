@@ -439,7 +439,7 @@ fn fully_consumed_affine_array_uses_two_calls_and_an_ordinary_return() {
 }
 
 #[test]
-fn affine_triple_two_moves_leave_one_exact_residual_through_terminal_replay() {
+fn affine_triple_residuals_follow_the_exact_decreasing_live_index_order() {
     let tokens = Lexer::new(AFFINE_TRIPLE_SOURCE)
         .tokenize()
         .expect("tokenize");
@@ -448,8 +448,109 @@ fn affine_triple_two_moves_leave_one_exact_residual_through_terminal_replay() {
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed).expect("check");
 
-    assert!(psi_checked_trees_to_terminal::lower_machine(&checked, "Root::one").is_err());
     assert!(psi_checked_trees_to_terminal::lower_machine(&checked, "Root::all").is_err());
+
+    let one = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::one")
+        .expect("one triple move and two ordered residuals lower");
+    let entry = one
+        .semantic_module
+        .machines
+        .iter()
+        .find(|candidate| candidate.id == one.semantic_module.entry)
+        .expect("entry machine");
+    let [root] = entry.structural_parameters.as_slice() else {
+        panic!("affine triple has one structural root")
+    };
+    let [block] = entry.blocks.as_slice() else {
+        panic!("affine triple has one block")
+    };
+    assert_eq!(block.operations.len(), 1);
+    let Terminator::ReturnUnitPartialAffine {
+        edge,
+        trivial_affine_discards,
+        residual_affine_discards,
+    } = &block.terminator
+    else {
+        panic!("one triple move uses one partial-cleanup return")
+    };
+    assert!(trivial_affine_discards.is_empty());
+    assert_eq!(
+        residual_affine_discards
+            .iter()
+            .map(|discard| {
+                assert_eq!(discard.place, root.place);
+                match discard.path.as_slice() {
+                    [StructuralPathSegment::FixedIndex(index)] => *index,
+                    _ => panic!("array residual is one literal index"),
+                }
+            })
+            .collect::<Vec<_>>(),
+        vec![2, 1],
+    );
+    psi_terminal_verifier::verify_module(
+        &one.semantic_module,
+        &one.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("verifier reconstructs two decreasing triple residuals");
+
+    let mut wrong_order = one.semantic_module.clone();
+    let entry = wrong_order
+        .machines
+        .iter_mut()
+        .find(|candidate| candidate.id == wrong_order.entry)
+        .unwrap();
+    let Terminator::ReturnUnitPartialAffine {
+        residual_affine_discards,
+        ..
+    } = &mut entry.blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    residual_affine_discards.reverse();
+    assert!(
+        psi_terminal_verifier::verify_module(
+            &wrong_order,
+            &one.proof_bundle,
+            &AdmissionProfile::default(),
+        )
+        .is_err(),
+        "producer-authored increasing cleanup order carries no authority",
+    );
+
+    let semantic = encode_module(&one.semantic_module).expect("module encodes");
+    assert_eq!(decode_module(&semantic).unwrap(), one.semantic_module);
+    let proof = encode_proof_bundle(&one.proof_bundle).expect("proof encodes");
+    let argument_value = TerminalStructuralValue {
+        opaque_identity: 0x5452_4950,
+        structural_type: root.structural_type,
+        qualifications: root.qualifications.clone(),
+        path: Vec::new(),
+    };
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[argument_value],
+    )
+    .expect("verified one-move affine triple starts");
+    let mut meter = TerminalFuelMeter::with_allowance(2);
+    assert_eq!(
+        execution.resume(&mut meter).expect("execution suspends"),
+        TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
+            schedule: TerminalFuelSchedule::CURRENT.identity(),
+            site: FuelChargeSite::Edge(*edge),
+            required_units: 1,
+            remaining_units: 0,
+        })
+    );
+    meter.replenish(1).expect("replenish residual return edge");
+    assert_eq!(
+        execution.resume(&mut meter).expect("execution completes"),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(meter.usage().total_units(), 3);
 
     for (machine, expected_paths, residual) in [
         ("Root::middle", [2, 0], 1),

@@ -1574,37 +1574,26 @@ pub(super) fn partial_affine_residuals(
         ) {
             return None;
         }
-        match length {
-            2 if moved_paths.len() == 1 => {
-                let [StructuralPathSegment::FixedIndex(index @ (0 | 1))] =
-                    moved_paths.first()?.as_slice()
-                else {
-                    return None;
-                };
-                return Some(vec![(
-                    vec![StructuralPathSegment::FixedIndex(1 - index)],
-                    element,
-                )]);
-            }
-            3 if moved_paths.len() == 2 => {
-                let moved = moved_paths
-                    .iter()
-                    .filter_map(|path| match path.as_slice() {
-                        [StructuralPathSegment::FixedIndex(index @ (0 | 1 | 2))] => Some(*index),
-                        _ => None,
-                    })
-                    .collect::<BTreeSet<_>>();
-                if moved.len() != 2 {
-                    return None;
-                }
-                let residual = (0_u64..3).find(|index| !moved.contains(index))?;
-                return Some(vec![(
-                    vec![StructuralPathSegment::FixedIndex(residual)],
-                    element,
-                )]);
-            }
-            _ => return None,
+        if !matches!((length, moved_paths.len()), (2, 1) | (3, 1 | 2)) {
+            return None;
         }
+        let moved = moved_paths
+            .iter()
+            .filter_map(|path| match path.as_slice() {
+                [StructuralPathSegment::FixedIndex(index)] if *index < length => Some(*index),
+                _ => None,
+            })
+            .collect::<BTreeSet<_>>();
+        if moved.len() != moved_paths.len() {
+            return None;
+        }
+        return Some(
+            (0_u64..length)
+                .rev()
+                .filter(|index| !moved.contains(index))
+                .map(|index| (vec![StructuralPathSegment::FixedIndex(index)], element))
+                .collect(),
+        );
     }
     if moved_paths.iter().enumerate().any(|(index, path)| {
         moved_paths

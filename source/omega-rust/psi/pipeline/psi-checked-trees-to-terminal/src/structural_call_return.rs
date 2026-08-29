@@ -261,7 +261,7 @@ pub(super) fn lower_structural_call_return_machine(
                     }],
                     requirement_obligations: Vec::new(),
                     crash_continuations: Vec::new(),
-                    selected_evidence: None,
+                    selected_evidence: Vec::new(),
                 },
             }],
             terminator: Terminator::ReturnStructural {

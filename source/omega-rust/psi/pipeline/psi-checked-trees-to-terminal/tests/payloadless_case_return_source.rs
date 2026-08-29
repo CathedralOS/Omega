@@ -3,7 +3,9 @@ use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_terminal::{OperationKind, OperationResult, StructuralTypeShape, Terminator};
-use psi_terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_bundle};
+use psi_terminal_codec::{
+    CodecError, decode_module, decode_proof_bundle, encode_module, encode_proof_bundle,
+};
 use psi_terminal_fixed_fuel::derive_fixed_entry_fuel;
 use psi_terminal_fuel::TerminalFuelMeter;
 use psi_terminal_interpreter::{
@@ -99,6 +101,31 @@ const OMITTED_GUARDED_CALL_SOURCE: &str = r#"
     }
 "#;
 
+const MULTI_SELECTED_GUARDED_CALL_SOURCE: &str = r#"
+    trait Evidence {}
+    proposition ready() evidence Evidence;
+    ConcreteEvidence: satisfies Evidence {}
+    data Outcome [copy] { case Success; case Failure; }
+    data Root {}
+
+    machine Root::produce() -> Outcome
+    ensures Outcome::Success -> { first: ready(); second: ready(); true; }
+    ensures Outcome::Failure -> { sibling: ready(); }
+    {
+        first = ConcreteEvidence;
+        second = ConcreteEvidence;
+        Outcome::Success
+    }
+
+    machine Root::caller() -> Outcome {
+        let saved: Outcome = Root::produce();
+        transition saved {
+            Outcome::Success { ; second: local_second, first: local_first } -> saved
+            Outcome::Failure { } -> saved
+        }
+    }
+"#;
+
 #[test]
 fn guarded_payloadless_source_call_rejoins_selected_evidence_and_uses_four_fuel() {
     let checked = checked(GUARDED_CALL_SOURCE);
@@ -109,11 +136,13 @@ fn guarded_payloadless_source_call_rejoins_selected_evidence_and_uses_four_fuel(
         panic!("the guarded source call retains caller and callee")
     };
     let OperationKind::CallStructural {
-        selected_evidence: Some(selected),
-        ..
+        selected_evidence, ..
     } = &caller.blocks[0].operations[0].kind
     else {
         panic!("the guarded source call publishes its selected row")
+    };
+    let [selected] = selected_evidence.as_slice() else {
+        panic!("the guarded source call publishes exactly one selected row")
     };
     let callee_row = callee
         .contract
@@ -206,10 +235,12 @@ fn guarded_payloadless_source_call_rejoins_selected_evidence_and_uses_four_fuel(
 
     let mut tampered = module.clone();
     let OperationKind::CallStructural {
-        selected_evidence: Some(selected),
-        ..
+        selected_evidence, ..
     } = &mut tampered.machines[0].blocks[0].operations[0].kind
     else {
+        unreachable!()
+    };
+    let [selected] = selected_evidence.as_mut_slice() else {
         unreachable!()
     };
     selected.position = selected.position.checked_add(1).unwrap();
@@ -221,7 +252,8 @@ fn guarded_payloadless_source_call_rejoins_selected_evidence_and_uses_four_fuel(
         .flow
         .terminal_structural_call_returns
         .payloadless_guarded_machines[0]
-        .selected_evidence = None;
+        .selected_evidence
+        .clear();
     assert!(psi_checked_trees_to_terminal::lower_machine(&lost_selection, "Root::caller").is_err());
 
     let mut wrong_arm = checked.clone();
@@ -230,9 +262,7 @@ fn guarded_payloadless_source_call_rejoins_selected_evidence_and_uses_four_fuel(
         .flow
         .terminal_structural_call_returns
         .payloadless_guarded_machines[0]
-        .selected_evidence
-        .as_mut()
-        .unwrap()
+        .selected_evidence[0]
         .arm_statement_index += 1;
     assert!(psi_checked_trees_to_terminal::lower_machine(&wrong_arm, "Root::caller").is_err());
 
@@ -251,9 +281,7 @@ fn guarded_payloadless_source_call_rejoins_selected_evidence_and_uses_four_fuel(
         .flow
         .terminal_structural_call_returns
         .payloadless_guarded_machines[0]
-        .selected_evidence
-        .as_mut()
-        .unwrap()
+        .selected_evidence[0]
         .guarantee = sibling_guarantee;
     assert!(
         psi_checked_trees_to_terminal::lower_machine(&wrong_guarantee, "Root::caller").is_err()
@@ -289,6 +317,108 @@ fn guarded_payloadless_source_call_rejoins_selected_evidence_and_uses_four_fuel(
 }
 
 #[test]
+fn guarded_payloadless_source_call_retains_a_canonical_selected_subset_without_runtime_cost() {
+    let checked = checked(MULTI_SELECTED_GUARDED_CALL_SOURCE);
+    let [checked_plan] = checked
+        .facts
+        .flow
+        .terminal_structural_call_returns
+        .payloadless_guarded_machines
+        .as_slice()
+    else {
+        panic!("the checked carrier retains one multi-selection call")
+    };
+    assert_eq!(checked_plan.selected_evidence.len(), 2);
+
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::caller")
+        .expect("the canonical multi-selection guarded call lowers");
+    let [caller, callee] = lowered.semantic_module.machines.as_slice() else {
+        panic!("the guarded source call retains caller and callee")
+    };
+    let OperationKind::CallStructural {
+        selected_evidence, ..
+    } = &caller.blocks[0].operations[0].kind
+    else {
+        panic!("the source call remains one structural call")
+    };
+    assert_eq!(selected_evidence.len(), 2);
+    assert_eq!(
+        selected_evidence
+            .iter()
+            .map(|binding| (binding.position, binding.output_field.as_str()))
+            .collect::<Vec<_>>(),
+        [(0, "first"), (1, "second")],
+        "caller selector spelling order does not perturb canonical callee-row order"
+    );
+    assert!(
+        selected_evidence
+            .windows(2)
+            .all(|rows| rows[0].output != rows[1].output)
+    );
+    for binding in selected_evidence {
+        let row = callee
+            .contract
+            .outcome_specific_ensures
+            .iter()
+            .find(|row| row.guard == binding.guard && row.position == binding.position)
+            .expect("every selected row rejoins one exact callee guarantee");
+        let evidence = row.evidence.as_ref().expect("selected row is named");
+        assert_eq!(binding.callee_obligation, row.obligation);
+        assert_eq!(binding.callee_term, evidence.term);
+        assert_eq!(binding.output_field, evidence.output_field);
+        assert_ne!(binding.output, binding.callee_term);
+        assert_eq!(
+            binding.validity.proposition_dependencies,
+            [binding.validity.result]
+        );
+    }
+    assert_eq!(caller.blocks[0].operations.len(), 1);
+    assert_eq!(lowered.semantic_module.evidence_terms.len(), 5);
+    assert_eq!(lowered.proof_bundle.evidence_producers.len(), 2);
+
+    let bytes = encode_module(&lowered.semantic_module).expect("multi-selection module encodes");
+    assert_eq!(decode_module(&bytes), Ok(lowered.semantic_module.clone()));
+    let verified = psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("multi-selection guarded call verifies");
+    assert_eq!(
+        derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+            .unwrap()
+            .ceiling_units(),
+        4,
+        "two erased selections add no runtime charge"
+    );
+
+    let mut reordered = lowered.semantic_module.clone();
+    let OperationKind::CallStructural {
+        selected_evidence, ..
+    } = &mut reordered.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    selected_evidence.swap(0, 1);
+    assert!(matches!(
+        encode_module(&reordered),
+        Err(CodecError::NonCanonicalOrder(
+            "guarded-call selections or validity dependency roots"
+        ))
+    ));
+
+    let mut duplicated = lowered.semantic_module.clone();
+    let OperationKind::CallStructural {
+        selected_evidence, ..
+    } = &mut duplicated.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    selected_evidence[1] = selected_evidence[0].clone();
+    assert!(psi_terminal_verifier::validate_module(&duplicated).is_err());
+}
+
+#[test]
 fn omitted_guarded_selector_retains_fact_only_callee_without_runtime_delta() {
     let omitted = psi_checked_trees_to_terminal::lower_machine(
         &checked(OMITTED_GUARDED_CALL_SOURCE),
@@ -299,12 +429,15 @@ fn omitted_guarded_selector_retains_fact_only_callee_without_runtime_delta() {
         panic!("the omitted-selector call retains caller and callee")
     };
     let OperationKind::CallStructural {
-        selected_evidence: None,
-        ..
+        selected_evidence, ..
     } = &caller.blocks[0].operations[0].kind
     else {
         panic!("omission does not mint caller evidence")
     };
+    assert!(
+        selected_evidence.is_empty(),
+        "omission mints no caller evidence"
+    );
     assert_eq!(callee.contract.outcome_specific_ensures.len(), 3);
     assert_eq!(omitted.semantic_module.evidence_terms.len(), 2);
     assert_eq!(omitted.proof_bundle.evidence_producers.len(), 1);
@@ -327,7 +460,7 @@ fn omitted_guarded_selector_retains_fact_only_callee_without_runtime_delta() {
     else {
         unreachable!()
     };
-    *selected_evidence = None;
+    selected_evidence.clear();
     let omitted_blocks = omitted
         .semantic_module
         .machines

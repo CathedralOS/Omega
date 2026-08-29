@@ -180,7 +180,7 @@ pub(crate) fn payloadless_selected_evidence_surface_matches(
     else {
         return true;
     };
-    selected_evidence.is_none()
+    selected_evidence.is_empty()
         || (exact_payloadless_structural_call(operation, callee, types)
             && callee
                 .verified_contract
