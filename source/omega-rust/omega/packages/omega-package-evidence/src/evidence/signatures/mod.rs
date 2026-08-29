@@ -1,13 +1,13 @@
 //! Stable type, callable, trait, conformance, and external-supply signatures.
 
 use super::{
-    api::PackageReviewDataProperties,
     authority::{PackageReviewCrashRoute, PackageReviewTermination},
     contracts::{
         PackageReviewCallableContract, PackageReviewContractStaticArgument,
         PackageReviewEvidenceInterface, PackageReviewOperatorCoordinate,
         PackageReviewSynchronousInvocation,
     },
+    data::PackageReviewDataProperties,
     identity::PackageReviewNominalIdentity,
 };
 

@@ -15,7 +15,9 @@ src/
 |-- evidence/                 public stable compiler-issued evidence vocabulary
 |   |-- identity.rs           package/toolchain nominal identity
 |   |-- signatures/           types, callables, traits, and external supply
-|   |-- api.rs                domain and data API shapes
+|   |-- domains.rs            domain identities, roles, aliases, and establishment
+|   |-- data.rs               data shapes, members, and declared properties
+|   |-- representation.rs     opaque representation trust commitments
 |   |-- contracts/            expressions, propositions, declarations, and callable contracts
 |   |-- authority.rs          reach, capability, mutation, crash, and termination
 |   |-- package/              callables, providers, package aggregate, and source pairings
