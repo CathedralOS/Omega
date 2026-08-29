@@ -137,6 +137,22 @@ fn manager_and_compiler_evidence_have_exact_reader_entrances() {
 }
 
 #[test]
+fn stable_package_evidence_excludes_compiler_private_projection_handles() {
+    let evidence = package_root().join("omega-package-evidence/src/evidence");
+    for path in rust_files(&evidence) {
+        let source = fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
+        for forbidden in ["SymbolHandle", "psi_source::SourceSpan"] {
+            assert!(
+                !source.contains(forbidden),
+                "stable package evidence retains compiler-private `{forbidden}` in {}",
+                path.display()
+            );
+        }
+    }
+}
+
+#[test]
 fn source_tests_live_with_their_owners() {
     let source = package_root().join("omega-package-source/src");
     assert!(

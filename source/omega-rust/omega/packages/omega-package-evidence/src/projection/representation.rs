@@ -1,10 +1,10 @@
 use super::semantics::declarations::{nominal_identity, reviewed_package_owns};
-use crate::evidence::package::{ProjectedReviewRow, ProjectedSemanticDependencyRow};
 use crate::evidence::{
     PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,
     PackageReviewRepresentationTcb, PackageReviewSemanticDependency,
     PackageReviewSemanticDependencyExposure, PackageReviewSemanticDependencyKind,
 };
+use crate::projection::source::{ProjectedReviewRow, ProjectedSemanticDependencyRow};
 use omega_compiler::CheckedCompilation;
 use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;

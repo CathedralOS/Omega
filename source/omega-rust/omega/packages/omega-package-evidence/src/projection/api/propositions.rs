@@ -1,4 +1,3 @@
-use crate::evidence::package::{ProjectedNestedSourceLocation, ProjectedReviewRow};
 use crate::evidence::{
     PackageReviewContractFact, PackageReviewPropositionShape, PackageReviewPublicPropositionBody,
     PackageReviewSourceLocationRole,
@@ -9,6 +8,7 @@ use crate::projection::contracts::propositions::application::project_contract_pr
 use crate::projection::contracts::propositions::endpoint::project_proposition_signature;
 use crate::projection::contracts::propositions::evidence::project_evidence_interface;
 use crate::projection::semantics::declarations::{nominal_identity, reviewed_package_owns};
+use crate::projection::source::{ProjectedNestedSourceLocation, ProjectedReviewRow};
 use omega_compiler::CheckedCompilation;
 use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;

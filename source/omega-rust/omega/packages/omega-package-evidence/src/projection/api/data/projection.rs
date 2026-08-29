@@ -1,5 +1,4 @@
 use super::evidence::require_rederived_data_definition_facts;
-use crate::evidence::package::ProjectedReviewRow;
 use crate::evidence::{
     PackageReviewContractFact, PackageReviewDataKind, PackageReviewDataMember,
     PackageReviewDataShape, PackageReviewNominalIdentity, PackageReviewSourceLocationRole,
@@ -15,6 +14,7 @@ use crate::projection::semantics::signatures::parameters::project_type_parameter
 use crate::projection::semantics::types::{
     project_data_field, review_signature_type_identity_with_binders,
 };
+use crate::projection::source::ProjectedReviewRow;
 use crate::projection::source::locations::project_nested_declaration_source_location;
 use omega_compiler::CheckedCompilation;
 use psi_core::PackageKeyIdentity;

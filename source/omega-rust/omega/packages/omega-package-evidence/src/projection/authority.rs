@@ -1,11 +1,11 @@
 use super::semantics::declarations::nominal_identity;
-use crate::evidence::package::{
-    ProjectedDangerousAuthorityRow, ProjectedDangerousAuthoritySlackRow, ProjectedReviewRow,
-};
 use crate::evidence::{
     CheckedPackageCallableReview, PackageReviewDangerousAuthority,
     PackageReviewDangerousAuthorityClass, PackageReviewDangerousAuthoritySlack,
     PackageReviewNominalIdentity, PackageReviewSynchronousInvocation,
+};
+use crate::projection::source::{
+    ProjectedDangerousAuthorityRow, ProjectedDangerousAuthoritySlackRow, ProjectedReviewRow,
 };
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;

@@ -1,5 +1,5 @@
 use crate::evidence::PackageReviewSourceLocationRole;
-use crate::evidence::package::ProjectedNestedSourceLocation;
+use crate::projection::source::ProjectedNestedSourceLocation;
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 

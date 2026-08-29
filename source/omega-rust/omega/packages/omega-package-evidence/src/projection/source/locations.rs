@@ -1,7 +1,8 @@
 use super::super::semantics::declarations::{
     is_canonical_virtual_toolchain_path, toolchain_source_identity,
 };
-use crate::evidence::package::{PackageReviewCanonicalRowSources, ProjectedNestedSourceLocation};
+use super::ProjectedNestedSourceLocation;
+use crate::evidence::package::PackageReviewCanonicalRowSources;
 use crate::evidence::{
     PackageReviewSourceLocation, PackageReviewSourceLocationOwner, PackageReviewSourceLocationRole,
 };

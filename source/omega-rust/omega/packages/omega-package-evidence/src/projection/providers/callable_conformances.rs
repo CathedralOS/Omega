@@ -9,12 +9,12 @@ use super::external_supply::{
     project_external_binding, project_external_executable_supply_with_source,
     validate_external_binding_payload,
 };
-use crate::evidence::package::ProjectedReviewRow;
 use crate::evidence::{
     PackageReviewCallableConformance, PackageReviewExternalBinding,
     PackageReviewExternalExecutableSupply, PackageReviewExternalRequirement,
     PackageReviewNominalIdentity, PackageReviewOperatorRealization,
 };
+use crate::projection::source::ProjectedReviewRow;
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::MachineSupplyMode;

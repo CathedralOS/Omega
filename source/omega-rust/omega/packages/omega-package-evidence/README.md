@@ -24,7 +24,7 @@ src/
 |   |-- orchestration/        validation, surface collection, providers, and assembly
 |   |-- authority.rs          reached authority and intrinsic risk classes
 |   |-- representation.rs     semantic dependencies and representation TCB
-|   |-- source/               bounded source coordinates and final row/source pairing
+|   |-- source/               compiler-private pairings and final canonical source custody
 |   |-- api/                  public domains, data, propositions, constants, operators, traits, and conformances
 |   |-- callables.rs          callable envelope projection
 |   |-- contracts/            checked facts, propositions, and expressions

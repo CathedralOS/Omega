@@ -6,12 +6,12 @@ use super::super::api::operators::project_public_operators;
 use super::super::api::propositions::project_public_propositions;
 use super::super::api::traits::project_public_traits;
 use super::super::representation::{project_representation_tcb, project_semantic_dependencies};
-use crate::evidence::package::{ProjectedReviewRow, ProjectedSemanticDependencyRow};
 use crate::evidence::{
     PackageReviewConformanceShape, PackageReviewConstShape, PackageReviewDataShape,
     PackageReviewDomainShape, PackageReviewOperatorShape, PackageReviewPropositionShape,
     PackageReviewRepresentationTcb, PackageReviewTraitShape,
 };
+use crate::projection::source::{ProjectedReviewRow, ProjectedSemanticDependencyRow};
 use omega_compiler::CheckedCompilation;
 use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;

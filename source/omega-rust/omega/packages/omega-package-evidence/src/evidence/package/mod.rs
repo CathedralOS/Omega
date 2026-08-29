@@ -13,8 +13,4 @@ pub use providers::{
     PackageReviewProviderFamilyCoverage, PackageReviewProviderSelectionAuthority,
     PackageReviewSelectedInstallationReach,
 };
-pub(crate) use source::{
-    PackageReviewCanonicalRowSources, ProjectedDangerousAuthorityRow,
-    ProjectedDangerousAuthoritySlackRow, ProjectedNestedSourceLocation, ProjectedReviewRow,
-    ProjectedSemanticDependencyRow,
-};
+pub(crate) use source::PackageReviewCanonicalRowSources;
