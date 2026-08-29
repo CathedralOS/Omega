@@ -1225,7 +1225,9 @@ These facts constrain the work below.
 `../Squalr` provides the intended small rule-planning pattern:
 
 - rule traits have stable IDs;
-- registries own built-in rules;
+- a 78-line element-scan registry visibly owns the complete built-in rule list;
+- each built-in rule has its own coherently named file below parameter-rule or
+  filter-rule folders;
 - rules map an input or mutable execution plan to a more efficient plan;
 - dispatch selects a specialized implementation from the planned result; and
 - a debug scalar scan can compare the specialized result against a reference.
@@ -1235,9 +1237,46 @@ reference validation. Do not copy Squalr's transitional global singleton,
 unsafe initialization, hash-map iteration order, in-place partial mutation, or
 absence of declared analysis invalidation. Omega registries must be explicit,
 ordered values; rules propose atomic patches; a separate validator accepts or
-rejects them. The audit also found registered element-parameter rules without a
-dispatcher call site in the scanned crates; Omega therefore needs a registry
-coverage test proving that every enabled rule phase is actually scheduled.
+rejects them. Squalr's current callers do dispatch both parameter and filter
+rule registries, but their hash-map iteration does not express a stable chained
+order. Omega therefore retains ordered registry values and coverage tests that
+prove every enabled rule phase is actually scheduled.
+
+## Optimizer source organization gate
+
+- **OPT-OPTIMIZER-MODULE-TAXONOMY.** Replace flat prefix-named file sets and
+  multi-purpose monoliths with navigable stage entrances and named rule
+  families. A human entering an optimizer crate must first see a small
+  responsibility-bearing `lib.rs`; it names the stage's semantic rungs and
+  public coordination entries. Each rung then has a small `mod.rs` that owns
+  its catalog or compute-to-independent-validation flow and leads to folders
+  named for exact analyses, plans, or optimization rules. Entrances must not
+  contain rule mechanics or giant test modules, but also must not be empty
+  forwarding shells.
+
+  The machine optimizer is the reference slice. Its 16-line crate entrance
+  leads to `analyses/pre_allocation_effects`, `planning/post_allocation`, and
+  `rules/aarch64/{compare_zero_branch_nonzero,materialize_i64_movn}`. Each leaf
+  entrance is 26–54 lines and owns the public operation plus its
+  compute/independent-replay join. Existing public API names and all semantic
+  identities are unchanged.
+
+  Remaining work: split `omega-psi-optimizer/src/rules.rs` by named pass and
+  exact rule family; split candidate replay out of
+  `omega-optimization-validation/src/lib.rs` under the matching independent
+  validator taxonomy; organize register allocation into `analyses`,
+  `allocation`, and exact `rules`; make optimization-pipeline stage catalogs
+  navigable without a flat `#[path]`/re-export wall; and split monolithic test
+  modules beside the family they exercise. Do not create one crate per rule or
+  combine independent producer and validator implementations merely to reduce
+  line counts.
+
+  Acceptance: no optimizer production file combines registry construction,
+  unrelated rule mechanics, independent validation, and broad integration
+  fixtures; every exact named optimization is discoverable from one stage
+  entrance through coherently named folders; enabling/disabling remains the
+  exact ordered selection/registry operation; and workspace plus stage tests
+  prove the refactor changes no identities, schedules, or outputs.
 
 ## Ownership and placement
 

@@ -78,7 +78,7 @@ pub(crate) fn replay_from_parts(
             Aarch64MovnMaterializationWorkAxis::Iterations,
         )?;
         let iteration = usage.iterations;
-        let input = crate::aarch64_movn_identity::revision_identity(
+        let input = super::identity::revision_identity(
             source_identity,
             selected_identity,
             source.target,
@@ -216,7 +216,7 @@ pub(crate) fn replay_from_parts(
             baseline_word_count,
             recipe: recipe.clone(),
         };
-        let output = crate::aarch64_movn_identity::revision_identity(
+        let output = super::identity::revision_identity(
             source_identity,
             selected_identity,
             source.target,
@@ -237,7 +237,7 @@ pub(crate) fn replay_from_parts(
         });
     }
 
-    let output_revision = crate::aarch64_movn_identity::revision_identity(
+    let output_revision = super::identity::revision_identity(
         source_identity,
         selected_identity,
         source.target,

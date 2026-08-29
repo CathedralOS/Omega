@@ -73,11 +73,11 @@ pub struct StructuralUnitCallMachineEffects {
 
 impl PreAllocationMachineEffectPlan {
     pub fn encode(&self) -> Vec<u8> {
-        crate::effect_codec::encode_terminal_pre_allocation_machine_effect_plan(self)
+        super::codec::encode_terminal_pre_allocation_machine_effect_plan(self)
     }
 
     pub fn decode(encoded: &[u8]) -> Result<Self, crate::PreAllocationMachineEffectDecodeError> {
-        crate::effect_codec::decode_terminal_pre_allocation_machine_effect_plan(encoded)
+        super::codec::decode_terminal_pre_allocation_machine_effect_plan(encoded)
     }
 }
 

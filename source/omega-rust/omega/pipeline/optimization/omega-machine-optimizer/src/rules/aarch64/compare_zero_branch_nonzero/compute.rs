@@ -18,32 +18,10 @@ use crate::{
     Aarch64CbnzFusionIdentity, Aarch64CbnzFusionInstruction, Aarch64CbnzFusionPlan,
     Aarch64CbnzFusionPolicy, Aarch64CbnzFusionWorkAxis, Aarch64CbnzInstructionDisposition,
     PhysicalOperandFootprint, PostAllocationMachineInstruction, QualifiedPhysicalRead,
-    ValidatedAarch64CbnzFusion, ValidatedPostAllocationMachinePlan, aarch64_cbnz_fusion_identity,
-    fusion_receipt,
+    ValidatedPostAllocationMachinePlan, aarch64_cbnz_fusion_identity,
 };
 
-/// Independently replay the complete deterministic transformation and accept
-/// the artifact only when every attempt, action, disposition, work counter,
-/// revision, and content identity is reproduced.
-pub fn validate_aarch64_cbnz_fusion<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    liveness: &ValidatedLiveness,
-    source: &ValidatedPostAllocationMachinePlan,
-    physical: &ValidatedPhysicalRegisterModel,
-    plan: Aarch64CbnzFusionPlan,
-) -> Result<ValidatedAarch64CbnzFusion, Aarch64CbnzFusionError> {
-    if plan.policy != Aarch64CbnzFusionPolicy::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 {
-        return Err(Aarch64CbnzFusionError::ArtifactMismatch);
-    }
-    let expected = replay(selected, liveness, source, physical, plan.budget)?;
-    if plan != expected {
-        return Err(Aarch64CbnzFusionError::ArtifactMismatch);
-    }
-    let receipt = fusion_receipt(&plan);
-    Ok(ValidatedAarch64CbnzFusion::new(plan, receipt))
-}
-
-fn replay<S: ValidatedSelectedAnalysis>(
+pub(crate) fn compute<S: ValidatedSelectedAnalysis>(
     selected: &S,
     liveness: &ValidatedLiveness,
     source: &ValidatedPostAllocationMachinePlan,
@@ -68,7 +46,7 @@ fn replay<S: ValidatedSelectedAnalysis>(
             Aarch64CbnzFusionWorkAxis::Iterations,
         )?;
         let iteration = usage.iterations;
-        let input = crate::aarch64_cbnz_identity::revision_identity(
+        let input = super::identity::revision_identity(
             source.receipt().identity(),
             selected.selected_identity(),
             liveness.receipt().identity(),
@@ -76,7 +54,7 @@ fn replay<S: ValidatedSelectedAnalysis>(
             physical.identity(),
             &functions,
         );
-        let mut candidate = None;
+        let mut selected_candidate = None;
         'scan: for (function_index, selected_function) in selected_plan.functions.iter().enumerate()
         {
             let machine_function = machine_plan.functions.get(function_index).ok_or(
@@ -179,7 +157,7 @@ fn replay<S: ValidatedSelectedAnalysis>(
                         budget.validation_steps(),
                         Aarch64CbnzFusionWorkAxis::ValidationSteps,
                     )?;
-                    candidate = Some((
+                    selected_candidate = Some((
                         function_index,
                         block_index,
                         selected_function.machine,
@@ -204,7 +182,7 @@ fn replay<S: ValidatedSelectedAnalysis>(
             machine_compare,
             when_nonzero,
             when_zero,
-        )) = candidate
+        )) = selected_candidate
         else {
             break;
         };
@@ -220,7 +198,7 @@ fn replay<S: ValidatedSelectedAnalysis>(
             branch.id,
             &source_read,
         )?;
-        let output = crate::aarch64_cbnz_identity::revision_identity(
+        let output = super::identity::revision_identity(
             source.receipt().identity(),
             selected.selected_identity(),
             liveness.receipt().identity(),
@@ -246,7 +224,7 @@ fn replay<S: ValidatedSelectedAnalysis>(
         });
     }
 
-    let output_revision = crate::aarch64_cbnz_identity::revision_identity(
+    let output_revision = super::identity::revision_identity(
         source.receipt().identity(),
         selected.selected_identity(),
         liveness.receipt().identity(),
@@ -254,7 +232,7 @@ fn replay<S: ValidatedSelectedAnalysis>(
         physical.identity(),
         &functions,
     );
-    let mut expected = Aarch64CbnzFusionPlan {
+    let mut plan = Aarch64CbnzFusionPlan {
         identity: Aarch64CbnzFusionIdentity::from_bytes([0; 32]),
         source: source.receipt().identity(),
         selected: selected.selected_identity(),
@@ -269,8 +247,8 @@ fn replay<S: ValidatedSelectedAnalysis>(
         actions,
         functions,
     };
-    expected.identity = aarch64_cbnz_fusion_identity(&expected);
-    Ok(expected)
+    plan.identity = aarch64_cbnz_fusion_identity(&plan);
+    Ok(plan)
 }
 
 fn validate_roots<S: ValidatedSelectedAnalysis>(
@@ -292,7 +270,10 @@ fn validate_roots<S: ValidatedSelectedAnalysis>(
         || liveness.plan().selected != selected.selected_identity()
         || liveness.plan().target != machine.target
         || machine.physical_register_model != physical.identity()
-        || selected.selected_plan().functions.len() != machine.functions.len()
+    {
+        return Err(Aarch64CbnzFusionError::RootMismatch);
+    }
+    if selected.selected_plan().functions.len() != machine.functions.len()
         || selected.selected_plan().functions.len() != liveness.plan().functions.len()
     {
         return Err(Aarch64CbnzFusionError::RootMismatch);
