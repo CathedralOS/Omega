@@ -39,7 +39,7 @@ impl std::fmt::Display for Aarch64CbnzFusionDecodeError {
 impl std::error::Error for Aarch64CbnzFusionDecodeError {}
 
 pub(crate) fn encode(plan: &Aarch64CbnzFusionPlan) -> Vec<u8> {
-    let content = crate::aarch64_cbnz_identity::encode_content(plan);
+    let content = super::identity::encode_content(plan);
     let mut encoded = Vec::with_capacity(44 + content.len());
     encoded.extend_from_slice(MAGIC);
     encoded.extend_from_slice(&VERSION.to_le_bytes());
@@ -344,9 +344,10 @@ mod tests {
         let target = NativeTarget::linux_arm64();
         let physical = PhysicalRegisterModelIdentity::from_bytes(identity(13));
         let input = Aarch64CbnzFusionRevisionIdentity::from_bytes(identity(14));
-        let output = crate::aarch64_cbnz_identity::revision_identity(
-            source, selected, liveness, target, physical, &functions,
-        );
+        let output =
+            crate::rules::aarch64::compare_zero_branch_nonzero::identity::revision_identity(
+                source, selected, liveness, target, physical, &functions,
+            );
         let mut plan = Aarch64CbnzFusionPlan {
             identity: Aarch64CbnzFusionIdentity::from_bytes([0; 32]),
             source,

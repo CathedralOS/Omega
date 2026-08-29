@@ -1064,10 +1064,11 @@ replacing the optimizer's analysis model.
 ## Rule and pass model
 
 Squalr's scan-rule architecture supplies a useful small pattern: typed rules
-with stable IDs mutate a plan, a registry owns built-ins, a dispatcher applies
-them, and an independent scalar scan can validate a specialized result. Omega
-should adopt the separation of **rule**, **registry**, **plan**, and
-**dispatcher**, but strengthen it for a compiler:
+with stable IDs mutate a plan, a 78-line registry visibly owns the built-in
+list, each rule lives in its own parameter-rule or filter-rule file, a
+dispatcher applies the registry, and an independent scalar scan can validate a
+specialized result. Omega adopts the separation of **rule**, **registry**,
+**plan**, and **dispatcher**, but strengthens it for a compiler:
 
 - registries are ordered and deterministic, never iteration-ordered hash maps;
 - registries are explicit values passed to a pipeline, never unsafe mutable
@@ -1117,6 +1118,44 @@ transformation may not be smuggled in as a prerequisite. A convenience helper
 may spell several `enable` calls, but its evaluated result and manifest are the
 expanded selections, never an opaque suite level. Source code and models cannot
 register arbitrary executable compiler extensions.
+
+The source tree must make that model visible rather than hiding it in a large
+file. Every optimizer stage has one small, meaningful entrance module. It names
+the stage's semantic rungs, owns its public coordination or ordered catalog,
+and points directly to lower folders. It does not contain rule mechanics or a
+large test suite, and it is not an empty forwarding shell. Lower folders use
+semantic taxonomy rather than filename prefixes:
+
+```text
+stage crate/
+  lib.rs                         # stage rungs + public coordination surface
+  analyses/
+    mod.rs                       # analysis catalog
+    exact_analysis/
+      mod.rs                     # compute -> independent validation entrance
+      {model,identity,compute,validate,codec}.rs
+  planning/
+    exact_plan/
+      mod.rs                     # plan construction/replay entrance
+  rules/
+    target-or-pass/
+      exact_named_rule/
+        mod.rs                   # contract/entry + compute/validate join
+        {model,identity,compute,validate,codec}.rs
+```
+
+Not every family needs every leaf shown above. Target-neutral Psi rule folders
+propose candidates and leave independent acceptance in the validation crate;
+they must not import or share their decision implementation with that crate.
+Conversely, a physical rule whose validator lives in the same crate still has
+separate `compute.rs` and `validate.rs` implementations joined only by its
+small entrance. Helpers shared by unrelated rules live under an explicitly
+named support module only when they represent one stable common concept.
+
+Tests follow the same taxonomy. Broad end-to-end fixtures may remain at the
+orchestration boundary, but rule mechanics, codec corruption, and independent
+replay tests live with their corresponding family. A `tests.rs` containing the
+entire optimizer is not an acceptable substitute for production organization.
 
 The ordered registry preserves the pass manager's explicit schedule exactly;
 it does not sort cryptographic rule or pass identities. The full ordered list
@@ -3282,6 +3321,24 @@ analyses and rules are modules, not one-crate-per-pass. Existing representation
 crates remain representation owners; pipeline crates transform but do not
 become dumping grounds for shared types. Target ISA crates provide declarative
 register/instruction facts and encodings, not global optimization policy.
+
+The reference machine optimizer demonstrates the required internal shape:
+
+```text
+omega-machine-optimizer/src/
+  lib.rs
+  analyses/pre_allocation_effects/
+  planning/post_allocation/
+  rules/aarch64/compare_zero_branch_nonzero/
+  rules/aarch64/materialize_i64_movn/
+```
+
+Its crate entrance names the three rungs; each leaf entrance owns the public
+compute-to-independent-validation operation. The same organization is required
+for the Psi optimizer, register allocator, optimization validator, and physical
+pipeline as their existing monoliths are dismantled. This is a navigability and
+ownership invariant, not a request to create more crates or to combine
+independent producer and validation code.
 
 ## Testing strategy
 
