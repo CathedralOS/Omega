@@ -11,6 +11,7 @@ pub use providers::{
     CheckedPackageProviderReview, CheckedPackageProviderRowIdentity,
     PackageReviewCompilerIntrinsicExecution, PackageReviewProviderFamilyApplicationCoverage,
     PackageReviewProviderFamilyCoverage, PackageReviewProviderSelectionAuthority,
+    PackageReviewSelectedInstallationReach,
 };
 pub(crate) use source::{
     PackageReviewCanonicalRowSources, ProjectedDangerousAuthorityRow,

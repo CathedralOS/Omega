@@ -81,9 +81,10 @@ closed. Compiler-issued package review remains non-admitting.
     contract expressions beyond exact nominal-member projection, and
     structural witness arguments not retained by their owning typed or checked
     representation;
-  - remaining semantic-role, operator, selected-provider grant, installation,
-    permission-frontier, crash-refinement, and compiler-intrinsic ownership
-    joins;
+  - remaining semantic-role, operator, selected-provider grant,
+    permission-frontier, crash-refinement, compiler-intrinsic ownership, and
+    installation joins beyond the landed selected-provider upper-bound and
+    realized-reach evidence;
   - generic/exact-application boundary-provider family evidence under
     **BOUNDARY-OPERATOR-FAMILY-SELECTION**;
   - complete exact semantic-subject commitments, certificate closure, and

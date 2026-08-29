@@ -1,4 +1,5 @@
 use super::super::providers::families::project_selected_provider_families;
+use super::super::providers::installation::project_selected_installation_reach;
 use super::super::providers::intrinsics::project_compiler_intrinsic_execution;
 use super::super::providers::selection::validate_selected_provider_declaration_owner;
 use super::super::semantics::declarations::{nominal_identity, provider_requirement_identity};
@@ -28,6 +29,7 @@ pub(super) fn project_selected_providers(
     }
 
     let mut selected = Vec::with_capacity(selected_plans.len());
+    let mut projected_installation_reaches = 0usize;
     for (plan, retained) in selected_plans.iter().zip(selected_provider_provenance) {
         if retained.plan != *plan
             || retained.provider.row_requirements.len() != plan.rows.len()
@@ -47,12 +49,22 @@ pub(super) fn project_selected_providers(
             .zip(&retained.row_compiler_intrinsic_executions)
             .zip(&plan.rows)
             .map(|(((requirement, realization), retained_execution), row)| {
+                let requirement_identity = provider_requirement_identity(
+                    compilation,
+                    retained.provider.schema,
+                    *requirement,
+                )?;
+                let installation_reach = project_selected_installation_reach(
+                    compilation,
+                    plan,
+                    retained.provider.schema,
+                    *requirement,
+                    *realization,
+                    &requirement_identity,
+                )?;
+                projected_installation_reaches += usize::from(installation_reach.is_some());
                 Ok(CheckedPackageProviderRowIdentity {
-                    requirement: provider_requirement_identity(
-                        compilation,
-                        retained.provider.schema,
-                        *requirement,
-                    )?,
+                    requirement: requirement_identity,
                     realization: nominal_identity(compilation, *realization)?,
                     compiler_intrinsic_execution: project_compiler_intrinsic_execution(
                         compilation,
@@ -65,6 +77,7 @@ pub(super) fn project_selected_providers(
                         *requirement,
                         *retained_execution,
                     )?,
+                    installation_reach,
                 })
             })
             .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
@@ -140,6 +153,17 @@ pub(super) fn project_selected_providers(
             rows: plan.rows.clone(),
             row_declarations,
         });
+    }
+
+    if projected_installation_reaches
+        != compilation
+            .selected_provider_plans()
+            .installation_reach_resolutions()
+            .len()
+    {
+        return Err(vec![Diagnostic::error(
+            "selected-provider review contains an orphan installation-reach resolution",
+        )]);
     }
 
     let families = project_selected_provider_families(compilation, target, &selected)?;
