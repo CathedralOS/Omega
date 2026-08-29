@@ -76,6 +76,34 @@ fn present_build_machine_retains_its_exact_checked_symbol() {
 }
 
 #[test]
+fn free_build_root_composes_an_ordinary_free_helper_contract() {
+    let project = TempProject::new();
+    project.write("main.omg", "const ANSWER: u32 = 42;\n");
+    project.write(
+        "build.omg",
+        r#"use omega::language::std::console;
+
+machine configure(builder: &mut Build)
+reaches Console
+{
+    builder.freestanding = false;
+}
+
+machine build(builder: &mut Build)
+reaches Console
+{
+    builder.application("free-helper-composition");
+    configure(builder);
+}
+"#,
+    );
+
+    let checked = compile_to_checked(&project.main(), None)
+        .expect("the canonical root must compose an ordinary free helper contract");
+    assert!(checked.selected_build_machine_symbol().is_some());
+}
+
+#[test]
 fn selected_free_build_without_a_project_role_rejects_with_shared_diagnostic() {
     let project = TempProject::new();
     project.write("main.omg", "const ANSWER: u32 = 42;\n");
@@ -93,7 +121,7 @@ fn selected_free_build_without_a_project_role_rejects_with_shared_diagnostic() {
 }
 
 #[test]
-fn selected_scoped_build_retains_q4_compatibility_behavior() {
+fn selected_scoped_build_rejects_with_directed_migration_diagnostic() {
     let project = TempProject::new();
     project.write("main.omg", "data Owner { }\nconst ANSWER: u32 = 42;\n");
     project.write(
@@ -101,16 +129,19 @@ fn selected_scoped_build_retains_q4_compatibility_behavior() {
         "machine Owner::build(&mut self, builder: &mut Build) { }\n",
     );
 
-    let checked = compile_to_checked(&project.main(), None)
-        .expect("a selected scoped build root remains in the Q4 compatibility lane");
-    let build = checked
-        .typed
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "Owner::build")
-        .expect("checked scoped build machine");
-
-    assert_eq!(checked.selected_build_machine_symbol(), Some(build.symbol));
+    let diagnostics = compile_to_checked(&project.main(), None)
+        .expect_err("a selected scoped build root must never receive build authority");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("free `machine build(builder: &mut Build)` entry")
+                && diagnostic
+                    .message
+                    .contains("`Owner::build` is an ordinary scoped machine")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}",
+    );
 }
 
 #[test]
@@ -282,23 +313,23 @@ fn package_aware_checked_compilation_retains_the_reconciled_root_identity() {
 }
 
 #[test]
-fn duplicate_build_machines_still_reject_before_symbol_retention() {
+fn a_scoped_build_cannot_compete_with_the_free_selected_entry() {
     let project = TempProject::new();
     project.write("main.omg", "const ANSWER: u32 = 42;\n");
     project.write(
         "build.omg",
         r#"data Helper { }
-machine build(builder: &mut Build) { }
+machine build(builder: &mut Build) { builder.application("free-build-wins"); }
 machine Helper::build(&mut self, builder: &mut Build) { }
 "#,
     );
 
     let diagnostics = compile_to_checked(&project.main(), None)
-        .expect_err("duplicate build machines must reject checked compilation");
+        .expect_err("a scoped build in selected build.omg must reject before selection");
     assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("two build machines exist")),
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("`Helper::build` is an ordinary scoped machine")),
         "unexpected diagnostics: {diagnostics:#?}"
     );
 }

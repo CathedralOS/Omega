@@ -3,7 +3,8 @@ target linux_x64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 
-machine TestHarness::build(&mut self, builder: &mut Build) {
+machine build(builder: &mut Build) {
+    builder.application("test-owner-provider-override-compile");
     builder.select_provider<Pick, TestProvider>();
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);

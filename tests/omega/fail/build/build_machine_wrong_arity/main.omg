@@ -1,7 +1,7 @@
 // The build.omg protocol is EXACTLY `machine build(b: &mut Build)` -- one
 // parameter. A second parameter has no build-time argument to bind, so the
-// interpreter's build-position call must reject with the arity error naming
-// `build` (never silently ZII the extra parameter).
+// shared project-entry projection rejects before build-time evaluation (never
+// silently ZII the extra parameter).
 use omega::language::std::console;
 
 data Main {

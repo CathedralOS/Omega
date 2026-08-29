@@ -1,6 +1,5 @@
-// PRV4c: a component slot owner has the same whole-provider selection
-// authority as the free build root. The attached owner is privileged only
-// because its declaration lives in the companion build.omg.
+// PRV4c: the canonical free build root selects one complete provider for the
+// component slot without reconstructing individual rows.
 boundary trait Pick {
     machine choose() -> i32;
 }
@@ -15,6 +14,5 @@ machine SecondProvider::choose() -> i32 satisfies Pick::choose {
     transition { _ -> (72) }
 }
 
-data ComponentOwner { }
 data Main { }
 machine Main::main(&mut self) { }

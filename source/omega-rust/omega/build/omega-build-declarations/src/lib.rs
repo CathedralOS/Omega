@@ -245,7 +245,10 @@ impl fmt::Display for BuildDeclarationError {
                 "package build must not declare toolchain package vocabulary `{name}`"
             ),
             Self::ScopedBuildMachine { scope } => {
-                write!(formatter, "package build machine must be free, not `{scope}::build`")
+                write!(
+                    formatter,
+                    "selected build.omg must declare the free `machine build(builder: &mut Build)` entry; `{scope}::build` is an ordinary scoped machine and cannot be selected"
+                )
             }
             Self::DuplicateBuildMachines { count } => {
                 write!(formatter, "package build declares `build` {count} times")
@@ -257,7 +260,7 @@ impl fmt::Display for BuildDeclarationError {
                 formatter.write_str("package build machine has no callable entry")
             }
             Self::InvalidBuildParameter => formatter.write_str(
-                "package build machine's first parameter must be `builder: &mut Build`",
+                "package build machine must have exactly one parameter: `builder: &mut Build`",
             ),
             Self::UnsupportedPackageShape => formatter.write_str(
                 "package declaration must be one direct canonical `builder.package(\"kebab-name\")` statement in the root build entry",
@@ -438,11 +441,11 @@ pub fn project_build_entry_syntax(
         .first()
         .ok_or(BuildDeclarationError::MissingBuildEntry)?;
     let entry = syntax_trees.items.state(build_entry);
-    let builder_parameter = *syntax_trees
-        .items
-        .state_parameters(entry.parameters)
-        .first()
-        .ok_or(BuildDeclarationError::InvalidBuildParameter)?;
+    let parameters = syntax_trees.items.state_parameters(entry.parameters);
+    let [builder_parameter] = parameters else {
+        return Err(BuildDeclarationError::InvalidBuildParameter);
+    };
+    let builder_parameter = *builder_parameter;
     let builder = syntax_trees.items.state_parameter(builder_parameter);
     if builder.name.as_str() != BUILDER_PARAMETER_NAME || builder.is_const || builder.is_self {
         return Err(BuildDeclarationError::InvalidBuildParameter);
@@ -774,7 +777,7 @@ mod tests {
     #[test]
     fn source_and_syntax_apis_project_the_same_authoritative_role() {
         let source = r#"
-            machine build(builder: &mut Build, filesystem: &mut Filesystem) {
+            machine build(builder: &mut Build) {
                 builder.application("omega-compiler");
             }
         "#;
@@ -834,25 +837,10 @@ mod tests {
     }
 
     #[test]
-    fn only_the_first_parameter_is_reserved_for_the_builder() {
-        assert!(
-            project(
-                r#"
-            machine build(
-                builder: &mut Build,
-                filesystem: &mut Filesystem,
-                console: &mut Console
-            ) {
-                builder.package("service-backed-build");
-                filesystem.prepare();
-            }
-            "#,
-            )
-            .is_ok()
-        );
-
+    fn the_build_entry_has_exactly_one_canonical_builder_parameter() {
         for source in [
             "machine build() {}",
+            "machine build(builder: &mut Build, filesystem: &mut Filesystem) {}",
             "machine build(builder: Build) {}",
             "machine build(builder: &Build) {}",
             "machine build(builder: &write Build) {}",
