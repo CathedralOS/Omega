@@ -744,6 +744,8 @@ fn package_subsystem_has_discoverable_owners_and_bounded_modules() {
         "manager/src/review/mod.rs",
         "manager/src/records/mod.rs",
         "package-review/src/lib.rs",
+        "package-review/src/evidence/contracts/mod.rs",
+        "package-review/src/evidence/signatures/mod.rs",
         "package-review/src/obligation_ledger/mod.rs",
         "resolver-execution/src/lib.rs",
     ] {
@@ -782,6 +784,8 @@ fn package_subsystem_has_discoverable_owners_and_bounded_modules() {
         "package-review/src/projection/provider_intrinsics.rs",
         "package-review/src/projection/evidence/selected_providers.rs",
         "package-review/src/projection/evidence",
+        "package-review/src/evidence/contracts.rs",
+        "package-review/src/evidence/signatures.rs",
     ] {
         assert!(
             !packages.join(retired).exists(),
