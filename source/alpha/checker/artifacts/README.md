@@ -7,8 +7,8 @@ Its construction lineage is deliberately below the accepted Beta compiler:
 
 ```text
 audited Alpha seed + Alpha-written assembler
-  -> canonical Beta compiler written in Alpha (`../../beta/compiler/beta_compiler.alpha`)
-  -> `implementations/beta/check.beta`
+  -> canonical Beta compiler written in Alpha (`../../../beta/compiler/beta_compiler.alpha`)
+  -> `../implementations/beta/check.beta`
   -> `proof_checker_bytecode.tape`
 ```
 
@@ -19,6 +19,11 @@ construction is an optional reproducibility diagnostic. The normal
 checker and compiler-refinement gates consume this artifact through
 `../artifact_env.sh`. The canonical Beta compiler artifact may compile the same
 source as differential evidence only; it is not this artifact's authority.
+
+The current artifact is 223,333 bytes. It accepts the bounded `OMGCHK1` binary
+frame documented in the parent README and constructs exact raw `source` and
+`tape` byte-list constants internally; the framing path leaves 38,807 bytes in
+the 262,140-byte Alpha payload extent.
 
 Regenerate deliberately with `rebuild.sh`. Commit a changed tape only with its
 source or canonical-compiler change and a green reconstruction plus checker suite.

@@ -15,6 +15,7 @@ done
 unset OMEGA_PATH_PARENT
 . "$OMEGA_REPO_ROOT/tools/lattice/paths.sh"
 . "$OMEGA_PATH_ALPHA/seed_env.sh"
+. "$OMEGA_PATH_ALPHA_CHECKER/artifact_env.sh"
 
 SOURCE=${1:-"$OMEGA_PATH_BETA_COMPILER_SOURCE"}
 TAPE=${2:-"$OMEGA_PATH_BETA_COMPILER_TAPE"}
@@ -58,8 +59,21 @@ frame() { # source source-extent tape tape-extent output
   } > "$5"
 }
 
+checker_frame() { # source tape certificate output
+  {
+    printf 'OMGCHK1\n'
+    u64le "$(wc -c < "$1" | tr -d ' ')"
+    dd if="$1" status=none
+    u64le "$(wc -c < "$2" | tr -d ' ')"
+    dd if="$2" status=none
+    u64le "$(printf '%s' "$3" | wc -c | tr -d ' ')"
+    printf '%s' "$3"
+  } > "$4"
+}
+
 "$ASSEMBLER" < "$LEDGER_SOURCE" > "$T/ledger.tape"
 stamp_seed "$T/ledger.tape" "$SEED" "$T/ledger" >/dev/null
+stamp_proof_checker "$T/checker" >/dev/null
 
 PASS=0
 FAIL=0
@@ -79,6 +93,22 @@ case_run() { # name expected-status frame
 
 frame "$SOURCE" 78109 "$TAPE" 20977 "$T/valid.frame"
 case_run "canonical source and tape" 0 "$T/valid.frame"
+
+# Exercise the exact checker carrier at compiler scale. This is deliberately
+# only a capacity/binding control; the status-only Alpha ledger below remains
+# nonauthoritative until its full relation is emitted as the checked proof.
+CHECKER_CERT='(& (= source source) (= tape tape)) (pair (refl source) (refl tape))'
+checker_frame "$SOURCE" "$TAPE" "$CHECKER_CERT" "$T/checker.frame"
+set +e
+CHECKER_OUT=$("$T/checker" < "$T/checker.frame")
+CHECKER_STATUS=$?
+set -e
+if [ "$CHECKER_STATUS" = 1 ] && [ "$CHECKER_OUT" = accept ]; then
+  PASS=$((PASS + 1))
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL exact checker subject carrier: expected 1/accept, got $CHECKER_STATUS/$CHECKER_OUT"
+fi
 
 # Source-byte control: change the immediate in the first `imm r0, 0` to one.
 # This preserves both extents and syntax, but changes one reconstructed byte.

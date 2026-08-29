@@ -20,8 +20,13 @@
 ; next check), and a loop is a state that transitions back to itself. The many
 ; reject paths share one `state reject { return 0 }` per checker proc.
 ;
-; Input (stdin): zero or more declarations, then a goal proposition and a certificate
-; term, in prefix syntax.
+; Input (stdin): either a legacy certificate stream, or an exact-subject frame:
+;   "OMGCHK1\n" u64le(source_len) source u64le(tape_len) tape
+;               u64le(cert_len) cert
+; A framed certificate may use the individual constants `source` and `tape`.
+; They are checker-built immutable lists of raw bytes, with each byte represented
+; by the nullary constructor (k (1024 + byte)). The certificate stream itself is
+; then zero or more declarations, a goal proposition, and a certificate term.
 ;   ( def N prop term )        a lemma: checked like any proof, then citable by ( use N )
 ;   ( data CID ARITY R0 R1 )   a user constructor: arity (0/1/2) and which args recurse
 ;   proposition := UPPERCASE | ( -> prop prop ) | ( & prop prop )
@@ -40,7 +45,10 @@
 ; Output: "accept\n" (exit 1) if the term proves the goal, else "reject\n" (exit 0).
 ;
 ; Memory:  2097152 SRC   2097144 CUR   2097136 LEN   2097128 APTR (arena bump)
-;          2097120 CTXN (context depth)   4194304 CTX (type stack)   8388608 ARENA (bump)
+;          2097120 CTXN  2097112 IDEP  2097104 FRAMED
+;          2097096 SOURCE_LIST  2097088 TAPE_LIST  2097080 INPUT_OVERFLOW
+;          2097072 PARSE_ERROR
+;          4194304 CTX (type stack)  6553600 BYTE_TERM_CACHE  8388608 ARENA (bump)
 ; Nodes are 3 words [tag, f0, f1] at 24-byte stride. 0 is the reject/none sentinel.
 ;
 ; Tags:  type  0 ATOM(char) 1 ARROW(l,r) 2 AND(l,r) 3 FALSE 4 OR(l,r) 5 EQ(t1,t2)
@@ -65,10 +73,15 @@ proc slurp() {
         to done
     }
     state body {
+        to overflow when (n >= 3000000)
         byte[2097152 + n] = c
         n = n + 1
         c = read_byte()
         to loop
+    }
+    state overflow {
+        word[2097080] = 1
+        return 0
     }
     state done {
         word[2097136] = n            ; LEN
@@ -76,7 +89,129 @@ proc slurp() {
         word[2097128] = 8388608      ; APTR = ARENA base (8 MiB; grows up through the 64 MiB image)
         word[2097120] = 0            ; CTXN
         word[2097112] = 0            ; IDEP — individual-binder depth (∀/∃ binders entered)
+        word[2097104] = 0            ; FRAMED
+        word[2097096] = 0            ; SOURCE_LIST
+        word[2097088] = 0            ; TAPE_LIST
+        word[2097080] = 0            ; INPUT_OVERFLOW
+        word[2097072] = 0            ; PARSE_ERROR
     }
+}
+
+; The frame deliberately uses bounded u64 fields: the high four bytes must be
+; zero, then the low value is checked against the checker-owned subject profile.
+proc frame_len(pos) {
+    state high0 { to bad when (byte[2097152 + pos + 4] != 0)  to high1 }
+    state high1 { to bad when (byte[2097152 + pos + 5] != 0)  to high2 }
+    state high2 { to bad when (byte[2097152 + pos + 6] != 0)  to high3 }
+    state high3 { to bad when (byte[2097152 + pos + 7] != 0)  to good }
+    state good {
+        return byte[2097152 + pos] + byte[2097152 + pos + 1] * 256 + byte[2097152 + pos + 2] * 65536 + byte[2097152 + pos + 3] * 16777216
+    }
+    state bad { return 0 - 1 }
+}
+
+proc has_frame_magic() {
+    state len { to no when (word[2097136] < 8)  to m0 }
+    state m0 { to no when (byte[2097152] != 'O')  to m1 }
+    state m1 { to no when (byte[2097153] != 'M')  to m2 }
+    state m2 { to no when (byte[2097154] != 'G')  to m3 }
+    state m3 { to no when (byte[2097155] != 'C')  to m4 }
+    state m4 { to no when (byte[2097156] != 'H')  to m5 }
+    state m5 { to no when (byte[2097157] != 'K')  to m6 }
+    state m6 { to no when (byte[2097158] != '1')  to m7 }
+    state m7 { to no when (byte[2097159] != 10)  return 1 }
+    state no { return 0 }
+}
+
+; Build the immutable raw-byte list backwards. Byte values are interned as
+; CON(1024+b), so subject size costs one CONS node per byte rather than a Peano
+; numeral per byte.
+proc raw_byte_term(b) {
+    let t = word[6553600 + b * 8]
+    state cached { to make when (t == 0)  return t }
+    state make {
+        t = alloc(50, 1024 + b, 0)
+        word[6553600 + b * 8] = t
+        return t
+    }
+}
+
+proc raw_list(start, n) {
+    let out = alloc(35, 0, 0)
+    let i = n
+    state loop { to body when (i > 0)  return out }
+    state body {
+        i = i - 1
+        out = alloc(36, raw_byte_term(byte[2097152 + start + i]), out)
+        to loop
+    }
+}
+
+proc copy_cert(start, n) {
+    let i = 0
+    state loop { to body when (i < n)  return 0 }
+    state body {
+        byte[2097152 + i] = byte[2097152 + start + i]
+        i = i + 1
+        to loop
+    }
+}
+
+proc prepare_input() {
+    let total = word[2097136]
+    let p = 0
+    let n = 0
+    let source_start = 0
+    let source_len = 0
+    let tape_start = 0
+    let tape_len = 0
+    let cert_start = 0
+    let cert_len = 0
+    state overflow { to bad when (word[2097080] != 0)  to magic }
+    state magic { to legacy when (has_frame_magic() == 0)  p = 8  to source_header }
+    state source_header { to bad when (p + 8 > total)  source_len = frame_len(p)  to source_bound }
+    state source_bound {
+        to bad when (source_len < 0)
+        to bad when (source_len > 262144)
+        p = p + 8
+        source_start = p
+        to bad when (source_len > total - p)
+        p = p + source_len
+        to tape_header
+    }
+    state tape_header { to bad when (p + 8 > total)  tape_len = frame_len(p)  to tape_bound }
+    state tape_bound {
+        to bad when (tape_len < 0)
+        to bad when (tape_len > 262140)
+        p = p + 8
+        tape_start = p
+        to bad when (tape_len > total - p)
+        p = p + tape_len
+        to cert_header
+    }
+    state cert_header { to bad when (p + 8 > total)  cert_len = frame_len(p)  to cert_bound }
+    state cert_bound {
+        to bad when (cert_len < 1)
+        to bad when (cert_len > 1500000)
+        p = p + 8
+        cert_start = p
+        to bad when (cert_len != total - p)
+        to bind
+    }
+    state bind {
+        word[2097096] = raw_list(source_start, source_len)
+        word[2097088] = raw_list(tape_start, tape_len)
+        copy_cert(cert_start, cert_len)
+        word[2097136] = cert_len
+        word[2097144] = 0
+        word[2097104] = 1
+        return 1
+    }
+    state legacy {
+        word[2097104] = 0
+        return 1
+    }
+    state bad { return 0 }
 }
 
 proc cbyte() {
@@ -120,6 +255,46 @@ proc is_lower(c) {
     state no { return 0 }
 }
 
+proc is_term_delim_at(pos) {
+    state eof { to yes when (pos >= word[2097136])  to c0 }
+    state c0 {
+        let c = byte[2097152 + pos]
+        to yes when (c == ' ')
+        to yes when (c == 9)
+        to yes when (c == 10)
+        to yes when (c == 13)
+        to yes when (c == ')')
+        return 0
+    }
+    state yes { return 1 }
+}
+
+proc at_source_term() {
+    let p = word[2097144]
+    state framed { to no when (word[2097104] == 0)  to len }
+    state len { to no when (p + 6 > word[2097136])  to c0 }
+    state c0 { to no when (byte[2097152 + p] != 's')  to c1 }
+    state c1 { to no when (byte[2097152 + p + 1] != 'o')  to c2 }
+    state c2 { to no when (byte[2097152 + p + 2] != 'u')  to c3 }
+    state c3 { to no when (byte[2097152 + p + 3] != 'r')  to c4 }
+    state c4 { to no when (byte[2097152 + p + 4] != 'c')  to c5 }
+    state c5 { to no when (byte[2097152 + p + 5] != 'e')  to delim }
+    state delim { return is_term_delim_at(p + 6) }
+    state no { return 0 }
+}
+
+proc at_tape_term() {
+    let p = word[2097144]
+    state framed { to no when (word[2097104] == 0)  to len }
+    state len { to no when (p + 4 > word[2097136])  to c0 }
+    state c0 { to no when (byte[2097152 + p] != 't')  to c1 }
+    state c1 { to no when (byte[2097152 + p + 1] != 'a')  to c2 }
+    state c2 { to no when (byte[2097152 + p + 2] != 'p')  to c3 }
+    state c3 { to no when (byte[2097152 + p + 3] != 'e')  to delim }
+    state delim { return is_term_delim_at(p + 4) }
+    state no { return 0 }
+}
+
 proc parse_number() {
     let v = 0
     state loop { to body when (is_digit(cbyte()) == 1)  return v }
@@ -133,8 +308,15 @@ proc parse_nat() {
     skip_ws()
     let a = 0
     let b = 0
-    state tz { to do_z when (cbyte() == 'z')  to tn }
+    state tz { to do_z when (cbyte() == 'z')  to raw_source }
     state do_z { adv()  return alloc(30, 0, 0) }
+    state raw_source { to source_head when (cbyte() == 's')  to raw_tape }
+    state source_head { to do_source when (at_source_term() == 1)  to raw_bad }
+    state do_source { skip_ident()  return word[2097096] }
+    state raw_tape { to tape_head when (cbyte() == 't')  to tn }
+    state tape_head { to do_tape when (at_tape_term() == 1)  to raw_bad }
+    state do_tape { skip_ident()  return word[2097088] }
+    state raw_bad { skip_ident()  word[2097072] = 1  return alloc(30, 0, 0) }
     state tn { to do_n when (cbyte() == 'n')  to paren }   ; nil (the empty list)
     state do_n { skip_ident()  return alloc(35, 0, 0) }
     state paren {
@@ -664,9 +846,38 @@ proc shift_prop(p, d, cutoff) {
     state conn { return alloc(tag, shift_prop(word[p + 8], d, cutoff), shift_prop(word[p + 16], d, cutoff)) }
 }
 
-; definitional equality: normalize both, then compare (the conversion rule).
+; Framed raw subjects are already-normal constructor lists and can be much
+; larger than the generated Beta call stack. Compare that spine iteratively;
+; normalizing it would allocate a duplicate and recurse once per subject byte.
+proc raw_list_eq(a, b) {
+    let x = a
+    let y = b
+    state same { to yes when (x == y)  to tags }
+    state tags { to no when (word[x] != word[y])  to nil }
+    state nil { to yes when (word[x] == 35)  to cons }
+    state cons { to no when (word[x] != 36)  to heads }
+    state heads { to no when (word[word[x + 8]] != 50)  to rhs_head }
+    state rhs_head { to no when (word[word[y + 8]] != 50)  to cid }
+    state cid { to no when (word[word[x + 8] + 8] != word[word[y + 8] + 8])  to next }
+    state next {
+        x = word[x + 16]
+        y = word[y + 16]
+        to same
+    }
+    state yes { return 1 }
+    state no { return 0 }
+}
+
+; Definitional equality preserves pointer identity, compares checker-owned raw
+; lists without recursion, then normalizes ordinary calculus terms.
 proc conv_eq(a, b) {
-    return nat_eq(normalize(a, 100000), normalize(b, 100000))
+    state same { to yes when (a == b)  to raw_lhs }
+    state raw_lhs { to ordinary when (word[a] != 36)  to raw_rhs }
+    state raw_rhs { to ordinary when (word[b] != 36)  to raw_head }
+    state raw_head { to ordinary when (word[word[a + 8]] != 50)  to raw_cid }
+    state raw_cid { to ordinary when (word[word[a + 8] + 8] < 1024)  return raw_list_eq(a, b) }
+    state ordinary { return nat_eq(normalize(a, 100000), normalize(b, 100000)) }
+    state yes { return 1 }
 }
 
 proc skip_ident() {              ; advance over a lowercase keyword
@@ -1442,6 +1653,10 @@ proc main() {
     let lp = 0
     let n = 0
     let kind = 0
+    state input {
+        to reject when (prepare_input() == 0)
+        to defloop
+    }
     state defloop {
         to defbody when (at_def() == 1)
         to goal
@@ -1510,6 +1725,7 @@ proc main() {
     state goal {
         let g = parse_type()
         let term = parse_term()
+        to reject when (word[2097072] != 0)
         let proved = infer(term)
         to reject when (proved == 0)
         to verdict

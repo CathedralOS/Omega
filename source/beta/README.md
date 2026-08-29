@@ -57,3 +57,4 @@ The active reduction and admission work is tracked in
 | --- | --- | --- |
 | `compiler/` | The sole Alpha-written compiler accepting Beta, its exact Alpha tape, and adjacent edge validation. | Replace only atomically with the admitted immediate-predecessor compiler edge. |
 | `reference/` | One untrusted executable interpretation of written Beta semantics used by focused differential gates. | Delete when a stronger semantic oracle fully subsumes every retained caller. |
+| `LANGUAGE.md`, `SEMANTICS.md`, `CALLING_CONVENTION.md` | The accepted Beta surface, execution relation, and compiler/Alpha frame contract. | Replace only atomically with a ruled Beta revision and synchronized compiler tests. |

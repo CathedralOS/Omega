@@ -26,14 +26,17 @@ queue.
 ## Retention and deletion policy
 
 Repository-owned material starts with a maintenance liability, not a
-presumption that keeping it is harmless. It remains only when it directly
-specifies, implements, proves, or efficiently tests one canonical edge. A
-retained migration component must have a named adaptation below, a canonical
-owner, and a deletion condition. “Potentially useful,” historical continuity,
-and the cost already spent are not retention arguments. If direct adaptation
-fails, becomes uneconomical, or leaves a parallel source of truth, delete the
-component. Git history is the archive; the working repository is exclusively
-the implementation of the agreed chain.
+presumption that keeping it is harmless. Every retained owned file must
+directly specify, implement, prove, or efficiently test one canonical edge and
+must have a present consumer, canonical owner, and deletion condition. This is
+a retention proof, not a documentation preference: unadaptable material is
+negative value because it consumes review, testing, maintenance, and
+architectural attention. “Potentially useful,” historical continuity, and the
+cost already spent are not retention arguments. If direct adaptation fails,
+becomes uneconomical, or leaves a parallel source of truth, compatibility
+route, or noncanonical abstraction, delete the component. Git history is the
+archive; the working repository is exclusively the implementation of the
+agreed chain.
 
 - [x] Delete the Beta-written Delta-to-Gamma translator, its host encoders and
   decoder, and the entire Darwin-native Delta publication/custody apparatus.
@@ -110,14 +113,15 @@ code, discover a closure, manufacture proof premises, or decide admission.
   only the five chain-owner roles, the default runner contains only the closed
   Alpha row, exact compiler source/tape names are positively enumerated, and
   owner-aware scans reject forward imports and alternate native artifacts.
-- [x] Make retention mechanically auditable: every non-specification subtree
-  under the canonical Alpha-through-Omega owners must name its canonical edge and bounded
-  failure-detection or proof role in the adjacent README. Delete unowned
-  wrappers, comparators, corpora, reports, and generators; do not create an
-  indefinite “diagnostic” exemption. `test-paths.sh` now enumerates every live
-  Alpha-through-Omega support child and requires an adjacent retention row plus
-  deletion condition. The unrun 43-file Delta native-route corpus, completed
-  Alpha extent-migration script, checker theorem museum/prover/adapters, and
+- [x] Make retention mechanically auditable: every owned file and subtree under
+  the canonical Alpha-through-Omega owners must name its canonical edge or
+  bounded failure-detection/proof role in the nearest retention inventory,
+  including leaf files inside a classified child, and every inventory must
+  state deletion conditions. Delete unowned wrappers, comparators, corpora,
+  reports, and generators; do not create an indefinite “diagnostic” exemption.
+  `test-paths.sh` enforces this file-level proof. The unrun 43-file Delta
+  native-route corpus, completed Alpha extent-migration script, duplicate
+  seed/reference random fuzzer, checker theorem museum/prover/adapters, and
   misleading Beta `cold-start/` owner were removed.
 - [x] Make every rung/compiler README distinguish the language accepted by a compiler from
   the language in which it is implemented. The source suffix names the latter;
@@ -145,8 +149,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
   function-, hash-, or workload-specific jets are forbidden. No current floor
   measurement triggers escalation: the complete Alpha-written Beta compiler
   surface gate runs 121 cases in under three seconds on the development host.
-  The largest current retained Beta output, the 199,770-byte checker tape,
-  leaves 62,370 bytes in the Alpha payload after replacing repeated inline
+  The largest current retained Beta output, the 223,333-byte checker tape,
+  leaves 38,807 bytes in the Alpha payload after replacing repeated inline
   stack-fault blocks with one local terminal block per procedure.
 
 ## 2. Alpha-written Beta compiler
@@ -232,9 +236,20 @@ code, discover a closure, manufacture proof premises, or decide admission.
     and 20,977-byte tape. It is a 6,993-byte Alpha tape; its 12-control gate runs
     in under one second and covers source/tape bytes, fixups, extents, and closed
     grammar failures without writing output.
+  - [x] Bind proof propositions to raw persisted subjects inside the checker.
+    The bounded `OMGCHK1` frame carries exact little-endian source, tape, and
+    certificate extents; checker-built immutable byte lists are available only
+    as the framed `source` and `tape` constants. Identical subjects accept a
+    reflexivity control, a one-byte mutation rejects, unframed input cannot
+    spoof either constant, and the rebuilt 223,333-byte checker tape retains
+    38,807 bytes of Alpha payload headroom. The exact 78,109-byte compiler
+    source plus 20,977-byte tape carrier runs in under one second; raw-list
+    comparison is iterative rather than proportional to the Beta call stack.
   - [ ] Turn the reconstructed ground judgment into a derivation certificate
-    checked by `source/alpha/checker/`; the status-only reconstructor does not
-    itself admit the edge.
+    over those checker-bound subjects. The certificate must check the complete
+    two-pass ledger, unique label map, total source/tape partitions, exact
+    fixups, and full exhaustion; the status-only reconstructor does not itself
+    admit the edge.
 
 ## 3. Beta-written Gamma compiler
 

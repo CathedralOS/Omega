@@ -9,6 +9,8 @@ source/beta/compiler/beta_compiler.alpha
 
 Construction and diagnostics do not admit that edge. Exact checked
 Alpha-source/tape correspondence remains open in `TASKS_BOOTSTRAP.md`.
+Owned validation that cannot be adapted into that correspondence is negative
+value and must be deleted; prior implementation cost is not a retention reason.
 
 | Retained owner | Bounded failure-detection role | Deletion condition |
 | --- | --- | --- |

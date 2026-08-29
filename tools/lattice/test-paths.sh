@@ -128,8 +128,10 @@ do
 done
 
 # Retained infrastructure below the audited floor must justify every tracked
-# child directory next to its owner. This turns retention from prose policy into
-# a topology gate: an unclassified bucket cannot silently accumulate.
+# file and child directory next to its owner. A child without its own README is
+# a leaf inventory and must name every file in the parent's retention table.
+# This prevents an approved bucket from becoming an exemption where unrelated
+# files can silently accumulate.
 require_retention_inventory() { # repository-relative owner directory
   inventory_owner=$1
   inventory_readme="$OMEGA_REPO_ROOT/$inventory_owner/README.md"
@@ -138,13 +140,31 @@ require_retention_inventory() { # repository-relative owner directory
   grep -Fq 'Deletion condition' "$inventory_readme" ||
     fail "retained owner lacks deletion conditions: $inventory_owner"
 
+  inventory_depth=$(printf '%s' "$inventory_owner" | awk -F/ '{ print NF + 1 }')
+  inventory_files=$(git -C "$OMEGA_REPO_ROOT" ls-files "$inventory_owner" | \
+    awk -F/ -v depth="$inventory_depth" 'NF == depth { print $NF }')
+  for inventory_file in $inventory_files; do
+    [ "$inventory_file" = README.md ] && continue
+    [ -e "$OMEGA_REPO_ROOT/$inventory_owner/$inventory_file" ] || continue
+    grep -Fq "\`$inventory_file\`" "$inventory_readme" ||
+      fail "tracked file lacks retention row: $inventory_owner/$inventory_file"
+  done
+
   inventory_children=$(git -C "$OMEGA_REPO_ROOT" ls-files "$inventory_owner" | \
-    awk -F/ -v depth="$(printf '%s' "$inventory_owner" | awk -F/ '{ print NF + 1 }')" \
+    awk -F/ -v depth="$inventory_depth" \
       'NF >= depth { print $depth }' | sort -u)
   for inventory_child in $inventory_children; do
     [ -d "$OMEGA_REPO_ROOT/$inventory_owner/$inventory_child" ] || continue
     grep -Fq "\`$inventory_child/\`" "$inventory_readme" ||
       fail "tracked child lacks retention row: $inventory_owner/$inventory_child"
+    [ -f "$OMEGA_REPO_ROOT/$inventory_owner/$inventory_child/README.md" ] && continue
+    inventory_leaf_files=$(git -C "$OMEGA_REPO_ROOT" \
+      ls-files "$inventory_owner/$inventory_child" | awk -F/ '{ print $NF }')
+    for inventory_leaf_file in $inventory_leaf_files; do
+      [ -e "$OMEGA_REPO_ROOT/$inventory_owner/$inventory_child/$inventory_leaf_file" ] || continue
+      grep -Fq "\`$inventory_leaf_file\`" "$inventory_readme" ||
+        fail "leaf file lacks retention row: $inventory_owner/$inventory_child/$inventory_leaf_file"
+    done
   done
 }
 

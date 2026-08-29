@@ -33,6 +33,41 @@ chk() { # description certificate expected-outcome
   fi
 }
 
+append_u64le() { # value file
+  frame_value=$1
+  frame_file=$2
+  frame_i=0
+  while [ "$frame_i" -lt 8 ]; do
+    frame_byte=$((frame_value % 256))
+    frame_octal=$(printf '%03o' "$frame_byte")
+    printf "\\$frame_octal" >> "$frame_file"
+    frame_value=$((frame_value / 256))
+    frame_i=$((frame_i + 1))
+  done
+}
+
+frame_chk() { # description source-bytes tape-bytes certificate expected-outcome
+  frame_path="$TMP/frame"
+  : > "$frame_path"
+  printf 'OMGCHK1\n' >> "$frame_path"
+  frame_source_len=$(printf '%s' "$2" | wc -c | tr -d ' ')
+  append_u64le "$frame_source_len" "$frame_path"
+  printf '%s' "$2" >> "$frame_path"
+  frame_tape_len=$(printf '%s' "$3" | wc -c | tr -d ' ')
+  append_u64le "$frame_tape_len" "$frame_path"
+  printf '%s' "$3" >> "$frame_path"
+  frame_cert_len=$(printf '%s' "$4" | wc -c | tr -d ' ')
+  append_u64le "$frame_cert_len" "$frame_path"
+  printf '%s' "$4" >> "$frame_path"
+  out=$("$TMP/check" < "$frame_path")
+  if [ "$out" = "$5" ]; then
+    PASS=$((PASS + 1))
+  else
+    FAIL=$((FAIL + 1))
+    echo "FAIL: $1 — expected $5, got '$out'"
+  fi
+}
+
 # Propositional natural deduction and resource boundaries.
 chk "implication introduction" "(-> P P) (lam P (hyp 0))" accept
 chk "unbound hypothesis" "P (hyp 0)" reject
@@ -83,6 +118,12 @@ chk "membership cannot fabricate nil" "(Rel 777 (s z) nil) (memhead (s z) nil)" 
 chk "product witness" "(Rel 778 (cons (s (s z)) nil) (m (s (s z)) (s z))) (pcons (s (s z)) (pnil))" accept
 chk "product witness result mismatch" "(Rel 778 nil (s (s z))) (pnil)" reject
 chk "product nil inversion" "(All (-> (Rel 778 nil (v 0)) (= (v 0) (s z)))) (gen (lam (Rel 778 nil (v 0)) (prodnilinv (hyp 0))))" accept
+
+# Framed subjects are checker-bound raw byte lists. The same certificate must
+# distinguish a one-byte subject mutation, while legacy input cannot name them.
+frame_chk "framed raw subjects equal" 'abc' 'abc' '(= source tape) (refl source)' accept
+frame_chk "framed raw subject mutation" 'abc' 'abd' '(= source tape) (refl source)' reject
+chk "raw subject constants require a frame" "(= source source) (refl source)" reject
 
 echo "checker rule discriminators: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

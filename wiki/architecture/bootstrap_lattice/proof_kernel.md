@@ -152,6 +152,14 @@ physical deployment H
     -- disclosed realization admission --> formal target T
 ```
 
+For low-rung byte artifacts, the checker supports a bounded exact-subject frame:
+raw source and tape extents are retained by the checker and exposed to the
+certificate as immutable byte lists. This removes hashes, shell-rendered term
+literals, and producer-selected subject identities from the binding step. It
+does not make an arbitrary proposition sufficient; the artifact owner must
+still reconstruct and check the canonical ledger relation over those exact
+constants.
+
 The hardware edge belongs to deployment assurance, not the reusable artifact
 seal. Identical bytes may be verified once against `T`; each deployment reports
 the irreducible admission that its silicon realizes that formal target.
