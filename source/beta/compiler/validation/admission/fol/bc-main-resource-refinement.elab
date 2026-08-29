@@ -1,0 +1,175 @@
+; Proof term for the exact bc.main.resource cleanup ledger.
+;
+; The focused ledger owner will emit these declarations and this goal only
+; after independently reconstructing canonical bc.beta block 354, its persisted
+; Alpha load/epilogue/root-halt path, B_bc1, and the five reachable sticky
+; resource origins.  This source remains an untrusted authoring form: the gate
+; must compare its declaration/goal prefix byte-for-byte with owner output and
+; append only its final proof term.
+
+; State constructors.
+(data 10 1 0 0) ; BRunning(control)
+(data 11 1 0 0) ; BOutcome(terminal)
+(data 12 1 0 0) ; ARunning(control)
+(data 13 1 0 0) ; AOutcome(terminal)
+(data 14 0 0 0) ; Invalid
+(data 15 1 0 0) ; BResource(rho)
+(data 16 1 0 0) ; ALoad(rho)
+(data 17 1 0 0) ; AEpilogue(rho)
+(data 18 1 0 0) ; AReturn(rho)
+(data 19 1 0 0) ; ARootHalt(rho)
+(data 20 1 0 0) ; Exhaust(resource)
+(data 21 0 0 0) ; empty running observation
+(data 22 0 0 0) ; invalid observation
+
+; Exact semantic identities carried in rho = Pair(origin, resource).
+(data 30 2 0 0) ; Pair
+(data 31 0 0 0) ; CallArity
+(data 32 0 0 0) ; ExpressionCodegenDepth
+(data 33 0 0 0) ; BlockCodegenDepth
+(data 34 0 0 0) ; ProcedureLocalSlots
+(data 35 0 0 0) ; limit 4
+(data 36 0 0 0) ; limit 64
+(data 37 0 0 0) ; limit 1024
+(data 38 0 0 0) ; requested 5
+(data 39 0 0 0) ; requested 65
+(data 40 0 0 0) ; Requested(nparams+count_lets())
+(data 41 0 0 0) ; exact bc.beta subject
+(data 42 0 0 0) ; exact persisted Alpha subject
+(data 43 0 0 0) ; exact B_bc1 profile
+(data 44 0 0 0) ; maximal stdout+typed-terminal observation
+(data 45 0 0 0) ; origin 2: fifth actual argument
+(data 46 0 0 0) ; origin 4: expression depth 65
+(data 47 0 0 0) ; origin 5: block depth 65
+(data 48 0 0 0) ; origin 6: fifth formal parameter
+(data 49 0 0 0) ; origin 7: procedure local preflight
+
+; rho's resource payload.
+(fun 29 30 (v 1))
+
+; Total source successor: terminal and Invalid states self-loop.
+(fun 30 10 (f 31 (v 0)))
+(fun 30 11 (k 11 (v 0)))
+(fun 30 14 (k 14))
+(fun 31 15 (k 11 (k 20 (f 29 (v 0)))))
+
+; Total target successor for the exact load, epilogue, return, root-halt path.
+(fun 32 12 (f 33 (v 0)))
+(fun 32 13 (k 13 (v 0)))
+(fun 32 14 (k 14))
+(fun 33 16 (k 12 (k 17 (v 0))))
+(fun 33 17 (k 12 (k 18 (v 0))))
+(fun 33 18 (k 12 (k 19 (v 0))))
+(fun 33 19 (k 13 (k 20 (f 29 (v 0)))))
+
+; Published observations. Every running cleanup state has empty stdout and no
+; terminal; the exact typed Exhaust payload appears only after root halt.
+(fun 34 10 (k 21))
+(fun 34 11 (v 0))
+(fun 34 14 (k 22))
+(fun 35 12 (k 21))
+(fun 35 13 (v 0))
+(fun 35 14 (k 22))
+
+; Instruction-debt rank: load=4, epilogue=3, return=2, root halt=1.
+(fun 36 12 (f 37 (v 0)))
+(fun 36 13 z)
+(fun 36 14 z)
+(fun 37 16 4)
+(fun 37 17 3)
+(fun 37 18 2)
+(fun 37 19 1)
+
+; One resource-parametric cleanup theorem. Exact origin/resource rows are
+; instantiated only in the owner-fixed final goal below.
+(def 0
+  (all rho
+    (& (= (f 30 (k 10 (k 15 rho)))
+          (k 11 (k 20 (f 29 rho))))
+      (& (= (f 32 (f 32 (f 32 (f 32 (k 12 (k 16 rho))))))
+            (k 13 (k 20 (f 29 rho))))
+        (& (= (f 34 (k 10 (k 15 rho)))
+              (f 35 (k 12 (k 16 rho))))
+          (& (= (f 34 (f 30 (k 10 (k 15 rho))))
+                (f 35 (f 32 (f 32 (f 32 (f 32 (k 12 (k 16 rho))))))))
+            (& (= (f 35 (k 12 (k 16 rho)))
+                  (f 35 (f 32 (k 12 (k 16 rho)))))
+              (& (= (f 35 (f 32 (k 12 (k 16 rho))))
+                    (f 35 (f 32 (f 32 (k 12 (k 16 rho))))))
+                (& (= (f 35 (f 32 (f 32 (k 12 (k 16 rho)))))
+                      (f 35 (f 32 (f 32 (f 32 (k 12 (k 16 rho)))))))
+                  (& (= (+ (f 36 (f 32 (k 12 (k 16 rho)))) (s z))
+                        (f 36 (k 12 (k 16 rho))))
+                    (& (= (+ (f 36 (f 32 (f 32 (k 12 (k 16 rho))))) (s z))
+                          (f 36 (f 32 (k 12 (k 16 rho)))))
+                      (& (= (+ (f 36 (f 32 (f 32 (f 32 (k 12 (k 16 rho)))))) (s z))
+                            (f 36 (f 32 (f 32 (k 12 (k 16 rho))))))
+                        (& (= (+ (f 36 (f 32 (f 32 (f 32 (f 32 (k 12 (k 16 rho))))))) (s z))
+                              (f 36 (f 32 (f 32 (f 32 (k 12 (k 16 rho)))))))
+                          (& (= (f 30 (k 11 (k 20 (f 29 rho))))
+                                (k 11 (k 20 (f 29 rho))))
+                            (& (= (f 32 (k 13 (k 20 (f 29 rho))))
+                                  (k 13 (k 20 (f 29 rho))))
+                              (& (= (f 30 (k 14)) (k 14))
+                                 (= (f 32 (k 14)) (k 14)))))))))))))))))
+  (gen rho
+    (pair (refl (k 11 (k 20 (f 29 rho))))
+      (pair (refl (k 13 (k 20 (f 29 rho))))
+        (pair (refl (k 21))
+          (pair (refl (k 20 (f 29 rho)))
+            (pair (refl (k 21))
+              (pair (refl (k 21))
+                (pair (refl (k 21))
+                  (pair (refl 4)
+                    (pair (refl 3)
+                      (pair (refl 2)
+                        (pair (refl 1)
+                          (pair (refl (k 11 (k 20 (f 29 rho))))
+                            (pair (refl (k 13 (k 20 (f 29 rho))))
+                              (pair (refl (k 14))
+                                    (refl (k 14))))))))))))))))))
+
+; The owner-fixed final proposition binds the exact source, artifact, profile,
+; observation identity, and all five root-reachable sticky origins.
+(& (= (k 30 (k 41) (k 42)) (k 30 (k 41) (k 42)))
+  (& (= (k 30 (k 43) (k 44)) (k 30 (k 43) (k 44)))
+    (&
+      (= (f 34 (f 30 (k 10 (k 15
+            (k 30 (k 45) (k 30 (k 31) (k 30 (k 35) (k 38))))))))
+         (f 35 (f 32 (f 32 (f 32 (f 32 (k 12 (k 16
+            (k 30 (k 45) (k 30 (k 31) (k 30 (k 35) (k 38))))))))))))
+      (&
+        (= (f 34 (f 30 (k 10 (k 15
+              (k 30 (k 46) (k 30 (k 32) (k 30 (k 36) (k 39))))))))
+           (f 35 (f 32 (f 32 (f 32 (f 32 (k 12 (k 16
+              (k 30 (k 46) (k 30 (k 32) (k 30 (k 36) (k 39))))))))))))
+        (&
+          (= (f 34 (f 30 (k 10 (k 15
+                (k 30 (k 47) (k 30 (k 33) (k 30 (k 36) (k 39))))))))
+             (f 35 (f 32 (f 32 (f 32 (f 32 (k 12 (k 16
+                (k 30 (k 47) (k 30 (k 33) (k 30 (k 36) (k 39))))))))))))
+          (&
+            (= (f 34 (f 30 (k 10 (k 15
+                  (k 30 (k 48) (k 30 (k 31) (k 30 (k 35) (k 38))))))))
+               (f 35 (f 32 (f 32 (f 32 (f 32 (k 12 (k 16
+                  (k 30 (k 48) (k 30 (k 31) (k 30 (k 35) (k 38))))))))))))
+            (= (f 34 (f 30 (k 10 (k 15
+                  (k 30 (k 49) (k 30 (k 34) (k 30 (k 37) (k 40))))))))
+               (f 35 (f 32 (f 32 (f 32 (f 32 (k 12 (k 16
+                  (k 30 (k 49) (k 30 (k 34) (k 30 (k 37) (k 40))))))))))))))))))
+(pair (refl (k 30 (k 41) (k 42)))
+  (pair (refl (k 30 (k 43) (k 44)))
+    (pair
+      (fst (snd (snd (snd (inst (use 0)
+        (k 30 (k 45) (k 30 (k 31) (k 30 (k 35) (k 38)))))))))
+      (pair
+        (fst (snd (snd (snd (inst (use 0)
+          (k 30 (k 46) (k 30 (k 32) (k 30 (k 36) (k 39)))))))))
+        (pair
+          (fst (snd (snd (snd (inst (use 0)
+            (k 30 (k 47) (k 30 (k 33) (k 30 (k 36) (k 39)))))))))
+          (pair
+            (fst (snd (snd (snd (inst (use 0)
+              (k 30 (k 48) (k 30 (k 31) (k 30 (k 35) (k 38)))))))))
+            (fst (snd (snd (snd (inst (use 0)
+              (k 30 (k 49) (k 30 (k 34) (k 30 (k 37) (k 40)))))))))))))))

@@ -87,12 +87,17 @@ def main() -> int:
     gamma_definitions = Path(sys.argv[6]).read_bytes()
     fol_dir = Path(sys.argv[7])
 
-    positive = fol_dir / "trace-refinement.elab"
+    positives = [
+        fol_dir / "trace-refinement.elab",
+        fol_dir / "bc-main-resource-refinement.elab",
+    ]
     negatives = sorted((fol_dir / "negative").glob("*.elab"))
-    cases = [(positive, "accept")] + [(path, "reject") for path in negatives]
+    cases = [(path, "accept") for path in positives]
+    cases += [(path, "reject") for path in negatives]
     failures = 0
-    positive_bytes = 0
-    positive_ms = 0.0
+    positive_ok = 0
+    negative_ok = 0
+    measurements: list[str] = []
     for source, expected in cases:
         cert = elaborate(elab, source)
         rooted, rooted_ms = verdict([str(checker)], cert)
@@ -100,10 +105,16 @@ def main() -> int:
         gamma = gamma_verdict(
             gamma_translator, gamma_interpreter, gamma_definitions, cert
         )
-        if source == positive:
-            positive_bytes = len(cert)
-            positive_ms = rooted_ms
-        if rooted != expected or reference != expected or gamma != expected:
+        if source in positives:
+            measurements.append(
+                f"{source.stem}={len(cert)} bytes/{rooted_ms:.1f} ms"
+            )
+        case_ok = rooted == expected and reference == expected and gamma == expected
+        if case_ok and expected == "accept":
+            positive_ok += 1
+        if case_ok and expected == "reject":
+            negative_ok += 1
+        if not case_ok:
             failures += 1
             print(
                 f"  FAIL {source.name}: expected {expected}, "
@@ -115,9 +126,8 @@ def main() -> int:
         peak_kib //= 1024
     print(
         "ordinary-FOL trace refinement seam: "
-        f"{1 if not failures else 0} positive, "
-        f"{len(negatives) if not failures else len(negatives) - failures} negative; "
-        f"certificate={positive_bytes} bytes, checker={positive_ms:.1f} ms, "
+        f"{positive_ok} positive, {negative_ok} negative; "
+        f"certificates={', '.join(measurements)}, "
         f"child_peak_rss={peak_kib} KiB"
     )
     return 1 if failures else 0
