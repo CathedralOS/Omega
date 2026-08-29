@@ -25,11 +25,12 @@ This slice also repairs the physical-pipeline organization exposed by the new
 rule. It must add a catalog-driven post-allocation entrance and one typed stage
 result, not another bespoke route/carrier chain copied from AArch64 MOVN.
 
-Checkpoint complete: exact build vocabulary, the target-owned canonical x86
-encoder/decoder, the independently replayed symbolic rule, and the
-catalog-driven post-allocation stage entrance/typed result. The next checkpoint
-starts at layout-independent encoding; x86 optimized bytes are not yet admitted
-to the complete physical route.
+Checkpoint complete through resolved layout: exact build vocabulary, the
+target-owned canonical x86 encoder/decoder, the independently replayed symbolic
+rule, the catalog-driven post-allocation stage, generic selected-form encoding,
+generic resolved-layout custody with exact ten-to-three-byte accounting, and
+generic whole-function exit validation. Realization and later publication
+stages do not yet admit the x86 result.
 
 Acceptance:
 
@@ -81,7 +82,7 @@ Acceptance:
 - [x] Replace `post_allocation_machine_optimizations.rs` with a folder whose
   entrance owns the exact stage catalog and typed result; descend to
   `aarch64/{cbnz,movn}` and `x86_64/xor_zero` custody leaves.
-- [>] Split `post_allocation_selected_form_encoding.rs` by stage model,
+- [x] Split `post_allocation_selected_form_encoding.rs` by stage model,
   row/structural encoding, machine-rule disposition, identity, and independent
   validation. Its entrance must own the encode/validate join.
 - [ ] Remove optimization-name-specific variants from complete physical route
@@ -92,6 +93,13 @@ Acceptance:
   lines needs a documented semantic reason. No optimizer production file may
   exceed 1,500 lines or mix catalog, unrelated rule mechanics, validator, codec,
   and broad fixtures.
+- [>] Clear the current production-file size violations by semantic split, not
+  line shuffling. Pipeline `whole_function_exit_contract`,
+  `resolved_selected_form_layout`, `x86_branch_relaxation`, and
+  `function_fragment_emission` are split. Remaining work includes validator
+  GVN, SCCP, and proof-check-elision candidates and Psi semantic analyses.
+  Split matching >1,500-line test files by the same taxonomy. Add a repository
+  check so regressions are visible.
 - [x] Split the architecture brief into a real entrance plus semantic, rule
   engine, physical pipeline, source organization, and rollout briefs.
 - [x] Compact this file to an executable checklist; detailed design is not a
@@ -243,10 +251,11 @@ rewrite or opt a program into lossy floating-point semantics.
 
 1. [x] Finish the x86 XOR-zero leaf encoder and symbolic rule.
 2. [x] Introduce the post-allocation stage catalog and typed result.
-3. [>] Split the encoding stage monolith along that taxonomy (the machine stage
+3. [x] Split the encoding stage monolith along that taxonomy (the machine stage
    split is complete).
-4. Carry the generic result through encoding, layout, realization, and artifact
-   custody with exact byte-delta tests.
+4. [>] Carry the generic result through encoding, layout, realization, and
+   artifact custody with exact byte-delta tests. Encoding, resolved layout, and
+   whole-function exit are complete.
 5. Add build opt-in and full direct/composed integration tests.
 6. Run focused crates, pipeline tests with the required stack, workspace check,
    and diff checks.

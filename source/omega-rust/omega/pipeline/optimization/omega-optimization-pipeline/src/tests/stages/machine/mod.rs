@@ -2,3 +2,4 @@
 
 mod active_resident;
 mod selected_lowering;
+mod x86_xor_zero;
