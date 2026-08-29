@@ -568,9 +568,12 @@ implication after exact result-place substitution. It imports neither a raw
 conclusion nor a case-membership fact; structural return rebases the complete
 implication to the caller result. A canonical selected-evidence vector may now
 retain any selected subset, with each row carrying the exact guarded case, row
-position, obligation, public selector, atomic proposition, callee
-term/interface, distinct caller-local term, and result-root validity
-intersection. Format 36 / vocabulary 39 encode the vector and its coordinates.
+position, obligation, public selector, exact callee and caller proposition
+applications, callee term/interface, distinct caller-local term, and result-root
+validity intersection. Format 37 / vocabulary 40 encode the vector and its
+coordinates. One bounded substitution row may replace the callee's complete
+structural-result argument with the caller call-result place; it retains the
+argument position and both exact places rather than trusting display strings.
 Validation requires strict guarded-row order, each exact named callee row and
 producer provenance, and rejects duplicate rows/outputs,
 identity/interface/dependency drift, or unconditional/projection reuse.
@@ -584,15 +587,17 @@ caller and producer over the same exact attachment. The caller captures the
 call once in an immutable local and every exhaustive payloadless case arm
 returns that saved result unchanged. Checked planning replays the exact flow
 coordinate, target/receiver, symbol-root association, case coverage, and
-result-root-only validity; any subset of named rows may be selected, while
+result-root validity; a selected proposition may either be closed or contain
+the complete saved call result as its sole ordinary argument. Any subset of
+named rows may be selected, while
 omission stays fact-only. Lowering canonicalizes those selections by guarded
 callee-row coordinate, emits the exact two-machine closure, retains sibling
 guarded rows and producer provenance on the callee, and rejoins each selected
 row to a distinct caller-local term without changing the four-unit runtime.
-Payload
-substitution, later guarded-term use, erased proof-output linkage, wider
-structural calls, validity invalidation, and tagged-sum target lowering remain
-outside this bounded source rung.
+Payload projections, multiple or partial-result substitutions, later guarded-
+term use, erased proof-output linkage, wider structural calls, validity
+invalidation, and tagged-sum target lowering remain outside this bounded source
+rung.
 The current producer serializes forwarded terms as dense module-local
 identities over the exact proposition application and a structured canonical
 carrierless interface; the verifier requires each witness application to carry

@@ -414,6 +414,15 @@ fn lower_and_install_payloadless_guarded_call_evidence(
                 u32::try_from(arm.statement_index).ok() != Some(selection.arm_statement_index)
                     || *guarantee != selection.guarantee
                     || *selected_term != selection.selected_term
+                    || selection.substitutes_result
+                        != arm
+                            .rows
+                            .iter()
+                            .find(|row| {
+                                row.guarantee == *guarantee
+                                    && row.selected_term == Some(*selected_term)
+                            })
+                            .is_some_and(|row| !row.validity.referenced_occurrences.is_empty())
             })
     {
         return unsupported(
@@ -452,12 +461,17 @@ fn lower_and_install_payloadless_guarded_call_evidence(
             return unsupported("guarded payloadless selected row is absent");
         };
         if row.validity.result_occurrence != arm.result_expression
-            || !row.validity.referenced_occurrences.is_empty()
+            || row.validity.referenced_occurrences.len()
+                != usize::from(selection.substitutes_result)
             || row
                 .validity
                 .evidence_interface_scope
                 .as_ref()
-                .is_none_or(|scope| !scope.retained_occurrences.is_empty())
+                .is_none_or(|scope| {
+                    !scope.reference_regions.is_empty()
+                        || scope.retained_occurrences.len()
+                            != usize::from(selection.substitutes_result)
+                })
         {
             return unsupported("guarded payloadless selected validity exceeds the exact root");
         }
@@ -504,10 +518,37 @@ fn lower_and_install_payloadless_guarded_call_evidence(
             .ok_or(LoweringError::Unsupported(
                 "guarded payloadless selected term declaration is absent",
             ))?;
-        if callee_term_declaration.proposition != output_declaration.proposition
-            || callee_term_declaration.interface != output_declaration.interface
-        {
+        if callee_term_declaration.interface != output_declaration.interface {
             return unsupported("guarded payloadless selected term identity drifted");
+        }
+        let callee_application = lowered
+            .semantic_module
+            .proposition_applications
+            .iter()
+            .find(|application| application.id == callee_term_declaration.proposition)
+            .ok_or(LoweringError::Unsupported(
+                "guarded payloadless callee proposition application is absent",
+            ))?;
+        let instantiated_application = lowered
+            .semantic_module
+            .proposition_applications
+            .iter()
+            .find(|application| application.id == output_declaration.proposition)
+            .ok_or(LoweringError::Unsupported(
+                "guarded payloadless instantiated proposition application is absent",
+            ))?;
+        if callee_application.declaration != instantiated_application.declaration
+            || callee_application.binder_arguments != instantiated_application.binder_arguments
+            || callee_application.evidence_interface != instantiated_application.evidence_interface
+            || if selection.substitutes_result {
+                callee_application.arguments.len() != 1
+                    || instantiated_application.arguments.len() != 1
+                    || callee_application.id == instantiated_application.id
+            } else {
+                callee_application.id != instantiated_application.id
+            }
+        {
+            return unsupported("guarded payloadless result substitution is inexact");
         }
         let mut guarantee_position = 0_u32;
         for (handle, candidate) in checked.facts.proof.outcome_specific_guarantees.iter() {
@@ -543,8 +584,16 @@ fn lower_and_install_payloadless_guarded_call_evidence(
         let callee_guard = callee_row.guard;
         let callee_position = callee_row.position;
         let callee_obligation = callee_row.obligation;
-        let proposition = callee_term_declaration.proposition;
+        let callee_proposition = callee_term_declaration.proposition;
+        let instantiated_proposition = output_declaration.proposition;
         let evidence_interface = callee_term_declaration.interface.clone();
+        let callee_result = lowered.semantic_module.machines[1]
+            .result
+            .structural()
+            .ok_or(LoweringError::Unsupported(
+                "guarded payloadless callee result is not structural",
+            ))?
+            .place;
         let caller = &mut lowered.semantic_module.machines[0];
         let [operation] = caller.blocks[0].operations.as_mut_slice() else {
             return unsupported("guarded payloadless caller has no exact call");
@@ -555,6 +604,13 @@ fn lower_and_install_payloadless_guarded_call_evidence(
         else {
             return unsupported("guarded payloadless caller operation is not structural");
         };
+        let caller_result = operation
+            .result
+            .structural()
+            .ok_or(LoweringError::Unsupported(
+                "guarded payloadless caller result is not structural",
+            ))?
+            .place;
         selected_evidence.push(OutcomeSpecificCallEvidence {
             guard: callee_guard,
             position: callee_position,
@@ -566,13 +622,25 @@ fn lower_and_install_payloadless_guarded_call_evidence(
                 .ok_or(LoweringError::Unsupported(
                     "guarded payloadless selected row lost its public selector",
                 ))?,
-            proposition,
+            callee_proposition,
+            instantiated_proposition,
             output,
+            result_substitution: selection.substitutes_result.then_some(
+                OutcomeSpecificCallResultSubstitution {
+                    argument_position: 0,
+                    callee_result,
+                    caller_result,
+                },
+            ),
             validity: OutcomeSpecificCallEvidenceValidity {
-                result: place_id(1),
-                proposition_dependencies: vec![place_id(1)],
+                result: caller_result,
+                proposition_dependencies: vec![caller_result],
                 evidence_interface,
-                interface_dependencies: Vec::new(),
+                interface_dependencies: selection
+                    .substitutes_result
+                    .then_some(caller_result)
+                    .into_iter()
+                    .collect(),
             },
         });
     }
@@ -707,8 +775,30 @@ fn lower_proposition_vocabulary(
         .map(|(symbol, declaration)| (*symbol, declaration.id))
         .collect::<Vec<_>>();
 
+    let retained_term_applications =
+        checked
+            .facts
+            .proof
+            .evidence_terms
+            .iter()
+            .filter_map(|(handle, term)| {
+                let index = usize::try_from(handle.arena_index() - 1)
+                    .expect("arena indices fit the host address space");
+                term_ids
+                    .get(index)
+                    .copied()
+                    .flatten()
+                    .map(|_| &term.proposition)
+            });
     let mut applications = Vec::new();
-    for application in &checked.facts.proof.proposition_vocabulary.applications {
+    for application in checked
+        .facts
+        .proof
+        .proposition_vocabulary
+        .applications
+        .iter()
+        .chain(retained_term_applications)
+    {
         let Some(declaration) = declaration_ids
             .iter()
             .find_map(|(symbol, id)| (*symbol == application.declaration).then_some(*id))

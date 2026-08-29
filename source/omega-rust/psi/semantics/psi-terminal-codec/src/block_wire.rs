@@ -7,9 +7,9 @@
 use psi_terminal::{
     Block, ClaimTransfer, CompletionReceipt, CrashCause, NominalAffineCleanup, Operation,
     OperationKind, OperationResult, OutcomeSpecificCallEvidence,
-    OutcomeSpecificCallEvidenceValidity, OutcomeSpecificGuard, StructuralAffineDiscard,
-    StructuralOperationResult, StructuralResultClaimBinding, StructuralResultClaimTransfer,
-    Terminator,
+    OutcomeSpecificCallEvidenceValidity, OutcomeSpecificCallResultSubstitution,
+    OutcomeSpecificGuard, StructuralAffineDiscard, StructuralOperationResult,
+    StructuralResultClaimBinding, StructuralResultClaimTransfer, Terminator,
 };
 
 use super::contract_wire::{
@@ -177,8 +177,18 @@ pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
                     writer.id(binding.callee_obligation);
                     writer.id(binding.callee_term);
                     writer.string("guarded call output field", &binding.output_field)?;
-                    writer.id(binding.proposition);
+                    writer.id(binding.callee_proposition);
+                    writer.id(binding.instantiated_proposition);
                     writer.id(binding.output);
+                    match binding.result_substitution {
+                        None => writer.u8(0),
+                        Some(substitution) => {
+                            writer.u8(1);
+                            writer.u32(substitution.argument_position);
+                            writer.id(substitution.callee_result);
+                            writer.id(substitution.caller_result);
+                        }
+                    }
                     writer.id(binding.validity.result);
                     writer.len(
                         "guarded call proposition dependencies",
@@ -865,8 +875,23 @@ pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
                         callee_obligation: reader.id("ObligationId")?,
                         callee_term: reader.id("EvidenceTermId")?,
                         output_field: reader.string("guarded call output field")?,
-                        proposition: reader.id("PropositionId")?,
+                        callee_proposition: reader.id("PropositionId")?,
+                        instantiated_proposition: reader.id("PropositionId")?,
                         output: reader.id("EvidenceTermId")?,
+                        result_substitution: match reader.u8()? {
+                            0 => None,
+                            1 => Some(OutcomeSpecificCallResultSubstitution {
+                                argument_position: reader.u32()?,
+                                callee_result: reader.id("PlaceId")?,
+                                caller_result: reader.id("PlaceId")?,
+                            }),
+                            tag => {
+                                return Err(CodecError::InvalidTag(
+                                    "OutcomeSpecificCallResultSubstitution",
+                                    tag,
+                                ));
+                            }
+                        },
                         validity: OutcomeSpecificCallEvidenceValidity {
                             result: reader.id("PlaceId")?,
                             proposition_dependencies: decode_ids(reader, "PlaceId")?,
@@ -1086,8 +1111,10 @@ mod tests {
             callee_obligation: id::<ObligationId>(9),
             callee_term: id::<EvidenceTermId>(10),
             output_field: "selected".into(),
-            proposition: id::<PropositionId>(11),
+            callee_proposition: id::<PropositionId>(11),
+            instantiated_proposition: id::<PropositionId>(11),
             output: id::<EvidenceTermId>(12),
+            result_substitution: None,
             validity: OutcomeSpecificCallEvidenceValidity {
                 result: id::<PlaceId>(2),
                 proposition_dependencies: vec![id::<PlaceId>(2)],

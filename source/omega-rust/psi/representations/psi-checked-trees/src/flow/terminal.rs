@@ -629,6 +629,8 @@ pub struct CheckedPayloadlessGuardedCallEvidencePlan {
     pub arm_statement_index: u32,
     pub guarantee: psi_arena::Handle<crate::OutcomeSpecificGuaranteeFact>,
     pub selected_term: psi_arena::Handle<crate::CheckedEvidenceTerm>,
+    /// True exactly for the bounded whole-result proposition substitution.
+    pub substitutes_result: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
