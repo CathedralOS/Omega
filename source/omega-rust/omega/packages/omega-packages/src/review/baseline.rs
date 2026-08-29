@@ -1,7 +1,7 @@
 //! Restart-stable review baselines and bounded rooted-file custody.
 
-use crate::review::capability_conflict::compare_review_only_capability_records;
 use crate::review::closure::{validate_review_only_closure, validate_review_only_records};
+use crate::review::comparison::compare_review_only_capability_records;
 use crate::review::evidence::{
     PackageReviewEvidence, ReviewOnlyCanonicalRow, ReviewOnlyCompilerExecutableCommitment,
     ReviewOnlySourceConsumptionCommitment, build_observation_commitment, whole_review_commitment,
