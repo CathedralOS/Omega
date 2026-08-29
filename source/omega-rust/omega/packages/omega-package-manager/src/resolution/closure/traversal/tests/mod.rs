@@ -89,6 +89,7 @@ fn test_git_head(directory: &Path) -> String {
 }
 mod capability_review;
 mod external_local;
+mod git_cache;
 mod git_requests;
 mod limits;
 mod workspace;

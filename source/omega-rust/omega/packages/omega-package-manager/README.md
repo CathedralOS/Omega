@@ -63,12 +63,23 @@ evidence identity.
 A multi-package Git request acquires one repository/revision and separately
 selects `Root` or `Named(PackageName)`. Selected members share the authenticated
 fetch and tree. The resolved member path is retained for navigation, replay, and
-relative-dependency custody, but moving it does not replace the package.
+relative-dependency custody. Member-relative `Path` rows may select only exact
+members declared by that authenticated root; recursive discovery and undeclared
+directories reject.
 
-Requests for one key that resolve to the same immutable source deduplicate.
-Different resolutions reject with all dependency paths. Multiple simultaneous
-instances per key are unsupported because they would require package-instance
-qualification throughout the nominal identity substrate, not merely new aliases.
+`PackageKey` remains stable when a member moves within one repository lineage,
+but canonical closure evidence binds the selected navigation, so relocation is
+still an explicit source-question change. Requests for one key deduplicate only
+when immutable resolution, navigation, and projected dependency rows all agree;
+machine-specific cache roots do not participate. Different semantic custody
+rejects with all dependency paths. Multiple simultaneous instances per key are
+unsupported because they would require package-instance qualification throughout
+the nominal identity substrate, not merely new aliases.
+
+Canonical source-closure encoding v3 binds root and dependency selectors plus
+one stable navigation value for every package. Review revalidates the complete
+authenticated repository commitment before opening a selected member subtree;
+it never compares a member-only digest to the repository digest.
 
 ## Review
 

@@ -144,3 +144,143 @@ machine build(builder: &mut Build) {
     let _ = std::fs::remove_dir_all(repository);
     let _ = std::fs::remove_dir_all(cache);
 }
+
+#[test]
+fn named_git_member_path_dependencies_keep_repository_custody() {
+    let repository = temp_root("git-member-path-repository");
+    let cache = temp_root("git-member-path-cache");
+    std::fs::create_dir_all(repository.join("packages")).expect("create repository");
+    std::fs::write(
+        repository.join("build.omg"),
+        r#"
+machine build(builder: &mut Build) {
+    builder.member("packages/left");
+    builder.member("packages/right");
+}
+"#,
+    )
+    .expect("write workspace build");
+    write_package(&repository.join("packages/left"), "left", Some("../right"));
+    write_package(&repository.join("packages/right"), "right", None);
+    run_test_git(&repository, ["init", "--quiet"]);
+    run_test_git(
+        &repository,
+        ["config", "user.email", "omega@example.invalid"],
+    );
+    run_test_git(&repository, ["config", "user.name", "Omega Tests"]);
+    run_test_git(&repository, ["add", "."]);
+    run_test_git(&repository, ["commit", "--quiet", "-m", "workspace"]);
+    let request = crate::resolution::GitPackageSourceRequest::new(
+        GitSourceRequest::for_local_test_repository_with_lineage(
+            &repository,
+            None,
+            "https://github.com/CathedralOS/member-path.git",
+        )
+        .expect("validated local Git root request"),
+        crate::manifest::PackageSelection::Named(
+            omega_package_source::PackageName::parse("left").expect("package name"),
+        ),
+    );
+    let storage = SourceResolverStorage::for_hardened_base(&cache)
+        .expect("create retained Git resolver storage");
+
+    let closure = crate::resolution::resolve_selected_git_package_closure_with_storage(
+        &request,
+        &storage,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve member-relative Git closure");
+    let left = closure
+        .custodies()
+        .iter()
+        .find(|custody| custody.key().name().as_str() == "left")
+        .expect("left custody");
+    let right = closure
+        .custodies()
+        .iter()
+        .find(|custody| custody.key().name().as_str() == "right")
+        .expect("right custody");
+    assert_eq!(left.key().source_lineage(), right.key().source_lineage());
+    assert_eq!(left.resolution(), right.resolution());
+    assert_eq!(left.acquisition_root(), right.acquisition_root());
+    assert!(matches!(
+        right.navigation(),
+        crate::resolution::PackageSourceNavigation::Member(path)
+            if path.as_str() == "packages/right"
+    ));
+    let canonical = crate::resolution::CanonicalSourceClosureSubject::from_resolved(
+        &closure,
+        crate::resolution::CanonicalSourceClosureSubjectLimits::default(),
+    )
+    .expect("canonicalize member-relative Git closure");
+    assert_eq!(
+        canonical.package_navigation(right.key()),
+        Some(right.navigation())
+    );
+
+    let _ = std::fs::remove_dir_all(repository);
+    let _ = std::fs::remove_dir_all(cache);
+}
+
+#[test]
+fn git_member_path_dependency_rejects_an_undeclared_directory() {
+    let repository = temp_root("git-undeclared-member-repository");
+    let cache = temp_root("git-undeclared-member-cache");
+    std::fs::create_dir_all(repository.join("packages")).expect("create repository");
+    std::fs::write(
+        repository.join("build.omg"),
+        r#"
+machine build(builder: &mut Build) {
+    builder.member("packages/left");
+}
+"#,
+    )
+    .expect("write workspace build");
+    write_package(&repository.join("packages/left"), "left", Some("../hidden"));
+    write_package(&repository.join("packages/hidden"), "hidden", None);
+    run_test_git(&repository, ["init", "--quiet"]);
+    run_test_git(
+        &repository,
+        ["config", "user.email", "omega@example.invalid"],
+    );
+    run_test_git(&repository, ["config", "user.name", "Omega Tests"]);
+    run_test_git(&repository, ["add", "."]);
+    run_test_git(&repository, ["commit", "--quiet", "-m", "workspace"]);
+    let request = crate::resolution::GitPackageSourceRequest::new(
+        GitSourceRequest::for_local_test_repository_with_lineage(
+            &repository,
+            None,
+            "https://github.com/CathedralOS/undeclared-member.git",
+        )
+        .expect("validated local Git root request"),
+        crate::manifest::PackageSelection::Named(
+            omega_package_source::PackageName::parse("left").expect("package name"),
+        ),
+    );
+    let storage = SourceResolverStorage::for_hardened_base(&cache)
+        .expect("create retained Git resolver storage");
+
+    let error = crate::resolution::resolve_selected_git_package_closure_with_storage(
+        &request,
+        &storage,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect_err("undeclared Git workspace directory rejects");
+    assert!(matches!(
+        error,
+        ResolveGitPackageClosureError::Closure(
+            PackageSourceClosureResolutionError::Adapter {
+                error: ResolveDependencySourceError::UndeclaredGitWorkspaceMember {
+                    member_path,
+                    ..
+                },
+                ..
+            }
+        ) if member_path.as_str() == "packages/hidden"
+    ));
+
+    let _ = std::fs::remove_dir_all(repository);
+    let _ = std::fs::remove_dir_all(cache);
+}

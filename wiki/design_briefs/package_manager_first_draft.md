@@ -1831,19 +1831,22 @@ owned dependency row, by authored ordinal, to the selected package key and
 immutable resolution. Distinct selectors converging on one package are
 therefore not collapsed into a fabricated primary request. Aliases remain
 requester-local edge names; transport observations remain provenance rather
-than package identity. The repository-root Git adapter now follows this path
-and preserves its requested locator and `HEAD` selector independently from the
-resolved commit/tree/content tuple. This is resolver custody only—not lock
+than package identity. Git adapters now follow this path for both repository
+roots and declared named workspace members. They preserve acquisition and
+package selection independently from the resolved commit/tree/content tuple,
+share exact acquisitions within one traversal, and confine member-relative Path
+rows to the authenticated root's declared members. This is resolver custody only—not lock
 encoding, compiler evidence, admission, or `PackageInstance` construction—and
 the ordinary obligation ledger intentionally remains source-selector-free.
 Git dependency requests now normalize omitted selection to `Root` and retain
-explicit `Named(PackageName)` selection in this custody. Named selection still
-rejects before traversal until authenticated workspace-member binding lands.
+explicit `Named(PackageName)` selection in this custody.
 
 The versioned `CanonicalSourceClosureSubject` is the bounded canonical form of
 that source-selection question. It retains the exact root request and every
 requester/ordinal dependency occurrence, resolved alias, selected package key,
-immutable resolution, and content identity. Recovery reconstructs one strictly
+immutable resolution, content identity, and one stable root/member navigation
+value per package. Version 3 binds both root and dependency package selectors;
+cache and snapshot paths remain excluded. Recovery reconstructs one strictly
 ordered closed graph and rejects malformed, mismatched, noncanonical, or over-
 limit state. Its fingerprint names the question only: use requires independent
 resolution and snapshotting followed by complete reconstruction and exact

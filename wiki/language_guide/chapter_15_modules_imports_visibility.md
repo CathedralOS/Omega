@@ -75,6 +75,10 @@ members, and duplicate names reject.
 The resolved member path is retained as navigation and replay custody, including
 the base for that member's relative dependencies. It is not package identity:
 moving a member inside the same repository lineage preserves its `PackageKey`.
+The canonical resolved-source question still binds that navigation, so a move
+is visible to lock/review reconstruction. Relative dependencies inside a fetched
+Git member may target only another exact member declared by the authenticated
+repository root; recursive discovery and undeclared directories reject.
 Different requesters may use different local aliases for that key, and a parent
 cannot rename aliases internal to a child. A consumer that names a dependency's
 declaration needs its own dependency edge and alias; one that merely carries an
