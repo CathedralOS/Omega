@@ -2179,7 +2179,11 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
     let legalization_replay_source = [
         "mod.rs",
         "functions.rs",
-        "leaves.rs",
+        "leaf/mod.rs",
+        "leaf/exact_arithmetic.rs",
+        "leaf/fuel.rs",
+        "leaf/immediate.rs",
+        "leaf/recipe.rs",
         "shared.rs",
         "structural.rs",
         "validators.rs",

@@ -22,16 +22,10 @@ const MAX_ENTRANCE_LINES: usize = 200;
 /// Each ceiling is pinned to the current file size. An exception cannot grow,
 /// and becomes stale as soon as the file is split below the default. New files
 /// never enter this table.
-const LEGACY_PRODUCTION_FILE_CEILINGS: &[(&str, usize)] = &[
-    (
-        "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/replay/leaves.rs",
-        1_022,
-    ),
-    (
-        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/liveness/validate.rs",
-        1_021,
-    ),
-];
+const LEGACY_PRODUCTION_FILE_CEILINGS: &[(&str, usize)] = &[(
+    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/liveness/validate.rs",
+    1_021,
+)];
 
 /// The optimizer surfaces whose source organization is architecture-governed.
 /// Keep these roots explicit: silently losing a moved or renamed tree must
@@ -176,6 +170,10 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/mod.rs",
         coordination_marker: "pub fn legalize_target_operations",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/replay/leaf/mod.rs",
+        coordination_marker: "pub(super) fn replay_leaf",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/mod.rs",

@@ -153,8 +153,10 @@ legalization join and a 30-line selection join. Legal source construction and
 independent replay each descend into structural, scalar-function, and
 leaf-expression families; selected-plan construction and validation descend
 separately through constraints, roster construction, function/block/register
-checks, integrity replay, and canonical identity. Its remaining pre-ratchet
-leaf is pinned and cannot grow while it is split toward the default ceiling.
+checks, integrity replay, and canonical identity. Leaf replay has a 95-line
+source-custody/return-sealing entrance over exhaustive recipe dispatch,
+exact-arithmetic validation, immediate validation, and fuel replay. The former
+1,022-line replay catch-all is gone, and no replacement exceeds 464 lines.
 
 The scalar legalization family also carries the Squalr-style registry shape
 directly: one adjacent seven-row catalog owns precedence, recipe, shape, and
