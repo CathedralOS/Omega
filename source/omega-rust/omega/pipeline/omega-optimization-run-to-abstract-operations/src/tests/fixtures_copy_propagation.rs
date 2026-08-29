@@ -1,3 +1,5 @@
+//! Copy-propagation projection fixtures.
+
 use super::*;
 
 pub(super) fn redundant_block_parameter_verified() -> VerifiedPsiOptimizationUnit {

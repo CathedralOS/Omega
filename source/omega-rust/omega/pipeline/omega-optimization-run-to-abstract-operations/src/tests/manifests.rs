@@ -1,3 +1,5 @@
+//! Pre-physical manifest projection custody.
+
 use super::*;
 
 #[test]
@@ -178,13 +180,19 @@ fn multi_pass_projection_rejects_reordered_or_omitted_manifests() {
     reordered.pass_manifests.swap(0, 1);
     assert!(matches!(
         project_optimization_run(reordered),
-        Err(OptimizedAbstractProjectionError::ManifestUsageMismatch)
+        Err(OptimizedAbstractProjectionError::AppliedDecisionCustody {
+            axis: AppliedDecisionCustodyAxis::ManifestPass,
+            ..
+        })
     ));
 
     let mut omitted = run_pipeline(exact_add_verified(), selections);
     omitted.pass_manifests.pop();
     assert!(matches!(
         project_optimization_run(omitted),
-        Err(OptimizedAbstractProjectionError::ManifestUsageMismatch)
+        Err(OptimizedAbstractProjectionError::AppliedDecisionCustody {
+            axis: AppliedDecisionCustodyAxis::ManifestRoster,
+            ..
+        })
     ));
 }

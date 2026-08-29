@@ -1,3 +1,5 @@
+//! Dead-scalar projection custody.
+
 use super::*;
 
 #[test]

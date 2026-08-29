@@ -37,14 +37,14 @@ function roster before descending into exact family replay. The adjacent
 sub-100-line catalog is the sole enable/disable inventory; each descriptor
 joins one source classifier to one typed replay adapter. Zero matches publish
 `Uncovered`, one match publishes one receipt on that exact function-roster row,
-and duplicate or overlapping matches fail closed. The first six semantic
+and duplicate or overlapping matches fail closed. The first seven semantic
 rows reconstruct parameterless straight-line integer and Boolean literal
-returns, scalar `Crash`, direct integer and Boolean parameter returns, and
-Boolean negation of a parameter. The three distinct parameter-derived families
-descend through governed direct/Boolean-not source replay and one shared ABI
-coordinator that independently reconstructs the native calling convention and
-exact incoming register or stack location. Boolean-not replay also retains the
-distinct operand, produced value, operation provenance, and return edge.
+returns, scalar `Crash`, direct integer and Boolean parameter returns, Boolean
+negation of a parameter, and ordered Boolean equality of two parameters. The
+parameter-derived families descend through a governed source-grammar map,
+shared envelope, whole-roster ABI replay, and a derived-expression join.
+Boolean-not and equality replay retain their distinct operands, produced value,
+operation provenance, return edge, and exact register or stack locations.
 Focused mutation
 coverage rejects every source-shape, root, target, roster, provenance, and
 operation-field substitution across all five native targets.
@@ -519,9 +519,11 @@ parallel route or optional coordinator field.
 - [x] Split current-value-range validation into applicability, independent
   reconstruction, canonical proof-goal, and exact interval-algebra leaves
   below one fact-first validation entrance.
-- [x] Split optimized abstract-plan projection into receipt/error models,
-  initial-unit and ledger custody, identity-bundle checks, manifest replay,
-  source custody, and reconstructible shape leaves below one ordered entrance.
+- [x] Split optimized abstract-plan projection into one meaningful stage
+  entrance above retained models, typed errors, catalog-derived run replay,
+  Applied-decision custody, and source-shape projection. Run replay descends
+  into rule-set, commit, decision, and record leaves; source projection descends
+  into roster and function-shape mechanics.
 - [x] Split verified/transformed optimizer-context validation into immutable
   context projection, seed/fact replay, surviving frontier validation, and
   signature/roster custody below one revision-policy entrance.
@@ -593,6 +595,10 @@ parallel route or optional coordinator field.
 - [x] Representation and rule-level independent validators.
 - [x] Identity-bound decisions, pass records, manifests, and work usage.
 - [x] Source-to-optimized Psi projection and lower-stage custody checks.
+- [x] Rebind every Applied Psi decision to its selected rule contract,
+  independently replayed declaration, manifest analyses/facts, baseline cost,
+  pass partition, and external-policy mirror across the complete six-pass Psi
+  catalog.
 - [>] Complete translation validation for all lowering and machine rule
   families. Selected-lowering incoming-u12 add/subtract folds,
   straight-line integer-immediate, Boolean-immediate, scalar-Crash,
@@ -731,8 +737,11 @@ rewrite or opt a program into lossy floating-point semantics.
   admission remains unchanged.
 - [>] Per-rule positive, negative, boundary, disabled, budget, determinism,
   idempotence, and corruption suites. Disabled-selection coverage is complete
-  for every exact public name and phase projection; the remaining dimensions
-  still require a catalog-wide evidence matrix and focused gap closure.
+  for every exact public name and phase projection. Applied-decision
+  analyses/facts and predicted-cost corruption now have a closed six-pass Psi
+  catalog matrix, including coordinated external-log mutations; skipped
+  decision evidence and the remaining behavioral dimensions still need focused
+  gap closure.
 - [x] Cross-rule phase-composition matrix, including deliberate fail-closed
   unsupported combinations.
 - [ ] Randomized valid-Psi and selected-machine differential corpus.
@@ -806,3 +815,8 @@ rewrite or opt a program into lossy floating-point semantics.
     locations through optimized target custody. Split common source envelopes,
     derived-expression coordination, and family error/receipt vocabulary into
     small semantic entrances while doing so.
+26. [x] Replace the run-to-abstract projection forwarding wall and 422-line
+    catchall with one meaningful stage entrance above replay and source
+    taxonomies. Bind every Applied Psi decision to exact selected contracts,
+    pass partitions, declaration facts, manifest analyses, and baseline costs
+    with a six-pass coordinated-corruption matrix.

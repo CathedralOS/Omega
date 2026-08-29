@@ -1,3 +1,5 @@
+//! Global-value-numbering projection custody.
+
 use super::*;
 
 #[test]

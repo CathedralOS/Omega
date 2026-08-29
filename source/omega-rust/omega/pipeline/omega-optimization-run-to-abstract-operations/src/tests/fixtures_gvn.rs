@@ -1,3 +1,5 @@
+//! Global-value-numbering projection fixtures.
+
 use super::*;
 
 pub(super) fn local_cse_verified() -> VerifiedPsiOptimizationUnit {

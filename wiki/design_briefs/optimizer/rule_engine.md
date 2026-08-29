@@ -110,6 +110,14 @@ Machine-readable decision rows bind input, candidate, rule, verdict, consumed
 analyses/facts, validator, budget, and usage. Human reports are projections of
 those rows, never authoritative inputs.
 
+At the run-to-abstract publication boundary, every Applied row is rebound to
+the selected pass partition and complete built-in rule contract, independently
+replayed candidate declaration, transformation commit, and chosen baseline
+summary. Manifest analyses/facts and predicted cost therefore cannot be
+coordinately rewritten with the external-policy recording to manufacture
+custody. Skipped candidates are not covered by this replay until their validated
+declarations are retained or independently reproposed.
+
 ## Search and ML
 
 An external policy may rank or choose already-declared candidates through a

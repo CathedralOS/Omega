@@ -1,3 +1,5 @@
+//! Control-flow projection fixtures.
+
 use super::*;
 
 pub(super) fn unreachable_private_machine_verified() -> VerifiedPsiOptimizationUnit {

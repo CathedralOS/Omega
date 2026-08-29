@@ -20,8 +20,21 @@ inseparable from its validation receipt.
 
 ## Implementation Map
 
-- `omega-optimization-run-to-abstract-operations/src/lib.rs` owns the exact
-  run-to-abstract transformation and its custody carrier.
+- `omega-optimization-run-to-abstract-operations/src/lib.rs` visibly owns the
+  ordered selection-projection, run-replay, source-projection, independent
+  validation, and pre-physical-manifest join.
+- `src/replay/mod.rs` owns catalog-derived schedule reconstruction followed by
+  commit replay, Applied-decision custody, ledger/usage replay, and external
+  policy-mirror validation. `rule_set.rs`, `commits.rs`,
+  `applied_decisions.rs`, and `records.rs` own those mechanics.
+- Applied custody binds each selected pass and complete rule contract, the
+  independently replayed declaration, manifest analyses and facts, and the
+  baseline predicted cost. Coordinated manifest and external-log rewrites do
+  not create publication evidence.
+- `src/source/mod.rs` owns active/pruned function-roster custody before
+  `source/function.rs` projects parameters, block offsets, and operations.
+- `src/model.rs` and `src/error.rs` own the retained carrier and typed failure
+  axes. The former mixed `projection.rs` catchall is retired.
 - `omega-optimization-validation` owns independent candidate and projection
   validation.
 - `omega-optimization-pipeline/src/stages/selection/optimized_target_operations.rs` owns the

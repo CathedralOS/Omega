@@ -572,11 +572,17 @@ Current-value-range validation exposes one fact-first entrance that preserves
 the validation-before-applicability order. Independent fact reconstruction,
 current-operation availability, canonical proof-goal mapping, and exact
 integer interval algebra descend into named evidence leaves.
-Optimized abstract-plan projection exposes its acceptance order directly:
-transformed unit and ledger, identity bundle, pass manifests, then
-reconstructible projection shape. Receipt/error models, source custody,
-manifest replay, source-roster partitioning, and equivalence checks descend
-into named leaves, with broad custody fixtures isolated in `tests.rs`.
+Run-to-abstract projection exposes its acceptance order directly in its crate
+entrance: exact Psi selection, independent run replay, source projection,
+independent equivalence validation, then pre-physical publication. Its replay
+entrance visibly orders selected rule-set reconstruction, commit replay,
+Applied-decision custody, ledger/usage replay, and the external-policy mirror;
+rule-set, commit, decision, and record mechanics descend into named leaves.
+Applied custody binds each pass partition and full contract plus independently
+reconstructed analyses, facts, and predicted cost. Source projection separately
+owns active/pruned roster custody before function and parameter/block shape.
+Retained carrier and typed error vocabulary are sibling leaves, and the former
+422-line mixed `projection.rs` catchall is forbidden by the architecture gate.
 Verified and transformed optimizer-context validation shares one entrance that
 owns the initial-revision policy and preserves complete-unit, immutable-context,
 seed/fact, and surviving-frontier validation order. Proof-question projection,

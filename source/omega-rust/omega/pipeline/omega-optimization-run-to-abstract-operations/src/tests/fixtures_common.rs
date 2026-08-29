@@ -1,3 +1,5 @@
+//! Shared projection fixtures.
+
 use super::*;
 
 /// Test-only composition probe. Production target custody belongs to

@@ -1,4 +1,4 @@
-//! Projection test catalog.
+//! Run-to-abstract stage test catalog.
 //!
 //! Fixtures are grouped by the source shape they construct. Test leaves own
 //! selection/custody, control-flow, scalar, GVN, proof-elision, manifest, and
@@ -9,6 +9,7 @@ use std::collections::BTreeSet;
 use omega_abstract_operations::AbstractOperation;
 use omega_optimization_core::{Optimization, OptimizationSelections, OptimizationWorkBudget};
 use omega_optimization_validation::{
+    OptimizationUnitValidationError, OptimizedAbstractPlanProjectionError,
     PhysicalOptimizationDataStatus, PrePhysicalOptimizationManifest,
     PrePhysicalOptimizationManifestDecodeError, PrePhysicalOptimizationManifestError,
     validate_pre_physical_optimization_manifest,
@@ -32,6 +33,7 @@ use psi_terminal::{
 use psi_terminal_verifier::{ObligationEvidence, ProofBundle};
 
 use super::*;
+use crate::replay::work_usage;
 
 mod fixtures_common;
 mod fixtures_control_flow;
@@ -51,6 +53,7 @@ mod control_flow;
 mod copy_propagation;
 mod corruption;
 mod dead_scalar_elimination;
+mod decision_custody;
 mod global_value_numbering;
 mod manifests;
 mod proof_check_elision;

@@ -155,6 +155,18 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub(super) fn lower_machine",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations/src/lib.rs",
+        coordination_marker: "pub fn project_optimization_run",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations/src/replay/mod.rs",
+        coordination_marker: "pub(super) fn validate",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations/src/source/mod.rs",
+        coordination_marker: "pub(super) fn project_plan",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-target-operations-to-assigned-target-operations/src/assignment/mod.rs",
         coordination_marker: "pub fn assign_registers",
     },
