@@ -104,11 +104,12 @@ closed. Compiler-issued package review remains non-admitting.
   including exact cursor-independent positioned offsets, exact ordered
   generated-source subsets, and bounded parent-before-child mixed Output trees
   containing directories, complete regular-file chains, nested generated
-  sources, and canonical self-contained symbolic links, into a complete
-  receipted build-operation and
-  output grammar. Add replay for every remaining admitted service and staged-
-  output shape, exact staged-output
-  commitments, failure/denial outcomes, and a complete replay verdict. Enforce
+  sources, canonical self-contained symbolic links, and exact successful
+  Output hard links (portable tag 19 and Win32 tag 27) to prior regular-file or
+  hard-link entries. Generalize these landed lanes into a complete receipted
+  build-operation and output grammar. Add replay for every remaining admitted
+  service and staged-output shape, exact staged-output commitments,
+  failure/denial outcomes, and a complete replay verdict. Enforce
   process CPU/memory and remaining session quotas. A summary or observation
   digest alone is not a receipt.
 
