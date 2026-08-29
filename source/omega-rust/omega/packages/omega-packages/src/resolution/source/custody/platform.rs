@@ -1,6 +1,17 @@
 //! Filesystem custody shared by local snapshots and Git cache entries.
 
-use super::*;
+use super::lock::same_std_and_capability_file_identity;
+use super::tree::{CacheCustodyKind, cache_custody_invalid};
+use crate::resolution::source::SourceResolveError;
+use crate::resolution::source::local::capture::{io_error, open_absolute_directory_nofollow};
+use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
+use cap_std::fs::{
+    Dir as CapabilityDirectory, Metadata as CapabilityMetadata,
+    OpenOptions as CapabilityOpenOptions,
+};
+use std::ffi::OsStr;
+use std::fs::File;
+use std::path::Path;
 pub(in crate::resolution::source) fn same_capability_file_identity(
     left: &CapabilityMetadata,
     right: &CapabilityMetadata,

@@ -1,6 +1,26 @@
 //! Filesystem custody shared by local snapshots and Git cache entries.
 
-use super::*;
+use super::platform::{
+    same_capability_file_identity, verify_capability_cache_node_owner_and_mode,
+    verify_macos_open_cache_extended_acl_custody, verify_windows_open_cache_custody,
+};
+use super::publication::direct_cache_child_name;
+use super::tree::{CacheCustodyKind, cache_custody_invalid, verify_cache_custody_root};
+use crate::resolution::source::SourceResolveError;
+use crate::resolution::source::git::execution::GitExecutor;
+use crate::resolution::source::limits::{LOCAL_SNAPSHOT_LOCK_TIMEOUT, PROCESS_POLL_INTERVAL};
+use crate::resolution::source::local::capture::{io_error, open_absolute_directory_nofollow};
+use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
+#[cfg(unix)]
+use cap_std::fs::OpenOptionsExt as CapabilityOpenOptionsExt;
+use cap_std::fs::{
+    Dir as CapabilityDirectory, Metadata as CapabilityMetadata,
+    OpenOptions as CapabilityOpenOptions,
+};
+use std::ffi::{OsStr, OsString};
+use std::fs::File;
+use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 pub(in crate::resolution::source) struct CacheEntryLock {
     pub(in crate::resolution::source) file: File,
     pub(in crate::resolution::source) parent: CapabilityDirectory,

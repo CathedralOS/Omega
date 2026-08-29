@@ -12,14 +12,13 @@ use crate::storage::record_file::{RecordFileLimits, RecordFileRoot};
 use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt};
 #[cfg(unix)]
 use cap_std::fs::{
-    DirBuilderExt as CapabilityDirBuilderExt, OpenOptionsExt as CapabilityOpenOptionsExt,
-    PermissionsExt as CapabilityPermissionsExt,
+    OpenOptionsExt as CapabilityOpenOptionsExt, PermissionsExt as CapabilityPermissionsExt,
 };
 use cap_std::{
     ambient_authority,
     fs::{
-        Dir as CapabilityDirectory, DirBuilder as CapabilityDirBuilder,
-        Metadata as CapabilityMetadata, OpenOptions as CapabilityOpenOptions,
+        Dir as CapabilityDirectory, Metadata as CapabilityMetadata,
+        OpenOptions as CapabilityOpenOptions,
     },
 };
 use omega_resolver_execution::{
@@ -56,7 +55,7 @@ mod observations;
 mod storage;
 
 use custody::*;
-use git::execution::{GitExecutor, format_sha256};
+use git::execution::format_sha256;
 use git::*;
 use limits::*;
 use local::*;
