@@ -6,13 +6,12 @@ use crate::declarations::declaration::{
 use crate::declarations::dependency_projection::{
     DependencyProjectionError, DependencySourceRequest, extract_build_dependency_projection,
 };
-use crate::resolution::closure_resolution::PackageSourceCustody;
-use crate::resolution::graph::ResolvedSourceIdentity;
 use crate::resolution::identity::{
     ExternalLocalLineage, ExternalSourceContext, GitCommitId, GitTreeId, IdentityError,
     ImmutableSourceResolution, PackageKey, SourceContentDigest, SourceLineage,
     WorkspaceLineageIdentity, WorkspaceMemberLineage, WorkspaceMemberPath,
 };
+use crate::resolution::package_closure::{PackageSourceCustody, ResolvedSourceIdentity};
 use crate::source::{
     GitSourceRequest, LocalSourceLimits, ResolvedGitSource, ResolvedLocalSnapshot,
     SourceResolveError, resolve_git_source, resolve_local_source_snapshot,
@@ -952,28 +951,29 @@ mod tests {
         )
         .expect("resolve root custody")
         .into_custody();
-        let error = crate::resolution::closure_resolution::resolve_package_source_closure::<
-            std::convert::Infallible,
-            _,
-        >(
-            crate::resolution::closure_resolution::PackageRootSourceRequest::ExternalLocal {
-                requested_root: root.clone(),
-                source_context,
-            },
-            root_custody,
-            |_, request| {
-                let DependencySourceRequest::Git { revision, .. } = request else {
-                    unreachable!("root authors only Git requests")
-                };
-                Ok(if revision == &first_revision {
-                    first.clone()
-                } else {
-                    assert_eq!(revision, &second_revision);
-                    second.clone()
-                })
-            },
-        )
-        .expect_err("one package key cannot reconcile two immutable revisions");
+        let error =
+            crate::resolution::package_closure::reconcile::resolve_package_source_closure::<
+                std::convert::Infallible,
+                _,
+            >(
+                crate::resolution::package_closure::PackageRootSourceRequest::ExternalLocal {
+                    requested_root: root.clone(),
+                    source_context,
+                },
+                root_custody,
+                |_, request| {
+                    let DependencySourceRequest::Git { revision, .. } = request else {
+                        unreachable!("root authors only Git requests")
+                    };
+                    Ok(if revision == &first_revision {
+                        first.clone()
+                    } else {
+                        assert_eq!(revision, &second_revision);
+                        second.clone()
+                    })
+                },
+            )
+            .expect_err("one package key cannot reconcile two immutable revisions");
 
         let [conflict] = error.conflicts().expect("exact custody conflict") else {
             panic!("one package key must conflict")
