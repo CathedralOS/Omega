@@ -56,6 +56,9 @@ resolution/closure/
 ├── traversal/       follow declared workspace, local, and Git edges
 ├── reconciliation/  reconcile one complete closure
 └── identity/        canonical identity of the exact closure
+    ├── subject.rs   canonical closure question and fingerprint
+    ├── codec/       encode framing, source identities, and selections
+    └── validation.rs reject non-canonical closure questions
 ```
 
 Directory entrances are maps: `mod.rs` names the responsibility and points to

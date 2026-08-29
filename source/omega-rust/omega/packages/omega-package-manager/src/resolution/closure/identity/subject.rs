@@ -7,9 +7,9 @@ use omega_package_source::{
 };
 use std::fmt;
 
-use super::encoding::{
-    Decoder, decode_dependency_selection, decode_root_selection, decode_source_identity,
-    encode_hex, encode_subject, fingerprint,
+use super::codec::{
+    decode_dependency_selection, decode_root_selection, decode_source_identity, encode_hex,
+    encode_subject, fingerprint, Decoder,
 };
 use super::validation::{canonical_root_request, validate_subject};
 use crate::resolution::source::PackageSourceNavigation;
@@ -324,7 +324,7 @@ impl CanonicalSourceClosureSubject {
                 &mut decoder,
                 limits.maximum_identity_bytes,
             )?);
-            package_navigations.push(super::encoding::decode_package_navigation(
+            package_navigations.push(super::codec::decode_package_navigation(
                 &mut decoder,
                 limits.maximum_request_bytes,
             )?);
