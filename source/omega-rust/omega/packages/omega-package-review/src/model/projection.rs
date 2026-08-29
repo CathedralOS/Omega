@@ -64,11 +64,17 @@ impl PackageReviewCheckedServiceReach {
 }
 
 /// Exact declarations bound to one selected provider realization row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PackageReviewCompilerIntrinsicExecution {
+    BuiltinFunction(psi_symbols::BuiltinFunction),
+    NamedFloatNegation(psi_numerics::literals::FloatFormat),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedPackageProviderRowIdentity {
     pub(crate) requirement: PackageReviewNominalIdentity,
     pub(crate) realization: PackageReviewNominalIdentity,
-    pub(crate) compiler_intrinsic_builtin: Option<psi_symbols::BuiltinFunction>,
+    pub(crate) compiler_intrinsic_execution: Option<PackageReviewCompilerIntrinsicExecution>,
 }
 
 impl CheckedPackageProviderRowIdentity {
@@ -82,8 +88,19 @@ impl CheckedPackageProviderRowIdentity {
 
     /// Closed compiler-owned execution child, retained separately from the
     /// authored realization machine.
+    pub const fn compiler_intrinsic_execution(
+        &self,
+    ) -> Option<PackageReviewCompilerIntrinsicExecution> {
+        self.compiler_intrinsic_execution
+    }
+
     pub const fn compiler_intrinsic_builtin(&self) -> Option<psi_symbols::BuiltinFunction> {
-        self.compiler_intrinsic_builtin
+        match self.compiler_intrinsic_execution {
+            Some(PackageReviewCompilerIntrinsicExecution::BuiltinFunction(function)) => {
+                Some(function)
+            }
+            Some(PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(_)) | None => None,
+        }
     }
 }
 
@@ -96,9 +113,9 @@ impl CheckedPackageProviderRowIdentity {
 /// package-qualified or authored-toolchain declaration identities, and review
 /// rejects if those owners disagree with the selected plan. Readable provider-
 /// plan strings remain execution/audit data and are not asked to stand in for
-/// those declarations. Builtin-backed compiler-intrinsic rows additionally
-/// retain a closed compiler-function atom; primitive-expression intrinsic
-/// children remain inadmissible until they receive their own closed identity.
+/// those declarations. Supported compiler-intrinsic rows additionally retain
+/// a closed execution atom; unsupported primitive-expression children remain
+/// inadmissible until they receive their own closed identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedPackageProviderReview {
     pub(crate) plan_name: String,

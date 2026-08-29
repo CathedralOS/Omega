@@ -3642,6 +3642,17 @@ pub struct SelectedProviderPlanWithProvenance {
     pub selected_by: ProviderSelectionProvenance,
 }
 
+/// Closed compiler-owned execution child retained independently of the
+/// authored realization-machine declaration.
+///
+/// This vocabulary is intentionally finite. A checked compiler intrinsic that
+/// cannot be represented here is not package-reviewable yet.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompilerIntrinsicExecutionIdentity {
+    BuiltinFunction(psi_symbols::BuiltinFunction),
+    NamedFloatNegation(psi_numerics::literals::FloatFormat),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProviderReviewProvenance {
     pub plan: ProviderPlan,
@@ -3653,9 +3664,8 @@ pub struct SelectedProviderReviewProvenance {
     /// settled until after checking. The compiler must replace it with one
     /// row-aligned entry per plan row before publishing `CheckedCompilation`.
     /// `Some` is reserved for compiler-intrinsic rows whose selected
-    /// execution is an exact compiler-installed builtin function; all other
-    /// rows retain `None`.
-    pub row_compiler_intrinsic_builtins: Vec<Option<psi_symbols::BuiltinFunction>>,
+    /// execution has a closed identity; all other rows retain `None`.
+    pub row_compiler_intrinsic_executions: Vec<Option<CompilerIntrinsicExecutionIdentity>>,
 }
 
 pub fn selected_provider_plan_facts_with_provenance(
@@ -3832,7 +3842,7 @@ pub fn selected_provider_plan_facts_with_provenance(
             plan: selected.derived.plan,
             provider: selected.derived.provenance,
             selected_by: selected.selected_by,
-            row_compiler_intrinsic_builtins: Vec::new(),
+            row_compiler_intrinsic_executions: Vec::new(),
         })
         .collect();
     Ok((facts, provenance))

@@ -8,6 +8,7 @@
 //! requirement rather than the bootstrap execution form.
 
 use omega_effects::provider_plan::ProviderBinding;
+use omega_provider_planning::plans::CompilerIntrinsicExecutionIdentity;
 use psi_checked_trees::CheckedTrees;
 use psi_diagnostics::Diagnostic;
 use psi_numerics::arithmetic::ArithmeticDomain;
@@ -36,12 +37,12 @@ enum NamedFloatRealization {
 /// `CompilerIntrinsic` boundary-operator row.
 ///
 /// Primitive-expression realizations deliberately remain distinct from
-/// builtin functions. Package review must reject `NonBuiltin` until those
-/// children receive their own closed identities.
+/// builtin functions. Only explicitly closed children enter `Closed`; every
+/// other compiler path remains `Unsupported` and package review rejects it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedCompilerIntrinsicExecutionIdentity {
-    BuiltinFunction(BuiltinFunction),
-    NonBuiltin,
+    Closed(CompilerIntrinsicExecutionIdentity),
+    Unsupported,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -341,8 +342,8 @@ fn resolve_float_intrinsic_call(
 ///
 /// This consumes the selected plan and the checked requirement symbol. The
 /// realization-machine string is validated only as an authored-plan join; it
-/// is never parsed into compiler identity. A package-authored function with a
-/// builtin spelling cannot enter the returned `BuiltinFunction` lane.
+/// is never parsed into compiler identity. A package-authored lookalike name
+/// cannot enter the returned closed lane.
 pub fn derive_selected_compiler_intrinsic_execution_identity(
     checked: &CheckedTrees,
     plan: &omega_effects::provider_plan::ProviderPlan,
@@ -354,13 +355,19 @@ pub fn derive_selected_compiler_intrinsic_execution_identity(
         return Ok(None);
     };
     let SelectedCompilerIntrinsicRealization::NamedFloat(realization) = selected_realization else {
-        return Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::NonBuiltin));
+        return Ok(Some(
+            SelectedCompilerIntrinsicExecutionIdentity::Unsupported,
+        ));
     };
-    if matches!(
-        realization,
-        NamedFloatRealization::Negate(_) | NamedFloatRealization::Convert(_)
-    ) {
-        return Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::NonBuiltin));
+    if let NamedFloatRealization::Negate(format) = realization {
+        return Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
+            CompilerIntrinsicExecutionIdentity::NamedFloatNegation(format),
+        )));
+    }
+    if matches!(realization, NamedFloatRealization::Convert(_)) {
+        return Ok(Some(
+            SelectedCompilerIntrinsicExecutionIdentity::Unsupported,
+        ));
     }
     let function = named_float_realization_builtin(realization)?;
     let symbol = checked
@@ -379,9 +386,9 @@ pub fn derive_selected_compiler_intrinsic_execution_identity(
             function.name(),
         )));
     }
-    Ok(Some(
-        SelectedCompilerIntrinsicExecutionIdentity::BuiltinFunction(function),
-    ))
+    Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
+        CompilerIntrinsicExecutionIdentity::BuiltinFunction(function),
+    )))
 }
 
 fn selected_compiler_intrinsic_realization(
@@ -841,6 +848,8 @@ mod tests {
         data F32 {}
         boundary operator F32::minimum(left: f32, right: f32) -> f32;
         boundary operator F32::maximum(left: f32, right: f32) -> f32;
+        boundary operator F32::negate(value: f32) -> f32;
+        boundary operator F32::from_f64(value: f64) -> f32;
 
         data FloatProvider {}
         machine FloatProvider::minimum(left: f32, right: f32) -> f32
@@ -848,6 +857,12 @@ mod tests {
         via Binding::CompilerIntrinsic;
         machine FloatProvider::maximum(left: f32, right: f32) -> f32
         satisfies F32::maximum
+        via Binding::CompilerIntrinsic;
+        machine FloatProvider::negate(value: f32) -> f32
+        satisfies F32::negate
+        via Binding::CompilerIntrinsic;
+        machine FloatProvider::from_f64(value: f64) -> f32
+        satisfies F32::from_f64
         via Binding::CompilerIntrinsic;
 
         machine run() -> f32 {
@@ -859,6 +874,8 @@ mod tests {
         checked: CheckedTrees,
         minimum_plan: omega_effects::provider_plan::ProviderPlan,
         maximum_plan: omega_effects::provider_plan::ProviderPlan,
+        negate_plan: omega_effects::provider_plan::ProviderPlan,
+        conversion_plan: omega_effects::provider_plan::ProviderPlan,
         operator_use: psi_checked_trees::CheckedNamedOperatorUseFact,
     }
 
@@ -883,6 +900,16 @@ mod tests {
             .iter()
             .find(|plan| plan.schema.trait_name.contains("F32::maximum"))
             .expect("F32::maximum provider plan")
+            .clone();
+        let negate_plan = plans
+            .iter()
+            .find(|plan| plan.schema.trait_name.contains("F32::negate"))
+            .expect("F32::negate provider plan")
+            .clone();
+        let conversion_plan = plans
+            .iter()
+            .find(|plan| plan.schema.trait_name.contains("F32::from_f64"))
+            .expect("F32::from_f64 provider plan")
             .clone();
         let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
             .expect("check named-float dispatch fixture");
@@ -912,6 +939,8 @@ mod tests {
             checked,
             minimum_plan,
             maximum_plan,
+            negate_plan,
+            conversion_plan,
             operator_use,
         }
     }
@@ -1135,7 +1164,9 @@ mod tests {
             )
             .expect("exact selected minimum must rederive")
             .expect("minimum is a compiler intrinsic"),
-            SelectedCompilerIntrinsicExecutionIdentity::BuiltinFunction(BuiltinFunction::Min),
+            SelectedCompilerIntrinsicExecutionIdentity::Closed(
+                CompilerIntrinsicExecutionIdentity::BuiltinFunction(BuiltinFunction::Min),
+            ),
         );
 
         let mut spoofed = fixture.minimum_plan.clone();
@@ -1152,6 +1183,79 @@ mod tests {
             diagnostic
                 .message
                 .contains("does not satisfy exact overload")
+        );
+
+        let mut textual_negation_spoof = fixture.negate_plan.clone();
+        textual_negation_spoof.rows[0].binding = ProviderBinding::CompilerIntrinsic {
+            machine: "NamedFloatNegation::f32".into(),
+        };
+        let negate_symbol = fixture
+            .checked
+            .typed
+            .operators()
+            .iter()
+            .find(|operator| {
+                fixture
+                    .checked
+                    .typed
+                    .operator_path_members(operator.name)
+                    .iter()
+                    .map(|member| member.as_str())
+                    .eq(["F32", "negate"])
+            })
+            .expect("F32::negate operator")
+            .symbol;
+        let diagnostic = derive_selected_compiler_intrinsic_execution_identity(
+            &fixture.checked,
+            &textual_negation_spoof,
+            negate_symbol,
+        )
+        .expect_err("an authored lookalike name cannot mint compiler negation identity");
+        assert!(
+            diagnostic
+                .message
+                .contains("does not satisfy exact overload")
+        );
+
+        assert_eq!(
+            derive_selected_compiler_intrinsic_execution_identity(
+                &fixture.checked,
+                &fixture.negate_plan,
+                negate_symbol,
+            )
+            .expect("exact selected negation must rederive")
+            .expect("negation is a compiler intrinsic"),
+            SelectedCompilerIntrinsicExecutionIdentity::Closed(
+                CompilerIntrinsicExecutionIdentity::NamedFloatNegation(FloatFormat::F32),
+            ),
+        );
+
+        let conversion_symbol = fixture
+            .checked
+            .typed
+            .operators()
+            .iter()
+            .find(|operator| {
+                fixture
+                    .checked
+                    .typed
+                    .operator_path_members(operator.name)
+                    .iter()
+                    .map(|member| member.as_str())
+                    .eq(["F32", "from_f64"])
+            })
+            .expect("F32::from_f64 operator")
+            .symbol;
+        assert_eq!(
+            derive_selected_compiler_intrinsic_execution_identity(
+                &fixture.checked,
+                &fixture.conversion_plan,
+                conversion_symbol,
+            )
+            .expect("exact selected conversion must rederive")
+            .expect("conversion is a compiler intrinsic"),
+            SelectedCompilerIntrinsicExecutionIdentity::Unsupported,
+            "conversion remains fail-closed until source and target type identity are retained",
         );
     }
 

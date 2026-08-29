@@ -26,6 +26,7 @@ src/
 |   |-- callables.rs          callable envelope projection
 |   |-- contracts/            contract metadata, propositions, and expressions
 |   |-- providers.rs          conformance and provider/external-supply joins
+|   |-- provider_intrinsics.rs compiler-owned provider execution identity
 |   |-- operational.rs        reach, invocation, mutation, crash, and flow rows
 |   |-- exact_identity.rs     exact nominal, type, lifetime, and owner identity
 |   `-- exact_identity/tests.rs focused owner/type identity unit tests
@@ -62,4 +63,4 @@ reconstruction before recovered rows can be compared.
 
 The crate root exports the stable external surface. Cross-responsibility
 construction helpers and fields remain `pub(crate)` and are not external API.
-The canonical review schema is version 78 and row schema version 36.
+The canonical review schema is version 79 and row schema version 37.

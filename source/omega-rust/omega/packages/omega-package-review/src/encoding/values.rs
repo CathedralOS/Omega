@@ -1105,17 +1105,34 @@ pub(crate) fn encode_provider(
         encode_nominal(encoder, &row.requirement)?;
         encode_nominal(encoder, &row.realization)?;
         encoder.option(
-            row.compiler_intrinsic_builtin.as_ref(),
-            |encoder, function| {
-                encoder.u16(u16::try_from(function.ordinal()).map_err(|_| {
-                    PackageReviewEncodingError::new(
-                        "compiler builtin-function ordinal exceeds the portable encoding range",
-                    )
-                })?);
-                Ok(())
-            },
+            row.compiler_intrinsic_execution.as_ref(),
+            encode_compiler_intrinsic_execution,
         )
     })
+}
+
+fn encode_compiler_intrinsic_execution(
+    encoder: &mut Encoder,
+    execution: &PackageReviewCompilerIntrinsicExecution,
+) -> Result<(), PackageReviewEncodingError> {
+    match execution {
+        PackageReviewCompilerIntrinsicExecution::BuiltinFunction(function) => {
+            encoder.byte(0);
+            encoder.u16(u16::try_from(function.ordinal()).map_err(|_| {
+                PackageReviewEncodingError::new(
+                    "compiler builtin-function ordinal exceeds the portable encoding range",
+                )
+            })?);
+        }
+        PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(format) => {
+            encoder.byte(1);
+            encoder.byte(match format {
+                psi_numerics::literals::FloatFormat::F32 => 0,
+                psi_numerics::literals::FloatFormat::F64 => 1,
+            });
+        }
+    }
+    Ok(())
 }
 
 pub(crate) fn encode_service_schema(
@@ -1336,6 +1353,30 @@ mod tests {
                 .windows(b"WriteFile".len())
                 .any(|bytes| bytes == b"WriteFile")
         );
+    }
+
+    #[test]
+    fn compiler_intrinsic_execution_encoding_is_closed_and_format_sensitive() {
+        fn encoded(execution: PackageReviewCompilerIntrinsicExecution) -> Vec<u8> {
+            let mut encoder = Encoder::bounded(16);
+            encode_compiler_intrinsic_execution(&mut encoder, &execution)
+                .expect("encode closed compiler execution");
+            encoder.finish().expect("bounded encoding")
+        }
+
+        let builtin = encoded(PackageReviewCompilerIntrinsicExecution::BuiltinFunction(
+            psi_symbols::BuiltinFunction::Min,
+        ));
+        let negate_f32 = encoded(PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(
+            psi_numerics::literals::FloatFormat::F32,
+        ));
+        let negate_f64 = encoded(PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(
+            psi_numerics::literals::FloatFormat::F64,
+        ));
+        assert_ne!(builtin, negate_f32);
+        assert_ne!(negate_f32, negate_f64);
+        assert_eq!(negate_f32, [1, 0]);
+        assert_eq!(negate_f64, [1, 1]);
     }
 
     pub(crate) fn empty_review() -> CheckedPackageReviewProjection {
