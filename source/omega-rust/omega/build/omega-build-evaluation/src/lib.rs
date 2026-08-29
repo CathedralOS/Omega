@@ -300,7 +300,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 33;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 34;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -2307,7 +2307,6 @@ fn receipted_output_files(
             if output.output_root() != BUILD_OUTPUT_ROOT_IDENTITY
                 || output.output_relative_path().contains(&b'/')
                 || output.create_post_error() != 0
-                || output.writes().iter().any(|write| write.post_error() != 0)
                 || output.close_post_error() != 0
             {
                 return None;

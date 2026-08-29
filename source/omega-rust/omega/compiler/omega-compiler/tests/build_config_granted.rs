@@ -353,7 +353,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 33);
+    assert_eq!(checked_observations.schema_version(), 34);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -3881,6 +3881,77 @@ fn empty_output_file_replays_without_synthetic_write() {
 
     let _ = std::fs::remove_dir_all(&project);
     let _ = std::fs::remove_dir_all(rooted_build_session(&project, "empty-output-review"));
+}
+
+#[test]
+fn output_sync_operations_replay_in_authored_order() {
+    let (project, profile) = rooted_build_probe_project(
+        "synced-output-file",
+        r#"    let input: &[u8] in Path = builder.source.resolve("main.omg");
+    self.descriptor = self.filesystem.open(input, 0);
+    self.result = self.filesystem.read(self.descriptor, &mut self.buffer, 23);
+    self.code = self.filesystem.close(self.descriptor);
+    let generated: &[u8] in Path = builder.output.resolve("synced.omg");
+    self.descriptor = self.filesystem.create(generated, 438);
+    self.code = self.filesystem.sync(self.descriptor);
+    self.result = self.filesystem.write(self.descriptor, "data Synced {}\n");
+    self.code = self.filesystem.sync_data(self.descriptor);
+    self.code = self.filesystem.close(self.descriptor);
+    builder.output.include_source(generated);"#,
+    );
+    let checked =
+        compile_rooted_probe_with_sponsored_output(&project, profile, "synced-output-review")
+            .expect("successful Output sync operations should receipt");
+    let summary = checked.build_observation_summary().unwrap();
+    assert!(summary.operation_replay_verified());
+    assert_eq!(summary.realized(), BuildObservationClass::Receipted);
+    assert_eq!(
+        summary
+            .filesystem_operation_attempts()
+            .iter()
+            .map(|attempt| attempt.operation_tag())
+            .collect::<Vec<_>>(),
+        vec![2, 4, 8, 1, 43, 5, 44, 8]
+    );
+    assert_eq!(
+        summary.included_source_handoffs()[0].filesystem_attempt_ordinal(),
+        8
+    );
+
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let record = capture_verified_build_filesystem_replay_record(summary, limits)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        recover_review_only_build_filesystem_replay_record(record.canonical_bytes(), limits)
+            .unwrap(),
+        record
+    );
+    let package = PackageKeyIdentity::from_digest([104; 32]).unwrap();
+    set_canonical_source_tree_permissions(&project, true);
+    let source = PackageSourceBinding::new(package, "synced-output", project.clone())
+        .with_canonical_source_metadata()
+        .unwrap();
+    let inputs = PackageCompilationInputs::new(package, vec![source], Vec::new()).unwrap();
+    std::fs::write(
+        rooted_build_session(&project, "synced-output-review").join("output/synced.omg"),
+        "data Spoofed {}\n",
+    )
+    .unwrap();
+    let replayed = compile_to_checked_with_packages_and_replay_record(
+        &project.join("main.omg"),
+        Some(profile.target_name()),
+        inputs,
+        record,
+    )
+    .expect("sync replay ignores physical Output drift");
+    set_canonical_source_tree_permissions(&project, false);
+    assert!(replayed.typed.symbols.source_files().any(|source| {
+        source.path.ends_with("synced.omg") && source.source.as_ref() == "data Synced {}\n"
+    }));
+
+    let _ = std::fs::remove_dir_all(&project);
+    let _ = std::fs::remove_dir_all(rooted_build_session(&project, "synced-output-review"));
 }
 
 #[test]
