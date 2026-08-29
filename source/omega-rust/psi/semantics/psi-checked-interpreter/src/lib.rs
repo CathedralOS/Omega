@@ -90,11 +90,13 @@ mod value;
 
 pub use build_time::BuildTimeValue;
 pub use filesystem_replay::{
-    FilesystemOutputDuplicateReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_DUPLICATES,
+    FilesystemOutputDuplicateReplayRecord, FilesystemOutputLockReplayRecord,
+    MAX_FILESYSTEM_REPLAY_OUTPUT_DUPLICATES, MAX_FILESYSTEM_REPLAY_OUTPUT_LOCK_PAIRS,
 };
 use filesystem_replay::{
-    output_duplicate_attempts, output_duplicate_record_from_attempts,
-    output_logical_handle_identities, validate_output_duplicate_replay,
+    output_duplicate_attempts, output_duplicate_record_from_attempts, output_lock_attempts,
+    output_lock_record_from_attempts, output_logical_handle_identities,
+    validate_output_duplicate_replay, validate_output_lock_replay,
 };
 pub use filesystem_sponsor::{
     COMPILER_DEFAULT_STAGING_ENTRY_LIMIT, COMPILER_DEFAULT_STAGING_MAX_OBJECT_EXTENT,
@@ -1618,8 +1620,8 @@ pub struct EvaluationObservations {
 /// rung. Source-only records retain their existing event grammar. The extended
 /// grammar permits one or more Source input events followed by repeated exact
 /// Output files, each with create, exact rooted-descriptor operations, bounded
-/// immediately retired duplicates, and close, plus an ordered generated-source
-/// subset.
+/// immediately retired duplicates, bounded exact lock/unlock pairs on the
+/// original descriptor, and close, plus an ordered generated-source subset.
 /// This remains replay evidence, not a receipt and not a reconstructed
 /// filesystem tree.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1993,6 +1995,7 @@ pub enum FilesystemOutputFileOperationReplayRecord {
     Sync,
     SyncData,
     DuplicateAndClose(FilesystemOutputDuplicateReplayRecord),
+    LockAndUnlock(FilesystemOutputLockReplayRecord),
 }
 
 /// One freshly created and closed Output file, optionally containing complete
@@ -2324,7 +2327,8 @@ fn output_file_operation_attempt_count(
     operation: &FilesystemOutputFileOperationReplayRecord,
 ) -> usize {
     match operation {
-        FilesystemOutputFileOperationReplayRecord::DuplicateAndClose(_) => 2,
+        FilesystemOutputFileOperationReplayRecord::DuplicateAndClose(_)
+        | FilesystemOutputFileOperationReplayRecord::LockAndUnlock(_) => 2,
         _ => 1,
     }
 }
@@ -2360,6 +2364,7 @@ impl FilesystemInputOutputReplayRecord {
             return Err("filesystem replay requires at least one Output file".to_owned());
         }
         validate_output_duplicate_replay(&output_files)?;
+        validate_output_lock_replay(&output_files)?;
         let source_attempt_count = source_input
             .events
             .iter()
@@ -2986,6 +2991,16 @@ fn output_file_record_from_attempts(
             operation_cursor += 2;
             continue;
         }
+        if operation.operation_tag == 46 {
+            let release = operations.get(operation_cursor + 1).ok_or_else(|| {
+                "filesystem replay Output lock is not immediately released".to_owned()
+            })?;
+            operation_records.push(FilesystemOutputFileOperationReplayRecord::LockAndUnlock(
+                output_lock_record_from_attempts(operation, release, create_result)?,
+            ));
+            operation_cursor += 2;
+            continue;
+        }
         operation_records.push(match operation.operation_tag {
             5 | 7 => FilesystemOutputFileOperationReplayRecord::Write(
                 output_write_record_from_attempt(operation, create_result)?,
@@ -3402,6 +3417,15 @@ fn output_file_records_from_attempts(
                 cursor += 2;
                 continue;
             }
+            if attempts[cursor].operation_tag() == 46 {
+                if cursor + 1 >= attempts.len() || attempts[cursor + 1].operation_tag() != 46 {
+                    return Err(
+                        "filesystem replay Output lock must be immediately released".to_owned()
+                    );
+                }
+                cursor += 2;
+                continue;
+            }
             let closes_root = attempts[cursor].operation_tag() == 8
                 && matches!(
                     attempts[cursor].logical_handle_inputs.as_slice(),
@@ -3491,6 +3515,9 @@ fn output_file_attempts(
         match operation {
             FilesystemOutputFileOperationReplayRecord::DuplicateAndClose(duplicate) => {
                 operations.extend(output_duplicate_attempts(identity, duplicate));
+            }
+            FilesystemOutputFileOperationReplayRecord::LockAndUnlock(lock) => {
+                operations.extend(output_lock_attempts(identity, lock));
             }
             operation => operations.push(output_file_operation_attempt(operation, identity)),
         }
@@ -3733,7 +3760,8 @@ fn output_file_operation_attempt(
                 | FilesystemOutputFileOperationReplayRecord::SetLength { .. }
                 | FilesystemOutputFileOperationReplayRecord::SetFilePermissions { .. }
                 | FilesystemOutputFileOperationReplayRecord::SetFileTimes { .. }
-                | FilesystemOutputFileOperationReplayRecord::DuplicateAndClose(_) => {
+                | FilesystemOutputFileOperationReplayRecord::DuplicateAndClose(_)
+                | FilesystemOutputFileOperationReplayRecord::LockAndUnlock(_) => {
                     unreachable!()
                 }
             },
@@ -3765,6 +3793,9 @@ fn output_file_operation_attempt(
         },
         FilesystemOutputFileOperationReplayRecord::DuplicateAndClose(_) => {
             unreachable!("duplicate pairs are expanded by output_file_attempts")
+        }
+        FilesystemOutputFileOperationReplayRecord::LockAndUnlock(_) => {
+            unreachable!("lock pairs are expanded by output_file_attempts")
         }
     }
 }
