@@ -34,8 +34,8 @@ src/
 `-- encoding/                 canonical persistence boundaries
     |-- canonical/            framing, row assembly, limits, and primitive encoder
     |-- values/               semantic value encoding by evidence family
-    |-- recovery.rs           canonical-row recovery envelope
-    `-- obligation_ledger.rs  local reconstruction ledger
+    |-- recovery/             canonical-row framing, source recovery, and decoding
+    `-- obligation_ledger/    construction, validation, and canonical ledger codec
 
 tests/
 |-- support/                  shared package-compilation fixtures
