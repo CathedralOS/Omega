@@ -140,9 +140,13 @@ selection identity.
 - [>] Eliminate the pinned pre-ratchet production leaves by semantic split.
   Live-range validation is complete: its 34-line entrance owns liveness-custody
   replay followed by independent range replay, with receipt projection and
-  focused tests below it; the former 1,294-line catch-all is gone. Continue
-  through the exact exception table in the architecture guard, removing each
-  exception as its file falls below the 1,000-line default.
+  focused tests below it; the former 1,294-line catch-all is gone. SCCP constant
+  evaluation is also complete: its 35-line shared-contract entrance descends
+  into boolean rules and an integer subtree for binary operations, exact casts,
+  unary operations, and fact lookup; the former 1,276-line leaf is gone and the
+  largest replacement is below 750 lines. Continue through the exact exception
+  table in the architecture guard, removing each exception as its file falls
+  below the 1,000-line default.
 - [x] Clear the current production-file size violations by semantic split, not
   line shuffling. Pipeline `whole_function_exit_contract`,
   `resolved_selected_form_layout`, `x86_branch_relaxation`, and
@@ -452,6 +456,10 @@ rewrite or opt a program into lossy floating-point semantics.
 
 ## P9 — Testing, stabilization, and rollout
 
+- [ ] Repair the two external-decision exact-remainder replay fixtures whose
+  proof bundles still claim `KernelDerived(Truth)` for verifier-reconstructed
+  non-Truth obligations. A detached clean `main` worktree reproduces both
+  failures; repair the fixture certificates without weakening proof admission.
 - [ ] Per-rule positive, negative, boundary, disabled, budget, determinism,
   idempotence, and corruption suites.
 - [ ] Cross-rule phase-composition matrix, including deliberate fail-closed
