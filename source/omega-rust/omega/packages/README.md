@@ -1,17 +1,17 @@
 # Omega Packages
 
-Start in [`omega-package-manager`](omega-package-manager/README.md) for a user
-operation. Each remaining folder is one supporting crate, named exactly as it
-appears in Cargo metadata.
+Start in [`manager`](manager/README.md) for a user operation. The directory
+names describe responsibilities; Cargo metadata retains the fully qualified
+crate names used by Rust.
 
 ```text
 packages/
 ├── README.md                    this entrance
-├── omega-package-manager/       operations, declarations, graph, and review policy
-├── omega-package-source/        immutable local and Git source acquisition
-├── omega-resolver-execution/    confined native resolver processes
-├── omega-package-evidence/      checked compiler state as inert package evidence
-└── omega-package-advisory/      optional model-facing review tooling
+├── manager/                     operations, declarations, graph, and review policy
+├── source/                      immutable local and Git source acquisition
+├── resolver-execution/          confined native resolver processes
+├── evidence/                    checked compiler state as inert package evidence
+└── advisory/                    optional model-facing review tooling
 ```
 
 The dependency direction is one-way:
@@ -34,6 +34,6 @@ acceptance.
 
 Design references:
 
-- [`omega-package-source/SOURCE_RESOLVER_SECURITY.md`](omega-package-source/SOURCE_RESOLVER_SECURITY.md)
+- [`source/SOURCE_RESOLVER_SECURITY.md`](source/SOURCE_RESOLVER_SECURITY.md)
 - [`package_manager_first_draft.md`](../../../../wiki/design_briefs/package_manager_first_draft.md)
 - [`build_and_package_model.md`](../../../../wiki/design_briefs/build_and_package_model.md)
