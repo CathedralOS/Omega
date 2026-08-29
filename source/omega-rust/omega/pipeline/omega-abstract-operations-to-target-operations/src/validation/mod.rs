@@ -8,7 +8,7 @@ mod catalog;
 mod model;
 pub(crate) mod straight_line_boolean_immediate;
 pub(crate) mod straight_line_integer_immediate;
-pub(crate) mod straight_line_integer_parameter;
+pub(crate) mod straight_line_parameter;
 pub(crate) mod straight_line_scalar_crash;
 
 use omega_abstract_operations::AbstractOperationPlan;
@@ -20,7 +20,8 @@ pub use model::{
     AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamily,
     AbstractToTargetTranslationFamilyError, AbstractToTargetTranslationValidationError,
     AbstractToTargetTranslationValidationReceipt, StraightLineBooleanImmediateTranslationError,
-    StraightLineBooleanImmediateTranslationReceipt, StraightLineIntegerImmediateTranslationError,
+    StraightLineBooleanImmediateTranslationReceipt, StraightLineBooleanParameterTranslationError,
+    StraightLineBooleanParameterTranslationReceipt, StraightLineIntegerImmediateTranslationError,
     StraightLineIntegerImmediateTranslationReceipt, StraightLineIntegerParameterTranslationError,
     StraightLineIntegerParameterTranslationReceipt, StraightLineScalarCrashTranslationError,
     StraightLineScalarCrashTranslationReceipt,

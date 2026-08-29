@@ -272,8 +272,10 @@ then descends to the sibling
 `straight_line_integer_immediate.rs` and
 `straight_line_boolean_immediate.rs` literal leaves or
 `straight_line_scalar_crash.rs` and
-`straight_line_integer_parameter.rs`. The parameter leaf independently owns
-ABI-plan reconstruction and exact register/stack placement replay. Immutable
+`straight_line_parameter/{integer,boolean}.rs`. The governed parameter
+coordinator visibly joins `source.rs` envelope reconstruction to `abi.rs`
+calling-plan and exact register/stack placement replay before the two typed
+leaves validate their distinct target variants. Immutable
 root, disposition, family-receipt,
 and error vocabulary descend through `model/`. The optimizer's sub-100-line
 target-operation entrance owns the visible

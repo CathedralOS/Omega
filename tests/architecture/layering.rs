@@ -2906,8 +2906,12 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "straight_line_boolean_immediate::validate",
         "straight_line_integer_immediate::is_candidate",
         "straight_line_integer_immediate::validate",
-        "straight_line_integer_parameter::is_candidate",
-        "straight_line_integer_parameter::validate",
+        "straight_line_parameter::integer::is_candidate",
+        "straight_line_parameter::integer::validate",
+        "straight_line_parameter::boolean::is_candidate",
+        "straight_line_parameter::boolean::validate",
+        "source::reconstruct",
+        "abi::replay",
         "straight_line_scalar_crash::is_candidate",
         "straight_line_scalar_crash::validate",
         "CallingPolicy::native_for_target",
@@ -2919,6 +2923,48 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
             "abstract-to-target validation must visibly own independent `{required}` reconstruction",
         );
     }
+
+    let parameter_validation = stage.join("validation/straight_line_parameter");
+    let source_replay = std::fs::read_to_string(parameter_validation.join("source.rs"))
+        .expect("read parameter-return source replay");
+    for forbidden in [
+        "omega_calling_conventions",
+        "omega_target_operations",
+        "TargetFunction",
+    ] {
+        assert!(
+            !source_replay.contains(forbidden),
+            "parameter source replay must not consume ABI or target mechanics; found {forbidden}",
+        );
+    }
+    let abi_replay = std::fs::read_to_string(parameter_validation.join("abi.rs"))
+        .expect("read parameter-return ABI replay");
+    for forbidden in ["TargetFunction", "AbstractOperation", "crate::lowering"] {
+        assert!(
+            !abi_replay.contains(forbidden),
+            "parameter ABI replay must not consume source operations or target candidates; found {forbidden}",
+        );
+    }
+    for leaf in ["integer.rs", "boolean.rs"] {
+        let typed_replay = std::fs::read_to_string(parameter_validation.join(leaf))
+            .expect("read typed parameter-return replay");
+        for forbidden in [
+            "omega_calling_conventions",
+            "AbstractOperation::Return",
+            "evaluate_call_plan",
+        ] {
+            assert!(
+                !typed_replay.contains(forbidden),
+                "typed parameter replay must consume shared reconstruction instead of rebuilding it; {leaf} contains {forbidden}",
+            );
+        }
+    }
+    assert!(
+        !stage
+            .join("validation/straight_line_integer_parameter.rs")
+            .exists(),
+        "the retired flat integer-parameter validator must not return",
+    );
 
     let optimized_entrance = std::fs::read_to_string(root.join(
         "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/selection/optimized_target_operations/mod.rs",

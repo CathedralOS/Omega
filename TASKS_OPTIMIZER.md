@@ -23,13 +23,14 @@ function roster before descending into exact family replay. The adjacent
 sub-100-line catalog is the sole enable/disable inventory; each descriptor
 joins one source classifier to one typed replay adapter. Zero matches publish
 `Uncovered`, one match publishes one receipt on that exact function-roster row,
-and duplicate or overlapping matches fail closed. The first four semantic
+and duplicate or overlapping matches fail closed. The first five semantic
 rows reconstruct parameterless straight-line integer and Boolean literal
-returns, scalar `Crash`, and integer parameter returns, including block shape,
-scalar/result/value links, cleanup absence, exact provenance, and every
-candidate field. Integer-parameter replay independently reconstructs the
-native calling convention and exact incoming register or stack location.
-Focused mutation
+returns, scalar `Crash`, and integer and Boolean parameter returns, including
+block shape, scalar/result/value links, cleanup absence, exact provenance, and
+every candidate field. The two distinct parameter families descend through a
+shared source-envelope and ABI-replay coordinator that independently
+reconstructs the native calling convention and exact incoming register or
+stack location. Focused mutation
 coverage rejects every source-shape, root, target, roster, provenance, and
 operation-field substitution across all five native targets.
 
@@ -237,7 +238,7 @@ record, and admits direct final-image, format-43 installation, and source-free
 ranked native-artifact custody on both Linux ISAs. The obsolete metered object-
 container publication API is deleted. Transfer-runtime replay requires the
 activation record to preserve the ABI rank carrier; honest ranked execution is
-owner-blocked on sponsor ownership (Q19).
+owner-blocked on “Own the ranked native-fuel sponsor entry.”
 
 [x] Layout-independent selected-form encoding now has an independent
 validation rung. Its small entrance coordinates ordinary rows, structural
@@ -579,8 +580,8 @@ parallel route or optional coordinator field.
 - [x] Source-to-optimized Psi projection and lower-stage custody checks.
 - [>] Complete translation validation for all lowering and machine rule
   families. Selected-lowering incoming-u12 add/subtract folds,
-  straight-line integer-immediate, Boolean-immediate, scalar-Crash, and
-  integer-parameter
+  straight-line integer-immediate, Boolean-immediate, scalar-Crash,
+  integer-parameter, and Boolean-parameter
   abstract-to-target translation,
   layout-independent baseline, MOVN, XOR-zero, MOV-r32-imm32, CBNZ dispositions,
   structural-Unit encodings, and resolved function-relative layouts now replay
@@ -589,7 +590,8 @@ parallel route or optional coordinator field.
   ranked-`u32` machine carrier now has target-decoder-led unmetered and
   native-fuel object replay, and both unmetered and directly metered ranked
   routes reach final-image, installation, and native-artifact custody. Ranked
-  transfer execution remains owner-blocked on sponsor ownership (Q19); other
+  transfer execution remains owner-blocked on “Own the ranked native-fuel
+  sponsor entry”; other
   lowering and publication routes still need closure.
 - [ ] Add generated differential testing across interpreter/reference native
   execution for exact integer, float, trap, atomic, placed-memory, cleanup, and
@@ -771,3 +773,6 @@ rewrite or opt a program into lossy floating-point semantics.
 21. [x] Add straight-line integer-parameter returns as a disjoint family and
     independently replay native ABI register/stack placement across all five
     targets through optimized target custody.
+22. [x] Add the exact Boolean-parameter sibling while moving shared
+    source-envelope and native-ABI replay beneath one governed
+    `straight_line_parameter` coordination entrance.

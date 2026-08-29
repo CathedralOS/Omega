@@ -34,6 +34,13 @@ pub(crate) fn integer_parameter_return_artifact(
     )
 }
 
+pub(crate) fn boolean_parameter_return_artifact(parameter_count: usize) -> (Vec<u8>, Vec<u8>) {
+    scalar_terminal_artifact(
+        ScalarType::Boolean,
+        ScalarTerminal::ParameterReturn { parameter_count },
+    )
+}
+
 enum ScalarTerminal {
     Literal(OperationKind),
     Crash(CrashCause),
