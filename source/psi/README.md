@@ -32,3 +32,19 @@ target profile that should compile the product source, or set
 `OMEGA_PRODUCT_PROGRAM` to reuse one exact product executable during a focused
 iteration. The gate deliberately selects neither an arbitrary existing
 `target/debug/omega` nor an ambient host target as acceptance evidence.
+
+## Retention inventory
+
+| Retained child | Product role | Deletion or absorption condition |
+| --- | --- | --- |
+| `build.omg` | Declares the target-neutral `psi` package consumed by Omega's product build. | Delete only if ordinary package ownership replaces this root atomically. |
+| `source/` | Owns bounded source bytes and coordinates shared by the lexer and parser. | Absorb when a replacement representation preserves every live source/coordinate discriminator. |
+| `tokens/` | Owns the lexical token stream and its observation surface. | Absorb when the next canonical representation subsumes the lexer/parser handoff and its gates. |
+| `syntax/` | Owns the bounded structural syntax retained by the current parser slice. | Absorb into a later Psi representation only with equivalent accepted/rejected observations. |
+| `lex/` | Owns the Unicode tables and source-to-token implementation used directly by `omega/main.omg`. | Delete or absorb only when the canonical lexer and all lexical boundary cases move together. |
+| `parse/` | Owns the token-to-structural-parse implementation and black-box observation decoder. | Delete the decoder when a cheaper product gate covers the same observation; absorb the parser only into its canonical successor. |
+| `test-parser.sh` | Builds one exact product executable and exercises the live lexical/parser boundary. | Delete when an equal or stronger product-source gate subsumes every retained failure class. |
+
+Generated data is retained under the semantic phase that consumes it. The
+Unicode tables therefore live in `lex/`; there is no generic `generated/`
+source owner or generator runtime in the compiler closure.

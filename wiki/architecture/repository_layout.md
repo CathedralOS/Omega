@@ -162,7 +162,7 @@ Omega/
 |   |-- alpha/                                             # Alpha semantics, seeds, assembler, and root checker.
 |   |   `-- checker/                                       # Universal derivation checker and checker tests.
 |   |-- beta/                                              # Beta language, reference meaning, and gates.
-|   |   `-- compiler/                                      # Compiler source, artifact, cold start, and validation.
+|   |   `-- compiler/                                      # Alpha-written compiler source, Alpha tape, and validation.
 |   |-- gamma/                                             # Gamma language and Beta-written compiler owner.
 |   |   `-- compiler/                                      # Gamma compiler source, Alpha tape, and validation.
 |   |-- delta/                                             # Delta language, compiler, tests, and artifacts.
