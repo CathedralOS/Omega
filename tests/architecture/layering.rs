@@ -894,13 +894,13 @@ fn package_subsystem_has_deliberate_entrances() {
                 .into_owned()
         })
         .collect::<BTreeSet<_>>();
-    let expected_manager_source = ["commands", "declarations", "lib.rs", "resolution", "review"]
+    let expected_manager_source = ["commands", "lib.rs", "manifest", "resolution", "review"]
         .into_iter()
         .map(str::to_owned)
         .collect::<BTreeSet<_>>();
     assert_eq!(
         manager_source, expected_manager_source,
-        "the manager entrance must read as commands, declarations, resolution, then review"
+        "the manager entrance must read as commands, manifest, resolution, then review"
     );
     let manager_root = std::fs::read_to_string(packages.join("omega-package-manager/src/lib.rs"))
         .expect("read package manager crate entrance");
@@ -910,17 +910,28 @@ fn package_subsystem_has_deliberate_entrances() {
             .any(|line| line.starts_with("pub use ")),
         "the manager crate entrance must name responsibility owners instead of flattening them"
     );
+    let resolution_root =
+        std::fs::read_to_string(packages.join("omega-package-manager/src/resolution/mod.rs"))
+            .expect("read package resolution entrance");
+    assert!(
+        !resolution_root.contains("pub use omega_package_source"),
+        "manager resolution must not masquerade source-acquisition vocabulary as its own API"
+    );
 
     for required in [
         "README.md",
         "omega-package-manager/src/lib.rs",
         "omega-package-manager/src/commands/mod.rs",
-        "omega-package-manager/src/commands/source_audit/mod.rs",
-        "omega-package-manager/src/declarations/mod.rs",
+        "omega-package-manager/src/commands/audit/mod.rs",
+        "omega-package-manager/src/commands/audit/source/mod.rs",
+        "omega-package-manager/src/manifest/mod.rs",
+        "omega-package-manager/src/manifest/dependencies/mod.rs",
         "omega-package-manager/src/resolution/mod.rs",
-        "omega-package-manager/src/resolution/package/mod.rs",
-        "omega-package-manager/src/resolution/graph/mod.rs",
+        "omega-package-manager/src/resolution/binding/mod.rs",
+        "omega-package-manager/src/resolution/closure/mod.rs",
         "omega-package-manager/src/review/mod.rs",
+        "omega-package-manager/src/review/audit_input/mod.rs",
+        "omega-package-manager/src/review/records/mod.rs",
         "omega-package-advisory/README.md",
         "omega-package-advisory/src/lib.rs",
         "omega-package-review/src/lib.rs",
@@ -958,15 +969,21 @@ fn package_subsystem_has_deliberate_entrances() {
         "package-review",
         "resolver-execution",
         "omega-package-manager/src/workflow",
-        "omega-package-manager/src/manifest",
+        "omega-package-manager/src/declarations",
         "omega-package-manager/src/package",
         "omega-package-manager/src/graph",
+        "omega-package-manager/src/resolution/package",
+        "omega-package-manager/src/resolution/graph",
+        "omega-package-manager/src/commands/source_audit",
         "omega-package-manager/SOURCE_RESOLVER_SECURITY.md",
         "omega-package-manager/src/storage",
         "omega-package-manager/src/source/package",
         "omega-package-manager/src/source/audit.rs",
         "omega-package-manager/src/source",
         "omega-package-manager/src/review/advisor",
+        "omega-package-manager/src/review/advisory",
+        "omega-package-manager/src/review/evidence",
+        "omega-package-manager/src/review/validation.rs",
         "omega-package-manager/src/review/compiler",
         "omega-package-manager/src/review/diff",
         "omega-package-manager/src/records",

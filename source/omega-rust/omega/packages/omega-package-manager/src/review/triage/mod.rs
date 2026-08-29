@@ -1,13 +1,13 @@
 //! Deterministic source and provenance triage dispositions.
 
-use crate::resolution::PackageKey;
 use crate::review::comparison::changed_review_risk;
-use crate::review::evidence::PackageReviewEvidence;
+use crate::review::records::PackageReviewEvidence;
 use crate::review::{CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet};
 use omega_package_review::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
     PackageReviewDangerousAuthorityClass,
 };
+use omega_package_source::PackageKey;
 use std::collections::{BTreeMap, BTreeSet};
 
 mod render;

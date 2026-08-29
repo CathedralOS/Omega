@@ -1,12 +1,14 @@
 use super::commitments::derive_candidate_closure_commitment;
 use super::*;
 use crate::resolution::{
-    ExternalSourceContext, ImmutableSourceResolution, LocalSourceLimits, PackageKey,
     PackageSourceClosureLimits, ResolvedPackageSourceClosure,
     resolve_external_local_package_closure,
 };
-use crate::review::evidence::PackageReviewEvidence;
+use crate::review::records::PackageReviewEvidence;
 use crate::review::{ReviewOnlyCanonicalRow, ReviewOnlySourceConsumptionCommitment};
+use omega_package_source::{
+    ExternalSourceContext, ImmutableSourceResolution, LocalSourceLimits, PackageKey,
+};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 

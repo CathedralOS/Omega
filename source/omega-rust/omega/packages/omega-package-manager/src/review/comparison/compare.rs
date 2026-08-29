@@ -2,16 +2,17 @@
 
 use super::commitments::{derive_candidate_closure_commitment, derive_conflict_fingerprint};
 use super::model::*;
-use crate::resolution::{DependencyRequestPath, PackageKey, ResolvedPackageSourceClosure};
+use crate::resolution::{DependencyRequestPath, ResolvedPackageSourceClosure};
 use crate::review::CompilerIssuedPackageReviewSet;
-use crate::review::evidence::{PackageReviewEvidence, ReviewOnlyCanonicalRow};
-use crate::review::validation::{
+use crate::review::records::validation::{
     ReviewOnlyClosureValidationError, ReviewOnlySetValidationError, validate_review_only_closure,
     validate_review_only_records,
 };
+use crate::review::records::{PackageReviewEvidence, ReviewOnlyCanonicalRow};
 use omega_package_review::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
 };
+use omega_package_source::PackageKey;
 use std::cmp::Ordering;
 
 pub fn compare_review_only_capabilities(

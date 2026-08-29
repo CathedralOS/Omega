@@ -197,11 +197,9 @@ fn reconcile_local_project(
     let closure =
         omega_package_manager::resolution::resolve_external_local_project_closure_with_storage(
             &project_root,
-            omega_package_manager::resolution::ExternalSourceContext::derive(
-                b"omega-local-project-v1",
-            ),
+            omega_package_source::ExternalSourceContext::derive(b"omega-local-project-v1"),
             &storage,
-            omega_package_manager::resolution::LocalSourceLimits::default(),
+            omega_package_source::LocalSourceLimits::default(),
             omega_package_manager::resolution::PackageSourceClosureLimits::default(),
         )
         .map_err(|error| format!("cannot resolve declared package closure: {error}"))?;
@@ -214,9 +212,8 @@ fn reconcile_local_project(
         .map_err(|errors| format!("cannot construct compiler package graph: {errors:?}"))
 }
 
-fn local_source_storage() -> Result<omega_package_manager::resolution::SourceResolverStorage, String>
-{
-    omega_package_manager::resolution::SourceResolverStorage::for_current_user()
+fn local_source_storage() -> Result<omega_package_source::SourceResolverStorage, String> {
+    omega_package_source::SourceResolverStorage::for_current_user()
         .map_err(|error| format!("cannot open private source resolver storage: {error}"))
 }
 

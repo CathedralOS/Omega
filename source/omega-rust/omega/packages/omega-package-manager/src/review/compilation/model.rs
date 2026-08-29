@@ -1,10 +1,10 @@
-use crate::resolution::{ImmutableSourceResolution, PackageKey};
-use crate::review::evidence::ReviewOnlyCanonicalRow;
+use crate::review::records::ReviewOnlyCanonicalRow;
 use omega_build_evaluation::BuildObservationSummary;
 use omega_package_compilation::{PackageGeneratedSourceBundle, PackageSourceConsumptionCommitment};
 use omega_package_review::{
     CheckedPackageReviewProjection, OrdinaryPackageObligationLedger, PackageReviewCanonicalRow,
 };
+use omega_package_source::{ImmutableSourceResolution, PackageKey};
 
 /// Compiler-issued review material for one exact package source selection.
 ///

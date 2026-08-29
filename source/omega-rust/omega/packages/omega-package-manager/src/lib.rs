@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Commands, declarations, resolution, and review for Omega's registry-free
+//! Commands, manifest handling, resolution, and review for Omega's registry-free
 //! package manager.
 //!
 //! Start with [`commands`] for complete operations. Callers name the owner they
@@ -8,6 +8,6 @@
 //! undifferentiated namespace.
 
 pub mod commands;
-pub mod declarations;
+pub mod manifest;
 pub mod resolution;
 pub mod review;

@@ -1,7 +1,7 @@
 //! Bounded, hostile-data-safe patches for source review.
 
-use crate::resolution::{PackageKey, PackageSourceCustody};
-use omega_package_source::SourceResolveError;
+use crate::resolution::PackageSourceCustody;
+use omega_package_source::{PackageKey, SourceResolveError};
 use std::collections::BTreeSet;
 use std::fmt;
 

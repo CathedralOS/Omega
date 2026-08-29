@@ -1,12 +1,13 @@
-use omega_package_manager::declarations::{
-    extract_dependency_projection, extract_package_declaration,
-};
+use omega_package_manager::manifest::{extract_dependency_projection, extract_package_declaration};
 use omega_package_manager::resolution::{
-    GitSourceRequest, LocalSourceLimits, PackageKey, PackageName, PackageSourceClosureLimits,
-    SourceLineage, SourceResolverStorage, resolve_git_package_closure_with_storage,
-    resolve_git_package_source_with_storage, resolve_git_source_with_storage, resolve_local_source,
+    PackageSourceClosureLimits, resolve_git_package_closure_with_storage,
+    resolve_git_package_source_with_storage,
 };
 use omega_package_manager::review::compile_resolved_package_reviews;
+use omega_package_source::{
+    GitSourceRequest, LocalSourceLimits, PackageKey, PackageName, SourceLineage,
+    SourceResolverStorage, resolve_git_source_with_storage, resolve_local_source,
+};
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};

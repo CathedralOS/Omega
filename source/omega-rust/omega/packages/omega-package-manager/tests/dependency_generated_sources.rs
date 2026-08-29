@@ -1,9 +1,11 @@
 use omega_package_manager::resolution::{
-    LocalSourceLimits, PackageSourceClosureLimits, ResolvePackageSourceError,
-    ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure, SourceLineage,
-    SourceResolverStorage, WorkspaceMemberPath, resolve_workspace_package_closure_with_storage,
+    PackageSourceClosureLimits, ResolvePackageSourceError, ResolveWorkspacePackageClosureError,
+    ResolvedPackageSourceClosure, resolve_workspace_package_closure_with_storage,
 };
 use omega_package_manager::review::compile_resolved_package_reviews;
+use omega_package_source::{
+    LocalSourceLimits, SourceLineage, SourceResolverStorage, WorkspaceMemberPath,
+};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 

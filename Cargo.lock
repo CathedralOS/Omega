@@ -273,6 +273,7 @@ dependencies = [
  "omega-core",
  "omega-package-compilation",
  "omega-package-manager",
+ "omega-package-source",
  "omega-resolver-execution",
  "omega-target",
  "omega-trust-ledger",

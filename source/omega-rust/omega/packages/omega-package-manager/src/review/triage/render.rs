@@ -1,8 +1,8 @@
 use super::{
     CompilerReviewTriage, PackageTriageDecision, PackageTriageDisposition, PackageTriageReason,
 };
-use crate::resolution::PackageKey;
 use omega_package_review::PackageReviewDangerousAuthorityClass;
+use omega_package_source::PackageKey;
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
