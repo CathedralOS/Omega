@@ -118,6 +118,9 @@ and no-selection compatibility remain enforced.
 - [x] Split target register-environment custody into a small construction and
   validation entrance above explicit target catalog, validated model,
   validation mechanics, and tests.
+- [x] Split post-allocation machine analysis by source-route construction,
+  replay/custody validation, and sealed plan model; its entrance owns the
+  common effects-plus-machine custody join.
 - [x] Split the flat optimized object-artifact stage; its small entrance owns
   the terminal/object build-and-replay join while model, reconstruction, and
   canonical codec descend into named leaves.
