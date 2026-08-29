@@ -292,8 +292,6 @@ version = "0.1.0"
 dependencies = [
  "psi-core",
  "psi-terminal",
- "psi-terminal-fixed-fuel",
- "psi-terminal-verifier",
 ]
 
 [[package]]
@@ -667,6 +665,7 @@ name = "omega-image-emission"
 version = "0.1.0"
 dependencies = [
  "iced-x86",
+ "omega-abstract-operations",
  "omega-calling-conventions",
  "omega-executable-installation",
  "omega-image",
@@ -684,9 +683,12 @@ dependencies = [
  "omega-x86-encoding",
  "psi-core",
  "psi-diagnostics",
+ "psi-proof-admission",
  "psi-terminal",
  "psi-terminal-codec",
+ "psi-terminal-fixed-fuel",
  "psi-terminal-fuel",
+ "psi-terminal-verifier",
  "sha2",
 ]
 

@@ -8,19 +8,18 @@
 //! `ExpressionHandle`, source statement, target register, or storage choice.
 
 use psi_core::{
-    BlockId, BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId,
-    ObligationId, OperationId, PlaceId, ScalarType, ServiceId, StructuralCaseId, StructuralTypeId,
-    ValueId,
+    BlockId, BoundaryMachineId, ClaimId, EdgeId, FuelScheduleIdentity, IntegerType, IntegerValue,
+    MachineId, ObligationId, OperationId, PlaceId, Proposition, ScalarType, ServiceId,
+    StructuralCaseId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
     BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, ContentEntryClaim, CrashCause,
     CrashRouteBucket, EntryClaim, OutcomeSpecificCallEvidence, ProviderCandidateConformance,
-    StructuralArgument, StructuralOperationResult, StructuralParameterDeclaration,
-    StructuralPlaceDeclaration, StructuralResultClaimTransfer, StructuralResultDeclaration,
-    StructuralTypeDeclaration, TerminalAffineCleanupAction, TerminalPsiIdentity, TerminalRankedScc,
+    StructuralArgument, StructuralMultiplicity, StructuralOperationResult,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralResultClaimTransfer, StructuralResultDeclaration, StructuralTypeDeclaration,
+    TerminalAffineCleanupAction, TerminalModule, TerminalPsiIdentity, TerminalRankedScc,
 };
-use psi_terminal_fixed_fuel::FixedEntryFuelCertificate;
-use psi_terminal_verifier::VerifiedMachineStructuralFrontiers;
 
 /// Exact caller claim source needed to replay boundary-completion custody after
 /// the verified module is discarded. Content-bearing sources retain their full
@@ -83,18 +82,115 @@ pub struct RankedNativeAbstractOperationPlan {
 ///
 /// The SCC owns rank and covered-edge meaning. `graph` retains the remaining
 /// concrete operation/edge coordinates needed for later lowering to replay
-/// that meaning without recognizing source syntax. The fixed-fuel certificate
-/// and verifier frontier snapshots remain independently issued evidence and
-/// are not replaced by producer-authored hashes.
+/// that meaning without recognizing source syntax. Canonical semantic/proof
+/// bytes and complete relevant frontier projections are data, not authority:
+/// the object boundary re-runs native and fixed-fuel verification over them.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RankedU32CountdownCustody {
-    /// Opaque verifier-issued exact semantic subject. Downstream boundaries
-    /// use it to reject coherent rewrites of the public projected coordinates.
-    pub verifier_replay: psi_terminal_verifier::VerifiedNativeRankedReplay,
+    pub semantic_replay: TerminalModule,
+    pub proof_replay: Vec<u8>,
     pub ranked_scc: TerminalRankedScc,
-    pub fixed_fuel: FixedEntryFuelCertificate,
+    pub fixed_fuel: RankedFixedEntryFuel,
     pub graph: RankedU32CountdownGraph,
-    pub structural_frontiers: VerifiedMachineStructuralFrontiers,
+    pub structural_frontiers: RankedMachineStructuralFrontiers,
+}
+
+/// Exact public projection of the independently derived ranked entry theorem.
+/// This record is intentionally constructible data; consumers acquire
+/// authority only by deriving the semantic certificate again and comparing
+/// every field.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RankedFixedEntryFuel {
+    pub terminal_psi: TerminalPsiIdentity,
+    pub schedule: FuelScheduleIdentity,
+    pub entry: MachineId,
+    pub relevant_preconditions: Vec<Proposition>,
+    pub ceiling_units: u64,
+}
+
+impl RankedFixedEntryFuel {
+    pub const fn terminal_psi(&self) -> TerminalPsiIdentity {
+        self.terminal_psi
+    }
+
+    pub const fn schedule(&self) -> FuelScheduleIdentity {
+        self.schedule
+    }
+
+    pub const fn entry(&self) -> MachineId {
+        self.entry
+    }
+
+    pub fn relevant_preconditions(&self) -> &[Proposition] {
+        &self.relevant_preconditions
+    }
+
+    pub const fn ceiling_units(&self) -> u64 {
+        self.ceiling_units
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RankedLiveClaim {
+    pub claim: ClaimId,
+    pub input: Option<PlaceId>,
+    pub path: Vec<StructuralPathSegment>,
+    pub multiplicity: Option<StructuralMultiplicity>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RankedOwnedStructuralPlace {
+    pub place: PlaceId,
+    pub multiplicity: StructuralMultiplicity,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RankedPartialStructuralCustody {
+    pub place: PlaceId,
+    pub moved_paths: Vec<Vec<StructuralPathSegment>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RankedStructuralOwnershipFrontier {
+    pub claims: Vec<RankedLiveClaim>,
+    pub owned_places: Vec<RankedOwnedStructuralPlace>,
+    pub partial_custody: Vec<RankedPartialStructuralCustody>,
+}
+
+impl RankedStructuralOwnershipFrontier {
+    pub fn claims(&self) -> &[RankedLiveClaim] {
+        &self.claims
+    }
+
+    pub fn owned_places(&self) -> &[RankedOwnedStructuralPlace] {
+        &self.owned_places
+    }
+
+    pub fn partial_custody(&self) -> &[RankedPartialStructuralCustody] {
+        &self.partial_custody
+    }
+}
+
+/// The two ownership snapshots relevant to the one admitted ranked backedge.
+/// Coordinates are retained explicitly so unrelated block/edge queries fail
+/// closed instead of aliasing either snapshot.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RankedMachineStructuralFrontiers {
+    pub machine: MachineId,
+    pub header: BlockId,
+    pub backedge: EdgeId,
+    pub header_entry: RankedStructuralOwnershipFrontier,
+    pub backedge_exit: RankedStructuralOwnershipFrontier,
+}
+
+impl RankedMachineStructuralFrontiers {
+    pub fn block_entry(&self, block: BlockId) -> Option<&RankedStructuralOwnershipFrontier> {
+        (block == self.header).then_some(&self.header_entry)
+    }
+
+    pub fn edge_exit(&self, edge: EdgeId) -> Option<&RankedStructuralOwnershipFrontier> {
+        (edge == self.backedge).then_some(&self.backedge_exit)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

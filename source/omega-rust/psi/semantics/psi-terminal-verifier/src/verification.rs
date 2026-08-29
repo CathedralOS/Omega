@@ -164,22 +164,6 @@ pub struct VerifiedNativeRankedTerminalModule<'module> {
     state: VerifiedTerminalModuleState<'module>,
 }
 
-/// Verifier-issued owned semantic subject for downstream ranked replay.
-///
-/// This source-handle-free module is deliberately opaque outside the
-/// verifier crate. Later artifact boundaries may rejoin projected custody to
-/// the exact verified subject, but cannot construct replacement authority.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct VerifiedNativeRankedReplay {
-    module: TerminalModule,
-}
-
-impl VerifiedNativeRankedReplay {
-    pub const fn module(&self) -> &TerminalModule {
-        &self.module
-    }
-}
-
 #[derive(Debug)]
 struct VerifiedTerminalModuleState<'module> {
     validated: ValidatedTerminalModule<'module>,
@@ -249,14 +233,6 @@ impl<'module> VerifiedNativeRankedTerminalModule<'module> {
 
     pub const fn structural_frontiers(&self) -> &VerifiedTerminalStructuralFrontiers {
         &self.state.structural_frontiers
-    }
-
-    /// Retain the exact verified semantic subject after borrowed verification
-    /// authority and decoded artifact storage leave scope.
-    pub fn replay(&self) -> VerifiedNativeRankedReplay {
-        VerifiedNativeRankedReplay {
-            module: self.state.validated.module().clone(),
-        }
     }
 }
 

@@ -13,6 +13,7 @@ installed-artifact = ["dep:omega-executable-installation"]
 
 [dependencies]
 omega-calling-conventions = { path = "../../../representations/omega-calling-conventions" }
+omega-abstract-operations = { path = "../../../representations/omega-abstract-operations" }
 omega-executable-installation = { path = "../../runtime/omega-executable-installation", optional = true }
 psi-diagnostics = { path = "../../../../psi/foundation/psi-diagnostics" }
 omega-image = { path = "../omega-image" }
@@ -30,7 +31,10 @@ omega-isa-x86_64 = { path = "../../instruction_set_architectures/omega-isa-x86_6
 psi-core = { path = "../../../../psi/foundation/psi-core" }
 psi-terminal = { path = "../../../../psi/representations/psi-terminal" }
 psi-terminal-codec = { path = "../../../../psi/semantics/psi-terminal-codec" }
+psi-terminal-fixed-fuel = { path = "../../../../psi/semantics/psi-terminal-fixed-fuel" }
 psi-terminal-fuel = { path = "../../../../psi/semantics/psi-terminal-fuel" }
+psi-terminal-verifier = { path = "../../../../psi/semantics/psi-terminal-verifier" }
+psi-proof-admission = { path = "../../../../psi/semantics/psi-proof-admission" }
 sha2 = "0.10"
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder", "instr_info"] }
 

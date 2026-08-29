@@ -538,6 +538,16 @@ fn ranked_native_dispatch_emits_exact_machine_body_and_logical_fuel_sites() {
             .as_mut()
             .unwrap()
             .custody
+            .proof_replay
+            .clear();
+        assert_invalid(&corrupted);
+
+        let mut corrupted = emitted.clone();
+        corrupted.functions[0]
+            .ranked_u32_countdown
+            .as_mut()
+            .unwrap()
+            .custody
             .structural_frontiers
             .machine = psi_core::MachineId::new(2).unwrap();
         assert_invalid(&corrupted);

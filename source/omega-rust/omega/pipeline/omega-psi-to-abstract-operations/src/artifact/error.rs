@@ -7,6 +7,7 @@ pub enum ArtifactLoweringError {
     TrustGraph(psi_terminal_codec::TrustGraphError),
     ObligationReplay(psi_terminal_codec::CodecError),
     ProofDecode(psi_terminal_codec::ProofCodecError),
+    ProofEncode(psi_terminal_codec::ProofCodecError),
     ProofFingerprint(psi_terminal_codec::ProofCodecError),
     Verification(psi_terminal_verifier::VerificationError),
     FixedFuel(psi_terminal_fixed_fuel::FixedFuelError),
