@@ -64,6 +64,10 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn built_in_psi_registries",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/pressure_rematerialization/mod.rs",
+        coordination_marker: "pub fn rematerialize_selected_active_resident",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/machine/post_allocation_optimizations/mod.rs",
         coordination_marker: "OptimizedPostAllocationMachineOptimizationError",
     },

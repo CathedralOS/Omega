@@ -106,6 +106,9 @@ and no-selection compatibility remain enforced.
 - [x] Split the flat selected-lowering literal-fold stage; its entrance owns
   exact selection projection and catalog dispatch while carriers, execution,
   replay, identities, and work accounting descend into named leaves.
+- [x] Move the 800-line pressure-rematerialization fixture suite out of the
+  production compute leaf; the exact rule entrance now descends separately to
+  compute, identity, model, validation, and tests.
 - [>] Replace remaining flat executable stages and mixed-responsibility files
   with semantic folders whose small `mod.rs` owns the real stage join. Tighten
   the production-file ceiling as each named legacy leaf is removed.

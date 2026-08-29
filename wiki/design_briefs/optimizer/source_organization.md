@@ -128,7 +128,9 @@ its `mod.rs` owns build/replay, with records in `model.rs`, semantic
 reconstruction in `reconstruction.rs`, and wire format in `codec.rs`. The
 selected-lowering literal-fold stage follows the same rule: its entrance owns
 phase projection plus catalog dispatch, then descends through `model`,
-`execution`, and `accounting`.
+`execution`, and `accounting`. Register-allocation rule folders use the same
+shape; pressure rematerialization keeps its production computation and broad
+fixtures in separate leaves below its real compute/validate entrance.
 
 Migration is not complete merely because every file is under the hard ceiling.
 Remaining flat executable-stage leaves are tracked in `TASKS_OPTIMIZER.md` and
