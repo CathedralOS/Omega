@@ -1,8 +1,8 @@
-; interp.beta — a bounded pre-Q9 Gamma semantic oracle, written in Beta.
+; interp.beta — a bounded pre-Q8 Gamma semantic oracle, written in Beta.
 ;
 ; The canonical next edge is a Beta-written Gamma compiler that emits Alpha tape.
 ; This interpreter exercises candidate evaluation rules; it is neither the Gamma
-; compiler nor permission to keep an evaluator in the compiler chain. OWNER Q9 decides
+; compiler nor permission to keep an evaluator in the compiler chain. OWNER Q8 decides
 ; which rules are absorbed and whether the remainder is deleted.
 ;
 ; Stage 1: the pure functional, FUEL-bounded core — integer values, top-level

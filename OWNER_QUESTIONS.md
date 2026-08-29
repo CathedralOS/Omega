@@ -61,69 +61,7 @@ closed.
 - Tempting but wrong: retain only a solver `Proven` verdict without the selected
   theorem identity, ordered premises, per-side application, and replay data.
 
-## Q2 — Source result schema for placed-view establishment
-
-### Context
-
-The placement model settles three distinct operations over an exact borrow or
-owned split of `Extent in Granted`: `view` interprets existing content,
-`initialize` encodes new content into `Vacant` Stable storage, and `validate`
-checks existing Stable content. Their successful views retain the source loan
-or owned extent, every unconditional non-runtime `Type` input has an explicit
-per-outcome disposition, and proof results remain in the separate `;` lane.
-The guide illustrates a conceptual `PlacementResult<View, Returned>` and says
-the compiler derives the Type-only `Returned` row for each instantiation.
-
-The core source surface currently declares only `Placement::plan`.
-`Placed<P, T>`, `Vacant`, `Resident<P, T>`, `PlacementError`, the three
-establishment operations, and their result families have no declarations from
-which source typing or checked identity can be derived.
-
-### Problem statement
-
-An owned placement request may fail dynamic range, alignment, revision, or
-content checks, so its source result cannot be invented as an infallible
-`Placed<P, T>`. The language does not yet define the nominal identity of the
-compiler-derived returned-input row, how that row participates in one ordinary
-closed result sum, or the exact operation signatures that return the owned
-extent/resident custody on rejection. `validate` must additionally retain the
-selected validator's declared content-error sum without erasing it into a
-generic code. Choosing any of these shapes in the compiler would create a
-public core ABI and pattern-matching vocabulary that the language has not
-specified.
-
-### Proposed direction
-
-Declare opaque core `Placed<P, T>`, `Vacant`, and invariant
-`Resident<P, T>` identities together with distinct generic `view`,
-`initialize`, and `validate` operations. Give each instantiated operation one
-compiler-derived nominal outcome type whose `Ready` case contains the exact
-view and whose `Rejected` case contains a closed operation-specific reason sum
-plus the canonical Type-only row of inputs marked `returned`. Derive that row
-from the operation identity, `P`, `T`, and canonical declaration paths—not the
-call site—and make its nominal identity and field order available to source
-patterns, checked Psi, and artifact replay. Keep validator-specific errors as a
-named nested case/payload selected from the validator contract, and keep proof
-outputs outside the runtime result.
-
-### Alternates
-
-- Acceptable if compiler-derived nominal sums are too broad for the first
-  release: declare separate core result families for `view`, `initialize`, and
-  `validate`, with a canonical compiler-generated returned-row argument and
-  exact validator-error argument.
-- Acceptable as a narrower first rung: admit only borrowed `view` when all
-  dynamic rejection cases are statically disproved, while still reserving the
-  settled general result family before owned establishment becomes source
-  visible.
-- Tempting but wrong: expose the Rust bootstrap admission receipt or occurrence
-  identifiers as forgeable source values.
-- Tempting but wrong: return an opaque error code or discard moved inputs on
-  rejection.
-- Tempting but wrong: derive result identity from source spelling, call-site
-  order, accessor names, parameter ordinals, or compact plan fingerprints.
-
-## Q3 — Reborrow restoration disposition
+## Q2 — Reborrow restoration disposition
 
 ### Context
 
@@ -172,7 +110,7 @@ post-return use, cleanup, or Terminal resource claim may be derived from them.
 - Tempting but wrong: skip retired projected parents and return authority
   directly to a root without retaining and validating the complete path.
 
-## Q4 — Nominal result carriers for observing compare-exchange
+## Q3 — Nominal result carriers for observing compare-exchange
 
 ### Context
 
@@ -243,7 +181,7 @@ operation requirement identities separate from these value-type identities.
 - Tempting but wrong: expose `Uncommitted` on the decisive result merely because
   one larger runtime layout would be convenient.
 
-## Q5 — Strict SSH trust and credential authority
+## Q4 — Strict SSH trust and credential authority
 
 ### Context
 
@@ -292,7 +230,7 @@ producer claim.
 - Tempting but wrong: serialize private keys, tokens, or reusable credentials in
   `omega.lock` or source-resolution evidence.
 
-## Q6 — Suspension as control-flow exit or resumable continuation
+## Q5 — Suspension as control-flow exit or resumable continuation
 
 ### Context
 
@@ -331,7 +269,7 @@ and its custody.
 - Tempting but wrong: classify every `MaySuspend` call as a local CFG exit
   without retaining its continuation and outcome-specific state.
 
-## Q7 — Cyclic control flow in Terminal Psi
+## Q6 — Cyclic control flow in Terminal Psi
 
 ### Context
 
@@ -371,7 +309,7 @@ block-loop API.
   validation before loop-carried SSA, ownership, cleanup, and fuel semantics
   exist.
 
-## Q8 — Close the Delta v1 semantic contract
+## Q7 — Close the Delta v1 semantic contract
 
 ### Context
 
@@ -451,7 +389,7 @@ out of Delta without weakening its ability to host a robust compiler.
 - Tempting but wrong: retain the old translator's private capacities, exit
   codes, or Darwin output behavior as language rules.
 
-## Q9 — Select one typed executable Gamma contract
+## Q8 — Select one typed executable Gamma contract
 
 ### Context
 
@@ -521,7 +459,7 @@ failures.
 - Tempting but wrong: make Alpha I/O effects directly callable from arbitrary
   Gamma source merely to avoid defining the compiler-entry adapter.
 
-## Q10 — Fix Beta block formation and definite-initialization reachability
+## Q9 — Fix Beta block formation and definite-initialization reachability
 
 ### Context
 
@@ -586,7 +524,7 @@ semantic acceptance independent of optimizer sophistication.
 - Tempting but wrong: zero-initialize generated frame slots and call the gap
   closed; that changes Beta's written local semantics and hides skipped stores.
 
-## Q11 — Select the canonical Beta compiler outcome carrier
+## Q10 — Select the canonical Beta compiler outcome carrier
 
 ### Context
 
@@ -650,7 +588,7 @@ impossible fixup/table condition maps to `InternalFailure`.
 - Tempting but wrong: prepend a success tag to Alpha tape and thereby change the
   canonical artifact bytes or require a stripping stage.
 
-## Q12 — Canonical kernel propositions for exact scalar operations
+## Q11 — Canonical kernel propositions for exact scalar operations
 
 ### Context
 
@@ -707,7 +645,7 @@ and mirrored verifier search tree.
 - Tempting but wrong: serialize only the producer's chosen goal and trust it
   without independently reconstructing the operation-owned proposition.
 
-## Q13 — Compose the exact Alpha-to-Beta edge within checker capacity
+## Q12 — Compose the exact Alpha-to-Beta edge within checker capacity
 
 ### Context
 
@@ -769,7 +707,7 @@ of adding an assembly-specific evaluator path.
   primitive, trust a producer receipt, compare hashes, or weaken exact total
   partitioning.
 
-## Q14 — Own the ranked native-fuel sponsor entry
+## Q13 — Own the ranked native-fuel sponsor entry
 
 ### Context
 
