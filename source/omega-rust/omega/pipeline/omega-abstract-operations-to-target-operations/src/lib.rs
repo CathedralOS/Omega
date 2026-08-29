@@ -29,6 +29,8 @@ pub use validation::{
     StraightLineIntegerEqualParametersTranslationError,
     StraightLineIntegerEqualParametersTranslationReceipt,
     StraightLineIntegerImmediateTranslationError, StraightLineIntegerImmediateTranslationReceipt,
+    StraightLineIntegerLessThanParametersTranslationError,
+    StraightLineIntegerLessThanParametersTranslationReceipt,
     StraightLineIntegerParameterTranslationError, StraightLineIntegerParameterTranslationReceipt,
     StraightLineScalarCrashTranslationError, StraightLineScalarCrashTranslationReceipt,
     validate_abstract_to_target_translation,

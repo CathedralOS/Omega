@@ -7,7 +7,7 @@ use psi_core::ScalarType;
 
 use super::super::abi;
 use super::super::model::{
-    ReconstructedBooleanEqualParameters, ReconstructedIntegerEqualParameters,
+    ReconstructedBooleanEqualParameters, ReconstructedIntegerBinaryBooleanParameters,
 };
 use super::super::source;
 use crate::validation::model::{
@@ -45,17 +45,19 @@ pub(in crate::validation::straight_line_parameter) fn reconstruct_integer_equal(
     function: &AbstractFunction,
     expected_target: NativeTarget,
     target: &TargetFunction,
-) -> Result<ReconstructedIntegerEqualParameters, StraightLineIntegerEqualParametersTranslationError>
-{
+) -> Result<
+    ReconstructedIntegerBinaryBooleanParameters,
+    StraightLineIntegerEqualParametersTranslationError,
+> {
     let source = source::reconstruct_integer_equal(function)?;
     let locations = abi::replay(&function.parameters, ScalarType::Boolean, expected_target)?;
-    if target.provenance.operations.as_slice() != [source.equal_operation]
+    if target.provenance.operations.as_slice() != [source.operation]
         || target.provenance.edges.as_slice() != [source.return_edge]
     {
         return Err(StraightLineIntegerEqualParametersTranslationError::TargetProvenance);
     }
-    Ok(ReconstructedIntegerEqualParameters {
-        equal_operation: source.equal_operation,
+    Ok(ReconstructedIntegerBinaryBooleanParameters {
+        operation: source.operation,
         return_edge: source.return_edge,
         source_value: source.source_value,
         scalar_type: source.scalar_type,

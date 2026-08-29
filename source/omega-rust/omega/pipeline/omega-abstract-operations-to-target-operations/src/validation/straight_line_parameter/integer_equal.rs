@@ -58,7 +58,7 @@ pub(crate) fn validate(
     };
     if *psi_edge != reconstructed.return_edge
         || *source_value != reconstructed.source_value
-        || *psi_operation != reconstructed.equal_operation
+        || *psi_operation != reconstructed.operation
         || *scalar_type != reconstructed.scalar_type
         || *left_value != reconstructed.left_value
         || *right_value != reconstructed.right_value
@@ -71,7 +71,7 @@ pub(crate) fn validate(
     }
     Ok(StraightLineIntegerEqualParametersTranslationReceipt::new(
         source.machine,
-        reconstructed.equal_operation,
+        reconstructed.operation,
         reconstructed.return_edge,
         reconstructed.source_value,
         reconstructed.scalar_type,

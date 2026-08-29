@@ -56,3 +56,13 @@ pub(super) fn straight_line_integer_equal_parameters(
         .map(AbstractToTargetFunctionTranslationReceipt::StraightLineIntegerEqualParameters)
         .map_err(AbstractToTargetTranslationFamilyError::StraightLineIntegerEqualParameters)
 }
+
+pub(super) fn straight_line_integer_less_than_parameters(
+    source: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError> {
+    straight_line_parameter::integer_less_than::validate(source, expected_target, target)
+        .map(AbstractToTargetFunctionTranslationReceipt::StraightLineIntegerLessThanParameters)
+        .map_err(AbstractToTargetTranslationFamilyError::StraightLineIntegerLessThanParameters)
+}

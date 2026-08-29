@@ -1,6 +1,7 @@
-//! Derived parameter-expression join, descended by unary or equality shape.
+//! Derived parameter-expression join, descended by unary, equality, or ordering shape.
 
 pub(super) mod equality;
+pub(super) mod ordering;
 
 use omega_abstract_operations::AbstractFunction;
 use omega_target::NativeTarget;

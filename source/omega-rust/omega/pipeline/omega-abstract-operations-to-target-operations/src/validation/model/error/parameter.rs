@@ -110,6 +110,30 @@ pub enum StraightLineIntegerEqualParametersTranslationError {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StraightLineIntegerLessThanParametersTranslationError {
+    SourceParameters,
+    SourceStructuralParameters,
+    SourceResult,
+    SourceEntryClaims,
+    SourcePublishedServices,
+    SourceBlockRoster,
+    SourceOperationRoster,
+    SourceParameterRoster,
+    SourceParameterShape,
+    SourceLessThanResultRoster,
+    SourceLeftOperandLink,
+    SourceRightOperandLink,
+    SourceOperandTypeMismatch,
+    SourceReturnLink,
+    SourceCleanup,
+    AbiPlan,
+    AbiParameterCount,
+    AbiParameterPlacement,
+    TargetProvenance,
+    TargetOperation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::validation) enum StraightLineParameterReconstructionError {
     SourceParameters,
     SourceStructuralParameters,
@@ -183,3 +207,4 @@ map_parameter_reconstruction_error!(StraightLineBooleanParameterTranslationError
 map_parameter_reconstruction_error!(StraightLineBooleanNotParameterTranslationError);
 map_parameter_reconstruction_error!(StraightLineBooleanEqualParametersTranslationError);
 map_parameter_reconstruction_error!(StraightLineIntegerEqualParametersTranslationError);
+map_parameter_reconstruction_error!(StraightLineIntegerLessThanParametersTranslationError);

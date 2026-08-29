@@ -1,10 +1,10 @@
 //! Exact `[IntegerEqual(parameter, parameter), Return]` source replay.
 
 use omega_abstract_operations::{AbstractFunction, AbstractOperation};
-use psi_core::{IntegerType, ScalarType};
+use psi_core::ScalarType;
 
 use super::super::model::{
-    IntegerEqualParametersSource, ParameterResultKind, ReconstructedEnvelope,
+    IntegerBinaryBooleanParametersSource, ParameterResultKind, ReconstructedEnvelope,
 };
 use crate::validation::model::StraightLineIntegerEqualParametersTranslationError;
 
@@ -27,7 +27,8 @@ pub(in crate::validation::straight_line_parameter) fn is_candidate(
 pub(super) fn reconstruct(
     function: &AbstractFunction,
     envelope: &ReconstructedEnvelope<'_>,
-) -> Result<IntegerEqualParametersSource, StraightLineIntegerEqualParametersTranslationError> {
+) -> Result<IntegerBinaryBooleanParametersSource, StraightLineIntegerEqualParametersTranslationError>
+{
     let [
         AbstractOperation::IntegerEqual {
             psi_operation,
@@ -62,15 +63,15 @@ pub(super) fn reconstruct(
     {
         return Err(StraightLineIntegerEqualParametersTranslationError::SourceEqualResultRoster);
     }
-    let (left_parameter_index, left_type) = integer_parameter(envelope, *left)
+    let (left_parameter_index, left_type) = super::integer_parameter(envelope, *left)
         .ok_or(StraightLineIntegerEqualParametersTranslationError::SourceLeftOperandLink)?;
-    let (right_parameter_index, right_type) = integer_parameter(envelope, *right)
+    let (right_parameter_index, right_type) = super::integer_parameter(envelope, *right)
         .ok_or(StraightLineIntegerEqualParametersTranslationError::SourceRightOperandLink)?;
     if left_type != right_type {
         return Err(StraightLineIntegerEqualParametersTranslationError::SourceOperandTypeMismatch);
     }
-    Ok(IntegerEqualParametersSource {
-        equal_operation: *psi_operation,
+    Ok(IntegerBinaryBooleanParametersSource {
+        operation: *psi_operation,
         return_edge: *psi_edge,
         source_value: *equal_result,
         scalar_type: left_type,
@@ -79,20 +80,4 @@ pub(super) fn reconstruct(
         left_parameter_index,
         right_parameter_index,
     })
-}
-
-fn integer_parameter(
-    envelope: &ReconstructedEnvelope<'_>,
-    value: psi_core::ValueId,
-) -> Option<(usize, IntegerType)> {
-    envelope
-        .parameters
-        .iter()
-        .enumerate()
-        .find_map(|(index, parameter)| match parameter.scalar_type {
-            ScalarType::Integer(integer_type) if parameter.value == value => {
-                Some((index, integer_type))
-            }
-            ScalarType::Integer(_) | ScalarType::Boolean => None,
-        })
 }

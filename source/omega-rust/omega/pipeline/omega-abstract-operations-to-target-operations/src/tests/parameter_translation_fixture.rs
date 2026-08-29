@@ -192,3 +192,46 @@ pub(super) fn uniform_integer_equal_plan(
         parameter_count - 1,
     )
 }
+
+pub(super) fn integer_less_than_parameters_plan(
+    parameter_types: &[ScalarType],
+    left_parameter: usize,
+    right_parameter: usize,
+) -> AbstractOperationPlan {
+    let mut plan = parameter_return_plan(parameter_types, left_parameter);
+    let function = &mut plan.functions[0];
+    let less_than_result = ValueId::new(4_001).unwrap();
+    function.operations.insert(
+        0,
+        AbstractOperation::IntegerLessThan {
+            psi_operation: OperationId::new(4_000).unwrap(),
+            result: less_than_result,
+            left: function.parameters[left_parameter].value,
+            right: function.parameters[right_parameter].value,
+        },
+    );
+    let AbstractOperation::Return {
+        value, scalar_type, ..
+    } = &mut function.operations[1]
+    else {
+        unreachable!("fixture ends in return")
+    };
+    *value = less_than_result;
+    *scalar_type = ScalarType::Boolean;
+    function.result = AbstractFunctionResult::Scalar(AbstractResult {
+        value: ValueId::new(3_003).unwrap(),
+        scalar_type: ScalarType::Boolean,
+    });
+    plan
+}
+
+pub(super) fn uniform_integer_less_than_plan(
+    integer: IntegerType,
+    parameter_count: usize,
+) -> AbstractOperationPlan {
+    integer_less_than_parameters_plan(
+        &vec![ScalarType::Integer(integer); parameter_count],
+        parameter_count - 2,
+        parameter_count - 1,
+    )
+}

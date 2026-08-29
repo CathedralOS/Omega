@@ -79,8 +79,8 @@ pub(super) struct BooleanEqualParametersSource {
     pub(super) right_parameter_index: usize,
 }
 
-pub(super) struct ReconstructedIntegerEqualParameters {
-    pub(super) equal_operation: OperationId,
+pub(super) struct ReconstructedIntegerBinaryBooleanParameters {
+    pub(super) operation: OperationId,
     pub(super) return_edge: EdgeId,
     pub(super) source_value: ValueId,
     pub(super) scalar_type: IntegerType,
@@ -92,8 +92,8 @@ pub(super) struct ReconstructedIntegerEqualParameters {
     pub(super) right_location: ScalarParameterLocation,
 }
 
-pub(super) struct IntegerEqualParametersSource {
-    pub(super) equal_operation: OperationId,
+pub(super) struct IntegerBinaryBooleanParametersSource {
+    pub(super) operation: OperationId,
     pub(super) return_edge: EdgeId,
     pub(super) source_value: ValueId,
     pub(super) scalar_type: IntegerType,
