@@ -235,20 +235,27 @@ impl<'program> Evaluator<'program> {
             return trap("filesystem replay generated-source handoff sequence changed");
         }
         let mut expected_files = std::collections::BTreeMap::new();
+        let mut expected_permissions = std::collections::BTreeMap::new();
         for output in outputs {
             let mut expected_path = format!("/root/{}", output.output_root().get()).into_bytes();
             expected_path.push(b'/');
             expected_path.extend_from_slice(output.output_relative_path());
             let bytes = output.replayed_bytes().map_err(Halt::Resource)?;
-            if expected_files.insert(expected_path, bytes).is_some() {
+            if expected_files
+                .insert(expected_path.clone(), bytes)
+                .is_some()
+            {
                 return trap("filesystem replay contains duplicate Output paths");
+            }
+            if let Some(mode) = output.replayed_file_permissions() {
+                expected_permissions.insert(expected_path, mode);
             }
         }
         if self.virtual_files != expected_files
             || !self.virtual_fds.is_empty()
             || !self.virtual_dirs.is_empty()
             || !self.virtual_finds.is_empty()
-            || !self.virtual_perms.is_empty()
+            || self.virtual_perms != expected_permissions
             || !self.virtual_symlinks.is_empty()
             || !self.virtual_times.is_empty()
             || !self.virtual_flocks.is_empty()

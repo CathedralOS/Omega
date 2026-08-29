@@ -60,7 +60,7 @@ use omega_optimization_core::{Optimization, OptimizationSelections};
 use omega_provider_planning::{ProviderSelection, ProviderSelectionIdentity};
 
 use omega_build_output::{
-    BuildStagedOutputTree, PackageGeneratedSource, capture, empty, replayed_ordinary_files,
+    BuildStagedOutputTree, PackageGeneratedSource, capture, empty, replayed_files,
     select_included_sources,
 };
 
@@ -300,7 +300,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 36;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 37;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -2292,6 +2292,7 @@ fn source_input_replay_prefix_end(
 struct ReceiptedOutputFile {
     relative_path: Vec<u8>,
     bytes: Vec<u8>,
+    executable: bool,
 }
 
 fn receipted_output_files(
@@ -2315,6 +2316,7 @@ fn receipted_output_files(
             Some(ReceiptedOutputFile {
                 relative_path: output.output_relative_path().to_vec(),
                 bytes,
+                executable: output.replayed_executable(),
             })
         })
         .collect()
@@ -2870,9 +2872,15 @@ pub fn compute_build_config(
             .map(|outputs| {
                 let files = outputs
                     .iter()
-                    .map(|output| (output.relative_path.as_slice(), output.bytes.as_slice()))
+                    .map(|output| {
+                        (
+                            output.relative_path.as_slice(),
+                            output.bytes.as_slice(),
+                            output.executable,
+                        )
+                    })
                     .collect::<Vec<_>>();
-                replayed_ordinary_files(&files)
+                replayed_files(&files)
             })
             .transpose()?
     };

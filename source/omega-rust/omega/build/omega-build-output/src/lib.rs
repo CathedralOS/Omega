@@ -208,9 +208,22 @@ pub fn replayed_single_ordinary_file(
 pub fn replayed_ordinary_files(
     files: &[(&[u8], &[u8])],
 ) -> Result<BuildStagedOutputTree, Vec<Diagnostic>> {
+    let files = files
+        .iter()
+        .map(|(relative_path, bytes)| (*relative_path, *bytes, false))
+        .collect::<Vec<_>>();
+    replayed_files(&files)
+}
+
+/// Reconstruct repeated regular-file outputs with their compiler-derived
+/// executable class. The boolean is not package-authored metadata: callers
+/// derive it from the retained filesystem operation grammar.
+pub fn replayed_files(
+    files: &[(&[u8], &[u8], bool)],
+) -> Result<BuildStagedOutputTree, Vec<Diagnostic>> {
     if files.is_empty() {
         return Err(diagnostics(
-            "receipted ordinary build output requires at least one file",
+            "receipted regular-file build output requires at least one file",
         ));
     }
     if files.len() > MAX_STAGED_OUTPUT_ENTRIES {
@@ -222,7 +235,7 @@ pub fn replayed_ordinary_files(
     entries.try_reserve_exact(files.len()).map_err(|_| {
         diagnostics("receipted build output entry allocation failed on this compiler host")
     })?;
-    for (relative_path, bytes) in files {
+    for (relative_path, bytes, executable) in files {
         let native = retained_native_path(relative_path).map_err(|error| {
             diagnostics(format!(
                 "receipted build output path is not canonical: {error}"
@@ -248,7 +261,7 @@ pub fn replayed_ordinary_files(
             relative_path: relative_path.to_vec(),
             kind: RetainedStagedOutputEntryKind::File {
                 bytes: Arc::from(*bytes),
-                executable: false,
+                executable: *executable,
             },
         });
     }
@@ -1636,6 +1649,14 @@ mod tests {
             replayed_ordinary_files(&[(b"same.bin", b"first"), (b"same.bin", b"second")]).is_err()
         );
         assert!(replayed_ordinary_files(&[(b"nested/file.bin", b"bytes")]).is_err());
+    }
+
+    #[test]
+    fn replayed_file_commitment_binds_compiler_derived_executable_class() {
+        let ordinary = replayed_files(&[(b"tool.bin", b"tool", false)]).unwrap();
+        let executable = replayed_files(&[(b"tool.bin", b"tool", true)]).unwrap();
+        assert_ne!(ordinary.digest(), executable.digest());
+        assert_eq!(ordinary.file_bytes(), executable.file_bytes());
     }
 
     struct Fixture {

@@ -353,7 +353,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 36);
+    assert_eq!(checked_observations.schema_version(), 37);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -4029,6 +4029,101 @@ fn output_set_len_replays_exact_truncation() {
 
     let _ = std::fs::remove_dir_all(&project);
     let _ = std::fs::remove_dir_all(rooted_build_session(&project, "resized-output-review"));
+}
+
+#[cfg(unix)]
+#[test]
+fn output_set_file_permissions_replays_exact_executable_class() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let (project, profile) = rooted_build_probe_project(
+        "permissioned-output-file",
+        r#"    let input: &[u8] in Path = builder.source.resolve("main.omg");
+    self.descriptor = self.filesystem.open(input, 0);
+    self.result = self.filesystem.read(self.descriptor, &mut self.buffer, 23);
+    self.code = self.filesystem.close(self.descriptor);
+    let tool: &[u8] in Path = builder.output.resolve("tool.bin");
+    self.descriptor = self.filesystem.create(tool, 438);
+    self.result = self.filesystem.write(self.descriptor, "tool");
+    self.code = self.filesystem.set_file_permissions(self.descriptor, 493);
+    self.code = self.filesystem.close(self.descriptor);
+    let generated: &[u8] in Path = builder.output.resolve("permissioned.omg");
+    self.descriptor = self.filesystem.create(generated, 438);
+    self.result = self.filesystem.write(self.descriptor, "data Permissioned {}\n");
+    self.code = self.filesystem.close(self.descriptor);
+    builder.output.include_source(generated);"#,
+    );
+    let session = rooted_build_session(&project, "permissioned-output-review");
+    let checked =
+        compile_rooted_probe_with_sponsored_output(&project, profile, "permissioned-output-review")
+            .expect("successful Output descriptor permission change should receipt");
+    let summary = checked.build_observation_summary().unwrap();
+    assert!(summary.operation_replay_verified());
+    assert_eq!(summary.realized(), BuildObservationClass::Receipted);
+    assert_eq!(
+        summary
+            .filesystem_operation_attempts()
+            .iter()
+            .map(|attempt| attempt.operation_tag())
+            .collect::<Vec<_>>(),
+        vec![2, 4, 8, 1, 5, 17, 8, 1, 5, 8]
+    );
+    let captured_digest = summary.staged_output_tree().unwrap().digest();
+    let captured_materialization = session.join("captured-materialization");
+    std::fs::create_dir(&captured_materialization).unwrap();
+    summary
+        .staged_output_tree()
+        .unwrap()
+        .materialize_into(&captured_materialization)
+        .unwrap();
+    assert_ne!(
+        std::fs::metadata(captured_materialization.join("tool.bin"))
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o111,
+        0
+    );
+
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let record = capture_verified_build_filesystem_replay_record(summary, limits)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        recover_review_only_build_filesystem_replay_record(record.canonical_bytes(), limits)
+            .unwrap(),
+        record
+    );
+    let package = PackageKeyIdentity::from_digest([107; 32]).unwrap();
+    set_canonical_source_tree_permissions(&project, true);
+    let source = PackageSourceBinding::new(package, "permissioned-output", project.clone())
+        .with_canonical_source_metadata()
+        .unwrap();
+    let inputs = PackageCompilationInputs::new(package, vec![source], Vec::new()).unwrap();
+    let physical_tool = session.join("output/tool.bin");
+    std::fs::write(&physical_tool, "spoofed").unwrap();
+    std::fs::set_permissions(&physical_tool, std::fs::Permissions::from_mode(0o644)).unwrap();
+    std::fs::write(session.join("output/permissioned.omg"), "data Spoofed {}\n").unwrap();
+    let replayed = compile_to_checked_with_packages_and_replay_record(
+        &project.join("main.omg"),
+        Some(profile.target_name()),
+        inputs,
+        record,
+    )
+    .expect("permission replay ignores physical Output content and mode drift");
+    set_canonical_source_tree_permissions(&project, false);
+    let replayed_summary = replayed.build_observation_summary().unwrap();
+    assert_eq!(
+        replayed_summary.staged_output_tree().unwrap().digest(),
+        captured_digest
+    );
+    assert!(replayed.typed.symbols.source_files().any(|source| {
+        source.path.ends_with("permissioned.omg")
+            && source.source.as_ref() == "data Permissioned {}\n"
+    }));
+
+    let _ = std::fs::remove_dir_all(&project);
+    let _ = std::fs::remove_dir_all(session);
 }
 
 #[test]
