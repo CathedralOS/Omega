@@ -459,7 +459,7 @@ impl<'installed, 'mapping, 'bytes>
         }
         if self.prepared.invocation() != self.lowered.invocation()
             || self.prepared.context().normalized_fragment_fingerprint()
-                != self.lowered.fragment().normalized_plan_fingerprint()
+                != self.lowered.fragment().normalized_plan_report_fingerprint()
             || !self
                 .prepared
                 .context()
@@ -672,7 +672,7 @@ pub fn bind_external_root_post_handoff_writer_invocation<'installed, 'mapping, '
     }
     if prepared.invocation() != lowered.invocation()
         || prepared.context().normalized_fragment_fingerprint()
-            != lowered.fragment().normalized_plan_fingerprint()
+            != lowered.fragment().normalized_plan_report_fingerprint()
         || !prepared.context().binds_invocation(lowered.invocation())
     {
         return Err(ExternalRootPostHandoffWriterBindingError {

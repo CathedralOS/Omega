@@ -17,8 +17,8 @@ use psi_layout_plans::{PostHandoffWriterInvocationPlan, PostHandoffWriterPlan};
 pub struct LoweredPostHandoffWriterFragment {
     target: NativeTarget,
     pointer_register: MachineRegister,
-    normalized_plan_fingerprint: u64,
-    emitted_bytes_fingerprint: u64,
+    normalized_plan_report_fingerprint: u64,
+    emitted_bytes_report_fingerprint: u64,
     bytes: Vec<u8>,
     footprint: StateFootprintEvidence,
 }
@@ -32,12 +32,12 @@ impl LoweredPostHandoffWriterFragment {
         self.pointer_register
     }
 
-    pub const fn normalized_plan_fingerprint(&self) -> u64 {
-        self.normalized_plan_fingerprint
+    pub const fn normalized_plan_report_fingerprint(&self) -> u64 {
+        self.normalized_plan_report_fingerprint
     }
 
-    pub const fn emitted_bytes_fingerprint(&self) -> u64 {
-        self.emitted_bytes_fingerprint
+    pub const fn emitted_bytes_report_fingerprint(&self) -> u64 {
+        self.emitted_bytes_report_fingerprint
     }
 
     pub fn bytes(&self) -> &[u8] {
@@ -133,7 +133,7 @@ pub fn lower_post_handoff_writer_fragment(
     invocation
         .validate_structure()
         .map_err(|error| Diagnostic::error(error.0))?;
-    let normalized_plan_fingerprint = invocation.fragment().fingerprint();
+    let normalized_plan_report_fingerprint = invocation.fragment().report_fingerprint();
     let (bytes, footprint) = match target.architecture {
         Architecture::X86_64 => (
             omega_isa_x86_64::encode_generated_post_handoff_writer_bytes(
@@ -156,14 +156,17 @@ pub fn lower_post_handoff_writer_fragment(
             ),
         ),
     };
-    let emitted_bytes_fingerprint =
-        emitted_writer_fingerprint(target.architecture, normalized_plan_fingerprint, &bytes);
+    let emitted_bytes_report_fingerprint = emitted_writer_fingerprint(
+        target.architecture,
+        normalized_plan_report_fingerprint,
+        &bytes,
+    );
     Ok(LoweredPostHandoffWriter {
         fragment: LoweredPostHandoffWriterFragment {
             target,
             pointer_register,
-            normalized_plan_fingerprint,
-            emitted_bytes_fingerprint,
+            normalized_plan_report_fingerprint,
+            emitted_bytes_report_fingerprint,
             bytes,
             footprint,
         },
@@ -214,7 +217,8 @@ pub fn bind_post_handoff_entry_writer_invocation<'mapping, 'bytes>(
         }
     };
     if !context.binds_invocation(&lowered.invocation)
-        || context.normalized_fragment_fingerprint() != lowered.fragment.normalized_plan_fingerprint
+        || context.normalized_fragment_fingerprint()
+            != lowered.fragment.normalized_plan_report_fingerprint
     {
         return Err(PostHandoffEntryWriterBindingError {
             lowered,
@@ -285,7 +289,9 @@ pub fn validate_lowered_post_handoff_writer(
         .invocation
         .validate_structure()
         .map_err(|error| Diagnostic::error(error.0))?;
-    if lowered.fragment.normalized_plan_fingerprint != lowered.invocation.fragment().fingerprint() {
+    if lowered.fragment.normalized_plan_report_fingerprint
+        != lowered.invocation.fragment().report_fingerprint()
+    {
         return Err(Diagnostic::error(
             "lowered post-handoff writer normalized identity does not match its retained invocation",
         ));
@@ -316,12 +322,12 @@ pub fn validate_lowered_post_handoff_writer(
     let expected_bytes = expected_bytes?;
     let expected_emitted_fingerprint = emitted_writer_fingerprint(
         lowered.fragment.target.architecture,
-        lowered.fragment.normalized_plan_fingerprint,
+        lowered.fragment.normalized_plan_report_fingerprint,
         &lowered.fragment.bytes,
     );
     if lowered.fragment.bytes != expected_bytes
         || lowered.fragment.footprint != expected_footprint
-        || lowered.fragment.emitted_bytes_fingerprint != expected_emitted_fingerprint
+        || lowered.fragment.emitted_bytes_report_fingerprint != expected_emitted_fingerprint
     {
         return Err(Diagnostic::error(
             "lowered post-handoff writer bytes, footprint, or emitted fingerprint fail exact replay",
@@ -332,7 +338,7 @@ pub fn validate_lowered_post_handoff_writer(
 
 fn emitted_writer_fingerprint(
     architecture: Architecture,
-    normalized_plan_fingerprint: u64,
+    normalized_plan_report_fingerprint: u64,
     bytes: &[u8],
 ) -> u64 {
     let mut hash = 0xcbf29ce484222325u64;
@@ -347,7 +353,7 @@ fn emitted_writer_fingerprint(
         Architecture::X86_64 => 0,
         Architecture::Aarch64 => 1,
     }]);
-    mix_bytes(&normalized_plan_fingerprint.to_le_bytes());
+    mix_bytes(&normalized_plan_report_fingerprint.to_le_bytes());
     mix_bytes(&(bytes.len() as u64).to_le_bytes());
     mix_bytes(bytes);
     if hash == 0 { 1 } else { hash }
@@ -419,12 +425,14 @@ mod tests {
                 "source kind and identity are invocation evidence, not emitted geometry"
             );
             assert_eq!(
-                entry_lowered.fragment().normalized_plan_fingerprint(),
-                data_lowered.fragment().normalized_plan_fingerprint()
+                entry_lowered
+                    .fragment()
+                    .normalized_plan_report_fingerprint(),
+                data_lowered.fragment().normalized_plan_report_fingerprint()
             );
             assert_eq!(
-                entry_lowered.fragment().emitted_bytes_fingerprint(),
-                data_lowered.fragment().emitted_bytes_fingerprint()
+                entry_lowered.fragment().emitted_bytes_report_fingerprint(),
+                data_lowered.fragment().emitted_bytes_report_fingerprint()
             );
             assert_ne!(
                 entry_lowered.invocation().sources(),
@@ -451,13 +459,13 @@ mod tests {
         .expect("AArch64 fragment");
 
         assert_eq!(
-            x86.fragment().normalized_plan_fingerprint(),
-            arm.fragment().normalized_plan_fingerprint()
+            x86.fragment().normalized_plan_report_fingerprint(),
+            arm.fragment().normalized_plan_report_fingerprint()
         );
         assert_ne!(x86.fragment().bytes(), arm.fragment().bytes());
         assert_ne!(
-            x86.fragment().emitted_bytes_fingerprint(),
-            arm.fragment().emitted_bytes_fingerprint()
+            x86.fragment().emitted_bytes_report_fingerprint(),
+            arm.fragment().emitted_bytes_report_fingerprint()
         );
     }
 

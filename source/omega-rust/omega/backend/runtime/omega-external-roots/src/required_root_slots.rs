@@ -6,7 +6,7 @@ use psi_layout_plans::EntryStubId;
 use crate::{
     ArtifactId, ExternalRootDiagnostic, ExternalRootId, InstallationScopeId, InstalledCodeId,
     InstalledExternalRoot, InstalledRootEvidence, InstalledRootLedger, RootSlotAuthority,
-    RootSlotId, RootSlotOwnerId, fnv1a_identity,
+    RootSlotId, RootSlotOwnerId,
 };
 
 /// Compiler-selected realization of one target-owned required root slot.
@@ -95,7 +95,6 @@ impl VerifiedRequiredRootSlot {
 pub struct VerifiedRequiredRootSlotClosure {
     profile: TargetProfile,
     slots: BTreeMap<RootSlotId, VerifiedRequiredRootSlot>,
-    fingerprint: u64,
 }
 
 impl VerifiedRequiredRootSlotClosure {
@@ -109,12 +108,6 @@ impl VerifiedRequiredRootSlotClosure {
 
     pub fn slot(&self, identity: RootSlotId) -> Option<&VerifiedRequiredRootSlot> {
         self.slots.get(&identity)
-    }
-
-    /// Reporting/cache identity only. Consumers establish authority by exact
-    /// member comparison, never by comparing this compact fingerprint.
-    pub const fn fingerprint(&self) -> u64 {
-        self.fingerprint
     }
 }
 
@@ -147,8 +140,8 @@ impl InstalledRequiredRootSlot {
 
 /// Exact target-required root-slot closure retained by one installed artifact.
 ///
-/// Compact IDs and `fingerprint` are report keys only. Exact member evidence is
-/// retained privately and replayed by the program-local cohort verifier.
+/// Exact member evidence is retained privately and replayed by the
+/// program-local cohort verifier.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstalledRequiredRootSlotClosure {
     profile: TargetProfile,
@@ -156,7 +149,6 @@ pub struct InstalledRequiredRootSlotClosure {
     artifact: ArtifactId,
     installation_scope: InstallationScopeId,
     slots: BTreeMap<RootSlotId, InstalledRequiredRootSlot>,
-    fingerprint: u64,
 }
 
 impl InstalledRequiredRootSlotClosure {
@@ -182,10 +174,6 @@ impl InstalledRequiredRootSlotClosure {
 
     pub fn slot(&self, identity: RootSlotId) -> Option<&InstalledRequiredRootSlot> {
         self.slots.get(&identity)
-    }
-
-    pub const fn fingerprint(&self) -> u64 {
-        self.fingerprint
     }
 }
 
@@ -245,30 +233,12 @@ impl InstalledRootLedger {
             );
         }
 
-        let mut canonical = format!(
-            "installed-required-root-slot-closure\n{}\n{}\n{}\n{}",
-            closure.profile.target_name(),
-            self.installed_code.normalized_identity(),
-            self.artifact.normalized_identity(),
-            self.installation_scope.normalized_identity()
-        );
-        for slot in slots.values() {
-            canonical.push_str(&format!(
-                "\n{}\n{}\n{}\n{}\n{}",
-                slot.required.slot.normalized_identity(),
-                slot.required.owner.normalized_identity(),
-                slot.required.selected_entry.normalized_identity(),
-                slot.required.requirement_identity,
-                slot.root.normalized_identity()
-            ));
-        }
         self.required_root_slots = Some(InstalledRequiredRootSlotClosure {
             profile: closure.profile,
             installed_code: self.installed_code,
             artifact: self.artifact,
             installation_scope: self.installation_scope,
             slots,
-            fingerprint: fnv1a_identity(&canonical),
         });
         Ok(self
             .required_root_slots
@@ -361,21 +331,7 @@ pub fn verify_target_required_root_slot_closure(
         )));
     }
 
-    let mut canonical = format!("required-root-slot-closure\n{}", profile.target_name());
-    for slot in slots.values() {
-        canonical.push_str(&format!(
-            "\n{}\n{}\n{}\n{}",
-            slot.slot.normalized_identity(),
-            slot.owner.normalized_identity(),
-            slot.selected_entry.normalized_identity(),
-            slot.requirement_identity
-        ));
-    }
-    Ok(VerifiedRequiredRootSlotClosure {
-        profile,
-        slots,
-        fingerprint: fnv1a_identity(&canonical),
-    })
+    Ok(VerifiedRequiredRootSlotClosure { profile, slots })
 }
 
 #[cfg(test)]

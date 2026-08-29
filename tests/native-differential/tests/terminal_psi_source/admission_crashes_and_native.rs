@@ -1572,8 +1572,8 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         RootSlotOwnerId::from_normalized_identity(0x6228).unwrap(),
     );
     let dynamic_admission_identity = RootAdmissionId::from_normalized_identity(0x6229).unwrap();
-    let attribution_fingerprint = installed_attribution.fingerprint();
-    let runtime_fingerprint = transfer_runtime.fingerprint();
+    let attribution_fingerprint = installed_attribution.report_fingerprint();
+    let runtime_fingerprint = transfer_runtime.report_fingerprint();
     let substituted_stack_native_artifact =
         NativeArtifact::from_replayed_parts(NativeArtifactParts {
             target: object_artifact.target(),
@@ -1663,11 +1663,11 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
     assert!(rejected.diagnostic().contains("target"));
     let returned = rejected.into_input();
     assert_eq!(
-        returned.installed_attribution().fingerprint(),
+        returned.installed_attribution().report_fingerprint(),
         attribution_fingerprint
     );
     assert_eq!(
-        returned.transfer_runtime().fingerprint(),
+        returned.transfer_runtime().report_fingerprint(),
         runtime_fingerprint
     );
     assert_eq!(

@@ -1380,6 +1380,12 @@ neither a bare receipt nor a structurally valid subset establishes
 completeness. Generated and opaque origins remain distinct in artifact identity
 and reports. A bare byte count establishes nothing.
 
+The installed-entry and opaque-arrival carriers bind that boundary plan with
+its domain-separated commitment. Their historical 64-bit plan, target-rule,
+domain, and realization values are report/cache coordinates over retained exact
+facts; a compact-equal boundary-plan substitute cannot settle either the target
+arrival rule or the external-root stack join.
+
 The compiler's x86-64 rule derives the architectural frame from the exact
 installed vector, arrival mechanism, interrupted/entry privilege pair, and
 hardware stack selection. Same-privilege arrival retains three machine words;
@@ -1664,6 +1670,12 @@ replays its crate-sealed exact-plan copy. Contract-envelope and refinement FNV
 values are likewise report coordinates beside their existing normalized
 machine-contract commitments. Holding any compact coordinate equal cannot
 substitute a different contract endpoint or callback plan.
+
+The checked callback's per-entry resource envelope and receipt also retain the
+selected machine-contract commitment. Their axis, envelope, and roster FNV
+values are compilation-local reports only; target and backend consumers rejoin
+the strong contract endpoint before attaching stack, fuel, or machine-state
+evidence.
 
 The direct `NativePlace::Parameter` variant and callback-demand carrier exist,
 but source can currently originate only layout-field demands. The remaining

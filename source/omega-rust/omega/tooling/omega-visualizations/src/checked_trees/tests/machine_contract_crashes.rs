@@ -319,7 +319,10 @@ fn machine_contract_manifest_crash_target_coordinates_preserve_capsule_payload()
     let validated = validated_manifest_crash_capsules(&program);
 
     assert_eq!(validated.len(), 1);
-    assert_eq!(validated[0].capsule.target_contract_fingerprint(), 0x1234);
+    assert_eq!(
+        validated[0].capsule.target_contract_report_fingerprint(),
+        0x1234
+    );
     assert_eq!(validated[0].capsule.published_buckets(), [bucket]);
     assert_eq!(validated[0].target.owner_label, "Boundary");
     assert_eq!(validated[0].target.state_label, "invoke");

@@ -824,7 +824,7 @@ pub(super) fn build_static_boundary_requirements(
                 scalar_parameters,
                 result_type,
                 domain_requirements,
-                contract_report_fingerprint: capsule.target_contract_fingerprint(),
+                contract_report_fingerprint: capsule.target_contract_report_fingerprint(),
                 contract_commitment: capsule.target_contract_commitment(),
                 contract_service_reach: psi_language_semantics::ServiceReachPlan {
                     interface: psi_language_semantics::ServiceReachInterface::PublishedCeiling(

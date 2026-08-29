@@ -755,7 +755,8 @@ fn x86_target_arrival_binds_exact_installation_and_composes_mixed_contexts() {
         installed_code: code.identity().normalized_identity(),
         entry: entry.normalized_identity(),
         entry_offset: 16,
-        boundary_plan: boundary.contract_fingerprint(),
+        boundary_plan_report_fingerprint: boundary.contract_fingerprint(),
+        boundary_plan_commitment: boundary.contract_commitment_digest(),
     };
     let facts = X86_64InstalledHardwareEntryFacts {
         identity: installed_identity,
@@ -805,8 +806,10 @@ fn x86_target_arrival_binds_exact_installation_and_composes_mixed_contexts() {
         AdapterStackRealizationOrigin::None
     );
     assert_eq!(
-        bound.realization_evidence().target_rule_fingerprint(),
-        Some(target_arrival.fingerprint())
+        bound
+            .realization_evidence()
+            .target_rule_report_fingerprint(),
+        Some(target_arrival.report_fingerprint())
     );
     let composition = compose_bound_entry_stack_epochs(
         &StackNestingRelation {
@@ -832,8 +835,8 @@ fn x86_target_arrival_binds_exact_installation_and_composes_mixed_contexts() {
         112
     );
 
-    let mut wrong_boundary = facts;
-    wrong_boundary.identity.boundary_plan ^= 1;
+    let mut wrong_boundary = facts.clone();
+    wrong_boundary.identity.boundary_plan_report_fingerprint ^= 1;
     let wrong_arrival = derive_x86_64_hardware_arrival(
         &validate_x86_64_installed_hardware_entry_facts(wrong_boundary)
             .expect("structurally valid but foreign boundary identity"),
@@ -847,6 +850,36 @@ fn x86_target_arrival_binds_exact_installation_and_composes_mixed_contexts() {
         &wrong_arrival,
     )
     .expect_err("target arrival cannot replay across a boundary contract");
+    assert!(
+        error
+            .0
+            .contains("different installed artifact, entry, or boundary")
+    );
+
+    let mut compact_equal_wrong_commitment = facts;
+    compact_equal_wrong_commitment
+        .identity
+        .boundary_plan_commitment[0] ^= 1;
+    assert_eq!(
+        compact_equal_wrong_commitment
+            .identity
+            .boundary_plan_report_fingerprint,
+        boundary.contract_fingerprint(),
+        "the adversary deliberately retains the compact report coordinate",
+    );
+    let wrong_arrival = derive_x86_64_hardware_arrival(
+        &validate_x86_64_installed_hardware_entry_facts(compact_equal_wrong_commitment)
+            .expect("nonzero compact-equal commitment substitute remains structurally decodable"),
+    )
+    .expect("target rule retains the caller-supplied installed-fact commitment");
+    let error = bind_x86_64_target_direct_entry_stack_realization(
+        &summary,
+        &boundary,
+        &code,
+        entry,
+        &wrong_arrival,
+    )
+    .expect_err("compact-equal boundary commitment substitution must reject");
     assert!(
         error
             .0
@@ -900,6 +933,23 @@ fn opaque_epoch_realization_binds_exact_installed_entry_plan_and_body_evidence()
         context_evidence.clone(),
     )
     .expect("opaque realization binds to exact installed root");
+
+    for substituted_commitment in [[0; 32], [0xa5; 32]] {
+        let compact_equal_substitute = context_evidence
+            .clone()
+            .with_boundary_contract_commitment_for_test(substituted_commitment);
+        let error = bind_opaque_adapter_stack_realization(
+            &summary,
+            &boundary,
+            &code,
+            entry,
+            realization(Preemption::NotApplicable),
+            compact_equal_substitute,
+        )
+        .expect_err("zero or compact-equal wrong boundary commitment must reject");
+        assert!(error.0.contains("different installed root"));
+    }
+
     let composition = compose_bound_entry_stack_epochs(
         &StackNestingRelation {
             identity: root_id(0x817, NestingRelationId::from_normalized_identity),

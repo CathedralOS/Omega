@@ -525,7 +525,7 @@ impl<'mapping, 'bytes> WrittenExternalRootPostHandoffWriterDestination<'mapping,
         if self.architecture != installed_code.architecture()
             || !self.written.binds_invocation(&self.invocation)
             || self.written.normalized_fragment_fingerprint()
-                != self.invocation.fragment().fingerprint()
+                != self.invocation.fragment().report_fingerprint()
         {
             return Err(psi_layout_plans::MaterializationDiagnostic(
                 "written external-root destination does not retain its exact provider preparation and invocation"
@@ -836,8 +836,14 @@ fn provider_execution_report_fingerprint(
     hash.u64(candidate.provider.normalized_identity());
     hash.u64(candidate.entry.normalized_identity());
     hash.u64(root.boundary_contract_report_fingerprint());
-    hash.u64(candidate.stack.realization.composition().fingerprint());
-    hash.u64(candidate.stack.realization.fingerprint());
+    hash.u64(
+        candidate
+            .stack
+            .realization
+            .composition()
+            .report_fingerprint(),
+    );
+    hash.u64(candidate.stack.realization.report_fingerprint());
     hash.u64(candidate.logical_fuel.realization.composition_fingerprint());
     hash.u64(
         candidate
@@ -888,8 +894,8 @@ impl ProviderExecution {
                 .stack
                 .realization
                 .composition()
-                .fingerprint(),
-            stack_demand_report_fingerprint: candidate.stack.realization.fingerprint(),
+                .report_fingerprint(),
+            stack_demand_report_fingerprint: candidate.stack.realization.report_fingerprint(),
             logical_fuel_report_fingerprint: candidate
                 .logical_fuel
                 .realization
@@ -1062,8 +1068,13 @@ impl ProviderExecution {
             && self.boundary_contract_report_fingerprint
                 == root.boundary_contract_report_fingerprint()
             && self.stack_artifact_composition_report_fingerprint
-                == candidate.stack.realization.composition().fingerprint()
-            && self.stack_demand_report_fingerprint == candidate.stack.realization.fingerprint()
+                == candidate
+                    .stack
+                    .realization
+                    .composition()
+                    .report_fingerprint()
+            && self.stack_demand_report_fingerprint
+                == candidate.stack.realization.report_fingerprint()
             && self.logical_fuel_report_fingerprint
                 == candidate.logical_fuel.realization.composition_fingerprint()
             && self.machine_state_validation_receipt == candidate.machine_state.validation_receipt

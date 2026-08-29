@@ -1731,7 +1731,7 @@ impl InstalledRootLedger {
                 .provider_exit_assurance_report_fingerprint,
             provider_plan: admission.provider_plan,
             native_fuel_kind: admission.native_fuel.kind(),
-            native_fuel_report_fingerprint: admission.native_fuel.fingerprint(),
+            native_fuel_report_fingerprint: admission.native_fuel.report_fingerprint(),
             requirement_identity: root.candidate.requirement_identity,
             entry_claims: root.candidate.entry_claims,
             acknowledgement_parameter_index: root.candidate.acknowledgement_parameter_index,

@@ -106,25 +106,31 @@ pub struct CallbackThunkPlan {
 /// structural receipt, including its exact boundary plan, with its placement
 /// row before the summary can be used.
 pub fn callback_thunk_placement_identity_report_fingerprint(thunks: &[CallbackThunkPlan]) -> u64 {
-    let mut fingerprint = 0xcbf2_9ce4_8422_2325u64;
-    fingerprint_into(&mut fingerprint, b"omega.callback-placement-identity.v2");
-    fingerprint_into(&mut fingerprint, &(thunks.len() as u64).to_le_bytes());
+    let mut report_fingerprint = 0xcbf2_9ce4_8422_2325u64;
+    fingerprint_into(
+        &mut report_fingerprint,
+        b"omega.callback-placement-identity.v2",
+    );
+    fingerprint_into(
+        &mut report_fingerprint,
+        &(thunks.len() as u64).to_le_bytes(),
+    );
     for thunk in thunks {
         fingerprint_placement_identity(
-            &mut fingerprint,
+            &mut report_fingerprint,
             thunk.placement_index,
             &thunk.placement_identity,
         );
     }
-    fingerprint
+    report_fingerprint
 }
 
 fn fingerprint_placement_identity(
-    fingerprint: &mut u64,
+    report_fingerprint: &mut u64,
     placement_index: usize,
     identity: &CallbackPlacementBindingIdentity,
 ) {
-    fingerprint_into(fingerprint, &(placement_index as u64).to_le_bytes());
+    fingerprint_into(report_fingerprint, &(placement_index as u64).to_le_bytes());
     let (site_tag, site_index, site_generation) = match identity.site {
         NominalMachineUseSite::Statement(handle) => {
             (1u8, handle.arena_index(), handle.generation())
@@ -133,125 +139,155 @@ fn fingerprint_placement_identity(
             (2u8, handle.arena_index(), handle.generation())
         }
     };
-    fingerprint_into(fingerprint, &[site_tag]);
-    fingerprint_into(fingerprint, &u64::from(site_index).to_le_bytes());
-    fingerprint_into(fingerprint, &u64::from(site_generation).to_le_bytes());
-    fingerprint_symbol(fingerprint, identity.registration_operation);
+    fingerprint_into(report_fingerprint, &[site_tag]);
+    fingerprint_into(report_fingerprint, &u64::from(site_index).to_le_bytes());
     fingerprint_into(
-        fingerprint,
+        report_fingerprint,
+        &u64::from(site_generation).to_le_bytes(),
+    );
+    fingerprint_symbol(report_fingerprint, identity.registration_operation);
+    fingerprint_into(
+        report_fingerprint,
         &u64::from(identity.static_machine_ordinal).to_le_bytes(),
     );
-    fingerprint_symbol(fingerprint, identity.selected_machine);
-    fingerprint_symbol(fingerprint, identity.selected_entry);
-    fingerprint_symbol(fingerprint, identity.satisfaction_trait);
-    fingerprint_symbol(fingerprint, identity.satisfaction_requirement);
+    fingerprint_symbol(report_fingerprint, identity.selected_machine);
+    fingerprint_symbol(report_fingerprint, identity.selected_entry);
+    fingerprint_symbol(report_fingerprint, identity.satisfaction_trait);
+    fingerprint_symbol(report_fingerprint, identity.satisfaction_requirement);
     fingerprint_into(
-        fingerprint,
+        report_fingerprint,
         &(identity.canonical_requirement_overload.len() as u64).to_le_bytes(),
     );
     fingerprint_into(
-        fingerprint,
+        report_fingerprint,
         identity.canonical_requirement_overload.as_bytes(),
     );
     fingerprint_into(
-        fingerprint,
+        report_fingerprint,
         &identity
             .boundary_calling_plan_report_fingerprint
             .to_le_bytes(),
     );
-    fingerprint_callback_resource_receipt(fingerprint, identity.resource_receipt);
-    fingerprint_private_materialization(fingerprint, identity.private_materialization.as_ref());
+    fingerprint_callback_resource_receipt(report_fingerprint, identity.resource_receipt);
+    fingerprint_private_materialization(
+        report_fingerprint,
+        identity.private_materialization.as_ref(),
+    );
 }
 
 fn fingerprint_callback_resource_receipt(
-    fingerprint: &mut u64,
+    report_fingerprint: &mut u64,
     receipt: psi_checked_trees::CheckedCallbackResourceReceipt,
 ) {
-    fingerprint_symbol(fingerprint, receipt.machine());
-    fingerprint_symbol(fingerprint, receipt.entry());
-    fingerprint_into(fingerprint, &receipt.contract_fingerprint().to_le_bytes());
-    fingerprint_into(fingerprint, &receipt.stack_fingerprint().to_le_bytes());
+    fingerprint_symbol(report_fingerprint, receipt.machine());
+    fingerprint_symbol(report_fingerprint, receipt.entry());
     fingerprint_into(
-        fingerprint,
-        &receipt.logical_structural_work_fingerprint().to_le_bytes(),
+        report_fingerprint,
+        &receipt.contract_report_fingerprint().to_le_bytes(),
     );
     fingerprint_into(
-        fingerprint,
-        &receipt.machine_state_fingerprint().to_le_bytes(),
+        report_fingerprint,
+        &receipt.contract_commitment().as_bytes(),
     );
-    fingerprint_into(fingerprint, &receipt.envelope_fingerprint().to_le_bytes());
+    fingerprint_into(
+        report_fingerprint,
+        &receipt.stack_report_fingerprint().to_le_bytes(),
+    );
+    fingerprint_into(
+        report_fingerprint,
+        &receipt
+            .logical_structural_work_report_fingerprint()
+            .to_le_bytes(),
+    );
+    fingerprint_into(
+        report_fingerprint,
+        &receipt.machine_state_report_fingerprint().to_le_bytes(),
+    );
+    fingerprint_into(
+        report_fingerprint,
+        &receipt.envelope_report_fingerprint().to_le_bytes(),
+    );
 }
 
 fn fingerprint_private_materialization(
-    fingerprint: &mut u64,
+    report_fingerprint: &mut u64,
     materialization: Option<&BoundCallbackPrivateMaterialization>,
 ) {
     let Some(materialization) = materialization else {
-        fingerprint_into(fingerprint, &[0]);
+        fingerprint_into(report_fingerprint, &[0]);
         return;
     };
-    fingerprint_into(fingerprint, &[1]);
-    fingerprint_into(fingerprint, &materialization.binder.get().to_le_bytes());
+    fingerprint_into(report_fingerprint, &[1]);
     fingerprint_into(
-        fingerprint,
+        report_fingerprint,
+        &materialization.binder.get().to_le_bytes(),
+    );
+    fingerprint_into(
+        report_fingerprint,
         &materialization.requirement.get().to_le_bytes(),
     );
-    fingerprint_native_place(fingerprint, &materialization.destination);
+    fingerprint_native_place(report_fingerprint, &materialization.destination);
     fingerprint_into(
-        fingerprint,
+        report_fingerprint,
         &materialization
             .registrar_calling_plan_report_fingerprint
             .to_le_bytes(),
     );
     fingerprint_into(
-        fingerprint,
+        report_fingerprint,
         &(materialization.context.binders.len() as u64).to_le_bytes(),
     );
     for binder in &materialization.context.binders {
-        fingerprint_into(fingerprint, &binder.binder.get().to_le_bytes());
-        fingerprint_into(fingerprint, &binder.requirement.get().to_le_bytes());
+        fingerprint_into(report_fingerprint, &binder.binder.get().to_le_bytes());
+        fingerprint_into(report_fingerprint, &binder.requirement.get().to_le_bytes());
     }
     fingerprint_into(
-        fingerprint,
+        report_fingerprint,
         &(materialization.context.demands.len() as u64).to_le_bytes(),
     );
     for demand in &materialization.context.demands {
-        fingerprint_native_place(fingerprint, &demand.destination);
-        fingerprint_into(fingerprint, &demand.requirement.get().to_le_bytes());
+        fingerprint_native_place(report_fingerprint, &demand.destination);
+        fingerprint_into(report_fingerprint, &demand.requirement.get().to_le_bytes());
     }
 }
 
-fn fingerprint_native_place(fingerprint: &mut u64, place: &NativePlace) {
+fn fingerprint_native_place(report_fingerprint: &mut u64, place: &NativePlace) {
     match place {
         NativePlace::Parameter(parameter) => {
-            fingerprint_into(fingerprint, &[1]);
-            fingerprint_into(fingerprint, &parameter.get().to_le_bytes());
+            fingerprint_into(report_fingerprint, &[1]);
+            fingerprint_into(report_fingerprint, &parameter.get().to_le_bytes());
         }
         NativePlace::Field {
             parameter,
             layout,
             field_path,
         } => {
-            fingerprint_into(fingerprint, &[2]);
-            fingerprint_into(fingerprint, &parameter.get().to_le_bytes());
-            fingerprint_into(fingerprint, &layout.get().to_le_bytes());
-            fingerprint_into(fingerprint, &(field_path.len() as u64).to_le_bytes());
+            fingerprint_into(report_fingerprint, &[2]);
+            fingerprint_into(report_fingerprint, &parameter.get().to_le_bytes());
+            fingerprint_into(report_fingerprint, &layout.get().to_le_bytes());
+            fingerprint_into(report_fingerprint, &(field_path.len() as u64).to_le_bytes());
             for slot in field_path {
-                fingerprint_into(fingerprint, &slot.get().to_le_bytes());
+                fingerprint_into(report_fingerprint, &slot.get().to_le_bytes());
             }
         }
     }
 }
 
-fn fingerprint_symbol(fingerprint: &mut u64, symbol: SymbolHandle) {
-    fingerprint_into(fingerprint, &u64::from(symbol.arena_index()).to_le_bytes());
-    fingerprint_into(fingerprint, &u64::from(symbol.generation()).to_le_bytes());
+fn fingerprint_symbol(report_fingerprint: &mut u64, symbol: SymbolHandle) {
+    fingerprint_into(
+        report_fingerprint,
+        &u64::from(symbol.arena_index()).to_le_bytes(),
+    );
+    fingerprint_into(
+        report_fingerprint,
+        &u64::from(symbol.generation()).to_le_bytes(),
+    );
 }
 
-fn fingerprint_into(fingerprint: &mut u64, bytes: &[u8]) {
+fn fingerprint_into(report_fingerprint: &mut u64, bytes: &[u8]) {
     for byte in bytes {
-        *fingerprint ^= u64::from(*byte);
-        *fingerprint = fingerprint.wrapping_mul(0x0000_0100_0000_01b3);
+        *report_fingerprint ^= u64::from(*byte);
+        *report_fingerprint = report_fingerprint.wrapping_mul(0x0000_0100_0000_01b3);
     }
 }
 
@@ -440,13 +476,28 @@ mod tests {
     fn resource_receipt(
         machine: SymbolHandle,
         entry: SymbolHandle,
-        contract_fingerprint: u64,
+        contract_report_fingerprint: u64,
+    ) -> psi_checked_trees::CheckedCallbackResourceReceipt {
+        resource_receipt_with_commitment(
+            machine,
+            entry,
+            contract_report_fingerprint,
+            psi_checked_trees::MachineContractCommitment::from_digest([0x55; 32]),
+        )
+    }
+
+    fn resource_receipt_with_commitment(
+        machine: SymbolHandle,
+        entry: SymbolHandle,
+        contract_report_fingerprint: u64,
+        contract_commitment: psi_checked_trees::MachineContractCommitment,
     ) -> psi_checked_trees::CheckedCallbackResourceReceipt {
         psi_checked_trees::CheckedCallbackResourceReceipt::try_from_entry_envelope(
             &psi_checked_trees::CheckedEntryResourceEnvelope::from_checked_contract(
                 machine,
                 entry,
-                contract_fingerprint,
+                contract_report_fingerprint,
+                contract_commitment,
             ),
         )
         .expect("canonical checked callback resource receipt")
@@ -592,6 +643,25 @@ mod tests {
         assert_ne!(
             callback_placement_binding_identity(&resource_drift),
             identity
+        );
+
+        let mut compact_equal_resource_substitution = placement();
+        compact_equal_resource_substitution.resource_receipt = resource_receipt_with_commitment(
+            compact_equal_resource_substitution.selected_machine,
+            compact_equal_resource_substitution.selected_entry,
+            0xfeed,
+            psi_checked_trees::MachineContractCommitment::from_digest([0x77; 32]),
+        );
+        assert_eq!(
+            compact_equal_resource_substitution
+                .resource_receipt
+                .contract_report_fingerprint(),
+            identity.resource_receipt.contract_report_fingerprint(),
+        );
+        assert_ne!(
+            callback_placement_binding_identity(&compact_equal_resource_substitution),
+            identity,
+            "an equal compact resource coordinate cannot hide contract substitution",
         );
     }
 

@@ -926,8 +926,8 @@ fn numbered_symbolic_materialization_rejoins_renamed_fields_by_identity() {
         .lower_reusable_fragment()
         .expect("legacy symbolic writer lowers");
     assert_eq!(
-        current_fragment.fragment.fingerprint(),
-        legacy_fragment.fragment.fingerprint(),
+        current_fragment.fragment.report_fingerprint(),
+        legacy_fragment.fragment.report_fingerprint(),
         "presentation spelling must not change generated writer identity"
     );
 
@@ -1195,8 +1195,8 @@ fn reusable_writer_fragment_separates_static_geometry_from_invocation_evidence()
         .expect("same reusable geometry");
 
     assert_eq!(
-        rebound.fragment.fingerprint(),
-        lowering.fragment.fingerprint(),
+        rebound.fragment.report_fingerprint(),
+        lowering.fragment.report_fingerprint(),
         "target identity and concrete placement are invocation evidence"
     );
     assert_eq!(rebound.fragment, lowering.fragment);
@@ -1349,7 +1349,7 @@ fn invocation_structure_replay_rejects_tamper_and_preserves_retry() {
     );
 
     let mut wrong_fingerprint = invocation.clone();
-    wrong_fingerprint.fragment.fingerprint ^= 1;
+    wrong_fingerprint.fragment.report_fingerprint ^= 1;
     assert!(
         wrong_fingerprint
             .validate_structure()

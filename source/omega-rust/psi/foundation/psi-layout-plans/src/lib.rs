@@ -1159,7 +1159,7 @@ pub struct GeneratedPostHandoffWriterStep {
 
 /// Static normalized plan for one reusable post-handoff fragment.
 ///
-/// Its fingerprint covers only facts that can change emitted code. Exact
+/// Its report fingerprint covers only facts that can change emitted code. Exact
 /// relocation targets, resolved content, placement, resolver authority, and
 /// roots belong to `PostHandoffWriterInvocationPlan` instead.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1169,7 +1169,7 @@ pub struct GeneratedPostHandoffWriterFragmentPlan {
     byte_order: ByteOrder,
     source_slot_count: usize,
     steps: Vec<GeneratedPostHandoffWriterStep>,
-    fingerprint: u64,
+    report_fingerprint: u64,
 }
 
 impl GeneratedPostHandoffWriterFragmentPlan {
@@ -1193,8 +1193,8 @@ impl GeneratedPostHandoffWriterFragmentPlan {
         &self.steps
     }
 
-    pub const fn fingerprint(&self) -> u64 {
-        self.fingerprint
+    pub const fn report_fingerprint(&self) -> u64 {
+        self.report_fingerprint
     }
 }
 
@@ -1366,7 +1366,7 @@ impl PostHandoffWriterInvocationPlan {
             fragment.source_slot_count,
             &fragment.steps,
         );
-        if fragment.fingerprint != expected_fingerprint {
+        if fragment.report_fingerprint != expected_fingerprint {
             return Err(MaterializationDiagnostic(
                 "post-handoff writer fragment fingerprint does not match its exact geometry".into(),
             ));
@@ -1488,7 +1488,7 @@ impl PostHandoffWriterPlan {
             byte_len: self.byte_len,
             byte_order: self.byte_order,
             source_slot_count: sources.len(),
-            fingerprint: generated_post_handoff_writer_fingerprint(
+            report_fingerprint: generated_post_handoff_writer_fingerprint(
                 self.byte_len,
                 self.byte_order,
                 sources.len(),

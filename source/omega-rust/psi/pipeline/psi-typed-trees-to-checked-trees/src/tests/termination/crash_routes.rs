@@ -1677,7 +1677,7 @@ fn checked_crash_calls_retain_invocation_specific_route_refinement() {
         symbol_of_checked(&checked, "risky")
     );
     assert_eq!(
-        safe_call.target_contract_fingerprint(),
+        safe_call.target_contract_report_fingerprint(),
         plan("risky").report_fingerprint
     );
 
@@ -2040,8 +2040,8 @@ fn checked_crash_calls_select_machine_requirement_capsules() {
         .crash_capsule(call.target_machine(), call.target_state())
         .expect("the abstract target should retain its normalized capsule");
     assert_eq!(
-        call.target_contract_fingerprint(),
-        capsule.target_contract_fingerprint()
+        call.target_contract_report_fingerprint(),
+        capsule.target_contract_report_fingerprint()
     );
     let [bucket] = call.surviving_buckets() else {
         panic!("the unknown flag should retain the guarded Abort bucket");

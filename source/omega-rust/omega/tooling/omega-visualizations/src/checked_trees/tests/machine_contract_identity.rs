@@ -276,7 +276,7 @@ fn machine_contract_manifest_keeps_interface_and_witness_separate() {
         "\"checked_crash_calls\": [\n          {\"state\": \"entry\", \"statement_ordinal\": 7, \"call_ordinal\": 2, \"target_machine\": \"Worker::run\", \"target_callable_overload_identity\": \"named-callable(path(Worker::run)"
     ));
     assert!(json[implementation_start..].contains(
-        "\"target_state\": \"entry\", \"target_contract_fingerprint\": \"0x0000000000001234\", \"path_guard_conjuncts\": [\"0x010401\"], \"path_guard_consequences\": [], \"surviving_buckets\": [{\"cause\": \"Trap\", \"alternative_guards\": [\"true\"]}]"
+        "\"target_state\": \"entry\", \"target_contract_report_fingerprint\": \"0x0000000000001234\", \"path_guard_conjuncts\": [\"0x010401\"], \"path_guard_consequences\": [], \"surviving_buckets\": [{\"cause\": \"Trap\", \"alternative_guards\": [\"true\"]}]"
     ));
     assert!(json[implementation_start..].contains("\"statement_ordinal\": 8, \"call_ordinal\": 0"));
     assert!(
@@ -290,7 +290,7 @@ fn machine_contract_manifest_keeps_interface_and_witness_separate() {
             "\"target_callable_overload_identity\": \"named-callable(path(Firmware::read)"
         )
     );
-    assert!(json.contains("\"target_contract_fingerprint\": \"0x0000000000005678\""));
+    assert!(json.contains("\"target_contract_report_fingerprint\": \"0x0000000000005678\""));
     assert!(
         json[implementation_start..]
             .contains("\"source\": {\"kind\": \"state_entry\"}, \"ordinal\": 0}]")

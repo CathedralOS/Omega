@@ -38,6 +38,11 @@ The persisted trust digest separately frames the admission subject kind and
 human commitment, so a generic template, ordinary checked machine contract, or
 selected provider plan cannot settle against a compact-equal substitute.
 
+Checked per-entry resource envelopes and callback resource receipts retain the
+same machine-contract commitment beside their compact axis and roster reports.
+Reconstruction therefore rejects a compact-equal contract substitution before
+the receipt crosses into provider or backend planning.
+
 Target-dependent callback closure crosses this boundary as one explicit
 `TypedToCheckedSettlementInput`. Before checked Psi enters shared ownership,
 the transition closes the exact boundary calling-plan realizations and

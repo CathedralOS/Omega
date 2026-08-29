@@ -288,7 +288,10 @@ mod tests {
     ) -> psi_checked_trees::CheckedCallbackResourceReceipt {
         psi_checked_trees::CheckedCallbackResourceReceipt::try_from_entry_envelope(
             &psi_checked_trees::CheckedEntryResourceEnvelope::from_checked_contract(
-                machine, entry, 0xfeed,
+                machine,
+                entry,
+                0xfeed,
+                psi_checked_trees::MachineContractCommitment::from_digest([0x55; 32]),
             ),
         )
         .expect("canonical checked callback resource receipt")

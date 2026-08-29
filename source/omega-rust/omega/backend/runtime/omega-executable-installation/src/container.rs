@@ -726,20 +726,32 @@ pub(super) fn derive_artifact_content_commitments(
 
 fn fingerprint_placement(
     digest: &mut Sha256,
-    fingerprint: &mut u64,
+    compatibility_fingerprint: &mut u64,
     placement: PlacementConstraints,
 ) {
     if let Some(range) = placement.permitted_range() {
-        content_commitment_bytes(digest, fingerprint, &[1]);
-        content_commitment_bytes(digest, fingerprint, &range.start_inclusive().to_le_bytes());
-        content_commitment_bytes(digest, fingerprint, &range.end_exclusive().to_le_bytes());
+        content_commitment_bytes(digest, compatibility_fingerprint, &[1]);
+        content_commitment_bytes(
+            digest,
+            compatibility_fingerprint,
+            &range.start_inclusive().to_le_bytes(),
+        );
+        content_commitment_bytes(
+            digest,
+            compatibility_fingerprint,
+            &range.end_exclusive().to_le_bytes(),
+        );
     } else {
-        content_commitment_bytes(digest, fingerprint, &[0]);
+        content_commitment_bytes(digest, compatibility_fingerprint, &[0]);
     }
-    content_commitment_bytes(digest, fingerprint, &placement.alignment().to_le_bytes());
     content_commitment_bytes(
         digest,
-        fingerprint,
+        compatibility_fingerprint,
+        &placement.alignment().to_le_bytes(),
+    );
+    content_commitment_bytes(
+        digest,
+        compatibility_fingerprint,
         &[match placement.phase() {
             psi_layout_plans::PlacementPhase::Build => 1,
             psi_layout_plans::PlacementPhase::Load => 2,
@@ -747,24 +759,24 @@ fn fingerprint_placement(
         }],
     );
     if let Some(regime) = placement.machine_regime() {
-        content_commitment_bytes(digest, fingerprint, &[1]);
+        content_commitment_bytes(digest, compatibility_fingerprint, &[1]);
         content_commitment_bytes(
             digest,
-            fingerprint,
+            compatibility_fingerprint,
             &regime.normalized_identity().to_le_bytes(),
         );
     } else {
-        content_commitment_bytes(digest, fingerprint, &[0]);
+        content_commitment_bytes(digest, compatibility_fingerprint, &[0]);
     }
     if let Some(scope) = placement.installation_scope() {
-        content_commitment_bytes(digest, fingerprint, &[1]);
+        content_commitment_bytes(digest, compatibility_fingerprint, &[1]);
         content_commitment_bytes(
             digest,
-            fingerprint,
+            compatibility_fingerprint,
             &scope.normalized_identity().to_le_bytes(),
         );
     } else {
-        content_commitment_bytes(digest, fingerprint, &[0]);
+        content_commitment_bytes(digest, compatibility_fingerprint, &[0]);
     }
 }
 

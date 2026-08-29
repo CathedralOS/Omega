@@ -80,7 +80,7 @@ pub struct ArrivalContextStackDomain {
 pub struct ValidatedEntryStackDomainClosure {
     boundary_stack: EntryStack,
     contexts: Vec<ArrivalContextStackDomain>,
-    fingerprint: u64,
+    non_authoritative_report_fingerprint: u64,
 }
 
 impl ValidatedEntryStackDomainClosure {
@@ -92,8 +92,10 @@ impl ValidatedEntryStackDomainClosure {
         &self.contexts
     }
 
-    pub const fn fingerprint(&self) -> u64 {
-        self.fingerprint
+    /// Compact report/cache coordinate. Exact closure authority remains in
+    /// `boundary_stack` and `contexts`.
+    pub const fn report_fingerprint(&self) -> u64 {
+        self.non_authoritative_report_fingerprint
     }
 }
 
@@ -143,12 +145,12 @@ pub fn validate_entry_stack_domain_closure(
     hash.u64(contexts.len() as u64);
     for context in &contexts {
         hash.u64(context.context.get());
-        fingerprint_domain(&mut hash, context.domain);
+        report_fingerprint_domain(&mut hash, context.domain);
     }
     Ok(ValidatedEntryStackDomainClosure {
         boundary_stack,
         contexts,
-        fingerprint: hash.finish(),
+        non_authoritative_report_fingerprint: hash.finish(),
     })
 }
 
@@ -164,7 +166,10 @@ pub struct InstalledEntryFactIdentity {
     pub installed_code: u64,
     pub entry: u64,
     pub entry_offset: u64,
-    pub boundary_plan: u64,
+    /// Compact report coordinate for the boundary plan.
+    pub boundary_plan_report_fingerprint: u64,
+    /// Domain-separated commitment to the complete canonical boundary plan.
+    pub boundary_plan_commitment: [u8; 32],
 }
 
 /// Closed identity of the compiler-owned x86-64 target rule that validates an
@@ -241,7 +246,7 @@ pub struct X86_64InstalledHardwareEntryFacts {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedX86_64InstalledHardwareEntryFacts {
     facts: X86_64InstalledHardwareEntryFacts,
-    fingerprint: u64,
+    non_authoritative_report_fingerprint: u64,
 }
 
 impl ValidatedX86_64InstalledHardwareEntryFacts {
@@ -249,8 +254,9 @@ impl ValidatedX86_64InstalledHardwareEntryFacts {
         &self.facts
     }
 
-    pub const fn fingerprint(&self) -> u64 {
-        self.fingerprint
+    /// Compact report/cache coordinate over the retained exact facts.
+    pub const fn report_fingerprint(&self) -> u64 {
+        self.non_authoritative_report_fingerprint
     }
 }
 
@@ -259,10 +265,10 @@ impl ValidatedX86_64InstalledHardwareEntryFacts {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct X86_64TargetDerivedHardwareArrival {
     installed_identity: InstalledEntryFactIdentity,
-    installed_facts_fingerprint: u64,
+    installed_facts_report_fingerprint: u64,
     body_domains: ValidatedEntryStackDomainClosure,
     realization: ValidatedEntryStackRealization,
-    fingerprint: u64,
+    non_authoritative_report_fingerprint: u64,
 }
 
 impl X86_64TargetDerivedHardwareArrival {
@@ -270,8 +276,8 @@ impl X86_64TargetDerivedHardwareArrival {
         self.installed_identity
     }
 
-    pub const fn installed_facts_fingerprint(&self) -> u64 {
-        self.installed_facts_fingerprint
+    pub const fn installed_facts_report_fingerprint(&self) -> u64 {
+        self.installed_facts_report_fingerprint
     }
 
     pub const fn body_domains(&self) -> &ValidatedEntryStackDomainClosure {
@@ -282,8 +288,10 @@ impl X86_64TargetDerivedHardwareArrival {
         &self.realization
     }
 
-    pub const fn fingerprint(&self) -> u64 {
-        self.fingerprint
+    /// Compact report/cache coordinate. The exact installed facts, domain
+    /// closure, realization, and boundary-plan commitment remain retained.
+    pub const fn report_fingerprint(&self) -> u64 {
+        self.non_authoritative_report_fingerprint
     }
 }
 
@@ -297,7 +305,8 @@ pub fn validate_x86_64_installed_hardware_entry_facts(
         || identity.artifact == 0
         || identity.installed_code == 0
         || identity.entry == 0
-        || identity.boundary_plan == 0
+        || identity.boundary_plan_report_fingerprint == 0
+        || identity.boundary_plan_commitment == [0; 32]
     {
         return Err(PlanDiagnostic(
             "x86-64 installed hardware entry has an absent exact identity".into(),
@@ -325,8 +334,11 @@ pub fn validate_x86_64_installed_hardware_entry_facts(
     // This reuses the general closure validator to reject a target-derived
     // context set that disagrees with the requirement's fixed stack contract.
     validate_entry_stack_domain_closure(facts.boundary_stack, body_domains)?;
-    let fingerprint = fingerprint_x86_64_installed_facts(&facts);
-    Ok(ValidatedX86_64InstalledHardwareEntryFacts { facts, fingerprint })
+    let non_authoritative_report_fingerprint = x86_64_installed_facts_report_fingerprint(&facts);
+    Ok(ValidatedX86_64InstalledHardwareEntryFacts {
+        facts,
+        non_authoritative_report_fingerprint,
+    })
 }
 
 fn validate_x86_64_arrival_context(
@@ -422,8 +434,8 @@ fn validate_x86_64_arrival_context(
 pub fn derive_x86_64_hardware_arrival(
     installed: &ValidatedX86_64InstalledHardwareEntryFacts,
 ) -> Result<X86_64TargetDerivedHardwareArrival, PlanDiagnostic> {
-    let recomputed = fingerprint_x86_64_installed_facts(&installed.facts);
-    if recomputed != installed.fingerprint {
+    let recomputed = x86_64_installed_facts_report_fingerprint(&installed.facts);
+    if recomputed != installed.non_authoritative_report_fingerprint {
         return Err(PlanDiagnostic(
             "x86-64 installed hardware-entry facts failed canonical identity revalidation".into(),
         ));
@@ -467,15 +479,15 @@ pub fn derive_x86_64_hardware_arrival(
 
     let mut hash = Fnv1a::new();
     hash.u64(0x7838_365f_6172_7276); // "x86_arrv"
-    hash.u64(installed.fingerprint);
-    hash.u64(body_domains.fingerprint());
-    hash.u64(realization.fingerprint());
+    hash.u64(installed.non_authoritative_report_fingerprint);
+    hash.u64(body_domains.report_fingerprint());
+    hash.u64(realization.report_fingerprint());
     Ok(X86_64TargetDerivedHardwareArrival {
         installed_identity: installed.facts.identity,
-        installed_facts_fingerprint: installed.fingerprint,
+        installed_facts_report_fingerprint: installed.non_authoritative_report_fingerprint,
         body_domains,
         realization,
-        fingerprint: hash.finish(),
+        non_authoritative_report_fingerprint: hash.finish(),
     })
 }
 
@@ -511,7 +523,7 @@ fn x86_64_arrival_pushes_error_code(vector: u8, context: &X86_64InstalledArrival
         )
 }
 
-fn fingerprint_x86_64_installed_facts(facts: &X86_64InstalledHardwareEntryFacts) -> u64 {
+fn x86_64_installed_facts_report_fingerprint(facts: &X86_64InstalledHardwareEntryFacts) -> u64 {
     let mut hash = Fnv1a::new();
     hash.u64(0x7838_365f_696e_7374); // "x86_inst"
     hash.u64(facts.identity.target_profile.get());
@@ -519,7 +531,8 @@ fn fingerprint_x86_64_installed_facts(facts: &X86_64InstalledHardwareEntryFacts)
     hash.u64(facts.identity.installed_code);
     hash.u64(facts.identity.entry);
     hash.u64(facts.identity.entry_offset);
-    hash.u64(facts.identity.boundary_plan);
+    hash.u64(facts.identity.boundary_plan_report_fingerprint);
+    hash.bytes(&facts.identity.boundary_plan_commitment);
     hash.u64(u64::from(facts.vector));
     hash.u64(match facts.gate {
         X86_64GateKind::Interrupt => 0,
@@ -580,7 +593,7 @@ pub struct EntryStackRealization {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedEntryStackRealization {
     realization: EntryStackRealization,
-    fingerprint: u64,
+    non_authoritative_report_fingerprint: u64,
 }
 
 impl ValidatedEntryStackRealization {
@@ -588,8 +601,9 @@ impl ValidatedEntryStackRealization {
         &self.realization
     }
 
-    pub const fn fingerprint(&self) -> u64 {
-        self.fingerprint
+    /// Compact report/cache coordinate over the retained exact realization.
+    pub const fn report_fingerprint(&self) -> u64 {
+        self.non_authoritative_report_fingerprint
     }
 }
 
@@ -612,10 +626,10 @@ pub fn validate_entry_stack_realization(
         }
         validate_context(&mut realization.contexts[index])?;
     }
-    let fingerprint = fingerprint_realization(&realization);
+    let non_authoritative_report_fingerprint = realization_report_fingerprint(&realization);
     Ok(ValidatedEntryStackRealization {
         realization,
-        fingerprint,
+        non_authoritative_report_fingerprint,
     })
 }
 
@@ -712,7 +726,7 @@ fn validate_context(context: &mut ArrivalContextRealization) -> Result<(), PlanD
     Ok(())
 }
 
-fn fingerprint_realization(realization: &EntryStackRealization) -> u64 {
+fn realization_report_fingerprint(realization: &EntryStackRealization) -> u64 {
     let mut hash = Fnv1a::new();
     hash.u64(realization.contexts.len() as u64);
     for context in &realization.contexts {
@@ -724,7 +738,7 @@ fn fingerprint_realization(realization: &EntryStackRealization) -> u64 {
                 EntryStackStage::Body => 2,
                 EntryStackStage::Exit => 3,
             });
-            fingerprint_domain(&mut hash, epoch.active_domain);
+            report_fingerprint_domain(&mut hash, epoch.active_domain);
             match epoch.nesting {
                 Preemption::NotApplicable => hash.u64(0),
                 Preemption::Masked => hash.u64(1),
@@ -736,7 +750,7 @@ fn fingerprint_realization(realization: &EntryStackRealization) -> u64 {
             }
             hash.u64(epoch.occupancy_by_domain.len() as u64);
             for occupancy in &epoch.occupancy_by_domain {
-                fingerprint_domain(&mut hash, occupancy.domain);
+                report_fingerprint_domain(&mut hash, occupancy.domain);
                 hash.u64(occupancy.bytes);
                 hash.u64(occupancy.alignment);
             }
@@ -745,7 +759,7 @@ fn fingerprint_realization(realization: &EntryStackRealization) -> u64 {
     hash.finish()
 }
 
-fn fingerprint_domain(hash: &mut Fnv1a, domain: StackDomainRef) {
+fn report_fingerprint_domain(hash: &mut Fnv1a, domain: StackDomainRef) {
     match domain {
         StackDomainRef::Interrupted => hash.u64(0),
         StackDomainRef::Dedicated { class } => {
@@ -764,8 +778,12 @@ impl Fnv1a {
     }
 
     fn u64(&mut self, value: u64) {
-        for byte in value.to_le_bytes() {
-            self.0 ^= u64::from(byte);
+        self.bytes(&value.to_le_bytes());
+    }
+
+    fn bytes(&mut self, bytes: &[u8]) {
+        for byte in bytes {
+            self.0 ^= u64::from(*byte);
             self.0 = self.0.wrapping_mul(0x100000001b3);
         }
     }
@@ -786,7 +804,8 @@ mod tests {
             installed_code: 0x30,
             entry: 0x31,
             entry_offset: 0,
-            boundary_plan: 0x40,
+            boundary_plan_report_fingerprint: 0x40,
+            boundary_plan_commitment: [0x40; 32],
         }
     }
 
@@ -861,7 +880,7 @@ mod tests {
         .expect("second realization");
 
         assert_eq!(first, second);
-        assert_eq!(first.fingerprint(), second.fingerprint());
+        assert_eq!(first.report_fingerprint(), second.report_fingerprint());
     }
 
     #[test]
@@ -1114,7 +1133,7 @@ mod tests {
         .expect("same mixed contexts in canonical order");
 
         assert_eq!(first, second);
-        assert_eq!(first.fingerprint(), second.fingerprint());
+        assert_eq!(first.report_fingerprint(), second.report_fingerprint());
         let derived = derive_x86_64_hardware_arrival(&first).expect("mixed derivation");
         assert_eq!(derived.realization().realization().contexts.len(), 2);
         assert_eq!(
@@ -1156,6 +1175,8 @@ mod tests {
         );
         let mut absent_identity = x86_facts(32, EntryStack::Interrupted, vec![current]);
         absent_identity.identity.artifact = 0;
+        let mut absent_boundary_commitment = x86_facts(32, EntryStack::Interrupted, vec![current]);
+        absent_boundary_commitment.identity.boundary_plan_commitment = [0; 32];
         let duplicate = x86_facts(32, EntryStack::Interrupted, vec![current, current]);
         let reserved_external = x86_facts(
             14,
@@ -1232,6 +1253,7 @@ mod tests {
 
         for (facts, expected) in [
             (absent_identity, "absent exact identity"),
+            (absent_boundary_commitment, "absent exact identity"),
             (duplicate, "repeats an arrival-context identity"),
             (reserved_external, "classifies reserved vector"),
             (bad_privilege, "outside 0..=3"),
@@ -1268,7 +1290,7 @@ mod tests {
         let changed = validate_x86_64_installed_hardware_entry_facts(changed)
             .expect("changed exact gate facts");
         let changed = derive_x86_64_hardware_arrival(&changed).expect("changed derivation");
-        assert_ne!(baseline.fingerprint(), changed.fingerprint());
+        assert_ne!(baseline.report_fingerprint(), changed.report_fingerprint());
 
         let mut tampered = installed;
         tampered.facts.vector = 33;

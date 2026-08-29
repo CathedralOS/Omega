@@ -671,7 +671,7 @@ pub(super) fn attach_checked_crash_calls(
                             contracts: program.state_signature_contracts(signature),
                         }
                     },
-                    capsule.target_contract_fingerprint(),
+                    capsule.target_contract_report_fingerprint(),
                     capsule.target_contract_commitment(),
                 )
             };

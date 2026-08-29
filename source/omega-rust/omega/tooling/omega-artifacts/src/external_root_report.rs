@@ -173,9 +173,12 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
     }
     output.push(']');
     output.push_str(", \"composition_fingerprint\": ");
-    push_hex_identity(output, record.stack.realization.fingerprint());
+    push_hex_identity(output, record.stack.realization.report_fingerprint());
     output.push_str(", \"artifact_composition_fingerprint\": ");
-    push_hex_identity(output, record.stack.realization.composition().fingerprint());
+    push_hex_identity(
+        output,
+        record.stack.realization.composition().report_fingerprint(),
+    );
     output.push_str(", \"contributing_roots\": [");
     push_identity_set(
         output,
@@ -282,7 +285,10 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
         output.push_str(", \"entry_stub\": ");
         push_hex_identity(output, entry_evidence.entry().normalized_identity());
         output.push_str(", \"entry_boundary_contract\": ");
-        push_hex_identity(output, entry_evidence.boundary_contract_fingerprint());
+        push_hex_identity(
+            output,
+            entry_evidence.boundary_contract_report_fingerprint(),
+        );
         output.push_str(", \"body_domains\": [");
         for (domain_index, (context, domain)) in entry_evidence.body_domains().iter().enumerate() {
             if domain_index > 0 {
@@ -296,9 +302,9 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
         }
         output.push(']');
         output.push_str(", \"entry_realization_fingerprint\": ");
-        push_hex_identity(output, entry_evidence.realization().fingerprint());
+        push_hex_identity(output, entry_evidence.realization().report_fingerprint());
         output.push_str(", \"target_arrival_rule_fingerprint\": ");
-        if let Some(fingerprint) = entry_evidence.target_rule_fingerprint() {
+        if let Some(fingerprint) = entry_evidence.target_rule_report_fingerprint() {
             push_hex_identity(output, fingerprint);
         } else {
             output.push_str("null");

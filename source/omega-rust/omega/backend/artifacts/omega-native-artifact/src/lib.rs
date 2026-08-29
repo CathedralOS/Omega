@@ -615,11 +615,11 @@ mod tests {
         object_text: &'a [u8],
         image_bytes: &'a [u8],
         file_name: &'a str,
-        callback_fingerprint: u64,
+        callback_report_fingerprint: u64,
         inventory_marker: u8,
         provider_closure_marker: u8,
         requirement: &'a str,
-        execution_fingerprint: u64,
+        execution_report_fingerprint: u64,
         with_validation_evidence: bool,
     }
 
@@ -631,11 +631,11 @@ mod tests {
                 object_text: b"object text",
                 image_bytes: b"executable image",
                 file_name: "omega-program",
-                callback_fingerprint: 29,
+                callback_report_fingerprint: 29,
                 inventory_marker: 2,
                 provider_closure_marker: 3,
                 requirement: "core::Console::write",
-                execution_fingerprint: 41,
+                execution_report_fingerprint: 41,
                 with_validation_evidence: true,
             }
         }
@@ -650,7 +650,7 @@ mod tests {
             requirement_identity: fixture.requirement.to_owned(),
             provider_plan_report_identity: 7,
             provider_execution_report_identity: 11,
-            provider_execution_report_fingerprint: fixture.execution_fingerprint,
+            provider_execution_report_fingerprint: fixture.execution_report_fingerprint,
             normalized_root_report_identity: 17,
             boundary_contract_report_fingerprint: 19,
         }];
@@ -665,7 +665,7 @@ mod tests {
             output_file_name: fixture.file_name,
             output_format: "elf",
             output_counts: [13, 17, 19, 23, 29, 31, 37, 41],
-            callback_placement_identity_report_fingerprint: fixture.callback_fingerprint,
+            callback_placement_identity_report_fingerprint: fixture.callback_report_fingerprint,
             final_image_symbol_digest: [47; 32],
             executable_region_inventory_digest: [fixture.inventory_marker; 32],
             executable_region_inventory_report_fingerprint: 53,
@@ -745,7 +745,7 @@ mod tests {
         let baseline = fixture_identity(IdentityFixture::default());
         for mutation in [
             fixture_identity(IdentityFixture {
-                callback_fingerprint: 31,
+                callback_report_fingerprint: 31,
                 ..IdentityFixture::default()
             }),
             fixture_identity(IdentityFixture {
@@ -761,7 +761,7 @@ mod tests {
                 ..IdentityFixture::default()
             }),
             fixture_identity(IdentityFixture {
-                execution_fingerprint: 43,
+                execution_report_fingerprint: 43,
                 ..IdentityFixture::default()
             }),
             fixture_identity(IdentityFixture {

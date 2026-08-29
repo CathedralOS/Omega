@@ -54,7 +54,7 @@ use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 struct TestProviderExecution {
     plan: u64,
     execution: u64,
-    fingerprint: u64,
+    report_fingerprint: u64,
     root: u64,
     boundary: u64,
 }
@@ -73,7 +73,7 @@ impl ProviderExecutionEvidence for TestProviderExecution {
     }
 
     fn provider_execution_fingerprint(&self) -> u64 {
-        self.fingerprint
+        self.report_fingerprint
     }
 
     fn normalized_root_identity(&self) -> u64 {
@@ -181,7 +181,7 @@ fn runnable_fixture_at(seed: u64, placement_base: u64) -> RunnableFixture {
     let provider_execution = TestProviderExecution {
         plan: provider_plan,
         execution: seed + 1,
-        fingerprint: seed + 2,
+        report_fingerprint: seed + 2,
         root: seed + 3,
         boundary: seed + 4,
     };
@@ -271,7 +271,7 @@ fn terminal_image(
     let provider = ProviderExecutionBinding::from_execution_record(
         ProviderPlanReportIdentity::new(execution.plan).expect("provider plan"),
         execution.execution,
-        execution.fingerprint,
+        execution.report_fingerprint,
         execution.root,
         execution.boundary,
     )

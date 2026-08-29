@@ -422,8 +422,10 @@ machine UartAccess::plan(
 }
 ```
 
-The field key is compile-time identity only. The evaluated plan has exactly one
-decision per runtime-relevant reflected schema field. An `[erased]` binding
+The field key is compile-time identity only and carries the strong commitment
+to the exact canonical layout that issued it; its compact layout coordinate is
+report-only. The evaluated plan has exactly one decision per runtime-relevant
+reflected schema field. An `[erased]` binding
 remains in semantic/type identity but has no physical field key or access
 decision. Starting from the inaccessible plan makes zero and omission deny
 access. A fixed-capacity bootstrap representation may back this model until

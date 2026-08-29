@@ -31,6 +31,11 @@ fn compact_fnv_plan_inventory_is_explicitly_non_authoritative() {
         source.contains("omega.placement-plan.authoritative.v1\\0") && source.contains("Sha256"),
         "provider-content interpretation must retain a domain-separated strong commitment"
     );
+    assert!(
+        source.contains("omega.access-field-layout.authoritative.v1\\0")
+            && include_str!("lib.rs").contains("layout_commitment: AccessLayoutCommitment"),
+        "access field keys must retain a domain-separated exact-layout commitment"
+    );
 }
 
 #[test]
@@ -307,10 +312,10 @@ fn access_validation_replays_retained_layout_structure_not_only_fingerprint() {
         align: 8,
     };
     let mut plan = AccessPlan::inaccessible(&layout).expect("canonical access seed");
-    let compact_identity = plan.layout_fingerprint;
+    let compact_identity = plan.layout_report_fingerprint;
     plan.retained_layout.entries[0].placement = LayoutPlacementReport::At { offset: 4 };
     assert_eq!(
-        plan.layout_fingerprint, compact_identity,
+        plan.layout_report_fingerprint, compact_identity,
         "the simulated carrier drift deliberately leaves its compact identity unchanged"
     );
 
@@ -1165,7 +1170,16 @@ fn field_keys_reject_cross_layout_and_out_of_cardinality_use() {
     let mut plan = AccessPlan::inaccessible(&layout).expect("UART seed");
     let mut alternate_layout = layout.clone();
     alternate_layout.schema_identity = 2;
-    let alternate = AccessPlan::inaccessible(&alternate_layout).expect("alternate schema seed");
+    let mut alternate = AccessPlan::inaccessible(&alternate_layout).expect("alternate schema seed");
+    alternate.layout_report_fingerprint = plan.layout_report_fingerprint;
+    for entry in &mut alternate.entries {
+        entry.key.layout_report_fingerprint = plan.layout_report_fingerprint;
+    }
+    assert_eq!(
+        plan.layout_report_fingerprint, alternate.layout_report_fingerprint,
+        "the adversarial key substitution holds the compact report coordinate equal"
+    );
+    assert_ne!(plan.layout_commitment, alternate.layout_commitment);
     let error = plan
         .set(
             alternate.key_at(0).expect("alternate key"),
@@ -1182,7 +1196,8 @@ fn field_keys_reject_cross_layout_and_out_of_cardinality_use() {
     let error = plan
         .set(
             AccessFieldKey {
-                layout_fingerprint: plan.layout_fingerprint(),
+                layout_report_fingerprint: plan.layout_report_fingerprint(),
+                layout_commitment: plan.layout_commitment,
                 slot: u32::MAX,
             },
             FieldAccess::Stable {
@@ -5378,7 +5393,7 @@ fn access_keys_and_placement_identity_bind_exact_layout_geometry() {
     let error = validate_access_plan(plan.access().plan().clone(), &alternate_layout)
         .expect_err("plan keys bind their exact layout");
     assert!(error.0.contains("different validated layout"));
-    let alternate = validate_placement_plan(PlacementPlan {
+    let mut alternate = validate_placement_plan(PlacementPlan {
         access: uart_access_source(&alternate_layout),
         layout: alternate_layout,
         reach: uart_reach(),
@@ -5387,9 +5402,51 @@ fn access_keys_and_placement_identity_bind_exact_layout_geometry() {
     assert_ne!(plan.access().identity(), alternate.access().identity());
     assert_ne!(plan.identity(), alternate.identity());
     assert_ne!(
-        plan.access().layout_fingerprint(),
-        alternate.access().layout_fingerprint(),
+        plan.access().layout_report_fingerprint(),
+        alternate.access().layout_report_fingerprint(),
         "layout geometry is part of access-policy identity"
+    );
+
+    alternate.access.layout_report_fingerprint = plan.access.layout_report_fingerprint;
+    alternate.access.plan.layout_report_fingerprint = plan.access.layout_report_fingerprint;
+    for entry in &mut alternate.access.plan.entries {
+        entry.key.layout_report_fingerprint = plan.access.layout_report_fingerprint;
+    }
+    for descriptor in &mut alternate.access.fields {
+        descriptor.key.layout_report_fingerprint = plan.access.layout_report_fingerprint;
+    }
+    let substituted_key = field_key(alternate.access(), "status");
+    assert_eq!(
+        substituted_key.layout_report_fingerprint,
+        field_key(plan.access(), "status").layout_report_fingerprint,
+        "the adversarial substitution holds the compact key coordinate equal"
+    );
+    assert_ne!(
+        substituted_key.layout_commitment,
+        field_key(plan.access(), "status").layout_commitment,
+        "the exact layout commitment must still distinguish the keys"
+    );
+    assert!(plan.access().field(substituted_key).is_none());
+    assert!(plan.access().field_descriptor(substituted_key).is_none());
+    assert!(
+        plan.access()
+            .authorize(
+                substituted_key,
+                BorrowPolarity::Shared,
+                BorrowPolarity::Shared,
+                AccessOperation::Read,
+            )
+            .is_err(),
+        "compact-equal key substitution must not authorize an exact foreign layout"
+    );
+
+    let extent = uart_extent(0x1000, 12);
+    let loan = extent.loan(0, 12).expect("shared UART loan");
+    let admission = admit_uart(108, loan, &plan, &uart_reach()).expect("admitted UART view");
+    let view = place(admission).expect("placed UART view");
+    assert!(
+        view.project(substituted_key).is_err(),
+        "placed projection must reject a compact-equal foreign layout key"
     );
 }
 
