@@ -202,6 +202,9 @@ and no-selection compatibility remain enforced.
 - [x] Split independent redundant-parameter validation into witness replay,
   closed-region observation normalization, outside-region comparison, and
   exhaustive operation rewriting below one custody-and-analysis entrance.
+- [x] Split per-function unit validation into CFG, entry/parameter, result,
+  structural-root, fact-index, and provenance/fuel/effect leaves below one
+  ordered acceptance entrance.
 - [>] Replace remaining flat executable stages and mixed-responsibility files
   with semantic folders whose small `mod.rs` owns the real stage join. Tighten
   the production-file ceiling as each named legacy leaf is removed.
