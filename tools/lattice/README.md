@@ -10,13 +10,18 @@ on failure.
 sh tools/lattice/verify-lattice.sh
 ```
 
-The runner contains only the presently closed producer spine: Alpha seed
-acceptance (which already includes assembler reproduction), construction of
-the below-Beta checker, non-mutating Alpha-rooted reconstruction of `beta_compiler_bytecode.tape`,
+The runner contains only the presently closed producer spine: selected Alpha
+seed behavior plus exact assembler construction, construction of the
+below-Beta checker, non-mutating Alpha-rooted reconstruction of `beta_compiler_bytecode.tape`,
 and the one canonical `bc` admission. The standalone assembler self-host,
 artifact-framing gate, Gamma program suites, path-policy test, source-closure
 test, and Delta publication fixtures remain directly runnable diagnostics or
 subchecks; repeating them as top-level rows would not add a compiler edge.
+
+Native Alpha source/container reproduction remains available through
+`source/alpha/verify.sh` without `--edge`. It is a supply-chain diagnostic and
+irreducible seed-admission aid, not a semantic premise repeated by the direct
+compiler-edge runner.
 
 As later artifacts become available, this runner should invoke their actual
 producer/admission commands. It must not substitute a verifier's fixture suite

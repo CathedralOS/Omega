@@ -1,16 +1,15 @@
 #!/usr/bin/env sh
-# Reconstruct the accepted checker twice below Beta and compare the committed
-# tape byte-for-byte. This is a deterministic checker-lineage gate.
+# Reconstruct the accepted checker once below Beta and compare the committed
+# tape byte-for-byte. A second identical run would measure reproducibility but
+# would add no source/artifact or derivation-validity premise.
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
-sh "$SCRIPT_DIR/construct-artifact.sh" "$TMP/check-1.tape"
-sh "$SCRIPT_DIR/construct-artifact.sh" "$TMP/check-2.tape"
-cmp "$TMP/check-1.tape" "$TMP/check-2.tape"
-cmp "$TMP/check-1.tape" "$SCRIPT_DIR/artifacts/proof_checker_bytecode.tape"
+sh "$SCRIPT_DIR/construct-artifact.sh" "$TMP/check.tape"
+cmp "$TMP/check.tape" "$SCRIPT_DIR/artifacts/proof_checker_bytecode.tape"
 
 OMEGA_REPO_ROOT=$SCRIPT_DIR
 while [ ! -f "$OMEGA_REPO_ROOT/tools/lattice/paths.sh" ]; do

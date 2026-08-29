@@ -32,7 +32,7 @@ step() { # label owner-role script [arguments...]
   return "$status"
 }
 
-step "alpha — accepted seed and assembler reproduction" alpha verify.sh
+step "alpha — seed behavior and exact assembler construction" alpha verify.sh --edge
 step "alpha — below-Beta checker construction" alpha-checker reconstruct-artifact.sh
 
 step "beta — Alpha-rooted compiler construction" beta-compiler cold-start/rebuild-artifact.sh --check

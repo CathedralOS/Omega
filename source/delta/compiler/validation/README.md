@@ -7,7 +7,10 @@ rung or a generic assurance layer.
 - `DELTA_SOURCE_CLOSURE_SNAPSHOT_V1.md` defines the exact compiler-source
   closure recorded under `source-closures/`.
 - `DELTA_LOWER_ROOTED_ASSEMBLY_PUBLICATION_V1.md` defines repeated lower-rung
-  execution and deterministic assembly publication.
+  execution and deterministic assembly publication. That two-execution schema
+  is now historical diagnostic compatibility only: it may verify old fixtures
+  but cannot gate the replacement attempt. The replacement join must retain
+  one canonical execution and no required heartbeat/process ceremony.
 - `lower_rooted_assembly_publication_v1_driver.py` prepares the attempt and
   keeps marker custody around four generated scripts. Those scripts expose the
   translator, packing transport, and interpreter commands literally; the

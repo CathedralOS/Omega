@@ -14,9 +14,10 @@ audited Alpha seed + Alpha-written assembler
   -> `proof_checker_bytecode.tape`
 ```
 
-`../reconstruct-artifact.sh` performs that construction twice, compares both
-results byte-for-byte with the committed artifact, stamps it into the audited
-host seed, and exercises discriminating accept/reject controls. The normal
+`../reconstruct-artifact.sh` performs that construction once, compares the
+result byte-for-byte with the committed artifact, stamps it into the audited
+host seed, and exercises discriminating accept/reject controls. Repeating the
+construction is an optional reproducibility diagnostic. The normal
 checker and compiler-refinement gates consume this artifact through
 `../artifact_env.sh`. Compiling the same source with the accepted `beta_compiler_bytecode.tape` is
 useful differential evidence only; it is not this artifact's authority.

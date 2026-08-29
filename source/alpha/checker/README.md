@@ -145,8 +145,10 @@ hand-audited alpha seed
   which validates a certificate -> accept / reject
 ```
 
-`reconstruct-artifact.sh` rebuilds that tape twice and compares it byte-for-byte
-with the committed artifact. The accepted `beta_compiler_bytecode.tape` may separately compile the
+`reconstruct-artifact.sh` builds that tape once below Beta and compares it
+byte-for-byte with the committed artifact before running accept/reject controls.
+A second identical construction is reproducibility evidence, not another
+checker-lineage premise. The accepted `beta_compiler_bytecode.tape` may separately compile the
 same checker source as differential evidence, but that product cannot admit the
 compiler that produced it.
 

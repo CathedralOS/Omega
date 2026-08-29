@@ -14,6 +14,28 @@ the chain ledger changes those paths only when the atomic migration lands.
 Path-only moves preserve content identities but invalidate attempts that pinned
 the moved locator or tooling files.
 
+## Required obligations versus diagnostics
+
+Every mandatory subject in the direct chain has one semantic or exact-edge
+obligation. Repetition and producer pedigree may diagnose drift, but are not
+additional premises:
+
+| Subject or edge | Mandatory obligation | Diagnostic only |
+| --- | --- | --- |
+| selected Alpha seed | realize the written Alpha machine model under the disclosed native/host admissions | rebuilding the native container from its assembly source |
+| Alpha assembler | exact `assembler.alpha` produces the exact tape installed in the selected assembler artifact | another identical construction run |
+| derivation checker | one below-Beta construction equals the committed checker tape; the resulting checker accepts/rejects discriminating controls | a second identical construction or alternate-checker agreement |
+| Beta compiler | one Alpha-rooted cold construction equals the exact `bc` tape; the rooted refinement derivation must prove the selected observation profile | Beta fixed-point replay, fuzzing, viewers, or reports |
+| Gamma programs | exact Beta sources produce the exact evaluator/type-checker tapes used by the Delta meaning route | rebuilding either tape again or running another type checker at the Delta edge |
+| Delta compiler | one exact Delta elaboration/evaluation observation plus checked Delta-to-Gamma refinement; one checked target realization binds the exact native artifact | a second agreeing Gamma execution, process heartbeats, elapsed-time records, or an installation inventory |
+| `delta + C -> omega0` | exact resolved `C`, product inputs, output, and full-Omega refinement/obligation evidence | another identical compile or Rust-compiler agreement |
+| `omega0 + C -> omega` | the unchanged exact `C`, second output, and independently checked self-build edge | further self-build generations or byte reproducibility alone |
+
+Receipts are canonical caches of these joins, not authority merely because a
+file exists. The next Delta publication format must accept one canonical
+execution; the historical V1 two-execution format is not eligible to gate the
+replacement attempt until simplified.
+
 ## Alpha execution floor
 
 Committed native seeds:
@@ -25,8 +47,10 @@ Committed native seeds:
 
 The accepted input is one length-prefixed Alpha tape; the output is the exact
 byte stream, process status, trap, or divergence defined by
-`source/alpha/SEMANTICS.md`. `source/alpha/verify.sh` binds provenance,
-conformance, and assembler reproduction. Remaining admissions are the human
+`source/alpha/SEMANTICS.md`. `source/alpha/verify.sh` runs the optional
+native-source provenance diagnostic, conformance, and exact assembler
+construction. The direct lattice uses its `--edge` mode and omits the
+provenance rebuild. Remaining admissions are the human
 binary/listing audit and the physical hardware, firmware, kernel, loader, and
 ISA realization of the written machine model.
 
@@ -91,8 +115,8 @@ The accepted output is `source/alpha/checker/artifacts/proof_checker_bytecode.ta
 bytes, SHA-256
 `34330f0bf94385fdc403fa989ff113d5c579c8cf8318e1c6c3a86bc080ebd37c`.
 The Alpha-written cold Beta compiler constructs it without `beta_compiler_bytecode.tape`, and
-`source/alpha/checker/reconstruct-artifact.sh` reproduces it twice and compares
-the committed bytes before discriminating accept/reject controls. A checker
+`source/alpha/checker/reconstruct-artifact.sh` constructs it once below Beta,
+compares the committed bytes, and runs discriminating accept/reject controls. A checker
 compiled by `beta_compiler_bytecode.tape`, plus the Gamma and Python checkers, is differential
 evidence only and cannot admit `beta_compiler_bytecode.tape`.
 
