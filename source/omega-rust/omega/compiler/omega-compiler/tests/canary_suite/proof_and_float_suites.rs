@@ -1427,7 +1427,7 @@ fn build_runtime_float_semantics_twins_agree() {
             continue;
         };
         selected_intrinsics.insert(name.clone());
-        selected_plan_identities.push(plan.identity_fingerprint());
+        selected_plan_identities.push(plan.report_fingerprint());
     }
     selected_plan_identities.sort_unstable();
     selected_plan_identities.dedup();
@@ -1601,7 +1601,7 @@ fn linux_arm64_float_semantic_edge_twin_retains_artifact_evidence() {
             continue;
         };
         selected_intrinsics.insert(machine.clone());
-        selected_plan_identities.push(plan.identity_fingerprint());
+        selected_plan_identities.push(plan.report_fingerprint());
     }
     selected_plan_identities.sort_unstable();
     selected_plan_identities.dedup();
@@ -1792,7 +1792,7 @@ fn linux_x64_baseline_float_semantic_edge_twin_retains_artifact_evidence() {
             continue;
         };
         selected_intrinsics.insert(machine.clone());
-        selected_plan_identities.push(plan.identity_fingerprint());
+        selected_plan_identities.push(plan.report_fingerprint());
     }
     selected_plan_identities.sort_unstable();
     selected_plan_identities.dedup();
@@ -1976,7 +1976,7 @@ fn windows_x64_baseline_float_semantic_edge_twin_retains_artifact_evidence() {
             continue;
         };
         selected_intrinsics.insert(machine.clone());
-        selected_plan_identities.push(plan.identity_fingerprint());
+        selected_plan_identities.push(plan.report_fingerprint());
     }
     selected_plan_identities.sort_unstable();
     selected_plan_identities.dedup();

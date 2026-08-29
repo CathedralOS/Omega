@@ -36,7 +36,7 @@ impl ResolvedSelectedProviderGrant {
     /// identity remains a report coordinate; exact structural equality and
     /// the domain-separated digest retain admission authority.
     pub fn replays_selected_plan(&self, plan: &ProviderPlan) -> bool {
-        self.selected_plan_report_identity == plan.identity_fingerprint()
+        self.selected_plan_report_identity == plan.report_fingerprint()
             && self.selected_plan_digest == plan.identity_digest()
             && self.selected_plan == *plan
     }
@@ -134,7 +134,7 @@ pub fn resolve_selected_provider_grants(
             selector_kind,
             selected_plan: plan.clone(),
             selected_plan_digest: plan.identity_digest(),
-            selected_plan_report_identity: plan.identity_fingerprint(),
+            selected_plan_report_identity: plan.report_fingerprint(),
         });
     }
     Ok(resolved)
@@ -156,10 +156,7 @@ mod tests {
         let mut substituted = plan.clone();
         substituted.schema.methods[0].requirement_owner = "OtherPair".to_owned();
 
-        assert_eq!(
-            plan.identity_fingerprint(),
-            substituted.identity_fingerprint()
-        );
+        assert_eq!(plan.report_fingerprint(), substituted.report_fingerprint());
         assert_ne!(plan.identity_digest(), substituted.identity_digest());
         assert!(!selected_subjects_coincide(&plan, &substituted));
     }

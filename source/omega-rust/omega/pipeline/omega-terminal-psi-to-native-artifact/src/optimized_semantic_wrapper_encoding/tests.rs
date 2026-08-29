@@ -73,7 +73,7 @@ fn wrapper() -> OptimizedProgramStorageSemanticWrapperPlan {
                 parameter_count: 2,
                 parameter_type_identities: vec!["ImageExtent".into(), "StorageExtent".into()],
                 entry_claims: vec![claim(0), claim(1)],
-                calling_plan_report_fingerprint: Some(semantic.contract_fingerprint()),
+                calling_plan_report_fingerprint: Some(semantic.contract_report_fingerprint()),
                 calling_plan_commitment: Some(
                     omega_effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(
                         semantic.contract_commitment_digest(),
@@ -108,7 +108,7 @@ fn wrapper() -> OptimizedProgramStorageSemanticWrapperPlan {
                 1,
                 vec!["EfiImageHandle".into(), "&EfiSystemTable".into()],
                 "EfiStatus".into(),
-                physical.contract_fingerprint(),
+                physical.contract_report_fingerprint(),
                 physical.plan().clone(),
             )
             .unwrap(),

@@ -700,7 +700,7 @@ impl ProgressClosedComponentDeployment {
             .selected_provider_plans
             .plans()
             .iter()
-            .map(omega_effects::provider_plan::ProviderPlan::identity_fingerprint)
+            .map(omega_effects::provider_plan::ProviderPlan::report_fingerprint)
             .collect::<Vec<_>>();
         let record = match build_installation_record_with_selected_provider_plans_and_evidence(
             candidate.native_artifact.image(),

@@ -156,7 +156,7 @@ fn runnable_fixture_at(seed: u64, placement_base: u64) -> RunnableFixture {
         origin_package_identity: None,
         origin_package: "omega::test".into(),
     };
-    let provider_plan = provider.identity_fingerprint();
+    let provider_plan = provider.report_fingerprint();
     let selected =
         SelectedProviderPlanFacts::from_selection(&[provider], &["scheduler-plan".into()])
             .expect("selected provider plan");

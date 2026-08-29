@@ -320,7 +320,7 @@ mod tests {
             satisfaction_trait: symbol(1),
             satisfaction_requirement: symbol(2),
             canonical_requirement_overload: "Handler::call".to_owned(),
-            boundary_calling_plan_report_fingerprint: validated.contract_fingerprint(),
+            boundary_calling_plan_report_fingerprint: validated.contract_report_fingerprint(),
             resource_receipt: resource_receipt(selected_machine, selected_entry),
             boundary_entry_plan: validated.plan().clone(),
             private_materialization: None,

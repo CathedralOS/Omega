@@ -100,7 +100,7 @@ impl AdmittedOpaqueArrivalContextSet {
         self.root == summary.root
             && self.provider == summary.provider
             && self.matches_installed_code_entry(installed_code, entry)
-            && self.boundary_contract_report_fingerprint == boundary.contract_fingerprint()
+            && self.boundary_contract_report_fingerprint == boundary.contract_report_fingerprint()
             && self.boundary_contract_commitment != [0; 32]
             && self.boundary_contract_commitment == boundary.contract_commitment_digest()
     }
@@ -152,7 +152,7 @@ pub fn admit_opaque_arrival_context_set(
         installed_code_context: installed_code.receipt_context(),
         artifact: installed_code.artifact(),
         entry,
-        boundary_contract_report_fingerprint: boundary.contract_fingerprint(),
+        boundary_contract_report_fingerprint: boundary.contract_report_fingerprint(),
         boundary_contract_commitment: boundary.contract_commitment_digest(),
         contexts,
         validation_receipt,
@@ -353,7 +353,7 @@ pub fn bind_opaque_adapter_stack_realization(
         installed_code_context: installed_code.receipt_context(),
         artifact: installed_code.artifact(),
         entry,
-        boundary_contract_report_fingerprint: boundary.contract_fingerprint(),
+        boundary_contract_report_fingerprint: boundary.contract_report_fingerprint(),
         boundary_contract_commitment: boundary.contract_commitment_digest(),
         body_domains,
         realization: realization.clone(),
@@ -449,7 +449,7 @@ pub fn bind_direct_generated_entry_stack_realization(
             installed_code_context: installed_code.receipt_context(),
             artifact: installed_code.artifact(),
             entry,
-            boundary_contract_report_fingerprint: boundary.contract_fingerprint(),
+            boundary_contract_report_fingerprint: boundary.contract_report_fingerprint(),
             boundary_contract_commitment: boundary.contract_commitment_digest(),
             body_domains,
             realization,
@@ -494,7 +494,7 @@ pub fn bind_x86_64_target_direct_entry_stack_realization(
     if identity.artifact != installed_code.artifact().normalized_identity()
         || identity.installed_code != installed_code.identity().normalized_identity()
         || identity.entry != entry.normalized_identity()
-        || identity.boundary_plan_report_fingerprint != boundary.contract_fingerprint()
+        || identity.boundary_plan_report_fingerprint != boundary.contract_report_fingerprint()
         || identity.boundary_plan_commitment == [0; 32]
         || identity.boundary_plan_commitment != boundary.contract_commitment_digest()
         || !installed_code.binds_entry_offset(entry, identity.entry_offset)
@@ -531,7 +531,7 @@ pub fn bind_x86_64_target_direct_entry_stack_realization(
             installed_code_context: installed_code.receipt_context(),
             artifact: installed_code.artifact(),
             entry,
-            boundary_contract_report_fingerprint: boundary.contract_fingerprint(),
+            boundary_contract_report_fingerprint: boundary.contract_report_fingerprint(),
             boundary_contract_commitment: boundary.contract_commitment_digest(),
             body_domains,
             realization,

@@ -964,7 +964,7 @@ fn external_root_manifest_is_complete_normalized_and_address_free() {
         selected_provider_closure_digest: omega_effects::SelectedProviderPlanFacts::default()
             .identity_digest(),
         installation_reach_resolutions: Vec::new(),
-        boundary_contract_report_fingerprint: boundary.contract_fingerprint(),
+        boundary_contract_report_fingerprint: boundary.contract_report_fingerprint(),
         boundary: boundary.plan().clone(),
         provider: root_id(8, RootProviderId::from_normalized_identity),
         effects: BTreeSet::from([root_id(9, RootEffectId::from_normalized_identity)]),

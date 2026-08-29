@@ -24,7 +24,7 @@ pub(crate) fn assemble_native_artifact(
         .iter()
         .map(|plan| {
             NativeSelectedProviderPlan::new(
-                plan.identity_fingerprint(),
+                plan.report_fingerprint(),
                 plan.rows
                     .iter()
                     .map(|row| row.requirement_identity.clone())

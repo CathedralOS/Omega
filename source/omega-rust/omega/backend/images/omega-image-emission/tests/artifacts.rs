@@ -2290,7 +2290,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "9d07a8e334ed3543a31da645f8886d9d004e72a3d5e61f60ff4dd47d83768517"
+        "96207244df81e09d2817045af12e5789594801783db3f9cda8c5aae4fd492031"
     );
 
     let mut changed_plan = plan;
@@ -3985,7 +3985,9 @@ fn native_fuel_policy(profile: TargetProfile) -> NativeFuelTargetPlanProjection 
             activation_state_offset: 80,
             activation_state_byte_count: 176,
         },
-        transfer_plan_identity: 10,
+        transfer_plan_report_identity: 10,
+        transfer_plan_commitment:
+            omega_installation_evidence::NativeFuelTransferPlanCommitment::from_bytes([10; 32]),
     }
 }
 

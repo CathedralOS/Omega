@@ -138,7 +138,7 @@ fn float_provider_plan_identities_ignore_arena_and_display_perturbations() {
             .plans()
             .iter()
             .filter(|plan| plan.name.starts_with("FloatNativeProvider::satisfies::"))
-            .map(|plan| (plan.name.clone(), plan.identity_fingerprint()))
+            .map(|plan| (plan.name.clone(), plan.report_fingerprint()))
             .collect()
     }
 
@@ -159,8 +159,8 @@ fn float_provider_plan_identities_ignore_arena_and_display_perturbations() {
         let mut renamed_display = plan.clone();
         renamed_display.origin_package = "non-semantic display perturbation".to_owned();
         assert_eq!(
-            renamed_display.identity_fingerprint(),
-            plan.identity_fingerprint(),
+            renamed_display.report_fingerprint(),
+            plan.report_fingerprint(),
             "readable origin labels must not enter exact float plan identity"
         );
     }
@@ -545,7 +545,7 @@ fn primitive_float_arithmetic_and_comparisons_execute_in_both_engines() {
             panic!("primitive float plan must select a compiler intrinsic");
         };
         selected_intrinsics.insert(selected_intrinsic_diagnostic_label(&checked, plan));
-        selected_plan_identities.push(plan.identity_fingerprint());
+        selected_plan_identities.push(plan.report_fingerprint());
     }
     let expected_intrinsics = [
         "Float::add.f32",
@@ -695,7 +695,7 @@ fn named_float_format_conversion_requirements_execute_in_both_engines() {
                 .selected_provider_plans()
                 .plan_by_identity(operator_use.provider_plan_identity)
                 .expect("format conversion evidence must retain its selected plan")
-                .identity_fingerprint(),
+                .report_fingerprint(),
         );
         let psi_typed_trees::expression::ExpressionNode::Cast(cast) = checked
             .typed
@@ -860,10 +860,10 @@ fn named_integer_to_float_requirements_execute_in_both_engines() {
             };
             let name = selected_intrinsic_diagnostic_label(&checked, plan);
             name.contains("::from_i")
-                .then_some((plan.identity_fingerprint(), name.clone()))
+                .then_some((plan.report_fingerprint(), name.clone()))
                 .or_else(|| {
                     name.contains("::from_u")
-                        .then_some((plan.identity_fingerprint(), name.clone()))
+                        .then_some((plan.report_fingerprint(), name.clone()))
                 })
         })
         .collect::<Vec<_>>();
@@ -1036,7 +1036,7 @@ fn named_float_to_integer_requirements_execute_in_both_engines() {
                 .selected_provider_plans()
                 .plan_by_identity(operator_use.provider_plan_identity)
                 .expect("float-to-integer evidence must retain its selected plan")
-                .identity_fingerprint()
+                .report_fingerprint()
         })
         .collect::<Vec<_>>();
     selected_plan_identities.sort_unstable();
@@ -1271,7 +1271,7 @@ fn named_float_provider_calls_rewrite_to_selected_builtins() {
             }
         }
         selected_intrinsics.insert(name.clone());
-        selected_plan_identities.push(plan.identity_fingerprint());
+        selected_plan_identities.push(plan.report_fingerprint());
 
         let psi_typed_trees::expression::ExpressionNode::Call(call) = checked
             .typed
@@ -1485,7 +1485,7 @@ fn named_float_negate_and_is_nan_preserve_selected_roots_and_execute() {
         };
         let name = selected_intrinsic_diagnostic_label(&checked, plan);
         selected_intrinsics.insert(name.clone());
-        selected_plan_identities.push(plan.identity_fingerprint());
+        selected_plan_identities.push(plan.report_fingerprint());
 
         if name.contains("::negate.") {
             let psi_typed_trees::expression::ExpressionNode::Binary(binary) = checked
@@ -1653,7 +1653,7 @@ fn named_float_classification_predicates_select_and_execute() {
         };
         let name = selected_intrinsic_diagnostic_label(&checked, plan);
         selected_intrinsics.insert(name.clone());
-        selected_plan_identities.push(plan.identity_fingerprint());
+        selected_plan_identities.push(plan.report_fingerprint());
 
         let (expected_builtin, expected_target) = if name.contains("::is_finite.") {
             (
@@ -1841,7 +1841,7 @@ fn named_float_classify_preserves_enum_layout_and_executes() {
             continue;
         }
         selected_intrinsics.insert(name.clone());
-        selected_plan_identities.push(plan.identity_fingerprint());
+        selected_plan_identities.push(plan.report_fingerprint());
         let (expected_builtin, expected_target) = if name.starts_with("F32::") {
             (
                 psi_symbols::BuiltinFunction::FloatClassifyF32,
@@ -2009,7 +2009,7 @@ fn named_float_multiply_then_add_preserves_two_roundings_and_executes() {
         };
         let name = selected_intrinsic_diagnostic_label(&checked, plan);
         selected_intrinsics.insert(name.clone());
-        selected_plan_identities.push(plan.identity_fingerprint());
+        selected_plan_identities.push(plan.report_fingerprint());
 
         let psi_typed_trees::expression::ExpressionNode::Call(call) = checked
             .typed
@@ -2144,7 +2144,7 @@ fn named_float_fused_multiply_add_selects_aarch64_fmadd_and_executes() {
             continue;
         }
         selected_intrinsics.insert(name.clone());
-        selected_plan_identities.push(plan.identity_fingerprint());
+        selected_plan_identities.push(plan.report_fingerprint());
 
         let psi_typed_trees::expression::ExpressionNode::Call(call) = checked
             .typed
@@ -2275,7 +2275,7 @@ fn named_float_directed_fused_multiply_add_selects_aarch64_fmadd_and_executes() 
             continue;
         }
         selected_intrinsics.insert(name.clone());
-        selected_plan_identities.push(plan.identity_fingerprint());
+        selected_plan_identities.push(plan.report_fingerprint());
 
         let psi_typed_trees::expression::ExpressionNode::Call(call) = checked
             .typed
@@ -2518,7 +2518,7 @@ fn named_float_directed_add_selects_exact_plans_and_restores_control_state() {
             continue;
         }
         selected_intrinsics.insert(name.clone());
-        selected_plan_identities.push(plan.identity_fingerprint());
+        selected_plan_identities.push(plan.report_fingerprint());
         let psi_typed_trees::expression::ExpressionNode::Call(call) = checked
             .typed
             .expression_table
@@ -2660,7 +2660,7 @@ fn named_float_directed_subtract_selects_exact_plans_and_restores_control_state(
             continue;
         }
         selected_intrinsics.insert(name.clone());
-        selected_plan_identities.push(plan.identity_fingerprint());
+        selected_plan_identities.push(plan.report_fingerprint());
         let psi_typed_trees::expression::ExpressionNode::Call(call) = checked
             .typed
             .expression_table
@@ -2803,7 +2803,7 @@ fn named_float_directed_multiply_selects_exact_plans_and_restores_control_state(
             continue;
         }
         selected_intrinsics.insert(name.clone());
-        selected_plan_identities.push(plan.identity_fingerprint());
+        selected_plan_identities.push(plan.report_fingerprint());
         let psi_typed_trees::expression::ExpressionNode::Call(call) = checked
             .typed
             .expression_table
@@ -2946,7 +2946,7 @@ fn named_float_directed_divide_selects_exact_plans_and_restores_control_state() 
             continue;
         }
         selected_intrinsics.insert(name.clone());
-        selected_plan_identities.push(plan.identity_fingerprint());
+        selected_plan_identities.push(plan.report_fingerprint());
         let psi_typed_trees::expression::ExpressionNode::Call(call) = checked
             .typed
             .expression_table
@@ -3089,7 +3089,7 @@ fn named_float_directed_square_root_selects_exact_plans_and_restores_control_sta
             continue;
         }
         selected_intrinsics.insert(name.clone());
-        selected_plan_identities.push(plan.identity_fingerprint());
+        selected_plan_identities.push(plan.report_fingerprint());
         let psi_typed_trees::expression::ExpressionNode::Call(call) = checked
             .typed
             .expression_table
@@ -3394,7 +3394,7 @@ fn float_policy_adapters_retain_differential_results() {
             };
             let name = selected_intrinsic_diagnostic_label(&checked, plan);
             selected_evidence.insert(format!("{name}|{adapter}"));
-            selected_plan_identities.push(plan.identity_fingerprint());
+            selected_plan_identities.push(plan.report_fingerprint());
         }
 
         let outcome = interpret(&checked, &[]);

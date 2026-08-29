@@ -408,9 +408,9 @@ impl ValidatedBoundaryEntryPlan {
         &self.0
     }
 
-    /// Deterministic public contract identity. Validation is represented by
-    /// the receiver type and implementation evidence is absent by type.
-    pub fn contract_fingerprint(&self) -> u64 {
+    /// Deterministic compatibility/report coordinate for the canonical public
+    /// contract. Strong replay uses [`Self::contract_commitment_digest`].
+    pub fn contract_report_fingerprint(&self) -> u64 {
         let mut hash = Fnv1a::new();
         hash.call_plan(&self.0.call);
         hash.state_plan(&self.0.state);
@@ -941,7 +941,9 @@ fn validate_state_footprint_under_ceiling(
 }
 
 impl StateFootprintEvidence {
-    pub fn evidence_fingerprint(&self) -> u64 {
+    /// Non-authoritative report coordinate over the retained exact register
+    /// and machine-state evidence.
+    pub fn evidence_report_fingerprint(&self) -> u64 {
         let mut hash = Fnv1a::new();
         hash.u8(0xe1);
         hash.register_set(self.registers());
@@ -2993,7 +2995,7 @@ mod tests {
         let plan = strict_x86_entry();
         let validated =
             validate_boundary_entry_plan(plan, &integer_signature(1)).expect("entry plan");
-        let identity = validated.contract_fingerprint();
+        let identity = validated.contract_report_fingerprint();
         let evidence_a = StateFootprintEvidence::new(
             RegisterSet::new([MachineRegister::X86Rax]),
             MachineStateSet::new([MachineState::GeneralRegisters]),
@@ -3005,10 +3007,10 @@ mod tests {
         validate_state_footprint(&validated, &evidence_a).expect("first footprint");
         validate_state_footprint(&validated, &evidence_b).expect("second footprint");
         assert_ne!(
-            evidence_a.evidence_fingerprint(),
-            evidence_b.evidence_fingerprint()
+            evidence_a.evidence_report_fingerprint(),
+            evidence_b.evidence_report_fingerprint()
         );
-        assert_eq!(identity, validated.contract_fingerprint());
+        assert_eq!(identity, validated.contract_report_fingerprint());
     }
 
     #[test]
@@ -3042,7 +3044,10 @@ mod tests {
             first.machine_state(),
             MachineStateSet::new([MachineState::GeneralRegisters, MachineState::Flags])
         );
-        assert_eq!(first.evidence_fingerprint(), second.evidence_fingerprint());
+        assert_eq!(
+            first.evidence_report_fingerprint(),
+            second.evidence_report_fingerprint()
+        );
     }
 
     #[test]
@@ -3092,7 +3097,10 @@ mod tests {
             validate_boundary_entry_plan(first, &integer_signature(1)).expect("first entry plan");
         let second =
             validate_boundary_entry_plan(second, &integer_signature(1)).expect("second entry plan");
-        assert_ne!(first.contract_fingerprint(), second.contract_fingerprint());
+        assert_ne!(
+            first.contract_report_fingerprint(),
+            second.contract_report_fingerprint()
+        );
     }
 
     #[test]
@@ -3122,8 +3130,8 @@ mod tests {
             baseline.plan().call.parameters[0].locations
         );
         assert_eq!(
-            accepted.contract_fingerprint(),
-            baseline.contract_fingerprint()
+            accepted.contract_report_fingerprint(),
+            baseline.contract_report_fingerprint()
         );
     }
 

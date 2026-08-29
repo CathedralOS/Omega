@@ -71,10 +71,7 @@ impl SelectedProviderPlanFacts {
                         .trait_package_identity
                         .cmp(&right.schema.trait_package_identity)
                 })
-                .then_with(|| {
-                    left.identity_fingerprint()
-                        .cmp(&right.identity_fingerprint())
-                })
+                .then_with(|| left.report_fingerprint().cmp(&right.report_fingerprint()))
         });
 
         let mut identities = BTreeSet::new();
@@ -96,7 +93,7 @@ impl SelectedProviderPlanFacts {
                     errors.join("; ")
                 ));
             }
-            let identity = plan.identity_fingerprint();
+            let identity = plan.report_fingerprint();
             if identity == 0 {
                 return Err(format!(
                     "selected provider plan `{}` produced the reserved zero identity",
@@ -179,7 +176,7 @@ impl SelectedProviderPlanFacts {
     pub fn plan_by_identity(&self, identity: u64) -> Option<&ProviderPlan> {
         self.plans
             .iter()
-            .find(|plan| plan.identity_fingerprint() == identity)
+            .find(|plan| plan.report_fingerprint() == identity)
     }
 
     /// Rejoin a compact provider-plan report identity only when the caller
@@ -194,7 +191,7 @@ impl SelectedProviderPlanFacts {
         let mut matches = self
             .plans
             .iter()
-            .filter(|plan| plan.identity_fingerprint() == report_identity);
+            .filter(|plan| plan.report_fingerprint() == report_identity);
         let selected = matches.next()?;
         if matches.next().is_some() || selected != exact_plan {
             return None;
@@ -518,7 +515,7 @@ fn selected_plans_report_fingerprint(plans: &[ProviderPlan]) -> u64 {
     for byte in (plans.len() as u64).to_le_bytes().into_iter().chain(
         plans
             .iter()
-            .flat_map(|plan| plan.identity_fingerprint().to_le_bytes()),
+            .flat_map(|plan| plan.report_fingerprint().to_le_bytes()),
     ) {
         hash ^= u64::from(byte);
         hash = hash.wrapping_mul(0x100000001b3);
@@ -788,7 +785,7 @@ mod tests {
         );
         assert_eq!(
             first
-                .plan_by_identity(alpha.identity_fingerprint())
+                .plan_by_identity(alpha.report_fingerprint())
                 .map(|plan| plan.name.as_str()),
             Some("Alpha")
         );
@@ -802,7 +799,7 @@ mod tests {
             machine_identity: "AlphaProvider::substituted_read".into(),
             machine_package_identity: None,
         };
-        let report_identity = selected_plan.identity_fingerprint();
+        let report_identity = selected_plan.report_fingerprint();
         let selected = SelectedProviderPlanFacts::from_selected_plans(vec![selected_plan.clone()])
             .expect("selected provider plan");
 
@@ -828,10 +825,7 @@ mod tests {
         substituted.schema.methods[0].calling_plan_commitment =
             Some(crate::provider_plan::BoundaryCallingPlanCommitment::from_digest([0x22; 32]));
 
-        assert_eq!(
-            first.identity_fingerprint(),
-            substituted.identity_fingerprint()
-        );
+        assert_eq!(first.report_fingerprint(), substituted.report_fingerprint());
         assert_ne!(first.identity_digest(), substituted.identity_digest());
         let first = SelectedProviderPlanFacts::from_selected_plans(vec![first])
             .expect("first exact selected closure");
@@ -907,8 +901,8 @@ mod tests {
         };
         *machine_package_identity = Some(second_package);
 
-        let first_identity = first.identity_fingerprint();
-        let second_identity = second.identity_fingerprint();
+        let first_identity = first.report_fingerprint();
+        let second_identity = second.report_fingerprint();
         assert_ne!(first_identity, second_identity);
 
         let selected = SelectedProviderPlanFacts::from_selected_plans(vec![first, second])
@@ -931,7 +925,7 @@ mod tests {
     #[test]
     fn installation_reach_resolution_is_exact_bounded_selected_evidence() {
         let plan = candidate("Interrupt", "complete");
-        let plan_identity = plan.identity_fingerprint();
+        let plan_identity = plan.report_fingerprint();
         let selected = SelectedProviderPlanFacts::from_selection(
             std::slice::from_ref(&plan),
             std::slice::from_ref(&plan.name),
@@ -1088,7 +1082,7 @@ mod tests {
                     locator: retained,
                 },
                 ..
-            } if *provider_plan_identity == opaque_leaf.identity_fingerprint()
+            } if *provider_plan_identity == opaque_leaf.report_fingerprint()
                 && retained == &locator
         ));
     }
@@ -1128,7 +1122,7 @@ mod tests {
             library: "vendor-storage".into(),
             symbol: "read".into(),
         };
-        let plan_identity = opaque.identity_fingerprint();
+        let plan_identity = opaque.report_fingerprint();
         let selected = SelectedProviderPlanFacts::from_selection(
             std::slice::from_ref(&opaque),
             std::slice::from_ref(&opaque.name),
@@ -1173,7 +1167,7 @@ mod tests {
             library: "platform".into(),
             symbol: "read".into(),
         };
-        let plan_identity = opaque.identity_fingerprint();
+        let plan_identity = opaque.report_fingerprint();
         let selected = SelectedProviderPlanFacts::from_selection(
             std::slice::from_ref(&opaque),
             std::slice::from_ref(&opaque.name),
@@ -1232,7 +1226,7 @@ mod tests {
             library: "open-vendor".into(),
             symbol: "write".into(),
         };
-        let closed_identity = closed.identity_fingerprint();
+        let closed_identity = closed.report_fingerprint();
         let selected = SelectedProviderPlanFacts::from_selection(
             &[closed.clone(), open.clone()],
             &[closed.name.clone(), open.name.clone()],
@@ -1269,7 +1263,7 @@ mod tests {
             crate::IncompleteCause::SelectedOpaqueProvider {
                 provider_plan_identity,
                 ..
-            } if *provider_plan_identity == open.identity_fingerprint()
+            } if *provider_plan_identity == open.report_fingerprint()
         ));
         assert_eq!(opaque_closure_evidence.len(), 1);
         assert_eq!(
@@ -1285,7 +1279,7 @@ mod tests {
             library: "platform".into(),
             symbol: "read".into(),
         };
-        let plan_identity = opaque.identity_fingerprint();
+        let plan_identity = opaque.report_fingerprint();
         let selected = SelectedProviderPlanFacts::from_selection(
             std::slice::from_ref(&opaque),
             std::slice::from_ref(&opaque.name),

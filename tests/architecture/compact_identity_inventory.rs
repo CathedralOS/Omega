@@ -233,24 +233,7 @@ fn every_u64_fingerprint_accessor_requires_explicit_classification() {
     // It may only shrink: new compact-returning fingerprint accessors must use
     // explicit report/cache/compatibility vocabulary or return strong/exact
     // authority instead.
-    let legacy_maximums = BTreeMap::from([
-        (
-            "source/omega-rust/omega/backend/runtime/omega-executable-installation/src/lib.rs:normalized_fragment_fingerprint",
-            1,
-        ),
-        (
-            "source/omega-rust/omega/representations/omega-calling-conventions/src/plans.rs:contract_fingerprint",
-            1,
-        ),
-        (
-            "source/omega-rust/omega/representations/omega-calling-conventions/src/plans.rs:evidence_fingerprint",
-            1,
-        ),
-        (
-            "source/omega-rust/omega/representations/omega-effects/src/capabilities/provider_plan.rs:identity_fingerprint",
-            1,
-        ),
-    ]);
+    let legacy_maximums = BTreeMap::<&str, usize>::new();
     let mut observed = BTreeMap::<String, usize>::new();
     for path in sources {
         let relative = path.strip_prefix(&root).expect("source is below workspace");

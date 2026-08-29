@@ -179,7 +179,7 @@ pub fn bind_installed_runnable_component(
         .selected()
         .plans()
         .iter()
-        .map(omega_effects::provider_plan::ProviderPlan::identity_fingerprint)
+        .map(omega_effects::provider_plan::ProviderPlan::report_fingerprint)
         .collect::<Vec<_>>();
     occurrence_plans.sort_unstable();
     occurrence_plans.dedup();

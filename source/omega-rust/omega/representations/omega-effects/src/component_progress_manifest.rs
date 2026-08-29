@@ -155,7 +155,7 @@ impl ComponentProgressManifest {
                 profile_identity: demand.profile_identity,
                 subject_projections: demand.subject_projections,
                 establishment_routes,
-                provider_plan_identity: plan.identity_fingerprint(),
+                provider_plan_identity: plan.report_fingerprint(),
                 origin_callable_identity: demand.origin_callable_identity,
                 origin_state_identity: demand.origin_state_identity,
                 statement_ordinal: demand.statement_ordinal,
@@ -467,7 +467,7 @@ mod tests {
         );
         assert_eq!(
             first.pending()[0].provider_plan_identity,
-            selected.plans()[0].identity_fingerprint()
+            selected.plans()[0].report_fingerprint()
         );
         assert!(first.matches_selected_provider_closure(&selected));
         assert_ne!(first.identity_digest().as_bytes(), &[0; 32]);

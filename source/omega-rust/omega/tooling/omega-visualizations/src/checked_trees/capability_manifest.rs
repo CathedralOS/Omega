@@ -912,7 +912,7 @@ mod tests {
             origin_package_identity: None,
             origin_package: "test".into(),
         };
-        let provider_identity = provider.identity_fingerprint();
+        let provider_identity = provider.report_fingerprint();
         let selected_without_reach =
             omega_effects::SelectedProviderPlanFacts::from_selection(&[provider], &["pic".into()])
                 .expect("provider selection is valid");

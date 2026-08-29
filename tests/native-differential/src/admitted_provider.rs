@@ -52,7 +52,7 @@ pub fn admit_native_provider(
         seed,
         signature,
         ProviderPlanId::from_normalized_identity(
-            omega_effects::provider_plan::ProviderPlan::default().identity_fingerprint(),
+            omega_effects::provider_plan::ProviderPlan::default().report_fingerprint(),
         )
         .expect("default provider plan identity"),
         omega_effects::provider_plan::ProviderPlan::default().identity_digest(),

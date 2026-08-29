@@ -608,7 +608,7 @@ fn selected_task_runtime_provider(
             plan.name
         ))]);
     }
-    let runtime = TaskRuntimeId::from_normalized_identity(plan.identity_fingerprint())
+    let runtime = TaskRuntimeId::from_normalized_identity(plan.report_fingerprint())
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
     Ok(SelectedTaskRuntimeProviderFact {
         runtime,
@@ -2942,7 +2942,7 @@ mod tests {
                 .plans()
                 .first()
                 .expect("selected runtime plan")
-                .identity_fingerprint()
+                .report_fingerprint()
         );
         assert!(
             activation

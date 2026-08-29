@@ -118,7 +118,7 @@ fn fixture_with_inventory(
         &CallSignature::default(),
     )
     .expect("empty ordinary boundary plan");
-    let fingerprint = validated.contract_fingerprint();
+    let fingerprint = validated.contract_report_fingerprint();
     let expected = validated.plan().clone();
     let method = ServiceMethod {
         name: METHOD_NAME.to_owned(),

@@ -588,7 +588,7 @@ fn selected_interrupt_completion_for(
         origin_package_identity: None,
         origin_package: "test".into(),
     };
-    let identity = plan.identity_fingerprint();
+    let identity = plan.report_fingerprint();
     omega_effects::SelectedProviderPlanFacts::from_selection(
         std::slice::from_ref(&plan),
         std::slice::from_ref(&plan.name),
@@ -756,7 +756,7 @@ fn x86_target_arrival_binds_exact_installation_and_composes_mixed_contexts() {
         installed_code: code.identity().normalized_identity(),
         entry: entry.normalized_identity(),
         entry_offset: 16,
-        boundary_plan_report_fingerprint: boundary.contract_fingerprint(),
+        boundary_plan_report_fingerprint: boundary.contract_report_fingerprint(),
         boundary_plan_commitment: boundary.contract_commitment_digest(),
     };
     let facts = X86_64InstalledHardwareEntryFacts {
@@ -865,7 +865,7 @@ fn x86_target_arrival_binds_exact_installation_and_composes_mixed_contexts() {
         compact_equal_wrong_commitment
             .identity
             .boundary_plan_report_fingerprint,
-        boundary.contract_fingerprint(),
+        boundary.contract_report_fingerprint(),
         "the adversary deliberately retains the compact report coordinate",
     );
     let wrong_arrival = derive_x86_64_hardware_arrival(
@@ -4673,7 +4673,7 @@ fn installation_records_the_complete_external_root_and_pins_code_liveness() {
     assert_eq!(record.component_pins.len(), 1);
     assert_eq!(
         record.boundary_contract_report_fingerprint,
-        boundary().contract_fingerprint()
+        boundary().contract_report_fingerprint()
     );
     let installed_report_fingerprint = ledger.report_fingerprint();
     assert_ne!(installed_report_fingerprint, 0);
@@ -5967,8 +5967,8 @@ fn progress_installation_fixture() -> (
         origin_package_identity: None,
         origin_package: "omega::test".into(),
     };
-    let scheduler_identity = scheduler.identity_fingerprint();
-    let admission_identity = admission.identity_fingerprint();
+    let scheduler_identity = scheduler.report_fingerprint();
+    let admission_identity = admission.report_fingerprint();
     let selected = SelectedProviderPlanFacts::from_selection(
         &[scheduler, admission],
         &["scheduler-plan".into(), "scheduler-admission-plan".into()],

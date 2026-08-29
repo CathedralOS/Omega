@@ -108,7 +108,7 @@ fn resolve_selected_operator_adapter_call(
 ) -> Result<Option<OperatorAdapterRewrite>, Diagnostic> {
     let plans = selected_provider_plans
         .iter()
-        .filter(|plan| plan.identity_fingerprint() == operator_use.provider_plan_identity)
+        .filter(|plan| plan.report_fingerprint() == operator_use.provider_plan_identity)
         .collect::<Vec<_>>();
     let [plan] = plans.as_slice() else {
         return Err(Diagnostic::error(match plans.len() {
@@ -539,7 +539,7 @@ mod tests {
                 }
             }
             if !matches!(drift, Drift::UnknownPlan) {
-                fixture.operator_use.provider_plan_identity = plan.identity_fingerprint();
+                fixture.operator_use.provider_plan_identity = plan.report_fingerprint();
             }
 
             let result = resolve_selected_operator_adapter_call(
@@ -587,7 +587,7 @@ mod tests {
             .map(|(handle, operator_use)| (handle, *operator_use))
             .find(|(_, operator_use)| operator_use.expression == fixture.operator_use.expression)
             .expect("fixture checked use");
-        retained.provider_plan_identity = fixture.checked_plan.identity_fingerprint();
+        retained.provider_plan_identity = fixture.checked_plan.report_fingerprint();
         *fixture.checked.facts.operators.named_uses.get_mut(handle) = retained;
         let original_contents = fixture.checked.clone();
         let original = Arc::new(fixture.checked);
@@ -650,7 +650,7 @@ mod tests {
             .into_iter()
             .find(|(_, operator_use)| operator_use.expression == fixture.operator_use.expression)
             .expect("fixture checked use");
-        valid.provider_plan_identity = fixture.checked_plan.identity_fingerprint();
+        valid.provider_plan_identity = fixture.checked_plan.report_fingerprint();
         *fixture.checked.facts.operators.named_uses.get_mut(handle) = valid;
         let mut invalid = valid;
         invalid.provider_plan_identity = u64::MAX;

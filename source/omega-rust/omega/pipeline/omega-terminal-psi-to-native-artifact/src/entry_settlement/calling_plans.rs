@@ -44,7 +44,8 @@ pub(crate) fn validate_paired_calling_plans(
             "selected ProgramEntry storage plan lost its unique semantic requirement".into(),
         );
     };
-    if method.calling_plan_report_fingerprint != Some(validated_semantic.contract_fingerprint())
+    if method.calling_plan_report_fingerprint
+        != Some(validated_semantic.contract_report_fingerprint())
         || method.calling_plan_commitment.map(|value| value.as_bytes())
             != Some(validated_semantic.contract_commitment_digest())
         || method.parameter_type_identities
@@ -85,7 +86,8 @@ pub(crate) fn validate_paired_calling_plans(
     if physical.target_slot() != slot
         || physical.requirement_identity() != slot.physical_arrival_requirement.unwrap_or_default()
         || physical_plan.call.policy != expected_policy(expected_physical)
-        || validated_physical.contract_fingerprint() != physical.calling_plan_report_fingerprint()
+        || validated_physical.contract_report_fingerprint()
+            != physical.calling_plan_report_fingerprint()
     {
         return Err("selected ProgramEntry physical plan drifted from its target contract".into());
     }

@@ -1,4 +1,4 @@
-//! Native-fuel section of canonical installation format 43.
+//! Native-fuel section of canonical installation format 44.
 //!
 //! Semantic rows remain in source coordinates in the parent record. This
 //! section owns the distinct source-to-metered function map and exact
@@ -7,7 +7,8 @@
 use omega_calling_conventions::MachineRegister;
 use omega_installation_evidence::{
     FuelAttributionEvidence, FuelAttributionSite, NativeFuelChargeEvidence,
-    NativeFuelContextLayout, NativeFuelTargetPlanProjection, SponsorContextTransport,
+    NativeFuelContextLayout, NativeFuelTargetPlanProjection, NativeFuelTransferPlanCommitment,
+    SponsorContextTransport,
 };
 use omega_target::{NativeTarget, TargetProfile};
 use psi_core::{EdgeId, FuelScheduleIdentity, MachineId, OperationId};
@@ -46,7 +47,8 @@ pub(super) fn encode_native_fuel(
     ] {
         push_u32(bytes, value);
     }
-    push_u64(bytes, installed.target_policy.transfer_plan_identity);
+    push_u64(bytes, installed.target_policy.transfer_plan_report_identity);
+    bytes.extend_from_slice(&installed.target_policy.transfer_plan_commitment.as_bytes());
     bytes.extend_from_slice(installed.source_text_fingerprint.as_bytes());
 
     push_u32(
@@ -117,7 +119,8 @@ pub(super) fn decode_native_fuel(
         target,
         transport,
         context,
-        transfer_plan_identity: reader.u64()?,
+        transfer_plan_report_identity: reader.u64()?,
+        transfer_plan_commitment: NativeFuelTransferPlanCommitment::from_bytes(reader.array()?),
     };
     let source_text_fingerprint = NativeFuelSourceFingerprint(reader.array()?);
 

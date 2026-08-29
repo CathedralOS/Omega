@@ -727,6 +727,7 @@ dependencies = [
  "omega-target",
  "psi-core",
  "psi-terminal",
+ "sha2",
 ]
 
 [[package]]

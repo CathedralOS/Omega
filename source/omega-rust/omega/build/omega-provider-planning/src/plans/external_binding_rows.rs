@@ -348,7 +348,7 @@ fn selected_source_boundary_entry_plan(
             "selected source boundary entry `{trait_name}::{method_name}` / `{requirement_identity}` substituted a calling plan behind its compact report fingerprint"
         )));
     }
-    if realization.report_fingerprint != validated.contract_fingerprint()
+    if realization.report_fingerprint != validated.contract_report_fingerprint()
         || realization.commitment.as_bytes() != validated.contract_commitment_digest()
     {
         return Err(Diagnostic::error(format!(

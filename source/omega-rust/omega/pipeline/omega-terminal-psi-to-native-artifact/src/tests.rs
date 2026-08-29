@@ -202,8 +202,8 @@ fn ranked_native_dispatch_emits_exact_machine_body_and_logical_fuel_sites() {
         let transfer_plan = native_fuel::transfer_runtime_plan(target);
         let target_policy = native_fuel::target_policy(&transfer_plan);
         assert_eq!(
-            target_policy.transfer_plan_identity,
-            transfer_plan.normalized_identity()
+            target_policy.transfer_plan_report_identity,
+            transfer_plan.report_identity()
         );
         let instrumented =
             omega_machine_emission::instrument_native_fuel(emitted.clone(), target_policy)

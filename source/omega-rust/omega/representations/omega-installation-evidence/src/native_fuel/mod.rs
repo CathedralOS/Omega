@@ -54,7 +54,30 @@ pub struct NativeFuelTargetPlanProjection {
     pub target: NativeTarget,
     pub transport: SponsorContextTransport,
     pub context: NativeFuelContextLayout,
-    pub transfer_plan_identity: u64,
+    /// Historical compact report coordinate for diagnostics and wire reports.
+    pub transfer_plan_report_identity: u64,
+    /// Strong commitment to the complete canonical transfer-runtime plan.
+    pub transfer_plan_commitment: NativeFuelTransferPlanCommitment,
+}
+
+/// Domain-separated SHA-256 commitment to one complete canonical native-fuel
+/// transfer-runtime plan. This is the target-policy authority; the adjacent
+/// compact report identity is never sufficient for admission.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct NativeFuelTransferPlanCommitment([u8; 32]);
+
+impl NativeFuelTransferPlanCommitment {
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
+    pub const fn as_bytes(self) -> [u8; 32] {
+        self.0
+    }
+
+    pub fn is_empty(self) -> bool {
+        self.0 == [0; 32]
+    }
 }
 
 #[cfg(test)]

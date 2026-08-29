@@ -167,7 +167,7 @@ fn validate_selected_provider_closure(
         .iter()
         .map(|plan| {
             NativeSelectedProviderPlan::new(
-                plan.identity_fingerprint(),
+                plan.report_fingerprint(),
                 plan.rows
                     .iter()
                     .map(|row| row.requirement_identity.clone())
@@ -246,7 +246,7 @@ mod tests {
 
     fn projected(plan: &ProviderPlan) -> Vec<NativeSelectedProviderPlan> {
         vec![NativeSelectedProviderPlan::new(
-            plan.identity_fingerprint(),
+            plan.report_fingerprint(),
             vec!["IndexedRequirement::apply".into()],
         )]
     }
@@ -254,7 +254,7 @@ mod tests {
     #[test]
     fn component_replay_binds_indexed_coverage_even_when_plan_projection_is_unchanged() {
         let plan = selected_plan();
-        let plan_identity = plan.identity_fingerprint();
+        let plan_identity = plan.report_fingerprint();
         let base = SelectedProviderPlanFacts::from_selected_plans(vec![plan.clone()])
             .expect("complete selected plan");
         let generic = base
@@ -313,8 +313,8 @@ mod tests {
         let mut substituted_plan = original_plan.clone();
         substituted_plan.schema.methods[0].requirement_owner = "OtherIndexedRequirement".into();
         assert_eq!(
-            original_plan.identity_fingerprint(),
-            substituted_plan.identity_fingerprint(),
+            original_plan.report_fingerprint(),
+            substituted_plan.report_fingerprint(),
             "the legacy compact plan identity omits the readable requirement owner"
         );
 

@@ -374,7 +374,7 @@ pub fn validate_external_root(
     if stack_input
         .realization_evidence()
         .boundary_contract_report_fingerprint()
-        != boundary.contract_fingerprint()
+        != boundary.contract_report_fingerprint()
         || stack_input
             .realization_evidence()
             .boundary_contract_commitment()
@@ -436,7 +436,7 @@ pub fn validate_external_root(
         }
     }
 
-    let boundary_contract_report_fingerprint = boundary.contract_fingerprint();
+    let boundary_contract_report_fingerprint = boundary.contract_report_fingerprint();
     let normalized_report_identity =
         root_report_fingerprint(&candidate, boundary_contract_report_fingerprint);
     Ok(ValidatedExternalRoot {

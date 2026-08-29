@@ -199,7 +199,7 @@ mod tests {
             report_fingerprint,
             vec!["EfiImageHandle".into(), "&EfiSystemTable".into()],
             "EfiStatus".into(),
-            calling_plan.contract_fingerprint(),
+            calling_plan.contract_report_fingerprint(),
             calling_plan.plan().clone(),
         )
         .expect("physical contract")

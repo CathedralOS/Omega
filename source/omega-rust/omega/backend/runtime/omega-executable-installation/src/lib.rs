@@ -1536,12 +1536,6 @@ impl<'mapping, 'bytes> WrittenPostHandoffWriterDestination<'mapping, 'bytes> {
         self.context.normalized_fragment_report_fingerprint()
     }
 
-    /// Compatibility alias for the external-root consumer migration. This
-    /// compact value never establishes the exact invocation binding.
-    pub const fn normalized_fragment_fingerprint(&self) -> u64 {
-        self.normalized_fragment_report_fingerprint()
-    }
-
     /// Independently replay the exact non-clonable writer context and
     /// destination preparation before an owning consumer validates semantic
     /// contents or publishes the mapping. This establishes no consumer value

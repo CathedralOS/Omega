@@ -130,14 +130,16 @@ fn x86_and_aarch64_plans_are_canonical_and_nonzero() {
         assert_eq!(plan.interrupted_state(), states());
         assert_eq!(plan.saved_state(), states());
         assert_eq!(plan.restored_state(), states());
-        assert_ne!(plan.normalized_identity(), 0);
+        assert_ne!(plan.report_identity(), 0);
+        assert!(!plan.commitment().is_empty());
 
         let policy = NativeFuelTargetPlanProjection {
             profile,
             target: plan.target(),
             transport: plan.transport(),
             context: plan.context(),
-            transfer_plan_identity: plan.normalized_identity(),
+            transfer_plan_report_identity: plan.report_identity(),
+            transfer_plan_commitment: plan.commitment(),
         };
         assert_eq!(plan.validate_target_policy(policy), Ok(()));
         assert_eq!(
@@ -157,9 +159,10 @@ fn x86_and_aarch64_plans_are_canonical_and_nonzero() {
 }
 
 #[test]
-fn every_valid_structural_mutation_changes_plan_identity() {
+fn every_valid_structural_mutation_changes_plan_report_and_commitment() {
     let baseline = plan_for(TargetProfile::WindowsX64);
-    let baseline_identity = baseline.normalized_identity();
+    let baseline_report_identity = baseline.report_identity();
+    let baseline_commitment = baseline.commitment();
     let mut variants = Vec::new();
 
     variants.push(plan_for(TargetProfile::UefiX64));
@@ -241,11 +244,10 @@ fn every_valid_structural_mutation_changes_plan_identity() {
         .unwrap(),
     );
 
-    assert!(
-        variants
-            .iter()
-            .all(|variant| variant.normalized_identity() != baseline_identity)
-    );
+    assert!(variants.iter().all(
+        |variant| variant.report_identity() != baseline_report_identity
+            && variant.commitment() != baseline_commitment
+    ));
 }
 
 #[test]
@@ -481,20 +483,30 @@ fn state_stack_entry_and_policy_mutations_reject() {
         target: baseline.target(),
         transport: baseline.transport(),
         context: baseline.context(),
-        transfer_plan_identity: baseline.normalized_identity().wrapping_add(1),
+        transfer_plan_report_identity: baseline.report_identity().wrapping_add(1),
+        transfer_plan_commitment: baseline.commitment(),
     };
     assert!(matches!(
         baseline.validate_target_policy(wrong_identity),
-        Err(NativeFuelTransferPlanError::TransferPlanIdentityMismatch { .. })
+        Err(NativeFuelTransferPlanError::TransferPlanReportIdentityMismatch { .. })
     ));
+    let wrong_commitment = NativeFuelTargetPlanProjection {
+        transfer_plan_report_identity: baseline.report_identity(),
+        transfer_plan_commitment: NativeFuelTransferPlanCommitment::from_bytes([0x5a; 32]),
+        ..wrong_identity
+    };
+    assert_eq!(
+        baseline.validate_target_policy(wrong_commitment),
+        Err(NativeFuelTransferPlanError::TransferPlanCommitmentMismatch)
+    );
     assert_eq!(
         baseline.validate_target_policy(NativeFuelTargetPlanProjection {
             context: NativeFuelContextLayout {
                 byte_size: 128,
                 ..baseline.context()
             },
-            transfer_plan_identity: baseline.normalized_identity(),
-            ..wrong_identity
+            transfer_plan_report_identity: baseline.report_identity(),
+            ..wrong_commitment
         }),
         Err(NativeFuelTransferPlanError::TargetPolicyMismatch)
     );

@@ -31,8 +31,9 @@ pub use native_fuel::{
     NativeFuelActivationStateSlot, NativeFuelContextLayout, NativeFuelRuntimeEntryIdentity,
     NativeFuelRuntimeTextEvidence, NativeFuelRuntimeTextSpan, NativeFuelSavedValue,
     NativeFuelSponsorStackPlan, NativeFuelTargetPlanProjection, NativeFuelTransferEvidenceError,
-    NativeFuelTransferPlanError, NativeFuelTransferRuntimeEvidence,
-    NativeFuelTransferRuntimePlanProjection, SponsorContextTransport,
+    NativeFuelTransferPlanCommitment, NativeFuelTransferPlanError,
+    NativeFuelTransferRuntimeEvidence, NativeFuelTransferRuntimePlanProjection,
+    SponsorContextTransport,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

@@ -430,7 +430,7 @@ pub fn close_indexed_provider_applications(
             ),
         }));
     };
-    let plan_identity = plan.identity_fingerprint();
+    let plan_identity = plan.report_fingerprint();
     let matching_coverage = selected
         .indexed_provider_application_coverage()
         .iter()
@@ -788,7 +788,7 @@ mod tests {
         selected
             .with_indexed_provider_application_coverage(vec![
                 ProviderAssertedIndexedApplicationCoverage::generic(
-                    plan.identity_fingerprint(),
+                    plan.report_fingerprint(),
                     schema(),
                 )
                 .expect("generic coverage"),
@@ -827,7 +827,7 @@ mod tests {
         assert_eq!(first.applications().len(), 2);
         assert!(first.coverage().covers_generically());
         assert_eq!(first.coverage().schema(), &schema());
-        assert_eq!(first.provider_plan_identity(), plan.identity_fingerprint());
+        assert_eq!(first.provider_plan_identity(), plan.report_fingerprint());
         assert_eq!(selected.plans().len(), 1, "applications do not mint slots");
     }
 
@@ -883,7 +883,7 @@ mod tests {
         let selected = selected
             .with_indexed_provider_application_coverage(vec![
                 ProviderAssertedIndexedApplicationCoverage::exact_family(
-                    plan.identity_fingerprint(),
+                    plan.report_fingerprint(),
                     schema(),
                     family.clone(),
                 )
@@ -904,14 +904,14 @@ mod tests {
         assert_eq!(retained, canonical_family);
         assert_eq!(
             closed.coverage().provider_plan_identity(),
-            plan.identity_fingerprint()
+            plan.report_fingerprint()
         );
 
         let missing = SelectedProviderPlanFacts::from_selected_plans(vec![plan.clone()])
             .unwrap()
             .with_indexed_provider_application_coverage(vec![
                 ProviderAssertedIndexedApplicationCoverage::exact_family(
-                    plan.identity_fingerprint(),
+                    plan.report_fingerprint(),
                     schema(),
                     vec![application("StablePlan", "Packet")],
                 )
@@ -936,7 +936,7 @@ mod tests {
         let exact = bare
             .with_indexed_provider_application_coverage(vec![
                 ProviderAssertedIndexedApplicationCoverage::exact_family(
-                    plan.identity_fingerprint(),
+                    plan.report_fingerprint(),
                     schema(),
                     vec![application("StablePlan", "Packet")],
                 )
@@ -951,12 +951,12 @@ mod tests {
             .unwrap()
             .with_indexed_provider_application_coverage(vec![
                 ProviderAssertedIndexedApplicationCoverage::generic(
-                    plan.identity_fingerprint(),
+                    plan.report_fingerprint(),
                     schema(),
                 )
                 .unwrap(),
                 ProviderAssertedIndexedApplicationCoverage::exact_family(
-                    plan.identity_fingerprint(),
+                    plan.report_fingerprint(),
                     schema(),
                     vec![application("StablePlan", "Packet")],
                 )
@@ -972,7 +972,7 @@ mod tests {
         let coverage = || {
             vec![
                 ProviderAssertedIndexedApplicationCoverage::generic(
-                    plan.identity_fingerprint(),
+                    plan.report_fingerprint(),
                     schema(),
                 )
                 .unwrap(),
@@ -981,7 +981,7 @@ mod tests {
         let reach = || {
             vec![crate::InstallationReachResolution {
                 requirement_identity: "ResidentContentTransfer::transfer".to_owned(),
-                provider_plan_identity: plan.identity_fingerprint(),
+                provider_plan_identity: plan.report_fingerprint(),
                 upper_bound: vec!["MemoryTransfer".to_owned()],
                 resolved_row: vec!["MemoryTransfer".to_owned()],
             }]
@@ -1024,7 +1024,7 @@ mod tests {
         let selected = selected
             .with_indexed_provider_application_coverage(vec![
                 ProviderAssertedIndexedApplicationCoverage::generic(
-                    plan.identity_fingerprint(),
+                    plan.report_fingerprint(),
                     arity_three,
                 )
                 .unwrap(),
@@ -1066,7 +1066,7 @@ mod tests {
             .unwrap()
             .with_indexed_provider_application_coverage(vec![
                 ProviderAssertedIndexedApplicationCoverage::generic(
-                    other_plan.identity_fingerprint(),
+                    other_plan.report_fingerprint(),
                     other_schema,
                 )
                 .unwrap(),
@@ -1137,7 +1137,7 @@ mod tests {
         let row = application("StablePlan", "Packet");
         assert!(
             ProviderAssertedIndexedApplicationCoverage::exact_family(
-                plan.identity_fingerprint(),
+                plan.report_fingerprint(),
                 schema(),
                 vec![row.clone(), row],
             )

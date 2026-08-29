@@ -1654,7 +1654,7 @@ pub fn validate_selected_program_entry_calling_plan(
             ))]
         })?;
         if realization.exact_boundary_entry_plan() != validated.plan()
-            || realization.report_fingerprint != validated.contract_fingerprint()
+            || realization.report_fingerprint != validated.contract_report_fingerprint()
             || realization.commitment.as_bytes() != validated.contract_commitment_digest()
         {
             return Err(vec![Diagnostic::error(format!(
