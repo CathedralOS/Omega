@@ -138,6 +138,11 @@ of production leaves. Liveness computation and pre-allocation machine-effect
 encoding also keep their broad fixtures in sibling test leaves, so production
 file size measures production responsibility.
 
+When fixtures legitimately need a production module's private helpers, keep
+the logical child module and use an explicit sibling `#[path]`; do not retain
+hundreds of test lines at the bottom of `compute.rs` or `codec.rs` merely for
+privacy.
+
 Migration is not complete merely because every file is under the hard ceiling.
 Remaining flat executable-stage leaves are tracked in `TASKS_OPTIMIZER.md` and
 must move behind semantic folder entrances before those areas gain new rules.

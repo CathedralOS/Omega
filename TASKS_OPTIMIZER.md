@@ -112,6 +112,9 @@ and no-selection compatibility remain enforced.
 - [x] Move broad liveness and pre-allocation machine-effect codec fixtures out
   of production compute/codec leaves while preserving shared typed fixtures
   for independent validators.
+- [x] Move home-assignment compute and fixed-view-copy codec fixtures into
+  explicit path-bound sibling leaves without changing their private test scope
+  or test names.
 - [x] Split the flat optimized object-artifact stage; its small entrance owns
   the terminal/object build-and-replay join while model, reconstruction, and
   canonical codec descend into named leaves.
