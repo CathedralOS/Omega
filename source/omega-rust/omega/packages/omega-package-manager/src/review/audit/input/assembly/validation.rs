@@ -1,7 +1,7 @@
 use crate::discovery::PackageSourceCustody;
 use crate::identity::PackageKey;
-use crate::review::records::PackageReviewEvidence;
-use crate::review::records::validation::{
+use crate::review::candidate::PackageReviewEvidence;
+use crate::review::candidate::validation::{
     ReviewOnlyClosureValidationError, ReviewOnlySetValidationError,
 };
 use std::collections::BTreeMap;

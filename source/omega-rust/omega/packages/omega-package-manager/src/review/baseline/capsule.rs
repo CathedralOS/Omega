@@ -18,8 +18,8 @@ use crate::graph::{
 };
 use crate::identity::{AliasName, PackageKey};
 use crate::review::CompilerIssuedPackageReviewSet;
-use crate::review::records::validation::validate_review_only_closure;
-use crate::review::records::{
+use crate::review::candidate::validation::validate_review_only_closure;
+use crate::review::candidate::{
     PackageReviewEvidence, ReviewOnlyCanonicalRow, ReviewOnlySourceConsumptionCommitment,
     build_observation_commitment, whole_review_commitment,
 };

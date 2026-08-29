@@ -10,7 +10,7 @@ use crate::graph::{
     ResolvedPackageClosure, ResolvedPackageSourceClosure,
 };
 use crate::identity::PackageKey;
-use crate::review::records::PackageReviewEvidence;
+use crate::review::candidate::PackageReviewEvidence;
 use omega_package_review::evidence::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
     PackageReviewSourceLocationOwner,

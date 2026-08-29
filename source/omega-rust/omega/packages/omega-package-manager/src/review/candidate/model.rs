@@ -1,5 +1,5 @@
+use super::rows::ReviewOnlyCanonicalRow;
 use crate::identity::PackageKey;
-use crate::review::records::ReviewOnlyCanonicalRow;
 use omega_build_evaluation::BuildObservationSummary;
 use omega_package_compilation::{PackageGeneratedSourceBundle, PackageSourceConsumptionCommitment};
 use omega_package_review::evidence::{CheckedPackageReviewProjection, PackageReviewCanonicalRow};

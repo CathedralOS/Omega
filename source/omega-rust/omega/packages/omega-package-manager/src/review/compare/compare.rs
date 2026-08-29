@@ -6,11 +6,11 @@ use crate::declarations::BuildDeclarationKind;
 use crate::graph::{DependencyRequestPath, ResolvedPackageClosure, ResolvedPackageSourceClosure};
 use crate::identity::PackageKey;
 use crate::review::CompilerIssuedPackageReviewSet;
-use crate::review::records::validation::{
+use crate::review::candidate::validation::{
     ReviewOnlyClosureValidationError, ReviewOnlySetValidationError, validate_review_only_closure,
     validate_review_only_records,
 };
-use crate::review::records::{PackageReviewEvidence, ReviewOnlyCanonicalRow};
+use crate::review::candidate::{PackageReviewEvidence, ReviewOnlyCanonicalRow};
 use omega_package_review::evidence::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
 };

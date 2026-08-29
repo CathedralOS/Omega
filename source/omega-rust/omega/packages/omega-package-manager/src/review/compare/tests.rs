@@ -6,7 +6,7 @@ use crate::graph::{
     resolve_external_local_package_closure,
 };
 use crate::identity::PackageKey;
-use crate::review::records::PackageReviewEvidence;
+use crate::review::candidate::PackageReviewEvidence;
 use crate::review::{ReviewOnlyCanonicalRow, ReviewOnlySourceConsumptionCommitment};
 use omega_package_source::{ExternalSourceContext, ImmutableSourceResolution, LocalSourceLimits};
 use std::path::{Path, PathBuf};
