@@ -63,7 +63,22 @@ pub(crate) fn integer_equal_parameters_return_artifact(
 ) -> (Vec<u8>, Vec<u8>) {
     scalar_terminal_artifact(
         ScalarType::Boolean,
-        ScalarTerminal::IntegerEqualParameters {
+        ScalarTerminal::IntegerComparisonParameters {
+            kind: IntegerParameterComparison::Equal,
+            integer_type,
+            parameter_count,
+        },
+    )
+}
+
+pub(crate) fn integer_less_than_parameters_return_artifact(
+    integer_type: IntegerType,
+    parameter_count: usize,
+) -> (Vec<u8>, Vec<u8>) {
+    scalar_terminal_artifact(
+        ScalarType::Boolean,
+        ScalarTerminal::IntegerComparisonParameters {
+            kind: IntegerParameterComparison::LessThan,
             integer_type,
             parameter_count,
         },
@@ -82,10 +97,16 @@ enum ScalarTerminal {
     BooleanEqualParameters {
         parameter_count: usize,
     },
-    IntegerEqualParameters {
+    IntegerComparisonParameters {
+        kind: IntegerParameterComparison,
         integer_type: IntegerType,
         parameter_count: usize,
     },
+}
+
+enum IntegerParameterComparison {
+    Equal,
+    LessThan,
 }
 
 fn scalar_terminal_artifact(
@@ -190,7 +211,8 @@ fn scalar_terminal_artifact(
                 Vec::new(),
             )
         }
-        ScalarTerminal::IntegerEqualParameters {
+        ScalarTerminal::IntegerComparisonParameters {
+            kind,
             integer_type,
             parameter_count,
         } => {
@@ -211,7 +233,14 @@ fn scalar_terminal_artifact(
                 vec![Operation {
                     id: OperationId::new(30_005).unwrap(),
                     result: OperationResult::Scalar(declaration(constant_value)),
-                    kind: OperationKind::IntegerEqual { left, right },
+                    kind: match kind {
+                        IntegerParameterComparison::Equal => {
+                            OperationKind::IntegerEqual { left, right }
+                        }
+                        IntegerParameterComparison::LessThan => {
+                            OperationKind::IntegerLessThan { left, right }
+                        }
+                    },
                 }],
                 Terminator::Return {
                     edge,

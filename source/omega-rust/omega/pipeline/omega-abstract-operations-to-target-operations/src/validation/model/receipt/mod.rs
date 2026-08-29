@@ -13,6 +13,7 @@ pub use parameter::{
     StraightLineBooleanNotParameterTranslationReceipt,
     StraightLineBooleanParameterTranslationReceipt,
     StraightLineIntegerEqualParametersTranslationReceipt,
+    StraightLineIntegerLessThanParametersTranslationReceipt,
     StraightLineIntegerParameterTranslationReceipt,
 };
 pub use roster::{
@@ -33,6 +34,7 @@ pub enum AbstractToTargetFunctionTranslationReceipt {
     StraightLineBooleanNotParameter(StraightLineBooleanNotParameterTranslationReceipt),
     StraightLineBooleanEqualParameters(StraightLineBooleanEqualParametersTranslationReceipt),
     StraightLineIntegerEqualParameters(StraightLineIntegerEqualParametersTranslationReceipt),
+    StraightLineIntegerLessThanParameters(StraightLineIntegerLessThanParametersTranslationReceipt),
 }
 
 impl AbstractToTargetFunctionTranslationReceipt {
@@ -61,6 +63,9 @@ impl AbstractToTargetFunctionTranslationReceipt {
             }
             Self::StraightLineIntegerEqualParameters(_) => {
                 AbstractToTargetTranslationFamily::StraightLineIntegerEqualParameters
+            }
+            Self::StraightLineIntegerLessThanParameters(_) => {
+                AbstractToTargetTranslationFamily::StraightLineIntegerLessThanParameters
             }
         }
     }

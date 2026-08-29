@@ -1,4 +1,4 @@
-//! Exact integer-parameter equality target replay.
+//! Exact integer-parameter less-than target replay.
 
 use omega_abstract_operations::AbstractFunction;
 use omega_target::NativeTarget;
@@ -7,13 +7,13 @@ use omega_target_operations::{
 };
 
 use super::super::{
-    StraightLineIntegerEqualParametersTranslationError,
-    StraightLineIntegerEqualParametersTranslationReceipt,
+    StraightLineIntegerLessThanParametersTranslationError,
+    StraightLineIntegerLessThanParametersTranslationReceipt,
 };
 use super::source;
 
 pub(crate) fn is_candidate(function: &AbstractFunction) -> bool {
-    source::integer_equal::is_candidate(function)
+    source::integer_less_than::is_candidate(function)
 }
 
 pub(crate) fn validate(
@@ -21,16 +21,16 @@ pub(crate) fn validate(
     expected_target: NativeTarget,
     target: &TargetFunction,
 ) -> Result<
-    StraightLineIntegerEqualParametersTranslationReceipt,
-    StraightLineIntegerEqualParametersTranslationError,
+    StraightLineIntegerLessThanParametersTranslationReceipt,
+    StraightLineIntegerLessThanParametersTranslationError,
 > {
     let reconstructed =
-        super::derived::equality::reconstruct_integer_equal(source, expected_target, target)?;
+        super::derived::ordering::reconstruct_integer_less_than(source, expected_target, target)?;
     let TargetOperation::ReturnBooleanExpression {
         psi_edge,
         source_value,
         expression:
-            TargetBooleanExpression::IntegerEqual {
+            TargetBooleanExpression::IntegerLessThan {
                 psi_operation,
                 scalar_type,
                 left,
@@ -38,7 +38,7 @@ pub(crate) fn validate(
             },
     } = &target.operation
     else {
-        return Err(StraightLineIntegerEqualParametersTranslationError::TargetOperation);
+        return Err(StraightLineIntegerLessThanParametersTranslationError::TargetOperation);
     };
     let TargetIntegerExpression::Parameter {
         source_value: left_value,
@@ -46,7 +46,7 @@ pub(crate) fn validate(
         location: left_location,
     } = left.as_ref()
     else {
-        return Err(StraightLineIntegerEqualParametersTranslationError::TargetOperation);
+        return Err(StraightLineIntegerLessThanParametersTranslationError::TargetOperation);
     };
     let TargetIntegerExpression::Parameter {
         source_value: right_value,
@@ -54,7 +54,7 @@ pub(crate) fn validate(
         location: right_location,
     } = right.as_ref()
     else {
-        return Err(StraightLineIntegerEqualParametersTranslationError::TargetOperation);
+        return Err(StraightLineIntegerLessThanParametersTranslationError::TargetOperation);
     };
     if *psi_edge != reconstructed.return_edge
         || *source_value != reconstructed.source_value
@@ -67,19 +67,21 @@ pub(crate) fn validate(
         || *left_location != reconstructed.left_location
         || *right_location != reconstructed.right_location
     {
-        return Err(StraightLineIntegerEqualParametersTranslationError::TargetOperation);
+        return Err(StraightLineIntegerLessThanParametersTranslationError::TargetOperation);
     }
-    Ok(StraightLineIntegerEqualParametersTranslationReceipt::new(
-        source.machine,
-        reconstructed.operation,
-        reconstructed.return_edge,
-        reconstructed.source_value,
-        reconstructed.scalar_type,
-        reconstructed.left_value,
-        reconstructed.right_value,
-        reconstructed.left_parameter_index,
-        reconstructed.right_parameter_index,
-        reconstructed.left_location,
-        reconstructed.right_location,
-    ))
+    Ok(
+        StraightLineIntegerLessThanParametersTranslationReceipt::new(
+            source.machine,
+            reconstructed.operation,
+            reconstructed.return_edge,
+            reconstructed.source_value,
+            reconstructed.scalar_type,
+            reconstructed.left_value,
+            reconstructed.right_value,
+            reconstructed.left_parameter_index,
+            reconstructed.right_parameter_index,
+            reconstructed.left_location,
+            reconstructed.right_location,
+        ),
+    )
 }

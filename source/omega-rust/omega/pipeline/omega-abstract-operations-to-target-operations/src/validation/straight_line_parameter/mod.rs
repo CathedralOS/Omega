@@ -11,6 +11,7 @@ pub(crate) mod boolean_not;
 mod derived;
 pub(crate) mod integer;
 pub(crate) mod integer_equal;
+pub(crate) mod integer_less_than;
 mod model;
 mod source;
 

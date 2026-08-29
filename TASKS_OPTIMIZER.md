@@ -37,11 +37,11 @@ function roster before descending into exact family replay. The adjacent
 sub-100-line catalog is the sole enable/disable inventory; each descriptor
 joins one source classifier to one typed replay adapter. Zero matches publish
 `Uncovered`, one match publishes one receipt on that exact function-roster row,
-and duplicate or overlapping matches fail closed. The first eight semantic
+and duplicate or overlapping matches fail closed. The first nine semantic
 rows reconstruct parameterless straight-line integer and Boolean literal
 returns, scalar `Crash`, direct integer and Boolean parameter returns, Boolean
 negation of a parameter, ordered Boolean equality of two parameters, and typed
-integer equality of two same-type integer parameters. The
+integer equality or strict ordering of two same-type integer parameters. The
 parameter-derived families descend through a governed source-grammar map,
 shared envelope, whole-roster ABI replay, and a derived-expression join.
 Boolean-not and equality replay retain their distinct operands, produced value,
@@ -604,7 +604,8 @@ parallel route or optional coordinator field.
   families. Selected-lowering incoming-u12 add/subtract folds,
   straight-line integer-immediate, Boolean-immediate, scalar-Crash,
   integer-parameter, Boolean-parameter, Boolean-not-parameter, and ordered
-  Boolean-equal-parameters, and typed integer-equal-parameters
+  Boolean-equal-parameters, typed integer-equal-parameters, and typed
+  integer-less-than-parameters
   abstract-to-target translation,
   layout-independent baseline, MOVN, XOR-zero, MOV-r32-imm32, CBNZ dispositions,
   structural-Unit encodings, and resolved function-relative layouts now replay
@@ -826,3 +827,8 @@ rewrite or opt a program into lossy floating-point semantics.
     operand identity, exact integer type, ABI placements, provenance, and
     optimized-target custody. Split the derived-expression rung into a small
     unary entrance and a named equality leaf before adding the family.
+28. [x] Add typed integer-less-than-of-parameters as its own ninth translation
+    row across all native targets and integer signs/widths. Retain ordered or
+    identical operands, exact integer type, full-roster ABI placements,
+    provenance, and optimized-target custody beneath a named ordering replay
+    leaf; keep less-or-equal as a separate later family.

@@ -12,6 +12,7 @@ pub use parameter::{
     StraightLineBooleanEqualParametersTranslationError,
     StraightLineBooleanNotParameterTranslationError, StraightLineBooleanParameterTranslationError,
     StraightLineIntegerEqualParametersTranslationError,
+    StraightLineIntegerLessThanParametersTranslationError,
     StraightLineIntegerParameterTranslationError,
 };
 pub use terminal::StraightLineScalarCrashTranslationError;
@@ -54,6 +55,7 @@ pub enum AbstractToTargetTranslationFamilyError {
     StraightLineBooleanNotParameter(StraightLineBooleanNotParameterTranslationError),
     StraightLineBooleanEqualParameters(StraightLineBooleanEqualParametersTranslationError),
     StraightLineIntegerEqualParameters(StraightLineIntegerEqualParametersTranslationError),
+    StraightLineIntegerLessThanParameters(StraightLineIntegerLessThanParametersTranslationError),
 }
 
 impl std::fmt::Display for AbstractToTargetTranslationValidationError {

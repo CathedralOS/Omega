@@ -34,16 +34,17 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
 - `validation/straight_line_parameter/mod.rs` owns the shared source-envelope
   to native-ABI replay join for direct nonempty scalar parameter rosters;
   `derived/mod.rs` owns unary full-roster ABI/provenance replay and descends to
-  `derived/equality.rs` for equality expressions.
+  `derived/equality.rs` for equality or `derived/ordering.rs` for strict
+  ordering expressions.
 - `validation/straight_line_parameter/source/mod.rs` maps source grammar,
   descending into a common `envelope.rs` and direct-return, Boolean-not, or
-  ordered Boolean/integer-equality grammar leaves.
-- `validation/straight_line_parameter/{integer,boolean,boolean_not,boolean_equal,integer_equal}.rs`
+  ordered Boolean/integer-equality or integer-less-than grammar leaves.
+- `validation/straight_line_parameter/{integer,boolean,boolean_not,boolean_equal,integer_equal,integer_less_than}.rs`
   retain distinct exact family identities and validate their corresponding
-  target variants after independent register or stack reconstruction. Both
-  equality families open recursive `ReturnBooleanExpression` carriers and
-  retain ordered or identical operands; integer equality also binds their
-  common exact integer type.
+  target variants after independent register or stack reconstruction. Binary
+  Boolean-result families open recursive `ReturnBooleanExpression` carriers
+  and retain ordered or identical operands; integer equality and less-than
+  also bind their common exact integer type.
 - `validation/model/{error,receipt}/mod.rs` are the small family maps above
   immediate, terminal, roster, and parameter-specific vocabulary leaves.
 - `conditional_control.rs`, `conditional_scalar.rs`, `structural_result.rs`, and
