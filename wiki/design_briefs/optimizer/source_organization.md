@@ -151,6 +151,15 @@ machine lowering owns entry-roster coordination over payloadless, ordinary,
 and structural families. Their entrances are 48, 65, 53, and 57 lines, and no
 production leaf exceeds 1,058 lines.
 
+The optimized ProgramStorage semantic-wrapper object boundary follows the
+same navigational contract. Its stage entrance owns the actual settlement,
+semantic-contract, object, manifest, and custody join; it is not a forwarding
+wall. Validation descends into installed-provider continuation and entry-shape
+replay, while object work descends into composition, independent validation,
+and manifest construction. Retained records, canonical codecs, custody, and
+focused fixtures remain adjacent named leaves. The architecture gate governs
+this slice and requires the stage, validation, and object coordination markers.
+
 Psi, selected-lowering, allocation-recovery, post-allocation, and
 function-relative-layout stages expose ordered catalogs with phase coverage
 tests. Validator candidates, semantic analyses, optimization-unit identity and

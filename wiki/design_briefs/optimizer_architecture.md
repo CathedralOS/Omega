@@ -133,6 +133,8 @@ source/omega-rust/omega/
                                       # temporary compatibility assignment families
     omega-target-operations-to-selected-instructions/
                                       # legalization and selection stage entrances
+    omega-terminal-psi-to-native-artifact/
+                                      # semantic-wrapper stage, validation, object, codec, custody
     optimization/
       omega-psi-optimizer/            # Psi analyses, catalog, rules, pass manager
       omega-optimization-validation/  # independent Psi and unit validation

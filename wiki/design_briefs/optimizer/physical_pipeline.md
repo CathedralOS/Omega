@@ -105,6 +105,14 @@ function-relative realization is v9, while fragment emission and fragment text
 placement are v7. Their records retain the exact post-allocation optimization,
 not a broad optimization level.
 
+The optimized ProgramStorage semantic-wrapper object boundary now exposes one
+small owning entrance for the real settlement-to-custody join. Below it,
+semantic replay separates installed-provider continuation evidence from entry
+contract shape, and object work separates composition, independent object
+validation, and manifest construction. Models, canonical codecs, and custody
+are named sibling leaves, so the physical join remains obvious without
+accumulating lower-level mechanics.
+
 For UEFI, the physical adapter contract is settled but not yet implemented in
 this chain. A generated ABI shell invokes one checked bootstrap adapter;
 physical-arrival and firmware-service postconditions supply its opaque

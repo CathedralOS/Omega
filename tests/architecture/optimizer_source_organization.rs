@@ -28,6 +28,7 @@ const GOVERNED_ROOTS: &[&str] = &[
     "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations",
     "source/omega-rust/omega/pipeline/omega-target-operations-to-assigned-target-operations",
     "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions",
+    "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/optimized_semantic_wrapper_object",
 ];
 
 #[derive(Clone, Copy)]
@@ -310,6 +311,18 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/realization/unit_function_relative_realization/mod.rs",
         coordination_marker: "pub fn stage_optimized_unit_function_relative_realization",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/optimized_semantic_wrapper_object/mod.rs",
+        coordination_marker: "pub fn stage_validated_optimized_program_storage_semantic_wrapper_object",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/optimized_semantic_wrapper_object/validation/mod.rs",
+        coordination_marker: "pub fn validate_optimized_program_storage_semantic_wrapper_object",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/optimized_semantic_wrapper_object/object/mod.rs",
+        coordination_marker: "pub(crate) fn construct_object",
     },
 ];
 
