@@ -206,7 +206,12 @@ pub(super) fn source_files_to_syntax_trees_for_engine(
         .transpose()?;
     validate_selected_build_role(&source_storage, build_source_id)?;
     let (build_requires_filesystem_layout, source_scoped_top_level_bindings) =
-        inject_build_prelude(&mut source_storage, build_source_id, timings)?;
+        inject_build_prelude(
+            &mut source_storage,
+            build_source_id,
+            target_name.is_some(),
+            timings,
+        )?;
     if build_requires_filesystem_layout {
         imports.seed(crate::pipeline::frontend::bundled_omega_root().join("std/filesystem.omg"));
         load_pending_imports(
@@ -489,6 +494,7 @@ pub data Subsystem {
     case EfiApplication;
     case Unspecified(value: u16);
 }
+// compiler-owned TargetProfile declaration
 pub data Optimization {
     case ControlFlowCleanup;
     case SparseConditionalConstantPropagation;
@@ -525,6 +531,7 @@ pub data Optimizations {
     x86_select_mov_r32_imm32_zero_extended_i64_materialization_v1: u8 in Trapping;
 }
 pub data Build {
+    // compiler-owned Build.target field
     subsystem: Subsystem;
     freestanding: bool;
     optimizations: Optimizations;
@@ -635,6 +642,7 @@ pub data Subsystem {
     case EfiApplication;
     case Unspecified(value: u16);
 }
+// compiler-owned TargetProfile declaration
 pub data Optimization {
     case ControlFlowCleanup;
     case SparseConditionalConstantPropagation;
@@ -675,6 +683,7 @@ pub data BuildSource {
 pub data BuildOutput {
 }
 pub data Build {
+    // compiler-owned Build.target field
     subsystem: Subsystem;
     freestanding: bool;
     optimizations: Optimizations;
@@ -788,9 +797,44 @@ pub machine Optimizations::emit_report(&mut self) {
 }
 "#;
 
+const BUILD_TARGET_FIELD_SLOT: &str = "    // compiler-owned Build.target field\n";
+const BUILD_TARGET_FIELD: &str = "    target: TargetProfile;\n";
+const BUILD_TARGET_PROFILE_SLOT: &str = "// compiler-owned TargetProfile declaration\n";
+const BUILD_TARGET_PROFILE: &str = r#"pub data TargetProfile {
+    case LinuxArm64;
+    case LinuxX86_64;
+    case MacosArm64;
+    case WindowsX86_64;
+    case UefiX86_64;
+    case CrossPlatformCli;
+    case LocalUnchecked;
+}
+"#;
+
+fn construct_build_prelude(base: &str, has_exact_target: bool) -> String {
+    assert_eq!(
+        base.matches(BUILD_TARGET_FIELD_SLOT).count(),
+        1,
+        "build prelude must contain exactly one compiler-owned target slot"
+    );
+    assert_eq!(
+        base.matches(BUILD_TARGET_PROFILE_SLOT).count(),
+        1,
+        "build prelude must contain exactly one compiler-owned target profile slot"
+    );
+    let replacement = if has_exact_target {
+        BUILD_TARGET_FIELD
+    } else {
+        ""
+    };
+    base.replacen(BUILD_TARGET_PROFILE_SLOT, BUILD_TARGET_PROFILE, 1)
+        .replacen(BUILD_TARGET_FIELD_SLOT, replacement, 1)
+}
+
 fn inject_build_prelude(
     source_storage: &mut SourceStorage,
     build_source_id: Option<psi_source::SourceId>,
+    has_exact_target: bool,
     timings: &mut CompileTimings,
 ) -> Result<(bool, Vec<psi_symbols::SourceScopedTopLevelBinding>), Vec<Diagnostic>> {
     let mut has_build_machine = false;
@@ -835,7 +879,11 @@ fn inject_build_prelude(
     } else {
         BUILD_PRELUDE
     };
-    let prelude = build_prelude.to_owned();
+    // Targetless checking is not an artifact activation and therefore exposes
+    // no synthetic target. Exact-target requests receive the canonical field;
+    // retaining the former Build shape here keeps targetless semantic checks
+    // honest while product requests migrate to immutable activation.
+    let prelude = construct_build_prelude(build_prelude, has_exact_target);
 
     let first_source_id = source_storage.next_source_id();
     let lexed = timings.record(SOURCE_FILES_TO_TOKENS, || {
@@ -977,6 +1025,88 @@ mod tests {
             psi_syntax_trees::item::Item::Machine(machine)
                 if machine.attached_data.is_none() && machine.name.as_str() == "path"
         )));
+    }
+
+    #[test]
+    fn targeted_build_preludes_expose_one_closed_target_while_targetless_omit_it() {
+        let expected_cases = [
+            "LinuxArm64",
+            "LinuxX86_64",
+            "MacosArm64",
+            "WindowsX86_64",
+            "UefiX86_64",
+            "CrossPlatformCli",
+            "LocalUnchecked",
+        ];
+        for base in [BUILD_PRELUDE, FILESYSTEM_BUILD_PRELUDE] {
+            for (has_exact_target, expected_target_fields) in [(false, 0), (true, 1)] {
+                let prelude = construct_build_prelude(base, has_exact_target);
+                let tokens = psi_source_files_to_tokens::Lexer::new(&prelude)
+                    .tokenize()
+                    .expect("constructed build prelude must lex");
+                let syntax_trees = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens)
+                    .expect("constructed build prelude must parse as ordinary Omega");
+                let target_profile = syntax_trees
+                    .root_items()
+                    .find_map(|item| match item {
+                        psi_syntax_trees::item::Item::Data(data)
+                            if data.name.as_str() == "TargetProfile" =>
+                        {
+                            Some(data)
+                        }
+                        _ => None,
+                    })
+                    .expect("build prelude must define TargetProfile");
+                assert_eq!(
+                    syntax_trees
+                        .items
+                        .data_members(target_profile.members)
+                        .iter()
+                        .filter_map(|member| match member {
+                            psi_syntax_trees::item::DataMember::Variant(variant) => {
+                                Some(variant.name.as_str())
+                            }
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>(),
+                    expected_cases
+                );
+                let build = syntax_trees
+                    .root_items()
+                    .find_map(|item| match item {
+                        psi_syntax_trees::item::Item::Data(data)
+                            if data.name.as_str() == "Build" =>
+                        {
+                            Some(data)
+                        }
+                        _ => None,
+                    })
+                    .expect("build prelude must define Build");
+                let target_fields = syntax_trees
+                    .items
+                    .data_members(build.members)
+                    .iter()
+                    .filter_map(|member| match member {
+                        psi_syntax_trees::item::DataMember::Field(field)
+                            if field.name.as_str() == "target" =>
+                        {
+                            Some(field)
+                        }
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(target_fields.len(), expected_target_fields);
+                if let [field] = target_fields.as_slice() {
+                    assert!(matches!(
+                        syntax_trees
+                            .type_references
+                            .type_reference(field.type_reference),
+                        psi_syntax_trees::types::TypeReferenceNode::Named(name)
+                            if name.as_str() == "TargetProfile"
+                    ));
+                }
+            }
+        }
     }
 
     #[test]

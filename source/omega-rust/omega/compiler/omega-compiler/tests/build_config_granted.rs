@@ -685,9 +685,6 @@ fn declared_filesystem_build_machine_cannot_write_under_source_root() {
 
     let forbidden = project.join("stage/blocked.bin");
     let unresolvable = project.join("missing-parent/blocked.bin");
-    let absent_output = project.join("build/absent.bin");
-    let mixed_from = project.join("build/mixed-from.bin");
-    let mixed_to = project.join("stage/mixed-to.bin");
     let rename_from = project.join("stage/rename-from.bin");
     let rename_to = project.join("stage/rename-to.bin");
     std::fs::write(
@@ -696,9 +693,6 @@ fn declared_filesystem_build_machine_cannot_write_under_source_root() {
             r#"use omega::language::std::filesystem_host;
 
 target {target} {{}}
-
-data Subsystem {{ case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }}
-data Build {{ subsystem: Subsystem; freestanding: bool; }}
 
 data SourceWriter {{
     fs: FilesystemHost;
@@ -711,23 +705,22 @@ reaches
     FilesystemHost
 {{
     builder.roots.bind({root_owner}::ProgramEntry, Main::main);
-    self.fd = self.fs.create("{forbidden}", 438);
-    self.fd = self.fs.create("{unresolvable}", 438);
+    let forbidden: &[u8] in Path = builder.source.resolve("stage/blocked.bin");
+    let unresolvable: &[u8] in Path = builder.source.resolve("missing-parent/blocked.bin");
+    let absent_output: &[u8] in Path = builder.output.resolve("absent.bin");
+    let mixed_from: &[u8] in Path = builder.output.resolve("mixed-from.bin");
+    let mixed_to: &[u8] in Path = builder.source.resolve("stage/mixed-to.bin");
+    let rename_from: &[u8] in Path = builder.source.resolve("stage/rename-from.bin");
+    let rename_to: &[u8] in Path = builder.source.resolve("stage/rename-to.bin");
+    self.fd = self.fs.create(forbidden, 438);
+    self.fd = self.fs.create(unresolvable, 438);
     self.rc = self.fs.close(self.fd);
-    self.rc = self.fs.remove("{absent_output}");
-    self.rc = self.fs.rename("{mixed_from}", "{mixed_to}");
-    self.rc = self.fs.rename("{rename_from}", "{rename_to}");
+    self.rc = self.fs.remove(absent_output);
+    self.rc = self.fs.rename(mixed_from, mixed_to);
+    self.rc = self.fs.rename(rename_from, rename_to);
     builder.freestanding = false;
 }}
 "#,
-            // Forward slashes so the embedded path lexes on windows too.
-            forbidden = forbidden.display().to_string().replace('\\', "/"),
-            unresolvable = unresolvable.display().to_string().replace('\\', "/"),
-            absent_output = absent_output.display().to_string().replace('\\', "/"),
-            mixed_from = mixed_from.display().to_string().replace('\\', "/"),
-            mixed_to = mixed_to.display().to_string().replace('\\', "/"),
-            rename_from = rename_from.display().to_string().replace('\\', "/"),
-            rename_to = rename_to.display().to_string().replace('\\', "/"),
             target = profile.target_name(),
             root_owner = profile.root_slot_owner_name(),
         ),
@@ -949,9 +942,6 @@ fn source_descriptor_cannot_amplify_read_grant_into_mutation_authority() {
 
 target {target} {{}}
 
-data Subsystem {{ case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }}
-data Build {{ subsystem: Subsystem; freestanding: bool; }}
-
 data SourceMetadataWriter {{
     fs: FilesystemHost;
     descriptor: i32;
@@ -963,14 +953,14 @@ reaches
     FilesystemHost
 {{
     builder.roots.bind({root_owner}::ProgramEntry, Main::main);
-    self.descriptor = self.fs.open("{source_file}", 0);
+    let source_file: &[u8] in Path = builder.source.resolve("source.txt");
+    self.descriptor = self.fs.open(source_file, 0);
     self.result = self.fs.set_file_permissions(self.descriptor, 511);
     self.result = self.fs.lock_file(self.descriptor, 6);
     self.result = self.fs.close(self.descriptor);
     builder.freestanding = false;
 }}
 "#,
-            source_file = source_file.display().to_string().replace('\\', "/"),
             target = profile.target_name(),
             root_owner = profile.root_slot_owner_name(),
         ),
@@ -1071,9 +1061,6 @@ fn failed_filesystem_build_reports_partial_non_admission_evidence() {
 
 target {target} {{}}
 
-data Subsystem {{ case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }}
-data Build {{ subsystem: Subsystem; freestanding: bool; }}
-
 data FailingStager {{
     fs: FilesystemHost;
     fd: i32;
@@ -1085,14 +1072,14 @@ machine FailingStager::build(&mut self, builder: &mut Build)
 reaches FilesystemHost
 {{
     builder.roots.bind({root_owner}::ProgramEntry, Main::main);
-    self.fd = self.fs.create("{staged}", 438);
+    let staged: &[u8] in Path = builder.output.resolve("stage/partial.bin");
+    self.fd = self.fs.create(staged, 438);
     self.n = self.fs.read(self.fd, &mut self.buffer, 16777217);
     builder.freestanding = false;
 }}
 "#,
             target = profile.target_name(),
             root_owner = profile.root_slot_owner_name(),
-            staged = staged.display().to_string().replace('\\', "/"),
         ),
     )
     .expect("write build.omg");
@@ -4278,9 +4265,6 @@ fn console_only_build_machine_receives_no_real_filesystem_provider() {
             r#"use omega::language::std::console;
 
 target {target} {{}}
-
-data Subsystem {{ case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }}
-data Build {{ subsystem: Subsystem; freestanding: bool; }}
 
 data BuildLogger {{ console: Console; }}
 

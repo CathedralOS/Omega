@@ -639,6 +639,21 @@ Remaining:
   receiver, target-scope, and duplicate/default precedence rules;
   do not generalize that compatibility suffix into the live closure.
 
+  The activation carrier is now source-real: native-artifact request admission
+  resolves an omitted target to one exact host profile, while checking and
+  Terminal requests remain targetless. Exact-target build evaluation injects
+  one closed, toolchain-owned `TargetProfile` value through ordinary
+  `Build.target`; the evaluator admits only the exact nominal prelude
+  vocabulary and rejects assignment, transient overwrite-and-restore,
+  whole-value replacement, construction, storage, and exclusive lending before
+  execution. The request-owned profile remains the single retained authority,
+  and final evaluated equality is only a corruption check. Targetless checking
+  receives no synthetic field or fake `Host` value. Remaining work is the
+  role-specific closure, explicit complete runtime-reach ceiling with
+  provenance, target-owned provider migration, canonical CLI spelling, and
+  deletion of the corpus's legacy target blocks/assignments; this task is not
+  complete until those displaced surfaces are deleted.
+
   **BOUNDARY-OPERATOR-FAMILY-SELECTION** must extend the typed build selection
   subject from one boundary-trait type to either an exact boundary trait or an
   exact package-qualified boundary-operator family. Select every overload

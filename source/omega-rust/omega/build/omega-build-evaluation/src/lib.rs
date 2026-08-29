@@ -1186,14 +1186,14 @@ pub struct SelectedProgramEntry<'config> {
 /// explicit migration fallback for the remaining corpus.
 pub fn selected_program_entry_machine<'config>(
     config: &'config BuildConfig,
-    target_name: Option<&str>,
+    selected_profile: Option<omega_target::TargetProfile>,
 ) -> Result<Option<SelectedProgramEntry<'config>>, Vec<Diagnostic>> {
+    let Some(selected_profile) = selected_profile else {
+        return Ok(None);
+    };
     if config.root_bindings.is_empty() {
         return Ok(None);
     }
-
-    let selected_profile = omega_target::TargetProfile::from_omega_target_name(target_name)
-        .map_err(|diagnostic| vec![diagnostic])?;
     let mut diagnostics = Vec::new();
     let mut selected_bindings = Vec::new();
     for binding in &config.root_bindings {
@@ -1545,10 +1545,10 @@ impl SelectedCompilerProgramEntry {
 pub fn select_compiler_program_entry(
     typed: &TypedTrees,
     config: &BuildConfig,
-    target_name: Option<&str>,
+    selected_profile: Option<omega_target::TargetProfile>,
     realizations: &[omega_provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
 ) -> Result<Option<SelectedCompilerProgramEntry>, Vec<Diagnostic>> {
-    let Some(selected) = selected_program_entry_machine(config, target_name)? else {
+    let Some(selected) = selected_program_entry_machine(config, selected_profile)? else {
         return Ok(None);
     };
     let source_signature = validate_selected_program_entry_shape(typed, selected)?;
@@ -2080,6 +2080,282 @@ fn optimization_build_vocabulary(
     Ok(OptimizationBuildVocabulary::LegacyWithoutField)
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct TargetBuildVocabulary {
+    build_symbol: SymbolHandle,
+    target_field_symbol: SymbolHandle,
+}
+
+fn type_reference_names_exact_data(
+    typed: &TypedTrees,
+    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+    expected: SymbolHandle,
+) -> bool {
+    match typed.type_reference_table.type_reference(type_reference) {
+        psi_typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+            type_reference_names_exact_data(typed, *referee, expected)
+        }
+        psi_typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+            type_reference_names_exact_data(typed, *base_type, expected)
+        }
+        psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. } => *symbol == expected,
+        _ => false,
+    }
+}
+
+/// Admit `Build.target` only when both the field and its closed enum type come
+/// from the exact toolchain virtual source. `BuildTimeValue` is structurally
+/// named, so this nominal check must precede argument construction.
+fn target_build_vocabulary(
+    typed: &TypedTrees,
+    selected_target: Option<omega_target::TargetProfile>,
+) -> Result<Option<TargetBuildVocabulary>, Vec<Diagnostic>> {
+    let Some(_selected_target) = selected_target else {
+        return Ok(None);
+    };
+    let exact_builds = typed
+        .data_definitions()
+        .iter()
+        .filter(|definition| {
+            is_exact_toolchain_build_prelude_data(typed, definition.symbol, "Build")
+        })
+        .collect::<Vec<_>>();
+    let [build] = exact_builds.as_slice() else {
+        return Err(vec![Diagnostic::error(
+            "exact-target build activation requires the toolchain-provided Build.target vocabulary; an authored legacy Build cannot receive a hidden target field",
+        )]);
+    };
+    let target_fields = typed
+        .data_members(build)
+        .iter()
+        .filter_map(|member| match member {
+            psi_typed_trees::data::DataMember::Field(field) if field.name.as_str() == "target" => {
+                Some(field)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [target_field] = target_fields.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "toolchain Build declares {} `target` fields; exact-target activation requires exactly one",
+            target_fields.len()
+        ))]);
+    };
+    let psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. } = typed
+        .type_reference_table
+        .type_reference(target_field.type_reference)
+    else {
+        return Err(vec![Diagnostic::error(
+            "toolchain Build.target must have the exact toolchain TargetProfile type",
+        )]);
+    };
+    if !is_exact_toolchain_build_prelude_data(typed, *symbol, "TargetProfile") {
+        return Err(vec![Diagnostic::error(
+            "toolchain Build.target must have the exact toolchain TargetProfile type",
+        )]);
+    }
+    Ok(Some(TargetBuildVocabulary {
+        build_symbol: build.symbol,
+        target_field_symbol: target_field.symbol,
+    }))
+}
+
+fn expression_mentions_exact_field(
+    typed: &TypedTrees,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    field: SymbolHandle,
+    build_value_symbols: &[SymbolHandle],
+) -> bool {
+    use psi_typed_trees::expression::ExpressionNode;
+    match typed.expression_table.expression(expression) {
+        ExpressionNode::Borrow(borrow) => {
+            expression_mentions_exact_field(typed, borrow.target, field, build_value_symbols)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            expression_mentions_exact_field(typed, indexed.collection, field, build_value_symbols)
+        }
+        ExpressionNode::Member(member) => {
+            member.member_symbol == field
+                || (member.member.as_str() == "target"
+                    && expression_denotes_exact_build(typed, member.receiver, build_value_symbols))
+                || expression_mentions_exact_field(
+                    typed,
+                    member.receiver,
+                    field,
+                    build_value_symbols,
+                )
+        }
+        _ => false,
+    }
+}
+
+fn expression_denotes_exact_build(
+    typed: &TypedTrees,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    build_symbols: &[SymbolHandle],
+) -> bool {
+    use psi_typed_trees::expression::ExpressionNode;
+    match typed.expression_table.expression(expression) {
+        ExpressionNode::Borrow(borrow) => {
+            expression_denotes_exact_build(typed, borrow.target, build_symbols)
+        }
+        ExpressionNode::Name(path) => {
+            build_symbols.contains(&path.head_symbol) || build_symbols.contains(&path.symbol)
+        }
+        _ => false,
+    }
+}
+
+/// Prove source cannot transiently overwrite, replace, or lend exclusive
+/// access to the compiler-issued target occurrence. Final-value equality is
+/// retained as corruption defense, but is not used as the immutability proof.
+fn validate_immutable_build_target(
+    typed: &TypedTrees,
+    vocabulary: TargetBuildVocabulary,
+) -> Result<(), Vec<Diagnostic>> {
+    use psi_typed_trees::{data::DataMember, expression::ExpressionNode, statement::StatementNode};
+
+    let mut build_value_symbols = Vec::new();
+    let mut diagnostics = Vec::new();
+    for definition in typed.data_definitions() {
+        for member in typed.data_members(definition) {
+            let DataMember::Field(field) = member else {
+                continue;
+            };
+            if type_reference_names_exact_data(typed, field.type_reference, vocabulary.build_symbol)
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "compiler-owned Build.target forbids storing the exact toolchain Build in field `{}`",
+                    field.name.as_str()
+                )));
+                build_value_symbols.push(field.symbol);
+            }
+        }
+    }
+    for machine in typed.machines() {
+        if !machine.body_is_present
+            && typed.machine_states(machine).iter().any(|state| {
+                typed.state_parameters(state).iter().any(|parameter| {
+                    type_reference_names_exact_data(
+                        typed,
+                        parameter.type_reference,
+                        vocabulary.build_symbol,
+                    )
+                })
+            })
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "bodyless machine `{}` cannot receive the compiler-owned Build activation",
+                machine.name.as_str()
+            )));
+        }
+        for owned in typed.machine_owned_data(machine) {
+            if type_reference_names_exact_data(typed, owned.type_reference, vocabulary.build_symbol)
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "compiler-owned Build.target forbids storing the exact toolchain Build in machine field `{}`",
+                    owned.name.as_str()
+                )));
+                build_value_symbols.push(owned.symbol);
+            }
+        }
+        for state in typed.machine_states(machine) {
+            for parameter in typed.state_parameters(state) {
+                if type_reference_names_exact_data(
+                    typed,
+                    parameter.type_reference,
+                    vocabulary.build_symbol,
+                ) {
+                    build_value_symbols.push(parameter.symbol);
+                }
+            }
+            for statement in typed.statement_table.statements(state.statement_nodes) {
+                match statement {
+                    StatementNode::Assignment(assignment) => {
+                        if expression_mentions_exact_field(
+                            typed,
+                            assignment.target,
+                            vocabulary.target_field_symbol,
+                            &build_value_symbols,
+                        ) {
+                            diagnostics.push(Diagnostic::error(
+                                "Build.target is compiler-owned and cannot be assigned",
+                            ));
+                        } else if expression_denotes_exact_build(
+                            typed,
+                            assignment.target,
+                            &build_value_symbols,
+                        ) {
+                            diagnostics.push(Diagnostic::error(
+                                "the compiler-owned Build activation cannot be replaced as a whole value",
+                            ));
+                        }
+                    }
+                    StatementNode::LocalData(local)
+                        if type_reference_names_exact_data(
+                            typed,
+                            local.type_reference,
+                            vocabulary.build_symbol,
+                        ) =>
+                    {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "compiler-owned Build.target forbids copying the Build activation into local `{}`",
+                            local.name.as_str()
+                        )));
+                        build_value_symbols.push(local.symbol);
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    for (_, expression) in typed.expression_table.iter_expressions() {
+        match expression {
+            ExpressionNode::Borrow(borrow)
+                if borrow.access.is_exclusive()
+                    && (expression_mentions_exact_field(
+                        typed,
+                        borrow.target,
+                        vocabulary.target_field_symbol,
+                        &build_value_symbols,
+                    ) || expression_denotes_exact_build(
+                        typed,
+                        borrow.target,
+                        &build_value_symbols,
+                    )) =>
+            {
+                diagnostics.push(Diagnostic::error(
+                    "Build.target is compiler-owned and cannot enter a mutable or write-only borrow",
+                ));
+            }
+            ExpressionNode::StructLiteral(literal)
+                if literal.type_symbol == vocabulary.build_symbol =>
+            {
+                diagnostics.push(Diagnostic::error(
+                    "source cannot construct the compiler-owned Build activation",
+                ));
+            }
+            ExpressionNode::ZeroValue(type_reference)
+                if type_reference_names_exact_data(
+                    typed,
+                    *type_reference,
+                    vocabulary.build_symbol,
+                ) =>
+            {
+                diagnostics.push(Diagnostic::error(
+                    "source cannot construct a zero value of the compiler-owned Build activation",
+                ));
+            }
+            _ => {}
+        }
+    }
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
 fn canonical_metadata_field(name: &str) -> Option<FilesystemMetadataField> {
     match name {
         "dev" => Some(FilesystemMetadataField::Device),
@@ -2545,6 +2821,7 @@ pub fn compute_build_config(
     typed: &TypedTrees,
     build_source_id: Option<psi_source::SourceId>,
     filesystem_scope: &BuildMachineFilesystemScope,
+    selected_target_profile: Option<omega_target::TargetProfile>,
 ) -> Result<ComputedBuildConfig, Vec<Diagnostic>> {
     let prepared = PreparedBuildMachineProgram::prepare(typed)?;
     let typed = prepared.typed();
@@ -2573,6 +2850,10 @@ pub fn compute_build_config(
     }
     let machine_name = machine.name.as_str();
     let optimization_vocabulary = optimization_build_vocabulary(typed)?;
+    let target_vocabulary = target_build_vocabulary(typed, selected_target_profile)?;
+    if let Some(target_vocabulary) = target_vocabulary {
+        validate_immutable_build_target(typed, target_vocabulary)?;
+    }
 
     // The build gate admits exactly the pinned standard staging slots from
     // build_and_package_model.md: FilesystemHost and Console. These are
@@ -2672,7 +2953,17 @@ pub fn compute_build_config(
         is_exact_toolchain_build_service(typed, *service, "FilesystemHost", "filesystem_host.omg")
     });
 
-    let mut build_fields = vec![
+    let mut build_fields = Vec::new();
+    if let (Some(profile), Some(_)) = (selected_target_profile, target_vocabulary) {
+        build_fields.push((
+            "target".to_owned(),
+            BuildTimeValue::Case {
+                variant: profile.build_case_name().to_owned(),
+                payload: Vec::new(),
+            },
+        ));
+    }
+    build_fields.extend([
         (
             "subsystem".to_owned(),
             BuildTimeValue::Case {
@@ -2681,7 +2972,7 @@ pub fn compute_build_config(
             },
         ),
         ("freestanding".to_owned(), BuildTimeValue::Bool(false)),
-    ];
+    ]);
     if optimization_vocabulary == OptimizationBuildVocabulary::Canonical {
         build_fields.push((
             "optimizations".to_owned(),
@@ -3223,12 +3514,17 @@ pub fn compute_build_config(
         ))]
     })?;
 
-    let (mut config, optimization_report) =
-        extract_build_config(&augmented, optimization_vocabulary).map_err(|reason| {
-            vec![Diagnostic::error(format!(
-                "`{machine_name}` produced an invalid Build: {reason}"
-            ))]
-        })?;
+    let (mut config, optimization_report) = extract_build_config(
+        &augmented,
+        optimization_vocabulary,
+        selected_target_profile,
+        target_vocabulary.is_some(),
+    )
+    .map_err(|reason| {
+        vec![Diagnostic::error(format!(
+            "`{machine_name}` produced an invalid Build: {reason}"
+        ))]
+    })?;
     config.grants = harvest_root_grants(typed, machine);
     config.provider_selections = harvest_provider_selections(typed, machine)?;
     config.wire_compatibility_demands = harvest_wire_compatibility_demands(typed, machine)?;
@@ -3671,6 +3967,8 @@ fn harvest_root_grants(
 fn extract_build_config(
     build: &BuildTimeValue,
     optimization_vocabulary: OptimizationBuildVocabulary,
+    selected_target_profile: Option<omega_target::TargetProfile>,
+    has_target_vocabulary: bool,
 ) -> Result<
     (
         BuildConfig,
@@ -3688,6 +3986,34 @@ fn extract_build_config(
             .map(|(_, value)| value)
             .ok_or_else(|| format!("the Build carries no `{name}` field"))
     };
+
+    if has_target_vocabulary {
+        let expected = selected_target_profile.ok_or_else(|| {
+            "toolchain Build.target exists without an exact invocation target".to_owned()
+        })?;
+        let BuildTimeValue::Case { variant, payload } = field("target")? else {
+            return Err("Build.target is not a TargetProfile case".to_owned());
+        };
+        if !payload.is_empty() {
+            return Err(format!(
+                "Build.target case `{variant}` unexpectedly carries a payload"
+            ));
+        }
+        let case = variant.rsplit("::").next().unwrap_or(variant);
+        let actual = omega_target::TargetProfile::from_build_case_name(case)
+            .ok_or_else(|| format!("Build.target has unknown TargetProfile case `{case}`"))?;
+        if actual != expected {
+            return Err(format!(
+                "Build.target is compiler-owned and immutable: invocation supplied `{}`, but build evaluation returned `{}`",
+                expected.build_case_name(),
+                actual.build_case_name(),
+            ));
+        }
+    } else if selected_target_profile.is_some() {
+        return Err(
+            "exact invocation target has no admitted toolchain Build.target vocabulary".to_owned(),
+        );
+    }
 
     let subsystem = match field("subsystem")? {
         BuildTimeValue::Case { variant, payload } => {
@@ -3897,7 +4223,7 @@ mod tests {
         let result = select_compiler_program_entry(
             &psi_typed_trees::TypedTrees::default(),
             &config,
-            Some("windows_x64"),
+            Some(omega_target::TargetProfile::WindowsX64),
             &[],
         );
         let Err(diagnostics) = result else {
@@ -3997,15 +4323,28 @@ mod tests {
     }
 
     #[test]
+    fn targetless_check_does_not_select_a_program_entry_from_retained_bindings() {
+        let config =
+            config_with_root_bindings(&[("windows_x86_64::ProgramEntry", "Application::start")]);
+
+        assert_eq!(
+            selected_program_entry_machine(&config, None)
+                .expect("targetless checking is entry-agnostic"),
+            None
+        );
+    }
+
+    #[test]
     fn selected_target_ignores_valid_foreign_program_entry_slot_after_its_own() {
         let config = config_with_root_bindings(&[
             ("windows_x86_64::ProgramEntry", "Application::start"),
             ("linux_x86_64::ProgramEntry", "Diagnostics::start"),
         ]);
 
-        let selected = selected_program_entry_machine(&config, Some("windows_x64"))
-            .expect("known foreign target roots remain available to their own profiles")
-            .expect("selected target has one exact root");
+        let selected =
+            selected_program_entry_machine(&config, Some(omega_target::TargetProfile::WindowsX64))
+                .expect("known foreign target roots remain available to their own profiles")
+                .expect("selected target has one exact root");
 
         assert_eq!(selected.machine_name, "Application::start");
         assert_eq!(selected.slot.owner, omega_target::TargetProfile::WindowsX64);
@@ -4018,9 +4357,10 @@ mod tests {
             ("windows_x86_64::ProgramEntry", "Application::start"),
         ]);
 
-        let selected = selected_program_entry_machine(&config, Some("windows_x64"))
-            .expect("binding order cannot change target-scoped selection")
-            .expect("selected target has one exact root");
+        let selected =
+            selected_program_entry_machine(&config, Some(omega_target::TargetProfile::WindowsX64))
+                .expect("binding order cannot change target-scoped selection")
+                .expect("selected target has one exact root");
 
         assert_eq!(selected.machine_name, "Application::start");
         assert_eq!(selected.slot.owner, omega_target::TargetProfile::WindowsX64);
@@ -4031,9 +4371,10 @@ mod tests {
         let config =
             config_with_root_bindings(&[("uefi_x86_64::ProgramEntry", "Application::start")]);
 
-        let selected = selected_program_entry_machine(&config, Some("uefi_x64"))
-            .expect("typed root slot selection")
-            .expect("one selected entry");
+        let selected =
+            selected_program_entry_machine(&config, Some(omega_target::TargetProfile::UefiX64))
+                .expect("typed root slot selection")
+                .expect("one selected entry");
 
         assert_eq!(selected.machine_name, "Application::start");
         assert_eq!(selected.slot.owner, omega_target::TargetProfile::UefiX64);
@@ -4048,8 +4389,9 @@ mod tests {
         let config =
             config_with_root_bindings(&[("windows_x64::ProgramEntry", "Application::start")]);
 
-        let diagnostics = selected_program_entry_machine(&config, Some("windows_x64"))
-            .expect_err("a noncanonical target owner must reject");
+        let diagnostics =
+            selected_program_entry_machine(&config, Some(omega_target::TargetProfile::WindowsX64))
+                .expect_err("a noncanonical target owner must reject");
 
         assert_eq!(diagnostics.len(), 1);
         assert!(diagnostics[0].to_string().contains(
@@ -4062,8 +4404,9 @@ mod tests {
         let config =
             config_with_root_bindings(&[("windows_x86_64::UndeclaredEntry", "Application::start")]);
 
-        let diagnostics = selected_program_entry_machine(&config, Some("windows_x64"))
-            .expect_err("an undeclared target root cannot enter ProgramEntry lowering");
+        let diagnostics =
+            selected_program_entry_machine(&config, Some(omega_target::TargetProfile::WindowsX64))
+                .expect_err("an undeclared target root cannot enter ProgramEntry lowering");
 
         assert_eq!(diagnostics.len(), 1);
         assert!(diagnostics[0].to_string().contains(
@@ -4076,8 +4419,9 @@ mod tests {
         let config =
             config_with_root_bindings(&[("linux_x86_64::ProgramEntry", "Diagnostics::start")]);
 
-        let diagnostics = selected_program_entry_machine(&config, Some("windows_x64"))
-            .expect_err("a foreign target row cannot satisfy the selected catalog");
+        let diagnostics =
+            selected_program_entry_machine(&config, Some(omega_target::TargetProfile::WindowsX64))
+                .expect_err("a foreign target row cannot satisfy the selected catalog");
 
         assert_eq!(diagnostics.len(), 1);
         assert!(diagnostics[0].to_string().contains(
@@ -4092,8 +4436,9 @@ mod tests {
             ("windows_x86_64::ProgramEntry", "Diagnostics::start"),
         ]);
 
-        let diagnostics = selected_program_entry_machine(&config, Some("windows_x64"))
-            .expect_err("one required catalog member cannot be bound twice");
+        let diagnostics =
+            selected_program_entry_machine(&config, Some(omega_target::TargetProfile::WindowsX64))
+                .expect_err("one required catalog member cannot be bound twice");
 
         assert_eq!(diagnostics.len(), 1);
         assert!(diagnostics[0].to_string().contains(
