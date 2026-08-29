@@ -130,7 +130,9 @@ selected-lowering literal-fold stage follows the same rule: its entrance owns
 phase projection plus catalog dispatch, then descends through `model`,
 `execution`, and `accounting`. Register-allocation rule folders use the same
 shape; pressure rematerialization keeps its production computation and broad
-fixtures in separate leaves below its real compute/validate entrance.
+fixtures in separate leaves below its real compute/validate entrance. The
+optimized object-artifact boundary likewise exposes one build/replay entrance
+above separate model, reconstruction, and codec leaves.
 
 Migration is not complete merely because every file is under the hard ceiling.
 Remaining flat executable-stage leaves are tracked in `TASKS_OPTIMIZER.md` and
