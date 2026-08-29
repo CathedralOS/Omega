@@ -13,8 +13,10 @@ text or containment claims.
   vocabulary (`guarantees.rs`), and canonical policy observations (`mod.rs`).
 - `src/request.rs` validates compiler-selected executable and custody paths;
   it does not interpret package-authored locator text.
-- `src/backend.rs` validates one launch request, selects the verified host
-  backend, and constructs an opaque prepared execution with its policy.
+- `src/backend/` selects and verifies the host backend (`host.rs`), validates
+  launch requests (`request.rs`), constructs policy observations
+  (`observation.rs`), and realizes opaque prepared executions
+  (`preparation.rs`). Its `mod.rs` is the small type boundary.
 - `src/prepared.rs` owns the only caller-configurable command surface and the
   bounded identity of its exact program, arguments, environment, working
   directory, and null-or-pipe standard-stream dispositions. It exposes no raw

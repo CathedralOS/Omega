@@ -37,9 +37,8 @@ closed. Compiler-issued package review remains non-admitting.
   - split package-review orchestration and callable effects, and replace
     misleading evidence/projection modules without changing canonical rows or
     encodings;
-  - split native execution backend discovery, request validation, policy
-    observation, and platform realization; move large inline test bodies under
-    behavior-named test folders;
+  - split oversized native confinement implementations and move their large
+    inline test bodies under behavior-named test folders;
   - narrow flat and `#[doc(hidden)]` cross-crate facades after callers migrate,
     then refresh each crate map and enforce the intended dependency direction.
 
