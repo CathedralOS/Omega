@@ -6,14 +6,15 @@
 
 use std::num::NonZeroU64;
 
+use omega_program_entry_plan::exact_uefi_x64_physical_boundary_entry_plan;
 use omega_target::{
     TargetProfile, UefiSystemTableNativeField, UefiSystemTableNativeFieldKind,
     UefiSystemTableNativeFieldLayout, plan_uefi_system_table_native_layout,
 };
 
 use super::{
-    UefiApplicationBootstrapLedgerId, UefiApplicationFirmwareLedger,
-    UefiApplicationPhysicalArrival, UefiBootServicesPhaseLeaseId, UefiFirmwareSessionId,
+    UefiApplicationBootstrapAdapterInvocationReadiness, UefiApplicationBootstrapLedgerId,
+    UefiApplicationFirmwareLedger, UefiBootServicesPhaseLeaseId, UefiFirmwareSessionId,
     UefiImageHandleOccurrenceId, UefiPhysicalInvocationId, UefiSystemTableOccurrenceId,
 };
 use crate::ExternalRootDiagnostic;
@@ -27,7 +28,7 @@ const BOOT_SERVICES_FIELD_ALIGNMENT: u32 = 8;
 /// field. It is deliberately non-clone and exposes report observations only.
 #[must_use = "UEFI Boot Services projection retains physical-arrival and phase custody"]
 pub struct LifecycleScopedUefiBootServicesProjection<'occurrence> {
-    pub(super) arrival: UefiApplicationPhysicalArrival<'occurrence>,
+    pub(super) readiness: UefiApplicationBootstrapAdapterInvocationReadiness<'occurrence>,
     pub(super) field: UefiSystemTableNativeFieldLayout,
     pub(super) boot_services_table: NonZeroU64,
 }
@@ -52,27 +53,27 @@ impl std::fmt::Debug for LifecycleScopedUefiBootServicesProjection<'_> {
 
 impl LifecycleScopedUefiBootServicesProjection<'_> {
     pub const fn ledger_id(&self) -> UefiApplicationBootstrapLedgerId {
-        self.arrival.ledger_id()
+        self.readiness.arrival.ledger_id()
     }
 
     pub const fn firmware_session(&self) -> UefiFirmwareSessionId {
-        self.arrival.firmware_session()
+        self.readiness.arrival.firmware_session()
     }
 
     pub const fn physical_invocation(&self) -> UefiPhysicalInvocationId {
-        self.arrival.physical_invocation()
+        self.readiness.arrival.physical_invocation()
     }
 
     pub const fn image_handle_occurrence(&self) -> UefiImageHandleOccurrenceId {
-        self.arrival.image_handle_occurrence()
+        self.readiness.arrival.image_handle_occurrence()
     }
 
     pub const fn system_table_occurrence(&self) -> UefiSystemTableOccurrenceId {
-        self.arrival.system_table_occurrence()
+        self.readiness.arrival.system_table_occurrence()
     }
 
     pub const fn phase_lease_id(&self) -> UefiBootServicesPhaseLeaseId {
-        self.arrival.system_table.phase_lease_id()
+        self.readiness.arrival.system_table.phase_lease_id()
     }
 
     pub const fn field_ordinal(&self) -> u8 {
@@ -92,17 +93,22 @@ impl LifecycleScopedUefiBootServicesProjection<'_> {
     }
 
     pub fn physical_requirement_identity(&self) -> &str {
-        self.arrival.physical_contract.requirement_identity()
+        self.readiness
+            .arrival
+            .physical_contract
+            .requirement_identity()
     }
 
     pub const fn physical_calling_plan_report_fingerprint(&self) -> u64 {
-        self.arrival
+        self.readiness
+            .arrival
             .physical_contract
             .calling_plan_report_fingerprint()
     }
 
     pub const fn non_authoritative_layout_report_fingerprint(&self) -> u64 {
-        self.arrival
+        self.readiness
+            .arrival
             .system_table
             .layout()
             .non_authoritative_layout_report_fingerprint()
@@ -113,7 +119,7 @@ impl LifecycleScopedUefiBootServicesProjection<'_> {
 #[derive(Debug)]
 #[must_use = "UEFI Boot Services projection rejection retains physical-arrival custody"]
 pub struct UefiBootServicesProjectionError<'occurrence> {
-    arrival: UefiApplicationPhysicalArrival<'occurrence>,
+    readiness: UefiApplicationBootstrapAdapterInvocationReadiness<'occurrence>,
     diagnostic: ExternalRootDiagnostic,
 }
 
@@ -125,10 +131,10 @@ impl<'occurrence> UefiBootServicesProjectionError<'occurrence> {
     pub fn into_parts(
         self,
     ) -> (
-        UefiApplicationPhysicalArrival<'occurrence>,
+        UefiApplicationBootstrapAdapterInvocationReadiness<'occurrence>,
         ExternalRootDiagnostic,
     ) {
-        (self.arrival, self.diagnostic)
+        (self.readiness, self.diagnostic)
     }
 }
 
@@ -171,49 +177,60 @@ impl std::fmt::Display for UefiBootServicesProjectionReleaseError<'_> {
 
 impl std::error::Error for UefiBootServicesProjectionReleaseError<'_> {}
 
-/// Consume one exact physical arrival and project only its lifecycle-bound
-/// BootServices field correspondence. The selected provider that can use this
-/// correspondence remains a later admission edge.
+/// Consume adapter-invocation readiness and project only its lifecycle-bound
+/// BootServices field correspondence. The physical arrival cannot bypass this
+/// composition edge, and the selected provider remains a later admission.
 pub fn project_uefi_application_boot_services<'occurrence>(
     ledger: &UefiApplicationFirmwareLedger<'occurrence>,
-    arrival: UefiApplicationPhysicalArrival<'occurrence>,
+    readiness: UefiApplicationBootstrapAdapterInvocationReadiness<'occurrence>,
 ) -> Result<
     LifecycleScopedUefiBootServicesProjection<'occurrence>,
     Box<UefiBootServicesProjectionError<'occurrence>>,
 > {
-    if !ledger.matches_image_handle(&arrival.image_handle)
-        || !ledger.matches_provenance(&arrival.system_table.provenance)
-        || !ledger.matches_lease(&arrival.system_table.phase_lease)
+    if !ledger.matches_image_handle(&readiness.arrival.image_handle)
+        || !ledger.matches_provenance(&readiness.arrival.system_table.provenance)
+        || !ledger.matches_lease(&readiness.arrival.system_table.phase_lease)
     {
         return reject(
-            arrival,
+            readiness,
             "UEFI Boot Services projection belongs to a different or inactive physical invocation",
         );
     }
-    if !arrival
+    if !readiness
+        .arrival
         .physical_contract
         .matches_exact_uefi_x64_physical_contract()
     {
         return reject(
-            arrival,
+            readiness,
             "UEFI Boot Services projection does not retain the exact physical entry contract",
+        );
+    }
+    let expected_physical_plan = exact_uefi_x64_physical_boundary_entry_plan();
+    if readiness.physical_calling_plan_commitment()
+        != &expected_physical_plan.contract_commitment_digest()
+    {
+        return reject(
+            readiness,
+            "UEFI Boot Services projection adapter-readiness commitment drifted",
         );
     }
     let expected_layout = plan_uefi_system_table_native_layout(TargetProfile::UefiX64)
         .expect("the closed UEFI x64 target must retain its system-table layout");
-    if !arrival
+    if !readiness
+        .arrival
         .system_table
         .layout()
         .matches_exact_plan(&expected_layout)
     {
         return reject(
-            arrival,
+            readiness,
             "UEFI Boot Services projection does not retain the exact system-table layout",
         );
     }
     let Some(field) = expected_layout.field_layout(UefiSystemTableNativeField::BootServices) else {
         return reject(
-            arrival,
+            readiness,
             "UEFI x64 system-table layout has no BootServices field",
         );
     };
@@ -224,41 +241,47 @@ pub fn project_uefi_application_boot_services<'occurrence>(
         || field.kind() != UefiSystemTableNativeFieldKind::Pointer
     {
         return reject(
-            arrival,
+            readiness,
             "UEFI x64 BootServices field geometry drifted from the target-owned layout",
         );
     }
     let start = field.byte_offset() as usize;
     let end = start + field.byte_size() as usize;
-    let Some(bytes) = arrival.system_table.integrity.table_bytes().get(start..end) else {
+    let Some(bytes) = readiness
+        .arrival
+        .system_table
+        .integrity
+        .table_bytes()
+        .get(start..end)
+    else {
         return reject(
-            arrival,
+            readiness,
             "UEFI system-table occurrence does not cover the BootServices field",
         );
     };
     let value = u64::from_le_bytes(bytes.try_into().expect("field width was replayed above"));
     let Some(boot_services_table) = NonZeroU64::new(value) else {
         return reject(
-            arrival,
+            readiness,
             "UEFI BootServices field is null during the Boot-Services-live phase",
         );
     };
     Ok(LifecycleScopedUefiBootServicesProjection {
-        arrival,
+        readiness,
         field,
         boot_services_table,
     })
 }
 
 fn reject<'occurrence>(
-    arrival: UefiApplicationPhysicalArrival<'occurrence>,
+    readiness: UefiApplicationBootstrapAdapterInvocationReadiness<'occurrence>,
     message: impl Into<String>,
 ) -> Result<
     LifecycleScopedUefiBootServicesProjection<'occurrence>,
     Box<UefiBootServicesProjectionError<'occurrence>>,
 > {
     Err(Box::new(UefiBootServicesProjectionError {
-        arrival,
+        readiness,
         diagnostic: ExternalRootDiagnostic(message.into()),
     }))
 }
@@ -267,9 +290,11 @@ fn reject<'occurrence>(
 mod tests {
     use super::*;
     use crate::{
-        UefiApplicationBootstrapLedgerId, UefiBootServicesPhaseLeaseId, UefiFirmwareSessionId,
-        UefiImageHandleOccurrenceId, UefiPhysicalInvocationId, UefiSystemTableOccurrenceId,
+        UefiApplicationBootstrapLedgerId, UefiApplicationPhysicalArrival,
+        UefiBootServicesPhaseLeaseId, UefiFirmwareSessionId, UefiImageHandleOccurrenceId,
+        UefiPhysicalInvocationId, UefiSystemTableOccurrenceId,
         join_lifecycle_scoped_uefi_system_table, join_uefi_application_physical_arrival,
+        prepare_uefi_application_bootstrap_adapter_invocation,
     };
     use omega_program_entry_plan::{
         ProgramEntryPhysicalContractPlan, UEFI_X64_IMAGE_HANDLE_TYPE_IDENTITY,
@@ -349,7 +374,7 @@ mod tests {
         ledger: &mut UefiApplicationFirmwareLedger<'a>,
         bytes: &'a [u8],
         base: u64,
-    ) -> UefiApplicationPhysicalArrival<'a> {
+    ) -> UefiApplicationBootstrapAdapterInvocationReadiness<'a> {
         let image_handle = ledger
             .admit_image_handle_occurrence(id(
                 base,
@@ -378,13 +403,14 @@ mod tests {
             .unwrap();
         let system_table =
             join_lifecycle_scoped_uefi_system_table(ledger, integrity, provenance, lease).unwrap();
-        join_uefi_application_physical_arrival(
+        let arrival = join_uefi_application_physical_arrival(
             ledger,
             image_handle,
             system_table,
             physical_contract(),
         )
-        .unwrap()
+        .unwrap();
+        prepare_uefi_application_bootstrap_adapter_invocation(ledger, arrival).unwrap()
     }
 
     fn item_block<'a>(source: &'a str, declaration: &str) -> &'a str {
@@ -460,10 +486,14 @@ mod tests {
         let arrival = arrival(&mut ledger, &null_bytes, 33);
         let error = project_uefi_application_boot_services(&ledger, arrival).unwrap_err();
         assert!(error.diagnostic().0.contains("is null"));
-        let (arrival, _) = error.into_parts();
-        assert_eq!(arrival.ledger_id(), ledger.ledger_id());
-        assert_eq!(arrival.image_handle_occurrence().normalized_identity(), 33);
+        let (readiness, _) = error.into_parts();
+        assert_eq!(readiness.ledger_id(), ledger.ledger_id());
+        assert_eq!(
+            readiness.image_handle_occurrence().normalized_identity(),
+            33
+        );
 
+        let UefiApplicationBootstrapAdapterInvocationReadiness { arrival, .. } = readiness;
         let UefiApplicationPhysicalArrival { system_table, .. } = arrival;
         ledger
             .release_lifecycle_scoped_system_table(system_table)
@@ -479,9 +509,47 @@ mod tests {
 
         let error = project_uefi_application_boot_services(&foreign, arrival).unwrap_err();
         assert!(error.diagnostic().0.contains("different or inactive"));
-        let (arrival, _) = error.into_parts();
-        let projection = project_uefi_application_boot_services(&owner, arrival).unwrap();
+        let (readiness, _) = error.into_parts();
+        let projection = project_uefi_application_boot_services(&owner, readiness).unwrap();
         owner
+            .release_lifecycle_scoped_boot_services_projection(projection)
+            .unwrap();
+    }
+
+    #[test]
+    fn adapter_readiness_rejects_foreign_ledger_and_preserves_arrival_for_owner_retry() {
+        let bytes = valid_occurrence(BOOT_SERVICES_TEST_ADDRESS);
+        let mut owner = ledger(60);
+        let foreign = ledger(60);
+        let readiness = arrival(&mut owner, &bytes, 63);
+        let UefiApplicationBootstrapAdapterInvocationReadiness { arrival, .. } = readiness;
+
+        let error =
+            prepare_uefi_application_bootstrap_adapter_invocation(&foreign, arrival).unwrap_err();
+        assert!(error.diagnostic().0.contains("different or inactive"));
+        let (arrival, _) = error.into_parts();
+        let readiness =
+            prepare_uefi_application_bootstrap_adapter_invocation(&owner, arrival).unwrap();
+        let projection = project_uefi_application_boot_services(&owner, readiness).unwrap();
+        owner
+            .release_lifecycle_scoped_boot_services_projection(projection)
+            .unwrap();
+    }
+
+    #[test]
+    fn adapter_readiness_commitment_tamper_rejects_and_preserves_retry_custody() {
+        let bytes = valid_occurrence(BOOT_SERVICES_TEST_ADDRESS);
+        let mut ledger = ledger(65);
+        let mut readiness = arrival(&mut ledger, &bytes, 68);
+        readiness.physical_calling_plan_commitment = [0x5a; 32];
+
+        let error = project_uefi_application_boot_services(&ledger, readiness).unwrap_err();
+        assert!(error.diagnostic().0.contains("commitment drifted"));
+        let (mut readiness, _) = error.into_parts();
+        readiness.physical_calling_plan_commitment =
+            exact_uefi_x64_physical_boundary_entry_plan().contract_commitment_digest();
+        let projection = project_uefi_application_boot_services(&ledger, readiness).unwrap();
+        ledger
             .release_lifecycle_scoped_boot_services_projection(projection)
             .unwrap();
     }
@@ -546,7 +614,7 @@ mod tests {
             .collect::<String>();
         assert_eq!(
             compact_projection,
-            "pubstructLifecycleScopedUefiBootServicesProjection<'occurrence>{pub(super)arrival:UefiApplicationPhysicalArrival<'occurrence>,pub(super)field:UefiSystemTableNativeFieldLayout,pub(super)boot_services_table:NonZeroU64,}"
+            "pubstructLifecycleScopedUefiBootServicesProjection<'occurrence>{pub(super)readiness:UefiApplicationBootstrapAdapterInvocationReadiness<'occurrence>,pub(super)field:UefiSystemTableNativeFieldLayout,pub(super)boot_services_table:NonZeroU64,}"
         );
         let public_impl = item_block(source, "impl LifecycleScopedUefiBootServicesProjection<'_>");
         let compact_public_impl = public_impl

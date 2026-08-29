@@ -8,7 +8,9 @@
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use omega_program_entry_plan::ProgramEntryPhysicalContractPlan;
+use omega_program_entry_plan::{
+    ProgramEntryPhysicalContractPlan, exact_uefi_x64_physical_boundary_entry_plan,
+};
 use omega_target::{
     TargetProfile, ValidatedUefiSystemTableHeaderIntegrity, ValidatedUefiSystemTableNativeLayout,
     plan_uefi_system_table_native_layout,
@@ -260,9 +262,9 @@ impl<'occurrence> UefiApplicationFirmwareLedger<'occurrence> {
         ReleasedUefiSystemTableScope,
         Box<UefiBootServicesProjectionReleaseError<'occurrence>>,
     > {
-        if !self.matches_image_handle(&projection.arrival.image_handle)
-            || !self.matches_provenance(&projection.arrival.system_table.provenance)
-            || !self.matches_lease(&projection.arrival.system_table.phase_lease)
+        if !self.matches_image_handle(&projection.readiness.arrival.image_handle)
+            || !self.matches_provenance(&projection.readiness.arrival.system_table.provenance)
+            || !self.matches_lease(&projection.readiness.arrival.system_table.phase_lease)
         {
             return Err(Box::new(UefiBootServicesProjectionReleaseError {
                 projection,
@@ -277,9 +279,15 @@ impl<'occurrence> UefiApplicationFirmwareLedger<'occurrence> {
             ledger: self.ledger,
             session: self.session,
             invocation: self.invocation,
-            occurrence: projection.arrival.system_table.provenance.occurrence,
-            lease: projection.arrival.system_table.phase_lease.lease,
+            occurrence: projection
+                .readiness
+                .arrival
+                .system_table
+                .provenance
+                .occurrence,
+            lease: projection.readiness.arrival.system_table.phase_lease.lease,
             non_authoritative_layout_report_fingerprint: projection
+                .readiness
                 .arrival
                 .system_table
                 .integrity
@@ -676,6 +684,154 @@ impl UefiApplicationPhysicalArrival<'_> {
     pub const fn physical_contract(&self) -> &ProgramEntryPhysicalContractPlan {
         &self.physical_contract
     }
+}
+
+/// Readiness custody for composing the target-runtime bootstrap adapter.
+///
+/// Construction consumes the complete physical-arrival join and independently
+/// retains the collision-resistant commitment to the exact target-owned entry
+/// plan. It does not assert that the launch environment, generated shell, or
+/// native adapter invocation has been admitted or executed.
+#[must_use = "UEFI adapter-composition readiness retains physical-arrival custody"]
+pub struct UefiApplicationBootstrapAdapterInvocationReadiness<'occurrence> {
+    pub(super) arrival: UefiApplicationPhysicalArrival<'occurrence>,
+    physical_calling_plan_commitment: [u8; 32],
+}
+
+impl std::fmt::Debug for UefiApplicationBootstrapAdapterInvocationReadiness<'_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("UefiApplicationBootstrapAdapterInvocationReadiness")
+            .field("ledger", &self.ledger_id())
+            .field("physical_invocation", &self.physical_invocation())
+            .field(
+                "physical_requirement_identity",
+                &self.physical_requirement_identity(),
+            )
+            .field(
+                "physical_calling_plan_commitment",
+                &self.physical_calling_plan_commitment,
+            )
+            .finish_non_exhaustive()
+    }
+}
+
+impl UefiApplicationBootstrapAdapterInvocationReadiness<'_> {
+    pub const fn ledger_id(&self) -> UefiApplicationBootstrapLedgerId {
+        self.arrival.ledger_id()
+    }
+
+    pub const fn physical_invocation(&self) -> UefiPhysicalInvocationId {
+        self.arrival.physical_invocation()
+    }
+
+    pub const fn firmware_session(&self) -> UefiFirmwareSessionId {
+        self.arrival.firmware_session()
+    }
+
+    pub const fn image_handle_occurrence(&self) -> UefiImageHandleOccurrenceId {
+        self.arrival.image_handle_occurrence()
+    }
+
+    pub const fn system_table_occurrence(&self) -> UefiSystemTableOccurrenceId {
+        self.arrival.system_table_occurrence()
+    }
+
+    pub fn physical_requirement_identity(&self) -> &str {
+        self.arrival.physical_contract.requirement_identity()
+    }
+
+    pub const fn physical_calling_plan_commitment(&self) -> &[u8; 32] {
+        &self.physical_calling_plan_commitment
+    }
+}
+
+/// Recoverable readiness rejection retaining the complete physical arrival.
+#[derive(Debug)]
+#[must_use = "UEFI adapter-readiness rejection retains physical-arrival custody"]
+pub struct UefiApplicationBootstrapAdapterReadinessError<'occurrence> {
+    arrival: UefiApplicationPhysicalArrival<'occurrence>,
+    diagnostic: ExternalRootDiagnostic,
+}
+
+impl<'occurrence> UefiApplicationBootstrapAdapterReadinessError<'occurrence> {
+    pub const fn diagnostic(&self) -> &ExternalRootDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        UefiApplicationPhysicalArrival<'occurrence>,
+        ExternalRootDiagnostic,
+    ) {
+        (self.arrival, self.diagnostic)
+    }
+}
+
+impl std::fmt::Display for UefiApplicationBootstrapAdapterReadinessError<'_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.diagnostic.fmt(formatter)
+    }
+}
+
+impl std::error::Error for UefiApplicationBootstrapAdapterReadinessError<'_> {}
+
+/// Consume the exact physical-arrival join before any provider projection can
+/// enter target-runtime adapter composition. This is readiness evidence only:
+/// target-owned environment/stack evidence and a generated native invocation
+/// remain required before `UefiPhysicalEntry::enter` is realized.
+pub fn prepare_uefi_application_bootstrap_adapter_invocation<'occurrence>(
+    ledger: &UefiApplicationFirmwareLedger<'occurrence>,
+    arrival: UefiApplicationPhysicalArrival<'occurrence>,
+) -> Result<
+    UefiApplicationBootstrapAdapterInvocationReadiness<'occurrence>,
+    Box<UefiApplicationBootstrapAdapterReadinessError<'occurrence>>,
+> {
+    if !ledger.matches_image_handle(&arrival.image_handle)
+        || !ledger.matches_provenance(&arrival.system_table.provenance)
+        || !ledger.matches_lease(&arrival.system_table.phase_lease)
+    {
+        return Err(Box::new(UefiApplicationBootstrapAdapterReadinessError {
+            arrival,
+            diagnostic: ExternalRootDiagnostic(
+                "UEFI adapter readiness belongs to a different or inactive physical invocation"
+                    .into(),
+            ),
+        }));
+    }
+    if !arrival
+        .physical_contract
+        .matches_exact_uefi_x64_physical_contract()
+    {
+        return Err(Box::new(
+            UefiApplicationBootstrapAdapterReadinessError {
+                arrival,
+                diagnostic: ExternalRootDiagnostic(
+                    "UEFI adapter readiness does not retain the exact target-owned physical entry contract"
+                        .into(),
+                ),
+            },
+        ));
+    }
+    let expected = exact_uefi_x64_physical_boundary_entry_plan();
+    let commitment = expected.contract_commitment_digest();
+    if commitment == [0; 32]
+        || expected.contract_report_fingerprint()
+            != arrival.physical_contract.calling_plan_report_fingerprint()
+        || expected.plan() != arrival.physical_contract.boundary_entry_plan()
+    {
+        return Err(Box::new(UefiApplicationBootstrapAdapterReadinessError {
+            arrival,
+            diagnostic: ExternalRootDiagnostic(
+                "UEFI adapter readiness physical calling-plan replay drifted".into(),
+            ),
+        }));
+    }
+    Ok(UefiApplicationBootstrapAdapterInvocationReadiness {
+        arrival,
+        physical_calling_plan_commitment: commitment,
+    })
 }
 
 /// Recoverable physical-arrival rejection retaining both linear inputs and the
@@ -1082,6 +1238,42 @@ mod tests {
                 .count(),
             1,
             "physical-arrival custody must implement only report-only Debug",
+        );
+
+        let readiness = item_block(
+            source,
+            "pub struct UefiApplicationBootstrapAdapterInvocationReadiness<'occurrence>",
+        );
+        let compact_readiness = readiness
+            .chars()
+            .filter(|character| !character.is_whitespace())
+            .collect::<String>();
+        assert_eq!(
+            compact_readiness,
+            "pubstructUefiApplicationBootstrapAdapterInvocationReadiness<'occurrence>{pub(super)arrival:UefiApplicationPhysicalArrival<'occurrence>,physical_calling_plan_commitment:[u8;32],}"
+        );
+        let readiness_impl = item_block(
+            source,
+            "impl UefiApplicationBootstrapAdapterInvocationReadiness<'_>",
+        );
+        assert_eq!(
+            public_method_names(readiness_impl),
+            [
+                "ledger_id",
+                "physical_invocation",
+                "firmware_session",
+                "image_handle_occurrence",
+                "system_table_occurrence",
+                "physical_requirement_identity",
+                "physical_calling_plan_commitment",
+            ]
+        );
+        assert_eq!(
+            compact_source
+                .matches("forUefiApplicationBootstrapAdapterInvocationReadiness<'_>{")
+                .count(),
+            1,
+            "adapter readiness must implement only report-only Debug",
         );
 
         for forbidden in [
