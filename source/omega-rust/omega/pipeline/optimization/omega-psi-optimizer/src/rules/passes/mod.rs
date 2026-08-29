@@ -16,6 +16,13 @@ mod global_value_numbering;
 mod proof_check_elision;
 mod sparse_conditional_constant_propagation;
 
+pub(super) use control_flow_cleanup::built_in_registrations as control_flow_cleanup_rule_registrations;
+pub(super) use copy_propagation::built_in_registrations as copy_propagation_rule_registrations;
+pub(super) use dead_scalar_elimination::built_in_registrations as dead_scalar_elimination_rule_registrations;
+pub(super) use global_value_numbering::built_in_registrations as global_value_numbering_rule_registrations;
+pub(super) use proof_check_elision::built_in_registrations as proof_check_elision_rule_registrations;
+pub(super) use sparse_conditional_constant_propagation::built_in_registrations as sparse_conditional_constant_propagation_rule_registrations;
+
 pub use control_flow_cleanup::*;
 pub use copy_propagation::*;
 pub use dead_scalar_elimination::*;

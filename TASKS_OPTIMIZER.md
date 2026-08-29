@@ -26,9 +26,16 @@ determinism, and reviewed per-target artifact metadata/digests. UEFI remains
 outside this direct-native matrix until its physical adapter/publication chain
 exists.
 
-[>] Next, add the broader four-ABI corruption matrix, then continue the general
-allocator/frame work. The source-organization, closed-vocabulary, and
-no-selection compatibility gates are enforced.
+[x] Psi rule coordination now has one small selection/application entrance,
+one declarative pass table, and one local ordered `catalog.rs` in every exact
+pass folder. Copy propagation no longer survives as a flat catch-all file. The
+architecture test rejects a missing pass catalog or a named stage entrance
+that regresses into a re-export wall.
+
+[>] Continue the same taxonomy migration for remaining flat executable stage
+files before adding optimizer surface area. Then add the broader four-ABI
+corruption matrix and continue general allocator/frame work. Closed vocabulary
+and no-selection compatibility remain enforced.
 
 ## Completed foundation
 
@@ -60,7 +67,7 @@ no-selection compatibility gates are enforced.
 - [x] x86 conditional-branch rel32-to-rel8 function-relative relaxation.
 - [x] Encoding, layout, whole-function exit, realization, fragment, text,
   object, optimized artifact, and callable-entry custody slices.
-- [x] Optimizer crates reorganized into analyses/planning/rules/stages with
+- [x] Catalog-driven optimizer slices use analyses/planning/rules/stages with
   focused leaf modules and mirrored tests.
 
 ## Organization gate
@@ -90,6 +97,15 @@ no-selection compatibility gates are enforced.
   engine, physical pipeline, source organization, and rollout briefs.
 - [x] Compact this file to an executable checklist; detailed design is not a
   task-list responsibility.
+- [x] Replace the conditional Psi mega-registry with a declarative pass table;
+  each exact pass owns its ordered rule catalog immediately below its folder
+  entrance.
+- [x] Split the flat optimized ordinary-callable-entry stage into a subfolder;
+  its small entrance owns build/replay while model, reconstruction, and codec
+  descend into named leaves.
+- [>] Replace remaining flat executable stages and mixed-responsibility files
+  with semantic folders whose small `mod.rs` owns the real stage join. Tighten
+  the production-file ceiling as each named legacy leaf is removed.
 
 ## P0 — Opt-in and compatibility firewall
 
@@ -242,6 +258,8 @@ rewrite or opt a program into lossy floating-point semantics.
    artifact custody with exact byte-delta tests.
 5. [x] Retain exact build opt-in and direct/selected XOR-zero coverage through
    publication and callable entry.
-6. [ ] Add the broader target/ABI corruption matrix.
-7. [x] Finish the remaining organization checks, workspace validation, and
-   rollout canaries before promoting any rule beyond explicit opt-in.
+6. [>] Finish the remaining stage-entrance taxonomy migration and make the
+   navigation contract executable for each migrated stage.
+7. [ ] Add the broader target/ABI corruption matrix.
+8. [ ] Finish workspace validation and rollout canaries before promoting any
+   rule beyond explicit opt-in.

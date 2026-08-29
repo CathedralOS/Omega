@@ -45,6 +45,12 @@ No second match table may silently become an alternate registry. Build
 vocabulary, reports, and codecs derive from or exhaustively test against the
 closed `Optimization::ALL` vocabulary.
 
+For Psi, `rules/mod.rs` is the selection/application entrance,
+`rules/catalog.rs` is the complete ordered pass table, and every
+`rules/passes/<exact-pass>/catalog.rs` owns only that pass's exact rule order.
+Enabling or disabling a Psi pass therefore changes one visible descriptor
+table; changing a rule's within-pass order changes one local catalog.
+
 ## Squalr pattern carried forward
 
 The clearest concrete reference is Squalr's
@@ -100,7 +106,8 @@ and fragment publication has one generic post-allocation source. Adding
 XOR-zero did not copy the former MOVN route, and the named CBNZ/MOVN owning
 complete routes were removed.
 
-The organization gate is now executable. `omega-optimization-core` declares
+The organization gate is executable for the catalog-driven reference slices.
+`omega-optimization-core` declares
 each exact name, stable tag, build case, build counter, phase, and canonical
 order once; its descriptor generates both `Optimization` and
 `Optimization::ALL`. Both injected build preludes are parsed against those
@@ -113,4 +120,13 @@ tests. Validator candidates, semantic analyses, optimization-unit identity and
 rewrite machinery, projection tests, and physical custody tests descend through
 small named entrances rather than monoliths. The repository architecture test
 enforces the 1,500-line file ceiling and the entrance exception contract over
-the governed optimizer roots.
+the governed optimizer roots. It additionally names the coordination marker
+that must remain in each migrated executable-stage entrance and requires one
+local rule catalog for every Psi pass; a small re-export wall no longer passes
+that check. The optimized ordinary-callable-entry stage is a physical example:
+its `mod.rs` owns build/replay, with records in `model.rs`, semantic
+reconstruction in `reconstruction.rs`, and wire format in `codec.rs`.
+
+Migration is not complete merely because every file is under the hard ceiling.
+Remaining flat executable-stage leaves are tracked in `TASKS_OPTIMIZER.md` and
+must move behind semantic folder entrances before those areas gain new rules.

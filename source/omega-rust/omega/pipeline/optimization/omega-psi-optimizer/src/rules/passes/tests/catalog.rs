@@ -4,6 +4,11 @@ use super::*;
 
 #[test]
 fn ordered_catalog_covers_every_declared_psi_optimization_once() {
+    assert_eq!(
+        PSI_PASS_CATALOG.map(|entry| entry.optimization()),
+        ORDERED_PSI_PASSES,
+        "the compatibility order must be derived from the descriptor catalog",
+    );
     let mut declared = Optimization::ALL
         .into_iter()
         .filter(|optimization| {
