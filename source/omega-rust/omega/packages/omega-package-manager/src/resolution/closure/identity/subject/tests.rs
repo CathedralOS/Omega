@@ -1,5 +1,8 @@
 use super::*;
-use omega_package_source::{GitCommitId, GitTreeId, ImmutableSourceResolution};
+use omega_package_source::{
+    AliasName, GitCommitId, GitTreeId, ImmutableSourceResolution, PackageName, SourceLineage,
+    WorkspaceMemberPath,
+};
 
 fn finish(
     root: CanonicalRootSourceSelection,

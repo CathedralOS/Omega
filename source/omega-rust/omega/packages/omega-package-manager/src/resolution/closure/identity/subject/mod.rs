@@ -1,18 +1,26 @@
 //! Canonical source-closure subject model and construction.
 
-use super::super::{ResolvedPackageSourceClosure, ResolvedSourceIdentity};
-use crate::manifest::dependencies::read::{DependencySourceRequest, PackageSelection};
-use omega_package_source::{
-    AliasName, ExternalSourceContext, PackageKey, PackageName, SourceLineage, WorkspaceMemberPath,
-};
-use std::fmt;
+mod error;
+mod fingerprint;
+mod limits;
+mod request;
 
+pub use error::CanonicalSourceClosureSubjectError;
+pub use fingerprint::CanonicalSourceClosureSubjectFingerprint;
+pub use limits::CanonicalSourceClosureSubjectLimits;
+pub use request::{
+    CanonicalDependencySourceRequest, CanonicalDependencySourceSelection,
+    CanonicalRootSourceRequest, CanonicalRootSourceSelection,
+};
+
+use super::super::{ResolvedPackageSourceClosure, ResolvedSourceIdentity};
 use super::codec::{
-    decode_dependency_selection, decode_root_selection, decode_source_identity, encode_hex,
-    encode_subject, fingerprint, Decoder,
+    decode_dependency_selection, decode_root_selection, decode_source_identity, encode_subject,
+    fingerprint, Decoder,
 };
 use super::validation::{canonical_root_request, validate_subject};
 use crate::resolution::source::PackageSourceNavigation;
+use omega_package_source::PackageKey;
 
 #[cfg(test)]
 mod tests;
@@ -21,214 +29,6 @@ pub(super) const SOURCE_CLOSURE_SUBJECT_MAGIC: &[u8] = b"OMEGA-SOURCE-CLOSURE-SU
 pub const SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION: u16 = 3;
 pub(super) const SOURCE_CLOSURE_SUBJECT_FINGERPRINT_DOMAIN: &[u8] =
     b"OMEGA-SOURCE-CLOSURE-SUBJECT-FINGERPRINT\0";
-const ABSOLUTE_RECORD_BYTE_LIMIT: usize = 64 * 1024 * 1024;
-const ABSOLUTE_PACKAGE_LIMIT: usize = 16 * 1024;
-const ABSOLUTE_DEPENDENCY_REQUEST_LIMIT: usize = 256 * 1024;
-const ABSOLUTE_IDENTITY_BYTE_LIMIT: usize = 1024 * 1024;
-const ABSOLUTE_REQUEST_BYTE_LIMIT: usize = 1024 * 1024;
-
-/// Resource ceilings for one canonical resolved-source question.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CanonicalSourceClosureSubjectLimits {
-    pub maximum_record_bytes: usize,
-    pub maximum_packages: usize,
-    pub maximum_dependency_requests: usize,
-    pub maximum_identity_bytes: usize,
-    pub maximum_request_bytes: usize,
-}
-
-impl Default for CanonicalSourceClosureSubjectLimits {
-    fn default() -> Self {
-        Self {
-            maximum_record_bytes: ABSOLUTE_RECORD_BYTE_LIMIT,
-            maximum_packages: 1024,
-            maximum_dependency_requests: 16 * 1024,
-            maximum_identity_bytes: 64 * 1024,
-            maximum_request_bytes: 64 * 1024,
-        }
-    }
-}
-
-impl CanonicalSourceClosureSubjectLimits {
-    pub(super) fn compiler_bounded(self) -> Self {
-        Self {
-            maximum_record_bytes: self.maximum_record_bytes.min(ABSOLUTE_RECORD_BYTE_LIMIT),
-            maximum_packages: self.maximum_packages.min(ABSOLUTE_PACKAGE_LIMIT),
-            maximum_dependency_requests: self
-                .maximum_dependency_requests
-                .min(ABSOLUTE_DEPENDENCY_REQUEST_LIMIT),
-            maximum_identity_bytes: self
-                .maximum_identity_bytes
-                .min(ABSOLUTE_IDENTITY_BYTE_LIMIT),
-            maximum_request_bytes: self.maximum_request_bytes.min(ABSOLUTE_REQUEST_BYTE_LIMIT),
-        }
-    }
-}
-
-/// A closed error from projection or strict canonical recovery.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CanonicalSourceClosureSubjectError {
-    message: &'static str,
-}
-
-impl CanonicalSourceClosureSubjectError {
-    pub(super) fn new(message: &'static str) -> Self {
-        Self { message }
-    }
-
-    pub const fn message(&self) -> &'static str {
-        self.message
-    }
-}
-
-impl fmt::Display for CanonicalSourceClosureSubjectError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(self.message)
-    }
-}
-
-impl std::error::Error for CanonicalSourceClosureSubjectError {}
-
-/// Domain-separated identity of one complete canonical source-closure question.
-///
-/// This identifies the question only. It is not source authenticity, package
-/// admission, a compiler result, or a package instance.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct CanonicalSourceClosureSubjectFingerprint(pub(super) [u8; 32]);
-
-impl CanonicalSourceClosureSubjectFingerprint {
-    pub fn to_hex(&self) -> String {
-        encode_hex(&self.0)
-    }
-}
-
-/// Exact caller request for the root source, before normalized selection.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CanonicalRootSourceRequest {
-    Git {
-        requested_locator: String,
-        requested_revision: String,
-        selection: PackageSelection,
-    },
-    WorkspaceMember {
-        workspace_root_source: SourceLineage,
-        member_path: WorkspaceMemberPath,
-        /// Exact platform-encoded caller spelling. This is not a cache path.
-        requested_workspace_root: Vec<u8>,
-    },
-    ExternalLocal {
-        /// Exact platform-encoded caller spelling. Canonical local lineage is
-        /// retained independently in the selected package key.
-        requested_root: Vec<u8>,
-        source_context: ExternalSourceContext,
-    },
-}
-
-/// One exact root request joined directly to the immutable source it selected.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CanonicalRootSourceSelection {
-    pub(super) request: CanonicalRootSourceRequest,
-    pub(super) selected: ResolvedSourceIdentity,
-}
-
-impl CanonicalRootSourceSelection {
-    pub const fn request(&self) -> &CanonicalRootSourceRequest {
-        &self.request
-    }
-
-    pub const fn selected(&self) -> &ResolvedSourceIdentity {
-        &self.selected
-    }
-}
-
-/// Exact authored source request for one dependency occurrence.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CanonicalDependencySourceRequest {
-    Path {
-        explicit_alias: Option<AliasName>,
-        location: String,
-    },
-    Git {
-        explicit_alias: Option<AliasName>,
-        repository: String,
-        revision: String,
-        selection: PackageSelection,
-    },
-}
-
-impl CanonicalDependencySourceRequest {
-    pub const fn explicit_alias(&self) -> Option<&AliasName> {
-        match self {
-            Self::Path { explicit_alias, .. } | Self::Git { explicit_alias, .. } => {
-                explicit_alias.as_ref()
-            }
-        }
-    }
-
-    pub(super) fn resolved_alias(&self, selected: &PackageName) -> AliasName {
-        self.explicit_alias()
-            .cloned()
-            .unwrap_or_else(|| selected.default_alias())
-    }
-}
-
-impl From<&DependencySourceRequest> for CanonicalDependencySourceRequest {
-    fn from(request: &DependencySourceRequest) -> Self {
-        match request {
-            DependencySourceRequest::Path {
-                explicit_alias,
-                location,
-            } => Self::Path {
-                explicit_alias: explicit_alias.clone(),
-                location: location.clone(),
-            },
-            DependencySourceRequest::Git {
-                explicit_alias,
-                repository,
-                revision,
-                selection,
-            } => Self::Git {
-                explicit_alias: explicit_alias.clone(),
-                repository: repository.clone(),
-                revision: revision.clone(),
-                selection: selection.clone(),
-            },
-        }
-    }
-}
-
-/// One requester-owned dependency request joined to its graph edge and exact
-/// immutable selection. Distinct diamond occurrences remain distinct rows.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CanonicalDependencySourceSelection {
-    pub(super) requester: PackageKey,
-    pub(super) dependency_index: usize,
-    pub(super) request: CanonicalDependencySourceRequest,
-    pub(super) alias: AliasName,
-    pub(super) selected: ResolvedSourceIdentity,
-}
-
-impl CanonicalDependencySourceSelection {
-    pub const fn requester(&self) -> &PackageKey {
-        &self.requester
-    }
-
-    pub const fn dependency_index(&self) -> usize {
-        self.dependency_index
-    }
-
-    pub const fn request(&self) -> &CanonicalDependencySourceRequest {
-        &self.request
-    }
-
-    pub const fn alias(&self) -> &AliasName {
-        &self.alias
-    }
-
-    pub const fn selected(&self) -> &ResolvedSourceIdentity {
-        &self.selected
-    }
-}
 
 /// Canonical, non-admitting subject for one exact resolved source closure.
 ///
