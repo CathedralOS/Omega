@@ -73,6 +73,13 @@ is a responsibility map into named semantic folders. Legalization source and
 replay have separate sub-100-line roster entrances and mirrored structural
 subtrees, all pinned by the source-organization gate.
 
+[x] The exact unmetered ranked-`u32` countdown now crosses the object boundary
+through target-owned x86-64/AArch64 decoders and independent image-owned
+contract/fuel replay. Object custody retains the full ranked record; missing
+custody, corrupted bytes/ABI/frontier/provenance/fuel, and mixed body evidence
+reject. Native-fuel rebasing and final-image publication remain explicitly
+fenced as later stages.
+
 [x] Layout-independent selected-form encoding now has an independent
 validation rung. Its small entrance coordinates ordinary rows, structural
 rows, and aggregate custody; candidate bytes descend into target-owned
@@ -402,8 +409,10 @@ selection identity.
   layout-independent baseline, MOVN, XOR-zero, CBNZ dispositions,
   structural-Unit encodings, and resolved function-relative layouts now replay
   independently. Structural-Unit selected validation also reconstructs ABI
-  layout and call constraints without construction helpers; remaining lowering
-  and publication routes still need closure.
+  layout and call constraints without construction helpers. The unmetered
+  ranked-`u32` machine carrier now has target-decoder-led object replay while
+  ranked native-fuel and final-image/publication routes remain fenced; remaining
+  lowering and publication routes still need closure.
 - [ ] Add generated differential testing across interpreter/reference native
   execution for exact integer, float, trap, atomic, placed-memory, cleanup, and
   transition cases.

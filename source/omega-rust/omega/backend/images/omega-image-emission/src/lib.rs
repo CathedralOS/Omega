@@ -26,7 +26,7 @@ mod instruction_loads;
 mod native_fuel;
 mod native_fuel_runtime;
 mod partial_cleanup_partition;
-mod ranked_countdown;
+mod ranked_u32_countdown;
 mod scalar_call_stack;
 mod scalar_cleanup_preservation;
 mod scalar_conditional_call_paths;
@@ -74,7 +74,6 @@ use completion_receipts::{CompletionCustodyError, validate_completion_custody};
 use fully_consumed_affine_pair::{
     exact_fully_consumed_affine_pair, exact_partially_consumed_affine_triple,
 };
-use ranked_countdown::validate_ranked_countdown;
 use scalar_cleanup_preservation::validate_scalar_cleanup_preservation;
 use scalar_conditional_call_paths::{conditional_call_path, conditional_paths_are_exclusive};
 use scalar_control_cleanup::{cleanup_for_owner, validate_scalar_control_cleanup_evidence};
@@ -231,6 +230,9 @@ pub struct ObjectFunction {
     pub scalar_control_affine_cleanups: Vec<ScalarControlAffineCleanupRecord>,
     pub scalar_structural_parameters: Vec<omega_machine_code::UnitParameterRecord>,
     pub scalar_structural_parameter_homes: Vec<omega_machine_code::UnitParameterHomeRecord>,
+    /// Independently replayed proof, rank, ABI, frontier, and fuel custody for
+    /// the exact unmetered ranked-`u32` object body.
+    pub ranked_u32_countdown: Option<omega_machine_code::RankedU32CountdownMachineCodeRecord>,
     /// Byte-validated structural custody returned by this function, when the
     /// complete one-fragment slice applies.
     pub structural_return: Option<StructuralReturnRecord>,
@@ -411,6 +413,7 @@ pub fn build_object_artifact(plan: &MachineCodePlan) -> Result<ObjectArtifact, O
     if plan.functions.is_empty() {
         return Err(ObjectError::EmptyPlan);
     }
+    ranked_u32_countdown::replay_ranked_u32_countdown(plan)?;
     let mut previous = None;
     let mut saw_entry = false;
     let mut text_size = 0usize;
@@ -437,13 +440,6 @@ pub fn build_object_artifact(plan: &MachineCodePlan) -> Result<ObjectArtifact, O
         }
         if function.bytes.is_empty() {
             return Err(ObjectError::EmptyFunction(function.machine));
-        }
-        if function.ranked_u32_countdown.is_some() {
-            validate_ranked_countdown(function, plan.psi, plan.target)?;
-        } else if function.requires_ranked_countdown_replay() {
-            return Err(ObjectError::RankedCountdownNotYetReplayable(
-                function.machine,
-            ));
         }
         if function
             .internal_calls
@@ -1331,6 +1327,7 @@ pub fn build_object_artifact(plan: &MachineCodePlan) -> Result<ObjectArtifact, O
             scalar_control_affine_cleanups: function.scalar_control_affine_cleanups.clone(),
             scalar_structural_parameters: function.scalar_structural_parameters.clone(),
             scalar_structural_parameter_homes: function.scalar_structural_parameter_homes.clone(),
+            ranked_u32_countdown: function.ranked_u32_countdown.clone(),
             structural_return: function.structural_return.clone(),
         });
     }
@@ -1435,10 +1432,8 @@ pub enum ObjectError {
         current: MachineId,
     },
     EmptyFunction(MachineId),
-    RankedCountdownNotYetReplayable(MachineId),
-    InvalidRankedCountdownEvidence(MachineId),
-    RankedCountdownBytesMismatch(MachineId),
-    RankedCountdownEvidenceConflict(MachineId),
+    MissingRankedCountdownCustody(MachineId),
+    InvalidRankedCountdown(MachineId),
     NonCanonicalInternalCallOrder(MachineId),
     NonCanonicalFuelAttributionOrder(MachineId),
     FuelAttributionOutsideFunction(MachineId),

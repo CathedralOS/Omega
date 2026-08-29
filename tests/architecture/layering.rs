@@ -2768,6 +2768,89 @@ fn selected_structural_unit_validation_cannot_reenter_its_producer() {
 }
 
 #[test]
+fn ranked_countdown_object_replay_cannot_reenter_machine_emission() {
+    let root = workspace_root();
+    let image_root = root.join("source/omega-rust/omega/backend/images/omega-image-emission");
+    let manifest = std::fs::read_to_string(image_root.join("Cargo.toml"))
+        .expect("read image-emission manifest");
+    let production_dependencies = manifest
+        .split("[dev-dependencies]")
+        .next()
+        .expect("manifest has a production prefix");
+    assert!(
+        !production_dependencies
+            .lines()
+            .any(|line| line.trim_start().starts_with("omega-machine-emission")),
+        "ranked object replay must not acquire a production dependency on its machine-code producer",
+    );
+
+    let replay = recursive_rust_source(&image_root.join("src/ranked_u32_countdown"));
+    for forbidden in [
+        "omega_machine_emission",
+        "emit_machine_code",
+        "encode_ranked_u32_countdown_in_edi",
+        "encode_ranked_u32_countdown_in_w0",
+        "X86_64_RANKED_U32_",
+        "AARCH64_RANKED_U32_",
+    ] {
+        assert!(
+            !replay.contains(forbidden),
+            "ranked object replay must consume decoded target evidence, not producer mechanics; found {forbidden}",
+        );
+    }
+    for required in [
+        "validate_x86_64_ranked_u32_countdown_in_edi",
+        "validate_aarch64_ranked_u32_countdown_in_w0",
+        "replay_ranked_countdown_contract",
+        "replay_ranked_countdown_fuel",
+        "reject_ranked_u32_countdown_final_image",
+    ] {
+        assert!(
+            replay.contains(required),
+            "ranked object replay must visibly own `{required}`",
+        );
+    }
+
+    let image_entrance = std::fs::read_to_string(image_root.join("src/lib.rs"))
+        .expect("read image-emission entrance");
+    assert!(
+        image_entrance.contains("ranked_u32_countdown::replay_ranked_u32_countdown(plan)?"),
+        "object construction must route ranked custody through independent replay",
+    );
+    assert!(
+        image_entrance.contains(
+            "pub ranked_u32_countdown: Option<omega_machine_code::RankedU32CountdownMachineCodeRecord>",
+        ),
+        "object functions must retain independently replayed ranked custody",
+    );
+
+    for (path, validator, encoder) in [
+        (
+            "source/omega-rust/omega/backend/instruction_set_architectures/omega-isa-x86_64/src/ranked_u32_countdown.rs",
+            "pub fn validate_x86_64_ranked_u32_countdown_in_edi",
+            "encode_ranked_u32_countdown_in_edi(",
+        ),
+        (
+            "source/omega-rust/omega/backend/instruction_set_architectures/omega-isa-aarch64/src/ranked_u32_countdown.rs",
+            "pub fn validate_aarch64_ranked_u32_countdown_in_w0",
+            "encode_ranked_u32_countdown_in_w0(",
+        ),
+    ] {
+        let source = std::fs::read_to_string(root.join(path))
+            .unwrap_or_else(|error| panic!("failed to read {path}: {error}"));
+        let validator_body = source
+            .split_once(validator)
+            .map(|(_, tail)| tail)
+            .and_then(|tail| tail.split_once("#[cfg(test)]").map(|(body, _)| body))
+            .expect("ranked ISA validator precedes its tests");
+        assert!(
+            !validator_body.contains(encoder),
+            "target-owned ranked validator in {path} must decode bytes without calling `{encoder}`",
+        );
+    }
+}
+
+#[test]
 fn selected_form_encoding_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let stage = root.join(
