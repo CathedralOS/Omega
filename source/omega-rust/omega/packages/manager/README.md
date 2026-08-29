@@ -6,14 +6,15 @@ same order the workflow runs:
 ```text
 src/
 ├── lib.rs          public crate entrance and responsibility exports
-├── workflow/       complete command-facing operations; start here
-├── manifest/       read and conservatively edit build.omg
-├── package/        bind snapshots to declarations and dependency rows
-├── graph/          construct, validate, and identify the dependency closure
+├── commands/       complete command-facing operations; start here
+├── declarations/   read and conservatively edit build.omg
+├── resolution/     turn declared sources into one validated closure
+│   ├── package/    bind immutable snapshots to package declarations
+│   └── graph/      traverse, reconcile, validate, and identify the closure
 ├── review/         compile, compare, triage, and apply root review policy
 ```
 
-`workflow/source_audit/` is the first complete operation. Install/update
+`commands/source_audit/` is the first complete operation. Install/update
 orchestration remains intentionally absent until its admission prerequisites
 are implemented.
 
@@ -22,13 +23,13 @@ are implemented.
 Immutable acquisition is delegated to
 [`source/acquisition`](../source/acquisition/README.md), which composes confined
 native execution from [`source/execution`](../source/execution/README.md).
-Acquisition does not know graph identity. `package/` performs the declaration
-join before `graph/` derives graph-owned identities.
+Acquisition does not know graph identity. `resolution/package/` performs the
+declaration join before `resolution/graph/` derives graph-owned identities.
 
 ## Dependency graph
 
 ```text
-graph/
+resolution/graph/
 ├── mod.rs           graph boundary and public graph vocabulary
 ├── root_request.rs  exact request selecting the root
 ├── traversal/       follow declared workspace, local, and Git edges
