@@ -216,7 +216,17 @@ fn handle_client(
             );
         }
     };
-    let effective_peer = upstream.peer_addr().ok();
+    let effective_peer = match upstream.peer_addr() {
+        Ok(peer) => Some(peer),
+        Err(_) => {
+            let _ = write_response(&mut client, b"HTTP/1.1 502 Bad Gateway\r\n\r\n");
+            return endpoint_event(
+                ordinal,
+                ResolverExecutionEndpointOutcome::UpstreamUnavailable,
+                None,
+            );
+        }
+    };
     if write_response(&mut client, b"HTTP/1.1 200 Connection Established\r\n\r\n").is_ok() {
         let relay = relay(&mut client, &mut upstream, stop, transfer_budget);
         return ResolverExecutionEndpointEvent {

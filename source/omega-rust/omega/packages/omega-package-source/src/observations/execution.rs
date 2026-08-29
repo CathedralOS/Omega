@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 /// Exact standard input committed into one sealed Git command identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum GitCommandInputObservation {
+pub enum GitCommandInputCommitment {
     Null,
     ExactBytes { length: u64, identity: String },
 }
@@ -60,7 +60,7 @@ pub struct GitCommandExecutionObservation {
     pub(crate) phase: ResolverExecutionPhase,
     pub(crate) policy_identity: String,
     pub(crate) command_identity: String,
-    pub(crate) input: GitCommandInputObservation,
+    pub(crate) input: GitCommandInputCommitment,
     pub(crate) status_code: Option<i32>,
     pub(crate) termination_signal: Option<i32>,
     pub(crate) stdout_length: u64,
@@ -84,7 +84,7 @@ impl GitCommandExecutionObservation {
         &self.command_identity
     }
 
-    pub const fn input(&self) -> &GitCommandInputObservation {
+    pub const fn input(&self) -> &GitCommandInputCommitment {
         &self.input
     }
 

@@ -7,7 +7,7 @@ use super::reconciliation::reconcile_git_command_endpoint_result;
 use crate::SourceResolveError;
 use crate::git::executable::executor::GitExecutor;
 use crate::limits::{GIT_STDERR_LIMIT, GIT_STDOUT_LIMIT};
-use crate::observations::execution::GitCommandInputObservation;
+use crate::observations::execution::GitCommandInputCommitment;
 use omega_resolver_execution::{
     ResolverExecutionEndpointObservation, ResolverExecutionEndpointOutcome,
     ResolverExecutionEndpointRoute, ResolverExecutionPhase,
@@ -113,7 +113,7 @@ where
         sealed_git_command_with_route(executor, working_directory, phase, endpoint_route.as_ref())?;
     let command_timeout = executor.begin_launch()?;
     command.args(args);
-    let input = GitCommandInputObservation::Null;
+    let input = GitCommandInputCommitment::Null;
     let command_identity = git_command_configuration_identity(&mut command, phase, &input)?;
     let result = run_command_bounded_with_budget(
         command,

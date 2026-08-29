@@ -32,7 +32,7 @@ use crate::git::process::capture::{
     ResolverCommandInput, run_command_bounded_with_stdin_and_budget,
 };
 use crate::git::process::command::sealed_git_command_with_route;
-use crate::git::process::identity::{git_batch_stdin_identity, git_command_configuration_identity};
+use crate::git::process::identity::{git_command_configuration_identity, git_exact_input_identity};
 use crate::git::process::reconciliation::{
     reconcile_git_cache_operation_result, reconcile_git_command_result,
 };
@@ -56,17 +56,26 @@ pub(super) fn read_git_blobs_batch(
         return Ok(());
     }
     let stdout_limit = git_batch_output_limit(entries, limits)?;
+    let request_bytes = git_batch_request_bytes(entries);
+    let input = git_exact_input_identity(&request_bytes);
     repository.verify_identity()?;
     let mut request = PendingGitBatchRequest::create(&repository.entry, &repository.entry_root)?;
     let operation_result = (|| {
         let request_path = request.display_path.clone();
-        write_git_batch_request(request.file_mut(), &request_path, entries)?;
+        write_git_batch_request(request.file_mut(), &request_path, &request_bytes)?;
         request.verify_current()?;
         let stdin = request
             .file()
             .try_clone()
             .map_err(|error| io_error(&request.display_path, error))?;
-        execute_git_blob_batch(executor, repository.path(), stdin, entries, stdout_limit)
+        execute_git_blob_batch(
+            executor,
+            repository.path(),
+            stdin,
+            input,
+            entries,
+            stdout_limit,
+        )
     })();
     let namespace_result = repository
         .verify_identity()
@@ -90,6 +99,8 @@ pub(crate) fn read_git_blobs_batch_from_path(
         return Ok(());
     }
     let stdout_limit = git_batch_output_limit(entries, limits)?;
+    let request_bytes = git_batch_request_bytes(entries);
+    let input = git_exact_input_identity(&request_bytes);
     let sequence = STAGING_SEQUENCE.fetch_add(1, Ordering::Relaxed);
     let request_path = repository
         .parent()
@@ -108,9 +119,10 @@ pub(crate) fn read_git_blobs_batch_from_path(
         .create_new(true)
         .open(&request_path)
         .map_err(|error| io_error(&request_path, error))?;
-    write_git_batch_request(&mut request, &request_path, entries)?;
+    write_git_batch_request(&mut request, &request_path, &request_bytes)?;
 
-    let result = execute_git_blob_batch(executor, repository, request, entries, stdout_limit);
+    let result =
+        execute_git_blob_batch(executor, repository, request, input, entries, stdout_limit);
     drop(request_guard);
     result
 }
@@ -118,17 +130,11 @@ pub(crate) fn read_git_blobs_batch_from_path(
 fn write_git_batch_request(
     request: &mut File,
     request_path: &Path,
-    entries: &[GitTreeEntry],
+    bytes: &[u8],
 ) -> Result<(), SourceResolveError> {
-    for entry in entries
-        .iter()
-        .filter(|entry| !matches!(&entry.kind, GitTreeEntryKind::Tree))
-    {
-        request
-            .write_all(entry.oid.as_bytes())
-            .and_then(|_| request.write_all(b"\n"))
-            .map_err(|error| io_error(request_path, error))?;
-    }
+    request
+        .write_all(bytes)
+        .map_err(|error| io_error(request_path, error))?;
     request
         .seek(SeekFrom::Start(0))
         .map(|_| ())
@@ -139,6 +145,7 @@ fn execute_git_blob_batch(
     executor: &GitExecutor,
     repository: &Path,
     request: File,
+    input: crate::observations::execution::GitCommandInputCommitment,
     entries: &mut [GitTreeEntry],
     stdout_limit: usize,
 ) -> Result<(), SourceResolveError> {
@@ -150,11 +157,10 @@ fn execute_git_blob_batch(
     )?;
     let command_timeout = executor.begin_launch()?;
     command.args([OsStr::new("cat-file"), OsStr::new("--batch")]);
-    let stdin_identity = git_batch_stdin_identity(entries);
     let command_identity = git_command_configuration_identity(
         &mut command,
         ResolverExecutionPhase::RepositoryInspection,
-        &stdin_identity,
+        &input,
     )?;
     let result = run_command_bounded_with_stdin_and_budget(
         command,
@@ -169,7 +175,7 @@ fn execute_git_blob_batch(
     executor.record_command_execution(
         ResolverExecutionPhase::RepositoryInspection,
         command_identity,
-        stdin_identity,
+        input,
         &output,
         None,
     )?;
@@ -182,6 +188,18 @@ fn execute_git_blob_batch(
     }
     assign_git_batch_output(entries, output.stdout)?;
     executor.verify_budget()
+}
+
+fn git_batch_request_bytes(entries: &[GitTreeEntry]) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    for entry in entries
+        .iter()
+        .filter(|entry| !matches!(&entry.kind, GitTreeEntryKind::Tree))
+    {
+        bytes.extend_from_slice(entry.oid.as_bytes());
+        bytes.push(b'\n');
+    }
+    bytes
 }
 
 pub(crate) fn git_batch_output_limit(

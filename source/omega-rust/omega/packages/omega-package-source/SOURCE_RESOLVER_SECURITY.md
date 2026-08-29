@@ -104,26 +104,28 @@ a distinct trust class, not the default.
 
 ## Resolver-owned receipt
 
-Git resolution now performs a local strict-receipt reconstruction immediately
-after final cache, executable, command, endpoint, accounting, and snapshot
-revalidation. `ResolvedGitSource` retains either an opaque
+Git resolution now performs a local strict-receipt reconstruction attempt
+immediately after final cache, executable, command, endpoint, accounting, and
+snapshot revalidation. `ResolvedGitSource` retains either an opaque
 `GitSourceStrictReceipt` or one closed `GitSourceStrictReceiptError`. The
 reconstructor first reproduces the complete non-admitting resolution
 observation exactly, rejoins each package command identity to its native
-completion and exact null-or-byte-committed input, verifies executable path and
+completion and exact null-or-byte input commitment, verifies executable path and
 endpoint custody, and calls `require_strict` on every native policy. Missing or
 changed policy, completion, input, endpoint, executable, accounting, source, or
 limit rows reject. Persisted strings cannot construct or decode the receipt.
 
-No current platform result is thereby promoted. The current native backends
-still expose unavailable guarantees, and the closed receipt requirement
-vocabulary additionally rejects absent transport trust, credential custody,
-whole-operation storage/resource ceilings, same-user mutation isolation, and
-the test-only transport. These rows must acquire real locally reconstructed
-evidence before the success path can issue a receipt.
+No success issuer exists yet. The current native backends still expose
+unavailable guarantees; after those pass, the reconstruction attempt rejects
+the test-only transport or the first still-unimplemented transport-trust row.
+Credential custody, whole-operation storage/resource ceilings, and same-user
+mutation isolation do not yet have evidence carriers and therefore are not
+represented as if checked. Each must acquire a real locally reconstructed row
+before the success type gains an issuer.
 
-The complete `SourceResolutionReceiptV1` target is an opaque, canonical value issued by
-the trusted resolver path. Parsing a persisted receipt never mints authority.
+The complete `SourceResolutionReceiptV1` target is an opaque, canonical value
+issued by the trusted resolver path. Parsing a persisted receipt never mints
+authority.
 It binds:
 
 - schema, canonical encoding, resolver, adapter, and helper identities;

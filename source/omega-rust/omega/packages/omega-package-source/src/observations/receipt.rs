@@ -1,48 +1,29 @@
 //! Local reconstruction of strict Git source receipts.
 
 use crate::GitTransportProfile;
-use crate::limits::{
-    GIT_STRICT_RECEIPT_DOMAIN, GIT_STRICT_RECEIPT_SCHEMA_VERSION, LocalSourceLimits,
-};
+use crate::limits::LocalSourceLimits;
 use omega_resolver_execution::{
     ResolverExecutionEndpointOutcome, ResolverExecutionNetworkTransport, ResolverExecutionPhase,
     ResolverStrictExecutionUnavailable,
 };
-use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
+use std::convert::Infallible;
 use std::fmt;
 
 use super::resolution::{GitSourceResolutionObservation, issue_git_source_resolution_observation};
 use super::resolved::PendingResolvedGitSource;
-use crate::git::process::identity::{
-    format_sha256, git_command_configuration_identity_from_resolver,
-};
+use crate::git::process::identity::git_command_configuration_identity_from_resolver;
 
-/// Opaque, locally reconstructed evidence that one Git source resolution met
-/// every strict native and resolver-owned requirement.
+/// Reserved opaque success type for evidence that one Git source resolution
+/// met every strict native and resolver-owned requirement.
 ///
 /// There is intentionally no public constructor or decoder. Persisted strings
-/// cannot recreate this value; the resolver must reconstruct it from current
-/// native policy, command, endpoint, executable, accounting, and source rows.
+/// cannot recreate this value. The private uninhabited field also prevents this
+/// module from issuing success until it is replaced by complete evidence-bound
+/// receipt state.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GitSourceStrictReceipt {
-    schema_version: u32,
-    identity: String,
-    resolution_observation_identity: String,
-}
-
-impl GitSourceStrictReceipt {
-    pub const fn schema_version(&self) -> u32 {
-        self.schema_version
-    }
-
-    pub fn identity(&self) -> &str {
-        &self.identity
-    }
-
-    pub fn resolution_observation_identity(&self) -> &str {
-        &self.resolution_observation_identity
-    }
+    _uninhabited: Infallible,
 }
 
 /// Closed reason why current local evidence could not reconstruct a strict
@@ -87,10 +68,6 @@ impl GitSourceStrictReceiptError {
 pub enum GitSourceStrictReceiptRequirement {
     ProductionTransport,
     TransportTrust,
-    CredentialCustody,
-    WholeOperationStorageCeiling,
-    WholeOperationResourceCeiling,
-    SameUserMutationIsolation,
 }
 
 impl fmt::Display for GitSourceStrictReceiptError {
@@ -142,27 +119,9 @@ pub(crate) fn reconstruct_git_source_strict_receipt(
             .map_err(GitSourceStrictReceiptError::ExecutionUnavailable)?;
     }
 
-    if let Some(requirement) = first_missing_source_requirement(resolved.transport_profile) {
-        return Err(GitSourceStrictReceiptError::MissingRequiredEvidence(
-            requirement,
-        ));
-    }
-
-    let mut hasher = Sha256::new();
-    hash_field(&mut hasher, GIT_STRICT_RECEIPT_DOMAIN);
-    hash_field(
-        &mut hasher,
-        &GIT_STRICT_RECEIPT_SCHEMA_VERSION.to_le_bytes(),
-    );
-    hash_field(&mut hasher, &retained.schema_version().to_le_bytes());
-    hash_field(&mut hasher, retained.identity().as_bytes());
-    hash_field(&mut hasher, b"strict-native-and-source-reconstruction");
-
-    Ok(GitSourceStrictReceipt {
-        schema_version: GIT_STRICT_RECEIPT_SCHEMA_VERSION,
-        identity: format_sha256(&hasher.finalize()),
-        resolution_observation_identity: retained.identity().to_owned(),
-    })
+    Err(GitSourceStrictReceiptError::MissingRequiredEvidence(
+        first_unimplemented_source_requirement(resolved.transport_profile),
+    ))
 }
 
 fn validate_execution_custody(
@@ -203,10 +162,10 @@ fn validate_execution_custody(
         let endpoint_is_valid = match (policy.endpoint_route(), &command.endpoint_observation) {
             (Some(route), Some(endpoint)) if endpoint.route() == route => {
                 resolved.transport_profile == GitTransportProfile::TestFile
-                    || endpoint
-                        .events()
-                        .iter()
-                        .any(|event| event.outcome() == ResolverExecutionEndpointOutcome::Connected)
+                    || endpoint.events().iter().any(|event| {
+                        event.outcome() == ResolverExecutionEndpointOutcome::Connected
+                            && event.effective_peer().is_some()
+                    })
             }
             (None, None) => true,
             _ => false,
@@ -230,24 +189,13 @@ fn validate_execution_custody(
     Ok(())
 }
 
-fn first_missing_source_requirement(
+fn first_unimplemented_source_requirement(
     transport: GitTransportProfile,
-) -> Option<GitSourceStrictReceiptRequirement> {
+) -> GitSourceStrictReceiptRequirement {
     match transport {
-        GitTransportProfile::TestFile => {
-            Some(GitSourceStrictReceiptRequirement::ProductionTransport)
-        }
+        GitTransportProfile::TestFile => GitSourceStrictReceiptRequirement::ProductionTransport,
         GitTransportProfile::Https | GitTransportProfile::Ssh => {
-            Some(GitSourceStrictReceiptRequirement::TransportTrust)
+            GitSourceStrictReceiptRequirement::TransportTrust
         }
     }
-}
-
-fn hash_field(hasher: &mut Sha256, value: &[u8]) {
-    hasher.update(
-        u64::try_from(value.len())
-            .expect("bounded strict-receipt fields fit canonical u64")
-            .to_le_bytes(),
-    );
-    hasher.update(value);
 }
