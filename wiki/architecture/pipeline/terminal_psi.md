@@ -932,9 +932,21 @@ carrier for only the one-machine structural Unit countdown: its proof scheduler
 removes the already validated covered backedge, reconstructs the taken
 `0 < remaining` edge as the discrete unsigned `1 <= remaining` subtraction
 premise, and requires the exact-subtract evidence before constructing resumable
-execution state. Ordinary verification continues to reject the ranked machine,
-so fixed-fuel and Omega/native consumers cannot acquire authority through the
-interpreter path; provider installation and extra mixed work remain fenced.
+  execution state. Ordinary verification continues to reject the ranked machine,
+  so fixed-fuel and Omega/native consumers cannot acquire authority through the
+  interpreter path; provider installation and extra mixed work remain fenced.
+  Fixed-fuel and native lowering instead use separate opaque verifier carriers
+  for this exact machine. Native admission combines the canonical Terminal
+  proof, exact fixed-fuel certificate, converged structural frontier, and the
+  reconstructed preheader/header/guard/subtract/backedge graph into one custody
+  object. Abstract, target, and assigned-target representations retain that
+  object unchanged. Target lowering must replay the exact graph, affine-owned
+  structural parameter, exit cleanup, and ABI placement; assignment accepts
+  only the target-prescribed rank register. Instruction selection and machine
+  emission remain fail-closed until they preserve the same identity through
+  both supported ISA encoders and backward-edge relocation. This authority is
+  not a general cyclic-control exception and cannot be obtained by converting
+  either the interpreter carrier or ordinary acyclic verification.
 Unconditional jumps and conditional arms may additionally pass
 direct primitive scalar inputs into typed successor block parameters; the edge
 materializes those arguments before committing its structural cleanup.
