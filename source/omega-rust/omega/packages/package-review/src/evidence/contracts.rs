@@ -61,6 +61,13 @@ pub enum PackageReviewContractUnaryOperator {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewReferenceAccess {
+    Shared,
+    Mutable,
+    WriteOnly,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewArithmeticDomain {
     Exact,
     Wrapping,
@@ -236,6 +243,12 @@ pub enum PackageReviewContractExpression {
     Result,
     GenericBinder(u32),
     Nominal(PackageReviewNominalIdentity),
+    /// One explicit denotational reference formation. Runtime loan identity
+    /// and source lifetime spelling are not package contract identity.
+    Reference {
+        access: PackageReviewReferenceAccess,
+        target: Box<PackageReviewContractExpression>,
+    },
     /// Proof-only observation of one exact type's normalized all-zero home
     /// representation. The checker rejects quotient targets before review.
     ZeroValue(PackageReviewTypeIdentity),

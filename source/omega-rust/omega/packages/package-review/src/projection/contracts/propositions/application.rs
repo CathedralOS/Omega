@@ -13,6 +13,28 @@ use crate::projection::contracts::metadata::contracts::ContractProjectionContext
 use super::binders::{project_proposition_binder_argument, proposition_binder_value_expression};
 use super::endpoint::project_proposition_endpoint;
 
+fn require_exact_reference_argument(
+    compilation: &CheckedCompilation,
+    context: &ContractProjectionContext<'_>,
+    argument: psi_typed_trees::expression::ExpressionHandle,
+    expected_type: psi_typed_trees::types::TypeReferenceHandle,
+) -> Result<(), Vec<Diagnostic>> {
+    if matches!(
+        compilation.expression_table.expression(argument),
+        psi_typed_trees::expression::ExpressionNode::Borrow(_)
+    ) && !psi_validation::checked_argument_matches_type_reference(
+        &compilation.typed,
+        argument,
+        expected_type,
+    ) {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` reference argument does not match its proposition parameter type",
+            context.subject_kind, context.subject_name
+        ))]);
+    }
+    Ok(())
+}
+
 pub(crate) fn project_contract_proposition(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
@@ -73,16 +95,23 @@ pub(crate) fn project_contract_proposition(
         let argument_handles = compilation
             .expression_table
             .expression_handles(application.arguments);
-        let parameter_count = compilation
+        let parameters = compilation
             .typed
             .state_parameters
-            .span_or_empty(contract.parameters)
-            .len();
-        if argument_handles.len() != parameter_count {
+            .span_or_empty(contract.parameters);
+        if argument_handles.len() != parameters.len() {
             return Err(vec![Diagnostic::error(format!(
                 "reviewed {} `{}` generic proposition endpoint has inconsistent checked arity",
                 context.subject_kind, context.subject_name
             ))]);
+        }
+        for (argument, parameter) in argument_handles.iter().zip(parameters) {
+            require_exact_reference_argument(
+                compilation,
+                context,
+                *argument,
+                parameter.type_reference,
+            )?;
         }
         let mut static_ordinal = 0usize;
         let mut matching_ordinals = Vec::new();
@@ -187,7 +216,14 @@ pub(crate) fn project_contract_proposition(
         .expression_table
         .expression_handles(application.arguments)
         .iter()
-        .map(|argument| {
+        .zip(declaration_parameters)
+        .map(|(argument, parameter)| {
+            require_exact_reference_argument(
+                compilation,
+                context,
+                *argument,
+                parameter.type_reference,
+            )?;
             project_contract_expression_with_substitutions(
                 compilation,
                 context,

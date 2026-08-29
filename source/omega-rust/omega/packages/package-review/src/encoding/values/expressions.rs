@@ -6,7 +6,7 @@ use crate::evidence::{
     PackageReviewContractBinaryOperator, PackageReviewContractCallTarget,
     PackageReviewContractExpression, PackageReviewContractOperatorMeaning,
     PackageReviewContractStaticArgument, PackageReviewContractUnaryOperator,
-    PackageReviewFloatLiteral,
+    PackageReviewFloatLiteral, PackageReviewReferenceAccess,
 };
 
 use super::declarations::encode_operator_coordinate;
@@ -88,6 +88,15 @@ pub(crate) fn encode_contract_expression(
         PackageReviewContractExpression::Nominal(identity) => {
             encoder.byte(5);
             encode_nominal(encoder, identity)?;
+        }
+        PackageReviewContractExpression::Reference { access, target } => {
+            encoder.byte(20);
+            encoder.byte(match access {
+                PackageReviewReferenceAccess::Shared => 0,
+                PackageReviewReferenceAccess::Mutable => 1,
+                PackageReviewReferenceAccess::WriteOnly => 2,
+            });
+            encode_contract_expression(encoder, target)?;
         }
         PackageReviewContractExpression::ZeroValue(type_identity) => {
             encoder.byte(13);

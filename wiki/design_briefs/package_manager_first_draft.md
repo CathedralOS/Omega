@@ -798,6 +798,17 @@ state, operator, or trait requirement. The row contains the checked `f32` or
 identity. Equivalent spellings therefore compare equally, while format or bit
 changes alter the package contract. A float literal that reaches review without
 one exact checked width landing remains fail-closed.
+Review v84 and canonical row v42 admit explicit denotational reference
+formation in public contract expressions. The row retains shared, mutable, or
+write-only access plus the recursively projected target; runtime loan identity,
+lifetime spelling, and diagnostic text remain absent. Proposition applications
+recheck an explicit reference argument against the exact declared parameter
+type before projection, so access or referee disagreement introduced after
+checking rejects. Omega's implicit shared lending remains a plain argument
+whose receiving parameter already carries shared-reference identity; review
+does not invent syntax the typed expression does not contain. Operator-law
+conformance and package rederivation compare reference access as well as the
+borrowed target, preventing shared/mutable drift from satisfying the same law.
 Review v75 and canonical row v33 likewise admit the compiler-owned collection-
 length projection in public contract expressions. Checked proof-static member
 resolution derives the receiver type from its retained declaration symbol,

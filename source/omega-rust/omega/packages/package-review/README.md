@@ -80,9 +80,18 @@ Public contract expressions retain width-landed float literals by checked
 type of an owning callable contract establish the landing. Decimal source
 spelling is excluded; unlanded literals remain fail-closed.
 
+Explicit mutable and write-only reference formation in public contract
+expressions retains the access mode and recursively projected target. Review
+rechecks proposition arguments against the exact declared parameter type, so
+access changed after checking rejects. Shared lending that is semantically
+implicit remains represented by the receiving parameter type and target rather
+than inventing an explicit reference-expression node. Operator-contract
+rederivation also compares access modes instead of treating all borrows as the
+same law expression.
+
 Explicit boundary-operator family review rows retain one exact family and
 provider identity, selected target, selection authority, complete-declaration
 coverage, and the canonical exact-coordinate-to-plan mapping. Independent
 single-coordinate selections are not inferred into a family.
 
-The canonical review schema is version 83 and row schema version 41.
+The canonical review schema is version 84 and row schema version 42.

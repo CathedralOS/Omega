@@ -48,7 +48,12 @@ impl fmt::Display for ExpressionTypeOwner<'_> {
     }
 }
 
-pub(crate) fn argument_matches_type_reference_handle(
+/// Recheck one typed argument against an exact declared type.
+///
+/// Compiler-internal consumers such as package admission use this after the
+/// main validation pass to reject typed-tree state that no longer agrees with
+/// the declaration which originally admitted it.
+pub fn argument_matches_type_reference_handle(
     program: &TypedTrees,
     argument: ExpressionHandle,
     type_reference: TypeReferenceHandle,

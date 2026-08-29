@@ -364,7 +364,8 @@ fn operator_contract_expressions_match(
         (ExpressionNode::String(left), ExpressionNode::String(right)) => left == right,
         (ExpressionNode::Float(left), ExpressionNode::Float(right)) => left == right,
         (ExpressionNode::Borrow(left), ExpressionNode::Borrow(right)) => {
-            operator_contract_expressions_match(program, left.target, right.target, name_map)
+            left.access == right.access
+                && operator_contract_expressions_match(program, left.target, right.target, name_map)
         }
         (ExpressionNode::Unary(left), ExpressionNode::Unary(right)) => {
             left.operator == right.operator

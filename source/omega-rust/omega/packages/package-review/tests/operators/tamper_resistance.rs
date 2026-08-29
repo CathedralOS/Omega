@@ -1,6 +1,95 @@
 use crate::support::*;
 
 #[test]
+fn operator_realization_rejects_post_check_reference_access_drift() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub machine observes(value: &mut i32) -> bool { true }
+
+pub data CheckedReference {}
+pub operator CheckedReference::identity(value: i32) -> i32
+requires observes(&mut value) == true;
+
+pub machine provide_identity(input: i32) -> i32
+satisfies CheckedReference::identity
+requires observes(&mut input) == true
+{ input }
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let mut checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("reference-bearing operator realization should check");
+    let provider = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "provide_identity")
+        .expect("provider machine");
+    let provider_fact = checked
+        .facts
+        .proof
+        .contract_facts
+        .iter()
+        .map(|(_, fact)| fact)
+        .find(|fact| {
+            matches!(
+                fact.owner,
+                psi_checked_trees::ContractProofFactOwner::Machine { machine_symbol }
+                    if machine_symbol == provider.symbol
+            )
+        })
+        .expect("provider contract fact");
+    let psi_typed_trees::domain::ProofFact::Expression(call_expression) =
+        checked.proof_facts.get(provider_fact.fact)
+    else {
+        panic!("provider expression contract")
+    };
+    let psi_typed_trees::expression::ExpressionNode::Binary(contract) =
+        checked.expression_table.expression(*call_expression)
+    else {
+        panic!("provider binary contract")
+    };
+    let psi_typed_trees::expression::ExpressionNode::Call(call) =
+        checked.expression_table.expression(contract.left)
+    else {
+        panic!("provider contract call")
+    };
+    let [borrow] = checked.expression_table.expression_handles(call.arguments) else {
+        panic!("one provider contract argument")
+    };
+    let borrow = *borrow;
+    let psi_typed_trees::expression::ExpressionNode::Borrow(borrow) =
+        checked.typed.expression_table.expression_mut(borrow)
+    else {
+        panic!("explicit mutable reference argument")
+    };
+    borrow.access = psi_language_core::ReferenceAccess::Shared;
+
+    let diagnostics = project_checked_package_review(&checked)
+        .expect_err("post-check reference access drift must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("operator-realization contracts do not equal compiler rederivation")
+    }));
+}
+
+#[test]
 fn changing_checked_operator_realization_changes_only_the_callable_value() {
     let Some(target) = host_target_name() else {
         return;

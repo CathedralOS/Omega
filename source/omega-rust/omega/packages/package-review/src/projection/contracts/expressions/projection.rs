@@ -18,7 +18,7 @@ use super::static_arguments::{
 use crate::evidence::{
     PackageReviewArithmeticDomain, PackageReviewCastForm, PackageReviewContractCallTarget,
     PackageReviewContractExpression, PackageReviewContractOperatorMeaning,
-    PackageReviewFloatLiteral,
+    PackageReviewFloatLiteral, PackageReviewReferenceAccess,
 };
 use crate::projection::contracts::metadata::contracts::ContractProjectionContext;
 use crate::projection::exact_identity::nominal_identities::{
@@ -146,6 +146,18 @@ pub(crate) fn project_contract_expression_with_substitutions(
                 )?,
             ))
         }
+        ExpressionNode::Borrow(reference) => Ok(PackageReviewContractExpression::Reference {
+            access: match reference.access {
+                psi_language_core::ReferenceAccess::Shared => PackageReviewReferenceAccess::Shared,
+                psi_language_core::ReferenceAccess::Mutable => {
+                    PackageReviewReferenceAccess::Mutable
+                }
+                psi_language_core::ReferenceAccess::WriteOnly => {
+                    PackageReviewReferenceAccess::WriteOnly
+                }
+            },
+            target: Box::new(child(reference.target)?),
+        }),
         ExpressionNode::Binary(binary) => Ok(PackageReviewContractExpression::Binary {
             meaning: exact_checked_contract_operator_meaning(compilation, context, expression)?,
             operator: project_contract_binary_operator(binary.operator),
