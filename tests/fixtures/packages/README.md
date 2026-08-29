@@ -1,6 +1,6 @@
 # Package Manager Fixture Packages
 
-These are small local packages for `omega-packages` resolver/admission tests.
+These are small local packages for `omega-package-manager` resolver/admission tests.
 They intentionally use normal external package names, not `pkg_` prefixes.
 Directory/repository names are kebab-case for clarity, but do not establish
 security identity. Each fixture declares its own name through the ordinary

@@ -43,7 +43,7 @@ fn inspect(
 
 fn inspect_with_storage(
     arguments: &Arguments,
-    storage: &omega_packages::SourceResolverStorage,
+    storage: &omega_package_manager::SourceResolverStorage,
 ) -> Result<omega_compiler::SourceClosureSnapshot, Vec<psi_diagnostics::Diagnostic>> {
     let root_path = arguments.root_path.canonicalize().map_err(|error| {
         vec![psi_diagnostics::Diagnostic::error(format!(
@@ -72,12 +72,12 @@ fn inspect_with_storage(
                 project_root.display()
             ))]
         })?;
-    let closure = omega_packages::resolve_external_local_project_closure_with_storage(
+    let closure = omega_package_manager::resolve_external_local_project_closure_with_storage(
         project_root,
-        omega_packages::ExternalSourceContext::derive(b"omega-source-inspection-v1"),
+        omega_package_manager::ExternalSourceContext::derive(b"omega-source-inspection-v1"),
         storage,
-        omega_packages::LocalSourceLimits::default(),
-        omega_packages::PackageSourceClosureLimits::default(),
+        omega_package_manager::LocalSourceLimits::default(),
+        omega_package_manager::PackageSourceClosureLimits::default(),
     )
     .map_err(|error| {
         vec![psi_diagnostics::Diagnostic::error(format!(
@@ -90,14 +90,14 @@ fn inspect_with_storage(
         )]
     })?;
     let package_inputs =
-        omega_packages::package_compilation_inputs(&closure).map_err(|errors| {
+        omega_package_manager::package_compilation_inputs(&closure).map_err(|errors| {
             vec![psi_diagnostics::Diagnostic::error(format!(
                 "cannot construct inspected compiler package graph: {errors:?}"
             ))]
         })?;
-    let closure_subject = omega_packages::CanonicalSourceClosureSubject::from_resolved(
+    let closure_subject = omega_package_manager::CanonicalSourceClosureSubject::from_resolved(
         &closure,
-        omega_packages::CanonicalSourceClosureSubjectLimits::default(),
+        omega_package_manager::CanonicalSourceClosureSubjectLimits::default(),
     )
     .map_err(|error| {
         vec![psi_diagnostics::Diagnostic::error(format!(
@@ -108,7 +108,7 @@ fn inspect_with_storage(
         .custodies()
         .iter()
         .filter_map(|custody| match custody.key().source_lineage() {
-            omega_packages::SourceLineage::ExternalLocal(lineage) => {
+            omega_package_manager::SourceLineage::ExternalLocal(lineage) => {
                 Some(SourceInspectionRoot::new(
                     custody.snapshot_root(),
                     lineage.canonical_absolute_path(),
@@ -125,7 +125,7 @@ fn inspect_with_storage(
         identity_roots,
     )?;
     snapshot.package_source_closure = Some(PackageSourceClosureCustodySnapshot {
-        subject_encoding_version: omega_packages::SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION,
+        subject_encoding_version: omega_package_manager::SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION,
         subject_fingerprint: closure_subject.fingerprint().to_hex(),
         canonical_subject_bytes_hex: encode_hex(closure_subject.canonical_bytes()),
     });
