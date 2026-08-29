@@ -12,8 +12,8 @@ Governing documents:
 - `wiki/design_briefs/build_and_package_model.md`
 - `wiki/language_guide/chapter_15_modules_imports_visibility.md`
 - `wiki/language_guide/chapter_19_capabilities_effects_boundaries.md`
-- `source/omega-rust/omega/packages/omega-package-manager/README.md`
-- `source/omega-rust/omega/packages/omega-package-manager/SOURCE_RESOLVER_SECURITY.md`
+- `source/omega-rust/omega/packages/manager/README.md`
+- `source/omega-rust/omega/packages/manager/SOURCE_RESOLVER_SECURITY.md`
 - `OWNER_QUESTIONS.md`
 
 Do not wire mutating `omega install` or `omega update` until the P0 source
