@@ -96,6 +96,10 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "stage_optimized_relocation_free_text_section",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/artifacts/function_fragment_object_container/mod.rs",
+        coordination_marker: "stage_optimized_relocation_free_object_container",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/artifacts/object_artifact/mod.rs",
         coordination_marker: "stage_validated_optimized_object_artifact",
     },

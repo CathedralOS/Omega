@@ -112,6 +112,9 @@ and no-selection compatibility remain enforced.
 - [x] Split the flat optimized object-artifact stage; its small entrance owns
   the terminal/object build-and-replay join while model, reconstruction, and
   canonical codec descend into named leaves.
+- [x] Split the flat relocation-free object-container stage; its entrance owns
+  construction/replay while model, object assembly, manifest codec, and tests
+  descend independently.
 - [>] Replace remaining flat executable stages and mixed-responsibility files
   with semantic folders whose small `mod.rs` owns the real stage join. Tighten
   the production-file ceiling as each named legacy leaf is removed.
