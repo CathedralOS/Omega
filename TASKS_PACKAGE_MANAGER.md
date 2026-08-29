@@ -334,30 +334,16 @@ explicitly.
   identity comes from **IMMUTABLE-TARGET-ACTIVATION-AND-REACH-CLOSURE** in
   `TASKS.md`.
 
-- [ ] **SCOPED-BUILD-ROOT-RETIREMENT — enforce one canonical free project entry.**
-  Delete the `has_scoped_build` early return that bypasses selected-role
-  validation, remove scoped-name acceptance from compiler build-machine
-  selection, and make package and standalone readers require the same exact
-  free `machine build(builder: &mut Build)` root. A scoped `Owner::build` in
-  ordinary source remains an ordinary machine; in a selected `build.omg` it
-  rejects with a directed migration diagnostic. Remove the repository exception
-  census and migrate compiler tests that positively select scoped roots.
-
-  Convert all five corpus exceptions to free roots and give every one an
-  explicit application role. Move the two provider-selection passes into the
-  root or an ordinary `configure_*(&mut Build)` helper. Recast
-  `build_effects_undeclared` through a compiler-owned Build facet while omitting
-  the corresponding root build-effect ceiling; keep the rowless and lookalike-
-  service failures on their exact declared reach identities without receiver
-  smuggling until the std-service gate is retired.
-
-  Pin helper composition with a positive and negative pair. The free root may
-  lend `&mut Build` to an ordinary helper, but the helper's complete transitive
-  reach, invocation, suspension, blocking, termination, authority, and build
-  observations compose into the root. A source-reading or output-writing helper
-  called from a root without the corresponding Build-facet effect ceiling must
-  reject. Project-role, workspace, and dependency declarations remain direct
-  statically projected root statements and reject inside helpers.
+- [ ] **SCOPED-BUILD-ROOT-RETIREMENT — finish fixture migration.** The compiler
+  and declaration projector now select exactly one free
+  `machine build(builder: &mut Build)` entry, reject scoped `Owner::build`
+  entries with directed diagnostics, and retain transitive helper contracts.
+  Finish retiring scoped roots from the seven filesystem-heavy
+  `build_config_granted.rs` fixtures, three native-differential filesystem
+  fixtures, and package-manager review fixtures. First repair the evaluator
+  write-back defect exposed when a free root repeatedly operates through
+  `builder.filesystem` (`cannot read field fd of Int(...)`); do not weaken the
+  observation assertions to make migration pass.
 
 - [ ] **OPTIONAL-STDLIB-BUILD-PROTOCOL-AND-SEMANTIC-BINDINGS.** Finish the
   ordinary-package std migration without recreating a privileged `std` role.
