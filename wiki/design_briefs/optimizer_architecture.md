@@ -86,6 +86,14 @@ validated stage result.
 An entrance is not a re-export wall. It answers: what enters, which exact rules
 can run, in what order, and what validated value leaves.
 
+Custody stages use the same navigational rule even when they do not own a rule
+catalog. For example, run-to-abstract replay enters through `replay/mod.rs`,
+then descends through `candidate_decisions/mod.rs`; that coordinator visibly
+orders manifest binding, independent retained-declaration replay, and baseline
+evidence before returning to ledger and external-policy validation. The leaves
+are named for those responsibilities rather than accumulated in one generic
+decision file.
+
 Here, “stage” means an executable transformation or validation boundary, not a
 directory used only to group neighboring boundaries. The Psi reference shape
 is concrete: `rules/mod.rs` applies exact selections,

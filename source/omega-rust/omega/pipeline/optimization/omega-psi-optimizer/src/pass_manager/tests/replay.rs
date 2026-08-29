@@ -363,6 +363,18 @@ fn external_skip_can_override_the_baseline_choice() {
     .unwrap();
 
     assert!(replayed.commits().is_empty());
+    let [retained] = replayed.validated_candidates() else {
+        panic!("the skipped validated candidate declaration must be retained");
+    };
+    assert_eq!(retained.pass(), replayed.pass_manifests()[0].pass());
+    assert_eq!(
+        retained.declaration().identity(),
+        replayed.pass_manifests()[0].decisions()[0].candidate()
+    );
+    assert_eq!(
+        Some(retained.validator()),
+        replayed.pass_manifests()[0].decisions()[0].validator()
+    );
     assert_eq!(
         replayed.transformation_ledger().input(),
         replayed.transformation_ledger().output()

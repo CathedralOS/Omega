@@ -1,5 +1,7 @@
 //! Candidate-contract rebind and independent commit application.
 
+use std::collections::BTreeMap;
+
 use omega_optimization_core::{
     AnalysisSet, OptimizationCandidateIdentity, OptimizationFactReference,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationUnitIdentity,
@@ -20,16 +22,23 @@ pub(super) struct ReplayedAppliedDecision {
     pub(super) predicted_cost_delta: i64,
 }
 
+pub(super) struct ReplayedCommits {
+    pub(super) applied: Vec<ReplayedAppliedDecision>,
+    pub(super) revisions:
+        BTreeMap<OptimizationUnitIdentity, omega_optimization_unit::PsiOptimizationUnit>,
+}
+
 pub(super) fn replay(
     run: &OptimizationRun,
     registries: &[OrderedRuleRegistry],
-) -> Result<Vec<ReplayedAppliedDecision>, OptimizedAbstractProjectionError> {
+) -> Result<ReplayedCommits, OptimizedAbstractProjectionError> {
     let initial = omega_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         run.session().input().clone(),
         run.session().unit().fuel_schedule,
     )
     .map_err(|_| OptimizedAbstractProjectionError::InitialUnitProjection)?;
     let mut unit = initial.unit().clone();
+    let mut revisions = BTreeMap::from([(unit.identity, unit.clone())]);
     let mut applied = Vec::with_capacity(run.commits().len());
     for commit in run.commits() {
         let declaration = commit.declaration();
@@ -73,14 +82,17 @@ pub(super) fn replay(
             predicted_cost_delta: declaration.predicted_cost_delta(),
         });
         unit = accepted.into_unit();
+        if revisions.insert(unit.identity, unit.clone()).is_some() {
+            return Err(OptimizedAbstractProjectionError::CommitReplayMismatch);
+        }
     }
     if unit != *run.session().unit() {
         return Err(OptimizedAbstractProjectionError::FinalUnitReplayMismatch);
     }
-    Ok(applied)
+    Ok(ReplayedCommits { applied, revisions })
 }
 
-fn contract_for(
+pub(super) fn contract_for(
     registries: &[OrderedRuleRegistry],
     rule: OptimizationRuleIdentity,
 ) -> Option<OptimizationRuleContract> {
@@ -90,7 +102,7 @@ fn contract_for(
         .find(|contract| contract.identity() == rule)
 }
 
-fn bind_contract(
+pub(super) fn bind_contract(
     candidate: OptimizationCandidateIdentity,
     declaration: &omega_optimization_unit::PsiRewriteCandidate,
     contract: OptimizationRuleContract,

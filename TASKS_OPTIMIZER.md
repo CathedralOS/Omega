@@ -17,6 +17,17 @@ another broad alias while executing this plan.
 
 ## Current stopping point
 
+[x] Psi publication now retains every independently validated candidate
+declaration, including genuine policy skips, rather than only retaining the
+declaration inside an Applied commit. Run-to-abstract replay replaced its flat
+Applied-only leaf with a 21-line `candidate_decisions/mod.rs` coordinator over
+exact manifest binding, independent declaration replay against the retained
+input revision, and baseline-policy evidence. Applied verdicts require exactly
+one matching commit and skipped verdicts require none. Six-pass positive
+coverage plus skipped roster, pass, validator, verdict, analyses, facts, and
+cost corruption tests close the coordinated-mirror gap. Architecture gates pin
+the coordinator and forbid restoration of the retired flat leaf.
+
 [x] Mandatory selected-instruction construction now has the same visible
 coordination shape as the optimizer catalogs it feeds. The 52-line
 `construction/mod.rs` owns the complete scalar/plain-Unit/structural-Unit
@@ -522,9 +533,11 @@ parallel route or optional coordinator field.
   below one fact-first validation entrance.
 - [x] Split optimized abstract-plan projection into one meaningful stage
   entrance above retained models, typed errors, catalog-derived run replay,
-  Applied-decision custody, and source-shape projection. Run replay descends
-  into rule-set, commit, decision, and record leaves; source projection descends
-  into roster and function-shape mechanics.
+  all-candidate decision custody, and source-shape projection. Run replay
+  descends into rule-set, commit, candidate-decision, and record rungs; the
+  candidate-decision entrance descends into manifest, retained-declaration, and
+  baseline leaves. Source projection descends into roster and function-shape
+  mechanics.
 - [x] Split verified/transformed optimizer-context validation into immutable
   context projection, seed/fact replay, surviving frontier validation, and
   signature/roster custody below one revision-policy entrance.
@@ -596,9 +609,10 @@ parallel route or optional coordinator field.
 - [x] Representation and rule-level independent validators.
 - [x] Identity-bound decisions, pass records, manifests, and work usage.
 - [x] Source-to-optimized Psi projection and lower-stage custody checks.
-- [x] Rebind every Applied Psi decision to its selected rule contract,
-  independently replayed declaration, manifest analyses/facts, baseline cost,
-  pass partition, and external-policy mirror across the complete six-pass Psi
+- [x] Retain and rebind every validated Psi candidate, Applied or skipped, to
+  its selected rule contract, independently replayed declaration, exact input
+  revision, manifest analyses/facts, baseline cost, pass partition, commit
+  disposition, and external-policy mirror across the complete six-pass Psi
   catalog.
 - [>] Complete translation validation for all lowering and machine rule
   families. Selected-lowering incoming-u12 add/subtract folds,
@@ -739,11 +753,12 @@ rewrite or opt a program into lossy floating-point semantics.
   admission remains unchanged.
 - [>] Per-rule positive, negative, boundary, disabled, budget, determinism,
   idempotence, and corruption suites. Disabled-selection coverage is complete
-  for every exact public name and phase projection. Applied-decision
-  analyses/facts and predicted-cost corruption now have a closed six-pass Psi
-  catalog matrix, including coordinated external-log mutations; skipped
-  decision evidence and the remaining behavioral dimensions still need focused
-  gap closure.
+  for every exact public name and phase projection. Applied and skipped
+  decision declarations now retain and independently replay analyses, facts,
+  predicted cost, pass, validator, input revision, verdict, and commit
+  disposition; the complete six-pass Psi catalog and coordinated external-log
+  mutations are covered. The remaining behavioral dimensions still need
+  focused gap closure.
 - [x] Cross-rule phase-composition matrix, including deliberate fail-closed
   unsupported combinations.
 - [ ] Randomized valid-Psi and selected-machine differential corpus.
@@ -832,3 +847,6 @@ rewrite or opt a program into lossy floating-point semantics.
     identical operands, exact integer type, full-roster ABI placements,
     provenance, and optimized-target custody beneath a named ordering replay
     leaf; keep less-or-equal as a separate later family.
+29. [x] Retain every validated Psi candidate declaration and replace flat
+    Applied-only publication replay with one small all-candidate coordinator
+    over manifest, independent declaration, and baseline-policy custody.

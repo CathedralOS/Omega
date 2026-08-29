@@ -1,7 +1,8 @@
 use omega_optimization_core::{
     InvalidOptimizationManifestRecord, OptimizationCandidateIdentity, OptimizationIdentityBundle,
-    OptimizationPassManifestRecord, OptimizationRuleIdentity, OptimizationSelections,
-    OptimizationUnitIdentity, OptimizationValidatorIdentity, OptimizationWorkBudget,
+    OptimizationPassIdentity, OptimizationPassManifestRecord, OptimizationRuleIdentity,
+    OptimizationSelections, OptimizationUnitIdentity, OptimizationValidatorIdentity,
+    OptimizationWorkBudget,
 };
 use omega_optimization_policy::{
     BaselineDecisionLog, BaselineDecisionLogDecodeError, BaselineDecisionRecordError,
@@ -65,6 +66,29 @@ impl PsiOptimizationCommit {
     }
 }
 
+/// Full immutable declaration retained for every independently validated Psi
+/// candidate, whether policy applies or skips it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PsiValidatedCandidateDeclaration {
+    pub pass: OptimizationPassIdentity,
+    pub declaration: PsiRewriteCandidate,
+    pub validator: OptimizationValidatorIdentity,
+}
+
+impl PsiValidatedCandidateDeclaration {
+    pub const fn pass(&self) -> OptimizationPassIdentity {
+        self.pass
+    }
+
+    pub const fn declaration(&self) -> &PsiRewriteCandidate {
+        &self.declaration
+    }
+
+    pub const fn validator(&self) -> OptimizationValidatorIdentity {
+        self.validator
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct OptimizationRunUsage {
     pub rule_evaluations: u64,
@@ -83,6 +107,7 @@ pub struct OptimizationRun {
     pub budget_per_pass: OptimizationWorkBudget,
     pub session: VerifiedPsiOptimizationSession,
     pub commits: Vec<PsiOptimizationCommit>,
+    pub validated_candidates: Vec<PsiValidatedCandidateDeclaration>,
     pub usage: OptimizationRunUsage,
     pub decisions: BaselineDecisionLog,
     /// Typed, versioned policy surface recorded after ordinary candidate
@@ -113,6 +138,10 @@ impl OptimizationRun {
 
     pub fn commits(&self) -> &[PsiOptimizationCommit] {
         &self.commits
+    }
+
+    pub fn validated_candidates(&self) -> &[PsiValidatedCandidateDeclaration] {
+        &self.validated_candidates
     }
 
     pub const fn usage(&self) -> OptimizationRunUsage {

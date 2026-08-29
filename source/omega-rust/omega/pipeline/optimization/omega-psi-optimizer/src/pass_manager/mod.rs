@@ -17,7 +17,7 @@ pub use external_policy::validate_external_decision_recording;
 pub use model::{
     CandidateContractAxis, ExternalDecisionContextAxis, ExternalDecisionReplayError,
     OptimizationRun, OptimizationRunError, OptimizationRunUsage, PsiOptimizationCommit,
-    VerifiedPsiOptimizationSession,
+    PsiValidatedCandidateDeclaration, VerifiedPsiOptimizationSession,
 };
 
 /// Identity of the deterministic structural cost policy used by every current

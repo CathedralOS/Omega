@@ -18,7 +18,8 @@ use crate::{AnalysisManager, OrderedRuleRegistry, RuleAnalysisView};
 
 use super::{
     CandidateContractAxis, ExternalDecisionReplayError, OptimizationRun, OptimizationRunError,
-    OptimizationRunUsage, PsiOptimizationCommit, VerifiedPsiOptimizationSession,
+    OptimizationRunUsage, PsiOptimizationCommit, PsiValidatedCandidateDeclaration,
+    VerifiedPsiOptimizationSession,
     accounting::*,
     baseline_psi_cost_model_identity,
     external_policy::{
@@ -83,13 +84,20 @@ fn run_registries_inner(
         .map_err(OptimizationRunError::ExternalDecisionReplay)?;
     let mut unit = session.unit;
     let mut commits = Vec::new();
+    let mut validated_candidates = Vec::new();
     let mut usage = OptimizationRunUsage::default();
     let mut pass_logs = Vec::with_capacity(registries.len());
     let mut external_points = Vec::new();
     let mut pass_manifests = Vec::with_capacity(registries.len());
     for registry in registries {
         let (output, pass_commits, pass_usage, pass_decisions, pass_manifest, _pass_ledger) =
-            run_unit_inner(unit, registry, budget_per_pass, external_replay.as_mut())?;
+            run_unit_inner_with_retention(
+                unit,
+                registry,
+                budget_per_pass,
+                external_replay.as_mut(),
+                &mut validated_candidates,
+            )?;
         unit = output;
         commits.extend(pass_commits);
         usage = add_usage(usage, pass_usage)?;
@@ -155,6 +163,7 @@ fn run_registries_inner(
             unit,
         },
         commits,
+        validated_candidates,
         usage,
         decisions,
         external_decisions,
@@ -182,11 +191,22 @@ pub(super) fn run_unit(
     run_unit_inner(unit, registry, budget, None)
 }
 
+#[cfg(test)]
 pub(super) fn run_unit_inner(
+    unit: PsiOptimizationUnit,
+    registry: &OrderedRuleRegistry,
+    budget: OptimizationWorkBudget,
+    external_replay: Option<&mut ExternalDecisionReplayCursor<'_>>,
+) -> Result<OptimizationRunOutput, OptimizationRunError> {
+    run_unit_inner_with_retention(unit, registry, budget, external_replay, &mut Vec::new())
+}
+
+fn run_unit_inner_with_retention(
     mut unit: PsiOptimizationUnit,
     registry: &OrderedRuleRegistry,
     budget: OptimizationWorkBudget,
     mut external_replay: Option<&mut ExternalDecisionReplayCursor<'_>>,
+    validated_candidates: &mut Vec<PsiValidatedCandidateDeclaration>,
 ) -> Result<OptimizationRunOutput, OptimizationRunError> {
     let mut analyses = AnalysisManager::new(&unit);
     let initial_identity = unit.identity;
@@ -244,6 +264,11 @@ pub(super) fn run_unit_inner(
                 )?;
                 let output = validate_psi_rewrite_candidate(&unit, &candidate)
                     .map_err(OptimizationRunError::CandidateValidation)?;
+                validated_candidates.push(PsiValidatedCandidateDeclaration {
+                    pass: contract.pass(),
+                    declaration: candidate.clone(),
+                    validator: output.validator(),
+                });
                 validated.push((candidate, output));
             }
             if validated.is_empty() {
