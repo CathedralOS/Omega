@@ -1,3 +1,5 @@
+//! Redundant block-parameter proposal mechanics.
+
 use std::collections::BTreeSet;
 
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
@@ -11,7 +13,9 @@ use omega_optimization_unit::{
     RedundantBlockParameterWitness,
 };
 
-use super::{COPY_PROPAGATION_PASS_NAME, support::replacement_dominates_parameter_uses};
+use super::super::{
+    COPY_PROPAGATION_PASS_NAME, support::replacement_dominates_parameter_uses,
+};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct RedundantBlockParameterRule;

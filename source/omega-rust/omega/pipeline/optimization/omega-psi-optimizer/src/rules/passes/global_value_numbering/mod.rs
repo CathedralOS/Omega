@@ -1,5 +1,9 @@
 //! Global value numbering, arranged by expression identity and traversal scope.
 
+mod catalog;
+
+pub(in crate::rules) use catalog::built_in_registrations;
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use omega_abstract_operations::AbstractOperation as O;

@@ -1,5 +1,9 @@
 //! Proof-check elision, cataloged by the exact scalar identity being proved.
 
+mod catalog;
+
+pub(in crate::rules) use catalog::built_in_registrations;
+
 use omega_abstract_operations::AbstractOperation as O;
 use omega_optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,

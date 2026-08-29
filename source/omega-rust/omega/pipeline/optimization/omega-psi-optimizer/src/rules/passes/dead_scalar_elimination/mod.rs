@@ -1,5 +1,9 @@
 //! Removal of unused scalar computations, grouped by their semantic safety proof.
 
+mod catalog;
+
+pub(in crate::rules) use catalog::built_in_registrations;
+
 use omega_optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,

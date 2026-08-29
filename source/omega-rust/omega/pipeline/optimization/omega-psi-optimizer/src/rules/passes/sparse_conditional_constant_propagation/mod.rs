@@ -5,6 +5,10 @@
 //! ranges. The parent pass catalog selects the family; this module publishes
 //! its named rules.
 
+mod catalog;
+
+pub(in crate::rules) use catalog::built_in_registrations;
+
 mod constant_evaluation;
 pub(in crate::rules::passes) mod range_comparisons;
 

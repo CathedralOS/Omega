@@ -54,9 +54,11 @@ use super::global_value_numbering::{
 use super::proof_check_elision::{integer_one, integer_zero};
 use super::*;
 use crate::rules::catalog::{
-    BuiltInRuleRegistration, ORDERED_PSI_PASSES, assemble_built_in_registry,
-    built_in_psi_registries, built_in_psi_registry, built_in_rule_registrations,
+    BuiltInRuleRegistration, assemble_built_in_registry, built_in_rule_registrations,
     registry_for_optimization,
+};
+use crate::rules::{
+    ORDERED_PSI_PASSES, PSI_PASS_CATALOG, built_in_psi_registries, built_in_psi_registry,
 };
 use crate::{
     AnalysisProduct, OrderedRuleRegistry, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,

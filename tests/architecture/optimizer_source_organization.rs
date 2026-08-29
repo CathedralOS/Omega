@@ -50,6 +50,59 @@ const ENTRANCE_EXCEPTIONS: &[EntranceException] = &[
     },
 ];
 
+struct RequiredCoordinationEntrance {
+    path: &'static str,
+    coordination_marker: &'static str,
+}
+
+/// Entrances that must visibly own a real stage join or catalog route. Merely
+/// keeping these paths small is insufficient: deleting the coordination seam
+/// and leaving a re-export wall must fail this architecture test.
+const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/mod.rs",
+        coordination_marker: "pub fn built_in_psi_registries",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/machine/post_allocation_optimizations/mod.rs",
+        coordination_marker: "OptimizedPostAllocationMachineOptimizationError",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/encoding/post_allocation_selected_form_encoding/mod.rs",
+        coordination_marker: "stage_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/layout/resolved_selected_form_layout/mod.rs",
+        coordination_marker: "stage_optimized_resolved_selected_form_layout_with_post_allocation_machine_optimization",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/layout/x86_branch_relaxation/mod.rs",
+        coordination_marker: "stage_optimized_x86_branch_relaxation",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/artifacts/function_fragment_emission/mod.rs",
+        coordination_marker: "stage_optimized_function_fragment_emission",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/artifacts/function_fragment_text_section/mod.rs",
+        coordination_marker: "stage_optimized_relocation_free_text_section",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/realization/ordinary_callable_entry/mod.rs",
+        coordination_marker: "stage_validated_optimized_ordinary_callable_entry",
+    },
+];
+
+/// Every Psi pass owns its rule order immediately below its named folder.
+const REQUIRED_PSI_PASS_CATALOGS: &[&str] = &[
+    "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/control_flow_cleanup/catalog.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/copy_propagation/catalog.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/dead_scalar_elimination/catalog.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/global_value_numbering/catalog.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/proof_check_elision/catalog.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/catalog.rs",
+];
+
 fn repository_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
@@ -232,6 +285,53 @@ fn optimizer_source_organization_is_bounded_and_navigable() {
                 violations.insert(format!(
                     "stale entrance exception points to a non-entrance Rust file: {}",
                     exception.path
+                ));
+            }
+        }
+    }
+
+    for entrance in REQUIRED_COORDINATION_ENTRANCES {
+        let Some(lines) = source_lines.get(entrance.path) else {
+            violations.insert(format!(
+                "missing required optimizer coordination entrance: {}",
+                entrance.path
+            ));
+            continue;
+        };
+        if *lines > PREFERRED_ENTRANCE_LINES {
+            violations.insert(format!(
+                "required optimizer coordination entrance exceeds {PREFERRED_ENTRANCE_LINES} lines: {} ({lines})",
+                entrance.path
+            ));
+        }
+        match fs::read_to_string(repository.join(entrance.path)) {
+            Ok(contents) if contents.contains(entrance.coordination_marker) => {}
+            Ok(_) => {
+                violations.insert(format!(
+                    "optimizer entrance became a re-export wall: {} lacks `{}`",
+                    entrance.path, entrance.coordination_marker
+                ));
+            }
+            Err(error) => {
+                violations.insert(format!(
+                    "cannot read required optimizer entrance {}: {error}",
+                    entrance.path
+                ));
+            }
+        }
+    }
+
+    for catalog in REQUIRED_PSI_PASS_CATALOGS {
+        match fs::read_to_string(repository.join(catalog)) {
+            Ok(contents) if contents.contains("fn built_in_registrations") => {}
+            Ok(_) => {
+                violations.insert(format!(
+                    "Psi pass catalog lacks its ordered registration point: {catalog}"
+                ));
+            }
+            Err(error) => {
+                violations.insert(format!(
+                    "missing required Psi pass catalog {catalog}: {error}"
                 ));
             }
         }

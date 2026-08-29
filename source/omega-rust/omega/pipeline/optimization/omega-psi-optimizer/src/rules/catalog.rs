@@ -1,66 +1,94 @@
+//! The complete ordered Psi pass catalog.
+//!
+//! This file is intentionally declarative. Each entry points to one pass
+//! folder, whose own `catalog.rs` lists that pass's exact rule order.
+
 use std::sync::Arc;
 
-use omega_optimization_core::{Optimization, OptimizationExecutionPhase, OptimizationSelections};
+use omega_optimization_core::Optimization;
 
 use crate::{OrderedRuleRegistry, PsiOptimizationRule, RuleRegistryError};
 
-use super::passes::*;
+use super::passes::{
+    control_flow_cleanup_rule_registrations, copy_propagation_rule_registrations,
+    dead_scalar_elimination_rule_registrations, global_value_numbering_rule_registrations,
+    proof_check_elision_rule_registrations,
+    sparse_conditional_constant_propagation_rule_registrations,
+};
 
-/// Canonical Psi pass-group order. This is the only mapping from exact Psi
-/// selections to pass groups; individual pass groups own their rule order.
-pub const ORDERED_PSI_PASSES: [Optimization; 6] = [
-    Optimization::SparseConditionalConstantPropagation,
-    Optimization::ControlFlowCleanup,
-    Optimization::CopyPropagation,
-    Optimization::GlobalValueNumbering,
-    Optimization::ProofCheckElision,
-    Optimization::DeadPureScalarElimination,
-];
+type RuleCatalog = fn() -> Vec<BuiltInRuleRegistration>;
 
-pub fn built_in_psi_registry(
-    selections: &OptimizationSelections,
-) -> Result<OrderedRuleRegistry, RuleRegistryError> {
-    let mut registries = built_in_psi_registries(selections)?;
-    if registries.len() > 1 {
-        return Err(RuleRegistryError::UnsupportedOptimizationCombination);
-    }
-    Ok(registries
-        .pop()
-        .unwrap_or_else(|| OrderedRuleRegistry::new(Vec::new()).expect("empty registry is valid")))
+/// One visible route from an exact source selection to its ordered rule leaf.
+#[derive(Clone, Copy)]
+pub struct PsiPassCatalogEntry {
+    optimization: Optimization,
+    rule_catalog: RuleCatalog,
 }
 
-/// Build the canonical pass-group schedule for an exact named selection set.
-///
-/// Selection declaration order is not pass order. The explicit schedule below
-/// runs semantic constant propagation before CFG cleanup, structural copy
-/// cleanup, local/global value numbering,
-/// proof-certified check/work elision, and dead pure scalar
-/// elimination. Each returned registry continues to own exactly one pass
-/// identity.
-pub fn built_in_psi_registries(
-    selections: &OptimizationSelections,
-) -> Result<Vec<OrderedRuleRegistry>, RuleRegistryError> {
-    let psi_selections = selections.for_phase(OptimizationExecutionPhase::Psi);
-    if let Some(unsupported) = psi_selections
-        .as_slice()
-        .iter()
-        .find(|optimization| !ORDERED_PSI_PASSES.contains(optimization))
-    {
-        return Err(RuleRegistryError::UnsupportedOptimization(*unsupported));
-    }
-    let mut registries = Vec::new();
-    for optimization in ORDERED_PSI_PASSES {
-        if psi_selections.contains(optimization) {
-            registries.push(registry_for_optimization(optimization)?);
+impl PsiPassCatalogEntry {
+    const fn new(optimization: Optimization, rule_catalog: RuleCatalog) -> Self {
+        Self {
+            optimization,
+            rule_catalog,
         }
     }
-    Ok(registries)
+
+    pub const fn optimization(self) -> Optimization {
+        self.optimization
+    }
+
+    fn registrations(self) -> Vec<BuiltInRuleRegistration> {
+        (self.rule_catalog)()
+    }
 }
+
+/// The single built-in Psi enable/disable and ordering table.
+pub const PSI_PASS_CATALOG: [PsiPassCatalogEntry; 6] = [
+    PsiPassCatalogEntry::new(
+        Optimization::SparseConditionalConstantPropagation,
+        sparse_conditional_constant_propagation_rule_registrations,
+    ),
+    PsiPassCatalogEntry::new(
+        Optimization::ControlFlowCleanup,
+        control_flow_cleanup_rule_registrations,
+    ),
+    PsiPassCatalogEntry::new(
+        Optimization::CopyPropagation,
+        copy_propagation_rule_registrations,
+    ),
+    PsiPassCatalogEntry::new(
+        Optimization::GlobalValueNumbering,
+        global_value_numbering_rule_registrations,
+    ),
+    PsiPassCatalogEntry::new(
+        Optimization::ProofCheckElision,
+        proof_check_elision_rule_registrations,
+    ),
+    PsiPassCatalogEntry::new(
+        Optimization::DeadPureScalarElimination,
+        dead_scalar_elimination_rule_registrations,
+    ),
+];
+
+/// Compatibility view derived from [`PSI_PASS_CATALOG`], never a second table.
+pub const ORDERED_PSI_PASSES: [Optimization; 6] = [
+    PSI_PASS_CATALOG[0].optimization(),
+    PSI_PASS_CATALOG[1].optimization(),
+    PSI_PASS_CATALOG[2].optimization(),
+    PSI_PASS_CATALOG[3].optimization(),
+    PSI_PASS_CATALOG[4].optimization(),
+    PSI_PASS_CATALOG[5].optimization(),
+];
 
 pub(crate) fn registry_for_optimization(
     optimization: Optimization,
 ) -> Result<OrderedRuleRegistry, RuleRegistryError> {
-    assemble_built_in_registry(built_in_rule_registrations(optimization))
+    let descriptor = PSI_PASS_CATALOG
+        .iter()
+        .copied()
+        .find(|descriptor| descriptor.optimization() == optimization)
+        .ok_or(RuleRegistryError::UnsupportedOptimization(optimization))?;
+    assemble_built_in_registry(descriptor.registrations())
 }
 
 #[derive(Debug, Clone)]
@@ -69,113 +97,25 @@ pub(crate) struct BuiltInRuleRegistration {
     rule: Arc<dyn PsiOptimizationRule>,
 }
 
+impl BuiltInRuleRegistration {
+    pub(crate) fn new(schedule_ordinal: u16, rule: impl PsiOptimizationRule + 'static) -> Self {
+        Self {
+            schedule_ordinal,
+            rule: Arc::new(rule),
+        }
+    }
+}
+
+#[cfg(test)]
 pub(crate) fn built_in_rule_registrations(
     optimization: Optimization,
 ) -> Vec<BuiltInRuleRegistration> {
-    let mut registrations = Vec::new();
-    macro_rules! register {
-        ($ordinal:literal, $rule:expr) => {
-            registrations.push(BuiltInRuleRegistration {
-                schedule_ordinal: $ordinal,
-                rule: Arc::new($rule),
-            });
-        };
-    }
-    if optimization == Optimization::SparseConditionalConstantPropagation {
-        register!(0, ExactIntegerAddConstantsRule);
-        register!(1, ExactIntegerSubtractConstantsRule);
-        register!(2, ExactIntegerMultiplyConstantsRule);
-        register!(3, WrappingIntegerAddConstantsRule);
-        register!(4, WrappingIntegerSubtractConstantsRule);
-        register!(5, WrappingIntegerMultiplyConstantsRule);
-        register!(6, SaturatingIntegerAddConstantsRule);
-        register!(7, SaturatingIntegerSubtractConstantsRule);
-        register!(8, SaturatingIntegerMultiplyConstantsRule);
-        register!(9, ExactIntegerDivideConstantsRule);
-        register!(10, ExactIntegerRemainderConstantsRule);
-        register!(11, WrappingIntegerDivideConstantsRule);
-        register!(12, WrappingIntegerRemainderConstantsRule);
-        register!(13, SaturatingIntegerDivideConstantsRule);
-        register!(14, SaturatingIntegerRemainderConstantsRule);
-        register!(15, ExactIntegerShiftLeftConstantsRule);
-        register!(16, ExactIntegerShiftRightConstantsRule);
-        register!(17, WrappingIntegerShiftLeftConstantsRule);
-        register!(18, WrappingIntegerShiftRightConstantsRule);
-        register!(19, ExactIntegerCastConstantsRule);
-        register!(20, IntegerWidenConstantsRule);
-        register!(21, IntegerBitwiseNotConstantsRule);
-        register!(22, IntegerBitwiseAndConstantsRule);
-        register!(23, IntegerBitwiseOrConstantsRule);
-        register!(24, IntegerBitwiseXorConstantsRule);
-        register!(25, BooleanNotConstantsRule);
-        register!(26, BooleanEqualConstantsRule);
-        register!(27, IntegerEqualConstantsRule);
-        register!(28, IntegerLessThanConstantsRule);
-        register!(29, IntegerLessOrEqualConstantsRule);
-        register!(30, IntegerLessThanRangeConstantRule);
-        register!(31, IntegerLessThanConstantRangeRule);
-        register!(32, IntegerLessOrEqualRangeConstantRule);
-        register!(33, IntegerLessOrEqualConstantRangeRule);
-        register!(34, IntegerEqualRangeConstantRule);
-        register!(35, IntegerEqualConstantRangeRule);
-        register!(36, IntegerEqualRangeRangeRule);
-        register!(37, IntegerLessThanRangeRangeRule);
-        register!(38, IntegerLessOrEqualRangeRangeRule);
-    }
-    if optimization == Optimization::ControlFlowCleanup {
-        register!(0, ConstantConditionalFoldRule);
-        register!(1, LinearEmptyBlockThreadRule);
-        register!(2, PathQualifiedEmptyBlockThreadRule);
-        register!(3, AdjacentBlockMergeRule);
-        register!(4, SharedJumpFusionRule);
-        register!(5, UnreachablePrivateMachinePruneRule);
-        register!(6, NonAdjacentBlockMergeRule);
-    }
-    if optimization == Optimization::CopyPropagation {
-        register!(0, RedundantBlockParameterRule);
-    }
-    if optimization == Optimization::GlobalValueNumbering {
-        register!(0, SameBlockTotalScalarCseRule);
-        register!(1, SameBlockProofCertifiedScalarCseRule);
-        register!(2, DominatorTotalScalarGvnRule);
-        register!(3, DominatorProofCertifiedScalarGvnRule);
-        register!(4, PhiTranslatedObligationFreeScalarGvnRule);
-        register!(5, PhiTranslatedProofCertifiedScalarGvnRule);
-        register!(6, SameBlockProofCertifiedCompatiblePolicyScalarCseRule);
-        register!(7, DominatorProofCertifiedCompatiblePolicyScalarGvnRule);
-        register!(8, PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule);
-    }
-    if optimization == Optimization::DeadPureScalarElimination {
-        register!(0, DeadScalarLiteralEliminationRule);
-        register!(1, DeadUnconditionallyTotalScalarEliminationRule);
-    }
-    if optimization == Optimization::ProofCheckElision {
-        register!(0, ProofCertifiedDeadScalarEliminationRule);
-        register!(1, LiveProofCertifiedIntegerIdentityEliminationRule);
-        register!(2, LiveProofCertifiedIntegerDivideByOneEliminationRule);
-        register!(
-            3,
-            LiveProofCertifiedExactIntegerMultiplyByZeroEliminationRule
-        );
-        register!(4, LiveProofCertifiedIntegerZeroDividendEliminationRule);
-        register!(
-            5,
-            LiveProofCertifiedExactIntegerZeroValueShiftEliminationRule
-        );
-        register!(6, LiveProofCertifiedExactIntegerSelfSubtractEliminationRule);
-        register!(7, LiveProofCertifiedIntegerSelfRemainderEliminationRule);
-        register!(8, LiveProofCertifiedIntegerSelfDivideEliminationRule);
-        register!(9, LiveProofCertifiedIntegerRemainderByOneEliminationRule);
-        register!(
-            10,
-            LiveProofCertifiedSignedIntegerRemainderByNegativeOneEliminationRule
-        );
-        register!(
-            11,
-            LiveProofCertifiedExactSignedIntegerNegativeOneShiftRightEliminationRule
-        );
-    }
-    registrations
+    PSI_PASS_CATALOG
+        .iter()
+        .copied()
+        .find(|descriptor| descriptor.optimization() == optimization)
+        .map(PsiPassCatalogEntry::registrations)
+        .unwrap_or_default()
 }
 
 pub(crate) fn assemble_built_in_registry(

@@ -77,6 +77,15 @@ Each optimizer stage therefore has exactly one small, meaningful entrance:
 An entrance is not a re-export wall. It answers: what enters, which exact rules
 can run, in what order, and what validated value leaves.
 
+Here, “stage” means an executable transformation or validation boundary, not a
+directory used only to group neighboring boundaries. The Psi reference shape
+is concrete: `rules/mod.rs` applies exact selections,
+`rules/catalog.rs` visibly lists the ordered passes, and each
+`rules/passes/<exact-pass>/catalog.rs` lists that pass's rules. The executable
+architecture test checks those files and the coordination seams of migrated
+physical stages. Remaining flat-stage migrations are active work, not evidence
+that the small-file rule alone has been satisfied.
+
 ## Pipeline
 
 ```text
