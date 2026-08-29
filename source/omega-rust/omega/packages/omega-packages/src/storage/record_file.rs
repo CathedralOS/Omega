@@ -1,3 +1,5 @@
+//! Bounded, symlink-safe record persistence under retained directory custody.
+
 use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
 #[cfg(unix)]
 use cap_std::fs::OpenOptionsExt as CapabilityOpenOptionsExt;

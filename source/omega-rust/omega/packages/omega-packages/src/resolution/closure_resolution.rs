@@ -1,9 +1,11 @@
-use crate::dependency_projection::DependencySourceRequest;
-use crate::graph::{
+//! Bounded traversal and reconciliation of the complete package source closure.
+
+use crate::declarations::dependency_projection::DependencySourceRequest;
+use crate::resolution::graph::{
     PackageClosureValidationError, ResolvedDependency, ResolvedPackageClosure, ResolvedPackageNode,
     ResolvedSourceIdentity,
 };
-use crate::identity::{
+use crate::resolution::identity::{
     AliasName, ExternalSourceContext, ImmutableSourceResolution, PackageKey, SourceLineage,
     WorkspaceMemberPath,
 };
@@ -779,7 +781,7 @@ fn collect_paths(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::identity::{
+    use crate::resolution::identity::{
         GitCommitId, GitTreeId, PackageName, SourceContentDigest, SourceLineage,
         WorkspaceMemberPath,
     };

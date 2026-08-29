@@ -1,4 +1,6 @@
-use crate::dependency_projection::{
+//! Digest-bound, conservative edit plans for dependency declarations.
+
+use crate::declarations::dependency_projection::{
     DependencyProjectionError, DependencySourceRequest, extract_from_source,
 };
 use psi_source_files_to_tokens::Lexer;
@@ -642,7 +644,7 @@ fn line_indent(source: &str, offset: usize) -> Option<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::identity::AliasName;
+    use crate::resolution::identity::AliasName;
     use std::sync::atomic::{AtomicU64, Ordering};
 
     static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
@@ -712,7 +714,7 @@ mod tests {
             plan_addition_from_source(PathBuf::from("build.omg"), source, &path("vendor")),
             Err(BuildDependencyEditError::InvalidBuild(
                 DependencyProjectionError::BuildDeclaration(error)
-            )) if matches!(*error, crate::declaration::BuildDeclarationError::MissingBuildDeclaration)
+            )) if matches!(*error, crate::declarations::declaration::BuildDeclarationError::MissingBuildDeclaration)
         ));
     }
 

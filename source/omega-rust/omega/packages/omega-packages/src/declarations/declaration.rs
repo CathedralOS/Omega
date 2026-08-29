@@ -1,4 +1,6 @@
-use crate::identity::{PackageName, WorkspaceMemberPath};
+//! Package, application, and workspace roles declared by `build.omg`.
+
+use crate::resolution::identity::{PackageName, WorkspaceMemberPath};
 use omega_build_declarations as shared;
 use std::path::Path;
 

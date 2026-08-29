@@ -1,7 +1,8 @@
-use crate::{
-    CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet, PackageKey,
-    capability_conflict::changed_review_risk, review_evidence::PackageReviewEvidence,
-};
+//! Deterministic source and provenance triage dispositions.
+
+use crate::review::capability_conflict::changed_review_risk;
+use crate::review::evidence::PackageReviewEvidence;
+use crate::{CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet, PackageKey};
 use omega_package_review::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
     PackageReviewDangerousAuthorityClass,

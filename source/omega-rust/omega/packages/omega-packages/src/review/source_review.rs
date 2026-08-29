@@ -1,9 +1,11 @@
-use crate::review_closure::{
+//! Source-custody/evidence joins and the bounded advisory reviewer boundary.
+
+use crate::review::closure::{
     ReviewOnlyClosureValidationError, ReviewOnlySetValidationError, validate_review_only_closure,
     validate_review_only_records,
 };
-use crate::review_evidence::PackageReviewEvidence;
-use crate::source_triage::triage_review_update_records;
+use crate::review::evidence::PackageReviewEvidence;
+use crate::review::source_triage::triage_review_update_records;
 use crate::{
     CompilerIssuedPackageReviewSet, CompilerReviewTriage, PackageKey, PackageSourceCustody,
     PackageSourcePatch, PackageSourcePatchError, PackageSourcePatchLimits, PackageTriageDecision,

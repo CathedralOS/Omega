@@ -1,3 +1,5 @@
+//! Canonical question binding the closure to locally reconstructed evidence.
+
 use crate::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits,
     CompilerIssuedPackageReviewSet, PackageKey, ResolvedPackageSourceClosure,

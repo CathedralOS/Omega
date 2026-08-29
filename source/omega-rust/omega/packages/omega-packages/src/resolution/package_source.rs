@@ -1,10 +1,14 @@
-use crate::closure_resolution::PackageSourceCustody;
-use crate::declaration::{BuildDeclaration, PackageDeclaration, PackageDeclarationError};
-use crate::dependency_projection::{
+//! Package declarations and keys recovered from immutable source snapshots.
+
+use crate::declarations::declaration::{
+    BuildDeclaration, PackageDeclaration, PackageDeclarationError,
+};
+use crate::declarations::dependency_projection::{
     DependencyProjectionError, DependencySourceRequest, extract_build_dependency_projection,
 };
-use crate::graph::ResolvedSourceIdentity;
-use crate::identity::{
+use crate::resolution::closure_resolution::PackageSourceCustody;
+use crate::resolution::graph::ResolvedSourceIdentity;
+use crate::resolution::identity::{
     ExternalLocalLineage, ExternalSourceContext, GitCommitId, GitTreeId, IdentityError,
     ImmutableSourceResolution, PackageKey, SourceContentDigest, SourceLineage,
     WorkspaceLineageIdentity, WorkspaceMemberLineage, WorkspaceMemberPath,
@@ -704,7 +708,7 @@ mod tests {
             error,
             ResolvePackageSourceError::Declaration(
                 PackageDeclarationError::ExpectedPackageDeclaration {
-                    found: crate::declaration::BuildDeclarationKind::Application
+                    found: crate::declarations::declaration::BuildDeclarationKind::Application
                 }
             )
         ));
@@ -948,11 +952,11 @@ mod tests {
         )
         .expect("resolve root custody")
         .into_custody();
-        let error = crate::closure_resolution::resolve_package_source_closure::<
+        let error = crate::resolution::closure_resolution::resolve_package_source_closure::<
             std::convert::Infallible,
             _,
         >(
-            crate::closure_resolution::PackageRootSourceRequest::ExternalLocal {
+            crate::resolution::closure_resolution::PackageRootSourceRequest::ExternalLocal {
                 requested_root: root.clone(),
                 source_context,
             },

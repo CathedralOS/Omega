@@ -1,5 +1,9 @@
-use crate::declaration::{BuildDeclaration, BuildDeclarationError, convert_shared_declaration};
-use crate::identity::{AliasName, PackageName};
+//! Hermetic projection of literal dependency requests from `build.omg`.
+
+use crate::declarations::declaration::{
+    BuildDeclaration, BuildDeclarationError, convert_shared_declaration,
+};
+use crate::resolution::identity::{AliasName, PackageName};
 use omega_build_declarations as shared;
 use psi_source_files_to_tokens::Lexer;
 use psi_syntax_trees::SyntaxTrees;
