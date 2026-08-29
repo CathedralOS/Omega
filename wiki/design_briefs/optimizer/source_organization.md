@@ -263,11 +263,13 @@ straight-line, conditional-scalar, and structural joins are mandatory
 coordination entrances rather than re-export walls.
 
 Abstract-to-target translation validation is a parallel rung, not another
-branch inside producer lowering. Its 80-line `validation/mod.rs` entrance owns
-target/root/roster custody and dispatches exact replay to
-`straight_line_integer_immediate.rs`; immutable receipt and error vocabulary
-remain in `model.rs`. The optimizer's 75-line target-operation entrance owns
-the visible `lower -> independent validation -> retained carrier` join. An
+branch inside producer lowering. Its 76-line `validation/mod.rs` entrance owns
+target/root/roster custody and hands each function to the 85-line ordered
+`catalog.rs` enable/disable inventory. The catalog dispatches exact replay to the sibling
+`straight_line_integer_immediate.rs` and
+`straight_line_boolean_immediate.rs` leaves; immutable receipt and error
+vocabulary remain in `model.rs`. The optimizer's 75-line target-operation
+entrance owns the visible `lower -> independent validation -> retained carrier` join. An
 architecture gate prevents validation from importing lowering helpers, and
 the receipt names covered function families instead of implying that pending
 families were checked.

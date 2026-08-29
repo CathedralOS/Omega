@@ -19,9 +19,13 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
 - `lowering/mod.rs` owns settlement and common legalization dispatch.
 - `validation/mod.rs` independently binds target, roots, and the complete
   function roster before dispatching exact semantic-family replay.
+- `validation/catalog.rs` is the sole ordered enable/disable inventory for
+  translation families and routes each row to one classifier and replay leaf.
 - `validation/straight_line_integer_immediate.rs` owns the first closed
   translation family: parameterless `[IntegerConstant, Return]` to
   `ReturnIntegerImmediate`.
+- `validation/straight_line_boolean_immediate.rs` owns its exact sibling:
+  parameterless `[BooleanConstant, Return]` to `ReturnBooleanImmediate`.
 - `conditional_control.rs`, `conditional_scalar.rs`, `structural_result.rs`, and
   `structural_scalar.rs` own their corresponding closed operation families.
 - `omega-target-operations/src/lib.rs` owns the target-aware output vocabulary.

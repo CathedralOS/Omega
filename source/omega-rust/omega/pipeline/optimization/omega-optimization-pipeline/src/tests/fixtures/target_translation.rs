@@ -4,11 +4,27 @@ pub(crate) fn integer_literal_return_artifact(
     integer_type: IntegerType,
     value: IntegerValue,
 ) -> (Vec<u8>, Vec<u8>) {
+    scalar_literal_return_artifact(
+        ScalarType::Integer(integer_type),
+        OperationKind::IntegerConstant { value },
+    )
+}
+
+pub(crate) fn boolean_literal_return_artifact(value: bool) -> (Vec<u8>, Vec<u8>) {
+    scalar_literal_return_artifact(
+        ScalarType::Boolean,
+        OperationKind::BooleanConstant { value },
+    )
+}
+
+fn scalar_literal_return_artifact(
+    scalar_type: ScalarType,
+    literal: OperationKind,
+) -> (Vec<u8>, Vec<u8>) {
     let machine = MachineId::new(30_001).unwrap();
     let entry = BlockId::new(30_002).unwrap();
     let constant_value = ValueId::new(30_003).unwrap();
     let function_result = ValueId::new(30_004).unwrap();
-    let scalar_type = ScalarType::Integer(integer_type);
     let declaration = |id| ValueDeclaration { id, scalar_type };
     let module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
@@ -48,7 +64,7 @@ pub(crate) fn integer_literal_return_artifact(
                 operations: vec![Operation {
                     id: OperationId::new(30_005).unwrap(),
                     result: OperationResult::Scalar(declaration(constant_value)),
-                    kind: OperationKind::IntegerConstant { value },
+                    kind: literal,
                 }],
                 terminator: Terminator::Return {
                     edge: EdgeId::new(30_006).unwrap(),

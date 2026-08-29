@@ -17,12 +17,14 @@ another broad alias while executing this plan.
 
 ## Current stopping point
 
-[x] Abstract-to-target translation validation now has an 80-line independent
+[x] Abstract-to-target translation validation now has a 76-line independent
 entrance that binds Psi identity, the requested target, entry, and the complete
-function roster before descending into exact family replay. The first semantic
-row reconstructs parameterless straight-line `[IntegerConstant, Return]` into
-`ReturnIntegerImmediate`, including block shape, integer range, result/value
-links, cleanup absence, exact provenance, and every candidate field. The
+function roster before descending into exact family replay. Its first two
+semantic rows reconstruct parameterless straight-line integer and Boolean
+literal returns into `ReturnIntegerImmediate` and `ReturnBooleanImmediate`,
+including block shape, scalar/result/value links, cleanup absence, exact
+provenance, and every candidate field. One adjacent ordered catalog is the
+obvious enable/disable inventory and routes each row to its named leaf. The
 optimized target carrier retains the receipt, whose row roster explicitly
 distinguishes validated families from still-uncovered ones. Focused mutation
 coverage rejects every source-shape, root, target, roster, provenance, and
@@ -574,7 +576,7 @@ parallel route or optional coordinator field.
 - [x] Source-to-optimized Psi projection and lower-stage custody checks.
 - [>] Complete translation validation for all lowering and machine rule
   families. Selected-lowering incoming-u12 add/subtract folds,
-  straight-line integer-immediate abstract-to-target translation,
+  straight-line integer- and Boolean-immediate abstract-to-target translation,
   layout-independent baseline, MOVN, XOR-zero, MOV-r32-imm32, CBNZ dispositions,
   structural-Unit encodings, and resolved function-relative layouts now replay
   independently. Structural-Unit selected validation also reconstructs ABI
@@ -755,3 +757,6 @@ rewrite or opt a program into lossy floating-point semantics.
 18. [x] Add the independent abstract-to-target validation entrance, retain its
     partial family receipt in optimized target custody, and close the exact
     straight-line integer-immediate translation family on all native targets.
+19. [x] Add parameterless straight-line Boolean-immediate translation as a
+    separate independent family row and retain its exact custody through
+    optimized target lowering on all native targets.
