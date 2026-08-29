@@ -78,7 +78,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     let [trap, abort] = ordered.published_crash() else {
         panic!("one guarded Trap and one unconditional Abort bucket")
     };
-    assert_eq!(trap.cause(), psi_checked_trees::CrashCause::Trap);
+    assert_eq!(trap.cause(), PackageReviewCrashCause::Trap);
     let [
         PackageReviewCrashRouteGuard::Expression(PackageReviewContractExpression::Binary {
             meaning: PackageReviewContractOperatorMeaning::Declared(selected_crash_operator),
@@ -90,7 +90,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         panic!("duplicate guarded routes canonicalize to one exact declared-operator expression")
     };
     assert_eq!(selected_crash_operator, less.coordinate());
-    assert_eq!(abort.cause(), psi_checked_trees::CrashCause::Abort);
+    assert_eq!(abort.cause(), PackageReviewCrashCause::Abort);
     assert_eq!(
         abort.alternative_guards(),
         [PackageReviewCrashRouteGuard::Truth]
@@ -218,14 +218,14 @@ crashes Trap
     let [trap, abort] = checked_operator.published_crash() else {
         panic!("one guarded Trap and one unconditional Abort bucket")
     };
-    assert_eq!(trap.cause(), psi_checked_trees::CrashCause::Trap);
+    assert_eq!(trap.cause(), PackageReviewCrashCause::Trap);
     assert_eq!(
         trap.alternative_guards(),
         [PackageReviewCrashRouteGuard::Expression(
             PackageReviewContractExpression::Parameter(1)
         )]
     );
-    assert_eq!(abort.cause(), psi_checked_trees::CrashCause::Abort);
+    assert_eq!(abort.cause(), PackageReviewCrashCause::Abort);
     assert_eq!(
         abort.alternative_guards(),
         [PackageReviewCrashRouteGuard::Truth]

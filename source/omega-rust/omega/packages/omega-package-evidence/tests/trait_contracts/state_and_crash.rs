@@ -101,7 +101,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     let [trap] = run.published_crash() else {
         panic!("one guarded trap route")
     };
-    assert_eq!(trap.cause(), psi_checked_trees::CrashCause::Trap);
+    assert_eq!(trap.cause(), PackageReviewCrashCause::Trap);
     let [PackageReviewCrashRouteGuard::Predicate(predicate)] = trap.alternative_guards() else {
         panic!("trap route must retain one canonical predicate guard")
     };
@@ -114,7 +114,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     let [abort] = stop.published_crash() else {
         panic!("one unconditional abort route")
     };
-    assert_eq!(abort.cause(), psi_checked_trees::CrashCause::Abort);
+    assert_eq!(abort.cause(), PackageReviewCrashCause::Abort);
     assert_eq!(
         abort.alternative_guards(),
         [PackageReviewCrashRouteGuard::Truth]

@@ -7,7 +7,7 @@ mod mutation;
 mod reach;
 mod termination;
 
-pub(crate) use crash::{project_crash, project_crash_routes};
+pub(crate) use crash::{project_crash, project_crash_cause, project_crash_routes};
 pub(crate) use flow::project_capability_flow;
 pub(crate) use invocations::project_synchronous_invocations;
 pub(crate) use mutation::project_mutation;

@@ -1,5 +1,5 @@
 use super::super::semantics::declarations::nominal_identity;
-use crate::evidence::PackageReviewMutation;
+use crate::evidence::{PackageReviewMutation, PackageReviewWriteFrameCompleteness};
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 
@@ -12,7 +12,7 @@ pub(crate) fn project_mutation(
         .map(|plan| {
             Ok(PackageReviewMutation {
                 state: nominal_identity(compilation, plan.state)?,
-                completeness: plan.frame.completeness(),
+                completeness: project_write_frame_completeness(plan.frame.completeness()),
                 paths: plan.frame.paths().to_vec(),
             })
         })
@@ -30,9 +30,37 @@ pub(crate) fn project_mutation(
     Ok(projected)
 }
 
-const fn mutation_completeness_tag(completeness: psi_facts::WriteFrameCompleteness) -> u8 {
+const fn project_write_frame_completeness(
+    completeness: psi_facts::WriteFrameCompleteness,
+) -> PackageReviewWriteFrameCompleteness {
     match completeness {
-        psi_facts::WriteFrameCompleteness::Complete => 1,
-        psi_facts::WriteFrameCompleteness::Opaque => 2,
+        psi_facts::WriteFrameCompleteness::Complete => {
+            PackageReviewWriteFrameCompleteness::Complete
+        }
+        psi_facts::WriteFrameCompleteness::Opaque => PackageReviewWriteFrameCompleteness::Opaque,
+    }
+}
+
+const fn mutation_completeness_tag(completeness: PackageReviewWriteFrameCompleteness) -> u8 {
+    match completeness {
+        PackageReviewWriteFrameCompleteness::Complete => 1,
+        PackageReviewWriteFrameCompleteness::Opaque => 2,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn write_frame_completeness_crosses_the_review_boundary_as_closed_evidence() {
+        assert_eq!(
+            project_write_frame_completeness(psi_facts::WriteFrameCompleteness::Complete),
+            PackageReviewWriteFrameCompleteness::Complete,
+        );
+        assert_eq!(
+            project_write_frame_completeness(psi_facts::WriteFrameCompleteness::Opaque),
+            PackageReviewWriteFrameCompleteness::Opaque,
+        );
     }
 }

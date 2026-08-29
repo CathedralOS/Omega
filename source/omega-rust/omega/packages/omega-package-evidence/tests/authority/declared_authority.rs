@@ -238,10 +238,7 @@ crashes Abort
     let [published_crash] = crash.published() else {
         panic!("one normalized published crash route")
     };
-    assert_eq!(
-        published_crash.cause(),
-        psi_checked_trees::CrashCause::Abort
-    );
+    assert_eq!(published_crash.cause(), PackageReviewCrashCause::Abort);
     assert_eq!(
         published_crash.alternative_guards(),
         [PackageReviewCrashRouteGuard::Truth]
@@ -253,7 +250,7 @@ crashes Abort
         crash_site.state().owner(),
         PackageReviewNominalOwner::Package(package_identity())
     );
-    assert_eq!(crash_site.cause(), psi_checked_trees::CrashCause::Abort);
+    assert_eq!(crash_site.cause(), PackageReviewCrashCause::Abort);
     assert_eq!(crash_site.guard_covering_buckets(), [1]);
     assert!(!crash_site.frontier_lower_bound().is_empty());
     assert!(
