@@ -70,7 +70,7 @@ closed. Compiler-issued package review remains non-admitting.
   - run the existing Windows Job Object process-count, per-process memory,
     aggregate-memory, and aggregate-CPU exhaustion pairs on a native Windows
     worker; cross-compilation is not execution evidence;
-  - narrow macOS SSH discovery/fetch reads after Q9 settles explicit host-key,
+  - narrow macOS SSH discovery/fetch reads after Q8 settles explicit host-key,
     key, credential-provider, and credential-file custody;
   - make the existing broker transfer ceiling complete by denying direct helper
     egress on Linux and Windows; separately enforce whole-operation object-store,
@@ -92,12 +92,12 @@ closed. Compiler-issued package review remains non-admitting.
   The detailed established floor and remaining platform gaps are maintained in
   `source/omega-rust/omega/packages/omega-package-source/SOURCE_RESOLVER_SECURITY.md`.
   Strict SSH trust and credential authority is
-  design-blocked on OWNER Q9; the other bullets are engineering work.
+  design-blocked on OWNER Q8; the other bullets are engineering work.
 
 ## P1 — Total package semantic identity
 
 - [ ] **COMPLETE-CONFORMANCE-IDENTITY.** Retain complete public conformance
-  applications, including target-trait lifetime arguments once OWNER Q3 is
+  applications, including target-trait lifetime arguments once OWNER Q2 is
   settled. Unsupported generic, lifetime-bearing, private, or aliased forms
   must continue to fail closed rather than disappear from review.
 
@@ -219,7 +219,7 @@ closed. Compiler-issued package review remains non-admitting.
   classification for network, dynamic loading, signing, secrets, executable
   installation, DMA/IOMMU, and any future authority-bearing surfaces. Names,
   aliases, paths, and same-spelled package declarations must confer no
-  authority. Ordinary std/provider authority depends on OWNER Q4.
+  authority. Ordinary std/provider authority depends on OWNER Q3.
 
 - [ ] **SOURCE-AND-PROVENANCE-TRIAGE.** Wire an organization-selected advisory
   reviewer into command orchestration with the existing fixed instructions,
@@ -357,16 +357,35 @@ items are still owner-blocked.
   identity comes from **IMMUTABLE-TARGET-ACTIVATION-AND-REACH-CLOSURE** in
   `TASKS.md`.
 
-- [ ] **BLOCKED — OWNER Q1: SCOPED-BUILD-ROOTS.** Retire the five remaining
-  `Owner::build` compatibility canaries or formally admit one shared scoped-root
-  grammar. Package readers and standalone compilation may not continue assigning
-  different meanings to the same `build.omg` shape.
+- [ ] **SCOPED-BUILD-ROOT-RETIREMENT — enforce one canonical free project entry.**
+  Delete the `has_scoped_build` early return that bypasses selected-role
+  validation, remove scoped-name acceptance from compiler build-machine
+  selection, and make package and standalone readers require the same exact
+  free `machine build(builder: &mut Build)` root. A scoped `Owner::build` in
+  ordinary source remains an ordinary machine; in a selected `build.omg` it
+  rejects with a directed migration diagnostic. Remove the repository exception
+  census and migrate compiler tests that positively select scoped roots.
 
-- [ ] **BLOCKED — OWNER Q3: CONFORMANCE-TARGET-LIFETIMES.** Settle and retain
+  Convert all five corpus exceptions to free roots and give every one an
+  explicit application role. Move the two provider-selection passes into the
+  root or an ordinary `configure_*(&mut Build)` helper. Recast
+  `build_effects_undeclared` through `builder.filesystem` while omitting the
+  root ceiling; keep the rowless and lookalike-service failures on their exact
+  declared reach identities without receiver smuggling.
+
+  Pin helper composition with a positive and negative pair. The free root may
+  lend `&mut Build` to an ordinary helper, but the helper's complete transitive
+  reach, invocation, suspension, blocking, termination, authority, and build
+  observations compose into the root. A filesystem-reaching helper called from
+  a root without `reaches FilesystemHost` must reject. Project-role, workspace,
+  and dependency declarations remain direct statically projected root
+  statements and reject inside helpers.
+
+- [ ] **BLOCKED — OWNER Q2: CONFORMANCE-TARGET-LIFETIMES.** Settle and retain
   the complete target-trait lifetime application before lifetime-parameterized
   public conformances can enter canonical package identity.
 
-- [ ] **BLOCKED — OWNER Q4: ORDINARY-STD-AND-PROVIDER-AUTHORITY.** Replace all
+- [ ] **BLOCKED — OWNER Q3: ORDINARY-STD-AND-PROVIDER-AUTHORITY.** Replace all
   physical `source/library/std` routing and direct filesystem/GUI provider
   injection with exact ordinary graph nodes and explicit authenticated role
   bindings. Only core remains compiler-welded. Removing the declared std edge
@@ -390,7 +409,7 @@ items are still owner-blocked.
   bodylessness, catalog presence, nor build policy may synthesize a requirement
   or satisfier edge.
 
-- [ ] **BLOCKED — OWNER Q9: STRICT-SSH-CUSTODY.** Settle host-key, key,
+- [ ] **BLOCKED — OWNER Q8: STRICT-SSH-CUSTODY.** Settle host-key, key,
   credential-provider, and credential-file authority before narrowing the
   remaining SSH read surface or treating SSH resolution as strict evidence.
 

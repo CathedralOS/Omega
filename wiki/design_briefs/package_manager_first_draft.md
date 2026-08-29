@@ -45,6 +45,18 @@ kind is always stated: `builder.member(path)` for a workspace root,
 absent declaration. The declaration must be unique, effect-free, independent of
 dependencies and generated files, and use canonical kebab-case spelling.
 
+The selected project entry is always the free
+`machine build(builder: &mut Build)`. A scoped `Owner::build` is not a manifest:
+the owner name establishes no project role, provider relationship, or receiver
+instance. Package and standalone readers reject it consistently when it appears
+as a selected build root. In ordinary source it remains an ordinary machine.
+
+The free root may call ordinary helpers with its borrowed `&mut Build` for
+evaluated composition. Their complete transitive contracts compose into the
+root, so delegation cannot hide undeclared service reach or other authority.
+Static role, member, and dependency declarations remain direct root statements;
+helpers cannot manufacture or condition the source graph.
+
 > Superseded 2026-08-25: this brief previously specified a `const PACKAGE:
 > Package` literal extracted by a bespoke static parser. See
 > [Build And Package Model](build_and_package_model.md) for the settled form.
@@ -364,7 +376,7 @@ source-consumption commitment. The orchestration join rejects missing,
 duplicate, foreign, root-self, wrong-target, wrong-closure, and mismatched
 review/custody bundles. This handoff is ephemeral compiler custody, not lock or
 admission evidence. The real filesystem-producing package canary remains
-blocked on OWNER Q4's exact staging-authority package role after std relocation;
+blocked on OWNER Q3's exact staging-authority package role after std relocation;
 no name/path compatibility exception is admitted.
 
 Psi's target-neutral const-generic, fixed-array, const-domain, laid/placed
