@@ -27,7 +27,7 @@ pub fn package_compilation_inputs(
 /// unreachable-package check.
 pub fn package_compilation_inputs_for(
     closure: &ResolvedPackageSourceClosure,
-    root: &crate::source::identity::PackageKey,
+    root: &omega_package_source::PackageKey,
 ) -> Result<PackageCompilationInputs, Vec<PackageCompilationInputError>> {
     let reachable = reachable_package_keys(closure, root);
     let packages = closure
@@ -71,7 +71,7 @@ fn binding_with_canonical_source_metadata(
     custody: &crate::package::PackageSourceCustody,
     binding: PackageSourceBinding,
 ) -> Result<PackageSourceBinding, PackageCompilationInputError> {
-    crate::source::capture_verified_package_source_snapshot(
+    omega_package_source::capture_verified_package_source_snapshot(
         custody.snapshot_root(),
         custody.resolution().content(),
         custody.source_limits(),
@@ -92,8 +92,8 @@ fn binding_with_canonical_source_metadata(
 
 pub(crate) fn reachable_package_keys(
     closure: &ResolvedPackageSourceClosure,
-    root: &crate::source::identity::PackageKey,
-) -> BTreeSet<crate::source::identity::PackageKey> {
+    root: &omega_package_source::PackageKey,
+) -> BTreeSet<omega_package_source::PackageKey> {
     let mut reachable = BTreeSet::new();
     let mut pending = vec![root.clone()];
     while let Some(package) = pending.pop() {
@@ -120,7 +120,7 @@ mod tests {
     use crate::graph::reconciliation::resolve_package_source_closure;
     use crate::manifest::dependency_projection::DependencySourceRequest;
     use crate::package::PackageSourceCustody;
-    use crate::source::identity::{
+    use omega_package_source::{
         GitCommitId, GitTreeId, ImmutableSourceResolution, PackageKey, PackageName,
         SourceContentDigest, SourceLineage,
     };

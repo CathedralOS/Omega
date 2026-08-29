@@ -1,7 +1,7 @@
 use crate::manifest::dependency_projection::DependencySourceRequest;
 use crate::package::PackageSourceCustody;
-use crate::source::LocalSourceLimits;
-use crate::source::identity::{ImmutableSourceResolution, PackageKey};
+use omega_package_source::LocalSourceLimits;
+use omega_package_source::{ImmutableSourceResolution, PackageKey};
 use std::path::{Path, PathBuf};
 
 /// An immutable source snapshot after its package-owned declaration has been

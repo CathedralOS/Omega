@@ -3,7 +3,7 @@ use crate::manifest::declaration::{BuildDeclaration, BuildDeclarationError};
 use crate::manifest::dependency_projection::{
     DependencyProjectionError, DependencySourceRequest, extract_build_dependency_projection,
 };
-use crate::source::identity::AliasName;
+use omega_package_source::AliasName;
 use std::fs;
 
 #[test]

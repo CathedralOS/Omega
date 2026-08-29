@@ -5,12 +5,12 @@ use super::{
 use crate::manifest::declaration::PackageDeclarationError;
 use crate::manifest::dependency_projection::{DependencyProjectionError, DependencySourceRequest};
 #[cfg(unix)]
-use crate::source::SourceResolveError;
-use crate::source::identity::{
+use omega_package_source::SourceResolveError;
+use omega_package_source::{
     ExternalSourceContext, IdentityError, ImmutableSourceResolution, SourceLineage,
     WorkspaceLineageIdentity, WorkspaceMemberLineage, WorkspaceMemberPath,
 };
-use crate::source::{GitSourceRequest, LocalSourceLimits};
+use omega_package_source::{GitSourceRequest, LocalSourceLimits};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};

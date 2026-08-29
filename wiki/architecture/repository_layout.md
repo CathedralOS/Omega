@@ -154,6 +154,7 @@ Omega/
 |       |   |-- README.md                                # Human entrance and dependency-direction map.
 |       |   |-- manager/                                 # Command workflows, graph, and local admission policy.
 |       |   |-- source/                                  # Immutable acquisition boundary.
+|       |   |   |-- [CRATE] acquisition/                 # Source identity, snapshots, and custody.
 |       |   |   `-- [CRATE] execution/                   # OS confinement for hostile acquisition helpers.
 |       |   `-- review/                                  # Human and compiler review surfaces.
 |       |       |-- [CRATE] evidence/                    # Compiler-owned non-admitting semantic projection.

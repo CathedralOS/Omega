@@ -7,8 +7,8 @@ use crate::graph::reconciliation::PackageRootSourceRequest;
 use crate::graph::validation::{
     ResolvedDependency, ResolvedPackageClosure, ResolvedPackageNode, ResolvedSourceIdentity,
 };
-use crate::source::GitSourceRequest;
-use crate::source::identity::{
+use omega_package_source::GitSourceRequest;
+use omega_package_source::{
     AliasName, ImmutableSourceResolution, PackageKey, SourceLineage, WorkspaceLineageIdentity,
 };
 use std::collections::BTreeMap;

@@ -715,15 +715,10 @@ fn package_subsystem_has_discoverable_owners_and_bounded_modules() {
                 .into_owned()
         })
         .collect::<BTreeSet<_>>();
-    let expected_top_level = [
-        "README.md",
-        "manager",
-        "review",
-        "source",
-    ]
-    .into_iter()
-    .map(str::to_owned)
-    .collect::<BTreeSet<_>>();
+    let expected_top_level = ["README.md", "manager", "review", "source"]
+        .into_iter()
+        .map(str::to_owned)
+        .collect::<BTreeSet<_>>();
     assert_eq!(
         top_level, expected_top_level,
         "the package subsystem top level is a deliberate architectural map; document and guard new responsibilities"
@@ -735,7 +730,6 @@ fn package_subsystem_has_discoverable_owners_and_bounded_modules() {
         "manager/src/workflow/mod.rs",
         "manager/src/workflow/source_audit/mod.rs",
         "manager/src/manifest/mod.rs",
-        "manager/src/source/mod.rs",
         "manager/src/package/mod.rs",
         "manager/src/graph/mod.rs",
         "manager/src/review/mod.rs",
@@ -747,6 +741,8 @@ fn package_subsystem_has_discoverable_owners_and_bounded_modules() {
         "review/evidence/src/evidence/signatures/mod.rs",
         "review/evidence/src/obligation_ledger/mod.rs",
         "source/README.md",
+        "source/acquisition/README.md",
+        "source/acquisition/src/lib.rs",
         "source/execution/src/lib.rs",
     ] {
         let entrance = packages.join(required);
@@ -778,6 +774,7 @@ fn package_subsystem_has_discoverable_owners_and_bounded_modules() {
         "manager/src/storage",
         "manager/src/source/package",
         "manager/src/source/audit.rs",
+        "manager/src/source",
         "manager/src/review/advisor",
         "manager/src/review/compiler",
         "manager/src/review/diff",
@@ -848,23 +845,41 @@ fn package_crates_keep_one_way_ownership() {
     let manager = graph
         .get("omega-package-manager")
         .expect("package manager crate participates in architecture metadata");
-    for required in ["omega-package-review", "omega-resolver-execution"] {
+    for required in ["omega-package-review", "omega-package-source"] {
         assert!(
             manager.deps.iter().any(|dependency| dependency == required),
             "package manager must compose its supporting owner {required}"
         );
     }
 
-    for leaf in ["omega-package-review", "omega-resolver-execution"] {
+    let source = graph
+        .get("omega-package-source")
+        .expect("package source crate participates in architecture metadata");
+    assert!(
+        source
+            .deps
+            .iter()
+            .any(|dependency| dependency == "omega-resolver-execution"),
+        "package source acquisition must compose confined resolver execution"
+    );
+
+    for leaf in [
+        "omega-package-review",
+        "omega-package-source",
+        "omega-resolver-execution",
+    ] {
         let krate = graph
             .get(leaf)
             .unwrap_or_else(|| panic!("package support crate missing from metadata: {leaf}"));
         for forbidden in [
             "omega-package-manager",
             "omega-package-review",
+            "omega-package-source",
             "omega-resolver-execution",
         ] {
-            if forbidden == leaf {
+            if forbidden == leaf
+                || (leaf == "omega-package-source" && forbidden == "omega-resolver-execution")
+            {
                 continue;
             }
             assert!(

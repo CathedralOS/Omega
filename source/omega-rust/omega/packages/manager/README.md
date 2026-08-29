@@ -8,7 +8,6 @@ src/
 ├── lib.rs          public crate entrance and responsibility exports
 ├── workflow/       complete command-facing operations; start here
 ├── manifest/       read and conservatively edit build.omg
-├── source/         acquire immutable local and Git source snapshots
 ├── package/        bind snapshots to declarations and dependency rows
 ├── graph/          construct, validate, and identify the dependency closure
 ├── review/         compile, compare, triage, and apply root review policy
@@ -20,23 +19,11 @@ are implemented.
 
 ## Source custody
 
-```text
-source/
-├── mod.rs          acquisition boundary and public source vocabulary
-├── identity/       package names, aliases, lineages, locators, and exact pins
-├── local/          capture and publish immutable local snapshots
-├── git/            fetch, authenticate, materialize, and retain Git snapshots
-├── custody/        locks, host policy, tree checks, and atomic publication
-├── observations/   successful resolution and execution observations
-├── storage.rs      private per-user resolver storage lanes
-├── limits.rs       compiler-owned acquisition ceilings
-└── error.rs        source-resolution failures
-```
-
-Hostile-process confinement is delegated to
-[`source/execution`](../source/execution/README.md). Source acquisition
-does not know graph identity. `package/` performs the declaration join before
-`graph/` derives graph-owned identities.
+Immutable acquisition is delegated to
+[`source/acquisition`](../source/acquisition/README.md), which composes confined
+native execution from [`source/execution`](../source/execution/README.md).
+Acquisition does not know graph identity. `package/` performs the declaration
+join before `graph/` derives graph-owned identities.
 
 ## Dependency graph
 

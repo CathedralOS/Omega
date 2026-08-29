@@ -5,11 +5,11 @@ use super::report::PackageSourceAudit;
 use super::request::PackageSourceRequestParseError;
 use super::request::{PackageSourceAuditCommandError, PackageSourceRequest, SourceAdapter};
 #[cfg(test)]
-use crate::source::resolve_git_source_with_storage;
-use crate::source::{
+use omega_package_source::resolve_git_source_with_storage;
+use omega_package_source::{
     LocalSourceLimits, SourceResolveError, SourceResolverStorage, resolve_local_source,
 };
-use crate::source::{RetainedStorageLane, resolve_git_source_in_lane};
+use omega_package_source::{RetainedStorageLane, resolve_git_source_in_lane};
 #[cfg(test)]
 use std::path::Path;
 #[cfg(test)]
@@ -267,7 +267,7 @@ mod tests {
         let cache_base = temp_root("local-audit-cache");
         std::fs::create_dir_all(&root).expect("create local package");
         std::fs::write(root.join("main.omg"), "machine Main::main() {}\n").expect("write source");
-        let storage = SourceResolverStorage::create_beneath(&cache_base)
+        let storage = SourceResolverStorage::for_hardened_base(&cache_base)
             .expect("create private resolver storage");
         storage
             .verify_path_identity()
@@ -325,7 +325,7 @@ mod tests {
             .expect("write source");
         run_test_git(&repository, ["add", "main.omg"]);
         run_test_git(&repository, ["commit", "--quiet", "-m", "initial"]);
-        let storage = SourceResolverStorage::create_beneath(&cache_base)
+        let storage = SourceResolverStorage::for_hardened_base(&cache_base)
             .expect("create private resolver storage");
         storage
             .verify_path_identity()

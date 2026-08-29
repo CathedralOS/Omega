@@ -1,7 +1,7 @@
 //! Package, application, and workspace roles declared by `build.omg`.
 
-use crate::source::identity::{PackageName, WorkspaceMemberPath};
 use omega_build_declarations as shared;
+use omega_package_source::{PackageName, WorkspaceMemberPath};
 use std::path::Path;
 
 pub use shared::BuildDeclarationError as PackageDeclarationError;

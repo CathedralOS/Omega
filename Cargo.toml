@@ -102,6 +102,7 @@ members = [
     "source/omega-rust/omega/compiler/omega-compiler",
     "source/omega-rust/omega/packages/review/evidence",
     "source/omega-rust/omega/build/omega-package-compilation",
+    "source/omega-rust/omega/packages/source/acquisition",
     "source/omega-rust/omega/packages/source/execution",
     "source/omega-rust/omega/packages/manager",
     "source/omega-rust/omega/packages/review/advisory",

@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 
-//! Package manifests, immutable source acquisition, closure review, and
-//! root policy for Omega's registry-free package manager.
+//! Package workflows, manifests, dependency graphs, review, and root policy
+//! for Omega's registry-free package manager.
 //!
 //! Start with [`workflow`] for complete operations, then follow the named
 //! responsibility modules below. Root exports form the crate's public caller
@@ -11,7 +11,6 @@ pub mod graph;
 pub mod manifest;
 pub mod package;
 pub mod review;
-pub mod source;
 pub mod workflow;
 
 #[cfg(test)]
@@ -41,6 +40,18 @@ pub use manifest::{
     PackageDeclarationError, WorkspaceDeclaration, canonical_dependency_statement,
     extract_build_declaration, extract_build_dependency_projection, extract_dependency_projection,
     extract_package_declaration, plan_dependency_addition, plan_dependency_replacement,
+};
+pub use omega_package_source::{
+    AliasName, ExternalLocalLineage, ExternalSourceContext, GenericGitLineage, GitCommitId,
+    GitExecutableIdentity, GitHubRepositoryLineage, GitLabRepositoryLineage,
+    GitNetworkTransferObservation, GitObjectIdAlgorithm, GitSourceRequest, GitSourceRequestError,
+    GitSourceResolutionObservation, GitTransport, GitTransportExecutableIdentity,
+    GitTransportProfile, GitTreeId, IdentityError, ImmutableSourceResolution, LocalSourceLimits,
+    LocalSourceResolutionObservation, PackageKey, PackageName, ResolvedGitSource,
+    ResolvedLocalSnapshot, ResolvedLocalSource, SourceContentDigest, SourceLineage,
+    SourceResolveError, SourceResolverStorage, WorkspaceLineageIdentity, WorkspaceMemberLineage,
+    WorkspaceMemberPath, resolve_git_source_with_storage, resolve_local_source,
+    resolve_local_source_snapshot_with_storage,
 };
 pub use package::{
     PackageSourceCustody, ResolvePackageSourceError, ResolvedPackageSource,
@@ -81,18 +92,6 @@ pub use review::{
     recover_review_only_root_policy_resolution, render_package_source_patch,
     resolve_review_only_root_policy_decisions, triage_initial_install, triage_review_update,
     triage_review_update_from_baseline, triage_update_without_admission_baseline,
-};
-pub use source::{
-    AliasName, ExternalLocalLineage, ExternalSourceContext, GenericGitLineage, GitCommitId,
-    GitExecutableIdentity, GitHubRepositoryLineage, GitLabRepositoryLineage,
-    GitNetworkTransferObservation, GitObjectIdAlgorithm, GitSourceRequest, GitSourceRequestError,
-    GitSourceResolutionObservation, GitTransport, GitTransportExecutableIdentity,
-    GitTransportProfile, GitTreeId, IdentityError, ImmutableSourceResolution, LocalSourceLimits,
-    LocalSourceResolutionObservation, PackageKey, PackageName, ResolvedGitSource,
-    ResolvedLocalSnapshot, ResolvedLocalSource, SourceContentDigest, SourceLineage,
-    SourceResolveError, SourceResolverStorage, WorkspaceLineageIdentity, WorkspaceMemberLineage,
-    WorkspaceMemberPath, resolve_git_source_with_storage, resolve_local_source,
-    resolve_local_source_snapshot_with_storage,
 };
 pub use workflow::{
     PackageSourceAudit, PackageSourceAuditCommandError, PackageSourceRequest,

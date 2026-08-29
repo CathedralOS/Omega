@@ -3,7 +3,7 @@
 use super::reconciliation::ResolvedPackageSourceClosure;
 use super::validation::ResolvedSourceIdentity;
 use crate::manifest::dependency_projection::DependencySourceRequest;
-use crate::source::identity::{
+use omega_package_source::{
     AliasName, ExternalSourceContext, PackageKey, PackageName, SourceLineage, WorkspaceMemberPath,
 };
 use std::fmt;

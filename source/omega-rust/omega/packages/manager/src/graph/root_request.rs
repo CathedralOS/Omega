@@ -1,7 +1,7 @@
 //! Exact request that selected a dependency graph root.
 
-use crate::source::GitSourceRequest;
-use crate::source::identity::{ExternalSourceContext, SourceLineage, WorkspaceMemberPath};
+use omega_package_source::GitSourceRequest;
+use omega_package_source::{ExternalSourceContext, SourceLineage, WorkspaceMemberPath};
 use std::path::PathBuf;
 
 /// Dependency requests belong to a requester package. The graph root has no

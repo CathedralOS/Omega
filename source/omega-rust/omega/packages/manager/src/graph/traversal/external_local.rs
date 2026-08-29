@@ -10,8 +10,8 @@ use super::cache::{
 use super::dependency_resolution::resolve_registered_package_closure;
 use super::errors::ResolveExternalLocalPackageClosureError;
 use crate::package::ResolvePackageSourceError;
-use crate::source::identity::{ExternalSourceContext, PackageKey, SourceLineage};
-use crate::source::{LocalSourceLimits, SourceResolverStorage};
+use omega_package_source::{ExternalSourceContext, PackageKey, SourceLineage};
+use omega_package_source::{LocalSourceLimits, SourceResolverStorage};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 

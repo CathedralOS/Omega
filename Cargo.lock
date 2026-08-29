@@ -1075,17 +1075,14 @@ dependencies = [
 name = "omega-package-manager"
 version = "0.1.0"
 dependencies = [
- "cap-fs-ext",
  "cap-std",
- "command-group",
- "nix",
  "omega-build-declarations",
  "omega-build-evaluation",
  "omega-compiler",
  "omega-package-compilation",
  "omega-package-review",
+ "omega-package-source",
  "omega-platform-custody",
- "omega-resolver-execution",
  "psi-checked-interpreter",
  "psi-core",
  "psi-diagnostics",
@@ -1094,8 +1091,6 @@ dependencies = [
  "psi-syntax-trees",
  "psi-tokens",
  "psi-tokens-to-syntax-trees",
- "same-file",
- "sha1-checked",
  "sha2",
 ]
 
@@ -1124,6 +1119,21 @@ dependencies = [
  "psi-typed-trees",
  "psi-typed-trees-to-checked-trees",
  "psi-validation",
+ "sha2",
+]
+
+[[package]]
+name = "omega-package-source"
+version = "0.1.0"
+dependencies = [
+ "cap-fs-ext",
+ "cap-std",
+ "nix",
+ "omega-build-declarations",
+ "omega-platform-custody",
+ "omega-resolver-execution",
+ "psi-core",
+ "sha1-checked",
  "sha2",
 ]
 
@@ -2003,15 +2013,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
 
 [[package]]
-name = "same-file"
-version = "1.0.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502"
-dependencies = [
- "winapi-util",
-]
-
-[[package]]
 name = "serde"
 version = "1.0.229"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2161,15 +2162,6 @@ name = "winapi-i686-pc-windows-gnu"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac3b87c63620426dd9b991e5ce0329eff545bccbbb34f3be09ff6fb6ab51b7b6"
-
-[[package]]
-name = "winapi-util"
-version = "0.1.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
-dependencies = [
- "windows-sys 0.61.2",
-]
 
 [[package]]
 name = "winapi-x86_64-pc-windows-gnu"

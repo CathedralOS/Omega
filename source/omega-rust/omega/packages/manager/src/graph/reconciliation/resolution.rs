@@ -12,7 +12,7 @@ use super::resolved_closure::ResolvedPackageSourceClosure;
 use crate::graph::PackageRootSourceRequest;
 use crate::manifest::dependency_projection::DependencySourceRequest;
 use crate::package::PackageSourceCustody;
-use crate::source::identity::{AliasName, PackageKey};
+use omega_package_source::{AliasName, PackageKey};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 #[derive(Debug, Clone)]

@@ -1,7 +1,7 @@
 use super::{CompileResolvedPackageReviewsError, PackageSourceVerificationPhase};
 use crate::review::compilation::inputs::reachable_package_keys;
-use crate::source::verify_package_source_snapshot;
 use crate::{ImmutableSourceResolution, PackageKey, ResolvedPackageSourceClosure};
+use omega_package_source::verify_package_source_snapshot;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 

@@ -1,7 +1,7 @@
 use crate::manifest::declaration::PackageDeclarationError;
 use crate::manifest::dependency_projection::DependencyProjectionError;
-use crate::source::SourceResolveError;
-use crate::source::identity::IdentityError;
+use omega_package_source::IdentityError;
+use omega_package_source::SourceResolveError;
 use std::fmt;
 use std::path::PathBuf;
 

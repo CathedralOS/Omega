@@ -3,7 +3,7 @@
 use super::super::validation::PackageClosureValidationError;
 use crate::manifest::dependency_projection::DependencySourceRequest;
 use crate::package::PackageSourceCustody;
-use crate::source::identity::{AliasName, PackageKey};
+use omega_package_source::{AliasName, PackageKey};
 use std::fmt;
 
 /// One exact requester-local edge in a root-to-dependency path.

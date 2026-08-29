@@ -1,7 +1,7 @@
 use super::super::reconciliation::PackageSourceClosureResolutionError;
 use crate::package::ResolvePackageSourceError;
-use crate::source::GitSourceRequestError;
-use crate::source::identity::{PackageKey, WorkspaceLineageIdentity};
+use omega_package_source::GitSourceRequestError;
+use omega_package_source::{PackageKey, WorkspaceLineageIdentity};
 use std::fmt;
 
 #[derive(Debug)]

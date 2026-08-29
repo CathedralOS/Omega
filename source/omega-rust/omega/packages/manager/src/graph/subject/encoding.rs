@@ -7,7 +7,7 @@ use super::{
     SOURCE_CLOSURE_SUBJECT_MAGIC,
 };
 use crate::graph::validation::ResolvedSourceIdentity;
-use crate::source::identity::{
+use omega_package_source::{
     AliasName, ExternalLocalLineage, ExternalSourceContext, GitCommitId, GitTransport, GitTreeId,
     ImmutableSourceResolution, PackageKey, PackageName, SourceContentDigest, SourceLineage,
     WorkspaceLineageIdentity, WorkspaceMemberLineage, WorkspaceMemberPath,

@@ -10,7 +10,7 @@ use crate::manifest::dependency_edit::rendering::{canonical_dependency_statement
 use crate::manifest::dependency_projection::{
     DependencyProjectionError, DependencySourceRequest, extract_from_source,
 };
-use crate::source::identity::AliasName;
+use omega_package_source::AliasName;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};

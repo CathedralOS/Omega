@@ -5,7 +5,7 @@ use super::model::{DependencyRequestPath, DependencyRequestPathStep};
 use crate::graph::PackageRootSourceRequest;
 use crate::manifest::dependency_projection::DependencySourceRequest;
 use crate::package::PackageSourceCustody;
-use crate::source::identity::{AliasName, PackageKey};
+use omega_package_source::{AliasName, PackageKey};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::path::Path;
 
