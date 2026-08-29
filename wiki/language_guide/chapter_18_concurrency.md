@@ -119,8 +119,10 @@ responsible for eventual settlement.
 Suspension is an operational property of an ordinary machine. Independent
 `suspends` and `blocks` clauses publish the two ceilings; absence
 of each is the corresponding negative guarantee. A suspended activation retains
-its fixed nonmoving stack. The remaining suspension work concerns lowering and
-the conservative loan subset that may remain live while that stack is parked.
+its fixed nonmoving stack. Checked source already derives one canonical
+`SuspensionCrossingId`, exact live frontier, and four-axis carry policy for each
+possibly suspending call. Remaining work is Terminal/runtime retention and
+expansion of the conservative suspension-safe-loan subset.
 
 Positive progress remains separate. Pinned operation contracts may carry
 owner-classified `ProgressProfile` domains established through exact admitted
@@ -148,9 +150,10 @@ The constraints are:
 
 Suspension composes through ordinary calls, with the suspension plan propagated/
 inferred and WCSU providing the activation's fixed stack bound. Public
-operational clauses are explicit ceilings; private omissions infer. Exact park/
-resume lowering and suspension-safe-loan rules remain the queued suspension
-amendment. See
+operational clauses are explicit ceilings; private omissions infer. Terminal
+retention, park/resume lowering, and evidence-backed widening of the
+suspension-safe-loan subset remain engineering work under the settled model.
+See
 [effects_authority_and_observation.md](../design_briefs/effects_authority_and_observation.md).
 
 ### Call-site acknowledgements
@@ -197,6 +200,39 @@ type, and do not start another activation. `runtime.start<M>` creates a distinct
 activation because that is the operation's meaning. The call to `start` itself
 is marked only if its own contract may suspend or block the current activation;
 the eventual behavior of `M` does not mark the start call.
+
+### Parked call lifecycle
+
+A potentially suspending call has one ordinary completion continuation. If it
+parks, the call remains incomplete: its result is not established, later
+operations have not executed, and the activation's fixed stack, live values,
+claims, and cleanup obligations remain owned by the parked activation. Parking
+runs no cleanup and is not a local CFG terminal, crash, return, or source-visible
+continuation value.
+
+Terminal Psi therefore retains suspension as an interprocedural operational row
+on the exact call rather than as a second local successor. The row binds the
+call operation to its existing `SuspensionCrossingId`, checked live-place and
+claim frontier, and per-value carry policy. The separate activation realization
+inherits the crossing's `preserve_cpu` and `preserve_host_thread` demands and
+joins them to `ActivationCarryObligations`, the WCSU-derived stack plan, and
+selected provider/runtime evidence. Neither layer may rederive liveness or
+affinity from source shape. The ordinary call result becomes available only
+after the same incomplete invocation resumes and completes.
+
+Cancellation creates no hidden edge out of parked state. `request_cancel()`
+retains the `Task<T>` claim and requests that a checked safe-point operation
+eventually produce its cancellation-shaped ordinary result. Source then takes
+its declared transition and retires frames normally. `finish(self)` alone
+terminally consumes the external task claim and reports `Returned`, `Cancelled`,
+or `Failed`. Crash routes remain separate no-successor outcomes.
+
+A wait with no accepted finite response contract is not silently assumed to
+resume: response analysis reports `NoFiniteGuarantee(edge)` with the responsible
+call. A general root may publish that absence of a finite guarantee; a root that
+requires bounded response or termination rejects it. This progress judgment is
+separate from the safety fact that parked custody remains neither duplicated nor
+discarded.
 
 In I/O-heavy code, `block` may be common. Its purpose remains local: reviewers
 can see the exact waiting sites and, especially, whether a block occurs while a

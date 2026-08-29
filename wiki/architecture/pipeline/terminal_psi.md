@@ -187,8 +187,8 @@ selection to interpret its meaning. It contains:
 - lowered predicates over the same stable value/place identities as execution;
 - typed structural places, including ordinary and provider-backed roots plus
   field, dynamic-index, dereference, and range/subextent projection;
-- explicit cleanup, transfer, conservation, invalidation, suspension, and
-  boundary actions on edges;
+- explicit cleanup, transfer, conservation, invalidation, and boundary actions
+  on edges, plus suspension plans on the exact incomplete calls they govern;
 - closed semantic operation variants, including scoped CPU/device ordering
   events; and
 - fingerprinted contracts, obligation schemas, authorized admission sites,
@@ -2030,6 +2030,44 @@ cannot return along that execution. Omega still resolves the typed call
 relocation and preserves the callee leaf; it does not reinterpret a crash as a
 scalar result.
 
+### Suspension call plans
+
+Semantic suspension is an interprocedural outcome of an ordinary call, not a
+Terminal CFG terminator. A possibly suspending call has one local completion
+continuation. If the provider parks it, the call operation remains incomplete:
+its result is not established, later operations have not executed, and no
+return, crash, cleanup, or affine disposition edge commits.
+
+Terminal Psi will retain one `TerminalSuspensionCallPlan` keyed by the exact
+call `OperationId` and the checker-derived `SuspensionCrossingId`. The row owns
+the source-free Terminal place/claim frontier corresponding to the checked live
+values and retains their exact carry demands. Production must consume the
+checked crossing rather than recompute liveness from Terminal block shape;
+validation and verification independently rejoin the call, crossing identity,
+frontier, types, and policies. A missing, duplicate, redirected, or
+understated row rejects.
+
+Provider-independent Terminal semantics ends at that demand. The Omega task
+activation sidecar inherits the crossing's `preserve_cpu` and
+`preserve_host_thread` columns, derives the already-defined
+`ActivationCarryObligations`, and joins the exact WCSU `StackPlan`, stack lease,
+runtime provider, and preservation evidence. Those target/runtime selections do
+not enter target-neutral Terminal Psi and cannot weaken its retained frontier.
+
+Parking transfers scheduling custody of the still-live activation without
+creating a source-visible continuation value. Resumption continues the same
+incomplete call; normal completion then establishes its result and reaches the
+ordinary continuation. `request_cancel()` adds no parked-state exit: it retains
+the external `Task<T>` claim and changes the ordinary outcome eventually
+delivered at a checked safe point. `finish(self)` alone consumes that claim.
+Crashes remain the existing explicit no-successor routes.
+
+Safety and progress remain separate. A parked frontier preserves custody even
+when no finite response is known. Response analysis reports the existing
+`NoFiniteGuarantee(edge)` at the responsible call; bounded-response and
+termination profiles reject that report unless accepted finite-wait evidence
+closes it.
+
 ### Normal result slices
 
 A terminal machine result is `Scalar`, with one stable result pseudo-value;
@@ -3767,7 +3805,7 @@ owner-derived identity. The former metered object-container publication API was
 deleted because no supported consumer ended at that weaker checkpoint.
 Transfer-runtime plans must explicitly save the ABI rank carrier. Supplying an
 honest sponsor entry for this deliberately one-function artifact remains an
-owner decision (Q11, ranked native-fuel sponsor), so schedule comparison does not invent a compiler-private
+owner decision (Q10, ranked native-fuel sponsor), so schedule comparison does not invent a compiler-private
 helper.
 
 Omega may use a certificate only for the exact installed terminal bytes,

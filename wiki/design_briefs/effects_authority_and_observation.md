@@ -622,8 +622,9 @@ identifiers continue to resolve normally, with no global name table.
 - Additional operational-clause declarations.
 - Named or ordinary-export service-row variables beyond the concrete envelope
   substitution used by `invokes` and per-requirement bounded installation rows.
-- Fixed-stack park/resume lowering and suspension-safe loans. WCSU-derived
-  `StackPlan` owns capacity.
+- Implement the settled call-keyed Terminal suspension row and fixed-stack
+  park/resume lowering; widen suspension-safe loans only with exact crossing
+  evidence. WCSU-derived `StackPlan` owns capacity.
 - Component-version budgets and admission mechanics beyond the pinned-row law.
 - Byte-information units as a possible units-family-zero customer; decision 19
   still requires explicit scale conversion when a consumer expects canonical

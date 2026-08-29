@@ -110,46 +110,7 @@ producer claim.
 - Tempting but wrong: serialize private keys, tokens, or reusable credentials in
   `omega.lock` or source-resolution evidence.
 
-## Q3 — Suspension as control-flow exit or resumable continuation
-
-### Context
-
-Terminal Psi currently retains whether a machine or call may suspend as
-declaration and effect knowledge. Its executable control-flow vocabulary has
-normal returns and crash exits, but no suspension terminator, resume edge, or
-continuation identity. Omega's optimizer can therefore preserve conservative
-`MaySuspend` knowledge, but it cannot construct the explicit suspension exits
-required by post-dominance, liveness, ownership, provenance, and fuel analyses.
-
-### Problem statement
-
-Treating suspension as an ordinary no-successor exit would discard the state
-that must survive resumption. Treating it as an ordinary successor would imply
-that resumption is synchronous local control flow. Inferring either model from
-a declaration-level `suspends` flag would silently choose language semantics
-and could make post-dominance or cleanup reasoning unsound.
-
-### Proposed direction
-
-Represent suspension explicitly in Terminal Psi as a semantic transfer with a
-stable continuation/resume identity. Define which values, places, claims,
-cleanup obligations, provider effects, and logical-fuel sites cross that
-transfer. Omega may then model the suspension event as an observable exit from
-the current activation while separately retaining the authorized resume edge
-and its custody.
-
-### Alternates
-
-- Acceptable if suspension never resumes the same activation: define it as a
-  terminal outcome distinct from normal return and crash, with complete exit
-  ownership and fuel semantics.
-- Acceptable if suspension is call-only: keep local CFGs free of suspension
-  terminators, but define an explicit interprocedural call outcome and clarify
-  that block post-dominance deliberately excludes it.
-- Tempting but wrong: classify every `MaySuspend` call as a local CFG exit
-  without retaining its continuation and outcome-specific state.
-
-## Q4 — Cyclic control flow in Terminal Psi
+## Q3 — Cyclic control flow in Terminal Psi
 
 ### Context
 
@@ -189,7 +150,7 @@ block-loop API.
   validation before loop-carried SSA, ownership, cleanup, and fuel semantics
   exist.
 
-## Q5 — Close the Delta v1 semantic contract
+## Q4 — Close the Delta v1 semantic contract
 
 ### Context
 
@@ -269,7 +230,7 @@ out of Delta without weakening its ability to host a robust compiler.
 - Tempting but wrong: retain the old translator's private capacities, exit
   codes, or Darwin output behavior as language rules.
 
-## Q6 — Select one typed executable Gamma contract
+## Q5 — Select one typed executable Gamma contract
 
 ### Context
 
@@ -339,7 +300,7 @@ failures.
 - Tempting but wrong: make Alpha I/O effects directly callable from arbitrary
   Gamma source merely to avoid defining the compiler-entry adapter.
 
-## Q7 — Fix Beta block formation and definite-initialization reachability
+## Q6 — Fix Beta block formation and definite-initialization reachability
 
 ### Context
 
@@ -404,7 +365,7 @@ semantic acceptance independent of optimizer sophistication.
 - Tempting but wrong: zero-initialize generated frame slots and call the gap
   closed; that changes Beta's written local semantics and hides skipped stores.
 
-## Q8 — Select the canonical Beta compiler outcome carrier
+## Q7 — Select the canonical Beta compiler outcome carrier
 
 ### Context
 
@@ -468,7 +429,7 @@ impossible fixup/table condition maps to `InternalFailure`.
 - Tempting but wrong: prepend a success tag to Alpha tape and thereby change the
   canonical artifact bytes or require a stripping stage.
 
-## Q9 — Canonical kernel propositions for exact scalar operations
+## Q8 — Canonical kernel propositions for exact scalar operations
 
 ### Context
 
@@ -525,7 +486,7 @@ and mirrored verifier search tree.
 - Tempting but wrong: serialize only the producer's chosen goal and trust it
   without independently reconstructing the operation-owned proposition.
 
-## Q10 — Compose the exact Alpha-to-Beta edge within checker capacity
+## Q9 — Compose the exact Alpha-to-Beta edge within checker capacity
 
 ### Context
 
@@ -587,7 +548,7 @@ of adding an assembly-specific evaluator path.
   primitive, trust a producer receipt, compare hashes, or weaken exact total
   partitioning.
 
-## Q11 — Own the ranked native-fuel sponsor entry
+## Q10 — Own the ranked native-fuel sponsor entry
 
 ### Context
 
@@ -635,7 +596,7 @@ prove the final call target is exactly that admitted sponsor entry.
 - Tempting but wrong: append an anonymous helper, magic host callback, script,
   or test-only trampoline and treat successful execution as chain evidence.
 
-## Q12 — Semantic loci for the remaining dangerous-authority classes
+## Q11 — Semantic loci for the remaining dangerous-authority classes
 
 ### Context
 

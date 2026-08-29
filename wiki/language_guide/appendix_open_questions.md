@@ -5,7 +5,7 @@ belongs in the relevant chapter or frozen design brief, not here. Immediate
 owner decisions belong in the repository-root `OWNER_QUESTIONS.md`;
 engineering work belongs in `TASKS.md`.
 
-Last pruned: 2026-08-25.
+Last pruned: 2026-08-29.
 
 ## Reach, resources, and progress
 
@@ -26,9 +26,10 @@ Last pruned: 2026-08-25.
 
 ## Concurrency and hardware
 
-- Decide the first conservative suspension-safe-loan subset and then whether
-  borrow/wait-cycle detection earns a later proof mode. Whole-system deadlock
-  reasoning is not a prerequisite for moved-ownership tasks.
+- Decide which evidence-backed suspension-safe loans, if any, extend the current
+  rejection-first conservative subset, and then whether borrow/wait-cycle
+  detection earns a later proof mode. Whole-system deadlock reasoning is not a
+  prerequisite for moved-ownership tasks.
 - Determine how far the proof system should support disjoint mutable sharing
   for lock-free structures before requiring a mediated or accepted boundary.
 - Define the formal atomic-event model and prove the existing x86-64/AArch64
