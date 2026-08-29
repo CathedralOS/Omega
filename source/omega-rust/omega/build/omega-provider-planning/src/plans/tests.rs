@@ -1207,6 +1207,29 @@ fn external_root_bridge_requires_one_exact_retained_boundary_slot() {
 }
 
 #[test]
+fn external_root_bridge_rejects_compact_equal_exact_plan_substitution() {
+    let plan = selection_plan("Provider", &["run"], &["run"]);
+    let facts = omega_effects::SelectedProviderPlanFacts::from_selected_plans(vec![plan])
+        .expect("selected provider facts");
+    let mut selected = selected_external_root_provider_plan(&facts, "Pair")
+        .expect("external-root provider selection");
+    let compact_identity = selected.identity;
+    let strong_identity = selected.digest;
+
+    selected.exact_plan.schema.methods[0].requirement_owner = "OtherPair".into();
+    selected.schema = selected.exact_plan.schema.clone();
+
+    assert_eq!(selected.identity, compact_identity);
+    assert_eq!(
+        selected.exact_plan.identity_fingerprint(),
+        compact_identity.normalized_identity(),
+        "the compatibility fingerprint omits this exact structural field"
+    );
+    assert_ne!(selected.exact_plan.identity_digest(), strong_identity);
+    assert!(selected.entry_claims("Pair::run").is_err());
+}
+
+#[test]
 fn granted_selected_plan_attaches_receipt_by_exact_inherited_requirement() {
     let owner_symbol = psi_symbols::SymbolHandle::from_arena_index(7);
     let subject_symbol = psi_symbols::SymbolHandle::from_arena_index(8);

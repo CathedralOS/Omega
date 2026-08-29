@@ -11,6 +11,25 @@
 //! on these types.
 
 use super::foreign_locator::NormalizedForeignLocator;
+use sha2::{Digest, Sha256};
+
+/// Collision-resistant identity of one exact normalized provider plan.
+///
+/// Construction remains crate-owned. Compact plan fingerprints are retained
+/// for existing reports and coordinates, but admission joins should retain
+/// this digest or the complete [`ProviderPlan`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ProviderPlanDigest([u8; 32]);
+
+impl ProviderPlanDigest {
+    const fn from_digest(digest: [u8; 32]) -> Self {
+        Self(digest)
+    }
+
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+}
 
 /// The service schema a plan serves: a boundary trait's callable surface,
 /// reified from the typed `TraitDefinition` (today that read is scattered
@@ -825,6 +844,46 @@ fn push_package_identity(
 }
 
 impl ProviderPlan {
+    /// Domain-separated SHA-256 commitment to the complete normalized plan
+    /// structure. Unlike [`Self::identity_fingerprint`], this includes exact
+    /// normalized foreign-locator coordinates and is suitable for retained
+    /// evidence identity.
+    pub fn identity_digest(&self) -> ProviderPlanDigest {
+        let mut encoder = ProviderPlanDigestEncoder::new();
+        encoder.string(&self.name);
+        encoder.string(&self.provider_type);
+        encoder.package_identity(self.provider_type_package_identity);
+        encoder.string(&self.target);
+        encoder.string(&self.schema.trait_name);
+        encoder.package_identity(self.schema.trait_package_identity);
+
+        let mut methods = self.schema.methods.iter().collect::<Vec<_>>();
+        methods.sort_by(|left, right| {
+            left.name
+                .cmp(&right.name)
+                .then_with(|| left.requirement_identity.cmp(&right.requirement_identity))
+        });
+        encoder.len(methods.len());
+        for method in methods {
+            encoder.service_method(method);
+        }
+
+        let mut rows = self.rows.iter().collect::<Vec<_>>();
+        rows.sort_by(|left, right| {
+            left.method
+                .cmp(&right.method)
+                .then_with(|| left.requirement_identity.cmp(&right.requirement_identity))
+        });
+        encoder.len(rows.len());
+        for row in rows {
+            encoder.string(&row.method);
+            encoder.string(&row.requirement_identity);
+            encoder.provider_binding(&row.binding);
+        }
+        encoder.package_identity(self.origin_package_identity);
+        encoder.finish()
+    }
+
     /// PRV2: the plan's NORMALIZED IDENTITY -- an FNV-1a fingerprint over
     /// the canonical rendering (name, exact package provenance, target,
     /// schema surface, rows in method order). Two plans with the same
@@ -1451,6 +1510,242 @@ impl ProviderPlan {
     }
 }
 
+struct ProviderPlanDigestEncoder(Sha256);
+
+impl ProviderPlanDigestEncoder {
+    fn new() -> Self {
+        let mut digest = Sha256::new();
+        digest.update(b"omega.provider-plan.sha256.v1\0");
+        Self(digest)
+    }
+
+    fn finish(self) -> ProviderPlanDigest {
+        ProviderPlanDigest::from_digest(self.0.finalize().into())
+    }
+
+    fn byte(&mut self, value: u8) {
+        self.0.update([value]);
+    }
+
+    fn bool(&mut self, value: bool) {
+        self.byte(u8::from(value));
+    }
+
+    fn len(&mut self, value: usize) {
+        self.0.update((value as u64).to_le_bytes());
+    }
+
+    fn u64(&mut self, value: u64) {
+        self.0.update(value.to_le_bytes());
+    }
+
+    fn i64(&mut self, value: i64) {
+        self.0.update(value.to_le_bytes());
+    }
+
+    fn bytes(&mut self, bytes: &[u8]) {
+        self.len(bytes.len());
+        self.0.update(bytes);
+    }
+
+    fn string(&mut self, value: &str) {
+        self.bytes(value.as_bytes());
+    }
+
+    fn strings(&mut self, values: &[String]) {
+        self.len(values.len());
+        for value in values {
+            self.string(value);
+        }
+    }
+
+    fn package_identity(&mut self, identity: Option<psi_core::PackageKeyIdentity>) {
+        match identity {
+            Some(identity) => {
+                self.byte(1);
+                self.0.update(identity.digest());
+            }
+            None => self.byte(0),
+        }
+    }
+
+    fn carry_policy(&mut self, policy: psi_language_semantics::CarryPolicy) {
+        self.byte(match policy.suspension {
+            psi_language_semantics::CarrySuspension::Forbidden => 0,
+            psi_language_semantics::CarrySuspension::Allowed => 1,
+        });
+        self.byte(match policy.cpu {
+            psi_language_semantics::CarryCpu::Origin => 0,
+            psi_language_semantics::CarryCpu::Any => 1,
+        });
+        self.byte(match policy.host_thread {
+            psi_language_semantics::CarryHostThread::Origin => 0,
+            psi_language_semantics::CarryHostThread::Any => 1,
+        });
+        self.byte(match policy.address {
+            psi_language_semantics::CarryAddress::Stable => 0,
+            psi_language_semantics::CarryAddress::Movable => 1,
+        });
+    }
+
+    fn service_method(&mut self, method: &ServiceMethod) {
+        self.string(&method.name);
+        self.string(&method.requirement_owner);
+        self.package_identity(method.requirement_owner_package_identity);
+        self.string(&method.requirement_identity);
+        self.len(method.parameter_count);
+        self.strings(&method.parameter_type_identities);
+
+        let mut entry_claims = method.entry_claims.iter().collect::<Vec<_>>();
+        entry_claims.sort_by(|left, right| {
+            left.parameter_index
+                .cmp(&right.parameter_index)
+                .then_with(|| left.carrier_identity.cmp(&right.carrier_identity))
+                .then_with(|| left.domain.cmp(&right.domain))
+        });
+        self.len(entry_claims.len());
+        for claim in entry_claims {
+            self.len(claim.parameter_index);
+            self.string(&claim.carrier_identity);
+            self.string(&claim.domain);
+            self.byte(match claim.predicate_body {
+                psi_language_semantics::DomainPredicateBody::Bodyless => 0,
+                psi_language_semantics::DomainPredicateBody::Present => 1,
+            });
+            self.carry_policy(claim.effective_carry);
+            self.byte(match claim.authority_flow {
+                ServiceEntryAuthorityFlow::Accepts => 0,
+            });
+        }
+
+        self.bool(method.has_result);
+        match &method.result_type_identity {
+            Some(identity) => {
+                self.byte(1);
+                self.string(identity);
+            }
+            None => self.byte(0),
+        }
+        let mut result_claims = method.result_claims.iter().collect::<Vec<_>>();
+        result_claims.sort_by(|left, right| left.domain.cmp(&right.domain));
+        self.len(result_claims.len());
+        for claim in result_claims {
+            self.string(&claim.domain);
+            self.carry_policy(claim.effective_carry);
+        }
+
+        self.strings(&method.service_reach);
+        self.strings(&method.synchronous_invocations);
+        self.bool(method.may_suspend);
+        self.bool(method.may_block);
+        self.bool(method.terminates_guarantee);
+
+        let mut premises = method.termination_premises.iter().collect::<Vec<_>>();
+        premises.sort_by(|left, right| {
+            left.profile
+                .cmp(&right.profile)
+                .then_with(|| left.subject.cmp(&right.subject))
+                .then_with(|| left.subject_projections.cmp(&right.subject_projections))
+        });
+        self.len(premises.len());
+        for premise in premises {
+            self.string(&premise.profile);
+            match premise.subject {
+                ServiceProgressSubject::ProviderReceiver => self.byte(0),
+                ServiceProgressSubject::Parameter(index) => {
+                    self.byte(1);
+                    self.len(index);
+                }
+            }
+            self.strings(&premise.subject_projections);
+            let mut routes = premise.establishment_routes.iter().collect::<Vec<_>>();
+            routes.sort();
+            self.len(routes.len());
+            for route in routes {
+                self.byte(match route.kind {
+                    ServiceProgressEstablishmentRouteKind::CheckedRequirement => 0,
+                    ServiceProgressEstablishmentRouteKind::BoundaryRequirement => 1,
+                });
+                self.string(&route.requirement_identity);
+            }
+        }
+
+        match method.calling_plan_fingerprint {
+            Some(fingerprint) => {
+                self.byte(1);
+                self.u64(fingerprint);
+            }
+            None => self.byte(0),
+        }
+    }
+
+    fn provider_binding(&mut self, binding: &ProviderBinding) {
+        match binding {
+            ProviderBinding::Import { locator } => {
+                self.byte(0);
+                self.string(locator.target().target_name());
+                match locator.locator() {
+                    omega_target::ForeignLocatorCandidate::PeByName { library, export } => {
+                        self.byte(0);
+                        self.bytes(library);
+                        self.bytes(export);
+                    }
+                    omega_target::ForeignLocatorCandidate::PeByOrdinal { library, ordinal } => {
+                        self.byte(1);
+                        self.bytes(library);
+                        self.0.update(ordinal.to_le_bytes());
+                    }
+                    omega_target::ForeignLocatorCandidate::ElfVersioned {
+                        object,
+                        symbol,
+                        version,
+                    } => {
+                        self.byte(2);
+                        self.bytes(object);
+                        self.bytes(symbol);
+                        self.bytes(version);
+                    }
+                }
+            }
+            ProviderBinding::StringBackedImportBootstrap { library, symbol } => {
+                self.byte(1);
+                self.string(library);
+                self.string(symbol);
+            }
+            ProviderBinding::Syscall { number } => {
+                self.byte(2);
+                self.i64(*number);
+            }
+            ProviderBinding::CompilerIntrinsic { machine } => {
+                self.byte(3);
+                self.string(machine);
+            }
+            ProviderBinding::VtableSlot { index } => {
+                self.byte(4);
+                self.i64(*index);
+            }
+            ProviderBinding::VtableField { table, field } => {
+                self.byte(5);
+                self.string(table);
+                self.string(field);
+            }
+            ProviderBinding::TableFunction { table, field } => {
+                self.byte(6);
+                self.string(table);
+                self.string(field);
+            }
+            ProviderBinding::CheckedAdapter {
+                machine_identity,
+                machine_package_identity,
+            } => {
+                self.byte(7);
+                self.string(machine_identity);
+                self.package_identity(*machine_package_identity);
+            }
+        }
+    }
+}
+
 impl ServiceSchema {
     /// Match a provider row to one exact requirement. The readable method name
     /// must agree as a drift check, but only the canonical overload identity
@@ -1602,6 +1897,21 @@ mod tests {
             first.identity_fingerprint(),
             refactored.identity_fingerprint()
         );
+    }
+
+    #[test]
+    fn strong_provider_plan_identity_rejects_compact_equal_structural_substitution() {
+        let original = windows_console_plan();
+        let mut substituted = original.clone();
+        substituted.schema.methods[0].requirement_owner = "OtherConsole".to_owned();
+
+        assert_eq!(
+            original.identity_fingerprint(),
+            substituted.identity_fingerprint(),
+            "the legacy compact renderer did not retain the readable requirement-owner field"
+        );
+        assert_ne!(original, substituted);
+        assert_ne!(original.identity_digest(), substituted.identity_digest());
     }
 
     #[test]

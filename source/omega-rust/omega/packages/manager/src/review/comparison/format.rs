@@ -71,16 +71,6 @@ fn render_package(
     );
     render_digest(
         output,
-        "baseline_compiler",
-        &package.baseline_compiler.digest(),
-    );
-    render_digest(
-        output,
-        "candidate_compiler",
-        &package.candidate_compiler.digest(),
-    );
-    render_digest(
-        output,
         "baseline_source_consumption",
         &package.baseline_source_consumption.digest(),
     );

@@ -14,33 +14,6 @@ pub(super) const PACKAGES: &[&str] = &[
     "graph-workbench",
 ];
 
-pub(super) struct NoAdditionalAuditReviewer;
-
-impl PackageAdvisoryReviewer for NoAdditionalAuditReviewer {
-    type Error = Infallible;
-
-    fn review(
-        &mut self,
-        request: &PackageAdvisoryReviewRequest,
-        output: &mut PackageAdvisoryReviewOutput,
-    ) -> Result<(), Self::Error> {
-        assert!(request.instructions().contains("untrusted data"));
-        assert!(
-            request
-                .review_input()
-                .starts_with("OMEGA_PACKAGE_REVIEW_INPUT_V1\n")
-        );
-        assert!(
-            request
-                .response_schema()
-                .contains("recommend_audit|no_additional_audit")
-        );
-        let response = "OMEGA_PACKAGE_ADVISORY_RESULT_V1\nrecommendation no_additional_audit\nend_advisory_result\n";
-        output.write(response.as_bytes()).expect("bounded response");
-        Ok(())
-    }
-}
-
 pub(super) fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .ancestors()

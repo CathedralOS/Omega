@@ -6,7 +6,4 @@ mod model;
 
 pub(crate) use adapter::PackageReviewEvidence;
 pub(crate) use commitments::{build_observation_commitment, whole_review_commitment};
-pub use model::{
-    ReviewOnlyCanonicalRow, ReviewOnlyCompilerExecutableCommitment,
-    ReviewOnlySourceConsumptionCommitment,
-};
+pub use model::{ReviewOnlyCanonicalRow, ReviewOnlySourceConsumptionCommitment};

@@ -8,8 +8,8 @@ use psi_core::{
     content_conservation_fingerprint,
 };
 use psi_proof_admission::{
-    AdmissionProfile, CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule,
-    ProofSystemMarker,
+    AdmissionProfile, CertificateEnvelope, EvidenceError, EvidenceRoute, PrimitiveJudgment,
+    ProofError, ProofNode, ProofRule, ProofSystemMarker,
 };
 use psi_terminal::{
     Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer, CompletionReceipt,
@@ -305,6 +305,43 @@ fn proof_route_changes_do_not_change_the_reconstructed_question() {
     assert_eq!(
         kernel.reconstructed_obligations(),
         certificate.reconstructed_obligations()
+    );
+}
+
+#[test]
+fn verifier_does_not_rediscover_an_alternate_route_for_a_malformed_certificate() {
+    let mut module = unit_module();
+    let obligation = ObligationId::new(904).expect("obligation");
+    module.machines[0].contract.ensures = vec![ContractClause {
+        obligation,
+        proposition: Proposition::Truth,
+    }];
+    let malformed_selected_route = ProofBundle {
+        evidence_producers: Vec::new(),
+        evidence: vec![ObligationEvidence {
+            obligation,
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: EvidenceIdentity::new(904).expect("evidence"),
+                proof_system_marker: ProofSystemMarker::CURRENT,
+                proof: ProofNode {
+                    conclusion: Proposition::Truth,
+                    rule: ProofRule::Assumption { index: 0 },
+                },
+            }),
+        }],
+    };
+
+    assert_eq!(
+        verify_module(
+            &module,
+            &malformed_selected_route,
+            &AdmissionProfile::default(),
+        )
+        .expect_err("the verifier must not replace the malformed edge with primitive Truth"),
+        VerificationError::RejectedEvidence {
+            obligation,
+            error: EvidenceError::Certificate(ProofError::UnknownAssumption(0)),
+        }
     );
 }
 
@@ -2084,6 +2121,32 @@ fn exact_divide_requires_same_fixed_integer_operands_and_an_obligation() {
         }],
     };
     validate_module(&module).expect("admits proof-gated exact division");
+
+    let without_available_route =
+        reconstruct_operation_obligations(&module).expect("reconstruct canonical divide goal");
+    assert_eq!(without_available_route.len(), 1);
+    assert!(without_available_route[0].canonical_certificate);
+    let canonical_question = without_available_route[0].obligation.proposition.clone();
+
+    let mut module_with_alternate_route = module.clone();
+    module_with_alternate_route.machines[0]
+        .contract
+        .requires
+        .push(Proposition::LessOrEqual(
+            ScalarTerm::integer(
+                IntegerType::new(IntegerSign::Unsigned, 32).expect("u32"),
+                IntegerValue::Unsigned(1),
+            )
+            .expect("u32 one"),
+            ScalarTerm::value(right, scalar_type),
+        ));
+    let with_alternate_route = reconstruct_operation_obligations(&module_with_alternate_route)
+        .expect("available proof routes do not choose the reconstructed goal");
+    assert!(with_alternate_route[0].canonical_certificate);
+    assert_eq!(
+        with_alternate_route[0].obligation.proposition, canonical_question,
+        "available evidence must not make reconstruction select another question",
+    );
 
     module.machines[0].parameters[1].scalar_type = ScalarType::Boolean;
     assert!(matches!(

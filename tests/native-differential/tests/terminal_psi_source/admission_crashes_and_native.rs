@@ -1342,7 +1342,12 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         identity: sponsor_root_identity,
         entry: entry_stub,
         provider: deployment_provider,
-        provider_plan: ProviderPlanId::from_normalized_identity(0x6213).unwrap(),
+        provider_plan: ProviderPlanId::from_normalized_identity(
+            omega_effects::provider_plan::ProviderPlan::default().identity_fingerprint(),
+        )
+        .unwrap(),
+        provider_plan_digest: omega_effects::provider_plan::ProviderPlan::default()
+            .identity_digest(),
         requirement_identity: "DeploymentSponsor::entry".into(),
         entry_claims: Vec::new(),
         acknowledgement_parameter_index: None,
@@ -1856,7 +1861,12 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         identity: root_identity,
         entry: entry_stub,
         provider: root_provider,
-        provider_plan: ProviderPlanId::from_normalized_identity(0x6003).unwrap(),
+        provider_plan: ProviderPlanId::from_normalized_identity(
+            omega_effects::provider_plan::ProviderPlan::default().identity_fingerprint(),
+        )
+        .unwrap(),
+        provider_plan_digest: omega_effects::provider_plan::ProviderPlan::default()
+            .identity_digest(),
         requirement_identity: "TerminalRoot::entry".into(),
         entry_claims: Vec::new(),
         acknowledgement_parameter_index: None,

@@ -3266,6 +3266,18 @@ untrusted producer to transport a closed literal bound across the preceding
 SSA equality for that literal. The four canonical nonzero pilots consume that
 capability; no reducer or operation row is promoted by doing so.
 
+The production verifier now reconstructs settled scalar kernel questions
+directly from `CanonicalScalarGoal`. `NonzeroDivisor`,
+`ExactDivisionDefined`, and `ExactShiftCount` never invoke the mirrored
+candidate selector: alternate available facts cannot change their question,
+and the proof kernel checks only the producer-serialized derivation. The
+mirrored selector roots are retained solely for compatibility tests on this
+slice. Exact-cast representability, exact shift-left representability, and
+exact add/subtract/multiply representability still have no language-settled
+kernel proposition; they retain the legacy reducer pending the proposition
+vocabulary decision recorded in `OWNER_QUESTIONS.md`. This is an explicit
+remaining trusted dependency, not permission for new verifier search.
+
 That producer status is also the module boundary. Structural Unit-plan
 construction must not accumulate every sufficient-form recognizer merely
 because it invokes them. Shared Boolean/integer convergence has a small

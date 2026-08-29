@@ -14,8 +14,8 @@ use super::{
     ReviewOnlyBaselineLimits, VERSION,
 };
 use crate::review::evidence::{
-    PackageReviewEvidence, ReviewOnlyCanonicalRow, ReviewOnlyCompilerExecutableCommitment,
-    ReviewOnlySourceConsumptionCommitment, build_observation_commitment, whole_review_commitment,
+    PackageReviewEvidence, ReviewOnlyCanonicalRow, ReviewOnlySourceConsumptionCommitment,
+    build_observation_commitment, whole_review_commitment,
 };
 use crate::review::validation::{validate_review_only_closure, validate_review_only_records};
 use crate::{
@@ -41,7 +41,6 @@ pub struct ReviewOnlyBaselinePackage {
     key: PackageKey,
     resolution: ImmutableSourceResolution,
     target: String,
-    compiler_executable_commitment: ReviewOnlyCompilerExecutableCommitment,
     source_consumption_commitment: ReviewOnlySourceConsumptionCommitment,
     build_observation_commitment: Option<[u8; 32]>,
     source_input_replay_record: Option<ReviewOnlyBuildFilesystemReplayRecord>,
@@ -61,10 +60,6 @@ impl ReviewOnlyBaselinePackage {
 
     pub fn target(&self) -> &str {
         &self.target
-    }
-
-    pub const fn compiler_executable_commitment(&self) -> ReviewOnlyCompilerExecutableCommitment {
-        self.compiler_executable_commitment
     }
 
     pub const fn source_consumption_commitment(&self) -> ReviewOnlySourceConsumptionCommitment {
@@ -105,10 +100,6 @@ impl PackageReviewEvidence for ReviewOnlyBaselinePackage {
 
     fn target_name(&self) -> &str {
         &self.target
-    }
-
-    fn compiler_executable_commitment(&self) -> ReviewOnlyCompilerExecutableCommitment {
-        self.compiler_executable_commitment
     }
 
     fn source_consumption_commitment(&self) -> ReviewOnlySourceConsumptionCommitment {
@@ -229,7 +220,6 @@ impl ReviewOnlyBaselineCapsule {
                 key: review.key().clone(),
                 resolution: review.resolution().clone(),
                 target: review.projection().target().target_name().to_owned(),
-                compiler_executable_commitment: review.compiler_executable_commitment().into(),
                 source_consumption_commitment: review.source_consumption_commitment().into(),
                 build_observation_commitment,
                 source_input_replay_record,
@@ -278,8 +268,6 @@ impl ReviewOnlyBaselineCapsule {
                 "review baseline target must not be empty",
             ));
         }
-        let compiler =
-            ReviewOnlyCompilerExecutableCommitment::from_recovered_digest(decoder.array_32()?);
         let package_count = decoder.usize()?;
         if package_count == 0 || package_count > limits.maximum_packages {
             return Err(ReviewOnlyBaselineError::new(
@@ -410,7 +398,6 @@ impl ReviewOnlyBaselineCapsule {
                     key: review_key,
                     resolution: review_resolution,
                     target: target.clone(),
-                    compiler_executable_commitment: compiler,
                     source_consumption_commitment,
                     build_observation_commitment,
                     source_input_replay_record,
@@ -497,7 +484,6 @@ impl ReviewOnlyBaselineCapsule {
             "review baseline target violates its byte bounds",
         )?;
         encoder.string(&first.target)?;
-        encoder.fixed(&first.compiler_executable_commitment.digest());
         encoder.usize(self.packages.len())?;
         let indices = self
             .packages

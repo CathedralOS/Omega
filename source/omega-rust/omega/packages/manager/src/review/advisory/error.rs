@@ -38,11 +38,6 @@ pub enum PackageSourceReviewError {
         first: PackageKey,
         conflicting: PackageKey,
     },
-    MixedCompilerExecutableCommitment {
-        role: PackageSourceReviewCustodyRole,
-        first: PackageKey,
-        conflicting: PackageKey,
-    },
     ClosureValidationAllocationFailed,
     TooManySourcePatches {
         maximum: usize,
@@ -100,17 +95,6 @@ impl fmt::Display for PackageSourceReviewError {
             } => write!(
                 formatter,
                 "{} compiler review closure mixes targets between `{}` and `{}`",
-                custody_role_token(*role),
-                first.name().as_str(),
-                conflicting.name().as_str()
-            ),
-            Self::MixedCompilerExecutableCommitment {
-                role,
-                first,
-                conflicting,
-            } => write!(
-                formatter,
-                "{} compiler review closure mixes compiler executable commitments between `{}` and `{}`",
                 custody_role_token(*role),
                 first.name().as_str(),
                 conflicting.name().as_str()

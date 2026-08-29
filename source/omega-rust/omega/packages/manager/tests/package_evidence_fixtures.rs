@@ -1,7 +1,6 @@
 use omega_build_evaluation::{BuildFilesystemObservedByteRegionKind, BuildObservationClass};
 use omega_package_manager::{
-    CompileResolvedPackageReviewsError, LocalSourceLimits, PackageAdvisoryReviewOutput,
-    PackageAdvisoryReviewRequest, PackageAdvisoryReviewer, PackageSourceClosureLimits,
+    CompileResolvedPackageReviewsError, LocalSourceLimits, PackageSourceClosureLimits,
     PackageSourceVerificationPhase, PackageTriageDisposition, PackageTriageReason,
     ResolvePackageSourceError, ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure,
     ReviewOnlyBaselineCapsule, ReviewOnlyBaselineDirectory, ReviewOnlyBaselineFileError,
@@ -10,9 +9,8 @@ use omega_package_manager::{
     WorkspaceMemberPath, assemble_initial_source_review, assemble_update_source_review,
     assemble_update_source_review_from_baseline, compare_review_only_capabilities,
     compare_review_only_capabilities_from_baseline, compile_resolved_package_reviews,
-    invoke_package_advisory_review, resolve_workspace_package_closure_with_storage,
-    triage_initial_install, triage_review_update, triage_review_update_from_baseline,
-    triage_update_without_admission_baseline,
+    resolve_workspace_package_closure_with_storage, triage_initial_install, triage_review_update,
+    triage_review_update_from_baseline, triage_update_without_admission_baseline,
 };
 use omega_package_review::{
     CheckedPackageReviewProjection, PackageReviewCallableRole, PackageReviewCanonicalRowKind,
@@ -24,7 +22,6 @@ use omega_package_review::{
     decode_ordinary_package_obligation_ledger, encode_ordinary_package_obligation_ledger,
 };
 use std::collections::BTreeSet;
-use std::convert::Infallible;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 

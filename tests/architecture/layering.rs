@@ -366,6 +366,14 @@ fn ordinary_compiler_and_package_closures_exclude_component_deployment_owners() 
     }
 }
 
+#[test]
+fn terminal_native_realization_excludes_speculative_runtime_owners() {
+    assert_normal_closure_excludes(
+        "omega-terminal-psi-to-native-artifact",
+        &["omega-executable-installation", "omega-external-roots"],
+    );
+}
+
 /// Sanity check: every governed crate maps to a layer that has a rank, and the
 /// rank table has no duplicate layer names.
 #[test]
@@ -655,6 +663,7 @@ fn package_subsystem_has_discoverable_owners_and_bounded_modules() {
         .collect::<BTreeSet<_>>();
     let expected_top_level = [
         "README.md",
+        "advisory-tooling",
         "manager",
         "package-review",
         "resolver-execution",
@@ -669,6 +678,8 @@ fn package_subsystem_has_discoverable_owners_and_bounded_modules() {
 
     for required in [
         "README.md",
+        "advisory-tooling/README.md",
+        "advisory-tooling/src/lib.rs",
         "manager/src/lib.rs",
         "manager/src/workflow/mod.rs",
         "manager/src/workflow/source_audit/mod.rs",
@@ -792,6 +803,37 @@ fn package_crates_keep_one_way_ownership() {
                 "package support owner {leaf} must not depend on sibling {forbidden}"
             );
         }
+    }
+}
+
+#[test]
+fn package_semantics_exclude_executable_provenance_and_model_protocols() {
+    let graph = load_graph();
+    let manager = graph
+        .get("omega-package-manager")
+        .expect("package manager crate participates in architecture metadata");
+    assert!(
+        !manager
+            .deps
+            .iter()
+            .any(|dependency| dependency == "omega-build-provenance"),
+        "package semantics must not depend on executable incident provenance"
+    );
+
+    let root = workspace_root();
+    let manager_review = root.join("source/omega-rust/omega/packages/manager/src/review");
+    for retired in ["advisory/protocol.rs", "advisory/invocation.rs"] {
+        assert!(
+            !manager_review.join(retired).exists(),
+            "model protocol must remain outside package core: {retired}"
+        );
+    }
+    let optional_tool = root.join("source/omega-rust/omega/packages/advisory-tooling/src");
+    for owned in ["protocol.rs", "invocation.rs"] {
+        assert!(
+            optional_tool.join(owned).is_file(),
+            "optional package advisory tooling must own {owned}"
+        );
     }
 }
 

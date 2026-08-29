@@ -13,7 +13,7 @@ mod render;
 
 pub use render::TriageRenderError;
 
-/// Deterministic package-manager disposition before any advisory LLM review.
+/// Deterministic package-manager disposition for source review.
 ///
 /// This is review-only orchestration state. It is neither accepted lock
 /// evidence nor proof that a human or model audited source.
@@ -36,7 +36,6 @@ pub enum PackageTriageReason {
     MissingAdmissionBaseline,
     CapabilityOrApiChanged,
     SourceLineageChanged,
-    CompilerArtifactChanged,
     BuildObservationChanged,
     RepresentationTcbIntroducedOrChanged,
     AcceptedClaimRequiresResolution,
@@ -311,11 +310,6 @@ fn decide_update<B: PackageReviewEvidence>(
                     != PackageReviewEvidence::source_consumption_commitment(candidate)
             {
                 reasons.push(PackageTriageReason::SourceChanged);
-            }
-            if baseline.compiler_executable_commitment()
-                != PackageReviewEvidence::compiler_executable_commitment(candidate)
-            {
-                reasons.push(PackageTriageReason::CompilerArtifactChanged);
             }
             if baseline.build_observation_commitment()
                 != PackageReviewEvidence::build_observation_commitment(candidate)

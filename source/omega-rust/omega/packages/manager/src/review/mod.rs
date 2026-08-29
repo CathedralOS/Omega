@@ -13,11 +13,9 @@ pub(crate) mod triage;
 pub(crate) mod validation;
 
 pub use advisory::{
-    PackageAdvisoryRecommendation, PackageAdvisoryReviewError, PackageAdvisoryReviewOutcome,
-    PackageAdvisoryReviewOutput, PackageAdvisoryReviewOutputError, PackageAdvisoryReviewRequest,
-    PackageAdvisoryReviewer, PackageSourceReviewCustodyRole, PackageSourceReviewError,
-    PackageSourceReviewInput, PackageSourceReviewLimits, PackageSourceReviewRenderError,
-    assemble_initial_source_review, assemble_update_source_review, invoke_package_advisory_review,
+    PackageSourceReviewCustodyRole, PackageSourceReviewError, PackageSourceReviewInput,
+    PackageSourceReviewLimits, PackageSourceReviewRenderError, assemble_initial_source_review,
+    assemble_update_source_review,
 };
 pub use baseline::{
     ReviewOnlyBaselineCapsule, ReviewOnlyBaselineDirectory, ReviewOnlyBaselineError,
@@ -35,14 +33,11 @@ pub use comparison::{
 };
 
 pub use compilation::{
-    CompileResolvedPackageReviewsError, CompilerExecutableVerificationPhase,
-    CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet, PackageSourceVerificationPhase,
+    CompileResolvedPackageReviewsError, CompilerIssuedPackageReview,
+    CompilerIssuedPackageReviewSet, PackageSourceVerificationPhase,
     compile_resolved_package_reviews, package_compilation_inputs, package_compilation_inputs_for,
 };
-pub use evidence::{
-    ReviewOnlyCanonicalRow, ReviewOnlyCompilerExecutableCommitment,
-    ReviewOnlySourceConsumptionCommitment,
-};
+pub use evidence::{ReviewOnlyCanonicalRow, ReviewOnlySourceConsumptionCommitment};
 pub use policy::{
     ReviewOnlyRootPolicyDecision, ReviewOnlyRootPolicyDirectory, ReviewOnlyRootPolicyDisposition,
     ReviewOnlyRootPolicyFileError, ReviewOnlyRootPolicyName, ReviewOnlyRootPolicyNameError,

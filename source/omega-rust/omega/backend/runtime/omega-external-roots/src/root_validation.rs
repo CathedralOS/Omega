@@ -4,7 +4,9 @@ use omega_calling_conventions::{
     BoundaryEntryPlan, MachineRegister, StateFootprintEvidence, ValidatedBoundaryEntryPlan,
     validate_state_footprint,
 };
-use omega_effects::{InstallationReachResolution, SelectedProviderPlanFacts};
+use omega_effects::{
+    InstallationReachResolution, SelectedProviderPlanFacts, provider_plan::ProviderPlanDigest,
+};
 use psi_layout_plans::EntryStubId;
 use psi_terminal::{ServiceDeclaration, TerminalModule, TerminalRootServiceReach};
 
@@ -50,6 +52,9 @@ pub struct ExternalRootEntryClaim {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExternalRootResultClaim {
     pub provider_plan: ProviderPlanId,
+    /// Strong identity derived from the exact compiler-selected provider plan.
+    /// The compact ID remains a report coordinate only.
+    pub provider_plan_digest: ProviderPlanDigest,
     pub requirement_identity: String,
     pub domain: String,
     pub effective_carry: psi_language_semantics::CarryPolicy,
@@ -221,6 +226,9 @@ pub struct ExternalRootCandidate {
     /// root. Validation binds it into the root identity before execution or
     /// slot admission can be constructed.
     pub provider_plan: ProviderPlanId,
+    /// Strong identity derived from the exact compiler-selected provider plan.
+    /// The compact ID remains a report coordinate only.
+    pub provider_plan_digest: ProviderPlanDigest,
     /// Stable identity of the exact boundary requirement implemented by this
     /// entry stub, not merely the containing provider schema.
     pub requirement_identity: String,
@@ -425,6 +433,7 @@ fn fingerprint_root(candidate: &ExternalRootCandidate, boundary: u64) -> u64 {
     hash.u64(candidate.entry.normalized_identity());
     hash.u64(candidate.provider.normalized_identity());
     hash.u64(candidate.provider_plan.normalized_identity());
+    hash.bytes(candidate.provider_plan_digest.as_bytes());
     hash.string(&candidate.requirement_identity);
     hash.u64(candidate.entry_claims.len() as u64);
     for claim in &candidate.entry_claims {
@@ -442,6 +451,7 @@ fn fingerprint_root(candidate: &ExternalRootCandidate, boundary: u64) -> u64 {
         Some(claim) => {
             hash.u64(1);
             hash.u64(claim.provider_plan.normalized_identity());
+            hash.bytes(claim.provider_plan_digest.as_bytes());
             hash.string(&claim.requirement_identity);
             hash.string(&claim.domain);
             fingerprint_carry_policy(&mut hash, claim.effective_carry);

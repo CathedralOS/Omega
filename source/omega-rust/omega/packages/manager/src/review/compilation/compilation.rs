@@ -7,13 +7,12 @@ use super::ledger::{
 };
 use super::session::ReviewBuildSession;
 use super::{
-    CompileResolvedPackageReviewsError, CompilerExecutableVerificationPhase,
-    CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet, PackageSourceVerificationPhase,
+    CompileResolvedPackageReviewsError, CompilerIssuedPackageReview,
+    CompilerIssuedPackageReviewSet, PackageSourceVerificationPhase,
 };
 use crate::review::compilation::inputs::reachable_package_keys;
 use crate::review::evidence::ReviewOnlyCanonicalRow;
 use crate::{ResolvedPackageSourceClosure, package_compilation_inputs_for};
-use omega_build_provenance::CompilerExecutableCommitment;
 use omega_compiler::compile_to_checked_with_packages_in_sponsored_build_dir;
 use omega_package_compilation::PackageCompilationInputError;
 use omega_package_review::{
@@ -52,13 +51,6 @@ fn compile_resolved_package_reviews_in_session(
     build_session_root: &Path,
     filesystem_sponsor: &FilesystemSponsor,
 ) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
-    let compiler_executable_commitment =
-        CompilerExecutableCommitment::derive_current().map_err(|error| {
-            CompileResolvedPackageReviewsError::CompilerExecutable {
-                phase: CompilerExecutableVerificationPhase::BeforeCompilation,
-                error,
-            }
-        })?;
     let mut reviews = Vec::<CompilerIssuedPackageReview>::with_capacity(closure.custodies().len());
     let mut retained_obligation_ledger_total = 0usize;
     for key in dependency_first_package_order(closure) {
@@ -235,7 +227,6 @@ fn compile_resolved_package_reviews_in_session(
         reviews.push(CompilerIssuedPackageReview {
             key: key.clone(),
             resolution: custody.resolution().clone(),
-            compiler_executable_commitment,
             source_consumption_commitment,
             build_observation_summary,
             generated_source_bundle: generated_source_bundle.clone(),
@@ -245,21 +236,6 @@ fn compile_resolved_package_reviews_in_session(
             obligation_ledger,
             comparison_rows,
         });
-    }
-    let compiler_executable_commitment_after = CompilerExecutableCommitment::derive_current()
-        .map_err(
-            |error| CompileResolvedPackageReviewsError::CompilerExecutable {
-                phase: CompilerExecutableVerificationPhase::AfterCompilation,
-                error,
-            },
-        )?;
-    if compiler_executable_commitment_after != compiler_executable_commitment {
-        return Err(
-            CompileResolvedPackageReviewsError::CompilerExecutableDrift {
-                before: compiler_executable_commitment,
-                after: compiler_executable_commitment_after,
-            },
-        );
     }
     Ok(CompilerIssuedPackageReviewSet { reviews })
 }

@@ -91,7 +91,6 @@ impl OptimizedProgramStorageSemanticRoot {
 pub struct OptimizedProgramStorageSemanticEntryContract {
     target: omega_target::NativeTarget,
     target_slot: omega_target::ProgramEntrySlotDeclaration,
-    root_slot: omega_external_roots::RootSlotId,
     requirement_identity: String,
     source_signature: SelectedProgramEntrySourceSignature,
     source_signature_identity: ProgramEntrySourceSignatureIdentity,
@@ -109,10 +108,6 @@ impl OptimizedProgramStorageSemanticEntryContract {
 
     pub const fn target_slot(&self) -> omega_target::ProgramEntrySlotDeclaration {
         self.target_slot
-    }
-
-    pub const fn root_slot(&self) -> omega_external_roots::RootSlotId {
-        self.root_slot
     }
 
     pub fn requirement_identity(&self) -> &str {
@@ -272,7 +267,6 @@ pub fn bind_optimized_program_storage_semantic_entry_contract(
     Ok(OptimizedProgramStorageSemanticEntryContract {
         target,
         target_slot: slot,
-        root_slot: selected.root_slot(),
         requirement_identity: method.requirement_identity.clone(),
         source_signature: source.clone(),
         source_signature_identity: source.identity(),
@@ -589,7 +583,6 @@ mod tests {
 
         assert_eq!(contract.target(), omega_target::NativeTarget::uefi_x64());
         assert_eq!(contract.target_slot(), selected.target_slot());
-        assert_eq!(contract.root_slot(), selected.root_slot());
         assert_eq!(contract.requirement_identity(), REQUIREMENT);
         assert_eq!(contract.source_signature(), &source);
         assert_eq!(contract.source_signature_identity(), source.identity());

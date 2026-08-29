@@ -8,6 +8,7 @@ mod boundary_entry_storage;
 mod diagnostic;
 mod optimized_semantic_entry;
 mod optimized_semantic_wrapper;
+#[cfg(feature = "installed-writer")]
 mod post_handoff_writer;
 mod program_entry_physical;
 mod root_role;
@@ -20,6 +21,7 @@ pub use boundary_entry_storage::{
 pub use diagnostic::ProgramStorageEntryDiagnostic;
 pub use optimized_semantic_entry::*;
 pub use optimized_semantic_wrapper::*;
+#[cfg(feature = "installed-writer")]
 pub use post_handoff_writer::*;
 pub use program_entry_physical::*;
 pub use root_role::ProgramStorageEntryRootRole;

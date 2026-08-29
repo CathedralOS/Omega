@@ -104,6 +104,7 @@ members = [
     "source/omega-rust/omega/build/omega-package-compilation",
     "source/omega-rust/omega/packages/resolver-execution",
     "source/omega-rust/omega/packages/manager",
+    "source/omega-rust/omega/packages/advisory-tooling",
     "tests/native-differential",
     "source/omega-rust/omega/tooling/omega-visualizations",
     "tests/architecture",
