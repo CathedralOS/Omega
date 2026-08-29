@@ -26,6 +26,8 @@ pub use model::{
     StraightLineBooleanNotParameterTranslationError,
     StraightLineBooleanNotParameterTranslationReceipt,
     StraightLineBooleanParameterTranslationError, StraightLineBooleanParameterTranslationReceipt,
+    StraightLineIntegerEqualParametersTranslationError,
+    StraightLineIntegerEqualParametersTranslationReceipt,
     StraightLineIntegerImmediateTranslationError, StraightLineIntegerImmediateTranslationReceipt,
     StraightLineIntegerParameterTranslationError, StraightLineIntegerParameterTranslationReceipt,
     StraightLineScalarCrashTranslationError, StraightLineScalarCrashTranslationReceipt,

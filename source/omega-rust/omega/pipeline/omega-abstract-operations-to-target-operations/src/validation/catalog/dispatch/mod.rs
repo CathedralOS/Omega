@@ -59,3 +59,10 @@ pub(super) const STRAIGHT_LINE_BOOLEAN_EQUAL_PARAMETERS: TranslationFamilyDescri
         straight_line_parameter::boolean_equal::is_candidate,
         parameter::straight_line_boolean_equal_parameters,
     );
+
+pub(super) const STRAIGHT_LINE_INTEGER_EQUAL_PARAMETERS: TranslationFamilyDescriptor =
+    TranslationFamilyDescriptor::new(
+        AbstractToTargetTranslationFamily::StraightLineIntegerEqualParameters,
+        straight_line_parameter::integer_equal::is_candidate,
+        parameter::straight_line_integer_equal_parameters,
+    );

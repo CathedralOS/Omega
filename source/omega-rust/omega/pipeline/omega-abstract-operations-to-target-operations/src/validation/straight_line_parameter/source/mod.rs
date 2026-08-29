@@ -4,17 +4,19 @@ pub(super) mod boolean_equal;
 pub(super) mod boolean_not;
 pub(super) mod direct;
 mod envelope;
+pub(super) mod integer_equal;
 
 use omega_abstract_operations::AbstractFunction;
 use psi_core::ScalarType;
 
 use super::super::StraightLineBooleanEqualParametersTranslationError;
 use super::super::StraightLineBooleanNotParameterTranslationError;
+use super::super::StraightLineIntegerEqualParametersTranslationError;
 use super::{
     StraightLineParameterReconstructionError,
     model::{
-        BooleanEqualParametersSource, BooleanNotParameterSource, ParameterResultKind,
-        ParameterReturnSource,
+        BooleanEqualParametersSource, BooleanNotParameterSource, IntegerEqualParametersSource,
+        ParameterResultKind, ParameterReturnSource,
     },
 };
 
@@ -45,4 +47,11 @@ pub(super) fn reconstruct_boolean_equal(
 ) -> Result<BooleanEqualParametersSource, StraightLineBooleanEqualParametersTranslationError> {
     let envelope = envelope::reconstruct(function, ScalarType::Boolean)?;
     boolean_equal::reconstruct(function, &envelope)
+}
+
+pub(super) fn reconstruct_integer_equal(
+    function: &AbstractFunction,
+) -> Result<IntegerEqualParametersSource, StraightLineIntegerEqualParametersTranslationError> {
+    let envelope = envelope::reconstruct(function, ScalarType::Boolean)?;
+    integer_equal::reconstruct(function, &envelope)
 }

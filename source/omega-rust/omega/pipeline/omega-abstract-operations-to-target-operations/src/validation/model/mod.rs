@@ -6,8 +6,10 @@ pub use error::{
     AbstractToTargetTranslationFamilyError, AbstractToTargetTranslationValidationError,
     StraightLineBooleanEqualParametersTranslationError,
     StraightLineBooleanImmediateTranslationError, StraightLineBooleanNotParameterTranslationError,
-    StraightLineBooleanParameterTranslationError, StraightLineIntegerImmediateTranslationError,
-    StraightLineIntegerParameterTranslationError, StraightLineScalarCrashTranslationError,
+    StraightLineBooleanParameterTranslationError,
+    StraightLineIntegerEqualParametersTranslationError,
+    StraightLineIntegerImmediateTranslationError, StraightLineIntegerParameterTranslationError,
+    StraightLineScalarCrashTranslationError,
 };
 pub use receipt::{
     AbstractToTargetFunctionRosterReceipt, AbstractToTargetFunctionTranslationDisposition,
@@ -15,8 +17,10 @@ pub use receipt::{
     StraightLineBooleanEqualParametersTranslationReceipt,
     StraightLineBooleanImmediateTranslationReceipt,
     StraightLineBooleanNotParameterTranslationReceipt,
-    StraightLineBooleanParameterTranslationReceipt, StraightLineIntegerImmediateTranslationReceipt,
-    StraightLineIntegerParameterTranslationReceipt, StraightLineScalarCrashTranslationReceipt,
+    StraightLineBooleanParameterTranslationReceipt,
+    StraightLineIntegerEqualParametersTranslationReceipt,
+    StraightLineIntegerImmediateTranslationReceipt, StraightLineIntegerParameterTranslationReceipt,
+    StraightLineScalarCrashTranslationReceipt,
 };
 
 /// Stable identity of one independently replayed abstract-to-target family.
@@ -29,4 +33,5 @@ pub enum AbstractToTargetTranslationFamily {
     StraightLineBooleanParameter,
     StraightLineBooleanNotParameter,
     StraightLineBooleanEqualParameters,
+    StraightLineIntegerEqualParameters,
 }

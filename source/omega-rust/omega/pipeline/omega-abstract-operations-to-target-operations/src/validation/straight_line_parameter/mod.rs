@@ -10,6 +10,7 @@ pub(crate) mod boolean_equal;
 pub(crate) mod boolean_not;
 mod derived;
 pub(crate) mod integer;
+pub(crate) mod integer_equal;
 mod model;
 mod source;
 
