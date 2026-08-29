@@ -156,7 +156,7 @@ pub fn lower_post_handoff_writer_fragment(
             ),
         ),
     };
-    let emitted_bytes_report_fingerprint = emitted_writer_fingerprint(
+    let emitted_bytes_report_fingerprint = emitted_writer_report_fingerprint(
         target.architecture,
         normalized_plan_report_fingerprint,
         &bytes,
@@ -320,23 +320,23 @@ pub fn validate_lowered_post_handoff_writer(
         ),
     };
     let expected_bytes = expected_bytes?;
-    let expected_emitted_fingerprint = emitted_writer_fingerprint(
+    let expected_emitted_report_fingerprint = emitted_writer_report_fingerprint(
         lowered.fragment.target.architecture,
         lowered.fragment.normalized_plan_report_fingerprint,
         &lowered.fragment.bytes,
     );
     if lowered.fragment.bytes != expected_bytes
         || lowered.fragment.footprint != expected_footprint
-        || lowered.fragment.emitted_bytes_report_fingerprint != expected_emitted_fingerprint
+        || lowered.fragment.emitted_bytes_report_fingerprint != expected_emitted_report_fingerprint
     {
         return Err(Diagnostic::error(
-            "lowered post-handoff writer bytes, footprint, or emitted fingerprint fail exact replay",
+            "lowered post-handoff writer bytes, footprint, or emitted report fingerprint fail exact replay",
         ));
     }
     Ok(())
 }
 
-fn emitted_writer_fingerprint(
+fn emitted_writer_report_fingerprint(
     architecture: Architecture,
     normalized_plan_report_fingerprint: u64,
     bytes: &[u8],

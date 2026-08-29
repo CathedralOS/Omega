@@ -46,7 +46,8 @@ use psi_terminal::{
     StructuralContentProjection, StructuralDomainDeclaration, StructuralDomainRequirement,
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeShape, TerminalModule,
-    TerminalRootServiceReach, VocabularyMarker, program_local_root_introduction_identity,
+    TerminalRootServiceReach, VocabularyMarker,
+    program_local_root_introduction_compatibility_report_identity,
 };
 
 fn root_id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExternalRootDiagnostic>) -> T {
@@ -1530,14 +1531,15 @@ fn program_local_root_module() -> TerminalModule {
         },
         algebra,
         capacity,
-        identity: 0,
+        compatibility_report_identity: 0,
     };
-    schema.identity = program_local_root_introduction_identity(
-        "TestRoot::entry",
-        "Region::Owned",
-        "Region",
-        &schema,
-    );
+    schema.compatibility_report_identity =
+        program_local_root_introduction_compatibility_report_identity(
+            "TestRoot::entry",
+            "Region::Owned",
+            "Region",
+            &schema,
+        );
     TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry,
@@ -1661,12 +1663,13 @@ fn program_local_extent_module() -> TerminalModule {
             &schema.algebra,
             &schema.capacity,
         );
-    schema.identity = program_local_root_introduction_identity(
-        "TestRoot::entry",
-        "Region::Owned",
-        "Region",
-        schema,
-    );
+    schema.compatibility_report_identity =
+        program_local_root_introduction_compatibility_report_identity(
+            "TestRoot::entry",
+            "Region::Owned",
+            "Region",
+            schema,
+        );
     module.structural_domains[0].content_projection = Some(StructuralContentProjection {
         identity: schema.projection,
         algebra: schema.algebra.clone(),
@@ -3028,12 +3031,13 @@ fn program_local_root_prebinding_rejects_catalog_object_and_claim_substitution()
                 &schema.algebra,
                 &schema.capacity,
             );
-        schema.identity = program_local_root_introduction_identity(
-            &boundary_identity,
-            &qualification_identity,
-            &carrier_identity,
-            schema,
-        );
+        schema.compatibility_report_identity =
+            program_local_root_introduction_compatibility_report_identity(
+                &boundary_identity,
+                &qualification_identity,
+                &carrier_identity,
+                schema,
+            );
         schema.clone()
     };
     narrowed_module.structural_domains[0].content_projection = Some(StructuralContentProjection {
@@ -3061,7 +3065,8 @@ fn program_local_root_prebinding_rejects_catalog_object_and_claim_substitution()
     );
 
     let mut tampered_module = module.clone();
-    tampered_module.boundary_machines[0].program_local_root_introductions[0].identity ^= 1;
+    tampered_module.boundary_machines[0].program_local_root_introductions[0]
+        .compatibility_report_identity ^= 1;
     assert!(
         psi_terminal_verifier::verify_module(
             &tampered_module,

@@ -999,6 +999,13 @@ commitment before external-root settlement. Their adjacent layout, resource-
 axis, roster, stack, and target-rule FNV values are reports over retained exact
 subjects, never independent authority.
 
+The same rule applies to serialized and rendered compiler descriptions.
+Terminal program-local-root producer schemas retain their historical FNV only
+as a compatibility report beside exact schema fields and owner-projection
+replay. Wire protocol reports label schema, codec, encode, and plan FNVs as
+report identities; compatibility compares retained field and case structure
+even when compact schema reports match.
+
 For hardware-entered provider slots, the selected service schema records a
 linear routed parameter qualification as a structured `accepts` row. The row
 uses the carrier-aware semantic-domain identity, begins with the strict

@@ -75,26 +75,29 @@ pub fn capability_manifest_json_with_composition(
                 }
                 push_json_string(&mut json, service);
             }
-            json.push_str("], \"provider_plan_identity\": ");
+            json.push_str("], \"provider_plan_report_identity\": ");
             push_json_string(
                 &mut json,
-                &format!("{:#018x}", resolved.provider_plan_identity),
+                &format!("{:#018x}", resolved.provider_plan_report_identity),
             );
         }
         json.push('}');
     }
     json.push_str("],\n  \"may_block\": ");
     json.push_str(if manifest.may_block { "true" } else { "false" });
-    json.push_str(",\n  \"component_progress_manifest_identity\": ");
-    if let Some(identity) = manifest.component_progress_manifest_identity {
-        push_json_string(&mut json, &format!("{identity:#018x}"));
+    json.push_str(",\n  \"component_progress_manifest_report_identity\": ");
+    if let Some(report_identity) = manifest.component_progress_manifest_report_identity {
+        push_json_string(&mut json, &format!("{report_identity:#018x}"));
     } else {
         json.push_str("null");
     }
     json.push_str(",\n  \"component_progress_status\": ");
     push_json_string(
         &mut json,
-        if manifest.component_progress_manifest_identity.is_none() {
+        if manifest
+            .component_progress_manifest_report_identity
+            .is_none()
+        {
             "unbound"
         } else if manifest.build_bound_progress_demands.is_empty() {
             "clear"
@@ -121,10 +124,10 @@ pub fn capability_manifest_json_with_composition(
             Some(identity) => push_json_string(&mut json, identity),
             None => json.push_str("null"),
         }
-        json.push_str(", \"provider_plan_identity\": ");
+        json.push_str(", \"provider_plan_report_identity\": ");
         push_json_string(
             &mut json,
-            &format!("{:#018x}", demand.provider_plan_identity),
+            &format!("{:#018x}", demand.provider_plan_report_identity),
         );
         json.push_str(", \"profile\": ");
         push_json_string(&mut json, &demand.profile);
@@ -178,7 +181,7 @@ struct EntryCapabilityManifest {
     installation_bound_reaches: Vec<InstallationBoundReachManifest>,
     may_suspend: bool,
     may_block: bool,
-    component_progress_manifest_identity: Option<u64>,
+    component_progress_manifest_report_identity: Option<u64>,
     build_bound_progress_demands: Vec<BuildBoundProgressManifest>,
     capability_flow_counts: [(CapabilityFlowKind, usize); 5],
 }
@@ -187,7 +190,7 @@ struct EntryCapabilityManifest {
 struct BuildBoundProgressManifest {
     provider_service: String,
     provider_service_package: Option<String>,
-    provider_plan_identity: u64,
+    provider_plan_report_identity: u64,
     requirement: String,
     requirement_owner_package: Option<String>,
     profile: String,
@@ -208,7 +211,7 @@ struct InstallationBoundReachManifest {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ResolvedInstallationReachManifest {
-    provider_plan_identity: u64,
+    provider_plan_report_identity: u64,
     services: Vec<String>,
 }
 
@@ -228,7 +231,7 @@ fn entry_capability_manifest(
             installation_bound_reaches: Vec::new(),
             may_suspend: false,
             may_block: false,
-            component_progress_manifest_identity: None,
+            component_progress_manifest_report_identity: None,
             build_bound_progress_demands: Vec::new(),
             capability_flow_counts: capability_flow_counts(program),
         };
@@ -272,7 +275,7 @@ fn entry_capability_manifest(
             provider_service_package: demand
                 .provider_service_package_identity
                 .map(package_identity_hex),
-            provider_plan_identity: demand.provider_plan_identity,
+            provider_plan_report_identity: demand.provider_plan_identity,
             requirement: demand.requirement_identity.clone(),
             requirement_owner_package: demand
                 .requirement_owner_package_identity
@@ -322,7 +325,7 @@ fn entry_capability_manifest(
         installation_bound_reaches,
         may_suspend: suspension.plan.checked_may_suspend,
         may_block: blocking.plan.checked_may_block,
-        component_progress_manifest_identity: component_progress
+        component_progress_manifest_report_identity: component_progress
             .map(omega_effects::ComponentProgressManifest::normalized_identity),
         build_bound_progress_demands,
         capability_flow_counts: capability_flow_counts(program),
@@ -403,7 +406,7 @@ fn installation_bound_reaches(
                     "capability manifest invariant: selected installation reach bound drifted from checked entry"
                 );
                 ResolvedInstallationReachManifest {
-                    provider_plan_identity: resolution.provider_plan_identity,
+                    provider_plan_report_identity: resolution.provider_plan_identity,
                     services: resolution.resolved_row.clone(),
                 }
             });
@@ -790,9 +793,11 @@ mod tests {
         assert!(json.contains("\"profile\": \"WeakFair\""));
         assert!(json.contains("\"authorized_establishment_routes\""));
         assert!(json.contains("\"requirement\": \"SchedulerAdmission::grant#exact\""));
-        assert!(json.contains("\"provider_plan_identity\""));
+        assert!(json.contains("\"provider_plan_report_identity\""));
+        assert!(!json.contains("\"provider_plan_identity\""));
         assert!(json.contains("\"component_progress_status\": \"pending\""));
-        assert!(json.contains("\"component_progress_manifest_identity\""));
+        assert!(json.contains("\"component_progress_manifest_report_identity\""));
+        assert!(!json.contains("\"component_progress_manifest_identity\""));
     }
 
     #[test]

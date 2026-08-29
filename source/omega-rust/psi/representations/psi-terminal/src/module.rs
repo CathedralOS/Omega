@@ -507,11 +507,13 @@ pub struct ProgramLocalRootIntroductionSchema {
     pub projection: ContentProjectionIdentity,
     pub algebra: ContentAlgebra,
     pub capacity: ContentProjectionExpression,
-    /// Canonical identity of all fields above plus the enclosing requirement.
-    pub identity: u64,
+    /// Non-authoritative compatibility report identity of all fields above
+    /// plus the enclosing requirement. Exact schema fields and owner
+    /// projection replay carry semantic authority.
+    pub compatibility_report_identity: u64,
 }
 
-pub fn program_local_root_introduction_identity(
+pub fn program_local_root_introduction_compatibility_report_identity(
     requirement_identity: &str,
     qualification_identity: &str,
     carrier_identity: &str,

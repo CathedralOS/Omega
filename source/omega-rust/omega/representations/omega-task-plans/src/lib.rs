@@ -11,7 +11,8 @@ use std::collections::{BTreeMap, BTreeSet};
 mod wcsu;
 pub use wcsu::{
     AdmittedSameStackContribution, ComposedTaskStackDemand,
-    SameStackContributionAdmissionCandidate, StackCallContribution, TaskStackFrameSummary,
+    SameStackContributionAdmissionCandidate, SameStackContributionCommitment,
+    SameStackProviderPlanCommitment, StackCallContribution, TaskStackFrameSummary,
     ValidatedTaskStackFrameSummary, WcsuStackPlanProjection, admit_same_stack_contribution,
     compose_task_stack_demand, project_wcsu_stack_plan, validate_task_stack_frame_summary,
 };
@@ -46,7 +47,10 @@ normalized_id!(CallingPlanId, "calling-plan");
 normalized_id!(StackRepresentationId, "stack-representation");
 normalized_id!(TaskStackFrameId, "task-stack-frame");
 normalized_id!(TaskStackFrameValidationId, "task-stack-frame-validation");
-normalized_id!(AdmittedStackContributionId, "admitted-stack-contribution");
+normalized_id!(
+    AdmittedStackContributionReportId,
+    "admitted-stack-contribution-report"
+);
 normalized_id!(
     SameStackContributionAdmissionReceiptId,
     "same-stack-contribution-admission-receipt"
@@ -167,7 +171,7 @@ impl ValidatedActivationPlan {
 
     /// Normalized identity of the complete provider-independent plan.
     pub fn normalized_identity(&self) -> ActivationPlanId {
-        ActivationPlanId(fingerprint_activation_plan(
+        ActivationPlanId(activation_plan_report_fingerprint(
             &self.candidate,
             self.wcsu_stack_projection.as_ref(),
         ))
@@ -439,7 +443,7 @@ pub fn validate_executor_selection(
     }
 
     Ok(ValidatedExecutorSelection {
-        identity: ExecutorSelectionId(fingerprint_executor_selection(plan, &candidate)),
+        identity: ExecutorSelectionId(executor_selection_report_fingerprint(plan, &candidate)),
         candidate,
         plan: plan.clone(),
     })
@@ -551,7 +555,7 @@ pub fn validate_task_runtime_invocation_receipt(
         },
     )?;
     Ok(ValidatedTaskRuntimeInvocationReceipt {
-        identity: TaskRuntimeInvocationBindingId(fingerprint_runtime_invocation(
+        identity: TaskRuntimeInvocationBindingId(runtime_invocation_report_fingerprint(
             activation,
             &candidate,
             &executor_selection,
@@ -802,7 +806,9 @@ impl TaskLifecycleLedger {
             TaskStorageBinding::InlineCompletion => {}
         }
 
-        let claim = TaskLifecycleClaimId(fingerprint_task_claim(invocation, activation, storage));
+        let claim = TaskLifecycleClaimId(task_claim_report_fingerprint(
+            invocation, activation, storage,
+        ));
         if self.live.contains_key(&claim) {
             return Err(TaskPlanDiagnostic(
                 "normalized task lifecycle claim identity collides with a live claim".into(),
@@ -911,7 +917,7 @@ impl TaskLifecycleLedger {
     }
 }
 
-fn fingerprint_activation_plan(
+fn activation_plan_report_fingerprint(
     plan: &ActivationPlanCandidate,
     wcsu_stack_projection: Option<&WcsuStackPlanProjection>,
 ) -> u64 {
@@ -943,7 +949,7 @@ fn fingerprint_activation_plan(
     fingerprint.finish()
 }
 
-fn fingerprint_executor_selection(
+fn executor_selection_report_fingerprint(
     plan: &ValidatedActivationPlan,
     candidate: &ExecutorSelectionCandidate,
 ) -> u64 {
@@ -962,7 +968,7 @@ fn fingerprint_executor_selection(
     fingerprint.finish()
 }
 
-fn fingerprint_task_claim(
+fn task_claim_report_fingerprint(
     invocation: &ValidatedTaskRuntimeInvocationReceipt,
     activation: ActivationInstanceId,
     storage: TaskStorageBinding,
@@ -983,7 +989,7 @@ fn fingerprint_task_claim(
     fingerprint.finish()
 }
 
-fn fingerprint_runtime_invocation(
+fn runtime_invocation_report_fingerprint(
     activation: &TaskActivationPlanFact,
     candidate: &TaskRuntimeInvocationReceiptCandidate,
     executor_selection: &ValidatedExecutorSelection,

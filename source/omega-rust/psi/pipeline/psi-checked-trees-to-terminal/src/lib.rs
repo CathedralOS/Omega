@@ -83,7 +83,8 @@ use psi_terminal::{
     StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
     TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
     TerminalRankedGuard, TerminalRankedScc, TerminalRankedSccEdge, TerminalRankedSuccessorArgument,
-    Terminator, ValueDeclaration, VocabularyMarker, program_local_root_introduction_identity,
+    Terminator, ValueDeclaration, VocabularyMarker,
+    program_local_root_introduction_compatibility_report_identity,
 };
 use psi_terminal_codec::{
     DebugFileId, DebugSite, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan, DebugSubject,

@@ -932,7 +932,7 @@ fn validate_program_local_root_introductions(
         );
         let capacity_valid =
             validate_content_projection_expression(&schema.capacity, schema.carrier, types);
-        if schema.identity == 0
+        if schema.compatibility_report_identity == 0
             || schema.source_parameter_position != parameter.position
             || schema.carrier != parameter.structural_type
             || schema.carrier != domain.carrier
@@ -950,7 +950,7 @@ fn validate_program_local_root_introductions(
                 &schema.algebra,
                 &schema.capacity,
             ) != schema.projection.projection_report_fingerprint
-            || program_local_root_introduction_identity(
+            || program_local_root_introduction_compatibility_report_identity(
                 &boundary.identity,
                 &domain.identity,
                 &types
@@ -958,7 +958,7 @@ fn validate_program_local_root_introductions(
                     .expect("schema carrier was validated before identity replay")
                     .identity,
                 schema,
-            ) != schema.identity
+            ) != schema.compatibility_report_identity
         {
             return Err(invalid(boundary.id, schema.argument_index));
         }

@@ -105,7 +105,7 @@ pub(super) fn encode_program_local_root_introduction(
     bytes.u64(schema.projection.projection_report_fingerprint);
     encode_content_algebra(bytes, &schema.algebra);
     encode_content_projection_expression(bytes, &schema.capacity);
-    bytes.u64(schema.identity);
+    bytes.u64(schema.compatibility_report_identity);
 }
 
 pub(super) fn encode_content_projection_expression(

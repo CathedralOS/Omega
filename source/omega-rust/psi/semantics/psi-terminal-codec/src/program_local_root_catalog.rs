@@ -72,7 +72,7 @@ impl VerifiedProgramLocalRootProducerCatalog {
                     .find(|domain| domain.id == schema.qualification)
                     .ok_or(ProgramLocalRootProducerCatalogError::MissingQualification {
                         requirement_identity: boundary.identity.clone(),
-                        schema_identity: schema.identity,
+                        schema_compatibility_report_identity: schema.compatibility_report_identity,
                     })?;
                 let carrier = module
                     .structural_types
@@ -80,7 +80,7 @@ impl VerifiedProgramLocalRootProducerCatalog {
                     .find(|declaration| declaration.id == schema.carrier)
                     .ok_or(ProgramLocalRootProducerCatalogError::MissingCarrier {
                         requirement_identity: boundary.identity.clone(),
-                        schema_identity: schema.identity,
+                        schema_compatibility_report_identity: schema.compatibility_report_identity,
                     })?;
 
                 // Replay the most important cross-table invariant instead of
@@ -90,7 +90,8 @@ impl VerifiedProgramLocalRootProducerCatalog {
                     return Err(
                         ProgramLocalRootProducerCatalogError::QualificationCarrierMismatch {
                             requirement_identity: boundary.identity.clone(),
-                            schema_identity: schema.identity,
+                            schema_compatibility_report_identity: schema
+                                .compatibility_report_identity,
                         },
                     );
                 }
@@ -98,7 +99,8 @@ impl VerifiedProgramLocalRootProducerCatalog {
                     return Err(
                         ProgramLocalRootProducerCatalogError::MissingOwnerContentProjection {
                             requirement_identity: boundary.identity.clone(),
-                            schema_identity: schema.identity,
+                            schema_compatibility_report_identity: schema
+                                .compatibility_report_identity,
                         },
                     );
                 };
@@ -109,7 +111,8 @@ impl VerifiedProgramLocalRootProducerCatalog {
                     return Err(
                         ProgramLocalRootProducerCatalogError::OwnerContentProjectionMismatch {
                             requirement_identity: boundary.identity.clone(),
-                            schema_identity: schema.identity,
+                            schema_compatibility_report_identity: schema
+                                .compatibility_report_identity,
                         },
                     );
                 }
@@ -133,7 +136,9 @@ impl VerifiedProgramLocalRootProducerCatalog {
         {
             return Err(ProgramLocalRootProducerCatalogError::DuplicateSchema {
                 requirement_identity: duplicate.boundary_requirement_identity.clone(),
-                schema_identity: duplicate.schema.identity,
+                schema_compatibility_report_identity: duplicate
+                    .schema
+                    .compatibility_report_identity,
             });
         }
 
@@ -165,27 +170,27 @@ pub enum ProgramLocalRootProducerCatalogError {
     TerminalIdentity(CodecError),
     MissingQualification {
         requirement_identity: String,
-        schema_identity: u64,
+        schema_compatibility_report_identity: u64,
     },
     MissingCarrier {
         requirement_identity: String,
-        schema_identity: u64,
+        schema_compatibility_report_identity: u64,
     },
     QualificationCarrierMismatch {
         requirement_identity: String,
-        schema_identity: u64,
+        schema_compatibility_report_identity: u64,
     },
     MissingOwnerContentProjection {
         requirement_identity: String,
-        schema_identity: u64,
+        schema_compatibility_report_identity: u64,
     },
     OwnerContentProjectionMismatch {
         requirement_identity: String,
-        schema_identity: u64,
+        schema_compatibility_report_identity: u64,
     },
     DuplicateSchema {
         requirement_identity: String,
-        schema_identity: u64,
+        schema_compatibility_report_identity: u64,
     },
 }
 
@@ -200,45 +205,45 @@ impl std::fmt::Display for ProgramLocalRootProducerCatalogError {
             }
             Self::MissingQualification {
                 requirement_identity,
-                schema_identity,
+                schema_compatibility_report_identity,
             } => write!(
                 formatter,
-                "verified program-local root schema {schema_identity:#018x} for `{requirement_identity}` has no resolved qualification"
+                "verified program-local root schema {schema_compatibility_report_identity:#018x} for `{requirement_identity}` has no resolved qualification"
             ),
             Self::MissingCarrier {
                 requirement_identity,
-                schema_identity,
+                schema_compatibility_report_identity,
             } => write!(
                 formatter,
-                "verified program-local root schema {schema_identity:#018x} for `{requirement_identity}` has no resolved carrier"
+                "verified program-local root schema {schema_compatibility_report_identity:#018x} for `{requirement_identity}` has no resolved carrier"
             ),
             Self::QualificationCarrierMismatch {
                 requirement_identity,
-                schema_identity,
+                schema_compatibility_report_identity,
             } => write!(
                 formatter,
-                "verified program-local root schema {schema_identity:#018x} for `{requirement_identity}` disagrees with its qualification carrier"
+                "verified program-local root schema {schema_compatibility_report_identity:#018x} for `{requirement_identity}` disagrees with its qualification carrier"
             ),
             Self::MissingOwnerContentProjection {
                 requirement_identity,
-                schema_identity,
+                schema_compatibility_report_identity,
             } => write!(
                 formatter,
-                "verified program-local root schema {schema_identity:#018x} for `{requirement_identity}` has no owner content projection"
+                "verified program-local root schema {schema_compatibility_report_identity:#018x} for `{requirement_identity}` has no owner content projection"
             ),
             Self::OwnerContentProjectionMismatch {
                 requirement_identity,
-                schema_identity,
+                schema_compatibility_report_identity,
             } => write!(
                 formatter,
-                "verified program-local root schema {schema_identity:#018x} for `{requirement_identity}` disagrees with its owner content projection"
+                "verified program-local root schema {schema_compatibility_report_identity:#018x} for `{requirement_identity}` disagrees with its owner content projection"
             ),
             Self::DuplicateSchema {
                 requirement_identity,
-                schema_identity,
+                schema_compatibility_report_identity,
             } => write!(
                 formatter,
-                "verified program-local root schema {schema_identity:#018x} for `{requirement_identity}` is duplicated"
+                "verified program-local root schema {schema_compatibility_report_identity:#018x} for `{requirement_identity}` is duplicated"
             ),
         }
     }

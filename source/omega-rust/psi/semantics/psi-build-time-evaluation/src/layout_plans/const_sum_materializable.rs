@@ -26,7 +26,7 @@ const CONVENTIONAL_TAG_ALIGN: u64 = 4;
 #[derive(Debug)]
 pub struct ValidatedConstSumMaterialization {
     schema_name: String,
-    schema_identity: u64,
+    non_authoritative_schema_report_identity: u64,
     value: BuildTimeValue,
     layout: ConventionalSumLayoutReport,
     non_authoritative_layout_report_fingerprint: u64,
@@ -42,8 +42,10 @@ impl ValidatedConstSumMaterialization {
         &self.schema_name
     }
 
-    pub const fn schema_identity(&self) -> u64 {
-        self.schema_identity
+    /// Compact schema report coordinate. Exact replay resolves and walks the
+    /// retained schema name in the caller's typed program.
+    pub const fn non_authoritative_schema_report_identity(&self) -> u64 {
+        self.non_authoritative_schema_report_identity
     }
 
     pub const fn value(&self) -> &BuildTimeValue {
@@ -52,12 +54,6 @@ impl ValidatedConstSumMaterialization {
 
     pub const fn layout(&self) -> &ConventionalSumLayoutReport {
         &self.layout
-    }
-
-    /// Compact report coordinate retained for compatibility and diagnostics.
-    /// Replay authority comes from the exact retained layout, value, and bytes.
-    pub const fn layout_fingerprint(&self) -> u64 {
-        self.non_authoritative_layout_report_fingerprint
     }
 
     /// Explicitly named accessor for the non-authoritative layout report
@@ -80,12 +76,6 @@ impl ValidatedConstSumMaterialization {
 
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
-    }
-
-    /// Compact report coordinate retained for compatibility and diagnostics.
-    /// It is not materialization or replay authority.
-    pub const fn identity(&self) -> u64 {
-        self.non_authoritative_materialization_report_fingerprint
     }
 
     /// Explicitly named accessor for the non-authoritative materialization
@@ -127,7 +117,7 @@ impl ValidatedConstSumMaterialization {
             ));
         }
         let replayed = derive_sum_bytes(typed, schema_name, layout, value, byte_order)?;
-        if replayed.schema_identity != self.schema_identity
+        if replayed.schema_report_identity != self.non_authoritative_schema_report_identity
             || replayed.selected_case_identity != self.selected_case_identity
             || replayed.selected_case_ordinal != self.selected_case_ordinal
         {
@@ -143,7 +133,7 @@ impl ValidatedConstSumMaterialization {
         let materialization_report_fingerprint =
             non_authoritative_sum_materialization_report_fingerprint(
                 schema_name,
-                replayed.schema_identity,
+                replayed.schema_report_identity,
                 layout_report_fingerprint,
                 replayed.selected_case_identity,
                 replayed.selected_case_ordinal,
@@ -201,7 +191,7 @@ pub fn validate_const_materializable_conventional_sum(
     let materialization_report_fingerprint =
         non_authoritative_sum_materialization_report_fingerprint(
             schema_name,
-            derived.schema_identity,
+            derived.schema_report_identity,
             layout_report_fingerprint,
             derived.selected_case_identity,
             derived.selected_case_ordinal,
@@ -211,7 +201,7 @@ pub fn validate_const_materializable_conventional_sum(
         );
     Ok(ValidatedConstSumMaterialization {
         schema_name: schema_name.to_owned(),
-        schema_identity: derived.schema_identity,
+        non_authoritative_schema_report_identity: derived.schema_report_identity,
         value: value.clone(),
         layout: layout.clone(),
         non_authoritative_layout_report_fingerprint: layout_report_fingerprint,
@@ -224,7 +214,7 @@ pub fn validate_const_materializable_conventional_sum(
 }
 
 struct DerivedSumMaterialization {
-    schema_identity: u64,
+    schema_report_identity: u64,
     selected_case_identity: Option<u64>,
     selected_case_ordinal: u32,
     bytes: Vec<u8>,
@@ -239,8 +229,8 @@ fn derive_sum_bytes(
 ) -> Result<DerivedSumMaterialization, MaterializationDiagnostic> {
     let data = unique_data_by_name(typed, schema_name)?;
     validate_sum_owner(typed, data)?;
-    let schema_identity = normalized_schema_identity(typed, data);
-    validate_conventional_layout(typed, data, layout, schema_identity)?;
+    let schema_report_identity = normalized_schema_identity(typed, data);
+    validate_conventional_layout(typed, data, layout, schema_report_identity)?;
     let (selected, selected_layout, payload) = selected_case(typed, data, layout, value)?;
 
     let mut active = vec![data.symbol];
@@ -313,7 +303,7 @@ fn derive_sum_bytes(
     }
 
     Ok(DerivedSumMaterialization {
-        schema_identity,
+        schema_report_identity,
         selected_case_identity: selected.identity,
         selected_case_ordinal: selected_layout.ordinal,
         bytes,
@@ -355,9 +345,9 @@ fn validate_conventional_layout(
     typed: &TypedTrees,
     data: &DataDefinition,
     layout: &ConventionalSumLayoutReport,
-    schema_identity: u64,
+    schema_report_identity: u64,
 ) -> Result<(), MaterializationDiagnostic> {
-    if layout.schema_identity != schema_identity {
+    if layout.schema_identity != schema_report_identity {
         return Err(MaterializationDiagnostic(format!(
             "ConstMaterializable sum layout schema identity does not match `{}`",
             data.name
@@ -578,7 +568,7 @@ fn validate_selected_payload(
 #[allow(clippy::too_many_arguments)]
 fn non_authoritative_sum_materialization_report_fingerprint(
     schema_name: &str,
-    schema_identity: u64,
+    schema_report_identity: u64,
     layout_report_fingerprint: u64,
     selected_case_identity: Option<u64>,
     selected_case_ordinal: u32,
@@ -589,7 +579,7 @@ fn non_authoritative_sum_materialization_report_fingerprint(
     let mut hash = 0xcbf29ce484222325u64;
     hash_bytes(&mut hash, b"omega.const-materializable-sum.v1");
     hash_text(&mut hash, schema_name);
-    hash_u64(&mut hash, schema_identity);
+    hash_u64(&mut hash, schema_report_identity);
     hash_u64(&mut hash, layout_report_fingerprint);
     match selected_case_identity {
         Some(identity) => {
@@ -735,6 +725,12 @@ mod tests {
         )
         .unwrap();
         assert_eq!(little.selected_case_ordinal(), 3);
+        assert_ne!(little.non_authoritative_schema_report_identity(), 0);
+        assert_ne!(little.non_authoritative_layout_report_fingerprint(), 0);
+        assert_ne!(
+            little.non_authoritative_materialization_report_fingerprint(),
+            0
+        );
         assert_eq!(
             little.bytes(),
             &[3, 0, 0, 0, 0x44, 0x33, 0x22, 0x11, 7, 0, 0, 0]
@@ -752,7 +748,10 @@ mod tests {
             big.bytes(),
             &[0, 0, 0, 3, 0x11, 0x22, 0x33, 0x44, 7, 0, 0, 0]
         );
-        assert_ne!(little.identity(), big.identity());
+        assert_ne!(
+            little.non_authoritative_materialization_report_fingerprint(),
+            big.non_authoritative_materialization_report_fingerprint()
+        );
     }
 
     #[test]

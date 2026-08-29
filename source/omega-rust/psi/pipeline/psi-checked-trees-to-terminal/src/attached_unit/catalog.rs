@@ -86,14 +86,15 @@ pub(super) fn lower_program_local_root_introductions(
             projection: owner_projection.identity,
             algebra: owner_projection.algebra,
             capacity: owner_projection.expression,
-            identity: 0,
+            compatibility_report_identity: 0,
         };
-        schema.identity = program_local_root_introduction_identity(
-            requirement_identity,
-            qualification_identity,
-            &parameter.type_identity,
-            &schema,
-        );
+        schema.compatibility_report_identity =
+            program_local_root_introduction_compatibility_report_identity(
+                requirement_identity,
+                qualification_identity,
+                &parameter.type_identity,
+                &schema,
+            );
         output.push(schema);
     }
     output.sort_by_key(|schema| (schema.argument_index, schema.qualification));

@@ -10,3 +10,4 @@ path = "src/lib.rs"
 
 [dependencies]
 psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
+sha2 = "0.10.9"

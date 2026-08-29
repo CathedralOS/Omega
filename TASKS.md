@@ -286,10 +286,22 @@ scanners, or receipts.
   receipts retain the selected machine-contract commitment beside report-only
   axis and roster FNVs. External-root installed-entry, opaque-arrival, and stack
   evidence similarly retain the exact boundary-plan commitment beside compact
-  plan, target-rule, domain, and realization reports. Remaining work is the
-  broader compact-identity inventory and repository-wide enforcement,
-  including accessor-returned compact values and identity-named fields outside
-  the fingerprint-declaration scanner.
+  plan, target-rule, domain, and realization reports. Opaque same-stack WCSU
+  admission likewise rejoins the selected provider plan's strong commitment;
+  its compact plan value is report-only, and a compact-equal foreign plan or
+  absent commitment rejects before its byte/alignment claim is sealed.
+  Terminal program-local-root producer schemas now label their serialized FNV
+  as compatibility report identity while verifier and installation replay
+  retain exact schema/projection authority. Compiler wire reports likewise
+  label schema, codec, encode, and plan FNVs as report identities, and wire
+  compatibility always compares retained exact fields/cases even when compact
+  schema reports match. Build-time fixed-record and conventional-sum carriers
+  have removed their remaining ambiguous compact accessor aliases. The
+  architecture inventory now also scans compact-returning fingerprint
+  accessors and seals a per-path shrinking migration ceiling; new accessors
+  require explicit report/cache/compatibility vocabulary. Remaining work is
+  classifying that accessor ceiling and identity-named fields outside both
+  fingerprint scanners.
 
   Acceptance: an automated architecture test rejects new authoritative
   `u64`-only identities, every retained FNV use has a local non-authoritative

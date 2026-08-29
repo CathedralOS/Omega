@@ -728,7 +728,7 @@ impl ProgramLocalRootInstallationLedger {
                     qualification_identity: verified_schema.qualification_identity().to_owned(),
                     carrier_identity: verified_schema.carrier_identity().to_owned(),
                     projection: schema.projection,
-                    schema_compatibility_report_identity: schema.identity,
+                    schema_compatibility_report_identity: schema.compatibility_report_identity,
                     algebra: schema.algebra.clone(),
                     per_occurrence_capacity: schema.capacity.clone(),
                 },
@@ -2130,14 +2130,17 @@ mod capacity_evaluation_tests {
             capacity: ContentProjectionExpression::CountedQuantity(
                 ContentProjectionScalar::Natural("1".into()),
             ),
-            identity: 0xdead_beef,
+            compatibility_report_identity: 0xdead_beef,
         };
         let mut substituted = base.clone();
         substituted.capacity = ContentProjectionExpression::CountedQuantity(
             ContentProjectionScalar::Natural("2".into()),
         );
 
-        assert_eq!(base.identity, substituted.identity);
+        assert_eq!(
+            base.compatibility_report_identity,
+            substituted.compatibility_report_identity
+        );
         let original =
             program_local_root_schema_fields_digest("TestRoot::entry", "Region", "Buffer", &base);
         let replacement = program_local_root_schema_fields_digest(

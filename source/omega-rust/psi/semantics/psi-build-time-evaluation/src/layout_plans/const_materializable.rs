@@ -25,7 +25,7 @@ use super::{
 #[derive(Debug)]
 pub struct ValidatedConstMaterialization {
     schema_name: String,
-    schema_identity: u64,
+    non_authoritative_schema_report_identity: u64,
     value: BuildTimeValue,
     layout: LayoutPlanReport,
     non_authoritative_layout_report_fingerprint: u64,
@@ -39,8 +39,10 @@ impl ValidatedConstMaterialization {
         &self.schema_name
     }
 
-    pub fn schema_identity(&self) -> u64 {
-        self.schema_identity
+    /// Compact schema report coordinate. Exact replay resolves and walks the
+    /// retained schema name in the caller's typed program.
+    pub fn non_authoritative_schema_report_identity(&self) -> u64 {
+        self.non_authoritative_schema_report_identity
     }
 
     pub fn value(&self) -> &BuildTimeValue {
@@ -49,12 +51,6 @@ impl ValidatedConstMaterialization {
 
     pub fn layout(&self) -> &LayoutPlanReport {
         &self.layout
-    }
-
-    /// Compact report coordinate retained for compatibility and diagnostics.
-    /// Replay authority comes from the exact retained layout, value, and bytes.
-    pub fn layout_fingerprint(&self) -> u64 {
-        self.non_authoritative_layout_report_fingerprint
     }
 
     /// Explicitly named accessor for the non-authoritative layout report
@@ -69,12 +65,6 @@ impl ValidatedConstMaterialization {
 
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
-    }
-
-    /// Compact report coordinate retained for compatibility and diagnostics.
-    /// It is not materialization or replay authority.
-    pub fn identity(&self) -> u64 {
-        self.non_authoritative_materialization_report_fingerprint
     }
 
     /// Explicitly named accessor for the non-authoritative materialization
@@ -120,7 +110,7 @@ impl ValidatedConstMaterialization {
         }
 
         let replayed = derive_bytes(typed, schema_name, layout, value, byte_order)?;
-        if replayed.schema_identity != self.schema_identity {
+        if replayed.schema_report_identity != self.non_authoritative_schema_report_identity {
             return Err(MaterializationDiagnostic(
                 "ConstMaterializable typed schema identity drifted from retained custody".into(),
             ));
@@ -134,7 +124,7 @@ impl ValidatedConstMaterialization {
         let materialization_report_fingerprint =
             non_authoritative_materialization_report_fingerprint(
                 schema_name,
-                replayed.schema_identity,
+                replayed.schema_report_identity,
                 layout_report_fingerprint,
                 byte_order,
                 value,
@@ -194,7 +184,7 @@ pub fn validate_const_materializable_typed_owned_layout(
     let layout_report_fingerprint = normalized_layout_plan_fingerprint(layout);
     let materialization_report_fingerprint = non_authoritative_materialization_report_fingerprint(
         schema_name,
-        derived.schema_identity,
+        derived.schema_report_identity,
         layout_report_fingerprint,
         byte_order,
         value,
@@ -202,7 +192,7 @@ pub fn validate_const_materializable_typed_owned_layout(
     );
     Ok(ValidatedConstMaterialization {
         schema_name: schema_name.to_owned(),
-        schema_identity: derived.schema_identity,
+        non_authoritative_schema_report_identity: derived.schema_report_identity,
         value: value.clone(),
         layout: layout.clone(),
         non_authoritative_layout_report_fingerprint: layout_report_fingerprint,
@@ -213,7 +203,7 @@ pub fn validate_const_materializable_typed_owned_layout(
 }
 
 struct DerivedMaterialization {
-    schema_identity: u64,
+    schema_report_identity: u64,
     bytes: Vec<u8>,
 }
 
@@ -226,13 +216,13 @@ fn derive_bytes(
 ) -> Result<DerivedMaterialization, MaterializationDiagnostic> {
     let data = unique_data_by_name(typed, schema_name)?;
     validate_record_value(typed, data, value, "value", &mut Vec::new())?;
-    let schema_identity = normalized_schema_identity(typed, data);
-    if layout.schema_identity != schema_identity {
+    let schema_report_identity = normalized_schema_identity(typed, data);
+    if layout.schema_identity != schema_report_identity {
         return Err(MaterializationDiagnostic(format!(
             "ConstMaterializable layout schema identity does not match `{schema_name}`"
         )));
     }
-    validate_fixed_layout(typed, schema_name, layout, schema_identity)?;
+    validate_fixed_layout(typed, schema_name, layout, schema_report_identity)?;
     let byte_len = layout
         .size
         .ok_or_else(|| {
@@ -250,7 +240,7 @@ fn derive_bytes(
     let mut bytes = vec![0; byte_len];
     materialize_typed_owned_layout_into(typed, schema_name, layout, value, byte_order, &mut bytes)?;
     Ok(DerivedMaterialization {
-        schema_identity,
+        schema_report_identity,
         bytes,
     })
 }
@@ -259,11 +249,11 @@ fn validate_fixed_layout(
     typed: &TypedTrees,
     schema_name: &str,
     layout: &LayoutPlanReport,
-    schema_identity: u64,
+    schema_report_identity: u64,
 ) -> Result<(), MaterializationDiagnostic> {
     let (fields, reflected_identity) =
         schema_fields(typed, schema_name).map_err(MaterializationDiagnostic)?;
-    if reflected_identity != schema_identity {
+    if reflected_identity != schema_report_identity {
         return Err(MaterializationDiagnostic(
             "ConstMaterializable schema reflection identity drifted during construction".into(),
         ));
@@ -601,7 +591,7 @@ pub(super) fn value_kind(value: &BuildTimeValue) -> &'static str {
 
 fn non_authoritative_materialization_report_fingerprint(
     schema_name: &str,
-    schema_identity: u64,
+    schema_report_identity: u64,
     layout_report_fingerprint: u64,
     byte_order: ByteOrder,
     value: &BuildTimeValue,
@@ -610,7 +600,7 @@ fn non_authoritative_materialization_report_fingerprint(
     let mut hash = 0xcbf29ce484222325u64;
     hash_bytes(&mut hash, b"omega.const-materializable.v1");
     hash_text(&mut hash, schema_name);
-    hash_u64(&mut hash, schema_identity);
+    hash_u64(&mut hash, schema_report_identity);
     hash_u64(&mut hash, layout_report_fingerprint);
     hash_byte(
         &mut hash,
@@ -748,7 +738,12 @@ mod tests {
             little.bytes(),
             &[7, 0, 0, 0, 1, 0, 0, 0, 0x44, 0x33, 0x22, 0x11, 2, 1, 4, 3]
         );
-        assert_ne!(little.identity(), 0);
+        assert_ne!(little.non_authoritative_schema_report_identity(), 0);
+        assert_ne!(little.non_authoritative_layout_report_fingerprint(), 0);
+        assert_ne!(
+            little.non_authoritative_materialization_report_fingerprint(),
+            0
+        );
         little
             .replay_against(&typed, "Sample", &layout, &value, ByteOrder::LittleEndian)
             .expect("exact inputs replay");
@@ -765,7 +760,10 @@ mod tests {
             big.bytes(),
             &[7, 0, 0, 0, 1, 0, 0, 0, 0x11, 0x22, 0x33, 0x44, 1, 2, 3, 4]
         );
-        assert_ne!(little.identity(), big.identity());
+        assert_ne!(
+            little.non_authoritative_materialization_report_fingerprint(),
+            big.non_authoritative_materialization_report_fingerprint()
+        );
 
         let mut destination = [0xa5; 20];
         little
@@ -970,7 +968,10 @@ mod tests {
                 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7f, 0x80, 0x00, 0x00, 0, 0, 0, 0,
             ]
         );
-        assert_ne!(little.identity(), big.identity());
+        assert_ne!(
+            little.non_authoritative_materialization_report_fingerprint(),
+            big.non_authoritative_materialization_report_fingerprint()
+        );
         little
             .replay_against(
                 &typed,

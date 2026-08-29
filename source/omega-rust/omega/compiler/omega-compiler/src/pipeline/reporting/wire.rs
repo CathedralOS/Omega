@@ -65,7 +65,8 @@ fn build_wire_protocol_report(
             .iter_mut()
             .find(|schema| schema.name == ordinary.name)
         {
-            generated.normalized_schema_identity = ordinary.normalized_schema_identity;
+            generated.normalized_schema_report_identity =
+                ordinary.normalized_schema_report_identity;
             if generated.fields.is_empty() {
                 generated.fields = ordinary.fields;
             }
@@ -90,12 +91,12 @@ fn build_wire_protocol_report(
             continue;
         };
         schema.codec_requirement = Some(format!("StrictDecode<compact_binary, {}>", schema.name));
-        schema.codec_requirement_identity = Some(codec_requirement_identity(
-            schema.normalized_schema_identity,
+        schema.codec_requirement_report_identity = Some(codec_requirement_report_identity(
+            schema.normalized_schema_report_identity,
         ));
         schema.encode_requirement = Some(format!("Encode<compact_binary, {}>", schema.name));
-        schema.encode_requirement_identity = Some(encode_requirement_identity(
-            schema.normalized_schema_identity,
+        schema.encode_requirement_report_identity = Some(encode_requirement_report_identity(
+            schema.normalized_schema_report_identity,
         ));
         schema.encode_obligations = typed
             .wire_schema_encode_obligations(source_schema.symbol)
@@ -110,12 +111,12 @@ fn build_wire_protocol_report(
                 )
             })
             .collect();
-        schema.normalized_plan_identity =
+        schema.normalized_plan_report_identity =
             typed
                 .wire_schema_plan(source_schema.symbol)
                 .map(|placements| {
-                    normalized_wire_plan_identity(
-                        schema.normalized_schema_identity,
+                    normalized_wire_plan_report_identity(
+                        schema.normalized_schema_report_identity,
                         placements,
                         typed
                             .wire_schema_encode_obligations(source_schema.symbol)
@@ -143,35 +144,35 @@ fn build_wire_protocol_report(
     WireProtocolReport { schemas, demands }
 }
 
-fn codec_requirement_identity(schema_identity: u64) -> u64 {
-    stable_wire_identity(
+fn codec_requirement_report_identity(schema_report_identity: u64) -> u64 {
+    stable_wire_report_identity(
         b"omega.codec.requirement.v1",
         [
             b"StrictDecode".as_slice(),
             b"compact_binary".as_slice(),
-            &schema_identity.to_le_bytes(),
+            &schema_report_identity.to_le_bytes(),
         ],
     )
 }
 
-fn encode_requirement_identity(schema_identity: u64) -> u64 {
-    stable_wire_identity(
+fn encode_requirement_report_identity(schema_report_identity: u64) -> u64 {
+    stable_wire_report_identity(
         b"omega.encode.requirement.v1",
         [
             b"Encode".as_slice(),
             b"compact_binary".as_slice(),
-            &schema_identity.to_le_bytes(),
+            &schema_report_identity.to_le_bytes(),
         ],
     )
 }
 
-fn normalized_wire_plan_identity(
-    schema_identity: u64,
+fn normalized_wire_plan_report_identity(
+    schema_report_identity: u64,
     placements: &[psi_typed_trees::wire::WirePlacement],
     obligations: &[psi_typed_trees::wire::WireEncodeObligation],
 ) -> u64 {
     let mut parts = Vec::with_capacity(placements.len() + obligations.len() + 1);
-    let schema_bytes = schema_identity.to_le_bytes();
+    let schema_bytes = schema_report_identity.to_le_bytes();
     parts.push(schema_bytes.to_vec());
     for placement in placements {
         let (kind, tag) = match placement {
@@ -193,10 +194,13 @@ fn normalized_wire_plan_identity(
         bytes.push(1); // exact packed-payload capacity formula
         parts.push(bytes);
     }
-    stable_wire_identity(b"omega.wire.plan.v1", parts.iter().map(Vec::as_slice))
+    stable_wire_report_identity(b"omega.wire.plan.v1", parts.iter().map(Vec::as_slice))
 }
 
-fn stable_wire_identity<'a>(domain: &[u8], parts: impl IntoIterator<Item = &'a [u8]>) -> u64 {
+fn stable_wire_report_identity<'a>(
+    domain: &[u8],
+    parts: impl IntoIterator<Item = &'a [u8]>,
+) -> u64 {
     fn bytes(hash: &mut u64, value: &[u8]) {
         for byte in value {
             *hash ^= u64::from(*byte);
@@ -372,11 +376,6 @@ fn name_leaf(name: &str) -> &str {
 }
 
 fn schema_accepts(reader: &WireSchemaReportEntry, writer: &WireSchemaReportEntry) -> bool {
-    if reader.normalized_schema_identity != 0
-        && reader.normalized_schema_identity == writer.normalized_schema_identity
-    {
-        return true;
-    }
     if !reader.cases.is_empty() || !writer.cases.is_empty() {
         return writer.cases.iter().all(|writer_case| {
             reader.cases.iter().any(|reader_case| {
@@ -528,16 +527,16 @@ fn ordinary_data_schema_report_entry(
     };
     Some(WireSchemaReportEntry {
         name: data.name.to_string(),
-        normalized_schema_identity: psi_build_time_evaluation::normalized_schema_identity(
+        normalized_schema_report_identity: psi_build_time_evaluation::normalized_schema_identity(
             typed, data,
         ),
         synthesized_codec: false,
         encoding: None,
         codec_requirement: None,
-        codec_requirement_identity: None,
+        codec_requirement_report_identity: None,
         encode_requirement: None,
-        encode_requirement_identity: None,
-        normalized_plan_identity: None,
+        encode_requirement_report_identity: None,
+        normalized_plan_report_identity: None,
         encode_obligations: Vec::new(),
         realization_origin: None,
         trust_class: None,
@@ -618,17 +617,17 @@ fn schema_report_entry(typed: &TypedTrees, schema: &WireSchema) -> WireSchemaRep
 
     WireSchemaReportEntry {
         name: schema.name.to_string(),
-        normalized_schema_identity: 0,
+        normalized_schema_report_identity: 0,
         synthesized_codec: true,
         encoding: schema
             .encoding
             .as_ref()
             .map(|encoding| encoding.to_string()),
         codec_requirement: None,
-        codec_requirement_identity: None,
+        codec_requirement_report_identity: None,
         encode_requirement: None,
-        encode_requirement_identity: None,
-        normalized_plan_identity: None,
+        encode_requirement_report_identity: None,
+        normalized_plan_report_identity: None,
         encode_obligations: Vec::new(),
         realization_origin: None,
         trust_class: None,
@@ -751,10 +750,11 @@ fn report_relevance_name(relevance: WireFieldRelevance) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::{
-        ScopeTable, codec_requirement_identity, compatibility_verdicts,
-        encode_requirement_identity, fields_equal, normalized_wire_plan_identity,
+        ScopeTable, codec_requirement_report_identity, compatibility_verdicts,
+        encode_requirement_report_identity, fields_equal, normalized_wire_plan_report_identity,
+        schema_accepts,
     };
-    use omega_artifacts::{WireFieldRelevance, WireFieldReportEntry};
+    use omega_artifacts::{WireFieldRelevance, WireFieldReportEntry, WireSchemaReportEntry};
     use psi_typed_trees::wire::WirePlacement;
 
     fn field(
@@ -803,37 +803,49 @@ mod tests {
     }
 
     #[test]
-    fn codec_requirement_identity_binds_the_normalized_schema() {
+    fn codec_requirement_report_identity_binds_the_normalized_schema_report_coordinate() {
         assert_ne!(
-            codec_requirement_identity(11),
-            codec_requirement_identity(12)
+            codec_requirement_report_identity(11),
+            codec_requirement_report_identity(12)
         );
         assert_eq!(
-            codec_requirement_identity(11),
-            codec_requirement_identity(11)
+            codec_requirement_report_identity(11),
+            codec_requirement_report_identity(11)
         );
         assert_ne!(
-            encode_requirement_identity(11),
-            encode_requirement_identity(12)
+            encode_requirement_report_identity(11),
+            encode_requirement_report_identity(12)
         );
         assert_ne!(
-            encode_requirement_identity(11),
-            codec_requirement_identity(11),
-            "encode and strict-decode are distinct requirement identities"
+            encode_requirement_report_identity(11),
+            codec_requirement_report_identity(11),
+            "encode and strict-decode are distinct requirement report coordinates"
         );
     }
 
     #[test]
-    fn normalized_wire_plan_identity_binds_kind_tag_and_schema() {
+    fn normalized_wire_plan_report_identity_binds_kind_tag_and_schema_report_coordinate() {
         let scalar = [WirePlacement::Varint { tag: 1 }];
         let length = [WirePlacement::LengthPrefixed { tag: 1 }];
         let retagged = [WirePlacement::Varint { tag: 2 }];
 
-        let identity = normalized_wire_plan_identity(7, &scalar, &[]);
-        assert_eq!(identity, normalized_wire_plan_identity(7, &scalar, &[]));
-        assert_ne!(identity, normalized_wire_plan_identity(8, &scalar, &[]));
-        assert_ne!(identity, normalized_wire_plan_identity(7, &length, &[]));
-        assert_ne!(identity, normalized_wire_plan_identity(7, &retagged, &[]));
+        let report_identity = normalized_wire_plan_report_identity(7, &scalar, &[]);
+        assert_eq!(
+            report_identity,
+            normalized_wire_plan_report_identity(7, &scalar, &[])
+        );
+        assert_ne!(
+            report_identity,
+            normalized_wire_plan_report_identity(8, &scalar, &[])
+        );
+        assert_ne!(
+            report_identity,
+            normalized_wire_plan_report_identity(7, &length, &[])
+        );
+        assert_ne!(
+            report_identity,
+            normalized_wire_plan_report_identity(7, &retagged, &[])
+        );
 
         let obligation = psi_typed_trees::wire::WireEncodeObligation {
             field_number: 1,
@@ -847,8 +859,29 @@ mod tests {
                 psi_typed_trees::wire::WireEncodeOutputCapacityObligation::ExactPackedPayload,
         };
         assert_ne!(
-            identity,
-            normalized_wire_plan_identity(7, &scalar, &[obligation])
+            report_identity,
+            normalized_wire_plan_report_identity(7, &scalar, &[obligation])
+        );
+    }
+
+    #[test]
+    fn compact_equal_wire_schema_reports_do_not_override_exact_shape_compatibility() {
+        let reader = WireSchemaReportEntry {
+            name: "Reader".to_owned(),
+            normalized_schema_report_identity: 0xfeed,
+            fields: vec![field(1, WireFieldRelevance::Relevant, "u32")],
+            ..WireSchemaReportEntry::default()
+        };
+        let writer = WireSchemaReportEntry {
+            name: "Writer".to_owned(),
+            normalized_schema_report_identity: 0xfeed,
+            fields: vec![field(1, WireFieldRelevance::Relevant, "Text")],
+            ..WireSchemaReportEntry::default()
+        };
+
+        assert!(
+            !schema_accepts(&reader, &writer),
+            "compact-equal schema reports cannot authorize an incompatible exact wire shape"
         );
     }
 }
