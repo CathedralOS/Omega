@@ -27,26 +27,26 @@ fn source(arguments: impl Iterator<Item = OsString>) {
         eprintln!("{SOURCE_USAGE}");
         std::process::exit(2);
     };
-    let adapter = match omega_packages::SourceAdapter::parse(&arguments.source_kind) {
+    let adapter = match omega_package_manager::SourceAdapter::parse(&arguments.source_kind) {
         Ok(adapter) => adapter,
         Err(error) => {
             eprintln!("invalid source adapter: {error:?}");
             std::process::exit(2);
         }
     };
-    let storage = match omega_packages::SourceResolverStorage::for_current_user() {
+    let storage = match omega_package_manager::SourceResolverStorage::for_current_user() {
         Ok(storage) => storage,
         Err(error) => {
             eprintln!("cannot open private source resolver storage: {error}");
             std::process::exit(1);
         }
     };
-    match omega_packages::audit_package_source_locator(
+    match omega_package_manager::audit_package_source_locator(
         adapter,
         arguments.locator,
         arguments.rev,
         &storage,
-        omega_packages::LocalSourceLimits::default(),
+        omega_package_manager::LocalSourceLimits::default(),
     ) {
         Ok(report) => print!("{}", report.to_text()),
         Err(error) => {

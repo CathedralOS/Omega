@@ -1694,7 +1694,7 @@ manufacture a portable “proof of audit.”
 
 ## Implementation trust status
 
-The `omega-packages` release surface now contains reviewed corrected-model
+The `omega-package-manager` release surface now contains reviewed corrected-model
 building blocks for immutable source custody, typed identity and closure,
 compiler handoff/review, exact row conflicts, and review-only triage. Its final
 admission model is not yet accepted. The legacy manifest, name-keyed lock,

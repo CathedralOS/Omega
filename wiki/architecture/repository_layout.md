@@ -152,7 +152,7 @@ Omega/
 |       |-- compiler/                                    # Thin product coordinator and result surface.
 |       |-- packages/                                    # Registry-free package manager and trust boundaries.
 |       |   |-- README.md                                # Human entrance and dependency-direction map.
-|       |   |-- [CRATE] omega-packages/                  # Declarations, resolution, review workflow, and policy.
+|       |   |-- [CRATE] omega-package-manager/                  # Declarations, resolution, review workflow, and policy.
 |       |   |-- [CRATE] omega-package-review/            # Compiler-owned non-admitting semantic projection.
 |       |   `-- [CRATE] omega-resolver-execution/        # OS confinement for hostile acquisition helpers.
 |       |-- tooling/                                     # Auxiliary artifacts, profiles, visualizations, and host custody.

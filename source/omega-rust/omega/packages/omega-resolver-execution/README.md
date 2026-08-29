@@ -127,4 +127,4 @@ is not a TLS trust receipt or credential-custody claim. Aggregate CPU, memory,
 and process-count confinement remains unavailable on Unix; during-write object-
 store quotas, Linux/Windows endpoint confinement, and complete strict backends
 remain package-manager tasks. See
-[`SOURCE_RESOLVER_SECURITY.md`](../omega-packages/SOURCE_RESOLVER_SECURITY.md).
+[`SOURCE_RESOLVER_SECURITY.md`](../omega-package-manager/SOURCE_RESOLVER_SECURITY.md).

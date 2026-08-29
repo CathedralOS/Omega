@@ -13,7 +13,7 @@ test = false
 [dependencies]
 omega-compiler = { path = "compiler/omega-compiler" }
 omega-core = { path = "representations/omega-core" }
-omega-packages = { path = "packages/omega-packages" }
+omega-package-manager = { path = "packages/omega-package-manager" }
 omega-package-compilation = { path = "build/omega-package-compilation" }
 omega-resolver-execution = { path = "packages/omega-resolver-execution" }
 omega-target = { path = "representations/omega-target" }

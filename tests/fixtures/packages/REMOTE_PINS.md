@@ -8,7 +8,7 @@ branch names in acceptance tests.
 Optional network validation, requiring private `CathedralOS` repository access:
 
 ```text
-cargo test -p omega-packages --test remote_fixtures -- --ignored --test-threads=1
+cargo test -p omega-package-manager --test remote_fixtures -- --ignored --test-threads=1
 ```
 
 | Package | Repository | Exact commit |

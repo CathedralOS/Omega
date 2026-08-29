@@ -241,7 +241,7 @@ dependencies = [
  "omega-compiler",
  "omega-core",
  "omega-package-compilation",
- "omega-packages",
+ "omega-package-manager",
  "omega-resolver-execution",
  "omega-target",
  "psi-checked-interpreter",
@@ -1009,35 +1009,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "omega-package-review"
-version = "0.1.0"
-dependencies = [
- "omega-build-evaluation",
- "omega-compiler",
- "omega-effects",
- "omega-package-compilation",
- "omega-provider-planning",
- "omega-selected-dispatch",
- "omega-target",
- "psi-arena",
- "psi-checked-trees",
- "psi-core",
- "psi-diagnostics",
- "psi-effects",
- "psi-facts",
- "psi-language-core",
- "psi-language-semantics",
- "psi-numerics",
- "psi-source",
- "psi-symbols",
- "psi-typed-trees",
- "psi-typed-trees-to-checked-trees",
- "psi-validation",
- "sha2",
-]
-
-[[package]]
-name = "omega-packages"
+name = "omega-package-manager"
 version = "0.1.0"
 dependencies = [
  "cap-fs-ext",
@@ -1062,6 +1034,34 @@ dependencies = [
  "psi-tokens-to-syntax-trees",
  "same-file",
  "sha1-checked",
+ "sha2",
+]
+
+[[package]]
+name = "omega-package-review"
+version = "0.1.0"
+dependencies = [
+ "omega-build-evaluation",
+ "omega-compiler",
+ "omega-effects",
+ "omega-package-compilation",
+ "omega-provider-planning",
+ "omega-selected-dispatch",
+ "omega-target",
+ "psi-arena",
+ "psi-checked-trees",
+ "psi-core",
+ "psi-diagnostics",
+ "psi-effects",
+ "psi-facts",
+ "psi-language-core",
+ "psi-language-semantics",
+ "psi-numerics",
+ "psi-source",
+ "psi-symbols",
+ "psi-typed-trees",
+ "psi-typed-trees-to-checked-trees",
+ "psi-validation",
  "sha2",
 ]
 
