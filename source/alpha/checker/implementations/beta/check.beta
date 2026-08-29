@@ -47,7 +47,7 @@
 ; Memory:  2097152 SRC   2097144 CUR   2097136 LEN   2097128 APTR (arena bump)
 ;          2097120 CTXN  2097112 IDEP  2097104 FRAMED
 ;          2097096 SOURCE_LIST  2097088 TAPE_LIST  2097080 INPUT_OVERFLOW
-;          2097072 PARSE_ERROR
+;          2097072 PARSE_ERROR  2097064 THEORY_FROZEN
 ;          4194304 CTX (type stack)  6553600 BYTE_TERM_CACHE  8388608 ARENA (bump)
 ; Nodes are 3 words [tag, f0, f1] at 24-byte stride. 0 is the reject/none sentinel.
 ;
@@ -94,6 +94,7 @@ proc slurp() {
         word[2097088] = 0            ; TAPE_LIST
         word[2097080] = 0            ; INPUT_OVERFLOW
         word[2097072] = 0            ; PARSE_ERROR
+        word[2097064] = 0            ; THEORY_FROZEN
     }
 }
 
@@ -900,8 +901,9 @@ proc skip_kw() {                 ; advance over a keyword of any case
 
 proc expect(ch) {
     skip_ws()
-    state chk { to do_adv when (cbyte() == ch)  return 0 }
+    state chk { to do_adv when (cbyte() == ch)  to bad }
     state do_adv { adv()  return 0 }
+    state bad { word[2097072] = 1  return 0 }
 }
 
 ; ---- node arena: 3 words per node, bump-allocated ----
@@ -1676,37 +1678,83 @@ proc main() {
         to kdef
     }
     state kfun {                 ; (fun FID CID body) — one rewrite rule of function FID
+        to reject when (word[2097064] != 0)
         skip_ident()             ; "fun"
         skip_ws()
         n = parse_number()       ; FID
+        to reject when (n < 0)
+        to reject when (n >= 768)
         skip_ws()
         let fcid = parse_number()  ; CID (which constructor this rule fires on)
+        to reject when (fcid < 0)
+        to reject when (fcid >= 64)
+        let fslot = 5898240 + (n * 64 + fcid) * 8
+        to reject when (word[fslot] != 0)
         let fbody = parse_nat()    ; rule body (over pattern var (v 0) and (rec 0))
         expect(')')
-        word[5898240 + (n * 64 + fcid) * 8] = fbody   ; FRULE[fid][cid] = body
+        to reject when (word[2097072] != 0)
+        word[fslot] = fbody       ; FRULE[fid][cid] = body
         to defloop
     }
     state kdata {                ; (data CID ARITY R0 R1) — record a constructor's shape
+        to reject when (word[2097064] != 0)
+        to reject when (n < 0)
+        to reject when (n >= 64)
+        to reject when (word[6422528 + n * 8] != 0)
         skip_ws()
-        word[5505024 + n * 8] = parse_number()       ; ARITY
+        let arity = parse_number()
+        to reject when (arity < 0)
+        to reject when (arity > 2)
         skip_ws()
-        word[5636096 + n * 8] = parse_number()       ; REC0
+        let rec0 = parse_number()
+        to reject when (rec0 < 0)
+        to reject when (rec0 > 1)
         skip_ws()
-        word[5767168 + n * 8] = parse_number()       ; REC1
+        let rec1 = parse_number()
+        to reject when (rec1 < 0)
+        to reject when (rec1 > 1)
+        to kdata_a0 when (arity == 0)
+        to kdata_a1 when (arity == 1)
+        to kdata_finish
+    }
+    state kdata_a0 {
+        to reject when (rec0 != 0)
+        to reject when (rec1 != 0)
+        to kdata_finish
+    }
+    state kdata_a1 {
+        to reject when (rec1 != 0)
+        to kdata_finish
+    }
+    state kdata_finish {
         expect(')')
+        to reject when (word[2097072] != 0)
+        word[5505024 + n * 8] = arity       ; ARITY
+        word[5636096 + n * 8] = rec0        ; REC0
+        word[5767168 + n * 8] = rec1        ; REC1
+        word[6422528 + n * 8] = 1           ; declared exactly once
         to defloop
     }
     state kprod {                ; (prod CID) — assert CID is its type's SOLE constructor, licensing prodrec
+        to reject when (word[2097064] != 0)
         skip_ident()             ; "prod"  (cursor is at 'p'; not yet advanced)
         skip_ws()
         n = parse_number()       ; CID
+        to reject when (n < 0)
+        to reject when (n >= 64)
+        to reject when (word[6291456 + n * 8] != 0)
         expect(')')
+        to reject when (word[2097072] != 0)
         word[6291456 + n * 8] = 1                     ; PRODUCTS[CID] = 1
         to defloop
     }
     state kdef {
-        to do_def when (kind == 'e')
-        to defloop
+        to reject when (kind != 'e')
+        to reject when (n < 0)
+        to reject when (n >= 32768)
+        to reject when (word[5242880 + n * 8] != 0)
+        word[2097064] = 1
+        to do_def
     }
     state do_def {               ; (def N type proof) — a verified-then-cited lemma
         lt = parse_type()
@@ -1725,7 +1773,9 @@ proc main() {
     state goal {
         let g = parse_type()
         let term = parse_term()
+        skip_ws()
         to reject when (word[2097072] != 0)
+        to reject when (word[2097144] != word[2097136])
         let proved = infer(term)
         to reject when (proved == 0)
         to verdict

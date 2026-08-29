@@ -503,33 +503,49 @@ def register(forms):
     to verify — the whole cert then rejects, matching check.beta. Returns the non-declaration forms (goal, proof)."""
     global DEFS_OK
     FUNS.clear(); DATA.clear(); LEMMAS.clear(); PRODUCTS.clear(); DEFS_OK = True
-    rest = []; defs = []
-    for f in forms:                                    # tables first: fun/data are position-independent
+    rest = []
+    theory_frozen = False
+    for f in forms:
         if isinstance(f, list) and f and f[0] == 'fun':
+            if theory_frozen or not (0 <= int(f[1]) < 768) or not (0 <= int(f[2]) < 64):
+                DEFS_OK = False; break
+            if (f[1], f[2]) in FUNS:
+                DEFS_OK = False; break
             FUNS[(f[1], f[2])] = f[3]
         elif isinstance(f, list) and f and f[0] == 'data':
+            arity, r0, r1 = int(f[2]), int(f[3]), int(f[4])
+            if theory_frozen or not (0 <= int(f[1]) < 64) or f[1] in DATA:
+                DEFS_OK = False; break
+            if arity not in (0, 1, 2) or r0 not in (0, 1) or r1 not in (0, 1):
+                DEFS_OK = False; break
+            if (arity == 0 and (r0 or r1)) or (arity == 1 and r1):
+                DEFS_OK = False; break
             DATA[f[1]] = (int(f[2]), int(f[3]), int(f[4]))
         elif isinstance(f, list) and f and f[0] == 'prod':
+            if theory_frozen or not (0 <= int(f[1]) < 64) or f[1] in PRODUCTS:
+                DEFS_OK = False; break
             PRODUCTS.add(f[1])                          # (prod cid) — author asserts cid is its type's SOLE
                                                        # constructor, licensing prodrec's one-case elimination
         elif isinstance(f, list) and f and f[0] == 'def':
-            defs.append(f)                             # (def N type proof) — verified below, in order
+            theory_frozen = True
+            N, typ, proof = f[1], f[2], f[3]
+            if not (0 <= int(N) < 32768) or N in LEMMAS:
+                DEFS_OK = False; break
+            r = infer(proof, [], 0)
+            if r is None or not prop_eq(r, typ):
+                DEFS_OK = False; break
+            LEMMAS[N] = typ
         else:
             rest.append(f)
-    for d in defs:                                     # a def may cite earlier defs, so verify in order
-        N, typ, proof = d[1], d[2], d[3]
-        r = infer(proof, [], 0)
-        if r is None or not prop_eq(r, typ):
-            DEFS_OK = False
-            break
-        LEMMAS[N] = typ
     return rest
 
 def main():
     forms = register(parse_all(sys.stdin.read()))
     if not DEFS_OK:                                     # a named-lemma proof failed its stated type
         print('reject'); return
-    goal, proof = forms[-2], forms[-1]                 # a cert is <decls> <goal> <proof(refl ..)>
+    if len(forms) != 2:
+        print('reject'); return
+    goal, proof = forms                                # a cert is <decls> <goal> <proof(refl ..)>
     r = infer(proof, [], 0)
     print('accept' if r is not None and prop_eq(r, goal) else 'reject')
 

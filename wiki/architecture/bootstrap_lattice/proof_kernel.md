@@ -160,6 +160,12 @@ does not make an arbitrary proposition sufficient; the artifact owner must
 still reconstruct and check the canonical ledger relation over those exact
 constants.
 
+The certificate theory is immutable: bounded unique constructor/function/product
+declarations precede all checked lemmas, the first lemma freezes those tables,
+and the input contains exactly one final goal/proof pair. A certificate cannot
+validate a lemma and then redefine its computation rules beneath the stored
+proposition.
+
 The hardware edge belongs to deployment assurance, not the reusable artifact
 seal. Identical bytes may be verified once against `T`; each deployment reports
 the irreducible admission that its silicon realizes that formal target.

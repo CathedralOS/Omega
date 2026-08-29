@@ -146,7 +146,7 @@ def verdict_beta(cert):                                # cert = full input: <dec
 
 def verdict_ref(cert):
     forms = check_ref.register(check_ref.parse_all(cert))   # register clears FUNS/DATA/LEMMAS and verifies (def ..)
-    if not check_ref.DEFS_OK:                          # a named-lemma proof failed its stated type
+    if not check_ref.DEFS_OK or len(forms) != 2:       # a declaration or named-lemma proof failed
         return 'reject'
     r = check_ref.infer(forms[-1], [], 0)              # conversion-aware, matching check_ref's own main()
     return 'accept' if r is not None and check_ref.prop_eq(r, forms[-2]) else 'reject'
@@ -241,8 +241,20 @@ LEMMA_CORPUS = [
     ("(data 0 0 0 0) (data 1 2 1 1) (-> (Pred 0 (k 0)) (-> (All (All (-> (Pred 0 (v 1)) (Pred 0 (k 1 (v 1) (v 0)))))) (All (Pred 0 (v 0))))) (lam (Pred 0 (k 0)) (lam (All (All (-> (Pred 0 (v 1)) (Pred 0 (k 1 (v 1) (v 0)))))) (rec 0 1 (Pred 0 (v 0)) (hyp 1) (hyp 0))))", "reject"),   # missing a0's IH
 ]
 
+# Declaration tables are bounded and immutable before the first checked lemma.
+# A later rewrite would otherwise change the definitional meaning of a lemma
+# whose proof was already accepted.
+DECL_CORPUS = [
+    ("(data 2 0 0 0) (fun 7 2 z) (def 0 (= (f 7 (k 2)) z) (refl z)) (fun 7 2 (s z)) (= (f 7 (k 2)) z) (use 0)", "reject"),
+    ("(data 2 0 0 0) (fun 7 2 z) (fun 7 2 z) (-> P P) (lam P (hyp 0))", "reject"),
+    ("(fun 768 2 z) (-> P P) (lam P (hyp 0))", "reject"),
+    ("(data 64 0 0 0) (-> P P) (lam P (hyp 0))", "reject"),
+    ("(def 0 (-> P P) (lam P (hyp 0))) (def 0 (-> P P) (lam P (hyp 0))) (-> P P) (use 0)", "reject"),
+    ("(-> P P) (lam P (hyp 0)) P", "reject"),
+]
+
 fails = 0; n = 0
-for cert, expect in IND_CORPUS + PRED_CORPUS + LEMMA_CORPUS:
+for cert, expect in IND_CORPUS + PRED_CORPUS + LEMMA_CORPUS + DECL_CORPUS:
     n += 1
     vb, vr = verdict_beta(cert), verdict_ref(cert)
     if not (vb == vr == expect):
