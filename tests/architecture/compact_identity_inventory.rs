@@ -1,4 +1,4 @@
-//! Repository-wide guard for exported compact fingerprint fields.
+//! Repository-wide guard for compact fingerprint declarations.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -27,17 +27,24 @@ fn collect_rust_sources(directory: &Path, sources: &mut Vec<PathBuf>) {
     }
 }
 
-fn exported_compact_fingerprint_field(line: &str) -> Option<&str> {
+fn compact_fingerprint_declaration(line: &str) -> Option<&str> {
     let line = line.trim();
     let declaration = if let Some(declaration) = line.strip_prefix("pub ") {
         declaration
     } else if let Some(rest) = line.strip_prefix("pub(") {
         rest.split_once(')')?.1.trim_start()
     } else {
-        return None;
+        line
     };
     let (name, ty) = declaration.split_once(':')?;
     let name = name.trim();
+    if name.is_empty()
+        || !name
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || character == '_')
+    {
+        return None;
+    }
     let ty = ty.trim_start();
     let ty = ty.split_once("//").map_or(ty, |(ty, _)| ty);
     let contains_compact_u64 = ty.match_indices("u64").any(|(index, _)| {
@@ -59,12 +66,13 @@ fn compact_fingerprint_scanner_covers_wrapped_and_collection_u64_fields() {
     for declaration in [
         "pub fingerprint: u64,",
         "pub(crate) fingerprint: Option<u64>,",
+        "fingerprint: u64,",
         "pub fingerprints: Vec<u64>,",
         "pub fingerprints: [u64; 2],",
         "pub fingerprint: Box<[u64]>,",
     ] {
         assert_eq!(
-            exported_compact_fingerprint_field(declaration),
+            compact_fingerprint_declaration(declaration),
             Some(if declaration.contains("fingerprints:") {
                 "fingerprints"
             } else {
@@ -74,7 +82,11 @@ fn compact_fingerprint_scanner_covers_wrapped_and_collection_u64_fields() {
         );
     }
     assert_eq!(
-        exported_compact_fingerprint_field("pub fingerprint: [u8; 32], // not u64"),
+        compact_fingerprint_declaration("pub fingerprint: [u8; 32], // not u64"),
+        None,
+    );
+    assert_eq!(
+        compact_fingerprint_declaration("fn helper(fingerprint: u64) {}"),
         None,
     );
 }
@@ -94,7 +106,7 @@ fn explicitly_non_authoritative(name: &str) -> bool {
 }
 
 #[test]
-fn new_exported_u64_fingerprints_require_explicit_classification() {
+fn every_u64_fingerprint_declaration_requires_explicit_classification() {
     let root = workspace_root();
     let source_root = root.join("source/omega-rust");
     let mut sources = Vec::new();
@@ -103,7 +115,8 @@ fn new_exported_u64_fingerprints_require_explicit_classification() {
     // This is a shrinking migration ceiling, not an approval list. Each row is
     // already tracked by CLASSIFY-AND-HARDEN-AUTHORITATIVE-IDENTITIES. A rename
     // to explicit report/cache vocabulary removes it; no path may add another
-    // occurrence or introduce a new unclassified exported field.
+    // occurrence or introduce a new unclassified private or exported
+    // declaration.
     let legacy_maximums = BTreeMap::<&str, usize>::new();
     let mut observed = BTreeMap::<String, usize>::new();
     for path in sources {
@@ -111,7 +124,7 @@ fn new_exported_u64_fingerprints_require_explicit_classification() {
         let source = fs::read_to_string(&path)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
         for line in source.lines() {
-            let Some(field) = exported_compact_fingerprint_field(line) else {
+            let Some(field) = compact_fingerprint_declaration(line) else {
                 continue;
             };
             if explicitly_non_authoritative(field) {
@@ -132,7 +145,7 @@ fn new_exported_u64_fingerprints_require_explicit_classification() {
         .collect::<Vec<_>>();
     assert!(
         unexpected.is_empty(),
-        "new exported compact fingerprints must be named as report/cache/compatibility data or gain exact/strong authority replay; unexpected fields: {unexpected:#?}",
+        "compact fingerprints must be named as report/cache/compatibility data or gain exact/strong authority replay; unexpected declarations: {unexpected:#?}",
     );
     let stale_or_overstated = legacy_maximums
         .iter()
@@ -183,9 +196,8 @@ fn checked_machine_contract_compact_coordinates_are_reports_beside_strong_author
     assert!(!terminal.contains("pub cleanup_contract_fingerprint: u64"));
     assert!(!terminal.contains("pub contract_fingerprint: u64"));
 
-    let attached_path = root.join(
-        "source/omega-rust/psi/pipeline/psi-checked-trees-to-terminal/src/attached_unit.rs",
-    );
+    let attached_path = root
+        .join("source/omega-rust/psi/pipeline/psi-checked-trees-to-terminal/src/attached_unit.rs");
     let attached = fs::read_to_string(&attached_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", attached_path.display()));
     assert!(
@@ -262,8 +274,7 @@ fn provider_grants_and_persisted_trust_admissions_retain_strong_exact_authority(
         "owner admission must compare human commitment plus strong subject digest and exclude compact reports from authority",
     );
 
-    let ledger_path =
-        root.join("source/omega-rust/omega/build/omega-trust-ledger/src/custody.rs");
+    let ledger_path = root.join("source/omega-rust/omega/build/omega-trust-ledger/src/custody.rs");
     let ledger = fs::read_to_string(&ledger_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", ledger_path.display()));
     assert!(
@@ -272,6 +283,53 @@ fn provider_grants_and_persisted_trust_admissions_retain_strong_exact_authority(
             && ledger.contains("digest_text.len() != 64")
             && ledger.contains("TrustAdmissionDigest::from_digest(digest)"),
         "the persisted trust ledger must reject compact legacy authority and parse full strong digests",
+    );
+}
+
+#[test]
+fn private_authority_carriers_retain_strong_subject_commitments() {
+    let root = workspace_root();
+
+    let access_path = root.join("source/omega-rust/psi/foundation/psi-access-plans/src/lib.rs");
+    let access = fs::read_to_string(&access_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", access_path.display()));
+    assert!(
+        access.contains("struct AccessLayoutCommitment([u8; 32])")
+            && access.contains("layout_report_fingerprint: u64")
+            && access.contains("layout_commitment: AccessLayoutCommitment")
+            && access.contains("key.layout_commitment != self.layout_commitment"),
+        "access field keys must rejoin their exact issuing layout rather than a compact coordinate",
+    );
+
+    let checked_path = root.join(
+        "source/omega-rust/psi/representations/psi-checked-trees/src/facts/nominal_machine_uses.rs",
+    );
+    let checked = fs::read_to_string(&checked_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", checked_path.display()));
+    assert!(
+        checked.contains("contract_report_fingerprint: u64")
+            && checked.contains("contract_commitment: crate::MachineContractCommitment")
+            && checked.contains("self.contract_commitment != envelope.contract_commitment()"),
+        "checked callback resource receipts must retain the exact selected machine contract",
+    );
+
+    let stack_path = root.join(
+        "source/omega-rust/omega/representations/omega-calling-conventions/src/stack_realizations.rs",
+    );
+    let stack = fs::read_to_string(&stack_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", stack_path.display()));
+    let roots_path = root.join(
+        "source/omega-rust/omega/backend/runtime/omega-external-roots/src/epoch_stack_demand.rs",
+    );
+    let roots = fs::read_to_string(&roots_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", roots_path.display()));
+    assert!(
+        stack.contains("pub boundary_plan_report_fingerprint: u64")
+            && stack.contains("pub boundary_plan_commitment: [u8; 32]")
+            && roots.contains("boundary_contract_report_fingerprint: u64")
+            && roots.contains("boundary_contract_commitment: [u8; 32]")
+            && roots.contains("boundary.contract_commitment_digest()"),
+        "external-root stack settlement must bind the exact boundary plan beside compact reports",
     );
 }
 

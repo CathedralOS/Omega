@@ -255,7 +255,10 @@ and starts from an all-inaccessible plan. The evaluated plan has exactly one
 decision per runtime-relevant reflected schema field; omission is denial, and
 declaration reorder cannot silently reassign permissions. An `[erased]` binding
 remains in semantic/type identity but has no physical field key or access
-decision.
+decision. Each field key retains a crate-sealed, domain-separated commitment to
+the complete canonical layout that issued it. The adjacent compact layout
+fingerprint is report compatibility only, so holding it equal cannot move a key
+between exact layouts during mutation, lookup, authorization, or projection.
 
 Placed projection is pure and yields borrow-carrying accessors rather than
 lvalues. Stable access derives ordinary mutation only when both the active

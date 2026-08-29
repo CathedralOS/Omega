@@ -54,7 +54,8 @@ pub struct AdmittedOpaqueArrivalContextSet {
     installed_code_context: InstalledCodeContext,
     artifact: ArtifactId,
     entry: EntryStubId,
-    boundary_contract_fingerprint: u64,
+    boundary_contract_report_fingerprint: u64,
+    boundary_contract_commitment: [u8; 32],
     contexts: Vec<ArrivalContextId>,
     validation_receipt: StackValidationReceiptId,
 }
@@ -66,6 +67,15 @@ impl AdmittedOpaqueArrivalContextSet {
 
     pub const fn validation_receipt(&self) -> StackValidationReceiptId {
         self.validation_receipt
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_boundary_contract_commitment_for_test(
+        mut self,
+        commitment: [u8; 32],
+    ) -> Self {
+        self.boundary_contract_commitment = commitment;
+        self
     }
 
     fn matches_installed_code_entry(
@@ -90,7 +100,9 @@ impl AdmittedOpaqueArrivalContextSet {
         self.root == summary.root
             && self.provider == summary.provider
             && self.matches_installed_code_entry(installed_code, entry)
-            && self.boundary_contract_fingerprint == boundary.contract_fingerprint()
+            && self.boundary_contract_report_fingerprint == boundary.contract_fingerprint()
+            && self.boundary_contract_commitment != [0; 32]
+            && self.boundary_contract_commitment == boundary.contract_commitment_digest()
     }
 }
 
@@ -140,7 +152,8 @@ pub fn admit_opaque_arrival_context_set(
         installed_code_context: installed_code.receipt_context(),
         artifact: installed_code.artifact(),
         entry,
-        boundary_contract_fingerprint: boundary.contract_fingerprint(),
+        boundary_contract_report_fingerprint: boundary.contract_fingerprint(),
+        boundary_contract_commitment: boundary.contract_commitment_digest(),
         contexts,
         validation_receipt,
     })
@@ -179,12 +192,13 @@ pub struct EntryStackRealizationEvidence {
     installed_code_context: InstalledCodeContext,
     artifact: ArtifactId,
     entry: EntryStubId,
-    boundary_contract_fingerprint: u64,
+    boundary_contract_report_fingerprint: u64,
+    boundary_contract_commitment: [u8; 32],
     body_domains: ValidatedEntryStackDomainClosure,
     realization: ValidatedEntryStackRealization,
     arrival_origin: ArrivalStackRealizationOrigin,
     adapter_origin: AdapterStackRealizationOrigin,
-    target_rule_fingerprint: Option<u64>,
+    target_rule_report_fingerprint: Option<u64>,
     validation_receipt: Option<StackValidationReceiptId>,
 }
 
@@ -221,8 +235,12 @@ impl EntryStackRealizationEvidence {
         self.entry
     }
 
-    pub const fn boundary_contract_fingerprint(&self) -> u64 {
-        self.boundary_contract_fingerprint
+    pub const fn boundary_contract_report_fingerprint(&self) -> u64 {
+        self.boundary_contract_report_fingerprint
+    }
+
+    pub const fn boundary_contract_commitment(&self) -> [u8; 32] {
+        self.boundary_contract_commitment
     }
 
     pub fn body_domains(&self) -> Vec<(ArrivalContextId, StackDomainRef)> {
@@ -237,8 +255,8 @@ impl EntryStackRealizationEvidence {
         &self.realization
     }
 
-    pub const fn target_rule_fingerprint(&self) -> Option<u64> {
-        self.target_rule_fingerprint
+    pub const fn target_rule_report_fingerprint(&self) -> Option<u64> {
+        self.target_rule_report_fingerprint
     }
 
     pub const fn validation_receipt(&self) -> Option<StackValidationReceiptId> {
@@ -335,12 +353,13 @@ pub fn bind_opaque_adapter_stack_realization(
         installed_code_context: installed_code.receipt_context(),
         artifact: installed_code.artifact(),
         entry,
-        boundary_contract_fingerprint: boundary.contract_fingerprint(),
+        boundary_contract_report_fingerprint: boundary.contract_fingerprint(),
+        boundary_contract_commitment: boundary.contract_commitment_digest(),
         body_domains,
         realization: realization.clone(),
         arrival_origin: ArrivalStackRealizationOrigin::OpaqueProvider,
         adapter_origin: AdapterStackRealizationOrigin::OpaqueProvider,
-        target_rule_fingerprint: None,
+        target_rule_report_fingerprint: None,
         validation_receipt: Some(arrival_contexts.validation_receipt()),
     };
     debug_assert!(realization_evidence.matches_installed_code_entry(installed_code, entry));
@@ -430,12 +449,13 @@ pub fn bind_direct_generated_entry_stack_realization(
             installed_code_context: installed_code.receipt_context(),
             artifact: installed_code.artifact(),
             entry,
-            boundary_contract_fingerprint: boundary.contract_fingerprint(),
+            boundary_contract_report_fingerprint: boundary.contract_fingerprint(),
+            boundary_contract_commitment: boundary.contract_commitment_digest(),
             body_domains,
             realization,
             arrival_origin: ArrivalStackRealizationOrigin::NoHardwareArrival,
             adapter_origin: AdapterStackRealizationOrigin::None,
-            target_rule_fingerprint: None,
+            target_rule_report_fingerprint: None,
             validation_receipt: None,
         },
     })
@@ -474,7 +494,9 @@ pub fn bind_x86_64_target_direct_entry_stack_realization(
     if identity.artifact != installed_code.artifact().normalized_identity()
         || identity.installed_code != installed_code.identity().normalized_identity()
         || identity.entry != entry.normalized_identity()
-        || identity.boundary_plan != boundary.contract_fingerprint()
+        || identity.boundary_plan_report_fingerprint != boundary.contract_fingerprint()
+        || identity.boundary_plan_commitment == [0; 32]
+        || identity.boundary_plan_commitment != boundary.contract_commitment_digest()
         || !installed_code.binds_entry_offset(entry, identity.entry_offset)
     {
         return Err(ExternalRootDiagnostic(
@@ -509,12 +531,13 @@ pub fn bind_x86_64_target_direct_entry_stack_realization(
             installed_code_context: installed_code.receipt_context(),
             artifact: installed_code.artifact(),
             entry,
-            boundary_contract_fingerprint: boundary.contract_fingerprint(),
+            boundary_contract_report_fingerprint: boundary.contract_fingerprint(),
+            boundary_contract_commitment: boundary.contract_commitment_digest(),
             body_domains,
             realization,
             arrival_origin: ArrivalStackRealizationOrigin::X86_64TargetRule,
             adapter_origin: AdapterStackRealizationOrigin::None,
-            target_rule_fingerprint: Some(target_arrival.fingerprint()),
+            target_rule_report_fingerprint: Some(target_arrival.report_fingerprint()),
             validation_receipt: None,
         },
     })
@@ -712,7 +735,7 @@ impl EpochStackComposition {
 
     /// Compatibility accessor for the non-authoritative report/cache
     /// fingerprint. Exact relation, inputs, and demands remain retained.
-    pub const fn fingerprint(&self) -> u64 {
+    pub const fn report_fingerprint(&self) -> u64 {
         self.non_authoritative_report_fingerprint
     }
 
@@ -759,7 +782,7 @@ impl BoundEpochStackComposition {
 
     /// Compatibility accessor for the non-authoritative report/cache
     /// fingerprint. Every exact bound body and realization row is retained.
-    pub const fn fingerprint(&self) -> u64 {
+    pub const fn report_fingerprint(&self) -> u64 {
         self.non_authoritative_report_fingerprint
     }
 
@@ -786,7 +809,7 @@ pub fn compose_bound_entry_stack_epochs<'a>(
         bound.values().map(BoundEpochStackCompositionInput::pure),
     )?;
     let mut report_fingerprint = Fnv1a::new();
-    report_fingerprint.u64(composition.fingerprint());
+    report_fingerprint.u64(composition.report_fingerprint());
     report_fingerprint.u64(bound.len() as u64);
     for input in bound.values() {
         let evidence = input.realization_evidence();
@@ -808,10 +831,15 @@ pub fn compose_bound_entry_stack_epochs<'a>(
         report_fingerprint.u64(evidence.installed_code().normalized_identity());
         report_fingerprint.u64(evidence.artifact().normalized_identity());
         report_fingerprint.u64(evidence.entry().normalized_identity());
-        report_fingerprint.u64(evidence.boundary_contract_fingerprint());
-        report_fingerprint.u64(evidence.body_domains.fingerprint());
-        report_fingerprint.u64(evidence.realization().fingerprint());
-        report_fingerprint.u64(evidence.target_rule_fingerprint().unwrap_or_default());
+        report_fingerprint.u64(evidence.boundary_contract_report_fingerprint());
+        report_fingerprint.bytes(&evidence.boundary_contract_commitment());
+        report_fingerprint.u64(evidence.body_domains.report_fingerprint());
+        report_fingerprint.u64(evidence.realization().report_fingerprint());
+        report_fingerprint.u64(
+            evidence
+                .target_rule_report_fingerprint()
+                .unwrap_or_default(),
+        );
         report_fingerprint.u64(
             evidence
                 .validation_receipt()
@@ -1102,7 +1130,7 @@ fn non_authoritative_epoch_stack_inputs_report_fingerprint(
     for input in inputs.values() {
         hash.u64(input.root.normalized_identity());
         hash.u64(input.provider.normalized_identity());
-        hash.u64(input.realization.fingerprint());
+        hash.u64(input.realization.report_fingerprint());
         hash.u64(input.body_wcsu_bytes);
         hash.u64(input.body_wcsu_alignment);
     }

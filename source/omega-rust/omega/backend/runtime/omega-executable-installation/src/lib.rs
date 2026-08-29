@@ -1720,7 +1720,7 @@ impl std::fmt::Debug for ResolvedPostHandoffEntryWriterContext {
             .field("source_slot_count", &self.invocation.sources().len())
             .field(
                 "normalized_fragment_fingerprint",
-                &format_args!("{:016x}", self.invocation.fragment().fingerprint()),
+                &format_args!("{:016x}", self.invocation.fragment().report_fingerprint()),
             )
             .field(
                 "non_authoritative_fingerprint",
@@ -1761,7 +1761,7 @@ impl ResolvedPostHandoffEntryWriterContext {
     }
 
     pub const fn normalized_fragment_fingerprint(&self) -> u64 {
-        self.invocation.fragment().fingerprint()
+        self.invocation.fragment().report_fingerprint()
     }
 
     /// Report whether this opaque, once-resolved context is the invocation
@@ -2227,7 +2227,7 @@ fn non_authoritative_post_handoff_entry_writer_context_fingerprint(
     mix(artifact.normalized_identity());
     mix(destination_site.base_address);
     mix(destination_len as u64);
-    mix(invocation.fragment().fingerprint());
+    mix(invocation.fragment().report_fingerprint());
     mix(invocation.sources().len() as u64);
     for PostHandoffWriterSourceSlot { target, source } in invocation.sources() {
         match target {
@@ -3352,7 +3352,7 @@ mod tests {
         assert!(context.binds_invocation(&invocation));
         assert_eq!(
             context.normalized_fragment_fingerprint(),
-            invocation.fragment().fingerprint()
+            invocation.fragment().report_fingerprint()
         );
         assert_ne!(
             context

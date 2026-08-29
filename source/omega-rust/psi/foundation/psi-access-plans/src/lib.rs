@@ -101,7 +101,7 @@ use access_plan_validation::validate_entry_geometry;
 use authorization::{authorize_descriptor, validate_operation_ordering};
 use field_projection::project_placed_field;
 use normalized_identities::{
-    authoritative_placement_interpretation,
+    authoritative_access_layout_commitment, authoritative_placement_interpretation,
     non_authoritative_access_plan_compatibility_fingerprint,
     non_authoritative_placement_compatibility_fingerprint,
     non_authoritative_resource_profile_compatibility_fingerprint,
@@ -281,8 +281,12 @@ pub enum FieldAccess {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+struct AccessLayoutCommitment([u8; 32]);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AccessFieldKey {
-    layout_fingerprint: u64,
+    layout_report_fingerprint: u64,
+    layout_commitment: AccessLayoutCommitment,
     slot: u32,
 }
 
@@ -315,21 +319,24 @@ impl AccessFieldEntry {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AccessPlan {
-    layout_fingerprint: u64,
+    layout_report_fingerprint: u64,
+    layout_commitment: AccessLayoutCommitment,
     retained_layout: LayoutPlanReport,
     entries: Vec<AccessFieldEntry>,
 }
 
 impl std::hash::Hash for AccessPlan {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        std::hash::Hash::hash(&self.layout_fingerprint, state);
+        std::hash::Hash::hash(&self.layout_report_fingerprint, state);
+        std::hash::Hash::hash(&self.layout_commitment, state);
         std::hash::Hash::hash(&self.entries, state);
     }
 }
 
 impl AccessPlan {
     pub fn inaccessible(layout: &LayoutPlanReport) -> Result<Self, AccessPlanDiagnostic> {
-        let layout_fingerprint = normalized_layout_plan_fingerprint(layout);
+        let layout_report_fingerprint = normalized_layout_plan_fingerprint(layout);
+        let layout_commitment = authoritative_access_layout_commitment(layout);
         let mut canonical_fields = BTreeMap::new();
         let mut presentation_names = BTreeMap::new();
         let mut presentation_identities = BTreeMap::new();
@@ -373,7 +380,8 @@ impl AccessPlan {
                 })?;
                 Ok(AccessFieldEntry {
                     key: AccessFieldKey {
-                        layout_fingerprint,
+                        layout_report_fingerprint,
+                        layout_commitment,
                         slot,
                     },
                     field,
@@ -382,14 +390,15 @@ impl AccessPlan {
             })
             .collect::<Result<Vec<_>, AccessPlanDiagnostic>>()?;
         Ok(Self {
-            layout_fingerprint,
+            layout_report_fingerprint,
+            layout_commitment,
             retained_layout: layout.clone(),
             entries,
         })
     }
 
-    pub const fn layout_fingerprint(&self) -> u64 {
-        self.layout_fingerprint
+    pub const fn layout_report_fingerprint(&self) -> u64 {
+        self.layout_report_fingerprint
     }
 
     pub fn entries(&self) -> &[AccessFieldEntry] {
@@ -405,7 +414,9 @@ impl AccessPlan {
         key: AccessFieldKey,
         access: FieldAccess,
     ) -> Result<(), AccessPlanDiagnostic> {
-        if key.layout_fingerprint != self.layout_fingerprint {
+        if key.layout_report_fingerprint != self.layout_report_fingerprint
+            || key.layout_commitment != self.layout_commitment
+        {
             return Err(AccessPlanDiagnostic(
                 "access field key belongs to a different validated layout".into(),
             ));
@@ -793,7 +804,8 @@ impl AuthorizedFieldAccess {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedAccessPlan {
     identity: AccessPlanId,
-    layout_fingerprint: u64,
+    layout_report_fingerprint: u64,
+    layout_commitment: AccessLayoutCommitment,
     plan: AccessPlan,
     fields: Vec<FieldAccessDescriptor>,
     layout_size_bytes: u64,
@@ -804,8 +816,8 @@ impl ValidatedAccessPlan {
         self.identity
     }
 
-    pub const fn layout_fingerprint(&self) -> u64 {
-        self.layout_fingerprint
+    pub const fn layout_report_fingerprint(&self) -> u64 {
+        self.layout_report_fingerprint
     }
 
     pub const fn plan(&self) -> &AccessPlan {
@@ -813,6 +825,11 @@ impl ValidatedAccessPlan {
     }
 
     pub fn field(&self, key: AccessFieldKey) -> Option<&AccessFieldEntry> {
+        if key.layout_report_fingerprint != self.layout_report_fingerprint
+            || key.layout_commitment != self.layout_commitment
+        {
+            return None;
+        }
         self.plan
             .entries
             .get(key.slot as usize)
@@ -820,6 +837,11 @@ impl ValidatedAccessPlan {
     }
 
     pub fn field_descriptor(&self, key: AccessFieldKey) -> Option<&FieldAccessDescriptor> {
+        if key.layout_report_fingerprint != self.layout_report_fingerprint
+            || key.layout_commitment != self.layout_commitment
+        {
+            return None;
+        }
         self.fields.iter().find(|entry| entry.key == key)
     }
 

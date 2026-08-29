@@ -18,7 +18,8 @@ pub fn validate_access_plan(
         AccessPlanDiagnostic("placed access requires a fixed-size layout plan".into())
     })?;
     let expected = AccessPlan::inaccessible(layout)?;
-    if plan.layout_fingerprint != expected.layout_fingerprint
+    if plan.layout_report_fingerprint != expected.layout_report_fingerprint
+        || plan.layout_commitment != expected.layout_commitment
         || !layout_plan_reports_match_for_replay(&plan.retained_layout, layout)
     {
         return Err(AccessPlanDiagnostic(
@@ -64,12 +65,14 @@ pub fn validate_access_plan(
     validate_destructive_access_units(&descriptors)?;
     validate_atomic_transfer_units(&descriptors)?;
 
-    let layout_fingerprint = plan.layout_fingerprint;
+    let layout_report_fingerprint = plan.layout_report_fingerprint;
+    let layout_commitment = plan.layout_commitment;
     let identity =
-        non_authoritative_access_plan_compatibility_fingerprint(&plan, layout_fingerprint);
+        non_authoritative_access_plan_compatibility_fingerprint(&plan, layout_report_fingerprint);
     Ok(ValidatedAccessPlan {
         identity,
-        layout_fingerprint,
+        layout_report_fingerprint,
+        layout_commitment,
         plan,
         fields: descriptors,
         layout_size_bytes: layout_size,

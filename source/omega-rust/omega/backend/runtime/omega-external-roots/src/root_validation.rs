@@ -373,8 +373,16 @@ pub fn validate_external_root(
     }
     if stack_input
         .realization_evidence()
-        .boundary_contract_fingerprint()
+        .boundary_contract_report_fingerprint()
         != boundary.contract_fingerprint()
+        || stack_input
+            .realization_evidence()
+            .boundary_contract_commitment()
+            == [0; 32]
+        || stack_input
+            .realization_evidence()
+            .boundary_contract_commitment()
+            != boundary.contract_commitment_digest()
     {
         return Err(ExternalRootDiagnostic(
             "external-root stack realization does not match the validated boundary contract".into(),
@@ -511,7 +519,7 @@ fn root_report_fingerprint(candidate: &ExternalRootCandidate, boundary: u64) -> 
             .unwrap_or_default(),
     );
     hash.u64(candidate.stack.ceiling_bytes);
-    hash.u64(candidate.stack.realization.fingerprint());
+    hash.u64(candidate.stack.realization.report_fingerprint());
     hash.u64(candidate.stack.validation_receipt.normalized_identity());
     hash.u64(u64::from(candidate.logical_fuel.schedule.marker()));
     hash.u64(candidate.logical_fuel.provision.normalized_identity());

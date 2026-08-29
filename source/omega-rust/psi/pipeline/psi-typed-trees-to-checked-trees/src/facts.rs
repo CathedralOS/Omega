@@ -247,7 +247,7 @@ fn build_nominal_machine_use_facts(
                 "admitted nominal machine use is missing its realized contract envelope",
             )]);
         };
-        let published_fingerprint = published.target_contract_fingerprint();
+        let published_fingerprint = published.target_contract_report_fingerprint();
         let published_commitment = published.target_contract_commitment();
         let actual_fingerprint = actual.report_fingerprint;
         if published_commitment.is_zero()
@@ -790,7 +790,7 @@ fn build_contract_plans(
             machine: machine.symbol,
             closed_scalar_values,
             crash,
-            report_fingerprint: identity.compatibility_fingerprint,
+            report_fingerprint: identity.report_fingerprint,
             commitment: identity.commitment,
         });
     }
@@ -870,6 +870,7 @@ fn build_contract_plans(
                     psi_checked_trees::CheckedMachineResourceEnvelopes::from_checked_contract_entries(
                         contract.machine,
                         contract.report_fingerprint,
+                        contract.commitment,
                         program.machine_states(machine).iter().map(|entry| entry.symbol),
                     ),
             }
@@ -919,6 +920,7 @@ fn validate_checked_resource_envelope_coverage(
                 machine.symbol,
                 entry.symbol,
                 contract.report_fingerprint,
+                contract.commitment,
             );
             if resource != &replayed {
                 return Err(vec![psi_diagnostics::Diagnostic::error(
@@ -1178,7 +1180,7 @@ fn build_crash_contract_capsules(
             psi_checked_trees::CrashContractCapsule::new_with_commitment(
                 target_machine,
                 target_state,
-                identity.compatibility_fingerprint,
+                identity.report_fingerprint,
                 identity.commitment,
                 published,
             )

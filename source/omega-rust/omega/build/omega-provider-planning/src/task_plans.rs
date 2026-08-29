@@ -157,7 +157,7 @@ pub fn elaborate_task_activation_plans(
             start_requirement: selection.requirement,
             target_machine: target_machine.symbol,
             target_entry: entry.symbol,
-            specialization_report_fingerprint: selection.fingerprint,
+            specialization_report_fingerprint: selection.report_fingerprint,
             specialization_commitment,
             operation: selection.operation,
             selected_runtime,
@@ -973,7 +973,7 @@ struct TaskStartSelection {
     requirement: psi_symbols::SymbolHandle,
     target_machine: psi_symbols::SymbolHandle,
     target_entry: psi_symbols::SymbolHandle,
-    fingerprint: u64,
+    report_fingerprint: u64,
     operation: TaskStartOperation,
 }
 
@@ -1088,7 +1088,7 @@ fn task_start_selections(
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
-    selections.sort_by_key(|selection| selection.fingerprint);
+    selections.sort_by_key(|selection| selection.report_fingerprint);
     selections.dedup();
     Ok(selections)
 }
@@ -1182,7 +1182,7 @@ fn append_task_start_selection(
         requirement,
         target_machine: target_machine.symbol,
         target_entry: target_entry.symbol,
-        fingerprint: hash.finish(),
+        report_fingerprint: hash.finish(),
         operation,
     };
     if !selections.contains(&selection) {
@@ -1794,7 +1794,7 @@ mod tests {
                 requirement,
                 target_machine: psi_symbols::SymbolHandle::from_arena_index(7),
                 target_entry: psi_symbols::SymbolHandle::from_arena_index(8),
-                fingerprint: 1,
+                report_fingerprint: 1,
                 operation: TaskStartOperation::Start,
             },
             other_owner,

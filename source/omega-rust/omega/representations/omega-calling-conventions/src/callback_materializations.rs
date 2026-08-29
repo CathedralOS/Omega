@@ -73,14 +73,14 @@ pub fn callback_native_parameter_id(
 /// Pointer geometry participates because it supplies the physical callback
 /// extent that is absent from the target-neutral layout report.
 pub fn callback_layout_plan_id(
-    native_layout_fingerprint: u64,
+    native_layout_report_fingerprint: u64,
     pointer_size: usize,
     pointer_alignment: usize,
 ) -> LayoutPlanId {
     LayoutPlanId::new(callback_nominal_identity(
         b"omega.callback-layout-plan.v1",
         &[
-            &native_layout_fingerprint.to_le_bytes(),
+            &native_layout_report_fingerprint.to_le_bytes(),
             &(pointer_size as u64).to_le_bytes(),
             &(pointer_alignment as u64).to_le_bytes(),
         ],
@@ -92,7 +92,7 @@ pub fn callback_layout_plan_id(
 /// layout. The canonical data and policy subjects prevent physically identical
 /// layouts owned by distinct declarations from aliasing.
 pub fn callback_plan_laid_layout_id(
-    native_layout_fingerprint: u64,
+    native_layout_report_fingerprint: u64,
     canonical_data_identity: &str,
     canonical_layout_subject: &str,
     pointer_size: usize,
@@ -101,7 +101,7 @@ pub fn callback_plan_laid_layout_id(
     LayoutPlanId::new(callback_nominal_identity(
         b"omega.callback-plan-laid-layout.v1",
         &[
-            &native_layout_fingerprint.to_le_bytes(),
+            &native_layout_report_fingerprint.to_le_bytes(),
             canonical_data_identity.as_bytes(),
             canonical_layout_subject.as_bytes(),
             &(pointer_size as u64).to_le_bytes(),

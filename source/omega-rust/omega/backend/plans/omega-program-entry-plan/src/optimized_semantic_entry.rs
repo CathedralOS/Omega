@@ -95,7 +95,7 @@ pub struct OptimizedProgramStorageSemanticEntryContract {
     source_signature: SelectedProgramEntrySourceSignature,
     source_signature_identity: ProgramEntrySourceSignatureIdentity,
     semantic_boundary_entry_plan: BoundaryEntryPlan,
-    semantic_calling_plan_fingerprint: u64,
+    semantic_calling_plan_report_fingerprint: u64,
     roots: [OptimizedProgramStorageSemanticRoot; 2],
     physical_contract: ProgramEntryPhysicalContractPlan,
     physical_disposition: OptimizedProgramStoragePhysicalEntryDisposition,
@@ -126,8 +126,8 @@ impl OptimizedProgramStorageSemanticEntryContract {
         &self.semantic_boundary_entry_plan
     }
 
-    pub const fn semantic_calling_plan_fingerprint(&self) -> u64 {
-        self.semantic_calling_plan_fingerprint
+    pub const fn semantic_calling_plan_report_fingerprint(&self) -> u64 {
+        self.semantic_calling_plan_report_fingerprint
     }
 
     pub const fn roots(&self) -> &[OptimizedProgramStorageSemanticRoot; 2] {
@@ -272,7 +272,7 @@ pub fn bind_optimized_program_storage_semantic_entry_contract(
         source_signature: source.clone(),
         source_signature_identity: source.identity(),
         semantic_boundary_entry_plan: boundary.plan().clone(),
-        semantic_calling_plan_fingerprint: boundary.contract_fingerprint(),
+        semantic_calling_plan_report_fingerprint: boundary.contract_fingerprint(),
         roots,
         physical_contract: physical_contract.clone(),
         physical_disposition: OptimizedProgramStoragePhysicalEntryDisposition::PlannedNotInvokedV1,
@@ -599,7 +599,7 @@ mod tests {
         assert_eq!(contract.source_signature(), &source);
         assert_eq!(contract.source_signature_identity(), source.identity());
         assert_eq!(
-            contract.semantic_calling_plan_fingerprint(),
+            contract.semantic_calling_plan_report_fingerprint(),
             semantic.contract_fingerprint()
         );
         assert_eq!(

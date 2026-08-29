@@ -317,7 +317,7 @@ pub fn close_conformance_application(
         trait_definition: trait_definition.symbol,
         trait_arguments,
         rows: row_identities,
-        report_fingerprint: identity.compatibility_fingerprint,
+        report_fingerprint: identity.report_fingerprint,
         commitment: identity.commitment,
     })
 }
@@ -480,7 +480,7 @@ pub(crate) fn substituted_type_identity_with_lifetimes(
 
 #[allow(clippy::too_many_arguments)]
 struct ApplicationIdentity {
-    compatibility_fingerprint: u64,
+    report_fingerprint: u64,
     commitment: psi_typed_trees::typed_trees::ClosedConformanceApplicationCommitment,
 }
 
@@ -572,7 +572,7 @@ fn application_identity(
         hash = hash.wrapping_mul(PRIME);
     }
     ApplicationIdentity {
-        compatibility_fingerprint: hash,
+        report_fingerprint: hash,
         commitment:
             psi_typed_trees::typed_trees::ClosedConformanceApplicationCommitment::from_digest(
                 strong.finalize().into(),

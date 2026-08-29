@@ -470,7 +470,7 @@ pub fn validate_nominal_callback_placement_bindings(
         if nominal_use
             .published_requirement_envelope
             .contract_report_fingerprint
-            != published_contract.target_contract_fingerprint()
+            != published_contract.target_contract_report_fingerprint()
             || nominal_use
                 .published_requirement_envelope
                 .contract_commitment
@@ -482,10 +482,12 @@ pub fn validate_nominal_callback_placement_bindings(
             )));
             continue;
         }
-        if placement.resource_receipt.contract_fingerprint()
+        if placement.resource_receipt.contract_report_fingerprint()
             != nominal_use
                 .selected_actual_envelope
                 .contract_report_fingerprint
+            || placement.resource_receipt.contract_commitment()
+                != nominal_use.selected_actual_envelope.contract_commitment
             || nominal_use.selected_actual_envelope.contract_commitment
                 != actual_contract.commitment
             || placement
@@ -3136,6 +3138,7 @@ mod tests {
                 selected_machine,
                 selected_entry,
                 selected_actual_fingerprint,
+                psi_checked_trees::MachineContractCommitment::from_digest([8; 32]),
             );
         let resource_receipt =
             psi_checked_trees::CheckedCallbackResourceReceipt::try_from_entry_envelope(
@@ -3218,6 +3221,7 @@ mod tests {
                     psi_checked_trees::CheckedMachineResourceEnvelopes::from_checked_contract_entries(
                         selected_machine,
                         selected_actual_fingerprint,
+                        psi_checked_trees::MachineContractCommitment::from_digest([8; 32]),
                         [selected_entry],
                     ),
             },
@@ -3327,6 +3331,7 @@ mod tests {
             nominal_use
                 .selected_actual_envelope
                 .contract_report_fingerprint,
+            nominal_use.selected_actual_envelope.contract_commitment,
         );
         nominal_use
             .callback_placement
@@ -3337,6 +3342,37 @@ mod tests {
                 .expect("canonical foreign entry receipt");
         let diagnostics = validate_nominal_callback_placement_bindings(&checked, &realizations)
             .expect_err("a callback cannot substitute another entry resource receipt");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("does not bind its exact checked entry resource receipt")
+        );
+    }
+
+    #[test]
+    fn nominal_callback_placement_rejects_compact_equal_resource_contract_substitution() {
+        let (mut checked, realizations) = nominal_callback_fixture();
+        let nominal_use = &mut checked.facts.nominal_machine_uses.uses[0];
+        let substituted = psi_checked_trees::CheckedEntryResourceEnvelope::from_checked_contract(
+            nominal_use.selected_machine,
+            nominal_use.selected_entry,
+            nominal_use
+                .selected_actual_envelope
+                .contract_report_fingerprint,
+            psi_checked_trees::MachineContractCommitment::from_digest([0x77; 32]),
+        );
+        nominal_use
+            .callback_placement
+            .as_mut()
+            .expect("callback placement")
+            .resource_receipt =
+            psi_checked_trees::CheckedCallbackResourceReceipt::try_from_entry_envelope(
+                &substituted,
+            )
+            .expect("independently canonical compact-equal resource receipt");
+
+        let diagnostics = validate_nominal_callback_placement_bindings(&checked, &realizations)
+            .expect_err("compact-equal resource contract substitution must reject");
         assert!(
             diagnostics[0]
                 .message

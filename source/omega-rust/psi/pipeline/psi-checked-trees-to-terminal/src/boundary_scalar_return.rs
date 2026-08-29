@@ -53,7 +53,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
                 .crash_capsule(boundary.contract_owner, boundary.state)
                 .map(|capsule| {
                     (
-                        capsule.target_contract_fingerprint(),
+                        capsule.target_contract_report_fingerprint(),
                         capsule.target_contract_commitment(),
                     )
                 })

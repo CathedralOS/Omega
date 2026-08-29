@@ -505,7 +505,7 @@ pub struct CheckedCrashCallSite {
     location: CrashCallSiteLocation,
     target_machine: SymbolHandle,
     target_state: SymbolHandle,
-    target_contract_fingerprint: u64,
+    target_contract_report_fingerprint: u64,
     target_contract_commitment: MachineContractCommitment,
     path_guard_conjuncts: Vec<CrashPredicateIdentity>,
     path_guard_consequences: Vec<CrashPredicateIdentity>,
@@ -521,7 +521,7 @@ pub struct CheckedCrashCallSite {
 pub struct CrashContractCapsule {
     target_machine: SymbolHandle,
     target_state: SymbolHandle,
-    target_contract_fingerprint: u64,
+    target_contract_report_fingerprint: u64,
     target_contract_commitment: MachineContractCommitment,
     published_service_reach: Vec<String>,
     published_synchronous_invocations: Vec<String>,
@@ -535,13 +535,13 @@ impl CrashContractCapsule {
     pub fn new(
         target_machine: SymbolHandle,
         target_state: SymbolHandle,
-        target_contract_fingerprint: u64,
+        target_contract_report_fingerprint: u64,
         published_buckets: Vec<CrashRouteBucket>,
     ) -> Self {
         Self::new_with_commitment(
             target_machine,
             target_state,
-            target_contract_fingerprint,
+            target_contract_report_fingerprint,
             MachineContractCommitment::from_digest([0; 32]),
             published_buckets,
         )
@@ -550,7 +550,7 @@ impl CrashContractCapsule {
     pub fn new_with_commitment(
         target_machine: SymbolHandle,
         target_state: SymbolHandle,
-        target_contract_fingerprint: u64,
+        target_contract_report_fingerprint: u64,
         target_contract_commitment: MachineContractCommitment,
         mut published_buckets: Vec<CrashRouteBucket>,
     ) -> Self {
@@ -559,7 +559,7 @@ impl CrashContractCapsule {
         Self {
             target_machine,
             target_state,
-            target_contract_fingerprint,
+            target_contract_report_fingerprint,
             target_contract_commitment,
             published_service_reach: Vec::new(),
             published_synchronous_invocations: Vec::new(),
@@ -598,8 +598,8 @@ impl CrashContractCapsule {
         self.target_state
     }
 
-    pub const fn target_contract_fingerprint(&self) -> u64 {
-        self.target_contract_fingerprint
+    pub const fn target_contract_report_fingerprint(&self) -> u64 {
+        self.target_contract_report_fingerprint
     }
 
     pub const fn target_contract_commitment(&self) -> MachineContractCommitment {
@@ -636,14 +636,14 @@ impl CheckedCrashCallSite {
         location: CrashCallSiteLocation,
         target_machine: SymbolHandle,
         target_state: SymbolHandle,
-        target_contract_fingerprint: u64,
+        target_contract_report_fingerprint: u64,
         surviving_buckets: Vec<CrashRouteBucket>,
     ) -> Self {
         Self::new_with_commitment(
             location,
             target_machine,
             target_state,
-            target_contract_fingerprint,
+            target_contract_report_fingerprint,
             MachineContractCommitment::from_digest([0; 32]),
             surviving_buckets,
         )
@@ -653,7 +653,7 @@ impl CheckedCrashCallSite {
         location: CrashCallSiteLocation,
         target_machine: SymbolHandle,
         target_state: SymbolHandle,
-        target_contract_fingerprint: u64,
+        target_contract_report_fingerprint: u64,
         target_contract_commitment: MachineContractCommitment,
         mut surviving_buckets: Vec<CrashRouteBucket>,
     ) -> Self {
@@ -663,7 +663,7 @@ impl CheckedCrashCallSite {
             location,
             target_machine,
             target_state,
-            target_contract_fingerprint,
+            target_contract_report_fingerprint,
             target_contract_commitment,
             path_guard_conjuncts: Vec::new(),
             path_guard_consequences: Vec::new(),
@@ -683,8 +683,8 @@ impl CheckedCrashCallSite {
         self.target_state
     }
 
-    pub const fn target_contract_fingerprint(&self) -> u64 {
-        self.target_contract_fingerprint
+    pub const fn target_contract_report_fingerprint(&self) -> u64 {
+        self.target_contract_report_fingerprint
     }
 
     pub const fn target_contract_commitment(&self) -> MachineContractCommitment {
@@ -1143,7 +1143,8 @@ impl MachineContractPlans {
             }
             realized.resources.validate()?;
             if realized.resources.machine != contract.machine
-                || realized.resources.contract_fingerprint != contract.report_fingerprint
+                || realized.resources.contract_report_fingerprint != contract.report_fingerprint
+                || realized.resources.contract_commitment != contract.commitment
             {
                 return Err(
                     "checked resource roster does not bind its exact realized machine contract",
@@ -1193,30 +1194,34 @@ impl CheckedResourceDerivationObligation {
 pub struct CheckedResourceAxisAnchor {
     machine: SymbolHandle,
     entry: SymbolHandle,
-    contract_fingerprint: u64,
+    contract_report_fingerprint: u64,
+    contract_commitment: MachineContractCommitment,
     derivation_obligation: CheckedResourceDerivationObligation,
-    fingerprint: u64,
+    report_fingerprint: u64,
 }
 
 impl CheckedResourceAxisAnchor {
     fn from_checked_contract(
         machine: SymbolHandle,
         entry: SymbolHandle,
-        contract_fingerprint: u64,
+        contract_report_fingerprint: u64,
+        contract_commitment: MachineContractCommitment,
         derivation_obligation: CheckedResourceDerivationObligation,
     ) -> Self {
-        let fingerprint = checked_resource_axis_fingerprint(
+        let report_fingerprint = checked_resource_axis_report_fingerprint(
             machine,
             entry,
-            contract_fingerprint,
+            contract_report_fingerprint,
+            contract_commitment,
             derivation_obligation,
         );
         Self {
             machine,
             entry,
-            contract_fingerprint,
+            contract_report_fingerprint,
+            contract_commitment,
             derivation_obligation,
-            fingerprint,
+            report_fingerprint,
         }
     }
 
@@ -1225,7 +1230,11 @@ impl CheckedResourceAxisAnchor {
     }
 
     pub const fn contract_report_fingerprint(&self) -> u64 {
-        self.contract_fingerprint
+        self.contract_report_fingerprint
+    }
+
+    pub const fn contract_commitment(&self) -> MachineContractCommitment {
+        self.contract_commitment
     }
 
     pub const fn entry(&self) -> SymbolHandle {
@@ -1236,20 +1245,22 @@ impl CheckedResourceAxisAnchor {
         self.derivation_obligation
     }
 
-    pub const fn fingerprint(&self) -> u64 {
-        self.fingerprint
+    pub const fn report_fingerprint(&self) -> u64 {
+        self.report_fingerprint
     }
 
     fn validate(
         &self,
         machine: SymbolHandle,
         entry: SymbolHandle,
-        contract_fingerprint: u64,
+        contract_report_fingerprint: u64,
+        contract_commitment: MachineContractCommitment,
         expected_obligation: CheckedResourceDerivationObligation,
     ) -> Result<(), &'static str> {
         if self.machine != machine
             || self.entry != entry
-            || self.contract_fingerprint != contract_fingerprint
+            || self.contract_report_fingerprint != contract_report_fingerprint
+            || self.contract_commitment != contract_commitment
         {
             return Err(
                 "checked resource axis does not bind the enclosing exact machine entry contract",
@@ -1260,15 +1271,19 @@ impl CheckedResourceAxisAnchor {
                 "checked resource envelope substituted or fused an independent resource axis",
             );
         }
-        if self.fingerprint
-            != checked_resource_axis_fingerprint(
+        if self.contract_report_fingerprint == 0 || self.contract_commitment.is_zero() {
+            return Err("checked resource axis requires a nonzero exact contract identity");
+        }
+        if self.report_fingerprint
+            != checked_resource_axis_report_fingerprint(
                 self.machine,
                 self.entry,
-                self.contract_fingerprint,
+                self.contract_report_fingerprint,
+                self.contract_commitment,
                 self.derivation_obligation,
             )
         {
-            return Err("checked resource axis fingerprint does not replay");
+            return Err("checked resource axis report fingerprint does not replay");
         }
         Ok(())
     }
@@ -1278,59 +1293,67 @@ impl CheckedResourceAxisAnchor {
 ///
 /// It records exactly which source-independent derivations remain necessary;
 /// it intentionally contains no numeric ceiling, target realization, provider
-/// receipt, callback placement, or installation authority. Its fingerprint is
-/// a compilation-local summary/join key, never artifact or admission authority.
+/// receipt, callback placement, or installation authority. Its report
+/// fingerprint is a compilation-local summary/join key, never artifact or
+/// admission authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedEntryResourceEnvelope {
     machine: SymbolHandle,
     entry: SymbolHandle,
-    contract_fingerprint: u64,
+    contract_report_fingerprint: u64,
+    contract_commitment: MachineContractCommitment,
     stack: CheckedResourceAxisAnchor,
     logical_structural_work: CheckedResourceAxisAnchor,
     machine_state: CheckedResourceAxisAnchor,
-    fingerprint: u64,
+    report_fingerprint: u64,
 }
 
 impl CheckedEntryResourceEnvelope {
     pub fn from_checked_contract(
         machine: SymbolHandle,
         entry: SymbolHandle,
-        contract_fingerprint: u64,
+        contract_report_fingerprint: u64,
+        contract_commitment: MachineContractCommitment,
     ) -> Self {
         let stack = CheckedResourceAxisAnchor::from_checked_contract(
             machine,
             entry,
-            contract_fingerprint,
+            contract_report_fingerprint,
+            contract_commitment,
             CheckedResourceDerivationObligation::TerminalAndTargetStackClosure,
         );
         let logical_structural_work = CheckedResourceAxisAnchor::from_checked_contract(
             machine,
             entry,
-            contract_fingerprint,
+            contract_report_fingerprint,
+            contract_commitment,
             CheckedResourceDerivationObligation::TerminalControlAndFuelSchedule,
         );
         let machine_state = CheckedResourceAxisAnchor::from_checked_contract(
             machine,
             entry,
-            contract_fingerprint,
+            contract_report_fingerprint,
+            contract_commitment,
             CheckedResourceDerivationObligation::SelectedInstructionMachineStateFootprint,
         );
-        let fingerprint = checked_resource_envelope_fingerprint(
+        let report_fingerprint = checked_resource_envelope_report_fingerprint(
             machine,
             entry,
-            contract_fingerprint,
-            stack.fingerprint,
-            logical_structural_work.fingerprint,
-            machine_state.fingerprint,
+            contract_report_fingerprint,
+            contract_commitment,
+            stack.report_fingerprint,
+            logical_structural_work.report_fingerprint,
+            machine_state.report_fingerprint,
         );
         Self {
             machine,
             entry,
-            contract_fingerprint,
+            contract_report_fingerprint,
+            contract_commitment,
             stack,
             logical_structural_work,
             machine_state,
-            fingerprint,
+            report_fingerprint,
         }
     }
 
@@ -1339,7 +1362,11 @@ impl CheckedEntryResourceEnvelope {
     }
 
     pub const fn contract_report_fingerprint(&self) -> u64 {
-        self.contract_fingerprint
+        self.contract_report_fingerprint
+    }
+
+    pub const fn contract_commitment(&self) -> MachineContractCommitment {
+        self.contract_commitment
     }
 
     pub const fn entry(&self) -> SymbolHandle {
@@ -1358,64 +1385,70 @@ impl CheckedEntryResourceEnvelope {
         &self.machine_state
     }
 
-    pub const fn fingerprint(&self) -> u64 {
-        self.fingerprint
+    pub const fn report_fingerprint(&self) -> u64 {
+        self.report_fingerprint
     }
 
     pub fn validate(&self) -> Result<(), &'static str> {
-        if self.contract_fingerprint == 0 {
+        if self.contract_report_fingerprint == 0 || self.contract_commitment.is_zero() {
             return Err("checked resource envelope requires a nonzero exact contract identity");
         }
         self.stack.validate(
             self.machine,
             self.entry,
-            self.contract_fingerprint,
+            self.contract_report_fingerprint,
+            self.contract_commitment,
             CheckedResourceDerivationObligation::TerminalAndTargetStackClosure,
         )?;
         self.logical_structural_work.validate(
             self.machine,
             self.entry,
-            self.contract_fingerprint,
+            self.contract_report_fingerprint,
+            self.contract_commitment,
             CheckedResourceDerivationObligation::TerminalControlAndFuelSchedule,
         )?;
         self.machine_state.validate(
             self.machine,
             self.entry,
-            self.contract_fingerprint,
+            self.contract_report_fingerprint,
+            self.contract_commitment,
             CheckedResourceDerivationObligation::SelectedInstructionMachineStateFootprint,
         )?;
-        if self.fingerprint
-            != checked_resource_envelope_fingerprint(
+        if self.report_fingerprint
+            != checked_resource_envelope_report_fingerprint(
                 self.machine,
                 self.entry,
-                self.contract_fingerprint,
-                self.stack.fingerprint,
-                self.logical_structural_work.fingerprint,
-                self.machine_state.fingerprint,
+                self.contract_report_fingerprint,
+                self.contract_commitment,
+                self.stack.report_fingerprint,
+                self.logical_structural_work.report_fingerprint,
+                self.machine_state.report_fingerprint,
             )
         {
-            return Err("checked resource envelope fingerprint does not replay");
+            return Err("checked resource envelope report fingerprint does not replay");
         }
         Ok(())
     }
 }
 
 /// Sealed declaration-order roster of the resource prerequisites for one
-/// machine's entries. The private roster fingerprint is compilation-local
-/// summary evidence: it detects deletion and reordering during checked-fact
-/// carriage but grants no artifact or installation authority.
+/// machine's entries. The private roster report fingerprint is compilation-
+/// local summary evidence: it detects deletion and reordering during checked-
+/// fact carriage but grants no artifact or installation authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedMachineResourceEnvelopes {
     machine: SymbolHandle,
-    contract_fingerprint: u64,
+    contract_report_fingerprint: u64,
+    contract_commitment: MachineContractCommitment,
     entries: Vec<CheckedEntryResourceEnvelope>,
-    roster_fingerprint: u64,
+    roster_report_fingerprint: u64,
 }
 
 impl CheckedMachineResourceEnvelopes {
     pub fn from_checked_contract_entries(
         machine: SymbolHandle,
-        contract_fingerprint: u64,
+        contract_report_fingerprint: u64,
+        contract_commitment: MachineContractCommitment,
         entries: impl IntoIterator<Item = SymbolHandle>,
     ) -> Self {
         let entries = entries
@@ -1424,17 +1457,23 @@ impl CheckedMachineResourceEnvelopes {
                 CheckedEntryResourceEnvelope::from_checked_contract(
                     machine,
                     entry,
-                    contract_fingerprint,
+                    contract_report_fingerprint,
+                    contract_commitment,
                 )
             })
             .collect::<Vec<_>>();
-        let roster_fingerprint =
-            checked_resource_roster_fingerprint(machine, contract_fingerprint, &entries);
+        let roster_report_fingerprint = checked_resource_roster_report_fingerprint(
+            machine,
+            contract_report_fingerprint,
+            contract_commitment,
+            &entries,
+        );
         Self {
             machine,
-            contract_fingerprint,
+            contract_report_fingerprint,
+            contract_commitment,
             entries,
-            roster_fingerprint,
+            roster_report_fingerprint,
         }
     }
 
@@ -1451,13 +1490,14 @@ impl CheckedMachineResourceEnvelopes {
     }
 
     pub fn validate(&self) -> Result<(), &'static str> {
-        if self.contract_fingerprint == 0 {
+        if self.contract_report_fingerprint == 0 || self.contract_commitment.is_zero() {
             return Err("checked resource roster requires a nonzero exact contract identity");
         }
         for (index, resource) in self.entries.iter().enumerate() {
             resource.validate()?;
             if resource.machine != self.machine
-                || resource.contract_fingerprint != self.contract_fingerprint
+                || resource.contract_report_fingerprint != self.contract_report_fingerprint
+                || resource.contract_commitment != self.contract_commitment
             {
                 return Err(
                     "checked entry resource envelope does not bind its exact machine contract",
@@ -1473,29 +1513,32 @@ impl CheckedMachineResourceEnvelopes {
                 != &CheckedEntryResourceEnvelope::from_checked_contract(
                     self.machine,
                     resource.entry,
-                    self.contract_fingerprint,
+                    self.contract_report_fingerprint,
+                    self.contract_commitment,
                 )
             {
                 return Err("checked entry resource envelope does not independently replay");
             }
         }
-        if self.roster_fingerprint
-            != checked_resource_roster_fingerprint(
+        if self.roster_report_fingerprint
+            != checked_resource_roster_report_fingerprint(
                 self.machine,
-                self.contract_fingerprint,
+                self.contract_report_fingerprint,
+                self.contract_commitment,
                 &self.entries,
             )
         {
-            return Err("checked resource roster fingerprint does not replay");
+            return Err("checked resource roster report fingerprint does not replay");
         }
         Ok(())
     }
 }
 
-fn checked_resource_axis_fingerprint(
+fn checked_resource_axis_report_fingerprint(
     machine: SymbolHandle,
     entry: SymbolHandle,
-    contract_fingerprint: u64,
+    contract_report_fingerprint: u64,
+    contract_commitment: MachineContractCommitment,
     derivation_obligation: CheckedResourceDerivationObligation,
 ) -> u64 {
     let mut bytes = b"omega.checked.resource-axis.v1".to_vec();
@@ -1503,15 +1546,17 @@ fn checked_resource_axis_fingerprint(
     bytes.extend(machine.generation().to_le_bytes());
     bytes.extend(entry.arena_index().to_le_bytes());
     bytes.extend(entry.generation().to_le_bytes());
-    bytes.extend(contract_fingerprint.to_le_bytes());
+    bytes.extend(contract_report_fingerprint.to_le_bytes());
+    bytes.extend(contract_commitment.as_bytes());
     bytes.push(derivation_obligation.identity_tag());
     checked_resource_report_fingerprint(bytes)
 }
 
-fn checked_resource_envelope_fingerprint(
+fn checked_resource_envelope_report_fingerprint(
     machine: SymbolHandle,
     entry: SymbolHandle,
-    contract_fingerprint: u64,
+    contract_report_fingerprint: u64,
+    contract_commitment: MachineContractCommitment,
     stack: u64,
     logical_structural_work: u64,
     machine_state: u64,
@@ -1521,22 +1566,25 @@ fn checked_resource_envelope_fingerprint(
     bytes.extend(machine.generation().to_le_bytes());
     bytes.extend(entry.arena_index().to_le_bytes());
     bytes.extend(entry.generation().to_le_bytes());
-    bytes.extend(contract_fingerprint.to_le_bytes());
+    bytes.extend(contract_report_fingerprint.to_le_bytes());
+    bytes.extend(contract_commitment.as_bytes());
     bytes.extend(stack.to_le_bytes());
     bytes.extend(logical_structural_work.to_le_bytes());
     bytes.extend(machine_state.to_le_bytes());
     checked_resource_report_fingerprint(bytes)
 }
 
-fn checked_resource_roster_fingerprint(
+fn checked_resource_roster_report_fingerprint(
     machine: SymbolHandle,
-    contract_fingerprint: u64,
+    contract_report_fingerprint: u64,
+    contract_commitment: MachineContractCommitment,
     entries: &[CheckedEntryResourceEnvelope],
 ) -> u64 {
     let mut bytes = b"omega.checked.resource-roster.v1".to_vec();
     bytes.extend(machine.arena_index().to_le_bytes());
     bytes.extend(machine.generation().to_le_bytes());
-    bytes.extend(contract_fingerprint.to_le_bytes());
+    bytes.extend(contract_report_fingerprint.to_le_bytes());
+    bytes.extend(contract_commitment.as_bytes());
     bytes.extend(
         u64::try_from(entries.len())
             .unwrap_or(u64::MAX)
@@ -1545,7 +1593,7 @@ fn checked_resource_roster_fingerprint(
     for entry in entries {
         bytes.extend(entry.entry.arena_index().to_le_bytes());
         bytes.extend(entry.entry.generation().to_le_bytes());
-        bytes.extend(entry.fingerprint.to_le_bytes());
+        bytes.extend(entry.report_fingerprint.to_le_bytes());
     }
     checked_resource_report_fingerprint(bytes)
 }
@@ -1626,7 +1674,7 @@ impl MachineContractCommitment {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MachineContractIdentity {
-    pub compatibility_fingerprint: u64,
+    pub report_fingerprint: u64,
     pub commitment: MachineContractCommitment,
 }
 
@@ -1810,7 +1858,7 @@ pub fn contract_identity(
         fold(0xfc);
     }
     MachineContractIdentity {
-        compatibility_fingerprint: hash,
+        report_fingerprint: hash,
         commitment: MachineContractCommitment::from_digest(strong.finalize().into()),
     }
 }
@@ -1837,7 +1885,7 @@ pub fn contract_report_fingerprint(
         termination,
         canonical_facts,
     )
-    .compatibility_fingerprint
+    .report_fingerprint
 }
 
 #[cfg(test)]
@@ -1877,6 +1925,7 @@ mod tests {
                 resources: CheckedMachineResourceEnvelopes::from_checked_contract_entries(
                     machine,
                     compact,
+                    substituted,
                     [entry],
                 ),
             }],
@@ -1921,6 +1970,7 @@ mod tests {
                 resources: CheckedMachineResourceEnvelopes::from_checked_contract_entries(
                     machine,
                     compact,
+                    MachineContractCommitment::from_digest([0; 32]),
                     [entry],
                 ),
             }],
@@ -1955,7 +2005,9 @@ mod tests {
     fn checked_resource_envelope_replays_three_distinct_derivation_obligations() {
         let machine = SymbolHandle::from_arena_index(21);
         let entry = SymbolHandle::from_arena_index(22);
-        let envelope = CheckedEntryResourceEnvelope::from_checked_contract(machine, entry, 0xfeed);
+        let commitment = MachineContractCommitment::from_digest([0x11; 32]);
+        let envelope =
+            CheckedEntryResourceEnvelope::from_checked_contract(machine, entry, 0xfeed, commitment);
 
         envelope.validate().expect("canonical resource anchor");
         assert_eq!(envelope.machine(), machine);
@@ -1974,12 +2026,12 @@ mod tests {
             CheckedResourceDerivationObligation::SelectedInstructionMachineStateFootprint
         );
         assert_ne!(
-            envelope.stack().fingerprint(),
-            envelope.logical_structural_work().fingerprint()
+            envelope.stack().report_fingerprint(),
+            envelope.logical_structural_work().report_fingerprint()
         );
         assert_ne!(
-            envelope.logical_structural_work().fingerprint(),
-            envelope.machine_state().fingerprint()
+            envelope.logical_structural_work().report_fingerprint(),
+            envelope.machine_state().report_fingerprint()
         );
 
         let mut fused = envelope.clone();
@@ -1992,26 +2044,59 @@ mod tests {
         );
 
         let mut tampered = envelope;
-        tampered.machine_state.fingerprint ^= 1;
+        tampered.machine_state.report_fingerprint ^= 1;
         assert!(
             tampered
                 .validate()
                 .expect_err("axis identity must independently replay")
-                .contains("axis fingerprint")
+                .contains("axis report fingerprint")
         );
 
         let other = CheckedEntryResourceEnvelope::from_checked_contract(
             machine,
             SymbolHandle::from_arena_index(23),
             0xfeed,
+            commitment,
         );
         tampered = other.clone();
         tampered.stack =
-            CheckedEntryResourceEnvelope::from_checked_contract(machine, entry, 0xfeed).stack;
+            CheckedEntryResourceEnvelope::from_checked_contract(machine, entry, 0xfeed, commitment)
+                .stack;
         assert!(
             tampered
                 .validate()
                 .expect_err("an axis cannot move between entries")
+                .contains("exact machine entry contract")
+        );
+    }
+
+    #[test]
+    fn checked_resource_envelope_rejects_compact_equal_contract_commitment_substitution() {
+        let machine = SymbolHandle::from_arena_index(24);
+        let entry = SymbolHandle::from_arena_index(25);
+        let expected = MachineContractCommitment::from_digest([0x31; 32]);
+        let substituted = MachineContractCommitment::from_digest([0x32; 32]);
+        let canonical =
+            CheckedEntryResourceEnvelope::from_checked_contract(machine, entry, 0xfeed, expected);
+        let foreign = CheckedEntryResourceEnvelope::from_checked_contract(
+            machine,
+            entry,
+            0xfeed,
+            substituted,
+        );
+
+        canonical.validate().expect("canonical resource envelope");
+        foreign
+            .validate()
+            .expect("independently canonical foreign envelope");
+        assert_ne!(canonical.report_fingerprint(), foreign.report_fingerprint());
+
+        let mut mixed = canonical;
+        mixed.stack = foreign.stack;
+        assert!(
+            mixed
+                .validate()
+                .expect_err("compact-equal contract substitution must reject")
                 .contains("exact machine entry contract")
         );
     }
@@ -2024,8 +2109,9 @@ mod tests {
             SymbolHandle::from_arena_index(33),
             SymbolHandle::from_arena_index(34),
         ];
+        let commitment = MachineContractCommitment::from_digest([0x22; 32]);
         let roster = CheckedMachineResourceEnvelopes::from_checked_contract_entries(
-            machine, 0xbeef, entries,
+            machine, 0xbeef, commitment, entries,
         );
         roster.validate().expect("canonical resource roster");
         assert_eq!(roster.len(), 3);
@@ -2043,7 +2129,7 @@ mod tests {
             deleted
                 .validate()
                 .expect_err("entry deletion must invalidate the sealed roster")
-                .contains("roster fingerprint")
+                .contains("roster report fingerprint")
         );
 
         let mut reordered = roster;
@@ -2052,7 +2138,7 @@ mod tests {
             reordered
                 .validate()
                 .expect_err("entry reordering must invalidate the sealed roster")
-                .contains("roster fingerprint")
+                .contains("roster report fingerprint")
         );
     }
 
@@ -2233,7 +2319,7 @@ mod tests {
         assert_eq!(
             plans
                 .crash_capsule(target_machine, target_state)
-                .map(CrashContractCapsule::target_contract_fingerprint),
+                .map(CrashContractCapsule::target_contract_report_fingerprint),
             Some(0xfeed)
         );
     }

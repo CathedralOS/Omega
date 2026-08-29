@@ -332,29 +332,14 @@ impl InstalledNativeFuelTransferCode {
         self.unrelocated_text_report_fingerprint
     }
 
-    /// Compatibility accessor for [`Self::unrelocated_text_report_fingerprint`].
-    pub const fn unrelocated_text_fingerprint(&self) -> u64 {
-        self.unrelocated_text_report_fingerprint()
-    }
-
     pub const fn final_text_report_fingerprint(&self) -> u64 {
         self.final_text_report_fingerprint
-    }
-
-    /// Compatibility accessor for [`Self::final_text_report_fingerprint`].
-    pub const fn final_text_fingerprint(&self) -> u64 {
-        self.final_text_report_fingerprint()
     }
 
     /// Compact report coordinate retained for compatibility. Sponsor-route
     /// and executable-runtime authority use exact transfer-code custody.
     pub const fn report_fingerprint(&self) -> u64 {
         self.non_authoritative_report_fingerprint
-    }
-
-    /// Compatibility accessor for [`Self::report_fingerprint`].
-    pub const fn fingerprint(&self) -> u64 {
-        self.report_fingerprint()
     }
 
     pub fn binds_installed_code(&self, installed_code: &InstalledCode) -> bool {
@@ -422,17 +407,17 @@ pub fn bind_installed_native_fuel_transfer_code<Image: NativeFuelTransferRuntime
     let final_text_report_fingerprint = final_hash.finish();
 
     let psi = image.psi();
-    let mut fingerprint = Fnv1a::new();
-    fingerprint.bytes(b"omega.installed-native-fuel-transfer-code.v1");
-    fingerprint.u64(transfer_plan.normalized_identity());
-    fingerprint.u64(u64::from(psi.vocabulary_marker.get()));
-    fingerprint.bytes(psi.program_fingerprint.as_bytes());
-    fingerprint.u64(installed_code.identity().normalized_identity());
-    fingerprint.u64(installed_code.artifact().normalized_identity());
-    fingerprint.u64(runtime_evidence.report_fingerprint());
-    fingerprint.u64(image.sponsor_text_offset() as u64);
-    fingerprint.u64(unrelocated_text_report_fingerprint);
-    fingerprint.u64(final_text_report_fingerprint);
+    let mut report_fingerprint = Fnv1a::new();
+    report_fingerprint.bytes(b"omega.installed-native-fuel-transfer-code.v1");
+    report_fingerprint.u64(transfer_plan.normalized_identity());
+    report_fingerprint.u64(u64::from(psi.vocabulary_marker.get()));
+    report_fingerprint.bytes(psi.program_fingerprint.as_bytes());
+    report_fingerprint.u64(installed_code.identity().normalized_identity());
+    report_fingerprint.u64(installed_code.artifact().normalized_identity());
+    report_fingerprint.u64(runtime_evidence.report_fingerprint());
+    report_fingerprint.u64(image.sponsor_text_offset() as u64);
+    report_fingerprint.u64(unrelocated_text_report_fingerprint);
+    report_fingerprint.u64(final_text_report_fingerprint);
 
     Ok(InstalledNativeFuelTransferCode {
         transfer_plan,
@@ -444,7 +429,7 @@ pub fn bind_installed_native_fuel_transfer_code<Image: NativeFuelTransferRuntime
         sponsor_text_offset: image.sponsor_text_offset(),
         unrelocated_text_report_fingerprint,
         final_text_report_fingerprint,
-        non_authoritative_report_fingerprint: fingerprint.finish(),
+        non_authoritative_report_fingerprint: report_fingerprint.finish(),
     })
 }
 
@@ -556,11 +541,6 @@ impl InstalledNativeFuelSponsorRoute {
         self.non_authoritative_report_fingerprint
     }
 
-    /// Compatibility accessor for [`Self::report_fingerprint`].
-    pub const fn fingerprint(&self) -> u64 {
-        self.report_fingerprint()
-    }
-
     fn binds_transfer_code(&self, transfer_code: &InstalledNativeFuelTransferCode) -> bool {
         self.transfer_code_custody.binds(transfer_code)
     }
@@ -608,20 +588,20 @@ pub fn bind_installed_native_fuel_sponsor_route(
         ));
     }
 
-    let mut fingerprint = Fnv1a::new();
-    fingerprint.bytes(b"omega.installed-native-fuel-sponsor-route.v1");
-    fingerprint.u64(transfer_code.report_fingerprint());
-    fingerprint.u64(sponsor_root.root.normalized_identity());
-    fingerprint.u64(provider_execution.identity().normalized_identity());
-    fingerprint.u64(provider_execution.normalized_report_identity());
-    fingerprint.u64(entry.normalized_identity());
-    fingerprint.u64(transfer_code.sponsor_text_offset as u64);
-    fingerprint.u64(sponsor_path.fixed.demand.composition_fingerprint());
-    fingerprint.u64(sponsor_path.fixed.provision.normalized_identity());
-    fingerprint.u64(sponsor_path.fixed.granted_units);
-    fingerprint.u64(sponsor_path.suspension_free.composition_fingerprint());
-    fingerprint.u64(sponsor_root.evidence.root.normalized_report_identity());
-    fingerprint.u64(
+    let mut report_fingerprint = Fnv1a::new();
+    report_fingerprint.bytes(b"omega.installed-native-fuel-sponsor-route.v1");
+    report_fingerprint.u64(transfer_code.report_fingerprint());
+    report_fingerprint.u64(sponsor_root.root.normalized_identity());
+    report_fingerprint.u64(provider_execution.identity().normalized_identity());
+    report_fingerprint.u64(provider_execution.normalized_report_identity());
+    report_fingerprint.u64(entry.normalized_identity());
+    report_fingerprint.u64(transfer_code.sponsor_text_offset as u64);
+    report_fingerprint.u64(sponsor_path.fixed.demand.composition_fingerprint());
+    report_fingerprint.u64(sponsor_path.fixed.provision.normalized_identity());
+    report_fingerprint.u64(sponsor_path.fixed.granted_units);
+    report_fingerprint.u64(sponsor_path.suspension_free.composition_fingerprint());
+    report_fingerprint.u64(sponsor_root.evidence.root.normalized_report_identity());
+    report_fingerprint.u64(
         sponsor_root
             .evidence
             .root
@@ -639,7 +619,7 @@ pub fn bind_installed_native_fuel_sponsor_route(
         provider_execution_report_fingerprint: provider_execution.normalized_report_identity(),
         entry,
         sponsor_text_offset: transfer_code.sponsor_text_offset,
-        non_authoritative_report_fingerprint: fingerprint.finish(),
+        non_authoritative_report_fingerprint: report_fingerprint.finish(),
     })
 }
 
@@ -714,11 +694,6 @@ impl InstalledNativeFuelTransferRuntime {
         self.non_authoritative_report_fingerprint
     }
 
-    /// Compatibility accessor for [`Self::report_fingerprint`].
-    pub const fn fingerprint(&self) -> u64 {
-        self.report_fingerprint()
-    }
-
     fn matches(&self, plan: &DynamicNativeFuelMeterPlan, installed_code: &InstalledCode) -> bool {
         self.plan == *plan
             && self.transfer_code.binds_installed_code(installed_code)
@@ -750,20 +725,20 @@ pub fn bind_installed_native_fuel_transfer_runtime(
         ));
     }
 
-    let mut fingerprint = Fnv1a::new();
-    fingerprint.bytes(b"omega.installed-native-fuel-transfer-runtime.v1");
-    fingerprint.u64(transfer_code.report_fingerprint());
-    fingerprint.u64(sponsor_route.report_fingerprint());
-    fingerprint.u64(plan.transfer_plan.normalized_identity());
-    fingerprint.u64(plan.sponsor_path.fixed.demand.composition_fingerprint());
-    fingerprint.u64(plan.sponsor_path.fixed.provision.normalized_identity());
-    fingerprint.u64(plan.sponsor_path.suspension_free.composition_fingerprint());
+    let mut report_fingerprint = Fnv1a::new();
+    report_fingerprint.bytes(b"omega.installed-native-fuel-transfer-runtime.v1");
+    report_fingerprint.u64(transfer_code.report_fingerprint());
+    report_fingerprint.u64(sponsor_route.report_fingerprint());
+    report_fingerprint.u64(plan.transfer_plan.normalized_identity());
+    report_fingerprint.u64(plan.sponsor_path.fixed.demand.composition_fingerprint());
+    report_fingerprint.u64(plan.sponsor_path.fixed.provision.normalized_identity());
+    report_fingerprint.u64(plan.sponsor_path.suspension_free.composition_fingerprint());
 
     Ok(InstalledNativeFuelTransferRuntime {
         plan,
         transfer_code,
         sponsor_route,
-        non_authoritative_report_fingerprint: fingerprint.finish(),
+        non_authoritative_report_fingerprint: report_fingerprint.finish(),
     })
 }
 
@@ -774,9 +749,9 @@ pub fn bind_installed_native_fuel_transfer_runtime(
 pub struct ValidatedDynamicFuelAttributionBasis {
     plan: DynamicNativeFuelMeterPlan,
     psi: psi_terminal::TerminalPsiIdentity,
-    source_text_fingerprint: u64,
+    source_text_report_fingerprint: u64,
     attributions: Vec<FuelAttributionEvidence>,
-    fingerprint: u64,
+    non_authoritative_report_fingerprint: u64,
 }
 
 impl ValidatedDynamicFuelAttributionBasis {
@@ -792,12 +767,12 @@ impl ValidatedDynamicFuelAttributionBasis {
         self.psi
     }
 
-    pub const fn source_text_fingerprint(&self) -> u64 {
-        self.source_text_fingerprint
+    pub const fn source_text_report_fingerprint(&self) -> u64 {
+        self.source_text_report_fingerprint
     }
 
-    pub const fn fingerprint(&self) -> u64 {
-        self.fingerprint
+    pub const fn report_fingerprint(&self) -> u64 {
+        self.non_authoritative_report_fingerprint
     }
 }
 
@@ -809,15 +784,15 @@ impl ValidatedDynamicFuelAttributionBasis {
 pub struct InstalledDynamicFuelAttributionPlan {
     plan: DynamicNativeFuelMeterPlan,
     psi: psi_terminal::TerminalPsiIdentity,
-    source_text_fingerprint: u64,
-    basis_fingerprint: u64,
+    source_text_report_fingerprint: u64,
+    basis_report_fingerprint: u64,
     installed_code: InstalledCodeId,
     installed_code_context: InstalledCodeContext,
     artifact: ArtifactId,
     attributions: Vec<FuelAttributionEvidence>,
     charges: Vec<NativeFuelChargeEvidence>,
-    final_text_fingerprint: u64,
-    fingerprint: u64,
+    final_text_report_fingerprint: u64,
+    non_authoritative_report_fingerprint: u64,
 }
 
 impl InstalledDynamicFuelAttributionPlan {
@@ -829,12 +804,12 @@ impl InstalledDynamicFuelAttributionPlan {
         self.installed_code
     }
 
-    pub const fn source_text_fingerprint(&self) -> u64 {
-        self.source_text_fingerprint
+    pub const fn source_text_report_fingerprint(&self) -> u64 {
+        self.source_text_report_fingerprint
     }
 
-    pub const fn basis_fingerprint(&self) -> u64 {
-        self.basis_fingerprint
+    pub const fn basis_report_fingerprint(&self) -> u64 {
+        self.basis_report_fingerprint
     }
 
     pub fn attributions(&self) -> &[FuelAttributionEvidence] {
@@ -845,12 +820,12 @@ impl InstalledDynamicFuelAttributionPlan {
         &self.charges
     }
 
-    pub const fn final_text_fingerprint(&self) -> u64 {
-        self.final_text_fingerprint
+    pub const fn final_text_report_fingerprint(&self) -> u64 {
+        self.final_text_report_fingerprint
     }
 
-    pub const fn fingerprint(&self) -> u64 {
-        self.fingerprint
+    pub const fn report_fingerprint(&self) -> u64 {
+        self.non_authoritative_report_fingerprint
     }
 
     fn matches_installed_code(&self, installed_code: &InstalledCode) -> bool {
@@ -869,32 +844,32 @@ pub fn bind_installed_dynamic_fuel_attribution<Image: NativeFuelImageEvidence>(
     image: &Image,
     installed_code: &InstalledCode,
 ) -> Result<InstalledDynamicFuelAttributionPlan, ExternalRootDiagnostic> {
-    let (charges, final_text_fingerprint) = validate_dynamic_fuel_image(
+    let (charges, final_text_report_fingerprint) = validate_dynamic_fuel_image(
         &basis.plan,
         basis.psi,
-        basis.source_text_fingerprint,
+        basis.source_text_report_fingerprint,
         &basis.attributions,
         image,
         installed_code,
     )?;
-    let fingerprint = fingerprint_installed_dynamic_fuel(
-        basis.fingerprint,
+    let report_fingerprint = installed_dynamic_fuel_report_fingerprint(
+        basis.non_authoritative_report_fingerprint,
         installed_code,
-        final_text_fingerprint,
+        final_text_report_fingerprint,
         &charges,
     );
     Ok(InstalledDynamicFuelAttributionPlan {
         plan: basis.plan,
         psi: basis.psi,
-        source_text_fingerprint: basis.source_text_fingerprint,
-        basis_fingerprint: basis.fingerprint,
+        source_text_report_fingerprint: basis.source_text_report_fingerprint,
+        basis_report_fingerprint: basis.non_authoritative_report_fingerprint,
         installed_code: installed_code.identity(),
         installed_code_context: installed_code.receipt_context(),
         artifact: installed_code.artifact(),
         attributions: basis.attributions,
         charges,
-        final_text_fingerprint,
-        fingerprint,
+        final_text_report_fingerprint,
+        non_authoritative_report_fingerprint: report_fingerprint,
     })
 }
 
@@ -915,37 +890,39 @@ pub fn validate_installed_dynamic_fuel_attribution<Image: NativeFuelImageEvidenc
                 .into(),
         ));
     }
-    let expected_basis_fingerprint = fingerprint_dynamic_fuel_attribution_basis(
+    let expected_basis_report_fingerprint = dynamic_fuel_attribution_basis_report_fingerprint(
         &binding.plan,
         binding.psi,
-        binding.source_text_fingerprint,
+        binding.source_text_report_fingerprint,
         &binding.attributions,
     );
-    if binding.basis_fingerprint != expected_basis_fingerprint {
+    if binding.basis_report_fingerprint != expected_basis_report_fingerprint {
         return Err(ExternalRootDiagnostic(
             "installed dynamic fuel attribution basis fingerprint drifted".into(),
         ));
     }
-    let (charges, final_text_fingerprint) = validate_dynamic_fuel_image(
+    let (charges, final_text_report_fingerprint) = validate_dynamic_fuel_image(
         &binding.plan,
         binding.psi,
-        binding.source_text_fingerprint,
+        binding.source_text_report_fingerprint,
         &binding.attributions,
         image,
         installed_code,
     )?;
-    if binding.charges != charges || binding.final_text_fingerprint != final_text_fingerprint {
+    if binding.charges != charges
+        || binding.final_text_report_fingerprint != final_text_report_fingerprint
+    {
         return Err(ExternalRootDiagnostic(
             "installed dynamic fuel charge or final-text evidence drifted".into(),
         ));
     }
-    let expected_fingerprint = fingerprint_installed_dynamic_fuel(
-        binding.basis_fingerprint,
+    let expected_report_fingerprint = installed_dynamic_fuel_report_fingerprint(
+        binding.basis_report_fingerprint,
         installed_code,
-        final_text_fingerprint,
+        final_text_report_fingerprint,
         &charges,
     );
-    if binding.fingerprint != expected_fingerprint {
+    if binding.non_authoritative_report_fingerprint != expected_report_fingerprint {
         return Err(ExternalRootDiagnostic(
             "installed dynamic fuel attribution fingerprint drifted".into(),
         ));
@@ -956,7 +933,7 @@ pub fn validate_installed_dynamic_fuel_attribution<Image: NativeFuelImageEvidenc
 fn validate_dynamic_fuel_image<Image: NativeFuelImageEvidence>(
     plan: &DynamicNativeFuelMeterPlan,
     psi: psi_terminal::TerminalPsiIdentity,
-    source_text_fingerprint: u64,
+    source_text_report_fingerprint: u64,
     attributions: &[FuelAttributionEvidence],
     image: &Image,
     installed_code: &InstalledCode,
@@ -974,7 +951,7 @@ fn validate_dynamic_fuel_image<Image: NativeFuelImageEvidence>(
     let mut source_hash = Fnv1a::new();
     source_hash.bytes(b"omega.dynamic-fuel-source-text.v1");
     source_hash.bytes(image.source_text_bytes());
-    if source_hash.finish() != source_text_fingerprint {
+    if source_hash.finish() != source_text_report_fingerprint {
         return Err(ExternalRootDiagnostic(
             "installed dynamic fuel image does not retain the validated source text".into(),
         ));
@@ -1050,22 +1027,22 @@ fn validate_dynamic_fuel_image<Image: NativeFuelImageEvidence>(
     let mut final_text_hash = Fnv1a::new();
     final_text_hash.bytes(b"omega.dynamic-fuel-final-text.v1");
     final_text_hash.bytes(image.final_text_bytes());
-    let final_text_fingerprint = final_text_hash.finish();
-    Ok((charges, final_text_fingerprint))
+    let final_text_report_fingerprint = final_text_hash.finish();
+    Ok((charges, final_text_report_fingerprint))
 }
 
-fn fingerprint_installed_dynamic_fuel(
-    basis_fingerprint: u64,
+fn installed_dynamic_fuel_report_fingerprint(
+    basis_report_fingerprint: u64,
     installed_code: &InstalledCode,
-    final_text_fingerprint: u64,
+    final_text_report_fingerprint: u64,
     charges: &[NativeFuelChargeEvidence],
 ) -> u64 {
     let mut hash = Fnv1a::new();
     hash.bytes(b"omega.installed-dynamic-fuel.v1");
-    hash.u64(basis_fingerprint);
+    hash.u64(basis_report_fingerprint);
     hash.u64(installed_code.identity().normalized_identity());
     hash.u64(installed_code.artifact().normalized_identity());
-    hash.u64(final_text_fingerprint);
+    hash.u64(final_text_report_fingerprint);
     hash.u64(charges.len() as u64);
     for charge in charges {
         hash.u64(charge.attribution.machine.get());
@@ -1100,19 +1077,19 @@ pub fn validate_dynamic_fuel_attribution_basis<Artifact: ObjectEvidence>(
     let mut source_text_hash = Fnv1a::new();
     source_text_hash.bytes(b"omega.dynamic-fuel-source-text.v1");
     source_text_hash.bytes(artifact.text_bytes());
-    let source_text_fingerprint = source_text_hash.finish();
-    let fingerprint = fingerprint_dynamic_fuel_attribution_basis(
+    let source_text_report_fingerprint = source_text_hash.finish();
+    let report_fingerprint = dynamic_fuel_attribution_basis_report_fingerprint(
         &plan,
         psi,
-        source_text_fingerprint,
+        source_text_report_fingerprint,
         &attributions,
     );
     Ok(ValidatedDynamicFuelAttributionBasis {
         plan,
         psi,
-        source_text_fingerprint,
+        source_text_report_fingerprint,
         attributions,
-        fingerprint,
+        non_authoritative_report_fingerprint: report_fingerprint,
     })
 }
 
@@ -1168,17 +1145,17 @@ fn attribution_order_key(
     )
 }
 
-fn fingerprint_dynamic_fuel_attribution_basis(
+fn dynamic_fuel_attribution_basis_report_fingerprint(
     plan: &DynamicNativeFuelMeterPlan,
     psi: psi_terminal::TerminalPsiIdentity,
-    source_text_fingerprint: u64,
+    source_text_report_fingerprint: u64,
     rows: &[FuelAttributionEvidence],
 ) -> u64 {
     let mut hash = Fnv1a::new();
     hash.bytes(b"omega.dynamic-fuel-attribution-basis.v3");
     hash.u64(u64::from(psi.vocabulary_marker.get()));
     hash.bytes(psi.program_fingerprint.as_bytes());
-    hash.u64(source_text_fingerprint);
+    hash.u64(source_text_report_fingerprint);
     hash.u64(u64::from(plan.schedule.marker()));
     hash.u64(plan.meter.normalized_identity());
     hash_native_fuel_target_policy(&mut hash, plan.target_policy().projection());
@@ -1444,7 +1421,7 @@ pub struct InstalledNativeFuelRealization {
     artifact: ArtifactId,
     dynamic_attribution: Option<InstalledDynamicFuelAttributionPlan>,
     dynamic_transfer_runtime: Option<InstalledNativeFuelTransferRuntime>,
-    fingerprint: u64,
+    non_authoritative_report_fingerprint: u64,
 }
 
 impl InstalledNativeFuelRealization {
@@ -1464,8 +1441,11 @@ impl InstalledNativeFuelRealization {
         self.dynamic_transfer_runtime.as_ref()
     }
 
-    pub const fn fingerprint(&self) -> u64 {
-        self.fingerprint
+    /// Compact report coordinate. Installed native-fuel authority is the
+    /// retained exact selection, installed-code occurrence, and dynamic
+    /// attribution/transfer custody.
+    pub const fn report_fingerprint(&self) -> u64 {
+        self.non_authoritative_report_fingerprint
     }
 
     pub const fn installed_code(&self) -> InstalledCodeId {
@@ -1562,7 +1542,7 @@ pub fn bind_installed_native_fuel_realization(
         }
     }
 
-    let fingerprint = fingerprint_installed_native_fuel_realization(
+    let report_fingerprint = installed_native_fuel_realization_report_fingerprint(
         &selected,
         installed_code,
         dynamic_attribution.as_ref(),
@@ -1575,11 +1555,11 @@ pub fn bind_installed_native_fuel_realization(
         artifact: installed_code.artifact(),
         dynamic_attribution,
         dynamic_transfer_runtime,
-        fingerprint,
+        non_authoritative_report_fingerprint: report_fingerprint,
     })
 }
 
-fn fingerprint_installed_native_fuel_realization(
+fn installed_native_fuel_realization_report_fingerprint(
     selected: &ValidatedNativeFuelRealization,
     installed_code: &InstalledCode,
     dynamic_attribution: Option<&InstalledDynamicFuelAttributionPlan>,
@@ -1604,10 +1584,10 @@ fn fingerprint_installed_native_fuel_realization(
         hash.u64(0);
     }
     if let Some(attribution) = dynamic_attribution {
-        hash.u64(attribution.fingerprint());
+        hash.u64(attribution.report_fingerprint());
     }
     if let Some(transfer_runtime) = dynamic_transfer_runtime {
-        hash.u64(transfer_runtime.fingerprint());
+        hash.u64(transfer_runtime.report_fingerprint());
     }
     hash.finish()
 }
@@ -2516,8 +2496,8 @@ mod tests {
             validate_dynamic_fuel_attribution_basis(alternate_sponsor_plan, &artifact)
                 .expect("alternate sponsor path remains structurally valid");
         assert_ne!(
-            basis.fingerprint(),
-            alternate_sponsor_basis.fingerprint(),
+            basis.report_fingerprint(),
+            alternate_sponsor_basis.report_fingerprint(),
             "the published basis identity must bind the exact sponsor provision"
         );
         let changed_source = TestArtifact {
@@ -2527,7 +2507,10 @@ mod tests {
         };
         let changed_basis = validate_dynamic_fuel_attribution_basis(plan.clone(), &changed_source)
             .expect("different valid source bytes remain a distinct instrumentation input");
-        assert_ne!(basis.fingerprint(), changed_basis.fingerprint());
+        assert_ne!(
+            basis.report_fingerprint(),
+            changed_basis.report_fingerprint()
+        );
 
         let mut image = TestNativeFuelImage {
             target,
@@ -2631,7 +2614,7 @@ mod tests {
         image.final_text[0] ^= 1;
 
         let mut drifted = installed_attribution.clone();
-        drifted.basis_fingerprint ^= 1;
+        drifted.basis_report_fingerprint ^= 1;
         assert!(
             validate_installed_dynamic_fuel_attribution(&drifted, &image, &installed)
                 .expect_err("retained basis fingerprint drift must reject replay")
@@ -2647,7 +2630,7 @@ mod tests {
                 .contains("charge or final-text")
         );
         let mut drifted = installed_attribution.clone();
-        drifted.fingerprint ^= 1;
+        drifted.non_authoritative_report_fingerprint ^= 1;
         assert!(
             validate_installed_dynamic_fuel_attribution(&drifted, &image, &installed)
                 .expect_err("aggregate installed attribution identity drift must reject replay")

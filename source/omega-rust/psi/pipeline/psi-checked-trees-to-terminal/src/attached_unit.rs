@@ -143,7 +143,7 @@ pub(super) fn lower_attached_unit_closure_including(
                                 .crash_capsule(target.contract_owner, target.state)
                                 .map(|capsule| {
                                     (
-                                        capsule.target_contract_fingerprint(),
+                                        capsule.target_contract_report_fingerprint(),
                                         capsule.target_contract_commitment(),
                                     )
                                 })

@@ -50,6 +50,7 @@ pub struct CheckedCallbackResourceReceipt {
     machine: SymbolHandle,
     entry: SymbolHandle,
     contract_report_fingerprint: u64,
+    contract_commitment: crate::MachineContractCommitment,
     stack_report_fingerprint: u64,
     logical_structural_work_report_fingerprint: u64,
     machine_state_report_fingerprint: u64,
@@ -65,12 +66,13 @@ impl CheckedCallbackResourceReceipt {
             machine: envelope.machine(),
             entry: envelope.entry(),
             contract_report_fingerprint: envelope.contract_report_fingerprint(),
-            stack_report_fingerprint: envelope.stack().fingerprint(),
+            contract_commitment: envelope.contract_commitment(),
+            stack_report_fingerprint: envelope.stack().report_fingerprint(),
             logical_structural_work_report_fingerprint: envelope
                 .logical_structural_work()
-                .fingerprint(),
-            machine_state_report_fingerprint: envelope.machine_state().fingerprint(),
-            envelope_report_fingerprint: envelope.fingerprint(),
+                .report_fingerprint(),
+            machine_state_report_fingerprint: envelope.machine_state().report_fingerprint(),
+            envelope_report_fingerprint: envelope.report_fingerprint(),
         })
     }
 
@@ -82,27 +84,27 @@ impl CheckedCallbackResourceReceipt {
         self.entry
     }
 
-    pub const fn contract_fingerprint(self) -> u64 {
-        self.contract_report_fingerprint
-    }
-
     pub const fn contract_report_fingerprint(self) -> u64 {
         self.contract_report_fingerprint
     }
 
-    pub const fn stack_fingerprint(self) -> u64 {
+    pub const fn contract_commitment(self) -> crate::MachineContractCommitment {
+        self.contract_commitment
+    }
+
+    pub const fn stack_report_fingerprint(self) -> u64 {
         self.stack_report_fingerprint
     }
 
-    pub const fn logical_structural_work_fingerprint(self) -> u64 {
+    pub const fn logical_structural_work_report_fingerprint(self) -> u64 {
         self.logical_structural_work_report_fingerprint
     }
 
-    pub const fn machine_state_fingerprint(self) -> u64 {
+    pub const fn machine_state_report_fingerprint(self) -> u64 {
         self.machine_state_report_fingerprint
     }
 
-    pub const fn envelope_fingerprint(self) -> u64 {
+    pub const fn envelope_report_fingerprint(self) -> u64 {
         self.envelope_report_fingerprint
     }
 
@@ -111,6 +113,7 @@ impl CheckedCallbackResourceReceipt {
             self.machine,
             self.entry,
             self.contract_report_fingerprint,
+            self.contract_commitment,
         );
         self.validate_against(&replayed)
     }
@@ -123,11 +126,13 @@ impl CheckedCallbackResourceReceipt {
         if self.machine != envelope.machine()
             || self.entry != envelope.entry()
             || self.contract_report_fingerprint != envelope.contract_report_fingerprint()
-            || self.stack_report_fingerprint != envelope.stack().fingerprint()
+            || self.contract_commitment != envelope.contract_commitment()
+            || self.stack_report_fingerprint != envelope.stack().report_fingerprint()
             || self.logical_structural_work_report_fingerprint
-                != envelope.logical_structural_work().fingerprint()
-            || self.machine_state_report_fingerprint != envelope.machine_state().fingerprint()
-            || self.envelope_report_fingerprint != envelope.fingerprint()
+                != envelope.logical_structural_work().report_fingerprint()
+            || self.machine_state_report_fingerprint
+                != envelope.machine_state().report_fingerprint()
+            || self.envelope_report_fingerprint != envelope.report_fingerprint()
         {
             return Err(
                 "checked callback resource receipt does not bind its exact per-entry envelope",
@@ -193,10 +198,12 @@ impl NominalMachineUseFacts {
                 placement.resource_receipt.validate()?;
                 if placement.resource_receipt.machine() != nominal_use.selected_machine
                     || placement.resource_receipt.entry() != nominal_use.selected_entry
-                    || placement.resource_receipt.contract_fingerprint()
+                    || placement.resource_receipt.contract_report_fingerprint()
                         != nominal_use
                             .selected_actual_envelope
                             .contract_report_fingerprint
+                    || placement.resource_receipt.contract_commitment()
+                        != nominal_use.selected_actual_envelope.contract_commitment
                 {
                     return Err(
                         "nominal callback resource receipt does not bind its selected actual entry envelope"
@@ -330,6 +337,7 @@ mod tests {
             row.selected_machine,
             row.selected_entry,
             row.selected_actual_envelope.contract_report_fingerprint,
+            row.selected_actual_envelope.contract_commitment,
         );
         row.callback_placement = Some(CheckedCallbackPlacementIdentity {
             boundary_calling_plan_report_fingerprint: 0,
@@ -352,6 +360,7 @@ mod tests {
             row.selected_machine,
             SymbolHandle::from_arena_index(9),
             row.selected_actual_envelope.contract_report_fingerprint,
+            row.selected_actual_envelope.contract_commitment,
         );
         row.callback_placement = Some(CheckedCallbackPlacementIdentity {
             boundary_calling_plan_report_fingerprint: 10,
@@ -366,6 +375,32 @@ mod tests {
         let message = NominalMachineUseFacts::try_with_uses([row])
             .expect_err("a callback cannot substitute another entry's resource receipt");
 
+        assert!(message.contains("does not bind its selected actual entry envelope"));
+    }
+
+    #[test]
+    fn callback_resource_receipt_rejects_compact_equal_contract_substitution() {
+        let mut row = nominal_use(3);
+        let expected = row.selected_actual_envelope.contract_commitment;
+        let substituted = crate::MachineContractCommitment::from_digest([0x77; 32]);
+        assert_ne!(expected, substituted);
+        let foreign = CheckedEntryResourceEnvelope::from_checked_contract(
+            row.selected_machine,
+            row.selected_entry,
+            row.selected_actual_envelope.contract_report_fingerprint,
+            substituted,
+        );
+        let foreign_receipt = CheckedCallbackResourceReceipt::try_from_entry_envelope(&foreign)
+            .expect("independently canonical compact-equal resource receipt");
+        row.callback_placement = Some(CheckedCallbackPlacementIdentity {
+            boundary_calling_plan_report_fingerprint: 10,
+            boundary_calling_plan_commitment:
+                psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest([10; 32]),
+            resource_receipt: foreign_receipt,
+        });
+
+        let message = NominalMachineUseFacts::try_with_uses([row])
+            .expect_err("compact-equal resource contract substitution must reject");
         assert!(message.contains("does not bind its selected actual entry envelope"));
     }
 }

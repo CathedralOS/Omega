@@ -1,10 +1,13 @@
 use super::{
-    AccessExposure, AccessPlan, AccessPlanId, AtomicCapability, AtomicPermissions, BoundaryReach,
-    ExternalCapability, ExternalRead, ExternalReadBehavior, FieldAccess, PlacementPlanId,
-    ResourceProfileId, ResourceRegion, StableCapability, TransferRule,
+    AccessExposure, AccessLayoutCommitment, AccessPlan, AccessPlanId, AtomicCapability,
+    AtomicPermissions, BoundaryReach, ExternalCapability, ExternalRead, ExternalReadBehavior,
+    FieldAccess, PlacementPlanId, ResourceProfileId, ResourceRegion, StableCapability,
+    TransferRule,
 };
 use psi_extents::{ExtentContentInterpretation, ExtentContentInterpretationId};
-use psi_layout_plans::{IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport};
+use psi_layout_plans::{
+    IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
+};
 use sha2::{Digest, Sha256};
 
 pub(super) fn non_authoritative_placement_compatibility_fingerprint(
@@ -19,6 +22,18 @@ pub(super) fn non_authoritative_placement_compatibility_fingerprint(
         hash_u64(&mut hash, service.normalized_identity());
     }
     PlacementPlanId(if hash == 0 { 1 } else { hash })
+}
+
+/// Collision-resistant semantic owner of compiler-issued access field keys.
+/// The compact layout report fingerprint remains useful for diagnostics and
+/// caches, but cannot rejoin a key to a different exact layout.
+pub(super) fn authoritative_access_layout_commitment(
+    layout: &LayoutPlanReport,
+) -> AccessLayoutCommitment {
+    let mut digest = Sha256::new();
+    digest.update(b"omega.access-field-layout.authoritative.v1\0");
+    hash_canonical_layout(&mut digest, layout);
+    AccessLayoutCommitment(digest.finalize().into())
 }
 
 /// Collision-resistant identity for the complete canonical placement policy.
@@ -287,14 +302,14 @@ fn hash_atomic_permissions(hash: &mut u64, permissions: AtomicPermissions) {
 
 pub(super) fn non_authoritative_access_plan_compatibility_fingerprint(
     plan: &AccessPlan,
-    layout_fingerprint: u64,
+    layout_report_fingerprint: u64,
 ) -> AccessPlanId {
     // FNV-1a is used as a compact deterministic artifact identity here, never
     // as authorization or collision-resistant evidence. The versioned prefix
     // makes any future vocabulary change an explicit identity migration.
     let mut hash = 0xcbf29ce484222325u64;
     hash_bytes(&mut hash, b"omega.access-plan.v5");
-    hash_u64(&mut hash, layout_fingerprint);
+    hash_u64(&mut hash, layout_report_fingerprint);
     hash_u64(&mut hash, plan.entries.len() as u64);
     for entry in &plan.entries {
         hash_u64(&mut hash, u64::from(entry.key.slot));

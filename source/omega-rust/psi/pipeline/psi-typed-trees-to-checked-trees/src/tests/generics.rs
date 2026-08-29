@@ -302,7 +302,7 @@ fn nominal_machine_parameter_accepts_one_explicit_exact_satisfaction_row() {
         .contract_plans
         .crash_capsule(satisfaction_trait, satisfaction_requirement)
         .expect("published nominal requirement capsule")
-        .target_contract_fingerprint();
+        .target_contract_report_fingerprint();
     let actual_fingerprint = checked
         .facts
         .contract_plans
@@ -625,7 +625,7 @@ fn nominal_callback_use_retains_exact_evaluated_placement_identity() {
         )
         .expect("callback requirement envelope");
     assert_eq!(
-        published.target_contract_fingerprint(),
+        published.target_contract_report_fingerprint(),
         nominal_use
             .published_requirement_envelope
             .contract_report_fingerprint

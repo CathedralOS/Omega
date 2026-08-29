@@ -251,11 +251,10 @@ scanners, or receipts.
   retain the typed boundary calling-plan commitment beside an explicitly named
   report fingerprint; provider-plan and selected-closure digests include it,
   and native/program-entry replay compares it to the exact evaluated plan.
-  A repository-wide
-  architecture test now scans exported direct, optional, and vector `u64`
-  fingerprint fields:
-  explicit report/cache/compatibility names pass, while every unclassified
-  exported fingerprint now rejects; the former legacy ceiling is empty. Task
+  A repository-wide architecture test now scans private and exported direct,
+  optional, and collection `u64` fingerprint declarations: explicit report/
+  cache/compatibility names pass, while every unclassified declaration
+  rejects; the former legacy ceiling is empty. Task
   activation specialization now follows the same
   rule: its historical FNV value is a report coordinate, while a
   domain-separated SHA-256 commitment binds the exact checked TaskRuntime
@@ -280,9 +279,17 @@ scanners, or receipts.
   compact identity. Persisted owner admissions bind subject kind, human
   commitment, and the underlying provider-plan, machine-template, or checked
   machine-contract digest; `omega.lock` stores the resulting 32-byte digest,
-  and legacy 16-hex compact rows fail closed. Remaining work is the broader
-  compact-identity inventory and repository-wide enforcement, including
-  private/local fields outside the exported-field scanner.
+  and legacy 16-hex compact rows fail closed. Compiler-issued access field keys
+  now retain a domain-separated commitment to the exact canonical layout that
+  issued them, so compact-equal foreign keys reject during mutation, lookup,
+  authorization, and projection. Checked resource envelopes and callback
+  receipts retain the selected machine-contract commitment beside report-only
+  axis and roster FNVs. External-root installed-entry, opaque-arrival, and stack
+  evidence similarly retain the exact boundary-plan commitment beside compact
+  plan, target-rule, domain, and realization reports. Remaining work is the
+  broader compact-identity inventory and repository-wide enforcement,
+  including accessor-returned compact values and identity-named fields outside
+  the fingerprint-declaration scanner.
 
   Acceptance: an automated architecture test rejects new authoritative
   `u64`-only identities, every retained FNV use has a local non-authoritative

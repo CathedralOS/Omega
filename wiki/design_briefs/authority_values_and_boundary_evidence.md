@@ -989,6 +989,16 @@ also binds the human policy commitment. The narrow standalone `omega.lock`
 receipt section stores the full digest, while legacy compact-only rows fail
 closed and require explicit re-acceptance.
 
+Private and compilation-local carriers follow the same split. An access field
+key retains a domain-separated commitment to the exact canonical layout that
+issued it before mutation, lookup, authorization, or projection. Checked entry
+resource envelopes and callback receipts retain the selected machine-contract
+commitment before crossing into provider and backend planning. Installed-entry
+stack facts and opaque arrival-context evidence retain the exact boundary-plan
+commitment before external-root settlement. Their adjacent layout, resource-
+axis, roster, stack, and target-rule FNV values are reports over retained exact
+subjects, never independent authority.
+
 For hardware-entered provider slots, the selected service schema records a
 linear routed parameter qualification as a structured `accepts` row. The row
 uses the carrier-aware semantic-domain identity, begins with the strict

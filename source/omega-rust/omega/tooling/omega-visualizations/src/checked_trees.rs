@@ -3958,8 +3958,11 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
             push_json_string(&mut json, &target.overload_identity);
             json.push_str(", \"target_state\": ");
             push_json_string(&mut json, &target.state_label);
-            json.push_str(", \"target_contract_fingerprint\": \"0x");
-            json.push_str(&format!("{:016x}", call.target_contract_fingerprint()));
+            json.push_str(", \"target_contract_report_fingerprint\": \"0x");
+            json.push_str(&format!(
+                "{:016x}",
+                call.target_contract_report_fingerprint()
+            ));
             json.push_str("\", \"path_guard_conjuncts\": [");
             for (guard_index, predicate) in call.path_guard_conjuncts().iter().enumerate() {
                 if guard_index > 0 {
@@ -4031,8 +4034,11 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
         push_json_string(&mut json, &row.target.overload_identity);
         json.push_str(", \"target_state\": ");
         push_json_string(&mut json, &row.target.state_label);
-        json.push_str(", \"target_contract_fingerprint\": \"0x");
-        json.push_str(&format!("{:016x}", capsule.target_contract_fingerprint()));
+        json.push_str(", \"target_contract_report_fingerprint\": \"0x");
+        json.push_str(&format!(
+            "{:016x}",
+            capsule.target_contract_report_fingerprint()
+        ));
         json.push_str("\", \"published_buckets\": [");
         push_crash_buckets_json(&mut json, capsule.published_buckets());
         json.push_str("]}");

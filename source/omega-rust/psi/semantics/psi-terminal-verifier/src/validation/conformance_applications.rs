@@ -58,7 +58,7 @@ pub(super) fn validate_closed_conformance_applications(
         if !seen.insert((application.owner, application.commitment)) {
             return Err(ModuleError::DuplicateClosedConformanceApplication {
                 owner: application.owner,
-                fingerprint: application.report_fingerprint,
+                report_fingerprint: application.report_fingerprint,
             });
         }
         let expected = closed_conformance_application_report_fingerprint(application);

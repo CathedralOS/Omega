@@ -67,7 +67,7 @@ pub enum ModuleError {
     },
     DuplicateClosedConformanceApplication {
         owner: MachineId,
-        fingerprint: u64,
+        report_fingerprint: u64,
     },
     ClosedConformanceFingerprintMismatch {
         owner: MachineId,

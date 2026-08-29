@@ -321,7 +321,7 @@ pub(super) fn build_call_operation(
             coordinate,
             target_machine: signature.symbol,
             target_state: signature.symbol,
-            target_contract_report_fingerprint: capsule.target_contract_fingerprint(),
+            target_contract_report_fingerprint: capsule.target_contract_report_fingerprint(),
             service_reach: call.service_reach,
             scalar_arguments: checked_boundary_scalar_arguments(
                 facts,

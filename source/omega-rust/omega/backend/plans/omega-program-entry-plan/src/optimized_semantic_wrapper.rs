@@ -99,7 +99,7 @@ pub enum OptimizedProgramStorageSemanticWrapperStep {
     },
     CallPrivateTerminalContinuation {
         calling_policy: CallingPolicy,
-        semantic_calling_plan_fingerprint: u64,
+        semantic_calling_plan_report_fingerprint: u64,
         disposition: OptimizedProgramStorageSemanticWrapperContinuationDisposition,
     },
     ReleaseOutgoingStackFrame {
@@ -174,7 +174,7 @@ pub fn plan_optimized_program_storage_semantic_wrapper(
 ) -> Result<OptimizedProgramStorageSemanticWrapperPlan, ProgramStorageEntryDiagnostic> {
     validate_contract_surface(&source)?;
     let source_signature_identity = source.source_signature_identity();
-    let fingerprint = source.semantic_calling_plan_fingerprint();
+    let fingerprint = source.semantic_calling_plan_report_fingerprint();
     let plan = OptimizedProgramStorageSemanticWrapperPlan {
         source,
         source_signature_identity,
@@ -305,7 +305,7 @@ fn expected_steps(fingerprint: u64) -> [OptimizedProgramStorageSemanticWrapperSt
         bind(ProgramStorageEntryRootRole::InitialStorage, 1, MachineRegister::X86Rdx, 48),
         CallPrivateTerminalContinuation {
             calling_policy: CallingPolicy::MicrosoftX64,
-            semantic_calling_plan_fingerprint: fingerprint,
+            semantic_calling_plan_report_fingerprint: fingerprint,
             disposition: OptimizedProgramStorageSemanticWrapperContinuationDisposition::PrivateTerminalSymbolRequiredV1,
         },
         ReleaseOutgoingStackFrame {
@@ -376,7 +376,7 @@ fn replay_steps(
         storage_address,
         Step::CallPrivateTerminalContinuation {
             calling_policy,
-            semantic_calling_plan_fingerprint,
+            semantic_calling_plan_report_fingerprint,
             disposition,
         },
         Step::ReleaseOutgoingStackFrame {
@@ -441,8 +441,8 @@ fn replay_steps(
             48,
         )
         || *calling_policy != CallingPolicy::MicrosoftX64
-        || *semantic_calling_plan_fingerprint
-            != plan.source.semantic_calling_plan_fingerprint()
+        || *semantic_calling_plan_report_fingerprint
+            != plan.source.semantic_calling_plan_report_fingerprint()
         || *disposition
             != OptimizedProgramStorageSemanticWrapperContinuationDisposition::PrivateTerminalSymbolRequiredV1
         || *release != OUTGOING_FRAME_BYTE_COUNT
@@ -661,7 +661,7 @@ mod tests {
     #[test]
     fn exact_semantic_wrapper_recipe_is_address_free_and_balanced() {
         let contract = contract();
-        let fingerprint = contract.semantic_calling_plan_fingerprint();
+        let fingerprint = contract.semantic_calling_plan_report_fingerprint();
         let source_identity = contract.source_signature_identity();
         let plan = plan_optimized_program_storage_semantic_wrapper(contract).unwrap();
 
@@ -720,7 +720,7 @@ mod tests {
         plan.steps[CALL_STEP_INDEX] =
             OptimizedProgramStorageSemanticWrapperStep::CallPrivateTerminalContinuation {
                 calling_policy: CallingPolicy::MicrosoftX64,
-                semantic_calling_plan_fingerprint: 0,
+                semantic_calling_plan_report_fingerprint: 0,
                 disposition: OptimizedProgramStorageSemanticWrapperContinuationDisposition::PrivateTerminalSymbolRequiredV1,
             };
         assert!(validate_optimized_program_storage_semantic_wrapper(&plan).is_err());

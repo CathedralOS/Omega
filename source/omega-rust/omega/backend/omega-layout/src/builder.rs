@@ -502,7 +502,7 @@ impl<'program> LayoutBuilder<'program> {
                     };
                     Some((*identity).to_owned())
                 });
-            let native_layout_fingerprint =
+            let native_layout_report_fingerprint =
                 psi_layout_plans::normalized_native_layout_plan_fingerprint(
                     &psi_layout_plans::NativeLayoutPlanReport {
                         layout: plan.validated_layout.clone(),
@@ -521,7 +521,7 @@ impl<'program> LayoutBuilder<'program> {
                         )
                     });
             let terminal_layout_identity = callback_layout_plan_id(
-                native_layout_fingerprint,
+                native_layout_report_fingerprint,
                 self.target.pointer_size,
                 self.target.pointer_alignment,
             );
@@ -552,7 +552,7 @@ impl<'program> LayoutBuilder<'program> {
                 let identity = TargetClosedPlanLaidDataLayoutIdentity {
                     data_symbol: definition.symbol,
                     layout: callback_plan_laid_layout_id(
-                        native_layout_fingerprint,
+                        native_layout_report_fingerprint,
                         &canonical_data_identity,
                         &canonical_layout_subject,
                         self.target.pointer_size,
