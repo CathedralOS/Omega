@@ -27,9 +27,13 @@ closed. Compiler-issued package review remains non-admitting.
 
   Remaining work:
 
-  - provide Linux filesystem-read/write, executable-path, direct-egress, and
-    endpoint confinement rather than relying only on inherited resource limits
-    and the cooperative CONNECT broker;
+  - complete Linux metadata/read, direct-egress, and endpoint confinement.
+    Landlock ABI v5 already closes handled filesystem mutation and exact
+    executable paths when fully available; unsupported kernels retain explicit
+    unavailable rows rather than a partial claim;
+  - run the Linux Landlock write, inherited-descriptor, and exact-executable
+    canaries on a native ABI-v5 worker; cross-compilation is not execution
+    evidence;
   - provide the corresponding Windows filesystem, network, and executable
     confinement, plus the still-unavailable address-space, file-size,
     descriptor, and core-dump guarantees;

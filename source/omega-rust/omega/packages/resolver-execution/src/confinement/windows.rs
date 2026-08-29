@@ -3,7 +3,7 @@ use std::io;
 use std::mem::size_of;
 use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
 use std::os::windows::process::CommandExt;
-use std::process::{Child, ChildStderr, ChildStdout, Command, ExitStatus};
+use std::process::{Child, ChildStderr, ChildStdin, ChildStdout, Command, ExitStatus};
 use std::ptr::{null, null_mut};
 
 use windows_sys::Win32::Foundation::{
@@ -122,6 +122,10 @@ impl WindowsJobChild {
 
     pub(crate) fn take_stdout(&mut self) -> Option<ChildStdout> {
         self.child.stdout.take()
+    }
+
+    pub(crate) fn take_stdin(&mut self) -> Option<ChildStdin> {
+        self.child.stdin.take()
     }
 
     pub(crate) fn take_stderr(&mut self) -> Option<ChildStderr> {

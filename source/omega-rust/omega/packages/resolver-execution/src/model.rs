@@ -1,7 +1,7 @@
 use crate::network::ResolverExecutionEndpointRoutePolicy;
 use std::path::{Path, PathBuf};
 
-const RESOLVER_EXECUTION_OBSERVATION_SCHEMA_VERSION: u32 = 13;
+const RESOLVER_EXECUTION_OBSERVATION_SCHEMA_VERSION: u32 = 14;
 const RESOLVER_EXECUTION_CANONICAL_BYTE_LIMIT: usize = 2 * 1024 * 1024;
 
 /// One compiler-owned source-resolution phase.
@@ -413,6 +413,10 @@ pub enum ResolverExecutionBackendIdentity {
         executable: PathBuf,
         content_sha256: String,
     },
+    /// Landlock ABI v5 closes every handled filesystem mutation and execution
+    /// right. Reads remain broad because Landlock does not confine metadata
+    /// queries, and network guarantees remain unavailable.
+    LinuxLandlockV5,
     UnixResourceLimits,
     WindowsJobObject,
     PortableProcessContainer,
@@ -431,6 +435,7 @@ fn encode_backend_identity(bytes: &mut Vec<u8>, identity: &ResolverExecutionBack
         ResolverExecutionBackendIdentity::UnixResourceLimits => bytes.push(2),
         ResolverExecutionBackendIdentity::WindowsJobObject => bytes.push(3),
         ResolverExecutionBackendIdentity::PortableProcessContainer => bytes.push(4),
+        ResolverExecutionBackendIdentity::LinuxLandlockV5 => bytes.push(5),
     }
 }
 

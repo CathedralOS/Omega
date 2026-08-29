@@ -6,7 +6,6 @@ use std::fs::File;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::Stdio;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
@@ -27,9 +26,10 @@ use crate::source::custody::{
 use crate::source::error::SourceResolveError;
 use crate::source::git::cache::{VerifiedGitRepository, cache_invalid};
 use crate::source::git::{
-    GitExecutor, git_batch_stdin_identity, git_command_configuration_identity,
-    reconcile_git_cache_operation_result, reconcile_git_command_result,
-    run_command_bounded_with_stdin_and_budget, sealed_git_command_with_route,
+    GitExecutor, ResolverCommandInput, git_batch_stdin_identity,
+    git_command_configuration_identity, reconcile_git_cache_operation_result,
+    reconcile_git_command_result, run_command_bounded_with_stdin_and_budget,
+    sealed_git_command_with_route,
 };
 use crate::source::limits::{GIT_STDERR_LIMIT, LocalSourceLimits, STAGING_SEQUENCE};
 use crate::source::local::capture::io_error;
@@ -148,13 +148,13 @@ fn execute_git_blob_batch(
     command.args([OsStr::new("cat-file"), OsStr::new("--batch")]);
     let stdin_identity = git_batch_stdin_identity(entries);
     let command_identity = git_command_configuration_identity(
-        &command,
+        &mut command,
         ResolverExecutionPhase::RepositoryInspection,
         &stdin_identity,
     )?;
     let result = run_command_bounded_with_stdin_and_budget(
         command,
-        Stdio::from(request),
+        ResolverCommandInput::File(request),
         "cat-file --batch",
         stdout_limit,
         GIT_STDERR_LIMIT,

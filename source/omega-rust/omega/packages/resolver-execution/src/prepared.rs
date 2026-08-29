@@ -7,7 +7,7 @@ use std::io;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-const COMMAND_IDENTITY_DOMAIN: &[u8] = b"OMEGA-RESOLVER-PREPARED-COMMAND-V1\0";
+const COMMAND_IDENTITY_DOMAIN: &[u8] = b"OMEGA-RESOLVER-PREPARED-COMMAND-V2\0";
 const MAXIMUM_COMMAND_ARGUMENTS: usize = 4 * 1024;
 const MAXIMUM_COMMAND_ENVIRONMENT_ENTRIES: usize = 1024;
 const MAXIMUM_COMMAND_CONFIGURATION_BYTES: usize = 4 * 1024 * 1024;
@@ -50,6 +50,24 @@ pub struct ResolverPreparedExecution {
     command: Command,
     policy: ResolverExecutionPolicyObservation,
     environment_cleared: bool,
+    stdin: Option<ResolverStandardStreamDisposition>,
+    stdout: Option<ResolverStandardStreamDisposition>,
+    stderr: Option<ResolverStandardStreamDisposition>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ResolverStandardStreamDisposition {
+    Null,
+    Piped,
+}
+
+impl ResolverStandardStreamDisposition {
+    const fn tag(self) -> u8 {
+        match self {
+            Self::Null => 1,
+            Self::Piped => 2,
+        }
+    }
 }
 
 impl ResolverPreparedExecution {
@@ -58,6 +76,9 @@ impl ResolverPreparedExecution {
             command,
             policy,
             environment_cleared: false,
+            stdin: None,
+            stdout: None,
+            stderr: None,
         }
     }
 
@@ -91,18 +112,39 @@ impl ResolverPreparedExecution {
         self
     }
 
-    pub fn stdin(&mut self, configuration: Stdio) -> &mut Self {
-        self.command.stdin(configuration);
+    pub fn stdin_null(&mut self) -> &mut Self {
+        self.command.stdin(Stdio::null());
+        self.stdin = Some(ResolverStandardStreamDisposition::Null);
         self
     }
 
-    pub fn stdout(&mut self, configuration: Stdio) -> &mut Self {
-        self.command.stdout(configuration);
+    pub fn stdin_piped(&mut self) -> &mut Self {
+        self.command.stdin(Stdio::piped());
+        self.stdin = Some(ResolverStandardStreamDisposition::Piped);
         self
     }
 
-    pub fn stderr(&mut self, configuration: Stdio) -> &mut Self {
-        self.command.stderr(configuration);
+    pub fn stdout_null(&mut self) -> &mut Self {
+        self.command.stdout(Stdio::null());
+        self.stdout = Some(ResolverStandardStreamDisposition::Null);
+        self
+    }
+
+    pub fn stdout_piped(&mut self) -> &mut Self {
+        self.command.stdout(Stdio::piped());
+        self.stdout = Some(ResolverStandardStreamDisposition::Piped);
+        self
+    }
+
+    pub fn stderr_null(&mut self) -> &mut Self {
+        self.command.stderr(Stdio::null());
+        self.stderr = Some(ResolverStandardStreamDisposition::Null);
+        self
+    }
+
+    pub fn stderr_piped(&mut self) -> &mut Self {
+        self.command.stderr(Stdio::piped());
+        self.stderr = Some(ResolverStandardStreamDisposition::Piped);
         self
     }
 
@@ -138,22 +180,47 @@ impl ResolverPreparedExecution {
         self.current_directory()
     }
 
-    /// Identify the exact executable/argument/environment/directory
-    /// configuration that will be consumed by spawn. Standard-input content is
-    /// deliberately bound by the protocol owner because `Stdio` does not expose
-    /// a portable inspectable identity.
+    /// Identify the exact executable, arguments, environment, directory, and
+    /// closed standard-stream dispositions that will be consumed by spawn.
+    /// Piped standard-input content is separately bound by the protocol owner.
     pub fn command_identity(&self) -> io::Result<ResolverExecutionCommandIdentity> {
-        command_identity(&self.command, self.environment_cleared)
+        let (stdin, stdout, stderr) = self.standard_stream_dispositions()?;
+        command_identity(
+            &self.command,
+            self.environment_cleared,
+            stdin,
+            stdout,
+            stderr,
+        )
     }
 
     pub(crate) fn into_parts(self) -> (Command, ResolverExecutionPolicyObservation) {
         (self.command, self.policy)
+    }
+
+    fn standard_stream_dispositions(
+        &self,
+    ) -> io::Result<(
+        ResolverStandardStreamDisposition,
+        ResolverStandardStreamDisposition,
+        ResolverStandardStreamDisposition,
+    )> {
+        match (self.stdin, self.stdout, self.stderr) {
+            (Some(stdin), Some(stdout), Some(stderr)) => Ok((stdin, stdout, stderr)),
+            _ => Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "resolver standard streams must each be explicitly null or piped",
+            )),
+        }
     }
 }
 
 fn command_identity(
     command: &Command,
     environment_cleared: bool,
+    stdin: ResolverStandardStreamDisposition,
+    stdout: ResolverStandardStreamDisposition,
+    stderr: ResolverStandardStreamDisposition,
 ) -> io::Result<ResolverExecutionCommandIdentity> {
     let argument_count = command.get_args().count();
     if argument_count > MAXIMUM_COMMAND_ARGUMENTS {
@@ -201,6 +268,7 @@ fn command_identity(
         }
         None => digest.update([0]),
     }
+    digest.update([stdin.tag(), stdout.tag(), stderr.tag()]);
     Ok(ResolverExecutionCommandIdentity(digest.finalize().into()))
 }
 

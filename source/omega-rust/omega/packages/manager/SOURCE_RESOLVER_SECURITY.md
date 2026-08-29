@@ -63,8 +63,8 @@ production facade.
 Every helper launch must use:
 
 - an absolute pre-resolved executable with retained content identity;
-- no package-controlled shell interpolation, null standard input, bounded
-  output, and a deadline;
+- no package-controlled shell interpolation, compiler-owned null-or-pipe
+  standard streams, bounded output, and a deadline;
 - `env_clear` followed by an explicit adapter-specific environment;
 - an explicit working directory and exclusive staging roots;
 - adapter-specific protocols with no ambient protocol helper;
@@ -147,9 +147,10 @@ Required guarantees are either `Enforced` or
 `Unavailable`; phase-inapplicable rows are `NotRequired`. There is no public
 constructor or decoder, path and helper counts are bounded, and
 `require_strict` rejects any unavailable row. Callers can append arguments,
-explicit environment, working directory, and standard-I/O plumbing but cannot
-extract the command or replace its executable. Spawn consumes the prepared
-value. Completion is issued only after the native container was explicitly
+explicit environment, working directory, and choose only compiler-owned null or
+piped standard streams; they cannot inherit ambient streams, inject arbitrary
+pre-opened handles, extract the command, or replace its executable. Spawn
+consumes the prepared value. Completion is issued only after the native container was explicitly
 terminated or confirmed absent and its child status reaped; it binds the policy
 to a bounded identity of the exact program, ordered arguments, explicit
 environment plus inheritance disposition, and working directory. Git retains
@@ -515,7 +516,9 @@ Each launch clears the complete inherited environment, installs only the fixed
 Git/protocol/locale/helper-path variables, and uses an explicit absolute cache
 or repository working directory. It also receives resolver-owned stdin,
 concurrent bounded stdout/stderr capture, and a deadline. Stdin is null except
-for the exact object-ID request file supplied to `cat-file --batch`. Per-command
+for `cat-file --batch`, where the manager copies the exact object-ID request
+through a child pipe rather than handing the writable request-file descriptor to
+the resolver process. Per-command
 stream ceilings remain independent of the whole-resolution captured-output
 ceiling described above.
 
@@ -544,10 +547,19 @@ equivalent through this rlimit path. Each compiler ceiling intersects the
 inherited soft and hard limits and therefore never loosens a stricter host
 limit. These Unix limits are inherited per process, not an aggregate descendant,
 process-count, or object-store budget. The separate broker transfer budget spans
-the whole resolution, but Linux still lacks filesystem, executable, and network
-confinement. Windows creates each command suspended and assigns it to a resolver-
-owned Job Object before resume. That job kills on close and enforces 16 active
-processes, 2 GiB committed memory per process, 4 GiB aggregate committed memory,
+the whole resolution. On Linux, a fully available Landlock ABI-v5 backend now
+handles every ABI-v5 filesystem right before spawning the child from a
+dedicated restricted thread. It grants broad reads, ordinary mutation only
+beneath the exact mutable root, device writes only to `/dev/null`, and execution
+only for the exact primary and bounded additional executable paths. The backend
+requires `FullyEnforced` plus `no_new_privs` and marks every non-standard
+inherited descriptor close-on-exec before package code runs; unsupported or
+disabled kernels fall back to resource limits and claim neither write nor execution confinement.
+Landlock does not mediate every metadata read or bind network connections to an
+exact destination address, so filesystem-read, network-denial, and endpoint
+rows remain unavailable. Windows creates each command suspended and assigns it
+to a resolver-owned Job Object before resume. That job kills on close and
+enforces 16 active processes, 2 GiB committed memory per process, 4 GiB aggregate committed memory,
 and 120 aggregate user-CPU seconds. It still lacks filesystem, executable, and
 network confinement. Windows-native reduced-limit canaries pair below-limit
 controls with active-process, per-process memory, aggregate descendant memory,
@@ -557,7 +569,9 @@ execution on a Windows worker. macOS native canaries exercise denied
 writes, denied unlisted descendant execution, denied inspection networking,
 and admitted discovery networking. Hermetic loopback canaries also exercise the
 selected production HTTPS helper and fixed shell/SSH executable chains through
-the same allowlist. The full Git source suite runs through this boundary.
+the same allowlist. Linux has write, inherited-descriptor, and exact-executable
+canaries that cross-compile but still require execution on a native ABI-v5
+worker. The full Git source suite runs through this boundary.
 
 Before initializing a cache for a symbolic selector, one bounded `ls-remote`
 request asks only for `HEAD` and that selector and rejects absent, malformed,
@@ -590,9 +604,12 @@ at one quarter of a smaller budget, and fails closed if portable process APIs do
 not finish within that reserve. A descendant escaping its Unix session remains
 outside this portable guarantee, and host scheduling or uninterruptible kernel
 work is not a hard wall-clock guarantee. Overflow and timeout reject explicitly
-once cleanup returns, including for blob reads. On Linux this process container
-floor is not an OS sandbox: a hostile Unix descendant may deliberately escape
-into another session. The macOS Seatbelt floor adds phase-specific native
+once cleanup returns, including for blob reads. On Linux the Landlock layer
+continues to constrain handled filesystem rights after a descendant changes its
+session, but the process-group lifecycle floor still cannot contain or reap a
+hostile descendant that deliberately escapes into another session. Reads,
+network, and aggregate resources also remain outside the Landlock claim. The
+macOS Seatbelt floor adds phase-specific native
 confinement, including endpoint confinement and phase-specific read scope for
 initialization, inspection, and HTTPS discovery/fetch. SSH read scope remains
 broad pending explicit host-trust and credential custody, and aggregate-resource
@@ -687,10 +704,10 @@ CONNECT outcome, and each actual connected peer. On macOS the child cannot
 bypass that route; Linux and Windows still can until their native backends deny
 direct egress. None of this pins TLS or SSH host trust.
 
-Parent-owned selected-object-graph authentication and the current macOS native
-enforcement supply real evidence for a later strict receipt but do not by
-themselves make the resolver admissible. Linux/Windows strict isolation,
-hostile same-user mutation, non-Windows aggregate and all during-write resource
+Parent-owned selected-object-graph authentication and the current macOS and
+Linux native enforcement supply real evidence for a later strict receipt but do
+not by themselves make the resolver admissible. Complete Linux/Windows strict
+isolation, hostile same-user mutation, non-Windows aggregate and all during-write resource
 ceilings, cross-platform endpoint confinement, explicit SSH trust/credential
 custody (OWNER Q10),
 and the opaque receipt remain open.

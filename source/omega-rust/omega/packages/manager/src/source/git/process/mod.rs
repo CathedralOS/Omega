@@ -13,8 +13,8 @@ mod reconciliation;
 
 #[allow(unused_imports)] // Preserve the former package-internal process API.
 pub(in crate::source) use capture::{
-    BoundedCommandOutput, StreamCaptureResult, command_cleanup_reserve, duration_millis,
-    run_command_bounded_with_budget, run_command_bounded_with_stdin_and_budget,
+    BoundedCommandOutput, ResolverCommandInput, StreamCaptureResult, command_cleanup_reserve,
+    duration_millis, run_command_bounded_with_budget, run_command_bounded_with_stdin_and_budget,
 };
 #[cfg(test)]
 pub(in crate::source) use capture::{capture_stream_bounded, run_command_bounded};
