@@ -537,18 +537,24 @@ Remaining:
   Freeze the exact manifest and feature census only for the complete compiler
   closure at the Delta-to-Omega join.
 
-  The standalone `source-snapshot` / feature-census surface is not reusable
-  `C` scaffolding. It resolves with `omega-source-inspection-v1` while product
-  compilation resolves with `omega-local-project-v1`, stops before generated
-  and build-tool inputs exist, and never joins an emitted artifact. Its second
-  fingerprint and diagnostic closure are therefore parallel non-production
-  truth. Do not extend or freeze it. Atomically move only the needed loaded-unit
-  projection into the actual `CompileRequest` / `CheckedCompilation` path,
-  publish one manifest binding the production package subject, all consumed,
-  generated, toolchain, and build custody, selected target, and emitted
-  artifact identity, then delete the standalone command, schemas, census, and
-  bespoke gates. If that direct adaptation is not economical, delete the
-  standalone surface outright; reconciling two manifests is forbidden.
+  **SOURCE-COMPLETE.** The standalone `source-snapshot` / feature-census
+  command, compiler inspection route, `omega-source-profile` schemas/catalog,
+  and bespoke gates are deleted. They resolved with
+  `omega-source-inspection-v1` while product compilation resolves with
+  `omega-local-project-v1`, stopped before generated and build-tool inputs
+  existed, and never joined an emitted artifact. Their second fingerprint and
+  diagnostic closure were parallel non-production truth, not reusable `C`
+  scaffolding. Architecture coverage rejects their return.
+
+  The remaining production-manifest work must derive one ordered typed
+  consumed-unit projection from the final `CheckedCompilation` after generated
+  source admission, and join it in `CompileReport` with the production package
+  subject/dependency closure, exact build custody, selected target, and the
+  owner-derived Terminal/native artifact identity. Package projects with a
+  `build.omg` must enter the one production package resolver even when they
+  declare no dependencies. Publication preserves that manifest; a human view
+  may only project its canonical bytes. Do not add another inspection request,
+  resolver domain, census, JSON authority, or standalone command.
 
   The product build directly selects the complete `ConsoleNativeProvider`
   through the normative

@@ -417,9 +417,12 @@ code, discover a closure, manufacture proof premises, or decide admission.
   adjacent tools are excluded unless truly required.
   The canonical typed-token owner and gate-only diagnostic serialization are
   complete. Before freezing the closure, finish the remaining regular
-  `TASKS.md` C cleanup: one production compilation/artifact manifest. Delete the
-  mismatched standalone source-snapshot/census command and schemas as that
-  manifest lands; they are not a second bootstrap observation.
+  `TASKS.md` C cleanup: one production compilation/artifact manifest. The
+  mismatched standalone source-snapshot/census command, compiler route, schemas,
+  and gates are already deleted rather than retained as a second bootstrap
+  observation. The remaining manifest must use the final checked production
+  closure and join package, generated/build, target, and artifact custody in
+  the real `CompileReport`; it must not revive an inspection-only precursor.
 - [ ] Author `C` with a conservative compositional subset of ordinary Omega to
   simplify the first self-build. This is an incidental source profile, never a
   named dialect or permission for `omega₀` to implement less than full Omega.

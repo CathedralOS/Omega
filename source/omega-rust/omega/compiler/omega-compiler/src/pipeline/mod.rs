@@ -14,7 +14,6 @@ pub(crate) use omega_provider_planning::approval as provider_approval;
 pub(crate) use omega_provider_planning::plans as provider_plans;
 pub mod source;
 mod source_assembly;
-pub(crate) mod source_inspection;
 mod stage;
 #[path = "provider/target_machines.rs"]
 mod target_machines;

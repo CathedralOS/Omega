@@ -277,7 +277,7 @@ fn extent_root_provider_adapter_compiles() {
     assert!(outcomes.contains("\"path\": [\"base\"]"));
     assert!(outcomes.contains("\"path\": [\"length\"]"));
     assert!(outcomes.contains("\"operator\": \"add\""));
-    assert!(outcomes.contains("\"fingerprint\": \"0x"));
+    assert!(outcomes.contains("\"report_fingerprint\": \"0x"));
     let _ = fs::remove_dir_all(&build_dir);
 }
 
@@ -287,25 +287,6 @@ fn content_conservation_contract_is_normalized_and_reported() {
     let source = fs::read_to_string(canary.join("main.omg")).expect("content canary source");
     assert!(source.contains("old(&whole)"));
     assert!(!source.contains("entry(&whole)"));
-    let source_snapshot =
-        omega_compiler::inspect_source_closure(&repo_root(), &canary.join("main.omg"), None)
-            .expect("content canary source closure");
-    let snapshot_json = source_snapshot.to_json().expect("content source snapshot");
-    assert!(snapshot_json.contains("\"text\":\"old\""));
-    assert!(!snapshot_json.contains("ContentEntry"));
-    let census = source_snapshot.feature_census();
-    assert!(
-        census
-            .features
-            .iter()
-            .any(|feature| feature.id == "proof.fact.expression" && feature.count > 0)
-    );
-    assert!(
-        census
-            .features
-            .iter()
-            .all(|feature| !feature.id.contains("content_entry"))
-    );
     let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("the exact old/separate conservation contract should check");
     let [plan] = checked
@@ -357,7 +338,7 @@ fn content_conservation_contract_is_normalized_and_reported() {
     assert!(outcomes.contains("\"version\": \"entry\""));
     assert!(outcomes.contains("\"kind\": \"separate\""));
     assert!(outcomes.contains("\"kind\": \"result\""));
-    assert!(outcomes.contains("\"fingerprint\": \"0x"));
+    assert!(outcomes.contains("\"report_fingerprint\": \"0x"));
     let _ = fs::remove_dir_all(&build_dir);
 }
 
