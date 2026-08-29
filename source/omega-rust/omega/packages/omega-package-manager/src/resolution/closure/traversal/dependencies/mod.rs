@@ -18,6 +18,7 @@ use crate::identity::PackageKey;
 use crate::manifest::dependencies::read::DependencySourceRequest;
 use crate::resolution::source::PackageSourceCustody;
 use omega_package_source::{ExternalSourceContext, LocalSourceLimits, WorkspaceLineageIdentity};
+use omega_target::TargetProfile;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -25,6 +26,7 @@ use std::path::PathBuf;
 pub(super) fn resolve_registered_package_closure(
     root_request: PackageRootSourceRequest,
     root: PackageSourceCustody,
+    target_profile: TargetProfile,
     closure_limits: PackageSourceClosureLimits,
     workspace_cache: SourceCacheLane<'_>,
     git_cache: SourceCacheLane<'_>,
@@ -41,6 +43,7 @@ pub(super) fn resolve_registered_package_closure(
     resolve_package_source_closure_with_limits(
         root_request,
         root,
+        target_profile,
         closure_limits,
         |requester, request| match request {
             DependencySourceRequest::Git {

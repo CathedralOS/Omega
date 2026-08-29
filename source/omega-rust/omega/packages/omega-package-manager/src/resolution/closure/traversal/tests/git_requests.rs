@@ -57,6 +57,7 @@ fn resolves_repository_root_git_closure_and_retains_the_exact_request() {
 
     let closure = resolve_git_package_closure_with_storage(
         &request,
+        omega_target::TargetProfile::CrossPlatformCli,
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
@@ -107,6 +108,7 @@ fn repository_root_project_retains_application_role_and_package_entry_rejects() 
 
     crate::resolution::resolve_git_package_closure_with_storage(
         &request,
+        omega_target::TargetProfile::CrossPlatformCli,
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
@@ -114,6 +116,7 @@ fn repository_root_project_retains_application_role_and_package_entry_rejects() 
     .expect_err("package-only Git entry rejects an application root");
     let closure = crate::resolution::resolve_git_project_closure_with_storage(
         &request,
+        omega_target::TargetProfile::CrossPlatformCli,
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
@@ -169,6 +172,7 @@ machine build(builder: &mut Build) {
 
     let closure = crate::resolution::resolve_selected_git_package_closure_with_storage(
         &request,
+        omega_target::TargetProfile::CrossPlatformCli,
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
@@ -252,6 +256,7 @@ machine build(builder: &mut Build) {
 
     let closure = crate::resolution::resolve_selected_git_project_closure_with_storage(
         &request,
+        omega_target::TargetProfile::CrossPlatformCli,
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
@@ -323,6 +328,7 @@ machine build(builder: &mut Build) {
 
     let closure = crate::resolution::resolve_selected_git_package_closure_with_storage(
         &request,
+        omega_target::TargetProfile::CrossPlatformCli,
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
@@ -424,6 +430,7 @@ machine build(builder: &mut Build) {
 
     let error = crate::resolution::resolve_selected_git_package_closure_with_storage(
         &request,
+        omega_target::TargetProfile::CrossPlatformCli,
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),

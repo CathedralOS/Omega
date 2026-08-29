@@ -64,6 +64,7 @@ pub machine terminate(console: Console, return_code: i32)
     .expect("construct exact candidate Git request");
     let baseline_sources = resolve_git_package_closure(
         &baseline_request,
+        omega_target::TargetProfile::CrossPlatformCli,
         &baseline_cache,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
@@ -71,6 +72,7 @@ pub machine terminate(console: Console, return_code: i32)
     .expect("resolve baseline Git custody");
     let candidate_sources = resolve_git_package_closure(
         &candidate_request,
+        omega_target::TargetProfile::CrossPlatformCli,
         &candidate_cache,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),

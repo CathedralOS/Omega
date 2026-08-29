@@ -14,6 +14,7 @@ use crate::manifest::BuildDeclarationKind;
 use crate::manifest::dependencies::read::DependencySourceRequest;
 use crate::resolution::closure::PackageRootSourceRequest;
 use crate::resolution::source::PackageSourceCustody;
+use omega_target::TargetProfile;
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
@@ -51,6 +52,7 @@ where
     resolve_package_source_closure_with_limits(
         root_request,
         root,
+        TargetProfile::CrossPlatformCli,
         PackageSourceClosureLimits::default(),
         resolve_dependency,
     )
@@ -61,6 +63,7 @@ where
 pub(crate) fn resolve_package_source_closure_with_limits<E, F>(
     root_request: PackageRootSourceRequest,
     root: PackageSourceCustody,
+    target_profile: TargetProfile,
     limits: PackageSourceClosureLimits,
     mut resolve_dependency: F,
 ) -> Result<ResolvedPackageSourceClosure, PackageSourceClosureResolutionError<E>>
@@ -98,9 +101,14 @@ where
             .expect("only accepted package custody enters the traversal queue")
             .clone();
         let requester_depth = depths[&requester_key];
-        let mut resolved_dependencies = Vec::with_capacity(requester.dependency_requests().len());
+        let active_occurrences = requester
+            .projected_dependencies()
+            .occurrence_indices_for_profile(target_profile)
+            .collect::<Vec<_>>();
+        let mut selected_dependencies = Vec::with_capacity(active_occurrences.len());
 
-        for (dependency_index, request) in requester.dependency_requests().iter().enumerate() {
+        for dependency_index in active_occurrences {
+            let request = &requester.dependency_requests()[dependency_index];
             dependency_request_count = dependency_request_count.saturating_add(1);
             if dependency_request_count > limits.max_dependency_requests {
                 return Err(PackageSourceClosureResolutionError::LimitExceeded {
@@ -132,8 +140,26 @@ where
                 });
             }
             let alias = request.resolved_alias(dependency.key().name());
-            let target = dependency.key().clone();
+            selected_dependencies.push((dependency_index, dependency, alias, dependency_depth));
+        }
 
+        let selected_package_names = selected_dependencies
+            .iter()
+            .map(|(_, dependency, _, _)| dependency.key().name().clone())
+            .collect::<Vec<_>>();
+        requester
+            .projected_dependencies()
+            .validate_active_aliases(target_profile, &selected_package_names)
+            .map_err(
+                |error| PackageSourceClosureResolutionError::InvalidActiveAliases {
+                    requester: requester_key.clone(),
+                    error,
+                },
+            )?;
+
+        let mut resolved_dependencies = Vec::with_capacity(selected_dependencies.len());
+        for (dependency_index, dependency, alias, dependency_depth) in selected_dependencies {
+            let target = dependency.key().clone();
             resolved_dependencies.push(ResolvedDependency::new(alias.clone(), target.clone()));
 
             let origin = CustodyOrigin::Dependency {
@@ -170,7 +196,13 @@ where
         dependencies.insert(requester_key, resolved_dependencies);
     }
 
-    let conflicts = collect_conflicts(&root_key, &observed, &dependencies);
+    let conflicts = collect_conflicts(
+        &root_key,
+        &observed,
+        &dependencies,
+        &accepted,
+        target_profile,
+    );
     if !conflicts.is_empty() {
         return Err(PackageSourceClosureResolutionError::ConflictingCustody { conflicts });
     }
@@ -199,6 +231,7 @@ where
 
     Ok(ResolvedPackageSourceClosure {
         root_request,
+        target_profile,
         graph,
         custodies,
         custody_indices,
@@ -209,6 +242,8 @@ fn collect_conflicts(
     root: &PackageKey,
     observed: &BTreeMap<PackageKey, Vec<ObservedCustody>>,
     dependencies: &BTreeMap<PackageKey, Vec<ResolvedDependency>>,
+    custodies: &BTreeMap<PackageKey, PackageSourceCustody>,
+    target_profile: TargetProfile,
 ) -> Vec<PackageSourceClosureConflict> {
     observed
         .iter()
@@ -222,7 +257,16 @@ fn collect_conflicts(
                     requesting_paths: candidate
                         .origins
                         .iter()
-                        .flat_map(|origin| paths_for_origin(root, origin, key, dependencies))
+                        .flat_map(|origin| {
+                            paths_for_origin(
+                                root,
+                                origin,
+                                key,
+                                dependencies,
+                                custodies,
+                                target_profile,
+                            )
+                        })
                         .collect(),
                 })
                 .collect(),
@@ -235,6 +279,8 @@ fn paths_for_origin(
     origin: &CustodyOrigin,
     target: &PackageKey,
     dependencies: &BTreeMap<PackageKey, Vec<ResolvedDependency>>,
+    custodies: &BTreeMap<PackageKey, PackageSourceCustody>,
+    target_profile: TargetProfile,
 ) -> Vec<DependencyRequestPath> {
     match origin {
         CustodyOrigin::Root => vec![DependencyRequestPath {
@@ -246,7 +292,8 @@ fn paths_for_origin(
             dependency_index,
             alias,
         } => {
-            let mut requester_paths = paths_to_package(root, requester, dependencies);
+            let mut requester_paths =
+                paths_to_package(root, requester, dependencies, custodies, target_profile);
             for path in &mut requester_paths {
                 path.steps.push(DependencyRequestPathStep {
                     requester: requester.clone(),
@@ -264,6 +311,8 @@ fn paths_to_package(
     root: &PackageKey,
     target: &PackageKey,
     dependencies: &BTreeMap<PackageKey, Vec<ResolvedDependency>>,
+    custodies: &BTreeMap<PackageKey, PackageSourceCustody>,
+    target_profile: TargetProfile,
 ) -> Vec<DependencyRequestPath> {
     let mut paths = Vec::new();
     let mut steps = Vec::new();
@@ -273,6 +322,8 @@ fn paths_to_package(
         root,
         target,
         dependencies,
+        custodies,
+        target_profile,
         &mut active,
         &mut steps,
         &mut paths,
@@ -286,6 +337,8 @@ fn collect_paths(
     current: &PackageKey,
     target: &PackageKey,
     dependencies: &BTreeMap<PackageKey, Vec<ResolvedDependency>>,
+    custodies: &BTreeMap<PackageKey, PackageSourceCustody>,
+    target_profile: TargetProfile,
     active: &mut BTreeSet<PackageKey>,
     steps: &mut Vec<DependencyRequestPathStep>,
     paths: &mut Vec<DependencyRequestPath>,
@@ -302,7 +355,12 @@ fn collect_paths(
     }
 
     if let Some(outgoing) = dependencies.get(current) {
-        for (dependency_index, dependency) in outgoing.iter().enumerate() {
+        let active_occurrences = custodies[current]
+            .projected_dependencies()
+            .occurrence_indices_for_profile(target_profile)
+            .collect::<Vec<_>>();
+        for (active_index, dependency) in outgoing.iter().enumerate() {
+            let dependency_index = active_occurrences[active_index];
             if active.contains(dependency.target()) {
                 continue;
             }
@@ -317,6 +375,8 @@ fn collect_paths(
                 dependency.target(),
                 target,
                 dependencies,
+                custodies,
+                target_profile,
                 active,
                 steps,
                 paths,

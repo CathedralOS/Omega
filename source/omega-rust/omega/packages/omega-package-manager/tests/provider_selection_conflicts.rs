@@ -81,6 +81,7 @@ fn provider_selection_update_becomes_an_exact_forced_review_conflict() {
     let baseline_sources = resolve_external_local_package_closure_with_storage(
         &live,
         context.clone(),
+        omega_target::TargetProfile::WindowsX64,
         &baseline_storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
@@ -99,6 +100,7 @@ fn provider_selection_update_becomes_an_exact_forced_review_conflict() {
     let candidate_sources = resolve_external_local_package_closure_with_storage(
         &live,
         context,
+        omega_target::TargetProfile::WindowsX64,
         &candidate_storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),

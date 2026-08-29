@@ -119,6 +119,7 @@ machine build(builder: &mut Build) {{
     let closure = resolve_external_local_package_closure_with_storage(
         &root,
         ExternalSourceContext::derive(b"same-name-different-lineage-fixture"),
+        omega_target::TargetProfile::CrossPlatformCli,
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),

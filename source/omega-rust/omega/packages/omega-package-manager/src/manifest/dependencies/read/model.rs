@@ -148,21 +148,53 @@ impl ProjectedDependencies {
             .map(|index| &self.occurrences[*index])
     }
 
+    /// Authored occurrence positions active for one exact target profile.
+    ///
+    /// The positions, rather than copied requests, preserve the complete
+    /// target-independent projection for later identity work.
+    pub fn occurrence_indices_for_profile(
+        &self,
+        profile: TargetProfile,
+    ) -> impl Iterator<Item = usize> + '_ {
+        let profile_indices = self
+            .by_profile
+            .iter()
+            .find(|column| column.profile == profile)
+            .map(|column| column.occurrence_indices.as_slice())
+            .unwrap_or_default();
+        self.common_occurrence_indices
+            .iter()
+            .chain(profile_indices)
+            .copied()
+    }
+
     pub fn has_target_conditions(&self) -> bool {
         !self.by_profile.is_empty()
     }
 
-    /// Validate requester-local aliases after every selected package name is
-    /// known, without choosing or flattening a target profile.
+    /// Validate requester-local aliases after the selected package names for
+    /// one exact active request set are known.
     ///
-    /// `selected_package_names` follows the authoritative authored occurrence
-    /// roster. The validator checks `common` once and then each complete
-    /// `common + by_profile[P]` active set independently.
+    /// `selected_package_names` follows [`Self::for_profile`] order. Inactive
+    /// columns need not be acquired merely to discover their package names.
     pub fn validate_active_aliases(
         &self,
+        profile: TargetProfile,
         selected_package_names: &[PackageName],
     ) -> Result<(), ActiveDependencyAliasError> {
-        validate_active_alias_uniqueness(self, selected_package_names)
+        validate_active_alias_uniqueness(self, profile, selected_package_names)
+    }
+}
+
+impl From<Vec<DependencySourceRequest>> for ProjectedDependencies {
+    fn from(occurrences: Vec<DependencySourceRequest>) -> Self {
+        let common_occurrence_indices = (0..occurrences.len()).collect();
+        Self::new(
+            occurrences,
+            common_occurrence_indices,
+            Vec::new(),
+            Vec::new(),
+        )
     }
 }
 

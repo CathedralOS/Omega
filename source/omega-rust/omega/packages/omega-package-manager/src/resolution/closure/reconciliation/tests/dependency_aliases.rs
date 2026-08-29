@@ -1,6 +1,6 @@
 use super::super::*;
 use super::support::*;
-use crate::resolution::closure::PackageClosureValidationError;
+use crate::manifest::dependencies::read::ActiveDependencyAliasError;
 use std::collections::BTreeMap;
 
 #[test]
@@ -70,11 +70,9 @@ fn rejects_duplicate_requester_local_alias_after_resolution() {
 
     assert!(matches!(
         error,
-        PackageSourceClosureResolutionError::InvalidClosure { ref errors }
-            if errors.iter().any(|error| matches!(
-                error,
-                PackageClosureValidationError::DuplicateAlias { alias, .. }
-                    if alias.as_str() == "math"
-            ))
+        PackageSourceClosureResolutionError::InvalidActiveAliases {
+            error: ActiveDependencyAliasError::DuplicateAlias { ref alias, .. },
+            ..
+        } if alias.as_str() == "math"
     ));
 }

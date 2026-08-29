@@ -7,6 +7,7 @@ use crate::manifest::BuildDeclarationKind;
 use crate::manifest::dependencies::read::DependencySourceRequest;
 use crate::resolution::closure::PackageRootSourceRequest;
 use crate::resolution::source::PackageSourceCustody;
+use omega_target::TargetProfile;
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::path::Path;
@@ -16,6 +17,7 @@ use std::path::Path;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedPackageSourceClosure {
     pub(super) root_request: PackageRootSourceRequest,
+    pub(super) target_profile: TargetProfile,
     pub(super) graph: ResolvedPackageClosure,
     pub(super) custodies: Vec<PackageSourceCustody>,
     pub(super) custody_indices: BTreeMap<PackageKey, usize>,
@@ -104,12 +106,17 @@ impl<'a> ResolvedPackageSourceRequestSet<'a> {
             let custody = closure
                 .custody(requester_key)
                 .expect("every validated graph package has source custody");
-            debug_assert_eq!(
-                requester.dependencies().len(),
-                custody.dependency_requests().len()
-            );
-            requester.dependencies().iter().enumerate().map(
-                move |(dependency_index, dependency)| {
+            let active_occurrences = custody
+                .projected_dependencies()
+                .occurrence_indices_for_profile(closure.target_profile)
+                .collect::<Vec<_>>();
+            debug_assert_eq!(requester.dependencies().len(), active_occurrences.len());
+            requester
+                .dependencies()
+                .iter()
+                .enumerate()
+                .map(move |(active_index, dependency)| {
+                    let dependency_index = active_occurrences[active_index];
                     let request = &custody.dependency_requests()[dependency_index];
                     let selected = closure
                         .graph
@@ -123,8 +130,7 @@ impl<'a> ResolvedPackageSourceRequestSet<'a> {
                         alias: dependency.alias(),
                         selected,
                     }
-                },
-            )
+                })
         })
     }
 }
@@ -132,6 +138,10 @@ impl<'a> ResolvedPackageSourceRequestSet<'a> {
 impl ResolvedPackageSourceClosure {
     pub fn source_requests(&self) -> ResolvedPackageSourceRequestSet<'_> {
         ResolvedPackageSourceRequestSet { closure: self }
+    }
+
+    pub const fn target_profile(&self) -> TargetProfile {
+        self.target_profile
     }
 
     pub fn graph(&self) -> &ResolvedPackageClosure {
@@ -181,7 +191,15 @@ impl ResolvedPackageSourceClosure {
                 .graph
                 .package(&requester)
                 .expect("validated closure traversal contains only package nodes");
-            for (dependency_index, dependency) in node.dependencies().iter().enumerate() {
+            let custody = self
+                .custody(&requester)
+                .expect("validated graph package retains source custody");
+            let active_occurrences = custody
+                .projected_dependencies()
+                .occurrence_indices_for_profile(self.target_profile)
+                .collect::<Vec<_>>();
+            for (active_index, dependency) in node.dependencies().iter().enumerate() {
+                let dependency_index = active_occurrences[active_index];
                 if !visited.insert(dependency.target().clone()) {
                     continue;
                 }

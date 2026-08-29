@@ -94,6 +94,7 @@ fn real_standard_library_resolves_as_an_ordinary_exact_package() {
     let closure = resolve_external_local_package_closure_with_storage(
         &live_root,
         ExternalSourceContext::derive(b"ordinary-standard-library-canary"),
+        omega_target::TargetProfile::CrossPlatformCli,
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
@@ -185,6 +186,7 @@ fn standard_library_alias_has_no_undeclared_bundled_fallback() {
     let closure = resolve_external_local_package_closure_with_storage(
         &live_root,
         ExternalSourceContext::derive(b"missing-standard-library-edge-canary"),
+        omega_target::TargetProfile::CrossPlatformCli,
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
