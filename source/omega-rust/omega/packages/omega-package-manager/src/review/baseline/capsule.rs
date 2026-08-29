@@ -14,15 +14,17 @@ use super::{
     ReviewOnlyBaselineLimits, VERSION,
 };
 use crate::resolution::{
-    AliasName, ImmutableSourceResolution, PackageKey, ResolvedDependency, ResolvedPackageClosure,
-    ResolvedPackageNode, ResolvedPackageSourceClosure, ResolvedSourceIdentity,
+    ResolvedDependency, ResolvedPackageClosure, ResolvedPackageNode, ResolvedPackageSourceClosure,
+    ResolvedSourceIdentity,
 };
 use crate::review::CompilerIssuedPackageReviewSet;
-use crate::review::evidence::{
+use crate::review::records::validation::{
+    validate_review_only_closure, validate_review_only_records,
+};
+use crate::review::records::{
     PackageReviewEvidence, ReviewOnlyCanonicalRow, ReviewOnlySourceConsumptionCommitment,
     build_observation_commitment, whole_review_commitment,
 };
-use crate::review::validation::{validate_review_only_closure, validate_review_only_records};
 use omega_build_evaluation::{
     BuildFilesystemReplayRecordLimits, ReviewOnlyBuildFilesystemReplayRecord,
     capture_verified_build_filesystem_replay_record,
@@ -32,6 +34,7 @@ use omega_package_review::{
     decode_package_review_canonical_row_with_limits,
     encode_package_review_canonical_row_with_limits,
 };
+use omega_package_source::{AliasName, ImmutableSourceResolution, PackageKey};
 use std::collections::BTreeMap;
 
 /// One package's exact comparison evidence recovered from a review-only

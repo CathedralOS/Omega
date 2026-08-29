@@ -1,9 +1,7 @@
 use omega_build_evaluation::{BuildFilesystemObservedByteRegionKind, BuildObservationClass};
 use omega_package_manager::resolution::{
-    LocalSourceLimits, PackageSourceClosureLimits, ResolvePackageSourceError,
-    ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure, SourceLineage,
-    SourceResolveError, SourceResolverStorage, WorkspaceMemberPath,
-    resolve_workspace_package_closure_with_storage,
+    PackageSourceClosureLimits, ResolvePackageSourceError, ResolveWorkspacePackageClosureError,
+    ResolvedPackageSourceClosure, resolve_workspace_package_closure_with_storage,
 };
 use omega_package_manager::review::{
     CompileResolvedPackageReviewsError, PackageSourceVerificationPhase, PackageTriageDisposition,
@@ -24,6 +22,10 @@ use omega_package_review::{
     PackageReviewPropositionEvidence, PackageReviewRepresentationAbiCommitment,
     PackageReviewRepresentationMechanism, PackageReviewSourceLocationRole,
     decode_ordinary_package_obligation_ledger, encode_ordinary_package_obligation_ledger,
+};
+use omega_package_source::{
+    LocalSourceLimits, SourceLineage, SourceResolveError, SourceResolverStorage,
+    WorkspaceMemberPath,
 };
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};

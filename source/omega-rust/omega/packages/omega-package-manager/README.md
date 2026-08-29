@@ -5,23 +5,25 @@ same order the workflow runs:
 
 ```text
 src/
-├── lib.rs          public entrance naming the four responsibility owners
-├── commands/       complete command-facing operations; start here
-├── declarations/   read and conservatively edit build.omg
-├── resolution/     turn declared sources into one validated closure
-│   ├── package/    bind immutable snapshots to package declarations
-│   └── graph/      traverse, reconcile, validate, and identify the closure
-├── review/         compile, compare, triage, and apply root review policy
+├── lib.rs            public entrance naming the four workflow owners
+├── commands/         command-facing operations; start here
+│   └── audit/source/ acquire and inspect one source without admission
+├── manifest/         read package roles and dependency rows from build.omg
+│   └── dependencies/ read exact rows or plan conservative edits
+├── resolution/       turn declared sources into one validated closure
+│   ├── binding/      join immutable snapshots to package declarations
+│   └── closure/      traverse, reconcile, validate, and identify the graph
+└── review/           compile, compare, triage, and apply root review policy
 ```
 
-`commands/source_audit/` is the first complete operation. Install/update
+`commands/audit/source/` is the first complete operation. Install/update
 orchestration remains intentionally absent until its admission prerequisites
 are implemented.
 
-Callers use these owner paths directly—for example `declarations::` for
-`build.omg` projection, `resolution::` for source closure construction, and
-`review::` for compiler-review orchestration. The crate root does not flatten
-their APIs into a second, ambiguous namespace.
+Callers use these owner paths directly—for example `manifest::` for `build.omg`
+projection, `resolution::` for source closure construction, and `review::` for
+compiler-review orchestration. The crate root does not flatten their APIs into
+a second, ambiguous namespace.
 
 ## Source custody
 
@@ -29,19 +31,21 @@ Immutable acquisition is delegated to
 [`omega-package-source`](../omega-package-source/README.md), which composes
 confined native execution from
 [`omega-resolver-execution`](../omega-resolver-execution/README.md).
-Acquisition does not know graph identity. `resolution/package/` performs the
-declaration join before `resolution/graph/` derives graph-owned identities.
+Source acquisition owns shared source-lineage and package-coordinate
+vocabulary, but cannot select a dependency closure or admit it.
+`resolution/binding/` performs the declaration join before
+`resolution/closure/` derives closure-owned identities.
 
 ## Dependency graph
 
 ```text
-resolution/graph/
-├── mod.rs           graph boundary and public graph vocabulary
+resolution/closure/
+├── mod.rs           closure boundary and public vocabulary
 ├── root_request.rs  exact request selecting the root
 ├── traversal/       follow declared workspace, local, and Git edges
 ├── reconciliation/  reconcile one complete closure
 ├── validation/      validate nodes, edges, aliases, and reachability
-└── subject/         canonical identity of the exact closure
+└── identity/        canonical identity of the exact closure
 ```
 
 ### Identity and reconciliation
@@ -67,11 +71,11 @@ qualification throughout the nominal identity substrate, not merely new aliases.
 ```text
 review/
 ├── compilation/     compile exact custody into compiler-issued review rows
-├── evidence/        bind rows to source and closure commitments
+├── records/         bind rows to source and closure commitments
 ├── comparison/      compare candidate rows with a retained baseline
 ├── source_diff/     bounded hostile-source differences
 ├── triage/          deterministic blockers and audit recommendations
-├── advisory/        deterministic source-review evidence assembly
+├── audit_input/     deterministic source-review input assembly
 ├── baseline/        non-admitting review baseline persistence
 ├── reconstruction/  exact closure reconstruction questions
 └── policy/          root-owned review decisions
@@ -93,7 +97,7 @@ change acceptance, conflicts, or compiler-owned audit recommendations.
 
 Package-authored code never chooses admitted capabilities, accepted lock state,
 resolver policy, or review outcome. `build.omg` provides compiler-checked
-declarations; [`omega-package-review`](../omega-package-review/README.md)
+manifest declarations; [`omega-package-review`](../omega-package-review/README.md)
 projects checked semantic facts without admission authority.
 
 Language and design references:

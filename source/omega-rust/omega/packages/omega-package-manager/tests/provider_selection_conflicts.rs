@@ -1,6 +1,5 @@
 use omega_package_manager::resolution::{
-    ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits, SourceResolverStorage,
-    resolve_external_local_package_closure_with_storage,
+    PackageSourceClosureLimits, resolve_external_local_package_closure_with_storage,
 };
 use omega_package_manager::review::{
     PackageTriageDisposition, PackageTriageReason, ReviewOnlyCapabilityConflictChange,
@@ -10,6 +9,7 @@ use omega_package_manager::review::{
 use omega_package_review::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewSourceLocationRole,
 };
+use omega_package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};

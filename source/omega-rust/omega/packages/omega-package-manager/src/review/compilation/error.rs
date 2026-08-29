@@ -1,7 +1,7 @@
 use super::PackageSourceVerificationPhase;
-use crate::resolution::PackageKey;
 use omega_package_compilation::PackageCompilationInputError;
 use omega_package_review::PackageReviewEncodingError;
+use omega_package_source::PackageKey;
 use omega_package_source::SourceResolveError;
 use psi_checked_interpreter::FilesystemSponsorError;
 use psi_diagnostics::Diagnostic;

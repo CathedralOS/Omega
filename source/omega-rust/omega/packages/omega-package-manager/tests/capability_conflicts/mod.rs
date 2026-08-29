@@ -1,8 +1,6 @@
 use omega_package_manager::resolution::{
-    ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits,
-    ResolveExternalLocalPackageClosureError, ResolvePackageSourceError,
-    ResolvedPackageSourceClosure, SourceResolverStorage,
-    resolve_external_local_package_closure_with_storage,
+    PackageSourceClosureLimits, ResolveExternalLocalPackageClosureError, ResolvePackageSourceError,
+    ResolvedPackageSourceClosure, resolve_external_local_package_closure_with_storage,
 };
 use omega_package_manager::review::{
     PackageTriageDisposition, PackageTriageReason, ReviewOnlyBaselineCapsule,
@@ -20,6 +18,7 @@ use omega_package_review::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
     PackageReviewSourceLocationRole,
 };
+use omega_package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};

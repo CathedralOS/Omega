@@ -5,17 +5,17 @@ use super::{
     CHECKSUM_DOMAIN, REPLAY_PARENT_BINDING_DOMAIN, ReviewOnlyBaselineError,
     ReviewOnlyBaselineLimits,
 };
-use crate::resolution::{
-    ExternalLocalLineage, ExternalSourceContext, GitCommitId, GitTransport, GitTreeId,
-    ImmutableSourceResolution, PackageKey, PackageName, SourceContentDigest, SourceLineage,
-    WorkspaceLineageIdentity, WorkspaceMemberLineage, WorkspaceMemberPath,
-};
-use crate::review::evidence::ReviewOnlyCanonicalRow;
+use crate::review::records::ReviewOnlyCanonicalRow;
 use omega_build_evaluation::{
     ReviewOnlyBuildFilesystemReplayRecord, recover_review_only_build_filesystem_replay_record,
 };
 use omega_package_review::{
     PackageReviewCanonicalRowRecoveryLimits, decode_package_review_canonical_row_with_limits,
+};
+use omega_package_source::{
+    ExternalLocalLineage, ExternalSourceContext, GitCommitId, GitTransport, GitTreeId,
+    ImmutableSourceResolution, PackageKey, PackageName, SourceContentDigest, SourceLineage,
+    WorkspaceLineageIdentity, WorkspaceMemberLineage, WorkspaceMemberPath,
 };
 use sha2::{Digest, Sha256};
 
