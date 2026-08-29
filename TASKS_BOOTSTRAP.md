@@ -116,6 +116,23 @@ in [`TASKS.md`](TASKS.md), not in this queue.
     post-migration `tests/canaries/` tree contained 14,468 tracked generated
     build/viewer files (about 738 MiB) and no source cases; the live cases were
     already under `tests/omega/`, so the generated residue is removed.
+  - [x] Remove two remaining reproducibility ceremonies from the direct
+    verdict. The lattice now invokes Alpha's `--edge` mode, which checks seed
+    behavior and exact assembler construction without rebuilding the native
+    seed container; full `source/alpha/verify.sh` retains that provenance
+    diagnostic for seed work. The below-Beta derivation checker is constructed
+    once, compared with the exact committed tape, and exercised by accept/reject
+    controls instead of being constructed twice. The chain manifest now gives
+    every mandatory subject/edge one explicit obligation and classifies second
+    runs, pedigree, viewers, elapsed markers, and installation inventories as
+    diagnostics.
+  - [ ] Replace the historical Delta V1 two-execution/heartbeat receipt with a
+    minimal one-execution publication join before starting the replacement
+    attempt. Keep the exact source, elaboration, closed Gamma input, raw
+    observation, decoded assembly, bounded outcome, Delta-to-Gamma refinement,
+    and target-realization custody. A second execution and process telemetry
+    may be run and retained diagnostically but may not change the correctness
+    verdict.
 
 ## Edge status
 
@@ -339,7 +356,7 @@ and path-independent closure identity did not change during D10's path-only
 migration. The independently declared lower-rung route is
 `source/delta/meaning/delta2gamma.beta` followed by the canonical Gamma
 evaluator. Publication binds the exact closure and tools, reconstructs the
-packed Gamma program, compares repeated assembly observations, and validates
+packed Gamma program, checks one canonical assembly observation, and validates
 the bounded Darwin ARM64 target dialect.
 
 - [x] Retire exact attempt
@@ -349,7 +366,7 @@ the bounded Darwin ARM64 target dialect.
   remains diagnostic evidence only and cannot admit or install the renamed
   closure. Prepare a fresh exact attempt after the locator, verifier, source
   naming, and Delta contract inputs are final.
-- [ ] When both replacement executions agree, finalize the
+- [ ] When the one canonical replacement execution passes, finalize the
   assembly-publication receipt,
   replay exact realization with the pinned compiler/linker/SDK inputs, verify
   executable identity, and generate the terminal artifact-custody receipt.
@@ -364,6 +381,8 @@ the bounded Darwin ARM64 target dialect.
   artifact loader are implemented and tested; the canonical installation stays
   absent until the replacement exact attempt finishes and its custody receipt
   passes.
+  An optional second execution may diagnose nondeterminism but is not retained
+  in the installation and cannot gate the checked edge.
   The initial realization is now an explicit-input, no-discovery command that
   binds stable assembly/toolchain snapshots, exact command order, empty process
   streams, and the existing observation verifier before exclusively publishing

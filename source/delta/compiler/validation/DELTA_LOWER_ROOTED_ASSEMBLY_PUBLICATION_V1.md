@@ -1,5 +1,12 @@
 # Delta lower-rooted assembly publication receipt, version 1
 
+> **Historical diagnostic format.** This schema requires two identical Gamma
+> executions and process-marker custody. Evidence-minimality review determined
+> that neither fact adds a semantic premise. The format remains testable for
+> old evidence, but it may not gate or publish the replacement Delta attempt.
+> Its successor must bind one canonical execution and leave any replay or
+> telemetry optional.
+
 This contract defines the exact evidence join for a candidate publication of
 the canonical Delta compiler's deterministic Darwin ARM64 **assembly stream**.
 It is not executable-Mach-O publication, compiler authority, a Delta language

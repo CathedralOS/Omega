@@ -21,7 +21,7 @@ resize-x64-tape-hole.py  one-purpose audited 32 KiB -> 256 KiB PE extent migrati
 
 SEMANTICS.md             the written small-step operational semantics — the meaning a seed is audited AGAINST
 conformance.sh           executable companion: hand-built tapes pinning every opcode + edge; any seed must pass
-verify.sh                the per-platform acceptance gate: provenance + conformance + reproduction
+verify.sh                full seed check; --edge omits the provenance diagnostic
 
 assembler/               Alpha-written assembler, self-host gate, reference cross-check, and examples
 checker/                 root derivation checker, alternate realizations, corpus, and optional stress gates
@@ -36,6 +36,12 @@ alpha_ref.py             untrusted executable reference realization of Alpha mea
   three documented PE capacity fields and extends the zero-only tape section);
 - **behavior** — `conformance.sh` (every opcode + edge realizes `SEMANTICS.md`);
 - **reproduction** — `assembler/selfhost.sh` (the VM reproduces the canonical assembler bytecode).
+
+`sh verify.sh --edge` is the direct-lattice mode. It retains behavior and exact
+assembler construction but omits the native container rebuild: the selected
+audited seed is the chain's floor, while reconstructing that container from its
+assembly source is a supply-chain diagnostic and seed-admission aid rather than
+another compiler-correctness premise.
 
 To audit a seed: disassemble the binary and read it against its listing (the `.hex` for
 x64, the `.s` + `.lst` for arm64), checking that each opcode realizes the transition in
