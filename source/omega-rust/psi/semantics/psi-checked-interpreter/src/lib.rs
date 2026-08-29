@@ -1975,6 +1975,9 @@ pub enum FilesystemOutputFileOperationReplayRecord {
     SetLength {
         length: i64,
     },
+    SetFilePermissions {
+        mode: u32,
+    },
     Sync,
     SyncData,
 }
@@ -2112,6 +2115,29 @@ impl FilesystemOutputFileReplayRecord {
 
     pub fn operations(&self) -> &[FilesystemOutputFileOperationReplayRecord] {
         &self.operations
+    }
+
+    /// The exact final descriptor-scoped permission operand, when the build
+    /// authored one. Absence deliberately remains distinct from an authored
+    /// mode equal to the create default.
+    pub fn replayed_file_permissions(&self) -> Option<u32> {
+        self.operations.iter().rev().find_map(|operation| {
+            if let FilesystemOutputFileOperationReplayRecord::SetFilePermissions { mode } =
+                operation
+            {
+                Some(*mode)
+            } else {
+                None
+            }
+        })
+    }
+
+    /// Canonical staged-tree executable class derived from the final authored
+    /// permission mode. A newly created file with no permission operation is
+    /// ordinary regardless of the capture host's ambient umask.
+    pub fn replayed_executable(&self) -> bool {
+        self.replayed_file_permissions()
+            .is_some_and(|mode| mode & 0o111 != 0)
     }
 
     pub fn replayed_bytes(&self) -> Result<Vec<u8>, String> {
@@ -2824,6 +2850,7 @@ fn output_file_record_from_attempts(
                 output_write_record_from_attempt(operation, create_result)?,
             ),
             10 => output_seek_record_from_attempt(operation, create_result)?,
+            17 => output_set_file_permissions_record_from_attempt(operation, create_result)?,
             41 => output_set_length_record_from_attempt(operation, create_result)?,
             43 | 44 => output_sync_record_from_attempt(operation, create_result)?,
             _ => return Err("filesystem replay Output operation is unsupported".to_owned()),
@@ -2975,6 +3002,52 @@ fn output_set_length_record_from_attempt(
     Ok(FilesystemOutputFileOperationReplayRecord::SetLength { length: *length })
 }
 
+fn output_set_file_permissions_record_from_attempt(
+    operation: &FilesystemOperationAttempt,
+    identity: FilesystemLogicalHandleIdentity,
+) -> Result<FilesystemOutputFileOperationReplayRecord, String> {
+    let [
+        FilesystemScalarOperand {
+            operand_ordinal: 1,
+            value: FilesystemScalarOperandValue::U32(mode),
+        },
+    ] = operation.scalar_operands.as_slice()
+    else {
+        return Err("filesystem replay Output set_file_permissions has no exact mode".to_owned());
+    };
+    let [input] = operation.logical_handle_inputs.as_slice() else {
+        return Err(
+            "filesystem replay Output set_file_permissions lanes are inconsistent".to_owned(),
+        );
+    };
+    if operation.provider != FilesystemObservationProvider::RealScoped
+        || operation.result() != Some(FilesystemOperationResult::Scalar(0))
+        || operation.post_error() != Some(0)
+        || input.operand_ordinal != 0
+        || input.kind != FilesystemLogicalHandleKind::Descriptor
+        || input.resolution != FilesystemLogicalHandleInputResolution::Resolved(identity)
+        || !operation.byte_operands.is_empty()
+        || !operation.path_like_operands.is_empty()
+        || !operation.rooted_path_operand_resolutions.is_empty()
+        || !operation.returned_paths.is_empty()
+        || !operation.observed_byte_regions.is_empty()
+        || !operation.metadata_observations.is_empty()
+        || !operation.mutable_byte_operand_resolutions.is_empty()
+        || !operation.mutable_i64_operand_resolutions.is_empty()
+        || !operation.mutable_byte_operands.is_empty()
+        || !operation.mutable_i64_operands.is_empty()
+        || !operation.authorized_paths.is_empty()
+        || operation.logical_handle_output.is_some()
+        || !operation.retired_logical_handles.is_empty()
+        || !operation.grant_refusals.is_empty()
+    {
+        return Err(
+            "filesystem replay Output set_file_permissions lanes are inconsistent".to_owned(),
+        );
+    }
+    Ok(FilesystemOutputFileOperationReplayRecord::SetFilePermissions { mode: *mode })
+}
+
 fn output_sync_record_from_attempt(
     operation: &FilesystemOperationAttempt,
     identity: FilesystemLogicalHandleIdentity,
@@ -3109,7 +3182,10 @@ fn output_file_records_from_attempts(
         }
         cursor += 1;
         while cursor < attempts.len()
-            && matches!(attempts[cursor].operation_tag(), 5 | 7 | 10 | 41 | 43 | 44)
+            && matches!(
+                attempts[cursor].operation_tag(),
+                5 | 7 | 10 | 17 | 41 | 43 | 44
+            )
         {
             cursor += 1;
         }
@@ -3343,6 +3419,39 @@ fn output_file_operation_attempt(
                 grant_refusals: Vec::new(),
             }
         }
+        FilesystemOutputFileOperationReplayRecord::SetFilePermissions { mode } => {
+            FilesystemOperationAttempt {
+                operation_tag: 17,
+                provider: FilesystemObservationProvider::RealScoped,
+                outcome: Some(FilesystemOperationAttemptOutcome::Returned {
+                    result: FilesystemOperationResult::Scalar(0),
+                    post_error: 0,
+                }),
+                scalar_operands: vec![FilesystemScalarOperand {
+                    operand_ordinal: 1,
+                    value: FilesystemScalarOperandValue::U32(mode),
+                }],
+                byte_operands: Vec::new(),
+                path_like_operands: Vec::new(),
+                rooted_path_operand_resolutions: Vec::new(),
+                returned_paths: Vec::new(),
+                observed_byte_regions: Vec::new(),
+                metadata_observations: Vec::new(),
+                mutable_byte_operand_resolutions: Vec::new(),
+                mutable_i64_operand_resolutions: Vec::new(),
+                mutable_byte_operands: Vec::new(),
+                mutable_i64_operands: Vec::new(),
+                authorized_paths: Vec::new(),
+                logical_handle_inputs: vec![FilesystemLogicalHandleInput {
+                    operand_ordinal: 0,
+                    kind: FilesystemLogicalHandleKind::Descriptor,
+                    resolution: FilesystemLogicalHandleInputResolution::Resolved(identity),
+                }],
+                logical_handle_output: None,
+                retired_logical_handles: Vec::new(),
+                grant_refusals: Vec::new(),
+            }
+        }
         FilesystemOutputFileOperationReplayRecord::Sync
         | FilesystemOutputFileOperationReplayRecord::SyncData => FilesystemOperationAttempt {
             operation_tag: match operation {
@@ -3350,7 +3459,10 @@ fn output_file_operation_attempt(
                 FilesystemOutputFileOperationReplayRecord::SyncData => 44,
                 FilesystemOutputFileOperationReplayRecord::Write(_)
                 | FilesystemOutputFileOperationReplayRecord::Seek { .. }
-                | FilesystemOutputFileOperationReplayRecord::SetLength { .. } => unreachable!(),
+                | FilesystemOutputFileOperationReplayRecord::SetLength { .. }
+                | FilesystemOutputFileOperationReplayRecord::SetFilePermissions { .. } => {
+                    unreachable!()
+                }
             },
             provider: FilesystemObservationProvider::RealScoped,
             outcome: Some(FilesystemOperationAttemptOutcome::Returned {
@@ -3852,6 +3964,68 @@ mod filesystem_replay_record_tests {
         });
         let observations =
             EvaluationObservations::from_filesystem_operation_attempts(malformed, Vec::new());
+        assert!(FilesystemReplay::from_input_output_observations(&observations).is_err());
+    }
+
+    #[test]
+    fn typed_output_file_retains_exact_descriptor_permission_changes() {
+        let output = FilesystemOutputFileReplayRecord::with_operations(
+            root(2),
+            b"tool.bin".to_vec(),
+            2,
+            0,
+            vec![
+                FilesystemOutputFileOperationReplayRecord::Write(
+                    FilesystemOutputWriteReplayRecord::new(b"tool".to_vec(), 4, 0).unwrap(),
+                ),
+                FilesystemOutputFileOperationReplayRecord::SetFilePermissions { mode: 0o755 },
+            ],
+            0,
+        )
+        .unwrap();
+        assert_eq!(output.replayed_file_permissions(), Some(0o755));
+        assert!(output.replayed_executable());
+        assert_eq!(output.replayed_bytes().unwrap(), b"tool");
+
+        let record =
+            FilesystemInputOutputReplayRecord::new(source_input(1), vec![output], Vec::new())
+                .unwrap();
+        let replay = FilesystemReplay::from_input_output_record(record).unwrap();
+        assert_eq!(
+            replay
+                .attempts()
+                .iter()
+                .map(FilesystemOperationAttempt::operation_tag)
+                .collect::<Vec<_>>(),
+            vec![2, 4, 8, 1, 5, 17, 8]
+        );
+        let observations = EvaluationObservations::from_filesystem_operation_attempts(
+            replay.attempts().to_vec(),
+            Vec::new(),
+        );
+        let decoded = FilesystemReplay::from_input_output_observations(&observations)
+            .expect("successful descriptor permission changes are exact Output operations");
+        assert_eq!(
+            decoded.output_files()[0].replayed_file_permissions(),
+            Some(0o755)
+        );
+
+        let mut failed = replay.attempts().to_vec();
+        failed[5].outcome = Some(FilesystemOperationAttemptOutcome::Returned {
+            result: FilesystemOperationResult::Scalar(-1),
+            post_error: 1,
+        });
+        let observations =
+            EvaluationObservations::from_filesystem_operation_attempts(failed, Vec::new());
+        assert!(FilesystemReplay::from_input_output_observations(&observations).is_err());
+
+        let mut wrong_descriptor = replay.attempts().to_vec();
+        wrong_descriptor[5].logical_handle_inputs[0].resolution =
+            FilesystemLogicalHandleInputResolution::Unknown;
+        let observations = EvaluationObservations::from_filesystem_operation_attempts(
+            wrong_descriptor,
+            Vec::new(),
+        );
         assert!(FilesystemReplay::from_input_output_observations(&observations).is_err());
     }
 

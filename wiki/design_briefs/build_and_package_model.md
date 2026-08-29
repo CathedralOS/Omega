@@ -1222,6 +1222,16 @@ the sequential cursor. Unsupported whence values, negative or overflowing
 results, mismatched retained results, failures, malformed lanes, and wrong
 descriptor lineage remain non-receipted.
 
+Summary v37 and replay-record v18 admit successful descriptor-scoped
+`set_file_permissions` operations between one fresh Output file's create and
+close. Each row binds the exact authored `u32` mode, same live descriptor, zero
+result, and zero post-error state. Replay retains the exact final permission
+operand and derives the staged tree's ordinary/executable class from its execute
+bits; absence remains distinct from explicitly restoring the create mode. The
+operation changes neither bytes, extent, nor cursor. Failed calls, malformed
+lanes, wrong or closed descriptors, and path-based permission changes remain
+non-receipted.
+
 Byte-valued inputs are evaluated once by the shared preparer and reject above
 the evaluator's current 16 MiB sponsor ceiling before provider cloning/
 allocation. Raw transfer counts use one checked conversion and
@@ -1253,9 +1263,9 @@ canonical capability/API comparison bytes. In isolation they are not a receipt
 and do not claim either replay verdict; only the exact v24/v6 generated-source,
 v27/v8 empty-Output, v28-v29/v9-v10 ordinary-artifact, v30/v11 ordered-handoff,
 v31/v12 sequential-full-write, v32/v13 positioned-full-write, v33/v14
-empty-file, v34/v15 successful-sync, v35/v16 successful-set-length, and v36/v17
-successful-seek grammars above may join them to verified operation replay and
-reproduced tree equality.
+empty-file, v34/v15 successful-sync, v35/v16 successful-set-length, v36/v17
+successful-seek, and v37/v18 successful-descriptor-permission grammars above
+may join them to verified operation replay and reproduced tree equality.
 Sponsored package review does retain a versioned commitment to
 the complete fresh Output tree after successful evaluator/provider teardown
 and before deleting the disposable session. The canonical tree binds sorted
@@ -1275,9 +1285,9 @@ nor leaked through the count. In isolation this is output-tree custody and
 replay only. The exact v24/v6 generated-source, v27/v8 empty-Output, and
 v28-v29/v9-v10 ordinary-artifact, v30/v11 ordered-handoff, v31/v12
 sequential-full-write, v32/v13 positioned-full-write, v33/v14 empty-file, and
-v34/v15 successful-sync, v35/v16 successful-set-length, and v36/v17
-successful-seek grammars above supply canonical operation replay and retained
-observed inputs.
+v34/v15 successful-sync, v35/v16 successful-set-length, v36/v17
+successful-seek, and v37/v18 successful-descriptor-permission grammars above
+supply canonical operation replay and retained observed inputs.
 Generated-source cases bind the complete present
 handoff sequence; ordinary-artifact cases bind its absence. All broader shapes
 still require those missing pieces. This custody rung does not exclude a

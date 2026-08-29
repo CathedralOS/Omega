@@ -1456,6 +1456,16 @@ then updates only the sequential cursor. Unsupported whence values, negative or
 overflowing results, mismatched claimed results, failures, malformed lanes, and
 wrong descriptors remain non-receipted.
 
+Observation summary v37 and compiler replay-record v18 admit successful
+descriptor-scoped `set_file_permissions` between a fresh Output file's create
+and close. The retained row binds the exact authored `u32` mode, same live
+descriptor, zero result, and zero post-error state. Replay retains the final
+permission operand and derives the canonical staged-tree ordinary/executable
+class from its execute bits without consulting physical Output metadata. It
+does not alter bytes, extent, or cursor. Failed calls, malformed lanes, wrong
+or closed descriptors, and path-based permission changes remain
+non-receipted.
+
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities reject negative, wrapped, or

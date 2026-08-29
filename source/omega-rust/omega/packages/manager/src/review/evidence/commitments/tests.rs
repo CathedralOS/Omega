@@ -14,6 +14,7 @@ fn compiled_observation(
     relative_output: &str,
     mode: i32,
     payload: &str,
+    permission_mode: Option<u32>,
 ) -> BuildObservationSummary {
     let sequence = NEXT_OBSERVATION_FIXTURE.fetch_add(1, Ordering::Relaxed);
     let project = std::env::temp_dir().join(format!(
@@ -24,6 +25,11 @@ fn compiled_observation(
     let build_dir = project.join("build");
     let output = build_dir.join(relative_output);
     std::fs::create_dir_all(output.parent().unwrap()).unwrap();
+    let permission_change = permission_mode
+        .map(|mode| {
+            format!("self.result = self.filesystem.set_file_permissions(self.descriptor, {mode});")
+        })
+        .unwrap_or_default();
     std::fs::write(
         project.join("build.omg"),
         format!(
@@ -39,12 +45,14 @@ reaches FilesystemHost
 let output: &[u8] in Path = builder.output.resolve("{relative_output}");
 self.descriptor = self.filesystem.create(output, {mode});
 self.written = self.filesystem.write(self.descriptor, "{payload}");
+{permission_change}
 self.result = self.filesystem.close(self.descriptor);
 }}
 "#,
             relative_output = relative_output,
             mode = mode,
             payload = payload,
+            permission_change = permission_change,
         ),
     )
     .unwrap();
@@ -258,33 +266,33 @@ self.result = self.filesystem.read_metadata(input, &mut self.buffer);
 
 #[test]
 fn rooted_observation_commitment_is_relocation_stable_and_path_sensitive() {
-    let first = compiled_observation("stage/artifact.bin", 438, "payload-a");
-    let relocated = compiled_observation("stage/artifact.bin", 438, "payload-a");
+    let first = compiled_observation("stage/artifact.bin", 438, "payload-a", None);
+    let relocated = compiled_observation("stage/artifact.bin", 438, "payload-a", None);
     assert_eq!(first, relocated);
     assert_eq!(
         build_observation_commitment(&first),
         build_observation_commitment(&relocated)
     );
 
-    let changed = compiled_observation("stage/changed.bin", 438, "payload-a");
+    let changed = compiled_observation("stage/changed.bin", 438, "payload-a", None);
     assert_ne!(first, changed);
     assert_ne!(
         build_observation_commitment(&first),
         build_observation_commitment(&changed)
     );
-    let scalar_changed = compiled_observation("stage/artifact.bin", 420, "payload-a");
+    let scalar_changed = compiled_observation("stage/artifact.bin", 420, "payload-a", None);
     assert_ne!(
         build_observation_commitment(&first),
         build_observation_commitment(&scalar_changed),
         "one changed scalar operand changes observation identity"
     );
-    let bytes_changed = compiled_observation("stage/artifact.bin", 438, "payload-b");
+    let bytes_changed = compiled_observation("stage/artifact.bin", 438, "payload-b", None);
     assert_ne!(
         build_observation_commitment(&first),
         build_observation_commitment(&bytes_changed),
         "one changed immutable byte operand changes observation identity"
     );
-    assert_eq!(first.schema_version(), 36);
+    assert_eq!(first.schema_version(), 37);
     assert_eq!(first.filesystem_operation_schema_version(), 19);
     assert!(first.staged_output_tree().is_none());
     assert!(relocated.staged_output_tree().is_none());
@@ -318,6 +326,22 @@ fn rooted_observation_commitment_is_relocation_stable_and_path_sensitive() {
     );
     assert_eq!(write.byte_operands()[0].bytes(), b"payload-a");
     assert!(close.authorized_paths().is_empty());
+}
+
+#[cfg(unix)]
+#[test]
+fn observation_commitment_binds_exact_descriptor_permission_mode() {
+    let owner_executable = compiled_observation("stage/tool.bin", 438, "payload", Some(0o700));
+    let all_executable = compiled_observation("stage/tool.bin", 438, "payload", Some(0o755));
+    assert_ne!(
+        build_observation_commitment(&owner_executable),
+        build_observation_commitment(&all_executable),
+        "distinct authored modes remain distinct even within one executable class"
+    );
+    assert_eq!(
+        owner_executable.filesystem_operation_attempts()[2].scalar_operands()[0].value(),
+        BuildFilesystemScalarOperandValue::U32(0o700)
+    );
 }
 
 #[cfg(unix)]
