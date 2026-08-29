@@ -38,6 +38,7 @@ fn rejects_authored_dependency_vocabulary() {
     for source in [
         "data Build {} machine build(builder: &mut Build) {}",
         "data Source {} machine build(builder: &mut Build) {}",
+        "data PackageSelection {} machine build(builder: &mut Build) {}",
         "domain u64::Source; machine build(builder: &mut Build) {}",
         "trait Build {} machine build(builder: &mut Build) {}",
         "machine Build::depend(source: Source) {} machine build(builder: &mut Build) {}",

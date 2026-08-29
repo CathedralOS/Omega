@@ -222,6 +222,11 @@ machine build(builder: &mut Build) {
         repository: "https://github.com/CathedralOS/arithmetic-kernels.git",
         revision: "0123456789abcdef"
     });
+    builder.depend_as("matrix", Source::Git {
+        repository: "https://example.invalid/math.git",
+        revision: "0123456789abcdef",
+        selection: PackageSelection::Named { package: "matrix" }
+    });
     builder.depend_as(
         "arithmetic_kernels",
         Source::Path { location: "../colliding" }

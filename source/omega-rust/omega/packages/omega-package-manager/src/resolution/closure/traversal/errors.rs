@@ -71,13 +71,27 @@ impl std::error::Error for ResolveWorkspacePackageClosureError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResolveDependencySourceError {
-    InvalidPath { location: String, reason: String },
-    UnknownWorkspace { package: PackageKey },
-    ConflictingWorkspaceRoot { identity: WorkspaceLineageIdentity },
-    UnknownExternalRoot { package: PackageKey },
-    ConflictingExternalRoot { package: PackageKey },
+    InvalidPath {
+        location: String,
+        reason: String,
+    },
+    UnknownWorkspace {
+        package: PackageKey,
+    },
+    ConflictingWorkspaceRoot {
+        identity: WorkspaceLineageIdentity,
+    },
+    UnknownExternalRoot {
+        package: PackageKey,
+    },
+    ConflictingExternalRoot {
+        package: PackageKey,
+    },
     MissingExternalSourceContext,
     InvalidGitRequest(GitSourceRequestError),
+    NamedGitPackageSelectionUnavailable {
+        package: omega_package_source::PackageName,
+    },
     Source(ResolvePackageSourceError),
 }
 
@@ -108,6 +122,11 @@ impl fmt::Display for ResolveDependencySourceError {
                 "an external-local dependency requires an explicit consuming source context",
             ),
             Self::InvalidGitRequest(error) => error.fmt(formatter),
+            Self::NamedGitPackageSelectionUnavailable { package } => write!(
+                formatter,
+                "named Git package selection for `{}` is not available until authenticated member binding completes",
+                package.as_str()
+            ),
             Self::Source(error) => error.fmt(formatter),
         }
     }

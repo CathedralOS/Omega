@@ -10,6 +10,7 @@ use super::cache::{
 };
 use super::errors::ResolveDependencySourceError;
 use crate::manifest::dependencies::read::DependencySourceRequest;
+use crate::manifest::dependencies::read::PackageSelection;
 use crate::resolution::binding::{PackageSourceCustody, ResolvePackageSourceError};
 use omega_package_source::{
     ExternalSourceContext, PackageKey, SourceLineage, WorkspaceLineageIdentity, WorkspaceMemberPath,
@@ -49,8 +50,16 @@ pub(super) fn resolve_registered_package_closure(
             DependencySourceRequest::Git {
                 repository,
                 revision,
+                selection,
                 ..
             } => {
+                if let PackageSelection::Named(package) = selection {
+                    return Err(
+                        ResolveDependencySourceError::NamedGitPackageSelectionUnavailable {
+                            package: package.clone(),
+                        },
+                    );
+                }
                 let resolved = resolve_git_from_cache(
                     &GitSourceRequest::new(repository.clone(), Some(revision.clone()))?,
                     git_cache,

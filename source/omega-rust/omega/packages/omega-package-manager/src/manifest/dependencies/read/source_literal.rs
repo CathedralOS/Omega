@@ -1,10 +1,11 @@
 use super::error::DependencyProjectionError;
-use super::model::DependencySourceRequest;
-use omega_package_source::AliasName;
+use super::model::{DependencySourceRequest, PackageSelection};
+use omega_package_source::{AliasName, PackageName};
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 
 pub(super) const SOURCE_TYPE_NAME: &str = "Source";
+pub(super) const PACKAGE_SELECTION_TYPE_NAME: &str = "PackageSelection";
 
 pub(super) fn project_source_literal(
     syntax_trees: &SyntaxTrees,
@@ -40,12 +41,20 @@ pub(super) fn project_source_literal(
             })
         }
         "Git" => {
-            if fields.len() != 2
+            if !(2..=3).contains(&fields.len())
                 || fields
                     .iter()
                     .filter(|field| field.name.as_str() == "repository")
                     .count()
                     != 1
+                || fields
+                    .iter()
+                    .filter(|field| field.name.as_str() == "selection")
+                    .count()
+                    > 1
+                || fields.iter().any(|field| {
+                    !matches!(field.name.as_str(), "repository" | "revision" | "selection")
+                })
                 || fields
                     .iter()
                     .filter(|field| field.name.as_str() == "revision")
@@ -64,13 +73,56 @@ pub(super) fn project_source_literal(
                 .iter()
                 .find(|field| field.name.as_str() == "revision")
                 .expect("validated Git revision field");
+            let selection = fields
+                .iter()
+                .find(|field| field.name.as_str() == "selection")
+                .map(|field| project_package_selection(syntax_trees, field.value))
+                .transpose()?
+                .unwrap_or(PackageSelection::Root);
             Ok(DependencySourceRequest::Git {
                 explicit_alias,
                 repository: string_field(syntax_trees, "repository", repository.value)?,
                 revision: string_field(syntax_trees, "revision", revision.value)?,
+                selection,
             })
         }
         unsupported => Err(DependencyProjectionError::UnsupportedSourceCase {
+            case_name: unsupported.to_owned(),
+        }),
+    }
+}
+
+fn project_package_selection(
+    syntax_trees: &SyntaxTrees,
+    selection_handle: ExpressionHandle,
+) -> Result<PackageSelection, DependencyProjectionError> {
+    let ExpressionNode::StructLiteral(literal) =
+        syntax_trees.expressions.expression(selection_handle)
+    else {
+        return Err(DependencyProjectionError::SelectionNotLiteral);
+    };
+    if literal.type_name.as_str() != PACKAGE_SELECTION_TYPE_NAME {
+        return Err(DependencyProjectionError::WrongSelectionType);
+    }
+    let Some(case_name) = literal.case_name.as_ref() else {
+        return Err(DependencyProjectionError::MissingSelectionCase);
+    };
+    let fields = syntax_trees.expressions.struct_fields(literal.fields);
+    match case_name.as_str() {
+        "Root" if fields.is_empty() => Ok(PackageSelection::Root),
+        "Root" => Err(DependencyProjectionError::WrongSelectionFields {
+            case_name: "Root".to_owned(),
+        }),
+        "Named" if fields.len() == 1 && fields[0].name.as_str() == "package" => {
+            let package = string_field(syntax_trees, "selection.package", fields[0].value)?;
+            PackageName::parse(&package)
+                .map(PackageSelection::Named)
+                .map_err(|_| DependencyProjectionError::InvalidSelectedPackage { package })
+        }
+        "Named" => Err(DependencyProjectionError::WrongSelectionFields {
+            case_name: "Named".to_owned(),
+        }),
+        unsupported => Err(DependencyProjectionError::UnsupportedSelectionCase {
             case_name: unsupported.to_owned(),
         }),
     }

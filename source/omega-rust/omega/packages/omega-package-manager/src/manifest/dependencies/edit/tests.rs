@@ -10,7 +10,7 @@ use crate::manifest::dependencies::edit::rendering::{
     canonical_dependency_statement, source_digest,
 };
 use crate::manifest::dependencies::read::{
-    DependencyProjectionError, DependencySourceRequest, extract_from_source,
+    DependencyProjectionError, DependencySourceRequest, PackageSelection, extract_from_source,
 };
 use omega_package_source::AliasName;
 use std::fs;
@@ -31,6 +31,7 @@ fn git(repository: &str, revision: &str) -> DependencySourceRequest {
         explicit_alias: None,
         repository: repository.to_owned(),
         revision: revision.to_owned(),
+        selection: PackageSelection::Root,
     }
 }
 
@@ -182,6 +183,9 @@ fn generated_rows_escape_all_caller_controlled_strings() {
         explicit_alias: Some(AliasName::parse("safe_alias").expect("alias")),
         repository: "https://example.test/\"repo\n// injected".to_owned(),
         revision: "main\rnext".to_owned(),
+        selection: PackageSelection::Named(
+            omega_package_source::PackageName::parse("selected-package").unwrap(),
+        ),
     };
     let statement = canonical_dependency_statement(&request);
     let source = application_build(&format!("    {statement}\n"));

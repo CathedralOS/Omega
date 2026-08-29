@@ -9,7 +9,7 @@ mod source_literal;
 
 pub use error::DependencyProjectionError;
 pub use extraction::{extract_build_dependency_projection, extract_dependency_projection};
-pub use model::{BuildDependencyProjection, DependencySourceRequest};
+pub use model::{BuildDependencyProjection, DependencySourceRequest, PackageSelection};
 
 pub(crate) use extraction::extract_from_source;
 

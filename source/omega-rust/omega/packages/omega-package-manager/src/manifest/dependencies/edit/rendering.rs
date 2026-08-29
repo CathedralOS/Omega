@@ -1,4 +1,4 @@
-use crate::manifest::dependencies::read::DependencySourceRequest;
+use crate::manifest::dependencies::read::{DependencySourceRequest, PackageSelection};
 use sha2::{Digest, Sha256};
 
 use super::BUILDER_PARAMETER_NAME;
@@ -25,12 +25,22 @@ pub fn canonical_dependency_statement(request: &DependencySourceRequest) -> Stri
         DependencySourceRequest::Git {
             repository,
             revision,
+            selection,
             ..
-        } => format!(
-            "Source::Git {{ repository: {}, revision: {} }}",
-            psi_source::display_literal_bytes(repository.as_bytes()),
-            psi_source::display_literal_bytes(revision.as_bytes())
-        ),
+        } => {
+            let selection = match selection {
+                PackageSelection::Root => String::new(),
+                PackageSelection::Named(package) => format!(
+                    ", selection: PackageSelection::Named {{ package: {} }}",
+                    psi_source::display_literal_bytes(package.as_str().as_bytes())
+                ),
+            };
+            format!(
+                "Source::Git {{ repository: {}, revision: {}{selection} }}",
+                psi_source::display_literal_bytes(repository.as_bytes()),
+                psi_source::display_literal_bytes(revision.as_bytes())
+            )
+        }
     };
     format!("{BUILDER_PARAMETER_NAME}.{operation}({alias}{source});")
 }

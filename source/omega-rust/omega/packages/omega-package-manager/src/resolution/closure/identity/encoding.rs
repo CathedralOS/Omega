@@ -6,6 +6,7 @@ use super::{
     SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION, SOURCE_CLOSURE_SUBJECT_FINGERPRINT_DOMAIN,
     SOURCE_CLOSURE_SUBJECT_MAGIC,
 };
+use crate::manifest::dependencies::read::PackageSelection;
 use crate::resolution::closure::ResolvedSourceIdentity;
 use omega_package_source::{
     AliasName, ExternalLocalLineage, ExternalSourceContext, GitCommitId, GitTransport, GitTreeId,
@@ -138,11 +139,13 @@ fn encode_dependency_selection(
             explicit_alias,
             repository,
             revision,
+            selection,
         } => {
             encoder.byte(1);
             encode_optional_alias(encoder, explicit_alias, limits.maximum_identity_bytes)?;
             encoder.bytes_bounded(repository.as_bytes(), limits.maximum_request_bytes)?;
             encoder.bytes_bounded(revision.as_bytes(), limits.maximum_request_bytes)?;
+            encode_package_selection(encoder, selection, limits.maximum_identity_bytes)?;
         }
     }
     encoder.bytes_bounded(
@@ -169,6 +172,7 @@ pub(super) fn decode_dependency_selection(
             explicit_alias: decode_optional_alias(decoder, limits.maximum_identity_bytes)?,
             repository: decoder.string(limits.maximum_request_bytes)?,
             revision: decoder.string(limits.maximum_request_bytes)?,
+            selection: decode_package_selection(decoder, limits.maximum_identity_bytes)?,
         },
         _ => {
             return Err(CanonicalSourceClosureSubjectError::new(
@@ -187,6 +191,36 @@ pub(super) fn decode_dependency_selection(
         alias,
         selected,
     })
+}
+
+fn encode_package_selection(
+    encoder: &mut Encoder,
+    selection: &PackageSelection,
+    maximum_identity_bytes: usize,
+) -> Result<(), CanonicalSourceClosureSubjectError> {
+    match selection {
+        PackageSelection::Root => encoder.byte(0),
+        PackageSelection::Named(package) => {
+            encoder.byte(1);
+            encoder.bytes_bounded(package.as_str().as_bytes(), maximum_identity_bytes)?;
+        }
+    }
+    Ok(())
+}
+
+fn decode_package_selection(
+    decoder: &mut Decoder<'_>,
+    maximum_identity_bytes: usize,
+) -> Result<PackageSelection, CanonicalSourceClosureSubjectError> {
+    match decoder.byte()? {
+        0 => Ok(PackageSelection::Root),
+        1 => PackageName::parse(decoder.string(maximum_identity_bytes)?)
+            .map(PackageSelection::Named)
+            .map_err(|_| CanonicalSourceClosureSubjectError::new("invalid selected package name")),
+        _ => Err(CanonicalSourceClosureSubjectError::new(
+            "invalid package-selection tag",
+        )),
+    }
 }
 
 fn encode_optional_alias(

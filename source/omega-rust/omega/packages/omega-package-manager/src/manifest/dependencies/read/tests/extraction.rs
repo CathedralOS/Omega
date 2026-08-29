@@ -1,6 +1,7 @@
 use super::PackageFixture;
 use crate::manifest::dependencies::read::{
-    DependencyProjectionError, DependencySourceRequest, extract_build_dependency_projection,
+    DependencyProjectionError, DependencySourceRequest, PackageSelection,
+    extract_build_dependency_projection,
 };
 use crate::manifest::roles::{BuildDeclaration, BuildDeclarationError};
 use omega_package_source::AliasName;
@@ -37,6 +38,7 @@ fn projects_path_and_git_requests_in_authored_order() {
                 explicit_alias: Some(AliasName::parse("arithmetic_kernels").unwrap()),
                 repository: "ssh://git@github.com/CathedralOS/example.git".to_owned(),
                 revision: "0123456789abcdef".to_owned(),
+                selection: PackageSelection::Root,
             },
         ]
     );

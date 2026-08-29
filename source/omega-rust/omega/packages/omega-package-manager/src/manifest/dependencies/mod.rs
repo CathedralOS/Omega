@@ -13,5 +13,5 @@ pub use edit::{
 };
 pub use read::{
     BuildDependencyProjection, DependencyProjectionError, DependencySourceRequest,
-    extract_build_dependency_projection, extract_dependency_projection,
+    PackageSelection, extract_build_dependency_projection, extract_dependency_projection,
 };
