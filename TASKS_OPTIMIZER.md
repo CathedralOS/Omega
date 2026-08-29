@@ -17,6 +17,12 @@ another broad alias while executing this plan.
 
 ## Current stopping point
 
+[x] Phi-translated GVN no longer combines three exact catalog rules in one
+824-line leaf. Its 37-line entrance owns their shared analysis, invalidation,
+pass, and version contract, then descends into obligation-free,
+proof-certified, and compatible-policy leaves of at most 271 lines. The
+source-organization gate pins that meaningful entrance.
+
 [x] Producer-side GVN expression identity no longer lives in one 954-line
 mixed leaf. A 33-line `expression_keys/mod.rs` entrance owns the canonical row
 and operand-pair contracts and descends into named `model`, obligation-free

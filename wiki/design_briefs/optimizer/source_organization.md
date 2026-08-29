@@ -417,6 +417,11 @@ Producer-side GVN expression identity has the same shape. Its former flat
 row and operand-pair contracts, then names separate `model`, obligation-free
 `total`, `proof_certified`, and asymmetric `compatible_policy` rungs. No leaf
 exceeds 300 lines, and the architecture gate pins the entrance contract.
+Phi-translated GVN no longer hides three exact catalog rules in one 824-line
+file. Its 37-line entrance owns their common analysis, invalidation, pass, and
+version contract, then descends into separate obligation-free,
+proof-certified, and compatible-policy rule leaves. Each leaf retains only its
+own expression/evidence mechanics, and none exceeds 275 lines.
 Obligation-free wrapping neutral arithmetic is a separate closed family. The
 producer's `identities/mod.rs` entrance exposes its rule and five-row shape
 partition; the validator's `total_scalar_identity/mod.rs` entrance descends
