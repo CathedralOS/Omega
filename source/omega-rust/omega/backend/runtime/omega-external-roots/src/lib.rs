@@ -153,6 +153,10 @@ normalized_id!(UefiPhysicalInvocationId, "UEFI physical invocation");
 normalized_id!(UefiImageHandleOccurrenceId, "UEFI image-handle occurrence");
 normalized_id!(UefiSystemTableOccurrenceId, "UEFI system-table occurrence");
 normalized_id!(
+    UefiBootServicesTableOccurrenceId,
+    "UEFI Boot Services table occurrence"
+);
+normalized_id!(
     UefiBootServicesPhaseLeaseId,
     "UEFI Boot Services phase lease"
 );

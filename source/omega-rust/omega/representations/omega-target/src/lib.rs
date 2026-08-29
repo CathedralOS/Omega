@@ -2,6 +2,8 @@ use psi_diagnostics::Diagnostic;
 
 mod elf_loader;
 mod foreign_locator;
+mod uefi_boot_services;
+mod uefi_boot_services_occurrence;
 mod uefi_system_table;
 mod uefi_system_table_occurrence;
 
@@ -11,6 +13,15 @@ pub use elf_loader::{
 pub use foreign_locator::{
     ForeignLocatorCandidate, ForeignLocatorValidationError, NormalizedForeignLocator,
     normalize_foreign_locator,
+};
+pub use uefi_boot_services::{
+    UefiBootServicesNativeField, UefiBootServicesNativeFieldKind,
+    UefiBootServicesNativeFieldLayout, UefiBootServicesNativeLayoutError,
+    ValidatedUefiBootServicesNativeLayout, plan_uefi_boot_services_native_layout,
+};
+pub use uefi_boot_services_occurrence::{
+    UEFI_BOOT_SERVICES_SIGNATURE, UefiBootServicesOccurrenceValidationError,
+    ValidatedUefiBootServicesHeaderIntegrity, validate_uefi_boot_services_occurrence,
 };
 pub use uefi_system_table::{
     UefiSystemTableNativeField, UefiSystemTableNativeFieldKind, UefiSystemTableNativeFieldLayout,

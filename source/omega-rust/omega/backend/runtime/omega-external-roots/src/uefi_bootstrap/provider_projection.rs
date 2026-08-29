@@ -29,7 +29,7 @@ const BOOT_SERVICES_FIELD_ALIGNMENT: u32 = 8;
 pub struct LifecycleScopedUefiBootServicesProjection<'occurrence> {
     pub(super) arrival: UefiApplicationPhysicalArrival<'occurrence>,
     pub(super) field: UefiSystemTableNativeFieldLayout,
-    _boot_services_table: NonZeroU64,
+    pub(super) boot_services_table: NonZeroU64,
 }
 
 impl std::fmt::Debug for LifecycleScopedUefiBootServicesProjection<'_> {
@@ -246,7 +246,7 @@ pub fn project_uefi_application_boot_services<'occurrence>(
     Ok(LifecycleScopedUefiBootServicesProjection {
         arrival,
         field,
-        _boot_services_table: boot_services_table,
+        boot_services_table,
     })
 }
 
@@ -546,7 +546,7 @@ mod tests {
             .collect::<String>();
         assert_eq!(
             compact_projection,
-            "pubstructLifecycleScopedUefiBootServicesProjection<'occurrence>{pub(super)arrival:UefiApplicationPhysicalArrival<'occurrence>,pub(super)field:UefiSystemTableNativeFieldLayout,_boot_services_table:NonZeroU64,}"
+            "pubstructLifecycleScopedUefiBootServicesProjection<'occurrence>{pub(super)arrival:UefiApplicationPhysicalArrival<'occurrence>,pub(super)field:UefiSystemTableNativeFieldLayout,pub(super)boot_services_table:NonZeroU64,}"
         );
         let public_impl = item_block(source, "impl LifecycleScopedUefiBootServicesProjection<'_>");
         let compact_public_impl = public_impl
