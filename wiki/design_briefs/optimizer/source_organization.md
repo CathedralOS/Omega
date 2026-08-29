@@ -134,9 +134,13 @@ fixtures in separate leaves below its real compute/validate entrance. The
 optimized object-artifact boundary likewise exposes one build/replay entrance
 above separate model, reconstruction, and codec leaves. The preceding
 relocation-free object-container boundary mirrors it and keeps codec tests out
-of production leaves. Liveness computation and pre-allocation machine-effect
-encoding also keep their broad fixtures in sibling test leaves, so production
-file size measures production responsibility.
+of production leaves. Target register-environment custody exposes one
+build/validation entrance above the exact target catalog, validated custody
+model, validation mechanics, and tests; the target/ABI matrix is therefore
+visible without burying the stage join in that catalog. Liveness computation
+and pre-allocation machine-effect encoding also keep their broad fixtures in
+sibling test leaves, so production file size measures production
+responsibility.
 
 When fixtures legitimately need a production module's private helpers, keep
 the logical child module and use an explicit sibling `#[path]`; do not retain
