@@ -1,3 +1,4 @@
+use super::request::ValidatedCompileRequest;
 use super::{CompileReport, CompileRequest, RequestedCompileProduct};
 use psi_diagnostics::Diagnostic;
 
@@ -6,20 +7,20 @@ use psi_diagnostics::Diagnostic;
 /// Check, Terminal Psi, and retained native artifacts share one checked-Psi
 /// frontend and differ only in how far the result proceeds.
 pub(super) fn compile(request: CompileRequest) -> Result<CompileReport, Vec<Diagnostic>> {
-    reject_rollback_without_native_realization(&request)?;
+    let request = request.validate_for_execution()?;
     let checked = crate::pipeline::checked_entry::compile_to_checked_for_terminal(
-        &request.options,
-        request.package_inputs.as_ref(),
+        request.options(),
+        request.package_inputs(),
     )?;
     let trust_settlement = crate::pipeline::reporting::report_checked_observations(
         crate::pipeline::reporting::CheckedObservationInput {
-            options: &request.options,
-            artifact_policy: request.artifact_policy,
-            accepted_trust_admissions: &request.accepted_trust_admissions,
+            options: request.options(),
+            artifact_policy: request.artifact_policy(),
+            accepted_trust_admissions: request.accepted_trust_admissions(),
             checked: &checked,
         },
     )?;
-    let report = match request.requested_product {
+    let report = match request.requested_product() {
         RequestedCompileProduct::Check => checked_report(request, &checked),
         RequestedCompileProduct::TerminalArtifact => terminal_report(request, checked),
         RequestedCompileProduct::NativeArtifact => native_report(request, checked),
@@ -27,32 +28,11 @@ pub(super) fn compile(request: CompileRequest) -> Result<CompileReport, Vec<Diag
     Ok(report.with_trust_admission_settlement(trust_settlement))
 }
 
-fn reject_rollback_without_native_realization(
-    request: &CompileRequest,
-) -> Result<(), Vec<Diagnostic>> {
-    if request.optimization_rollback.is_empty()
-        || request.requested_product == RequestedCompileProduct::NativeArtifact
-    {
-        return Ok(());
-    }
-    let names = request
-        .optimization_rollback
-        .requested_disabled()
-        .as_slice()
-        .iter()
-        .map(|optimization| format!("`{}`", optimization.build_case_name()))
-        .collect::<Vec<_>>()
-        .join(", ");
-    Err(vec![Diagnostic::error(format!(
-        "optimization rollback {names} requires NativeArtifact production; {:?} does not enter native optimizer realization",
-        request.requested_product
-    ))])
-}
-
 fn checked_report(
-    request: CompileRequest,
+    request: ValidatedCompileRequest,
     checked: &crate::pipeline::CheckedCompilation,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
+    let request = request.into_inner();
     CompileReport::checked(
         request.options.root_path,
         checked.source_file_count(),
@@ -65,9 +45,10 @@ fn checked_report(
 }
 
 fn terminal_report(
-    request: CompileRequest,
+    request: ValidatedCompileRequest,
     checked: crate::pipeline::CheckedCompilation,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
+    let request = request.into_inner();
     reject_unconsumed_callback_placements("terminal-artifact", &checked)?;
     let source_file_count = checked.source_file_count();
     let entry_machine = checked
@@ -90,9 +71,10 @@ fn terminal_report(
 }
 
 fn native_report(
-    request: CompileRequest,
+    request: ValidatedCompileRequest,
     checked: crate::pipeline::CheckedCompilation,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
+    let request = request.into_inner();
     reject_unconsumed_callback_placements("native-artifact", &checked)?;
     let source_file_count = checked.source_file_count();
     let selected_program_entry = checked.selected_program_entry().ok_or_else(|| {

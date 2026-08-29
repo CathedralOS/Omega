@@ -1305,6 +1305,48 @@ fn compiler_options_cannot_hide_product_or_publication_policy() {
 }
 
 #[test]
+fn compile_request_owns_product_admission_before_source_acquisition() {
+    let root = workspace_root();
+    let compiler = root.join("source/omega-rust/omega/compiler/omega-compiler/src/compiler");
+    let request = std::fs::read_to_string(compiler.join("request.rs"))
+        .expect("read typed compile request owner");
+    let driver =
+        std::fs::read_to_string(compiler.join("driver.rs")).expect("read compiler product driver");
+
+    for required in [
+        "struct ValidatedCompileRequest",
+        "fn validate_for_execution(",
+        "requires NativeArtifact production",
+        "RequestedCompileProduct::NativeArtifact",
+    ] {
+        assert!(
+            request.contains(required),
+            "CompileRequest admission lost required ownership `{required}`"
+        );
+    }
+    for forbidden in [
+        "reject_rollback_without_native_realization",
+        "requires NativeArtifact production",
+        "requested_disabled()",
+    ] {
+        assert!(
+            !driver.contains(forbidden),
+            "the product driver must not own request-policy detail `{forbidden}`"
+        );
+    }
+    let admission = driver
+        .find("request.validate_for_execution()")
+        .expect("driver must consume one validated request");
+    let frontend = driver
+        .find("compile_to_checked_for_terminal(")
+        .expect("driver must retain one checked frontend call");
+    assert!(
+        admission < frontend,
+        "cross-field request admission must precede all source acquisition"
+    );
+}
+
+#[test]
 fn provider_approval_stays_in_omega_after_psi_checking() {
     let root = workspace_root();
     let psi_checks =

@@ -1,5 +1,6 @@
 use crate::compiler::{ArtifactEmissionPolicy, CompileOptions, OptimizationRollback};
 use crate::pipeline::PackageCompilationInputs;
+use psi_diagnostics::Diagnostic;
 
 /// The semantic product requested from the production compiler pipeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -24,6 +25,11 @@ pub struct CompileRequest {
     pub(crate) package_inputs: Option<PackageCompilationInputs>,
     pub(crate) optimization_rollback: OptimizationRollback,
 }
+
+/// Request whose cross-field product constraints have been admitted before
+/// any source acquisition or reporting filesystem effect.
+#[derive(Debug)]
+pub(super) struct ValidatedCompileRequest(CompileRequest);
 
 impl CompileRequest {
     /// Creates a checking request. Callers requesting another product must
@@ -95,5 +101,110 @@ impl CompileRequest {
 
     pub const fn optimization_rollback(&self) -> &OptimizationRollback {
         &self.optimization_rollback
+    }
+
+    pub(super) fn validate_for_execution(self) -> Result<ValidatedCompileRequest, Vec<Diagnostic>> {
+        if !self.optimization_rollback.is_empty()
+            && self.requested_product != RequestedCompileProduct::NativeArtifact
+        {
+            let names = self
+                .optimization_rollback
+                .requested_disabled()
+                .as_slice()
+                .iter()
+                .map(|optimization| format!("`{}`", optimization.build_case_name()))
+                .collect::<Vec<_>>()
+                .join(", ");
+            return Err(vec![Diagnostic::error(format!(
+                "optimization rollback {names} requires NativeArtifact production; {:?} does not enter native optimizer realization",
+                self.requested_product
+            ))]);
+        }
+        Ok(ValidatedCompileRequest(self))
+    }
+}
+
+impl ValidatedCompileRequest {
+    pub(super) const fn options(&self) -> &CompileOptions {
+        &self.0.options
+    }
+
+    pub(super) const fn requested_product(&self) -> RequestedCompileProduct {
+        self.0.requested_product
+    }
+
+    pub(super) const fn artifact_policy(&self) -> ArtifactEmissionPolicy {
+        self.0.artifact_policy
+    }
+
+    pub(super) fn accepted_trust_admissions(&self) -> &[omega_trust_model::TrustAdmission] {
+        &self.0.accepted_trust_admissions
+    }
+
+    pub(super) const fn package_inputs(&self) -> Option<&PackageCompilationInputs> {
+        self.0.package_inputs.as_ref()
+    }
+
+    pub(super) fn into_inner(self) -> CompileRequest {
+        self.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use omega_optimization_core::Optimization;
+
+    fn request(product: RequestedCompileProduct, rollback: OptimizationRollback) -> CompileRequest {
+        CompileRequest::new(CompileOptions {
+            root_path: "missing.omg".into(),
+            build_dir: None,
+            target_name: None,
+        })
+        .with_requested_product(product)
+        .with_optimization_rollback(rollback)
+    }
+
+    #[test]
+    fn request_admission_accepts_empty_rollback_for_every_product() {
+        for product in [
+            RequestedCompileProduct::Check,
+            RequestedCompileProduct::TerminalArtifact,
+            RequestedCompileProduct::NativeArtifact,
+        ] {
+            let admitted = request(product, OptimizationRollback::default())
+                .validate_for_execution()
+                .expect("empty rollback is valid for every product");
+            assert_eq!(admitted.requested_product(), product);
+        }
+    }
+
+    #[test]
+    fn request_admission_rejects_non_native_rollback_with_stable_diagnostic() {
+        let rollback = OptimizationRollback::new([
+            Optimization::ControlFlowCleanup,
+            Optimization::CopyPropagation,
+        ])
+        .unwrap();
+        for product in [
+            RequestedCompileProduct::Check,
+            RequestedCompileProduct::TerminalArtifact,
+        ] {
+            let diagnostics = request(product, rollback.clone())
+                .validate_for_execution()
+                .expect_err("non-native rollback must reject during request admission");
+            assert_eq!(diagnostics.len(), 1);
+            assert_eq!(
+                diagnostics[0].message,
+                format!(
+                    "optimization rollback `ControlFlowCleanup`, `CopyPropagation` requires NativeArtifact production; {product:?} does not enter native optimizer realization"
+                )
+            );
+        }
+        assert!(
+            request(RequestedCompileProduct::NativeArtifact, rollback)
+                .validate_for_execution()
+                .is_ok()
+        );
     }
 }
