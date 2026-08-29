@@ -3344,31 +3344,44 @@ The Psi optimizer now demonstrates the target-neutral variant of the same
 invariant:
 
 ```text
-omega-psi-optimizer/src/rules/
-  mod.rs                              # catalog + pass entrances
-  catalog.rs                          # exact ordered built-in registration
-  passes/
-    mod.rs                            # named pass catalog
-    control_flow_cleanup/
-      mod.rs                          # graph-transformation entrance
-      {block_merging,constant_conditionals,empty_block_threading,
-       shared_jump_fusion,unreachable_private_machines}.rs
-    global_value_numbering/
-      mod.rs                          # GVN traversal entrance
-      {expression_keys,local,dominating,phi_translated,accounting}.rs
-    proof_check_elision/              # proof-certified scalar identities
-    sparse_conditional_constant_propagation/
-      range_comparisons.rs
-    {copy_propagation,dead_scalar_elimination}.rs
-    support/{facts,control_flow}.rs       # stable cross-pass concepts only
-    tests/                            # matching pass families and fixtures
+omega-psi-optimizer/src/
+  pass_manager/
+    mod.rs                            # cost identity + run/replay surface
+    model.rs                          # run carrier + closed failures
+    entry.rs                          # exact registry/pipeline entry APIs
+    execution.rs                      # dispatch, validation, decision replay
+    accounting.rs                     # convergence, budget, manifest measures
+    tests/
+      mod.rs                          # typed pass fixtures
+      execution.rs                    # schedule/fixed-point/accounting tests
+      external_decisions.rs           # recording and replay tests
+  rules/
+    mod.rs                            # catalog + pass entrances
+    catalog.rs                        # exact ordered built-in registration
+    passes/
+      mod.rs                          # named pass catalog
+      control_flow_cleanup/
+        mod.rs                        # graph-transformation entrance
+        {block_merging,constant_conditionals,empty_block_threading,
+         shared_jump_fusion,unreachable_private_machines}.rs
+      global_value_numbering/
+        mod.rs                        # GVN traversal entrance
+        {expression_keys,local,dominating,phi_translated,accounting}.rs
+      proof_check_elision/            # proof-certified scalar identities
+      sparse_conditional_constant_propagation/
+        range_comparisons.rs
+      {copy_propagation,dead_scalar_elimination}.rs
+      support/{facts,control_flow}.rs # stable cross-pass concepts only
+      tests/                          # matching pass families and fixtures
 ```
 
-`rules/mod.rs` does not know rule mechanics, while `catalog.rs` visibly owns the
-only built-in ordering. `passes/mod.rs` names every transformation family and
-preserves the existing public surface. Family entrances own meaningful shared
-concepts and point to exact lower rule taxonomies; the test tree uses those same
-names. Independent candidate acceptance remains outside this tree in
+`pass_manager/mod.rs` owns the stable cost-policy identity and exposes the four
+exact run/replay operations without containing their mechanics. `rules/mod.rs`
+does not know rule mechanics, while `catalog.rs` visibly owns the only built-in
+ordering. `passes/mod.rs` names every transformation family and preserves the
+existing public surface. Family entrances own meaningful shared concepts and
+point to exact lower rule taxonomies; both test trees use those same names.
+Independent candidate acceptance remains outside this tree in
 `omega-optimization-validation`; its source tree makes that separation visible:
 
 ```text

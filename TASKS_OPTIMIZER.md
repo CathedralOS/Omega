@@ -1268,10 +1268,13 @@ prove every enabled rule phase is actually scheduled.
   proof-check elision, and SCCP. Control-flow cleanup descends by graph rewrite;
   GVN descends through expression keys, same-block, dominating, phi-translated,
   and accounting modules; proof and range families descend to their exact
-  identities. The 148 rule tests mirror those pass families, keep typed fixtures
-  in a named fixture catalog, and contain no broad monolithic test file. No
-  public rule name, contract identity, built-in ordinal, or registry schedule
-  changed.
+  identities. The pass manager now follows the same shape: its 33-line entrance
+  owns the baseline structural cost-policy identity and leads separately to
+  `model`, `entry`, `execution`, and `accounting`; its 49 tests descend through
+  shared fixtures, execution, and external-decision replay. The complete crate's
+  148 tests mirror those responsibilities and contain no broad monolithic test
+  file. No public rule or pass-manager name, contract identity, built-in
+  ordinal, registry schedule, or test case changed.
 
   The independent validator is now the third reference slice. Its former
   22,346-line `lib.rs` is a 77-line crate entrance. A 33-line candidate entrance
@@ -1581,12 +1584,22 @@ alternate semantic handoff.
   axes, with synthetic corruptions covering recursion, detached functions, all
   call lanes, overlap, canonicality, and stale post-rewrite reach.
 
-- **OPT-ANALYSIS-MANAGER.** Add deterministic revision-keyed analysis caching,
-  dependency declaration, and precise invalidation.
+- **OPT-ANALYSIS-MANAGER — complete.** Deterministic revision-keyed analysis
+  caching, dependency declaration, and precise invalidation are implemented.
 
   Acceptance: a test rule that lies about invalidation is detected in the
   pass-validation configuration; cached and cold analysis runs agree; parallel
   analysis scheduling has stable ordered output.
+
+  The compilation-local manager uses the exact content-addressed unit identity
+  and a canonical `BTreeMap`, recursively resolves the closed dependency graph,
+  expands invalidations through dependents, and cold-recomputes every allegedly
+  retained row before atomically accepting a revision in validation mode.
+  Ownership-frontier and value-range products are always rebound across a
+  revision. Focused tests prove undeclared invalidation detection leaves cache
+  and revision unchanged, cached and cold products agree, parallel publication
+  is in canonical analysis-kind order, and stale content is rejected on every
+  entry path.
 
 - **OPT-CFG-ANALYSES.** Implement reachability, predecessor/successor indices,
   dominators, post-dominators, loop forest, and SCC/call-graph analysis.
@@ -1623,12 +1636,24 @@ alternate semantic handoff.
   predicted non-authoritative cost. Rejected validation leaves the unit and all
   analysis revisions unchanged.
 
-- **OPT-PASS-MANAGER.** Implement analyze/enumerate/choose/validate/commit with
-  named versioned pass groups.
+- **OPT-PASS-MANAGER — complete for the current registered pass vocabulary.**
+  Analyze/enumerate/choose/validate/commit execution uses named versioned pass
+  groups.
 
   Acceptance: work budgets, deterministic tie breaks, candidate limits, and
   fixed-point convergence metrics are enforced. Oscillating synthetic rules
   terminate with a deterministic diagnostic and no partial commit.
+
+  The exact build selection constructs the only admitted ordered registries;
+  every iteration resolves declared analyses, records all candidate verdicts,
+  independently validates before commit, applies per-axis work ceilings, and
+  emits a chained manifest even for a zero-change pass. Duplicate candidates,
+  detached registries, nondecreasing convergence measures, and repeated unit
+  revisions fail without publishing an `OptimizationRun`. External decision
+  replay may choose only among the already validated canonical candidate set.
+  Forty-nine focused pass-manager tests cover fixed points, budgets,
+  oscillation, manifest/ledger accounting, exact phase projection, and external
+  replay.
 
 ## P2 — Equivalence and publication gate
 
