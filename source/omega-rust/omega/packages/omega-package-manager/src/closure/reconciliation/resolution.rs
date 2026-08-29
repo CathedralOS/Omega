@@ -8,7 +8,7 @@ use super::model::{
 };
 use super::resolved_closure::ResolvedPackageSourceClosure;
 use super::source_custody::{PackageRootSourceRequest, PackageSourceCustody};
-use crate::declarations::dependency_projection::DependencySourceRequest;
+use crate::manifest::dependency_projection::DependencySourceRequest;
 use crate::source::identity::{AliasName, PackageKey};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 

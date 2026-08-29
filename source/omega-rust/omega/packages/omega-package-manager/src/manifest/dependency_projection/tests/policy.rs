@@ -1,5 +1,5 @@
 use super::PackageFixture;
-use crate::declarations::dependency_projection::DependencyProjectionError;
+use crate::manifest::dependency_projection::DependencyProjectionError;
 
 #[test]
 fn rejects_noncanonical_first_build_parameter() {

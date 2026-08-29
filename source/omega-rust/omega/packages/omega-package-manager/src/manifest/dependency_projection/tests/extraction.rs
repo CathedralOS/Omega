@@ -1,6 +1,6 @@
 use super::PackageFixture;
-use crate::declarations::declaration::{BuildDeclaration, BuildDeclarationError};
-use crate::declarations::dependency_projection::{
+use crate::manifest::declaration::{BuildDeclaration, BuildDeclarationError};
+use crate::manifest::dependency_projection::{
     DependencyProjectionError, DependencySourceRequest, extract_build_dependency_projection,
 };
 use crate::source::identity::AliasName;

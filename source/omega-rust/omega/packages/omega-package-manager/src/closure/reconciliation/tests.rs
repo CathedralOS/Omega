@@ -1,6 +1,6 @@
 use super::super::graph::PackageClosureValidationError;
 use super::*;
-use crate::declarations::dependency_projection::DependencySourceRequest;
+use crate::manifest::dependency_projection::DependencySourceRequest;
 use crate::source::identity::{
     AliasName, GitCommitId, GitTreeId, ImmutableSourceResolution, PackageKey, PackageName,
     SourceContentDigest, SourceLineage, WorkspaceMemberPath,

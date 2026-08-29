@@ -1,15 +1,13 @@
-use crate::declarations::dependency_edit::BUILD_FILE_NAME;
-use crate::declarations::dependency_edit::model::{
+use crate::manifest::dependency_edit::BUILD_FILE_NAME;
+use crate::manifest::dependency_edit::model::{
     BuildDependencyEditError, BuildDependencyEditPlan, BuildDependencyManualReason,
     BuildFileReplacement,
 };
-use crate::declarations::dependency_edit::planning::{
+use crate::manifest::dependency_edit::planning::{
     plan_addition_from_source, plan_dependency_addition, plan_replacement_from_source,
 };
-use crate::declarations::dependency_edit::rendering::{
-    canonical_dependency_statement, source_digest,
-};
-use crate::declarations::dependency_projection::{
+use crate::manifest::dependency_edit::rendering::{canonical_dependency_statement, source_digest};
+use crate::manifest::dependency_projection::{
     DependencyProjectionError, DependencySourceRequest, extract_from_source,
 };
 use crate::source::identity::AliasName;
@@ -84,7 +82,7 @@ fn rejects_dependency_edits_without_an_explicit_project_role() {
         plan_addition_from_source(PathBuf::from("build.omg"), source, &path("vendor")),
         Err(BuildDependencyEditError::InvalidBuild(
             DependencyProjectionError::BuildDeclaration(error)
-        )) if matches!(*error, crate::declarations::declaration::BuildDeclarationError::MissingBuildDeclaration)
+        )) if matches!(*error, crate::manifest::declaration::BuildDeclarationError::MissingBuildDeclaration)
     ));
 }
 

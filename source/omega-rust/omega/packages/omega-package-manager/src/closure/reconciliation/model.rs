@@ -2,7 +2,7 @@
 
 use super::super::graph::PackageClosureValidationError;
 use super::source_custody::PackageSourceCustody;
-use crate::declarations::dependency_projection::DependencySourceRequest;
+use crate::manifest::dependency_projection::DependencySourceRequest;
 use crate::source::identity::{AliasName, PackageKey};
 use std::fmt;
 

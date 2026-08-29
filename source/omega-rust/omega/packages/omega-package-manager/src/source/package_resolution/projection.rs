@@ -1,8 +1,6 @@
 use super::ResolvePackageSourceError;
-use crate::declarations::declaration::{
-    BuildDeclaration, PackageDeclaration, PackageDeclarationError,
-};
-use crate::declarations::dependency_projection::{
+use crate::manifest::declaration::{BuildDeclaration, PackageDeclaration, PackageDeclarationError};
+use crate::manifest::dependency_projection::{
     DependencyProjectionError, DependencySourceRequest, extract_build_dependency_projection,
 };
 use std::path::Path;

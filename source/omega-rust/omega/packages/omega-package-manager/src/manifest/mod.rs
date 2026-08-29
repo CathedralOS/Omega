@@ -1,4 +1,4 @@
-//! Reading and conservatively editing package declarations in `build.omg`.
+//! Reading and conservatively editing the package manifest in `build.omg`.
 
 pub(crate) mod declaration;
 pub(crate) mod dependency_edit;

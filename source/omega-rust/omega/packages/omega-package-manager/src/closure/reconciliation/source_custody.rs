@@ -1,7 +1,7 @@
 //! Exact root requests and immutable package-source custody.
 
 use super::super::graph::ResolvedSourceIdentity;
-use crate::declarations::dependency_projection::DependencySourceRequest;
+use crate::manifest::dependency_projection::DependencySourceRequest;
 use crate::source::identity::{
     ExternalSourceContext, ImmutableSourceResolution, PackageKey, SourceLineage,
     WorkspaceMemberPath,

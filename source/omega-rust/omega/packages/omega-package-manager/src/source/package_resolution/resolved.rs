@@ -1,5 +1,5 @@
 use crate::closure::{PackageSourceCustody, ResolvedSourceIdentity};
-use crate::declarations::dependency_projection::DependencySourceRequest;
+use crate::manifest::dependency_projection::DependencySourceRequest;
 use crate::source::LocalSourceLimits;
 use crate::source::identity::{ImmutableSourceResolution, PackageKey};
 use std::path::{Path, PathBuf};
