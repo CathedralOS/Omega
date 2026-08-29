@@ -33,7 +33,7 @@ more leaves use the same concept and the concept has one contract.
 
 ## Catalog rule
 
-There is one visibly named catalog per stage. It owns:
+There is one visibly named catalog per rule stage. It owns:
 
 - canonical rule order;
 - exact source-visible selection mapping;
@@ -44,6 +44,11 @@ There is one visibly named catalog per stage. It owns:
 No second match table may silently become an alternate registry. Build
 vocabulary, reports, and codecs derive from or exhaustively test against the
 closed `Optimization::ALL` vocabulary.
+
+Catalog ownership follows rule mechanics. A cross-stage custody crate may
+dispatch a rule-owned selection into its own carrier types, but it may not own
+a proxy enable/order table. The rule entrance must project selections through
+its adjacent catalog before custody code sees the result.
 
 For Psi, `rules/mod.rs` is the selection/application entrance,
 `rules/catalog.rs` is the complete ordered pass table, and every
@@ -67,6 +72,20 @@ selection names, immutable candidate plans, independent validation, and
 identity-bound receipts. It deliberately does not copy the global unsafe
 singleton, string-keyed scheduling, or unordered `HashMap` iteration.
 
+The current source-visible rule paths are:
+
+| Phase | Entrance | Catalog | Next rung |
+|---|---|---|---|
+| Psi | `omega-psi-optimizer/src/rules/mod.rs` | `rules/catalog.rs` | `rules/passes/<exact-pass>/catalog.rs` |
+| Selected lowering and allocation recovery | `omega-regalloc/src/rules/mod.rs` | `rules/catalog.rs` | `rules/{literal_fold,fixed_view_copy,pressure_rematerialization}/` |
+| Post-allocation machine | `omega-machine-optimizer/src/rules/mod.rs` | `rules/catalog.rs` | `rules/<isa>/<exact-rule>/` |
+| Function-relative layout | `omega-optimization-pipeline/src/stages/layout/x86_branch_relaxation/mod.rs` | adjacent `catalog.rs` | `compute`, `validation`, and typed stage model |
+
+The architecture gate requires the three shared rule entrances to retain their
+selection function and adjacent order table. It also guards each migrated
+pipeline custody join independently, so making the registry clear cannot turn
+the stage entrance into a re-export wall.
+
 ## Test placement
 
 Focused tests live beside the responsibility they verify. Integration tests
@@ -74,7 +93,8 @@ mirror production taxonomy under `tests/coordination`, `tests/stages`, and
 `tests/fixtures`. Large fixture catalogs are split by typed artifact family.
 
 Every rule has positive, negative, boundary, disabled-selection, budget, and
-corruption tests. Every entrance has a catalog-coverage test.
+corruption tests. Every rule entrance has a catalog-coverage test; custody
+entrances have focused join and corruption tests instead.
 
 ## Current reference slices
 
@@ -100,7 +120,8 @@ Refactor before adding a rule when any of these are true:
 - the only way to locate built-ins is repository-wide search.
 
 The x86 XOR-zero milestone exercised this trigger across the full physical
-conveyor. The symbolic-machine stage now has one catalog and typed result;
+conveyor. The symbolic-machine rule crate now owns one catalog and the pipeline
+consumes it into one typed result;
 encoding, layout, whole-function exit, and realization consume that result;
 and fragment publication has one generic post-allocation source. Adding
 XOR-zero did not copy the former MOVN route, and the named CBNZ/MOVN owning
@@ -176,9 +197,10 @@ local rule catalog for every Psi pass; a small re-export wall no longer passes
 that check. The optimized ordinary-callable-entry stage is a physical example:
 its `mod.rs` owns build/replay, with records in `model.rs`, semantic
 reconstruction in `reconstruction.rs`, and wire format in `codec.rs`. The
-selected-lowering literal-fold stage follows the same rule: its entrance owns
-phase projection plus catalog dispatch, then descends through `model`,
-`execution`, and `accounting`. Register-allocation rule folders use the same
+selected-lowering literal-fold stage follows the same rule: the regalloc rule
+entrance owns phase projection and catalog order; pipeline custody then
+descends through `model`, `schedule`, `execution`, and `accounting`.
+Register-allocation rule folders use the same
 shape; pressure rematerialization keeps its production computation and broad
 fixtures in separate leaves below its real compute/validate entrance. The
 optimized object-artifact boundary likewise exposes one build/replay entrance

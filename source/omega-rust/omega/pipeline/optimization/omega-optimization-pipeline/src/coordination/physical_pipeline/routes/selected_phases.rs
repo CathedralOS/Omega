@@ -1,5 +1,6 @@
-use omega_optimization_core::OptimizationExecutionPhase;
-use omega_regalloc::FixedViewCopyPolicy;
+use omega_machine_optimizer::selected_post_allocation_machine_rule;
+use omega_optimization_core::{Optimization, OptimizationExecutionPhase};
+use omega_regalloc::{FixedViewCopyPolicy, selected_allocation_recovery_rule};
 
 use crate::{
     StagedOptimizedVerifiedPhysicalPipeline, ValidatedOptimizedTargetOperations,
@@ -17,10 +18,6 @@ use crate::{
     stage_post_allocation_machine_function_relative_realization,
     stage_post_allocation_machine_function_relative_realization_after_selected_lowering,
     stage_selected_lowering_function_relative_realization,
-    stages::allocation::recovery_catalog::{
-        AllocationRecoveryRoute, selected_allocation_recovery_route,
-    },
-    stages::machine::post_allocation_optimizations::selected_rule as selected_post_allocation_rule,
 };
 
 use super::super::OptimizedVerifiedPhysicalPipelineError;
@@ -63,10 +60,10 @@ pub(in crate::coordination::physical_pipeline) fn stage_non_active_resident_rema
             .optimized_target()
             .optimized()
             .budget_per_pass();
-        match selected_allocation_recovery_route(selections).map_err(|_| {
+        match selected_allocation_recovery_rule(selections).map_err(|_| {
             OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition
         })? {
-            Some(AllocationRecoveryRoute::SharedEntryFixedViewCopy) => {
+            Some(Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1) => {
                 let legality = stage_optimized_allocation_legality(ranges)
                     .map_err(OptimizedVerifiedPhysicalPipelineError::AllocationLegality)?;
                 let copies = stage_optimized_fixed_view_copies(
@@ -86,11 +83,12 @@ pub(in crate::coordination::physical_pipeline) fn stage_non_active_resident_rema
                     StagedOptimizedVerifiedPhysicalPipeline::AllocationRecovery { homes, machine },
                 );
             }
-            None | Some(AllocationRecoveryRoute::ActiveResidentImmediateRematerialization) => {
+            None | Some(Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1) => {
                 return Err(
                     OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition,
                 );
             }
+            Some(_) => unreachable!("the allocation-recovery rule catalog is closed"),
         }
     }
 
@@ -100,7 +98,7 @@ pub(in crate::coordination::physical_pipeline) fn stage_non_active_resident_rema
                 OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition,
             );
         }
-        selected_post_allocation_rule(selections).map_err(|_| {
+        selected_post_allocation_machine_rule(selections).map_err(|_| {
             OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition
         })?;
         if selected_lowering.is_empty() {

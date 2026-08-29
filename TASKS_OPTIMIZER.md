@@ -47,9 +47,19 @@ Microsoft x64, AAPCS64, and Darwin AAPCS64 across all five supported native
 targets. General selected-call lowering and live-across-call allocation remain
 separate work because calls are not yet present in the selected CFG.
 
-[>] Make every rule-owning optimizer crate expose its catalog at the rule
-entrance; cross-stage custody code must consume catalogs rather than own a
-second enable/order table.
+[x] Psi, selected-lowering/allocation-recovery, and post-allocation-machine
+rule crates expose meaningful selection entrances immediately above their
+ordered catalogs and named leaves. Cross-stage custody code consumes those
+catalogs rather than owning proxy enable/order tables; the architecture gate
+pins both the entrances and their tables.
+
+[x] One global coverage test composes only the owning catalog views and proves
+every `Optimization::ALL` name occurs exactly once in its declared phase. It is
+a test, not a second production registry.
+
+[>] Add explicit target-applicability dispositions to rule descriptors so
+unsupported targets reject for a named reason rather than relying on leaf
+failure.
 
 ## Completed foundation
 
@@ -87,8 +97,9 @@ second enable/order table.
 ## Organization gate
 
 - [x] Replace `post_allocation_machine_optimizations.rs` with a folder whose
-  entrance owns the exact stage catalog and typed result; descend to
-  `aarch64/{cbnz,movn}` and `x86_64/xor_zero` custody leaves.
+  entrance consumes the machine-rule catalog into one typed result; descend to
+  `aarch64/{cbnz,movn}` and `x86_64/xor_zero` custody leaves while the adjacent
+  machine-rule entrance remains the only enable/order owner.
 - [x] Split `post_allocation_selected_form_encoding.rs` by stage model,
   row/structural encoding, machine-rule disposition, identity, and independent
   validation. Its entrance must own the encode/validate join.
@@ -118,9 +129,14 @@ second enable/order table.
 - [x] Split the flat optimized ordinary-callable-entry stage into a subfolder;
   its small entrance owns build/replay while model, reconstruction, and codec
   descend into named leaves.
-- [x] Split the flat selected-lowering literal-fold stage; its entrance owns
-  exact selection projection and catalog dispatch while carriers, execution,
-  replay, identities, and work accounting descend into named leaves.
+- [x] Split the flat selected-lowering literal-fold stage; the regalloc rule
+  entrance owns exact selection projection and catalog order while pipeline
+  carriers, execution, replay, schedule receipts, and work accounting descend
+  into named leaves.
+- [x] Move selected-lowering, allocation-recovery, and post-allocation-machine
+  enable/order tables to their rule-owning crate entrances. Remove the proxy
+  pipeline catalogs and enforce each meaningful entrance plus adjacent catalog
+  in the repository navigation test.
 - [x] Move the 800-line pressure-rematerialization fixture suite out of the
   production compute leaf; the exact rule entrance now descends separately to
   compute, identity, model, validation, and tests.
@@ -286,8 +302,9 @@ second enable/order table.
   budgets, decisions, typed facts, and manifests.
 - [x] Deterministic Psi catalog, scheduling, fixed point, and replay.
 - [x] Revision-aware analysis cache with stale-analysis tests.
-- [x] Add one obvious ordered post-allocation machine catalog and route its
-  typed result through one complete physical realization carrier.
+- [x] Add one obvious ordered post-allocation machine catalog at the
+  machine-rule entrance and route its typed result through one complete
+  physical realization carrier.
 - [ ] Unify common catalog descriptors without erasing representation-specific
   candidate and validator types.
 - [ ] Add catalog coverage tests proving every selected name is scheduled once
@@ -426,8 +443,10 @@ rewrite or opt a program into lossy floating-point semantics.
 6. [x] Finish the remaining stage-entrance taxonomy migration and make the
    navigation contract executable for each migrated stage.
 7. [x] Add the broader target-register-environment ABI corruption matrix.
-8. [>] Move allocation-recovery and post-allocation-machine catalogs to their
-   rule-owning crate entrances, and make the navigation gate enforce those
-   ownership points.
-9. [ ] Finish workspace validation and rollout canaries before promoting any
+8. [x] Move selected-lowering, allocation-recovery, and
+   post-allocation-machine catalogs to their rule-owning crate entrances, and
+   make the navigation gate enforce those ownership points.
+9. [x] Add global exact-name-to-rule-stage disposition coverage.
+10. [>] Add exact target-applicability dispositions at the owning catalogs.
+11. [ ] Finish workspace validation and rollout canaries before promoting any
    rule beyond explicit opt-in.

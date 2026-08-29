@@ -137,6 +137,18 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn built_in_psi_registries",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/mod.rs",
+        coordination_marker: "pub fn selected_allocation_recovery_rule",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/mod.rs",
+        coordination_marker: "pub fn selected_lowering_rule_policy",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/mod.rs",
+        coordination_marker: "pub fn selected_post_allocation_machine_rule",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/pressure_rematerialization/mod.rs",
         coordination_marker: "pub fn rematerialize_selected_active_resident",
     },
@@ -277,6 +289,10 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "stage_optimized_resolved_selected_form_layout_with_post_allocation_machine_optimization",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/layout/whole_function_exit_contract/mod.rs",
+        coordination_marker: "stage_whole_function_exit_contract_with_post_allocation_machine_optimization",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/layout/x86_branch_relaxation/mod.rs",
         coordination_marker: "stage_optimized_x86_branch_relaxation",
     },
@@ -342,14 +358,51 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
     },
 ];
 
-/// Every Psi pass owns its rule order immediately below its named folder.
-const REQUIRED_PSI_PASS_CATALOGS: &[&str] = &[
-    "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/control_flow_cleanup/catalog.rs",
-    "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/copy_propagation/catalog.rs",
-    "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/dead_scalar_elimination/catalog.rs",
-    "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/global_value_numbering/catalog.rs",
-    "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/proof_check_elision/catalog.rs",
-    "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/catalog.rs",
+struct RequiredRuleCatalog {
+    path: &'static str,
+    order_marker: &'static str,
+}
+
+/// Every rule-owning entrance keeps its only order table immediately below
+/// that entrance. Pipeline custody code may consume these catalogs but may not
+/// replace them with a second selection table.
+const REQUIRED_RULE_CATALOGS: &[RequiredRuleCatalog] = &[
+    RequiredRuleCatalog {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/catalog.rs",
+        order_marker: "ORDERED_ALLOCATION_RECOVERY_RULES",
+    },
+    RequiredRuleCatalog {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/catalog.rs",
+        order_marker: "ORDERED_SELECTED_LOWERING_RULES",
+    },
+    RequiredRuleCatalog {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/catalog.rs",
+        order_marker: "ORDERED_POST_ALLOCATION_MACHINE_RULES",
+    },
+    RequiredRuleCatalog {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/control_flow_cleanup/catalog.rs",
+        order_marker: "fn built_in_registrations",
+    },
+    RequiredRuleCatalog {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/copy_propagation/catalog.rs",
+        order_marker: "fn built_in_registrations",
+    },
+    RequiredRuleCatalog {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/dead_scalar_elimination/catalog.rs",
+        order_marker: "fn built_in_registrations",
+    },
+    RequiredRuleCatalog {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/global_value_numbering/catalog.rs",
+        order_marker: "fn built_in_registrations",
+    },
+    RequiredRuleCatalog {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/proof_check_elision/catalog.rs",
+        order_marker: "fn built_in_registrations",
+    },
+    RequiredRuleCatalog {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/catalog.rs",
+        order_marker: "fn built_in_registrations",
+    },
 ];
 
 fn repository_root() -> PathBuf {
@@ -579,17 +632,19 @@ fn optimizer_source_organization_is_bounded_and_navigable() {
         }
     }
 
-    for catalog in REQUIRED_PSI_PASS_CATALOGS {
-        match fs::read_to_string(repository.join(catalog)) {
-            Ok(contents) if contents.contains("fn built_in_registrations") => {}
+    for catalog in REQUIRED_RULE_CATALOGS {
+        match fs::read_to_string(repository.join(catalog.path)) {
+            Ok(contents) if contents.contains(catalog.order_marker) => {}
             Ok(_) => {
                 violations.insert(format!(
-                    "Psi pass catalog lacks its ordered registration point: {catalog}"
+                    "rule catalog lacks ordered marker `{}`: {}",
+                    catalog.order_marker, catalog.path
                 ));
             }
             Err(error) => {
                 violations.insert(format!(
-                    "missing required Psi pass catalog {catalog}: {error}"
+                    "missing required rule catalog {}: {error}",
+                    catalog.path
                 ));
             }
         }

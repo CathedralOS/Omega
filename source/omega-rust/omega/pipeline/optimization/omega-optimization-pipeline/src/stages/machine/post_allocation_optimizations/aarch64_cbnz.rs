@@ -1,6 +1,7 @@
 use omega_machine_optimizer::{
     Aarch64CbnzFusionIdentity, ValidatedAarch64CbnzFusion,
-    optimize_aarch64_compare_i64_zero_branch_nonzero_to_cbnz, validate_aarch64_cbnz_fusion,
+    optimize_aarch64_compare_i64_zero_branch_nonzero_to_cbnz, require_post_allocation_machine_rule,
+    validate_aarch64_cbnz_fusion,
 };
 use omega_optimization_core::{
     Optimization, OptimizationSelectionIdentity, OptimizationSelections, OptimizationWorkBudget,
@@ -15,7 +16,7 @@ use crate::{
     validate_optimized_post_allocation_machine_plan_custody,
 };
 
-use super::{OptimizedPostAllocationMachineOptimizationError, require_rule};
+use super::OptimizedPostAllocationMachineOptimizationError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedOptimizedAarch64CbnzFusion {
@@ -193,7 +194,7 @@ fn stage_with_inputs<S: ValidatedSelectedAnalysis>(
     selections: &OptimizationSelections,
     budget: OptimizationWorkBudget,
 ) -> Result<StagedOptimizedAarch64CbnzFusion, OptimizedPostAllocationMachineOptimizationError> {
-    let phase = require_rule(
+    let phase = require_post_allocation_machine_rule(
         selections,
         Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
     )?;
@@ -222,7 +223,7 @@ fn validate_with_inputs<S: ValidatedSelectedAnalysis>(
     StagedOptimizedAarch64CbnzFusionCustodyReceipt,
     OptimizedPostAllocationMachineOptimizationError,
 > {
-    let phase = require_rule(
+    let phase = require_post_allocation_machine_rule(
         selections,
         Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
     )?;

@@ -66,7 +66,8 @@ plan. Omega preserves those strengths. It does not copy Squalr's global unsafe
 singleton, hash-map scheduling, in-place partial mutation, or implicit analysis
 invalidation.
 
-Each optimizer stage therefore has exactly one small, meaningful entrance:
+Each rule-owning optimizer stage therefore has exactly one small, meaningful
+entrance:
 
 - the entrance owns the stage input/output and its ordered catalog;
 - `analyses/` owns immutable facts and their revision/invalidation rules;
@@ -75,6 +76,12 @@ Each optimizer stage therefore has exactly one small, meaningful entrance:
 - `validation/` owns shared representation and publication checks; and
 - broad compiler routes consume one typed stage result rather than branching
   into a parallel pipeline for every rule.
+
+A cross-stage custody boundary also has one small entrance, but it consumes the
+rule owner's catalog; it never creates a proxy enable/order table. Thus the
+human path is always rule entrance -> adjacent catalog -> named family -> exact
+rule leaf, while the pipeline path is custody entrance -> typed dispatch ->
+validated stage result.
 
 An entrance is not a re-export wall. It answers: what enters, which exact rules
 can run, in what order, and what validated value leaves.

@@ -1,3 +1,4 @@
+use omega_machine_optimizer::selected_post_allocation_machine_rule;
 use omega_optimization_core::Optimization;
 
 use crate::{
@@ -7,8 +8,7 @@ use crate::{
 
 use super::{
     OptimizedPostAllocationMachineOptimizationError,
-    StagedOptimizedPostAllocationMachineOptimization, selected_rule,
-    stage_optimized_aarch64_cbnz_fusion,
+    StagedOptimizedPostAllocationMachineOptimization, stage_optimized_aarch64_cbnz_fusion,
     stage_optimized_aarch64_cbnz_fusion_after_selected_lowering,
     stage_optimized_aarch64_movn_materialization,
     stage_optimized_aarch64_movn_materialization_after_selected_lowering,
@@ -37,7 +37,7 @@ pub fn stage_optimized_post_allocation_machine_optimization(
         .optimized_target()
         .optimized()
         .selections();
-    match selected_rule(selections)?.0 {
+    match selected_post_allocation_machine_rule(selections)?.0 {
         Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 => {
             stage_optimized_aarch64_cbnz_fusion(source, machine)
                 .map(StagedOptimizedPostAllocationMachineOptimization::Aarch64Cbnz)
@@ -90,7 +90,7 @@ pub fn stage_optimized_post_allocation_machine_optimization_after_selected_lower
         .optimized_target()
         .optimized()
         .selections();
-    match selected_rule(selections)?.0 {
+    match selected_post_allocation_machine_rule(selections)?.0 {
         Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 => {
             stage_optimized_aarch64_cbnz_fusion_after_selected_lowering(source, machine)
                 .map(StagedOptimizedPostAllocationMachineOptimization::Aarch64Cbnz)

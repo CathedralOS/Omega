@@ -1,6 +1,6 @@
 use omega_machine_optimizer::{
     Aarch64MovnMaterializationIdentity, ValidatedAarch64MovnMaterialization,
-    optimize_aarch64_materialize_i64_with_shortest_movn_seed,
+    optimize_aarch64_materialize_i64_with_shortest_movn_seed, require_post_allocation_machine_rule,
     validate_aarch64_movn_materialization,
 };
 use omega_optimization_core::{
@@ -16,7 +16,7 @@ use crate::{
     validate_optimized_post_allocation_machine_plan_custody,
 };
 
-use super::{OptimizedPostAllocationMachineOptimizationError, require_rule};
+use super::OptimizedPostAllocationMachineOptimizationError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedOptimizedAarch64MovnMaterialization {
@@ -203,7 +203,7 @@ fn stage_with_inputs<S: ValidatedSelectedAnalysis>(
     StagedOptimizedAarch64MovnMaterialization,
     OptimizedPostAllocationMachineOptimizationError,
 > {
-    let phase = require_rule(
+    let phase = require_post_allocation_machine_rule(
         selections,
         Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
     )?;
@@ -232,7 +232,7 @@ fn validate_with_inputs<S: ValidatedSelectedAnalysis>(
     StagedOptimizedAarch64MovnMaterializationCustodyReceipt,
     OptimizedPostAllocationMachineOptimizationError,
 > {
-    let phase = require_rule(
+    let phase = require_post_allocation_machine_rule(
         selections,
         Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
     )?;

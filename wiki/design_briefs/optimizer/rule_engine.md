@@ -3,9 +3,9 @@
 This brief defines the common rule-planning machinery. The architecture
 entrance is [optimizer_architecture.md](../optimizer_architecture.md).
 
-## Stage entrance
+## Rule-stage entrance
 
-Each stage entrance owns four things and only four things:
+Each rule-stage entrance owns four things and only four things:
 
 1. the validated input type;
 2. the ordered catalog of exact rules applicable to that stage;
@@ -16,6 +16,10 @@ The catalog is the obvious enable/disable point. It maps stable
 `Optimization` names to rule descriptors in canonical order. A descriptor
 declares rule and validator identities, phase, safety class, required analyses,
 invalidations, budget axes, and target/feature predicates.
+
+Pipeline custody entrances consume that selection result and bind it to their
+typed input/output carriers. They do not own another ordered list of the same
+rules.
 
 Rule mechanics live under `rules/<target-or-family>/<exact-rule>/` and use the
 same lower taxonomy:
