@@ -163,6 +163,13 @@ named leaves. Costs are descriptive and cannot participate in legality. The
 architecture gate requires the catalog and prevents replay from reaching the
 producer matcher.
 
+Psi SCCP constant evaluation now follows the same downward-navigation rule.
+Its 35-line entrance owns the shared SCCP rule contract and names boolean and
+integer families. The integer entrance descends into binary arithmetic/shifts,
+exact casts, unary operations, and shared fact lookup. The ordered SCCP catalog
+above it remains the sole enable/order table; no leaf in the constant-evaluation
+subtree exceeds 750 lines.
+
 The layout-independent selected-form encoding stage applies the same
 navigational rule to a custody join rather than a rule catalog. Its 57-line
 entrance owns construction followed by independent admission. Validation then

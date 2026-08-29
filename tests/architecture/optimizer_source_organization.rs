@@ -24,10 +24,6 @@ const MAX_ENTRANCE_LINES: usize = 200;
 /// never enter this table.
 const LEGACY_PRODUCTION_FILE_CEILINGS: &[(&str, usize)] = &[
     (
-        "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation.rs",
-        1_276,
-    ),
-    (
         "source/omega-rust/omega/representations/omega-optimization-unit/src/rewrite/candidate.rs",
         1_253,
     ),
@@ -133,6 +129,10 @@ struct RequiredCoordinationEntrance {
 /// keeping these paths small is insufficient: deleting the coordination seam
 /// and leaving a re-export wall must fail this architecture test.
 const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/mod.rs",
+        coordination_marker: "fn integer_evaluation_contract",
+    },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/live_ranges/validate.rs",
         coordination_marker: "pub fn validate_live_ranges",
