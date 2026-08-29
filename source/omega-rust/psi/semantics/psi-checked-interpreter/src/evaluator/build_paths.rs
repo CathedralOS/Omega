@@ -1,10 +1,12 @@
 use super::*;
-use crate::{FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT, FilesystemGrantRootIdentity};
+use crate::{
+    FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT, FilesystemGrantRootIdentity,
+    MAX_INCLUDED_BUILD_SOURCES,
+};
 
 pub(super) const ROOTED_BUILD_PATH_TYPE: &str = "$OmegaBuildRootedPath";
 const SOURCE_ROOT_FACET_TYPE: &str = "$OmegaBuildSourceRoot";
 const OUTPUT_ROOT_FACET_TYPE: &str = "$OmegaBuildOutputRoot";
-const MAX_INCLUDED_BUILD_SOURCES: usize = 256;
 
 impl<'program> Evaluator<'program> {
     pub(super) fn enable_rooted_build_paths_from_arguments(
@@ -193,9 +195,16 @@ impl<'program> Evaluator<'program> {
         let replayed_output = self
             .filesystem_replay
             .as_ref()
-            .and_then(crate::FilesystemReplay::expected_included_source)
+            .and_then(|replay| {
+                replay
+                    .expected_included_sources()
+                    .get(self.build_included_sources.len())
+            })
             .is_some_and(|expected| {
-                expected.root() == included_root && expected.relative_path() == relative_path
+                expected.root() == included_root
+                    && expected.relative_path() == relative_path
+                    && expected.filesystem_attempt_ordinal()
+                        == self.filesystem_operation_attempts.len()
             });
         if !scoped_real_output && !replayed_output {
             return Err(Halt::Trap(

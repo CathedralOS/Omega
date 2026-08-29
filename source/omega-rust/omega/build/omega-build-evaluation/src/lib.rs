@@ -300,7 +300,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 29;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 30;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -1048,8 +1048,27 @@ pub struct BuildObservationSummary {
     canonical_source_metadata_identity: Option<BuildCanonicalSourceMetadataIdentity>,
     source_inputs_replay_verified: bool,
     operation_replay_verified: bool,
-    included_source_paths: Vec<Vec<u8>>,
+    included_source_handoffs: Vec<BuildIncludedSourceHandoff>,
     staged_output_tree: Option<BuildStagedOutputTree>,
+}
+
+/// Exact explicit publication of one retained Output file as generated Omega
+/// source. Ordering is authored call order; the ordinal is the number of
+/// completed filesystem attempts when the handoff occurred.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildIncludedSourceHandoff {
+    relative_path: Vec<u8>,
+    filesystem_attempt_ordinal: u64,
+}
+
+impl BuildIncludedSourceHandoff {
+    pub fn relative_path(&self) -> &[u8] {
+        &self.relative_path
+    }
+
+    pub const fn filesystem_attempt_ordinal(&self) -> u64 {
+        self.filesystem_attempt_ordinal
+    }
 }
 
 impl BuildObservationSummary {
@@ -1079,10 +1098,10 @@ impl BuildObservationSummary {
         self.staged_output_tree.as_ref()
     }
 
-    /// Exact Output-relative paths explicitly handed to the compiler as
-    /// generated Omega source. Ordinary retained output files are absent.
-    pub fn included_source_paths(&self) -> &[Vec<u8>] {
-        &self.included_source_paths
+    /// Exact ordered Output-relative generated-source handoffs. Ordinary
+    /// retained output files are absent.
+    pub fn included_source_handoffs(&self) -> &[BuildIncludedSourceHandoff] {
+        &self.included_source_handoffs
     }
 
     /// Whether the compiler reran this build with no host filesystem provider
@@ -3163,7 +3182,7 @@ pub fn compute_build_config(
         })
         .collect::<Result<Vec<_>, Diagnostic>>()
         .map_err(|diagnostic| vec![diagnostic])?;
-    let included_source_paths = measured
+    let included_source_handoffs = measured
         .observations()
         .build_included_sources()
         .iter()
@@ -3173,7 +3192,17 @@ pub fn compute_build_config(
                     "build-time evaluation of `{machine_name}` handed off a generated source outside the compiler-issued Output root"
                 )));
             }
-            Ok(source.relative_path().to_vec())
+            Ok(BuildIncludedSourceHandoff {
+                relative_path: source.relative_path().to_vec(),
+                filesystem_attempt_ordinal: u64::try_from(
+                    source.filesystem_attempt_ordinal(),
+                )
+                .map_err(|_| {
+                    Diagnostic::error(format!(
+                        "build-time evaluation of `{machine_name}` produced an included-source ordinal that exceeds canonical u64"
+                    ))
+                })?,
+            })
         })
         .collect::<Result<Vec<_>, Diagnostic>>()
         .map_err(|diagnostic| vec![diagnostic])?;
@@ -3229,8 +3258,14 @@ pub fn compute_build_config(
         ))]);
     }
     let generated_sources = match staged_output_tree.as_ref() {
-        Some(tree) => select_included_sources(tree, &included_source_paths)?,
-        None if included_source_paths.is_empty() => Vec::new(),
+        Some(tree) => {
+            let included_source_paths = included_source_handoffs
+                .iter()
+                .map(|handoff| handoff.relative_path.clone())
+                .collect::<Vec<_>>();
+            select_included_sources(tree, &included_source_paths)?
+        }
+        None if included_source_handoffs.is_empty() => Vec::new(),
         None => {
             return Err(vec![Diagnostic::error(format!(
                 "build-time evaluation of `{machine_name}` handed off generated source without sponsored staged-output custody"
@@ -3256,7 +3291,7 @@ pub fn compute_build_config(
                 .canonical_source_metadata_identity(),
             source_inputs_replay_verified,
             operation_replay_verified,
-            included_source_paths,
+            included_source_handoffs,
             staged_output_tree,
         }),
         selected_build_machine_symbol: Some(machine.symbol),
