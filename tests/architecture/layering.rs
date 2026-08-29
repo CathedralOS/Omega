@@ -672,6 +672,93 @@ fn trust_ledgers_are_not_owned_or_reexported_by_the_compiler() {
 }
 
 #[test]
+fn checked_observations_have_one_policy_gate_outside_the_product_driver() {
+    let root = workspace_root();
+    let compiler = root.join("source/omega-rust/omega/compiler/omega-compiler/src");
+    let driver = std::fs::read_to_string(compiler.join("compiler/driver.rs"))
+        .expect("read compiler product driver");
+    let reporter =
+        std::fs::read_to_string(compiler.join("pipeline/reporting/checked_observations.rs"))
+            .expect("read checked observation reporter");
+    let pipeline =
+        std::fs::read_to_string(compiler.join("pipeline/mod.rs")).expect("read pipeline root");
+
+    assert_eq!(
+        driver.matches("report_checked_observations(").count(),
+        1,
+        "the product driver must invoke one typed checked reporter"
+    );
+    for forbidden in [
+        "ArtifactWriter",
+        "emits_auxiliary_artifacts",
+        "write_trust_report",
+        "write_checked_snapshot",
+        "write_timings",
+        "reconstruct_trust_obligations",
+        "settle_trust_admissions",
+    ] {
+        assert!(
+            !driver.contains(forbidden),
+            "the product driver must not own checked observation detail `{forbidden}`"
+        );
+    }
+    assert_eq!(
+        reporter.matches("emits_auxiliary_artifacts()").count(),
+        1,
+        "checked auxiliary output must have one centralized policy branch"
+    );
+    for required in [
+        "pub(crate) struct CheckedObservationInput",
+        "reconstruct_trust_obligations(",
+        "settle_trust_admissions(",
+        "reconstruct_trust_report(",
+        ".validate()",
+        "ArtifactWriter::new(",
+        "write_trust_report(&trust_report)",
+        "write_checked_snapshots(",
+        "write_timings(input.checked.timings().phases())",
+    ] {
+        assert!(
+            reporter.contains(required),
+            "checked reporter lost required operation `{required}`"
+        );
+    }
+    let policy_gate = reporter
+        .find("if input.artifact_policy.emits_auxiliary_artifacts()")
+        .expect("checked reporter retains its sole policy gate");
+    for unconditional in [
+        "reconstruct_trust_obligations(",
+        "settle_trust_admissions(",
+        "reconstruct_trust_report(",
+        ".validate()",
+    ] {
+        assert!(
+            reporter
+                .find(unconditional)
+                .is_some_and(|offset| offset < policy_gate),
+            "semantic trust operation `{unconditional}` must precede observation policy"
+        );
+    }
+    let trust_write = reporter
+        .find("write_trust_report(&trust_report)")
+        .expect("checked reporter writes trust first");
+    let checked_write = reporter
+        .find("write_checked_snapshots(")
+        .expect("checked reporter writes snapshots second");
+    let timing_write = reporter
+        .find("write_timings(input.checked.timings().phases())")
+        .expect("checked reporter writes timings last");
+    assert!(
+        policy_gate < trust_write && trust_write < checked_write && checked_write < timing_write,
+        "Full checked observations must preserve trust, snapshot, then timing write order"
+    );
+    assert!(
+        !pipeline.contains("write_checked_snapshot"),
+        "the checked snapshot writer must not regain a pipeline-root re-export"
+    );
+}
+
+#[test]
 fn package_review_is_not_owned_or_reexported_by_the_compiler() {
     let root = workspace_root();
     let compiler = root.join("source/omega-rust/omega/compiler/omega-compiler");

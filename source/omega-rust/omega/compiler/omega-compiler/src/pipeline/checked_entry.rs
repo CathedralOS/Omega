@@ -14,7 +14,7 @@ use std::sync::Arc;
 /// Psi-checked semantics paired with the Omega-owned provider realization
 /// selected for one engine run. The semantic program deliberately does not
 /// retain target/provider installation state.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct CheckedCompilation {
     program: CheckedTrees,
     source_file_count: usize,
@@ -46,7 +46,45 @@ pub struct CheckedCompilation {
     build_evaluation_usage: Option<super::build_config::BuildEvaluationUsage>,
     build_observation_summary: Option<super::build_config::BuildObservationSummary>,
     contract_entailment_stand_downs: Vec<psi_validation::ContractEntailmentStandDown>,
+    timings: CompileTimings,
 }
+
+// Timing measurements are nondeterministic observations of a compilation,
+// not part of checked semantic identity. Keep the public semantic equality
+// contract while deliberately excluding `timings`.
+impl PartialEq for CheckedCompilation {
+    fn eq(&self, other: &Self) -> bool {
+        self.program == other.program
+            && self.source_file_count == other.source_file_count
+            && self.subsystem == other.subsystem
+            && self.package_identity == other.package_identity
+            && self.dependency_closure == other.dependency_closure
+            && self.source_consumption_commitment == other.source_consumption_commitment
+            && self.exact_toolchain_sources == other.exact_toolchain_sources
+            && self.generated_source_custody == other.generated_source_custody
+            && self.own_generated_sources == other.own_generated_sources
+            && self.selected_target_profile == other.selected_target_profile
+            && self.selected_native_target == other.selected_native_target
+            && self.selected_program_entry == other.selected_program_entry
+            && self.selected_build_machine_symbol == other.selected_build_machine_symbol
+            && self.optimization_selections == other.optimization_selections
+            && self.optimization_selection_identity == other.optimization_selection_identity
+            && self.optimization_report == other.optimization_report
+            && self.selected_provider_plans == other.selected_provider_plans
+            && self.provider_plans == other.provider_plans
+            && self.root_grants == other.root_grants
+            && self.accepted_template_classifications == other.accepted_template_classifications
+            && self.selected_provider_provenance == other.selected_provider_provenance
+            && self.component_progress == other.component_progress
+            && self.task_activations == other.task_activations
+            && self.callback_placements == other.callback_placements
+            && self.build_evaluation_usage == other.build_evaluation_usage
+            && self.build_observation_summary == other.build_observation_summary
+            && self.contract_entailment_stand_downs == other.contract_entailment_stand_downs
+    }
+}
+
+impl Eq for CheckedCompilation {}
 
 impl CheckedCompilation {
     /// Exact physical/generated source count consumed by this checked run.
@@ -257,6 +295,10 @@ impl CheckedCompilation {
         &self,
     ) -> &[psi_validation::ContractEntailmentStandDown] {
         &self.contract_entailment_stand_downs
+    }
+
+    pub(super) const fn timings(&self) -> &CompileTimings {
+        &self.timings
     }
 
     pub fn into_program(self) -> CheckedTrees {
@@ -835,5 +877,6 @@ fn compile_to_checked_inner_with_replay(
         build_observation_summary,
         contract_entailment_stand_downs: selected_execution_settlement
             .contract_entailment_stand_downs,
+        timings,
     })
 }

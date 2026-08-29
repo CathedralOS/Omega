@@ -83,6 +83,62 @@ fn output_only_checks_suppress_artifacts_without_suppressing_wire_validation() {
 }
 
 #[test]
+fn full_checked_observation_emits_ordered_timings_with_checked_snapshots() {
+    let build_dir = unique_no_output_build_dir();
+    let report = omega_compiler::compile(
+        CompileRequest::new(CompilerOptions {
+            root_path: pass_canary("dependent/boundary_equality_recast_witness_compile")
+                .join("main.omg"),
+            build_dir: Some(build_dir.clone()),
+            target_name: None,
+        })
+        .with_artifact_policy(ArtifactEmissionPolicy::Full),
+    )
+    .expect("full frontend check should emit one checked observation bundle");
+    assert!(!report.wrote_output());
+
+    for file_name in [
+        "trust_report.md",
+        "05_checked_trees.html",
+        "05_capability_manifest.json",
+        "00_timings.html",
+    ] {
+        assert!(
+            build_dir.join(file_name).is_file(),
+            "full checked observation should emit {file_name}"
+        );
+    }
+    let timings = fs::read_to_string(build_dir.join("00_timings.html"))
+        .expect("read checked timing observation");
+    let mut prior = None;
+    for stage in ["Stage 01", "Stage 02", "Stage 03", "Stage 04", "Stage 05"] {
+        let position = timings
+            .rfind(stage)
+            .unwrap_or_else(|| panic!("timing report omitted {stage}\n{timings}"));
+        if let Some(prior) = prior {
+            assert!(
+                prior < position,
+                "timing report reordered {stage}\n{timings}"
+            );
+        }
+        prior = Some(position);
+    }
+
+    let _ = fs::remove_dir_all(build_dir);
+}
+
+#[test]
+fn checked_semantic_equality_excludes_timing_observations() {
+    let main = pass_canary("dependent/boundary_equality_recast_witness_compile").join("main.omg");
+    let first = compile_to_checked(&main, None).expect("first checked compilation");
+    let replay = compile_to_checked(&main, None).expect("replayed checked compilation");
+    assert_eq!(
+        first, replay,
+        "nondeterministic phase measurements must not enter checked semantic equality"
+    );
+}
+
+#[test]
 fn output_only_backend_compile_keeps_primary_image_and_certification() {
     let build_dir = unique_no_output_build_dir();
     let report = omega_compiler::compile(

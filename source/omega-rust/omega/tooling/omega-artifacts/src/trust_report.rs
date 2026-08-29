@@ -4,16 +4,25 @@ use psi_diagnostics::Diagnostic;
 
 use super::{ArtifactWriter, TrustReport, hex_bytes};
 
+impl TrustReport {
+    /// Validate exact target/report joins independently from filesystem output.
+    /// Observation suppression must not suppress these consistency checks.
+    pub fn validate(&self) -> Result<(), Diagnostic> {
+        for row in &self.provider_requirements {
+            row.realization
+                .validate_reported_target(&row.target)
+                .map_err(Diagnostic::error)?;
+        }
+        Ok(())
+    }
+}
+
 impl ArtifactWriter {
     /// GR5: the chapter-10 trust report -- the proof-tier surface the
     /// boundary report does not carry. Written even when empty (an empty
     /// report is the honest "no semantic commitments admitted" statement).
     pub fn write_trust_report(&self, trust_report: &TrustReport) -> Result<(), Diagnostic> {
-        for row in &trust_report.provider_requirements {
-            row.realization
-                .validate_reported_target(&row.target)
-                .map_err(Diagnostic::error)?;
-        }
+        trust_report.validate()?;
         let mut output = String::new();
         output.push_str("# Omega Trust\n\n");
         output.push_str(&format!(

@@ -2682,7 +2682,19 @@ Remaining:
   program and every resulting sidecar; `checked_entry` only derives the exact
   progress root and consumes the complete surface. Remaining cleanup belongs
   to the broader semantic-owner and observation/report consolidation below,
-  not post-check mutation or a mutable provenance courier.
+  not post-check mutation or a mutable provenance courier. Checked
+  observations now enter one typed `CheckedObservationInput` under
+  `pipeline/reporting`. Trust-obligation reconstruction, admission settlement,
+  derived trust-report construction, and independent report consistency
+  validation run unconditionally before the reporter's sole auxiliary-policy
+  branch. `Full` then preserves the existing trust-report and ordered checked-
+  snapshot writes and appends `00_timings.html`; `OutputOnly` constructs no
+  report writer and adds no reporting filesystem effect. Ordered accumulated
+  `CompileTimings` travel on `CheckedCompilation` for that observation, while
+  custom semantic equality deliberately excludes their nondeterministic
+  measurements. The driver no longer owns trust-report algorithms, writers,
+  snapshot arguments, timing output, or observation-policy branching, and the
+  checked snapshot writer is no longer re-exported from the pipeline root.
 
   Restore the driver contract:
 

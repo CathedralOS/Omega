@@ -5,12 +5,16 @@ use omega_core::allocations::snapshot as allocation_snapshot;
 use psi_diagnostics::Diagnostic;
 use std::time::Instant;
 
-#[derive(Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub(super) struct CompileTimings {
     phases: Vec<PhaseTiming>,
 }
 
 impl CompileTimings {
+    pub(super) fn phases(&self) -> &[PhaseTiming] {
+        &self.phases
+    }
+
     pub(super) fn record<T>(
         &mut self,
         stage: StageMeta,
@@ -59,5 +63,50 @@ impl CompileTimings {
                 allocations,
             });
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::pipeline::stage::{SOURCE_FILES_TO_TOKENS, TOKENS_TO_SYNTAX_TREES};
+
+    #[test]
+    fn repeated_phase_measurements_aggregate_without_reordering() {
+        let mut timings = CompileTimings::default();
+        timings.add_completed(
+            TOKENS_TO_SYNTAX_TREES,
+            7,
+            AllocationDelta {
+                allocation_calls: 1,
+                allocated_bytes: 11,
+                ..AllocationDelta::default()
+            },
+        );
+        timings.add_completed(
+            SOURCE_FILES_TO_TOKENS,
+            13,
+            AllocationDelta {
+                deallocation_calls: 2,
+                deallocated_bytes: 5,
+                ..AllocationDelta::default()
+            },
+        );
+        timings.add_completed(
+            TOKENS_TO_SYNTAX_TREES,
+            17,
+            AllocationDelta {
+                allocation_calls: 3,
+                allocated_bytes: 19,
+                ..AllocationDelta::default()
+            },
+        );
+
+        assert_eq!(timings.phases().len(), 2);
+        assert_eq!(timings.phases()[0].phase, TOKENS_TO_SYNTAX_TREES.label());
+        assert_eq!(timings.phases()[0].microseconds, 24);
+        assert_eq!(timings.phases()[0].allocations.allocation_calls, 4);
+        assert_eq!(timings.phases()[0].allocations.allocated_bytes, 30);
+        assert_eq!(timings.phases()[1].phase, SOURCE_FILES_TO_TOKENS.label());
     }
 }
