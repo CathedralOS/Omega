@@ -17,6 +17,14 @@ another broad alias while executing this plan.
 
 ## Current stopping point
 
+[x] The 954-line post-allocation manifest catch-all is now a governed
+register-allocation entrance. Its 100-line `mod.rs` owns the direct-home and
+selected-lowering projection/validation joins; record shape, errors, canonical
+identity, codec, reconstruction, validation, rendering, and focused tests
+descend into named leaves, with no replacement above 315 lines. The source
+organization gate pins the real projection join and rejects restoration of the
+flat mixed file.
+
 [x] The GVN total-scalar identity rung now follows the catalog literally.
 Seven catalog rows descend into seven same-named folders; each small `mod.rs`
 owns one exact rule contract and its proposal join, and each `laws.rs` owns
