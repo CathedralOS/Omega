@@ -1517,8 +1517,8 @@ new layer and a separately versioned design, not an omitted cleanup rule here.
 
 ### Dead pure scalar work
 
-`DeadPureScalarElimination` is an explicit named suite that currently expands
-to two exact rules. `dead-unused-scalar-literal-elimination.v1` contains only
+`DeadPureScalarElimination` is an explicit named suite that expands to two
+exact rules. `dead-unused-scalar-literal-elimination.v1` contains only
 `BooleanConstant` and `IntegerConstant`.
 `dead-unused-unconditionally-total-scalar-elimination.v1` contains only:
 
@@ -1534,6 +1534,13 @@ divide/remainder policy, calls, structural work, and boundary/service/control
 operations remain excluded. In particular, an admitted proof obligation is
 not evidence that dead-code elimination may silently discard the operation;
 proof-bearing elimination needs its own explicit rule and custody contract.
+
+The source family has one small coordination entrance. It owns the three
+literal, unconditionally-total, and proof-certified safety categories and maps
+them to their exact pass and safety contracts; `rules`, `proposal`, exhaustive
+`shapes`, and custody `accounting` leaves contain the lower mechanics. This is
+the same registry-to-rule descent used elsewhere in the optimizer, rather than
+a flat pass implementation.
 
 Both rules require value liveness and effect summaries. The independent
 validator checks the candidate rule identity against an independent copy of
@@ -1553,10 +1560,22 @@ successor edges. Global uniqueness, fuel equality, and terminal-antichain rules
 still reject duplicated or co-executable occurrences. A verified wrapping-add
 artifact first removes the unused total arithmetic node, then revisits the
 earlier rule and removes both newly dead literals; artifact replay leaves the
-return with all original source/fuel sites. Candidate v19, optimization-unit
-content identity v11, the named v2 pass, prephysical manifest v13, and
-optimized-plan projection validation v14 bind this meaning; ledger v4 already
-represents the many-to-one moves.
+return with all original source/fuel sites. Producer and independent-validator
+classifiers separately and exhaustively partition the complete abstract-
+operation enum. A newly added operation therefore cannot compile until both
+sides decide whether unused instances belong to one exact safety family or
+remain ineligible. Candidate v24, optimization-unit content identity v16, the
+named v2 pass, prephysical manifest identity v31, and optimized-plan projection
+validation v32 bind this meaning; ledger v4 already represents the many-to-one
+moves.
+
+This closes dead scalar work for the current verified-unit vocabulary. Every
+pure scalar producer is covered here or by the proof-certified dead-node rule
+below. `BooleanStructuralField` remains a structural-state event with affine-
+place custody, and scalar-result calls retain conservative call/observation
+effects. The task reopens for a new pure scalar operation, an exact admission
+contract for structural-read elision, or exact total and effect-free call
+summaries.
 
 ### Local and dominator common-subexpression elimination
 

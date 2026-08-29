@@ -1276,6 +1276,14 @@ prove every enabled rule phase is actually scheduled.
   file. No public rule or pass-manager name, contract identity, built-in
   ordinal, registry schedule, or test case changed.
 
+  Dead-scalar elimination now follows the same rule-family shape. Its 55-line
+  entrance owns the three exact safety families and their pass/contract
+  coordination, then leads to `rules`, `proposal`, exhaustive `shapes`, and
+  custody `accounting` leaves. Both producer and independent validator have
+  exhaustive operation partitions, so IR vocabulary growth cannot silently
+  bypass the family decision. Public rule names and serialized identities are
+  unchanged.
+
   The independent validator is now the third reference slice. Its former
   22,346-line `lib.rs` is a 77-line crate entrance. A 33-line candidate entrance
   mirrors the producer pass taxonomy without importing producer mechanics:
@@ -1966,7 +1974,8 @@ alternate semantic handoff.
   a new pure scalar operation, or facts sufficient for partial redundancy
   elimination; do not infer those capabilities from the current acyclic rules.
 
-- **OPT-DEAD-SCALAR-WORK.** Remove unused pure and total scalar operations.
+- **OPT-DEAD-SCALAR-WORK — complete for the current verified-unit
+  vocabulary.** Remove unused pure and total scalar operations.
 
   Acceptance: an unused result is insufficient when the operation may trap,
   charge a distinct semantic site, produce proof/runtime evidence, or carry an
@@ -1991,11 +2000,22 @@ alternate semantic handoff.
   Dense effects, definition/use sites, literal facts, places, and identity are
   rebuilt. A verified wrapping-add artifact removes the unused arithmetic and
   then its two newly dead literals at the suite fixed point, replaying every
-  source/fuel site into the return. Candidate v19, optimization-unit identity
-  v10, the v2 pass, prephysical manifest v13,
-  and projection v14 bind this meaning; ledger v4 already represents the
-  many-to-one moves. Other scalar operations remain open until their exact
-  semantic and custody contracts are admitted individually.
+  source/fuel site into the return. Producer and independent-validator
+  classifiers each exhaustively partition the complete abstract-operation
+  enum, so adding an operation is a compile-time request to assign or reject
+  its dead-work safety family. Candidate v24, optimization-unit identity v16,
+  the v2 pass, prephysical manifest identity v31, and projection validator v32
+  bind this meaning; ledger v4 already represents the many-to-one moves.
+
+  This is complete for the current scalar vocabulary. Every pure scalar
+  producer is either in the literal or obligation-free total family above, or
+  in the proof-certified dead-node family owned by `ProofCheckElision`.
+  `BooleanStructuralField` remains structural-state work with affine-place
+  custody, while scalar-result internal and boundary calls retain conservative
+  call/observation effects; unused result liveness cannot remove any of them.
+  Reopen this task when the abstract IR gains a pure scalar operation, when an
+  exact structural-read elision contract is admitted, or when exact total and
+  effect-free call summaries can authorize dead-call removal.
 
 - **OPT-PROOF-CHECK-ELISION.** Omit redundant physical checks whose exact
   obligations were already verified and whose operation semantics permit

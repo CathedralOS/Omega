@@ -216,6 +216,76 @@ pub fn validate_dead_scalar_node_candidate(
     })
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum IndependentlyValidatedDeadScalarFamily {
+    Literal,
+    UnconditionallyTotal,
+    ProofCertified,
+}
+
+/// Independent exhaustive mirror of the producer's closed safety partition.
+/// A new abstract operation cannot compile until this validator decides that
+/// unused instances belong to one exact family or remain ineligible.
+fn independently_validated_dead_scalar_family(
+    operation: &O,
+) -> Option<IndependentlyValidatedDeadScalarFamily> {
+    match operation {
+        O::IntegerConstant { .. } | O::BooleanConstant { .. } => {
+            Some(IndependentlyValidatedDeadScalarFamily::Literal)
+        }
+        O::BooleanNot { .. }
+        | O::BooleanEqual { .. }
+        | O::IntegerEqual { .. }
+        | O::IntegerLessThan { .. }
+        | O::IntegerLessOrEqual { .. }
+        | O::IntegerBitwiseNot { .. }
+        | O::IntegerWiden { .. }
+        | O::IntegerBitwiseAnd { .. }
+        | O::IntegerBitwiseOr { .. }
+        | O::IntegerBitwiseXor { .. }
+        | O::WrappingIntegerShiftLeft { .. }
+        | O::WrappingIntegerShiftRight { .. }
+        | O::WrappingIntegerAdd { .. }
+        | O::SaturatingIntegerAdd { .. }
+        | O::WrappingIntegerSubtract { .. }
+        | O::SaturatingIntegerSubtract { .. }
+        | O::WrappingIntegerMultiply { .. }
+        | O::SaturatingIntegerMultiply { .. } => {
+            Some(IndependentlyValidatedDeadScalarFamily::UnconditionallyTotal)
+        }
+        O::IntegerExactCast { .. }
+        | O::ExactIntegerShiftLeft { .. }
+        | O::ExactIntegerShiftRight { .. }
+        | O::ExactIntegerAdd { .. }
+        | O::ExactIntegerSubtract { .. }
+        | O::ExactIntegerMultiply { .. }
+        | O::ExactIntegerDivide { .. }
+        | O::ExactIntegerRemainder { .. }
+        | O::WrappingIntegerDivide { .. }
+        | O::WrappingIntegerRemainder { .. }
+        | O::SaturatingIntegerDivide { .. }
+        | O::SaturatingIntegerRemainder { .. } => {
+            Some(IndependentlyValidatedDeadScalarFamily::ProofCertified)
+        }
+        O::EstablishPayloadlessCase { .. }
+        | O::EstablishByteSequenceLiteral { .. }
+        | O::EstablishTrivialAffineLocal { .. }
+        | O::CallUnit { .. }
+        | O::CallStructuralScalar { .. }
+        | O::CallStructural { .. }
+        | O::BoundaryCall { .. }
+        | O::PortWrite { .. }
+        | O::Call { .. }
+        | O::BooleanStructuralField { .. }
+        | O::Jump { .. }
+        | O::Conditional { .. }
+        | O::Return { .. }
+        | O::ReturnUnit { .. }
+        | O::ReturnStructural { .. }
+        | O::Crash { .. } => None,
+    }
+}
+
 pub(crate) fn independently_validated_dead_scalar_shape(
     rule: OptimizationRuleIdentity,
     operation: &O,
@@ -234,6 +304,18 @@ pub(crate) fn independently_validated_dead_scalar_shape(
     let proof_rule = OptimizationRuleIdentity::from_canonical_bytes(
         b"omega.psi-rule.dead-unused-proof-certified-scalar-elimination.v1",
     );
+    let rule_family = if rule == literal_rule {
+        Some(IndependentlyValidatedDeadScalarFamily::Literal)
+    } else if rule == total_rule {
+        Some(IndependentlyValidatedDeadScalarFamily::UnconditionallyTotal)
+    } else if rule == proof_rule {
+        Some(IndependentlyValidatedDeadScalarFamily::ProofCertified)
+    } else {
+        None
+    };
+    if independently_validated_dead_scalar_family(operation) != rule_family {
+        return None;
+    }
     match (rule, operation) {
         (
             rule,
