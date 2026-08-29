@@ -123,6 +123,16 @@ separately through constraints, roster construction, function/block/register
 checks, integrity replay, and canonical identity. No production leaf in that
 crate exceeds the 1,300-line ceiling.
 
+The preceding abstract-to-target stage is governed by the same contract. Its
+crate map points to a settlement-and-installation coordinator, then to one
+per-result function route. Scalar lowering visibly orders setup, special
+forms, conditional routing, and straight-line lowering; structural lowering
+visibly chooses direct-call return or explicit structural return. Unit,
+boundary-settlement, cleanup, structural-layout, and four focused fixture
+families remain separate leaves. No production leaf exceeds the 1,300-line
+ceiling, and the stage, function, scalar, and structural joins are mandatory
+coordination entrances rather than re-export walls.
+
 Psi, selected-lowering, allocation-recovery, post-allocation, and
 function-relative-layout stages expose ordered catalogs with phase coverage
 tests. Validator candidates, semantic analyses, optimization-unit identity and

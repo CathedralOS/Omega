@@ -1,3 +1,5 @@
+//! Conditional control-flow lowering for scalar results.
+
 use super::*;
 
 pub(super) fn lower_integer_conditional(

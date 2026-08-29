@@ -5,6 +5,13 @@ This brief owns the lowering-to-publication path. The architecture entrance is
 
 ## Selected lowering
 
+Abstract-to-target lowering now enters through a 68-line settlement and
+installation-evidence coordinator. It descends first by function result
+family, then through explicit scalar setup, special-form, conditional, and
+straight-line routes or structural direct-call and return routes. Unit,
+boundary-settlement, cleanup, and structural-layout mechanics remain named
+sibling responsibilities rather than hidden branches in one lowering file.
+
 Target legalization and instruction selection produce explicit selected forms
 over virtual registers. Fixed operands are constraints; they do not preassign
 the entire program. Selected rules may fold exact incoming immediates or choose
