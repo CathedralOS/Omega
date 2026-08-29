@@ -189,6 +189,10 @@ entrance alone admits the constructed assignment after that replay succeeds.
 The preceding optimized target-operation boundary likewise keeps its retained
 owning carrier separate from exact lowering mechanics, while its entrance owns
 all lowering-to-custody joins and checked-provider-installation retention.
+Pre-physical manifest custody now has the same visible shape: its entrance owns
+candidate projection followed by independent replay, while model, projection,
+validation, canonical codec/identity, human rendering, and focused rendering
+tests descend into named leaves.
 Liveness computation and pre-allocation machine-effect encoding also keep
 their broad fixtures in sibling test leaves, so production file size measures
 production responsibility.
