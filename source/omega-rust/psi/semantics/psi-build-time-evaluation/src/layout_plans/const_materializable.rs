@@ -3,7 +3,7 @@
 use psi_language_semantics::{DataSupplyMode, Multiplicity};
 use psi_layout_plans::{
     ByteOrder, LayoutPlacementReport, LayoutPlanReport, MaterializationDiagnostic,
-    layout_plan_reports_match_for_replay, normalized_layout_plan_fingerprint,
+    layout_plan_reports_match_for_replay, normalized_layout_plan_report_fingerprint,
 };
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::{DataDefinition, DataMember, DataShapeKind};
@@ -100,7 +100,7 @@ impl ValidatedConstMaterialization {
                 "ConstMaterializable target byte order drifted from retained custody".into(),
             ));
         }
-        let layout_report_fingerprint = normalized_layout_plan_fingerprint(layout);
+        let layout_report_fingerprint = normalized_layout_plan_report_fingerprint(layout);
         if layout_report_fingerprint != self.non_authoritative_layout_report_fingerprint
             || !layout_plan_reports_match_for_replay(layout, &self.layout)
         {
@@ -181,7 +181,7 @@ pub fn validate_const_materializable_typed_owned_layout(
     byte_order: ByteOrder,
 ) -> Result<ValidatedConstMaterialization, MaterializationDiagnostic> {
     let derived = derive_bytes(typed, schema_name, layout, value, byte_order)?;
-    let layout_report_fingerprint = normalized_layout_plan_fingerprint(layout);
+    let layout_report_fingerprint = normalized_layout_plan_report_fingerprint(layout);
     let materialization_report_fingerprint = non_authoritative_materialization_report_fingerprint(
         schema_name,
         derived.schema_report_identity,
@@ -909,7 +909,7 @@ mod tests {
         let mut substituted_layout = layout.clone();
         substituted_layout.size = Some(17);
         carrier.non_authoritative_layout_report_fingerprint =
-            normalized_layout_plan_fingerprint(&substituted_layout);
+            normalized_layout_plan_report_fingerprint(&substituted_layout);
 
         let error = carrier
             .replay_against(

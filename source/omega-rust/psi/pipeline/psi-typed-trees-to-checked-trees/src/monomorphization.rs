@@ -4812,20 +4812,13 @@ fn encode_progress_premises(
     }
 }
 
-pub(crate) fn canonical_state_signature_fingerprint(
+pub(crate) fn canonical_state_signature_bytes(
     program: &TypedTrees,
     signature: &psi_typed_trees::signature::StateSignature,
-) -> u64 {
-    const OFFSET: u64 = 0xcbf29ce484222325;
-    const PRIME: u64 = 0x100000001b3;
+) -> Vec<u8> {
     let mut bytes = Vec::new();
     encode_state_signature(program, signature, &[], &[], &mut bytes);
-    let mut hash = OFFSET;
-    for byte in bytes {
-        hash ^= u64::from(byte);
-        hash = hash.wrapping_mul(PRIME);
-    }
-    hash
+    bytes
 }
 
 fn encode_state_shape(

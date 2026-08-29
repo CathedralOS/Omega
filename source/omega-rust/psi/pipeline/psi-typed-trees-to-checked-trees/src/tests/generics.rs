@@ -1509,7 +1509,7 @@ fn free_static_machine_specialization_preserves_authored_target_name() {
 
 #[test]
 fn static_machine_specialization_identity_is_reproducible() {
-    fn fingerprint(source: &str) -> u64 {
+    fn report_fingerprint(source: &str) -> u64 {
         let tokens = Lexer::new(source)
             .tokenize()
             .expect("tokenize should succeed");
@@ -1534,7 +1534,7 @@ fn static_machine_specialization_identity_is_reproducible() {
         }
         machine Main::run(&mut self) {}
     "#;
-    assert_eq!(fingerprint(source), fingerprint(source));
+    assert_eq!(report_fingerprint(source), report_fingerprint(source));
 }
 
 #[test]
@@ -2872,6 +2872,57 @@ fn distinct_generic_conformance_applications_specialize_distinct_selected_rows()
 }
 
 #[test]
+fn closed_conformance_application_commitment_binds_exact_requirement_signature() {
+    fn application_identity(
+        result_type: &str,
+    ) -> (
+        u64,
+        psi_typed_trees::typed_trees::ClosedConformanceApplicationCommitment,
+    ) {
+        let source = format!(
+            r#"
+                trait Ranked {{
+                    machine Self::before(&self, other: &Self) -> {result_type};
+                }}
+                data Card {{}}
+
+                FieldOrder<Element>: Element satisfies Ranked {{
+                    machine before(&self, other: &Element) -> {result_type} {{ 0 }}
+                }}
+
+                machine choose<Element, Order: Element satisfies Ranked>(
+                    left: &Element,
+                    right: &Element
+                ) -> {result_type} {{
+                    Order::before(left, right)
+                }}
+
+                machine cards(left: &Card, right: &Card) -> {result_type} {{
+                    choose<Card, FieldOrder<Card>>(left, right)
+                }}
+            "#
+        );
+        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let checked = lower_typed_trees(typed).expect("closed conformance application");
+        let application = checked
+            .machine_specializations
+            .iter()
+            .find_map(|specialization| specialization.conformance_applications.first())
+            .expect("one retained closed application");
+        (application.report_fingerprint, application.commitment)
+    }
+
+    let i32_identity = application_identity("i32");
+    let u64_identity = application_identity("u64");
+    assert_ne!(i32_identity.0, 0);
+    assert_ne!(u64_identity.0, 0);
+    assert_ne!(i32_identity.1, u64_identity.1);
+}
+
+#[test]
 fn generic_conformance_const_argument_specializes_its_selected_row() {
     let source = r#"
         trait Ranked {
@@ -3718,7 +3769,7 @@ fn accepted_template_instances_share_one_commitment_and_pin_argument_contracts()
 
 #[test]
 fn specialization_identity_changes_with_selected_machine_contract() {
-    fn fingerprint(extra_contract: &str) -> u64 {
+    fn report_fingerprint(extra_contract: &str) -> u64 {
         let source = format!(
             r#"
                 data Main {{}}
@@ -3744,12 +3795,12 @@ fn specialization_identity_changes_with_selected_machine_contract() {
             .report_fingerprint
     }
 
-    assert_ne!(fingerprint(""), fingerprint("ensures true;"));
+    assert_ne!(report_fingerprint(""), report_fingerprint("ensures true;"));
 }
 
 #[test]
 fn specialization_identity_ignores_selected_machine_body_edits() {
-    fn fingerprint(body: &str) -> u64 {
+    fn report_fingerprint(body: &str) -> u64 {
         let source = format!(
             r#"
                 data Main {{}}
@@ -3773,7 +3824,10 @@ fn specialization_identity_ignores_selected_machine_body_edits() {
             .report_fingerprint
     }
 
-    assert_eq!(fingerprint(""), fingerprint("let one: i32 = 1;"));
+    assert_eq!(
+        report_fingerprint(""),
+        report_fingerprint("let one: i32 = 1;")
+    );
 }
 
 #[test]
@@ -3822,7 +3876,7 @@ fn generic_template_identity_is_positional_across_parameter_renames() {
 
 #[test]
 fn generic_template_identity_normalizes_crash_route_buckets() {
-    fn fingerprint(crash_clauses: &str) -> u64 {
+    fn report_fingerprint(crash_clauses: &str) -> u64 {
         let source = format!(
             r#"
                 boundary machine admitted<T>(first: bool, second: bool)
@@ -3878,16 +3932,22 @@ fn generic_template_identity_normalizes_crash_route_buckets() {
         crashes Trap
     "#;
 
-    assert_eq!(fingerprint(grouped), fingerprint(split));
-    assert_eq!(fingerprint(grouped), fingerprint(duplicated));
-    assert_eq!(fingerprint(unconditional), fingerprint(explicit_true));
+    assert_eq!(report_fingerprint(grouped), report_fingerprint(split));
+    assert_eq!(report_fingerprint(grouped), report_fingerprint(duplicated));
     assert_eq!(
-        fingerprint(unconditional),
-        fingerprint(unconditional_with_guard)
+        report_fingerprint(unconditional),
+        report_fingerprint(explicit_true)
     );
-    assert_ne!(fingerprint(grouped), fingerprint(unconditional));
+    assert_eq!(
+        report_fingerprint(unconditional),
+        report_fingerprint(unconditional_with_guard)
+    );
+    assert_ne!(
+        report_fingerprint(grouped),
+        report_fingerprint(unconditional)
+    );
 
-    fn slot_fingerprint(crash_clauses: &str) -> u64 {
+    fn slot_report_fingerprint(crash_clauses: &str) -> u64 {
         let source = format!(
             r#"
                 boundary machine admitted<T, machine Operation>()
@@ -3914,21 +3974,27 @@ fn generic_template_identity_normalizes_crash_route_buckets() {
         .expect("generic template should have an identity")
     }
 
-    assert_eq!(slot_fingerprint(grouped), slot_fingerprint(split));
-    assert_eq!(slot_fingerprint(grouped), slot_fingerprint(duplicated));
     assert_eq!(
-        slot_fingerprint(unconditional),
-        slot_fingerprint(explicit_true)
+        slot_report_fingerprint(grouped),
+        slot_report_fingerprint(split)
     );
     assert_eq!(
-        slot_fingerprint(unconditional),
-        slot_fingerprint(unconditional_with_guard)
+        slot_report_fingerprint(grouped),
+        slot_report_fingerprint(duplicated)
+    );
+    assert_eq!(
+        slot_report_fingerprint(unconditional),
+        slot_report_fingerprint(explicit_true)
+    );
+    assert_eq!(
+        slot_report_fingerprint(unconditional),
+        slot_report_fingerprint(unconditional_with_guard)
     );
 }
 
 #[test]
 fn generic_template_identity_pins_conformance_bounds_positionally() {
-    fn fingerprint(parameter: &str, trait_name: &str) -> u64 {
+    fn report_fingerprint(parameter: &str, trait_name: &str) -> u64 {
         let source = format!(
             r#"
                 trait First {{ machine inspect(value: &Self); }}
@@ -3956,13 +4022,19 @@ fn generic_template_identity_pins_conformance_bounds_positionally() {
         .expect("generic template should have an identity")
     }
 
-    assert_eq!(fingerprint("T", "First"), fingerprint("Item", "First"));
-    assert_ne!(fingerprint("T", "First"), fingerprint("T", "Second"));
+    assert_eq!(
+        report_fingerprint("T", "First"),
+        report_fingerprint("Item", "First")
+    );
+    assert_ne!(
+        report_fingerprint("T", "First"),
+        report_fingerprint("T", "Second")
+    );
 }
 
 #[test]
 fn generic_template_identity_pins_selected_open_index_operation_authority() {
-    fn fingerprint(operator_namespace: &str) -> u64 {
+    fn report_fingerprint(operator_namespace: &str) -> u64 {
         let source = format!(
             r#"
                 domain<T, const I: u64> T::Indexed<I>;
@@ -4018,14 +4090,14 @@ fn generic_template_identity_pins_selected_open_index_operation_authority() {
     }
 
     assert_ne!(
-        fingerprint("IndexAlgebra"),
-        fingerprint("AlternateIndexAlgebra")
+        report_fingerprint("IndexAlgebra"),
+        report_fingerprint("AlternateIndexAlgebra")
     );
 }
 
 #[test]
 fn generic_template_identity_pins_independent_operational_interfaces() {
-    fn fingerprint(source: String) -> u64 {
+    fn report_fingerprint(source: String) -> u64 {
         let tokens = Lexer::new(&source)
             .tokenize()
             .expect("tokenize should succeed");
@@ -4045,18 +4117,18 @@ fn generic_template_identity_pins_independent_operational_interfaces() {
         .expect("generic template should have an identity")
     }
 
-    fn template_fingerprint(template_clause: &str) -> u64 {
+    fn template_report_fingerprint(template_clause: &str) -> u64 {
         let source = format!(
             r#"
                 boundary machine admitted<T>(value: &T) {template_clause}
                 ensures true;
             "#
         );
-        fingerprint(source)
+        report_fingerprint(source)
     }
 
-    fn slot_fingerprint(slot_clause: &str) -> u64 {
-        fingerprint(format!(
+    fn slot_report_fingerprint(slot_clause: &str) -> u64 {
+        report_fingerprint(format!(
             r#"
                 boundary machine admitted<T, machine F>(value: &T)
                 where machine F(item: &T) {slot_clause}
@@ -4065,17 +4137,20 @@ fn generic_template_identity_pins_independent_operational_interfaces() {
         ))
     }
 
-    let template_base = template_fingerprint("");
-    assert_ne!(template_base, template_fingerprint("suspends;"));
-    assert_ne!(template_base, template_fingerprint("blocks;"));
+    let template_base = template_report_fingerprint("");
+    assert_ne!(template_base, template_report_fingerprint("suspends;"));
+    assert_ne!(template_base, template_report_fingerprint("blocks;"));
 
-    let slot_base = slot_fingerprint(";");
-    assert_ne!(slot_base, slot_fingerprint("suspends;"));
-    assert_ne!(slot_base, slot_fingerprint("blocks;"));
-    assert_ne!(slot_fingerprint("suspends;"), slot_fingerprint("blocks;"));
+    let slot_base = slot_report_fingerprint(";");
+    assert_ne!(slot_base, slot_report_fingerprint("suspends;"));
+    assert_ne!(slot_base, slot_report_fingerprint("blocks;"));
+    assert_ne!(
+        slot_report_fingerprint("suspends;"),
+        slot_report_fingerprint("blocks;")
+    );
 
-    fn reach_fingerprint(reach: &str) -> u64 {
-        fingerprint(format!(
+    fn reach_report_fingerprint(reach: &str) -> u64 {
+        report_fingerprint(format!(
             r#"
                 boundary trait Readable {{}}
                 boundary trait Filesystem: Readable {{}}
@@ -4088,13 +4163,13 @@ fn generic_template_identity_pins_independent_operational_interfaces() {
     }
 
     assert_eq!(
-        reach_fingerprint("Filesystem"),
-        reach_fingerprint("Filesystem + Readable"),
+        reach_report_fingerprint("Filesystem"),
+        reach_report_fingerprint("Filesystem + Readable"),
         "template identity must consume the normalized service row, including parent closure"
     );
 
-    fn slot_reach_fingerprint(reach: &str) -> u64 {
-        fingerprint(format!(
+    fn slot_reach_report_fingerprint(reach: &str) -> u64 {
+        report_fingerprint(format!(
             r#"
                 boundary trait Readable {{}}
                 boundary trait Filesystem: Readable {{}}
@@ -4107,15 +4182,15 @@ fn generic_template_identity_pins_independent_operational_interfaces() {
     }
 
     assert_eq!(
-        slot_reach_fingerprint("Filesystem"),
-        slot_reach_fingerprint("Filesystem + Readable"),
+        slot_reach_report_fingerprint("Filesystem"),
+        slot_reach_report_fingerprint("Filesystem + Readable"),
         "machine-parameter identity must consume the normalized service row"
     );
 }
 
 #[test]
 fn generic_template_identity_distinguishes_structural_and_nominal_machine_contracts() {
-    fn fingerprint(contract: &str) -> u64 {
+    fn report_fingerprint(contract: &str) -> u64 {
         let source = format!(
             r#"
                 trait Handler {{
@@ -4148,8 +4223,8 @@ fn generic_template_identity_distinguishes_structural_and_nominal_machine_contra
     }
 
     assert_ne!(
-        fingerprint("where machine F(value: i32) -> i32;"),
-        fingerprint("where machine F satisfies Handler::call;")
+        report_fingerprint("where machine F(value: i32) -> i32;"),
+        report_fingerprint("where machine F satisfies Handler::call;")
     );
 }
 

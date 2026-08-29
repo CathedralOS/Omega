@@ -341,7 +341,10 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
     output.push_str(", \"composition_fingerprint\": ");
     push_hex_identity(
         output,
-        record.logical_fuel.realization.composition_fingerprint(),
+        record
+            .logical_fuel
+            .realization
+            .non_authoritative_composition_report_fingerprint(),
     );
     output.push_str(", \"provider_summaries\": [");
     push_identity_set(

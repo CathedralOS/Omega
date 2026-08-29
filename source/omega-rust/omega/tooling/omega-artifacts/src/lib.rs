@@ -506,7 +506,7 @@ impl TrustProviderRealization {
     /// Other realization cases have their identity in their structured fields.
     pub fn normalized_foreign_locator_identity(&self) -> Option<u64> {
         match self {
-            Self::Import { locator } => Some(locator.normalized_identity()),
+            Self::Import { locator } => Some(locator.non_authoritative_compatibility_fingerprint()),
             _ => None,
         }
     }
@@ -519,7 +519,7 @@ impl TrustProviderRealization {
         if reported_target != locator_target {
             return Err(format!(
                 "normalized foreign locator 0x{:016x} targets `{locator_target}`, but its trust row reports target `{reported_target}`",
-                locator.normalized_identity(),
+                locator.non_authoritative_compatibility_fingerprint(),
             ));
         }
         Ok(())
@@ -528,7 +528,7 @@ impl TrustProviderRealization {
     fn report_text(&self) -> String {
         match self {
             Self::Import { locator } => {
-                let identity = locator.normalized_identity();
+                let identity = locator.non_authoritative_compatibility_fingerprint();
                 let target = locator.target().target_name();
                 match locator.locator() {
                     omega_effects::ForeignLocatorCandidate::PeByName { library, export } => {

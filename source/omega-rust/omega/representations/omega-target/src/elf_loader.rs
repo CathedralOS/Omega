@@ -20,7 +20,7 @@ const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 pub struct NormalizedElfInterpreterPlan {
     target: TargetProfile,
     interpreter_path: Vec<u8>,
-    normalized_identity: u64,
+    non_authoritative_compatibility_fingerprint: u64,
 }
 
 impl NormalizedElfInterpreterPlan {
@@ -35,8 +35,8 @@ impl NormalizedElfInterpreterPlan {
     /// Compatibility fingerprint of the exact target and length-framed raw
     /// path bytes. This is deterministic artifact identity, not loader or
     /// admission authority.
-    pub const fn normalized_identity(&self) -> u64 {
-        self.normalized_identity
+    pub const fn non_authoritative_compatibility_fingerprint(&self) -> u64 {
+        self.non_authoritative_compatibility_fingerprint
     }
 }
 
@@ -92,15 +92,19 @@ pub fn normalize_elf_interpreter_plan(
         return Err(ElfInterpreterPlanValidationError::ForbiddenNul { offset });
     }
 
-    let normalized_identity = fingerprint(target, &interpreter_path);
+    let non_authoritative_compatibility_fingerprint =
+        non_authoritative_compatibility_fingerprint(target, &interpreter_path);
     Ok(NormalizedElfInterpreterPlan {
         target,
         interpreter_path,
-        normalized_identity,
+        non_authoritative_compatibility_fingerprint,
     })
 }
 
-fn fingerprint(target: TargetProfile, interpreter_path: &[u8]) -> u64 {
+fn non_authoritative_compatibility_fingerprint(
+    target: TargetProfile,
+    interpreter_path: &[u8],
+) -> u64 {
     let mut hash = Fnv1a::new();
     hash.bytes(b"omega.elf-interpreter-plan.v1");
     hash.bytes(target.target_name().as_bytes());
@@ -150,7 +154,7 @@ mod tests {
 
         assert_eq!(plan.target(), TargetProfile::LinuxX64);
         assert_eq!(plan.interpreter_path(), path);
-        assert_ne!(plan.normalized_identity(), 0);
+        assert_ne!(plan.non_authoritative_compatibility_fingerprint(), 0);
     }
 
     #[test]
@@ -192,7 +196,7 @@ mod tests {
     }
 
     #[test]
-    fn identity_binds_profile_path_bytes_and_length_framing() {
+    fn compatibility_fingerprint_covers_profile_path_bytes_and_length_framing() {
         let baseline = normalize(b"/ab", TargetProfile::LinuxX64);
         let mutations = [
             normalize(b"/a", TargetProfile::LinuxX64),
@@ -203,8 +207,8 @@ mod tests {
 
         for mutation in mutations {
             assert_ne!(
-                baseline.normalized_identity(),
-                mutation.normalized_identity()
+                baseline.non_authoritative_compatibility_fingerprint(),
+                mutation.non_authoritative_compatibility_fingerprint()
             );
         }
         assert_eq!(

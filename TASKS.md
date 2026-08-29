@@ -296,12 +296,17 @@ scanners, or receipts.
   label schema, codec, encode, and plan FNVs as report identities, and wire
   compatibility always compares retained exact fields/cases even when compact
   schema reports match. Build-time fixed-record and conventional-sum carriers
-  have removed their remaining ambiguous compact accessor aliases. The
-  architecture inventory now also scans compact-returning fingerprint
-  accessors and seals a per-path shrinking migration ceiling; new accessors
-  require explicit report/cache/compatibility vocabulary. Remaining work is
-  classifying that accessor ceiling and identity-named fields outside both
-  fingerprint scanners.
+  have removed their remaining ambiguous compact accessor aliases.
+  Provider-execution, external-root, native-fuel, target-locator, relocation,
+  executable-fragment, layout-plan, typed-boundary, and generic-test compact
+  accessors now likewise use explicit report or compatibility vocabulary.
+  Closed conformance application SHA-256 authority now binds the complete
+  canonical state-signature bytes instead of an FNV compression. The
+  architecture inventory scans compact-returning fingerprint accessors and
+  seals a per-path shrinking migration ceiling; only the executable-fragment
+  compatibility alias and the public calling-plan/provider-plan accessors
+  remain on that ceiling. Remaining work is classifying those accessors and
+  identity-named fields outside both fingerprint scanners.
 
   Acceptance: an automated architecture test rejects new authoritative
   `u64`-only identities, every retained FNV use has a local non-authoritative

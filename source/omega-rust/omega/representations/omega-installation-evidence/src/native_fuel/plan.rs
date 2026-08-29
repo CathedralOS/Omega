@@ -1,7 +1,7 @@
 use omega_calling_conventions::{MachineRegister, MachineState, MachineStateSet};
 use omega_target::{Architecture, NativeTarget, TargetProfile};
 
-use super::fingerprint::fingerprint_transfer_plan;
+use super::fingerprint::non_authoritative_transfer_plan_report_fingerprint;
 use super::{NativeFuelContextLayout, NativeFuelTargetPlanProjection, SponsorContextTransport};
 
 /// One exact machine value retained in the opaque activation save area.
@@ -99,7 +99,7 @@ impl NativeFuelTransferRuntimePlanProjection {
             resume_entry,
             normalized_identity: 0,
         };
-        plan.normalized_identity = fingerprint_transfer_plan(&plan);
+        plan.normalized_identity = non_authoritative_transfer_plan_report_fingerprint(&plan);
         Ok(plan)
     }
 

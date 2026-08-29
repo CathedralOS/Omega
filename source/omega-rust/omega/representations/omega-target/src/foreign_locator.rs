@@ -51,7 +51,7 @@ impl ForeignLocatorCandidate {
 pub struct NormalizedForeignLocator {
     target: TargetProfile,
     locator: ForeignLocatorCandidate,
-    normalized_identity: u64,
+    non_authoritative_compatibility_fingerprint: u64,
 }
 
 impl NormalizedForeignLocator {
@@ -66,8 +66,8 @@ impl NormalizedForeignLocator {
     /// Compatibility fingerprint of the exact case, target, coordinate
     /// lengths, coordinate bytes, and ordinal. This is deterministic artifact
     /// identity, not collision-resistant admission evidence.
-    pub const fn normalized_identity(&self) -> u64 {
-        self.normalized_identity
+    pub const fn non_authoritative_compatibility_fingerprint(&self) -> u64 {
+        self.non_authoritative_compatibility_fingerprint
     }
 }
 
@@ -137,11 +137,12 @@ pub fn normalize_foreign_locator(
 ) -> Result<NormalizedForeignLocator, ForeignLocatorValidationError> {
     validate_target(&locator, target)?;
     validate_coordinates(&locator)?;
-    let normalized_identity = fingerprint(&locator, target);
+    let non_authoritative_compatibility_fingerprint =
+        non_authoritative_compatibility_fingerprint(&locator, target);
     Ok(NormalizedForeignLocator {
         target,
         locator,
-        normalized_identity,
+        non_authoritative_compatibility_fingerprint,
     })
 }
 
@@ -214,7 +215,10 @@ fn validate_coordinate(
     Ok(())
 }
 
-fn fingerprint(locator: &ForeignLocatorCandidate, target: TargetProfile) -> u64 {
+fn non_authoritative_compatibility_fingerprint(
+    locator: &ForeignLocatorCandidate,
+    target: TargetProfile,
+) -> u64 {
     let mut hash = Fnv1a::new();
     hash.bytes(b"omega.foreign-locator.v1");
     hash.bytes(target.target_name().as_bytes());
@@ -308,12 +312,12 @@ mod tests {
             let normalized = normalize_foreign_locator(candidate, target).expect("valid locator");
             assert_eq!(normalized.target(), target);
             assert_eq!(normalized.locator(), &expected);
-            assert_ne!(normalized.normalized_identity(), 0);
+            assert_ne!(normalized.non_authoritative_compatibility_fingerprint(), 0);
         }
         assert_eq!(
             normalize_foreign_locator(pe_name(), TargetProfile::WindowsX64)
                 .unwrap()
-                .normalized_identity(),
+                .non_authoritative_compatibility_fingerprint(),
             0x610b_07e6_d96c_b8fc,
             "the canonical PeByName fingerprint is stable",
         );
@@ -519,11 +523,11 @@ mod tests {
     }
 
     #[test]
-    fn fingerprint_changes_for_every_physical_coordinate_and_target_axis() {
+    fn compatibility_fingerprint_changes_for_every_physical_coordinate_and_target_axis() {
         fn id(candidate: ForeignLocatorCandidate, target: TargetProfile) -> u64 {
             normalize_foreign_locator(candidate, target)
                 .expect("mutation fixture remains valid")
-                .normalized_identity()
+                .non_authoritative_compatibility_fingerprint()
         }
 
         let baseline = id(elf_versioned(), TargetProfile::LinuxX64);
@@ -634,6 +638,9 @@ mod tests {
             TargetProfile::WindowsX64,
         )
         .unwrap();
-        assert_ne!(first.normalized_identity(), second.normalized_identity());
+        assert_ne!(
+            first.non_authoritative_compatibility_fingerprint(),
+            second.non_authoritative_compatibility_fingerprint()
+        );
     }
 }

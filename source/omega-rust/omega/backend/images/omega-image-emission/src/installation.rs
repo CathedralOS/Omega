@@ -502,7 +502,7 @@ where
     let provider_executions = provider_executions.into_iter().collect::<Vec<_>>();
     let mut selected_provider_plans = provider_executions
         .iter()
-        .map(|execution| execution.provider_plan())
+        .map(|execution| execution.provider_plan_report_identity())
         .collect::<Vec<_>>();
     selected_provider_plans.sort_unstable();
     selected_provider_plans.dedup();
@@ -548,16 +548,17 @@ where
     }
     for execution in provider_executions {
         if !reported_executions.insert((
-            execution.provider_plan(),
-            execution.provider_execution_identity(),
-            execution.provider_execution_fingerprint(),
-            execution.normalized_root_identity(),
-            execution.boundary_contract_fingerprint(),
+            execution.provider_plan_report_identity(),
+            execution.provider_execution_report_identity(),
+            execution.provider_execution_report_fingerprint(),
+            execution.normalized_root_report_identity(),
+            execution.boundary_contract_report_fingerprint(),
         )) {
             return Err(InstallationError::DuplicateProviderExecution);
         }
-        let execution_plan = SelectedProviderPlanReportIdentity::new(execution.provider_plan())
-            .ok_or(InstallationError::ZeroProviderPlan)?;
+        let execution_plan =
+            SelectedProviderPlanReportIdentity::new(execution.provider_plan_report_identity())
+                .ok_or(InstallationError::ZeroProviderPlan)?;
         if !selected_provider_plan_set.contains(&execution_plan) {
             return Err(InstallationError::ProviderExecutionOutsideSelectedClosure);
         }

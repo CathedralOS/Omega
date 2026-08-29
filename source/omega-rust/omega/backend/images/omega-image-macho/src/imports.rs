@@ -120,7 +120,7 @@ pub(crate) fn install_import_thunks(
             FinalImageImportPlan::Normalized(locator) => {
                 return Err(Diagnostic::error(format!(
                     "normalized foreign locator 0x{:016x} cannot be reconstructed through Mach-O symbol spellings",
-                    locator.normalized_identity(),
+                    locator.non_authoritative_compatibility_fingerprint(),
                 )));
             }
             FinalImageImportPlan::None => {

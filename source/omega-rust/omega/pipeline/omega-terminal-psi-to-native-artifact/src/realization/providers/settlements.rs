@@ -29,11 +29,11 @@ pub(crate) fn settle_provider_executions<'request>(
         }
         let selected_plan = request
             .selected_provider_plans
-            .plan_by_identity(evidence.provider_plan())
+            .plan_by_identity(evidence.provider_plan_report_identity())
             .ok_or_else(|| {
                 vec![Diagnostic::error(format!(
                     "native provider execution for `{requirement}` names unselected plan {:#018x}",
-                    evidence.provider_plan()
+                    evidence.provider_plan_report_identity()
                 ))]
             })?;
         if !selected_plan

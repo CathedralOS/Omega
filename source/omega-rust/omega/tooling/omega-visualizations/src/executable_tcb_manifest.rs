@@ -328,7 +328,7 @@ fn push_opaque_binding_json(json: &mut String, binding: &OpaqueInProcessBinding)
             let _ = write!(
                 json,
                 ", \"normalized_identity\": \"0x{:016x}\", \"locator\": ",
-                locator.normalized_identity(),
+                locator.non_authoritative_compatibility_fingerprint(),
             );
             match locator.locator() {
                 omega_effects::ForeignLocatorCandidate::PeByName { library, export } => {
@@ -521,7 +521,10 @@ mod tests {
         assert!(json.contains("[111,112,97,113,117,101,46,100,108,108]"));
         assert!(json.contains("[114,101,97,100]"));
         assert!(!json.contains("\"library\": \"opaque.dll\""));
-        assert!(json.contains(&format!("0x{:016x}", locator.normalized_identity())));
+        assert!(json.contains(&format!(
+            "0x{:016x}",
+            locator.non_authoritative_compatibility_fingerprint()
+        )));
     }
 
     #[test]

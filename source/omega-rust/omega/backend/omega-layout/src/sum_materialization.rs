@@ -174,7 +174,7 @@ mod tests {
         BuildTimeValue, validate_const_materializable_conventional_sum,
     };
     use psi_checked_trees::{CheckFacts, CheckedTrees};
-    use psi_layout_plans::{ByteOrder, normalized_conventional_sum_layout_fingerprint};
+    use psi_layout_plans::{ByteOrder, normalized_conventional_sum_layout_report_fingerprint};
     use psi_source_files_to_tokens::Lexer;
     use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
     use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
@@ -232,7 +232,10 @@ mod tests {
                 .collect::<Vec<_>>(),
             [("left", 4, 2), ("right", 8, 4)]
         );
-        assert_ne!(normalized_conventional_sum_layout_fingerprint(&report), 0);
+        assert_ne!(
+            normalized_conventional_sum_layout_report_fingerprint(&report),
+            0
+        );
 
         let value = BuildTimeValue::Case {
             variant: "Pair".into(),

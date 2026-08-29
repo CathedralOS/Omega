@@ -110,23 +110,23 @@ fn linux_exit_group_object_validation_replays_exact_scalar_and_trap_bytes() {
             "Console::exit_process"
         }
 
-        fn provider_plan(&self) -> u64 {
+        fn provider_plan_report_identity(&self) -> u64 {
             91
         }
 
-        fn provider_execution_identity(&self) -> u64 {
+        fn provider_execution_report_identity(&self) -> u64 {
             92
         }
 
-        fn provider_execution_fingerprint(&self) -> u64 {
+        fn provider_execution_report_fingerprint(&self) -> u64 {
             93
         }
 
-        fn normalized_root_identity(&self) -> u64 {
+        fn normalized_root_report_identity(&self) -> u64 {
             94
         }
 
-        fn boundary_contract_fingerprint(&self) -> u64 {
+        fn boundary_contract_report_fingerprint(&self) -> u64 {
             95
         }
     }
@@ -295,19 +295,19 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
             }
         }
 
-        fn provider_plan(&self) -> u64 {
+        fn provider_plan_report_identity(&self) -> u64 {
             self.0
         }
-        fn provider_execution_identity(&self) -> u64 {
+        fn provider_execution_report_identity(&self) -> u64 {
             self.0 + 1
         }
-        fn provider_execution_fingerprint(&self) -> u64 {
+        fn provider_execution_report_fingerprint(&self) -> u64 {
             self.0 + 2
         }
-        fn normalized_root_identity(&self) -> u64 {
+        fn normalized_root_report_identity(&self) -> u64 {
             self.0 + 3
         }
-        fn boundary_contract_fingerprint(&self) -> u64 {
+        fn boundary_contract_report_fingerprint(&self) -> u64 {
             self.0 + 4
         }
     }
@@ -347,11 +347,11 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
     let exit_provider = Provider(980);
     let binding = |provider: &Provider| {
         ProviderExecutionBinding::from_execution_record(
-            ProviderPlanReportIdentity::new(provider.provider_plan()).unwrap(),
-            provider.provider_execution_identity(),
-            provider.provider_execution_fingerprint(),
-            provider.normalized_root_identity(),
-            provider.boundary_contract_fingerprint(),
+            ProviderPlanReportIdentity::new(provider.provider_plan_report_identity()).unwrap(),
+            provider.provider_execution_report_identity(),
+            provider.provider_execution_report_fingerprint(),
+            provider.normalized_root_report_identity(),
+            provider.boundary_contract_report_fingerprint(),
         )
         .unwrap()
     };

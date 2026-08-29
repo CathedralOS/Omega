@@ -95,7 +95,7 @@ pub(crate) fn canonical_referenced_imports(
                 else {
                     return Err(Diagnostic::error(format!(
                         "normalized non-ELF foreign locator 0x{:016x} reached ELF image planning",
-                        locator.normalized_identity(),
+                        locator.non_authoritative_compatibility_fingerprint(),
                     )));
                 };
                 if locator.target().native_target() != image.target
@@ -106,14 +106,15 @@ pub(crate) fn canonical_referenced_imports(
                 {
                     return Err(Diagnostic::error(format!(
                         "versioned ELF foreign locator 0x{:016x} targets `{}` but ELF image planning targets {:?}",
-                        locator.normalized_identity(),
+                        locator.non_authoritative_compatibility_fingerprint(),
                         locator.target().target_name(),
                         image.target,
                     )));
                 }
                 if let Some((earlier_handle, earlier_locator)) =
                     normalized_imports.iter().find(|(_, earlier)| {
-                        earlier.normalized_identity() == locator.normalized_identity()
+                        earlier.non_authoritative_compatibility_fingerprint()
+                            == locator.non_authoritative_compatibility_fingerprint()
                     })
                 {
                     let detail = if earlier_locator == locator {
@@ -123,7 +124,7 @@ pub(crate) fn canonical_referenced_imports(
                     };
                     return Err(Diagnostic::error(format!(
                         "ELF normalized import identity 0x{:016x} is ambiguous between symbol handles {:?} and {:?}: {detail}",
-                        locator.normalized_identity(),
+                        locator.non_authoritative_compatibility_fingerprint(),
                         earlier_handle,
                         import.symbol_handle,
                     )));
@@ -131,7 +132,7 @@ pub(crate) fn canonical_referenced_imports(
                 normalized_imports.push((import.symbol_handle, locator.clone()));
                 ElfImportLocator::Versioned {
                     target_profile: locator.target(),
-                    normalized_identity: locator.normalized_identity(),
+                    normalized_identity: locator.non_authoritative_compatibility_fingerprint(),
                     object: object.clone(),
                     symbol: symbol.clone(),
                     version: version.clone(),
@@ -319,7 +320,7 @@ mod tests {
         let imported = image.symbol_table.symbols.insert(FinalImageSymbol {
             name: format!(
                 "__omega_foreign_import_{:016x}",
-                locator.normalized_identity()
+                locator.non_authoritative_compatibility_fingerprint()
             ),
             section: FinalImageSection::None,
             offset: 0,
@@ -365,7 +366,7 @@ mod tests {
             requests[0].locator,
             ElfImportLocator::Versioned {
                 target_profile: TargetProfile::LinuxX64,
-                normalized_identity: locator.normalized_identity(),
+                normalized_identity: locator.non_authoritative_compatibility_fingerprint(),
                 object: object.to_vec(),
                 symbol: symbol.to_vec(),
                 version: version.to_vec(),

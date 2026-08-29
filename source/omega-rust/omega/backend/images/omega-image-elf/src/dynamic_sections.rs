@@ -655,7 +655,12 @@ fn non_authoritative_content_compatibility_fingerprint(
     let mut hash = Fnv1a::new();
     hash.bytes(b"omega.elf-dynamic-section-plan.v1");
     hash.bytes(inputs.interpreter().target().target_name().as_bytes());
-    hash.bytes(&inputs.interpreter().normalized_identity().to_le_bytes());
+    hash.bytes(
+        &inputs
+            .interpreter()
+            .non_authoritative_compatibility_fingerprint()
+            .to_le_bytes(),
+    );
     hash.bytes(&contents.interpreter);
     hash.bytes(&contents.dynstr);
     for symbol in &contents.dynsym {

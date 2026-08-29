@@ -932,6 +932,9 @@ digest and exact requirement strings and plan requirement catalogs; native
 replay compares those exact strings before comparing the compact report rows.
 Consequently a report-equal execution cannot be substituted for another exact
 requirement, and decoding an installation record cannot recreate admission.
+The evidence interface names each compact projection as a report identity or
+report fingerprint; fixed-fuel, stack-demand, progress-profile, and native-fuel
+composition expose no shorter authority-looking aliases.
 
 Provider service schemas preserve the boundary-plan authority split before
 that lowering. Each `ServiceMethod` retains a compact calling-plan report
@@ -978,7 +981,17 @@ specialization values as report coordinates while retaining exact type and
 const argument identities, strong selected machine-contract and closed-
 conformance-application commitments, and the specialized instance-contract
 commitment. Equal compact display coordinates therefore never imply equal
-trust authority.
+trust authority. The closed-conformance commitment length-frames the complete
+canonical state-signature bytes directly; an FNV summary of that signature is
+never an input to strong authority.
+
+Target locators and image-relocation metadata use the same explicit naming.
+Their compact values are compatibility or report fingerprints, while exact
+locator bytes, interpreter paths, target profiles, relocation envelopes, and
+relocated text digests remain the replay subjects. Layout-plan, generated
+writer, typed-boundary calling-plan, and executable-fragment accessors likewise
+label compact projections as reports; exact structural plans and installed
+contexts continue to decide compatibility and admission.
 
 Owner admission follows the same rule before reporting. A provider grant
 retains the complete selected plan and its `ProviderPlanDigest`; a generic

@@ -103,11 +103,11 @@ pub trait ProviderExecutionEvidence: std::fmt::Debug {
     /// execution. Lowering compares this value with the exact bodyless
     /// boundary declaration before it projects the numeric execution record.
     fn requirement_identity(&self) -> &str;
-    fn provider_plan(&self) -> u64;
-    fn provider_execution_identity(&self) -> u64;
-    fn provider_execution_fingerprint(&self) -> u64;
-    fn normalized_root_identity(&self) -> u64;
-    fn boundary_contract_fingerprint(&self) -> u64;
+    fn provider_plan_report_identity(&self) -> u64;
+    fn provider_execution_report_identity(&self) -> u64;
+    fn provider_execution_report_fingerprint(&self) -> u64;
+    fn normalized_root_report_identity(&self) -> u64;
+    fn boundary_contract_report_fingerprint(&self) -> u64;
 }
 
 /// Exact caller-local claim source retained by one admitted installed-provider

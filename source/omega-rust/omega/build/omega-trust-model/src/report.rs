@@ -818,7 +818,7 @@ mod tests {
         );
         assert_eq!(
             normalized.normalized_foreign_locator_identity(),
-            Some(locator.normalized_identity()),
+            Some(locator.non_authoritative_compatibility_fingerprint()),
         );
 
         let bootstrap = trust_provider_realization(

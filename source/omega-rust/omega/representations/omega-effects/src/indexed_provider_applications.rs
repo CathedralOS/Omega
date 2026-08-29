@@ -207,7 +207,7 @@ impl ConcreteIndexedProviderApplication {
         arguments: Vec<IndexedProviderConcreteArgument>,
     ) -> Result<Self, IndexedProviderApplicationClosureError> {
         validate_arity(&schema, arguments.len(), "concrete application")?;
-        let identity = fingerprint_application(&schema, &arguments);
+        let identity = application_report_fingerprint(&schema, &arguments);
         Ok(Self {
             schema,
             arguments,
@@ -249,7 +249,7 @@ impl ProviderAssertedIndexedApplicationCoverage {
     ) -> Result<Self, IndexedProviderApplicationClosureError> {
         validate_provider_plan_identity(provider_plan_identity)?;
         let kind = IndexedApplicationCoverageKind::Generic;
-        let identity = fingerprint_coverage(provider_plan_identity, &schema, &kind);
+        let identity = coverage_report_fingerprint(provider_plan_identity, &schema, &kind);
         Ok(Self {
             provider_plan_identity,
             schema,
@@ -284,7 +284,7 @@ impl ProviderAssertedIndexedApplicationCoverage {
             ));
         }
         let kind = IndexedApplicationCoverageKind::Exact(applications);
-        let identity = fingerprint_coverage(provider_plan_identity, &schema, &kind);
+        let identity = coverage_report_fingerprint(provider_plan_identity, &schema, &kind);
         Ok(Self {
             provider_plan_identity,
             schema,
@@ -512,7 +512,7 @@ pub fn close_indexed_provider_applications(
     }
 
     let selected_provider_closure_identity = selected.normalized_identity();
-    let identity = fingerprint_closed_set(
+    let identity = closed_set_report_fingerprint(
         selected_provider_closure_identity,
         plan_identity,
         schema,
@@ -558,7 +558,7 @@ fn error(message: impl Into<String>) -> IndexedProviderApplicationClosureError {
     IndexedProviderApplicationClosureError(message.into())
 }
 
-fn fingerprint_application(
+fn application_report_fingerprint(
     schema: &IndexedProviderRequirementSchema,
     arguments: &[IndexedProviderConcreteArgument],
 ) -> u64 {
@@ -588,7 +588,7 @@ fn append_text_bytes(bytes: &mut Vec<u8>, value: &str) {
     bytes.extend_from_slice(value.as_bytes());
 }
 
-fn fingerprint_coverage(
+fn coverage_report_fingerprint(
     provider_plan_identity: u64,
     schema: &IndexedProviderRequirementSchema,
     kind: &IndexedApplicationCoverageKind,
@@ -609,7 +609,7 @@ fn fingerprint_coverage(
     hash.finish_nonzero()
 }
 
-fn fingerprint_closed_set(
+fn closed_set_report_fingerprint(
     selected_provider_closure_identity: u64,
     provider_plan_identity: u64,
     schema: &IndexedProviderRequirementSchema,

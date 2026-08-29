@@ -539,7 +539,12 @@ fn root_report_fingerprint(candidate: &ExternalRootCandidate, boundary: u64) -> 
             .normalized_identity(),
     );
     hash.u64(candidate.logical_fuel.realization.units());
-    hash.u64(candidate.logical_fuel.realization.composition_fingerprint());
+    hash.u64(
+        candidate
+            .logical_fuel
+            .realization
+            .non_authoritative_composition_report_fingerprint(),
+    );
     hash.u64(
         candidate
             .logical_fuel

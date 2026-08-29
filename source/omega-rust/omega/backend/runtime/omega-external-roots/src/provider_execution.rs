@@ -524,7 +524,7 @@ impl<'mapping, 'bytes> WrittenExternalRootPostHandoffWriterDestination<'mapping,
         )?;
         if self.architecture != installed_code.architecture()
             || !self.written.binds_invocation(&self.invocation)
-            || self.written.normalized_fragment_fingerprint()
+            || self.written.normalized_fragment_report_fingerprint()
                 != self.invocation.fragment().report_fingerprint()
         {
             return Err(psi_layout_plans::MaterializationDiagnostic(
@@ -800,23 +800,23 @@ impl omega_installation_evidence::ProviderExecutionEvidence for ProviderExecutio
         self.selected_requirement_identity()
     }
 
-    fn provider_plan(&self) -> u64 {
+    fn provider_plan_report_identity(&self) -> u64 {
         self.provider_plan.normalized_identity()
     }
 
-    fn provider_execution_identity(&self) -> u64 {
+    fn provider_execution_report_identity(&self) -> u64 {
         self.identity.normalized_identity()
     }
 
-    fn provider_execution_fingerprint(&self) -> u64 {
+    fn provider_execution_report_fingerprint(&self) -> u64 {
         self.normalized_report_identity
     }
 
-    fn normalized_root_identity(&self) -> u64 {
+    fn normalized_root_report_identity(&self) -> u64 {
         self.normalized_root_report_identity
     }
 
-    fn boundary_contract_fingerprint(&self) -> u64 {
+    fn boundary_contract_report_fingerprint(&self) -> u64 {
         self.boundary_contract_report_fingerprint
     }
 }
@@ -844,7 +844,12 @@ fn provider_execution_report_fingerprint(
             .report_fingerprint(),
     );
     hash.u64(candidate.stack.realization.report_fingerprint());
-    hash.u64(candidate.logical_fuel.realization.composition_fingerprint());
+    hash.u64(
+        candidate
+            .logical_fuel
+            .realization
+            .non_authoritative_composition_report_fingerprint(),
+    );
     hash.u64(
         candidate
             .machine_state
@@ -899,7 +904,7 @@ impl ProviderExecution {
             logical_fuel_report_fingerprint: candidate
                 .logical_fuel
                 .realization
-                .composition_fingerprint(),
+                .non_authoritative_composition_report_fingerprint(),
             machine_state_validation_receipt: candidate.machine_state.validation_receipt,
             exit_assurance,
             exit_assurance_report_fingerprint,
@@ -1076,7 +1081,10 @@ impl ProviderExecution {
             && self.stack_demand_report_fingerprint
                 == candidate.stack.realization.report_fingerprint()
             && self.logical_fuel_report_fingerprint
-                == candidate.logical_fuel.realization.composition_fingerprint()
+                == candidate
+                    .logical_fuel
+                    .realization
+                    .non_authoritative_composition_report_fingerprint()
             && self.machine_state_validation_receipt == candidate.machine_state.validation_receipt
             && self.effects == candidate.effects
     }

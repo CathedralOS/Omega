@@ -56,8 +56,8 @@ fn normalized_layout_identity_is_order_independent_and_geometry_bound() {
     let mut reversed = forward.clone();
     reversed.entries.reverse();
     assert_eq!(
-        normalized_layout_plan_fingerprint(&forward),
-        normalized_layout_plan_fingerprint(&reversed)
+        normalized_layout_plan_report_fingerprint(&forward),
+        normalized_layout_plan_report_fingerprint(&reversed)
     );
 
     let mut shifted = forward.clone();
@@ -66,8 +66,8 @@ fn normalized_layout_identity_is_order_independent_and_geometry_bound() {
     };
     *container = 4;
     assert_ne!(
-        normalized_layout_plan_fingerprint(&forward),
-        normalized_layout_plan_fingerprint(&shifted)
+        normalized_layout_plan_report_fingerprint(&forward),
+        normalized_layout_plan_report_fingerprint(&shifted)
     );
 }
 
@@ -93,35 +93,35 @@ fn conventional_sum_identity_binds_ordinals_geometry_and_unnumbered_names() {
         size: 8,
         align: 4,
     };
-    let identity = normalized_conventional_sum_layout_fingerprint(&baseline);
-    assert_ne!(identity, 0);
+    let report_fingerprint = normalized_conventional_sum_layout_report_fingerprint(&baseline);
+    assert_ne!(report_fingerprint, 0);
 
     let mut renamed_numbered_case = baseline.clone();
     renamed_numbered_case.cases[0].case = "Available".into();
     assert_eq!(
-        identity,
-        normalized_conventional_sum_layout_fingerprint(&renamed_numbered_case)
+        report_fingerprint,
+        normalized_conventional_sum_layout_report_fingerprint(&renamed_numbered_case)
     );
 
     let mut reordered = baseline.clone();
     reordered.cases[0].ordinal = 1;
     assert_ne!(
-        identity,
-        normalized_conventional_sum_layout_fingerprint(&reordered)
+        report_fingerprint,
+        normalized_conventional_sum_layout_report_fingerprint(&reordered)
     );
 
     let mut renamed_unnumbered_field = baseline.clone();
     renamed_unnumbered_field.cases[0].payload_fields[0].field = "payload".into();
     assert_ne!(
-        identity,
-        normalized_conventional_sum_layout_fingerprint(&renamed_unnumbered_field)
+        report_fingerprint,
+        normalized_conventional_sum_layout_report_fingerprint(&renamed_unnumbered_field)
     );
 
     let mut shifted = baseline;
     shifted.cases[0].payload_fields[0].offset = 8;
     assert_ne!(
-        identity,
-        normalized_conventional_sum_layout_fingerprint(&shifted)
+        report_fingerprint,
+        normalized_conventional_sum_layout_report_fingerprint(&shifted)
     );
 }
 
@@ -195,8 +195,8 @@ fn stable_member_identity_makes_source_rename_presentation_only() {
         entry.field = "renamed_address".into();
     }
     assert_eq!(
-        normalized_layout_plan_fingerprint(&original),
-        normalized_layout_plan_fingerprint(&renamed)
+        normalized_layout_plan_report_fingerprint(&original),
+        normalized_layout_plan_report_fingerprint(&renamed)
     );
     assert!(layout_plan_reports_match_for_replay(&original, &renamed));
 
@@ -225,8 +225,8 @@ fn stable_member_identity_makes_source_rename_presentation_only() {
     let mut changed_schema = renamed;
     changed_schema.schema_identity = 0x45;
     assert_ne!(
-        normalized_layout_plan_fingerprint(&original),
-        normalized_layout_plan_fingerprint(&changed_schema)
+        normalized_layout_plan_report_fingerprint(&original),
+        normalized_layout_plan_report_fingerprint(&changed_schema)
     );
     assert!(!layout_plan_reports_match_for_replay(
         &original,
@@ -343,8 +343,8 @@ fn normalized_layout_identity_distinguishes_dynamic_from_full_width_size() {
     };
 
     assert_ne!(
-        normalized_layout_plan_fingerprint(&dynamic),
-        normalized_layout_plan_fingerprint(&fixed)
+        normalized_layout_plan_report_fingerprint(&dynamic),
+        normalized_layout_plan_report_fingerprint(&fixed)
     );
 }
 

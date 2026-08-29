@@ -116,11 +116,11 @@ impl NativeProviderExecution {
     pub fn from_evidence(evidence: &dyn ProviderExecutionEvidence) -> Self {
         Self {
             requirement_identity: evidence.requirement_identity().to_owned(),
-            provider_plan_report_identity: evidence.provider_plan(),
-            provider_execution_report_identity: evidence.provider_execution_identity(),
-            provider_execution_report_fingerprint: evidence.provider_execution_fingerprint(),
-            normalized_root_report_identity: evidence.normalized_root_identity(),
-            boundary_contract_report_fingerprint: evidence.boundary_contract_fingerprint(),
+            provider_plan_report_identity: evidence.provider_plan_report_identity(),
+            provider_execution_report_identity: evidence.provider_execution_report_identity(),
+            provider_execution_report_fingerprint: evidence.provider_execution_report_fingerprint(),
+            normalized_root_report_identity: evidence.normalized_root_report_identity(),
+            boundary_contract_report_fingerprint: evidence.boundary_contract_report_fingerprint(),
         }
     }
 
@@ -150,23 +150,23 @@ impl ProviderExecutionEvidence for NativeProviderExecution {
         &self.requirement_identity
     }
 
-    fn provider_plan(&self) -> u64 {
+    fn provider_plan_report_identity(&self) -> u64 {
         self.provider_plan_report_identity
     }
 
-    fn provider_execution_identity(&self) -> u64 {
+    fn provider_execution_report_identity(&self) -> u64 {
         self.provider_execution_report_identity
     }
 
-    fn provider_execution_fingerprint(&self) -> u64 {
+    fn provider_execution_report_fingerprint(&self) -> u64 {
         self.provider_execution_report_fingerprint
     }
 
-    fn normalized_root_identity(&self) -> u64 {
+    fn normalized_root_report_identity(&self) -> u64 {
         self.normalized_root_report_identity
     }
 
-    fn boundary_contract_fingerprint(&self) -> u64 {
+    fn boundary_contract_report_fingerprint(&self) -> u64 {
         self.boundary_contract_report_fingerprint
     }
 }

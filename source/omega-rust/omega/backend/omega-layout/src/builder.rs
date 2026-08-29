@@ -503,7 +503,7 @@ impl<'program> LayoutBuilder<'program> {
                     Some((*identity).to_owned())
                 });
             let native_layout_report_fingerprint =
-                psi_layout_plans::normalized_native_layout_plan_fingerprint(
+                psi_layout_plans::normalized_native_layout_plan_report_fingerprint(
                     &psi_layout_plans::NativeLayoutPlanReport {
                         layout: plan.validated_layout.clone(),
                         private_callback_demands: plan.private_callback_demands.clone(),
@@ -1962,7 +1962,7 @@ mod tests {
         target: NativeTarget,
         canonical_layout_subject: &str,
     ) -> Result<Vec<crate::TargetClosedPrivateCallbackDemand>, psi_diagnostics::Diagnostic> {
-        let fingerprint = psi_layout_plans::normalized_native_layout_plan_fingerprint(
+        let fingerprint = psi_layout_plans::normalized_native_layout_plan_report_fingerprint(
             &psi_layout_plans::NativeLayoutPlanReport {
                 layout: plan.validated_layout.clone(),
                 private_callback_demands: plan.private_callback_demands.clone(),
