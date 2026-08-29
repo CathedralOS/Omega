@@ -1,4 +1,5 @@
 use omega_abstract_operations::AbstractFunction;
+use omega_target::NativeTarget;
 use omega_target_operations::TargetFunction;
 
 use super::super::{
@@ -9,6 +10,7 @@ use crate::AbstractToTargetTranslationFamily;
 pub(super) type TranslationFamilyClassifier = fn(&AbstractFunction) -> bool;
 pub(super) type TranslationFamilyValidator = fn(
     &AbstractFunction,
+    NativeTarget,
     &TargetFunction,
 ) -> Result<
     AbstractToTargetFunctionTranslationReceipt,

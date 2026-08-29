@@ -24,9 +24,20 @@ pub(crate) fn scalar_crash_artifact(
     scalar_terminal_artifact(scalar_type, ScalarTerminal::Crash(cause))
 }
 
+pub(crate) fn integer_parameter_return_artifact(
+    integer_type: IntegerType,
+    parameter_count: usize,
+) -> (Vec<u8>, Vec<u8>) {
+    scalar_terminal_artifact(
+        ScalarType::Integer(integer_type),
+        ScalarTerminal::ParameterReturn { parameter_count },
+    )
+}
+
 enum ScalarTerminal {
     Literal(OperationKind),
     Crash(CrashCause),
+    ParameterReturn { parameter_count: usize },
 }
 
 fn scalar_terminal_artifact(
@@ -39,8 +50,9 @@ fn scalar_terminal_artifact(
     let function_result = ValueId::new(30_004).unwrap();
     let declaration = |id| ValueDeclaration { id, scalar_type };
     let edge = EdgeId::new(30_006).unwrap();
-    let (operations, terminator, crash_routes) = match terminal {
+    let (parameters, operations, terminator, crash_routes) = match terminal {
         ScalarTerminal::Literal(literal) => (
+            Vec::new(),
             vec![Operation {
                 id: OperationId::new(30_005).unwrap(),
                 result: OperationResult::Scalar(declaration(constant_value)),
@@ -55,6 +67,7 @@ fn scalar_terminal_artifact(
         ),
         ScalarTerminal::Crash(cause) => (
             Vec::new(),
+            Vec::new(),
             Terminator::Crash {
                 edge,
                 cause,
@@ -66,6 +79,23 @@ fn scalar_terminal_artifact(
                 alternatives: vec![CrashRouteGuard::Truth],
             }],
         ),
+        ScalarTerminal::ParameterReturn { parameter_count } => {
+            assert!(parameter_count > 0, "parameter fixture must be nonempty");
+            let parameters = (0..parameter_count)
+                .map(|index| declaration(ValueId::new(30_100 + index as u64).unwrap()))
+                .collect::<Vec<_>>();
+            let returned = parameters[parameter_count - 1].id;
+            (
+                parameters,
+                Vec::new(),
+                Terminator::Return {
+                    edge,
+                    value: returned,
+                    cleanup_actions: Vec::new(),
+                },
+                Vec::new(),
+            )
+        }
     };
     let module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
@@ -88,7 +118,7 @@ fn scalar_terminal_artifact(
         machines: vec![TerminalMachine {
             id: machine,
             attachment: None,
-            parameters: Vec::new(),
+            parameters,
             structural_parameters: Vec::new(),
             ranked_scc: None,
             result: TerminalMachineResult::Scalar(declaration(function_result)),

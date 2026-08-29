@@ -29,6 +29,9 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   parameterless `[BooleanConstant, Return]` to `ReturnBooleanImmediate`.
 - `validation/straight_line_scalar_crash.rs` owns parameterless one-block
   scalar `[Crash]` to exact target `Crash` custody.
+- `validation/straight_line_integer_parameter.rs` owns nonempty scalar
+  parameter rosters ending in one integer parameter return and independently
+  reconstructs that parameter's native ABI register or stack location.
 - `conditional_control.rs`, `conditional_scalar.rs`, `structural_result.rs`, and
   `structural_scalar.rs` own their corresponding closed operation families.
 - `omega-target-operations/src/lib.rs` owns the target-aware output vocabulary.

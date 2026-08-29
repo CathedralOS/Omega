@@ -7,6 +7,7 @@ mod dispatch;
 mod model;
 
 use omega_abstract_operations::AbstractFunction;
+use omega_target::NativeTarget;
 use omega_target_operations::TargetFunction;
 
 use super::{
@@ -18,20 +19,28 @@ const ENABLED_TRANSLATION_FAMILIES: &[TranslationFamilyDescriptor] = &[
     dispatch::STRAIGHT_LINE_INTEGER_IMMEDIATE,
     dispatch::STRAIGHT_LINE_BOOLEAN_IMMEDIATE,
     dispatch::STRAIGHT_LINE_SCALAR_CRASH,
+    dispatch::STRAIGHT_LINE_INTEGER_PARAMETER,
 ];
 
 pub(super) fn validate_function(
     source: &AbstractFunction,
+    expected_target: NativeTarget,
     target: &TargetFunction,
 ) -> Result<
     AbstractToTargetFunctionTranslationDisposition,
     AbstractToTargetTranslationValidationError,
 > {
-    validate_function_with_catalog(source, target, ENABLED_TRANSLATION_FAMILIES)
+    validate_function_with_catalog(
+        source,
+        expected_target,
+        target,
+        ENABLED_TRANSLATION_FAMILIES,
+    )
 }
 
 fn validate_function_with_catalog(
     source: &AbstractFunction,
+    expected_target: NativeTarget,
     target: &TargetFunction,
     catalog: &[TranslationFamilyDescriptor],
 ) -> Result<
@@ -57,7 +66,7 @@ fn validate_function_with_catalog(
     let Some(descriptor) = selected else {
         return Ok(AbstractToTargetFunctionTranslationDisposition::Uncovered);
     };
-    (descriptor.validate)(source, target)
+    (descriptor.validate)(source, expected_target, target)
         .map(AbstractToTargetFunctionTranslationDisposition::Validated)
         .map_err(
             |error| AbstractToTargetTranslationValidationError::FunctionFamily {

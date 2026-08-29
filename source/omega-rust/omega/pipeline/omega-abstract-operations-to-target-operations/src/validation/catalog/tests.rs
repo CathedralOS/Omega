@@ -3,6 +3,7 @@ use std::collections::BTreeSet;
 use omega_abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractResult,
 };
+use omega_target::NativeTarget;
 use omega_target_operations::{TargetFunction, TargetOperation, TerminalPsiProvenance};
 use psi_core::{BlockId, EdgeId, MachineId, OperationId, ScalarType, ValueId};
 
@@ -77,7 +78,7 @@ fn enabled_family_identities_are_unique_and_dispatch_is_typed() {
     assert_eq!(identities.len(), ENABLED_TRANSLATION_FAMILIES.len());
 
     let (source, target) = boolean_literal_pair();
-    let disposition = validate_function(&source, &target).unwrap();
+    let disposition = validate_function(&source, NativeTarget::linux_x64(), &target).unwrap();
     assert!(matches!(
         disposition,
         AbstractToTargetFunctionTranslationDisposition::Validated(
@@ -92,13 +93,18 @@ fn omission_is_uncovered_while_duplicate_or_overlap_fails_closed() {
     let source = &source;
     let target = &target;
     assert_eq!(
-        validate_function_with_catalog(source, target, &[]).unwrap(),
+        validate_function_with_catalog(source, NativeTarget::linux_x64(), target, &[]).unwrap(),
         AbstractToTargetFunctionTranslationDisposition::Uncovered
     );
 
     let boolean = ENABLED_TRANSLATION_FAMILIES[1];
     assert!(matches!(
-        validate_function_with_catalog(source, target, &[boolean, boolean]),
+        validate_function_with_catalog(
+            source,
+            NativeTarget::linux_x64(),
+            target,
+            &[boolean, boolean]
+        ),
         Err(
             AbstractToTargetTranslationValidationError::AmbiguousFunctionFamily {
                 first: AbstractToTargetTranslationFamily::StraightLineBooleanImmediate,
@@ -114,7 +120,12 @@ fn omission_is_uncovered_while_duplicate_or_overlap_fails_closed() {
         boolean.validate,
     );
     assert!(matches!(
-        validate_function_with_catalog(source, target, &[boolean, overlapping_alias]),
+        validate_function_with_catalog(
+            source,
+            NativeTarget::linux_x64(),
+            target,
+            &[boolean, overlapping_alias]
+        ),
         Err(
             AbstractToTargetTranslationValidationError::AmbiguousFunctionFamily {
                 first: AbstractToTargetTranslationFamily::StraightLineBooleanImmediate,

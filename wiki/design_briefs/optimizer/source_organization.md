@@ -271,8 +271,11 @@ catalog rejects duplicate or overlapping matches before dispatch. Exact replay
 then descends to the sibling
 `straight_line_integer_immediate.rs` and
 `straight_line_boolean_immediate.rs` literal leaves or
-`straight_line_scalar_crash.rs`. Immutable root, disposition, family-receipt,
-and error vocabulary descend through `model/`. The optimizer's 75-line
+`straight_line_scalar_crash.rs` and
+`straight_line_integer_parameter.rs`. The parameter leaf independently owns
+ABI-plan reconstruction and exact register/stack placement replay. Immutable
+root, disposition, family-receipt,
+and error vocabulary descend through `model/`. The optimizer's sub-100-line
 target-operation entrance owns the visible
 `lower -> independent validation -> retained carrier` join. An architecture
 gate prevents validation from importing lowering helpers, and each complete

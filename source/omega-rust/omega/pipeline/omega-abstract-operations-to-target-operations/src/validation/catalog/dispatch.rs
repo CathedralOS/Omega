@@ -1,9 +1,11 @@
 use omega_abstract_operations::AbstractFunction;
+use omega_target::NativeTarget;
 use omega_target_operations::TargetFunction;
 
 use super::super::{
     AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError,
-    straight_line_boolean_immediate, straight_line_integer_immediate, straight_line_scalar_crash,
+    straight_line_boolean_immediate, straight_line_integer_immediate,
+    straight_line_integer_parameter, straight_line_scalar_crash,
 };
 use super::model::TranslationFamilyDescriptor;
 use crate::AbstractToTargetTranslationFamily;
@@ -29,8 +31,16 @@ pub(super) const STRAIGHT_LINE_SCALAR_CRASH: TranslationFamilyDescriptor =
         straight_line_scalar_crash_adapter,
     );
 
+pub(super) const STRAIGHT_LINE_INTEGER_PARAMETER: TranslationFamilyDescriptor =
+    TranslationFamilyDescriptor::new(
+        AbstractToTargetTranslationFamily::StraightLineIntegerParameter,
+        straight_line_integer_parameter::is_candidate,
+        straight_line_integer_parameter_adapter,
+    );
+
 fn straight_line_integer_immediate_adapter(
     source: &AbstractFunction,
+    _expected_target: NativeTarget,
     target: &TargetFunction,
 ) -> Result<AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError> {
     straight_line_integer_immediate::validate(source, target)
@@ -40,6 +50,7 @@ fn straight_line_integer_immediate_adapter(
 
 fn straight_line_boolean_immediate_adapter(
     source: &AbstractFunction,
+    _expected_target: NativeTarget,
     target: &TargetFunction,
 ) -> Result<AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError> {
     straight_line_boolean_immediate::validate(source, target)
@@ -49,9 +60,20 @@ fn straight_line_boolean_immediate_adapter(
 
 fn straight_line_scalar_crash_adapter(
     source: &AbstractFunction,
+    _expected_target: NativeTarget,
     target: &TargetFunction,
 ) -> Result<AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError> {
     straight_line_scalar_crash::validate(source, target)
         .map(AbstractToTargetFunctionTranslationReceipt::StraightLineScalarCrash)
         .map_err(AbstractToTargetTranslationFamilyError::StraightLineScalarCrash)
+}
+
+fn straight_line_integer_parameter_adapter(
+    source: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError> {
+    straight_line_integer_parameter::validate(source, expected_target, target)
+        .map(AbstractToTargetFunctionTranslationReceipt::StraightLineIntegerParameter)
+        .map_err(AbstractToTargetTranslationFamilyError::StraightLineIntegerParameter)
 }
