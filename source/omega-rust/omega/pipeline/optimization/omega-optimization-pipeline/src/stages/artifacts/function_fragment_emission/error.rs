@@ -15,7 +15,6 @@ pub enum FunctionFragmentEmissionError {
     ),
     UnitSource(OptimizedUnitFunctionRelativeRealizationError),
     StructuralUnitSource(OptimizedStructuralUnitFunctionRelativeRealizationError),
-    MissingX86Rel8Realization,
     SourceKindMismatch,
     MissingFunction(MachineId),
     MissingBlock(omega_selected_instructions::SelectedBlockId),

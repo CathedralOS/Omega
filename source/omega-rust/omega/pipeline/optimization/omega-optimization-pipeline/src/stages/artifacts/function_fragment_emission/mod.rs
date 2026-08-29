@@ -18,7 +18,7 @@ use compute::compute;
 use custody::{receipt, validate_source};
 
 /// Canonical join from one validated function-relative realization into
-/// replayable function fragments and their v7 manifest custody.
+/// replayable function fragments and their v8 manifest custody.
 pub fn stage_optimized_function_fragment_emission(
     source: StagedOptimizedFunctionFragmentEmissionSource,
 ) -> Result<StagedOptimizedFunctionFragmentEmission, FunctionFragmentEmissionError> {

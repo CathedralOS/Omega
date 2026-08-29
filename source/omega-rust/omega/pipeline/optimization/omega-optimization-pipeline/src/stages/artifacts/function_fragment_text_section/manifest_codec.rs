@@ -23,11 +23,11 @@ use super::{
 };
 
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGTSP\0\0";
-const MANIFEST_VERSION: u32 = 7;
+const MANIFEST_VERSION: u32 = 8;
 
 impl FunctionFragmentTextSectionManifest {
     pub fn recomputed_identity(&self) -> FunctionFragmentTextSectionManifestIdentity {
-        let mut canonical = b"omega.function-fragment-text-section-manifest.v7\0".to_vec();
+        let mut canonical = b"omega.function-fragment-text-section-manifest.v8\0".to_vec();
         canonical.extend_from_slice(&encode_manifest_content(self));
         FunctionFragmentTextSectionManifestIdentity::from_canonical_bytes(&canonical)
     }
@@ -66,6 +66,7 @@ impl FunctionFragmentTextSectionManifest {
             3 => FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1,
             4 => FunctionFragmentEmissionSourceKind::UnitBaselineV1,
             5 => FunctionFragmentEmissionSourceKind::StructuralUnitV1,
+            6 => FunctionFragmentEmissionSourceKind::SelectedLoweringV1,
             tag => {
                 return Err(FunctionFragmentTextSectionManifestDecodeError::UnknownSourceKind(tag));
             }
@@ -188,6 +189,7 @@ fn encode_manifest_content(record: &FunctionFragmentTextSectionManifest) -> Vec<
     bytes.push(1);
     match record.source_kind {
         FunctionFragmentEmissionSourceKind::X86Rel8V1 => bytes.push(1),
+        FunctionFragmentEmissionSourceKind::SelectedLoweringV1 => bytes.push(6),
         FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 {
             optimization,
         } => {

@@ -78,6 +78,13 @@ fragment source route. The former named CBNZ/MOVN complete-route carriers have
 been removed; rule-specific values remain typed leaves borrowed from the shared
 result.
 
+Selected-lowering realization likewise enters fragment admission through one
+`SelectedLowering` carrier whether or not a function-relative layout rule also
+ran. Add/subtract folds do not acquire fragment route variants, and rel8 remains
+an optional typed leaf of the selected-lowering realization rather than an
+admission prerequisite. The fragment manifest records the generic phase source
+kind while its selection and realization identities retain the exact rules.
+
 The adjacent machine catalog is also the architecture-admission point. CBNZ
 and MOVN require AArch64; XOR-zero requires x86-64. Function-relative rel8
 relaxation declares x86-64 in its adjacent layout catalog. Unsupported target
@@ -136,8 +143,8 @@ truncated, trailing, or cross-source data. Generic artifact layers bind child
 identities and do not need a new schema merely because a new exact rule exists.
 The genericization changed the data carried at three serialized boundaries:
 function-relative realization is v9, while fragment emission and fragment text
-placement are v7. Their records retain the exact post-allocation optimization,
-not a broad optimization level.
+placement are v8. Their records retain the exact selected-lowering selection
+or post-allocation optimization, not a broad optimization level.
 
 The Terminal-Psi-to-native stage now exposes its full physical composition as
 small owning entrances. Source-entry settlement replays declaration and

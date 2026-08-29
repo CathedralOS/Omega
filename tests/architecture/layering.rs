@@ -2764,3 +2764,48 @@ fn resolved_layout_validation_cannot_reenter_its_producer() {
         );
     }
 }
+
+#[test]
+fn selected_lowering_fragment_admission_is_rule_independent() {
+    let root = workspace_root();
+    let stage = root.join(
+        "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/artifacts/function_fragment_emission",
+    );
+    let source = std::fs::read_to_string(stage.join("source.rs"))
+        .expect("read function-fragment source model");
+    let custody = std::fs::read_to_string(stage.join("custody.rs"))
+        .expect("read function-fragment source admission");
+    let model = std::fs::read_to_string(stage.join("model.rs"))
+        .expect("read function-fragment retained model");
+    assert!(
+        source.contains("SelectedLowering(Box<StagedSelectedLoweringFunctionRelativeRealization>)")
+            && model.contains("SelectedLoweringV1"),
+        "fragment admission must expose one selected-lowering carrier and source kind",
+    );
+    for forbidden in [
+        "X86Rel8AfterSelectedLowering",
+        "MissingX86Rel8Realization",
+        "realization.relaxation().is_none()",
+    ] {
+        assert!(
+            !source.contains(forbidden) && !custody.contains(forbidden),
+            "selected-lowering fragment admission must not depend on exact layout rule `{forbidden}`",
+        );
+    }
+    for manifest in [
+        stage.join("manifest.rs"),
+        stage
+            .parent()
+            .expect("artifact stage parent")
+            .join("function_fragment_text_section/manifest_codec.rs"),
+    ] {
+        let encoded = std::fs::read_to_string(&manifest)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", manifest.display()));
+        assert!(
+            encoded.contains("const MANIFEST_VERSION: u32 = 8;")
+                && encoded.contains("SelectedLoweringV1"),
+            "generic selected-lowering source custody must be explicit in v8 manifest {}",
+            manifest.display(),
+        );
+    }
+}

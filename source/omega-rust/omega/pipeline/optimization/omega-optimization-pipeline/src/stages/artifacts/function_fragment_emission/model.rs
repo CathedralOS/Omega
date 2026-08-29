@@ -15,6 +15,7 @@ use super::source::StagedOptimizedFunctionFragmentEmissionSource;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionFragmentEmissionSourceKind {
     X86Rel8V1,
+    SelectedLoweringV1,
     PostAllocationMachineOptimizationV1 { optimization: Optimization },
     ActiveResidentImmediateU64MultiUseRematerializationV1,
     UnitBaselineV1,

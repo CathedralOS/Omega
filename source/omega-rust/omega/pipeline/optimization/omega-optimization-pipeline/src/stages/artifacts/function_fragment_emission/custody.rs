@@ -1,6 +1,3 @@
-use omega_machine_code::FunctionFragmentEmissionPlan;
-use omega_target::Architecture;
-
 use crate::{
     validate_function_relative_layout_optimization_realization_custody,
     validate_optimized_active_resident_rematerialization_function_relative_realization,
@@ -9,6 +6,8 @@ use crate::{
     validate_post_allocation_machine_function_relative_realization_custody,
     validate_selected_lowering_function_relative_realization_custody,
 };
+use omega_machine_code::FunctionFragmentEmissionPlan;
+use omega_target::Architecture;
 
 use super::error::FunctionFragmentEmissionError;
 use super::model::{
@@ -27,17 +26,9 @@ pub(super) fn validate_source(
                 return Err(FunctionFragmentEmissionError::SourceKindMismatch);
             }
         }
-        StagedOptimizedFunctionFragmentEmissionSource::X86Rel8AfterSelectedLowering(
-            realization,
-        ) => {
+        StagedOptimizedFunctionFragmentEmissionSource::SelectedLowering(realization) => {
             validate_selected_lowering_function_relative_realization_custody(realization)
                 .map_err(FunctionFragmentEmissionError::Source)?;
-            if realization.relaxation().is_none() {
-                return Err(FunctionFragmentEmissionError::MissingX86Rel8Realization);
-            }
-            if realization.layout().target().architecture != Architecture::X86_64 {
-                return Err(FunctionFragmentEmissionError::SourceKindMismatch);
-            }
         }
         StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(realization) => {
             validate_post_allocation_machine_function_relative_realization_custody(realization)

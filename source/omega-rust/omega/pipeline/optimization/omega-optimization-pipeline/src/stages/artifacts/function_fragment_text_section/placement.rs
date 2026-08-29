@@ -1,9 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omega_isa_x86_64::{
+    X86_64StructuralUnitInternalControlFixupKind, X86_64StructuralUnitInternalControlFixupState,
     resolve_x86_64_structural_unit_internal_call,
     validate_x86_64_selected_structural_unit_call_template,
-    X86_64StructuralUnitInternalControlFixupKind, X86_64StructuralUnitInternalControlFixupState,
 };
 use omega_machine_code::{
     FunctionFragment, FunctionFragmentControlProvenance, FunctionFragmentEmissionPlan,
@@ -43,6 +43,7 @@ pub(super) fn place_fragments(
             true,
             FunctionFragmentEmissionStage::ValidatedRelocationFreeFunctionFragmentsV1,
             FunctionFragmentEmissionSourceKind::X86Rel8V1
+            | FunctionFragmentEmissionSourceKind::SelectedLoweringV1
             | FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 { .. }
             | FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1
             | FunctionFragmentEmissionSourceKind::UnitBaselineV1,

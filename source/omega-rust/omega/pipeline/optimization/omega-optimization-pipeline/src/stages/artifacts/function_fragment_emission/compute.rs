@@ -31,7 +31,7 @@ use super::model::{
     FunctionFragmentEmissionUnavailableData, ValidatedFunctionFragmentEmissionManifest,
 };
 use super::source::{
-    active_resident_rematerialization, StagedOptimizedFunctionFragmentEmissionSource,
+    StagedOptimizedFunctionFragmentEmissionSource, active_resident_rematerialization,
 };
 
 pub(super) fn compute(
@@ -59,9 +59,7 @@ pub(super) fn compute(
                 realization.manifest().record(),
             )
         }
-        StagedOptimizedFunctionFragmentEmissionSource::X86Rel8AfterSelectedLowering(
-            realization,
-        ) => {
+        StagedOptimizedFunctionFragmentEmissionSource::SelectedLowering(realization) => {
             let run = realization.homes().selected_lowering_run();
             let selected_stage = run
                 .source_legality_stage()
@@ -659,9 +657,11 @@ fn source_kind(
     source: &StagedOptimizedFunctionFragmentEmissionSource,
 ) -> FunctionFragmentEmissionSourceKind {
     match source {
-        StagedOptimizedFunctionFragmentEmissionSource::X86Rel8Direct(_)
-        | StagedOptimizedFunctionFragmentEmissionSource::X86Rel8AfterSelectedLowering(_) => {
+        StagedOptimizedFunctionFragmentEmissionSource::X86Rel8Direct(_) => {
             FunctionFragmentEmissionSourceKind::X86Rel8V1
+        }
+        StagedOptimizedFunctionFragmentEmissionSource::SelectedLowering(_) => {
+            FunctionFragmentEmissionSourceKind::SelectedLoweringV1
         }
         StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(realization) => {
             FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 {
