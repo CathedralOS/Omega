@@ -28,10 +28,21 @@ acceptance, rejection, capacity-edge, lexical-handoff, and determinism cases
 against that one native artifact. Its Python helper only decodes the versioned
 black-box observation; it implements no compiler semantics. Set `OMEGA_CLI` to
 the exact freshly built comparator CLI and `OMEGA_TARGET` to the exact selected
-target profile that should compile the product source, or set
-`OMEGA_PRODUCT_PROGRAM` to reuse one exact product executable during a focused
-iteration. The gate deliberately selects neither an arbitrary existing
-`target/debug/omega` nor an ambient host target as acceptance evidence.
+target profile that should compile the current product source. Acceptance
+evidence must identify that CLI, explicit target, and freshly emitted artifact;
+`OMEGA_PRODUCT_PROGRAM` may reuse one exact executable during focused iteration
+but cannot establish milestone acceptance. The gate deliberately selects
+neither an arbitrary existing `target/debug/omega` nor an ambient host target.
+
+After fresh artifact emission is restored, the next source migration collapses
+`Token`, `TokenObservation`, and the parser's parallel numeric token arrays
+atomically into one canonical typed token owner; no observation or ordinal
+compatibility bridge is retained. Lex/parse diagnostic serialization then
+moves from the exact compiler entrypoint into a gate-owned Omega harness while
+the same 45 black-box cases and structural observations remain mandatory. The
+Python decoder stays semantic-free. Unicode identifiers, codepoint escapes, and
+raw strings are design-blocked pending an owner ruling; do not expand those
+surfaces or make new compiler-source code depend on them meanwhile.
 
 ## Retention inventory
 
@@ -39,11 +50,11 @@ iteration. The gate deliberately selects neither an arbitrary existing
 | --- | --- | --- |
 | `build.omg` | Declares the target-neutral `psi` package consumed by Omega's product build. | Delete only if ordinary package ownership replaces this root atomically. |
 | `source/` | Owns bounded source bytes and coordinates shared by the lexer and parser. | Absorb when a replacement representation preserves every live source/coordinate discriminator. |
-| `tokens/` | Owns the lexical token stream and its observation surface. | Absorb when the next canonical representation subsumes the lexer/parser handoff and its gates. |
+| `tokens/` | Owns the lexical token stream; its observation projection and the parser's numeric copies are temporary dual truth. | Retain exactly one typed token owner; delete the projection, mapping, handoff copies, and raw ordinal arrays atomically when the direct lexer/parser handoff lands. |
 | `syntax/` | Owns the bounded structural syntax retained by the current parser slice. | Absorb into a later Psi representation only with equivalent accepted/rejected observations. |
-| `lex/` | Owns the Unicode tables and source-to-token implementation used directly by `omega/main.omg`. | Delete or absorb only when the canonical lexer and all lexical boundary cases move together. |
-| `parse/` | Owns the token-to-structural-parse implementation and black-box observation decoder. | Delete the decoder when a cheaper product gate covers the same observation; absorb the parser only into its canonical successor. |
-| `test-parser.sh` | Builds one exact product executable and exercises the live lexical/parser boundary. | Delete when an equal or stronger product-source gate subsumes every retained failure class. |
+| `lex/` | Owns the source-to-token implementation and the currently unsettled Unicode tables. | Freeze disputed lexical expansion pending the owner ruling; afterward delete or retain the tables with the chosen contract and move every affected boundary case atomically. |
+| `parse/` | Owns token-to-structural parsing; its black-box observation protocol is gate scaffolding, not product semantics. | Move serialization to the gate-owned Omega harness while preserving all 45 cases; absorb the parser only into its canonical successor. |
+| `test-parser.sh` | Builds one exact product executable and exercises the live lexical/parser boundary. | Require a fresh explicit-target artifact for acceptance; delete only when an equal or stronger product-source gate subsumes every retained failure class. |
 
 Generated data is retained under the semantic phase that consumes it. The
 Unicode tables therefore live in `lex/`; there is no generic `generated/`

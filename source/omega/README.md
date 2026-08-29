@@ -19,6 +19,10 @@ compiler because `D` implements the product language. The second build closes
 the self-hosting edge and may improve the compiler executable; it does not add
 language functionality.
 
+Both compiler outputs are platform-independent Alpha tapes. Native target
+realization belongs to this product phase only for user-program artifacts; it
+does not turn any compiler rung into a native bootstrap artifact.
+
 ## Ownership
 
 - [`../psi/`](../psi/) — target-neutral source, proof, and terminal semantics;
@@ -41,8 +45,11 @@ closure is tracked in [`../../TASKS_BOOTSTRAP.md`](../../TASKS_BOOTSTRAP.md).
 | Retained file | Canonical role | Deletion condition |
 | --- | --- | --- |
 | `build.omg`, `main.omg` | Current roots of Omega-written compiler closure `C`; the closure is incomplete but is extended in place. | Delete or replace only when an exact package-root ruling changes `C`; do not preserve alternate hosted roots. |
-| `ENTRYPOINT.md` | States the current hosted slice and package boundary. | Delete when the complete `C` source makes this status note redundant. |
-| `BACKEND.md` | Fixes the shared D/C target-realization ownership and Alpha-tape compiler identity. | Delete only when the same contract is absorbed by a normative product/backend specification. |
+
+The four empty target declarations in `build.omg` are temporary compatibility
+scaffolding, not product architecture. Delete them as soon as immutable target
+activation/reach closure lands, and normalize `windows_x64` to
+`windows_x86_64` in that same migration.
 
 `omega_compiler.delta` (`D`) and both descriptive compiler tapes are absent and
 remain required tasks. No placeholder, generated source closure, viewer, or

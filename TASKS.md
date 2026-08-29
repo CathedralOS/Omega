@@ -463,14 +463,55 @@ Remaining:
   `u32` all-input ceiling is `25_769_803_775` units for concrete cost
   `5 + 6 * remaining`; the canonical codec round trip replays the certificate,
   while a `u64` carrier fails closed because its ceiling cannot be represented.
-  Existing acyclic segment authority remains unchanged. The next substep is
-  Omega/native lowering and artifact custody for the same exact first slice.
+  Existing acyclic segment authority remains unchanged. Native admission and
+  custody are now complete through assigned target operations for the same
+  exact first slice. A third opaque verifier carrier admits only the canonical
+  structural Unit / `u32` countdown machine and retains its Terminal proof,
+  exact fixed-fuel certificate, structural frontier, and concrete ranked graph
+  as one custody object. Abstract lowering reconstructs that object directly
+  from canonical semantic/proof sections; ordinary acyclic lowering still
+  rejects the cycle. Target lowering replays every ranked operation and edge,
+  validates the affine-owned structural frontier and exact exit cleanup, and
+  preserves the fixed-fuel identity. Assignment accepts only the ABI-prescribed
+  rank register (`rdi` on Linux x86-64, `x0` on Linux AArch64) and rejects
+  stack, cross-target, or call-plan drift. Selected-instruction legalization
+  and machine emission reject this carrier explicitly rather than erasing it
+  into an acyclic control tree. The next substep is instruction selection and
+  machine emission for both supported ISAs, including the backward branch,
+  relocation/replay, native fuel rebasing, and final object/image/install/native
+  artifact custody. Then execute ranks 0, 1, and 3 natively and compare their
+  exact schedules before retrying the product build.
   Later product-required slices must then add persistent mutable receiver and
   subplace custody, mixed operations in multi-state blocks, structural-result
   boundary calls and payload cases, nested field/index reads and writes, and
   Darwin realizations for `read_byte`, `write_byte`, and `exit_process`. Do not
   bypass Terminal Psi, revive the deleted backend, or route around the failure
   in report/artifact policy.
+
+  After ranked native lowering and artifact custody restore the product build,
+  complete the following parser/lexer work in order before expanding the
+  accepted grammar:
+
+  1. Produce acceptance evidence from the current product source with one
+     freshly built CLI and one explicitly selected target, then run all 45
+     parser cases against the resulting fresh native artifact. Record the CLI,
+     target, and artifact identity. `OMEGA_PRODUCT_PROGRAM` reuse remains an
+     iteration convenience and is not milestone acceptance evidence.
+  2. Atomically replace the current `Token`, `TokenObservation`, and parser
+     numeric-array projections with one canonical typed token owner. The lexer
+     and parser must share that representation directly: delete the mirrored
+     observation stream, kind-to-private-number mapping, handoff copies, raw
+     token ordinals, and parallel tag/first/start/end truth in the same change.
+     A conservative physical layout may remain, but no compatibility bridge or
+     second token semantics may survive the migration.
+  3. Move lex/parse diagnostic serialization out of the exact product compiler
+     closure into an Omega harness owned by the black-box gate. Preserve the
+     same 45 accepted, rejected, capacity-edge, lexical-handoff, and determinism
+     cases and their structural observations; the exact compiler entrypoint
+     should retain only product phase driving and product diagnostics. Keep the
+     decoder semantic-free, and add focused lexer assertions before retaining
+     any lexer observer solely for a protocol-prefix check.
+
   Do not recover speed by duplicating token access, generating state
   permutations, or enabling unconsumed viewers/debug output.
   Freeze the exact manifest and feature census only for the complete compiler
@@ -582,8 +623,9 @@ Remaining:
   drift, absence of inference from `reaches <=`/bodylessness/catalog lookup,
   and the complete declaration-classification migration.
 
-  The lexical claim is design-blocked at explicit specification conflicts. The
-  current Omega-written lexer accepts Unicode XID identifiers despite the
+  **DESIGN-BLOCKED — owner ruling required:** the lexical claim has explicit
+  specification conflicts. The current Omega-written lexer accepts Unicode XID
+  identifiers despite the
   guide's ASCII-transparent/source-payload-only wording, accepts `\u{...}`
   escapes even though the guide forbids codepoint-to-byte escapes, and accepts
   raw strings whose delimiter/content rules are not yet normative there. The
@@ -593,7 +635,9 @@ Remaining:
   implicit `u32`/`u64` indexing and `.len` comparisons are gone without adding
   a heterogeneous-conversion rule. The live source still exercises the three
   unsettled lexical behaviors but does not claim full-spec lexical conformance
-  for them.
+  for them. Do not expand Unicode identifier, codepoint-escape, or raw-string
+  behavior, or add compiler-source dependencies on those behaviors, until the
+  owner rules one normative lexical contract.
 
   Two broader evaluation/layout rulings must also close before the compiler
   source may depend on them observably. Call-argument and aggregate-literal

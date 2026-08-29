@@ -119,10 +119,14 @@ code, discover a closure, manufacture proof premises, or decide admission.
   - [ ] **DESIGN-BLOCKED — Q13/Q14.** Materialize the Delta compiler source,
     tape, and adjacent validation in `source/delta/compiler/`; section 4 owns
     the implementation.
-  - [ ] **DEPENDENCY-BLOCKED — Q13/Q14 and missing Gamma/Delta compilers.**
-    Author `source/omega/omega_compiler.delta` and its resulting tape only when
-    section 5's downstream prerequisites are satisfied. Section 6 owns
-    completion of the existing `build.omg`/`main.omg` closure and its tape.
+  - [ ] **DESIGN-BLOCKED — Q13.** Author
+    `source/omega/omega_compiler.delta` once Delta's source and closure contract
+    is selected; section 5 owns the implementation. This source work does not
+    wait for the physical Gamma/Delta compiler artifacts.
+  - [ ] **DEPENDENCY-BLOCKED — Q14, missing Gamma/Delta compilers, and missing
+    `D`.** Materialize the resulting `omega0_compiler_bytecode.tape` only after
+    the predecessor chain and source closure exist. Section 6 owns completion
+    of the existing `build.omg`/`main.omg` closure and its tape.
 - [x] Update path-hygiene and lattice runners to enumerate only the canonical
   owners above. They must fail if a lower rung imports source or a semantic
   executable from beyond its immediate successor. `lattice_path` now accepts
@@ -360,7 +364,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   must close the contradictory `Incomplete` placement, exact reject/trap
   taxonomy, keyword policy, optional domains/contracts, builtin resolution,
   Console/string ABI, scalar-transition miss, and closure presentation.
-- [ ] **DESIGN-BLOCKED — Q13: BUILD-DELTA-COMPILER.** Implement
+- [ ] **DESIGN-BLOCKED — Q13/Q14: BUILD-DELTA-COMPILER.** Implement
   `source/delta/compiler/delta_compiler.gamma` to consume arbitrary valid Delta
   and emit exact Alpha tape directly. No Beta translator, Gamma evaluator
   subprocess, host encoder/decoder, native assembler stream, or older compiler
