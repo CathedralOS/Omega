@@ -10,8 +10,9 @@
 use super::{
     DecodedPackageReviewCanonicalRow, PACKAGE_REVIEW_ENCODING_VERSION,
     PACKAGE_REVIEW_ROW_ENCODING_VERSION, PackageReviewCanonicalRow, PackageReviewCanonicalRowKind,
-    PackageReviewCanonicalRowRisk, project_checked_package_review,
+    PackageReviewCanonicalRowRisk,
 };
+use crate::project_checked_package_review;
 use omega_compiler::CheckedCompilation;
 use omega_package_compilation::{PackageDependencyBinding, PackageDependencyClosure};
 use omega_target::TargetProfile;
