@@ -3,49 +3,18 @@ use psi::parse::owner;
 use psi::parse::root;
 use psi::source::source;
 use psi::syntax::syntax;
+use psi::tokens::tokens;
 
 pub machine Parser::initialize(
     &mut self,
     source: SourceId,
-    source_length: u64 in Trapping
+    source_length: u64 in Trapping,
+    input: TokenStream
 ) {
     self.output.clear(source);
-    self.token_count = 0;
+    self.input = input;
     self.source = source;
     self.source_length = source_length;
-    self.last_retained = true;
-}
-
-pub machine Parser::append_token(
-    &mut self,
-    tag: u8,
-    first: u8,
-    start: u64 in Trapping,
-    end: u64 in Trapping
-) {
-    self.last_retained = false;
-    transition self.token_count < 16384 {
-        true -> retain()
-        _ -> full()
-    }
-
-    state retain(&mut self) {
-        self.token_tags[self.token_count] = tag;
-        self.token_first[self.token_count] = first;
-        self.token_starts[self.token_count] = start;
-        self.token_ends[self.token_count] = end;
-        self.token_count = self.token_count + 1;
-        self.last_retained = true;
-    }
-
-    state full(&mut self) {
-        self.output.reject(
-            ParseDiagnosticCode::TokenInputCapacityExceeded,
-            self.source,
-            start,
-            end
-        );
-    }
 }
 
 pub machine Parser::parse(&mut self) {

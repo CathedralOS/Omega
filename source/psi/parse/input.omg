@@ -1,18 +1,17 @@
 use psi::parse::owner;
+use psi::tokens::tokens;
 
 machine Parser::initialize_cursor(&mut self) {
     self.cursor = 0;
-    self.current_tag = 0;
-    self.current_first = 0;
-    self.current_start = 0;
-    self.current_end = 0;
+    self.current_index = 0;
+    self.current_present = false;
 }
 
-// One checked dynamic-selection boundary feeds scalar lookahead fields. This
-// keeps root/data machines independent of physical token storage and avoids a
-// generated family of tag/start/end accessor permutations.
+// One checked dynamic-selection boundary retains only a bounded index witness;
+// callers read the canonical typed token directly from the borrowed stream.
 machine Parser::load_current(&mut self) {
-    transition self.cursor < self.token_count {
+    self.current_present = false;
+    transition self.cursor < self.input.token_count {
         true -> array_bound(self.cursor as u64)
         _ -> absent()
     }
@@ -25,22 +24,17 @@ machine Parser::load_current(&mut self) {
     }
 
     state present(&mut self, retained: u64 [0..=16383]) {
-        self.current_tag = self.token_tags[retained];
-        self.current_first = self.token_first[retained];
-        self.current_start = self.token_starts[retained];
-        self.current_end = self.token_ends[retained];
+        self.current_index = retained;
+        self.current_present = true;
     }
 
     state absent(&mut self) {
-        self.current_tag = 0;
-        self.current_first = 0;
-        self.current_start = 0;
-        self.current_end = 0;
+        self.current_present = false;
     }
 }
 
 machine Parser::skip_trivia(&mut self) {
-    transition self.cursor < self.token_count {
+    transition self.cursor < self.input.token_count {
         true -> classify()
         _ -> done()
     }
@@ -51,15 +45,25 @@ machine Parser::skip_trivia(&mut self) {
     }
 
     state classify_loaded(&mut self) {
-        transition self.current_tag == 7 || self.current_tag == 8 || self.current_tag == 9 {
-            true -> advance()
+        transition self.current_present {
+            true -> classify_present()
+            _ -> done()
+        }
+    }
+
+    state classify_present(&mut self) {
+        let token: Token = self.input.tokens[self.current_index];
+        transition token {
+            Token::Whitespace -> advance()
+            Token::LineComment -> advance()
+            Token::BlockComment -> advance()
             _ -> done()
         }
     }
 
     state advance(&mut self) {
         self.cursor = self.cursor + 1;
-        transition self.cursor < self.token_count {
+        transition self.cursor < self.input.token_count {
             true -> classify()
             _ -> done()
         }
