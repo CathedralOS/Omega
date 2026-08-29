@@ -837,6 +837,13 @@ package-acceptance authority. Before evaluation, its normalized contract gives
 policy the static service and authority ceiling; after evaluation, receipts
 record the realized observations and outputs.
 
+Only the canonical free build root initially receives `&mut Build`. It may lend
+that activation to ordinary helpers, but delegation does not narrow audit scope:
+their complete transitive reach, invocation, suspension, blocking, termination,
+authority demand, and build observations compose into the root. A helper that
+reaches `FilesystemHost` therefore requires the root to publish a ceiling that
+covers `FilesystemHost`. A scoped name or receiver never grants build authority.
+
 Dependency retrieval is a resolver operation performed before downloaded code
 runs. The resolver owns narrowly scoped network, archive-reading, expansion-
 limit, path-containment, and destination authority. A dependency's `build.omg`

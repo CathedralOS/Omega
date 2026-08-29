@@ -75,9 +75,25 @@ declarations reject. Directory and repository names are advisory only.
 Compiler project loading applies that shared projection to the exact retained
 bytes of the selected free `build.omg` before injecting build vocabulary or
 executing it. A companion-free focused compilation remains valid; a selected
-free build file cannot omit its role. Scoped `Owner::build` roots remain only
-in the explicitly isolated scoped-build compatibility lane and are not package
-declarations.
+free build file cannot omit its role. A selected `build.omg` has exactly one
+free `machine build(builder: &mut Build)` entry. `Owner::build` cannot become a
+project root: a scoped name establishes neither project identity nor authority,
+and there is no receiver for the compiler to synthesize. The same spelling in
+ordinary source remains an ordinary machine.
+
+Evaluated composition may be factored through ordinary helpers that borrow the
+root's `&mut Build`; authority follows that value and the checked call graph,
+never a machine name or receiver type. Every helper's transitive reach,
+invocation, suspension, blocking, termination, authority demand, and build
+observations compose into the root, whose published ceiling must cover them.
+This is the ordinary callable-contract rule applied to the build activation,
+not a second manifest surface.
+
+Manifest declarations remain stricter. `package`, `application`, `member`,
+`depend`, and `depend_as` are direct statically projected statements owned by
+the free root and may not be hidden inside a helper. Provider selection, root
+binding, filesystem staging, and other evaluated work may be delegated after
+graph closure.
 The canonical name begins with an ASCII lowercase letter and otherwise contains
 only lowercase ASCII letters, digits, and single hyphen separators, ensuring
 that its default kebab-to-snake alias is a valid Omega identifier.
@@ -274,7 +290,7 @@ admission evidence nor a package instance and has no decoder or public
 constructor.
 
 The post-relocation filesystem-producing two-package canary remains blocked on
-the exact ordinary-package staging-authority role in OWNER Q4. A physical-path
+the exact ordinary-package staging-authority role in OWNER Q3. A physical-path
 or spelling exception would invalidate the authority model; the lower-level
 generated-source custody and import path is independently tested without one.
 

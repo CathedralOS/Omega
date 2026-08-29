@@ -28,6 +28,17 @@ Every `build.omg` states its kind explicitly — `builder.package` for a package
 `builder.member` for a workspace root, `builder.application` for an
 application. No role is inferred from an absent declaration.
 
+The selected manifest has exactly one free
+`machine build(builder: &mut Build)` entry. A scoped `Owner::build` is never a
+project root; its owner name proves neither identity nor authority, and the
+compiler does not synthesize its receiver. The same declaration in ordinary
+source is simply an ordinary machine.
+
+The free root may lend `&mut Build` to ordinary helpers for evaluated
+composition. Their transitive checked contracts are charged to the root.
+Project role, workspace membership, and dependency requests remain direct
+statically projected root statements and cannot be hidden in helpers.
+
 The package manager statically projects this declaration from parsed source
 before dependency resolution or build execution; it does not execute the build
 machine to discover the graph. Graph-forming calls such as `package`, `member`,

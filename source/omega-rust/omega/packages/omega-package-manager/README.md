@@ -100,6 +100,12 @@ Workspaces are member catalogs, not keyed graph nodes. Each selected application
 member forms its own closure; membership alone does not combine applications or
 include unrelated packages.
 
+One selected `build.omg` has one free `build(&mut Build)` project entry. Scoped
+`Owner::build` declarations are ordinary machines, never alternate manifests.
+Static role/member/dependency projection stays direct and root-owned. Evaluated
+composition may use ordinary helpers borrowing `&mut Build`, with their complete
+transitive contracts retained against the root.
+
 Canonical source-closure encoding v3 binds root and dependency selectors plus
 one stable navigation value for every package. Review revalidates the complete
 authenticated repository commitment before opening a selected member subtree;
