@@ -1163,16 +1163,21 @@ therefore require standalone audit. Byte escaping protects the packet grammar,
 not the model from semantic instructions embedded in reviewed code. The
 review-input join now requires the complete candidate custody and compiler rows
 to agree bijectively on exact key and immutable resolution. A shared validator
-also rejects duplicate reviews, package/projection identity mismatch, mixed
-deployment targets, and mixed compiler-executable commitments before either
-capability comparison or source rendering. Recovered baseline custody is
-validated against its compiler row, and unavailable old source is derived from
-absence. Its aggregate ceiling preserves separate compiler and hostile-source
-frames. The implemented runner-neutral advisory boundary keeps fixed system
-instructions separate from bounded rendered evidence; the package library
-selects no model and supplies no ambient network authority. The runner streams
-response bytes into an Omega-owned sink enforcing the caller-supplied output
-ceiling. Only the exact
+also rejects duplicate reviews, package/projection identity mismatch, and mixed
+deployment targets before either capability comparison or source rendering.
+Recovered baseline custody is validated against its compiler row, and
+unavailable old source is derived from absence. Its aggregate ceiling preserves
+separate compiler and hostile-source frames. The current-process executable
+hash is optional incident metadata only: package core neither derives nor
+stores it, and it is absent from review validation, baseline capsules,
+capability conflicts, fingerprints, closure commitments, and triage.
+
+The runner-neutral model protocol lives in the optional
+`omega-package-advisory` tooling crate, outside `omega-package-manager`. It
+keeps fixed system instructions separate from bounded manager-rendered
+evidence, selects no model, and supplies no ambient network authority. The
+runner streams response bytes into an owned sink enforcing the caller-supplied
+output ceiling. Only the exact
 canonical result envelope with one of two tokens—`recommend_audit` or
 `no_additional_audit`—is accepted, with no prose. The result is
 monotone policy advice: it may add an audit recommendation, but cannot suppress
@@ -2519,13 +2524,14 @@ requires independent source-and-artifact obligation reconstruction, certificate
 checking, transitive open-obligation disclosure, and local admission decisions;
 completing producer provenance cannot promote the capsule.
 
-LLM review is advisory output, not authority to mutate the lock. Review tools
-consume canonical diffs rendered by Omega, with bounded and escaped
-package-origin identifiers treated as quoted inert data. Package prose,
-comments, README text, and commit messages do not enter capability triage. A
-following source-code audit may still read attacker-controlled code; that risk
-is handled by the reviewer workflow, not by granting package prose authority
-over admission.
+LLM review is advisory output, not authority to mutate the lock. Optional
+review tools consume canonical diffs rendered by package core; package
+acceptance and deterministic audit recommendations are identical when those
+tools are absent. Bounded and escaped package-origin identifiers are treated as
+quoted inert data. Package prose, comments, README text, and commit messages do
+not enter capability triage. A following source-code audit may still read
+attacker-controlled code; that risk is handled by the reviewer workflow, not
+by granting package prose authority over admission.
 
 No package artifact proves that this workflow was performed seriously. Local
 compiler output prevents dependency-authored manifests from impersonating

@@ -1,33 +1,10 @@
 //! Review-only commitment and canonical-row value types.
 
-use omega_build_provenance::CompilerExecutableCommitment;
 use omega_package_compilation::PackageSourceConsumptionCommitment;
 use omega_package_review::{
     DecodedPackageReviewCanonicalRow, PackageReviewCanonicalRow, PackageReviewCanonicalRowKind,
     PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
 };
-
-/// Review-only identity of the exact compiler executable bytes observed while
-/// evidence was produced. This does not certify the compiler or seal a package
-/// instance.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ReviewOnlyCompilerExecutableCommitment([u8; 32]);
-
-impl ReviewOnlyCompilerExecutableCommitment {
-    pub const fn digest(self) -> [u8; 32] {
-        self.0
-    }
-
-    pub(crate) const fn from_recovered_digest(digest: [u8; 32]) -> Self {
-        Self(digest)
-    }
-}
-
-impl From<CompilerExecutableCommitment> for ReviewOnlyCompilerExecutableCommitment {
-    fn from(commitment: CompilerExecutableCommitment) -> Self {
-        Self(commitment.digest())
-    }
-}
 
 /// Review-only identity of the exact package/toolchain source bytes consumed
 /// by one compiler run. It is provenance, not admission.

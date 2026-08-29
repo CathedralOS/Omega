@@ -4,8 +4,7 @@ use crate::review::evidence::PackageReviewEvidence;
 use crate::{
     ExternalSourceContext, ImmutableSourceResolution, LocalSourceLimits, PackageKey,
     PackageSourceClosureLimits, ResolvedPackageSourceClosure, ReviewOnlyCanonicalRow,
-    ReviewOnlyCompilerExecutableCommitment, ReviewOnlySourceConsumptionCommitment,
-    resolve_external_local_package_closure,
+    ReviewOnlySourceConsumptionCommitment, resolve_external_local_package_closure,
 };
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -15,7 +14,7 @@ struct TestReview {
     key: PackageKey,
     resolution: ImmutableSourceResolution,
     target: String,
-    compiler: ReviewOnlyCompilerExecutableCommitment,
+    executable_incident_metadata: [u8; 32],
     source_consumption: ReviewOnlySourceConsumptionCommitment,
     build_observation: Option<[u8; 32]>,
     whole_review: [u8; 32],
@@ -37,10 +36,6 @@ impl PackageReviewEvidence for TestReview {
 
     fn target_name(&self) -> &str {
         &self.target
-    }
-
-    fn compiler_executable_commitment(&self) -> ReviewOnlyCompilerExecutableCommitment {
-        self.compiler
     }
 
     fn source_consumption_commitment(&self) -> ReviewOnlySourceConsumptionCommitment {
@@ -122,7 +117,7 @@ fn candidate_closure_binds_review_evidence_from_every_package() {
             key: package.source().key().clone(),
             resolution: package.source().resolution().clone(),
             target: "windows_x64".to_owned(),
-            compiler: ReviewOnlyCompilerExecutableCommitment::from_recovered_digest([1; 32]),
+            executable_incident_metadata: [1; 32],
             source_consumption: ReviewOnlySourceConsumptionCommitment::from_recovered_digest(
                 [2; 32],
             ),
@@ -138,22 +133,22 @@ fn candidate_closure_binds_review_evidence_from_every_package() {
         .expect("dependency review");
     let baseline = commitment(&closure, &reviews);
 
-    for change in 0..5 {
+    let mut metadata_only = reviews.clone();
+    metadata_only[dependency_index].executable_incident_metadata = [9; 32];
+    assert_eq!(commitment(&closure, &metadata_only), baseline);
+
+    for change in 0..4 {
         let mut changed = reviews.clone();
         let review = &mut changed[dependency_index];
         match change {
             0 => review.target = "linux_x64".to_owned(),
             1 => {
-                review.compiler =
-                    ReviewOnlyCompilerExecutableCommitment::from_recovered_digest([9; 32])
-            }
-            2 => {
                 review.source_consumption =
                     ReviewOnlySourceConsumptionCommitment::from_recovered_digest([9; 32])
             }
-            3 => review.build_observation = Some([9; 32]),
-            4 => review.whole_review = [9; 32],
-            _ => unreachable!("five evidence axes"),
+            2 => review.build_observation = Some([9; 32]),
+            3 => review.whole_review = [9; 32],
+            _ => unreachable!("four semantic evidence axes"),
         }
         assert_ne!(commitment(&closure, &changed), baseline);
     }

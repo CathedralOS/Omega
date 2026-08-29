@@ -51,7 +51,11 @@ pub fn admit_native_provider(
         requirement_identity,
         seed,
         signature,
-        root_id(seed + 10, ProviderPlanId::from_normalized_identity),
+        ProviderPlanId::from_normalized_identity(
+            omega_effects::provider_plan::ProviderPlan::default().identity_fingerprint(),
+        )
+        .expect("default provider plan identity"),
+        omega_effects::provider_plan::ProviderPlan::default().identity_digest(),
         ResolvedRootServiceReach::from_selected_provider_closure(
             Vec::new(),
             Vec::new(),
@@ -73,8 +77,7 @@ pub fn admit_native_provider_for_selected_plan(
 ) -> ProviderExecution {
     let provider_plan =
         omega_provider_planning::plans::selected_external_root_provider_plan(selected, service)
-            .expect("selected external-root provider plan")
-            .identity;
+            .expect("selected external-root provider plan");
     let service_reach =
         ResolvedRootServiceReach::from_selected_provider_closure(Vec::new(), Vec::new(), selected)
             .expect("selected provider service reach");
@@ -83,7 +86,8 @@ pub fn admit_native_provider_for_selected_plan(
         requirement_identity,
         seed,
         signature,
-        provider_plan,
+        provider_plan.identity,
+        provider_plan.digest,
         service_reach,
     )
 }
@@ -94,6 +98,7 @@ fn admit_native_provider_with_plan(
     seed: u64,
     signature: CallSignature,
     provider_plan: ProviderPlanId,
+    provider_plan_digest: omega_effects::provider_plan::ProviderPlanDigest,
     service_reach: ResolvedRootServiceReach,
 ) -> ProviderExecution {
     let boundary =
@@ -170,6 +175,7 @@ fn admit_native_provider_with_plan(
         entry,
         provider,
         provider_plan,
+        provider_plan_digest,
         requirement_identity: requirement_identity.into(),
         entry_claims: Vec::new(),
         acknowledgement_parameter_index: None,

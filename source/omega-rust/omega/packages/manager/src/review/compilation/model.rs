@@ -1,7 +1,6 @@
 use crate::review::evidence::ReviewOnlyCanonicalRow;
 use crate::{ImmutableSourceResolution, PackageKey};
 use omega_build_evaluation::BuildObservationSummary;
-use omega_build_provenance::CompilerExecutableCommitment;
 use omega_package_compilation::{PackageGeneratedSourceBundle, PackageSourceConsumptionCommitment};
 use omega_package_review::{
     CheckedPackageReviewProjection, OrdinaryPackageObligationLedger, PackageReviewCanonicalRow,
@@ -16,7 +15,6 @@ use omega_package_review::{
 pub struct CompilerIssuedPackageReview {
     pub(super) key: PackageKey,
     pub(super) resolution: ImmutableSourceResolution,
-    pub(super) compiler_executable_commitment: CompilerExecutableCommitment,
     pub(super) source_consumption_commitment: PackageSourceConsumptionCommitment,
     pub(super) build_observation_summary: Option<BuildObservationSummary>,
     pub(super) generated_source_bundle: PackageGeneratedSourceBundle,
@@ -34,10 +32,6 @@ impl CompilerIssuedPackageReview {
 
     pub fn resolution(&self) -> &ImmutableSourceResolution {
         &self.resolution
-    }
-
-    pub const fn compiler_executable_commitment(&self) -> CompilerExecutableCommitment {
-        self.compiler_executable_commitment
     }
 
     pub const fn source_consumption_commitment(&self) -> PackageSourceConsumptionCommitment {
@@ -92,12 +86,6 @@ pub struct CompilerIssuedPackageReviewSet {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PackageSourceVerificationPhase {
-    BeforeCompilation,
-    AfterCompilation,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CompilerExecutableVerificationPhase {
     BeforeCompilation,
     AfterCompilation,
 }

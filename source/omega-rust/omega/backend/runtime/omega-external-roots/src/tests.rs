@@ -466,6 +466,7 @@ pub(crate) fn candidate_for_code_with_root(
         entry,
         provider,
         provider_plan: root_id(55, ProviderPlanId::from_normalized_identity),
+        provider_plan_digest: ProviderPlan::default().identity_digest(),
         requirement_identity: "TestRoot::entry".into(),
         entry_claims: Vec::new(),
         acknowledgement_parameter_index: None,
@@ -3320,6 +3321,7 @@ fn interrupt_candidate_for_code_with_completion(
     candidate.acknowledgement_parameter_index = Some(0);
     candidate.interrupt_mask_guard_claim = Some(ExternalRootResultClaim {
         provider_plan: root_id(56, ProviderPlanId::from_normalized_identity),
+        provider_plan_digest: ProviderPlan::default().identity_digest(),
         requirement_identity: "InterruptMaskControl::save_and_mask".into(),
         domain: "InterruptMaskGuard::Active".into(),
         effective_carry: psi_language_semantics::CarryPolicy::STRICT,

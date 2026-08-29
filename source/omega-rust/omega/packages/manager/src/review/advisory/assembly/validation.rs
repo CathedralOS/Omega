@@ -44,13 +44,6 @@ pub(super) fn map_set_validation_error(
                 conflicting,
             }
         }
-        ReviewOnlySetValidationError::MixedCompilerExecutableCommitment { first, conflicting } => {
-            PackageSourceReviewError::MixedCompilerExecutableCommitment {
-                role,
-                first,
-                conflicting,
-            }
-        }
         ReviewOnlySetValidationError::AllocationFailed => {
             PackageSourceReviewError::ClosureValidationAllocationFailed
         }

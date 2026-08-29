@@ -16,7 +16,7 @@ omega-executable-installation = { path = "../../backend/runtime/omega-executable
 omega-external-roots = { path = "../../backend/runtime/omega-external-roots" }
 omega-layout = { path = "../../backend/omega-layout" }
 omega-package-compilation = { path = "../omega-package-compilation" }
-omega-program-entry-plan = { path = "../../backend/plans/omega-program-entry-plan" }
+omega-program-entry-plan = { path = "../../backend/plans/omega-program-entry-plan", features = ["installed-writer"] }
 omega-target = { path = "../../representations/omega-target" }
 omega-task-plans = { path = "../../representations/omega-task-plans" }
 omega-trust-model = { path = "../omega-trust-model" }

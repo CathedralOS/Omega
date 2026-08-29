@@ -145,11 +145,24 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         compose_fixed_fuel(fuel_summary.identity, [&fuel_summary]).expect("fuel composition");
     let selected_providers = omega_effects::SelectedProviderPlanFacts::from_selection(&[], &[])
         .expect("empty provider closure");
+    let mut exact_provider_plan = omega_effects::provider_plan::ProviderPlan::default();
+    exact_provider_plan.schema.trait_name = "TimerRoot".into();
+    exact_provider_plan.schema.methods.push(Default::default());
+    let selected_method = &mut exact_provider_plan.schema.methods[0];
+    selected_method.name = "tick".into();
+    selected_method.requirement_owner = "TimerRoot".into();
+    selected_method.requirement_identity = "TimerRoot::tick".into();
+    selected_method.parameter_count = 1;
+    selected_method.parameter_type_identities = vec!["Test::BoundaryWord".into()];
+    selected_method.calling_plan_fingerprint = Some(boundary_plan.contract_fingerprint());
+    let selected_provider = SelectedExternalRootProviderPlan::from_exact_plan(exact_provider_plan)
+        .expect("exact selected provider plan");
     let candidate = ExternalRootCandidate {
         identity: root,
         entry,
         provider,
-        provider_plan: root_id(55, ProviderPlanId::from_normalized_identity),
+        provider_plan: selected_provider.identity,
+        provider_plan_digest: selected_provider.digest,
         requirement_identity: "TimerRoot::tick".into(),
         entry_claims: Vec::new(),
         acknowledgement_parameter_index: None,
@@ -228,19 +241,6 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     )
     .expect("provider execution admission");
 
-    let mut selected_provider = SelectedExternalRootProviderPlan {
-        identity: execution.provider_plan(),
-        schema: Default::default(),
-    };
-    selected_provider.schema.trait_name = "TimerRoot".into();
-    selected_provider.schema.methods.push(Default::default());
-    let selected_method = &mut selected_provider.schema.methods[0];
-    selected_method.name = "tick".into();
-    selected_method.requirement_owner = "TimerRoot".into();
-    selected_method.requirement_identity = "TimerRoot::tick".into();
-    selected_method.parameter_count = 1;
-    selected_method.parameter_type_identities = vec!["Test::BoundaryWord".into()];
-    selected_method.calling_plan_fingerprint = Some(validated.boundary_contract_fingerprint());
     let writer = entry_writer(entry);
     let lowered_writer = lower_post_handoff_writer_fragment(
         NativeTarget::linux_x64(),
@@ -248,10 +248,11 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         &writer,
     )
     .expect("AOT writer lowering");
-    let wrong_selected_provider = SelectedExternalRootProviderPlan {
-        identity: root_id(56, ProviderPlanId::from_normalized_identity),
-        schema: selected_provider.schema.clone(),
-    };
+    let mut wrong_exact_plan = selected_provider.exact_plan().clone();
+    wrong_exact_plan.schema.trait_name = "WrongTimerRoot".into();
+    let wrong_selected_provider =
+        SelectedExternalRootProviderPlan::from_exact_plan(wrong_exact_plan)
+            .expect("different exact selected provider plan");
     let mut wrong_provider_bytes = [0u8; 16];
     let error = wrong_selected_provider
         .prepare_post_handoff_entry_writer(
@@ -279,12 +280,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
             prepared_writer_destination(0x8000, &mut drifted_schema_bytes),
         )
         .expect_err("selected source schema drift must reject before provider preparation");
-    assert!(
-        error
-            .diagnostic()
-            .0
-            .contains("exact prepared writer requirement")
-    );
+    assert!(error.diagnostic().0.contains("selected provider plan"));
     let (returned_selected, returned_lowered, returned_destination) = error.into_parts();
     assert_eq!(returned_selected, drifted_selected_snapshot);
     assert_eq!(returned_lowered, lowered_writer);
@@ -632,7 +628,10 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
             .expect("admitted installation composition");
     assert_eq!(
         installation.selected_provider_plans(),
-        [omega_image_emission::SelectedProviderPlanIdentity::new(55).unwrap()]
+        [omega_image_emission::SelectedProviderPlanIdentity::new(
+            execution.provider_plan().normalized_identity()
+        )
+        .unwrap()]
     );
     assert_eq!(installation.fuel_attribution(), image.fuel_attribution());
     validate_installation_record(&installation, &image).expect("image binding");

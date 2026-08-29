@@ -30,7 +30,9 @@ pub use intrinsic_execution::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedExternalRootProviderPlan {
     pub identity: omega_external_roots::ProviderPlanId,
+    pub digest: omega_effects::provider_plan::ProviderPlanDigest,
     pub schema: ServiceSchema,
+    exact_plan: ProviderPlan,
 }
 
 /// One exact selected source schema, AOT-lowered writer, installed resolver,
@@ -585,6 +587,7 @@ fn validate_selected_provider_writer_source(
         prepared.selected_boundary_contract_fingerprint(),
         prepared.selected_entry_claims(),
         prepared.provider_execution().provider_plan(),
+        prepared.provider_plan_digest(),
     )
 }
 
@@ -599,6 +602,7 @@ fn validate_selected_provider_written_source(
         written.selected_boundary_contract_fingerprint(),
         written.selected_entry_claims(),
         written.provider_execution().provider_plan(),
+        written.provider_plan_digest(),
     )
 }
 
@@ -609,7 +613,13 @@ fn validate_selected_provider_source(
     boundary_contract_fingerprint: u64,
     root_entry_claims: &[omega_external_roots::ExternalRootEntryClaim],
     provider_plan: u64,
+    provider_plan_digest: omega_effects::provider_plan::ProviderPlanDigest,
 ) -> Result<(), psi_layout_plans::MaterializationDiagnostic> {
+    if !selected_provider.has_valid_exact_identity() {
+        return Err(psi_layout_plans::MaterializationDiagnostic(
+            "selected external-root provider plan lost its exact strong identity".into(),
+        ));
+    }
     let matches = selected_provider
         .schema
         .methods
@@ -626,6 +636,7 @@ fn validate_selected_provider_source(
         .entry_claims(requirement_identity)
         .map_err(|diagnostic| psi_layout_plans::MaterializationDiagnostic(diagnostic.0))?;
     if selected_provider.identity.normalized_identity() != provider_plan
+        || selected_provider.digest != provider_plan_digest
         || selected_provider.schema.trait_name.is_empty()
         || method.name.is_empty()
         || method.requirement_owner.is_empty()
@@ -918,6 +929,32 @@ impl SelectedExternalRootEntryFactBinding {
 }
 
 impl SelectedExternalRootProviderPlan {
+    /// Construct a retained selection from one exact normalized provider plan.
+    /// Compact and strong identities are always derived together; callers
+    /// cannot pair either identity with a different schema.
+    pub fn from_exact_plan(
+        exact_plan: ProviderPlan,
+    ) -> Result<Self, omega_external_roots::ExternalRootDiagnostic> {
+        Ok(Self {
+            identity: omega_external_roots::ProviderPlanId::from_normalized_identity(
+                exact_plan.identity_fingerprint(),
+            )?,
+            digest: exact_plan.identity_digest(),
+            schema: exact_plan.schema.clone(),
+            exact_plan,
+        })
+    }
+
+    pub const fn exact_plan(&self) -> &ProviderPlan {
+        &self.exact_plan
+    }
+
+    fn has_valid_exact_identity(&self) -> bool {
+        self.identity.normalized_identity() == self.exact_plan.identity_fingerprint()
+            && self.digest == self.exact_plan.identity_digest()
+            && self.schema == self.exact_plan.schema
+    }
+
     /// Join this retained compiler selection to one admitted provider
     /// execution and its exact post-handoff entry-writer invocation.
     ///
@@ -941,7 +978,10 @@ impl SelectedExternalRootProviderPlan {
         SelectedExternalRootPostHandoffWriterPreparation<'installed, 'mapping, 'bytes>,
         SelectedExternalRootWriterPreparationError<'mapping, 'bytes>,
     > {
-        if self.identity != execution.provider_plan() {
+        if !self.has_valid_exact_identity()
+            || self.identity != execution.provider_plan()
+            || self.digest != execution.provider_plan_digest()
+        {
             return Err(SelectedExternalRootWriterPreparationError {
                 selected_provider: self,
                 lowered,
@@ -1002,6 +1042,7 @@ impl SelectedExternalRootProviderPlan {
             execution.selected_boundary_contract_fingerprint(),
             execution.selected_entry_claims(),
             execution.provider_plan().normalized_identity(),
+            execution.provider_plan_digest(),
         ) {
             return Err(SelectedExternalRootWriterPreparationError {
                 selected_provider: self,
@@ -1059,6 +1100,11 @@ impl SelectedExternalRootProviderPlan {
         Vec<omega_external_roots::ExternalRootEntryClaim>,
         omega_external_roots::ExternalRootDiagnostic,
     > {
+        if !self.has_valid_exact_identity() {
+            return Err(omega_external_roots::ExternalRootDiagnostic(
+                "selected external-root provider plan lost its exact strong identity".into(),
+            ));
+        }
         let matches = self
             .schema
             .methods
@@ -1108,6 +1154,11 @@ impl SelectedExternalRootProviderPlan {
         Vec<omega_external_roots::ExternalRootResultClaim>,
         omega_external_roots::ExternalRootDiagnostic,
     > {
+        if !self.has_valid_exact_identity() {
+            return Err(omega_external_roots::ExternalRootDiagnostic(
+                "selected external-root provider plan lost its exact strong identity".into(),
+            ));
+        }
         let matches = self
             .schema
             .methods
@@ -1131,6 +1182,7 @@ impl SelectedExternalRootProviderPlan {
             .iter()
             .map(|claim| omega_external_roots::ExternalRootResultClaim {
                 provider_plan: self.identity,
+                provider_plan_digest: self.digest,
                 requirement_identity: requirement_identity.to_owned(),
                 domain: claim.domain.clone(),
                 effective_carry: claim.effective_carry,
@@ -1993,12 +2045,7 @@ pub fn selected_external_root_provider_plan(
             },
         ));
     };
-    Ok(SelectedExternalRootProviderPlan {
-        identity: omega_external_roots::ProviderPlanId::from_normalized_identity(
-            plan.identity_fingerprint(),
-        )?,
-        schema: plan.schema.clone(),
-    })
+    SelectedExternalRootProviderPlan::from_exact_plan((*plan).clone())
 }
 
 /// Resolve an external-root provider selection when the current artifact has
@@ -2016,12 +2063,9 @@ pub fn optional_selected_external_root_provider_plan(
         .collect::<Vec<_>>();
     match matches.as_slice() {
         [] => Ok(None),
-        [plan] => Ok(Some(SelectedExternalRootProviderPlan {
-            identity: omega_external_roots::ProviderPlanId::from_normalized_identity(
-                plan.identity_fingerprint(),
-            )?,
-            schema: plan.schema.clone(),
-        })),
+        [plan] => Ok(Some(SelectedExternalRootProviderPlan::from_exact_plan(
+            (*plan).clone(),
+        )?)),
         plans => Err(omega_external_roots::ExternalRootDiagnostic(format!(
             "external-root boundary slot `{boundary_trait}` matches {} retained selected provider plans",
             plans.len()

@@ -8,11 +8,14 @@ version.workspace = true
 name = "omega_program_entry_plan"
 path = "src/lib.rs"
 
+[features]
+default = []
+installed-writer = ["dep:omega-executable-installation"]
+
 [dependencies]
 omega-calling-conventions = { path = "../../../representations/omega-calling-conventions" }
-omega-executable-installation = { path = "../../runtime/omega-executable-installation" }
+omega-executable-installation = { path = "../../runtime/omega-executable-installation", optional = true }
 omega-effects = { path = "../../../representations/omega-effects" }
-omega-external-roots = { path = "../../runtime/omega-external-roots" }
 omega-function-identity = { path = "../../../representations/omega-function-identity" }
 omega-isa-aarch64 = { path = "../../instruction_set_architectures/omega-isa-aarch64" }
 omega-isa-x86_64 = { path = "../../instruction_set_architectures/omega-isa-x86_64" }

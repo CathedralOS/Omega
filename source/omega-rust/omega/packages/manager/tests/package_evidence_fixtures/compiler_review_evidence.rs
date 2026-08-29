@@ -31,16 +31,6 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
         );
 
         assert_eq!(reviews.reviews().len(), closure.graph().packages().len());
-        let compiler_executable_commitment = reviews
-            .reviews()
-            .first()
-            .expect("nonempty package closure receives review material")
-            .compiler_executable_commitment();
-        assert_ne!(
-            compiler_executable_commitment.digest(),
-            [0; 32],
-            "review set must identify its observed producer executable"
-        );
         for (package_index, node) in closure.graph().packages().iter().enumerate() {
             let custody = closure
                 .custody(node.source().key())
@@ -49,11 +39,6 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
                 .review(node.source().key())
                 .expect("every resolved graph package receives compiler review material");
             assert_eq!(issued.resolution(), custody.resolution());
-            assert_eq!(
-                issued.compiler_executable_commitment(),
-                compiler_executable_commitment,
-                "every row in one review operation must retain the same producer executable"
-            );
             assert_ne!(
                 issued.source_consumption_commitment().digest(),
                 [0; 32],
@@ -206,24 +191,6 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             .render_bounded(8 * 1024 * 1024)
             .expect("fixture initial review input stays bounded");
         assert!(!rendered_initial.contains(&cache.display().to_string()));
-        let advisory = invoke_package_advisory_review(
-            &initial_review,
-            &mut NoAdditionalAuditReviewer,
-            8 * 1024 * 1024,
-            256,
-        )
-        .expect("fixture review crosses the bounded advisory boundary");
-        assert_eq!(
-            advisory.deterministic_disposition(),
-            initial_triage.disposition(),
-            "advisory output cannot change {package} compiler disposition"
-        );
-        assert_eq!(
-            advisory.audit_recommended(),
-            initial_review.deterministic_audit_recommended(),
-            "no-additional-audit cannot suppress {package} compiler policy"
-        );
-
         let unchanged_triage = triage_review_update(&reviews, &reviews, &BTreeSet::new());
         let unchanged_root = unchanged_triage
             .decisions()

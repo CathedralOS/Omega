@@ -41,7 +41,7 @@ impl Default for PackageSourceReviewLimits {
     }
 }
 
-/// Deterministic review input before any advisory model invocation.
+/// Deterministic source-review input for optional human or automated tooling.
 ///
 /// Compiler triage stays in its package-prose-free lane. Source patches are
 /// separately framed hostile-data lanes and cannot alter deterministic
@@ -62,8 +62,7 @@ impl PackageSourceReviewInput {
     }
 
     /// Whether compiler-owned policy already recommends an audit independently
-    /// of any advisory model. A model response can add to this fact but cannot
-    /// clear it.
+    /// of any optional review tooling.
     pub fn deterministic_audit_recommended(&self) -> bool {
         self.triage
             .decisions()

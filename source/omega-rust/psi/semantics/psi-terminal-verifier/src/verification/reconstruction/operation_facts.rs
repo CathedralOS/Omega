@@ -6,17 +6,15 @@ use psi_core::{MachineId, Proposition, PropositionContext, ScalarType, ValueId};
 use psi_proof_admission::{Obligation, ObligationClass};
 use psi_terminal::{Operation, OperationKind, TerminalMachine, TerminalModule};
 use psi_terminal_semantics::{
-    OperationSemanticError, OperationSemanticTag, goal_free_scalar_leaf_equation,
-    proof_bearing_scalar_leaf_semantics, structural_effect_leaf_observation,
+    goal_free_scalar_leaf_equation, proof_bearing_scalar_leaf_semantics,
+    structural_effect_leaf_observation,
 };
 
 use crate::ModuleError;
 
 use super::super::call_composition::compose_call_operation;
 use super::super::sufficient_reduction::reduce_proof_bearing_scalar_goal;
-use super::{
-    ReconstructedOperationObligation, ReconstructedTerminalObligationOwner, certificate_entry,
-};
+use super::{ReconstructedOperationObligation, ReconstructedTerminalObligationOwner};
 
 pub(super) fn append_operation(
     module: &TerminalModule,
@@ -38,56 +36,27 @@ pub(super) fn append_operation(
     if let Some(semantics) = proof_bearing_scalar_leaf_semantics(operation, value_types)
         .map_err(ModuleError::OperationSemanticSchema)?
     {
-        let literal_aware_exact_reduction = matches!(
-            semantics.tag(),
-            OperationSemanticTag::ExactIntegerDivide | OperationSemanticTag::ExactIntegerRemainder
-        )
-        .then(|| {
-            reduce_proof_bearing_scalar_goal(
-                proposition_context,
-                &semantics,
-                axioms,
-                &machine.contract.requires,
-                machine_parameter_values,
-            )
-        });
-        // Exact divide/remainder retain their trusted literal-aware reduction
-        // when it already closes the site. Richer nontrivial exact obligations
-        // may still select an available canonical certificate below.
-        let exact_reduction_closes = literal_aware_exact_reduction
-            .as_ref()
-            .is_some_and(|proposition| proposition == &Proposition::Truth);
-        let canonical_certificate = matches!(
-            semantics.tag(),
-            OperationSemanticTag::WrappingIntegerDivide
-                | OperationSemanticTag::WrappingIntegerRemainder
-                | OperationSemanticTag::SaturatingIntegerDivide
-                | OperationSemanticTag::SaturatingIntegerRemainder
-        ) || (!exact_reduction_closes
-            && certificate_entry::retained(
-                Some(proposition_context),
-                semantics.canonical_goal(),
-                axioms,
-                &machine.contract.requires,
-            ));
-        let proposition = if canonical_certificate {
-            semantics
-                .canonical_goal()
-                .kernel_proposition()
-                .map_err(ModuleError::OperationSemanticSchema)?
-                .ok_or(ModuleError::OperationSemanticSchema(
-                    OperationSemanticError::ProofBearingScalarSchemaMismatch(semantics.tag()),
-                ))?
-        } else {
-            literal_aware_exact_reduction.unwrap_or_else(|| {
+        // Once a canonical goal has a settled kernel projection, obligation
+        // identity is a schema decision. Available facts may influence the
+        // producer's explicit certificate, but cannot make reconstruction
+        // search for a different sufficient proposition. Goal shapes whose
+        // kernel vocabulary is not yet settled retain the legacy reducer.
+        let kernel_proposition = semantics
+            .canonical_goal()
+            .kernel_proposition()
+            .map_err(ModuleError::OperationSemanticSchema)?;
+        let (proposition, canonical_certificate) = match kernel_proposition {
+            Some(proposition) => (proposition, true),
+            None => (
                 reduce_proof_bearing_scalar_goal(
                     proposition_context,
                     &semantics,
                     axioms,
                     &machine.contract.requires,
                     machine_parameter_values,
-                )
-            })
+                ),
+                false,
+            ),
         };
         operation_obligations.push(ReconstructedOperationObligation {
             owner: ReconstructedTerminalObligationOwner::Operation {

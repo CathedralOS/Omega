@@ -9,7 +9,6 @@ use crate::{ProgramEntryPhysicalContractPlan, ProgramStorageEntryDiagnostic};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProgramStorageEntryPlan {
     target_slot: omega_target::ProgramEntrySlotDeclaration,
-    root_slot: omega_external_roots::RootSlotId,
     requirement_identity: String,
     schema: omega_effects::provider_plan::ServiceSchema,
     physical_contract: Option<ProgramEntryPhysicalContractPlan>,
@@ -73,11 +72,8 @@ impl SelectedProgramStorageEntryPlan {
             )));
         }
 
-        let root_slot = omega_external_roots::RootSlotId::for_target_program_entry(slot)
-            .map_err(|diagnostic| ProgramStorageEntryDiagnostic(diagnostic.to_string()))?;
         Ok(Self {
             target_slot: slot,
-            root_slot,
             requirement_identity,
             schema,
             physical_contract: None,
@@ -100,10 +96,6 @@ impl SelectedProgramStorageEntryPlan {
         }
         self.physical_contract = Some(physical_contract);
         Ok(self)
-    }
-
-    pub const fn root_slot(&self) -> omega_external_roots::RootSlotId {
-        self.root_slot
     }
 
     pub const fn target_slot(&self) -> omega_target::ProgramEntrySlotDeclaration {

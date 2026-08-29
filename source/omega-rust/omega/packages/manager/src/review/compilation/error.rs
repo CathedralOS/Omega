@@ -1,7 +1,6 @@
-use super::{CompilerExecutableVerificationPhase, PackageSourceVerificationPhase};
+use super::PackageSourceVerificationPhase;
 use crate::PackageKey;
 use crate::source::SourceResolveError;
-use omega_build_provenance::{CompilerExecutableCommitment, CompilerExecutableCommitmentError};
 use omega_package_compilation::PackageCompilationInputError;
 use omega_package_review::PackageReviewEncodingError;
 use psi_checked_interpreter::FilesystemSponsorError;
@@ -24,14 +23,6 @@ pub enum CompileResolvedPackageReviewsError {
         path: PathBuf,
         error: io::Error,
         prior: Option<Box<CompileResolvedPackageReviewsError>>,
-    },
-    CompilerExecutable {
-        phase: CompilerExecutableVerificationPhase,
-        error: CompilerExecutableCommitmentError,
-    },
-    CompilerExecutableDrift {
-        before: CompilerExecutableCommitment,
-        after: CompilerExecutableCommitment,
     },
     SourceCustody {
         compiling_package: PackageKey,
@@ -95,14 +86,6 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
                 }
                 Ok(())
             }
-            Self::CompilerExecutable { phase, error } => write!(
-                formatter,
-                "compiler executable verification failed {phase:?}: {error}"
-            ),
-            Self::CompilerExecutableDrift { .. } => write!(
-                formatter,
-                "compiler executable bytes changed while package reviews were being produced"
-            ),
             Self::SourceCustody {
                 compiling_package,
                 source_package,

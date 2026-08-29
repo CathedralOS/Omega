@@ -12,6 +12,5 @@ pub use compilation::compile_resolved_package_reviews;
 pub use error::CompileResolvedPackageReviewsError;
 pub use inputs::{package_compilation_inputs, package_compilation_inputs_for};
 pub use model::{
-    CompilerExecutableVerificationPhase, CompilerIssuedPackageReview,
-    CompilerIssuedPackageReviewSet, PackageSourceVerificationPhase,
+    CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet, PackageSourceVerificationPhase,
 };

@@ -13,13 +13,21 @@ use psi_terminal_semantics::CanonicalScalarGoal;
 use crate::validation::exact_payloadless_case_return_exits;
 use crate::{ModuleError, ValidatedInterpretableTerminalModule, validate_module};
 
+#[cfg(test)]
 mod affine_custody;
+#[cfg(test)]
 mod affine_selection;
+#[cfg(test)]
 mod alias_transport;
+#[cfg(test)]
 mod cast_custody;
+#[cfg(test)]
 mod cast_selection;
+#[cfg(test)]
 mod certificate_entry;
+#[cfg(test)]
 mod integer_evidence;
+#[cfg(test)]
 mod integer_selection;
 mod machine_context;
 mod machine_flow;

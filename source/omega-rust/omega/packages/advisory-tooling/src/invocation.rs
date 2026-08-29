@@ -1,14 +1,13 @@
-use crate::PackageTriageDisposition;
+use omega_package_manager::{PackageSourceReviewInput, PackageTriageDisposition};
 use sha2::{Digest, Sha256};
 
-use super::input::PackageSourceReviewInput;
 use super::protocol::{
     ADVISORY_NO_ADDITIONAL_AUDIT, ADVISORY_RECOMMEND_AUDIT, PackageAdvisoryRecommendation,
     PackageAdvisoryReviewError, PackageAdvisoryReviewOutcome, PackageAdvisoryReviewOutput,
     PackageAdvisoryReviewRequest, PackageAdvisoryReviewer,
 };
 
-/// Invoke advisory source triage without granting its answer policy authority.
+/// Invoke optional advisory source triage without granting policy authority.
 ///
 /// The response can only add an audit recommendation. Capability/provenance
 /// blockers and compiler-originated recommendations remain unchanged, and no
@@ -93,7 +92,9 @@ fn advisory_review_input_commitment(review_input: &str) -> [u8; 32] {
 #[cfg(test)]
 mod tests {
     use super::{advisory_review_input_commitment, invoke_rendered_advisory_review};
-    use crate::{PackageAdvisoryRecommendation, PackageTriageDisposition};
+    use omega_package_manager::PackageTriageDisposition;
+
+    use crate::PackageAdvisoryRecommendation;
     use std::convert::Infallible;
 
     use super::super::protocol::{

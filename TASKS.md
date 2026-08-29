@@ -1,6 +1,6 @@
 # Tasks
 
-Last pruned: 2026-08-25.
+Last pruned: 2026-08-29.
 
 This file is the current execution queue, not a changelog. Git retains completed
 implementation history; architecture pages and design briefs describe the
@@ -49,6 +49,17 @@ scanners, or receipts.
   `verification/reconstruction` trees. Share canonical rule definitions where
   that reduces drift without sharing producer conclusions, and retain mutation
   teeth proving that omitted obligations and malformed witness edges reject.
+
+  The settled-goal slice is live. Nonzero-divisor, defined-exact-division, and
+  exact-shift-count questions now come directly from Terminal semantic schemas;
+  available alternate facts cannot change the reconstructed question, and a
+  malformed producer-selected edge rejects even when the verifier could have
+  rediscovered a primitive route. Mirrored candidate selectors are test-only
+  for these paths. Completion is language-design blocked on
+  [`Q17`](OWNER_QUESTIONS.md#q17--canonical-kernel-propositions-for-exact-scalar-operations):
+  exact cast, exact shift-left representability, and exact add/subtract/multiply
+  still have no settled canonical kernel proposition and therefore retain the
+  legacy sufficient-form reducer.
 
   Acceptance: verifier complexity scales with the supplied certificate and
   reconstructed obligations rather than a proof-search frontier; deleting the
@@ -103,10 +114,13 @@ scanners, or receipts.
   domain-separated SHA-256 types; replay rejects compact-collision
   substitutions. Selected-provider facts and boundary calling realizations
   now retain and rejoin the complete plan behind their compact report IDs, so
-  same-ID structural substitutes reject. Strong provider-plan identities,
-  function validation, the standalone component candidate's artifact report
-  identity, broader external-root cohort joins, Psi, and format-specific image
-  fingerprints still require the same audit/hardening.
+  same-ID structural substitutes reject. Provider plans now additionally own a
+  domain-separated SHA-256 identity over the complete normalized plan, retained
+  through selection and external-root execution; compact-ID-equal structural
+  substitutions reject at the sealed bridge. Function validation, the
+  standalone component candidate's artifact report identity, broader
+  external-root cohort joins, Psi, and format-specific image fingerprints still
+  require the same audit/hardening.
 
   Acceptance: an automated architecture test rejects new authoritative
   `u64`-only identities, every retained FNV use has a local non-authoritative
@@ -130,31 +144,16 @@ scanners, or receipts.
   runtime crates; installation support is an explicit image-emission feature
   selected only by component publication/deployment. Ordinary compiler and
   package-manager closures also exclude component candidate, publication, and
-  deployment owners. The item remains open because program-entry planning,
-  provider planning, build evaluation, and Terminal-native realization still
-  carry executable-installation or external-root experiments transitively.
+  deployment owners. Default program-entry planning and Terminal-native
+  realization now exclude executable installation and external roots; only the
+  explicit provider-planning `installed-writer` feature composes the
+  post-handoff runtime. The item remains open because provider planning and
+  build evaluation still carry those experiments into the ordinary compiler
+  closure transitively.
 
   Acceptance: the normal compiler/package closure imports none of the
   speculative runtime deployment crates, and reintegration is driven by the
   end-to-end provider customer rather than by placeholder report states.
-
-- [ ] **REMOVE-PROVENANCE-AND-ADVISORY-POLICY-FROM-PACKAGE-SEMANTICS.** Keep
-  exact source, dependency, compiler-semantic, and artifact subjects required
-  to reconstruct refinement and compatibility. Demote the hash of
-  `current_exe` to optional incident metadata: it neither identifies the
-  loaded process image nor proves correctness and must not participate in
-  semantic review, capability conflict, admission, or verified-package
-  identity.
-
-  Move model-facing source-review prompts, response schemas, and invocation
-  into optional tooling or a plugin. The package core may publish deterministic
-  source/capability changes for such tools to consume, but advisory prose and
-  model availability never affect acceptance.
-
-  Acceptance: package acceptance is identical with advisory tooling absent;
-  changing only executable-provenance metadata cannot alter a semantic verdict
-  or conflict result; and the core package library has no LLM protocol or
-  runner dependency.
 
 Optimizer architecture is specified in
 [`optimizer_architecture.md`](wiki/design_briefs/optimizer_architecture.md), and

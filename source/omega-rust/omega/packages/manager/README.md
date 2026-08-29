@@ -78,7 +78,7 @@ review/
 ├── comparison/      compare candidate rows with a retained baseline
 ├── source_diff/     bounded hostile-source differences
 ├── triage/          deterministic blockers and audit recommendations
-├── advisory/        bounded advisory human/LLM review boundary
+├── advisory/        deterministic source-review evidence assembly
 ├── baseline/        non-admitting review baseline persistence
 ├── reconstruction/  exact closure reconstruction questions
 └── policy/          root-owned review decisions
@@ -89,6 +89,11 @@ or atomic install/update transaction exists yet. Remaining work is maintained
 in [`TASKS_PACKAGE_MANAGER.md`](../../../../../TASKS_PACKAGE_MANAGER.md), and
 resolver guarantees and gaps are maintained in
 [`SOURCE_RESOLVER_SECURITY.md`](SOURCE_RESOLVER_SECURITY.md).
+
+Model-facing source-review prompts, response schemas, and runner integration
+live in the separate optional `omega-package-advisory` crate. Package core
+publishes deterministic bounded review input only; optional tooling cannot
+change acceptance, conflicts, or compiler-owned audit recommendations.
 
 Package-authored code never chooses admitted capabilities, accepted lock state,
 resolver policy, or review outcome. `build.omg` provides compiler-checked

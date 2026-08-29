@@ -21,9 +21,9 @@ use sha2::{Digest, Sha256};
 use std::cmp::Ordering;
 
 const CONFLICT_FINGERPRINT_DOMAIN: &[u8] = b"OMEGA-PACKAGE-CAPABILITY-CONFLICT\0";
-const CONFLICT_FINGERPRINT_VERSION: u16 = 16;
+const CONFLICT_FINGERPRINT_VERSION: u16 = 17;
 const CANDIDATE_CLOSURE_DOMAIN: &[u8] = b"OMEGA-PACKAGE-CANDIDATE-CLOSURE\0";
-const CANDIDATE_CLOSURE_VERSION: u16 = 2;
+const CANDIDATE_CLOSURE_VERSION: u16 = 3;
 
 pub fn compare_review_only_capabilities(
     baseline: &CompilerIssuedPackageReviewSet,
@@ -110,12 +110,6 @@ pub(crate) fn compare_review_only_capability_records<B: PackageReviewEvidence>(
             baseline_resolution: baseline_review.resolution().clone(),
             candidate_resolution: candidate_review.resolution().clone(),
             dependency_path,
-            baseline_compiler: PackageReviewEvidence::compiler_executable_commitment(
-                baseline_review,
-            ),
-            candidate_compiler: PackageReviewEvidence::compiler_executable_commitment(
-                candidate_review,
-            ),
             baseline_source_consumption: PackageReviewEvidence::source_consumption_commitment(
                 baseline_review,
             ),
@@ -248,13 +242,6 @@ fn map_set_validation_error(
         }
         ReviewOnlySetValidationError::MixedTarget { first, conflicting } => {
             ReviewOnlyCapabilityConflictError::MixedReviewTarget {
-                role,
-                first: Box::new(first),
-                conflicting: Box::new(conflicting),
-            }
-        }
-        ReviewOnlySetValidationError::MixedCompilerExecutableCommitment { first, conflicting } => {
-            ReviewOnlyCapabilityConflictError::MixedCompilerExecutableCommitment {
                 role,
                 first: Box::new(first),
                 conflicting: Box::new(conflicting),
@@ -510,14 +497,6 @@ fn derive_conflict_fingerprint<B: PackageReviewEvidence, C: PackageReviewEvidenc
     hash_resolution(&mut digest, candidate_review.resolution());
     hash_field(
         &mut digest,
-        &PackageReviewEvidence::compiler_executable_commitment(baseline_review).digest(),
-    );
-    hash_field(
-        &mut digest,
-        &PackageReviewEvidence::compiler_executable_commitment(candidate_review).digest(),
-    );
-    hash_field(
-        &mut digest,
         &PackageReviewEvidence::source_consumption_commitment(baseline_review).digest(),
     );
     hash_field(
@@ -564,10 +543,6 @@ pub(super) fn derive_candidate_closure_commitment<C: PackageReviewEvidence>(
         hash_field(&mut digest, &package.source().key().identity().digest());
         hash_resolution(&mut digest, package.source().resolution());
         hash_field(&mut digest, review.target_name().as_bytes());
-        hash_field(
-            &mut digest,
-            &review.compiler_executable_commitment().digest(),
-        );
         hash_field(
             &mut digest,
             &review.source_consumption_commitment().digest(),

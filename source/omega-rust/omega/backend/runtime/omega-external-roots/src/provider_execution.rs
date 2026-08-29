@@ -293,6 +293,10 @@ impl PreparedExternalRootPostHandoffWriterInvocation {
         self.provider_execution
     }
 
+    pub const fn provider_plan_digest(&self) -> omega_effects::provider_plan::ProviderPlanDigest {
+        self.root_evidence.candidate.provider_plan_digest
+    }
+
     pub const fn selected_entry(&self) -> EntryStubId {
         self.selected_entry
     }
@@ -438,6 +442,10 @@ impl PreparedExternalRootPostHandoffWriterInvocation {
 impl<'mapping, 'bytes> WrittenExternalRootPostHandoffWriterDestination<'mapping, 'bytes> {
     pub const fn provider_execution(&self) -> AdmittedProviderExecution {
         self.provider_execution
+    }
+
+    pub const fn provider_plan_digest(&self) -> omega_effects::provider_plan::ProviderPlanDigest {
+        self.root_evidence.candidate.provider_plan_digest
     }
 
     pub const fn selected_entry(&self) -> EntryStubId {
@@ -802,6 +810,7 @@ fn fingerprint_provider_execution(
     let mut hash = Fnv1a::new();
     hash.u64(identity.normalized_identity());
     hash.u64(candidate.provider_plan.normalized_identity());
+    hash.bytes(candidate.provider_plan_digest.as_bytes());
     hash.u64(candidate.identity.normalized_identity());
     hash.u64(root.normalized_identity());
     hash.u64(candidate.provider.normalized_identity());
@@ -873,6 +882,10 @@ impl ProviderExecution {
 
     pub const fn provider_plan(&self) -> ProviderPlanId {
         self.provider_plan
+    }
+
+    pub const fn provider_plan_digest(&self) -> omega_effects::provider_plan::ProviderPlanDigest {
+        self.root_evidence.candidate.provider_plan_digest
     }
 
     pub const fn selected_entry(&self) -> EntryStubId {

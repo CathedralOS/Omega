@@ -3,10 +3,7 @@
 use crate::{CompilerIssuedPackageReview, ImmutableSourceResolution, PackageKey};
 
 use super::commitments::{build_observation_commitment, whole_review_commitment};
-use super::model::{
-    ReviewOnlyCanonicalRow, ReviewOnlyCompilerExecutableCommitment,
-    ReviewOnlySourceConsumptionCommitment,
-};
+use super::model::{ReviewOnlyCanonicalRow, ReviewOnlySourceConsumptionCommitment};
 
 /// The package-manager-facing evidence common to a live compiler review and a
 /// restart-stable review-only baseline record.
@@ -18,7 +15,6 @@ pub(crate) trait PackageReviewEvidence {
     fn resolution(&self) -> &ImmutableSourceResolution;
     fn projection_identity_matches(&self) -> bool;
     fn target_name(&self) -> &str;
-    fn compiler_executable_commitment(&self) -> ReviewOnlyCompilerExecutableCommitment;
     fn source_consumption_commitment(&self) -> ReviewOnlySourceConsumptionCommitment;
     fn build_observation_commitment(&self) -> Option<[u8; 32]>;
     fn whole_review_commitment(&self) -> [u8; 32];
@@ -40,10 +36,6 @@ impl PackageReviewEvidence for CompilerIssuedPackageReview {
 
     fn target_name(&self) -> &str {
         self.projection().target().target_name()
-    }
-
-    fn compiler_executable_commitment(&self) -> ReviewOnlyCompilerExecutableCommitment {
-        CompilerIssuedPackageReview::compiler_executable_commitment(self).into()
     }
 
     fn source_consumption_commitment(&self) -> ReviewOnlySourceConsumptionCommitment {

@@ -1,9 +1,7 @@
 //! Bounded conflict and error vocabulary.
 
 use super::format::{RenderByteCounter, render_conflict_set, review_role_token};
-use crate::review::evidence::{
-    ReviewOnlyCompilerExecutableCommitment, ReviewOnlySourceConsumptionCommitment,
-};
+use crate::review::evidence::ReviewOnlySourceConsumptionCommitment;
 use crate::{DependencyRequestPath, ImmutableSourceResolution, PackageKey};
 use omega_package_review::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
@@ -219,8 +217,6 @@ pub struct ReviewOnlyPackageCapabilityConflicts {
     pub(super) baseline_resolution: ImmutableSourceResolution,
     pub(super) candidate_resolution: ImmutableSourceResolution,
     pub(super) dependency_path: DependencyRequestPath,
-    pub(super) baseline_compiler: ReviewOnlyCompilerExecutableCommitment,
-    pub(super) candidate_compiler: ReviewOnlyCompilerExecutableCommitment,
     pub(super) baseline_source_consumption: ReviewOnlySourceConsumptionCommitment,
     pub(super) candidate_source_consumption: ReviewOnlySourceConsumptionCommitment,
     pub(super) candidate_closure: ReviewOnlyCandidateClosureCommitment,
@@ -242,14 +238,6 @@ impl ReviewOnlyPackageCapabilityConflicts {
 
     pub const fn dependency_path(&self) -> &DependencyRequestPath {
         &self.dependency_path
-    }
-
-    pub const fn baseline_compiler(&self) -> ReviewOnlyCompilerExecutableCommitment {
-        self.baseline_compiler
-    }
-
-    pub const fn candidate_compiler(&self) -> ReviewOnlyCompilerExecutableCommitment {
-        self.candidate_compiler
     }
 
     pub const fn baseline_source_consumption(&self) -> ReviewOnlySourceConsumptionCommitment {
@@ -298,7 +286,7 @@ impl ReviewOnlyCapabilityConflictSet {
     /// Render a fixed-vocabulary, injection-resistant exact conflict view.
     ///
     /// Compiler rows are hexadecimal rather than decoded by package code. The
-    /// companion source patch supplies the human/LLM-readable code delta.
+    /// companion source patch supplies the human-readable code delta.
     pub fn render_bounded(
         &self,
         maximum_bytes: usize,
@@ -347,11 +335,6 @@ pub enum ReviewOnlyCapabilityConflictError {
         package: Box<PackageKey>,
     },
     MixedReviewTarget {
-        role: ReviewSetRole,
-        first: Box<PackageKey>,
-        conflicting: Box<PackageKey>,
-    },
-    MixedCompilerExecutableCommitment {
         role: ReviewSetRole,
         first: Box<PackageKey>,
         conflicting: Box<PackageKey>,
@@ -436,17 +419,6 @@ impl fmt::Display for ReviewOnlyCapabilityConflictError {
             } => write!(
                 formatter,
                 "{} review closure mixes targets between `{}` and `{}`",
-                review_role_token(*role),
-                first.name().as_str(),
-                conflicting.name().as_str()
-            ),
-            Self::MixedCompilerExecutableCommitment {
-                role,
-                first,
-                conflicting,
-            } => write!(
-                formatter,
-                "{} review closure mixes compiler executable commitments between `{}` and `{}`",
                 review_role_token(*role),
                 first.name().as_str(),
                 conflicting.name().as_str()

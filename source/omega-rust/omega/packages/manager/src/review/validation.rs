@@ -46,10 +46,6 @@ pub(crate) enum ReviewOnlySetValidationError {
         first: PackageKey,
         conflicting: PackageKey,
     },
-    MixedCompilerExecutableCommitment {
-        first: PackageKey,
-        conflicting: PackageKey,
-    },
     AllocationFailed,
 }
 
@@ -88,7 +84,6 @@ trait SourceRecord {
 trait ReviewRecord: SourceRecord {
     fn projection_identity_matches(&self) -> bool;
     fn target_matches(&self, other: &Self) -> bool;
-    fn compiler_executable_commitment_matches(&self, other: &Self) -> bool;
 }
 
 impl SourceRecord for PackageSourceCustody {
@@ -118,10 +113,6 @@ impl<R: PackageReviewEvidence> ReviewRecord for R {
 
     fn target_matches(&self, other: &Self) -> bool {
         self.target_name() == other.target_name()
-    }
-
-    fn compiler_executable_commitment_matches(&self, other: &Self) -> bool {
-        self.compiler_executable_commitment() == other.compiler_executable_commitment()
     }
 }
 
@@ -159,14 +150,6 @@ fn validate_review_records<R: ReviewRecord>(
                     first: first.key().clone(),
                     conflicting: review.key().clone(),
                 });
-            }
-            if !first.compiler_executable_commitment_matches(review) {
-                return Err(
-                    ReviewOnlySetValidationError::MixedCompilerExecutableCommitment {
-                        first: first.key().clone(),
-                        conflicting: review.key().clone(),
-                    },
-                );
             }
         }
     }
@@ -242,7 +225,6 @@ mod tests {
         source: TestSource,
         projection_identity_matches: bool,
         target: u8,
-        compiler: u8,
     }
 
     impl SourceRecord for TestReview {
@@ -262,10 +244,6 @@ mod tests {
 
         fn target_matches(&self, other: &Self) -> bool {
             self.target == other.target
-        }
-
-        fn compiler_executable_commitment_matches(&self, other: &Self) -> bool {
-            self.compiler == other.compiler
         }
     }
 
@@ -296,7 +274,6 @@ mod tests {
             source: source.clone(),
             projection_identity_matches: true,
             target: 1,
-            compiler: 1,
         }
     }
 
@@ -401,28 +378,6 @@ mod tests {
             ),
             Err(ReviewOnlyClosureValidationError::ReviewSet(
                 ReviewOnlySetValidationError::MixedTarget {
-                    first: root.key.clone(),
-                    conflicting: dependency.key.clone(),
-                }
-            ))
-        );
-    }
-
-    #[test]
-    fn mixed_compiler_executable_commitments_are_rejected() {
-        let root = source("application", 1);
-        let dependency = source("dependency", 2);
-        let root_review = review(&root);
-        let mut dependency_review = review(&dependency);
-        dependency_review.compiler = 2;
-
-        assert_eq!(
-            validate_review_closure_records(
-                &[root.clone(), dependency.clone()],
-                &[root_review, dependency_review],
-            ),
-            Err(ReviewOnlyClosureValidationError::ReviewSet(
-                ReviewOnlySetValidationError::MixedCompilerExecutableCommitment {
                     first: root.key.clone(),
                     conflicting: dependency.key.clone(),
                 }
