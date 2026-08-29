@@ -169,7 +169,19 @@ directly for fixed integer carriers. Literal counts normalize to `Truth` or
 implied by their carrier, in canonical order. Exact right shift may use a
 kernel-checked prior-fact certificate for this unchanged goal, while a missing
 proof retains the explicitly versioned trusted reduction dependency. Exact
-left-shift result representability remains a separate, unprojected obligation.
+left-shift result representability remains a separate obligation.
+
+Cast, left-shift, addition, subtraction, and multiplication representability
+share one canonical construction. A proof-only total mathematical term denotes
+the source value or unbounded operation result without first forming a partial
+machine operation. Carrier membership expands to its lower and upper
+mathematical order bounds; left shift keeps its shift-count obligation
+independent. Completely closed terms, bare source-carrier inclusion, and
+vacuous bounds normalize deterministically. Symbolic interval propagation,
+affine reduction, aliases, and every other fact-dependent simplification remain
+producer proof steps checked against the unchanged canonical bounds. The
+current optional projection and legacy reducer are implementation fences, not
+alternate semantics.
 
 `Float::meaning32` and `Float::meaning64` are the corresponding explicit total
 projections for floats. They produce `FloatMeaning`, retaining signed zero,

@@ -2698,13 +2698,16 @@ The generator has five bounded responsibilities:
 5. an acyclic logical-justification order covering every artifact node exactly
    once.
 
-It performs no verifier-derived algebraic summary, normalization, interval
-reduction, or multi-node composition. For example, three retained SSA
-definitions cross the boundary as three local equations; an affine summary of
-the three is a conclusion that untrusted automation must derive. Authored
-compound contracts, a primitive operation's direct denotation, and checked
-capture-free positional substitution at a call remain legitimate semantic
-content rather than reduction.
+It performs no verifier-derived algebraic summary, symbolic interval reduction,
+or multi-node composition. Deterministic normalization owned entirely by one
+operation schema is permitted: closed mathematical expressions may be
+evaluated exactly, bare source-carrier inclusion may settle a value's target
+membership, and vacuous carrier bounds may be omitted. For example, three
+retained SSA definitions still cross the boundary as three local equations; an
+affine summary of the three is a conclusion that untrusted automation must
+derive. Authored compound contracts, a primitive operation's direct denotation,
+and checked capture-free positional substitution at a call remain legitimate
+semantic content rather than reduction.
 
 Local operation meaning is specified by a closed, typed, declarative schema
 table. Each leaf-operation row states operand and result well-formedness,
@@ -2724,7 +2727,9 @@ derivation of that same total definition establishes the authoritative ledger
 for every deployed artifact. Optimized implementations may disagree only by
 causing rejection; agreement with the low result grants them no authority.
 
-The current Rust migration now reflects that split for every scalar leaf.
+The current Rust migration reflects that split for every scalar leaf, while the
+remaining representability projection is an implementation fence rather than
+an open semantic decision.
 Goal-free leaves, structural/effect leaves, calls, and the twelve proof-bearing
 scalar leaves have separate exact-unique tables. The proof-bearing table owns
 direct denotation, exact operand/result shape, six canonical goal shapes, the
@@ -2752,8 +2757,49 @@ project the settled `[0, width)` law: known literals become `Truth` or
 `Falsehood`, symbolic signed counts retain the ordered lower and upper bounds,
 symbolic unsigned counts omit the carrier-implied lower bound, and a narrow
 count carrier may imply the whole goal. Address carriers and mismatched operand
-types reject. The other three canonical goal shapes remain deliberately
-unprojected.
+types reject. The other three canonical goal shapes remain unprojected in the
+current implementation, but their exact projection is settled below.
+
+Exact representability uses a separate proof-only, total mathematical term
+domain rather than executable `ScalarTerm` operations, whose exact arithmetic
+is partial until representability has been proved:
+
+```text
+IntegerMathTerm = MathValue(source carrier, value identity)
+                | IntegerLiteral
+                | Add(left, right)
+                | Subtract(left, right)
+                | Multiply(left, right)
+                | ShiftLeft(value, count)
+```
+
+These terms denote unbounded mathematical integers, produce no runtime value,
+and cannot overflow. Parallel mathematical equality and order relations accept
+`IntegerMathTerm` operands and encode into the existing first-order
+equality/order calculus. This is new proposition vocabulary, not a new proof
+rule or a trusted arithmetic solver; the existing scalar comparison identities
+remain unchanged.
+
+`Representable(expression, carrier)` is a schema-owned constructor, not an
+atomic proposition. It expands to the ordered conjunction
+`minimum(carrier) <= expression` and
+`expression <= maximum(carrier)`. Exact cast applies it to the source value and
+target carrier; exact add, subtract, and multiply apply it to the corresponding
+mathematical expression and result carrier; exact left shift retains the
+independent shift-count proposition and applies representability to the
+mathematical shifted value. `CanonicalScalarGoal`, the operation/site identity,
+and the exact typed expression continue to identify the operation. The shared
+proposition therefore loses no operation identity and does not require
+operation-specific representability predicates.
+
+Canonical normalization folds fully closed mathematical expressions and bare
+carrier inclusions only. It omits definitionally implied bounds, emits
+`Truth` when none remain, emits one relation without a singleton conjunction,
+and orders a two-bound conjunction lower before upper. It does not propagate
+symbolic ranges through arithmetic, aliases, affine summaries, or retained
+facts. Even an obvious symbolic fact such as two `i8` values adding into `i32`
+is producer proof work; the verifier reconstructs the unchanged bounds and
+checks the serialized derivation.
 
 Exact right shift is the first shift-count production pilot. Reconstruction
 selects the unchanged canonical proposition only when prior machine
@@ -3456,17 +3502,17 @@ untrusted producer to transport a closed literal bound across the preceding
 SSA equality for that literal. The four canonical nonzero pilots consume that
 capability; no reducer or operation row is promoted by doing so.
 
-The production verifier now reconstructs settled scalar kernel questions
-directly from `CanonicalScalarGoal`. `NonzeroDivisor`,
+The production verifier now reconstructs the implemented scalar kernel
+questions directly from `CanonicalScalarGoal`. `NonzeroDivisor`,
 `ExactDivisionDefined`, and `ExactShiftCount` never invoke the mirrored
 candidate selector: alternate available facts cannot change their question,
-and the proof kernel checks only the producer-serialized derivation. The
-mirrored selector roots are retained solely for compatibility tests on this
-slice. Exact-cast representability, exact shift-left representability, and
-exact add/subtract/multiply representability still have no language-settled
-kernel proposition; they retain the legacy reducer pending the proposition
-vocabulary decision recorded in `OWNER_QUESTIONS.md`. This is an explicit
-remaining trusted dependency, not permission for new verifier search.
+and the proof kernel checks only the producer-serialized derivation. Exact-cast,
+exact shift-left, and exact add/subtract/multiply retain the legacy reducer only
+until the settled total-mathematical-term projection above is implemented. At
+that point `kernel_proposition` becomes total, with no wildcard or optional
+unsettled result, and the remaining production reducer and mirrored verifier
+search are deleted. Until then this is an explicit implementation dependency,
+not permission for new verifier search.
 
 That producer status is also the module boundary. Structural Unit-plan
 construction must not accumulate every sufficient-form recognizer merely
@@ -3861,7 +3907,7 @@ owner-derived identity. The former metered object-container publication API was
 deleted because no supported consumer ended at that weaker checkpoint.
 Transfer-runtime plans must explicitly save the ABI rank carrier. Supplying an
 honest sponsor entry for this deliberately one-function artifact remains an
-owner decision (Q9, ranked native-fuel sponsor), so schedule comparison does not invent a compiler-private
+owner decision (Q8, ranked native-fuel sponsor), so schedule comparison does not invent a compiler-private
 helper.
 
 Omega may use a certificate only for the exact installed terminal bytes,

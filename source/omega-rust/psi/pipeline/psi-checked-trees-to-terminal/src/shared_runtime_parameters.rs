@@ -1,8 +1,9 @@
 //! Runtime-input custody for checked shared-convergence plans.
 //!
-//! This is an untrusted certificate-producer boundary during the Q7 migration.
-//! The registries preserve the established recognizer precedence; they do not
-//! choose the future canonical semantic-ledger goal or grant proof authority.
+//! This is an untrusted certificate-producer boundary pending the settled total
+//! mathematical-term projection. The registries preserve the established
+//! recognizer precedence; they do not choose the canonical semantic-ledger goal
+//! or grant proof authority.
 
 use super::*;
 

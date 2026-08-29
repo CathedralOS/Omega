@@ -55,6 +55,15 @@ source, reconstruct artifact obligations, or decide which claims are sufficient
 for deployment. Those larger components may be arbitrarily sophisticated, but
 they gain no authority by producing a candidate certificate.
 
+Exact scalar representability does not add an arithmetic oracle to this
+boundary. Artifact semantics reconstruct a total proof-only mathematical term
+and canonical carrier bounds, then encode their equality or order relations in
+the existing first-order calculus. The kernel checks the supplied derivation.
+It may compute a completely closed term as deterministic definitional work, but
+symbolic interval propagation, affine reasoning, alias transport, SMT solving,
+and every other fact-dependent route remain untrusted certificate production.
+A solver's verdict is never a premise.
+
 ## Implementations
 
 The retained implementations are:

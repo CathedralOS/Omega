@@ -247,7 +247,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   executable consumers and no bounded comparison gate; constructing a new gate
   merely to justify retention would reverse the repository policy. Its fixed
   point and source now survive only in Git history.
-- [ ] **OWNER-BLOCKED — OWNER Q8.** Close exact
+- [ ] **OWNER-BLOCKED — OWNER Q7.** Close exact
   Alpha-assembly-source-to-Alpha-tape correspondence. First
   specify the authoritative assembly grammar and two-pass encoding, then bind
   the exact raw `beta_compiler.alpha` and tape subjects and check that every
@@ -287,7 +287,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     lemma, duplicate IDs and trailing forms reject, and the independent checker
     matches those controls; a later rewrite cannot change an accepted lemma's
     definitional meaning.
-  - [ ] **OWNER-BLOCKED — OWNER Q8:** Turn the ground assembly judgment into a derivation certificate
+  - [ ] **OWNER-BLOCKED — OWNER Q7:** Turn the ground assembly judgment into a derivation certificate
     over those checker-bound subjects. The certificate must check the complete
     two-pass ledger, unique label map, total source/tape partitions, exact
     fixups, and full exhaustion.
@@ -320,7 +320,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       checked propositions with `use`; it accepts in 1.192 seconds. This proves
       the proposed reclamation boundary is viable but does not yet prove the
       required boundary chain or assembly semantics.
-    - OWNER Q8 must choose between bounded subject-bound chunk equalities whose exact
+    - OWNER Q7 must choose between bounded subject-bound chunk equalities whose exact
       boundary states compose through checked congruence/`eqelim` into the one
       root edge judgment, or generic sound branch-local reclamation in the
       checker. Neither choice may add an assembly-specific primitive, trusted
@@ -412,7 +412,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 
 ## 6. Omega-written full compiler `C`
 
-- [ ] **DEPENDENCY-BLOCKED — OWNER Q9 and current ranked-runtime acceptance.**
+- [ ] **DEPENDENCY-BLOCKED — OWNER Q8 and current ranked-runtime acceptance.**
   Publish one deterministic package-resolved Omega closure `C` rooted at
   `source/omega/build.omg`. Psi modules are included only when imported by the
   compiler executable; interpreters, viewers, REPLs, proof explorers, and other
@@ -425,7 +425,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   and gates are already deleted rather than retained as a second bootstrap
   observation. Freeze that final checked production closure only when `C`
   itself is complete; do not revive an inspection-only precursor.
-- [ ] **DEPENDENCY-BLOCKED — OWNER Q9 and current ranked-runtime acceptance.**
+- [ ] **DEPENDENCY-BLOCKED — OWNER Q8 and current ranked-runtime acceptance.**
   Author `C` with a conservative compositional subset of ordinary Omega to
   simplify the first self-build. This is an incidental source profile, never a
   named dialect or permission for `omega₀` to implement less than full Omega.

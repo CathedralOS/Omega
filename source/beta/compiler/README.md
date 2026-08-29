@@ -36,7 +36,7 @@ second assembler invocation participates.
 The former Alpha-written status reconstructor was deleted after measured proof
 work showed that it could not become the selected checked derivation. It was a
 parallel assembly semantics, not an admission premise. The exact source/tape
-certificate remains open under OWNER Q8 (the exact Alpha-to-Beta edge) in
+certificate remains open under OWNER Q7 (the exact Alpha-to-Beta edge) in
 `OWNER_QUESTIONS.md`.
 
 The committed artifact is 20,977 bytes with SHA-256
