@@ -1,7 +1,7 @@
 use super::{
-    BuildStagedOutputTree, MAX_STAGED_OUTPUT_ENTRIES, MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES,
-    RetainedStagedOutputEntry, RetainedStagedOutputEntryKind, commitment_for_retained_entries,
-    diagnostics, reserve_path_bytes, retained_native_path, validate_retained_tree,
+    canonical_symlink_target, commitment_for_retained_entries, diagnostics, reserve_path_bytes,
+    retained_native_path, validate_retained_tree, BuildStagedOutputTree, RetainedStagedOutputEntry,
+    RetainedStagedOutputEntryKind, MAX_STAGED_OUTPUT_ENTRIES, MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES,
 };
 use psi_diagnostics::Diagnostic;
 use sha2::{Digest, Sha256};
@@ -12,8 +12,8 @@ use std::sync::Arc;
 ///
 /// These values are not staged-tree authority. The constructor below validates
 /// the complete namespace and issues the private [`BuildStagedOutputTree`]
-/// carrier. Symlinks remain outside this replay vocabulary until their own
-/// operation grammar is receipted.
+/// carrier. Symbolic links carry only their exact link path and target
+/// spelling; replay grants them no filesystem authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReplayedBuildOutputEntry<'entry> {
     Directory {
@@ -23,6 +23,10 @@ pub enum ReplayedBuildOutputEntry<'entry> {
         relative_path: &'entry [u8],
         bytes: &'entry [u8],
         executable: bool,
+    },
+    SymbolicLink {
+        relative_path: &'entry [u8],
+        target: &'entry [u8],
     },
 }
 
@@ -43,11 +47,18 @@ impl<'entry> ReplayedBuildOutputEntry<'entry> {
         }
     }
 
+    pub const fn symbolic_link(relative_path: &'entry [u8], target: &'entry [u8]) -> Self {
+        Self::SymbolicLink {
+            relative_path,
+            target,
+        }
+    }
+
     const fn relative_path(self) -> &'entry [u8] {
         match self {
-            Self::Directory { relative_path } | Self::RegularFile { relative_path, .. } => {
-                relative_path
-            }
+            Self::Directory { relative_path }
+            | Self::RegularFile { relative_path, .. }
+            | Self::SymbolicLink { relative_path, .. } => relative_path,
         }
     }
 }
@@ -56,6 +67,7 @@ impl<'entry> ReplayedBuildOutputEntry<'entry> {
 enum NamespaceEntryKind {
     Directory,
     RegularFile,
+    SymbolicLink,
 }
 
 /// Reconstruct one complete mixed receipted `Output` tree.
@@ -86,7 +98,7 @@ pub fn replayed_output_tree(
 
     for entry in entries.iter().copied() {
         let relative_path = entry.relative_path();
-        retained_native_path(relative_path).map_err(|error| {
+        let relative_native = retained_native_path(relative_path).map_err(|error| {
             diagnostics(format!(
                 "receipted build output path is not canonical: {error}"
             ))
@@ -102,7 +114,7 @@ pub fn replayed_output_tree(
             let parent = &relative_path[..separator];
             match namespace.get(parent) {
                 Some(NamespaceEntryKind::Directory) => {}
-                Some(NamespaceEntryKind::RegularFile) => {
+                Some(NamespaceEntryKind::RegularFile | NamespaceEntryKind::SymbolicLink) => {
                     return Err(diagnostics(format!(
                         "receipted build output entry `{}` has a non-directory parent",
                         String::from_utf8_lossy(relative_path),
@@ -149,6 +161,26 @@ pub fn replayed_output_tree(
                     RetainedStagedOutputEntryKind::File {
                         bytes: Arc::from(bytes),
                         executable,
+                    },
+                )
+            }
+            ReplayedBuildOutputEntry::SymbolicLink { target, .. } => {
+                let target_spelling = std::str::from_utf8(target).map_err(|_| {
+                    diagnostics(format!(
+                        "receipted build output symlink `{}` has a non-UTF-8 target",
+                        String::from_utf8_lossy(relative_path),
+                    ))
+                })?;
+                let canonical_target = canonical_symlink_target(
+                    std::path::Path::new(target_spelling),
+                    relative_path,
+                    &relative_native,
+                )?;
+                total_path_bytes = reserve_path_bytes(total_path_bytes, canonical_target.len())?;
+                (
+                    NamespaceEntryKind::SymbolicLink,
+                    RetainedStagedOutputEntryKind::Symlink {
+                        target: canonical_target,
                     },
                 )
             }
@@ -200,6 +232,83 @@ mod tests {
         assert_eq!(mixed, reordered_siblings);
         assert_eq!(mixed.entry_count(), 3);
         assert_eq!(mixed.file_bytes(), 14);
+    }
+
+    #[test]
+    fn retains_inert_symbolic_links_with_exact_target_spelling() {
+        let mixed = replayed_output_tree(&[
+            ReplayedBuildOutputEntry::directory(b"generated"),
+            ReplayedBuildOutputEntry::regular_file(b"generated/data.bin", b"data", false),
+            ReplayedBuildOutputEntry::symbolic_link(b"generated/current", b"data.bin"),
+            ReplayedBuildOutputEntry::regular_file(b"tool", b"executable", true),
+            ReplayedBuildOutputEntry::symbolic_link(b"generated/tool", b"../tool"),
+        ])
+        .expect("receipted tree with symbolic links");
+        let reordered_siblings = replayed_output_tree(&[
+            ReplayedBuildOutputEntry::regular_file(b"tool", b"executable", true),
+            ReplayedBuildOutputEntry::directory(b"generated"),
+            ReplayedBuildOutputEntry::symbolic_link(b"generated/tool", b"../tool"),
+            ReplayedBuildOutputEntry::regular_file(b"generated/data.bin", b"data", false),
+            ReplayedBuildOutputEntry::symbolic_link(b"generated/current", b"data.bin"),
+        ])
+        .expect("sibling order does not become tree identity");
+
+        assert_eq!(mixed, reordered_siblings);
+        assert_eq!(mixed.entry_count(), 5);
+        assert_eq!(mixed.file_bytes(), 14);
+        assert!(matches!(
+            &mixed.entries[1].kind,
+            RetainedStagedOutputEntryKind::Symlink { target } if target == b"data.bin"
+        ));
+        assert!(matches!(
+            &mixed.entries[3].kind,
+            RetainedStagedOutputEntryKind::Symlink { target } if target == b"../tool"
+        ));
+    }
+
+    #[test]
+    fn rejects_noncanonical_or_output_escaping_symbolic_link_targets() {
+        for target in [
+            b"".as_slice(),
+            b"/absolute",
+            b"./artifact",
+            b"generated//artifact",
+            b"generated\\artifact",
+            b"artifact\0suffix",
+            b"\xffartifact",
+            b"../outside",
+        ] {
+            assert!(
+                replayed_output_tree(&[ReplayedBuildOutputEntry::symbolic_link(b"link", target,)])
+                    .is_err(),
+                "accepted invalid symbolic-link target {:?}",
+                String::from_utf8_lossy(target),
+            );
+        }
+
+        assert!(replayed_output_tree(&[
+            ReplayedBuildOutputEntry::directory(b"generated"),
+            ReplayedBuildOutputEntry::symbolic_link(b"generated/link", b"../../outside",),
+        ])
+        .is_err());
+    }
+
+    #[test]
+    fn rejects_symbolic_links_as_namespace_parents() {
+        assert!(replayed_output_tree(&[
+            ReplayedBuildOutputEntry::symbolic_link(b"alias", b"target"),
+            ReplayedBuildOutputEntry::regular_file(b"alias/child", b"bytes", false),
+        ])
+        .is_err());
+    }
+
+    #[test]
+    fn charges_symbolic_link_targets_to_the_shared_path_byte_ceiling() {
+        let target = vec![b'a'; crate::MAX_STAGED_OUTPUT_PATH_BYTES];
+        assert!(
+            replayed_output_tree(&[ReplayedBuildOutputEntry::symbolic_link(b"link", &target)])
+                .is_err()
+        );
     }
 
     #[test]
