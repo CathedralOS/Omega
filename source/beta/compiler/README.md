@@ -42,6 +42,37 @@ The committed artifact is 20,977 bytes with SHA-256
 `1911fc4f9667081ca96559ee970f07c3359f225c1177b5ed889d55c05a059f0f`.
 The byte comparison, not the convenient digest, governs repository identity.
 
+## Current compiler resource profile
+
+The Alpha-written compiler enforces the following fixed private ceilings before
+publishing any tape. They bound the implementation accepted by the current
+edge; they do not settle Q16's typed `Complete` / `Reject` / `Incomplete` /
+internal-failure carrier. The focused gate therefore requires every refused
+adjacent case to return nonzero with empty stdout, without assigning that raw
+status its future language-level meaning.
+
+| Resource | Last admitted extent |
+| --- | ---: |
+| Source byte stream | 1,048,576 bytes |
+| Identifier | 64 bytes |
+| Shared parenthesis, nested-call, and nested-load depth | 64 |
+| Parameters plus function-scoped locals | 64 per procedure |
+| Procedures | 128 |
+| Call sites | 1,024 |
+| States | 128 per procedure; 1,024 total |
+| Transitions | 256 per procedure; 1,024 total |
+| Emitted runnable Alpha payload | 262,140 bytes |
+| Source-visible raw memory | 33,554,432 zeroed bytes |
+
+The generated data stack is separately guarded in `[262144,1048576)` and every
+procedure reserves at least its caller-frame word, as specified in
+`../CALLING_CONVENTION.md`. The 32,768-row fixup table and 65,536-row internal-PC
+table are secondary corruption guards: each row requires emitted reference or
+control bytes, so the payload ceiling is binding first. `test.sh` pins practical
+source limits at the exact accepted boundary and the adjacent fail-closed case;
+it also pins the last valid byte/word raw-memory addresses and generated-stack
+containment.
+
 ## Retention inventory
 
 | Retained child | Bounded role | Deletion condition |
