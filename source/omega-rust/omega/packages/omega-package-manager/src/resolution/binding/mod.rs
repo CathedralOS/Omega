@@ -7,6 +7,7 @@ mod custody;
 mod error;
 mod git;
 mod local;
+mod materialization;
 mod navigation;
 mod projection;
 mod resolved;
@@ -30,6 +31,7 @@ pub use local::{
     resolve_external_local_package_source_with_storage,
     resolve_external_local_project_source_with_storage,
 };
+pub use materialization::PackageSourceMaterialization;
 pub use navigation::PackageSourceNavigation;
 pub use resolved::ResolvedPackageSource;
 #[cfg(test)]

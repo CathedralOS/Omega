@@ -233,6 +233,27 @@ closed. Compiler-issued package review remains non-admitting.
   selected member subtree and every root declaration needed to authenticate
   its membership.
 
+  Remaining work:
+
+  - expose a manager-owned projection planner over one locked, exact Git
+    acquisition; `omega-package-source` must not learn Omega package syntax;
+  - authenticate and retain root/member declaration paths, then batch-open only
+    those blobs and the selected member subtree after complete parent-tree edge
+    authentication;
+  - publish immutable member snapshots separately from repository resolution,
+    retaining exact selection evidence outside the compilation root;
+  - carry repository, materialization, navigation, and declaration commitments
+    through source observations, strict-receipt reconstruction, cache reuse,
+    package custody, review, and eventual lock reconstruction;
+  - reject missing/changed declaration evidence, forged or omitted tree edges,
+    undeclared/escaping/symlinked members, absent selected blobs, and any
+    checkout, filter, hook, submodule, or lazy-fetch route.
+
+  Portable Git does not guarantee path-selective network transfer. The baseline
+  may perform the current bounded whole commit/object fetch, but it must read and
+  materialize only authenticated required blobs. Do not claim reduced network or
+  object-store use without a separately enforced server capability.
+
 ## P6 — Integration fixtures
 
 - [ ] **SECURITY-FIXTURE-MATRIX.** Close the remaining real-custody cases:

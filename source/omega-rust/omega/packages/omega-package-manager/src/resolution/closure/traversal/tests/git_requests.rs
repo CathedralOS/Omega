@@ -203,6 +203,11 @@ machine build(builder: &mut Build) {
         .expect("right custody");
     assert_eq!(left.key().source_lineage(), right.key().source_lineage());
     assert_eq!(left.resolution(), right.resolution());
+    assert_ne!(
+        left.materialization().content(),
+        right.materialization().content(),
+        "one repository resolution carries distinct selected package bytes"
+    );
     assert_eq!(left.acquisition_root(), right.acquisition_root());
     assert!(matches!(
         right.navigation(),
@@ -218,6 +223,8 @@ machine build(builder: &mut Build) {
         canonical.package_navigation(right.key()),
         Some(right.navigation())
     );
+    crate::review::package_compilation_inputs(&closure)
+        .expect("compiler handoff revalidates repository and selected member commitments");
 
     let _ = std::fs::remove_dir_all(repository);
     let _ = std::fs::remove_dir_all(cache);

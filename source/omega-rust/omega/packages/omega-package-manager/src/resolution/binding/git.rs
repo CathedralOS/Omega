@@ -9,7 +9,7 @@ use omega_package_source::{
 use omega_package_source::{
     GitSourceRequest, LocalSourceLimits, ResolvedGitSource, SourceResolverStorage,
 };
-use omega_package_source::{RetainedStorageLane, resolve_git_source_in_lane};
+use omega_package_source::{RetainedStorageLane, resolve_git_source_in_lane, resolve_local_source};
 use std::path::{Path, PathBuf};
 
 /// One exact package selection over one validated Git acquisition request.
@@ -127,10 +127,19 @@ pub(crate) fn bind_git_package_source(
         GitTreeId::parse_hex(source.tree())?,
         SourceContentDigest::derive(source.local().content_identity.as_bytes()),
     )?;
+    let materialization = if snapshot_root == acquisition_root {
+        super::PackageSourceMaterialization::from_local(source.local())
+    } else {
+        super::PackageSourceMaterialization::from_local(&resolve_local_source(
+            &snapshot_root,
+            limits,
+        )?)
+    };
 
     Ok(ResolvedPackageSource::from_resolved_parts(
         PackageKey::new(declaration.name, lineage),
         resolution,
+        materialization,
         acquisition_root,
         snapshot_root,
         navigation,
@@ -215,9 +224,14 @@ pub(crate) fn bind_git_member_package_custody(
 ) -> Result<PackageSourceCustody, ResolvePackageSourceError> {
     let snapshot_root = validate_git_member_root(acquisition_root, &member_path)?;
     let (declaration, dependency_requests) = project_package_build(&snapshot_root, false)?;
+    let materialization = super::PackageSourceMaterialization::from_local(&resolve_local_source(
+        &snapshot_root,
+        limits,
+    )?);
     Ok(PackageSourceCustody::from_resolved_parts(
         PackageKey::new(declaration.name, lineage),
         resolution,
+        materialization,
         acquisition_root.to_path_buf(),
         snapshot_root,
         super::PackageSourceNavigation::Member(member_path),

@@ -21,10 +21,25 @@ pub(super) fn verify_transitive_source_custody(
         )
         .map_err(|error| CompileResolvedPackageReviewsError::SourceCustody {
             compiling_package: compiling_package.clone(),
-            source_package,
+            source_package: source_package.clone(),
             phase,
             error,
         })?;
+        if custody.snapshot_root() != custody.acquisition_root()
+            || custody.materialization().content() != custody.resolution().content()
+        {
+            verify_package_source_snapshot(
+                custody.snapshot_root(),
+                custody.materialization().content(),
+                custody.source_limits(),
+            )
+            .map_err(|error| CompileResolvedPackageReviewsError::SourceCustody {
+                compiling_package: compiling_package.clone(),
+                source_package,
+                phase,
+                error,
+            })?;
+        }
     }
     Ok(())
 }

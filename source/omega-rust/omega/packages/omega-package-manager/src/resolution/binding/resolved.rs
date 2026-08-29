@@ -1,5 +1,6 @@
 use crate::manifest::dependencies::read::DependencySourceRequest;
 use crate::resolution::binding::PackageSourceCustody;
+use crate::resolution::binding::PackageSourceMaterialization;
 use crate::resolution::binding::PackageSourceNavigation;
 use omega_package_source::LocalSourceLimits;
 use omega_package_source::{ImmutableSourceResolution, PackageKey};
@@ -15,6 +16,7 @@ use std::path::{Path, PathBuf};
 pub struct ResolvedPackageSource<S> {
     key: PackageKey,
     resolution: ImmutableSourceResolution,
+    materialization: PackageSourceMaterialization,
     acquisition_root: PathBuf,
     snapshot_root: PathBuf,
     navigation: PackageSourceNavigation,
@@ -27,6 +29,7 @@ impl<S> ResolvedPackageSource<S> {
     pub(super) fn from_resolved_parts(
         key: PackageKey,
         resolution: ImmutableSourceResolution,
+        materialization: PackageSourceMaterialization,
         acquisition_root: PathBuf,
         snapshot_root: PathBuf,
         navigation: PackageSourceNavigation,
@@ -37,6 +40,7 @@ impl<S> ResolvedPackageSource<S> {
         Self {
             key,
             resolution,
+            materialization,
             acquisition_root,
             snapshot_root,
             navigation,
@@ -52,6 +56,10 @@ impl<S> ResolvedPackageSource<S> {
 
     pub fn resolution(&self) -> &ImmutableSourceResolution {
         &self.resolution
+    }
+
+    pub const fn materialization(&self) -> &PackageSourceMaterialization {
+        &self.materialization
     }
 
     pub fn snapshot_root(&self) -> &Path {
@@ -88,6 +96,7 @@ impl<S> ResolvedPackageSource<S> {
         PackageSourceCustody::from_resolved_parts(
             self.key,
             self.resolution,
+            self.materialization,
             self.acquisition_root,
             self.snapshot_root,
             self.navigation,

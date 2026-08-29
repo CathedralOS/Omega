@@ -1,7 +1,7 @@
 //! Transport-erased custody for one declared package snapshot.
 
 use crate::manifest::dependencies::read::DependencySourceRequest;
-use crate::resolution::binding::PackageSourceNavigation;
+use crate::resolution::binding::{PackageSourceMaterialization, PackageSourceNavigation};
 use omega_package_source::LocalSourceLimits;
 use omega_package_source::{ImmutableSourceResolution, PackageKey};
 use std::path::{Path, PathBuf};
@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 pub struct PackageSourceCustody {
     key: PackageKey,
     resolution: ImmutableSourceResolution,
+    materialization: PackageSourceMaterialization,
     acquisition_root: PathBuf,
     pub(crate) snapshot_root: PathBuf,
     navigation: PackageSourceNavigation,
@@ -23,6 +24,7 @@ impl PartialEq for PackageSourceCustody {
     fn eq(&self, other: &Self) -> bool {
         self.key == other.key
             && self.resolution == other.resolution
+            && self.materialization == other.materialization
             && self.acquisition_root == other.acquisition_root
             && self.snapshot_root == other.snapshot_root
             && self.navigation == other.navigation
@@ -36,6 +38,7 @@ impl PackageSourceCustody {
     pub(crate) fn from_resolved_parts(
         key: PackageKey,
         resolution: ImmutableSourceResolution,
+        materialization: PackageSourceMaterialization,
         acquisition_root: PathBuf,
         snapshot_root: PathBuf,
         navigation: PackageSourceNavigation,
@@ -46,6 +49,7 @@ impl PackageSourceCustody {
         Self {
             key,
             resolution,
+            materialization,
             acquisition_root,
             snapshot_root,
             navigation,
@@ -60,6 +64,10 @@ impl PackageSourceCustody {
 
     pub fn resolution(&self) -> &ImmutableSourceResolution {
         &self.resolution
+    }
+
+    pub const fn materialization(&self) -> &PackageSourceMaterialization {
+        &self.materialization
     }
 
     pub fn snapshot_root(&self) -> &Path {
@@ -85,6 +93,7 @@ impl PackageSourceCustody {
     pub(crate) fn semantically_equivalent(&self, other: &Self) -> bool {
         self.key == other.key
             && self.resolution == other.resolution
+            && self.materialization == other.materialization
             && self.navigation == other.navigation
             && self.dependency_requests == other.dependency_requests
     }

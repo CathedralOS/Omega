@@ -276,6 +276,20 @@ fn git_object_authentication_accepts_fixed_sha1_and_sha256_graphs() {
 }
 
 #[test]
+fn git_tree_graph_authenticates_before_blob_payloads_are_opened() {
+    let blob = "ce013625030ba8dba906f756967f9e9ca394464a";
+    let tree = "6e3b5fe3c2f6b56c4d150929f0df706a5356004a";
+    let entry = authenticated_file_entry(blob, "main.omg", b"");
+
+    authenticate_git_tree_graph(tree, std::slice::from_ref(&entry))
+        .expect("tree graph uses the authenticated blob edge without opening its payload");
+    assert!(matches!(
+        authenticate_git_tree_payloads(tree, &[entry]),
+        Err(SourceResolveError::GitObjectInvalid { .. })
+    ));
+}
+
+#[test]
 fn git_object_authentication_rejects_mismatched_bytes_and_edges() {
     let blob = "ce013625030ba8dba906f756967f9e9ca394464a";
     let tree = "6e3b5fe3c2f6b56c4d150929f0df706a5356004a";

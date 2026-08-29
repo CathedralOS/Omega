@@ -81,6 +81,20 @@ fn binding_with_canonical_source_metadata(
         path: custody.acquisition_root().to_path_buf(),
         reason: format!("could not derive canonical build-source metadata: {error}"),
     })?;
+    if custody.snapshot_root() != custody.acquisition_root()
+        || custody.materialization().content() != custody.resolution().content()
+    {
+        omega_package_source::capture_verified_package_source_snapshot(
+            custody.snapshot_root(),
+            custody.materialization().content(),
+            custody.source_limits(),
+        )
+        .map_err(|error| PackageCompilationInputError::InvalidSourceRoot {
+            identity: custody.key().identity(),
+            path: custody.snapshot_root().to_path_buf(),
+            reason: format!("could not verify selected package materialization: {error}"),
+        })?;
+    }
     binding.with_canonical_source_metadata().map_err(|reason| {
         PackageCompilationInputError::InvalidSourceRoot {
             identity: custody.key().identity(),
@@ -186,9 +200,11 @@ mod tests {
             SourceContentDigest::derive(source.content_identity.as_bytes()),
         )
         .expect("resolution");
+        let materialization = crate::resolution::PackageSourceMaterialization::from_local(&source);
         PackageSourceCustody::from_resolved_parts(
             key,
             resolution,
+            materialization,
             source_root.clone(),
             source_root,
             crate::resolution::PackageSourceNavigation::Root,

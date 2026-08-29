@@ -25,6 +25,15 @@ for SSH:
    hashes the materialized tree, atomically publishes it, and issues the source
    receipt. Helper output is observation, not evidence.
 
+Repository inspection independently reconstructs the complete Git
+mode/name/object-ID tree graph back to the selected root-tree ID before opening
+blob payloads. The current whole-tree resolver subsequently authenticates every
+blob and materializes the complete tree. This separation is the prerequisite
+for future member-selective materialization: an unselected blob ID may remain a
+Merkle edge, but every blob actually read or published must still be opened and
+authenticated against that edge. It grants no lazy-fetch or path-selective
+network claim.
+
 Local sources skip transport but still pass through snapshot staging. A hash of
 a live local directory is diagnostic only. Successful snapshot resolution now
 keeps the entry lock while it reconciles the exact requested path with the

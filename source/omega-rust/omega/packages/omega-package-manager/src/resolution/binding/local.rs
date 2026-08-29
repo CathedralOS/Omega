@@ -125,10 +125,12 @@ fn bind_external_local_declared_source(
     let resolution = ImmutableSourceResolution::external_local(SourceContentDigest::derive(
         source.normalized().content_identity.as_bytes(),
     ));
+    let materialization = super::PackageSourceMaterialization::from_local(source.normalized());
 
     Ok(ResolvedPackageSource::from_resolved_parts(
         PackageKey::new(declaration.name, lineage),
         resolution,
+        materialization,
         source.snapshot_root().to_path_buf(),
         source.snapshot_root().to_path_buf(),
         super::PackageSourceNavigation::Root,

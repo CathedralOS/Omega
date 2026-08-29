@@ -15,6 +15,7 @@ use crate::git::cache::repository::VerifiedGitRepository;
 use crate::git::executable::executor::GitExecutor;
 use crate::limits::LocalSourceLimits;
 
+use self::authentication::authenticate_git_tree_graph;
 use self::batch::read_git_blobs_batch;
 use self::identity::is_object_id;
 use self::tree::parse_git_tree_entries;
@@ -86,6 +87,7 @@ pub(crate) fn inspect_git_tree(
         ],
     )?;
     let mut entries = parse_git_tree_entries(&listing, repository.path(), limits)?;
+    authenticate_git_tree_graph(tree, &entries)?;
     read_git_blobs_batch(executor, repository, &mut entries, limits)?;
     Ok(entries)
 }
