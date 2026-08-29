@@ -350,6 +350,32 @@ This is deliberately distinct from immutable static/image storage. Omega has no
 source `static` declaration today; a future addressable read-only image object
 would promise one storage identity, which a `const` never does.
 
+## Lexical Profile V1
+
+Omega source files are valid UTF-8 byte sequences, but UTF-8 is source framing,
+not an ambient text semantics for the language. The V1 grammar recognizes only
+ASCII syntax:
+
+- identifiers match `[A-Za-z_][A-Za-z0-9_]*`;
+- syntactic whitespace is exactly space, tab, carriage return, and line feed;
+- punctuation, operators, keywords, and numeric spellings use ASCII bytes; and
+- non-ASCII source is admitted only inside comments and literal bodies.
+
+Other Unicode whitespace, including non-breaking space and Unicode line or
+paragraph separators, rejects with a diagnostic that the spelling is outside
+the current language profile. This closed list keeps invisible pasted text and
+the host implementation's changing Unicode tables from changing tokenization.
+Identifier comparison is therefore exact ASCII-byte comparison; there is no
+normalization or confusable-name policy in V1.
+
+Unicode identifiers and a raw-payload literal form remain possible future
+features, not reserved current syntax. Admitting Unicode identifiers requires
+one normative, versioned identifier table plus normalization/confusable and
+cross-implementation agreement rules. Admitting raw payloads requires an
+Omega-owned delimiter, terminator, newline, and exact-byte contract. A future
+profile can widen either rejection without changing the meaning of existing
+source.
+
 ## String Literals And Bytes
 
 A quoted literal is **raw bytes**, nothing more. The compiler's only string job
@@ -384,8 +410,9 @@ special compile-time byte type.
 The rule is **copy, never synthesize or interpret**:
 
 - The lexer copies the source bytes between the quotes verbatim. `"café"` typed
-  directly copies whatever bytes the editor saved — the compiler does not decode
-  anything.
+  directly copies the UTF-8 bytes saved by the editor. Source decoding finds
+  the literal boundary; it does not normalize, transcode, or attach text
+  meaning to the payload.
 - **Byte-level escapes** produce one specific byte and need no encoding
   knowledge: `\n \r \t \0 \\ \" \xNN`. `\\` and `\"` are required so the lexer
   can find the closing quote.
@@ -393,6 +420,10 @@ The rule is **copy, never synthesize or interpret**:
   encoding decision, which the front end does not make; a codepoint is produced
   by a library compile-time helper (e.g. `utf8::encode(0x1F600)`) and joined with
   `+`, not smuggled into literal syntax.
+- **No raw-string form in V1.** Exact payloads use ordinary literals plus
+  byte-level escapes. A build-time machine may read a resource, generate bytes,
+  run a selected Unicode encoder or normalizer, validate the result, and emit
+  an owned byte artifact when a literal would be inconvenient.
 - **No raw newlines inside `"..."`.** A program's meaning must not depend on how
   the file was checked out (CRLF vs LF), so a newline is written `\n`; span
   source lines by joining literals, which folds at compile time:
@@ -402,11 +433,9 @@ The rule is **copy, never synthesize or interpret**:
              + "line two\n";
   ```
 
-- **Source must be ASCII-transparent** (UTF-8 in practice). Only ASCII bytes are
-  syntactically significant; any non-ASCII byte appears solely as opaque payload
-  inside a literal or comment. This is a fact about the *input format*, not about
-  value semantics — it is the one and only place UTF-8 has a privileged
-  relationship, and even that is minimizable.
+- **Source is ASCII-transparent UTF-8.** Only ASCII bytes are syntactically
+  significant; non-ASCII bytes are opaque payload inside a literal or comment.
+  This is an input-format rule, not value semantics.
 
 To treat a literal as text, establish the encoding domain explicitly
 (`"hi" as [u8]::Utf8`, which the compiler discharges by checking the bytes at

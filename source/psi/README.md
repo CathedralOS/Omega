@@ -4,7 +4,7 @@ This sibling package owns the Omega-written, target-neutral Psi half of the
 production compiler. `source/omega/` consumes it through the `psi` package
 identity; Omega does not own this source tree. The current live slice contains
 source/span and token
-representations, the Unicode-aware lexer, and a fail-closed whole-file parser
+representations, a UTF-8-framed lexer, and a fail-closed whole-file parser
 for ordinary `use path::member;` roots and basic `[pub] data` declarations with
 an optional `[copy]` property, bare named field types, and payload-free
 `case Name;` members. Mixed declarations retain the exact authored field/case
@@ -47,9 +47,12 @@ parser ordinal, or scalar tag/span cache. Numeric protocol projection and
 lex/parse serialization live only in the gate-owned Omega harness; the exact
 product entrypoint retains phase driving and exit diagnostics. The same 45
 black-box cases and structural observations remain mandatory, and the Python
-decoder stays semantic-free. Unicode identifiers, codepoint escapes, and raw
-strings are design-blocked pending an owner ruling; do not expand those
-surfaces or make new compiler-source code depend on them meanwhile.
+decoder stays semantic-free. Chapter 1 now fixes **LEXICAL-PROFILE-V1**: ASCII
+identifiers, space/tab/CR/LF whitespace, byte-preserving literal bodies, and no
+codepoint escapes or raw strings. The current XID, `\u{...}`, raw-string, and
+Unicode-whitespace paths are migration debt rather than product semantics; no
+compiler source may depend on them while they are removed from both maintained
+lexers.
 
 ## Retention inventory
 
@@ -59,10 +62,10 @@ surfaces or make new compiler-source code depend on them meanwhile.
 | `source/` | Owns bounded source bytes and coordinates shared by the lexer and parser. | Absorb when a replacement representation preserves every live source/coordinate discriminator. |
 | `tokens/` | Owns the sole typed lexical token stream transferred whole from lexer to parser. | Absorb only into a successor representation that preserves the exact typed vocabulary and coordinates without parallel token truth. |
 | `syntax/` | Owns the bounded structural syntax retained by the current parser slice. | Absorb into a later Psi representation only with equivalent accepted/rejected observations. |
-| `lex/` | Owns the source-to-token implementation and the currently unsettled Unicode tables. | Freeze disputed lexical expansion pending the owner ruling; afterward delete or retain the tables with the chosen contract and move every affected boundary case atomically. |
+| `lex/` | Owns the source-to-token implementation; its generated Unicode identifier table is retired migration debt. | Delete the table with the XID paths once both maintained lexers and their cross-implementation canaries enforce **LEXICAL-PROFILE-V1**. |
 | `parse/` | Owns token-to-structural parsing; `harness.omg` is gate-only black-box serialization and is absent from the product closure. | Absorb the parser only into its canonical successor; delete the harness when an equal or stronger semantic-free gate preserves all 45 cases. |
 | `gates/parser/`, `test-parser.sh` | Builds one fresh explicit-target harness artifact, prints exact identities, and exercises the live lexical/parser boundary. Its four empty target declarations are temporary compiler-discovery scaffolding. | Delete the declarations when immutable CLI target activation supplies the selected profile; delete the gate only when an equal or stronger product-source gate subsumes every retained failure class. |
 
-Generated data is retained under the semantic phase that consumes it. The
-Unicode tables therefore live in `lex/`; there is no generic `generated/`
-source owner or generator runtime in the compiler closure.
+Generated data belongs under the semantic phase that consumes it. No retained
+lexical contract consumes the current Unicode identifier table, so it must be
+deleted rather than moved into a generic `generated/` owner.
