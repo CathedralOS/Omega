@@ -41,11 +41,10 @@ implementation budget is distinguished. Private exhaustion returns
   canonical artifact; and
 - adjacent validation owns Gamma-source/Alpha-tape refinement.
 
-The former `source/delta/meaning/delta2gamma.beta` route is deleted. The current
-`source/delta/compiler/main.delta` is Delta-written Omega compiler work
-and should move under Omega ownership as `D` after its role is reconciled. Its
-Darwin assembly/native publication machinery cannot admit the new Delta
-compiler edge.
+The former `source/delta/meaning/delta2gamma.beta` route and the restricted
+Delta-written Darwin compiler prototype are deleted. Neither implemented the
+Gamma-written Delta edge or a full Omega `D`; their historical source remains
+available in Git without occupying a live compiler owner.
 
 ## Closure criteria
 

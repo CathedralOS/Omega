@@ -14,7 +14,7 @@
 ;           | ('byte'|'word') '[' EXPR ']' | '(' EXPR ')'
 ;
 ; Whitespace and `;` line comments are accepted between tokens. Decimal
-; literals are deliberately capped at nine digits in this first slice. Character
+; literals are checked across the complete unsigned 64-bit Word range. Character
 ; literals accept printable bytes plus \n \t \r \0 \\ \'. The whole source is
 ; validated before any output is published.
 ;
@@ -1077,6 +1077,7 @@ parse_decimal:
         imm   r0, 524296
         load  r6, r0
         imm   r7, 0
+        imm   r10, 0
 pd_loop:
         imm   r0, 524288
         load  r1, r0
@@ -1099,8 +1100,19 @@ pd_have:
         jlt   r5, r0, pd_digit
         jmp   pd_done
 pd_digit:
-        imm   r0, 9
-        jeq   r7, r0, pd_error
+        imm   r0, 48
+        sub   r5, r0
+        ; Refuse values above 2^64-1 before the wrapping multiply/add. The
+        ; quotient threshold fits signed Alpha comparison.
+        imm   r0, 1844674407370955161
+        jlt   r0, r10, pd_error
+        jlt   r10, r0, pd_accumulate
+        imm   r0, 5
+        jlt   r0, r5, pd_error
+pd_accumulate:
+        imm   r0, 10
+        mul   r10, r0
+        add   r10, r5
         imm   r0, 1
         add   r7, r0
         jmp   pd_loop

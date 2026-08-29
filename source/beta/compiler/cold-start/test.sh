@@ -100,6 +100,9 @@ reject() {
 }
 
 accept literal 'proc main() { return 42 }' 42
+accept full_word 'proc main() { return 18446744073709551615 }' 255
+accept full_word_wrap 'proc main() { return 18446744073709551615 + 1 }' 0
+accept leading_zero_word 'proc main() { return 00000000000000000000000000042 }' 42
 accept precedence 'proc main() { return 2 + 3 * 4 }' 14
 accept parentheses 'proc main() { return (2 + 3) * 4 }' 20
 accept associativity 'proc main() { return 100 - 58 + 7 % 5 }' 44
@@ -220,7 +223,7 @@ reject bad_memory_load 'proc main() { return byte[1 }'
 reject bad_memory_store 'proc main() { word[1] 42 return 0 }'
 reject unterminated_emit 'proc main() { emit("unterminated) return 0 }'
 reject bad_emit_escape 'proc main() { emit("bad\x") return 0 }'
-reject decimal_extent 'proc main() { return 1234567890 }'
+reject decimal_overflow 'proc main() { return 18446744073709551616 }'
 reject bad_character "proc main() { return '\\x' }"
 long_ident=$(awk 'BEGIN { for (i = 0; i < 65; i++) printf "a" }')
 reject identifier_extent "proc main() { let $long_ident = 1 return 0 }"
