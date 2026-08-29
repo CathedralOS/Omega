@@ -17,6 +17,9 @@ pub(in crate::resolution::acquisition) const LOCAL_SNAPSHOT_POLICY: &[u8] =
     b"omega-local-source-snapshot-v2";
 pub(in crate::resolution::acquisition) const LOCAL_SNAPSHOT_CUSTODY_POLICY: &[u8] =
     b"omega-local-source-snapshot-custody-v1";
+pub(in crate::resolution::acquisition) const LOCAL_RESOLUTION_OBSERVATION_SCHEMA_VERSION: u32 = 1;
+pub(in crate::resolution::acquisition) const LOCAL_RESOLUTION_OBSERVATION_DOMAIN: &[u8] =
+    b"omega-local-source-resolution-observation-v1";
 pub(in crate::resolution::acquisition) const DEFAULT_BUILD_OUTPUT_DIRECTORY: &str = "build";
 pub(in crate::resolution::acquisition) const CANONICAL_DIRECTORY_MODE: u16 = 0o555;
 pub(in crate::resolution::acquisition) const GIT_CONFIG_SHA1: &[u8] =

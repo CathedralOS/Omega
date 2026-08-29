@@ -2,10 +2,11 @@
 
 pub(super) mod capture;
 mod model;
+mod observation;
 mod operations;
 mod snapshot;
 
-pub use model::{ResolvedLocalSnapshot, ResolvedLocalSource};
+pub use model::{LocalSourceResolutionObservation, ResolvedLocalSnapshot, ResolvedLocalSource};
 pub(crate) use model::{VerifiedPackageSourceEntry, VerifiedPackageSourceEntryKind};
 #[cfg(test)]
 pub(crate) use operations::resolve_local_source_snapshot_at_path;

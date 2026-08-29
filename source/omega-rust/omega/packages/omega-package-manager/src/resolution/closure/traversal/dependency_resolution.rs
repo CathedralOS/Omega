@@ -192,7 +192,7 @@ fn resolve_external_dependency_from_root(
     register_external_root(
         external_roots,
         resolved.key(),
-        &resolved.source().canonical_live_root,
+        resolved.source().canonical_live_root(),
     )?;
     Ok(resolved.into_custody())
 }

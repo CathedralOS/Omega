@@ -87,6 +87,15 @@ protocol adapters must define their own canonical lineage and immutable-content
 receipt; an unknown
 URL is never guessed to be Git or delegated to an ambient protocol helper.
 
+Local snapshot issuance is one resolver-owned operation rather than a bundle of
+caller-assembled fields. While the snapshot entry lock remains held, the
+resolver reconciles the exact request with its canonical live root, verifies
+the retained storage and immutable publication, rechecks the live source, and
+rehashes the published exact tree. The resulting read-only snapshot carries an
+opaque observation binding those facts plus the compiler-bounded source limits
+and custody identity. This is successful non-admitting provenance, not a strict
+source receipt or protection from a later hostile same-user race.
+
 The implementation normalizes GitHub's and hosted GitLab's established HTTPS
 and SSH repository namespaces. GitLab nested namespace paths remain exact and
 case-sensitive in lineage. Self-hosted and other Git hosts retain transport,

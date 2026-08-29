@@ -15,19 +15,22 @@ fn local_snapshot_preserves_empty_directories_and_uses_published_identity() {
     let resolved = resolve_local_source_snapshot(&root, &cache, LocalSourceLimits::default())
         .expect("snapshot local source");
 
-    assert_eq!(resolved.requested_root, root);
-    assert_eq!(resolved.canonical_live_root, live.root);
-    assert_ne!(resolved.snapshot_root, resolved.canonical_live_root);
-    assert_eq!(resolved.normalized.root, resolved.snapshot_root);
-    assert!(resolved.snapshot_root.join("generated/empty").is_dir());
-    assert!(!resolved.snapshot_root.join(".git").exists());
-    assert!(!resolved.snapshot_root.join("build").exists());
-    assert_eq!(resolved.normalized.file_count, 1);
-    assert_eq!(resolved.normalized.byte_count, live.byte_count);
-    assert_eq!(resolved.normalized.content_identity, live.content_identity);
+    assert_eq!(resolved.requested_root(), root);
+    assert_eq!(resolved.canonical_live_root(), live.root);
+    assert_ne!(resolved.snapshot_root(), resolved.canonical_live_root());
+    assert_eq!(resolved.normalized().root, resolved.snapshot_root());
+    assert!(resolved.snapshot_root().join("generated/empty").is_dir());
+    assert!(!resolved.snapshot_root().join(".git").exists());
+    assert!(!resolved.snapshot_root().join("build").exists());
+    assert_eq!(resolved.normalized().file_count, 1);
+    assert_eq!(resolved.normalized().byte_count, live.byte_count);
+    assert_eq!(
+        resolved.normalized().content_identity,
+        live.content_identity
+    );
     assert!(
         resolved
-            .snapshot_root
+            .snapshot_root()
             .parent()
             .expect("publication root")
             .join(LOCAL_SNAPSHOT_METADATA)
@@ -35,7 +38,7 @@ fn local_snapshot_preserves_empty_directories_and_uses_published_identity() {
     );
     assert!(
         !resolved
-            .snapshot_root
+            .snapshot_root()
             .join(LOCAL_SNAPSHOT_METADATA)
             .exists()
     );
@@ -113,12 +116,14 @@ fn byte_identical_local_sources_retain_distinct_custody_roots() {
         .expect("publish second lineage snapshot");
 
     assert_eq!(
-        first.normalized.content_identity, second.normalized.content_identity,
+        first.normalized().content_identity,
+        second.normalized().content_identity,
         "content identity must remain independent of source lineage"
     );
-    assert_ne!(first.canonical_live_root, second.canonical_live_root);
+    assert_ne!(first.canonical_live_root(), second.canonical_live_root());
     assert_ne!(
-        first.snapshot_root, second.snapshot_root,
+        first.snapshot_root(),
+        second.snapshot_root(),
         "distinct lineages need distinct physical custody roots for compiler attribution"
     );
     assert_eq!(
@@ -203,17 +208,20 @@ fn local_snapshot_canonicalizes_permissions_and_preserves_symlink_spelling() {
             .mode()
             & 0o777
     };
-    assert_eq!(mode(&resolved.snapshot_root), 0o555);
-    assert_eq!(mode(&resolved.snapshot_root.join("tools")), 0o555);
-    assert_eq!(mode(&resolved.snapshot_root.join("main.omg")), 0o444);
-    assert_eq!(mode(&resolved.snapshot_root.join("tools/generate")), 0o555);
+    assert_eq!(mode(resolved.snapshot_root()), 0o555);
+    assert_eq!(mode(&resolved.snapshot_root().join("tools")), 0o555);
+    assert_eq!(mode(&resolved.snapshot_root().join("main.omg")), 0o444);
     assert_eq!(
-        std::fs::read_link(resolved.snapshot_root.join("tools/current"))
+        mode(&resolved.snapshot_root().join("tools/generate")),
+        0o555
+    );
+    assert_eq!(
+        std::fs::read_link(resolved.snapshot_root().join("tools/current"))
             .expect("read snapshot symlink"),
         PathBuf::from("generate")
     );
     assert_eq!(
-        std::fs::read(resolved.snapshot_root.join("tools/current"))
+        std::fs::read(resolved.snapshot_root().join("tools/current"))
             .expect("follow snapshot symlink"),
         b"generator\n"
     );
@@ -239,9 +247,12 @@ fn local_snapshot_reuse_rehashes_and_rejects_tampering() {
         .expect("reuse snapshot");
     assert_eq!(first, second);
 
-    std::fs::set_permissions(&first.snapshot_root, std::fs::Permissions::from_mode(0o755))
-        .expect("make snapshot root writable");
-    let source = first.snapshot_root.join("main.omg");
+    std::fs::set_permissions(
+        first.snapshot_root(),
+        std::fs::Permissions::from_mode(0o755),
+    )
+    .expect("make snapshot root writable");
+    let source = first.snapshot_root().join("main.omg");
     std::fs::set_permissions(&source, std::fs::Permissions::from_mode(0o644))
         .expect("make snapshot file writable");
     std::fs::write(&source, "machine Tampered::main() {}\n").expect("tamper snapshot");

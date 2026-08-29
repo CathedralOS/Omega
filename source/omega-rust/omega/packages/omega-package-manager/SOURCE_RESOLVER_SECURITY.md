@@ -26,7 +26,17 @@ for SSH:
    receipt. Helper output is observation, not evidence.
 
 Local sources skip transport but still pass through snapshot staging. A hash of
-a live local directory is diagnostic only.
+a live local directory is diagnostic only. Successful snapshot resolution now
+keeps the entry lock while it reconciles the exact requested path with the
+canonical live root, verifies retained storage and immutable publication
+custody, rechecks the live tree, and performs one final exact-tree rehash. Only
+that path can construct the read-only `ResolvedLocalSnapshot` and its opaque
+`LocalSourceResolutionObservation`. The observation binds both source
+spellings, publication and snapshot paths, content/counts, compiler-bounded
+limits, custody identity, and the fixed `resolved-non-admitting` outcome. It has
+no public constructor or decoder and remains below the future strict receipt;
+in particular, it does not solve hostile same-user mutation between later
+compiler reads.
 
 Ordinary `omega` source resolution now opens one versioned per-user
 `CathedralOS/Omega/source/v1` storage capability under the platform cache
@@ -241,6 +251,17 @@ non-Windows descendant aggregate resources, and strict acceptance are still
 absent. The
 transfer observation is universal for broker-routed bytes, but only macOS
 currently prevents the child from opening a direct connection around it.
+
+Local resolution now has the corresponding successful-result join without the
+Git execution rows. Under the retained local-snapshot lane and entry lock, the
+outer resolver repeats requested-to-canonical path reconciliation, live-source
+comparison, publication custody checks, and an exact published-tree rehash.
+The resulting `LocalSourceResolutionObservation` is inseparable from the
+read-only public result and changes with the request spelling, canonical live
+root, publication, final content/counts, accepted source ceilings, or custody
+identity. Like the Git observation, it is locally successful non-admitting
+provenance rather than `SourceResolutionReceiptV1` or proof against a hostile
+same-user process.
 
 Resolved package custody now also projects a bounded
 `CanonicalSourceClosureSubject`: the exact root request and every authored

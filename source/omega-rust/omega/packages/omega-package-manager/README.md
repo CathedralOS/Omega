@@ -30,7 +30,12 @@ src/
 |   |-- inspection.rs      Source-inspection command boundary.
 |   |-- acquisition/       Capture hostile source under resolver custody.
 |   |   |-- storage.rs     Private per-user storage and retained cache lanes.
-|   |   |-- local/         Local snapshot capture and authentication.
+|   |   |-- local/         Capture, publish, rehash, and issue local-source custody.
+|   |   |   |-- mod.rs     Local acquisition facade and responsibility map.
+|   |   |   |-- capture.rs Capability-relative tree capture and content identity.
+|   |   |   |-- snapshot.rs Locked staging, publication, and final reconciliation.
+|   |   |   |-- observation.rs Opaque successful-resolution observation issuance.
+|   |   |   `-- model.rs   Read-only public local-source results.
 |   |   |-- git/           Git request, fetch, authentication, and materialization.
 |   |   |   |-- cache/     Create, authenticate, invalidate, and reuse Git caches.
 |   |   |   |-- objects/   Authenticate commits, trees, paths, and bounded blobs.

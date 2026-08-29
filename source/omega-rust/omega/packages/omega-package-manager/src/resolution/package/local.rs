@@ -117,19 +117,19 @@ fn bind_external_local_declared_source(
     application_root_allowed: bool,
 ) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
     let lineage = SourceLineage::ExternalLocal(ExternalLocalLineage::canonicalize(
-        &source.canonical_live_root,
+        source.canonical_live_root(),
         source_context,
     )?);
     let (declaration, dependency_requests) =
-        project_package_build(&source.snapshot_root, application_root_allowed)?;
+        project_package_build(source.snapshot_root(), application_root_allowed)?;
     let resolution = ImmutableSourceResolution::external_local(SourceContentDigest::derive(
-        source.normalized.content_identity.as_bytes(),
+        source.normalized().content_identity.as_bytes(),
     ));
 
     Ok(ResolvedPackageSource::from_resolved_parts(
         PackageKey::new(declaration.name, lineage),
         resolution,
-        source.snapshot_root.clone(),
+        source.snapshot_root().to_path_buf(),
         limits,
         dependency_requests,
         source,
