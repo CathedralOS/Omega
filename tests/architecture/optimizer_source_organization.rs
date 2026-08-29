@@ -171,6 +171,10 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn lower_to_target_operations_with_provider_executions_and_installation",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/mod.rs",
+        coordination_marker: "pub fn validate_abstract_to_target_translation",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/function/mod.rs",
         coordination_marker: "pub(super) fn lower_function",
     },
@@ -344,7 +348,7 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/selection/optimized_target_operations/mod.rs",
-        coordination_marker: "pub fn lower_optimized_to_target_operations",
+        coordination_marker: "validate_abstract_to_target_translation",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/selection/assignment/mod.rs",

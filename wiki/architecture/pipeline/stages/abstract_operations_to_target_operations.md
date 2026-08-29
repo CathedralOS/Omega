@@ -15,7 +15,13 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
 ## Implementation Map
 
 - `omega-abstract-operations-to-target-operations/src/lib.rs` owns the stage
-  boundary and common legalization dispatch.
+  responsibility map.
+- `lowering/mod.rs` owns settlement and common legalization dispatch.
+- `validation/mod.rs` independently binds target, roots, and the complete
+  function roster before dispatching exact semantic-family replay.
+- `validation/straight_line_integer_immediate.rs` owns the first closed
+  translation family: parameterless `[IntegerConstant, Return]` to
+  `ReturnIntegerImmediate`.
 - `conditional_control.rs`, `conditional_scalar.rs`, `structural_result.rs`, and
   `structural_scalar.rs` own their corresponding closed operation families.
 - `omega-target-operations/src/lib.rs` owns the target-aware output vocabulary.
@@ -44,6 +50,11 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
 ## Known Gaps
 
 This stage still needs a richer distinction between target legalization, ABI lowering, and later physical assignment once target operations grow beyond the current direct mapping.
+Independent translation validation is intentionally incremental. Its receipt
+lists the exact functions covered by implemented family validators rather than
+claiming whole-plan semantic validation for unmatched functions. Root, target,
+entry, function-order, machine, and attachment custody already cover every
+plan; additional operation families must add adjacent independent replay rows.
 It also preserves ownership summaries without yet lowering them into target
 copy/cleanup operations.
 Value summaries are preserved through target legalization, but are not yet used

@@ -7,6 +7,7 @@
 
 mod lowering;
 mod model;
+mod validation;
 
 pub use lowering::{
     lower_ranked_to_target_operations, lower_to_target_operations,
@@ -14,6 +15,11 @@ pub use lowering::{
     lower_to_target_operations_with_provider_executions_and_installation,
 };
 pub use model::{AdmittedBoundarySettlement, LoweringError};
+pub use validation::{
+    AbstractToTargetFunctionRosterReceipt, AbstractToTargetTranslationValidationError,
+    AbstractToTargetTranslationValidationReceipt, StraightLineIntegerImmediateTranslationError,
+    StraightLineIntegerImmediateTranslationReceipt, validate_abstract_to_target_translation,
+};
 
 #[cfg(test)]
 mod tests;

@@ -12,6 +12,15 @@ straight-line routes or structural direct-call and return routes. Unit,
 boundary-settlement, cleanup, and structural-layout mechanics remain named
 sibling responsibilities rather than hidden branches in one lowering file.
 
+The adjacent 80-line translation-validation entrance is independent of those
+producer routes. It first binds Psi identity, requested target, entry, function
+count/order, machine, and attachment, then descends into exact family replay.
+Its first family reconstructs parameterless straight-line integer literals and
+returns without calling `lowering`, `KnownScalar`, or the scalar-return helper.
+The optimized target carrier retains this receipt. Its family-row roster is
+deliberately partial and therefore cannot overstate validation of other target
+operations while those rows are still being added.
+
 Target legalization and instruction selection produce explicit selected forms
 over virtual registers. Fixed operands are constraints; they do not preassign
 the entire program. Selected rules may fold exact incoming immediates or choose
