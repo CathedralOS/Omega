@@ -13,43 +13,7 @@ decision's durable identity does not change when this queue is pruned.
 
 Last pruned: 2026-08-29.
 
-## Q1 — Lifetime application on conformance target traits
-
-### Context
-
-A public conformance may have its own lifetime telescope, and package review now
-retains lifetime-sensitive type arguments through inherited trait requirements.
-The remaining unsupported form is a conformance whose selected trait itself is
-lifetime-parameterized. Current conformance representations retain the target
-trait's type arguments but no target-trait lifetime application.
-
-### Problem statement
-
-The compiler cannot distinguish, validate, or canonically record which
-conformance lifetime supplies each target-trait lifetime. Accepting the form
-would erase public interface identity; reconstructing it from names or expected
-subject shape would make inference and package review disagree.
-
-### Proposed direction
-
-Treat the target as an ordinary complete trait application. Retain each lifetime
-argument in target-trait declaration order and resolve it to an ordinal in the
-conformance lifetime telescope. Require explicit arguments unless the existing
-language-wide lifetime-elision rule yields exactly one result, and retain that
-resolved result identically through typed checking, conformance closure, and
-package review.
-
-### Alternates
-
-- Acceptable and simpler: require every target-trait lifetime argument to be
-  explicit at a conformance declaration, even where callable/type lifetime
-  elision would otherwise be unique.
-- Tempting but wrong: infer target lifetimes from the conformance subject or
-  trait type arguments without retaining the resolved application.
-- Tempting but wrong: erase the target-trait lifetime application because it
-  has no runtime layout effect; it remains proof and public-interface identity.
-
-## Q2 — Authority-bearing roles for ordinary packages
+## Q1 — Authority-bearing roles for ordinary packages
 
 ### Context
 
@@ -107,7 +71,7 @@ role from names.
   as an ordinary package at the import surface; that preserves two identities
   for one dependency and defeats capability review.
 
-## Q3 — Explicit transport authority for quotient preconditions
+## Q2 — Explicit transport authority for quotient preconditions
 
 ### Context
 
@@ -155,7 +119,7 @@ closed.
 - Tempting but wrong: retain only a solver `Proven` verdict without the selected
   theorem identity, ordered premises, per-side application, and replay data.
 
-## Q4 — Source result schema for placed-view establishment
+## Q3 — Source result schema for placed-view establishment
 
 ### Context
 
@@ -217,7 +181,7 @@ outputs outside the runtime result.
 - Tempting but wrong: derive result identity from source spelling, call-site
   order, accessor names, parameter ordinals, or compact plan fingerprints.
 
-## Q5 — Reborrow restoration disposition
+## Q4 — Reborrow restoration disposition
 
 ### Context
 
@@ -266,7 +230,7 @@ post-return use, cleanup, or Terminal resource claim may be derived from them.
 - Tempting but wrong: skip retired projected parents and return authority
   directly to a root without retaining and validating the complete path.
 
-## Q6 — Nominal result carriers for observing compare-exchange
+## Q5 — Nominal result carriers for observing compare-exchange
 
 ### Context
 
@@ -337,7 +301,7 @@ operation requirement identities separate from these value-type identities.
 - Tempting but wrong: expose `Uncommitted` on the decisive result merely because
   one larger runtime layout would be convenient.
 
-## Q7 — Strict SSH trust and credential authority
+## Q6 — Strict SSH trust and credential authority
 
 ### Context
 
@@ -386,7 +350,7 @@ producer claim.
 - Tempting but wrong: serialize private keys, tokens, or reusable credentials in
   `omega.lock` or source-resolution evidence.
 
-## Q8 — Suspension as control-flow exit or resumable continuation
+## Q7 — Suspension as control-flow exit or resumable continuation
 
 ### Context
 
@@ -425,7 +389,7 @@ and its custody.
 - Tempting but wrong: classify every `MaySuspend` call as a local CFG exit
   without retaining its continuation and outcome-specific state.
 
-## Q9 — Cyclic control flow in Terminal Psi
+## Q8 — Cyclic control flow in Terminal Psi
 
 ### Context
 
@@ -465,7 +429,7 @@ block-loop API.
   validation before loop-carried SSA, ownership, cleanup, and fuel semantics
   exist.
 
-## Q10 — Close the Delta v1 semantic contract
+## Q9 — Close the Delta v1 semantic contract
 
 ### Context
 
@@ -545,7 +509,7 @@ out of Delta without weakening its ability to host a robust compiler.
 - Tempting but wrong: retain the old translator's private capacities, exit
   codes, or Darwin output behavior as language rules.
 
-## Q11 — Select one typed executable Gamma contract
+## Q10 — Select one typed executable Gamma contract
 
 ### Context
 
@@ -615,7 +579,7 @@ failures.
 - Tempting but wrong: make Alpha I/O effects directly callable from arbitrary
   Gamma source merely to avoid defining the compiler-entry adapter.
 
-## Q12 — Fix Beta block formation and definite-initialization reachability
+## Q11 — Fix Beta block formation and definite-initialization reachability
 
 ### Context
 
@@ -680,7 +644,7 @@ semantic acceptance independent of optimizer sophistication.
 - Tempting but wrong: zero-initialize generated frame slots and call the gap
   closed; that changes Beta's written local semantics and hides skipped stores.
 
-## Q13 — Select the canonical Beta compiler outcome carrier
+## Q12 — Select the canonical Beta compiler outcome carrier
 
 ### Context
 
@@ -744,7 +708,7 @@ impossible fixup/table condition maps to `InternalFailure`.
 - Tempting but wrong: prepend a success tag to Alpha tape and thereby change the
   canonical artifact bytes or require a stripping stage.
 
-## Q14 — Canonical kernel propositions for exact scalar operations
+## Q13 — Canonical kernel propositions for exact scalar operations
 
 ### Context
 
@@ -801,7 +765,7 @@ and mirrored verifier search tree.
 - Tempting but wrong: serialize only the producer's chosen goal and trust it
   without independently reconstructing the operation-owned proposition.
 
-## Q15 — Compose the exact Alpha-to-Beta edge within checker capacity
+## Q14 — Compose the exact Alpha-to-Beta edge within checker capacity
 
 ### Context
 
@@ -863,7 +827,7 @@ of adding an assembly-specific evaluator path.
   primitive, trust a producer receipt, compare hashes, or weaken exact total
   partitioning.
 
-## Q16 — Own the ranked native-fuel sponsor entry
+## Q15 — Own the ranked native-fuel sponsor entry
 
 ### Context
 

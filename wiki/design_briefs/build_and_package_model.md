@@ -290,7 +290,7 @@ admission evidence nor a package instance and has no decoder or public
 constructor.
 
 The post-relocation filesystem-producing two-package canary remains blocked on
-the exact ordinary-package staging-authority role in OWNER Q2. A physical-path
+the exact ordinary-package staging-authority role in OWNER Q1. A physical-path
 or spelling exception would invalidate the authority model; the lower-level
 generated-source custody and import path is independently tested without one.
 
@@ -2470,8 +2470,14 @@ telescope of its own. Requirement rows apply the complete inherited type
 substitution before deriving alpha-normalized lifetime topology. Renaming
 binders or changing private realization bodies is stable; selecting another
 lifetime ordinal changes canonical identity. Targeting a lifetime-parameterized
-trait remains fail-closed until Omega settles and retains that declaration-site
-lifetime application.
+trait remains fail-closed pending the implementation task, but its extension is
+settled. The conformance header supplies every target-trait lifetime explicitly;
+each resolves to an alpha-normalized declaration-order ordinal in the
+conformance telescope and is retained beside the target type arguments through
+checked closure, inherited requirement substitution, public review, and
+canonical encoding. Binder renames are stable and another ordinal is a different
+public conformance. Package review consumes the already-resolved mapping and
+never repeats application-site inference.
 Review v63 and canonical row v21 admit selected generic-conformance
 applications in public generic bounds. The row retains the exact
 package-qualified conformance declaration, alpha-normalized lifetime

@@ -916,7 +916,7 @@ owner substitution, general adapted arguments, non-arithmetic logical
 implication, and executable canonical Terminal replay remain fail closed.
 Arithmetic `Expression` entailment is implemented; transport of quotient-domain
 membership and opaque proposition families is language-design blocked on
-**OWNER_QUESTIONS Q3**. Q3 must settle the explicit selection locus, per-side
+**OWNER_QUESTIONS Q2**. Q2 must settle the explicit selection locus, per-side
 transport/weakening application, and canonical theorem identity and replay
 evidence. Ambient domain linking, visibility search, or an opaque solver
 verdict cannot supply that authority.

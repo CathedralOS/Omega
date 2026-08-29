@@ -376,7 +376,7 @@ source-consumption commitment. The orchestration join rejects missing,
 duplicate, foreign, root-self, wrong-target, wrong-closure, and mismatched
 review/custody bundles. This handoff is ephemeral compiler custody, not lock or
 admission evidence. The real filesystem-producing package canary remains
-blocked on OWNER Q2's exact staging-authority package role after std relocation;
+blocked on OWNER Q1's exact staging-authority package role after std relocation;
 no name/path compatibility exception is admitted.
 
 Psi's target-neutral const-generic, fixed-array, const-domain, laid/placed
@@ -925,8 +925,14 @@ telescope of its own. Requirement rows apply the complete inherited type
 substitution before deriving alpha-normalized lifetime topology. Renaming
 binders or changing private realization bodies is stable; selecting another
 lifetime ordinal changes canonical identity. Targeting a lifetime-parameterized
-trait remains fail-closed until Omega settles and retains that declaration-site
-lifetime application.
+trait remains fail-closed pending the implementation task, but its extension is
+settled. The conformance header supplies every target-trait lifetime explicitly;
+each resolves to an alpha-normalized declaration-order ordinal in the
+conformance telescope and is retained beside the target type arguments through
+checked closure, inherited requirement substitution, public review, and
+canonical encoding. Binder renames are stable and another ordinal is a different
+public conformance. Package review consumes the already-resolved mapping and
+never repeats application-site inference.
 Review v63 and canonical row v21 admit selected generic-conformance
 applications in public generic bounds. The row retains the exact
 package-qualified conformance declaration, alpha-normalized lifetime

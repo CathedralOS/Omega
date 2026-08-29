@@ -56,7 +56,7 @@ closed. Compiler-issued package review remains non-admitting.
   - run the existing Windows Job Object process-count, per-process memory,
     aggregate-memory, and aggregate-CPU exhaustion pairs on a native Windows
     worker; cross-compilation is not execution evidence;
-  - narrow macOS SSH discovery/fetch reads after Q7 settles explicit host-key,
+  - narrow macOS SSH discovery/fetch reads after Q6 settles explicit host-key,
     key, credential-provider, and credential-file custody;
   - make the existing broker transfer ceiling complete by denying direct helper
     egress on Linux and Windows; separately enforce whole-operation object-store,
@@ -78,14 +78,15 @@ closed. Compiler-issued package review remains non-admitting.
   The detailed established floor and remaining platform gaps are maintained in
   `source/omega-rust/omega/packages/omega-package-source/SOURCE_RESOLVER_SECURITY.md`.
   Strict SSH trust and credential authority is
-  design-blocked on OWNER Q7; the other bullets are engineering work.
+  design-blocked on OWNER Q6; the other bullets are engineering work.
 
 ## P1 — Total package semantic identity
 
 - [ ] **COMPLETE-CONFORMANCE-IDENTITY.** Retain complete public conformance
-  applications, including target-trait lifetime arguments once OWNER Q1 is
-  settled. Unsupported generic, lifetime-bearing, private, or aliased forms
-  must continue to fail closed rather than disappear from review.
+  applications, including the declaration-site target-trait lifetime mapping
+  owned by **CONFORMANCE-TARGET-LIFETIME-APPLICATION** below. Unsupported
+  generic, lifetime-bearing, private, or aliased forms must continue to fail
+  closed rather than disappear from review.
 
 ## P2 — Total compiler admission projection
 
@@ -205,7 +206,7 @@ closed. Compiler-issued package review remains non-admitting.
   classification for network, dynamic loading, signing, secrets, executable
   installation, DMA/IOMMU, and any future authority-bearing surfaces. Names,
   aliases, paths, and same-spelled package declarations must confer no
-  authority. Ordinary std/provider authority depends on OWNER Q2.
+  authority. Ordinary std/provider authority depends on OWNER Q1.
 
 - [ ] **SOURCE-AND-PROVENANCE-TRIAGE.** Wire an organization-selected advisory
   reviewer into command orchestration with the existing fixed instructions,
@@ -367,11 +368,30 @@ items are still owner-blocked.
   and dependency declarations remain direct statically projected root
   statements and reject inside helpers.
 
-- [ ] **BLOCKED — OWNER Q1: CONFORMANCE-TARGET-LIFETIMES.** Settle and retain
-  the complete target-trait lifetime application before lifetime-parameterized
-  public conformances can enter canonical package identity.
+- [ ] **CONFORMANCE-TARGET-LIFETIME-APPLICATION — complete the conformance
+  header's trait application.** Add the ordered target-trait lifetime arguments
+  beside its existing type arguments in syntax, symbol-resolved, typed, checked,
+  snapshot, and semantic-identity carriers. A conformance declaration supplies
+  every target lifetime explicitly; require exact arity and resolve each source
+  name only to an in-scope conformance lifetime binder. Retain alpha-normalized
+  declaration-order ordinals through direct and inherited requirement
+  substitution, specialization, public conformance evidence, canonical encoding,
+  recovery, and compatibility comparison. Package review consumes checked
+  ordinals and never reconstructs them from spelling, subject shape, or expected
+  trait arguments.
 
-- [ ] **BLOCKED — OWNER Q2: ORDINARY-STD-AND-PROVIDER-AUTHORITY.** Replace all
+  Preserve the existing application-site rule independently: omitted generic-
+  conformance lifetimes are accepted only when ordinary call borrow constraints
+  yield one unique complete mapping, and the resolved mapping enters semantic
+  identity before review. Add positive explicit declaration and concrete-
+  substitution canaries; exact-arity and undeclared-binder failures; inherited-
+  requirement substitution; binder-rename stability; changed-ordinal identity
+  drift; and a zero-candidate application canary distinct from the existing
+  unique and conflicting-constraint cases. Exact ordinal equality remains both
+  identity and selection until Omega gains another lifetime term or lifetime
+  subtyping.
+
+- [ ] **BLOCKED — OWNER Q1: ORDINARY-STD-AND-PROVIDER-AUTHORITY.** Replace all
   physical `source/library/std` routing and direct filesystem/GUI provider
   injection with exact ordinary graph nodes and explicit authenticated role
   bindings. Only core remains compiler-welded. Removing the declared std edge
@@ -395,7 +415,7 @@ items are still owner-blocked.
   bodylessness, catalog presence, nor build policy may synthesize a requirement
   or satisfier edge.
 
-- [ ] **BLOCKED — OWNER Q7: STRICT-SSH-CUSTODY.** Settle host-key, key,
+- [ ] **BLOCKED — OWNER Q6: STRICT-SSH-CUSTODY.** Settle host-key, key,
   credential-provider, and credential-file authority before narrowing the
   remaining SSH read surface or treating SSH resolution as strict evidence.
 

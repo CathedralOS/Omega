@@ -1286,6 +1286,30 @@ SequenceEncoding<Element, Message>:
 }
 ```
 
+A conformance targeting a lifetime-parameterized trait writes that complete
+trait application explicitly:
+
+```omega
+pub trait Reads<'view, Item> {
+    machine read(value: &'view Item);
+}
+
+pub BufferReads<'scope, Item>:
+    Buffer satisfies Reads<'scope, Item>
+{
+    // ...
+}
+```
+
+Every target-trait lifetime argument must be present, must name an in-scope
+conformance lifetime binder, and must match the trait's lifetime telescope in
+declaration order. There is no declaration-site elision. Semantic identity
+stores each selected binder as its alpha-normalized declaration-order ordinal:
+renaming `'scope` is stable, while selecting another binder changes the
+conformance. The same mapping substitutes through direct and inherited
+requirements and survives package review even though lifetimes erase at
+runtime.
+
 One concrete family member is selected by applying that name inside the
 enclosing machine's static telescope:
 
@@ -1303,9 +1327,18 @@ telescope from the enclosing machine's arguments. Type, `const`, and
 static-machine arguments are complete and explicit even when the expected
 subject and trait application could reconstruct them. The expected shape only
 checks the resulting closed conformance. Ordinary lifetime elision remains
-available; the resolved lifetime is retained in semantic identity and an
-ambiguous lifetime rejects. A bare name denotes a conformance argument only
-when it is already closed, including a forwarded evidence binder.
+available at a later conformance application only when ordinary call-site borrow
+constraints produce one unique complete lifetime mapping. The resolved mapping
+is retained in semantic identity; zero candidates and conflicting candidates
+reject, and an explicit mapping must agree with the constraints. A bare name
+denotes a conformance argument only when it is already closed, including a
+forwarded evidence binder.
+
+Today a lifetime argument can only name a binder in the active telescope. Omega
+has no lifetime constant such as `'static`, higher-ranked lifetime application,
+authored outlives bound, variance, or lifetime subtyping. Exact binder-ordinal
+equality is therefore both conformance identity and selection. Adding any of
+those facilities must revisit this target-application and matching rule.
 
 The conformance telescope is semantic identity for every concrete application.
 Adding, removing, or reordering a type, `const`, or static-machine binder breaks
