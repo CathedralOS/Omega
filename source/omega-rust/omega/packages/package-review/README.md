@@ -89,6 +89,13 @@ than inventing an explicit reference-expression node. Operator-contract
 rederivation also compares access modes instead of treating all borrows as the
 same law expression.
 
+Named operators called through paths such as `Token::ordered(left, right)` use
+the existing structural call row. Projection rejoins the compiler's exact
+named-operator resolution with the authored call-selection occurrence, retains
+the package-qualified operator target, and excludes the static namespace from
+the optional value receiver. Target drift and explicit reference-argument type
+drift reject. This adds no new canonical atom beyond schema v84 / row v42.
+
 Explicit boundary-operator family review rows retain one exact family and
 provider identity, selected target, selection authority, complete-declaration
 coverage, and the canonical exact-coordinate-to-plan mapping. Independent

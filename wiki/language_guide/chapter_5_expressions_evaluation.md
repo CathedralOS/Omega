@@ -159,6 +159,13 @@ shape are ambiguous and reject. A second surface spelling requires a second
 declaration, which may forward to the same implementation. A named `operator`
 with no fixed-token surface remains callable by its path.
 
+A path-qualified named call such as `Token::ordered(left, right)` selects the
+same operator declaration and overload model. `Token` is a static namespace in
+that form, not a value receiver; an attached call on a value retains its actual
+receiver. Compiler consumers must use the checked named-operator resolver and
+authored selection occurrence rather than infer identity from the leaf spelling
+`ordered`.
+
 An operator is an independently nameable declaration and is package-private by
 default. `pub operator` permits another package to select it. A qualified
 spelling such as `Vector::add` does not inherit `Vector`'s visibility; the

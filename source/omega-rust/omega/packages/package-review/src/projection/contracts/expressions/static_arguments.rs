@@ -68,6 +68,19 @@ pub(crate) fn contract_call_static_parameter_kinds(
             .filter(|signature| signature.symbol == target)
             .map(|signature| project(compilation.state_signature_type_parameters(signature)))
     }));
+    candidates.extend(
+        compilation
+            .operators()
+            .iter()
+            .chain(
+                compilation
+                    .domain_definitions()
+                    .iter()
+                    .flat_map(|domain| compilation.domain_operators(domain)),
+            )
+            .filter(|operator| operator.symbol == target)
+            .map(|operator| project(compilation.operator_type_parameters(operator))),
+    );
     let [parameter_kinds] = candidates.as_slice() else {
         return Err(vec![Diagnostic::error(format!(
             "reviewed {} `{}` contract call target rejoins {} static telescopes; expected exactly one",

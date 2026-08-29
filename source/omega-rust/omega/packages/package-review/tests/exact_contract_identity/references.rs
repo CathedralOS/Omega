@@ -120,3 +120,46 @@ fn reference_review_rejects_access_tamper_after_checking() {
             .contains("does not match its proposition parameter type")
     }));
 }
+
+#[test]
+fn contract_call_reference_review_rejects_access_tamper_after_checking() {
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        "pub machine observes(value: &mut i32) -> bool { true }\n\
+         pub proposition reviewed(value: i32) = observes(&mut value);\n",
+    );
+    package.write(
+        "build.omg",
+        "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+    );
+    let mut checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("contract-call reference-tamper fixture should check");
+    let borrow = checked
+        .typed
+        .expression_table
+        .iter_expressions()
+        .find_map(|(expression, node)| {
+            matches!(node, psi_typed_trees::expression::ExpressionNode::Borrow(_))
+                .then_some(expression)
+        })
+        .expect("contract-call borrow expression");
+    let psi_typed_trees::expression::ExpressionNode::Borrow(borrow) =
+        checked.typed.expression_table.expression_mut(borrow)
+    else {
+        unreachable!()
+    };
+    borrow.access = psi_language_core::ReferenceAccess::Shared;
+
+    let diagnostics = project_checked_package_review(&checked)
+        .expect_err("review must reject contract-call reference access changed after checking");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("does not match its contract-call parameter type")
+    }));
+}
