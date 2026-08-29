@@ -43,7 +43,7 @@ closed. Compiler-issued package review remains non-admitting.
   - run the existing Windows Job Object process-count, per-process memory,
     aggregate-memory, and aggregate-CPU exhaustion pairs on a native Windows
     worker; cross-compilation is not execution evidence;
-  - narrow macOS SSH discovery/fetch reads after Q11 settles explicit host-key,
+  - narrow macOS SSH discovery/fetch reads after Q10 settles explicit host-key,
     key, credential-provider, and credential-file custody;
   - make the existing broker transfer ceiling complete by denying direct helper
     egress on Linux and Windows; separately enforce whole-operation object-store,
