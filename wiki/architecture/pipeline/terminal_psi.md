@@ -859,15 +859,21 @@ resolves checked parameter positions against the source-handle-free state
 signatures. One acyclic two-predecessor join may reconverge when both paths
 reconstruct the identical ordered structural frontier. Scalar arguments remain
 ordinary typed edge bindings and need not be the same values. A divergent
-custody map, second join, third predecessor, or cycle rejects. Unconditional
-jumps and conditional arms may additionally pass
+custody map, second join, or third predecessor rejects. General cycles also
+reject; the exact ranked unsigned-countdown representation is the sole
+exception. Its acyclic skeleton establishes the header frontier, one complete
+covered cycle computes the preservation candidate, and all live claims, owned
+places, and partial-custody paths must match exactly before representation
+admission. Unconditional jumps and conditional arms may additionally pass
 direct primitive scalar inputs into typed successor block parameters; the edge
 materializes those arguments before committing its structural cleanup.
 Production emits the resulting jump/conditional/return blocks and rejects stale
-scalar or structural signatures, arm order, or cleanup. This slice admits only reachable,
+scalar or structural signatures, arm order, or cleanup. Apart from the exact
+ranked-countdown preservation rule above, this slice admits only reachable,
 acyclic custody lineages whose surviving place order remains canonical. Wider
-joins, cycles, reordering, computed guards or successor values, locals, and richer
-cleanup continue to fail closed. The terminal verifier remains responsible for
+joins, unranked or differently shaped cycles, reordering, computed guards or
+successor values, locals, and richer cleanup continue to fail closed. The
+terminal verifier remains responsible for
 reconstructing every emitted cleanup frontier and scalar edge binding.
 
 The first nonempty scalar-return source path composes the same cleanup evidence

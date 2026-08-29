@@ -136,6 +136,10 @@ pub(crate) fn reconstruct_validated_structural_ownership_frontiers(
                 .iter()
                 .map(|block| (block.id, block))
                 .collect::<BTreeMap<_, _>>();
+            // Execution validation currently rejects every ranked SCC before
+            // this reconstruction API can be reached. When that fence moves,
+            // this call must receive the already-validated ranked backedges
+            // rather than silently treating cyclic control as acyclic.
             frontier::validate_structural_frontier(
                 module,
                 machine,
