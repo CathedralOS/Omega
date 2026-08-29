@@ -15,14 +15,19 @@ system or coinduction rule.
   running and observationally silent.
 
 `bc-main-resource-refinement.elab` is the 4,254-byte proof-authoring form for
-the first exact-subject tranche. It models the exact four-instruction Alpha
-cleanup against the single Beta resource return, carries an arbitrary sticky
-resource identity to typed `Exhaust`, proves every internal step silent,
-decreases instruction debt exactly, and makes terminal and Invalid states
-self-loop. Its final proposition instantiates the five canonical structural
-resource origins. It remains a candidate until an Alpha-owned ledger emits the
-same declarations and goal from the canonical `bc.beta`, tape, and `B_bc1`;
-the proof source cannot bind those subjects by naming them itself.
+the first owner-bound subject seam. It models four symbolic Alpha cleanup
+stages against the single Beta resource return, carries an arbitrary sticky
+resource identity to typed `Exhaust`, proves every stage silent, decreases
+stage debt exactly, and makes terminal and Invalid states self-loop. Its final
+proposition instantiates the five canonical structural resource origins.
+The default `bc-block-control.sh` gate now runs an Alpha-owned ledger over the
+canonical `bc.beta`, tape, and `B_bc1`, emits the declaration/goal prefix,
+byte-compares that prefix with the elaborated candidate, appends only the proof
+term, and requires the rooted checker to accept. Two controls demonstrate that
+otherwise-valid certificates with swapped subject or profile identities fail
+at the owner boundary. The remaining exact tranche must expand the four stages
+into the raw instruction-by-instruction `next_alpha` relation; this seam does
+not pretend that the stages are Alpha instructions.
 
 It also checks a reusable induction lemma over opaque source/target trace
 functions, an opaque synchronization function, and a binary symbolic relation
@@ -42,6 +47,6 @@ sh source/beta/compiler/validation/admission/fol/trace-refinement-seam.sh
 ```
 
 This seam proves that the selected proof architecture is expressible and has
-operational teeth.  It does **not** admit `bc.beta`: exact Beta/Alpha state
-reconstruction, all `B_bc1` observations and terminal classes, exact-subject
-binding, and the complete divergence theorem remain open.
+operational teeth.  It does **not** admit `bc.beta`: raw Beta/Alpha state
+reconstruction, instruction-level cleanup, all `B_bc1` observations and
+terminal classes, and the complete divergence theorem remain open.

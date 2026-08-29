@@ -192,23 +192,31 @@ Canonical subjects:
     per-length unrolling without granting a producer control over a machine,
     relation schema, or premise.
   - [x] The 4,254-byte `bc-main-resource-refinement.elab` proof-authoring
-    candidate models the exact cleanup shape: one Beta resource return, four
-    Alpha successors, empty observations on every internal step, exact
-    instruction-debt decrease, typed `Exhaust` payload preservation, terminal
-    self-loops, and Invalid self-loops. Its final proposition instantiates all
-    five root-reachable structural resource origins and passes the same
-    three-checker seam. It does not become exact-subject evidence merely by
-    naming those identities; the remaining owner-binding item below is
-    intentionally still open.
-  - [ ] Bind the first exact-subject theorem tranche to `bc.beta`'s
-    `main.resource` cleanup: one Beta return maps to the independently decoded
-    Alpha load/epilogue/root-halt sequence, preserves empty stdout and the
-    sticky resource identity, projects the exact typed exhaustion outcome,
-    keeps invalid states unreachable, and decreases an instruction-debt rank.
-    The artifact-aware owner must construct the declarations and goal from the
-    canonical source, tape, and `B_bc1`; an untrusted producer supplies only a
-    proof term. Existing ROOT resource-join cells are an implementation map and
-    differential evidence, never theorem premises.
+    candidate models one Beta resource return and four symbolic Alpha cleanup
+    stages, with empty observations, exact stage-debt decrease, typed `Exhaust`
+    payload preservation, terminal self-loops, and Invalid self-loops. Its
+    final proposition instantiates all five root-reachable structural resource
+    origins and passes the same three-checker seam. These are deliberately
+    called stages rather than instructions: the raw `next_alpha` expansion is
+    still open below.
+  - [x] Bind that stage-level schema to the exact subjects. The default
+    `bc-block-control.sh` gate now substitutes an Alpha ledger for the ROOT
+    publication endpoint. After directly rechecking the canonical cleanup and
+    five resource joins, the ledger emits the fixed declarations and goal for
+    canonical `bc.beta`, its persisted tape, `B_bc1`, and the maximal
+    observation identity. The untrusted elaborator contributes only the proof
+    term after a byte-for-byte prefix comparison; the rooted checker accepts
+    the combined certificate. Two controls construct independently valid
+    proofs with swapped subject and profile identities and confirm that the
+    owner boundary rejects both. ROOT/GFP cells are not theorem premises.
+  - [ ] Expand the first exact-subject theorem tranche through the decoded raw
+    `next_alpha` instruction sequence for `main.resource`: one Beta return maps
+    through every load/epilogue/return/root-halt instruction, preserves empty
+    stdout and the sticky resource identity, projects the exact typed
+    exhaustion outcome, keeps invalid states unreachable, and decreases an
+    instruction-debt rank. Reuse the artifact owner's decoded PCs and
+    successors rather than treating the four administrative stages as raw
+    instructions.
 - [x] Keep the default edge bounded to cold construction, artifact framing,
   and exact maximal-observation reconstruction. Alternate checkers, fuzzing,
   exhaustive mutations, and developer reports remain optional. The copied
