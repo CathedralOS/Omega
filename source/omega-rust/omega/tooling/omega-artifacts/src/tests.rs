@@ -33,10 +33,6 @@ use omega_external_roots::{
     bind_opaque_adapter_stack_realization, compose_bound_entry_stack_epochs, compose_fixed_fuel,
 };
 use omega_target::{Architecture, TargetProfile};
-use psi_checked_trees::CheckedTrees;
-use psi_checked_trees::machine::Machine;
-use psi_checked_trees::name::Identifier;
-use psi_checked_trees::state::State;
 use psi_extents::{
     AddressSpaceId, ExtentDiagnostic, ExtentLineageId, ExtentProvenanceId, ExtentRightId,
     ExtentRights, ExtentRootGrant, MappingEraId,
@@ -45,14 +41,13 @@ use psi_layout_plans::{
     ArtifactInstallationScopeId, EntryStubId, PlacementAddressRange, PlacementConstraints,
     PlacementPhase, PlacementSite,
 };
-use psi_symbols::SymbolHandle;
 
 use super::external_root_report::external_root_records_manifest_json;
 use super::{
     ArtifactWriter, TrustCrashCause, TrustCrashRouteBucket, TrustCrashRouteGuard,
     TrustGenericAcceptedInstanceRow, TrustProgressPremiseRow, TrustProgressPremiseSubject,
     TrustProviderRealization, TrustProviderRequirementRow, TrustQualificationRow, TrustReport,
-    TrustReportRow, build_backend_surface_report, value_placement_json,
+    TrustReportRow, value_placement_json,
 };
 
 fn normalized_windows_import(library: &[u8], export: &[u8]) -> TrustProviderRealization {
@@ -849,154 +844,6 @@ fn writes_canonical_executable_container_atomically() {
     assert_eq!(decoded.proof(), b"proof");
     assert!(!root.join(".program.omega-artifact.tmp").exists());
     std::fs::remove_dir_all(root).expect("remove test artifact directory");
-}
-
-#[test]
-fn missing_entry_selection_does_not_infer_main_machine() {
-    let mut program = CheckedTrees::default();
-    let mut machine = Machine {
-        symbol: SymbolHandle::default(),
-        name: Identifier::generated("Main::main"),
-        attached_data: None,
-        owned_data: Default::default(),
-        satisfies: Default::default(),
-        states: Default::default(),
-        ..Default::default()
-    };
-    program.typed.push_machine_state(
-        &mut machine,
-        State {
-            symbol: SymbolHandle::default(),
-            name: Identifier::generated("main"),
-            parameters: Default::default(),
-            return_type: Default::default(),
-            ..Default::default()
-        },
-    );
-    program.typed.push_machine(machine);
-
-    let report = build_backend_surface_report(&program, None);
-
-    assert!(report.entry_points.is_empty());
-    assert_eq!(report.machines.len(), 1);
-}
-
-#[test]
-fn explicit_entry_selection_controls_surface_report() {
-    let mut program = CheckedTrees::default();
-    for (machine_name, state_name) in [("Main::main", "main"), ("Application::launch", "start")] {
-        let mut machine = Machine {
-            name: Identifier::generated(machine_name),
-            ..Default::default()
-        };
-        program.typed.push_machine_state(
-            &mut machine,
-            State {
-                name: Identifier::generated(state_name),
-                ..Default::default()
-            },
-        );
-        program.typed.push_machine(machine);
-    }
-
-    let report = build_backend_surface_report(&program, Some("Application::launch"));
-    let entries = report
-        .entry_points
-        .iter()
-        .map(|(_, entry)| (entry.machine.as_str(), entry.state.as_str()))
-        .collect::<Vec<_>>();
-
-    assert_eq!(entries, [("Application::launch", "start")]);
-}
-
-#[test]
-fn counts_contained_machines_from_attached_data_fields() {
-    let worker_data_symbol = SymbolHandle::from_arena_index(1);
-    let main_data_symbol = SymbolHandle::from_arena_index(2);
-    let worker_machine_symbol = SymbolHandle::from_arena_index(3);
-    let main_machine_symbol = SymbolHandle::from_arena_index(4);
-    let worker_field_symbol = SymbolHandle::from_arena_index(5);
-    let mut program = CheckedTrees::default();
-    let worker_type = program.typed.type_reference_table.insert(
-        psi_checked_trees::types::TypeReferenceNode::Named {
-            symbol: worker_data_symbol,
-            name: Identifier::generated("Worker"),
-        },
-    );
-
-    program
-        .typed
-        .push_data_definition(psi_checked_trees::data::DataDefinition {
-            symbol: worker_data_symbol,
-            name: Identifier::generated("Worker"),
-            ..Default::default()
-        });
-    let mut main_data = psi_checked_trees::data::DataDefinition {
-        symbol: main_data_symbol,
-        name: Identifier::generated("Main"),
-        ..Default::default()
-    };
-    program.typed.push_data_member(
-        &mut main_data,
-        psi_checked_trees::data::DataMember::Field(psi_checked_trees::data::DataField {
-            identity: None,
-            symbol: worker_field_symbol,
-            name: Identifier::generated("worker"),
-            relevance: Default::default(),
-            type_reference: worker_type,
-        }),
-    );
-    program.typed.push_data_definition(main_data);
-    program.typed.push_machine(Machine {
-        symbol: worker_machine_symbol,
-        name: Identifier::generated("Worker::run"),
-        attached_data: Some(Identifier::generated("Worker")),
-        ..Default::default()
-    });
-    program.typed.push_machine(Machine {
-        symbol: main_machine_symbol,
-        name: Identifier::generated("Main::main"),
-        attached_data: Some(Identifier::generated("Main")),
-        ..Default::default()
-    });
-    let targets = program.facts.carry.contained_targets.insert_many([
-        psi_checked_trees::ContainedMachineTargetFact {
-            machine: worker_machine_symbol,
-        },
-    ]);
-    let fields = program.facts.carry.contained_fields.insert_many([
-        psi_checked_trees::ContainedMachineFieldFact {
-            field: worker_field_symbol,
-            data: worker_data_symbol,
-            type_reference: worker_type,
-            targets,
-        },
-    ]);
-    program
-        .facts
-        .carry
-        .machine_topologies
-        .insert(psi_checked_trees::MachineCarryTopologyFact {
-            machine: worker_machine_symbol,
-            fields: psi_arena::HandleSpan::empty(),
-        });
-    program
-        .facts
-        .carry
-        .machine_topologies
-        .insert(psi_checked_trees::MachineCarryTopologyFact {
-            machine: main_machine_symbol,
-            fields,
-        });
-
-    let report = build_backend_surface_report(&program, None);
-    let main = report
-        .machines
-        .iter()
-        .find_map(|(_, machine)| (machine.name == "Main::main").then_some(machine))
-        .expect("main machine surface");
-
-    assert_eq!(main.contained_machines, 1);
 }
 
 #[test]

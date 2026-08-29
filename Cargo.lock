@@ -344,21 +344,17 @@ dependencies = [
 name = "omega-artifacts"
 version = "0.1.0"
 dependencies = [
- "omega-backend-report-types",
  "omega-calling-conventions",
  "omega-core",
  "omega-effects",
  "omega-executable-installation",
  "omega-external-roots",
- "omega-image",
  "omega-target",
- "psi-arena",
  "psi-checked-trees",
  "psi-core",
  "psi-diagnostics",
  "psi-extents",
  "psi-layout-plans",
- "psi-symbols",
  "psi-typed-trees",
  "serde_json",
 ]
@@ -391,14 +387,6 @@ dependencies = [
  "psi-checked-trees",
  "psi-layout-plans",
  "psi-symbols",
-]
-
-[[package]]
-name = "omega-backend-report-types"
-version = "0.1.0"
-dependencies = [
- "omega-target",
- "psi-arena",
 ]
 
 [[package]]
