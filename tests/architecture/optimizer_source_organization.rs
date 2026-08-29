@@ -80,6 +80,10 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "fn seal_staged_post_allocation_machine",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/machine/active_resident_rematerialization/mod.rs",
+        coordination_marker: "pub fn stage_optimized_active_resident_rematerialization",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/machine/literal_folds/mod.rs",
         coordination_marker: "pub fn run_selected_lowering_optimizations",
     },
