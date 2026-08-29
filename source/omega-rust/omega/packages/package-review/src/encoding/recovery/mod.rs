@@ -18,14 +18,14 @@ pub use model::{
 
 use crate::evidence::{PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk};
 
-pub(super) fn canonical_row_subject_for_ledger(
+pub(crate) fn canonical_row_subject_for_ledger(
     canonical_bytes: &[u8],
 ) -> Result<(PackageKeyIdentity, TargetProfile), PackageReviewCanonicalRowRecoveryError> {
     let framing = canonical_row_framing_for_ledger(canonical_bytes)?;
     Ok((framing.package, framing.target))
 }
 
-pub(super) fn canonical_row_framing_for_ledger(
+pub(crate) fn canonical_row_framing_for_ledger(
     canonical_bytes: &[u8],
 ) -> Result<CanonicalRowLedgerFraming, PackageReviewCanonicalRowRecoveryError> {
     let framing = framing::parse_canonical_row(
@@ -41,10 +41,10 @@ pub(super) fn canonical_row_framing_for_ledger(
     })
 }
 
-pub(super) struct CanonicalRowLedgerFraming {
-    pub(super) package: PackageKeyIdentity,
-    pub(super) target: TargetProfile,
-    pub(super) kind: PackageReviewCanonicalRowKind,
-    pub(super) risk: PackageReviewCanonicalRowRisk,
-    pub(super) key_bytes: Vec<u8>,
+pub(crate) struct CanonicalRowLedgerFraming {
+    pub(crate) package: PackageKeyIdentity,
+    pub(crate) target: TargetProfile,
+    pub(crate) kind: PackageReviewCanonicalRowKind,
+    pub(crate) risk: PackageReviewCanonicalRowRisk,
+    pub(crate) key_bytes: Vec<u8>,
 }

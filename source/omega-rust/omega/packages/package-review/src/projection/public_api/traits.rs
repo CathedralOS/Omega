@@ -1,29 +1,29 @@
-use super::contracts::metadata::contracts::{
+use super::super::contracts::metadata::contracts::{
     ContractProjectionContext, project_trait_requirement_contracts,
 };
-use super::contracts::metadata::operations::{
+use super::super::contracts::metadata::operations::{
     project_signature_invocation_source_locations, project_signature_operational_source_locations,
 };
-use super::contracts::metadata::parameters::{
+use super::super::contracts::metadata::parameters::{
     collect_callable_parameter_source_locations, collect_type_parameter_source_locations,
 };
-use super::contracts::metadata::service_reach::project_signature_service_reach_source_locations;
-use super::contracts::metadata::source_locations::project_contract_source_locations;
-use super::contracts::propositions::evidence::collect_evidence_requirements;
-use super::evidence::source_locations::project_nested_declaration_source_location;
-use super::exact_identity::conformances::project_conformance_bounds;
-use super::exact_identity::lifetime_identities::lifetime_binder_ordinal;
-use super::exact_identity::nominal_identities::{
+use super::super::contracts::metadata::service_reach::project_signature_service_reach_source_locations;
+use super::super::contracts::metadata::source_locations::project_contract_source_locations;
+use super::super::contracts::propositions::evidence::collect_evidence_requirements;
+use super::super::exact_identity::conformances::project_conformance_bounds;
+use super::super::exact_identity::lifetime_identities::lifetime_binder_ordinal;
+use super::super::exact_identity::nominal_identities::{
     nominal_identity, reviewed_package_owns, trait_requirement_identity,
 };
-use super::exact_identity::parameter_contracts::{
+use super::super::exact_identity::parameter_contracts::{
     project_type_parameters, project_type_parameters_after,
 };
-use super::exact_identity::type_identities::review_signature_type_identity_with_binders;
-use super::operational::{
+use super::super::exact_identity::type_identities::review_signature_type_identity_with_binders;
+use super::super::operational::{
     project_crash_routes, project_service_row, project_synchronous_invocations,
     project_trait_requirement_termination,
 };
+use super::super::source_custody::locations::project_nested_declaration_source_location;
 use crate::evidence::projection::{ProjectedNestedSourceLocation, ProjectedReviewRow};
 use crate::evidence::{
     PackageReviewConformanceShape, PackageReviewConformanceSubject, PackageReviewEvidenceInterface,

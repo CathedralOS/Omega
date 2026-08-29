@@ -1,7 +1,7 @@
 use crate::evidence::PackageReviewSourceLocationRole;
 use crate::evidence::projection::ProjectedNestedSourceLocation;
-use crate::projection::evidence::source_locations::canonical_source_span_location;
 use crate::projection::exact_identity::checked_facts::exactly_one;
+use crate::projection::source_custody::locations::canonical_source_span_location;
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 use psi_symbols::SymbolHandle;

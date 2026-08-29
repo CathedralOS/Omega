@@ -1,4 +1,4 @@
-use super::super::exact_identity::nominal_identities::{nominal_identity, reviewed_package_owns};
+use super::exact_identity::nominal_identities::{nominal_identity, reviewed_package_owns};
 use crate::evidence::projection::{ProjectedReviewRow, ProjectedSemanticDependencyRow};
 use crate::evidence::{
     PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,

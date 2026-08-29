@@ -1,0 +1,225 @@
+use crate::support::*;
+
+#[test]
+fn dangerous_hardware_authorities_require_exact_toolchain_provenance() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+
+    let canonical = TempPackage::new();
+    canonical.write(
+        "main.omg",
+        r#"use omega::language::core::interrupt;
+use omega::language::core::extent;
+
+pub machine exercise_hardware()
+reaches MachineControl + PortIo + InterruptMaskControl + InterruptEntry + ExtentRootProvider
+{
+}
+"#,
+    );
+    canonical.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let canonical_checked = compile_to_checked_with_packages(
+        &canonical.0.join("main.omg"),
+        Some(target),
+        package_inputs(&canonical.0),
+    )
+    .expect("canonical hardware-authority fixture should check");
+    let canonical_review = project_checked_package_review(&canonical_checked)
+        .expect("canonical hardware-authority review should close");
+    let classes = canonical_review
+        .dangerous_authorities()
+        .iter()
+        .map(|authority| authority.class())
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(
+        classes,
+        std::collections::BTreeSet::from([
+            PackageReviewDangerousAuthorityClass::MachineControl,
+            PackageReviewDangerousAuthorityClass::PortIo,
+            PackageReviewDangerousAuthorityClass::InterruptControl,
+            PackageReviewDangerousAuthorityClass::InterruptEntry,
+            PackageReviewDangerousAuthorityClass::RootMemory,
+        ])
+    );
+    assert!(
+        canonical_review
+            .dangerous_authorities()
+            .iter()
+            .all(|authority| matches!(
+                authority.service().owner(),
+                PackageReviewNominalOwner::ToolchainSource(_)
+            ))
+    );
+    let hardware = canonical_review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "exercise_hardware")
+        .expect("hardware callable review");
+    assert!(matches!(
+        hardware.checked_service_reach(),
+        PackageReviewCheckedServiceReach::CheckedBody {
+            realized,
+            concrete,
+        } if realized.is_empty() && concrete.is_empty()
+    ));
+    let slack_classes = canonical_review
+        .dangerous_authority_slack()
+        .iter()
+        .map(|slack| slack.class())
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(slack_classes, classes);
+    assert!(
+        canonical_review
+            .dangerous_authority_slack()
+            .iter()
+            .all(|slack| {
+                slack.callable().path() == "exercise_hardware"
+                    && matches!(
+                        slack.service().owner(),
+                        PackageReviewNominalOwner::ToolchainSource(_)
+                    )
+            })
+    );
+    let slack_rows = canonical_review
+        .canonical_rows()
+        .expect("hardware canonical rows")
+        .into_iter()
+        .filter(|row| row.kind() == PackageReviewCanonicalRowKind::DangerousAuthoritySlack)
+        .collect::<Vec<_>>();
+    assert_eq!(slack_rows.len(), 5);
+    assert!(slack_rows.iter().all(|row| {
+        row.risk() == PackageReviewCanonicalRowRisk::AuditRecommended
+            && row.source().authored_locations().is_some_and(|locations| {
+                locations.iter().any(|location| {
+                    location.role() == PackageReviewSourceLocationRole::AuthorityDeclaration
+                }) && locations.iter().any(|location| {
+                    location.role() == PackageReviewSourceLocationRole::AuthorityExposure
+                })
+            })
+    }));
+
+    let lookalike = TempPackage::new();
+    lookalike.write(
+        "main.omg",
+        r#"pub boundary trait MachineControl {}
+pub boundary trait PortIo {}
+pub boundary trait InterruptMaskControl {}
+pub boundary trait InterruptEntry {}
+pub boundary trait ExtentRootProvider {}
+
+pub machine exercise_hardware()
+reaches MachineControl + PortIo + InterruptMaskControl + InterruptEntry + ExtentRootProvider
+{
+}
+"#,
+    );
+    lookalike.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let lookalike_checked = compile_to_checked_with_packages(
+        &lookalike.0.join("main.omg"),
+        Some(target),
+        package_inputs(&lookalike.0),
+    )
+    .expect("package-owned hardware lookalikes should check as ordinary source");
+    let lookalike_review = project_checked_package_review(&lookalike_checked)
+        .expect("package-owned hardware-lookalike review should close");
+    assert!(
+        lookalike_review.dangerous_authorities().is_empty(),
+        "package-controlled hardware names must not mint compiler-owned risk classes"
+    );
+    assert!(
+        lookalike_review.dangerous_authority_slack().is_empty(),
+        "package-controlled hardware names must not mint compiler-owned slack classes"
+    );
+}
+
+#[test]
+fn representation_tcb_retains_private_opaque_data_as_unbound() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write("main.omg", "boundary data InternalToken;\n");
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("opaque representation fixture should check");
+    let review = project_checked_package_review(&checked)
+        .expect("opaque representation review should close");
+    let [row] = review.representation_tcb() else {
+        panic!("one private representation-TCB row")
+    };
+    assert_eq!(row.declaration().path(), "InternalToken");
+    assert_eq!(
+        row.declaration().owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
+    assert_eq!(row.abi(), PackageReviewRepresentationAbiCommitment::Unbound);
+    assert_eq!(
+        row.mechanism(),
+        PackageReviewRepresentationMechanism::Unbound
+    );
+    assert!(
+        review.public_data().is_empty(),
+        "ordinary public API projection remains visibility-scoped"
+    );
+
+    let control = TempPackage::new();
+    control.write("main.omg", "data InternalToken { }\n");
+    control.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let control_checked = compile_to_checked_with_packages(
+        &control.0.join("main.omg"),
+        Some(target),
+        package_inputs(&control.0),
+    )
+    .expect("ordinary private representation fixture should check");
+    let control_review = project_checked_package_review(&control_checked)
+        .expect("ordinary private representation review should close");
+    assert!(control_review.public_data().is_empty());
+    assert!(control_review.representation_tcb().is_empty());
+    assert_ne!(
+        review
+            .canonical_review_bytes()
+            .expect("opaque review encoding"),
+        control_review
+            .canonical_review_bytes()
+            .expect("ordinary review encoding"),
+        "a private opaque representation-TCB row must enter comparison identity"
+    );
+}

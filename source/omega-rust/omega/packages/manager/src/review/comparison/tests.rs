@@ -1,4 +1,4 @@
-use super::compare::derive_candidate_closure_commitment;
+use super::commitments::derive_candidate_closure_commitment;
 use super::*;
 use crate::review::evidence::PackageReviewEvidence;
 use crate::{

@@ -1,4 +1,4 @@
-use super::source_locations::{canonical_source_location, canonical_source_span_location};
+use super::locations::{canonical_source_location, canonical_source_span_location};
 use crate::evidence::projection::{
     ProjectedDangerousAuthorityRow, ProjectedDangerousAuthoritySlackRow, ProjectedReviewRow,
     ProjectedSemanticDependencyRow,

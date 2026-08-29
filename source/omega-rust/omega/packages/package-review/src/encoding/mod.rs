@@ -1,7 +1,6 @@
 use crate::evidence::{CheckedPackageReviewProjection, PackageReviewCanonicalRow};
 
 mod canonical;
-mod obligation_ledger;
 mod recovery;
 mod values;
 
@@ -9,23 +8,13 @@ pub use canonical::{
     PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION,
     PackageReviewEncodingError,
 };
-pub use obligation_ledger::{
-    ORDINARY_PACKAGE_OBLIGATION_LEDGER_ENCODING_VERSION,
-    ORDINARY_PACKAGE_OBLIGATION_SCHEMA_VERSION, OrdinaryPackageObligationLedger,
-    OrdinaryPackageObligationLedgerFingerprint, OrdinaryPackageObligationLedgerRecoveryError,
-    OrdinaryPackageObligationRow, OrdinaryPackageObligationSchemaIdentity,
-    decode_ordinary_package_obligation_ledger, encode_ordinary_package_obligation_ledger,
-    ordinary_package_obligation_ledger_fingerprint,
-    ordinary_package_obligation_ledger_from_compiler_rows,
-    reconstruct_ordinary_package_obligation_ledger, recover_ordinary_package_obligation_ledger,
-    validate_ordinary_package_obligation_ledger,
-};
 pub use recovery::{
     DecodedPackageReviewCanonicalRow, PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION,
     PackageReviewCanonicalRowRecoveryError, PackageReviewCanonicalRowRecoveryLimits,
     decode_package_review_canonical_row, decode_package_review_canonical_row_with_limits,
     encode_package_review_canonical_row, encode_package_review_canonical_row_with_limits,
 };
+pub(crate) use recovery::{canonical_row_framing_for_ledger, canonical_row_subject_for_ledger};
 impl CheckedPackageReviewProjection {
     /// Versioned, source-handle-free comparison bytes for this review-only
     /// projection. These bytes are not a package certificate and must not be

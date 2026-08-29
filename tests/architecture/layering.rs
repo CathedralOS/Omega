@@ -744,6 +744,7 @@ fn package_subsystem_has_discoverable_owners_and_bounded_modules() {
         "manager/src/review/mod.rs",
         "manager/src/records/mod.rs",
         "package-review/src/lib.rs",
+        "package-review/src/obligation_ledger/mod.rs",
         "resolver-execution/src/lib.rs",
     ] {
         let entrance = packages.join(required);
@@ -775,6 +776,12 @@ fn package_subsystem_has_discoverable_owners_and_bounded_modules() {
         "manager/src/review/advisor",
         "manager/src/review/compiler",
         "manager/src/review/diff",
+        "package-review/src/encoding/obligation_ledger",
+        "package-review/src/projection/public_traits.rs",
+        "package-review/src/projection/provider_families.rs",
+        "package-review/src/projection/provider_intrinsics.rs",
+        "package-review/src/projection/evidence/selected_providers.rs",
+        "package-review/src/projection/evidence",
     ] {
         assert!(
             !packages.join(retired).exists(),
@@ -817,7 +824,7 @@ fn package_subsystem_has_discoverable_owners_and_bounded_modules() {
                 );
             }
             let lines = source.lines().count();
-            let line_ceiling = if is_test_support { 1_000 } else { 800 };
+            let line_ceiling = 800;
             assert!(
                 lines <= line_ceiling,
                 "package Rust module exceeds its {line_ceiling}-line discovery ceiling: {} ({lines} lines)",
