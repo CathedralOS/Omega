@@ -141,6 +141,9 @@ visible without burying the stage join in that catalog. Allocation-legality
 staging puts each exact availability policy in one visible leaf and keeps
 analysis, independent replay, custody projection, and the retained model
 separate; its entrance owns policy selection plus the replay-gated stage join.
+Register-home staging preserves baseline-legality and post-copy-reanalysis as
+explicit source families while sharing construction, independent validation,
+custody projection, and model leaves below one replay-gated entrance.
 Post-allocation machine analysis likewise separates source-route construction
 from replay validation and the sealed model, while its entrance owns the
 common effects-plus-machine custody join. Active-resident rematerialization
