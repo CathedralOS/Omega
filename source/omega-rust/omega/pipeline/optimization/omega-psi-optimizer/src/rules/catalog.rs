@@ -184,6 +184,10 @@ pub(crate) fn built_in_rule_registrations(
             10,
             LiveProofCertifiedSignedIntegerRemainderByNegativeOneEliminationRule
         );
+        register!(
+            11,
+            LiveProofCertifiedExactSignedIntegerNegativeOneShiftRightEliminationRule
+        );
     }
     registrations
 }

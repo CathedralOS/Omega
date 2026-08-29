@@ -5,6 +5,7 @@ use super::*;
 mod catalog;
 mod divide_by_one;
 mod multiply_by_zero;
+mod negative_one_shift_right;
 mod remainder_by_one;
 mod scalar_identities;
 mod self_divide;

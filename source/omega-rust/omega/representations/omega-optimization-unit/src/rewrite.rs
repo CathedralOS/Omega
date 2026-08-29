@@ -548,6 +548,7 @@ pub enum ProofCertifiedScalarIdentityKind {
     SaturatingIntegerRemainderZeroLeft,
     ExactIntegerShiftLeftZeroValue,
     ExactIntegerShiftRightZeroValue,
+    ExactIntegerShiftRightNegativeOneValue,
 }
 
 /// Remove one proof-certified integer identity and replace every use of its
@@ -2265,6 +2266,7 @@ fn encode_candidate(
                 ProofCertifiedScalarIdentityKind::SaturatingIntegerRemainderZeroLeft => 18,
                 ProofCertifiedScalarIdentityKind::ExactIntegerShiftLeftZeroValue => 19,
                 ProofCertifiedScalarIdentityKind::ExactIntegerShiftRightZeroValue => 20,
+                ProofCertifiedScalarIdentityKind::ExactIntegerShiftRightNegativeOneValue => 21,
             });
         }
     }
@@ -2684,6 +2686,7 @@ mod tests {
             ProofCertifiedScalarIdentityKind::SaturatingIntegerRemainderZeroLeft,
             ProofCertifiedScalarIdentityKind::ExactIntegerShiftLeftZeroValue,
             ProofCertifiedScalarIdentityKind::ExactIntegerShiftRightZeroValue,
+            ProofCertifiedScalarIdentityKind::ExactIntegerShiftRightNegativeOneValue,
         ]
         .map(|identity| {
             PsiRewriteCandidate::new_proof_certified_scalar_identity(
@@ -2706,6 +2709,6 @@ mod tests {
             .unwrap()
             .identity()
         });
-        assert_eq!(identities.into_iter().collect::<BTreeSet<_>>().len(), 13);
+        assert_eq!(identities.into_iter().collect::<BTreeSet<_>>().len(), 14);
     }
 }

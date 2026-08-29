@@ -1697,6 +1697,73 @@ mod tests {
         )
     }
 
+    fn live_exact_signed_negative_one_shift_right_verified() -> VerifiedPsiOptimizationUnit {
+        let machine = MachineId::new(1_162).unwrap();
+        let block = BlockId::new(1_163).unwrap();
+        let negative_one = ValueId::new(1_164).unwrap();
+        let count = ValueId::new(1_165).unwrap();
+        let shifted = ValueId::new(1_166).unwrap();
+        let result = ValueId::new(1_167).unwrap();
+        let obligation = ObligationId::new(1_168).unwrap();
+        let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 8).unwrap());
+        let count_scalar_type =
+            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 1).unwrap());
+        let declaration = |id| ValueDeclaration { id, scalar_type };
+        let count_declaration = |id| ValueDeclaration {
+            id,
+            scalar_type: count_scalar_type,
+        };
+        let module = module_with_blocks(
+            machine,
+            block,
+            TerminalMachineResult::Scalar(declaration(result)),
+            vec![Block {
+                id: block,
+                parameters: Vec::new(),
+                operations: vec![
+                    Operation {
+                        id: OperationId::new(1_169).unwrap(),
+                        result: OperationResult::Scalar(declaration(negative_one)),
+                        kind: OperationKind::IntegerConstant {
+                            value: IntegerValue::Signed(-1),
+                        },
+                    },
+                    Operation {
+                        id: OperationId::new(1_170).unwrap(),
+                        result: OperationResult::Scalar(count_declaration(count)),
+                        kind: OperationKind::IntegerConstant {
+                            value: IntegerValue::Unsigned(1),
+                        },
+                    },
+                    Operation {
+                        id: OperationId::new(1_171).unwrap(),
+                        result: OperationResult::Scalar(declaration(shifted)),
+                        kind: OperationKind::ExactIntegerShiftRight {
+                            value: negative_one,
+                            count,
+                            obligation,
+                        },
+                    },
+                ],
+                terminator: Terminator::Return {
+                    cleanup_actions: Vec::new(),
+                    edge: EdgeId::new(1_172).unwrap(),
+                    value: shifted,
+                },
+            }],
+        );
+        verified(
+            module,
+            ProofBundle {
+                evidence_producers: Vec::new(),
+                evidence: vec![ObligationEvidence {
+                    obligation,
+                    route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
+                }],
+            },
+        )
+    }
+
     fn live_exact_self_subtract_verified() -> VerifiedPsiOptimizationUnit {
         let machine = MachineId::new(1_133).unwrap();
         let block = BlockId::new(1_134).unwrap();
@@ -2877,7 +2944,7 @@ mod tests {
         assert_eq!(optimized.commits().len(), 1);
         assert_eq!(optimized.transformation_ledger().records().len(), 1);
         assert_eq!(optimized.pass_manifests().len(), 1);
-        assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 11);
+        assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 12);
         assert_eq!(optimized.plan().functions[0].operations.len(), 2);
         assert!(matches!(
             optimized.plan().functions[0].operations[1],
@@ -2911,7 +2978,7 @@ mod tests {
         assert_eq!(optimized.commits().len(), 1);
         assert_eq!(optimized.transformation_ledger().records().len(), 1);
         assert_eq!(optimized.pass_manifests().len(), 1);
-        assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 11);
+        assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 12);
         assert_eq!(
             optimized.pass_manifests()[0].ordered_rules()[2],
             omega_optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
@@ -2957,7 +3024,7 @@ mod tests {
         assert_eq!(optimized.commits().len(), 1);
         assert_eq!(optimized.transformation_ledger().records().len(), 1);
         assert_eq!(optimized.pass_manifests().len(), 1);
-        assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 11);
+        assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 12);
         assert_eq!(
             optimized.pass_manifests()[0].ordered_rules()[3],
             omega_optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
@@ -3006,7 +3073,7 @@ mod tests {
             assert_eq!(optimized.commits().len(), 1);
             assert_eq!(optimized.transformation_ledger().records().len(), 1);
             assert_eq!(optimized.pass_manifests().len(), 1);
-            assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 11);
+            assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 12);
             assert_eq!(
                 optimized.pass_manifests()[0].ordered_rules()[4],
                 omega_optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
@@ -3057,7 +3124,7 @@ mod tests {
             assert_eq!(optimized.commits().len(), 1);
             assert_eq!(optimized.transformation_ledger().records().len(), 1);
             assert_eq!(optimized.pass_manifests().len(), 1);
-            assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 11);
+            assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 12);
             assert_eq!(
                 optimized.pass_manifests()[0].ordered_rules()[5],
                 omega_optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
@@ -3108,7 +3175,7 @@ mod tests {
             assert_eq!(optimized.commits().len(), 1);
             assert_eq!(optimized.transformation_ledger().records().len(), 1);
             assert_eq!(optimized.pass_manifests().len(), 1);
-            assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 11);
+            assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 12);
             assert_eq!(
                 optimized.pass_manifests()[0].ordered_rules()[6],
                 omega_optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
@@ -3180,7 +3247,7 @@ mod tests {
             assert_eq!(optimized.commits().len(), 1);
             assert_eq!(optimized.transformation_ledger().records().len(), 1);
             assert_eq!(optimized.pass_manifests().len(), 1);
-            assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 11);
+            assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 12);
             assert_eq!(
                 optimized.pass_manifests()[0].ordered_rules()[7],
                 omega_optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
@@ -3252,7 +3319,7 @@ mod tests {
             assert_eq!(optimized.commits().len(), 1);
             assert_eq!(optimized.transformation_ledger().records().len(), 1);
             assert_eq!(optimized.pass_manifests().len(), 1);
-            assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 11);
+            assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 12);
             assert_eq!(
                 optimized.pass_manifests()[0].ordered_rules()[8],
                 omega_optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
@@ -3324,7 +3391,7 @@ mod tests {
             assert_eq!(optimized.commits().len(), 1);
             assert_eq!(optimized.transformation_ledger().records().len(), 1);
             assert_eq!(optimized.pass_manifests().len(), 1);
-            assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 11);
+            assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 12);
             assert_eq!(
                 optimized.pass_manifests()[0].ordered_rules()[9],
                 omega_optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
@@ -3406,7 +3473,7 @@ mod tests {
             assert_eq!(optimized.commits().len(), 1);
             assert_eq!(optimized.transformation_ledger().records().len(), 1);
             assert_eq!(optimized.pass_manifests().len(), 1);
-            assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 11);
+            assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 12);
             assert_eq!(
                 optimized.pass_manifests()[0].ordered_rules()[10],
                 omega_optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
@@ -3479,6 +3546,67 @@ mod tests {
 
             let lowered = lower_optimized_to_target_operations(optimized, target)
                 .expect("the signed remainder-by-negative-one zero remains lowerable");
+            assert_eq!(lowered.target(), target);
+            assert_eq!(lowered.target_operations().functions.len(), 1);
+            assert_eq!(lowered.optimized().commits().len(), 1);
+        }
+    }
+
+    #[test]
+    fn proof_check_elision_projects_exact_signed_negative_one_shift_right_to_both_targets() {
+        let selections = OptimizationSelections::new([Optimization::ProofCheckElision]).unwrap();
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let optimized = project_optimization_run(run(
+                live_exact_signed_negative_one_shift_right_verified(),
+                selections.clone(),
+            ))
+            .unwrap();
+
+            assert_eq!(optimized.commits().len(), 1);
+            assert_eq!(optimized.transformation_ledger().records().len(), 1);
+            assert_eq!(optimized.pass_manifests().len(), 1);
+            assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 12);
+            assert_eq!(
+                optimized.pass_manifests()[0].ordered_rules()[11],
+                omega_optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
+                    b"omega.psi-rule.live-proof-certified-exact-signed-integer-negative-one-value-shift-right-elimination.v1"
+                )
+            );
+            assert_eq!(optimized.plan().functions[0].operations.len(), 3);
+            assert!(matches!(
+                optimized.plan().functions[0].operations[0],
+                AbstractOperation::IntegerConstant {
+                    psi_operation,
+                    result,
+                    value: IntegerValue::Signed(-1),
+                    ..
+                } if psi_operation == OperationId::new(1_169).unwrap()
+                    && result == ValueId::new(1_164).unwrap()
+            ));
+            assert!(matches!(
+                optimized.plan().functions[0].operations[2],
+                AbstractOperation::Return { value, .. }
+                    if value == ValueId::new(1_164).unwrap()
+            ));
+            assert_eq!(optimized.unit().accepted_obligation_facts.len(), 1);
+            assert!(optimized.unit().functions[0].facts.iter().all(|fact| {
+                !matches!(
+                    fact,
+                    omega_optimization_unit::OptimizationFact::OperationObligationReference { .. }
+                )
+            }));
+            assert_eq!(
+                optimized.pass_manifests()[0].decisions()[0]
+                    .consumed_facts()
+                    .len(),
+                2
+            );
+            let terminal = &optimized.unit().functions[0].blocks[0].nodes[2];
+            assert_eq!(terminal.provenance.len(), 2);
+            assert_eq!(terminal.fuel.len(), 2);
+
+            let lowered = lower_optimized_to_target_operations(optimized, target)
+                .expect("the exact negative-one shift-free plan remains lowerable");
             assert_eq!(lowered.target(), target);
             assert_eq!(lowered.target_operations().functions.len(), 1);
             assert_eq!(lowered.optimized().commits().len(), 1);

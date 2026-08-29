@@ -22,6 +22,7 @@ use super::{
 mod divide_by_one;
 mod identity_rewrite;
 mod multiply_by_zero;
+mod negative_one_shift_right;
 mod remainder_by_one;
 mod scalar_identities;
 mod self_divide;
@@ -33,6 +34,7 @@ mod zero_value_shift;
 
 pub use divide_by_one::*;
 pub use multiply_by_zero::*;
+pub use negative_one_shift_right::*;
 pub use remainder_by_one::*;
 pub use scalar_identities::*;
 pub use self_divide::*;

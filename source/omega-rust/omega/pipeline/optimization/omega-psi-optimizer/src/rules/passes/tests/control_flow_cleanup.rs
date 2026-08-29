@@ -864,6 +864,35 @@ fn shared_terminal_jump_fusion_clones_one_path_and_retains_exact_custody() {
         .into_iter()
         .cloned()
         .collect::<Vec<_>>();
+    let AnalysisProduct::PostDominators(post_dominators) = products
+        .iter()
+        .find(|product| product.kind() == AnalysisKind::PostDominators)
+        .expect("shared-terminal fusion requires post-dominators")
+    else {
+        unreachable!()
+    };
+    let function_post_dominators = &post_dominators.functions[0].1;
+    for predecessor in [id(923, BlockId::new), id(924, BlockId::new)] {
+        assert!(
+            function_post_dominators
+                .iter()
+                .find(|(block, _)| *block == predecessor)
+                .unwrap()
+                .1
+                .contains(&id(926, BlockId::new))
+        );
+    }
+    let without_post_dominators = products
+        .iter()
+        .filter(|product| product.kind() != AnalysisKind::PostDominators)
+        .cloned()
+        .collect::<Vec<_>>();
+    assert!(matches!(
+        SharedJumpFusionRule.propose(&threaded, RuleAnalysisView::new(&without_post_dominators),),
+        Err(RuleProposalError::MissingAnalysis(
+            AnalysisKind::PostDominators
+        ))
+    ));
     let candidates = SharedJumpFusionRule
         .propose(&threaded, RuleAnalysisView::new(&products))
         .unwrap();
@@ -965,6 +994,35 @@ fn shared_terminal_jump_fusion_clones_one_path_and_retains_exact_custody() {
     assert_eq!(
         validate_shared_jump_fusion_candidate(&threaded, &forged),
         Err(OptimizationUnitValidationError::CandidateProvenanceMismatch)
+    );
+
+    let legacy_contract = OptimizationRuleContract::new(
+        OptimizationRuleIdentity::from_canonical_bytes(
+            b"omega.psi-rule.shared-terminal-jump-fusion.v1",
+        ),
+        contract.pass(),
+        1,
+        omega_optimization_core::AnalysisSet::new([
+            AnalysisKind::ControlFlowGraph,
+            AnalysisKind::OwnershipFrontiers,
+        ]),
+        contract.invalidated_analyses(),
+        contract.safety_class(),
+    )
+    .unwrap();
+    let legacy_candidate = PsiRewriteCandidate::new_shared_jump_fusion(
+        threaded.identity,
+        legacy_contract,
+        candidate.affected_blocks().to_vec(),
+        candidate.substitutions().to_vec(),
+        candidate.provenance().to_vec(),
+        candidate.predicted_cost_delta(),
+        patch,
+    )
+    .unwrap();
+    assert_eq!(
+        validate_shared_jump_fusion_candidate(&threaded, &legacy_candidate),
+        Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch)
     );
 }
 

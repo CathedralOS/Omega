@@ -17,6 +17,9 @@ pub fn validate_shared_jump_fusion_candidate(
             .required_analyses()
             .contains(AnalysisKind::OwnershipFrontiers)
         || !candidate
+            .required_analyses()
+            .contains(AnalysisKind::PostDominators)
+        || !candidate
             .invalidated_analyses()
             .contains(AnalysisKind::ControlFlowGraph)
         || !candidate
@@ -102,6 +105,9 @@ pub fn validate_shared_jump_fusion_candidate(
             .count()
             != 1
     {
+        return Err(OptimizationUnitValidationError::CandidateReachabilityMismatch);
+    }
+    if !independently_post_dominates(function, patch.predecessor.block, patch.target) {
         return Err(OptimizationUnitValidationError::CandidateReachabilityMismatch);
     }
     if target.parameters.len() != bindings.len() {
@@ -210,8 +216,79 @@ pub fn validate_shared_jump_fusion_candidate(
         unit: output,
         candidate: candidate.identity(),
         validator: OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.shared-terminal-jump-fusion.v1",
+            b"omega.validator.shared-terminal-jump-fusion.v2",
         ),
         provenance: accepted_provenance,
     })
+}
+
+fn independently_post_dominates(
+    function: &PsiOptimizationFunction,
+    block: BlockId,
+    candidate: BlockId,
+) -> bool {
+    let successors = function
+        .blocks
+        .iter()
+        .map(|block| {
+            let mut targets = block
+                .nodes
+                .last()
+                .into_iter()
+                .flat_map(|node| expected_edges(&node.operation))
+                .map(|edge| edge.target)
+                .collect::<Vec<_>>();
+            targets.sort_unstable();
+            targets.dedup();
+            (block.id, targets)
+        })
+        .collect::<BTreeMap<_, _>>();
+    let all = successors.keys().copied().collect::<BTreeSet<_>>();
+    let exits = successors
+        .iter()
+        .filter_map(|(block, targets)| targets.is_empty().then_some(*block))
+        .collect::<BTreeSet<_>>();
+    if exits.is_empty() {
+        return false;
+    }
+    let mut post_dominators = all
+        .iter()
+        .copied()
+        .map(|block| {
+            let initial = if exits.contains(&block) {
+                BTreeSet::from([block])
+            } else {
+                all.clone()
+            };
+            (block, initial)
+        })
+        .collect::<BTreeMap<_, _>>();
+    loop {
+        let mut changed = false;
+        for current in all
+            .iter()
+            .copied()
+            .filter(|current| !exits.contains(current))
+        {
+            let mut adjacent = successors[&current]
+                .iter()
+                .filter_map(|successor| post_dominators.get(successor));
+            let Some(mut next) = adjacent.next().cloned() else {
+                return false;
+            };
+            for set in adjacent {
+                next = next.intersection(set).copied().collect();
+            }
+            next.insert(current);
+            if post_dominators[&current] != next {
+                post_dominators.insert(current, next);
+                changed = true;
+            }
+        }
+        if !changed {
+            return post_dominators
+                .get(&block)
+                .is_some_and(|blocks| blocks.contains(&candidate));
+        }
+    }
 }

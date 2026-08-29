@@ -184,6 +184,27 @@ pub(crate) fn live_exact_zero_value_shift_unit(
     )
 }
 
+pub(crate) fn live_exact_signed_negative_one_shift_right_unit(
+    integer: IntegerType,
+) -> PsiOptimizationUnit {
+    live_proof_binary_identity_unit(
+        integer,
+        IntegerValue::Signed(-1),
+        true,
+        |psi_operation, obligation, result, value_type, value, count| {
+            AbstractOperation::ExactIntegerShiftRight {
+                psi_operation,
+                obligation,
+                result,
+                value_type,
+                count_type: integer,
+                value,
+                count,
+            }
+        },
+    )
+}
+
 pub(crate) fn live_exact_self_subtract_unit(integer: IntegerType) -> PsiOptimizationUnit {
     let machine = id(331, MachineId::new);
     let block = id(332, BlockId::new);

@@ -494,6 +494,35 @@ pub(super) fn proof_certified_exact_integer_zero_value_shift_shapes(
     )]
 }
 
+pub(super) fn proof_certified_exact_signed_integer_negative_one_shift_right_shapes(
+    operation: &O,
+) -> Vec<(ProofCertifiedScalarIdentityShape, IntegerValue)> {
+    let O::ExactIntegerShiftRight {
+        psi_operation,
+        result,
+        value_type,
+        value,
+        ..
+    } = operation
+    else {
+        return Vec::new();
+    };
+    if value_type.carrier() != IntegerCarrier::Fixed || value_type.sign() != IntegerSign::Signed {
+        return Vec::new();
+    }
+    vec![(
+        ProofCertifiedScalarIdentityShape {
+            source_operation: *psi_operation,
+            result: *result,
+            replacement: *value,
+            identity_operand: *value,
+            scalar_type: *value_type,
+            identity: ProofCertifiedScalarIdentityKind::ExactIntegerShiftRightNegativeOneValue,
+        },
+        IntegerValue::Signed(-1),
+    )]
+}
+
 pub(in crate::rules::passes) fn integer_zero(scalar_type: IntegerType) -> IntegerValue {
     match scalar_type.sign() {
         psi_core::IntegerSign::Signed => IntegerValue::Signed(0),

@@ -65,7 +65,7 @@ fn absent_selection_registers_nothing_and_missing_analysis_fails_closed() {
     assert_eq!(built_in_psi_registry(&dead).unwrap().len(), 2);
     let proof = OptimizationSelections::new([Optimization::ProofCheckElision]).unwrap();
     let proof = built_in_psi_registry(&proof).unwrap();
-    assert_eq!(proof.len(), 11);
+    assert_eq!(proof.len(), 12);
     assert_eq!(
         proof
             .contracts()
@@ -83,6 +83,8 @@ fn absent_selection_registers_nothing_and_missing_analysis_fails_closed() {
             LiveProofCertifiedIntegerSelfDivideEliminationRule::contract().identity(),
             LiveProofCertifiedIntegerRemainderByOneEliminationRule::contract().identity(),
             LiveProofCertifiedSignedIntegerRemainderByNegativeOneEliminationRule::contract()
+                .identity(),
+            LiveProofCertifiedExactSignedIntegerNegativeOneShiftRightEliminationRule::contract()
                 .identity(),
         ]
     );

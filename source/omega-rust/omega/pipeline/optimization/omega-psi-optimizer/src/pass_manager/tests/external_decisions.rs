@@ -704,7 +704,7 @@ fn public_run_elides_live_proof_certified_identity_and_reaches_fixed_point() {
 
     assert_eq!(run.commits.len(), 1);
     assert_eq!(run.pass_manifests.len(), 1);
-    assert_eq!(run.pass_manifests[0].ordered_rules().len(), 11);
+    assert_eq!(run.pass_manifests[0].ordered_rules().len(), 12);
     assert_eq!(run.pass_manifests[0].decisions().len(), 1);
     assert_eq!(
         run.pass_manifests[0].decisions()[0].consumed_facts().len(),
