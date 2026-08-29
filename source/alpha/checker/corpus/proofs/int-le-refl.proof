@@ -1,7 +1,0 @@
-; ZZ-order is reflexive: x <= x
-; ZZ difference pairs: intLe((a,b),(c,d)) := exists k in N. (a+d)+k = c+b ; embedding iota(n)=(n,0)
-(def 0 (all x1 (all x2 (-> (= x1 x2) (= x2 x1)))) (gen x3 (gen x4 (lam h5 (= x3 x4) (eqelim x6 (= x6 x3) h5 (refl x3))))))
-(def 1 (all x1 (all x2 (all x3 (-> (= x1 x2) (-> (= x2 x3) (= x1 x3)))))) (gen x4 (gen x5 (gen x6 (lam h7 (= x4 x5) (lam h8 (= x5 x6) (eqelim x9 (= x4 x9) h8 h7)))))))
-(def 2 (all x1 (= (+ x1 z) x1)) (natind x2 (= (+ x2 z) x2) (refl z) (gen x3 (lam h4 (= (+ x3 z) x3) (eqelim x5 (= (s (+ x3 z)) (s x5)) h4 (refl (s (+ x3 z))))))))
-(all x1 (all x2 (ex x3 (= (+ (+ x1 x2) x3) (+ x1 x2)))))
-(gen x1 (gen x2 (wit x3 (= (+ (+ x1 x2) x3) (+ x1 x2)) z (inst (use 2) (+ x1 x2)))))

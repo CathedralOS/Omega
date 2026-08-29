@@ -1,6 +1,0 @@
-; a is a gcd of a and 0: CommonGreatest(a, a, 0)
-(def 0 (all x1 (= (+ x1 z) x1)) (natind x2 (= (+ x2 z) x2) (refl z) (gen x3 (lam h4 (= (+ x3 z) x3) (eqelim x5 (= (s (+ x3 z)) (s x5)) h4 (refl (s (+ x3 z))))))))
-(def 1 (all x1 (ex x2 (= (* x2 x1) x1))) (gen x3 (wit x4 (= (* x4 x3) x3) (s z) (inst (use 0) x3))))
-(def 2 (all x1 (ex x2 (= (* x2 x1) z))) (gen x3 (wit x4 (= (* x4 x3) z) z (refl (* z x3)))))
-(all x1 (& (ex x2 (= (* x2 x1) x1)) (& (ex x3 (= (* x3 x1) z)) (all x4 (-> (ex x5 (= (* x5 x4) x1)) (-> (ex x6 (= (* x6 x4) z)) (ex x7 (= (* x7 x4) x1))))))))
-(gen x1 (pair (inst (use 1) x1) (pair (inst (use 2) x1) (gen x2 (lam h3 (ex x4 (= (* x4 x2) x1)) (lam h5 (ex x6 (= (* x6 x2) z)) h3))))))

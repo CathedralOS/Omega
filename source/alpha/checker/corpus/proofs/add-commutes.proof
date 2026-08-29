@@ -1,8 +1,0 @@
-; a + b = b + a -- commutativity of addition (for the primitive, left-recursive +).
-; Induction on a. Base: z+b = b = b+z via add-zero-right. Step: (s a)+b = s(a+b) [left reduction] =
-; s(b+a) [IH, cong-s] = b+(s a) [add-succ-right, reversed]. Needs BOTH right-laws (add-zero-right,
-; add-succ-right) since + only computes on its left argument. The keystone for any sum-reordering proof.
-(def 0 (all x1 (all x2 (= (+ x1 (s x2)) (s (+ x1 x2))))) (natind x3 (all x4 (= (+ x3 (s x4)) (s (+ x3 x4)))) (gen x5 (refl (s x5))) (gen x6 (lam h7 (all x8 (= (+ x6 (s x8)) (s (+ x6 x8)))) (gen x9 (eqelim x10 (= (+ (s x6) (s x9)) (s x10)) (inst h7 x9) (refl (+ (s x6) (s x9)))))))))
-(def 1 (all x1 (= (+ x1 z) x1)) (natind x2 (= (+ x2 z) x2) (refl z) (gen x3 (lam h4 (= (+ x3 z) x3) (eqelim x5 (= (s (+ x3 z)) (s x5)) h4 (refl (s (+ x3 z))))))))
-(all x1 (all x2 (= (+ x1 x2) (+ x2 x1))))
-(natind x1 (all x2 (= (+ x1 x2) (+ x2 x1))) (gen x3 (eqelim x4 (= x4 (+ x3 z)) (inst (use 1) x3) (refl (+ x3 z)))) (gen x5 (lam h6 (all x7 (= (+ x5 x7) (+ x7 x5))) (gen x8 (eqelim x9 (= (+ (s x5) x8) x9) (eqelim x10 (= x10 (+ x8 (s x5))) (inst (inst (use 0) x8) x5) (refl (+ x8 (s x5)))) (eqelim x11 (= (s (+ x5 x8)) (s x11)) (inst h6 x8) (refl (s (+ x5 x8)))))))))

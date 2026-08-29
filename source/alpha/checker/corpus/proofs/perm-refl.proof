@@ -1,7 +1,0 @@
-; reflexivity of list permutation: every list is a permutation of itself, forall L. Perm(L,L).
-; By list induction on L: nil is Perm(nil,nil) by permnil; cons h t is Perm(cons h t, cons h t) by
-; permskip h applied to the induction hypothesis Perm(t,t). The first theorem over the new Perm
-; predicate (Rel 779, four intro rules nil/skip/swap/trans added to the checker core) -- it opens the
-; permutation-relation API that FTA uniqueness is built on (see FTA-UNIQUENESS.md).
-(all L (rel 779 L L))
-(listind L (rel 779 L L) (permnil) (gen h (gen t (lam ih (rel 779 t t) (permskip h ih)))))

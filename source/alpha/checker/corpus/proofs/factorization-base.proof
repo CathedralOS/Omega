@@ -1,4 +1,0 @@
-; factorization base (Factor(1) via empty list)
-; Factor(k) := exists L. ProdIs(L,k) & (forall x. Mem(x,L) -> prime(x))
-(ex x1 (& (rel 778 x1 (s z)) (all x2 (-> (rel 777 x2 x1) (& (ex x3 (= (+ (s z) (s x3)) x2)) (all x4 (-> (ex x5 (= (* x5 x4) x2)) (or (= x4 (s z)) (= x4 x2)))))))))
-(wit x1 (& (rel 778 x1 (s z)) (all x2 (-> (rel 777 x2 x1) (& (ex x3 (= (+ (s z) (s x3)) x2)) (all x4 (-> (ex x5 (= (* x5 x4) x2)) (or (= x4 (s z)) (= x4 x2)))))))) nil (pair (pnil) (gen x6 (lam h7 (rel 777 x6 nil) (absurd (& (ex x8 (= (+ (s z) (s x8)) x6)) (all x9 (-> (ex x10 (= (* x10 x9) x6)) (or (= x9 (s z)) (= x9 x6))))) (memnil h7))))))

@@ -17,7 +17,6 @@ alpha_arm64_macos.s      the hand-authored arm64 source it's built from  (audit 
 alpha_arm64_macos.lst    a committed disassembly, to ease reading the binary against the source
 
 seed_env.sh              per-platform seed selection + tape-stamping, sourced by the build scripts
-resize-x64-tape-hole.py  one-purpose audited 32 KiB -> 256 KiB PE extent migration
 
 SEMANTICS.md             the written small-step operational semantics — the meaning a seed is audited AGAINST
 ASSEMBLY.md              authoritative `.alpha` grammar and deterministic two-pass payload encoding
@@ -25,7 +24,7 @@ conformance.sh           executable companion: hand-built tapes pinning every op
 verify.sh                full seed check; --edge omits the provenance diagnostic
 
 assembler/               Alpha-written assembler, self-host gate, reference cross-check, and examples
-checker/                 root derivation checker, alternate realizations, corpus, and optional stress gates
+checker/                 rooted derivation-checker service beside the compiler lattice
 alpha_ref.py             untrusted executable reference realization of Alpha meaning
 ```
 
@@ -33,8 +32,8 @@ alpha_ref.py             untrusted executable reference realization of Alpha mea
 
 - **provenance** — re-derives the committed binary from its source and confirms a match
   (arm64: `clang -arch arm64 -Wl,-no_uuid …`, reproducible modulo the OS signature; x64:
-  audit the `.exe` against its `.hex` by hand; the committed resize helper only changes
-  three documented PE capacity fields and extends the zero-only tape section);
+  audit the `.exe` against its `.hex` by hand; the historical resize migration changed
+  only three documented PE capacity fields and extended the zero-only tape section);
 - **behavior** — `conformance.sh` (every opcode + edge realizes `SEMANTICS.md`);
 - **reproduction** — `assembler/selfhost.sh` (the VM reproduces the canonical assembler bytecode).
 
@@ -79,12 +78,22 @@ byte-identical guarantee therefore lives in the program bytes (the tape), not th
 signature — which is exactly what `selfhost.sh` compares.
 
 Both committed seeds reserve a 256 KiB tape hole; `stamp_seed` rejects the tape
-before copying when its four-byte length prefix would exceed that extent. For
-x64, the one-purpose `resize-x64-tape-hole.py` records the complete migration
-from the old 32 KiB PE:
-`SizeOfImage`, `.tape` virtual size, and `.tape` raw size change, followed only by
-zero extension. It refuses any other input shape, which makes the capacity-only
-change independently reproducible without restoring the historical general forge.
+before copying when its four-byte length prefix would exceed that extent. The
+completed x64 32 KiB-to-256 KiB extent migration and its one-purpose script are
+recoverable from Git history; retaining a completed mutation tool in the live
+seed owner would add another apparent construction route.
+
+## Retention inventory
+
+| Retained child | Direct role | Deletion condition |
+| --- | --- | --- |
+| `assembler/` | The Alpha-written assembler and its exact self-host/reference gates. | Replace only with a smaller audited Alpha assembler that preserves exact encoding. |
+| `checker/` | The rooted certificate-checker service used beside compiler edges. | Delete when an equally low or lower accepted checker service replaces it. |
+
+The remaining root files are the selected native seeds, their audit sources and
+listings, Alpha semantics, executable conformance/reference checks, and the
+seed-selection/stamping entry point. Completed mutation scripts and historical
+forges are not retained as permanent topology.
 
 ## Per-platform vs cross-platform
 

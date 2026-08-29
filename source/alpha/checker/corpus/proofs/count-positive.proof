@@ -1,8 +1,0 @@
-; every expression tree has at least one leaf: 0 < count e.
-; count folds (+1 per leaf) over the Expr AST. By tree induction: Leaf has count 1 (>0, witness 0); Node l r -- from the LEFT subtree's IH unpack count l = S a, so count l + count r = S(a + count r) > 0 (witness a + count r). A non-emptiness structural invariant over an inductive datatype, proved with exists-intro/elim -- the shape a verifier discharges for 'this collection is non-empty'.
-(data 6 1 0 0)
-(data 7 2 1 1)
-(fun 13 6 (s z))
-(fun 13 7 (+ (rec 0) (rec 1)))
-(all x1 (ex x2 (= (+ z (s x2)) (f 13 x1))))
-(rec 6 7 x1 (ex x2 (= (+ z (s x2)) (f 13 x1))) (gen x3 (wit x4 (= (+ z (s x4)) (f 13 (k 6 x3))) z (refl (s z)))) (gen x5 (gen x6 (lam h7 (ex x8 (= (+ z (s x8)) (f 13 x5))) (lam h9 (ex x10 (= (+ z (s x10)) (f 13 x6))) (unpack h7 (gen x11 (lam h12 (= (+ z (s x11)) (f 13 x5)) (wit x13 (= (+ z (s x13)) (f 13 (k 7 x5 x6))) (+ x11 (f 13 x6)) (eqelim x14 (= (s (+ x11 (f 13 x6))) (+ x14 (f 13 x6))) h12 (refl (s (+ x11 (f 13 x6))))))))))))))

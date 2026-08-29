@@ -1,12 +1,10 @@
 # Checker implementations
 
-This directory contains executable realizations of the generic derivation
-judgment. They are separated by implementation lineage so cross-checks do not
-hide shared source:
+| Retained child | Role | Deletion condition |
+| --- | --- | --- |
+| `beta/` | `check.beta` is the authoritative checker source; `eq.beta` is the independent definitional side of the one retained operational seam. | `check.beta` changes only with an atomic artifact rebuild; delete `eq.beta` if the seam is formally subsumed or retired. |
+| `reference/` | One untrusted, independently written complete checker used only by `gates/check-ref-diamond.sh`. | Delete when a stronger independent formal check replaces the diamond. |
 
-- `beta/` is the seed-runnable authoritative low-rung implementation;
-- `gamma/` is the independently written Gamma implementation and typed form;
-- `reference/` is an untrusted executable reference used for differential
-  diagnosis.
-
-Proof construction, translation, corpora, and gate policy do not belong here.
+No proof search, source conversion, corpus, or policy implementation belongs
+here. Additional language-hosted copies are not retained merely to increase
+implementation count.

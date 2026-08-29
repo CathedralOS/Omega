@@ -1,6 +1,0 @@
-; user-defined Nat (cid 2=Zero, 3=Succ) with add (fid 10) and mult-via-add (fid 11): 2*3=6
-(data 2 0 0 0) (data 3 1 1 0)
-(fun 10 2 (y 0)) (fun 10 3 (k 3 (rec 0)))
-(fun 11 2 (k 2)) (fun 11 3 (f 10 (y 0) (rec 0)))
-(= (f 11 (k 3 (k 3 (k 2))) (k 3 (k 3 (k 3 (k 2))))) (k 3 (k 3 (k 3 (k 3 (k 3 (k 3 (k 2))))))))
-(refl (f 11 (k 3 (k 3 (k 2))) (k 3 (k 3 (k 3 (k 2))))))

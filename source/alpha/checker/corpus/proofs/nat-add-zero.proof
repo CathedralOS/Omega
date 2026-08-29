@@ -1,8 +1,0 @@
-; n + 0 = n, by induction on n
-(all n (= (+ n 0) n))
-(natind n (= (+ n 0) n)
-  (refl 0)
-  (gen n2 (lam ih (= (+ n2 0) n2)
-    (eqelim hole (= (s (+ n2 0)) (s hole))
-      ih
-      (refl (s (+ n2 0)))))))

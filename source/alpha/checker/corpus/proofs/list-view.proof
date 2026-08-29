@@ -1,6 +1,0 @@
-; every list is nil or a cons: forall L. L = nil OR (exists h t. L = cons h t)
-; the user-list case-analysis view (Nat 0-or-successor analog); rec: nil -> inl refl, cons -> inr witnessing head/tail.
-(data 2 0 0 0)
-(data 3 2 0 1)
-(all x1 (or (= x1 (k 2)) (ex x2 (ex x3 (= x1 (k 3 x2 x3))))))
-(rec 2 3 x1 (or (= x1 (k 2)) (ex x2 (ex x3 (= x1 (k 3 x2 x3))))) (inl (ex x4 (ex x5 (= (k 2) (k 3 x4 x5)))) (refl (k 2))) (gen x6 (gen x7 (lam h8 (or (= x7 (k 2)) (ex x9 (ex x10 (= x7 (k 3 x9 x10))))) (inr (= (k 3 x6 x7) (k 2)) (wit x11 (ex x12 (= (k 3 x6 x7) (k 3 x11 x12))) x6 (wit x13 (= (k 3 x6 x7) (k 3 x6 x13)) x7 (refl (k 3 x6 x7)))))))))

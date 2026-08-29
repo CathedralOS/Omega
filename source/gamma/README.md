@@ -3,7 +3,7 @@
 Gamma is the pure functional rung above Beta. It supplies algebraic data,
 pattern matching, recursion, bounded reference evaluation, and a small static
 type system. It is suitable for implementing the Delta compiler as well as
-parsers, validators, interpreters, and an alternate Alpha-owned checker.
+parsers, validators, and interpreters.
 
 The reference evaluator implements proper tail calls and uses variable-size AST
 nodes, immediate nonnegative `u32` integers with a boxed fallback, and headerless
@@ -61,8 +61,6 @@ Principal artifacts:
   `gamma_compiler_bytecode.tape`;
 - `reference/` — optional Python evaluator, fuzz generator, and differential
   runner;
-- `source/alpha/checker/implementations/gamma/` — independent
-  proof-kernel implementations hosted by Gamma and owned by Alpha's checker.
 
 Run the principal gates from the repository root:
 
@@ -70,7 +68,6 @@ Run the principal gates from the repository root:
 sh source/gamma/test-interp.sh
 sh source/gamma/test-interp-arena.sh
 sh source/gamma/test-typeck.sh
-sh source/alpha/checker/gates/gamma-checker.sh
 sh source/gamma/reference/gamma-diamond-py.sh
 ```
 

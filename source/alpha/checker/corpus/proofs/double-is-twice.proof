@@ -1,9 +1,0 @@
-; n + n = 2 * n: doubling equals multiplication by two. Bridges the two ways the corpus writes
-; 'even': even m := exists k. m = k+k (the additive form) and 2|m := exists k. 2*k = m (the
-; divisibility form). 2*n reduces by conversion to n + (n + 0) [mul-succ twice + mul-zero]; one
-; add-zero rewrite collapses the +0, giving n + n. Self-contained: inline add-zero + sym/trans.
-(def 0 (all x1 (= (+ x1 z) x1)) (natind x2 (= (+ x2 z) x2) (refl z) (gen x3 (lam h4 (= (+ x3 z) x3) (eqelim x5 (= (s (+ x3 z)) (s x5)) h4 (refl (s (+ x3 z))))))))
-(def 1 (all x1 (all x2 (-> (= x1 x2) (= x2 x1)))) (gen x3 (gen x4 (lam h5 (= x3 x4) (eqelim x6 (= x6 x3) h5 (refl x3))))))
-(def 2 (all x1 (all x2 (all x3 (-> (= x1 x2) (-> (= x2 x3) (= x1 x3)))))) (gen x4 (gen x5 (gen x6 (lam h7 (= x4 x5) (lam h8 (= x5 x6) (eqelim x9 (= x4 x9) h8 h7)))))))
-(all x1 (= (+ x1 x1) (* (s (s z)) x1)))
-(gen x1 (app (inst (inst (use 1) (* (s (s z)) x1)) (+ x1 x1)) (app (app (inst (inst (inst (use 2) (* (s (s z)) x1)) (+ x1 (+ x1 z))) (+ x1 x1)) (refl (* (s (s z)) x1))) (eqelim x2 (= (+ x1 (+ x1 z)) (+ x1 x2)) (inst (use 0) x1) (refl (+ x1 (+ x1 z)))))))

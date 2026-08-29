@@ -1,9 +1,0 @@
-; a non-empty list has a member: 0 < len(L) -> exists x. Mem(x,L)
-; listind on L: nil is vacuous (0<0 absurd via lt-irrefl); cons yields the head via memhead.
-(def 0 (all x1 (all x2 (-> (= x1 x2) (= x2 x1)))) (gen x3 (gen x4 (lam h5 (= x3 x4) (eqelim x6 (= x6 x3) h5 (refl x3))))))
-(def 1 (all x1 (all x2 (all x3 (-> (= x1 x2) (-> (= x2 x3) (= x1 x3)))))) (gen x4 (gen x5 (gen x6 (lam h7 (= x4 x5) (lam h8 (= x5 x6) (eqelim x9 (= x4 x9) h8 h7)))))))
-(def 2 (all x1 (= (+ x1 z) x1)) (natind x2 (= (+ x2 z) x2) (refl z) (gen x3 (lam h4 (= (+ x3 z) x3) (eqelim x5 (= (s (+ x3 z)) (s x5)) h4 (refl (s (+ x3 z))))))))
-(def 3 (all x1 (all x2 (all x3 (-> (= (+ x1 x2) (+ x1 x3)) (= x2 x3))))) (natind x4 (all x5 (all x6 (-> (= (+ x4 x5) (+ x4 x6)) (= x5 x6)))) (gen x7 (gen x8 (lam h9 (= (+ z x7) (+ z x8)) h9))) (gen x10 (lam h11 (all x12 (all x13 (-> (= (+ x10 x12) (+ x10 x13)) (= x12 x13)))) (gen x14 (gen x15 (lam h16 (= (+ (s x10) x14) (+ (s x10) x15)) (app (inst (inst h11 x14) x15) (sinj h16)))))))))
-(def 4 (all x1 (-> (ex x2 (= (+ x1 (s x2)) x1)) bot)) (gen x3 (lam h4 (ex x5 (= (+ x3 (s x5)) x3)) (unpack h4 (gen x6 (lam h7 (= (+ x3 (s x6)) x3) (disj (app (inst (inst (use 0) (s x6)) z) (app (inst (inst (inst (use 3) x3) (s x6)) z) (app (app (inst (inst (inst (use 1) (+ x3 (s x6))) x3) (+ x3 z)) h7) (app (inst (inst (use 0) (+ x3 z)) x3) (inst (use 2) x3))))))))))))
-(all x1 (-> (ex x2 (= (+ z (s x2)) (len x1))) (ex x3 (rel 777 x3 x1))))
-(listind x1 (-> (ex x2 (= (+ z (s x2)) (len x1))) (ex x3 (rel 777 x3 x1))) (lam h4 (ex x5 (= (+ z (s x5)) (len nil))) (absurd (ex x6 (rel 777 x6 nil)) (app (inst (use 4) z) h4))) (gen x7 (gen x8 (lam h9 (-> (ex x10 (= (+ z (s x10)) (len x8))) (ex x11 (rel 777 x11 x8))) (lam h12 (ex x13 (= (+ z (s x13)) (len (cons x7 x8)))) (wit x14 (rel 777 x14 (cons x7 x8)) x7 (memhead x7 x8)))))))

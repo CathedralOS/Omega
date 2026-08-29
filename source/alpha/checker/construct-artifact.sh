@@ -19,7 +19,7 @@ unset OMEGA_PATH_PARENT
 ASSEMBLER="$OMEGA_PATH_ALPHA_ASSEMBLER/$BETA_SEED"
 SEED="$OMEGA_PATH_ALPHA/$ALPHA_SEED"
 TMP=$(mktemp -d)
-trap 'rm -rf "$TMP"' EXIT
+trap 'trash "$TMP"' EXIT
 
 "$ASSEMBLER" < "$OMEGA_PATH_BETA_COMPILER/beta_compiler.alpha" > "$TMP/compiler.tape"
 stamp_seed "$TMP/compiler.tape" "$SEED" "$TMP/compiler" >/dev/null

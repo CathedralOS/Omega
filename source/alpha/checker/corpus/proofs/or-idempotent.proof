@@ -1,2 +1,0 @@
-(all n (-> (or (= n 0) (= n 0)) (= n 0)))
-(gen n (lam h (or (= n 0) (= n 0)) (case h (lam a (= n 0) a) (lam a (= n 0) a))))

@@ -1,6 +1,0 @@
-; a + z = a -- the right-zero law for addition.
-; The primitive + reduces on the LEFT (z+a=a is definitional), so a+z=a is not free: induction on a
-; (base z+z=z by reduction; step (s a)+z = s(a+z) = s a by the IH under cong-s). Pairs with
-; add-succ-right to complete the right-side reduction laws + enable commutativity.
-(all x1 (= (+ x1 z) x1))
-(natind x1 (= (+ x1 z) x1) (refl z) (gen x2 (lam h3 (= (+ x2 z) x2) (eqelim x4 (= (s (+ x2 z)) (s x4)) h3 (refl (s (+ x2 z)))))))

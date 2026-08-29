@@ -22,3 +22,8 @@ source as differential evidence only; it is not this artifact's authority.
 
 Regenerate deliberately with `rebuild.sh`. Commit a changed tape only with its
 source or canonical-compiler change and a green reconstruction plus checker suite.
+
+| Retained file | Role | Deletion condition |
+| --- | --- | --- |
+| `proof_checker_bytecode.tape` | The sole accepted platform-independent checker artifact. | Replace atomically with its authoritative source and green exact reconstruction. |
+| `rebuild.sh` | Explicit mutation entry point for that artifact. | Delete when artifact replacement is owned by a different exact construction entry point. |

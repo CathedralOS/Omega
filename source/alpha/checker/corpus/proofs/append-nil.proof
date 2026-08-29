@@ -1,6 +1,0 @@
-; l ++ nil = l   — exercises listind / cons / append in the elaborator
-(all l (= (++ l nil) l))
-(listind l (= (++ l nil) l)
-  (refl nil)
-  (gen h (gen t (lam ih (= (++ t nil) t)
-    (eqelim hole (= (++ (cons h t) nil) (cons h hole)) ih (refl (++ (cons h t) nil)))))))

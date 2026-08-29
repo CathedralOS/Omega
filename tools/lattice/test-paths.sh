@@ -127,6 +127,39 @@ do
     fail "generic ownership bucket remains under $canonical_owner: $generic_buckets"
 done
 
+# Retained infrastructure below the audited floor must justify every tracked
+# child directory next to its owner. This turns retention from prose policy into
+# a topology gate: an unclassified bucket cannot silently accumulate.
+require_retention_inventory() { # repository-relative owner directory
+  inventory_owner=$1
+  inventory_readme="$OMEGA_REPO_ROOT/$inventory_owner/README.md"
+  [ -f "$inventory_readme" ] ||
+    fail "retained owner lacks adjacent README: $inventory_owner"
+  grep -Fq 'Deletion condition' "$inventory_readme" ||
+    fail "retained owner lacks deletion conditions: $inventory_owner"
+
+  inventory_children=$(git -C "$OMEGA_REPO_ROOT" ls-files "$inventory_owner" | \
+    awk -F/ -v depth="$(printf '%s' "$inventory_owner" | awk -F/ '{ print NF + 1 }')" \
+      'NF >= depth { print $depth }' | sort -u)
+  for inventory_child in $inventory_children; do
+    [ -d "$OMEGA_REPO_ROOT/$inventory_owner/$inventory_child" ] || continue
+    grep -Fq "\`$inventory_child/\`" "$inventory_readme" ||
+      fail "tracked child lacks retention row: $inventory_owner/$inventory_child"
+  done
+}
+
+for inventoried_owner in \
+  source/alpha \
+  source/alpha/assembler \
+  source/alpha/checker \
+  source/alpha/checker/artifacts \
+  source/alpha/checker/corpus \
+  source/alpha/checker/gates \
+  source/alpha/checker/implementations
+do
+  require_retention_inventory "$inventoried_owner"
+done
+
 [ ! -e "$OMEGA_REPO_ROOT/source/on-ramp" ] || fail "retired source/on-ramp directory remains"
 [ ! -e "$OMEGA_REPO_ROOT/source/proof-kernel" ] || fail "orphan proof-kernel owner remains"
 [ ! -e "$OMEGA_REPO_ROOT/source/refinement" ] || fail "generic refinement owner remains"

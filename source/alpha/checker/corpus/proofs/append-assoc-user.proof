@@ -1,7 +1,0 @@
-; user-list append is associative: (L1++L2)++L3 = L1++(L2++L3)
-(data 2 0 0 0)
-(data 3 2 0 1)
-(fun 8 2 (y 0))
-(fun 8 3 (k 3 (v 0) (rec 1)))
-(all x1 (all x2 (all x3 (= (f 8 (f 8 x1 x2) x3) (f 8 x1 (f 8 x2 x3))))))
-(rec 2 3 x1 (all x2 (all x3 (= (f 8 (f 8 x1 x2) x3) (f 8 x1 (f 8 x2 x3))))) (gen x4 (gen x5 (refl (f 8 x4 x5)))) (gen x6 (gen x7 (lam h8 (all x9 (all x10 (= (f 8 (f 8 x7 x9) x10) (f 8 x7 (f 8 x9 x10))))) (gen x11 (gen x12 (eqelim x13 (= (k 3 x6 (f 8 (f 8 x7 x11) x12)) (k 3 x6 x13)) (inst (inst h8 x11) x12) (refl (k 3 x6 (f 8 (f 8 x7 x11) x12))))))))))

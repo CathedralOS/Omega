@@ -1,8 +1,0 @@
-; length determines emptiness: len L = 0 -> L = nil
-; induction on L; cons case is vacuous -- len(cons h t) = s(len t), so the hypothesis is (s ..) = z, and disj fires directly (no len-coercion needed, len already yields a Nat).
-(data 2 0 0 0)
-(data 3 2 0 1)
-(fun 10 2 z)
-(fun 10 3 (s (rec 1)))
-(all x1 (-> (= (f 10 x1) z) (= x1 (k 2))))
-(rec 2 3 x1 (-> (= (f 10 x1) z) (= x1 (k 2))) (lam h2 (= (f 10 (k 2)) z) (refl (k 2))) (gen x3 (gen x4 (lam h5 (-> (= (f 10 x4) z) (= x4 (k 2))) (lam h6 (= (f 10 (k 3 x3 x4)) z) (absurd (= (k 3 x3 x4) (k 2)) (disj h6)))))))

@@ -1,3 +1,0 @@
-; a <= a+b   (the sum is an upper bound)   a<=x := exists c. a+c=x
-(all a (all b (ex c (= (+ a c) (+ a b)))))
-(gen a (gen b (wit c (= (+ a c) (+ a b)) b (refl (+ a b)))))

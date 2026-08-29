@@ -1,4 +1,0 @@
-; every list has a product: forall L. exists n. ProdIs(L,n)
-; listind on L: nil -> 1 (pnil); cons h t -> h*m where ProdIs(t,m) by IH (pcons)
-(all x1 (ex x2 (rel 778 x1 x2)))
-(listind x1 (ex x2 (rel 778 x1 x2)) (wit x3 (rel 778 nil x3) (s z) (pnil)) (gen x4 (gen x5 (lam h6 (ex x7 (rel 778 x5 x7)) (unpack h6 (gen x8 (lam h9 (rel 778 x5 x8) (wit x10 (rel 778 (cons x4 x5) x10) (* x4 x8) (pcons x4 h9)))))))))

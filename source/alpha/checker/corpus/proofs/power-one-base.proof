@@ -1,9 +1,0 @@
-; one to any power is one: 1^k = 1
-(data 2 0 0 0)
-(data 3 1 1 0)
-(fun 12 2 (s z))
-(fun 12 3 (* (y 0) (rec 0)))
-(def 0 (all x1 (all x2 (-> (= x1 x2) (= x2 x1)))) (gen x3 (gen x4 (lam h5 (= x3 x4) (eqelim x6 (= x6 x3) h5 (refl x3))))))
-(def 1 (all x1 (all x2 (all x3 (-> (= x1 x2) (-> (= x2 x3) (= x1 x3)))))) (gen x4 (gen x5 (gen x6 (lam h7 (= x4 x5) (lam h8 (= x5 x6) (eqelim x9 (= x4 x9) h8 h7)))))))
-(all x1 (= (f 12 x1 (s z)) (s z)))
-(rec 2 3 x1 (= (f 12 x1 (s z)) (s z)) (refl (s z)) (gen x2 (lam h3 (= (f 12 x2 (s z)) (s z)) (app (app (inst (inst (inst (use 1) (f 12 (k 3 x2) (s z))) (* (s z) (f 12 x2 (s z)))) (s z)) (refl (f 12 (k 3 x2) (s z)))) (app (app (inst (inst (inst (use 1) (* (s z) (f 12 x2 (s z)))) (* (s z) (s z))) (s z)) (eqelim x4 (= (* (s z) (f 12 x2 (s z))) (* (s z) x4)) h3 (refl (* (s z) (f 12 x2 (s z)))))) (refl (* (s z) (s z))))))))

@@ -2,9 +2,9 @@
 # TRUST-ANCHOR DIAMOND, independent point — an auditable reference checker (implementations/reference/check_ref.py) agrees with
 # implementations/beta/check.beta on logic (propositional + first-order), equality-conversion, and the TV cert language.
 #
-# The checker is the trust anchor: it decides which proofs are valid. Its two implementations — implementations/beta/check.beta
-# (in Beta) and implementations/gamma/checker.gamma (in Gamma) — are diamonded against each other, but BOTH are lattice-lineage
-# (compiled by bc). implementations/reference/check_ref.py is a third, INDEPENDENT realization in Python of the checker's logic core: intuitionistic
+# The checker is the trust anchor: it decides which proofs are valid.
+# implementations/reference/check_ref.py is one INDEPENDENT diagnostic realization
+# in Python of the checker's logic core: intuitionistic
 # propositional natural deduction (->, &, +, bot intro+elim) the first-order rules (All/Exists with de
 # Bruijn: gen/inst/wit/unpack, capture-avoiding), AND equality by CONVERSION (refl + a Peano p/m normalizer,
 # so `(= a b)` accepts iff a and b reduce to the same normal form), short enough to read against the rules.
@@ -35,7 +35,7 @@ cd "$OMEGA_PATH_ALPHA_CHECKER"
 command -v python3 >/dev/null 2>&1 || { echo "check-ref diamond: skipped (python3 absent)"; exit 0; }
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+T=$(mktemp -d); trap 'trash "$T"' EXIT
 stamp_proof_checker "$T/check.exe" >/dev/null || { echo "check-ref diamond: checker artifact unavailable"; exit 1; }
 
 if python3 corpus/fuzz/check-ref-fuzz.py "$T/check.exe" "${1:-200}" > "$T/out" 2>&1; then

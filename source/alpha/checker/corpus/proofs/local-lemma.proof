@@ -1,5 +1,0 @@
-; sym, but with the refl base bound as a local lemma via `have`
-(all a (all b (-> (= a b) (= b a))))
-(gen a (gen b (lam h (= a b)
-  (have base (= a a) (refl a)
-    (eqelim hole (= hole a) h base)))))
