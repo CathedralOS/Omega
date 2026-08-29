@@ -1058,9 +1058,9 @@ no host filesystem provider. Retained source bytes serve that build call even
 after host source drift, while changed authored paths, counts, positioned
 offsets, operation or region kinds, or event structure reject. This uses the
 existing compiler-private checked/evaluator seam and does
-not justify nominal Chi. Broad operation replay, output mutation and output-
-tree reproduction, package-command integration, and a complete replay verdict
-remain absent, so the build remains `Volatile`.
+not justify nominal Chi. Direct unsponsored host execution remains `Volatile`;
+broad operation replay, output mutation and output-tree reproduction, package-
+command integration, and receipts for other grammars remain absent.
 
 Summary v23 and replay-record v5 broaden the same bounded executor to an
 ordered source-input stream. Successful Source-rooted `read_metadata` and
@@ -1092,6 +1092,20 @@ trees remain `Volatile`. This is replay evidence, not proof of audit,
 authenticity, or admission. A separate 16 MiB aggregate replay-retention
 ceiling rejects before cloning, and validated attempt custody is shared across
 evaluator handoff.
+
+Summary v27 adds the zero-mutation completion of that grammar. A successful
+Source-input-only build reconstructs the canonical empty Output tree after
+complete provider-free event replay, exact result equality, empty generated-
+source handoff, and replay-namespace quiescence. Direct initial issuance still
+requires equality with independently sponsored physical empty Output custody;
+an unsponsored host execution remains `Volatile`, and any unexplained sponsored
+entry rejects. Reopening replay-record v8 executes in a fresh virtual namespace
+and reconstructs the empty tree without consulting host Output. The record
+remains non-authoritative; package admission separately requires its canonical
+Source-metadata identity to equal current compiler-validated package custody.
+Earlier summary schemas reject through the record's existing semantic-schema
+binding; record framing is unchanged.
+
 Byte-valued inputs are evaluated once by the shared preparer and reject above
 the evaluator's current 16 MiB sponsor ceiling before provider cloning/
 allocation. Raw transfer counts use one checked conversion and
@@ -1120,8 +1134,9 @@ entries, 256 MiB total logical bytes, and 256 MiB per object extent. A
 per-package or path-summed quota is not a valid substitute.
 These summary fields are compiler-issued execution evidence kept outside
 canonical capability/API comparison bytes. In isolation they are not a receipt
-and do not claim either replay verdict; only the exact v24/v6 grammar above may
-join them to verified operation replay and reproduced tree equality.
+and do not claim either replay verdict; only the exact v24/v6 one-file grammar
+and v27/v8 empty-Output grammar above may join them to verified operation replay
+and reproduced tree equality.
 Sponsored package review does retain a versioned commitment to
 the complete fresh Output tree after successful evaluator/provider teardown
 and before deleting the disposable session. The canonical tree binds sorted
@@ -1138,11 +1153,11 @@ private fields and can materialize it into an existing empty concrete directory,
 then independently re-inspect exact paths, kinds, modes, targets, and bytes
 before returning the same commitment. Hard-link topology is neither retained
 nor leaked through the count. In isolation this is output-tree custody and
-replay only. The exact v24/v6 grammar above supplies canonical operation replay,
-retained observed inputs, generated-output handoff, and a complete record replay
-checker for its one-file case; all broader shapes still require those missing
-pieces. This custody rung does not exclude a hostile same-user process racing
-the review session.
+replay only. The exact v24/v6 one-file and v27/v8 empty-Output grammars above
+supply canonical operation replay and retained observed inputs; the one-file
+case additionally binds generated-output handoff. All broader shapes still
+require those missing pieces. This custody rung does not exclude a hostile
+same-user process racing the review session.
 
 Policy can consequently distinguish an ordinary development build, a release
 that requires record replay, and a supply-chain release that requires

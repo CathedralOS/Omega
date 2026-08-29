@@ -1308,10 +1308,10 @@ compilation can now strictly decode the reopened bytes into the PSI executor's
 exact typed source-read chains and evaluate the build machine without a host
 filesystem provider. Retained source bytes serve the replay even after host
 source drift; changed authored paths, counts, positioned offsets, operation or
-region kinds, and event structure reject. No public
-IR stage or nominal Chi is introduced. The package remains `Volatile`; full
+region kinds, and event structure reject. No public IR stage or nominal Chi is
+introduced. Direct unsponsored host execution remains `Volatile`; broad
 operation replay, output mutation and staged-output reproduction, package-
-command integration, and a `Receipted` verdict remain absent.
+command integration, and receipts for other grammars remain absent.
 
 Observation summary v23 and compiler replay-record v5 generalize this custody
 to ordered source-input events. Successful Source-rooted `read_metadata` and
@@ -1342,6 +1342,20 @@ broader operation or tree shape remains outside this receipt. This is build-
 operation evidence; it makes no claim that a human or LLM audit occurred. A
 separate 16 MiB aggregate replay-retention ceiling rejects before cloning, and
 validated attempt custody is shared across evaluator handoff.
+
+Observation summary v27 adds the zero-mutation completion of that grammar. A
+successful Source-input-only build reconstructs the canonical empty Output
+tree after complete provider-free event replay, exact result equality, empty
+generated-source handoff, and replay-namespace quiescence. Direct initial
+issuance still requires equality with independently sponsored physical empty
+Output custody; unsponsored host execution stays `Volatile`, and any
+unexplained sponsored entry rejects. Reopening replay-record v8 executes in a
+fresh virtual namespace and reconstructs the empty tree without consulting
+host Output. The record remains non-authoritative, and package admission
+separately rejoins its canonical Source-metadata identity to current compiler-
+validated package custody. Earlier summary schemas reject through the existing
+semantic-schema binding; record framing is unchanged.
+
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities reject negative, wrapped, or

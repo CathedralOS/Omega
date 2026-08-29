@@ -300,7 +300,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 26;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 27;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -1087,9 +1087,11 @@ impl BuildObservationSummary {
     }
 
     /// Whether the compiler replayed the complete successful operation record,
-    /// reproduced its Output tree from execution rather than a supplied digest,
-    /// and matched the exact generated-source handoff. Only this complete fact
-    /// can support a `Receipted` realized observation class.
+    /// reconstructed its complete Output tree from the admitted operation
+    /// grammar rather than a supplied digest, matched exact generated-source
+    /// handoff, and, for direct physical issuance, matched sponsored custody.
+    /// Only this complete fact can support a `Receipted` realized observation
+    /// class.
     pub const fn operation_replay_verified(&self) -> bool {
         self.operation_replay_verified
     }
@@ -2771,6 +2773,8 @@ pub fn compute_build_config(
     } else {
         None
     };
+    let source_only_replay =
+        replay.is_some() && is_source_input_replay_record(measured.observations());
     let receipted_output = replay.as_ref().and_then(receipted_output_file);
     let source_inputs_replay_verified = if let Some(replay) = replay {
         let replayed = psi_build_time_evaluation::evaluate_build_machine_arguments_measured(
@@ -2798,10 +2802,14 @@ pub fn compute_build_config(
     } else {
         false
     };
-    let replayed_output_tree = receipted_output
-        .as_ref()
-        .map(|output| replayed_single_ordinary_file(&output.relative_path, &output.bytes))
-        .transpose()?;
+    let replayed_output_tree = if source_only_replay {
+        Some(empty())
+    } else {
+        receipted_output
+            .as_ref()
+            .map(|output| replayed_single_ordinary_file(&output.relative_path, &output.bytes))
+            .transpose()?
+    };
     let observation_ceiling = if filesystem_reachable {
         BuildObservationClass::Volatile
     } else {
