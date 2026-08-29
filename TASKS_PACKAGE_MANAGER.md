@@ -13,7 +13,7 @@ Governing documents:
 - `wiki/language_guide/chapter_15_modules_imports_visibility.md`
 - `wiki/language_guide/chapter_19_capabilities_effects_boundaries.md`
 - `source/omega-rust/omega/packages/manager/README.md`
-- `source/omega-rust/omega/packages/manager/SOURCE_RESOLVER_SECURITY.md`
+- `source/omega-rust/omega/packages/source/acquisition/SOURCE_RESOLVER_SECURITY.md`
 - `OWNER_QUESTIONS.md`
 
 Do not wire mutating `omega install` or `omega update` until the P0 source
@@ -58,7 +58,8 @@ closed. Compiler-issued package review remains non-admitting.
     subjects, and every required resource observation. Missing rows must reject.
 
   The detailed established floor and remaining platform gaps are maintained in
-  `SOURCE_RESOLVER_SECURITY.md`. Strict SSH trust and credential authority is
+  `source/omega-rust/omega/packages/source/acquisition/SOURCE_RESOLVER_SECURITY.md`.
+  Strict SSH trust and credential authority is
   design-blocked on OWNER Q10; the other bullets are engineering work.
 
 ## P1 — Total package semantic identity

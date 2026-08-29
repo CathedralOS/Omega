@@ -887,6 +887,7 @@ fn package_subsystem_has_deliberate_entrances() {
         "review/evidence/src/obligation_ledger/mod.rs",
         "source/README.md",
         "source/acquisition/README.md",
+        "source/acquisition/SOURCE_RESOLVER_SECURITY.md",
         "source/acquisition/src/lib.rs",
         "source/execution/src/lib.rs",
     ] {
@@ -919,6 +920,7 @@ fn package_subsystem_has_deliberate_entrances() {
         "manager/src/manifest",
         "manager/src/package",
         "manager/src/graph",
+        "manager/SOURCE_RESOLVER_SECURITY.md",
         "manager/src/storage",
         "manager/src/source/package",
         "manager/src/source/audit.rs",

@@ -22,3 +22,6 @@ src/
 Native child-process confinement lives in `../execution/`. Package
 declarations, graph reconciliation, review, and admission remain manager
 responsibilities.
+
+The current enforced floor and remaining platform gaps are maintained in
+[`SOURCE_RESOLVER_SECURITY.md`](SOURCE_RESOLVER_SECURITY.md).

@@ -79,8 +79,8 @@ review/
 The package manager is not admission-complete. In particular, no accepted lock
 or atomic install/update transaction exists yet. Remaining work is maintained
 in [`TASKS_PACKAGE_MANAGER.md`](../../../../../TASKS_PACKAGE_MANAGER.md), and
-resolver guarantees and gaps are maintained in
-[`SOURCE_RESOLVER_SECURITY.md`](SOURCE_RESOLVER_SECURITY.md).
+resolver guarantees and gaps are maintained by source acquisition in
+[`SOURCE_RESOLVER_SECURITY.md`](../source/acquisition/SOURCE_RESOLVER_SECURITY.md).
 
 Capability-safe atomic record persistence is shared infrastructure owned by
 `omega-platform-custody`, not a package-manager responsibility.
