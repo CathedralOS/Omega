@@ -1,41 +1,43 @@
-# Omega Package Review
+# Omega Package Evidence
 
 This crate projects compiler-owned checked package facts into a stable,
-source-handle-free review vocabulary. It also owns canonical comparison-row
-encoding, row recovery, and the ordinary review-obligation ledger. Review output
-is not package admission, an accepted lock, or proof that an audit occurred.
+source-handle-free evidence vocabulary. It owns canonical comparison-row
+encoding, row recovery, and the ordinary package-obligation ledger. Its output
+is inert compiler evidence—not package admission, an accepted lock, or proof
+that an audit occurred. Review workflow and root policy belong to
+`omega-package-manager::review`.
 
 ## Source map
 
 ```text
 src/
-|-- lib.rs                    operation entrance; exports only project_checked_package_review
-|-- evidence/                 public stable compiler-issued review vocabulary
+|-- lib.rs                    projection entrance and four responsibility owners
+|-- evidence/                 public stable compiler-issued evidence vocabulary
 |   |-- identity.rs           package/toolchain nominal identity
 |   |-- signatures/           types, callables, traits, and external supply
-|   |-- public_api.rs         domain and data API shapes
+|   |-- api.rs                domain and data API shapes
 |   |-- contracts/            expressions, propositions, declarations, and callable contracts
 |   |-- authority.rs          reach, capability, mutation, crash, and termination
-|   |-- review/               callables, providers, package aggregate, and source pairings
+|   |-- package/              callables, providers, package aggregate, and source pairings
 |   `-- rows.rs               canonical row and source-coordinate carriers
-|-- projection/               private checked compiler state -> review evidence
+|-- projection/               private checked compiler state -> package evidence
 |   |-- orchestration/        validation, surface collection, providers, and assembly
 |   |-- authority.rs          reached authority and intrinsic risk classes
-|   |-- semantics.rs          semantic dependencies and representation TCB
-|   |-- source_custody/       bounded source coordinates and final row/source pairing
-|   |-- public_api/           public domains, data, propositions, constants, operators, traits, and conformances
+|   |-- representation.rs     semantic dependencies and representation TCB
+|   |-- source/               bounded source coordinates and final row/source pairing
+|   |-- api/                  public domains, data, propositions, constants, operators, traits, and conformances
 |   |-- callables.rs          callable envelope projection
 |   |-- contracts/            checked facts, propositions, and expressions
 |   |   |-- checked/          evidence, operations, parameters, reach, and source custody
 |   |   `-- expressions/      calls, members, constructors, names, and operators
 |   |-- providers/           selection, families, intrinsics, conformances, and external supply
-|   |-- operational/          reach, invocation, mutation, crash, termination, and flow rows
-|   `-- checked_semantics/    declarations, types, signatures, facts, and conformances
+|   |-- behavior/             reach, invocation, mutation, crash, termination, and flow rows
+|   `-- semantics/            declarations, types, signatures, facts, and conformances
 |-- encoding/                 public canonical persistence boundaries; no compiler IR
-|   |-- canonical/            framing, row assembly, limits, and primitive encoder
+|   |-- encode/               framing, row assembly, limits, and primitive encoder
 |   |-- values/               semantic value encoding by evidence family
-|   `-- recovery/             canonical-row framing, source recovery, and decoding
-`-- obligation_ledger/       public local reconstruction question; codec remains private
+|   `-- decode/               canonical-row framing, source recovery, and decoding
+`-- obligations/             public local reconstruction question; codec remains private
 
 tests/
 |-- support/                  shared package-compilation fixtures
@@ -57,14 +59,14 @@ tests/
 `projection` reads compiler-owned checked state and constructs `evidence`
 values. `encoding` reads `evidence` values but never compiler IR. `evidence`
 neither traverses compiler state nor depends on persistence. Recovery decodes
-canonical rows into a distinct inert type. `obligation_ledger` owns the separate
+canonical rows into a distinct inert type. `obligations` owns the separate
 local compiler reconstruction that must precede comparison of recovered rows;
 its codec is an implementation detail of that domain, not an encoding owner.
 
 The crate root exports only `project_checked_package_review`, the natural
 operation entrance. Stable values are addressed through `evidence`, canonical
 persistence and recovery through `encoding`, and local reconstruction through
-`obligation_ledger`. Their implementation modules, cross-responsibility
+`obligations`. Their implementation modules, cross-responsibility
 construction helpers, and fields remain private or `pub(crate)` rather than
 forming a second flattened API.
 Compiler-owned provider execution identity is retained independently from the

@@ -1,4 +1,8 @@
-//! Repository guard for the package subsystem's source-navigation contract.
+//! Positive source-navigation contract for the package subsystem.
+//!
+//! This guard names current owners and reader entrances. It deliberately does
+//! not preserve a blacklist of historical paths: architecture is proved by the
+//! tree that exists, its documented dependency direction, and bounded leaves.
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -6,14 +10,24 @@ use std::path::{Path, PathBuf};
 
 const PACKAGE_CRATES: &[&str] = &[
     "omega-package-advisory",
+    "omega-package-evidence",
     "omega-package-manager",
-    "omega-package-review",
     "omega-package-source",
     "omega-resolver-execution",
 ];
-const MAX_PRODUCTION_LEAF_LINES: usize = 800;
-const MAX_TEST_LEAF_LINES: usize = 900;
-const MAX_ENTRANCE_LINES: usize = 250;
+const MANAGER_OWNERS: &[&str] = &[
+    "declarations",
+    "discovery",
+    "graph",
+    "identity",
+    "operations",
+    "review",
+];
+const EVIDENCE_OWNERS: &[&str] = &["encoding", "evidence", "obligations", "projection"];
+const MAX_PRODUCTION_LEAF_LINES: usize = 600;
+const MAX_TEST_LEAF_LINES: usize = 800;
+const MAX_ENTRANCE_LINES: usize = 160;
+const MAX_SOURCE_DIRECTORY_DEPTH: usize = 5;
 
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -27,15 +41,27 @@ fn package_root() -> PathBuf {
     workspace_root().join("source/omega-rust/omega/packages")
 }
 
+fn directory_entries(root: &Path) -> BTreeSet<String> {
+    fs::read_dir(root)
+        .unwrap_or_else(|error| panic!("read {}: {error}", root.display()))
+        .map(|entry| {
+            entry
+                .expect("read directory entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect()
+}
+
 fn rust_files(root: &Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
     let mut pending = vec![root.to_path_buf()];
     while let Some(directory) = pending.pop() {
-        for entry in fs::read_dir(&directory).unwrap_or_else(|error| {
-            panic!("read package directory {}: {error}", directory.display())
-        }) {
-            let entry = entry.expect("read package source entry");
-            let path = entry.path();
+        for entry in fs::read_dir(&directory)
+            .unwrap_or_else(|error| panic!("read {}: {error}", directory.display()))
+        {
+            let path = entry.expect("read package source entry").path();
             if path.is_dir() {
                 pending.push(path);
             } else if path.extension().and_then(|extension| extension.to_str()) == Some("rs") {
@@ -47,108 +73,131 @@ fn rust_files(root: &Path) -> Vec<PathBuf> {
     files
 }
 
+fn assert_documented_owners(crate_root: &Path, owners: &[&str]) {
+    let source_root = crate_root.join("src");
+    let expected = std::iter::once("lib.rs".to_owned())
+        .chain(owners.iter().map(|owner| (*owner).to_owned()))
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        directory_entries(&source_root),
+        expected,
+        "{} must expose one exact, readable owner map",
+        source_root.display()
+    );
+
+    let readme = fs::read_to_string(crate_root.join("README.md"))
+        .unwrap_or_else(|error| panic!("read {} README: {error}", crate_root.display()));
+    let library = fs::read_to_string(source_root.join("lib.rs"))
+        .unwrap_or_else(|error| panic!("read {} library entrance: {error}", crate_root.display()));
+    for owner in owners {
+        assert!(
+            readme.contains(&format!("{owner}/")) && library.contains(&format!("mod {owner};")),
+            "{} must advertise `{owner}` in both human and Rust entrances",
+            crate_root.display()
+        );
+        let entrance = source_root.join(owner).join("mod.rs");
+        let source = fs::read_to_string(&entrance)
+            .unwrap_or_else(|error| panic!("read {}: {error}", entrance.display()));
+        assert!(
+            source.lines().take(12).any(|line| line.starts_with("//!")),
+            "owner entrance must explain where curiosity leads next: {}",
+            entrance.display()
+        );
+    }
+}
+
 #[test]
 fn package_top_level_is_the_exact_advertised_crate_map() {
     let packages = package_root();
-    let actual = fs::read_dir(&packages)
-        .expect("read package subsystem entrance")
-        .map(|entry| {
-            entry
-                .expect("read package subsystem entry")
-                .file_name()
-                .to_string_lossy()
-                .into_owned()
-        })
+    let expected = std::iter::once("README.md".to_owned())
+        .chain(PACKAGE_CRATES.iter().map(|name| (*name).to_owned()))
         .collect::<BTreeSet<_>>();
-    let expected = std::iter::once("README.md")
-        .chain(PACKAGE_CRATES.iter().copied())
-        .map(str::to_owned)
-        .collect::<BTreeSet<_>>();
-    assert_eq!(
-        actual, expected,
-        "packages/ must remain an exact, documented map of package responsibilities"
-    );
+    assert_eq!(directory_entries(&packages), expected);
 
-    let package_readme = fs::read_to_string(packages.join("README.md"))
+    let readme = fs::read_to_string(packages.join("README.md"))
         .expect("read package subsystem README entrance");
-    assert!(package_readme.starts_with("# "));
+    assert!(readme.starts_with("# "));
     for crate_name in PACKAGE_CRATES {
+        let crate_root = packages.join(crate_name);
+        assert!(crate_root.join("README.md").is_file());
+        assert!(crate_root.join("Cargo.toml").is_file());
+        assert!(crate_root.join("src/lib.rs").is_file());
         assert!(
-            package_readme.contains(&format!("{crate_name}/")),
+            readme.contains(&format!("{crate_name}/")),
             "packages/README.md must advertise {crate_name}"
         );
     }
 }
 
 #[test]
-fn every_advertised_package_has_readme_cargo_and_library_entrances() {
+fn manager_and_compiler_evidence_have_exact_reader_entrances() {
     let packages = package_root();
-    for crate_name in PACKAGE_CRATES {
-        let crate_root = packages.join(crate_name);
-        let readme_path = crate_root.join("README.md");
-        let cargo_path = crate_root.join("Cargo.toml");
-        let library_path = crate_root.join("src/lib.rs");
-        for entrance in [&readme_path, &cargo_path, &library_path] {
-            assert!(
-                entrance.is_file(),
-                "advertised package entrance is missing: {}",
-                entrance.display()
-            );
-        }
+    assert_documented_owners(&packages.join("omega-package-manager"), MANAGER_OWNERS);
+    assert_documented_owners(&packages.join("omega-package-evidence"), EVIDENCE_OWNERS);
+}
 
-        let readme = fs::read_to_string(&readme_path)
-            .unwrap_or_else(|error| panic!("read {}: {error}", readme_path.display()));
+#[test]
+fn source_tests_live_with_their_owners() {
+    let source = package_root().join("omega-package-source/src");
+    assert!(
+        !source.join("tests").exists(),
+        "package source must not recover a crate-wide wildcard test hub"
+    );
+    for owner in ["custody", "git", "local"] {
         assert!(
-            readme.lines().take(12).any(|line| line.starts_with('#')),
-            "package README must introduce its responsibility: {}",
-            readme_path.display()
+            source.join(owner).join("tests").is_dir(),
+            "private source invariants must live beside `{owner}`"
         );
-
-        let cargo = fs::read_to_string(&cargo_path)
-            .unwrap_or_else(|error| panic!("read {}: {error}", cargo_path.display()));
+    }
+    for path in rust_files(&source) {
+        let text = fs::read_to_string(&path).expect("read package-source Rust file");
         assert!(
-            cargo.contains("[package]") && cargo.contains(&format!("name = \"{crate_name}\"")),
-            "package Cargo entrance must declare its advertised crate name: {}",
-            cargo_path.display()
-        );
-
-        let library = fs::read_to_string(&library_path)
-            .unwrap_or_else(|error| panic!("read {}: {error}", library_path.display()));
-        assert!(
-            library.lines().take(12).any(|line| line.starts_with("//!")),
-            "package library entrance must guide readers into its owners: {}",
-            library_path.display()
+            !text.contains("#[allow(unused_imports)]"),
+            "owner-local tests must not depend on wildcard forwarding: {}",
+            path.display()
         );
     }
 }
 
 #[test]
-fn package_sources_keep_bounded_entrances_and_named_leaves() {
+fn package_sources_are_bounded_and_shallow_enough_to_navigate() {
     let packages = package_root();
-    for path in rust_files(&packages) {
-        let file_name = path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .expect("Rust source has a UTF-8 file name");
-        let source = fs::read_to_string(&path)
-            .unwrap_or_else(|error| panic!("read package source {}: {error}", path.display()));
-        let lines = source.lines().count();
-        let is_entrance = matches!(file_name, "lib.rs" | "mod.rs");
-        let is_test = file_name == "tests.rs"
-            || path
-                .components()
-                .any(|component| component.as_os_str() == "tests");
-        let (limit, kind) = if is_entrance {
-            (MAX_ENTRANCE_LINES, "entrance")
-        } else if is_test {
-            (MAX_TEST_LEAF_LINES, "test leaf")
-        } else {
-            (MAX_PRODUCTION_LEAF_LINES, "production leaf")
-        };
-        assert!(
-            lines <= limit,
-            "package {kind} exceeds its {limit}-line source-navigation limit (found {lines}): {}",
-            path.display()
-        );
+    for crate_name in PACKAGE_CRATES {
+        let source_root = packages.join(crate_name).join("src");
+        for path in rust_files(&source_root) {
+            let source = fs::read_to_string(&path)
+                .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
+            let file_name = path.file_name().and_then(|name| name.to_str()).unwrap();
+            let is_entrance = matches!(file_name, "lib.rs" | "mod.rs");
+            let is_test = file_name == "tests.rs"
+                || path
+                    .components()
+                    .any(|component| component.as_os_str() == "tests");
+            let (limit, kind) = if is_entrance {
+                (MAX_ENTRANCE_LINES, "entrance")
+            } else if is_test {
+                (MAX_TEST_LEAF_LINES, "test leaf")
+            } else {
+                (MAX_PRODUCTION_LEAF_LINES, "production leaf")
+            };
+            let lines = source.lines().count();
+            assert!(
+                lines <= limit,
+                "package {kind} exceeds its {limit}-line navigation limit (found {lines}): {}",
+                path.display()
+            );
+
+            let depth = path
+                .strip_prefix(&source_root)
+                .expect("package source belongs to its crate")
+                .parent()
+                .map(|parent| parent.components().count())
+                .unwrap_or(0);
+            assert!(
+                depth <= MAX_SOURCE_DIRECTORY_DEPTH,
+                "package source exceeds its {MAX_SOURCE_DIRECTORY_DEPTH}-directory navigation depth (found {depth}): {}",
+                path.display()
+            );
+        }
     }
 }
