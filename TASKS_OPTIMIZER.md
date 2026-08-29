@@ -165,6 +165,9 @@ selection identity.
   entrance descends through a 49-line payloadless/structural/ordinary route,
   then ordinary lifecycle, exact operation, and terminator projection leaves;
   the former 1,058-line file is gone and no replacement exceeds 700 lines.
+  Abstract-to-target Unit lowering is complete as well: its ordered setup/loop
+  now descends into separate boundary-realization and cleanup-return leaves;
+  the former 1,034-line file is gone and no replacement exceeds 453 lines.
   Continue through the exact exception table in the architecture guard,
   removing each exception as its file falls below the 1,000-line default.
 - [x] Clear the current production-file size violations by semantic split, not
