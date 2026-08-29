@@ -49,6 +49,20 @@ pub enum TargetProfile {
     LocalUnchecked,
 }
 
+/// Stable, domain-separated identity of one deployment profile.
+///
+/// Source spelling and enum order are presentation details. Retained target
+/// evidence uses this identity so those details cannot silently rename a
+/// profile already present in locks or review material.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TargetProfileIdentity(&'static str);
+
+impl TargetProfileIdentity {
+    pub const fn as_str(self) -> &'static str {
+        self.0
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProgramEntrySchema {
     /// Hosted launch hides physical image/storage arrival from source.
@@ -163,6 +177,33 @@ impl From<ProgramEntrySlotDeclaration> for TargetRequiredRootSlotDeclaration {
 }
 
 impl TargetProfile {
+    /// Complete trusted deployment-profile catalog in canonical identity order.
+    ///
+    /// Consumers that retain profile-indexed evidence must use this catalog
+    /// rather than maintaining a parallel list that can drift from the
+    /// compiler's accepted source-visible cases.
+    pub const ALL: [Self; 7] = [
+        Self::LinuxArm64,
+        Self::LinuxX64,
+        Self::MacosArm64,
+        Self::WindowsX64,
+        Self::UefiX64,
+        Self::CrossPlatformCli,
+        Self::LocalUnchecked,
+    ];
+
+    pub const fn identity(self) -> TargetProfileIdentity {
+        TargetProfileIdentity(match self {
+            Self::LinuxArm64 => "omega.target-profile.v1:linux_arm64",
+            Self::LinuxX64 => "omega.target-profile.v1:linux_x64",
+            Self::MacosArm64 => "omega.target-profile.v1:macos_arm64",
+            Self::WindowsX64 => "omega.target-profile.v1:windows_x64",
+            Self::UefiX64 => "omega.target-profile.v1:uefi_x64",
+            Self::CrossPlatformCli => "omega.target-profile.v1:cross_platform_cli",
+            Self::LocalUnchecked => "omega.target-profile.v1:local_unchecked",
+        })
+    }
+
     pub fn host() -> Self {
         if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
             Self::MacosArm64

@@ -82,7 +82,8 @@ fn rejects_nested_helper_and_control_flow_dependency_requests() {
     );
     assert!(matches!(
         nested_state.extract(),
-        Err(DependencyProjectionError::UnsupportedDependencyShape)
+        Err(DependencyProjectionError::UnreachableDependency { state, .. })
+            if state == "later"
     ));
 }
 

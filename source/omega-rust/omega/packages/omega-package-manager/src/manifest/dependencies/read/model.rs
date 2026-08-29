@@ -1,5 +1,8 @@
 use crate::identity::{AliasName, PackageName};
 use crate::manifest::roles::BuildDeclaration;
+use omega_target::{TargetProfile, TargetProfileIdentity};
+
+pub const TARGET_DEPENDENCY_CONDITION_SCHEMA_VERSION: u32 = 1;
 
 /// Package selection inside one acquired repository source.
 ///
@@ -24,6 +27,127 @@ pub enum DependencySourceRequest {
         revision: String,
         selection: PackageSelection,
     },
+}
+
+/// Exact dependency column for one compiler-owned deployment profile.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetDependencyColumn {
+    profile: TargetProfile,
+    occurrence_indices: Vec<usize>,
+}
+
+impl TargetDependencyColumn {
+    pub(super) fn new(profile: TargetProfile, occurrence_indices: Vec<usize>) -> Self {
+        Self {
+            profile,
+            occurrence_indices,
+        }
+    }
+
+    pub const fn profile(&self) -> TargetProfile {
+        self.profile
+    }
+
+    pub fn occurrence_indices(&self) -> &[usize] {
+        &self.occurrence_indices
+    }
+}
+
+/// Versioned identity of the exact target cases consulted by projection.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetDependencyConditionSchema {
+    version: u32,
+    referenced_profile_identities: Vec<TargetProfileIdentity>,
+}
+
+impl TargetDependencyConditionSchema {
+    pub(super) fn current(referenced_profile_identities: Vec<TargetProfileIdentity>) -> Self {
+        Self {
+            version: TARGET_DEPENDENCY_CONDITION_SCHEMA_VERSION,
+            referenced_profile_identities,
+        }
+    }
+
+    pub const fn version(&self) -> u32 {
+        self.version
+    }
+
+    pub fn referenced_profile_identities(&self) -> &[TargetProfileIdentity] {
+        &self.referenced_profile_identities
+    }
+}
+
+/// Complete target-independent result of projecting one build state graph.
+///
+/// `occurrences` owns each authored request exactly once. Common/profile
+/// membership is retained only as occurrence indices, so editing and
+/// resolution views cannot drift between parallel request copies.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectedDependencies {
+    occurrences: Vec<DependencySourceRequest>,
+    common_occurrence_indices: Vec<usize>,
+    by_profile: Vec<TargetDependencyColumn>,
+    condition_schema: TargetDependencyConditionSchema,
+}
+
+impl ProjectedDependencies {
+    pub(super) fn new(
+        occurrences: Vec<DependencySourceRequest>,
+        common_occurrence_indices: Vec<usize>,
+        by_profile: Vec<TargetDependencyColumn>,
+        referenced_profile_identities: Vec<TargetProfileIdentity>,
+    ) -> Self {
+        Self {
+            occurrences,
+            common_occurrence_indices,
+            by_profile,
+            condition_schema: TargetDependencyConditionSchema::current(
+                referenced_profile_identities,
+            ),
+        }
+    }
+
+    pub fn common_occurrence_indices(&self) -> &[usize] {
+        &self.common_occurrence_indices
+    }
+
+    pub fn common(&self) -> impl Iterator<Item = &DependencySourceRequest> {
+        self.common_occurrence_indices
+            .iter()
+            .map(|index| &self.occurrences[*index])
+    }
+
+    pub fn by_profile(&self) -> &[TargetDependencyColumn] {
+        &self.by_profile
+    }
+
+    pub const fn condition_schema(&self) -> &TargetDependencyConditionSchema {
+        &self.condition_schema
+    }
+
+    pub fn authored_dependencies(&self) -> &[DependencySourceRequest] {
+        &self.occurrences
+    }
+
+    pub fn for_profile(
+        &self,
+        profile: TargetProfile,
+    ) -> impl Iterator<Item = &DependencySourceRequest> {
+        let profile_indices = self
+            .by_profile
+            .iter()
+            .find(|column| column.profile == profile)
+            .map(|column| column.occurrence_indices.as_slice())
+            .unwrap_or_default();
+        self.common_occurrence_indices
+            .iter()
+            .chain(profile_indices)
+            .map(|index| &self.occurrences[*index])
+    }
+
+    pub fn has_target_conditions(&self) -> bool {
+        !self.by_profile.is_empty()
+    }
 }
 
 impl DependencySourceRequest {
@@ -60,14 +184,11 @@ impl DependencySourceRequest {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildDependencyProjection {
     declaration: BuildDeclaration,
-    dependencies: Vec<DependencySourceRequest>,
+    dependencies: ProjectedDependencies,
 }
 
 impl BuildDependencyProjection {
-    pub(super) fn new(
-        declaration: BuildDeclaration,
-        dependencies: Vec<DependencySourceRequest>,
-    ) -> Self {
+    pub(super) fn new(declaration: BuildDeclaration, dependencies: ProjectedDependencies) -> Self {
         Self {
             declaration,
             dependencies,
@@ -79,10 +200,14 @@ impl BuildDependencyProjection {
     }
 
     pub fn dependencies(&self) -> &[DependencySourceRequest] {
+        self.dependencies.authored_dependencies()
+    }
+
+    pub const fn projected_dependencies(&self) -> &ProjectedDependencies {
         &self.dependencies
     }
 
-    pub fn into_parts(self) -> (BuildDeclaration, Vec<DependencySourceRequest>) {
+    pub fn into_parts(self) -> (BuildDeclaration, ProjectedDependencies) {
         (self.declaration, self.dependencies)
     }
 }

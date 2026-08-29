@@ -1,40 +1,110 @@
 use crate::manifest::roles::BuildDeclarationError;
+use psi_source::SourceSpan;
 use std::fmt;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DependencyProjectionError {
-    MissingBuildFile { path: PathBuf },
-    ReadBuildFile { path: PathBuf, message: String },
-    InvalidBuildFileEncoding { path: PathBuf },
-    Lex { message: String },
-    Parse { message: String },
+    MissingBuildFile {
+        path: PathBuf,
+    },
+    ReadBuildFile {
+        path: PathBuf,
+        message: String,
+    },
+    InvalidBuildFileEncoding {
+        path: PathBuf,
+    },
+    Lex {
+        message: String,
+    },
+    Parse {
+        message: String,
+    },
     BuildDeclaration(Box<BuildDeclarationError>),
-    AuthoredToolchainVocabulary { name: String },
-    ScopedBuildMachine { scope: String },
-    DuplicateBuildMachines { count: usize },
+    AuthoredToolchainVocabulary {
+        name: String,
+    },
+    ScopedBuildMachine {
+        scope: String,
+    },
+    DuplicateBuildMachines {
+        count: usize,
+    },
     InvalidBuildMachine,
     MissingBuildEntry,
     InvalidBuildParameter,
     UnsupportedDependencyShape,
     WrongDependencyReceiver,
     WrongDependencyArguments,
+    UnsupportedStateTransition {
+        state: String,
+        transition: SourceSpan,
+    },
+    UnknownTargetProfile {
+        case_name: String,
+        arm: SourceSpan,
+    },
+    UnreachableDependency {
+        state: String,
+        dependency: SourceSpan,
+    },
+    TaintedDependencyPath {
+        state: String,
+        dependency: SourceSpan,
+        provenance: DependencyPathProvenance,
+    },
+    MixedDependencyPaths {
+        state: String,
+        dependency: SourceSpan,
+        provenance: DependencyPathProvenance,
+    },
+    TargetConditionedResolutionUnavailable,
     AliasNotString,
     AliasNotUtf8,
-    InvalidAlias { alias: String },
+    InvalidAlias {
+        alias: String,
+    },
     SourceNotLiteral,
     WrongSourceType,
     MissingSourceCase,
-    UnsupportedSourceCase { case_name: String },
-    WrongSourceFields { case_name: String },
-    SourceFieldNotString { field: String },
-    SourceFieldNotUtf8 { field: String },
+    UnsupportedSourceCase {
+        case_name: String,
+    },
+    WrongSourceFields {
+        case_name: String,
+    },
+    SourceFieldNotString {
+        field: String,
+    },
+    SourceFieldNotUtf8 {
+        field: String,
+    },
     SelectionNotLiteral,
     WrongSelectionType,
     MissingSelectionCase,
-    UnsupportedSelectionCase { case_name: String },
-    WrongSelectionFields { case_name: String },
-    InvalidSelectedPackage { package: String },
+    UnsupportedSelectionCase {
+        case_name: String,
+    },
+    WrongSelectionFields {
+        case_name: String,
+    },
+    InvalidSelectedPackage {
+        package: String,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DependencyPathTaint {
+    WildcardTargetArm,
+    RuntimeSubjectTransition,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DependencyPathProvenance {
+    pub state: String,
+    pub transition: SourceSpan,
+    pub taint: DependencyPathTaint,
 }
 
 impl fmt::Display for DependencyProjectionError {
@@ -81,6 +151,55 @@ impl fmt::Display for DependencyProjectionError {
             ),
             Self::WrongDependencyArguments => formatter.write_str(
                 "`builder.depend` must have one source argument and `builder.depend_as` must have one direct alias literal followed by one source argument; neither accepts static, evidence, operational, or discard modifiers",
+            ),
+            Self::UnsupportedStateTransition { state, transition } => write!(
+                formatter,
+                "build state `{state}` has a transition to another build state whose argument shape cannot preserve static builder provenance at bytes {}..{}",
+                transition.span.start,
+                transition.span.end,
+            ),
+            Self::UnknownTargetProfile { case_name, arm } => write!(
+                formatter,
+                "target dependency arm names unknown trusted profile `TargetProfile::{case_name}` at bytes {}..{}",
+                arm.span.start,
+                arm.span.end,
+            ),
+            Self::UnreachableDependency { state, dependency } => write!(
+                formatter,
+                "dependency in build state `{state}` at bytes {}..{} is unreachable from the build entry; remove it or connect the state with an unconditional or exact `builder.target` transition",
+                dependency.span.start,
+                dependency.span.end,
+            ),
+            Self::TaintedDependencyPath {
+                state,
+                dependency,
+                provenance,
+            } => write!(
+                formatter,
+                "dependency in build state `{state}` at bytes {}..{} is reachable only through {} in state `{}` at bytes {}..{}; hoist a common dependency or use exact `builder.target` arms",
+                dependency.span.start,
+                dependency.span.end,
+                provenance.taint,
+                provenance.state,
+                provenance.transition.span.start,
+                provenance.transition.span.end,
+            ),
+            Self::MixedDependencyPaths {
+                state,
+                dependency,
+                provenance,
+            } => write!(
+                formatter,
+                "dependency in build state `{state}` at bytes {}..{} has both authorized and tainted paths; the tainted path crosses {} in state `{}` at bytes {}..{} and must be removed",
+                dependency.span.start,
+                dependency.span.end,
+                provenance.taint,
+                provenance.state,
+                provenance.transition.span.start,
+                provenance.transition.span.end,
+            ),
+            Self::TargetConditionedResolutionUnavailable => formatter.write_str(
+                "target-conditioned dependencies were projected successfully, but this resolver entry point has no exact target-profile input and refuses to flatten profile columns",
             ),
             Self::AliasNotString => {
                 formatter.write_str("dependency alias must be a direct string literal")
@@ -139,3 +258,12 @@ impl fmt::Display for DependencyProjectionError {
 }
 
 impl std::error::Error for DependencyProjectionError {}
+
+impl fmt::Display for DependencyPathTaint {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::WildcardTargetArm => "a wildcard target arm",
+            Self::RuntimeSubjectTransition => "a transition on a runtime subject",
+        })
+    }
+}
