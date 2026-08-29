@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use crate::error::SourceResolveError;
-use crate::limits::LocalSourceLimits;
+use crate::limits::{LocalSourceLimits, SOURCE_DEPTH_ABSOLUTE_LIMIT, SOURCE_ENTRY_ABSOLUTE_LIMIT};
 
 use super::identity::is_object_id;
 use super::{GitBlobBytes, GitTreeEntry, GitTreeEntryKind};
@@ -13,6 +13,47 @@ pub(crate) fn parse_git_tree_entries(
     listing: &[u8],
     repository: &Path,
     limits: LocalSourceLimits,
+) -> Result<Vec<GitTreeEntry>, SourceResolveError> {
+    parse_git_tree_entries_with_policy(
+        listing,
+        repository,
+        limits,
+        GitTreePayloadLimitPolicy::WholeTree,
+    )
+}
+
+/// Parse a complete recursive graph without charging unopened blob payloads to
+/// the eventual package projection. The listing and graph remain bounded by
+/// compiler-owned entry/depth ceilings and the process-output ceiling.
+#[allow(dead_code)] // Used when the resolve layer adopts selective inspection.
+pub(super) fn parse_git_tree_graph_entries(
+    listing: &[u8],
+    repository: &Path,
+) -> Result<Vec<GitTreeEntry>, SourceResolveError> {
+    parse_git_tree_entries_with_policy(
+        listing,
+        repository,
+        LocalSourceLimits {
+            max_files: SOURCE_ENTRY_ABSOLUTE_LIMIT,
+            max_bytes: u64::MAX,
+            max_depth: SOURCE_DEPTH_ABSOLUTE_LIMIT,
+        },
+        GitTreePayloadLimitPolicy::SelectedOnly,
+    )
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)] // `SelectedOnly` belongs to the staged selective-inspection API.
+enum GitTreePayloadLimitPolicy {
+    WholeTree,
+    SelectedOnly,
+}
+
+fn parse_git_tree_entries_with_policy(
+    listing: &[u8],
+    repository: &Path,
+    limits: LocalSourceLimits,
+    payload_limit_policy: GitTreePayloadLimitPolicy,
 ) -> Result<Vec<GitTreeEntry>, SourceResolveError> {
     let mut entries = Vec::new();
     let mut paths = BTreeMap::new();
@@ -97,7 +138,9 @@ pub(crate) fn parse_git_tree_entries(
                 limit: limits.max_files,
             });
         }
-        if !matches!(&kind, GitTreeEntryKind::Tree) {
+        if payload_limit_policy == GitTreePayloadLimitPolicy::WholeTree
+            && !matches!(&kind, GitTreeEntryKind::Tree)
+        {
             blob_bytes = blob_bytes
                 .checked_add(size)
                 .ok_or(SourceResolveError::TooManyBytes {
@@ -162,7 +205,7 @@ pub(crate) fn git_directory_paths(entries: &[GitTreeEntry]) -> BTreeSet<Vec<u8>>
         .collect()
 }
 
-fn validate_git_path(
+pub(super) fn validate_git_path(
     path: &[u8],
     limits: LocalSourceLimits,
 ) -> Result<PathBuf, SourceResolveError> {
@@ -245,7 +288,7 @@ fn validate_portable_git_component(
 }
 
 #[cfg(unix)]
-fn git_path_from_bytes(path: &[u8]) -> Result<PathBuf, SourceResolveError> {
+pub(super) fn git_path_from_bytes(path: &[u8]) -> Result<PathBuf, SourceResolveError> {
     use std::ffi::OsString;
     use std::os::unix::ffi::OsStringExt;
 
@@ -253,7 +296,7 @@ fn git_path_from_bytes(path: &[u8]) -> Result<PathBuf, SourceResolveError> {
 }
 
 #[cfg(not(unix))]
-fn git_path_from_bytes(path: &[u8]) -> Result<PathBuf, SourceResolveError> {
+pub(super) fn git_path_from_bytes(path: &[u8]) -> Result<PathBuf, SourceResolveError> {
     let text = std::str::from_utf8(path)
         .map_err(|_| git_tree_invalid(path, "path cannot be represented on this host"))?;
     Ok(PathBuf::from(text))
