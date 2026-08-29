@@ -324,8 +324,10 @@ target-independent geometry, and validates only the selected value payload.
 It emits the selected ordinal and payload into fresh zero-initialized staging,
 so inactive overlay bytes, intra-payload gaps, and tail padding remain zero.
 The non-clone carrier retains the selected case identity/ordinal, exact report
-and fingerprint, byte order, bytes, and deterministic identity; replay and
-short-destination rejection leave the destination unchanged. Mixed shapes,
+and fingerprint, byte order, bytes, and deterministic identity. Replay uses an
+exact hash-free comparison that treats stable-numbered case/payload names as
+presentation while retaining authored ordinal and complete geometry; replay
+and short-destination rejection leave the destination unchanged. Mixed shapes,
 sums nested in records or arrays, and sums whose all-case geometry requires a
 target capsule remain later rungs. Neither slice narrows the legacy typed-owned
 materialization API or establishes evaluator admission, quotient
