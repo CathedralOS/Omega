@@ -31,7 +31,8 @@ text or containment claims.
   (`relay.rs`), and the fixed helper process boundary (`helper.rs`). Its
   `mod.rs` is the explicit network facade.
 - `src/confinement/` owns native confinement facts and implementations.
-  `macos.rs` owns Seatbelt policy/custody and its native canaries;
+  `macos/` separates Seatbelt policy encoding, metadata paths, executable
+  custody, and native command realization;
   `linux.rs` owns Landlock ABI-v5 filesystem mutation and execution policy;
   `windows/` separates suspended launch, Job Object setup, limits, lifecycle,
   whole-job termination, native adapters, and behavior-named tests.
