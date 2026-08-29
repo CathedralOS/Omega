@@ -3369,8 +3369,32 @@ only built-in ordering. `passes/mod.rs` names every transformation family and
 preserves the existing public surface. Family entrances own meaningful shared
 concepts and point to exact lower rule taxonomies; the test tree uses those same
 names. Independent candidate acceptance remains outside this tree in
-`omega-optimization-validation` and must be organized separately rather than
-silently coupled to the producer modules.
+`omega-optimization-validation`; its source tree makes that separation visible:
+
+```text
+omega-optimization-validation/src/
+  lib.rs                              # validation-rung catalog
+  error.rs                            # shared public failure vocabulary
+  candidates/
+    mod.rs                            # exact candidate-validator entrance
+    control_flow_cleanup/             # graph rewrite validators
+    {copy_propagation,dead_scalar_elimination,global_value_numbering,
+     proof_check_elision,sparse_conditional_constant_propagation}.rs
+    observation.rs                    # closed scalar boundaries
+    rewrite_accounting.rs             # independent custody reconstruction
+  unit_validation/
+    mod.rs                            # complete-unit validation entrance
+    {core,services,context,structural_catalog,function_structure,
+     operation_contracts,derived_metadata}.rs
+  tests/                              # matching families and typed fixtures
+```
+
+The validator repeats semantic vocabulary where independence requires it; it
+does not call a producer's expression classifier, graph decision, or accounting
+implementation. Its candidate entrance is a typed acceptance catalog, while
+the complete-unit entrance separately owns reconstructible unit invariants and
+verified-context custody. This layout must remain independently testable even
+when producer and validator modules happen to use parallel family names.
 
 ## Testing strategy
 
