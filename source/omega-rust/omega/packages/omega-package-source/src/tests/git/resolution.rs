@@ -153,6 +153,16 @@ fn git_source_resolves_exact_commit_and_local_identity() {
     );
     assert!(
         resolved
+            .command_execution_observations()
+            .iter()
+            .any(|observation| matches!(
+                observation.input(),
+                GitCommandInputObservation::ExactBytes { .. }
+            )),
+        "object-batch commands must retain exact input custody"
+    );
+    assert!(
+        resolved
             .execution_policy_observations()
             .iter()
             .all(|observation| observation.executable() == resolved.git_executable.path())
@@ -192,6 +202,113 @@ fn git_source_resolves_exact_commit_and_local_identity() {
                 .all(|executable| executable.content_identity().len() == 64)
         );
     }
+
+    let _ = std::fs::remove_dir_all(&repo);
+    let _ = std::fs::remove_dir_all(&cache);
+}
+
+#[test]
+fn strict_receipt_reconstruction_rejects_unavailable_and_tampered_rows() {
+    let (repo, commit) = create_git_source("git-strict-receipt");
+    let cache = temp_root("git-strict-receipt-cache");
+    let limits = LocalSourceLimits::default();
+    let resolved = resolve_git_source(&local_git_request(&repo, &commit), &cache, limits)
+        .expect("resolve source before strict reconstruction");
+    let expected_unavailable = resolved
+        .execution_policy_observations()
+        .iter()
+        .find_map(|policy| policy.require_strict().err())
+        .expect("current native backend reports an unavailable strict guarantee");
+    assert_eq!(
+        resolved.strict_receipt(),
+        Err(&GitSourceStrictReceiptError::ExecutionUnavailable(
+            expected_unavailable
+        )),
+        "ordinary successful resolution must retain an exact strict-reconstruction rejection"
+    );
+
+    let retained = resolved.resolution_observation().clone();
+    let mut missing_policy = PendingResolvedGitSource::from_issued(&resolved);
+    missing_policy.execution_policy_observations.pop();
+    assert_eq!(
+        reconstruct_git_source_strict_receipt(&missing_policy, limits, &retained),
+        Err(GitSourceStrictReceiptError::MissingExecutionRows)
+    );
+
+    let mut missing_completion = PendingResolvedGitSource::from_issued(&resolved);
+    missing_completion.command_execution_observations.pop();
+    assert_eq!(
+        reconstruct_git_source_strict_receipt(&missing_completion, limits, &retained),
+        Err(GitSourceStrictReceiptError::MissingExecutionRows)
+    );
+
+    let mut missing_endpoint = PendingResolvedGitSource::from_issued(&resolved);
+    missing_endpoint
+        .command_execution_observations
+        .iter_mut()
+        .find(|command| command.endpoint_observation.is_some())
+        .expect("Git resolution retains one network route")
+        .endpoint_observation = None;
+    assert_eq!(
+        reconstruct_git_source_strict_receipt(&missing_endpoint, limits, &retained),
+        Err(GitSourceStrictReceiptError::InvalidResolutionObservation)
+    );
+
+    let mut changed_accounting = PendingResolvedGitSource::from_issued(&resolved);
+    changed_accounting.network_transfer_observation.uploaded += 1;
+    assert_eq!(
+        reconstruct_git_source_strict_receipt(&changed_accounting, limits, &retained),
+        Err(GitSourceStrictReceiptError::InvalidResolutionObservation)
+    );
+
+    let mut changed_input = PendingResolvedGitSource::from_issued(&resolved);
+    changed_input.command_execution_observations[0].input =
+        GitCommandInputObservation::ExactBytes {
+            length: 1,
+            identity: "00".repeat(32),
+        };
+    assert_eq!(
+        reconstruct_git_source_strict_receipt(&changed_input, limits, &retained),
+        Err(GitSourceStrictReceiptError::InvalidResolutionObservation)
+    );
+
+    let mut changed_executable = PendingResolvedGitSource::from_issued(&resolved);
+    changed_executable.git_executable.content_identity = "00".repeat(32);
+    assert_eq!(
+        reconstruct_git_source_strict_receipt(&changed_executable, limits, &retained),
+        Err(GitSourceStrictReceiptError::ResolutionObservationMismatch)
+    );
+
+    let mut changed_source = PendingResolvedGitSource::from_issued(&resolved);
+    changed_source.local.file_count += 1;
+    assert_eq!(
+        reconstruct_git_source_strict_receipt(&changed_source, limits, &retained),
+        Err(GitSourceStrictReceiptError::ResolutionObservationMismatch)
+    );
+
+    let changed_limits = LocalSourceLimits {
+        max_files: limits.max_files - 1,
+        ..limits
+    };
+    assert_eq!(
+        reconstruct_git_source_strict_receipt(
+            &PendingResolvedGitSource::from_issued(&resolved),
+            changed_limits,
+            &retained,
+        ),
+        Err(GitSourceStrictReceiptError::ResolutionObservationMismatch)
+    );
+
+    let mut changed_retained = retained.clone();
+    changed_retained.identity = "00".repeat(32);
+    assert_eq!(
+        reconstruct_git_source_strict_receipt(
+            &PendingResolvedGitSource::from_issued(&resolved),
+            limits,
+            &changed_retained,
+        ),
+        Err(GitSourceStrictReceiptError::ResolutionObservationMismatch)
+    );
 
     let _ = std::fs::remove_dir_all(&repo);
     let _ = std::fs::remove_dir_all(&cache);

@@ -22,7 +22,9 @@ use crate::observations::accounting::{
     git_network_transfer_observation, git_resolution_captured_output_ceiling,
     git_resolution_network_transfer_ceiling,
 };
-use crate::observations::execution::{GitCommandExecutionObservation, GitExecutableIdentity};
+use crate::observations::execution::{
+    GitCommandExecutionObservation, GitCommandInputObservation, GitExecutableIdentity,
+};
 use omega_resolver_execution::{
     ResolverExecutionBackend, ResolverExecutionEndpointObservation,
     ResolverExecutionEndpointOutcome, ResolverExecutionPhase, ResolverExecutionPolicyObservation,
@@ -381,6 +383,7 @@ impl GitExecutor {
         &self,
         phase: ResolverExecutionPhase,
         command_identity: String,
+        input: GitCommandInputObservation,
         output: &BoundedCommandOutput,
         endpoint_observation: Option<ResolverExecutionEndpointObservation>,
     ) -> Result<(), SourceResolveError> {
@@ -412,6 +415,7 @@ impl GitExecutor {
             phase,
             policy_identity,
             command_identity,
+            input,
             status_code: output.status.code(),
             termination_signal,
             stdout_length: output.stdout.len() as u64,

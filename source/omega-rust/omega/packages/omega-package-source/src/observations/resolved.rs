@@ -7,6 +7,7 @@ use super::accounting::{GitCapturedOutputObservation, GitNetworkTransferObservat
 use super::execution::{
     GitCommandExecutionObservation, GitExecutableIdentity, GitTransportExecutableIdentity,
 };
+use super::receipt::{GitSourceStrictReceipt, GitSourceStrictReceiptError};
 use super::resolution::GitSourceResolutionObservation;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,6 +38,7 @@ pub struct ResolvedGitSource {
     pub(crate) captured_output_observation: GitCapturedOutputObservation,
     pub(crate) network_transfer_observation: GitNetworkTransferObservation,
     pub(crate) resolution_observation: GitSourceResolutionObservation,
+    pub(crate) strict_receipt: Result<GitSourceStrictReceipt, GitSourceStrictReceiptError>,
 }
 
 impl ResolvedGitSource {
@@ -107,6 +109,12 @@ impl ResolvedGitSource {
     /// guarantees rather than converting them into accepted authority.
     pub fn resolution_observation(&self) -> &GitSourceResolutionObservation {
         &self.resolution_observation
+    }
+
+    /// Return the locally reconstructed strict receipt, or the exact closed
+    /// reason current native/source evidence cannot issue one.
+    pub fn strict_receipt(&self) -> Result<&GitSourceStrictReceipt, &GitSourceStrictReceiptError> {
+        self.strict_receipt.as_ref()
     }
 }
 

@@ -1,6 +1,8 @@
 use crate::SourceResolveError;
 use crate::git::objects::identity::{git_object_algorithm, git_object_invalid};
-use crate::git::process::identity::format_sha256;
+use crate::git::process::identity::{
+    format_sha256, git_command_configuration_identity_from_resolver,
+};
 use crate::identity::GitObjectIdAlgorithm;
 use crate::limits::{
     GIT_CACHE_POLICY, GIT_FIXED_COMMAND_ALLOWANCE, GIT_RESOLUTION_OBSERVATION_DOMAIN,
@@ -87,6 +89,14 @@ pub(crate) fn issue_git_source_resolution_observation(
         if command.phase != policy.phase()
             || command.completion.policy() != policy
             || command.policy_identity != format_sha256(&Sha256::digest(policy.canonical_bytes()))
+            || command.command_identity
+                != git_command_configuration_identity_from_resolver(
+                    command.completion.command(),
+                    command.phase,
+                    &command.input,
+                )
+            || command.status_code != command.completion.status().code()
+            || command.termination_signal != command.completion.status().unix_signal()
             || match (policy.endpoint_route(), &command.endpoint_observation) {
                 (Some(route), Some(endpoint)) => endpoint.route() != route,
                 (None, None) => false,

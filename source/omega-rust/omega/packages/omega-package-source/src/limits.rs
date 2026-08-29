@@ -48,6 +48,8 @@ pub(crate) const LOCAL_SNAPSHOT_LOCK_TIMEOUT: Duration = Duration::from_secs(120
 pub(crate) const PROCESS_POLL_INTERVAL: Duration = Duration::from_millis(5);
 pub(crate) const GIT_RESOLUTION_OBSERVATION_SCHEMA_VERSION: u32 = 5;
 pub(crate) const GIT_RESOLUTION_OBSERVATION_DOMAIN: &[u8] = b"omega-git-resolution-observation-v4";
+pub(crate) const GIT_STRICT_RECEIPT_SCHEMA_VERSION: u32 = 1;
+pub(crate) const GIT_STRICT_RECEIPT_DOMAIN: &[u8] = b"omega-git-strict-source-receipt-v1";
 pub(crate) static STAGING_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
