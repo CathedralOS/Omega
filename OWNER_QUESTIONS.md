@@ -61,56 +61,7 @@ closed.
 - Tempting but wrong: retain only a solver `Proven` verdict without the selected
   theorem identity, ordered premises, per-side application, and replay data.
 
-## Q2 — Reborrow restoration disposition
-
-### Context
-
-Checked borrow replay now retains each explicit direct reborrow's exact parent
-resource, suspension boundary, parent/child weakening order, and a semantic-
-phase lifecycle disposition. The non-authorizing disposition can identify a
-still-live parent, an ordered cascade through parents that retired while
-suspended, or a same-boundary `RetireOrDiscard` outcome. These rows reconstruct
-the current lexical facts without treating flat constraint presence or arena
-order as authority.
-
-### Problem statement
-
-The language does not yet define which child-ending event restores usable
-authority to a live parent, whether a parent and child ending at the same
-semantic boundary retires or discards the pending authority, or how a cascade
-through projected retired parents transfers custody to its final parent or
-direct-root lifetime. State exit further needs an exact rule for whether root
-custody is returned, cleaned up, or consumed. Promoting the checked
-classification to Terminal authority without these rules would let a compiler
-invent post-reborrow use and cleanup semantics.
-
-### Proposed direction
-
-Define one path-sensitive reborrow restoration judgment over exact checked
-resource identities. It should distinguish reactivation of a live parent,
-cascade through an ordered retired-parent path, retirement, and discard; name
-the first event at which usable authority is restored; and specify projected
-place composition plus state-exit direct-root custody. Terminal publication
-must retain the full disposition path and independently replay the applicable
-judgment. Until this is settled, checked rows remain non-authorizing and no
-post-return use, cleanup, or Terminal resource claim may be derived from them.
-
-### Alternates
-
-- Acceptable as a narrower first release: allow Terminal restoration only for
-  a child whose exact immediate parent remains live, and reject cascades and
-  same-boundary endings until their disposition rules are settled.
-- Acceptable: define retirement and discard as one terminal outcome if the
-  resulting root-custody and cleanup behavior is observationally identical and
-  explicit in the rule.
-- Tempting but wrong: call every `LivePastChild` parent reactivated merely
-  because its lexical constraint remains present.
-- Tempting but wrong: use weakening-arena insertion order to choose the owner
-  when parent and child end at the same semantic boundary.
-- Tempting but wrong: skip retired projected parents and return authority
-  directly to a root without retaining and validating the complete path.
-
-## Q3 — Nominal result carriers for observing compare-exchange
+## Q2 — Nominal result carriers for observing compare-exchange
 
 ### Context
 
@@ -181,7 +132,7 @@ operation requirement identities separate from these value-type identities.
 - Tempting but wrong: expose `Uncommitted` on the decisive result merely because
   one larger runtime layout would be convenient.
 
-## Q4 — Strict SSH trust and credential authority
+## Q3 — Strict SSH trust and credential authority
 
 ### Context
 
@@ -230,7 +181,7 @@ producer claim.
 - Tempting but wrong: serialize private keys, tokens, or reusable credentials in
   `omega.lock` or source-resolution evidence.
 
-## Q5 — Suspension as control-flow exit or resumable continuation
+## Q4 — Suspension as control-flow exit or resumable continuation
 
 ### Context
 
@@ -269,7 +220,7 @@ and its custody.
 - Tempting but wrong: classify every `MaySuspend` call as a local CFG exit
   without retaining its continuation and outcome-specific state.
 
-## Q6 — Cyclic control flow in Terminal Psi
+## Q5 — Cyclic control flow in Terminal Psi
 
 ### Context
 
@@ -309,7 +260,7 @@ block-loop API.
   validation before loop-carried SSA, ownership, cleanup, and fuel semantics
   exist.
 
-## Q7 — Close the Delta v1 semantic contract
+## Q6 — Close the Delta v1 semantic contract
 
 ### Context
 
@@ -389,7 +340,7 @@ out of Delta without weakening its ability to host a robust compiler.
 - Tempting but wrong: retain the old translator's private capacities, exit
   codes, or Darwin output behavior as language rules.
 
-## Q8 — Select one typed executable Gamma contract
+## Q7 — Select one typed executable Gamma contract
 
 ### Context
 
@@ -459,7 +410,7 @@ failures.
 - Tempting but wrong: make Alpha I/O effects directly callable from arbitrary
   Gamma source merely to avoid defining the compiler-entry adapter.
 
-## Q9 — Fix Beta block formation and definite-initialization reachability
+## Q8 — Fix Beta block formation and definite-initialization reachability
 
 ### Context
 
@@ -524,7 +475,7 @@ semantic acceptance independent of optimizer sophistication.
 - Tempting but wrong: zero-initialize generated frame slots and call the gap
   closed; that changes Beta's written local semantics and hides skipped stores.
 
-## Q10 — Select the canonical Beta compiler outcome carrier
+## Q9 — Select the canonical Beta compiler outcome carrier
 
 ### Context
 
@@ -588,7 +539,7 @@ impossible fixup/table condition maps to `InternalFailure`.
 - Tempting but wrong: prepend a success tag to Alpha tape and thereby change the
   canonical artifact bytes or require a stripping stage.
 
-## Q11 — Canonical kernel propositions for exact scalar operations
+## Q10 — Canonical kernel propositions for exact scalar operations
 
 ### Context
 
@@ -645,7 +596,7 @@ and mirrored verifier search tree.
 - Tempting but wrong: serialize only the producer's chosen goal and trust it
   without independently reconstructing the operation-owned proposition.
 
-## Q12 — Compose the exact Alpha-to-Beta edge within checker capacity
+## Q11 — Compose the exact Alpha-to-Beta edge within checker capacity
 
 ### Context
 
@@ -707,7 +658,7 @@ of adding an assembly-specific evaluator path.
   primitive, trust a producer receipt, compare hashes, or weaken exact total
   partitioning.
 
-## Q13 — Own the ranked native-fuel sponsor entry
+## Q12 — Own the ranked native-fuel sponsor entry
 
 ### Context
 

@@ -3,9 +3,9 @@
 This directory owns the Delta language, its Gamma-written compiler, and
 adjacent source-to-Alpha-tape validation.
 
-[`LANGUAGE.md`](LANGUAGE.md) is OWNER Q7 decision material, not yet a normative Delta
+[`LANGUAGE.md`](LANGUAGE.md) is OWNER Q6 decision material, not yet a normative Delta
 v1 contract. It deliberately cannot authorize implementation while its open
-choices remain contradictory. After OWNER Q7 selects one coherent contract, a
+choices remain contradictory. After OWNER Q6 selects one coherent contract, a
 compiler, sample corpus, or Omega document still cannot amend Delta by
 acceptance.
 
@@ -60,6 +60,6 @@ Active work is tracked in
 | --- | --- | --- |
 | `compiler/` | The sole owner of the future Gamma-written compiler accepting Delta and its exact Alpha-tape edge. | Replace only atomically with the admitted immediate-predecessor compiler edge. |
 
-The root retains only the OWNER Q7 contract draft, its feature/change ledger, and
+The root retains only the OWNER Q6 contract draft, its feature/change ledger, and
 this owner map. Proposed programs without a runner are not retained as tests;
-the draft is replaced atomically by the normative contract after OWNER Q7.
+the draft is replaced atomically by the normative contract after OWNER Q6.

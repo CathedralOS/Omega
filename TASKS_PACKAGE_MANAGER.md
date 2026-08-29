@@ -43,7 +43,7 @@ closed. Compiler-issued package review remains non-admitting.
   - run the existing Windows Job Object process-count, per-process memory,
     aggregate-memory, and aggregate-CPU exhaustion pairs on a native Windows
     worker; cross-compilation is not execution evidence;
-  - narrow macOS SSH discovery/fetch reads after OWNER Q4 settles explicit host-key,
+  - narrow macOS SSH discovery/fetch reads after OWNER Q3 settles explicit host-key,
     key, credential-provider, and credential-file custody;
   - make the existing broker transfer ceiling complete by denying direct helper
     egress on Linux and Windows; separately enforce whole-operation object-store,
@@ -66,7 +66,7 @@ closed. Compiler-issued package review remains non-admitting.
   The detailed established floor and remaining platform gaps are maintained in
   `source/omega-rust/omega/packages/omega-package-source/SOURCE_RESOLVER_SECURITY.md`.
   Strict SSH trust and credential authority is
-  design-blocked on OWNER Q4 (strict SSH custody); the other bullets are engineering work.
+  design-blocked on OWNER Q3 (strict SSH custody); the other bullets are engineering work.
 
 ## P2 — Total compiler admission projection
 
@@ -391,7 +391,7 @@ explicitly.
   bodylessness, catalog presence, nor build policy may synthesize a requirement
   or satisfier edge.
 
-- [ ] **BLOCKED — OWNER Q4: STRICT-SSH-CUSTODY.** Settle host-key, key,
+- [ ] **BLOCKED — OWNER Q3: STRICT-SSH-CUSTODY.** Settle host-key, key,
   credential-provider, and credential-file authority before narrowing the
   remaining SSH read surface or treating SSH resolution as strict evidence.
 
