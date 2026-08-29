@@ -1,9 +1,12 @@
-//! Canonical format-36 installation header codec.
+//! Canonical format-42 installation header codec.
 //!
 //! The parent retains validation and all count conversions so extraction does
 //! not change encode error precedence. This module owns the fixed header bytes.
 
-use omega_image::CompilerTextValidationEvidence;
+use omega_image::{
+    CompilerTextDerivationDigest, CompilerTextRelocationEnvelopeDigest,
+    CompilerTextValidationEvidence, EncodedCompilerTextDigest, FinalCompilerTextDigest,
+};
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use psi_core::ProfileDecisionId;
 use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
@@ -55,6 +58,25 @@ pub(super) fn encode_installation_header(
         push_u64(bytes, progress.acceptance_identity());
     }
     bytes.extend_from_slice(record.image.as_bytes());
+    bytes.extend_from_slice(
+        record
+            .compiler_text_validation
+            .encoded_text_digest
+            .as_bytes(),
+    );
+    bytes.extend_from_slice(
+        record
+            .compiler_text_validation
+            .final_compiler_text_digest
+            .as_bytes(),
+    );
+    bytes.extend_from_slice(
+        record
+            .compiler_text_validation
+            .relocation_envelope_digest
+            .as_bytes(),
+    );
+    bytes.extend_from_slice(record.compiler_text_validation.derivation_digest.as_bytes());
     push_u64(
         bytes,
         record.compiler_text_validation.encoded_text_fingerprint,
@@ -142,6 +164,11 @@ pub(super) fn decode_installation_header(
         })
         .transpose()?;
     let image = ImageFingerprint(reader.array()?);
+    let encoded_text_digest = EncodedCompilerTextDigest::from_digest(reader.array()?);
+    let final_compiler_text_digest = FinalCompilerTextDigest::from_digest(reader.array()?);
+    let relocation_envelope_digest =
+        CompilerTextRelocationEnvelopeDigest::from_digest(reader.array()?);
+    let derivation_digest = CompilerTextDerivationDigest::from_digest(reader.array()?);
     let encoded_text_fingerprint = reader.u64()?;
     let final_compiler_text_fingerprint = reader.u64()?;
     let relocation_envelope_fingerprint = reader.u64()?;
@@ -168,6 +195,10 @@ pub(super) fn decode_installation_header(
         component_progress,
         image,
         compiler_text_validation: CompilerTextValidationEvidence {
+            encoded_text_digest,
+            final_compiler_text_digest,
+            relocation_envelope_digest,
+            derivation_digest,
             encoded_text_fingerprint,
             final_compiler_text_fingerprint,
             relocation_envelope_fingerprint,

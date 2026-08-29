@@ -1080,6 +1080,14 @@ whenever a boundary contract is present and folds it into both placement and
 certificate identity. A certificate can therefore neither pair pre-attachment
 function evidence with an unrelated post-attachment inventory nor omit the
 only authorized post-validation inventory mutation.
+The encoded compiler-text bytes, relocated compiler-text prefix, and canonical
+ordered relocation envelope now also carry separate domain-framed SHA-256
+digests. A fourth derivation digest joins those commitments to the retained
+instruction/count report fields. Their historical FNV values remain compact
+report compatibility only. Final-footprint construction and replay reject a
+substituted strong derivation, while installation format 42 serializes all four
+digests and rejects digest/compact-field drift before accepting the canonical
+record.
 The compiler constructs and revalidates this complete footprint certificate
 before installing the executable or app-bundle bytes. Auxiliary inventory
 serialization consumes that already validated certificate instead of creating
@@ -1091,6 +1099,11 @@ byte identity. Both the flat executable and optional app-bundle copy consume
 that same validated view. This is non-serialized orchestration custody, not a
 new semantic footprint class: it prevents a valid certificate from being
 paired with another container or output identity before publication.
+Certificate, publication, container, compiler-text, and installed-destination
+joins use separate domain-framed SHA-256 digest types. Compact callback,
+inventory, and function-validation fingerprints remain report coordinates
+inside those exact semantic/container commitments; none is the sole
+publication or installation key.
 Executable installation writes that sealed container to a temporary file,
 reads it back, and compares every byte before the atomic rename. The resulting
 non-serialized receipt binds the publication identity, exact output path, byte
@@ -1223,8 +1236,11 @@ provider-owned live-registration capacity occurrence to the provider receipt.
 Only a matching successful receipt moves it into the reclaimable callback;
 every rejected admission, unsuccessful unregister, or nonquiescent removal
 retains and returns the same occurrence, and successful unregister plus root
-quiescence returns it beside the reclaimed root slot. This adds no registrar
-invocation and does not treat capacity as a thunk count or lifetime budget.
+quiescence returns it beside the reclaimed root slot. Registration and
+unregistration receipts retain private process-local provenance for that
+occurrence, so another provider-issued occurrence with the same compact report
+ID cannot substitute at either join. This adds no registrar invocation and does
+not treat capacity as a thunk count or lifetime budget.
 
 Callback materialization records only binder slot and destination. Whether the
 destination is a direct argument, call-scoped temporary, or part of retained
@@ -1637,7 +1653,7 @@ Remaining work is to derive inbound and outbound machinery from the same plan,
 add state-ceiling-aware selection/allocation, and validate composed footprints
 at the final artifact. Native fuel target policy, reserved context-register
 transport, independently replayed hot charges/cold dispatchers, installed
-`FuelSuspensionFree` composition, and canonical format-36 installation evidence
+`FuelSuspensionFree` composition, and canonical format-42 installation evidence
 are live. The installation record keeps semantic/source rows unchanged and
 adds an optional target recipe, source fingerprint, source-to-metered function
 map, and exact hot/semantic/cold charge catalog; plain-image records require the

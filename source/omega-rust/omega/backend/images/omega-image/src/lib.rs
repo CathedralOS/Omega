@@ -28,8 +28,10 @@ pub use model::{
 };
 pub use output::{
     CompilerEntryFootprintBindingEvidence, CompilerEntryRegionBindingEvidence,
-    CompilerFunctionValidationEvidence, CompilerTextValidationEvidence, EmittedImageOutput,
-    ExecutableImageOutput, ImageOutputKind, emitted_direct_executable_output,
+    CompilerFunctionValidationEvidence, CompilerTextDerivationDigest,
+    CompilerTextRelocationEnvelopeDigest, CompilerTextValidationEvidence, EmittedImageOutput,
+    EncodedCompilerTextDigest, ExecutableImageOutput, FinalCompilerTextDigest, ImageOutputKind,
+    emitted_direct_executable_output,
 };
 pub use relocation_envelope::validate_final_text_relocation_envelope;
 pub use symbols::{

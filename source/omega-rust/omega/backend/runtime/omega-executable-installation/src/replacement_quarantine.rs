@@ -1,6 +1,6 @@
 use super::{
-    AdmittedArtifact, InstallationDiagnostic, InstalledCode, InstalledCodeEvidence,
-    InstalledCodeId, MappingQuarantineId,
+    AdmittedArtifact, InstallationDiagnostic, InstalledCode, InstalledCodeContext,
+    InstalledCodeEvidence, InstalledCodeId, MappingQuarantineId,
 };
 
 /// Attributed reason an installed mapping cannot be reclaimed for ordinary
@@ -12,8 +12,10 @@ pub enum MappingQuarantineCause {
 }
 
 /// Provider result establishing the fail-closed quarantine transition for one
-/// exact installed realization. It does not assert quiescence or discharge any
-/// lifecycle obligation.
+/// exact installed realization. The compact quarantine identity is a report
+/// key only; authorization retains and compares the complete installed
+/// evidence. This receipt does not assert quiescence or discharge any lifecycle
+/// obligation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MappingQuarantineReceipt {
     installed: InstalledCodeEvidence,
@@ -45,27 +47,27 @@ impl MappingQuarantineReceipt {
 }
 
 /// Reserved, unmapped/trapping range whose placement authority remains
-/// unavailable until a wider isolation domain is retired.
+/// unavailable until a wider isolation domain is retired. The accepted exact
+/// provider receipt remains sealed here rather than being reduced to its
+/// compact installed/quarantine report identities.
 #[derive(Debug)]
 pub struct QuarantinedInstallation {
-    installed: InstalledCodeId,
+    receipt: MappingQuarantineReceipt,
     previous_artifact: AdmittedArtifact,
-    quarantine: MappingQuarantineId,
-    cause: MappingQuarantineCause,
     attributed_capacity_loss: u64,
 }
 
 impl QuarantinedInstallation {
     pub const fn installed_code(&self) -> InstalledCodeId {
-        self.installed
+        self.receipt.installed.installed
     }
 
     pub const fn quarantine(&self) -> MappingQuarantineId {
-        self.quarantine
+        self.receipt.quarantine
     }
 
     pub const fn cause(&self) -> &MappingQuarantineCause {
-        &self.cause
+        &self.receipt.cause
     }
 
     pub const fn attributed_capacity_loss(&self) -> u64 {
@@ -80,16 +82,15 @@ impl QuarantinedInstallation {
     /// The returned evidence deliberately has no completion/discharge token.
     pub fn stale_entry_fault(
         &self,
-        attempted: InstalledCodeId,
+        attempted: &InstalledCodeContext,
     ) -> Result<StaleEntryFault, InstallationDiagnostic> {
-        if attempted != self.installed {
+        if attempted.0 != self.receipt.installed {
             return Err(InstallationDiagnostic(
                 "stale entry attempt does not name this quarantined installation".into(),
             ));
         }
         Ok(StaleEntryFault {
-            installed: attempted,
-            quarantine: self.quarantine,
+            receipt: self.receipt.clone(),
         })
     }
 }
@@ -97,22 +98,21 @@ impl QuarantinedInstallation {
 /// Evidence that a stale entry hit quarantine. A fault detects the stale call;
 /// it is not an acknowledgement that any claim, lock, callback, or protocol
 /// obligation completed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StaleEntryFault {
-    installed: InstalledCodeId,
-    quarantine: MappingQuarantineId,
+    receipt: MappingQuarantineReceipt,
 }
 
 impl StaleEntryFault {
-    pub const fn installed_code(self) -> InstalledCodeId {
-        self.installed
+    pub const fn installed_code(&self) -> InstalledCodeId {
+        self.receipt.installed.installed
     }
 
-    pub const fn quarantine(self) -> MappingQuarantineId {
-        self.quarantine
+    pub const fn quarantine(&self) -> MappingQuarantineId {
+        self.receipt.quarantine
     }
 
-    pub const fn discharged_obligations(self) -> bool {
+    pub const fn discharged_obligations(&self) -> bool {
         false
     }
 }
@@ -154,14 +154,11 @@ pub fn quarantine_installed(
         }));
     }
 
-    let installed_identity = installed.identity;
     let validated = installed.validated;
     let capacity_loss = validated.frozen.placement.extent.length();
     Ok(QuarantinedInstallation {
-        installed: installed_identity,
+        receipt,
         previous_artifact: validated.frozen.artifact,
-        quarantine: receipt.quarantine,
-        cause: receipt.cause,
         attributed_capacity_loss: capacity_loss,
     })
 }

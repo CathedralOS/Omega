@@ -91,6 +91,10 @@ struct RunnableFixture {
 }
 
 fn runnable_fixture(seed: u64) -> RunnableFixture {
+    runnable_fixture_at(seed, 0x1000)
+}
+
+fn runnable_fixture_at(seed: u64, placement_base: u64) -> RunnableFixture {
     let route = ServiceProgressEstablishmentRoute {
         kind: ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
         requirement_identity: "Scheduler::grant_weak_fair#exact".into(),
@@ -182,7 +186,7 @@ fn runnable_fixture(seed: u64) -> RunnableFixture {
         boundary: seed + 4,
     };
     let (object, image) = terminal_image(&provider_execution);
-    let mut installed = install_terminal_text(&object, seed + 20, seed + 21);
+    let mut installed = install_terminal_text(&object, seed + 20, seed + 21, placement_base);
     let installed_code = installed.identity();
     let mut root_ledger =
         InstalledRootLedger::claim(&mut installed).expect("installation registry");
@@ -353,6 +357,7 @@ fn install_terminal_text(
     object: &omega_image_emission::ObjectArtifact,
     artifact_identity: u64,
     installed_identity: u64,
+    placement_base: u64,
 ) -> InstalledCode {
     let scope = ArtifactInstallationScopeId::from_normalized_identity(1).expect("scope");
     let constraints = PlacementConstraints::new(None, 16, PlacementPhase::Load, None, Some(scope))
@@ -396,7 +401,7 @@ fn install_terminal_text(
         extent_id(4, ExtentProvenanceId::from_normalized_identity),
         extent_id(5, MappingEraId::from_normalized_identity),
     )
-    .mint(0x1000, 4096)
+    .mint(placement_base, 4096)
     .expect("placement extent");
     let placement = CodePlacementAuthority::from_admitted_provider(
         install_id(8, CodePlacementId::from_normalized_identity),
@@ -406,7 +411,7 @@ fn install_terminal_text(
         rights,
         constraints,
         PlacementSite {
-            base_address: 0x1000,
+            base_address: placement_base,
             phase: PlacementPhase::Load,
             machine_regime: None,
             installation_scope: Some(scope),
@@ -727,6 +732,79 @@ fn deployment_journal_rejects_tamper_and_failed_activation_returns_custody() {
         reconcile_component_deployment_restart(&durable, 902, "CodecBinding/v1", "CodecEntry/v1",)
             .is_err()
     );
+}
+
+#[test]
+fn deployment_journal_finalization_rejects_collision_equal_installed_substitution() {
+    let first = runnable_fixture_at(52_000, 0x1000);
+    let substituted = runnable_fixture_at(52_000, 0x3000);
+    assert_eq!(first.installed_code, substituted.installed_code);
+    assert_eq!(first.runnable.artifact(), substituted.runnable.artifact());
+    assert_ne!(
+        first.runnable.installed().receipt_context(),
+        substituted.runnable.installed().receipt_context(),
+        "different exact placements must remain distinct despite equal compact report IDs"
+    );
+
+    let mut first_ledger = lifecycle();
+    let first_candidate = candidate(32, first.installed_code);
+    let first_receipt = ComponentEraPublicationReceipt::from_runtime(
+        520,
+        first_ledger.lifecycle(),
+        &first_candidate,
+        true,
+        false,
+    );
+    let first_prepared = prepare_component_deployment(
+        952,
+        &first_ledger,
+        first_candidate,
+        first_receipt,
+        first.runnable,
+        journal_acceptance(),
+    )
+    .expect("first prepared deployment");
+    let first_durable = first_prepared.record().clone();
+    let first_activated = first_prepared
+        .activate(&first_durable, &mut first_ledger)
+        .expect("first activated deployment");
+    let first_activated_durable = first_activated.record().clone();
+
+    let mut substituted_ledger = lifecycle();
+    let substituted_candidate = candidate(32, substituted.installed_code);
+    let substituted_receipt = ComponentEraPublicationReceipt::from_runtime(
+        520,
+        substituted_ledger.lifecycle(),
+        &substituted_candidate,
+        true,
+        false,
+    );
+    let substituted_prepared = prepare_component_deployment(
+        953,
+        &substituted_ledger,
+        substituted_candidate,
+        substituted_receipt,
+        substituted.runnable,
+        journal_acceptance(),
+    )
+    .expect("substituted prepared deployment");
+    let substituted_durable = substituted_prepared.record().clone();
+    let _substituted_activated = substituted_prepared
+        .activate(&substituted_durable, &mut substituted_ledger)
+        .expect("substituted activated deployment");
+
+    let error = first_activated
+        .finalize(&first_activated_durable, &substituted_ledger)
+        .expect_err("equal report IDs cannot substitute another installed occurrence");
+    assert!(
+        error
+            .diagnostic()
+            .contains("exact activated installed-code")
+    );
+    error
+        .into_activated()
+        .finalize(&first_activated_durable, &first_ledger)
+        .expect("failed substitution preserves exact activated evidence for retry");
 }
 
 #[test]

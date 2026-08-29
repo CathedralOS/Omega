@@ -564,6 +564,14 @@ existing destination is replaced. Cathedral still selects paths, retention,
 cohorts, and rollback versus roll-forward, and owns restart-to-runtime
 reconciliation.
 
+Activated journal custody also retains the opaque exact installed-code context
+captured from the runnable carrier. Finalization rejoins that context and the
+canonical installation bytes to the ledger's retained runnable occurrence;
+the serialized installed/artifact `u64` values are explicitly report
+identities and cannot authorize a collision-equal substitution. Component-era
+publication receipts and program-local epoch leases retain the complete era
+candidate rather than only its compact projections.
+
 ## Implementation work
 
 - exact component artifact and lifetime-cohort manifest;

@@ -2,6 +2,11 @@ use crate::{
     CompilerEntryFootprintBindingEvidence, CompilerFunctionValidationEvidence,
     CompilerTextValidationEvidence, PlacedExecutableRegionInventory,
 };
+#[cfg(test)]
+use crate::{
+    CompilerTextDerivationDigest, CompilerTextRelocationEnvelopeDigest, EncodedCompilerTextDigest,
+    FinalCompilerTextDigest,
+};
 use psi_diagnostics::Diagnostic;
 
 pub const FINAL_FOOTPRINT_CERTIFICATE_MARKER: &str = "omega.final-footprint-certificate.current";
@@ -207,6 +212,11 @@ impl FinalFootprintCertificate {
         compiler_entry_footprint_binding: Option<CompilerEntryFootprintBindingEvidence>,
         inventory: PlacedExecutableRegionInventory,
     ) -> Result<Self, Diagnostic> {
+        if !compiler_text_validation.has_valid_derivation_digest() {
+            return Err(Diagnostic::error(
+                "compiler text validation evidence has an invalid strong derivation digest",
+            ));
+        }
         if !inventory.unclassified_gaps.is_empty() {
             return Err(Diagnostic::error(
                 "region-complete final footprint certificate cannot retain executable gaps",
@@ -285,6 +295,11 @@ impl FinalFootprintCertificate {
             ));
         }
         self.coverage.validate_normalized()?;
+        if !self.compiler_text_validation.has_valid_derivation_digest() {
+            return Err(Diagnostic::error(
+                "compiler text validation evidence has an invalid strong derivation digest",
+            ));
+        }
         if self
             .compiler_function_validation
             .body_specification_instruction_count
@@ -505,22 +520,51 @@ mod tests {
         binding
     }
 
+    fn compiler_text_validation() -> CompilerTextValidationEvidence {
+        let mut evidence = CompilerTextValidationEvidence {
+            encoded_text_digest: EncodedCompilerTextDigest::from_digest([1; 32]),
+            final_compiler_text_digest: FinalCompilerTextDigest::from_digest([2; 32]),
+            relocation_envelope_digest: CompilerTextRelocationEnvelopeDigest::from_digest([3; 32]),
+            derivation_digest: CompilerTextDerivationDigest::from_digest([0; 32]),
+            encoded_text_fingerprint: 4,
+            final_compiler_text_fingerprint: 5,
+            relocation_envelope_fingerprint: 6,
+            checked_instruction_validation_fingerprint: 7,
+            checked_instruction_footprint_fingerprint: 18,
+            derivation_fingerprint: 8,
+            text_relocation_count: 9,
+            checked_instruction_validation_count: 10,
+        };
+        evidence.derivation_digest = evidence.recomputed_derivation_digest();
+        evidence
+    }
+
+    fn empty_compiler_text_validation() -> CompilerTextValidationEvidence {
+        let mut evidence = CompilerTextValidationEvidence {
+            encoded_text_digest: EncodedCompilerTextDigest::from_digest([0; 32]),
+            final_compiler_text_digest: FinalCompilerTextDigest::from_digest([0; 32]),
+            relocation_envelope_digest: CompilerTextRelocationEnvelopeDigest::from_digest([0; 32]),
+            derivation_digest: CompilerTextDerivationDigest::from_digest([0; 32]),
+            encoded_text_fingerprint: 0,
+            final_compiler_text_fingerprint: 0,
+            relocation_envelope_fingerprint: 0,
+            checked_instruction_validation_fingerprint: 0,
+            checked_instruction_footprint_fingerprint: 0,
+            derivation_fingerprint: 0,
+            text_relocation_count: 0,
+            checked_instruction_validation_count: 0,
+        };
+        evidence.derivation_digest = evidence.recomputed_derivation_digest();
+        evidence
+    }
+
     fn certificate() -> FinalFootprintCertificate {
         FinalFootprintCertificate::current(
             Some(1),
             2,
             3,
             21,
-            CompilerTextValidationEvidence {
-                encoded_text_fingerprint: 4,
-                final_compiler_text_fingerprint: 5,
-                relocation_envelope_fingerprint: 6,
-                checked_instruction_validation_fingerprint: 7,
-                checked_instruction_footprint_fingerprint: 18,
-                derivation_fingerprint: 8,
-                text_relocation_count: 9,
-                checked_instruction_validation_count: 10,
-            },
+            compiler_text_validation(),
             CompilerFunctionValidationEvidence {
                 function_count: 1,
                 instruction_count: 2,
@@ -583,6 +627,12 @@ mod tests {
             {
                 let mut value = certificate.clone();
                 value.compiler_text_validation.derivation_fingerprint = 99;
+                value
+            },
+            {
+                let mut value = certificate.clone();
+                value.compiler_text_validation.encoded_text_digest =
+                    EncodedCompilerTextDigest::from_digest([99; 32]);
                 value
             },
             {
@@ -674,16 +724,7 @@ mod tests {
                 0,
                 0,
                 0,
-                CompilerTextValidationEvidence {
-                    encoded_text_fingerprint: 0,
-                    final_compiler_text_fingerprint: 0,
-                    relocation_envelope_fingerprint: 0,
-                    checked_instruction_validation_fingerprint: 0,
-                    checked_instruction_footprint_fingerprint: 0,
-                    derivation_fingerprint: 0,
-                    text_relocation_count: 0,
-                    checked_instruction_validation_count: 0,
-                },
+                empty_compiler_text_validation(),
                 CompilerFunctionValidationEvidence {
                     function_count: 0,
                     instruction_count: 0,

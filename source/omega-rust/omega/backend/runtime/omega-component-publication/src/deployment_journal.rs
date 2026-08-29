@@ -1,6 +1,7 @@
 use omega_effects::{
     ComponentEraCandidate, ComponentEraEntryState, ComponentEraPublicationReceipt,
 };
+use omega_executable_installation::InstalledCodeContext;
 use omega_image_emission::{
     decode_installation_record, encode_installation_record, installation_fingerprint,
 };
@@ -23,8 +24,8 @@ pub enum ComponentDeploymentJournalPhase {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ComponentDeploymentEraOccurrence {
     era_identity: u64,
-    installed_code_identity: u64,
-    artifact_identity: u64,
+    installed_code_report_identity: u64,
+    artifact_report_identity: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -49,28 +50,29 @@ impl ComponentDeploymentLiveEraSnapshot {
 impl ComponentDeploymentEraOccurrence {
     pub fn new(
         era_identity: u64,
-        installed_code_identity: u64,
-        artifact_identity: u64,
+        installed_code_report_identity: u64,
+        artifact_report_identity: u64,
     ) -> Result<Self, ComponentDeploymentJournalError> {
-        if era_identity == 0 || installed_code_identity == 0 || artifact_identity == 0 {
+        if era_identity == 0 || installed_code_report_identity == 0 || artifact_report_identity == 0
+        {
             return Err(ComponentDeploymentJournalError::new(
-                "deployment-era occurrence identities cannot be zero",
+                "deployment-era occurrence and report identities cannot be zero",
             ));
         }
         Ok(Self {
             era_identity,
-            installed_code_identity,
-            artifact_identity,
+            installed_code_report_identity,
+            artifact_report_identity,
         })
     }
     pub const fn era_identity(self) -> u64 {
         self.era_identity
     }
-    pub const fn installed_code_identity(self) -> u64 {
-        self.installed_code_identity
+    pub const fn installed_code_report_identity(self) -> u64 {
+        self.installed_code_report_identity
     }
-    pub const fn artifact_identity(self) -> u64 {
-        self.artifact_identity
+    pub const fn artifact_report_identity(self) -> u64 {
+        self.artifact_report_identity
     }
 }
 
@@ -238,6 +240,7 @@ pub struct PreparedComponentDeploymentJournal {
     record: ComponentDeploymentJournalRecord,
     candidate: ComponentEraCandidate,
     receipt: ComponentEraPublicationReceipt,
+    installed_context: InstalledCodeContext,
     runnable: InstalledRunnableComponent,
 }
 
@@ -387,10 +390,12 @@ pub fn prepare_component_deployment(
         installation_fingerprint: *fingerprint.as_bytes(),
         installation_record,
     };
+    let installed_context = runnable.installed().receipt_context();
     Ok(PreparedComponentDeploymentJournal {
         record,
         candidate,
         receipt,
+        installed_context,
         runnable,
     })
 }
@@ -432,6 +437,7 @@ impl PreparedComponentDeploymentJournal {
             mut record,
             candidate,
             receipt,
+            installed_context,
             runnable,
         } = self;
         if let Err(error) = ledger.publish(candidate, receipt, runnable) {
@@ -442,6 +448,7 @@ impl PreparedComponentDeploymentJournal {
                     record,
                     candidate,
                     receipt,
+                    installed_context,
                     runnable,
                 },
                 diagnostic,
@@ -453,8 +460,17 @@ impl PreparedComponentDeploymentJournal {
                 .retained_component(record.candidate.era_identity)
                 .is_some()
         );
+        debug_assert_eq!(
+            ledger
+                .retained_component(record.candidate.era_identity)
+                .map(|retained| retained.installed().receipt_context()),
+            Some(installed_context.clone())
+        );
         record.phase = ComponentDeploymentJournalPhase::Activated;
-        Ok(ActivatedComponentDeploymentJournal { record })
+        Ok(ActivatedComponentDeploymentJournal {
+            record,
+            installed_context,
+        })
     }
 }
 
@@ -462,6 +478,7 @@ impl PreparedComponentDeploymentJournal {
 #[must_use = "activated deployment must be durably finalized or reconciled"]
 pub struct ActivatedComponentDeploymentJournal {
     record: ComponentDeploymentJournalRecord,
+    installed_context: InstalledCodeContext,
 }
 impl ActivatedComponentDeploymentJournal {
     pub const fn record(&self) -> &ComponentDeploymentJournalRecord {
@@ -493,12 +510,37 @@ impl ActivatedComponentDeploymentJournal {
             ));
         };
         if retained.installed_code().normalized_identity()
-            != self.record.candidate.installed_code_identity
-            || retained.artifact().normalized_identity() != self.record.candidate.artifact_identity
+            != self.record.candidate.installed_code_report_identity
+            || retained.artifact().normalized_identity()
+                != self.record.candidate.artifact_report_identity
         {
             return Err(ComponentDeploymentFinalizationError::new(
                 self,
-                "finalization retained occurrence disagrees with the journal candidate",
+                "finalization retained occurrence report identities disagree with the journal candidate",
+            ));
+        }
+        if retained.installed().receipt_context() != self.installed_context {
+            return Err(ComponentDeploymentFinalizationError::new(
+                self,
+                "finalization retained occurrence does not match the exact activated installed-code evidence",
+            ));
+        }
+        let retained_installation_record =
+            match encode_installation_record(retained.installed_artifact().installation()) {
+                Ok(record) => record,
+                Err(error) => {
+                    return Err(ComponentDeploymentFinalizationError::new(
+                        self,
+                        format!(
+                            "finalization cannot replay retained installation evidence: {error}"
+                        ),
+                    ));
+                }
+            };
+        if retained_installation_record != self.record.installation_record {
+            return Err(ComponentDeploymentFinalizationError::new(
+                self,
+                "finalization retained occurrence has different canonical installation evidence",
             ));
         }
         self.record.phase = ComponentDeploymentJournalPhase::Finalized;
@@ -896,8 +938,8 @@ fn validate_bytes(value: &[u8], label: &str) -> Result<(), ComponentDeploymentJo
 }
 fn put_occurrence(out: &mut Vec<u8>, value: ComponentDeploymentEraOccurrence) {
     put_u64(out, value.era_identity);
-    put_u64(out, value.installed_code_identity);
-    put_u64(out, value.artifact_identity);
+    put_u64(out, value.installed_code_report_identity);
+    put_u64(out, value.artifact_report_identity);
 }
 fn put_u32(out: &mut Vec<u8>, value: u32) {
     out.extend_from_slice(&value.to_le_bytes());

@@ -50,7 +50,6 @@ normalized_id!(CodePlacementId, "code-placement");
 normalized_id!(InstallationScopeId, "installation-scope");
 normalized_id!(FinalValidationId, "final-validation");
 normalized_id!(InstalledCodeId, "installed-code");
-normalized_id!(RetirementFactId, "retirement-fact");
 normalized_id!(MappingQuarantineId, "mapping-quarantine");
 normalized_id!(RelocationSetId, "relocation-set");
 normalized_id!(
@@ -78,6 +77,26 @@ macro_rules! normalized_digest {
 normalized_digest!(ArtifactContentDigest);
 normalized_digest!(ProofPayloadDigest);
 normalized_digest!(FinalBytesDigest);
+normalized_digest!(RetirementFactDigest);
+
+impl RetirementFactDigest {
+    /// Derive one provider-defined completion fact from its canonical bytes.
+    ///
+    /// Retirement gates compare this complete domain-separated digest rather
+    /// than a compact provider-selected integer. The canonical bytes remain
+    /// provider vocabulary; this layer assigns them no ambient meaning.
+    pub fn from_canonical_bytes(canonical: &[u8]) -> Self {
+        let mut digest = Sha256::new();
+        digest.update(b"omega.retirement-fact.sha256.v1\0");
+        digest.update(
+            u64::try_from(canonical.len())
+                .expect("retirement-fact canonical byte length fits u64")
+                .to_le_bytes(),
+        );
+        digest.update(canonical);
+        Self::from_digest(digest.finalize().into())
+    }
+}
 
 macro_rules! non_authoritative_fingerprint64 {
     ($name:ident, $label:literal) => {
@@ -2026,13 +2045,13 @@ impl InstalledCodeEvidence {
 #[derive(Debug, PartialEq, Eq)]
 pub struct RetirementAuthority {
     installed: InstalledCodeEvidence,
-    required_facts: std::collections::BTreeSet<RetirementFactId>,
+    required_facts: std::collections::BTreeSet<RetirementFactDigest>,
 }
 
 impl RetirementAuthority {
     pub fn from_admitted_provider(
         installed: &InstalledCode,
-        required_facts: impl IntoIterator<Item = RetirementFactId>,
+        required_facts: impl IntoIterator<Item = RetirementFactDigest>,
     ) -> Self {
         Self {
             installed: InstalledCodeEvidence::from_installed(installed),
@@ -2047,7 +2066,7 @@ pub struct RetirementReceipt {
     executors_quiesced: bool,
     execute_disabled: bool,
     write_authority_restored: bool,
-    established_facts: std::collections::BTreeSet<RetirementFactId>,
+    established_facts: std::collections::BTreeSet<RetirementFactDigest>,
 }
 
 impl RetirementReceipt {
@@ -2056,7 +2075,7 @@ impl RetirementReceipt {
         executors_quiesced: bool,
         execute_disabled: bool,
         write_authority_restored: bool,
-        established_facts: impl IntoIterator<Item = RetirementFactId>,
+        established_facts: impl IntoIterator<Item = RetirementFactDigest>,
     ) -> Self {
         Self {
             installed: InstalledCodeEvidence::from_installed(installed),
@@ -3445,7 +3464,8 @@ mod tests {
     fn retirement_requires_quiescence_then_returns_writable_placement() {
         let admitted = admit(&artifact(1));
         let installed = installed_code(&admitted, 107, 0x7000);
-        let retirement_fact = id(300, RetirementFactId::from_normalized_identity);
+        let retirement_fact =
+            RetirementFactDigest::from_canonical_bytes(b"provider.timer-drain.complete.v1");
         let authority = RetirementAuthority::from_admitted_provider(&installed, [retirement_fact]);
         let receipt =
             RetirementReceipt::from_provider(&installed, false, true, true, [retirement_fact]);
@@ -3484,6 +3504,7 @@ mod tests {
         let admitted = admit(&artifact(1));
         let installed = installed_code(&admitted, 117, 0xe000);
         let installed_identity = installed.identity();
+        let installed_context = installed.receipt_context();
         let quarantine = id(401, MappingQuarantineId::from_normalized_identity);
         let receipt = MappingQuarantineReceipt::from_provider(
             &installed,
@@ -3506,7 +3527,7 @@ mod tests {
             }
         ));
         let fault = quarantined
-            .stale_entry_fault(installed_identity)
+            .stale_entry_fault(&installed_context)
             .expect("stale entry names quarantined realization");
         assert_eq!(fault.quarantine(), quarantine);
         assert!(!fault.discharged_obligations());
@@ -3566,14 +3587,107 @@ mod tests {
             },
         );
         let quarantined = quarantine_installed(installed, receipt).expect("quarantined");
-        let unrelated = id(999, InstalledCodeId::from_normalized_identity);
+        let unrelated = installed_code(&admit(&artifact(2)), 999, 0xd000).receipt_context();
         assert!(
             quarantined
-                .stale_entry_fault(unrelated)
+                .stale_entry_fault(&unrelated)
                 .expect_err("unrelated identity is not this stale entry")
                 .0
                 .contains("does not name")
         );
+    }
+
+    #[test]
+    fn quarantine_fault_rejects_a_collision_equal_report_identity() {
+        let first = admit(&colliding_artifact(1, 0x90));
+        let second = admit(&colliding_artifact(1, 0xcc));
+        let first_installed = installed_code(&first, 120, 0xd000);
+        let second_installed = installed_code(&second, 120, 0xd000);
+        let exact_context = first_installed.receipt_context();
+        let colliding_context = second_installed.receipt_context();
+        assert_eq!(
+            first_installed.identity(),
+            second_installed.identity(),
+            "the adversary controls a collision-equal compact report identity"
+        );
+
+        let receipt = MappingQuarantineReceipt::from_provider(
+            &first_installed,
+            id(404, MappingQuarantineId::from_normalized_identity),
+            true,
+            true,
+            true,
+            MappingQuarantineCause::IncompleteDrain {
+                residual_authority_count: 1,
+            },
+        );
+        let quarantined = quarantine_installed(first_installed, receipt).expect("exact quarantine");
+
+        quarantined
+            .stale_entry_fault(&exact_context)
+            .expect("the exact quarantined realization faults");
+        let error = quarantined
+            .stale_entry_fault(&colliding_context)
+            .expect_err("a compact-ID collision must not forge stale-entry evidence");
+        assert!(error.0.contains("does not name"));
+    }
+
+    #[test]
+    fn quarantine_receipt_rejects_a_collision_equal_installed_realization() {
+        let first = admit(&colliding_artifact(1, 0x90));
+        let second = admit(&colliding_artifact(1, 0xcc));
+        let first_installed = installed_code(&first, 122, 0xd000);
+        let second_installed = installed_code(&second, 122, 0xd000);
+        assert_eq!(first_installed.identity(), second_installed.identity());
+
+        let substituted_receipt = MappingQuarantineReceipt::from_provider(
+            &second_installed,
+            id(405, MappingQuarantineId::from_normalized_identity),
+            true,
+            true,
+            true,
+            MappingQuarantineCause::IncompleteDrain {
+                residual_authority_count: 1,
+            },
+        );
+        let error = quarantine_installed(first_installed, substituted_receipt)
+            .expect_err("quarantine must bind the complete installed realization");
+        assert!(error.diagnostic().0.contains("does not match"));
+        let (first_installed, _) = (*error).into_parts();
+        assert!(first_installed.binds_exact_unrelocated_artifact_bytes(&[0x90; 64]));
+    }
+
+    #[test]
+    fn retirement_completion_facts_are_strong_domain_separated_commitments() {
+        let fact = RetirementFactDigest::from_canonical_bytes(b"provider.timer-drain.complete.v1");
+        let changed =
+            RetirementFactDigest::from_canonical_bytes(b"provider.timer-drain.complete.v2");
+        let proof = normalized_proof_payload_digest(b"provider.timer-drain.complete.v1");
+
+        assert_ne!(
+            fact, changed,
+            "fact-byte mutation must change the commitment"
+        );
+        assert_ne!(
+            fact.digest(),
+            proof.digest(),
+            "equal payload bytes in another authority domain must not collide by construction"
+        );
+    }
+
+    #[test]
+    fn retirement_rejects_a_different_exact_completion_fact() {
+        let admitted = admit(&artifact(1));
+        let installed = installed_code(&admitted, 121, 0xd000);
+        let required = RetirementFactDigest::from_canonical_bytes(b"provider.drain.complete.v1");
+        let substituted =
+            RetirementFactDigest::from_canonical_bytes(b"provider.cache-flush.complete.v1");
+        let authority = RetirementAuthority::from_admitted_provider(&installed, [required]);
+        let receipt = RetirementReceipt::from_provider(&installed, true, true, true, [substituted]);
+
+        let error = retire_installed(installed, authority, receipt)
+            .expect_err("another provider fact cannot discharge retirement");
+        assert!(error.diagnostic().0.contains("completion facts"));
     }
 
     #[test]

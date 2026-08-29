@@ -4585,6 +4585,19 @@ fn reclaimable_opaque_callback_requires_unregister_and_root_quiescence() {
         &capacity,
         true,
     );
+    let collision_equal_capacity =
+        OpaqueCallbackRegistrationCapacityOccurrence::from_provider(capacity_identity, provider);
+    let error = admit_reclaimable_opaque_callback(
+        installed,
+        registration_receipt,
+        collision_equal_capacity,
+    )
+    .expect_err("compact capacity identity cannot substitute exact provider occurrence");
+    assert!(error.diagnostic().0.contains("capacity occurrence"));
+    let (installed, registration_receipt, collision_equal_capacity) = (*error).into_parts();
+    assert_eq!(collision_equal_capacity.identity(), capacity_identity);
+    assert_eq!(collision_equal_capacity.provider(), provider);
+
     let substituted_capacity_identity = root_id(
         90,
         OpaqueCallbackRegistrationCapacityOccurrenceId::from_normalized_identity,
@@ -4620,6 +4633,23 @@ fn reclaimable_opaque_callback_requires_unregister_and_root_quiescence() {
     let registration = admit_reclaimable_opaque_callback(installed, registration_receipt, capacity)
         .expect("accepted unregister contract");
     assert_eq!(registration.capacity().identity(), capacity_identity);
+
+    let mut collision_equal_unregistration = OpaqueCallbackUnregistrationReceipt::from_provider(
+        root_id(
+            92,
+            OpaqueCallbackUnregistrationReceiptId::from_normalized_identity,
+        ),
+        &registration,
+        true,
+    );
+    collision_equal_unregistration.substitute_capacity_evidence_for_test(&collision_equal_capacity);
+    let error = registration
+        .unregister_and_quiesce(&mut ledger, collision_equal_unregistration, not_quiesced)
+        .expect_err("compact capacity identity cannot substitute unregistration provenance");
+    assert!(error.diagnostic().0.contains("exact registered"));
+    let (registration, _, not_quiesced) = (*error).into_parts();
+    assert_eq!(registration.capacity().identity(), capacity_identity);
+    assert!(ledger.record(root_identity).is_some());
 
     let provider_incomplete = OpaqueCallbackUnregistrationReceipt::from_provider(
         root_id(
