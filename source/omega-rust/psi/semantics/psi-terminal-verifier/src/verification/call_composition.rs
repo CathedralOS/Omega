@@ -234,6 +234,7 @@ pub(super) fn compose_call_operation(
                 callee,
                 structural_arguments,
                 requirement_obligations,
+                selected_evidence,
                 ..
             },
         ) => {
@@ -303,10 +304,21 @@ pub(super) fn compose_call_operation(
                 );
             }
             for guarantee in &callee.contract.outcome_specific_ensures {
-                let proposition = substitute_proposition_structural_places(
-                    &guarantee.proposition,
-                    &substitutions,
-                );
+                let proposition = selected_evidence
+                    .iter()
+                    .find(|binding| {
+                        binding.guard == guarantee.guard
+                            && binding.position == guarantee.position
+                            && guarantee.proposition
+                                == Proposition::Atom(binding.callee_proposition)
+                    })
+                    .map(|binding| Proposition::Atom(binding.instantiated_proposition))
+                    .unwrap_or_else(|| {
+                        substitute_proposition_structural_places(
+                            &guarantee.proposition,
+                            &substitutions,
+                        )
+                    });
                 push_unique(
                     axioms,
                     Proposition::Implication {

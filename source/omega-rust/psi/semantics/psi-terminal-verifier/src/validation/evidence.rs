@@ -433,6 +433,45 @@ pub(super) fn validate_evidence_contract_lanes(
                 let Some(output) = terms.get(&binding.output).copied() else {
                     return Err(invalid());
                 };
+                let Some(callee_result) = callee.result.structural() else {
+                    return Err(invalid());
+                };
+                let Some(callee_application) = module
+                    .proposition_applications
+                    .iter()
+                    .find(|application| application.id == binding.callee_proposition)
+                else {
+                    return Err(invalid());
+                };
+                let Some(instantiated_application) = module
+                    .proposition_applications
+                    .iter()
+                    .find(|application| application.id == binding.instantiated_proposition)
+                else {
+                    return Err(invalid());
+                };
+                let application_surface_matches = callee_application.declaration
+                    == instantiated_application.declaration
+                    && callee_application.binder_arguments
+                        == instantiated_application.binder_arguments
+                    && callee_application.evidence_interface
+                        == instantiated_application.evidence_interface;
+                let substitution_is_exact = match binding.result_substitution {
+                    None => {
+                        binding.callee_proposition == binding.instantiated_proposition
+                            && callee_application.arguments.is_empty()
+                            && binding.validity.interface_dependencies.is_empty()
+                    }
+                    Some(substitution) => {
+                        substitution.argument_position == 0
+                            && substitution.callee_result == callee_result.place
+                            && substitution.caller_result == result.place
+                            && binding.callee_proposition != binding.instantiated_proposition
+                            && callee_application.arguments.len() == 1
+                            && instantiated_application.arguments.len() == 1
+                            && binding.validity.interface_dependencies == [result.place]
+                    }
+                };
                 let dependencies_are_exact_result = |dependencies: &[PlaceId]| {
                     dependencies
                         .iter()
@@ -452,9 +491,11 @@ pub(super) fn validate_evidence_contract_lanes(
                     || binding.callee_obligation != row.obligation
                     || binding.callee_term != row_evidence.term
                     || binding.output_field != row_evidence.output_field
-                    || row.proposition != Proposition::Atom(binding.proposition)
-                    || binding.proposition != callee_term.proposition
-                    || binding.proposition != output.proposition
+                    || row.proposition != Proposition::Atom(binding.callee_proposition)
+                    || binding.callee_proposition != callee_term.proposition
+                    || binding.instantiated_proposition != output.proposition
+                    || !application_surface_matches
+                    || !substitution_is_exact
                     || binding.output == binding.callee_term
                     || used_terms.contains(&binding.output)
                     || output_is_projected_elsewhere
@@ -467,14 +508,10 @@ pub(super) fn validate_evidence_contract_lanes(
                 {
                     return Err(invalid());
                 }
-                let Some(application) = module
-                    .proposition_applications
-                    .iter()
-                    .find(|application| application.id == binding.proposition)
-                else {
-                    return Err(invalid());
-                };
-                if application.evidence_interface.as_ref() != Some(&callee_term.interface) {
+                if callee_application.evidence_interface.as_ref() != Some(&callee_term.interface)
+                    || instantiated_application.evidence_interface.as_ref()
+                        != Some(&output.interface)
+                {
                     return Err(invalid());
                 }
                 used_terms.insert(binding.callee_term);

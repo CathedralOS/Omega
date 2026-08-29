@@ -13,10 +13,11 @@ use psi_terminal::{
     CrashRouteGuard, EvidenceContractLane, EvidenceContractLaneKind, EvidenceInterfaceIdentity,
     EvidenceTermDeclaration, InstallationReachDependency, MachineContract, Operation,
     OperationKind, OperationResult, OutcomeSpecificCallEvidence,
-    OutcomeSpecificCallEvidenceValidity, OutcomeSpecificEnsure, OutcomeSpecificEvidence,
-    OutcomeSpecificGuard, PropositionApplicationIdentity, PropositionDeclaration,
-    PropositionEvidence, ProviderCandidateConformance, ProviderUnitRefinement,
-    ProviderUnitSignature, ServiceDeclaration, StructuralCaseDeclaration, StructuralMultiplicity,
+    OutcomeSpecificCallEvidenceValidity, OutcomeSpecificCallResultSubstitution,
+    OutcomeSpecificEnsure, OutcomeSpecificEvidence, OutcomeSpecificGuard,
+    PropositionApplicationIdentity, PropositionDeclaration, PropositionEvidence,
+    ProviderCandidateConformance, ProviderUnitRefinement, ProviderUnitSignature,
+    ServiceDeclaration, StructuralCaseDeclaration, StructuralMultiplicity,
     StructuralOperationResult, StructuralPlaceDeclaration, StructuralResultDeclaration,
     StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
     TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
@@ -280,12 +281,14 @@ fn payloadless_structural_call_selects_one_exact_guarded_term_without_inventing_
         callee_obligation,
         callee_term,
         output_field: "selected".into(),
-        proposition,
+        callee_proposition: proposition,
+        instantiated_proposition: proposition,
         output,
+        result_substitution: None,
         validity: OutcomeSpecificCallEvidenceValidity {
             result: place_id(1),
             proposition_dependencies: vec![place_id(1)],
-            evidence_interface: interface,
+            evidence_interface: interface.clone(),
             interface_dependencies: Vec::new(),
         },
     });
@@ -307,6 +310,53 @@ fn payloadless_structural_call_selects_one_exact_guarded_term_without_inventing_
         site.semantic_axioms
             .iter()
             .any(|axiom| axiom == &Proposition::Atom(proposition))
+    }));
+
+    let mut substituted = module.clone();
+    let instantiated = PropositionId::new(2).unwrap();
+    substituted.proposition_declarations[0].parameter_types = vec!["test::Outcome".into()];
+    substituted.proposition_applications[0].arguments = vec!["callee-result".into()];
+    substituted
+        .proposition_applications
+        .push(PropositionApplicationIdentity {
+            id: instantiated,
+            declaration: proposition,
+            binder_arguments: Vec::new(),
+            arguments: vec!["caller-result".into()],
+            evidence_interface: Some(interface.clone()),
+        });
+    substituted.evidence_terms[1].proposition = instantiated;
+    let OperationKind::CallStructural {
+        selected_evidence, ..
+    } = &mut substituted.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    selected_evidence[0].instantiated_proposition = instantiated;
+    selected_evidence[0].result_substitution = Some(OutcomeSpecificCallResultSubstitution {
+        argument_position: 0,
+        callee_result: place_id(4),
+        caller_result: place_id(1),
+    });
+    selected_evidence[0].validity.interface_dependencies = vec![place_id(1)];
+    validate_module(&substituted).expect("the exact whole-result substitution validates");
+    let reconstructed = reconstruct_terminal_obligations(&substituted)
+        .expect("the exact whole-result substitution reconstructs");
+    assert!(reconstructed.obligations().iter().any(|site| {
+        site.semantic_axioms.iter().any(|axiom| {
+            matches!(
+                axiom,
+                Proposition::Implication { premise, conclusion }
+                    if matches!(premise.as_ref(), Proposition::StructuralCaseMembership { .. })
+                        && conclusion.as_ref() == &Proposition::Atom(instantiated)
+            )
+        })
+    }));
+    assert!(!reconstructed.obligations().iter().any(|site| {
+        site.semantic_axioms.iter().any(|axiom| {
+            matches!(axiom, Proposition::Implication { conclusion, .. }
+                if conclusion.as_ref() == &Proposition::Atom(proposition))
+        })
     }));
     let bundle = ProofBundle {
         evidence: vec![ObligationEvidence {
@@ -372,7 +422,10 @@ fn payloadless_structural_call_selects_one_exact_guarded_term_without_inventing_
     }));
     tamper(Box::new(|binding| binding.output_field = "other".into()));
     tamper(Box::new(|binding| {
-        binding.proposition = PropositionId::new(2).unwrap()
+        binding.callee_proposition = PropositionId::new(2).unwrap()
+    }));
+    tamper(Box::new(|binding| {
+        binding.instantiated_proposition = PropositionId::new(2).unwrap()
     }));
     tamper(Box::new(|binding| binding.output = binding.callee_term));
     tamper(Box::new(|binding| binding.validity.result = place_id(2)));

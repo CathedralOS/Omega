@@ -1323,6 +1323,18 @@ Remaining:
   This is not an `Extent`, a `Granted` root, a physical shell, the target
   adapter, semantic installation, or native execution.
 
+  That lifecycle provider can now move into one exact address-free
+  `HandleProtocol` invocation-plan carrier before any outcome is admitted. The
+  plan independently replays the service identity and row, Loaded Image GUID,
+  three pointer-shaped input types, `EFI_STATUS` result, Microsoft-x64
+  RCX/RDX/R8 and RAX placements, shadow/alignment/state plan, collision-
+  resistant calling-plan commitment, and the closed Success /
+  InvalidParameter / Unsupported status table. Outcome admission now consumes
+  this non-clone plan rather than the unplanned provider. Failure returns the
+  complete planned custody for retry or release. This adds no runtime argument
+  values, interface destination, service-pointer exposure, call operation,
+  emitted bytes, firmware execution, image root, or adapter/shell claim.
+
   The next provider/adapter composition edge is design-settled. Implement one
   exact target-runtime bootstrap adapter satisfying
   `UefiPhysicalEntry::enter`; the generated shell invokes it, while `build.omg`
@@ -9187,12 +9199,20 @@ reach or trust, and private proof improvements do not change public identity.
   the exact two-residual complement. Producer-authored increasing order rejects,
   and interpreter fuel remains the exact three closure units.
 
-  Extend those lanes to wider and recursively nested multiple residuals under
-  the same rule. Add positive `[T; 4]` two-move canaries, recursive nested-array
-  coverage, construction-prefix ordinary-failure cleanup, canonical fuel/action
-  ordinals, and producer-order tampering rejection. The lowering must omit moved
-  indices from one straight-line static plan rather than introduce runtime
-  liveness flags or a cleanup loop.
+  The exact wider flat successor is also closed: `[T; 4]` may move exactly two
+  distinct literal indices through two ordinary Unit calls in authored order,
+  then discard the two-index complement in decreasing order. Checked and
+  Terminal replay, codec and interpretation, target lowering, optimization,
+  machine emission, object/image validation, and installation replay retain
+  the length-four layout, canonical stride and offsets, two calls, two cleanup
+  actions, and exact five closure units. Duplicate, missing, out-of-bounds,
+  reordered-cleanup, wrong-layout, and wrong-move-count tampering reject. This
+  remains one straight-line static plan with neither runtime liveness flags nor
+  a cleanup loop.
+
+  Extend those lanes to recursively nested multiple residuals under the same
+  rule. Add recursive nested-array coverage, construction-prefix
+  ordinary-failure cleanup, and deeper canonical fuel/action ordinals.
 
   Dynamic/mixed projections, scalar/float/byte/linear/nominal/qualified/content
   elements, arrays with claims, sums, joins, and cycles remain separately fenced.
@@ -9492,10 +9512,20 @@ Remaining N6/N8 work:
   preserve the four-unit call/construction/two-return runtime with no selector
   charge. Terminal format 36 / vocabulary 39 retain the counted selection
   vector and verifier replay rejects row, output, interface, validity, and
-  order tampering independently. Payload substitution, later use of the bound
-  guarded term, erased proof-output linkage, wider structural calls, and
+  order tampering independently. The next exact selected-evidence rung is now
+  live for a proposition whose sole ordinary argument is the complete callee
+  result. Checked planning records whether that one result occurrence is
+  substituted; Terminal format 37 / vocabulary 40 retain distinct callee and
+  caller proposition applications plus a structured argument-position,
+  callee-result-place, and caller-result-place row. Validation independently
+  rejoins the declaration, binders, evidence interface, dependency roots, and
+  exact call endpoints; reconstruction imports only the guarded implication
+  concluding the caller application. Source, codec, verifier, optimizer
+  identity, and tamper canaries preserve the same four-unit runtime. Payload
+  projections, multiple or partial-result substitutions, later use of the
+  bound guarded term, erased proof-output linkage, wider structural calls, and
   validity invalidation remain fail-closed rather than being inferred from this
-  bounded source carrier.
+  bounded carrier.
 
   Requirement guarantees are inherited and satisfiers author additions only;
   omission never weakens the requirement, exact restatement rejects, and direct
@@ -10228,11 +10258,15 @@ boundary without its corresponding checked law.
   ledger and independent replay check exact source bytes, file extents,
   non-overlap, complete coverage, and canonical zero-filled alignment/page
   gaps; BSS remains memory-only, rejection returns the complete resolved-
-  linkage owner, and the retained `FinalImage` remains immutable. Runnable ELF
-  emission remains fail closed before image mutation: optional `.gnu.hash`,
-  consuming `FinalImage` mutation, and independent final-byte admission remain
-  unimplemented. The assembled file carrier does not constitute a dynamic
-  image or grant loader, publication, or runnable authority.
+  linkage owner, and the retained `FinalImage` remains immutable. The final-
+  byte admission rung now consumes that assembly, recovers the exact retained
+  `FinalImage` through the complete ownership chain, applies only the already-
+  resolved source-text bytes, and independently rejoins the complete assembled
+  file, target-specific format, image statistics, and placed executable-region
+  inventory. Rejection retains the intact assembled owner; success retains the
+  mutated image beside exact `ExecutableImageOutput` bytes and grants neither
+  publication nor an execution event. Optional `.gnu.hash`, production emitter
+  integration, and ordinary source `via` evaluation remain unimplemented.
   The generic contextual byte-literal rung is also live for owned direct
   `[u8; N]` destinations used by final results, locals/owned initializers,
   exact resolved call arguments, and record/case fields. It copies source bytes

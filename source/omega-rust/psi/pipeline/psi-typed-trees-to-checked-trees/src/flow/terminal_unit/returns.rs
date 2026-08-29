@@ -585,19 +585,26 @@ fn build_payloadless_guarded_call_return_machine(
                     row.guarantee,
                     selected_term,
                     &row.validity,
+                    row.instantiated_proposition.as_ref(),
                 )
             })
         })
     });
     let mut selected_evidence = selected
         .map(
-            |(arm_statement_index, guarantee, selected_term, validity)| {
+            |(arm_statement_index, guarantee, selected_term, validity, proposition)| {
                 if !expression_is_saved(validity.result_occurrence, arm_statement_index)
-                    || !validity.referenced_occurrences.is_empty()
+                    || validity.referenced_occurrences.len() > 1
                     || validity
                         .evidence_interface_scope
                         .as_ref()
-                        .is_none_or(|scope| !scope.retained_occurrences.is_empty())
+                        .is_none_or(|scope| {
+                            !scope.reference_regions.is_empty()
+                                || scope.retained_occurrences.len() > 1
+                                || scope.retained_occurrences != validity.referenced_occurrences
+                        })
+                    || (!validity.referenced_occurrences.is_empty()
+                        && proposition.is_none_or(|proposition| proposition.arguments.len() != 1))
                 {
                     return None;
                 }
@@ -605,6 +612,7 @@ fn build_payloadless_guarded_call_return_machine(
                     arm_statement_index: u32::try_from(arm_statement_index).ok()?,
                     guarantee,
                     selected_term,
+                    substitutes_result: !validity.referenced_occurrences.is_empty(),
                 })
             },
         )

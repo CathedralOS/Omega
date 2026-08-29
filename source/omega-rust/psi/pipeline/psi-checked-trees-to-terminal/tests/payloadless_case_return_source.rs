@@ -126,6 +126,26 @@ const MULTI_SELECTED_GUARDED_CALL_SOURCE: &str = r#"
     }
 "#;
 
+const RESULT_SUBSTITUTED_GUARDED_CALL_SOURCE: &str = r#"
+    trait Evidence {}
+    data Outcome [copy] { case Success; case Failure; }
+    proposition accepted(value: Outcome) evidence Evidence;
+    ConcreteEvidence: satisfies Evidence {}
+    data Root {}
+
+    machine Root::produce() -> Outcome
+    ensures Outcome::Success -> { selected: accepted(result); }
+    { selected = ConcreteEvidence; Outcome::Success }
+
+    machine Root::caller() -> Outcome {
+        let saved: Outcome = Root::produce();
+        transition saved {
+            Outcome::Success { ; selected: local } -> saved
+            Outcome::Failure { } -> saved
+        }
+    }
+"#;
+
 #[test]
 fn guarded_payloadless_source_call_rejoins_selected_evidence_and_uses_four_fuel() {
     let checked = checked(GUARDED_CALL_SOURCE);
@@ -173,8 +193,8 @@ fn guarded_payloadless_source_call_rejoins_selected_evidence_and_uses_four_fuel(
         .iter()
         .find(|term| term.id == selected.output)
         .unwrap();
-    assert_eq!(callee_term.proposition, selected.proposition);
-    assert_eq!(output_term.proposition, selected.proposition);
+    assert_eq!(callee_term.proposition, selected.callee_proposition);
+    assert_eq!(output_term.proposition, selected.instantiated_proposition);
     assert_eq!(callee_term.interface, output_term.interface);
     assert_eq!(
         selected.validity.result,
@@ -416,6 +436,139 @@ fn guarded_payloadless_source_call_retains_a_canonical_selected_subset_without_r
     };
     selected_evidence[1] = selected_evidence[0].clone();
     assert!(psi_terminal_verifier::validate_module(&duplicated).is_err());
+}
+
+#[test]
+fn guarded_payloadless_call_substitutes_the_exact_whole_result_application() {
+    let checked = checked(RESULT_SUBSTITUTED_GUARDED_CALL_SOURCE);
+    let [plan] = checked
+        .facts
+        .flow
+        .terminal_structural_call_returns
+        .payloadless_guarded_machines
+        .as_slice()
+    else {
+        panic!(
+            "one exact result-substituting call plan; arms={:?}; returns={:?}",
+            checked.facts.proof.outcome_specific_arms,
+            checked
+                .facts
+                .flow
+                .terminal_structural_returns
+                .payloadless_case_machines,
+        )
+    };
+    let [checked_selection] = plan.selected_evidence.as_slice() else {
+        panic!("one exact checked selection")
+    };
+    assert!(checked_selection.substitutes_result);
+
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::caller")
+        .expect("the whole-result guarded application lowers");
+    let [caller, callee] = lowered.semantic_module.machines.as_slice() else {
+        panic!("caller and producer remain exact")
+    };
+    let operation = &caller.blocks[0].operations[0];
+    let OperationKind::CallStructural {
+        selected_evidence, ..
+    } = &operation.kind
+    else {
+        panic!("one structural call")
+    };
+    let [binding] = selected_evidence.as_slice() else {
+        panic!("one substituted selected row")
+    };
+    assert_ne!(binding.callee_proposition, binding.instantiated_proposition);
+    let substitution = binding
+        .result_substitution
+        .expect("the semantic carrier retains exact result substitution");
+    assert_eq!(substitution.argument_position, 0);
+    assert_eq!(
+        substitution.callee_result,
+        callee.result.structural().unwrap().place
+    );
+    assert_eq!(
+        substitution.caller_result,
+        operation.result.structural().unwrap().place
+    );
+    assert_eq!(
+        binding.validity.proposition_dependencies,
+        [substitution.caller_result]
+    );
+    assert_eq!(
+        binding.validity.interface_dependencies,
+        [substitution.caller_result]
+    );
+    let callee_application = lowered
+        .semantic_module
+        .proposition_applications
+        .iter()
+        .find(|application| application.id == binding.callee_proposition)
+        .unwrap();
+    let instantiated_application = lowered
+        .semantic_module
+        .proposition_applications
+        .iter()
+        .find(|application| application.id == binding.instantiated_proposition)
+        .unwrap();
+    assert_eq!(
+        callee_application.declaration,
+        instantiated_application.declaration
+    );
+    assert_eq!(callee_application.arguments.len(), 1);
+    assert_eq!(instantiated_application.arguments.len(), 1);
+
+    let reconstructed =
+        psi_terminal_verifier::reconstruct_terminal_obligations(&lowered.semantic_module)
+            .expect("the exact result substitution reconstructs");
+    assert!(
+        reconstructed.obligations().is_empty(),
+        "the selected evidence discharges its guarded row without a proof obligation"
+    );
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("the substituted selected result verifies");
+    let bytes = encode_module(&lowered.semantic_module).expect("substitution encodes");
+    assert_eq!(decode_module(&bytes), Ok(lowered.semantic_module.clone()));
+    let verified = psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+            .unwrap()
+            .ceiling_units(),
+        4
+    );
+
+    let mut redirected = lowered.semantic_module.clone();
+    let OperationKind::CallStructural {
+        selected_evidence, ..
+    } = &mut redirected.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    selected_evidence[0]
+        .result_substitution
+        .as_mut()
+        .unwrap()
+        .caller_result = callee.result.structural().unwrap().place;
+    assert!(psi_terminal_verifier::validate_module(&redirected).is_err());
+
+    let mut erased = lowered.semantic_module.clone();
+    let OperationKind::CallStructural {
+        selected_evidence, ..
+    } = &mut erased.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    selected_evidence[0].result_substitution = None;
+    assert!(psi_terminal_verifier::validate_module(&erased).is_err());
 }
 
 #[test]

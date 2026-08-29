@@ -487,8 +487,18 @@ pub(super) fn encode_outcome_specific_call_evidence(
     bytes.id(evidence.callee_obligation);
     bytes.id(evidence.callee_term);
     bytes.string(&evidence.output_field);
-    bytes.id(evidence.proposition);
+    bytes.id(evidence.callee_proposition);
+    bytes.id(evidence.instantiated_proposition);
     bytes.id(evidence.output);
+    encode_optional(
+        bytes,
+        evidence.result_substitution.as_ref(),
+        |bytes, substitution| {
+            bytes.u32(substitution.argument_position);
+            bytes.id(substitution.callee_result);
+            bytes.id(substitution.caller_result);
+        },
+    );
     bytes.id(evidence.validity.result);
     encode_ids(bytes, &evidence.validity.proposition_dependencies);
     encode_evidence_interface(bytes, &evidence.validity.evidence_interface);

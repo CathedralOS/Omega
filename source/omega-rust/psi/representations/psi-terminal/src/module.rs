@@ -28,7 +28,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        39
+        40
     }
 }
 
@@ -1118,9 +1118,23 @@ pub struct OutcomeSpecificCallEvidence {
     pub callee_obligation: ObligationId,
     pub callee_term: EvidenceTermId,
     pub output_field: String,
-    pub proposition: PropositionId,
+    /// Exact proposition application declared by the guarded callee row.
+    pub callee_proposition: PropositionId,
+    /// Exact caller-side application after substituting the call result.
+    pub instantiated_proposition: PropositionId,
     pub output: EvidenceTermId,
+    /// Present exactly when the proposition application mentions the complete
+    /// structural result. This source-handle-free row, rather than application
+    /// display strings, authorizes the one bounded substitution.
+    pub result_substitution: Option<OutcomeSpecificCallResultSubstitution>,
     pub validity: OutcomeSpecificCallEvidenceValidity,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct OutcomeSpecificCallResultSubstitution {
+    pub argument_position: u32,
+    pub callee_result: PlaceId,
+    pub caller_result: PlaceId,
 }
 
 /// Source-handle-free roots of the checked guarded-term validity intersection.

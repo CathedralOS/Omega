@@ -241,6 +241,15 @@ named row is selected. Their validity scopes retain every referenced occurrence
 and evidence-interface scope, so borrowing or revision invalidation composes
 unchanged with guarded availability.
 
+The first executable caller carrier permits one deliberately narrow
+substitution: when a selected named proposition's only ordinary argument is the
+callee's complete structural result, the guarded call retains the distinct
+caller application plus a structured `(argument position, callee result,
+caller result)` row. Terminal validation rejoins both applications to the same
+declaration, binders, and evidence interface before guarded implication replay.
+Payload projections, multiple arguments, later term use, and all wider call
+shapes remain fenced.
+
 A transparent logical definition uses `=`:
 
 ```omega
