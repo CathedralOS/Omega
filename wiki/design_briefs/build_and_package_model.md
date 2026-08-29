@@ -1927,6 +1927,15 @@ builtin function beside, but distinct from, the authored realization machine;
 projection rederives it from the checked overload and fixed builtin root slot.
 Missing, mismatched, or non-intrinsic spoofed state rejects. Primitive-expression
 intrinsics remain fail-closed until they receive their own closed atoms.
+Review v79 and canonical row v37 add the first such primitive-expression atom:
+named-float negation retains the exact checked `f32` or `f64` format. The atom
+is selected by compiler dispatch from the exact checked boundary overload and
+external realization join, never parsed from the authored realization-machine
+name; that machine remains a separate package-qualified nominal. Projection
+rederives and cross-checks the atom, while absent, cross-format, non-intrinsic,
+and otherwise spoofed state rejects. Named-float conversion remains
+fail-closed until its source type, target type, and arithmetic policy are
+carried together as one closed execution identity.
 Review v75 and canonical row v33 likewise admit the compiler-owned collection-
 length projection in public contract expressions. Checked proof-static member
 resolution derives the receiver type from its retained declaration symbol,
@@ -1973,6 +1982,12 @@ bytes, source spelling, or a checker verdict. Proposition-local type binders
 receive exact symbols before typed lowering; binder renames are stable, while a
 different observed type changes the row. Quotient targets remain rejected by
 the settled representation-observer fence before package review.
+Expression-owned type positions retain their exact authored public/private
+disposition through symbol resolution. Cast targets, cast domain indices, and
+`zero_value<T>()` therefore lower nominal selections under their real contract
+position rather than a private default; proposition casts now resolve those
+types through the same exact symbol path as machine casts. Checked visibility
+and direct-dependency admission reject private or transitive-only targets.
 Review v65 and canonical row v23 admit outcome-specific `ensures` without
 collapsing them into unconditional postconditions. Each row carries the exact
 package-qualified result-data and result-case identities, its public selector

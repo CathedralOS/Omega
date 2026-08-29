@@ -11,9 +11,9 @@ use psi_diagnostics::Diagnostic;
 ///
 /// The retained sidecar is deliberately separate from the authored
 /// realization-machine declaration. Non-intrinsic rows retain `None`.
-/// Compiler-intrinsic rows whose execution is still a primitive expression
-/// also retain `None`; package review rederives that unsupported child and
-/// rejects it until a closed identity exists.
+/// Unsupported compiler-intrinsic executions also retain `None`; package
+/// review rederives that unsupported child and rejects it until a closed
+/// identity exists.
 pub fn retain_selected_compiler_intrinsic_review_identities(
     checked: &CheckedTrees,
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
@@ -31,7 +31,7 @@ pub fn retain_selected_compiler_intrinsic_review_identities(
     for (plan, retained) in plans.iter().zip(provenance.iter()) {
         if retained.plan != *plan
             || retained.provider.row_requirements.len() != plan.rows.len()
-            || !retained.row_compiler_intrinsic_builtins.is_empty()
+            || !retained.row_compiler_intrinsic_executions.is_empty()
         {
             diagnostics.push(Diagnostic::error(format!(
                 "selected provider plan `{}` has incomplete, misaligned, or already-populated compiler-intrinsic review state",
@@ -58,10 +58,10 @@ pub fn retain_selected_compiler_intrinsic_review_identities(
                 plan,
                 *requirement_symbol,
             ) {
-                Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::BuiltinFunction(function))) => {
-                    rows.push(Some(function))
+                Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(identity))) => {
+                    rows.push(Some(identity))
                 }
-                Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::NonBuiltin)) | Ok(None) => {
+                Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Unsupported)) | Ok(None) => {
                     rows.push(None)
                 }
                 Err(diagnostic) => {
@@ -77,7 +77,7 @@ pub fn retain_selected_compiler_intrinsic_review_identities(
         return Err(diagnostics);
     }
     for (retained, rows) in provenance.iter_mut().zip(retained_rows) {
-        retained.row_compiler_intrinsic_builtins = rows;
+        retained.row_compiler_intrinsic_executions = rows;
     }
     Ok(())
 }

@@ -82,11 +82,12 @@ closed. Compiler-issued package review remains non-admitting.
 
   Existing coverage includes ordinary nominal references, calls, operators,
   conformance arguments, `satisfies` coordinates, establishment routes,
-  machine-parameter requirements, qualification-cast semantic domains, unary
-  compiler intrinsics, and supported member access. Remaining visibility-
-  dependent nested positions must either retain exact authored selection and
-  source custody or fail before review. Toolchain-authored bodies remain
-  outside ordinary package admission.
+  machine-parameter requirements, qualification-cast semantic domains,
+  expression-embedded cast/zero-value type references, unary compiler
+  intrinsics, and supported member access. Remaining visibility-dependent
+  nested positions must either retain exact authored selection and source
+  custody or fail before review. Toolchain-authored bodies remain outside
+  ordinary package admission.
 
 - [ ] **CLOSE-COMPILER-SEMANTIC-SUBJECTS.** Give every source-free
   compiler-owned semantic subject admitted by package review a closed identity
@@ -94,10 +95,13 @@ closed. Compiler-issued package review remains non-admitting.
   covers builtin types, all compiler-installed builtin functions (including
   `min`, `max`, and `sqrt`), unary operators, byte predicates, and collection
   length. Builtin-backed boundary-operator provider rows now retain and
-  rederive their exact builtin execution child. Remaining work includes closed
-  identities for non-builtin intrinsic provider executions and any source-free
-  child still represented as unresolved nominal ownership. Package-authored
-  lookalikes must remain ordinary package nominals.
+  rederive their exact builtin execution child. Named-float negation provider
+  rows likewise retain a closed `f32`/`f64` execution atom independently of
+  their authored realization machine. Remaining work includes complete
+  source/target identity for named-float conversions, other non-builtin
+  intrinsic provider executions, and any source-free child still represented
+  as unresolved nominal ownership. Package-authored lookalikes must remain
+  ordinary package nominals.
 
 - [ ] **COMPLETE-CONFORMANCE-IDENTITY.** Retain complete public conformance
   applications, including target-trait lifetime arguments once OWNER Q6 is

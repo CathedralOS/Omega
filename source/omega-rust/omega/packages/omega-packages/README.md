@@ -988,6 +988,13 @@ builtin-backed boundary-operator provider execution. The compiler-owned sidecar
 is row-aligned and separate from the authored realization machine; projection
 rederives and cross-checks it from checked overload identity. Missing,
 mismatched, spoofed, and still-unclosed primitive-expression children reject.
+Review v79 and canonical row v37 extend the sidecar with exact named-float
+negation atoms for `f32` and `f64`. Compiler dispatch selects the atom from the
+checked overload and external realization join rather than from the authored
+machine name; the package-qualified realization nominal remains independently
+reviewed. Projection rederives the atom and rejects missing, cross-format,
+non-intrinsic, or spoofed state. Conversion remains fail-closed until one atom
+commits its source type, target type, and arithmetic policy together.
 Authored unary `!` and `~` operators retain their exact operator-token spans,
 including when nested in a public proposition or contract. Checked lowering
 must finalize that exact occurrence as the closed builtin-operator meaning,
@@ -1141,6 +1148,11 @@ private package domains reject when exposed by a public cast. The semantic-domai
 path retains one exact authored-selection occurrence on the cast expression;
 typed domain resolution must finalize that same occurrence before checked
 visibility, direct-dependency admission, or review projection can accept it.
+The expression also retains its exact authored public/private position, which
+governs nominal selections in cast targets, cast domain indices, and
+`zero_value<T>()`; proposition and machine casts resolve those targets through
+the same symbol path. A public contract cannot smuggle a private or transitive-
+only type through one of these expression-owned positions.
 This join does not create a nominal Chi stage.
 Ordinary standalone checked compilation still takes a caller-owned writable
 build root when build-host staging is possible. Package review instead supplies
@@ -1450,7 +1462,7 @@ Other nested clause/use-site coordinates remain unfinished engineering work; non
 independently motivates nominal Chi. Checked invocation facts retain exact
 symbolic published and inferred targets before provider settlement, and package
 review consumes those facts rather than re-inferring from transformed typed
-calls. Package review v78/row v36,
+calls. Package review v79/row v37,
 canonical recovery v13, conflict fingerprint v16, and conflict renderer V15 bind
 the current source-role vocabulary. The package layer
 does now validate a complete in-memory

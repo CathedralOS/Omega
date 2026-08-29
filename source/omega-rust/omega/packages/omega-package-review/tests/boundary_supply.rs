@@ -455,6 +455,140 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
 }
 
 #[test]
+fn review_closes_named_float_negation_without_replacing_authored_realizations() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data F32 {}
+pub boundary operator F32::negate(value: f32) -> f32;
+pub data F64 {}
+pub boundary operator F64::negate(value: f64) -> f64;
+
+pub data FloatProvider {}
+pub machine FloatProvider::negate_f32(value: f32) -> f32
+    satisfies F32::negate
+    via Binding::CompilerIntrinsic;
+pub machine FloatProvider::negate_f64(value: f64) -> f64
+    satisfies F64::negate
+    via Binding::CompilerIntrinsic;
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("named-float negation fixture should check");
+    let review = project_checked_package_review(&checked)
+        .expect("named-float negation has a closed package-review identity");
+
+    for (requirement, realization, format) in [
+        (
+            "F32::negate",
+            "FloatProvider::negate_f32",
+            psi_numerics::literals::FloatFormat::F32,
+        ),
+        (
+            "F64::negate",
+            "FloatProvider::negate_f64",
+            psi_numerics::literals::FloatFormat::F64,
+        ),
+    ] {
+        let selected = review
+            .selected_providers()
+            .iter()
+            .find(|provider| provider.schema_declaration().path() == requirement)
+            .unwrap_or_else(|| panic!("missing selected provider for {requirement}"));
+        let [row] = selected.row_declarations() else {
+            panic!("one selected provider row for {requirement}")
+        };
+        assert_eq!(
+            row.compiler_intrinsic_execution(),
+            Some(PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(
+                format
+            )),
+        );
+        assert_eq!(row.compiler_intrinsic_builtin(), None);
+        assert_eq!(
+            row.realization().path(),
+            realization,
+            "the authored realization nominal remains independent of compiler execution identity",
+        );
+    }
+
+    let selected_rows = review
+        .canonical_rows()
+        .expect("canonical negation provider rows")
+        .into_iter()
+        .filter(|row| row.kind() == PackageReviewCanonicalRowKind::SelectedProviderSet)
+        .collect::<Vec<_>>();
+    assert_eq!(selected_rows.len(), 1);
+    for row in selected_rows {
+        let encoded = encode_package_review_canonical_row(&row)
+            .expect("selected negation-provider recovery envelope should encode");
+        let decoded = decode_package_review_canonical_row(&encoded)
+            .expect("selected negation-provider recovery envelope should decode");
+        assert_eq!(decoded.canonical_bytes(), row.canonical_bytes());
+    }
+}
+
+#[test]
+fn named_float_conversion_remains_fail_closed_without_complete_type_identity() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data F32 {}
+pub boundary operator F32::from_f64(value: f64) -> f32;
+pub data FloatProvider {}
+pub machine FloatProvider::from_f64(value: f64) -> f32
+    satisfies F32::from_f64
+    via Binding::CompilerIntrinsic;
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("named-float conversion fixture should check");
+    let diagnostics = project_checked_package_review(&checked)
+        .expect_err("conversion must reject until source and target type identity are closed");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("without a closed package-review identity")
+    }));
+}
+
+#[test]
 fn non_builtin_external_boundary_operator_overloads_remain_fail_closed() {
     let Some(target) = host_target_name() else {
         return;
@@ -494,9 +628,11 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     .expect("external boundary-operator overloads should select independently");
     let diagnostics = project_checked_package_review(&checked)
         .expect_err("primitive-expression intrinsic children have no closed review identity");
-    assert!(diagnostics.iter().any(|diagnostic| diagnostic
-        .message
-        .contains("without a closed package-review identity")));
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("without a closed package-review identity")
+    }));
 }
 
 #[test]
