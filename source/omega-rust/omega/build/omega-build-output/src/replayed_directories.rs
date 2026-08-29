@@ -1,6 +1,6 @@
 use super::{
-    BuildStagedOutputTree, MAX_STAGED_OUTPUT_ENTRIES, StagedOutputEntry, StagedOutputEntryKind,
-    diagnostics, finish_commitment, retained_native_path, validate_retained_tree,
+    BuildStagedOutputTree, MAX_STAGED_OUTPUT_ENTRIES, ReplayedBuildOutputEntry, diagnostics,
+    replayed_output_tree,
 };
 use psi_diagnostics::Diagnostic;
 
@@ -21,40 +21,10 @@ pub fn replayed_empty_directories(
         .map_err(|_| {
             diagnostics("receipted build output directory allocation failed on this compiler host")
         })?;
-    for (index, relative_path) in relative_paths.iter().enumerate() {
-        retained_native_path(relative_path).map_err(|error| {
-            diagnostics(format!(
-                "receipted build output directory path is not canonical: {error}"
-            ))
-        })?;
-        if relative_paths[..index]
-            .iter()
-            .any(|prior| *prior == *relative_path)
-        {
-            return Err(diagnostics(
-                "receipted build output directory paths must be distinct",
-            ));
-        }
-        if let Some(separator) = relative_path.iter().rposition(|byte| *byte == b'/') {
-            let parent = &relative_path[..separator];
-            if !relative_paths[..index].iter().any(|prior| *prior == parent) {
-                return Err(diagnostics(
-                    "receipted nested build output directory must follow its exact parent",
-                ));
-            }
-        }
-        entries.push(StagedOutputEntry {
-            relative_path: relative_path.to_vec(),
-            kind: StagedOutputEntryKind::Directory,
-        });
+    for relative_path in relative_paths {
+        entries.push(ReplayedBuildOutputEntry::directory(relative_path));
     }
-    let tree = finish_commitment(entries);
-    validate_retained_tree(&tree).map_err(|error| {
-        diagnostics(format!(
-            "receipted build output directory failed canonical tree validation: {error}"
-        ))
-    })?;
-    Ok(tree)
+    replayed_output_tree(&entries)
 }
 
 #[cfg(test)]

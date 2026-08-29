@@ -3,8 +3,10 @@
 //! Retained build-output custody, canonical identity, and materialization.
 
 mod replayed_directories;
+mod replayed_tree;
 
 pub use replayed_directories::replayed_empty_directories;
+pub use replayed_tree::{ReplayedBuildOutputEntry, replayed_output_tree};
 
 use psi_checked_interpreter::{FilesystemSponsor, FilesystemSponsorNamespaceEntryKind};
 use psi_diagnostics::Diagnostic;
@@ -230,11 +232,6 @@ pub fn replayed_files(
             "receipted regular-file build output requires at least one file",
         ));
     }
-    if files.len() > MAX_STAGED_OUTPUT_ENTRIES {
-        return Err(diagnostics(format!(
-            "receipted build output exceeds its {MAX_STAGED_OUTPUT_ENTRIES}-entry ceiling"
-        )));
-    }
     let mut entries = Vec::new();
     entries.try_reserve_exact(files.len()).map_err(|_| {
         diagnostics("receipted build output entry allocation failed on this compiler host")
@@ -253,44 +250,13 @@ pub fn replayed_files(
                 "the repeated ordinary-artifact grammar requires direct-child files",
             ));
         }
-        let byte_length = u64::try_from(bytes.len()).map_err(|_| {
-            diagnostics("receipted build output length cannot be represented canonically")
-        })?;
-        if byte_length > MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES {
-            return Err(diagnostics(format!(
-                "receipted build output exceeds its {MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES}-byte object ceiling"
-            )));
-        }
-        entries.push(RetainedStagedOutputEntry {
-            relative_path: relative_path.to_vec(),
-            kind: RetainedStagedOutputEntryKind::File {
-                bytes: Arc::from(*bytes),
-                executable: *executable,
-            },
-        });
-    }
-    entries.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
-    if entries
-        .windows(2)
-        .any(|pair| pair[0].relative_path == pair[1].relative_path)
-    {
-        return Err(diagnostics(
-            "receipted build output contains a duplicate file path",
+        entries.push(ReplayedBuildOutputEntry::regular_file(
+            relative_path,
+            bytes,
+            *executable,
         ));
     }
-    let commitment = commitment_for_retained_entries(&entries).ok_or_else(|| {
-        diagnostics("receipted build output exceeds the staged-output unique-content ceiling")
-    })?;
-    let tree = BuildStagedOutputTree {
-        commitment,
-        entries,
-    };
-    validate_retained_tree(&tree).map_err(|error| {
-        diagnostics(format!(
-            "receipted build output failed canonical tree validation: {error}"
-        ))
-    })?;
-    Ok(tree)
+    replayed_output_tree(&entries)
 }
 
 pub fn select_included_sources(
