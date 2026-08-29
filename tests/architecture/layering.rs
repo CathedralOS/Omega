@@ -4008,7 +4008,7 @@ fn package_review_provider_plan_fingerprints_are_report_only() {
     );
 
     let encoding_path = root.join(
-        "source/omega-rust/omega/packages/omega-package-evidence/src/encoding/values/providers.rs",
+        "source/omega-rust/omega/packages/omega-package-evidence/src/encoding/encode/values/providers.rs",
     );
     let encoding = std::fs::read_to_string(&encoding_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", encoding_path.display()));
