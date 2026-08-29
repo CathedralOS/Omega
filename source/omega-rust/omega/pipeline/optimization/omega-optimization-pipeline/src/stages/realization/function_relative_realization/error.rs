@@ -11,6 +11,7 @@ pub enum FunctionRelativeOptimizationRealizationError {
     X86BranchRelaxation(OptimizedX86BranchRelaxationError),
     ExitContract(WholeFunctionExitContractError),
     MissingFunctionRelativeLayoutOptimization,
+    OptimizationCustodyUnavailable,
     StatisticsOverflow,
     RootMismatch,
     ReceiptMismatch,

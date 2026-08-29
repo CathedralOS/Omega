@@ -23,6 +23,28 @@ pub struct PostAllocationMachineOptimizationCustody {
 }
 
 impl PostAllocationMachineOptimizationCustody {
+    pub(crate) const fn from_parts(
+        optimization: Optimization,
+        artifact_identity: [u8; 32],
+        selections: OptimizationSelectionIdentity,
+        post_allocation_machine_selections: OptimizationSelectionIdentity,
+        source: omega_machine_optimizer::PostAllocationMachineIdentity,
+        action_count: usize,
+        baseline_bytes: u64,
+        selected_bytes: u64,
+    ) -> Self {
+        Self {
+            optimization,
+            artifact_identity,
+            selections,
+            post_allocation_machine_selections,
+            source,
+            action_count,
+            baseline_bytes,
+            selected_bytes,
+        }
+    }
+
     pub const fn optimization(self) -> Optimization {
         self.optimization
     }

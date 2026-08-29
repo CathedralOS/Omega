@@ -1,7 +1,7 @@
 use omega_optimization_core::{
     FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifestIdentity,
-    FunctionRelativeOptimizationRealizationManifestIdentity, OptimizationSelectionIdentity,
-    PostAllocationOptimizationManifestIdentity,
+    FunctionRelativeOptimizationRealizationManifestIdentity, Optimization,
+    OptimizationSelectionIdentity, PostAllocationOptimizationManifestIdentity,
 };
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use psi_core::FuelScheduleIdentity;
@@ -17,11 +17,11 @@ use super::model::{
 };
 
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGFFE\0\0";
-const MANIFEST_VERSION: u32 = 6;
+const MANIFEST_VERSION: u32 = 7;
 
 impl FunctionFragmentEmissionManifest {
     pub fn recomputed_identity(&self) -> FunctionFragmentEmissionManifestIdentity {
-        let mut canonical = b"omega.function-fragment-emission-manifest.v6\0".to_vec();
+        let mut canonical = b"omega.function-fragment-emission-manifest.v7\0".to_vec();
         canonical.extend_from_slice(&encode_manifest_content(self));
         FunctionFragmentEmissionManifestIdentity::from_canonical_bytes(&canonical)
     }
@@ -57,11 +57,12 @@ impl FunctionFragmentEmissionManifest {
         };
         let source_kind = match cursor.byte()? {
             1 => FunctionFragmentEmissionSourceKind::X86Rel8V1,
-            2 => FunctionFragmentEmissionSourceKind::Aarch64CbnzV1,
+            2 => FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 {
+                optimization: decode_post_allocation_optimization(cursor.byte()?)?,
+            },
             3 => FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1,
             4 => FunctionFragmentEmissionSourceKind::UnitBaselineV1,
             5 => FunctionFragmentEmissionSourceKind::StructuralUnitV1,
-            6 => FunctionFragmentEmissionSourceKind::Aarch64MovnV1,
             tag => return Err(FunctionFragmentEmissionManifestDecodeError::UnknownSourceKind(tag)),
         };
         let source_realization =
@@ -152,14 +153,18 @@ fn encode_manifest_content(record: &FunctionFragmentEmissionManifest) -> Vec<u8>
         FunctionFragmentEmissionStage::ValidatedRelocationFreeFunctionFragmentsV1 => 1,
         FunctionFragmentEmissionStage::ValidatedFunctionFragmentsWithUnresolvedInternalMachineFixupsV1 => 2,
     });
-    bytes.push(match record.source_kind {
-        FunctionFragmentEmissionSourceKind::X86Rel8V1 => 1,
-        FunctionFragmentEmissionSourceKind::Aarch64CbnzV1 => 2,
-        FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1 => 3,
-        FunctionFragmentEmissionSourceKind::UnitBaselineV1 => 4,
-        FunctionFragmentEmissionSourceKind::StructuralUnitV1 => 5,
-        FunctionFragmentEmissionSourceKind::Aarch64MovnV1 => 6,
-    });
+    match record.source_kind {
+        FunctionFragmentEmissionSourceKind::X86Rel8V1 => bytes.push(1),
+        FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 {
+            optimization,
+        } => {
+            bytes.push(2);
+            bytes.push(optimization as u8);
+        }
+        FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1 => bytes.push(3),
+        FunctionFragmentEmissionSourceKind::UnitBaselineV1 => bytes.push(4),
+        FunctionFragmentEmissionSourceKind::StructuralUnitV1 => bytes.push(5),
+    }
     bytes.extend_from_slice(&record.source_realization.bytes());
     bytes.extend_from_slice(&record.selections.bytes());
     bytes.extend_from_slice(&record.psi.vocabulary_marker.get().to_le_bytes());
@@ -208,6 +213,29 @@ fn encode_manifest_content(record: &FunctionFragmentEmissionManifest) -> Vec<u8>
     );
     bytes.extend_from_slice(&[1; 6]);
     bytes
+}
+
+fn decode_post_allocation_optimization(
+    tag: u8,
+) -> Result<Optimization, FunctionFragmentEmissionManifestDecodeError> {
+    match tag {
+        value if value == Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 as u8 => {
+            Ok(Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1)
+        }
+        value
+            if value == Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1 as u8 =>
+        {
+            Ok(Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1)
+        }
+        value if value == Optimization::X86SelectXorZeroI64MaterializationV1 as u8 => {
+            Ok(Optimization::X86SelectXorZeroI64MaterializationV1)
+        }
+        value => Err(
+            FunctionFragmentEmissionManifestDecodeError::UnknownPostAllocationMachineOptimization(
+                value,
+            ),
+        ),
+    }
 }
 
 fn encode_target(bytes: &mut Vec<u8>, target: NativeTarget) {

@@ -1,9 +1,9 @@
 //! Function-relative realization after physical homes are known.
 //!
-//! This entrance owns the boundary's stage/scope vocabulary and exposes three
-//! exact custody routes: selected lowering, x86 layout optimization, and
-//! AArch64 CBNZ fusion. Manifest modeling/codec, owning carriers, shared
-//! assembly, and route mechanics descend into their named leaves.
+//! This entrance owns the boundary vocabulary and the three route families:
+//! baseline selected lowering, function-relative layout, and the single
+//! rule-independent post-allocation machine join.  Carriers, manifests,
+//! assembly, codecs, and route mechanics descend into named leaves below.
 
 mod assembly;
 mod carriers;
@@ -19,9 +19,7 @@ pub use error::FunctionRelativeOptimizationRealizationError;
 pub use model::*;
 pub use routes::*;
 
-pub(crate) use assembly::{
-    expected_aarch64_movn_manifest, function_relative_statistics, seal_function_relative_manifest,
-};
+pub(crate) use assembly::{function_relative_statistics, seal_function_relative_manifest};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionRelativeOptimizationRealizationStage {

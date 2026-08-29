@@ -40,6 +40,13 @@ plan, accounting, and custody receipt. Encoding dispatches on that typed plan;
 the complete compiler route does not grow a new parallel carrier family for
 each rule.
 
+Direct homes and homes after selected lowering enter one
+`StagedPostAllocationMachineFunctionRelativeRealization`. CBNZ, MOVN, and
+XOR-zero therefore share the same encoding, layout, exit, realization, and
+fragment source route. The former named CBNZ/MOVN complete-route carriers have
+been removed; rule-specific values remain typed leaves borrowed from the shared
+result.
+
 ## Encoding and layout
 
 ISA crates own canonical form encoding/decoding and reconstructed effects. A
@@ -70,6 +77,10 @@ validated stage result
 Each boundary recomputes child identities and rejects detached, reordered,
 truncated, trailing, or cross-source data. Generic artifact layers bind child
 identities and do not need a new schema merely because a new exact rule exists.
+The genericization changed the data carried at three serialized boundaries:
+function-relative realization is v9, while fragment emission and fragment text
+placement are v7. Their records retain the exact post-allocation optimization,
+not a broad optimization level.
 
 For UEFI, the physical adapter contract is settled but not yet implemented in
 this chain. A generated ABI shell invokes one checked bootstrap adapter;
@@ -99,3 +110,7 @@ it must not encode an optimization name in top-level route variants.
 - every custody boundary rejects one-field identity corruption; and
 - direct, selected-lowering-composed, and final artifact paths retain the same
   full selection identity.
+
+Current XOR-zero coverage proves both direct and selected-lowering routes
+through fragment, object, and callable publication. The broader target/ABI
+corruption matrix remains open coverage.

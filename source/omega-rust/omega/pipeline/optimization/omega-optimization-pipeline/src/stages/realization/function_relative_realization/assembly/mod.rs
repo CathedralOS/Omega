@@ -7,10 +7,9 @@ mod rel8;
 mod statistics;
 
 pub(super) use custody::*;
-pub(crate) use manifests::expected_aarch64_movn_manifest;
 pub(super) use manifests::{
-    expected_direct_cbnz_manifest, expected_direct_manifest, expected_manifest,
-    expected_selected_lowering_cbnz_manifest,
+    expected_direct_manifest, expected_direct_post_allocation_machine_manifest, expected_manifest,
+    expected_selected_lowering_post_allocation_machine_manifest,
 };
 pub(super) use rel8::*;
 pub(crate) use statistics::{function_relative_statistics, seal_function_relative_manifest};

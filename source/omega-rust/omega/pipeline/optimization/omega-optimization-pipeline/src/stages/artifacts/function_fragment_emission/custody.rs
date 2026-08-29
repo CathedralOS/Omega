@@ -2,14 +2,11 @@ use omega_machine_code::FunctionFragmentEmissionPlan;
 use omega_target::Architecture;
 
 use crate::{
-    validate_aarch64_cbnz_function_relative_realization_custody,
     validate_function_relative_layout_optimization_realization_custody,
-    validate_optimized_aarch64_movn_function_relative_realization,
     validate_optimized_active_resident_rematerialization_function_relative_realization,
     validate_optimized_structural_unit_function_relative_realization,
     validate_optimized_unit_function_relative_realization,
-    validate_selected_lowering_aarch64_cbnz_function_relative_realization_custody,
-    validate_selected_lowering_aarch64_movn_function_relative_realization,
+    validate_post_allocation_machine_function_relative_realization_custody,
     validate_selected_lowering_function_relative_realization_custody,
 };
 
@@ -42,39 +39,9 @@ pub(super) fn validate_source(
                 return Err(FunctionFragmentEmissionError::SourceKindMismatch);
             }
         }
-        StagedOptimizedFunctionFragmentEmissionSource::Aarch64CbnzDirect(realization) => {
-            validate_aarch64_cbnz_function_relative_realization_custody(realization)
+        StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(realization) => {
+            validate_post_allocation_machine_function_relative_realization_custody(realization)
                 .map_err(FunctionFragmentEmissionError::Source)?;
-            if realization.layout().target().architecture != Architecture::Aarch64 {
-                return Err(FunctionFragmentEmissionError::SourceKindMismatch);
-            }
-        }
-        StagedOptimizedFunctionFragmentEmissionSource::Aarch64CbnzAfterSelectedLowering(
-            realization,
-        ) => {
-            validate_selected_lowering_aarch64_cbnz_function_relative_realization_custody(
-                realization,
-            )
-            .map_err(FunctionFragmentEmissionError::Source)?;
-            if realization.layout().target().architecture != Architecture::Aarch64 {
-                return Err(FunctionFragmentEmissionError::SourceKindMismatch);
-            }
-        }
-        StagedOptimizedFunctionFragmentEmissionSource::Aarch64MovnDirect(realization) => {
-            validate_optimized_aarch64_movn_function_relative_realization(realization)
-                .map_err(|_| FunctionFragmentEmissionError::Aarch64MovnSource)?;
-            if realization.layout().target().architecture != Architecture::Aarch64 {
-                return Err(FunctionFragmentEmissionError::SourceKindMismatch);
-            }
-        }
-        StagedOptimizedFunctionFragmentEmissionSource::Aarch64MovnAfterSelectedLowering(
-            realization,
-        ) => {
-            validate_selected_lowering_aarch64_movn_function_relative_realization(realization)
-                .map_err(|_| FunctionFragmentEmissionError::Aarch64MovnSource)?;
-            if realization.layout().target().architecture != Architecture::Aarch64 {
-                return Err(FunctionFragmentEmissionError::SourceKindMismatch);
-            }
         }
         StagedOptimizedFunctionFragmentEmissionSource::ActiveResidentRematerialization(
             realization,

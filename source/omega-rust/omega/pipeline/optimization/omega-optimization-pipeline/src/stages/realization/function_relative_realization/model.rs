@@ -42,9 +42,8 @@ pub struct FunctionRelativeOptimizationRealizationManifest {
     pub baseline_resolved_layout: ResolvedSelectedFormLayoutIdentity,
     pub resolved_layout: ResolvedSelectedFormLayoutIdentity,
     pub x86_branch_relaxation: Option<X86BranchRelaxationIdentity>,
-    pub aarch64_cbnz_fusion: Option<omega_machine_optimizer::Aarch64CbnzFusionIdentity>,
-    pub aarch64_movn_materialization:
-        Option<omega_machine_optimizer::Aarch64MovnMaterializationIdentity>,
+    pub post_allocation_machine_optimization:
+        Option<crate::PostAllocationMachineOptimizationCustody>,
     pub whole_function_exit_contract: WholeFunctionExitContractIdentity,
     pub target: NativeTarget,
     pub layout_policy: SelectedFunctionLayoutPolicy,

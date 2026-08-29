@@ -21,6 +21,7 @@ use omega_selected_instructions::{
 use crate::{
     ResolvedSelectedFormRow, StagedOptimizedResolvedSelectedFormLayout,
     StagedOptimizedStructuralUnitFunctionRelativeRealization,
+    StagedPostAllocationMachineFunctionRelativeSource,
 };
 
 use super::error::FunctionFragmentEmissionError;
@@ -30,7 +31,7 @@ use super::model::{
     FunctionFragmentEmissionUnavailableData, ValidatedFunctionFragmentEmissionManifest,
 };
 use super::source::{
-    StagedOptimizedFunctionFragmentEmissionSource, active_resident_rematerialization,
+    active_resident_rematerialization, StagedOptimizedFunctionFragmentEmissionSource,
 };
 
 pub(super) fn compute(
@@ -82,82 +83,44 @@ pub(super) fn compute(
                 ),
             }
         }
-        StagedOptimizedFunctionFragmentEmissionSource::Aarch64CbnzDirect(realization) => {
-            let selected = realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .selected();
-            compute_from(
-                source,
-                selected,
-                realization.layout(),
-                realization.manifest().record(),
-            )
-        }
-        StagedOptimizedFunctionFragmentEmissionSource::Aarch64CbnzAfterSelectedLowering(
-            realization,
-        ) => {
-            let run = realization.homes().selected_lowering_run();
-            let selected_stage = run
-                .source_legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage();
-            match run.steps().last() {
-                Some(step) => compute_from(
-                    source,
-                    step.fold(),
-                    realization.layout(),
-                    realization.manifest().record(),
-                ),
-                None => compute_from(
-                    source,
-                    selected_stage.selected(),
-                    realization.layout(),
-                    realization.manifest().record(),
-                ),
-            }
-        }
-        StagedOptimizedFunctionFragmentEmissionSource::Aarch64MovnDirect(realization) => {
-            let selected = realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .selected();
-            compute_from(
-                source,
-                selected,
-                realization.layout(),
-                realization.manifest().record(),
-            )
-        }
-        StagedOptimizedFunctionFragmentEmissionSource::Aarch64MovnAfterSelectedLowering(
-            realization,
-        ) => {
-            let run = realization.homes().selected_lowering_run();
-            let selected_stage = run
-                .source_legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage();
-            match run.steps().last() {
-                Some(step) => compute_from(
-                    source,
-                    step.fold(),
-                    realization.layout(),
-                    realization.manifest().record(),
-                ),
-                None => compute_from(
-                    source,
-                    selected_stage.selected(),
-                    realization.layout(),
-                    realization.manifest().record(),
-                ),
+        StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(realization) => {
+            match realization.source() {
+                StagedPostAllocationMachineFunctionRelativeSource::Direct(homes) => {
+                    let selected = homes
+                        .legality_stage()
+                        .live_range_stage()
+                        .liveness_stage()
+                        .selected_stage()
+                        .selected();
+                    compute_from(
+                        source,
+                        selected,
+                        realization.layout(),
+                        realization.manifest().record(),
+                    )
+                }
+                StagedPostAllocationMachineFunctionRelativeSource::AfterSelectedLowering(homes) => {
+                    let run = homes.selected_lowering_run();
+                    let selected_stage = run
+                        .source_legality_stage()
+                        .live_range_stage()
+                        .liveness_stage()
+                        .selected_stage();
+                    match run.steps().last() {
+                        Some(step) => compute_from(
+                            source,
+                            step.fold(),
+                            realization.layout(),
+                            realization.manifest().record(),
+                        ),
+                        None => compute_from(
+                            source,
+                            selected_stage.selected(),
+                            realization.layout(),
+                            realization.manifest().record(),
+                        ),
+                    }
+                }
             }
         }
         StagedOptimizedFunctionFragmentEmissionSource::ActiveResidentRematerialization(
@@ -700,13 +663,10 @@ fn source_kind(
         | StagedOptimizedFunctionFragmentEmissionSource::X86Rel8AfterSelectedLowering(_) => {
             FunctionFragmentEmissionSourceKind::X86Rel8V1
         }
-        StagedOptimizedFunctionFragmentEmissionSource::Aarch64CbnzDirect(_)
-        | StagedOptimizedFunctionFragmentEmissionSource::Aarch64CbnzAfterSelectedLowering(_) => {
-            FunctionFragmentEmissionSourceKind::Aarch64CbnzV1
-        }
-        StagedOptimizedFunctionFragmentEmissionSource::Aarch64MovnDirect(_)
-        | StagedOptimizedFunctionFragmentEmissionSource::Aarch64MovnAfterSelectedLowering(_) => {
-            FunctionFragmentEmissionSourceKind::Aarch64MovnV1
+        StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(realization) => {
+            FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 {
+                optimization: realization.optimization().optimization(),
+            }
         }
         StagedOptimizedFunctionFragmentEmissionSource::ActiveResidentRematerialization(_) => {
             FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1

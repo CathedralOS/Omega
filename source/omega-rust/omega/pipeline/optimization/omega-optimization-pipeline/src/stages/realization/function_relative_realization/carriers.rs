@@ -1,6 +1,109 @@
 use super::prelude::*;
 use super::{assembly::final_layout, model::*};
 
+/// The only two custody origins admitted to the post-allocation realization
+/// join.  Keeping this distinction inside the carrier avoids multiplying the
+/// public pipeline by source route and optimization rule.
+#[derive(Debug)]
+pub enum StagedPostAllocationMachineFunctionRelativeSource {
+    Direct(StagedOptimizedRegisterHomes),
+    AfterSelectedLowering(StagedOptimizedRegisterHomesAfterSelectedLowering),
+}
+
+#[derive(Debug)]
+pub struct StagedPostAllocationMachineFunctionRelativeRealization {
+    pub(super) source: StagedPostAllocationMachineFunctionRelativeSource,
+    pub(super) machine: StagedOptimizedPostAllocationMachinePlan,
+    pub(super) optimization: crate::StagedOptimizedPostAllocationMachineOptimization,
+    pub(super) baseline_encoding: StagedOptimizedSelectedFormEncoding,
+    pub(super) encoding: StagedOptimizedSelectedFormEncoding,
+    pub(super) baseline_layout: StagedOptimizedResolvedSelectedFormLayout,
+    pub(super) layout: StagedOptimizedResolvedSelectedFormLayout,
+    pub(super) exit_contract: ValidatedWholeFunctionExitContract,
+    pub(super) manifest: ValidatedFunctionRelativeOptimizationRealizationManifest,
+    pub(super) custody: StagedPostAllocationMachineFunctionRelativeRealizationCustodyReceipt,
+}
+
+impl StagedPostAllocationMachineFunctionRelativeRealization {
+    pub const fn source(&self) -> &StagedPostAllocationMachineFunctionRelativeSource {
+        &self.source
+    }
+    pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachinePlan {
+        &self.machine
+    }
+    pub const fn optimization(&self) -> &crate::StagedOptimizedPostAllocationMachineOptimization {
+        &self.optimization
+    }
+    pub const fn baseline_encoding(&self) -> &StagedOptimizedSelectedFormEncoding {
+        &self.baseline_encoding
+    }
+    pub const fn encoding(&self) -> &StagedOptimizedSelectedFormEncoding {
+        &self.encoding
+    }
+    pub const fn baseline_layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
+        &self.baseline_layout
+    }
+    pub const fn layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
+        &self.layout
+    }
+    pub const fn exit_contract(&self) -> &ValidatedWholeFunctionExitContract {
+        &self.exit_contract
+    }
+    pub const fn manifest(&self) -> &ValidatedFunctionRelativeOptimizationRealizationManifest {
+        &self.manifest
+    }
+    pub const fn custody(
+        &self,
+    ) -> &StagedPostAllocationMachineFunctionRelativeRealizationCustodyReceipt {
+        &self.custody
+    }
+
+    #[cfg(test)]
+    pub(crate) fn manifest_mut(
+        &mut self,
+    ) -> &mut ValidatedFunctionRelativeOptimizationRealizationManifest {
+        &mut self.manifest
+    }
+
+    #[cfg(test)]
+    pub(crate) fn exit_contract_mut(&mut self) -> &mut ValidatedWholeFunctionExitContract {
+        &mut self.exit_contract
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PostAllocationMachineFunctionRelativeSourceCustody {
+    Direct(StagedOptimizedRegisterHomeCustodyReceipt),
+    AfterSelectedLowering(StagedOptimizedPostSelectedLoweringHomeCustodyReceipt),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StagedPostAllocationMachineFunctionRelativeRealizationCustodyReceipt {
+    pub(super) source: PostAllocationMachineFunctionRelativeSourceCustody,
+    pub(super) machine: StagedOptimizedPostAllocationMachineCustodyReceipt,
+    pub(super) optimization: crate::PostAllocationMachineOptimizationCustody,
+    pub(super) exit_contract: WholeFunctionExitContractIdentity,
+    pub(super) realization: FunctionRelativeOptimizationRealizationManifestIdentity,
+}
+
+impl StagedPostAllocationMachineFunctionRelativeRealizationCustodyReceipt {
+    pub const fn source(&self) -> &PostAllocationMachineFunctionRelativeSourceCustody {
+        &self.source
+    }
+    pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachineCustodyReceipt {
+        &self.machine
+    }
+    pub const fn optimization(&self) -> crate::PostAllocationMachineOptimizationCustody {
+        self.optimization
+    }
+    pub const fn exit_contract(&self) -> WholeFunctionExitContractIdentity {
+        self.exit_contract
+    }
+    pub const fn realization(&self) -> FunctionRelativeOptimizationRealizationManifestIdentity {
+        self.realization
+    }
+}
+
 #[derive(Debug)]
 pub struct StagedSelectedLoweringFunctionRelativeRealization {
     pub(super) homes: StagedOptimizedRegisterHomesAfterSelectedLowering,
@@ -109,173 +212,6 @@ impl StagedFunctionRelativeLayoutOptimizationRealization {
         &mut self,
     ) -> &mut ValidatedFunctionRelativeOptimizationRealizationManifest {
         &mut self.manifest
-    }
-}
-
-/// Completed direct-homes realization for the exact AArch64 CBNZ
-/// post-allocation transformation. Both baseline and transformed forms remain
-/// owned so later custody can prove the four-byte change without treating the
-/// transformed layout as baseline authority.
-#[derive(Debug)]
-pub struct StagedAarch64CbnzFunctionRelativeRealization {
-    pub(super) homes: StagedOptimizedRegisterHomes,
-    pub(super) machine: StagedOptimizedPostAllocationMachinePlan,
-    pub(super) fusion: StagedOptimizedAarch64CbnzFusion,
-    pub(super) baseline_encoding: StagedOptimizedSelectedFormEncoding,
-    pub(super) encoding: StagedOptimizedSelectedFormEncoding,
-    pub(super) baseline_layout: StagedOptimizedResolvedSelectedFormLayout,
-    pub(super) layout: StagedOptimizedResolvedSelectedFormLayout,
-    pub(super) exit_contract: ValidatedWholeFunctionExitContract,
-    pub(super) manifest: ValidatedFunctionRelativeOptimizationRealizationManifest,
-    pub(super) custody: StagedAarch64CbnzFunctionRelativeRealizationCustodyReceipt,
-}
-
-impl StagedAarch64CbnzFunctionRelativeRealization {
-    pub const fn homes(&self) -> &StagedOptimizedRegisterHomes {
-        &self.homes
-    }
-    pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachinePlan {
-        &self.machine
-    }
-    pub const fn fusion(&self) -> &StagedOptimizedAarch64CbnzFusion {
-        &self.fusion
-    }
-    pub const fn baseline_encoding(&self) -> &StagedOptimizedSelectedFormEncoding {
-        &self.baseline_encoding
-    }
-    pub const fn encoding(&self) -> &StagedOptimizedSelectedFormEncoding {
-        &self.encoding
-    }
-    pub const fn baseline_layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
-        &self.baseline_layout
-    }
-    pub const fn layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
-        &self.layout
-    }
-    pub const fn exit_contract(&self) -> &ValidatedWholeFunctionExitContract {
-        &self.exit_contract
-    }
-    pub const fn manifest(&self) -> &ValidatedFunctionRelativeOptimizationRealizationManifest {
-        &self.manifest
-    }
-    pub const fn custody(&self) -> &StagedAarch64CbnzFunctionRelativeRealizationCustodyReceipt {
-        &self.custody
-    }
-
-    #[cfg(test)]
-    pub(crate) fn manifest_mut(
-        &mut self,
-    ) -> &mut ValidatedFunctionRelativeOptimizationRealizationManifest {
-        &mut self.manifest
-    }
-
-    #[cfg(test)]
-    pub(crate) fn exit_contract_mut(&mut self) -> &mut ValidatedWholeFunctionExitContract {
-        &mut self.exit_contract
-    }
-}
-
-/// Same completed CBNZ realization after a named selected-lowering run.
-#[derive(Debug)]
-pub struct StagedSelectedLoweringAarch64CbnzFunctionRelativeRealization {
-    pub(super) homes: StagedOptimizedRegisterHomesAfterSelectedLowering,
-    pub(super) machine: StagedOptimizedPostAllocationMachinePlan,
-    pub(super) fusion: StagedOptimizedAarch64CbnzFusion,
-    pub(super) baseline_encoding: StagedOptimizedSelectedFormEncoding,
-    pub(super) encoding: StagedOptimizedSelectedFormEncoding,
-    pub(super) baseline_layout: StagedOptimizedResolvedSelectedFormLayout,
-    pub(super) layout: StagedOptimizedResolvedSelectedFormLayout,
-    pub(super) exit_contract: ValidatedWholeFunctionExitContract,
-    pub(super) manifest: ValidatedFunctionRelativeOptimizationRealizationManifest,
-    pub(super) custody: StagedSelectedLoweringAarch64CbnzFunctionRelativeRealizationCustodyReceipt,
-}
-
-impl StagedSelectedLoweringAarch64CbnzFunctionRelativeRealization {
-    pub const fn homes(&self) -> &StagedOptimizedRegisterHomesAfterSelectedLowering {
-        &self.homes
-    }
-    pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachinePlan {
-        &self.machine
-    }
-    pub const fn fusion(&self) -> &StagedOptimizedAarch64CbnzFusion {
-        &self.fusion
-    }
-    pub const fn baseline_encoding(&self) -> &StagedOptimizedSelectedFormEncoding {
-        &self.baseline_encoding
-    }
-    pub const fn encoding(&self) -> &StagedOptimizedSelectedFormEncoding {
-        &self.encoding
-    }
-    pub const fn baseline_layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
-        &self.baseline_layout
-    }
-    pub const fn layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
-        &self.layout
-    }
-    pub const fn exit_contract(&self) -> &ValidatedWholeFunctionExitContract {
-        &self.exit_contract
-    }
-    pub const fn manifest(&self) -> &ValidatedFunctionRelativeOptimizationRealizationManifest {
-        &self.manifest
-    }
-    pub const fn custody(
-        &self,
-    ) -> &StagedSelectedLoweringAarch64CbnzFunctionRelativeRealizationCustodyReceipt {
-        &self.custody
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StagedAarch64CbnzFunctionRelativeRealizationCustodyReceipt {
-    pub(super) source: StagedOptimizedRegisterHomeCustodyReceipt,
-    pub(super) machine: StagedOptimizedPostAllocationMachineCustodyReceipt,
-    pub(super) fusion: StagedOptimizedAarch64CbnzFusionCustodyReceipt,
-    pub(super) exit_contract: WholeFunctionExitContractIdentity,
-    pub(super) realization: FunctionRelativeOptimizationRealizationManifestIdentity,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StagedSelectedLoweringAarch64CbnzFunctionRelativeRealizationCustodyReceipt {
-    pub(super) source: StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
-    pub(super) machine: StagedOptimizedPostAllocationMachineCustodyReceipt,
-    pub(super) fusion: StagedOptimizedAarch64CbnzFusionCustodyReceipt,
-    pub(super) exit_contract: WholeFunctionExitContractIdentity,
-    pub(super) realization: FunctionRelativeOptimizationRealizationManifestIdentity,
-}
-
-impl StagedAarch64CbnzFunctionRelativeRealizationCustodyReceipt {
-    pub const fn source(&self) -> StagedOptimizedRegisterHomeCustodyReceipt {
-        self.source
-    }
-    pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachineCustodyReceipt {
-        &self.machine
-    }
-    pub const fn fusion(&self) -> StagedOptimizedAarch64CbnzFusionCustodyReceipt {
-        self.fusion
-    }
-    pub const fn exit_contract(&self) -> WholeFunctionExitContractIdentity {
-        self.exit_contract
-    }
-    pub const fn realization(&self) -> FunctionRelativeOptimizationRealizationManifestIdentity {
-        self.realization
-    }
-}
-
-impl StagedSelectedLoweringAarch64CbnzFunctionRelativeRealizationCustodyReceipt {
-    pub const fn source(&self) -> &StagedOptimizedPostSelectedLoweringHomeCustodyReceipt {
-        &self.source
-    }
-    pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachineCustodyReceipt {
-        &self.machine
-    }
-    pub const fn fusion(&self) -> StagedOptimizedAarch64CbnzFusionCustodyReceipt {
-        self.fusion
-    }
-    pub const fn exit_contract(&self) -> WholeFunctionExitContractIdentity {
-        self.exit_contract
-    }
-    pub const fn realization(&self) -> FunctionRelativeOptimizationRealizationManifestIdentity {
-        self.realization
     }
 }
 

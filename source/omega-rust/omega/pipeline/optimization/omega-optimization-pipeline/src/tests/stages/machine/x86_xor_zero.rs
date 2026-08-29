@@ -85,6 +85,7 @@ fn x86_xor_zero_reaches_direct_whole_function_exit_with_exact_custody() {
         panic!("the exact x86 selection must produce the XOR-zero rule result")
     };
     let plan = materialization.materialization().plan();
+    let optimized_instruction = plan.actions[0].instruction;
     let receipt = materialization.materialization().receipt();
     let custody = optimization.custody().unwrap();
     assert!(custody.action_count() > 0);
@@ -253,4 +254,72 @@ fn x86_xor_zero_reaches_direct_whole_function_exit_with_exact_custody() {
         )
         .is_err()
     );
+
+    let realization =
+        stage_post_allocation_machine_function_relative_realization(homes, machine, optimization)
+            .unwrap();
+    assert_eq!(realization.baseline_encoding(), &baseline_encoding);
+    assert_eq!(realization.encoding(), &selected_encoding);
+    assert_eq!(realization.baseline_layout(), &baseline_layout);
+    assert_eq!(realization.layout(), &selected_layout);
+    assert_eq!(realization.exit_contract(), &exit_contract);
+    assert_eq!(
+        realization.custody().optimization().optimization(),
+        Optimization::X86SelectXorZeroI64MaterializationV1
+    );
+    assert_eq!(
+        realization
+            .manifest()
+            .record()
+            .post_allocation_machine_optimization,
+        Some(custody)
+    );
+    validate_post_allocation_machine_function_relative_realization_custody(&realization).unwrap();
+
+    let emitted = stage_optimized_function_fragment_emission(
+        StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(realization)),
+    )
+    .unwrap();
+    assert_eq!(
+        emitted.manifest().record().source_kind,
+        FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 {
+            optimization: Optimization::X86SelectXorZeroI64MaterializationV1,
+        }
+    );
+    let xor_row = emitted
+        .fragments()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .flat_map(|block| &block.instructions)
+        .find(|row| row.instruction == optimized_instruction)
+        .unwrap();
+    assert_eq!(xor_row.bytes.len(), 3);
+    let fragment_manifest = emitted.manifest().record().identity;
+
+    let text = stage_optimized_relocation_free_text_section(emitted).unwrap();
+    assert_eq!(
+        text.manifest().record().source_kind,
+        FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 {
+            optimization: Optimization::X86SelectXorZeroI64MaterializationV1,
+        }
+    );
+    let text_manifest = text.manifest().record().identity;
+    let object = stage_optimized_relocation_free_object_container(text).unwrap();
+    let object_manifest = object.manifest().record().identity;
+    let artifact =
+        stage_validated_optimized_object_artifact(canonical_artifact(&semantic, &proof), object)
+            .unwrap();
+    assert_eq!(
+        artifact.artifact().function_fragment_manifest,
+        fragment_manifest
+    );
+    assert_eq!(artifact.artifact().text_section_manifest, text_manifest);
+    assert_eq!(
+        artifact.artifact().object_container_manifest,
+        object_manifest
+    );
+    validate_optimized_object_artifact(&artifact).unwrap();
+    let callable = stage_validated_optimized_ordinary_callable_entry(artifact).unwrap();
+    validate_optimized_ordinary_callable_entry(&callable).unwrap();
 }

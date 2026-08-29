@@ -7,7 +7,6 @@ use crate::{OptimizedResolvedSelectedFormLayoutError, OptimizedX86BranchRelaxati
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WholeFunctionExitContractError {
     Layout(OptimizedResolvedSelectedFormLayoutError),
-    MovnLayout,
     Relaxation(OptimizedX86BranchRelaxationError),
     OptimizationCustodyMismatch,
     RootMismatch,

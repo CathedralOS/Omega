@@ -7,10 +7,10 @@ use super::rel8::{final_layout, rel8_selected, validate_relaxation_manifest_root
 use super::statistics::function_relative_statistics;
 
 #[allow(clippy::too_many_arguments)]
-pub(in crate::stages::realization::function_relative_realization) fn expected_direct_cbnz_manifest(
+pub(in crate::stages::realization::function_relative_realization) fn expected_direct_post_allocation_machine_manifest(
     homes: &StagedOptimizedRegisterHomes,
     machine: &StagedOptimizedPostAllocationMachinePlan,
-    fusion: &StagedOptimizedAarch64CbnzFusion,
+    optimization: &StagedOptimizedPostAllocationMachineOptimization,
     baseline_encoding: &StagedOptimizedSelectedFormEncoding,
     encoding: &StagedOptimizedSelectedFormEncoding,
     baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
@@ -27,7 +27,7 @@ pub(in crate::stages::realization::function_relative_realization) fn expected_di
         .selected_stage();
     let selections = selected_stage.optimized_target().optimized().selections();
     let post = homes.post_allocation_manifest().record();
-    expected_cbnz_manifest(
+    expected_post_allocation_machine_manifest(
         selections,
         OptimizationSelections::default().identity(),
         None,
@@ -36,7 +36,7 @@ pub(in crate::stages::realization::function_relative_realization) fn expected_di
         post.selected,
         post.target,
         machine,
-        fusion,
+        optimization,
         baseline_encoding,
         encoding,
         baseline_layout,
@@ -46,10 +46,10 @@ pub(in crate::stages::realization::function_relative_realization) fn expected_di
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(in crate::stages::realization::function_relative_realization) fn expected_selected_lowering_cbnz_manifest(
+pub(in crate::stages::realization::function_relative_realization) fn expected_selected_lowering_post_allocation_machine_manifest(
     homes: &StagedOptimizedRegisterHomesAfterSelectedLowering,
     machine: &StagedOptimizedPostAllocationMachinePlan,
-    fusion: &StagedOptimizedAarch64CbnzFusion,
+    optimization: &StagedOptimizedPostAllocationMachineOptimization,
     baseline_encoding: &StagedOptimizedSelectedFormEncoding,
     encoding: &StagedOptimizedSelectedFormEncoding,
     baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
@@ -61,14 +61,16 @@ pub(in crate::stages::realization::function_relative_realization) fn expected_se
 > {
     let run = homes.selected_lowering_run();
     let completion = run.custody();
-    let selected_stage = run
+    let selections = run
         .source_legality_stage()
         .live_range_stage()
         .liveness_stage()
-        .selected_stage();
-    let selections = selected_stage.optimized_target().optimized().selections();
+        .selected_stage()
+        .optimized_target()
+        .optimized()
+        .selections();
     let post = homes.post_allocation_manifest().record();
-    expected_cbnz_manifest(
+    expected_post_allocation_machine_manifest(
         selections,
         selections
             .for_phase(OptimizationExecutionPhase::SelectedLowering)
@@ -79,7 +81,7 @@ pub(in crate::stages::realization::function_relative_realization) fn expected_se
         post.selected,
         post.target,
         machine,
-        fusion,
+        optimization,
         baseline_encoding,
         encoding,
         baseline_layout,
@@ -89,7 +91,7 @@ pub(in crate::stages::realization::function_relative_realization) fn expected_se
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(in crate::stages::realization::function_relative_realization) fn expected_cbnz_manifest(
+pub(crate) fn expected_post_allocation_machine_manifest(
     selections: &OptimizationSelections,
     selected_lowering_selections: OptimizationSelectionIdentity,
     selected_lowering_completion: Option<SelectedLoweringOptimizationCompletionIdentity>,
@@ -98,7 +100,7 @@ pub(in crate::stages::realization::function_relative_realization) fn expected_cb
     selected: SelectedInstructionPlanIdentity,
     target: NativeTarget,
     machine: &StagedOptimizedPostAllocationMachinePlan,
-    fusion: &StagedOptimizedAarch64CbnzFusion,
+    optimization: &StagedOptimizedPostAllocationMachineOptimization,
     baseline_encoding: &StagedOptimizedSelectedFormEncoding,
     encoding: &StagedOptimizedSelectedFormEncoding,
     baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
@@ -108,32 +110,36 @@ pub(in crate::stages::realization::function_relative_realization) fn expected_cb
     ValidatedFunctionRelativeOptimizationRealizationManifest,
     FunctionRelativeOptimizationRealizationError,
 > {
+    let normalized = optimization
+        .custody()
+        .ok_or(FunctionRelativeOptimizationRealizationError::OptimizationCustodyUnavailable)?;
     let selected_lowering_phase =
         selections.for_phase(OptimizationExecutionPhase::SelectedLowering);
     let post_phase = selections.for_phase(OptimizationExecutionPhase::PostAllocationMachine);
     let layout_phase = selections.for_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
     if selected_lowering_selections != selected_lowering_phase.identity()
         || selected_lowering_completion.is_some() == selected_lowering_phase.is_empty()
-        || post_phase.as_slice() != [Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1]
+        || post_phase.as_slice() != [normalized.optimization()]
         || !layout_phase.is_empty()
-        || fusion.custody().selections() != selections.identity()
-        || fusion.custody().post_allocation_machine_selections() != post_phase.identity()
+        || normalized.selections() != selections.identity()
+        || normalized.post_allocation_machine_selections() != post_phase.identity()
+        || normalized.source() != machine.machine().receipt().identity()
         || machine.machine().receipt().post_allocation_manifest() != post_allocation_manifest
         || machine.machine().receipt().selected() != selected
         || baseline_encoding.selected() != selected
         || baseline_encoding.machine() != machine.machine().receipt().identity()
-        || baseline_encoding.machine_optimization().is_some()
+        || baseline_encoding
+            .post_allocation_machine_optimization()
+            .is_some()
         || encoding.selected() != selected
         || encoding.machine() != machine.machine().receipt().identity()
-        || encoding.machine_optimization().is_none_or(|custody| {
-            custody.selections() != selections.identity()
-                || custody.post_allocation_machine_selections() != post_phase.identity()
-                || custody.fusion() != fusion.fusion().receipt().identity()
-        })
+        || encoding.post_allocation_machine_optimization() != Some(normalized)
         || baseline_layout.pre_layout() != baseline_encoding.identity()
-        || baseline_layout.machine_optimization().is_some()
+        || baseline_layout
+            .post_allocation_machine_optimization()
+            .is_some()
         || layout.pre_layout() != encoding.identity()
-        || layout.machine_optimization() != encoding.machine_optimization()
+        || layout.post_allocation_machine_optimization() != Some(normalized)
         || baseline_layout.target() != target
         || layout.target() != target
         || exit_contract.contract().selected != selected
@@ -142,136 +148,14 @@ pub(in crate::stages::realization::function_relative_realization) fn expected_cb
             != machine.machine().receipt().identity()
         || exit_contract.contract().pre_layout != encoding.identity()
         || exit_contract.contract().resolved_layout != layout.identity()
+        || !exit_custody_matches(normalized, exit_contract.contract().layout_custody)
     {
         return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
     }
     let baseline_bytes = function_relative_statistics(baseline_layout)?.bytes;
     let final_statistics = function_relative_statistics(layout)?;
-    let expected_shrink = u64::try_from(fusion.custody().action_count())
-        .ok()
-        .and_then(|count| count.checked_mul(4))
-        .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)?;
-    if baseline_bytes.checked_sub(final_statistics.bytes) != Some(expected_shrink) {
-        return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
-    }
-    let unavailable = FunctionRelativeOptimizationUnavailableData::Unavailable;
-    let mut record = FunctionRelativeOptimizationRealizationManifest {
-        identity: FunctionRelativeOptimizationRealizationManifestIdentity::from_canonical_bytes(b"pending"),
-        stage: FunctionRelativeOptimizationRealizationStage::ValidatedFunctionRelativeSelectedFormsAndWholeFunctionExitV1,
-        selections: selections.identity(),
-        selected_lowering_selections,
-        selected_lowering_completion,
-        allocation_recovery_selections: selections
-            .for_phase(OptimizationExecutionPhase::AllocationRecovery)
-            .identity(),
-        post_allocation_machine_selections: post_phase.identity(),
-        function_relative_layout_selections: layout_phase.identity(),
-        pre_physical_manifest,
-        post_allocation_manifest,
-        selected,
-        pre_allocation_machine_effects: machine.effects().effects().receipt().identity(),
-        post_allocation_machine: machine.machine().receipt().identity(),
-        baseline_pre_layout: baseline_encoding.identity(),
-        pre_layout: encoding.identity(),
-        baseline_resolved_layout: baseline_layout.identity(),
-        resolved_layout: layout.identity(),
-        x86_branch_relaxation: None,
-        aarch64_cbnz_fusion: Some(fusion.fusion().receipt().identity()),
-        aarch64_movn_materialization: None,
-        whole_function_exit_contract: exit_contract.identity(),
-        target,
-        layout_policy: layout.policy(),
-        scope: FunctionRelativeOptimizationRealizationScope::FunctionRelativeFragmentsWithValidatedWholeFunctionExitV1,
-        statistics: final_statistics,
-        frame: unavailable,
-        machine_emission: unavailable,
-        section_placement: unavailable,
-        symbols: unavailable,
-        object_relocations: unavailable,
-        executable_image: unavailable,
-        installation: unavailable,
-        publication: unavailable,
-    };
-    record.identity = record.recomputed_identity();
-    Ok(ValidatedFunctionRelativeOptimizationRealizationManifest { record })
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn expected_aarch64_movn_manifest(
-    selections: &OptimizationSelections,
-    selected_lowering_selections: OptimizationSelectionIdentity,
-    selected_lowering_completion: Option<SelectedLoweringOptimizationCompletionIdentity>,
-    pre_physical_manifest: PrePhysicalOptimizationManifestIdentity,
-    post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
-    selected: SelectedInstructionPlanIdentity,
-    target: NativeTarget,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
-    materialization: &crate::StagedOptimizedAarch64MovnMaterialization,
-    baseline_encoding: &StagedOptimizedSelectedFormEncoding,
-    encoding: &StagedOptimizedSelectedFormEncoding,
-    baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
-    layout: &StagedOptimizedResolvedSelectedFormLayout,
-    exit_contract: &ValidatedWholeFunctionExitContract,
-) -> Result<
-    ValidatedFunctionRelativeOptimizationRealizationManifest,
-    FunctionRelativeOptimizationRealizationError,
-> {
-    let selected_lowering_phase =
-        selections.for_phase(OptimizationExecutionPhase::SelectedLowering);
-    let post_phase = selections.for_phase(OptimizationExecutionPhase::PostAllocationMachine);
-    let layout_phase = selections.for_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
-    let receipt = materialization.custody();
-    if selected_lowering_selections != selected_lowering_phase.identity()
-        || selected_lowering_completion.is_some() == selected_lowering_phase.is_empty()
-        || post_phase.as_slice()
-            != [Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1]
-        || !layout_phase.is_empty()
-        || receipt.selections() != selections.identity()
-        || receipt.post_allocation_machine_selections() != post_phase.identity()
-        || receipt.source() != machine.machine().receipt().identity()
-        || machine.machine().receipt().post_allocation_manifest() != post_allocation_manifest
-        || machine.machine().receipt().selected() != selected
-        || baseline_encoding.selected() != selected
-        || baseline_encoding.machine() != machine.machine().receipt().identity()
-        || baseline_encoding.machine_optimization().is_some()
-        || baseline_encoding.movn_optimization().is_some()
-        || encoding.selected() != selected
-        || encoding.machine() != machine.machine().receipt().identity()
-        || encoding.machine_optimization().is_some()
-        || encoding.movn_optimization().is_none_or(|custody| {
-            custody.selections() != selections.identity()
-                || custody.post_allocation_machine_selections() != post_phase.identity()
-                || custody.materialization() != receipt.materialization()
-        })
-        || baseline_layout.pre_layout() != baseline_encoding.identity()
-        || baseline_layout.machine_optimization().is_some()
-        || baseline_layout.movn_optimization().is_some()
-        || layout.pre_layout() != encoding.identity()
-        || layout.machine_optimization().is_some()
-        || layout.movn_optimization() != encoding.movn_optimization()
-        || baseline_layout.target() != target
-        || layout.target() != target
-        || exit_contract.contract().selected != selected
-        || exit_contract.contract().post_allocation_manifest != post_allocation_manifest
-        || exit_contract.contract().post_allocation_machine
-            != machine.machine().receipt().identity()
-        || exit_contract.contract().pre_layout != encoding.identity()
-        || exit_contract.contract().resolved_layout != layout.identity()
-        || !matches!(
-            exit_contract.contract().layout_custody,
-            crate::WholeFunctionExitLayoutCustody::Aarch64SelectShortestMovnSeededI64MaterializationV1 {
-                materialization
-            } if materialization == receipt.materialization()
-        )
-    {
-        return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
-    }
-    let baseline_bytes = function_relative_statistics(baseline_layout)?.bytes;
-    let final_statistics = function_relative_statistics(layout)?;
-    let expected_shrink = receipt
-        .baseline_words()
-        .checked_sub(receipt.selected_words())
-        .and_then(|words| words.checked_mul(4))
+    let expected_shrink = normalized
+        .expected_byte_savings()
         .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)?;
     if baseline_bytes.checked_sub(final_statistics.bytes) != Some(expected_shrink) {
         return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
@@ -300,8 +184,7 @@ pub(crate) fn expected_aarch64_movn_manifest(
         baseline_resolved_layout: baseline_layout.identity(),
         resolved_layout: layout.identity(),
         x86_branch_relaxation: None,
-        aarch64_cbnz_fusion: None,
-        aarch64_movn_materialization: Some(receipt.materialization()),
+        post_allocation_machine_optimization: Some(normalized),
         whole_function_exit_contract: exit_contract.identity(),
         target,
         layout_policy: layout.policy(),
@@ -318,6 +201,39 @@ pub(crate) fn expected_aarch64_movn_manifest(
     };
     record.identity = record.recomputed_identity();
     Ok(ValidatedFunctionRelativeOptimizationRealizationManifest { record })
+}
+
+fn exit_custody_matches(
+    normalized: PostAllocationMachineOptimizationCustody,
+    custody: crate::WholeFunctionExitLayoutCustody,
+) -> bool {
+    match custody {
+        crate::WholeFunctionExitLayoutCustody::PostAllocationMachineOptimizationV1 {
+            optimization,
+            artifact_identity,
+        } => {
+            optimization == normalized.optimization()
+                && artifact_identity == normalized.artifact_identity()
+        }
+        crate::WholeFunctionExitLayoutCustody::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 {
+            fusion,
+        } => {
+            normalized.optimization()
+                == Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1
+                && fusion.bytes() == normalized.artifact_identity()
+        }
+        crate::WholeFunctionExitLayoutCustody::Aarch64SelectShortestMovnSeededI64MaterializationV1 {
+            materialization,
+        } => {
+            normalized.optimization()
+                == Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1
+                && materialization.bytes() == normalized.artifact_identity()
+        }
+        crate::WholeFunctionExitLayoutCustody::BaselineNearLayoutV1
+        | crate::WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 { .. } => {
+            false
+        }
+    }
 }
 
 pub(in crate::stages::realization::function_relative_realization) fn expected_manifest(
@@ -401,8 +317,7 @@ pub(in crate::stages::realization::function_relative_realization) fn expected_ma
         baseline_resolved_layout: baseline_layout.identity(),
         resolved_layout: final_layout.identity(),
         x86_branch_relaxation: relaxation.map(StagedOptimizedX86BranchRelaxation::identity),
-        aarch64_cbnz_fusion: None,
-        aarch64_movn_materialization: None,
+        post_allocation_machine_optimization: None,
         whole_function_exit_contract: exit_contract.identity(),
         target: baseline_layout.target(),
         layout_policy: baseline_layout.policy(),
@@ -504,8 +419,7 @@ pub(in crate::stages::realization::function_relative_realization) fn expected_di
         baseline_resolved_layout: baseline_layout.identity(),
         resolved_layout: relaxation.layout().identity(),
         x86_branch_relaxation: Some(relaxation.identity()),
-        aarch64_cbnz_fusion: None,
-        aarch64_movn_materialization: None,
+        post_allocation_machine_optimization: None,
         whole_function_exit_contract: exit_contract.identity(),
         target: baseline_layout.target(),
         layout_policy: baseline_layout.policy(),

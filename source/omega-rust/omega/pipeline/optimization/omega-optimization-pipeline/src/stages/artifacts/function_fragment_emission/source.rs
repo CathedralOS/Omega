@@ -1,15 +1,13 @@
 use omega_regalloc::ValidatedSelectedAnalysis;
 
 use crate::{
-    StagedAarch64CbnzFunctionRelativeRealization,
     StagedFunctionRelativeLayoutOptimizationRealization,
-    StagedOptimizedAarch64MovnFunctionRelativeRealization,
     StagedOptimizedActiveResidentRematerialization,
     StagedOptimizedActiveResidentRematerializationFunctionRelativeRealization,
     StagedOptimizedStructuralUnitFunctionRelativeRealization,
     StagedOptimizedUnitFunctionRelativeRealization,
-    StagedSelectedLoweringAarch64CbnzFunctionRelativeRealization,
-    StagedSelectedLoweringAarch64MovnFunctionRelativeRealization,
+    StagedPostAllocationMachineFunctionRelativeRealization,
+    StagedPostAllocationMachineFunctionRelativeSource,
     StagedSelectedLoweringFunctionRelativeRealization,
 };
 
@@ -17,14 +15,7 @@ use crate::{
 pub enum StagedOptimizedFunctionFragmentEmissionSource {
     X86Rel8Direct(Box<StagedFunctionRelativeLayoutOptimizationRealization>),
     X86Rel8AfterSelectedLowering(Box<StagedSelectedLoweringFunctionRelativeRealization>),
-    Aarch64CbnzDirect(Box<StagedAarch64CbnzFunctionRelativeRealization>),
-    Aarch64CbnzAfterSelectedLowering(
-        Box<StagedSelectedLoweringAarch64CbnzFunctionRelativeRealization>,
-    ),
-    Aarch64MovnDirect(Box<StagedOptimizedAarch64MovnFunctionRelativeRealization>),
-    Aarch64MovnAfterSelectedLowering(
-        Box<StagedSelectedLoweringAarch64MovnFunctionRelativeRealization>,
-    ),
+    PostAllocationMachine(Box<StagedPostAllocationMachineFunctionRelativeRealization>),
     ActiveResidentRematerialization(
         Box<StagedOptimizedActiveResidentRematerializationFunctionRelativeRealization>,
     ),
@@ -43,31 +34,21 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                 .selected_stage()
                 .selected()
                 .selected_plan(),
-            Self::Aarch64CbnzDirect(realization) => realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .selected()
-                .selected_plan(),
-            Self::Aarch64MovnDirect(realization) => realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .selected()
-                .selected_plan(),
             Self::X86Rel8AfterSelectedLowering(realization) => {
                 selected_after_lowering(realization.homes())
             }
-            Self::Aarch64CbnzAfterSelectedLowering(realization) => {
-                selected_after_lowering(realization.homes())
-            }
-            Self::Aarch64MovnAfterSelectedLowering(realization) => {
-                selected_after_lowering(realization.homes())
-            }
+            Self::PostAllocationMachine(realization) => match realization.source() {
+                StagedPostAllocationMachineFunctionRelativeSource::Direct(homes) => homes
+                    .legality_stage()
+                    .live_range_stage()
+                    .liveness_stage()
+                    .selected_stage()
+                    .selected()
+                    .selected_plan(),
+                StagedPostAllocationMachineFunctionRelativeSource::AfterSelectedLowering(homes) => {
+                    selected_after_lowering(homes)
+                }
+            },
             Self::ActiveResidentRematerialization(realization) => {
                 active_resident_rematerialization(realization)
                     .rematerialization()
@@ -96,10 +77,12 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
         match self {
             Self::X86Rel8Direct(realization) => realization.homes().homes(),
             Self::X86Rel8AfterSelectedLowering(realization) => realization.homes().homes(),
-            Self::Aarch64CbnzDirect(realization) => realization.homes().homes(),
-            Self::Aarch64CbnzAfterSelectedLowering(realization) => realization.homes().homes(),
-            Self::Aarch64MovnDirect(realization) => realization.homes().homes(),
-            Self::Aarch64MovnAfterSelectedLowering(realization) => realization.homes().homes(),
+            Self::PostAllocationMachine(realization) => match realization.source() {
+                StagedPostAllocationMachineFunctionRelativeSource::Direct(homes) => homes.homes(),
+                StagedPostAllocationMachineFunctionRelativeSource::AfterSelectedLowering(homes) => {
+                    homes.homes()
+                }
+            },
             Self::ActiveResidentRematerialization(realization) => {
                 active_resident_rematerialization(realization).homes()
             }
@@ -117,20 +100,6 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                 .liveness_stage()
                 .selected_stage()
                 .register_environment(),
-            Self::Aarch64CbnzDirect(realization) => realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .register_environment(),
-            Self::Aarch64MovnDirect(realization) => realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .register_environment(),
             Self::X86Rel8AfterSelectedLowering(realization) => realization
                 .homes()
                 .selected_lowering_run()
@@ -139,22 +108,23 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                 .liveness_stage()
                 .selected_stage()
                 .register_environment(),
-            Self::Aarch64CbnzAfterSelectedLowering(realization) => realization
-                .homes()
-                .selected_lowering_run()
-                .source_legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .register_environment(),
-            Self::Aarch64MovnAfterSelectedLowering(realization) => realization
-                .homes()
-                .selected_lowering_run()
-                .source_legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .register_environment(),
+            Self::PostAllocationMachine(realization) => match realization.source() {
+                StagedPostAllocationMachineFunctionRelativeSource::Direct(homes) => homes
+                    .legality_stage()
+                    .live_range_stage()
+                    .liveness_stage()
+                    .selected_stage()
+                    .register_environment(),
+                StagedPostAllocationMachineFunctionRelativeSource::AfterSelectedLowering(homes) => {
+                    homes
+                        .selected_lowering_run()
+                        .source_legality_stage()
+                        .live_range_stage()
+                        .liveness_stage()
+                        .selected_stage()
+                        .register_environment()
+                }
+            },
             Self::ActiveResidentRematerialization(realization) => {
                 active_resident_rematerialization(realization)
                     .source()
@@ -184,10 +154,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
         match self {
             Self::X86Rel8Direct(realization) => realization.exit_contract(),
             Self::X86Rel8AfterSelectedLowering(realization) => realization.exit_contract(),
-            Self::Aarch64CbnzDirect(realization) => realization.exit_contract(),
-            Self::Aarch64CbnzAfterSelectedLowering(realization) => realization.exit_contract(),
-            Self::Aarch64MovnDirect(realization) => realization.exit_contract(),
-            Self::Aarch64MovnAfterSelectedLowering(realization) => realization.exit_contract(),
+            Self::PostAllocationMachine(realization) => realization.exit_contract(),
             Self::ActiveResidentRematerialization(realization) => realization.exit_contract(),
             Self::UnitBaseline(realization) => realization.exit_contract(),
             Self::StructuralUnit(realization) => realization.exit_contract(),
@@ -216,44 +183,27 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                 .optimized_target()
                 .optimized()
                 .pre_physical_manifest(),
-            Self::Aarch64CbnzDirect(realization) => realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .optimized_target()
-                .optimized()
-                .pre_physical_manifest(),
-            Self::Aarch64MovnDirect(realization) => realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .optimized_target()
-                .optimized()
-                .pre_physical_manifest(),
-            Self::Aarch64CbnzAfterSelectedLowering(realization) => realization
-                .homes()
-                .selected_lowering_run()
-                .source_legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .optimized_target()
-                .optimized()
-                .pre_physical_manifest(),
-            Self::Aarch64MovnAfterSelectedLowering(realization) => realization
-                .homes()
-                .selected_lowering_run()
-                .source_legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .optimized_target()
-                .optimized()
-                .pre_physical_manifest(),
+            Self::PostAllocationMachine(realization) => match realization.source() {
+                StagedPostAllocationMachineFunctionRelativeSource::Direct(homes) => homes
+                    .legality_stage()
+                    .live_range_stage()
+                    .liveness_stage()
+                    .selected_stage()
+                    .optimized_target()
+                    .optimized()
+                    .pre_physical_manifest(),
+                StagedPostAllocationMachineFunctionRelativeSource::AfterSelectedLowering(homes) => {
+                    homes
+                        .selected_lowering_run()
+                        .source_legality_stage()
+                        .live_range_stage()
+                        .liveness_stage()
+                        .selected_stage()
+                        .optimized_target()
+                        .optimized()
+                        .pre_physical_manifest()
+                }
+            },
             Self::ActiveResidentRematerialization(realization) => {
                 active_resident_rematerialization(realization)
                     .source()
@@ -291,10 +241,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
         match self {
             Self::X86Rel8Direct(realization) => realization.manifest(),
             Self::X86Rel8AfterSelectedLowering(realization) => realization.manifest(),
-            Self::Aarch64CbnzDirect(realization) => realization.manifest(),
-            Self::Aarch64CbnzAfterSelectedLowering(realization) => realization.manifest(),
-            Self::Aarch64MovnDirect(realization) => realization.manifest(),
-            Self::Aarch64MovnAfterSelectedLowering(realization) => realization.manifest(),
+            Self::PostAllocationMachine(realization) => realization.manifest(),
             Self::ActiveResidentRematerialization(realization) => realization.manifest(),
             Self::UnitBaseline(realization) => realization.manifest(),
             Self::StructuralUnit(realization) => realization.manifest(),
@@ -309,14 +256,14 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
             Self::X86Rel8AfterSelectedLowering(realization) => {
                 realization.homes().post_allocation_manifest()
             }
-            Self::Aarch64CbnzDirect(realization) => realization.homes().post_allocation_manifest(),
-            Self::Aarch64CbnzAfterSelectedLowering(realization) => {
-                realization.homes().post_allocation_manifest()
-            }
-            Self::Aarch64MovnDirect(realization) => realization.homes().post_allocation_manifest(),
-            Self::Aarch64MovnAfterSelectedLowering(realization) => {
-                realization.homes().post_allocation_manifest()
-            }
+            Self::PostAllocationMachine(realization) => match realization.source() {
+                StagedPostAllocationMachineFunctionRelativeSource::Direct(homes) => {
+                    homes.post_allocation_manifest()
+                }
+                StagedPostAllocationMachineFunctionRelativeSource::AfterSelectedLowering(homes) => {
+                    homes.post_allocation_manifest()
+                }
+            },
             Self::ActiveResidentRematerialization(realization) => {
                 active_resident_rematerialization(realization).post_allocation_manifest()
             }
@@ -344,36 +291,23 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                 .liveness_stage()
                 .selected_stage()
                 .optimized_target(),
-            Self::Aarch64CbnzDirect(realization) => realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .optimized_target(),
-            Self::Aarch64MovnDirect(realization) => realization
-                .homes()
-                .legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .optimized_target(),
-            Self::Aarch64CbnzAfterSelectedLowering(realization) => realization
-                .homes()
-                .selected_lowering_run()
-                .source_legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .optimized_target(),
-            Self::Aarch64MovnAfterSelectedLowering(realization) => realization
-                .homes()
-                .selected_lowering_run()
-                .source_legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-                .optimized_target(),
+            Self::PostAllocationMachine(realization) => match realization.source() {
+                StagedPostAllocationMachineFunctionRelativeSource::Direct(homes) => homes
+                    .legality_stage()
+                    .live_range_stage()
+                    .liveness_stage()
+                    .selected_stage()
+                    .optimized_target(),
+                StagedPostAllocationMachineFunctionRelativeSource::AfterSelectedLowering(homes) => {
+                    homes
+                        .selected_lowering_run()
+                        .source_legality_stage()
+                        .live_range_stage()
+                        .liveness_stage()
+                        .selected_stage()
+                        .optimized_target()
+                }
+            },
             Self::ActiveResidentRematerialization(realization) => {
                 active_resident_rematerialization(realization)
                     .source()
