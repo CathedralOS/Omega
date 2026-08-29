@@ -238,14 +238,15 @@ code, discover a closure, manufacture proof premises, or decide admission.
     grammar failures without writing output.
   - [x] Bind proof propositions to raw persisted subjects inside the checker.
     The bounded `OMGCHK1` frame carries exact little-endian source, tape, and
-    certificate extents; checker-built immutable balanced byte trees are available only
+    certificate extents; checker-built immutable power-of-two-indexed byte trees are available only
     as the framed `source` and `tape` constants. Identical subjects accept a
     reflexivity control, a one-byte mutation rejects, unframed input cannot
     spoof either constant, and the rebuilt 233,813-byte checker tape retains
     28,327 bytes of Alpha payload headroom. The exact 78,109-byte compiler
     source plus 20,977-byte tape carrier runs in under one second. Fixed
-    byte/empty/leaf/node constructors make subject structure available to
-    ordinary bounded certificate functions at logarithmic recursion depth;
+    byte/empty/leaf/node constructors give every real byte a stable fixed-depth
+    path and make subject structure available to ordinary bounded certificate
+    functions at logarithmic recursion depth;
     no assembly-specific checker rule was added.
     Declaration tables are range-checked and immutable before the first checked
     lemma, duplicate IDs and trailing forms reject, and the independent checker
@@ -256,6 +257,33 @@ code, discover a closure, manufacture proof premises, or decide admission.
     two-pass ledger, unique label map, total source/tape partitions, exact
     fixups, and full exhaustion; the status-only reconstructor does not itself
     admit the edge.
+    - The only permitted end state here is one artifact-owned fixed `.proof`
+      and the existing acceptance/mutation gate. Define one closed ground
+      judgment `VERIFY(source, tape, trace) = ACCEPT`, discharged by checked
+      computation/reflexivity. Do not add an assembly rule to the generic
+      checker, a theorem-library subtree, a host parser, a generated ledger,
+      a persisted receipt, or another acceptance gate.
+    - Make `trace` a balanced tree of label, instruction, `db`, and trailing-
+      trivia leaves. Checked cut paths must partition both checker-owned trees;
+      local parsers must exhaust each source span; a balanced width/prefix pass
+      must assign absolute PCs; a sparse checked name trie must reject duplicate
+      and undefined labels; and pass two must check every opcode, operand,
+      decoded `db` byte, and little-endian fixup against its exact tape span.
+      Root cuts and totals must prove both subjects fully exhausted, without
+      gaps or suffixes.
+    - Direct sequential accumulation over all 78,109 source bytes exhausts the
+      generated semantic stack, while repeated allocation-heavy whole-subject
+      computations exhaust the arena. Keep local work bounded by item leaves
+      and global combination balanced. Fixed paths over the indexed raw trees
+      reach the canonical final source and tape bytes in under one second; this
+      is an engineering constraint, not grounds for a trusted primitive.
+    - First try a static checked certificate. If measured construction requires
+      a producer, transform the existing Alpha ledger into the sole proof-term
+      producer and keep the obligation/goal owner-fixed outside its output.
+      The producer may emit only checked witnesses/derivation material. It may
+      not choose the theory, proposition, subjects, premises, or admission
+      result. The status ledger and its status-code cases must be deleted in the
+      same change; parallel assembly semantics are negative value.
 
 ## 3. Beta-written Gamma compiler
 

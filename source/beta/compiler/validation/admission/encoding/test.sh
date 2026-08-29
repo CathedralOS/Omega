@@ -107,11 +107,23 @@ checker_case_run() { # name expected-status expected-output frame
 frame "$SOURCE" 78109 "$TAPE" 20977 "$T/valid.frame"
 case_run "canonical source and tape" 0 "$T/valid.frame"
 
-# Exercise computation over both exact subjects at compiler scale. Function 101
-# follows the balanced tree's left branch to its first byte: source begins ';'
-# (0x3b) and the tape begins opcode 1 (0x01). The status-only Alpha ledger below
-# remains nonauthoritative until its complete relation is emitted as the proof.
-CHECKER_CERT='(fun 101 62 (v 0)) (fun 101 63 (rec 0)) (& (= (f 101 source) (k 60 (k 3) (k 11))) (= (f 101 tape) (k 60 (k 0) (k 1)))) (pair (refl (k 60 (k 3) (k 11))) (refl (k 60 (k 0) (k 1))))'
+# Exercise fixed-path computation over both exact subjects at compiler scale.
+# The declared path constructors descend to the final real byte in each
+# checker-owned power-of-two tree. This is still only a carrier control until
+# the complete assembly relation replaces the status ledger below.
+CHECKER_CERT='(data 16 0 0 0) (data 17 1 1 0) (data 18 1 1 0)
+(fun 110 16 (y 0))
+(fun 110 17 (recx 0 (f 111 (y 0))))
+(fun 110 18 (recx 0 (f 112 (y 0))))
+(fun 111 63 (v 0))
+(fun 112 63 (v 1))
+(fun 113 62 (v 0))
+(&
+  (= (f 113 (f 110 (k 18 (k 17 (k 17 (k 18 (k 18 (k 17 (k 17 (k 17 (k 18 (k 17 (k 17 (k 17 (k 18 (k 18 (k 18 (k 17 (k 17 (k 16)))))))))))))))))) source)) (k 60 (k 0) (k 10)))
+  (= (f 113 (f 110 (k 18 (k 17 (k 18 (k 17 (k 17 (k 17 (k 18 (k 18 (k 18 (k 18 (k 18 (k 17 (k 17 (k 17 (k 17 (k 16)))))))))))))))) tape)) (k 60 (k 6) (k 14))))
+(pair
+  (refl (k 60 (k 0) (k 10)))
+  (refl (k 60 (k 6) (k 14))))'
 checker_frame "$SOURCE" "$TAPE" "$CHECKER_CERT" "$T/checker.frame"
 checker_case_run "exact checker subject computation" 1 accept "$T/checker.frame"
 
@@ -191,7 +203,11 @@ cp "$TAPE" "$T/tape-byte.tape"
 printf '\002' | dd of="$T/tape-byte.tape" bs=1 seek=0 conv=notrunc status=none
 frame "$SOURCE" 78109 "$T/tape-byte.tape" 20977 "$T/tape-byte.frame"
 case_run "tape byte" 1 "$T/tape-byte.frame"
-checker_frame "$SOURCE" "$T/tape-byte.tape" "$CHECKER_CERT" "$T/checker-tape-byte.frame"
+# Mutate the byte actually selected by the fixed-path carrier control. The
+# ordinary ledger mutation above still covers the first opcode.
+cp "$TAPE" "$T/checker-tape-byte.tape"
+printf '\157' | dd of="$T/checker-tape-byte.tape" bs=1 seek=20976 conv=notrunc status=none
+checker_frame "$SOURCE" "$T/checker-tape-byte.tape" "$CHECKER_CERT" "$T/checker-tape-byte.frame"
 checker_case_run "checker-bound tape byte" 0 reject "$T/checker-tape-byte.frame"
 
 # Label-target control: byte 25 is the low byte of the first conditional branch

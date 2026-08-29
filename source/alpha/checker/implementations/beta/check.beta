@@ -24,7 +24,7 @@
 ;   "OMGCHK1\n" u64le(source_len) source u64le(tape_len) tape
 ;               u64le(cert_len) cert
 ; A framed certificate may use the individual constants `source` and `tape`.
-; They are checker-built immutable balanced byte trees. A byte is
+; They are checker-built immutable power-of-two-indexed byte trees. A byte is
 ; (k 60 (k HIGH_NIBBLE) (k LOW_NIBBLE)); tree constructors are empty/leaf/node
 ; CIDs 61/62/63. The certificate stream itself is
 ; then zero or more declarations, a goal proposition, and a certificate term.
@@ -162,19 +162,32 @@ proc raw_byte_term(b) {
     }
 }
 
-; A balanced tree keeps computation/proof recursion logarithmic in subject
-; size. EMPTY=61, LEAF(byte)=62, NODE(left,right)=63.
-proc raw_tree(start, n) {
-    state empty { to leaf when (n == 1)  to node }
+; The root span is a power of two, so a certificate can address a byte by a
+; fixed left/right path without trusting a host-produced split table. A wholly
+; padded suffix is the shared EMPTY term; every real byte remains a LEAF at the
+; root's fixed depth. EMPTY=61, LEAF(byte)=62, NODE(left,right)=63.
+proc raw_span(n) {
+    let span = 1
+    state grow { to more when (span < n)  return span }
+    state more { span = span * 2  to grow }
+}
+
+proc raw_tree(start, n, span) {
+    state empty { to do_empty when (n == 0)  to leaf }
     state leaf {
+        to node when (span != 1)
         return alloc(51, raw_con(62), raw_byte_term(byte[2097152 + start]))
     }
     state node {
-        to do_empty when (n == 0)
-        let left_n = n / 2
-        let left = raw_tree(start, left_n)
-        let right = raw_tree(start + left_n, n - left_n)
-        return alloc(51, alloc(51, raw_con(63), left), right)
+        let half = span / 2
+        let left_n = n
+        state cap_left { to cap when (left_n > half)  to build }
+        state cap { left_n = half  to build }
+        state build {
+            let left = raw_tree(start, left_n, half)
+            let right = raw_tree(start + half, n - left_n, half)
+            return alloc(51, alloc(51, raw_con(63), left), right)
+        }
     }
     state do_empty { return raw_con(61) }
 }
@@ -256,8 +269,8 @@ proc prepare_input() {
     }
     state bind {
         bind_raw_theory()
-        word[2097096] = raw_tree(source_start, source_len)
-        word[2097088] = raw_tree(tape_start, tape_len)
+        word[2097096] = raw_tree(source_start, source_len, raw_span(source_len))
+        word[2097088] = raw_tree(tape_start, tape_len, raw_span(tape_len))
         copy_cert(cert_start, cert_len)
         word[2097136] = cert_len
         word[2097144] = 0
