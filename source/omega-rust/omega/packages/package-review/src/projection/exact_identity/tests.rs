@@ -1,4 +1,4 @@
-use super::super::evidence::selected_providers::validate_selected_provider_declaration_owner;
+use super::super::providers::selection::validate_selected_provider_declaration_owner;
 use super::nominal_identities::{nominal_owner_from_symbols, toolchain_source_identity};
 use super::type_identities::{
     validate_package_type_identity_input, validate_package_type_identity_input_inner,

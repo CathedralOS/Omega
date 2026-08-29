@@ -10,8 +10,10 @@ use super::super::model::{
     OrdinaryPackageObligationRow, OrdinaryPackageObligationSchemaIdentity,
 };
 use super::encoding::encode_ordinary_package_obligation_ledger;
-use crate::encoding::recovery::canonical_row_framing_for_ledger;
-use crate::encoding::{PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION};
+use crate::encoding::{
+    PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION,
+    canonical_row_framing_for_ledger,
+};
 use omega_package_compilation::{PackageDependencyBinding, PackageDependencyClosure};
 use omega_target::TargetProfile;
 use psi_core::PackageKeyIdentity;

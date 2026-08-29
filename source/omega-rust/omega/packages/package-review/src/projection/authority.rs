@@ -1,4 +1,4 @@
-use super::super::exact_identity::nominal_identities::nominal_identity;
+use super::exact_identity::nominal_identities::nominal_identity;
 use crate::evidence::projection::{
     ProjectedDangerousAuthorityRow, ProjectedDangerousAuthoritySlackRow, ProjectedReviewRow,
 };

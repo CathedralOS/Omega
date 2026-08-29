@@ -20,39 +20,35 @@ src/
 |   `-- rows.rs               canonical row and source-coordinate carriers
 |-- projection/               checked compiler state -> review evidence
 |   |-- aggregate.rs          total projection entry and final assembly
-|   |-- evidence/             retained evidence, authority classes, and sources
-|   |   |-- mod.rs            evidence-projection facade
-|   |   |-- semantic_projection.rs semantic dependencies and representation TCB
-|   |   |-- dangerous_authority.rs reached authority and intrinsic risk classes
-|   |   |-- selected_providers.rs exact provider ownership and source custody
-|   |   |-- row_finalization.rs canonical row/source assembly
-|   |   `-- source_locations.rs bounded canonical source coordinates
-|   |-- public_traits.rs      public trait and conformance projection
-|   |-- public_api/           public domains, propositions, constants, operators, and data
+|   |-- authority.rs          reached authority and intrinsic risk classes
+|   |-- semantics.rs          semantic dependencies and representation TCB
+|   |-- source_custody/       bounded source coordinates and final row/source pairing
+|   |-- public_api/           public domains, data, propositions, constants, operators, and traits
 |   |-- callables.rs          callable envelope projection
 |   |-- contracts/            contract metadata, propositions, and expressions
 |   |   |-- metadata/         checked contract evidence, operations, and service reach
 |   |   `-- expressions/      calls, members, constructors, names, and operators
-|   |-- providers/           conformance, boundary selection, and external-supply joins
-|   |-- provider_families.rs  atomic operator-family selection reconciliation
-|   |-- provider_intrinsics.rs compiler-owned provider execution identity
+|   |-- providers/           selection, families, intrinsics, conformances, and external supply
 |   |-- operational.rs        reach, invocation, mutation, crash, and flow rows
 |   `-- exact_identity/       exact nominal, type, lifetime, and owner identity
-`-- encoding/                 canonical persistence boundaries
-    |-- canonical/            framing, row assembly, limits, and primitive encoder
-    |-- values/               semantic value encoding by evidence family
-    |-- recovery/             canonical-row framing, source recovery, and decoding
-    `-- obligation_ledger/    construction, validation, and canonical ledger codec
+|-- encoding/                 canonical persistence boundaries; no compiler IR
+|   |-- canonical/            framing, row assembly, limits, and primitive encoder
+|   |-- values/               semantic value encoding by evidence family
+|   `-- recovery/             canonical-row framing, source recovery, and decoding
+`-- obligation_ledger/       local reconstruction question and its canonical codec
 
 tests/
 |-- support/                  shared package-compilation fixtures
+|-- authority.rs             thin entrance; cases live in authority/
 |-- boundary_supply.rs        thin entrance; cases live in boundary_supply/
 |-- conformance.rs            thin entrance; cases live in conformance/
 |-- contract_expressions.rs   thin entrance; cases live in contract_expressions/
 |-- exact_contract_identity.rs thin entrance; cases live in exact_contract_identity/
+|-- operational.rs           thin entrance; cases live in operational/
 |-- operators.rs              thin entrance; cases live in operators/
 |-- proposition_contracts.rs  thin entrance; cases live in proposition_contracts/
 |-- public_api.rs             thin entrance; cases live in public_api/
+|-- trait_contracts.rs        thin entrance; cases live in trait_contracts/
 `-- remaining focused integration targets
 ```
 
@@ -61,8 +57,9 @@ tests/
 `projection` reads compiler-owned checked state and constructs `evidence`
 values. `encoding` reads `evidence` values but never compiler IR. `evidence`
 neither traverses compiler state nor depends on persistence. Recovery decodes
-canonical rows into a distinct inert type, and the obligation ledger requires
-local compiler reconstruction before recovered rows can be compared.
+canonical rows into a distinct inert type. `obligation_ledger` owns the separate
+local compiler reconstruction that must precede comparison of recovered rows;
+its codec is an implementation detail of that domain, not an encoding owner.
 
 The crate root exports the stable external surface. Cross-responsibility
 construction helpers and fields remain `pub(crate)` and are not external API.

@@ -1,3 +1,4 @@
+use super::authority::{project_dangerous_authorities, project_dangerous_authority_slack};
 use super::callables::{project_callable, project_private_external_executable_supply};
 use super::contracts::metadata::operations::{
     project_machine_invocation_source_locations, project_machine_operational_source_locations,
@@ -7,29 +8,24 @@ use super::contracts::metadata::parameters::{
 };
 use super::contracts::metadata::service_reach::project_machine_service_reach_source_locations;
 use super::contracts::metadata::source_locations::project_contract_source_locations;
-use super::evidence::dangerous_authority::{
-    project_dangerous_authorities, project_dangerous_authority_slack,
-};
-use super::evidence::row_finalization::{
-    finalize_dangerous_authority_rows, finalize_dangerous_authority_slack_rows,
-    finalize_projected_rows, finalize_semantic_dependency_rows,
-};
-use super::evidence::selected_providers::{
+use super::exact_identity::nominal_identities::{nominal_identity, provider_requirement_identity};
+use super::providers::families::project_selected_provider_families;
+use super::providers::intrinsics::project_compiler_intrinsic_execution;
+use super::providers::selection::{
     selected_provider_row_source, validate_selected_provider_declaration_owner,
 };
-use super::evidence::semantic_projection::{
-    project_representation_tcb, project_semantic_dependencies,
-};
-use super::evidence::source_locations::validate_canonical_row_source_limits;
-use super::exact_identity::nominal_identities::{nominal_identity, provider_requirement_identity};
-use super::provider_families::project_selected_provider_families;
-use super::provider_intrinsics::project_compiler_intrinsic_execution;
 use super::public_api::constants::project_public_consts;
 use super::public_api::data::projection::project_public_data;
 use super::public_api::domains::projection::project_public_domains;
 use super::public_api::operators::project_public_operators;
 use super::public_api::propositions::project_public_propositions;
-use super::public_traits::{project_public_conformances, project_public_traits};
+use super::public_api::traits::{project_public_conformances, project_public_traits};
+use super::semantics::{project_representation_tcb, project_semantic_dependencies};
+use super::source_custody::finalization::{
+    finalize_dangerous_authority_rows, finalize_dangerous_authority_slack_rows,
+    finalize_projected_rows, finalize_semantic_dependency_rows,
+};
+use super::source_custody::locations::validate_canonical_row_source_limits;
 use crate::evidence::projection::{
     PackageReviewCanonicalRowSources, ProjectedNestedSourceLocation, ProjectedReviewRow,
 };
