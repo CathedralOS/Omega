@@ -280,6 +280,42 @@ pub(super) fn independently_classify_total_scalar_identity(
             *scalar_type,
             independently_typed_integer(*scalar_type, 1),
         ),
+        (
+            O::SaturatingIntegerMultiply {
+                psi_operation,
+                result,
+                scalar_type,
+                left,
+                ..
+            },
+            TotalScalarIdentityKind::SaturatingIntegerMultiplyZeroLeft,
+        ) => (
+            *psi_operation,
+            *result,
+            *left,
+            *left,
+            *scalar_type,
+            *scalar_type,
+            independently_typed_integer(*scalar_type, 0),
+        ),
+        (
+            O::SaturatingIntegerMultiply {
+                psi_operation,
+                result,
+                scalar_type,
+                right,
+                ..
+            },
+            TotalScalarIdentityKind::SaturatingIntegerMultiplyZeroRight,
+        ) => (
+            *psi_operation,
+            *result,
+            *right,
+            *right,
+            *scalar_type,
+            *scalar_type,
+            independently_typed_integer(*scalar_type, 0),
+        ),
         _ => return None,
     };
     Some(IndependentTotalScalarIdentity {

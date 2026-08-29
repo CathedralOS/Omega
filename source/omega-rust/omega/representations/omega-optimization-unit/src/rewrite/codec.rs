@@ -338,6 +338,8 @@ pub(super) fn encode_candidate(
                 TotalScalarIdentityKind::SaturatingIntegerSubtractZeroRight => 12,
                 TotalScalarIdentityKind::SaturatingIntegerMultiplyOneLeft => 13,
                 TotalScalarIdentityKind::SaturatingIntegerMultiplyOneRight => 14,
+                TotalScalarIdentityKind::SaturatingIntegerMultiplyZeroLeft => 15,
+                TotalScalarIdentityKind::SaturatingIntegerMultiplyZeroRight => 16,
             });
         }
     }
