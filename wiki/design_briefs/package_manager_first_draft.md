@@ -55,9 +55,11 @@ maps mechanically to a valid snake-case Omega alias.
 Three identities remain deliberately separate:
 
 - `PackageName` is the package-authored human name, such as
-  `arithmetic-kernels`.
+  `arithmetic-kernels`; it is not globally unique.
 - `PackageKey` joins that name to canonical source lineage. It is the stable
-  graph, lock, and nominal-symbol identity across updates.
+  graph, lock, and nominal-symbol identity across updates. Git lineage names the
+  canonical repository namespace and excludes the requested revision, resolved
+  commit, tree, and content; those belong to `PackageInstance`.
 - `PackageInstance` joins the key to exact source content, produced artifact
   identity, each closure subject's obligation-semantics identity, locally
   re-derived discharge results, and disclosed open assumptions. Exact
@@ -115,14 +117,38 @@ target ordinary-library shape is:
 machine build(builder: &mut Build) {
     builder.depend(Source::Git {
         repository: "https://github.com/CathedralOS/arithmetic-kernels.git",
-        revision: "main"
+        revision: "main",
+        selection: PackageSelection::Root
     });
 }
 ```
 
-The resolver fetches the source and obtains its name from that package's own
-`PACKAGE`. The default in-code alias is the mechanical kebab-to-snake mapping,
-`arithmetic-kernels` to `arithmetic_kernels`. Only a genuine local collision
+For a repository workspace, the target source spelling selects by declared name
+rather than member path:
+
+```omega
+builder.depend_as("linear_algebra", Source::Git {
+    repository: "https://example.invalid/math.git",
+    revision: "main",
+    selection: PackageSelection::Named { package: "matrix" }
+});
+```
+
+The spelling may omit selection as shorthand for `Root`, but projection
+normalizes it immediately to explicit `Root`. Acquisition and selection remain
+separate internally: two selected members at one revision share one authenticated
+repository fetch, tree, and `SourceIdentity`.
+
+For `Named`, the resolver authenticates the repository root, projects only its
+declared member paths, reads each member's own `builder.package` declaration, and
+requires one exact name match. It never recursively searches for `build.omg` or
+accepts a caller-authored member path. The resolved member path is retained as
+navigation/replay custody and as the base for relative dependencies, but it does
+not enter `PackageKey`; relocating the member does not replace the package.
+
+The resolver obtains the selected package's name from its own
+`builder.package` declaration. The default in-code alias is the mechanical
+kebab-to-snake mapping, `arithmetic-kernels` to `arithmetic_kernels`. Only a genuine local collision
 or deliberate rename uses the exceptional `builder.depend_as(alias, source)`
 form. The alias is local name resolution only and never contributes security
 identity.
@@ -288,7 +314,7 @@ source-consumption commitment. The orchestration join rejects missing,
 duplicate, foreign, root-self, wrong-target, wrong-closure, and mismatched
 review/custody bundles. This handoff is ephemeral compiler custody, not lock or
 admission evidence. The real filesystem-producing package canary remains
-blocked on OWNER Q6's exact staging-authority package role after std relocation;
+blocked on OWNER Q5's exact staging-authority package role after std relocation;
 no name/path compatibility exception is admitted.
 
 Psi's target-neutral const-generic, fixed-array, const-domain, laid/placed
@@ -375,10 +401,15 @@ not an admission baseline: the lock must embed the normalized accepted security
 projection or retain a mandatory content-addressed copy.
 
 The first resolver does not solve semantic-version ranges. Requests for the
-same `PackageKey` must reconcile to one immutable instance or fail with every
-conflicting dependency path. Multiple-version composition is a later explicit
-feature. Package dependency cycles reject in v1, keeping build order and
-request-path provenance finite; supporting a cycle later requires an explicit
+same `PackageKey` that reach the same immutable source resolution deduplicate,
+including differently spelled requests that resolve to the same commit/tree.
+Different immutable resolutions fail with every conflicting dependency path;
+there is no undefined intermediate notion of a "compatible" request.
+Multiple simultaneous instances per key are unsupported. Supporting them would
+move nominal type, conformance, provider-selection, and evidence identity from
+`PackageKey` to `PackageInstance`, so it is an identity-substrate redesign rather
+than an alias feature. Package dependency cycles reject in v1, keeping build
+order and request-path provenance finite; supporting a cycle later requires an explicit
 semantic and custody model rather than accidental graph acceptance.
 
 The compiler handoff contains the reconciled root package, one opaque stable
@@ -387,6 +418,13 @@ edges between those identities. Package-aware compilation validates that
 closed graph again and never combines it with `build.omg` scanning. Canonical
 paths are import-custody locations only; the opaque `PackageKey` commitment is
 the semantic identity that survives source loading.
+
+Aliases remain requester-local edges. Different packages may bind different
+aliases to one key; an ancestor cannot rename a child's internal edge. If a
+consumer names a dependency-owned declaration, it declares its own edge. If it
+only possesses an inferred value whose foreign type it never selects, the
+transitive lock still contains the dependency but no direct source alias is
+required.
 
 ## Compiler-derived package evidence
 

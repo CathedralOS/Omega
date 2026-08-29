@@ -1502,7 +1502,7 @@ Owners:
   consumer. Finish owned destruction/move-out evidence before returning
   `Granted & Vacant`.
   The first source-visible establishment carrier is design-blocked on
-  [OWNER_QUESTIONS.md Q8](OWNER_QUESTIONS.md#q8--source-result-schema-for-placed-view-establishment):
+  [OWNER_QUESTIONS.md Q7](OWNER_QUESTIONS.md#q7--source-result-schema-for-placed-view-establishment):
   the core operation signatures and nominal outcome/returned-row schema must
   be fixed before source typing can publish an owned `Placed<P, T>` call.
   Existing Rust admission and occurrence identifiers remain implementation
@@ -6073,7 +6073,7 @@ Owners:
   use legality, cleanup, Terminal resource row, or distinction between final
   retirement and discard. Promoting this classification to usable or Terminal
   authority is design-blocked on
-  [OWNER_QUESTIONS.md Q9](OWNER_QUESTIONS.md#q9--reborrow-restoration-disposition).
+  [OWNER_QUESTIONS.md Q8](OWNER_QUESTIONS.md#q8--reborrow-restoration-disposition).
 
   Loan formation freezes exact owner/place occurrences and evaluated range
   values. Every premise must dominate the formation event and be valid at the
@@ -8676,7 +8676,7 @@ reach or trust, and private proof improvements do not change public identity.
   and nested/dynamic/mixed projections,
   scalar/float/byte/linear/nominal/qualified/content elements, arrays with
   claims, sums, joins, and cycles remain fenced. General array cleanup order
-  remains the language-design question recorded in `OWNER_QUESTIONS.md` Q5;
+  remains the language-design question recorded in `OWNER_QUESTIONS.md` Q3;
   none of these singleton- or zero-residual rungs chooses that order.
 - **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.** Authored selection of the
   exact owner-attached `T::drop` hook is now closed for every retained source
@@ -9227,7 +9227,7 @@ Remaining N6/N8 work:
   Terminal replay remain fail-closed, so stage 3 is not complete and stage 4 remains
   open. Arithmetic `Expression` entailment is implemented; transport
   of quotient-domain membership and opaque proposition families is
-  language-design blocked on **OWNER_QUESTIONS Q8**. Q8 must settle the
+  language-design blocked on **OWNER_QUESTIONS Q6**. Q6 must settle the
   explicit selection locus, per-side transport/weakening application, and
   canonical theorem identity and replay evidence. Ambient domain linking,
   visibility search, or an opaque solver verdict cannot supply that authority.

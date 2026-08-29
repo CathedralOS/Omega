@@ -13,52 +13,7 @@ decision's durable identity does not change when this queue is pruned.
 
 Last pruned: 2026-08-28.
 
-## Q1 — Package selector for a multi-package source
-
-### Context
-
-A fetched Git repository may have a package at its root or a workspace root
-whose member paths lead to several packages. Member paths are deliberately not
-stable package names. The selected member's own `builder.package("name")`
-declaration remains authoritative identity evidence.
-
-### Problem statement
-
-`Source::Git` currently carries only repository and revision. That is
-unambiguous for a repository-root package but cannot select one package from a
-workspace. The lock cannot be the only selector because a fresh lockless
-resolution must be reproducible, and an import alias cannot select because
-aliases are local and may be explicitly renamed.
-
-### Proposed direction
-
-Keep the existing `Source::Git` case for an unambiguous repository-root package;
-the resolver reads that package's own declaration, so the caller does not
-repeat its name. Add ordinary `Source::GitPackage { repository, revision,
-package }` data—not grammar—for selecting a package from a workspace Git
-source. Treat `package` only as selection intent:
-after authenticating the repository root, project its declared member paths and
-require exactly one member's own package declaration to match. That fetched
-declaration—not the request string—establishes the name joined into
-`PackageKey`. Using root-package `Source::Git` on a workspace rejects as
-ambiguous.
-
-### Alternates
-
-- Acceptable: add an optional selector to the existing Git source data if Omega
-  construction remains concise and omission is permitted only for a
-  repository-root package. A separate source case is clearer with the current
-  explicit data model.
-- Tempting but wrong: require a package-name field for every Git source. A
-  repository-root package is already unambiguous, so this makes every ordinary
-  package declare the same name twice.
-- Tempting but wrong: select by member directory path; repository relocation
-  would become package replacement and callers would duplicate workspace
-  layout.
-- Tempting but wrong: infer selection from the default alias or defer it to
-  `omega.lock`; explicit aliases and first resolution make both ambiguous.
-
-## Q2 — Application identity in the package graph
+## Q1 — Application identity in the package graph
 
 ### Context
 
@@ -89,7 +44,7 @@ package dependency. Exact source and artifact evidence remain instance facts.
 - Tempting but wrong: make applications importable packages merely to reuse
   existing graph code.
 
-## Q3 — Scoped build machines as project manifests
+## Q2 — Scoped build machines as project manifests
 
 ### Context
 
@@ -142,7 +97,7 @@ under the canonical root.
   build; that restores duplicate build roots rather than one authoritative
   entry.
 
-## Q4 — Fixed-array element cleanup order
+## Q3 — Fixed-array element cleanup order
 
 ### Context
 
@@ -185,7 +140,7 @@ sequence.
   unobservable. Cleanup calls can carry effects, requirements, guarantees,
   fuel, and diagnostics, so their sequence is semantic.
 
-## Q5 — Lifetime application on conformance target traits
+## Q4 — Lifetime application on conformance target traits
 
 ### Context
 
@@ -221,7 +176,7 @@ package review.
 - Tempting but wrong: erase the target-trait lifetime application because it
   has no runtime layout effect; it remains proof and public-interface identity.
 
-## Q6 — Authority-bearing roles for ordinary packages
+## Q5 — Authority-bearing roles for ordinary packages
 
 ### Context
 
@@ -279,7 +234,7 @@ role from names.
   as an ordinary package at the import surface; that preserves two identities
   for one dependency and defeats capability review.
 
-## Q7 — Explicit transport authority for quotient preconditions
+## Q6 — Explicit transport authority for quotient preconditions
 
 ### Context
 
@@ -327,7 +282,7 @@ closed.
 - Tempting but wrong: retain only a solver `Proven` verdict without the selected
   theorem identity, ordered premises, per-side application, and replay data.
 
-## Q8 — Source result schema for placed-view establishment
+## Q7 — Source result schema for placed-view establishment
 
 ### Context
 
@@ -389,7 +344,7 @@ outputs outside the runtime result.
 - Tempting but wrong: derive result identity from source spelling, call-site
   order, accessor names, parameter ordinals, or compact plan fingerprints.
 
-## Q9 — Reborrow restoration disposition
+## Q8 — Reborrow restoration disposition
 
 ### Context
 
@@ -438,7 +393,7 @@ post-return use, cleanup, or Terminal resource claim may be derived from them.
 - Tempting but wrong: skip retired projected parents and return authority
   directly to a root without retaining and validating the complete path.
 
-## Q10 — Nominal result carriers for observing compare-exchange
+## Q9 — Nominal result carriers for observing compare-exchange
 
 ### Context
 
@@ -509,7 +464,7 @@ operation requirement identities separate from these value-type identities.
 - Tempting but wrong: expose `Uncommitted` on the decisive result merely because
   one larger runtime layout would be convenient.
 
-## Q11 — Strict SSH trust and credential authority
+## Q10 — Strict SSH trust and credential authority
 
 ### Context
 
@@ -558,7 +513,7 @@ producer claim.
 - Tempting but wrong: serialize private keys, tokens, or reusable credentials in
   `omega.lock` or source-resolution evidence.
 
-## Q12 — Suspension as control-flow exit or resumable continuation
+## Q11 — Suspension as control-flow exit or resumable continuation
 
 ### Context
 
@@ -597,7 +552,7 @@ and its custody.
 - Tempting but wrong: classify every `MaySuspend` call as a local CFG exit
   without retaining its continuation and outcome-specific state.
 
-## Q13 — Cyclic control flow in Terminal Psi
+## Q12 — Cyclic control flow in Terminal Psi
 
 ### Context
 
@@ -637,7 +592,7 @@ block-loop API.
   validation before loop-carried SSA, ownership, cleanup, and fuel semantics
   exist.
 
-## Q14 — Close the Delta v1 semantic contract
+## Q13 — Close the Delta v1 semantic contract
 
 ### Context
 
@@ -717,7 +672,7 @@ out of Delta without weakening its ability to host a robust compiler.
 - Tempting but wrong: retain the old translator's private capacities, exit
   codes, or Darwin output behavior as language rules.
 
-## Q15 — Select one typed executable Gamma contract
+## Q14 — Select one typed executable Gamma contract
 
 ### Context
 
@@ -787,7 +742,7 @@ failures.
 - Tempting but wrong: make Alpha I/O effects directly callable from arbitrary
   Gamma source merely to avoid defining the compiler-entry adapter.
 
-## Q16 — Fix Beta block formation and definite-initialization reachability
+## Q15 — Fix Beta block formation and definite-initialization reachability
 
 ### Context
 
@@ -852,7 +807,7 @@ semantic acceptance independent of optimizer sophistication.
 - Tempting but wrong: zero-initialize generated frame slots and call the gap
   closed; that changes Beta's written local semantics and hides skipped stores.
 
-## Q17 — Select the canonical Beta compiler outcome carrier
+## Q16 — Select the canonical Beta compiler outcome carrier
 
 ### Context
 

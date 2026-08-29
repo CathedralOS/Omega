@@ -68,7 +68,7 @@ impl fmt::Display for DependencyProjectionError {
                 "package build machine's first parameter must be `builder: &mut Build`",
             ),
             Self::UnsupportedDependencyShape => formatter.write_str(
-                "dependency requests must be direct canonical `builder.depend(Source::...)` or `builder.depend_as(alias, Source::...)` statements in the root build entry",
+                "dependencies are statically projected before build execution and must be direct canonical `builder.depend(Source::...)` or `builder.depend_as(alias, Source::...)` statements in the root build entry; arbitrary build control flow is not evaluated, and target-conditioned edges require an explicit static dependency-condition surface",
             ),
             Self::WrongDependencyReceiver => formatter.write_str(
                 "dependency request receiver must be the root build machine's first parameter",

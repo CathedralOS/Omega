@@ -52,7 +52,7 @@ closed. Compiler-issued package review remains non-admitting.
 
   The detailed established floor and remaining platform gaps are maintained in
   `SOURCE_RESOLVER_SECURITY.md`. Strict SSH trust and credential authority is
-  design-blocked on OWNER Q11; the other bullets are engineering work.
+  design-blocked on OWNER Q10; the other bullets are engineering work.
 
 ## P1 — Total package semantic identity
 
@@ -70,7 +70,7 @@ closed. Compiler-issued package review remains non-admitting.
   ordinary package admission.
 
 - [ ] **COMPLETE-CONFORMANCE-IDENTITY.** Retain complete public conformance
-  applications, including target-trait lifetime arguments once OWNER Q5 is
+  applications, including target-trait lifetime arguments once OWNER Q4 is
   settled. Unsupported generic, lifetime-bearing, private, or aliased forms
   must continue to fail closed rather than disappear from review.
 
@@ -186,7 +186,7 @@ closed. Compiler-issued package review remains non-admitting.
   classification for network, dynamic loading, signing, secrets, executable
   installation, DMA/IOMMU, and any future authority-bearing surfaces. Names,
   aliases, paths, and same-spelled package declarations must confer no
-  authority. Ordinary std/provider authority depends on OWNER Q6.
+  authority. Ordinary std/provider authority depends on OWNER Q5.
 
 - [ ] **SOURCE-AND-PROVENANCE-TRIAGE.** Wire an organization-selected advisory
   reviewer into command orchestration with the existing fixed instructions,
@@ -221,7 +221,8 @@ closed. Compiler-issued package review remains non-admitting.
   authority flow, provider/trust/proof state, dangerous slack, build
   observations, review state, and the first failed provenance edge.
 
-- [ ] **OMEGA-FETCH-MEMBER.** After OWNER Q1, add selective authenticated Git
+- [ ] **OMEGA-FETCH-MEMBER.** After **MULTI-PACKAGE-GIT-SELECTION**, add
+  selective authenticated Git
   acquisition for one declared workspace package without using checkout or
   lazy object fetching. Parent-authenticated materialization must prove the
   selected member subtree and every root declaration needed to authenticate
@@ -283,31 +284,52 @@ items are still owner-blocked.
   `Real`, wrong opaque subject, lookalike representation traits, provider drift,
   descriptor replay drift, and illegal carrier cleanup/multiplicity changes.
 
-- [ ] **BLOCKED — OWNER Q1: MULTI-PACKAGE-GIT-SELECTION.** Add an explicit Git
-  package selector for workspace repositories. The selected member's own
-  `builder.package("name")` remains identity authority; the request string is
-  selection intent only. This blocks remote `omega-language-std` selection and
-  selective member fetch.
+- [ ] **MULTI-PACKAGE-GIT-SELECTION.** Separate one Git acquisition
+  `(repository, revision)` from normalized package selection
+  `Root | Named(PackageName)`. Omitted source spelling normalizes to `Root`;
+  selection never enters `SourceIdentity`. Authenticate the repository root,
+  statically project its authorized member paths, and require exactly one
+  selected member's own `builder.package("name")` declaration to match.
 
-- [ ] **BLOCKED — OWNER Q2: PACKAGE-NATIVE-GENERATED-SOURCE-TRANSACTION.**
+  Retain the resolved member path as navigation/replay custody and as the base
+  for relative dependencies, never as `PackageKey` identity. Git `PackageKey`
+  lineage is declared name plus canonical repository namespace and excludes the
+  requested or resolved revision. Requests with the same key and immutable
+  resolution deduplicate; different resolutions reject with every dependency
+  path. Multiple simultaneous instances per key remain unsupported.
+
+  Add pass/fail coverage for root selection, two members sharing one fetch/tree,
+  member relocation preserving the key, member-relative dependencies, missing
+  and duplicate names, undeclared/escaping paths, selector/alias separation,
+  different selector spellings resolving identically, and same-key resolution
+  conflict.
+
+- [ ] **STATIC-TARGET-CONDITIONED-DEPENDENCIES.** Extend dependency projection
+  only through a closed condition vocabulary over request-time inputs such as
+  `TargetProfile`. Normalize every edge to `Always | TargetProfile(...)`, retain
+  the selected condition and closure in the lock, and reject arbitrary evaluated
+  build-machine control flow. The current unconditional projector is a sound
+  first implementation, not a permanent target-independence rule.
+
+- [ ] **BLOCKED — OWNER Q1: PACKAGE-NATIVE-GENERATED-SOURCE-TRANSACTION.**
   Route native-image production through the sponsored package transaction
   without rerunning `build.omg` or reopening discovery. Lower the exact frozen
   checked program after generated-source handoff, retain the unpublished native
   artifact as an exact subject, reconstruct every source/build/generated/native
-  commitment, and publish only after complete accepted comparison. Q2 must
+  commitment, and publish only after complete accepted comparison. Q1 must
   settle application-root identity; exact requested-target identity then comes
   from **IMMUTABLE-TARGET-ACTIVATION-AND-REACH-CLOSURE** in `TASKS.md`.
 
-- [ ] **BLOCKED — OWNER Q3: SCOPED-BUILD-ROOTS.** Retire the five remaining
+- [ ] **BLOCKED — OWNER Q2: SCOPED-BUILD-ROOTS.** Retire the five remaining
   `Owner::build` compatibility canaries or formally admit one shared scoped-root
   grammar. Package readers and standalone compilation may not continue assigning
   different meanings to the same `build.omg` shape.
 
-- [ ] **BLOCKED — OWNER Q5: CONFORMANCE-TARGET-LIFETIMES.** Settle and retain
+- [ ] **BLOCKED — OWNER Q4: CONFORMANCE-TARGET-LIFETIMES.** Settle and retain
   the complete target-trait lifetime application before lifetime-parameterized
   public conformances can enter canonical package identity.
 
-- [ ] **BLOCKED — OWNER Q6: ORDINARY-STD-AND-PROVIDER-AUTHORITY.** Replace all
+- [ ] **BLOCKED — OWNER Q5: ORDINARY-STD-AND-PROVIDER-AUTHORITY.** Replace all
   physical `source/library/std` routing and direct filesystem/GUI provider
   injection with exact ordinary graph nodes and explicit authenticated role
   bindings. Only core remains compiler-welded. Removing the declared std edge
@@ -331,7 +353,7 @@ items are still owner-blocked.
   bodylessness, catalog presence, nor build policy may synthesize a requirement
   or satisfier edge.
 
-- [ ] **BLOCKED — OWNER Q11: STRICT-SSH-CUSTODY.** Settle host-key, key,
+- [ ] **BLOCKED — OWNER Q10: STRICT-SSH-CUSTODY.** Settle host-key, key,
   credential-provider, and credential-file authority before narrowing the
   remaining SSH read surface or treating SSH resolution as strict evidence.
 
