@@ -91,6 +91,7 @@ pub(super) fn lower_decoded_native_ranked_countdown(
     Ok(RankedNativeAbstractOperationPlan {
         plan,
         countdown: RankedU32CountdownCustody {
+            verifier_replay: native.replay(),
             ranked_scc,
             fixed_fuel,
             graph,

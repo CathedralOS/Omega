@@ -8,8 +8,9 @@ use omega_target::NativeTarget;
 use omega_target_operations::{MachineRegister, TerminalPsiProvenance};
 use psi_core::{IntegerSign, IntegerType, IntegerValue};
 use psi_terminal::{
-    StructuralAccess, StructuralMultiplicity, TerminalAffineCleanupAction, TerminalRankedGuard,
-    TerminalRankedSuccessorArgument,
+    Operation, OperationKind, OperationResult, StructuralAccess, StructuralMultiplicity,
+    TerminalAffineCleanupAction, TerminalMachine, TerminalRankedGuard,
+    TerminalRankedSuccessorArgument, Terminator,
 };
 
 use crate::ObjectError;
@@ -47,6 +48,10 @@ pub(super) fn replay_ranked_countdown_contract(
 
     let graph = record.custody.graph;
     let component = &record.custody.ranked_scc;
+    let replay = record.custody.verifier_replay.module();
+    let [replay_machine] = replay.machines.as_slice() else {
+        return Err(invalid());
+    };
     let [covered] = component.covered_cyclic_edges.as_slice() else {
         return Err(invalid());
     };
@@ -89,6 +94,13 @@ pub(super) fn replay_ranked_countdown_contract(
         || graph.entry == component.header
         || graph.done_block == component.header
         || function.provenance != expected_provenance
+        || psi_terminal_codec::terminal_psi_identity(replay).ok() != Some(plan.psi)
+        || replay.entry != function.machine
+        || replay_machine.id != function.machine
+        || replay_machine.attachment != function.attachment
+        || replay_machine.ranked_scc.as_ref() != Some(component)
+        || replay.structural_types != record.structural_types
+        || !replay_ranked_graph_matches(replay_machine, record)
     {
         return Err(invalid());
     }
@@ -115,6 +127,18 @@ fn replay_calling_and_structural_contract(
     let [structural_parameter] = record.structural_parameters.as_slice() else {
         return None;
     };
+    let replay = record.custody.verifier_replay.module();
+    let [replay_machine] = replay.machines.as_slice() else {
+        return None;
+    };
+    let [replay_structural] = replay_machine.structural_parameters.as_slice() else {
+        return None;
+    };
+    let expected_structural_shape =
+        crate::structural_condition_layout::replay_structural_value_shape(
+            replay_structural.structural_type,
+            &replay.structural_types,
+        )?;
     let expected_rank = ValueShape::integer(4, 4);
     if rank.shape != expected_rank
         || rank.locations.as_slice()
@@ -125,6 +149,7 @@ fn replay_calling_and_structural_contract(
             }]
         || structural_parameter.multiplicity != StructuralMultiplicity::Affine
         || structural_parameter.access != StructuralAccess::Owned
+        || structural_parameter.shape != expected_structural_shape
         || structural != &structural_parameter.placement
         || record
             .structural_types
@@ -154,6 +179,17 @@ fn replay_structural_frontier(record: &RankedU32CountdownMachineCodeRecord) -> O
     let component = &record.custody.ranked_scc;
     let covered = &component.covered_cyclic_edges[0];
     let structural = &record.structural_parameters[0];
+    let [replay_structural] = record
+        .custody
+        .verifier_replay
+        .module()
+        .machines
+        .first()?
+        .structural_parameters
+        .as_slice()
+    else {
+        return None;
+    };
     let header = record
         .custody
         .structural_frontiers
@@ -169,8 +205,198 @@ fn replay_structural_frontier(record: &RankedU32CountdownMachineCodeRecord) -> O
         && owned.place == structural.place
         && owned.multiplicity == StructuralMultiplicity::Affine
         && header.claims().is_empty()
-        && header.partial_custody().is_empty())
-    .then_some(())
+        && header.partial_custody().is_empty()
+        && structural.place == replay_structural.place
+        && structural.structural_type == replay_structural.structural_type
+        && structural.multiplicity == replay_structural.multiplicity
+        && structural.access == replay_structural.access)
+        .then_some(())
+}
+
+fn replay_ranked_graph_matches(
+    machine: &TerminalMachine,
+    record: &RankedU32CountdownMachineCodeRecord,
+) -> bool {
+    let graph = record.custody.graph;
+    let Some(ranked) = machine.ranked_scc.as_ref() else {
+        return false;
+    };
+    let [covered] = ranked.covered_cyclic_edges.as_slice() else {
+        return false;
+    };
+    let block = |id| machine.blocks.iter().find(|block| block.id == id);
+    let Some(entry) = block(machine.entry) else {
+        return false;
+    };
+    let Terminator::Jump {
+        edge: preheader_edge,
+        target: preheader_target,
+        arguments: preheader_arguments,
+        ..
+    } = &entry.terminator
+    else {
+        return false;
+    };
+    let Some(header) = block(ranked.header) else {
+        return false;
+    };
+    let Some(rank_index) = header
+        .parameters
+        .iter()
+        .position(|parameter| parameter.id == ranked.rank_parameter)
+    else {
+        return false;
+    };
+    if *preheader_target != ranked.header || preheader_arguments.len() != header.parameters.len() {
+        return false;
+    }
+    let Some(&initial_value) = preheader_arguments.get(rank_index) else {
+        return false;
+    };
+    let [zero, compare] = header.operations.as_slice() else {
+        return false;
+    };
+    if !matches!(
+        zero.kind,
+        OperationKind::IntegerConstant {
+            value: IntegerValue::Unsigned(0)
+        }
+    ) {
+        return false;
+    }
+    let Some(zero_value) = scalar_result(zero) else {
+        return false;
+    };
+    if !matches!(
+        compare.kind,
+        OperationKind::IntegerLessThan { left, right }
+            if left == zero_value && right == ranked.rank_parameter
+    ) {
+        return false;
+    }
+    let Some(condition) = scalar_result(compare) else {
+        return false;
+    };
+    let Terminator::Conditional {
+        condition: terminator_condition,
+        when_true,
+        when_false,
+    } = &header.terminator
+    else {
+        return false;
+    };
+    let TerminalRankedGuard::UnsignedParameterPositive {
+        block: guard_block,
+        edge: guard_edge,
+        condition: guard_condition,
+        parameter: guard_parameter,
+    } = covered.guard;
+    if *terminator_condition != condition
+        || guard_block != ranked.header
+        || guard_edge != when_true.edge
+        || when_true.target != covered.source
+        || guard_condition != condition
+        || guard_parameter != ranked.rank_parameter
+    {
+        return false;
+    }
+    let Some(decrement) = block(covered.source) else {
+        return false;
+    };
+    let [one, subtract] = decrement.operations.as_slice() else {
+        return false;
+    };
+    if !matches!(
+        one.kind,
+        OperationKind::IntegerConstant {
+            value: IntegerValue::Unsigned(1)
+        }
+    ) {
+        return false;
+    }
+    let Some(one_value) = scalar_result(one) else {
+        return false;
+    };
+    let OperationKind::ExactIntegerSubtract {
+        left,
+        right,
+        obligation,
+    } = subtract.kind
+    else {
+        return false;
+    };
+    if left != ranked.rank_parameter || right != one_value {
+        return false;
+    }
+    let Some(subtract_value) = scalar_result(subtract) else {
+        return false;
+    };
+    let TerminalRankedSuccessorArgument::UnsignedParameterMinusOne {
+        argument_index,
+        argument,
+        source_parameter,
+        target_parameter,
+    } = covered.successor_argument;
+    if argument != subtract_value
+        || source_parameter != ranked.rank_parameter
+        || target_parameter != ranked.rank_parameter
+    {
+        return false;
+    }
+    let Terminator::Jump {
+        edge: backedge,
+        target: backedge_target,
+        arguments: backedge_arguments,
+        ..
+    } = &decrement.terminator
+    else {
+        return false;
+    };
+    let Ok(argument_index) = usize::try_from(argument_index) else {
+        return false;
+    };
+    if *backedge != covered.edge
+        || *backedge_target != covered.target
+        || covered.target != ranked.header
+        || backedge_arguments.get(argument_index) != Some(&subtract_value)
+    {
+        return false;
+    }
+    let Some(done) = block(when_false.target) else {
+        return false;
+    };
+    let Terminator::ReturnUnit {
+        edge: return_edge,
+        trivial_affine_discards,
+    } = &done.terminator
+    else {
+        return false;
+    };
+    let [structural] = machine.structural_parameters.as_slice() else {
+        return false;
+    };
+    done.operations.is_empty()
+        && trivial_affine_discards.as_slice() == [structural.place]
+        && graph.entry == machine.entry
+        && graph.preheader_edge == *preheader_edge
+        && graph.initial_value == initial_value
+        && graph.zero_operation == zero.id
+        && graph.zero_value == zero_value
+        && graph.compare_operation == compare.id
+        && graph.false_exit_edge == when_false.edge
+        && graph.done_block == done.id
+        && graph.one_operation == one.id
+        && graph.one_value == one_value
+        && graph.subtract_operation == subtract.id
+        && graph.subtract_obligation == obligation
+        && graph.return_edge == *return_edge
+}
+
+fn scalar_result(operation: &Operation) -> Option<psi_core::ValueId> {
+    let OperationResult::Scalar(result) = operation.result else {
+        return None;
+    };
+    Some(result.id)
 }
 
 fn ranked_body_is_exclusive(function: &MachineCodeFunction) -> bool {

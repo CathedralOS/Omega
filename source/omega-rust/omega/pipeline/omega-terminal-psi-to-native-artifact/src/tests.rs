@@ -299,6 +299,71 @@ fn ranked_native_dispatch_emits_exact_machine_body_and_logical_fuel_sites() {
         assert_invalid(&corrupted);
 
         let mut corrupted = emitted.clone();
+        let replacement = psi_core::OperationId::new(99).unwrap();
+        let original = corrupted.functions[0]
+            .ranked_u32_countdown
+            .as_ref()
+            .unwrap()
+            .custody
+            .graph
+            .zero_operation;
+        corrupted.functions[0]
+            .ranked_u32_countdown
+            .as_mut()
+            .unwrap()
+            .custody
+            .graph
+            .zero_operation = replacement;
+        corrupted.functions[0].provenance.operations[0] = replacement;
+        corrupted.functions[0]
+            .fuel_attribution
+            .iter_mut()
+            .find(|row| row.site == omega_machine_code::NativeFuelSite::Operation(original))
+            .unwrap()
+            .site = omega_machine_code::NativeFuelSite::Operation(replacement);
+        assert_invalid(&corrupted);
+
+        let mut corrupted = emitted.clone();
+        let mut extra_type = corrupted.functions[0]
+            .ranked_u32_countdown
+            .as_ref()
+            .unwrap()
+            .structural_types[0]
+            .clone();
+        extra_type.id = psi_core::StructuralTypeId::new(99).unwrap();
+        extra_type.identity.push_str("::substituted");
+        corrupted.functions[0]
+            .ranked_u32_countdown
+            .as_mut()
+            .unwrap()
+            .structural_types
+            .push(extra_type);
+        assert_invalid(&corrupted);
+
+        let mut corrupted = emitted.clone();
+        let substituted_shape = omega_calling_conventions::ValueShape::integer(8, 8);
+        let substituted_call_plan = omega_calling_conventions::evaluate_call_plan(
+            omega_calling_conventions::CallingPolicy::native_for_target(target),
+            &omega_calling_conventions::CallSignature {
+                parameters: vec![
+                    omega_calling_conventions::ValueShape::integer(4, 4),
+                    substituted_shape,
+                ],
+                result: None,
+            },
+        )
+        .unwrap();
+        let substituted_placement = substituted_call_plan.parameters[1].clone();
+        let ranked = corrupted.functions[0]
+            .ranked_u32_countdown
+            .as_mut()
+            .unwrap();
+        ranked.structural_parameters[0].shape = substituted_shape;
+        ranked.structural_parameters[0].placement = substituted_placement;
+        ranked.call_plan = substituted_call_plan;
+        assert_invalid(&corrupted);
+
+        let mut corrupted = emitted.clone();
         corrupted.functions[0]
             .ranked_u32_countdown
             .as_mut()

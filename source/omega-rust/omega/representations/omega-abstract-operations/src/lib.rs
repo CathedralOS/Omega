@@ -88,6 +88,9 @@ pub struct RankedNativeAbstractOperationPlan {
 /// are not replaced by producer-authored hashes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RankedU32CountdownCustody {
+    /// Opaque verifier-issued exact semantic subject. Downstream boundaries
+    /// use it to reject coherent rewrites of the public projected coordinates.
+    pub verifier_replay: psi_terminal_verifier::VerifiedNativeRankedReplay,
     pub ranked_scc: TerminalRankedScc,
     pub fixed_fuel: FixedEntryFuelCertificate,
     pub graph: RankedU32CountdownGraph,

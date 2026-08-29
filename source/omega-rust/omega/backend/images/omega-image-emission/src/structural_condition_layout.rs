@@ -44,6 +44,9 @@ fn replay_structural_shape(
                     .checked_add(u32::from(field_shape.byte_size))?;
             }
             byte_size = checked_align_up(byte_size, u32::from(alignment))?;
+            if byte_size == 0 && !fields.is_empty() {
+                return None;
+            }
             ValueShape::integer(u16::try_from(byte_size).ok()?, alignment)
         }
         psi_terminal::StructuralTypeShape::FixedArray { element, length } => {
@@ -64,6 +67,23 @@ fn replay_structural_shape(
     active.remove(&structural_type);
     cache.insert(structural_type, shape);
     Some(shape)
+}
+
+/// Reconstruct one complete native value shape from exact Terminal
+/// declarations. Ranked object replay uses this independently of the public
+/// target projection so a coordinated shape/call-plan rewrite cannot become
+/// self-authorizing.
+pub(super) fn replay_structural_value_shape(
+    structural_type: StructuralTypeId,
+    declarations: &[psi_terminal::StructuralTypeDeclaration],
+) -> Option<ValueShape> {
+    let declarations = declarations
+        .iter()
+        .map(|declaration| (declaration.id, declaration))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    let mut cache = std::collections::BTreeMap::new();
+    let mut active = std::collections::BTreeSet::new();
+    replay_structural_shape(structural_type, &declarations, &mut cache, &mut active)
 }
 
 fn replay_structural_field_shape(
