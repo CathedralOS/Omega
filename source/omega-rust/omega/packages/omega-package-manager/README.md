@@ -35,6 +35,8 @@ confined native execution from
 Source acquisition owns syntax-neutral source lineage and immutable custody.
 The manager's `identity/` owns package-authored names, requester aliases, and
 source-qualified package keys. Acquisition cannot select or admit a closure.
+Authored workspace-member paths remain build declarations; the manager converts
+them explicitly to source-owned validated relative paths at the custody edge.
 `resolution/source/` performs the declaration join before
 `resolution/closure/` derives closure-owned identities.
 

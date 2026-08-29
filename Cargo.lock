@@ -1124,7 +1124,6 @@ dependencies = [
  "cap-fs-ext",
  "cap-std",
  "nix",
- "omega-build-declarations",
  "omega-platform-custody",
  "omega-resolver-execution",
  "sha1-checked",

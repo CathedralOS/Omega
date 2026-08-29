@@ -1,6 +1,6 @@
 //! Navigation from one authenticated acquisition root to one package root.
 
-use omega_package_source::WorkspaceMemberPath;
+use omega_package_source::SourceRelativePath;
 
 /// Operational package location inside an acquired source.
 ///
@@ -9,11 +9,11 @@ use omega_package_source::WorkspaceMemberPath;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageSourceNavigation {
     Root,
-    Member(WorkspaceMemberPath),
+    Member(SourceRelativePath),
 }
 
 impl PackageSourceNavigation {
-    pub const fn member_path(&self) -> Option<&WorkspaceMemberPath> {
+    pub const fn member_path(&self) -> Option<&SourceRelativePath> {
         match self {
             Self::Root => None,
             Self::Member(path) => Some(path),

@@ -1,7 +1,7 @@
 use super::super::super::ResolvedSourceIdentity;
 use crate::identity::{AliasName, PackageKey, PackageName};
 use crate::manifest::dependencies::read::{DependencySourceRequest, PackageSelection};
-use omega_package_source::{ExternalSourceContext, SourceLineage, WorkspaceMemberPath};
+use omega_package_source::{ExternalSourceContext, SourceLineage, SourceRelativePath};
 
 /// Exact caller request for the root source, before normalized selection.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -13,7 +13,7 @@ pub enum CanonicalRootSourceRequest {
     },
     WorkspaceMember {
         workspace_root_source: SourceLineage,
-        member_path: WorkspaceMemberPath,
+        member_path: SourceRelativePath,
         /// Exact platform-encoded caller spelling. This is not a cache path.
         requested_workspace_root: Vec<u8>,
     },

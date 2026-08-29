@@ -13,6 +13,6 @@ pub use dependencies::{
 };
 pub use roles::{
     ApplicationDeclaration, BuildDeclaration, BuildDeclarationError, BuildDeclarationKind,
-    PackageDeclaration, PackageDeclarationError, WorkspaceDeclaration, extract_build_declaration,
-    extract_package_declaration,
+    PackageDeclaration, PackageDeclarationError, WorkspaceDeclaration, WorkspaceMemberPath,
+    extract_build_declaration, extract_package_declaration,
 };

@@ -8,9 +8,10 @@ use crate::resolution::source::{
     GitPackageSourceRequest, GitWorkspaceSelectionEvidence, PackageSourceCustody,
     PackageSourceSelectionEvidence, ResolvePackageSourceError,
 };
+use omega_build_declarations::WorkspaceMemberPath;
 use omega_package_source::{
     GitSourceRequest, ImmutableSourceResolution, LocalSourceLimits, SourceLineage,
-    WorkspaceLineageIdentity, WorkspaceMemberPath,
+    WorkspaceLineageIdentity,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -57,7 +58,7 @@ pub(in super::super) fn register_git_repository(
                 .plan()
                 .members()
                 .iter()
-                .map(|member| WorkspaceMemberPath::from(member.member_path().clone()))
+                .map(|member| member.member_path().clone())
                 .collect(),
             Some(GitRepositoryWorkspaceEvidence {
                 workspace: evidence.plan().workspace_evidence().clone(),
@@ -91,15 +92,13 @@ pub(super) fn workspace_member_selection(
     repository: &GitRepositoryContext,
     member_path: &WorkspaceMemberPath,
 ) -> GitWorkspaceSelectionEvidence {
-    let shared_path = omega_build_declarations::WorkspaceMemberPath::parse(member_path.as_str())
-        .expect("package-source and build-declaration member paths share one grammar");
     repository
         .workspace_evidence
         .as_ref()
         .and_then(|evidence| {
             evidence
                 .workspace
-                .select_declared_member(&shared_path)
+                .select_declared_member(member_path)
                 .map(|plan| GitWorkspaceSelectionEvidence::new(plan, evidence.declarations.clone()))
         })
         .expect("declared Git member set and retained workspace selection are one custody value")

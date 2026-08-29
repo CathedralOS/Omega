@@ -1,5 +1,7 @@
 use super::{AliasName, PackageKey, PackageName};
-use omega_package_source::SourceLineage;
+use omega_package_source::{
+    SourceLineage, SourceRelativePath, WorkspaceLineageIdentity, WorkspaceMemberLineage,
+};
 
 fn package_name() -> PackageName {
     PackageName::parse("arithmetic-kernels").unwrap()
@@ -104,6 +106,26 @@ fn package_key_identity_uses_canonical_name_and_source_lineage() {
             0x8a, 0xbb, 0x4a, 0x34, 0x3b, 0xf9, 0x0f, 0xa2, 0x95, 0x8e, 0x85, 0x8b, 0x18, 0xb0,
             0x30, 0x66, 0xa1, 0xb7, 0x4d, 0xa2, 0x95, 0x20, 0xd5, 0x8a, 0x7e, 0xed, 0x84, 0x06,
             0xa3, 0xe9, 0x63, 0xe5,
+        ]
+    );
+}
+
+#[test]
+fn workspace_package_key_identity_preserves_its_canonical_encoding() {
+    let root = lineage("https://github.com/CathedralOS/workspace.git");
+    let workspace = WorkspaceLineageIdentity::from_root_source(&root).unwrap();
+    let member = SourceLineage::Workspace(WorkspaceMemberLineage::new(
+        workspace,
+        SourceRelativePath::parse("packages/arithmetic-kernels").unwrap(),
+    ));
+    let key = PackageKey::new(package_name(), member);
+
+    assert_eq!(
+        key.identity().digest(),
+        [
+            0x86, 0x83, 0x17, 0xae, 0xe8, 0x66, 0x31, 0x16, 0x1c, 0xdf, 0x15, 0xf0, 0xe0, 0xd3,
+            0x8f, 0xc5, 0x6a, 0x0a, 0x96, 0x91, 0xcf, 0x04, 0x00, 0x84, 0x39, 0xc2, 0xc3, 0xaf,
+            0x71, 0x95, 0x58, 0x9a,
         ]
     );
 }

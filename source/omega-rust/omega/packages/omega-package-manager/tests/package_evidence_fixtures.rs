@@ -24,8 +24,7 @@ use omega_package_review::{
     decode_ordinary_package_obligation_ledger, encode_ordinary_package_obligation_ledger,
 };
 use omega_package_source::{
-    LocalSourceLimits, SourceLineage, SourceResolveError, SourceResolverStorage,
-    WorkspaceMemberPath,
+    LocalSourceLimits, SourceLineage, SourceRelativePath, SourceResolveError, SourceResolverStorage,
 };
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};

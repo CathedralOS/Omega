@@ -1,7 +1,7 @@
 use super::*;
 use crate::identity::{AliasName, PackageName};
 use omega_package_source::{
-    GitCommitId, GitTreeId, ImmutableSourceResolution, SourceLineage, WorkspaceMemberPath,
+    GitCommitId, GitTreeId, ImmutableSourceResolution, SourceLineage, SourceRelativePath,
 };
 
 fn finish(
@@ -100,7 +100,7 @@ fn root_git_package_selection_and_navigation_change_the_subject() {
     );
     let named_member = subject(
         crate::manifest::PackageSelection::Named(PackageName::parse("matrix").unwrap()),
-        PackageSourceNavigation::Member(WorkspaceMemberPath::parse("packages/matrix").unwrap()),
+        PackageSourceNavigation::Member(SourceRelativePath::parse("packages/matrix").unwrap()),
     );
 
     assert_eq!(repository_root.packages(), named_member.packages());
@@ -141,7 +141,7 @@ fn git_package_selection_is_canonical_request_custody_not_package_identity() {
                 vec![PackageSourceNavigation::Root, PackageSourceNavigation::Root]
             }
             crate::manifest::PackageSelection::Named(_) => vec![
-                PackageSourceNavigation::Member(WorkspaceMemberPath::parse("child").unwrap()),
+                PackageSourceNavigation::Member(SourceRelativePath::parse("child").unwrap()),
                 PackageSourceNavigation::Root,
             ],
         };
@@ -177,7 +177,7 @@ fn git_package_selection_is_canonical_request_custody_not_package_identity() {
         root_git_selection("https://github.com/CathedralOS/workspace.git", &root),
         vec![child.clone(), root.clone()],
         vec![
-            PackageSourceNavigation::Member(WorkspaceMemberPath::parse("child").unwrap()),
+            PackageSourceNavigation::Member(SourceRelativePath::parse("child").unwrap()),
             PackageSourceNavigation::Root,
         ],
         vec![request(crate::manifest::PackageSelection::Named(

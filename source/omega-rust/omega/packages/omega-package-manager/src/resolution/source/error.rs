@@ -2,8 +2,8 @@ use crate::manifest::dependencies::read::DependencyProjectionError;
 use crate::manifest::roles::PackageDeclarationError;
 use crate::resolution::source::git::workspace::GitWorkspaceSelectionError;
 use omega_package_source::IdentityError;
+use omega_package_source::SourceRelativePath;
 use omega_package_source::SourceResolveError;
-use omega_package_source::WorkspaceMemberPath;
 use std::fmt;
 use std::path::PathBuf;
 
@@ -26,7 +26,7 @@ pub enum ResolvePackageSourceError {
     },
     GitWorkspaceSelection(GitWorkspaceSelectionError),
     GitWorkspaceMemberNavigation {
-        member_path: WorkspaceMemberPath,
+        member_path: SourceRelativePath,
         message: String,
     },
 }

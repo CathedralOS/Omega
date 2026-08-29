@@ -7,8 +7,8 @@ use crate::identity::{PackageKey, PackageName};
 use crate::resolution::closure::ResolvedSourceIdentity;
 use omega_package_source::{
     ExternalLocalLineage, ExternalSourceContext, GitCommitId, GitTransport, GitTreeId,
-    ImmutableSourceResolution, SourceContentDigest, SourceLineage, WorkspaceLineageIdentity,
-    WorkspaceMemberLineage, WorkspaceMemberPath,
+    ImmutableSourceResolution, SourceContentDigest, SourceLineage, SourceRelativePath,
+    WorkspaceLineageIdentity, WorkspaceMemberLineage,
 };
 
 pub(super) fn encode_source_identity(
@@ -181,7 +181,7 @@ pub(super) fn decode_source_lineage(
                 .map_err(|_| {
                     CanonicalSourceClosureSubjectError::new("invalid workspace lineage identity")
                 })?;
-            let member = WorkspaceMemberPath::parse(&decoder.string(maximum_identity_bytes)?)
+            let member = SourceRelativePath::parse(&decoder.string(maximum_identity_bytes)?)
                 .map_err(|_| {
                     CanonicalSourceClosureSubjectError::new("invalid workspace member path")
                 })?;

@@ -6,8 +6,8 @@ use crate::resolution::source::{
 #[cfg(unix)]
 use omega_package_source::SourceResolveError;
 use omega_package_source::{
-    IdentityError, ImmutableSourceResolution, LocalSourceLimits, SourceLineage,
-    WorkspaceLineageIdentity, WorkspaceMemberLineage, WorkspaceMemberPath,
+    IdentityError, ImmutableSourceResolution, LocalSourceLimits, SourceLineage, SourceRelativePath,
+    WorkspaceLineageIdentity, WorkspaceMemberLineage,
 };
 
 #[test]
@@ -36,7 +36,7 @@ fn workspace_member_resolution_binds_root_lineage_path_and_member_snapshot() {
         SourceLineage::git("https://github.com/CathedralOS/omega-workspace.git")
             .expect("workspace root lineage");
     let member_path =
-        WorkspaceMemberPath::parse("packages/arithmetic-kernels").expect("normalized member path");
+        SourceRelativePath::parse("packages/arithmetic-kernels").expect("normalized member path");
     let expected_workspace_identity =
         WorkspaceLineageIdentity::from_root_source(&workspace_root_source)
             .expect("workspace identity");
@@ -108,7 +108,7 @@ fn workspace_member_resolution_rejects_member_path_symlink_escape() {
     let error = crate::resolution::resolve_workspace_member_package_source_with_storage(
         &SourceLineage::git("https://github.com/CathedralOS/workspace.git")
             .expect("workspace lineage"),
-        WorkspaceMemberPath::parse("packages/escaped").expect("member path"),
+        SourceRelativePath::parse("packages/escaped").expect("member path"),
         &workspace,
         &storage,
         LocalSourceLimits::default(),
@@ -152,7 +152,7 @@ fn workspace_member_resolution_retains_member_tree_symlink_containment() {
     let error = resolve_workspace_member_package_source(
         &SourceLineage::git("https://github.com/CathedralOS/workspace.git")
             .expect("workspace lineage"),
-        WorkspaceMemberPath::parse("packages/member").expect("member path"),
+        SourceRelativePath::parse("packages/member").expect("member path"),
         &workspace,
         &cache,
         LocalSourceLimits::default(),
@@ -176,12 +176,12 @@ fn workspace_member_resolution_rejects_recursive_workspace_lineage() {
         .expect("root source lineage");
     let recursive_source = SourceLineage::Workspace(WorkspaceMemberLineage::new(
         WorkspaceLineageIdentity::from_root_source(&root_source).expect("workspace identity"),
-        WorkspaceMemberPath::parse("packages/parent").expect("parent member path"),
+        SourceRelativePath::parse("packages/parent").expect("parent member path"),
     ));
 
     let error = resolve_workspace_member_package_source(
         &recursive_source,
-        WorkspaceMemberPath::parse("packages/child").expect("child member path"),
+        SourceRelativePath::parse("packages/child").expect("child member path"),
         temp_root("recursive-workspace"),
         temp_root("recursive-cache"),
         LocalSourceLimits::default(),

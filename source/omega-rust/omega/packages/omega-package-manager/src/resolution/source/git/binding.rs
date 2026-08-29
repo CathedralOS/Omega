@@ -6,6 +6,7 @@ use super::super::{
     PackageSourceSelectionEvidence, ResolvePackageSourceError, ResolvedPackageSource,
 };
 use crate::identity::PackageKey;
+use crate::resolution::source::workspace_path::source_relative_path;
 use omega_package_source::{
     GitCommitId, GitTreeId, ImmutableSourceResolution, LocalSourceLimits, ResolvedGitSource,
     SourceLineage,
@@ -19,15 +20,12 @@ pub(super) fn bind_projected_git_package_source(
 ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
     let projection = source.workspace_projection().ok_or_else(|| {
         ResolvePackageSourceError::GitWorkspaceMemberNavigation {
-            member_path: omega_package_source::WorkspaceMemberPath::from(
-                selection_evidence.plan().selected_member_path().clone(),
-            ),
+            member_path: source_relative_path(selection_evidence.plan().selected_member_path()),
             message: "selective source result omitted workspace projection custody".to_owned(),
         }
     })?;
-    let selected_member_path = omega_package_source::WorkspaceMemberPath::from(
-        selection_evidence.plan().selected_member_path().clone(),
-    );
+    let selected_member_path =
+        source_relative_path(selection_evidence.plan().selected_member_path());
     if projection.selected_member_path() != &selected_member_path
         || projection.selected_member_tree() != source.materialized_tree()
     {

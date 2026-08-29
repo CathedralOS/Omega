@@ -1,7 +1,7 @@
 use super::super::*;
 use super::support::*;
 use crate::resolution::{ResolvedPackageSource, resolve_workspace_member_package_source};
-use omega_package_source::{LocalSourceLimits, SourceLineage, WorkspaceMemberPath};
+use omega_package_source::{LocalSourceLimits, SourceLineage, SourceRelativePath};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -124,7 +124,7 @@ fn resolves_the_authored_local_graph_fixture() {
             .expect("fixture workspace lineage");
     let root = resolve_workspace_member_package_source(
         &workspace_source,
-        WorkspaceMemberPath::parse("graph-workbench").expect("root member path"),
+        SourceRelativePath::parse("graph-workbench").expect("root member path"),
         &fixtures,
         &cache,
         LocalSourceLimits::default(),
@@ -136,7 +136,7 @@ fn resolves_the_authored_local_graph_fixture() {
     let closure = resolve_package_source_closure(
         PackageRootSourceRequest::WorkspaceMember {
             workspace_root_source: workspace_source.clone(),
-            member_path: WorkspaceMemberPath::parse("graph-workbench").expect("root member path"),
+            member_path: SourceRelativePath::parse("graph-workbench").expect("root member path"),
             requested_workspace_root: fixtures.clone(),
         },
         root,

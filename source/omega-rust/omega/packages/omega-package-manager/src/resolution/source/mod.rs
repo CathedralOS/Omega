@@ -13,6 +13,7 @@ mod projection;
 mod resolved;
 mod selection;
 mod workspace;
+pub(crate) mod workspace_path;
 
 pub use custody::PackageSourceCustody;
 pub use error::ResolvePackageSourceError;

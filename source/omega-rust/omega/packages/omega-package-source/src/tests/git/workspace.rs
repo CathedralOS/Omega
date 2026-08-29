@@ -1,7 +1,7 @@
 use super::*;
 
 struct FixedWorkspacePlanner {
-    member: WorkspaceMemberPath,
+    member: SourceRelativePath,
 }
 
 impl GitWorkspaceProjectionPlanner for FixedWorkspacePlanner {
@@ -11,7 +11,7 @@ impl GitWorkspaceProjectionPlanner for FixedWorkspacePlanner {
     fn discover_members(
         &mut self,
         root_declaration: &GitWorkspaceDeclaration,
-    ) -> Result<Vec<WorkspaceMemberPath>, Self::Error> {
+    ) -> Result<Vec<SourceRelativePath>, Self::Error> {
         if root_declaration.bytes() != b"workspace declaration\n" {
             return Err("unexpected root declaration");
         }
@@ -68,7 +68,7 @@ fn selected_workspace_member_never_materializes_unrelated_repository_payloads() 
     let storage =
         SourceResolverStorage::for_hardened_base(&storage_base).expect("retain resolver storage");
     let request = local_git_request(&repository, "HEAD");
-    let member = WorkspaceMemberPath::parse("packages/member").expect("member path");
+    let member = SourceRelativePath::parse("packages/member").expect("member path");
     let mut planner = FixedWorkspacePlanner {
         member: member.clone(),
     };

@@ -7,13 +7,14 @@ use super::external_local::{
     resolve_external_dependency, resolve_external_dependency_from_root, workspace_requester_root,
 };
 use crate::identity::PackageKey;
+use crate::resolution::source::workspace_path::source_relative_path;
 use crate::resolution::source::{
     GitPackageSourceRequest, PackageSourceCustody, PackageSourceNavigation,
     ResolvePackageSourceError,
 };
+use omega_build_declarations::WorkspaceMemberPath;
 use omega_package_source::{
     ExternalSourceContext, LocalSourceLimits, SourceLineage, WorkspaceLineageIdentity,
-    WorkspaceMemberPath,
 };
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -74,7 +75,8 @@ pub(super) fn resolve_path_dependency(
                     workspace_cache,
                     repository.source_limits,
                 )?;
-                if resolved.navigation() != &PackageSourceNavigation::Member(member_path.clone())
+                let source_path = source_relative_path(&member_path);
+                if resolved.navigation() != &PackageSourceNavigation::Member(source_path)
                     || resolved.resolution() != &repository.resolution
                 {
                     return Err(ResolveDependencySourceError::ConflictingWorkspaceRoot {
@@ -85,7 +87,7 @@ pub(super) fn resolve_path_dependency(
             }
             WorkspaceContextKind::Local { root, .. } => resolve_workspace_member_from_cache(
                 &context.root_source,
-                member_path,
+                source_relative_path(&member_path),
                 root,
                 workspace_cache,
                 source_limits,
@@ -186,7 +188,7 @@ fn normalize_member_path(
             "path resolves to the workspace root",
         ));
     }
-    WorkspaceMemberPath::parse(&components.join("/"))
+    WorkspaceMemberPath::parse(components.join("/"))
         .map_err(|error| invalid_path(location, &error.to_string()))
 }
 

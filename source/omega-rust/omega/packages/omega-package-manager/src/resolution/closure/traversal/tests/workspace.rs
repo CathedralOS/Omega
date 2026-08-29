@@ -8,7 +8,7 @@ fn resolves_explicit_workspace_path_closure() {
         .expect("create production-shaped private resolver storage");
     let closure = resolve_workspace_package_closure_with_storage(
         &fixture_lineage(),
-        WorkspaceMemberPath::parse("graph-workbench").expect("root member"),
+        SourceRelativePath::parse("graph-workbench").expect("root member"),
         fixture_root(),
         &storage,
         LocalSourceLimits::default(),
@@ -67,7 +67,7 @@ fn resolves_nested_paths_relative_to_each_requester() {
 
     let closure = resolve_workspace_package_closure(
         &fixture_lineage(),
-        WorkspaceMemberPath::parse("packages/root").expect("root member"),
+        SourceRelativePath::parse("packages/root").expect("root member"),
         &workspace,
         &cache,
         LocalSourceLimits::default(),
@@ -98,7 +98,7 @@ fn contextual_workspace_escape_becomes_external_local_lineage() {
 
     let closure = resolve_workspace_package_closure_in_context(
         &fixture_lineage(),
-        WorkspaceMemberPath::parse("packages/root").expect("root member"),
+        SourceRelativePath::parse("packages/root").expect("root member"),
         &workspace,
         source_context.clone(),
         &cache,
@@ -122,7 +122,7 @@ fn contextual_workspace_escape_becomes_external_local_lineage() {
     write_package(&root, "root-package", Some("../../../external/"));
     let malformed = resolve_workspace_package_closure_in_context(
         &fixture_lineage(),
-        WorkspaceMemberPath::parse("packages/root").expect("root member"),
+        SourceRelativePath::parse("packages/root").expect("root member"),
         &workspace,
         source_context,
         &cache,
@@ -164,7 +164,7 @@ fn rejects_workspace_escape_before_resolving_the_target() {
 
     let error = resolve_workspace_package_closure(
         &fixture_lineage(),
-        WorkspaceMemberPath::parse("packages/root").expect("root member"),
+        SourceRelativePath::parse("packages/root").expect("root member"),
         &workspace,
         &cache,
         LocalSourceLimits::default(),

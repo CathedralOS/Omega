@@ -7,7 +7,7 @@ use omega_package_manager::review::{
     compile_resolved_package_reviews,
 };
 use omega_package_source::{
-    LocalSourceLimits, SourceLineage, SourceResolverStorage, WorkspaceMemberPath,
+    LocalSourceLimits, SourceLineage, SourceRelativePath, SourceResolverStorage,
 };
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -33,7 +33,7 @@ fn temporary_root(label: &str) -> PathBuf {
 
 fn resolve_workspace_package_closure(
     workspace_root_source: &SourceLineage,
-    root_member_path: WorkspaceMemberPath,
+    root_member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
     cache_dir: impl AsRef<Path>,
     source_limits: LocalSourceLimits,
@@ -64,7 +64,7 @@ fn graph_workbench_question() -> (
     let workspace_lineage = SourceLineage::git("https://github.com/CathedralOS/Omega.git").unwrap();
     let closure = resolve_workspace_package_closure(
         &workspace_lineage,
-        WorkspaceMemberPath::parse("graph-workbench").unwrap(),
+        SourceRelativePath::parse("graph-workbench").unwrap(),
         &fixture_root,
         temporary.join("cache"),
         LocalSourceLimits::default(),
@@ -145,7 +145,7 @@ fn exact_nested_source_request_changes_question_with_identical_ledgers_and_fresh
     let workspace_lineage = SourceLineage::git("https://github.com/CathedralOS/Omega.git").unwrap();
     let alternate_closure = resolve_workspace_package_closure(
         &workspace_lineage,
-        WorkspaceMemberPath::parse("graph-workbench").unwrap(),
+        SourceRelativePath::parse("graph-workbench").unwrap(),
         &alternate_request_spelling,
         temporary.join("alternate-cache"),
         LocalSourceLimits::default(),

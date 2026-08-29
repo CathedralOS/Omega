@@ -7,8 +7,8 @@ use omega_package_manager::resolution::{
     resolve_workspace_package_closure_with_storage,
 };
 use omega_package_source::{
-    ExternalSourceContext, LocalSourceLimits, SourceLineage, SourceResolverStorage,
-    WorkspaceMemberPath,
+    ExternalSourceContext, LocalSourceLimits, SourceLineage, SourceRelativePath,
+    SourceResolverStorage,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -102,7 +102,7 @@ fn resolve_external_local_package_closure(
 
 fn resolve_workspace_package_closure(
     workspace_root_source: &SourceLineage,
-    root_member_path: WorkspaceMemberPath,
+    root_member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
     cache_dir: impl AsRef<Path>,
     source_limits: LocalSourceLimits,
@@ -383,7 +383,7 @@ fn workspace_member_requests_round_trip_without_cache_identity() {
     let limits = CanonicalSourceClosureSubjectLimits::default();
     let closure = resolve_workspace_package_closure(
         &workspace_source,
-        WorkspaceMemberPath::parse("root").expect("root member path"),
+        SourceRelativePath::parse("root").expect("root member path"),
         &workspace,
         tree.path("workspace-cache-a"),
         LocalSourceLimits::default(),
@@ -410,7 +410,7 @@ fn workspace_member_requests_round_trip_without_cache_identity() {
 
     let relocated = resolve_workspace_package_closure(
         &workspace_source,
-        WorkspaceMemberPath::parse("root").expect("root member path"),
+        SourceRelativePath::parse("root").expect("root member path"),
         &workspace,
         tree.path("workspace-cache-b"),
         LocalSourceLimits::default(),

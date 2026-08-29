@@ -12,7 +12,6 @@ path = "src/lib.rs"
 test-fixtures = []
 
 [dependencies]
-omega-build-declarations = { path = "../../build/omega-build-declarations" }
 omega-platform-custody = { path = "../../tooling/omega-platform-custody" }
 omega-resolver-execution = { path = "../omega-resolver-execution" }
 cap-fs-ext = "4.0.3"

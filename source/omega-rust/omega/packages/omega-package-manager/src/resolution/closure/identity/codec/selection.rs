@@ -15,7 +15,7 @@ use crate::identity::{AliasName, PackageName};
 use crate::manifest::dependencies::read::PackageSelection;
 use crate::resolution::closure::ResolvedSourceIdentity;
 use crate::resolution::source::PackageSourceNavigation;
-use omega_package_source::{ExternalSourceContext, WorkspaceMemberPath};
+use omega_package_source::{ExternalSourceContext, SourceRelativePath};
 
 pub(in super::super) fn encode_subject(
     root: &CanonicalRootSourceSelection,
@@ -97,7 +97,7 @@ pub(in super::super) fn decode_root_selection(
         },
         1 => CanonicalRootSourceRequest::WorkspaceMember {
             workspace_root_source: decode_source_lineage(decoder, limits.maximum_identity_bytes)?,
-            member_path: WorkspaceMemberPath::parse(&decoder.string(limits.maximum_request_bytes)?)
+            member_path: SourceRelativePath::parse(&decoder.string(limits.maximum_request_bytes)?)
                 .map_err(|_| {
                     CanonicalSourceClosureSubjectError::new(
                         "invalid workspace member path in root request",
@@ -251,7 +251,7 @@ pub(in super::super) fn decode_package_navigation(
 ) -> Result<PackageSourceNavigation, CanonicalSourceClosureSubjectError> {
     match decoder.byte()? {
         0 => Ok(PackageSourceNavigation::Root),
-        1 => WorkspaceMemberPath::parse(&decoder.string(maximum_request_bytes)?)
+        1 => SourceRelativePath::parse(&decoder.string(maximum_request_bytes)?)
             .map(PackageSourceNavigation::Member)
             .map_err(|_| CanonicalSourceClosureSubjectError::new("invalid package navigation")),
         _ => Err(CanonicalSourceClosureSubjectError::new(
