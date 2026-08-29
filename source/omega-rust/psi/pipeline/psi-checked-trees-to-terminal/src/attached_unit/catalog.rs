@@ -505,7 +505,7 @@ pub(super) fn lower_unit_services(
         }
     }
     for (boundary, _) in boundaries {
-        collect_contract_services(
+        collect_published_contract_services(
             &facts.rows,
             boundary.contract_service_reach,
             boundary.service_reach,
@@ -685,14 +685,8 @@ pub(crate) fn collect_contract_services(
             "Unit contract reach does not match the exact checked transitive reach",
         );
     }
-    let published = match contract.interface {
-        ServiceReachInterface::PublishedCeiling(row) => row,
-        ServiceReachInterface::InternalInferred => {
-            if rows.services(summary.transitive).is_empty() {
-                return Ok(());
-            }
-            return unsupported("effectful Unit machine has no published service ceiling");
-        }
+    let ServiceReachInterface::PublishedCeiling(published) = contract.interface else {
+        return Ok(());
     };
     require_valid_service_row(published)?;
     let ceiling = rows.services(published);
@@ -709,6 +703,18 @@ pub(crate) fn collect_contract_services(
         }
     }
     Ok(())
+}
+
+pub(crate) fn collect_published_contract_services(
+    rows: &psi_language_semantics::ServiceReachRowTable,
+    contract: ServiceReachPlan,
+    summary: ServiceReachSummary,
+    selected: &mut Vec<ServiceReachId>,
+) -> Result<(), LoweringError> {
+    if matches!(contract.interface, ServiceReachInterface::InternalInferred) {
+        return unsupported("public Unit contract has no published service ceiling");
+    }
+    collect_contract_services(rows, contract, summary, selected)
 }
 
 pub(crate) fn collect_installation_machine_contract_services(

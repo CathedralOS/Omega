@@ -61,7 +61,7 @@ pub(crate) fn lower_unit_parameters(
         .collect()
 }
 
-pub(crate) fn lower_published_service_ceiling(
+pub(crate) fn lower_contract_service_ceiling(
     rows: &psi_language_semantics::ServiceReachRowTable,
     contract: ServiceReachPlan,
     summary: ServiceReachSummary,
@@ -73,14 +73,17 @@ pub(crate) fn lower_published_service_ceiling(
     let source = match contract.interface {
         ServiceReachInterface::PublishedCeiling(row) => {
             require_valid_service_row(row)?;
-            rows.services(row)
+            let ceiling = rows.services(row);
+            if rows
+                .services(summary.transitive)
+                .iter()
+                .any(|service| !ceiling.contains(service))
+            {
+                return unsupported("checked Unit service reach exceeds its published ceiling");
+            }
+            ceiling
         }
-        ServiceReachInterface::InternalInferred if rows.services(summary.transitive).is_empty() => {
-            &[]
-        }
-        ServiceReachInterface::InternalInferred => {
-            return unsupported("effectful Unit machine has no published service ceiling");
-        }
+        ServiceReachInterface::InternalInferred => rows.services(summary.transitive),
     };
     let mut lowered = source
         .iter()
@@ -92,6 +95,18 @@ pub(crate) fn lower_published_service_ceiling(
         return unsupported("Unit published service ceiling contains duplicates");
     }
     Ok(lowered)
+}
+
+pub(crate) fn lower_published_service_ceiling(
+    rows: &psi_language_semantics::ServiceReachRowTable,
+    contract: ServiceReachPlan,
+    summary: ServiceReachSummary,
+    service_ids: &[(ServiceReachId, ServiceId)],
+) -> Result<Vec<ServiceId>, LoweringError> {
+    if matches!(contract.interface, ServiceReachInterface::InternalInferred) {
+        return unsupported("public Unit contract has no published service ceiling");
+    }
+    lower_contract_service_ceiling(rows, contract, summary, service_ids)
 }
 
 pub(crate) fn lower_installation_machine_service_ceiling(
@@ -128,7 +143,7 @@ pub(crate) fn lower_installation_machine_service_ceiling(
         }
         return Ok(lowered);
     }
-    lower_published_service_ceiling(
+    lower_contract_service_ceiling(
         &checked.facts.service_reaches.rows,
         contract,
         summary,

@@ -429,7 +429,7 @@ fn lower_boundary_scalar_services(
         machine.service_reach,
         &mut selected,
     )?;
-    collect_contract_services(
+    collect_published_contract_services(
         &facts.rows,
         boundary.contract_service_reach,
         boundary.service_reach,

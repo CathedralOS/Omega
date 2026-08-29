@@ -20,6 +20,7 @@ mod attached_unit_cases;
 mod content_conservation;
 mod quotient_correspondence;
 mod scalar_graph;
+mod service_reach_contracts;
 mod structural_control_cases;
 mod structural_return_cases;
 mod unit_cleanup;

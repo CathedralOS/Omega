@@ -122,13 +122,14 @@ mod unit_cleanup;
 use attached_unit::lower_root_service_reach;
 use attached_unit::{
     checked_unit_boundary_identity, checked_unit_call_closure_including,
-    checked_unit_target_reach_matches, collect_contract_services,
-    collect_installation_machine_contract_services, collect_service_summary,
-    lower_attached_unit_closure, lower_attached_unit_closure_including,
-    lower_installation_machine_service_ceiling, lower_published_service_ceiling,
-    lower_structural_arguments, lower_structural_path, lower_unit_parameters, unique_unit_machine,
-    validate_transfer_shape,
+    checked_unit_target_reach_matches, collect_installation_machine_contract_services,
+    collect_published_contract_services, collect_service_summary, lower_attached_unit_closure,
+    lower_attached_unit_closure_including, lower_installation_machine_service_ceiling,
+    lower_published_service_ceiling, lower_structural_arguments, lower_structural_path,
+    lower_unit_parameters, unique_unit_machine, validate_transfer_shape,
 };
+#[cfg(test)]
+use attached_unit::{collect_contract_services, lower_contract_service_ceiling};
 use boolean_control::{
     bind_boolean_decision, boolean_decision_block_count, boolean_decision_test_count,
     build_scalar_conditional_target, emit_inlined_boolean_guard_blocks,
