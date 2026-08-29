@@ -29,12 +29,14 @@ closed. Compiler-issued package review remains non-admitting.
   the root is retained and path-reconciled around closure operations, and Git
   and local publication staging remains beneath it.
 
-  Remaining work is to carry that retained capability through every internal
-  cache lane instead of reopening root pathnames, make the explicit-path
-  low-level resolver APIs test-only or hardened-mode-only, and migrate their
-  tests to the production private-root constructor. Cached content must remain
-  authenticated by immutable source identity and publication must remain an
-  in-root atomic rename throughout that migration.
+  Git, workspace-member, and external-local cache lanes are now created,
+  retained, and path-reconciled separately; ordinary closure and audit entry
+  points consume those lanes. Remaining work is to pass their retained handles
+  into low-level acquisition instead of reopening lane pathnames, make the
+  remaining explicit-path source/closure APIs test-only or hardened-mode-only,
+  and migrate their tests to the production private-root constructor. Cached
+  content must remain authenticated by immutable source identity and
+  publication must remain an in-root atomic rename throughout that migration.
 
   Ordinary host-installed tools now retain exact selected path/content/node
   identity without treating installation ancestry as package-cache custody.

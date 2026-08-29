@@ -311,10 +311,12 @@ Ordinary command paths now create and retain one versioned private per-user
 source root beneath the platform cache location. Compile dependency closure,
 source inspection, and source audit use that capability; they no longer choose
 a project-local cache, accept an ambient cache override, or fall back to the
-host temporary directory. Every manager-owned root component is private and
-the retained root is reconciled with its pathname around closure operations.
-Explicit-path resolver harnesses remain while their tests and deeper lane APIs
-are migrated to carry the retained capability directly.
+host temporary directory. Every manager-owned root component is private. Git,
+workspace-member, and external-local lanes are retained separately and
+reconciled around ordinary closure operations. The public source-audit path now
+requires storage; its caller-path implementation is internal-only. Other
+explicit-path resolver harnesses remain while their tests and deeper
+acquisition APIs are migrated to carry retained lane handles directly.
 Mutable local-package snapshots omit only `.git` metadata and the reserved
 root-level `build/` compiler output; package-authored ignore files do not control
 source identity, nested `build` directories remain source, and immutable Git

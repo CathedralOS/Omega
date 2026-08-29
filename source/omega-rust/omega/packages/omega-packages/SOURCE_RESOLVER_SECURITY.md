@@ -32,11 +32,14 @@ Ordinary `omega` source resolution now opens one versioned per-user
 `CathedralOS/Omega/source/v1` storage capability under the platform cache
 location. The manager creates every owned component with private permissions,
 retains the final directory, and rejects pathname replacement before and after
-closure operations. Compile dependency resolution, source inspection, and
-source audit no longer select a project-local cache, honor an ambient cache
-override, or fall back to the host temporary directory. Existing lower-level
-resolver harnesses still accept explicit cache paths; moving every internal
-lane and test behind the retained root capability remains open.
+closure operations. Dedicated Git, workspace-member, and external-local lanes
+are likewise created privately, retained, and reconciled; ordinary closure and
+audit entry points select those lanes without deriving new names. Compile
+dependency resolution, source inspection, and source audit no longer select a
+project-local cache, honor an ambient cache override, or fall back to the host
+temporary directory. Existing lower-level resolver harnesses still accept
+explicit cache paths; passing retained lane handles into those operations and
+migrating all tests remains open.
 
 ## Portable executor floor
 
