@@ -2719,62 +2719,18 @@ Owners:
 
 Remaining:
 
-- **PSI-OMEGA-CUTOVER — finish deleting the superseded pre-Psi backend
-  vocabulary.** The executable cutover is complete: `compile` has one
-  checked-Psi frontend, one canonical Terminal-Psi handoff, and one
-  native realization route. The former `StateGraphHarness`, its
-  `CheckedTrees -> StateGraph -> ControlFlow` orchestration, legacy output
-  writer, emitted-program carrier, report-only policies, and production
-  compiler dependencies are deleted. No requested product or unsupported
-  Terminal shape can fall back to that route.
-
-  The first two seam milestones are live. Psi now owns one
-  `CanonicalTerminalArtifact` containing canonical semantic, proof, optional
-  debug, and manifest identity; the exact checked-to-Terminal producer creates
-  it and independently replays every section. The typed `TerminalArtifact`
-  compiler product stops at that carrier without entering StateGraph, native
-  emission, output, or installation. The ordinary `NativeArtifact` product and
-  component staging now consume that same carrier by value through one
-  source-free native realization operation. It performs portable
-  verification, target realization, machine/object/image emission, and exact
-  image replay, then returns a non-clonable artifact retaining the canonical
-  Terminal identity, target, selected-provider projection, object, relocation,
-  text, and final-image evidence. Component staging is a thin wrapper adding
-  richer source-selected plan facts and pending progress; direct native
-  requests reject rather than discard pending component progress. Unsupported
-  Terminal vocabulary rejects without fallback, and architecture tests fence
-  the route and dependency closure.
-
-  The mechanical cutover is complete. The former StateGraph/control-flow
-  backend, its duplicate operation representations, legacy ISA/emission
-  packages, storage-wrapper coordinator, and fallback orchestration have been
-  deleted rather than renamed. Reusable target encoders and post-handoff writer
-  logic now live under the canonical ISA and ProgramEntry owners. The shared
-  composition edge is named for its exact endpoints:
-  `omega-terminal-psi-to-native-artifact`.
-
-  Architecture tests now fence the one production call graph and the retired
-  package names. Unsupported Terminal-Psi vocabulary fails closed. Any future
-  graph or optimizer view must be derived from Terminal Psi inside Omega and
-  cannot become a second language-semantics boundary.
-
-  Remaining work belongs to ordinary vertical-slice coverage and to replacing
-  the bounded compatibility assignment with the selected-instruction,
-  liveness, allocation, and physical continuation. It must extend this route,
-  never restore the deleted backend.
-
-  Acceptance: one production call graph exists from checked Omega source to a
-  native artifact; the sole executable semantic handoff from Psi to Omega is
-  canonical Terminal Psi; ordinary and component builds share it; unsupported
-  features reject; and architecture tests reject reintroduction of the deleted
-  checked-tree/StateGraph path.
 - **COMPILER-DRIVER-CLEANUP — restore `compiler.rs` as a thin pipeline
   coordinator.** The large alternate driver is gone. `compiler.rs` now declares
   only `Compiler`, delegates one typed request to `driver.rs`, and owns no
   language or target data. The hidden test product adapter and stale
-  `write_output` compatibility Boolean are now retired. The remaining work is
-  to move post-check settlement work into complete phase artifacts rather than
-  growing another coordinator.
+  `write_output` compatibility Boolean are now retired. Component-progress
+  admission now remains wholly with its provider-planning owner: the native
+  product stop passes the complete manifest to that owner and cannot inspect
+  pending rows itself. The remaining work is to move report-facing production-
+  subject projection and any other product-stop policy into complete owner
+  artifacts rather than growing another coordinator. The callback-placement
+  rejection remains an intentional fail-closed Terminal handoff fence until
+  canonical callback-use custody lands as a PSIIR vertical slice.
 
   The first request-normalization rung is live. One typed `CompileRequest`
   now owns the production compile options, requested product, artifact policy,
@@ -2805,7 +2761,9 @@ Remaining:
   authority; the report records `wrote_output == false`. Unsupported Terminal
   vocabulary and pending component progress reject rather than selecting or
   silently retaining another backend. Component-progress rejection and exact
-  source root resolution now live with the manifest owner; selected-provider
+  source root resolution now live with the manifest owner; the driver invokes
+  its exact ordered rejection and architecture tests prevent compiler product
+  or reporting code from inspecting pending rows directly. Selected-provider
   external-binding projection and its source-boundary plan replay live under
   `provider_plans`. Legacy wrapper insertion and output publication are no
   longer compiler stages. The typed-to-checked phase result retains the Accepted-only
@@ -2926,9 +2884,9 @@ Remaining:
   7. Isolate the large-stack host-thread workaround and worker-pool lifetime as
      execution infrastructure around the pipeline. They must not require every
      request combination to grow another public wrapper.
-  8. Perform this cleanup with `PSI-OMEGA-CUTOVER`, not as a new abstraction
-     layer around both old backends. The final coordinator orders the single
-     Psi-to-terminal-to-Omega route established by that task.
+  8. Preserve the completed Psi/Omega cutover rather than adding an abstraction
+     layer around retired backends. The final coordinator orders the single
+     Psi-to-terminal-to-Omega route fenced by the architecture tests.
 
   Acceptance: one production compile entry and one request type cover every
   current caller; one Psi frontend execution supplies check, interpreter,
@@ -2944,8 +2902,8 @@ Remaining:
 - **PSIIR.** Extend terminal Psi only as complete vertical slices: canonical
   encoding, independent obligation reconstruction and verification,
   interpretation, fixed fuel, Omega lowering, native evidence, artifact/image
-  custody, and installation must move together **after
-  `PSI-OMEGA-CUTOVER` establishes the one mandatory production seam**. A slice
+  custody, and installation must move together **through the one mandatory
+  production seam**. A slice
   extends the representation behind that seam; it must not add or retain a
   parallel source-to-native route. The detailed accepted
   vocabulary and current fences live in

@@ -1216,6 +1216,32 @@ fn omega_product_publishes_compiler_artifacts() {
 }
 
 #[test]
+fn compiler_product_stops_delegate_component_progress_admission() {
+    let root = workspace_root();
+    let compiler = root.join("source/omega-rust/omega/compiler/omega-compiler/src");
+    let driver = std::fs::read_to_string(compiler.join("compiler/driver.rs"))
+        .expect("read compiler product driver");
+    let reporting = recursive_rust_source(&compiler.join("pipeline/reporting"));
+
+    assert_eq!(
+        driver
+            .matches("component_progress::reject_undischarged_build_bound_progress(")
+            .count(),
+        1,
+        "native product admission must invoke the component-progress owner exactly once"
+    );
+    for (owner, source) in [
+        ("product driver", driver.as_str()),
+        ("reporting", reporting.as_str()),
+    ] {
+        assert!(
+            !source.contains(".pending()"),
+            "compiler {owner} must not inspect component-progress rows directly"
+        );
+    }
+}
+
+#[test]
 fn compiler_options_cannot_hide_product_or_publication_policy() {
     let root = workspace_root();
     let options_path =

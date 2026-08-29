@@ -95,14 +95,9 @@ fn native_report(
             "native-artifact production requires one exact selected native target",
         )]
     })?;
-    if checked
-        .component_progress()
-        .is_some_and(|manifest| !manifest.pending().is_empty())
-    {
-        return Err(vec![Diagnostic::error(
-            "native-artifact production cannot discard pending build-bound component progress; request component staging with explicit establishment evidence",
-        )]);
-    }
+    crate::pipeline::component_progress::reject_undischarged_build_bound_progress(
+        checked.component_progress(),
+    )?;
     let optimization_rollback = request
         .optimization_rollback
         .reconcile(checked.optimization_selections());
