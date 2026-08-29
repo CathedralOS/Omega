@@ -371,13 +371,15 @@ fn workspace_layering_is_respected() {
 
 #[test]
 fn compilation_report_excludes_speculative_runtime_owners() {
+    // Ranked native object replay now deliberately re-derives its fixed-fuel
+    // theorem. `psi-terminal-fixed-fuel` is semantic validation on that live
+    // path, not one of the quarantined installation/runtime owners below.
     let forbidden = [
         "omega-component-candidate",
         "omega-component-deployment",
         "omega-component-publication",
         "omega-executable-installation",
         "omega-external-roots",
-        "psi-terminal-fixed-fuel",
     ];
     for package in [
         "omega-compilation-report",
@@ -396,7 +398,6 @@ fn ordinary_compiler_and_package_closures_exclude_speculative_runtime_owners() {
         "omega-component-publication",
         "omega-executable-installation",
         "omega-external-roots",
-        "psi-terminal-fixed-fuel",
     ];
     for package in [
         "omega-provider-planning",
@@ -412,11 +413,7 @@ fn ordinary_compiler_and_package_closures_exclude_speculative_runtime_owners() {
 fn terminal_native_realization_excludes_speculative_runtime_owners() {
     assert_normal_closure_excludes(
         "omega-terminal-psi-to-native-artifact",
-        &[
-            "omega-executable-installation",
-            "omega-external-roots",
-            "psi-terminal-fixed-fuel",
-        ],
+        &["omega-executable-installation", "omega-external-roots"],
     );
 }
 
@@ -2826,7 +2823,7 @@ fn ranked_countdown_object_replay_cannot_reenter_machine_emission() {
         "validate_aarch64_ranked_u32_countdown_in_w0",
         "replay_ranked_countdown_contract",
         "replay_ranked_countdown_fuel",
-        "reject_ranked_u32_countdown_final_image",
+        "replay_ranked_u32_countdown_final_image",
     ] {
         assert!(
             replay.contains(required),

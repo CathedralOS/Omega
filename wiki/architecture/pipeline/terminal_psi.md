@@ -936,12 +936,15 @@ premise, and requires the exact-subtract evidence before constructing resumable
   so fixed-fuel and Omega/native consumers cannot acquire authority through the
   interpreter path; provider installation and extra mixed work remain fenced.
   Fixed-fuel and native lowering instead use separate opaque verifier carriers
-  for this exact machine. Native admission combines the canonical Terminal
-  proof, exact fixed-fuel certificate, converged structural frontier, and the
-  reconstructed preheader/header/guard/subtract/backedge graph into one custody
-  object together with a verifier-issued owned copy of the exact Terminal
-  semantic subject. Abstract, target, and assigned-target representations
-  retain that object unchanged. Target lowering replays the exact graph,
+  for this exact machine. Their lower projection is replayable data: canonical
+  Terminal semantics and proof bytes, exact fixed-fuel fields, the two relevant
+  complete converged frontier snapshots, and the reconstructed
+  preheader/header/guard/subtract/backedge graph. The object boundary decodes
+  and checks the proof again under native and fixed-fuel admission, re-derives
+  the certificate, and compares every retained frontier row. Representation
+  crates therefore do not import semantic-layer authority merely to make an
+  in-memory producer result unforgeable. Target lowering replays the exact
+  graph,
   affine-owned structural parameter, exit cleanup, and ABI placement;
   assignment accepts only the target-prescribed rank register. The ordinary selected-instruction
   path stays closed, while a disjoint unoptimized route emits the exact Linux

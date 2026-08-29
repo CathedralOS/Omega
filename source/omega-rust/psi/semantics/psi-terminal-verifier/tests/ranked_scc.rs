@@ -360,7 +360,7 @@ fn native_ranked_countdown_authority_retains_proof_and_structural_frontiers() {
         verify_module_for_native_ranked_countdown(&module, &proof, &AdmissionProfile::default())
             .expect("exact structural Unit u32 countdown has native authority");
     assert_eq!(native.module(), &module);
-    assert_eq!(native.replay().module(), &module);
+    assert_eq!(native.module(), &module);
     assert_eq!(native.proof_bundle(), &proof);
     assert_eq!(native.reconstructed_obligations().obligations().len(), 1);
     assert_eq!(native.accepted_facts().len(), 1);

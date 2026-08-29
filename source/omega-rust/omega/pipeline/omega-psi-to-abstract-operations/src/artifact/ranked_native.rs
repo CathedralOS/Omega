@@ -1,5 +1,7 @@
 use omega_abstract_operations::{
-    RankedNativeAbstractOperationPlan, RankedU32CountdownCustody, RankedU32CountdownGraph,
+    RankedFixedEntryFuel, RankedLiveClaim, RankedMachineStructuralFrontiers,
+    RankedNativeAbstractOperationPlan, RankedOwnedStructuralPlace, RankedPartialStructuralCustody,
+    RankedStructuralOwnershipFrontier, RankedU32CountdownCustody, RankedU32CountdownGraph,
 };
 use psi_core::IntegerValue;
 use psi_terminal::{
@@ -36,6 +38,11 @@ pub(super) fn lower_decoded_native_ranked_countdown(
     proof: &psi_terminal_verifier::ProofBundle,
     profile: &psi_proof_admission::AdmissionProfile,
 ) -> Result<RankedNativeAbstractOperationPlan, ArtifactLoweringError> {
+    if profile != &psi_proof_admission::AdmissionProfile::default() {
+        return Err(ArtifactLoweringError::RankedNativeCustody(
+            "ranked native replay does not admit profile-local proof assumptions",
+        ));
+    }
     let native =
         psi_terminal_verifier::verify_module_for_native_ranked_countdown(module, proof, profile)
             .map_err(ArtifactLoweringError::Verification)?;
@@ -80,6 +87,8 @@ pub(super) fn lower_decoded_native_ranked_countdown(
             "ranked countdown does not have exactly one covered backedge",
         ));
     };
+    let ranked_header = ranked_scc.header;
+    let ranked_backedge = covered.edge;
     if structural_frontiers.block_entry(ranked_scc.header)
         != structural_frontiers.edge_exit(covered.edge)
     {
@@ -87,17 +96,71 @@ pub(super) fn lower_decoded_native_ranked_countdown(
             "ranked header and backedge structural frontiers differ",
         ));
     }
+    let header_entry = project_frontier(structural_frontiers.block_entry(ranked_header).ok_or(
+        ArtifactLoweringError::RankedNativeCustody("ranked header has no structural frontier"),
+    )?);
+    let backedge_exit = project_frontier(structural_frontiers.edge_exit(ranked_backedge).ok_or(
+        ArtifactLoweringError::RankedNativeCustody("ranked backedge has no structural frontier"),
+    )?);
+    let proof_replay = psi_terminal_codec::encode_proof_bundle(proof)
+        .map_err(ArtifactLoweringError::ProofEncode)?;
 
     Ok(RankedNativeAbstractOperationPlan {
         plan,
         countdown: RankedU32CountdownCustody {
-            verifier_replay: native.replay(),
+            semantic_replay: module.clone(),
+            proof_replay,
             ranked_scc,
-            fixed_fuel,
+            fixed_fuel: RankedFixedEntryFuel {
+                terminal_psi: fixed_fuel.terminal_psi(),
+                schedule: fixed_fuel.schedule(),
+                entry: fixed_fuel.entry(),
+                relevant_preconditions: fixed_fuel.relevant_preconditions().to_vec(),
+                ceiling_units: fixed_fuel.ceiling_units(),
+            },
             graph,
-            structural_frontiers,
+            structural_frontiers: RankedMachineStructuralFrontiers {
+                machine: machine.id,
+                header: ranked_header,
+                backedge: ranked_backedge,
+                header_entry,
+                backedge_exit,
+            },
         },
     })
+}
+
+fn project_frontier(
+    frontier: &psi_terminal_verifier::VerifiedStructuralOwnershipFrontier,
+) -> RankedStructuralOwnershipFrontier {
+    RankedStructuralOwnershipFrontier {
+        claims: frontier
+            .claims()
+            .iter()
+            .map(|claim| RankedLiveClaim {
+                claim: claim.claim,
+                input: claim.input,
+                path: claim.path.clone(),
+                multiplicity: claim.multiplicity,
+            })
+            .collect(),
+        owned_places: frontier
+            .owned_places()
+            .iter()
+            .map(|owned| RankedOwnedStructuralPlace {
+                place: owned.place,
+                multiplicity: owned.multiplicity,
+            })
+            .collect(),
+        partial_custody: frontier
+            .partial_custody()
+            .iter()
+            .map(|partial| RankedPartialStructuralCustody {
+                place: partial.place,
+                moved_paths: partial.moved_paths.clone(),
+            })
+            .collect(),
+    }
 }
 
 fn entry_machine(

@@ -466,12 +466,16 @@ Remaining:
   Existing acyclic segment authority remains unchanged. Native admission and
   custody are now complete through assigned target operations for the same
   exact first slice. A third opaque verifier carrier admits only the canonical
-  structural Unit / `u32` countdown machine and retains its Terminal proof,
-  exact fixed-fuel certificate, structural frontier, concrete ranked graph,
-  and a verifier-issued owned copy of the exact Terminal semantic subject as
-  one custody object. Abstract lowering reconstructs that object directly
-  from canonical semantic/proof sections; ordinary acyclic lowering still
-  rejects the cycle. Target lowering replays every ranked operation and edge,
+  structural Unit / `u32` countdown machine. Its lower projection retains
+  canonical Terminal semantics and proof bytes, the exact fixed-fuel fields,
+  the two relevant complete structural-frontier snapshots, and the concrete
+  ranked graph as replay data rather than embedding semantic-layer Rust
+  authority in a representation crate. The object boundary independently
+  decodes the proof, reruns native and fixed-fuel verification, derives the
+  certificate again, and compares every retained frontier row. Abstract
+  lowering constructs that projection directly from canonical semantic/proof
+  sections; ordinary acyclic lowering still rejects the cycle. Target lowering
+  replays every ranked operation and edge,
   validates the affine-owned structural frontier and exact exit cleanup, and
   preserves the fixed-fuel identity. Assignment accepts only the ABI-prescribed
   rank register (`rdi` on Linux x86-64, `x0` on Linux AArch64) and rejects
