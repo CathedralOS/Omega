@@ -66,6 +66,11 @@ Producer matching and independent replay descend into separate leaves and
 share only recipe, shape, and non-authoritative cost data; the former duplicate
 decision tables are gone. Unit and structural-Unit catalog coverage remains.
 
+[x] Layout-independent selected-form encoding now has an independent
+validation rung. Its small entrance coordinates ordinary rows, structural
+rows, and aggregate custody; candidate bytes descend into target-owned
+decoders and cannot re-enter producer encoding helpers.
+
 ## Completed foundation
 
 - [x] Exact source-visible `Optimization` vocabulary and versioned canonical
@@ -320,8 +325,10 @@ decision tables are gone. Unit and structural-Unit catalog coverage remains.
 - [x] Representation and rule-level independent validators.
 - [x] Identity-bound decisions, pass records, manifests, and work usage.
 - [x] Source-to-optimized Psi projection and lower-stage custody checks.
-- [ ] Complete translation validation for all lowering and machine rule
-  families.
+- [>] Complete translation validation for all lowering and machine rule
+  families. Layout-independent baseline, MOVN, XOR-zero, CBNZ dispositions,
+  and structural-Unit encodings now replay independently; remaining lowering,
+  resolved-layout, and publication routes still need closure.
 - [ ] Add generated differential testing across interpreter/reference native
   execution for exact integer, float, trap, atomic, placed-memory, cleanup, and
   transition cases.
@@ -456,3 +463,11 @@ rewrite or opt a program into lossy floating-point semantics.
 10. [x] Add exact target-applicability dispositions at the owning catalogs.
 11. [>] Finish workspace validation and rollout canaries before promoting any
    rule beyond explicit opt-in.
+12. [x] Replace selected-form producer replay with an independent decoder-led
+    validation rung and enforce the boundary architecturally.
+13. [ ] Replace the x86-rel8-only fragment admission carrier with one generic
+    selected-lowering carrier; do not add add/subtract route variants.
+14. [ ] Unify fixed-view-copy and active-resident realization under one generic
+    allocation-recovery carrier before extending either publication route.
+15. [ ] Make resolved-layout validation independent before claiming complete
+    translation validation for those generic publication routes.

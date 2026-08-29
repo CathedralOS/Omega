@@ -15,6 +15,7 @@ mod model;
 mod row_encoding;
 mod stage;
 mod structural_encoding;
+mod validation;
 
 pub use error::*;
 pub use model::*;
@@ -52,9 +53,5 @@ pub fn validate_optimized_layout_independent_selected_form_encoding_with_post_al
     optimization: Option<&StagedOptimizedPostAllocationMachineOptimization>,
     artifact: &StagedOptimizedSelectedFormEncoding,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
-    let replayed = compute::compute(selected, machine, physical, optimization)?;
-    if artifact != &replayed {
-        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
-    }
-    Ok(())
+    validation::validate(selected, machine, physical, optimization, artifact)
 }
