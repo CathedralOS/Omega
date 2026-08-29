@@ -36,7 +36,7 @@
 ;   524664 EXPECT_OUTLEN 524672 MEM_ADDR_REG 524680 MEM_LIMIT
 ;   524688 U64_SCRATCH 524696 U64_INDEX
 ;   524704 MEM_GUARD_ID 524712 MEM_GUARD_NEEDED
-;   524720 MEM_SITE_LABEL
+;   524720 MEM_SITE_LABEL 524728 STACK_FAULT_LABEL 524736 STACK_BYTES
 ; Buffers:
 ;   1048576 SOURCE (1048576-byte checked compiler extent)
 ;   2097152 TAPE_BUFFER (262140-byte checked Alpha payload extent)
@@ -289,6 +289,7 @@ ppr_epilogue:
         imm   r1, 0
         call  emit_imm
         call  emit_epilogue
+        call  emit_stack_fault_block
         imm   r0, 524480
         load  r1, r0
         imm   r2, 1
@@ -788,10 +789,8 @@ parse_call_return:
         ret
 
 emit_push:
-        imm   r0, 4
-        imm   r1, 15
-        imm   r2, 13
-        call  emit_rr
+        imm   r0, 8
+        call  emit_stack_reserve
         imm   r0, 11
         imm   r1, 15
         imm   r2, 0
@@ -1699,13 +1698,21 @@ finish_proc:
         ret
 
 emit_proc_header:
+        imm   r0, 524536
+        load  r6, r0
+        imm   r1, 65536
+        jeq   r6, r1, eph_error
+        imm   r0, 524728
+        store r0, r6
+        imm   r1, 1
+        add   r6, r1
+        imm   r0, 524536
+        store r0, r6
         imm   r0, 524448
         load  r0, r0
         call  record_proc_pc
-        imm   r0, 4
-        imm   r1, 15
-        imm   r2, 13
-        call  emit_rr
+        imm   r0, 8
+        call  emit_stack_reserve
         imm   r0, 11
         imm   r1, 15
         imm   r2, 14
@@ -1729,13 +1736,8 @@ emit_proc_header:
         mov   r7, r6
         imm   r1, 8
         mul   r7, r1
-        imm   r0, 5
-        mov   r1, r7
-        call  emit_imm
-        imm   r0, 4
-        imm   r1, 15
-        imm   r2, 5
-        call  emit_rr
+        mov   r0, r7
+        call  emit_stack_reserve
 eph_params:
         imm   r0, 524448
         load  r6, r0
@@ -1786,6 +1788,9 @@ eph_param:
         store r0, r5
         jmp   eph_param_loop
 eph_done:
+        ret
+eph_error:
+        call  set_error
         ret
 
 check_proc_slots:
@@ -2912,6 +2917,47 @@ emit_program_prelude:
         call  emit_ref0
         imm   r0, 0
         imm   r1, 0
+        call  emit_r
+        ret
+
+; Input r0 is a positive fixed byte count. Subtract it, then branch to the
+; current procedure's terminal fault block if the positive aligned stack drops
+; below 262144. No generated load/store occurs between subtraction and check.
+emit_stack_reserve:
+        imm   r1, 524736
+        store r1, r0
+        imm   r0, 5
+        imm   r1, 524736
+        load  r1, r1
+        call  emit_imm
+        imm   r0, 4
+        imm   r1, 15
+        imm   r2, 5
+        call  emit_rr
+        imm   r0, 4
+        imm   r1, 262144
+        call  emit_imm
+        imm   r0, 15
+        imm   r1, 15
+        imm   r2, 4
+        imm   r3, 2
+        imm   r4, 524728
+        load  r4, r4
+        call  emit_ref2
+        ret
+
+; Emit the current procedure's local terminal stack-fault region after its
+; ordinary fallthrough epilogue. All reservation branches therefore stay
+; inside one structurally admitted callable region.
+emit_stack_fault_block:
+        imm   r0, 524728
+        load  r0, r0
+        call  record_internal_pc
+        imm   r0, 4
+        imm   r1, 250
+        call  emit_imm
+        imm   r0, 0
+        imm   r1, 4
         call  emit_r
         ret
 

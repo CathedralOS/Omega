@@ -131,7 +131,10 @@ code, discover a closure, manufacture proof premises, or decide admission.
   A general checked Alpha-to-native realization may be proposed; source-,
   function-, hash-, or workload-specific jets are forbidden. No current floor
   measurement triggers escalation: the complete Alpha-written Beta compiler
-  surface gate runs 120 cases in under three seconds on the development host.
+  surface gate runs 121 cases in under three seconds on the development host.
+  The largest current retained Beta output, the 199,770-byte checker tape,
+  leaves 62,370 bytes in the Alpha payload after replacing repeated inline
+  stack-fault blocks with one local terminal block per procedure.
 
 ## 2. Alpha-written Beta compiler
 
@@ -143,7 +146,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   - [x] Remove pinned syntax/runtime defects found by the general-source audit:
     full-range Word literals, zero final fallthrough, `r13=8` stack convention,
     reserved intrinsic names, and disjoint callable procedure regions. The
-    focused suite now passes 120 cases and the canonical tape passes the generic
+    focused suite now passes 121 cases and the canonical tape passes the generic
     structural checker.
   - [x] Replace emitted Alpha text plus an external assembler invocation with
     direct Alpha tape emission inside the compiler. The Alpha assembler may
@@ -160,17 +163,20 @@ code, discover a closure, manufacture proof premises, or decide admission.
     well-formedness rules. A source-order symbol-table pass alone does not prove
     initialization on every path; the byte-vector must-analysis and bounded
     table/worklist layout are otherwise fully specified implementation work.
-  - [ ] Separate source-visible raw Beta memory from generated frame/expression
+  - [x] Separate source-visible raw Beta memory from generated frame/expression
     stacks and bind the call/stack profile that proves non-aliasing. Raw memory
-    is now a checked, zeroed 32 MiB logical region biased above the data stack;
-    dynamic data-stack and semantic call/return-stack bounds remain open.
+    is a checked, zeroed 32 MiB logical region biased above the data stack. Every
+    generated frame/expression reservation is guarded at 262144; the mandatory
+    frame word bounds semantic depth and leaves the hidden Alpha return stack
+    above 66,322,424 even at the failing edge. A 64-slot recursive stress case
+    reaches fail-closed status 250 without output or aliasing.
   - [ ] Project malformed source and each private capacity failure to exact,
     typed no-partial-output outcomes rather than relying on numeric host exit
     status alone.
 - [x] Redirect the existing cold construction, exact-tape comparison, and
   focused language tests to the Alpha source subject. Remove any two-stage
   “cold compiler builds `bc.beta`, then `bc.beta` becomes canonical” logic. The
-  persisted artifact is now the 20,717-byte direct assembly of
+  persisted artifact is now the direct assembly of
   `beta_compiler.alpha`; checker, Gamma, reference, and seed-diamond consumers
   no longer invoke an assembler after compiling Beta.
 - [x] Reassess the large `bc.beta` refinement/admission tree module by module.

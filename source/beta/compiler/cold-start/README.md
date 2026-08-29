@@ -41,7 +41,10 @@ unconditional `to` jumps, while `to … when expr` jumps only for nonzero guards
 Byte/word memory is a 32 MiB zeroed logical region biased to physical Alpha
 addresses `2097152..35651583`; generated signed-negative and exclusive-upper
 guards run before the bias and every load/store. It is therefore disjoint from
-the tape and current generated data-stack region. `read_byte()` and
+the tape and generated data-stack region. Every generated frame or expression
+reservation checks the data-stack floor before its next access; the mandatory
+frame word also bounds Alpha's hidden return stack. Exhaustion halts with status
+250 inside the current procedure. `read_byte()` and
 `write_byte(x)` are the sole runtime I/O intrinsics. `emit("…")` decodes Beta's
 six string escapes and emits one Alpha `write` per byte; the pinned `bc.beta`
 contains only 791 literal payload bytes, so this direct lowering remains well
