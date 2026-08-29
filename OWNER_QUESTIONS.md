@@ -927,3 +927,65 @@ and mirrored verifier search tree.
   the verifier's available-fact frontier.
 - Tempting but wrong: serialize only the producer's chosen goal and trust it
   without independently reconstructing the operation-owned proposition.
+
+## Q18 — Compose the exact Alpha-to-Beta edge within checker capacity
+
+### Context
+
+The first bootstrap edge must establish exact correspondence between the
+78,109-byte `beta_compiler.alpha` source and its 20,977-byte Alpha tape. The
+generic checker binds both raw subjects and can check a balanced trace, local
+assembly grammar, widths, label uniqueness, absolute fixups, and complete
+source/tape exhaustion without an assembly-specific kernel rule.
+
+The selected certificate shape required one closed
+`VERIFY(source, tape, trace) = ACCEPT` equality discharged wholly by
+computation and reflexivity. Compiler-scale prototypes established a hard
+implementation conflict. Dynamic balanced cutting accepts 714 canonical leaves
+and fails at 715. Structural recursion traverses all 6,467 leaves in 0.704
+seconds, but adding local parsing exhausts the arena; even a content-free visit
+of every raw source byte fails. Sequential state threading instead exhausts the
+generated semantic stack. The checker reclaims normalization scratch only after
+each complete equality decision, so a single root conversion retains every
+branch temporary.
+
+A checker-native carrier control split the same source into 112 named equality
+decisions, visited every byte, and composed their checked propositions with
+`use`; it accepted in 1.192 seconds. This establishes that per-equality scratch
+reclamation is viable. It does not establish the required exact boundary chain
+or any assembly semantics.
+
+### Problem statement
+
+Choose how exact compositional work becomes the one admitted root edge without
+weakening subject identity, partition/exhaustion, grammar, label, fixup, or tape
+equality. This is an architecture choice: further trace compression or another
+local parser cannot change the lifetime of temporaries inside one equality.
+
+### Proposed direction
+
+Permit one fixed artifact-owned proof to check bounded, subject-bound chunk
+equalities by reflexivity, then derive the single root edge equality through the
+existing checked equality congruence/`eqelim` rules. Every chunk must expose
+exact source and tape boundary states; composition must prove adjacency, order,
+unique ownership, root start/end, and full exhaustion. Chunk goals, theory,
+subjects, and the final proposition remain owner-fixed. No host result, status
+code, hash, generated receipt, or producer assertion becomes a premise.
+
+This changes proof composition, not the trusted calculus or assembly meaning.
+It also uses the checker's existing sound scratch-reclamation boundary instead
+of adding an assembly-specific evaluator path.
+
+### Alternates
+
+- Acceptable if kept fully generic: implement sound branch-local reclamation or
+  garbage collection in every checker implementation, prove that live normal
+  forms cannot reference reclaimed nodes, and retain the single-reflexivity
+  certificate shape.
+- Tempting but wrong: raise or bypass an undocumented memory bound until this
+  one certificate happens to fit.
+- Tempting but wrong: split the source into independent local claims without
+  checked boundary-state composition and call their conjunction the edge.
+- Tempting but wrong: restore the deleted status ledger, add an assembly
+  primitive, trust a producer receipt, compare hashes, or weaken exact total
+  partitioning.

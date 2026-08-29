@@ -14,7 +14,7 @@ value and must be deleted; prior implementation cost is not a retention reason.
 
 | Retained owner | Bounded failure-detection role | Deletion condition |
 | --- | --- | --- |
-| `admission/` | Independently check reachable Alpha-tape structure and run the Alpha-written, subject-bound two-pass encoding reconstructor over the exact framed source and tape. Mutation controls cover structure, source, tape, fixups, grammar, and extent. | Merge or delete individual checks when the exact checked source/tape certificate reconstructs and proves the same facts; delete the subtree when the rooted certificate subsumes every retained discriminator. |
+| `admission/` | Independently check reachable Alpha-tape structure while the exact checked source/tape certificate remains open. | Delete the structural check when the rooted certificate reconstructs and proves the same facts. |
 The former ordinary-FOL seam was deleted: it proved hard-coded toy machines,
 reconstructed no canonical source or tape byte, and could not be imported by a
 later certificate. The source-only symbolic-loop gate and duplicated hand-built
@@ -27,5 +27,4 @@ Run the retained checks directly:
 
 ```sh
 sh source/beta/compiler/validation/admission/bc-artifact-structure.sh
-sh source/beta/compiler/validation/admission/encoding/test.sh
 ```

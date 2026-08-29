@@ -26,8 +26,8 @@ The Alpha-written [`compiler/beta_compiler.alpha`](compiler/beta_compiler.alpha)
 is the complete canonical Beta compiler used by the direct chain.
 
 [`compiler/validation/`](compiler/validation/README.md) retains the general
-Alpha-tape structure checker and an Alpha-written exact encoding reconstructor
-that target the canonical compiler. The
+Alpha-tape structure checker that targets the canonical compiler. The
+status-only encoding reconstructor and the
 60k-line former self-host obligation tree, source/PC witnesses, and toy FOL
 capability seam were deleted because none reconstructed the exact
 Alpha-written source/tape proposition.
@@ -45,7 +45,6 @@ Run the construction and diagnostic gates directly with:
 sh source/beta/compiler/rebuild-artifact.sh --check
 sh source/beta/compiler/test.sh
 sh source/beta/compiler/validation/admission/bc-artifact-structure.sh
-sh source/beta/compiler/validation/admission/encoding/test.sh
 ```
 
 The active reduction and admission work is tracked in
