@@ -239,10 +239,23 @@ impl<'program> Evaluator<'program> {
             let mut expected_path = format!("/root/{}", output.output_root().get()).into_bytes();
             expected_path.push(b'/');
             expected_path.extend_from_slice(output.output_relative_path());
-            if expected_files
-                .insert(expected_path, output.write_bytes().to_vec())
-                .is_some()
-            {
+            let byte_count = output
+                .writes()
+                .iter()
+                .try_fold(0usize, |count, write| {
+                    count.checked_add(write.bytes().len())
+                })
+                .ok_or_else(|| {
+                    Halt::Resource("filesystem replay output length overflowed".to_owned())
+                })?;
+            let mut bytes = Vec::new();
+            bytes.try_reserve_exact(byte_count).map_err(|_| {
+                Halt::Resource("filesystem replay output allocation failed".to_owned())
+            })?;
+            for write in output.writes() {
+                bytes.extend_from_slice(write.bytes());
+            }
+            if expected_files.insert(expected_path, bytes).is_some() {
                 return trap("filesystem replay contains duplicate Output paths");
             }
         }

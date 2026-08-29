@@ -12,7 +12,7 @@ use std::fmt;
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 11;
+const VERSION: u16 = 12;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -249,38 +249,58 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
             });
     }
     let mut output_records = Vec::new();
+    let output_ranges = output_shape_chain_ranges(&shapes, output_start)?;
     output_records
-        .try_reserve_exact((shapes.len() - output_start) / 3)
+        .try_reserve_exact(output_ranges.len())
         .map_err(|_| {
             BuildFilesystemReplayRecordError::new(
                 "filesystem replay output-chain allocation failed",
             )
         })?;
-    for chain in shapes[output_start..].chunks_exact(3) {
-        let [create, write, close] = chain else {
-            unreachable!("validated receipted output is a create-write-close chain")
-        };
+    for (start, end) in output_ranges {
+        let chain = &shapes[start..end];
+        let create = &chain[0];
+        let close = chain.last().expect("validated output chain has a close");
+        let writes = &chain[1..chain.len() - 1];
         let Some(output) = create.output else {
             unreachable!("validated receipted output create has a descriptor")
         };
         let [rooted] = create.rooted_paths.as_slice() else {
             unreachable!("validated receipted output create has one rooted path")
         };
-        let [(_, payload)] = write.byte_operands.as_slice() else {
-            unreachable!("validated receipted output write has one payload")
-        };
-        let ShapeResult::Scalar(write_result) = write.result else {
-            unreachable!("validated receipted output write returns a scalar")
-        };
+        let mut write_records = Vec::new();
+        write_records.try_reserve_exact(writes.len()).map_err(|_| {
+            BuildFilesystemReplayRecordError::new(
+                "filesystem replay output-write allocation failed",
+            )
+        })?;
+        for write in writes {
+            let [(_, payload)] = write.byte_operands.as_slice() else {
+                unreachable!("validated receipted output write has one payload")
+            };
+            let ShapeResult::Scalar(write_result) = write.result else {
+                unreachable!("validated receipted output write returns a scalar")
+            };
+            write_records.push(
+                psi_checked_interpreter::FilesystemOutputWriteReplayRecord::new(
+                    clone_bytes(payload)?,
+                    write_result,
+                    write.post_error,
+                )
+                .map_err(|_| {
+                    BuildFilesystemReplayRecordError::new(
+                        "filesystem replay output write could not be rehydrated",
+                    )
+                })?,
+            );
+        }
         output_records.push(
-            psi_checked_interpreter::FilesystemOutputWriteChainReplayRecord::new(
+            psi_checked_interpreter::FilesystemOutputWriteChainReplayRecord::with_writes(
                 crate::BUILD_OUTPUT_ROOT_IDENTITY,
                 clone_bytes(rooted.bytes)?,
                 output.identity,
                 create.post_error,
-                clone_bytes(payload)?,
-                write_result,
-                write.post_error,
+                write_records,
                 close.post_error,
             )
             .map_err(|_| {
@@ -1148,25 +1168,20 @@ fn validate_first_rung(
         ));
     }
     if cursor < shapes.len() {
-        let output_shapes = &shapes[cursor..];
-        if output_shapes.len() % 3 != 0 {
-            return Err(BuildFilesystemReplayRecordError::new(
-                "receipted build output must contain complete create-write-close chains",
-            ));
-        }
+        let output_ranges = output_shape_chain_ranges(shapes, cursor)?;
         let mut output_paths = Vec::new();
         output_paths
-            .try_reserve_exact(output_shapes.len() / 3)
+            .try_reserve_exact(output_ranges.len())
             .map_err(|_| {
                 BuildFilesystemReplayRecordError::new(
                     "filesystem replay output-path allocation failed",
                 )
             })?;
-        for chain in output_shapes.chunks_exact(3) {
-            let [create, write, close] = chain else {
-                unreachable!("exact chunks have three output operations")
-            };
-            validate_output_write_chain(create, write, close)?;
+        for (start, end) in output_ranges {
+            let chain = &shapes[start..end];
+            let create = &chain[0];
+            let close = chain.last().expect("validated output chain has a close");
+            validate_output_write_chain(create, &chain[1..chain.len() - 1], close)?;
             let output = create
                 .output
                 .expect("validated output create has a descriptor");
@@ -1191,6 +1206,35 @@ fn validate_first_rung(
     Ok(())
 }
 
+fn output_shape_chain_ranges(
+    shapes: &[AttemptShape<'_>],
+    output_start: usize,
+) -> Result<Vec<(usize, usize)>, BuildFilesystemReplayRecordError> {
+    let mut ranges = Vec::new();
+    let mut cursor = output_start;
+    while cursor < shapes.len() {
+        let start = cursor;
+        if shapes[cursor].operation != 1 {
+            return Err(BuildFilesystemReplayRecordError::new(
+                "filesystem replay Output chain must begin with create",
+            ));
+        }
+        cursor += 1;
+        let writes_start = cursor;
+        while cursor < shapes.len() && shapes[cursor].operation == 5 {
+            cursor += 1;
+        }
+        if cursor == writes_start || cursor == shapes.len() || shapes[cursor].operation != 8 {
+            return Err(BuildFilesystemReplayRecordError::new(
+                "receipted build output must contain complete create-write+-close chains",
+            ));
+        }
+        cursor += 1;
+        ranges.push((start, cursor));
+    }
+    Ok(ranges)
+}
+
 fn validate_included_source_shapes(
     shapes: &[AttemptShape<'_>],
     included_sources: &[ShapeIncludedSource<'_>],
@@ -1211,7 +1255,7 @@ fn validate_included_source_shapes(
                 "source-only filesystem replay cannot retain included-source handoffs",
             )
         })?;
-    let output_shapes = &shapes[output_start..];
+    let output_ranges = output_shape_chain_ranges(shapes, output_start)?;
     let total_attempt_count = u64::try_from(shapes.len()).map_err(|_| {
         BuildFilesystemReplayRecordError::new(
             "filesystem replay attempt count exceeds canonical u64",
@@ -1237,10 +1281,10 @@ fn validate_included_source_shapes(
                 "filesystem replay included-source path appears more than once",
             ));
         }
-        let output_index = output_shapes
-            .chunks_exact(3)
-            .position(|chain| {
-                chain[0]
+        let output_index = output_ranges
+            .iter()
+            .position(|(start, _)| {
+                shapes[*start]
                     .rooted_paths
                     .first()
                     .is_some_and(|rooted| rooted.bytes == included.relative_path)
@@ -1250,23 +1294,11 @@ fn validate_included_source_shapes(
                     "filesystem replay included-source path has no matching Output file",
                 )
             })?;
-        let earliest_ordinal = output_start
-            .checked_add(
-                output_index
-                    .checked_add(1)
-                    .and_then(|index| index.checked_mul(3))
-                    .ok_or_else(|| {
-                        BuildFilesystemReplayRecordError::new(
-                            "filesystem replay included-source ordinal overflowed",
-                        )
-                    })?,
+        let earliest_ordinal = u64::try_from(output_ranges[output_index].1).map_err(|_| {
+            BuildFilesystemReplayRecordError::new(
+                "filesystem replay included-source ordinal exceeds canonical u64",
             )
-            .and_then(|ordinal| u64::try_from(ordinal).ok())
-            .ok_or_else(|| {
-                BuildFilesystemReplayRecordError::new(
-                    "filesystem replay included-source ordinal exceeds canonical u64",
-                )
-            })?;
+        })?;
         if included.filesystem_attempt_ordinal < earliest_ordinal
             || included.filesystem_attempt_ordinal > total_attempt_count
         {
@@ -1280,7 +1312,7 @@ fn validate_included_source_shapes(
 
 fn validate_output_write_chain(
     create: &AttemptShape<'_>,
-    write: &AttemptShape<'_>,
+    writes: &[AttemptShape<'_>],
     close: &AttemptShape<'_>,
 ) -> Result<(), BuildFilesystemReplayRecordError> {
     let Some(output) = create.output else {
@@ -1324,37 +1356,44 @@ fn validate_output_write_chain(
         ));
     }
 
-    let [(payload_ordinal, payload)] = write.byte_operands.as_slice() else {
+    if writes.is_empty() {
         return Err(BuildFilesystemReplayRecordError::new(
-            "receipted build output write has no unique immutable payload",
+            "receipted build output has no writes",
         ));
-    };
-    let [write_input] = write.inputs.as_slice() else {
-        return Err(BuildFilesystemReplayRecordError::new(
-            "receipted build output write has no unique descriptor input",
-        ));
-    };
-    let payload_length = i64::try_from(payload.len()).map_err(|_| {
-        BuildFilesystemReplayRecordError::new(
-            "receipted build output payload exceeds this compiler host",
-        )
-    })?;
-    if write.operation != 5
-        || write.provider != 2
-        || write.result != ShapeResult::Scalar(payload_length)
-        || write.post_error != 0
-        || *payload_ordinal != 1
-        || *write_input
-            != (ShapeLogicalInput {
-                ordinal: 0,
-                kind: 0,
-                resolution: Some(output.identity),
-            })
-        || !only_output_write_lanes(write)
-    {
-        return Err(BuildFilesystemReplayRecordError::new(
-            "receipted build output write is internally inconsistent",
-        ));
+    }
+    for write in writes {
+        let [(payload_ordinal, payload)] = write.byte_operands.as_slice() else {
+            return Err(BuildFilesystemReplayRecordError::new(
+                "receipted build output write has no unique immutable payload",
+            ));
+        };
+        let [write_input] = write.inputs.as_slice() else {
+            return Err(BuildFilesystemReplayRecordError::new(
+                "receipted build output write has no unique descriptor input",
+            ));
+        };
+        let payload_length = i64::try_from(payload.len()).map_err(|_| {
+            BuildFilesystemReplayRecordError::new(
+                "receipted build output payload exceeds this compiler host",
+            )
+        })?;
+        if write.operation != 5
+            || write.provider != 2
+            || write.result != ShapeResult::Scalar(payload_length)
+            || write.post_error != 0
+            || *payload_ordinal != 1
+            || *write_input
+                != (ShapeLogicalInput {
+                    ordinal: 0,
+                    kind: 0,
+                    resolution: Some(output.identity),
+                })
+            || !only_output_write_lanes(write)
+        {
+            return Err(BuildFilesystemReplayRecordError::new(
+                "receipted build output write is internally inconsistent",
+            ));
+        }
     }
     validate_close_shape(close, output.identity)?;
     if close.post_error != 0 {

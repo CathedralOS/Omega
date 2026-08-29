@@ -353,7 +353,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 30);
+    assert_eq!(checked_observations.schema_version(), 31);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -3549,6 +3549,120 @@ fn multiple_generated_source_handoffs_retain_exact_order_and_ordinals() {
 
     let _ = std::fs::remove_dir_all(&project);
     let _ = std::fs::remove_dir_all(rooted_build_session(&project, "multiple-generated-review"));
+}
+
+#[test]
+fn sequential_full_writes_replay_as_concatenated_output_files() {
+    let (project, profile) = rooted_build_probe_project(
+        "sequential-full-output-writes",
+        r#"    let input: &[u8] in Path = builder.source.resolve("main.omg");
+    self.descriptor = self.filesystem.open(input, 0);
+    self.result = self.filesystem.read(self.descriptor, &mut self.buffer, 23);
+    self.code = self.filesystem.close(self.descriptor);
+    let generated: &[u8] in Path = builder.output.resolve("multiwrite.omg");
+    self.descriptor = self.filesystem.create(generated, 438);
+    self.result = self.filesystem.write(self.descriptor, "data Multi");
+    self.result = self.filesystem.write(self.descriptor, "");
+    self.result = self.filesystem.write(self.descriptor, "Write {}\n");
+    self.code = self.filesystem.close(self.descriptor);
+    builder.output.include_source(generated);
+    let artifact: &[u8] in Path = builder.output.resolve("multiwrite.bin");
+    self.descriptor = self.filesystem.create(artifact, 438);
+    self.result = self.filesystem.write(self.descriptor, "first-");
+    self.result = self.filesystem.write(self.descriptor, "second");
+    self.code = self.filesystem.close(self.descriptor);"#,
+    );
+    let checked =
+        compile_rooted_probe_with_sponsored_output(&project, profile, "sequential-writes-review")
+            .expect("multiple full sequential writes should receipt");
+    let summary = checked
+        .build_observation_summary()
+        .expect("multiwrite receipt retains observations");
+    assert!(summary.operation_replay_verified());
+    assert_eq!(summary.realized(), BuildObservationClass::Receipted);
+    assert_eq!(
+        summary
+            .filesystem_operation_attempts()
+            .iter()
+            .map(|attempt| attempt.operation_tag())
+            .collect::<Vec<_>>(),
+        vec![2, 4, 8, 1, 5, 5, 5, 8, 1, 5, 5, 8]
+    );
+    assert_eq!(
+        summary
+            .included_source_handoffs()
+            .iter()
+            .map(|handoff| (
+                handoff.relative_path(),
+                handoff.filesystem_attempt_ordinal()
+            ))
+            .collect::<Vec<_>>(),
+        vec![(b"multiwrite.omg".as_slice(), 8)]
+    );
+    assert_eq!(
+        checked
+            .typed
+            .symbols
+            .source_files()
+            .find(|source| source.path.ends_with("multiwrite.omg"))
+            .expect("concatenated generated source enters final compilation")
+            .source
+            .as_ref(),
+        "data MultiWrite {}\n"
+    );
+    assert_eq!(
+        std::fs::read(
+            rooted_build_session(&project, "sequential-writes-review")
+                .join("output/multiwrite.bin")
+        )
+        .unwrap(),
+        b"first-second"
+    );
+
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let record = capture_verified_build_filesystem_replay_record(summary, limits)
+        .expect("multiwrite receipt should encode")
+        .expect("multiwrite receipt should retain replay custody");
+    assert_eq!(
+        recover_review_only_build_filesystem_replay_record(record.canonical_bytes(), limits)
+            .expect("multiwrite replay record should recover"),
+        record
+    );
+
+    let package = PackageKeyIdentity::from_digest([101; 32]).expect("nonzero package identity");
+    set_canonical_source_tree_permissions(&project, true);
+    let package_source = PackageSourceBinding::new(package, "multiwrite", project.clone())
+        .with_canonical_source_metadata()
+        .expect("capture multiwrite canonical metadata");
+    let package_inputs = PackageCompilationInputs::new(package, vec![package_source], Vec::new())
+        .expect("single-package multiwrite input");
+    std::fs::write(
+        rooted_build_session(&project, "sequential-writes-review").join("output/multiwrite.omg"),
+        "data Spoofed {}\n",
+    )
+    .expect("change physical multiwrite Output after receipt capture");
+    let replayed = compile_to_checked_with_packages_and_replay_record(
+        &project.join("main.omg"),
+        Some(profile.target_name()),
+        package_inputs,
+        record,
+    )
+    .expect("multiwrite replay ignores host Output drift");
+    set_canonical_source_tree_permissions(&project, false);
+    assert_eq!(
+        replayed
+            .typed
+            .symbols
+            .source_files()
+            .find(|source| source.path.ends_with("multiwrite.omg"))
+            .expect("replayed concatenated source enters final compilation")
+            .source
+            .as_ref(),
+        "data MultiWrite {}\n"
+    );
+
+    let _ = std::fs::remove_dir_all(&project);
+    let _ = std::fs::remove_dir_all(rooted_build_session(&project, "sequential-writes-review"));
 }
 
 #[test]
