@@ -292,26 +292,29 @@ explicitly.
   identities, and rejects wildcard, runtime-subject, mixed, unreachable, and
   profile-less-resolution cases.
 
+  Canonical source-closure v5 now binds the selected profile, condition schema,
+  referenced profile identities, complete authored occurrence roster, and every
+  common/profile membership column. Candidate-closure commitment v5 binds that
+  complete source question before review evidence, so inactive projected rows
+  cannot disappear from review identity.
+
   Remaining work:
 
-  - bind the condition schema, referenced profile identities, and complete
-    projected map, together with the explicitly selected profile, into source-
-    closure and package-review identity;
   - add independently populated per-profile accepted-lock/review sections,
     fail-closed missing-column behavior, and explicit all-column population;
-  - add alias reuse/conflict, catalog-growth, stale-profile-identity, selected-
-    closure, replay/tamper, and missing-locked-column canaries.
+  - add accepted-lock catalog-growth, stale-profile-identity, replay/tamper, and
+    missing-locked-column canaries when those lock sections land.
 
 - [ ] **APPLICATION-ROOT-ROLE-EVIDENCE — retain the admitted root role after resolution.**
   Source projection no longer coerces `ApplicationDeclaration` into a package.
   Source custody and reconciliation retain the exact root role, reject an
   application behind every dependency edge, and bind the role into canonical
-  source-closure v4 and review-baseline v4 recovery. Explicit project-root
+  source-closure v5 and review-baseline v4 recovery. Explicit project-root
   entry points cover external-local, Git, named Git member, and workspace
   sources. Compiler handoff retains the same `BuildDeclarationKind` in
   `PackageCompilationInputs`, its source-path-free dependency closure, and
   ordinary obligation-ledger v2 recovery. Source-consumption v3 and production
-  manifest v2 identities bind it; candidate-closure commitment v4 binds it too.
+  manifest v2 identities bind it; candidate-closure commitment v5 binds it too.
   Baseline-to-candidate review compares package-to-application as lost
   dependency compatibility and application-to-package as lost activation
   compatibility; deterministic triage v2 carries that fixed reason and blocks

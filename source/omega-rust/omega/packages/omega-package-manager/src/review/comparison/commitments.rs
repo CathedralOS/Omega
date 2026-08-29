@@ -7,7 +7,8 @@ use super::model::*;
 use crate::identity::PackageKey;
 use crate::manifest::BuildDeclarationKind;
 use crate::resolution::{
-    DependencyRequestPath, ResolvedPackageClosure, ResolvedPackageSourceClosure,
+    CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, DependencyRequestPath,
+    ResolvedPackageClosure, ResolvedPackageSourceClosure,
 };
 use crate::review::records::PackageReviewEvidence;
 use omega_package_review::evidence::{
@@ -20,7 +21,7 @@ use sha2::{Digest, Sha256};
 const CONFLICT_FINGERPRINT_DOMAIN: &[u8] = b"OMEGA-PACKAGE-CAPABILITY-CONFLICT\0";
 const CONFLICT_FINGERPRINT_VERSION: u16 = 17;
 const CANDIDATE_CLOSURE_DOMAIN: &[u8] = b"OMEGA-PACKAGE-CANDIDATE-CLOSURE\0";
-const CANDIDATE_CLOSURE_VERSION: u16 = 4;
+const CANDIDATE_CLOSURE_VERSION: u16 = 5;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn derive_conflict_fingerprint<B: PackageReviewEvidence, C: PackageReviewEvidence>(
@@ -69,16 +70,41 @@ pub(super) fn derive_candidate_closure_commitment<C: PackageReviewEvidence>(
     closure: &ResolvedPackageSourceClosure,
     candidate_reviews: &[&C],
 ) -> Result<ReviewOnlyCandidateClosureCommitment, ReviewOnlyCapabilityConflictError> {
-    derive_candidate_graph_commitment(closure.graph(), candidate_reviews)
+    let source_closure = CanonicalSourceClosureSubject::from_resolved(
+        closure,
+        CanonicalSourceClosureSubjectLimits::default(),
+    )
+    .map_err(|_| ReviewOnlyCapabilityConflictError::InvalidCandidateSourceClosure)?;
+    derive_candidate_graph_commitment_with_source(
+        closure.graph(),
+        Some(source_closure.canonical_bytes()),
+        candidate_reviews,
+    )
 }
 
+#[cfg(test)]
 pub(super) fn derive_candidate_graph_commitment<C: PackageReviewEvidence>(
     closure: &ResolvedPackageClosure,
+    candidate_reviews: &[&C],
+) -> Result<ReviewOnlyCandidateClosureCommitment, ReviewOnlyCapabilityConflictError> {
+    derive_candidate_graph_commitment_with_source(closure, None, candidate_reviews)
+}
+
+fn derive_candidate_graph_commitment_with_source<C: PackageReviewEvidence>(
+    closure: &ResolvedPackageClosure,
+    source_closure: Option<&[u8]>,
     candidate_reviews: &[&C],
 ) -> Result<ReviewOnlyCandidateClosureCommitment, ReviewOnlyCapabilityConflictError> {
     let mut digest = Sha256::new();
     hash_field(&mut digest, CANDIDATE_CLOSURE_DOMAIN);
     digest.update(CANDIDATE_CLOSURE_VERSION.to_le_bytes());
+    match source_closure {
+        Some(source_closure) => {
+            digest.update([1]);
+            hash_field(&mut digest, source_closure);
+        }
+        None => digest.update([0]),
+    }
     hash_field(&mut digest, &closure.root().identity().digest());
     digest.update([root_role_tag(closure.root_role())]);
     let mut packages = Vec::new();

@@ -15,19 +15,23 @@ pub use request::{
 
 use super::super::{ResolvedPackageSourceClosure, ResolvedSourceIdentity};
 use super::codec::{
-    Decoder, decode_dependency_selection, decode_root_selection, decode_source_identity,
-    encode_subject, fingerprint,
+    Decoder, decode_dependency_projection, decode_dependency_selection, decode_root_selection,
+    decode_source_identity, decode_target_profile, encode_subject, fingerprint,
 };
 use super::validation::{canonical_root_request, validate_subject};
 use crate::identity::PackageKey;
 use crate::manifest::BuildDeclarationKind;
+#[cfg(test)]
+use crate::manifest::dependencies::read::DependencySourceRequest;
+use crate::manifest::dependencies::read::ProjectedDependencies;
 use crate::resolution::source::PackageSourceNavigation;
+use omega_target::TargetProfile;
 
 #[cfg(test)]
 mod tests;
 
 pub(super) const SOURCE_CLOSURE_SUBJECT_MAGIC: &[u8] = b"OMEGA-SOURCE-CLOSURE-SUBJECT\0";
-pub const SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION: u16 = 4;
+pub const SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION: u16 = 5;
 pub(super) const SOURCE_CLOSURE_SUBJECT_FINGERPRINT_DOMAIN: &[u8] =
     b"OMEGA-SOURCE-CLOSURE-SUBJECT-FINGERPRINT\0";
 
@@ -39,9 +43,11 @@ pub(super) const SOURCE_CLOSURE_SUBJECT_FINGERPRINT_DOMAIN: &[u8] =
 /// certificates, decisions, and artifacts are intentionally absent.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CanonicalSourceClosureSubject {
+    pub(super) target_profile: TargetProfile,
     pub(super) root: CanonicalRootSourceSelection,
     pub(super) packages: Vec<ResolvedSourceIdentity>,
     pub(super) package_navigations: Vec<PackageSourceNavigation>,
+    pub(super) package_dependency_projections: Vec<ProjectedDependencies>,
     pub(super) dependency_requests: Vec<CanonicalDependencySourceSelection>,
     pub(super) canonical_bytes: Vec<u8>,
     pub(super) fingerprint: CanonicalSourceClosureSubjectFingerprint,
@@ -75,6 +81,16 @@ impl CanonicalSourceClosureSubject {
                     .clone()
             })
             .collect::<Vec<_>>();
+        let package_dependency_projections = packages
+            .iter()
+            .map(|package| {
+                closure
+                    .custody(package.key())
+                    .expect("validated closure retains every package custody")
+                    .projected_dependencies()
+                    .clone()
+            })
+            .collect::<Vec<_>>();
         let mut dependency_requests = closure
             .source_requests()
             .dependencies()
@@ -91,10 +107,12 @@ impl CanonicalSourceClosureSubject {
                 .cmp(&right.requester)
                 .then(left.dependency_index.cmp(&right.dependency_index))
         });
-        Self::finish(
+        Self::finish_with_projections(
+            closure.target_profile(),
             root,
             packages,
             package_navigations,
+            package_dependency_projections,
             dependency_requests,
             limits,
         )
@@ -117,10 +135,12 @@ impl CanonicalSourceClosureSubject {
                 "unsupported source-closure subject version",
             ));
         }
+        let target_profile = decode_target_profile(&mut decoder, limits)?;
         let root = decode_root_selection(&mut decoder, limits)?;
         let package_count = decoder.count(limits.maximum_packages)?;
         let mut packages = Vec::with_capacity(package_count);
         let mut package_navigations = Vec::with_capacity(package_count);
+        let mut package_dependency_projections = Vec::with_capacity(package_count);
         for _ in 0..package_count {
             packages.push(decode_source_identity(
                 &mut decoder,
@@ -130,6 +150,8 @@ impl CanonicalSourceClosureSubject {
                 &mut decoder,
                 limits.maximum_request_bytes,
             )?);
+            package_dependency_projections
+                .push(decode_dependency_projection(&mut decoder, limits)?);
         }
         let request_count = decoder.count(limits.maximum_dependency_requests)?;
         let mut dependency_requests = Vec::with_capacity(request_count);
@@ -137,10 +159,12 @@ impl CanonicalSourceClosureSubject {
             dependency_requests.push(decode_dependency_selection(&mut decoder, limits)?);
         }
         decoder.finish()?;
-        let recovered = Self::finish(
+        let recovered = Self::finish_with_projections(
+            target_profile,
             root,
             packages,
             package_navigations,
+            package_dependency_projections,
             dependency_requests,
             limits,
         )?;
@@ -156,6 +180,10 @@ impl CanonicalSourceClosureSubject {
         &self.root
     }
 
+    pub const fn target_profile(&self) -> TargetProfile {
+        self.target_profile
+    }
+
     pub const fn root_role(&self) -> BuildDeclarationKind {
         self.root.role()
     }
@@ -169,6 +197,16 @@ impl CanonicalSourceClosureSubject {
             .binary_search_by(|source| source.key().cmp(package))
             .ok()
             .map(|index| &self.package_navigations[index])
+    }
+
+    pub fn package_dependency_projection(
+        &self,
+        package: &PackageKey,
+    ) -> Option<&ProjectedDependencies> {
+        self.packages
+            .binary_search_by(|source| source.key().cmp(package))
+            .ok()
+            .map(|index| &self.package_dependency_projections[index])
     }
 
     pub fn dependency_requests(&self) -> &[CanonicalDependencySourceSelection] {
@@ -194,6 +232,7 @@ impl CanonicalSourceClosureSubject {
         Ok(self == &Self::from_resolved(closure, limits)?)
     }
 
+    #[cfg(test)]
     fn finish(
         root: CanonicalRootSourceSelection,
         packages: Vec<ResolvedSourceIdentity>,
@@ -201,18 +240,44 @@ impl CanonicalSourceClosureSubject {
         dependency_requests: Vec<CanonicalDependencySourceSelection>,
         limits: CanonicalSourceClosureSubjectLimits,
     ) -> Result<Self, CanonicalSourceClosureSubjectError> {
+        let package_dependency_projections =
+            unconditional_projections(&packages, &dependency_requests)?;
+        Self::finish_with_projections(
+            TargetProfile::CrossPlatformCli,
+            root,
+            packages,
+            package_navigations,
+            package_dependency_projections,
+            dependency_requests,
+            limits,
+        )
+    }
+
+    fn finish_with_projections(
+        target_profile: TargetProfile,
+        root: CanonicalRootSourceSelection,
+        packages: Vec<ResolvedSourceIdentity>,
+        package_navigations: Vec<PackageSourceNavigation>,
+        package_dependency_projections: Vec<ProjectedDependencies>,
+        dependency_requests: Vec<CanonicalDependencySourceSelection>,
+        limits: CanonicalSourceClosureSubjectLimits,
+    ) -> Result<Self, CanonicalSourceClosureSubjectError> {
         let limits = limits.compiler_bounded();
         validate_subject(
+            target_profile,
             &root,
             &packages,
             &package_navigations,
+            &package_dependency_projections,
             &dependency_requests,
             limits,
         )?;
         let canonical_bytes = encode_subject(
+            target_profile,
             &root,
             &packages,
             &package_navigations,
+            &package_dependency_projections,
             &dependency_requests,
             limits,
         )?;
@@ -223,12 +288,68 @@ impl CanonicalSourceClosureSubject {
         }
         let fingerprint = fingerprint(&canonical_bytes);
         Ok(Self {
+            target_profile,
             root,
             packages,
             package_navigations,
+            package_dependency_projections,
             dependency_requests,
             canonical_bytes,
             fingerprint,
         })
+    }
+}
+
+#[cfg(test)]
+fn unconditional_projections(
+    packages: &[ResolvedSourceIdentity],
+    dependency_requests: &[CanonicalDependencySourceSelection],
+) -> Result<Vec<ProjectedDependencies>, CanonicalSourceClosureSubjectError> {
+    packages
+        .iter()
+        .map(|package| {
+            let rows = dependency_requests
+                .iter()
+                .filter(|selection| &selection.requester == package.key())
+                .collect::<Vec<_>>();
+            for (expected, row) in rows.iter().enumerate() {
+                if row.dependency_index != expected {
+                    return Err(CanonicalSourceClosureSubjectError::new(if expected == 0 {
+                        "dependency request ordinals do not begin at zero"
+                    } else {
+                        "dependency request ordinals are not contiguous"
+                    }));
+                }
+            }
+            Ok(ProjectedDependencies::from(
+                rows.into_iter()
+                    .map(|selection| projected_request(&selection.request))
+                    .collect::<Vec<_>>(),
+            ))
+        })
+        .collect()
+}
+
+#[cfg(test)]
+fn projected_request(request: &CanonicalDependencySourceRequest) -> DependencySourceRequest {
+    match request {
+        CanonicalDependencySourceRequest::Path {
+            explicit_alias,
+            location,
+        } => DependencySourceRequest::Path {
+            explicit_alias: explicit_alias.clone(),
+            location: location.clone(),
+        },
+        CanonicalDependencySourceRequest::Git {
+            explicit_alias,
+            repository,
+            revision,
+            selection,
+        } => DependencySourceRequest::Git {
+            explicit_alias: explicit_alias.clone(),
+            repository: repository.clone(),
+            revision: revision.clone(),
+            selection: selection.clone(),
+        },
     }
 }

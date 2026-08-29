@@ -1,6 +1,7 @@
 //! Canonical closure validation, organized by the question being checked.
 
 mod dependency;
+mod projection;
 mod root;
 mod source;
 
@@ -8,29 +9,36 @@ pub(super) use root::canonical_root_request;
 pub(super) use source::{validate_package_key, validate_source_lineage};
 
 use super::{
-    CanonicalDependencySourceSelection, CanonicalRootSourceSelection,
-    CanonicalSourceClosureSubjectError, CanonicalSourceClosureSubjectLimits,
+    CanonicalDependencySourceRequest, CanonicalDependencySourceSelection,
+    CanonicalRootSourceSelection, CanonicalSourceClosureSubjectError,
+    CanonicalSourceClosureSubjectLimits,
 };
 use crate::identity::PackageKey;
+use crate::manifest::dependencies::read::ProjectedDependencies;
 use crate::resolution::closure::{
     ResolvedDependency, ResolvedPackageClosure, ResolvedPackageNode, ResolvedSourceIdentity,
 };
 use crate::resolution::source::PackageSourceNavigation;
 use dependency::{validate_dependency_request, validate_dependency_selection_kind};
+use omega_target::TargetProfile;
+use projection::validate_dependency_projection;
 use root::validate_root_request;
 use source::{validate_package_navigation, validate_source_identity};
 use std::collections::BTreeMap;
 
 pub(super) fn validate_subject(
+    target_profile: TargetProfile,
     root: &CanonicalRootSourceSelection,
     packages: &[ResolvedSourceIdentity],
     package_navigations: &[PackageSourceNavigation],
+    package_dependency_projections: &[ProjectedDependencies],
     dependency_requests: &[CanonicalDependencySourceSelection],
     limits: CanonicalSourceClosureSubjectLimits,
 ) -> Result<(), CanonicalSourceClosureSubjectError> {
     if packages.is_empty()
         || packages.len() > limits.maximum_packages
         || packages.len() != package_navigations.len()
+        || packages.len() != package_dependency_projections.len()
     {
         return Err(CanonicalSourceClosureSubjectError::new(
             "source-closure subject violates its package-count limit",
@@ -43,6 +51,36 @@ pub(super) fn validate_subject(
     }
     for source in packages {
         validate_source_identity(source, limits.maximum_identity_bytes)?;
+    }
+    let maximum_memberships = limits
+        .maximum_dependency_requests
+        .checked_mul(TargetProfile::ALL.len())
+        .ok_or_else(|| {
+            CanonicalSourceClosureSubjectError::new(
+                "source-closure dependency membership limit overflowed",
+            )
+        })?;
+    let mut occurrence_count = 0usize;
+    let mut membership_count = 0usize;
+    for projection in package_dependency_projections {
+        let (projection_occurrences, projection_memberships) =
+            validate_dependency_projection(projection, limits)?;
+        occurrence_count = occurrence_count
+            .checked_add(projection_occurrences)
+            .filter(|count| *count <= limits.maximum_dependency_requests)
+            .ok_or_else(|| {
+                CanonicalSourceClosureSubjectError::new(
+                    "source-closure dependency projections exceed their request-count limit",
+                )
+            })?;
+        membership_count = membership_count
+            .checked_add(projection_memberships)
+            .filter(|count| *count <= maximum_memberships)
+            .ok_or_else(|| {
+                CanonicalSourceClosureSubjectError::new(
+                    "source-closure dependency projections exceed their membership limit",
+                )
+            })?;
     }
     if packages
         .windows(2)
@@ -62,6 +100,11 @@ pub(super) fn validate_subject(
         .zip(package_navigations)
         .map(|(source, navigation)| (source.key(), navigation))
         .collect::<BTreeMap<_, _>>();
+    let projection_by_key = packages
+        .iter()
+        .zip(package_dependency_projections)
+        .map(|(source, projection)| (source.key(), projection))
+        .collect::<BTreeMap<_, _>>();
     for (source, navigation) in packages.iter().zip(package_navigations) {
         validate_package_navigation(source, navigation)?;
     }
@@ -80,12 +123,27 @@ pub(super) fn validate_subject(
 
     let mut previous: Option<(&PackageKey, usize)> = None;
     let mut dependencies = BTreeMap::<PackageKey, Vec<ResolvedDependency>>::new();
+    let mut selected_occurrences = BTreeMap::<PackageKey, Vec<usize>>::new();
     for selection in dependency_requests {
         validate_source_identity(&selection.selected, limits.maximum_identity_bytes)?;
         validate_dependency_request(&selection.request, limits.maximum_request_bytes)?;
         if package_by_key.get(&selection.requester).is_none() {
             return Err(CanonicalSourceClosureSubjectError::new(
                 "dependency request names an unknown requester",
+            ));
+        }
+        let projection = projection_by_key[&selection.requester];
+        let Some(projected_request) = projection
+            .authored_dependencies()
+            .get(selection.dependency_index)
+        else {
+            return Err(CanonicalSourceClosureSubjectError::new(
+                "active dependency selection names an unknown authored occurrence",
+            ));
+        };
+        if CanonicalDependencySourceRequest::from(projected_request) != selection.request {
+            return Err(CanonicalSourceClosureSubjectError::new(
+                "active dependency selection disagrees with its complete projection",
             ));
         }
         if package_by_key.get(selection.selected.key()).copied() != Some(&selection.selected) {
@@ -104,20 +162,15 @@ pub(super) fn validate_subject(
         }
         match previous {
             Some((requester, previous_index)) if requester == &selection.requester => {
-                if selection.dependency_index != previous_index + 1 {
+                if selection.dependency_index <= previous_index {
                     return Err(CanonicalSourceClosureSubjectError::new(
-                        "dependency request ordinals are not contiguous",
+                        "dependency requests are not in strict canonical order",
                     ));
                 }
             }
             Some((requester, _)) if requester >= &selection.requester => {
                 return Err(CanonicalSourceClosureSubjectError::new(
                     "dependency requests are not in strict canonical order",
-                ));
-            }
-            _ if selection.dependency_index != 0 => {
-                return Err(CanonicalSourceClosureSubjectError::new(
-                    "dependency request ordinals do not begin at zero",
                 ));
             }
             _ => {}
@@ -143,7 +196,26 @@ pub(super) fn validate_subject(
                 selection.alias.clone(),
                 selection.selected.key().clone(),
             ));
+        selected_occurrences
+            .entry(selection.requester.clone())
+            .or_default()
+            .push(selection.dependency_index);
         previous = Some((&selection.requester, selection.dependency_index));
+    }
+
+    for source in packages {
+        let expected = projection_by_key[source.key()]
+            .occurrence_indices_for_profile(target_profile)
+            .collect::<Vec<_>>();
+        let actual = selected_occurrences
+            .get(source.key())
+            .map(Vec::as_slice)
+            .unwrap_or_default();
+        if actual != expected {
+            return Err(CanonicalSourceClosureSubjectError::new(
+                "active dependency selections do not match the selected target profile",
+            ));
+        }
     }
 
     let nodes = packages

@@ -356,11 +356,11 @@ fn recovery_rejects_bounds_trailing_bytes_and_semantic_tampering() {
         .collect::<Vec<_>>();
     assert_eq!(
         alias_offsets.len(),
-        2,
-        "explicit and resolved aliases are encoded independently"
+        3,
+        "projected, selected, and resolved aliases are encoded independently"
     );
     let mut inconsistent_alias = bytes.to_vec();
-    inconsistent_alias[alias_offsets[0]] = b'x';
+    inconsistent_alias[alias_offsets[2]] = b'x';
     assert_eq!(
         CanonicalSourceClosureSubject::recover(&inconsistent_alias, limits)
             .expect_err("request/edge alias disagreement must reject")

@@ -40,7 +40,7 @@ pub struct TargetDependencyColumn {
 }
 
 impl TargetDependencyColumn {
-    pub(super) fn new(profile: TargetProfile, occurrence_indices: Vec<usize>) -> Self {
+    pub(crate) fn new(profile: TargetProfile, occurrence_indices: Vec<usize>) -> Self {
         Self {
             profile,
             occurrence_indices,
@@ -64,13 +64,6 @@ pub struct TargetDependencyConditionSchema {
 }
 
 impl TargetDependencyConditionSchema {
-    pub(super) fn current(referenced_profile_identities: Vec<TargetProfileIdentity>) -> Self {
-        Self {
-            version: TARGET_DEPENDENCY_CONDITION_SCHEMA_VERSION,
-            referenced_profile_identities,
-        }
-    }
-
     pub const fn version(&self) -> u32 {
         self.version
     }
@@ -100,13 +93,30 @@ impl ProjectedDependencies {
         by_profile: Vec<TargetDependencyColumn>,
         referenced_profile_identities: Vec<TargetProfileIdentity>,
     ) -> Self {
+        Self::from_retained_parts(
+            occurrences,
+            common_occurrence_indices,
+            by_profile,
+            TARGET_DEPENDENCY_CONDITION_SCHEMA_VERSION,
+            referenced_profile_identities,
+        )
+    }
+
+    pub(crate) fn from_retained_parts(
+        occurrences: Vec<DependencySourceRequest>,
+        common_occurrence_indices: Vec<usize>,
+        by_profile: Vec<TargetDependencyColumn>,
+        condition_schema_version: u32,
+        referenced_profile_identities: Vec<TargetProfileIdentity>,
+    ) -> Self {
         Self {
             occurrences,
             common_occurrence_indices,
             by_profile,
-            condition_schema: TargetDependencyConditionSchema::current(
+            condition_schema: TargetDependencyConditionSchema {
+                version: condition_schema_version,
                 referenced_profile_identities,
-            ),
+            },
         }
     }
 
