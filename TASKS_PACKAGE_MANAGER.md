@@ -184,7 +184,7 @@ closed. Compiler-issued package review remains non-admitting.
   metadata may be deployment policy; it must not become proof that an audit
   occurred.
 
-- [ ] **DESIGN-BLOCKED — OWNER Q11: DANGEROUS-AUTHORITY-CLASSIFICATION.** The
+- [ ] **DESIGN-BLOCKED — OWNER Q10: DANGEROUS-AUTHORITY-CLASSIFICATION.** The
   existing compiler-owned catalog exactly classifies every currently declared
   authority surface. Select semantic loci for network, dynamic loading,
   signing, secrets, executable installation, DMA/IOMMU, and future surfaces

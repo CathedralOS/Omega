@@ -610,7 +610,8 @@ scope child entries reject. Parent and child profiles are evaluated separately.
 Binding authors publish the widest contract they can honestly support.
 Over-approximation may cost usability: an unconstrained synchronous invocation
 ceiling rejects from an acyclic context, and a blocking edge without finite
-wait evidence yields `NoFiniteGuarantee(edge)`. Under-approximating an opaque
+wait evidence yields `NoFiniteGuarantee(Edge(edge), UnboundedWait)`.
+Under-approximating an opaque
 provider is an unsound admitted claim. The compiler checks the consequences and
 internal coherence of a declaration; it cannot establish its truth from a DLL.
 
@@ -623,7 +624,7 @@ plan:
   their ceilings;
 - `blocks` must fit the caller's blocking ceiling and carry the source
   acknowledgement at the call site; without selected finite wait evidence the
-  response report is `NoFiniteGuarantee(edge)`;
+  response report is `NoFiniteGuarantee(Edge(edge), UnboundedWait)`;
 - `invokes` contributes direct synchronous edges and rejects a realized
   component-boundary cycle;
 - a reference grants use only before return; a result claim retaining storage

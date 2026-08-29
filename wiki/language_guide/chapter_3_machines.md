@@ -391,6 +391,14 @@ Working rules:
   stack growth, no frame accumulation, ever. Classification is strict and
   never silent: `-> 3 * Gauss::sum(...)` is not tail (the multiply runs
   after the call returns), and the error names why.
+- **Terminal Psi retains that backedge.** Ordinary jumps and conditionals form
+  the cyclic graph; block parameters and successor arguments carry values and
+  custody between iterations. The Terminal verifier derives each strongly
+  connected component and checks one converged ownership frontier. It does not
+  infer progress from reducibility or loop shape. A terminating machine's
+  authored measure becomes checked well-founded-decrease evidence on every
+  in-component edge; a productive unranked cycle remains legal without a
+  finite-work guarantee.
 - **Non-tail recursion does not compile in runtime code.** A measured cycle
   whose call returns into more work (`1 + max(depth(l), depth(r))`) is
   rejected with the classification error. Depth belongs in data: iterate

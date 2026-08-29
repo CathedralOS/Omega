@@ -560,16 +560,20 @@ Logical compute and response are separate:
 
 ```text
 pure fixed path       work: Bounded(K)   response: finite under a timing model
-block mutex.lock()    work: local bound  response: NoFiniteGuarantee(mutex.lock)
-suspend io.read()     work: local bound  response: NoFiniteGuarantee(io.read)
+block mutex.lock()    work: local bound  response: NoFiniteGuarantee(Edge(mutex.lock),
+                                                    UnboundedWait)
+suspend io.read()     work: local bound  response: NoFiniteGuarantee(Edge(io.read),
+                                                    UnboundedWait)
 ```
 
 A selected-point report has three honest outcomes:
 
 - `Bounded(K, evidence)` when restricted maximum-logical-work checking closes;
 - `Unknown(reason)` when the checker cannot prove a bound; and
-- `NoFiniteGuarantee(edge)` when a reachable wait or foreign edge publishes no
-  finite response contract.
+- `NoFiniteGuarantee(subject, cause)` when a reachable wait, foreign edge, or
+  cyclic component publishes no finite bound. The subject is an exact edge or a
+  verifier-derived `CycleComponentId`; component causes distinguish `Unranked`,
+  `UnboundedRank`, and the directed edge that prevents closure.
 
 A hard-control profile requiring bounded response rejects `Unknown` and
 `NoFiniteGuarantee` at its roots. Force-terminating a blocked holder is not a
@@ -693,7 +697,7 @@ rejoins canonical installation plus source-free native-artifact custody. The
 installation does not serialize the derivable rebase record as a second truth.
 Transfer plans must preserve the exact ABI rank carrier in their activation
 slots. Honest ranked runtime execution remains owner-blocked on the ownership
-of a sponsor entry outside the deliberately one-function artifact (OWNER Q10).
+of a sponsor entry outside the deliberately one-function artifact (OWNER Q9).
 Acyclic segment checking is not widened.
 
 Every verifier, reduction-family, denotation-row, composition theorem, and

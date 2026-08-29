@@ -682,9 +682,26 @@ parallel route or optional coordinator field.
   complete, including deterministic overlap coverage against the earlier
   neutral-literal family.
 - [ ] Implement loop-invariant code motion after cyclic Terminal-Psi semantics
-  are resolved.
-- [?] Define suspension/resume edges for CFG analyses.
-- [?] Define whether cyclic control flow is admitted in Terminal Psi.
+  are implemented by ordinary execution validation.
+- [x] Keep suspension as an interprocedural state of the exact call rather than
+  a second local CFG successor. CFG analyses retain the ordinary completion
+  edge and consult `SuspensionCrossingId` plus the checked crossing frontier.
+- [x] Admit finite cyclic control in Terminal Psi without a `Loop` terminator.
+  The verifier derives SCC topology; block parameters and successor arguments
+  carry loop state; ownership converges by fixed point; reducibility is only an
+  optimization classification; and ranked, unranked, and quantitatively bounded
+  components retain distinct progress authority.
+- [ ] Generalize the exact unsigned-countdown carrier into ordinary cyclic
+  execution. Replace DAG-only dominance and frontier walks with verified
+  fixed-point algorithms, derive canonical `CycleComponentId` values, normalize
+  source rankings into well-founded relation/decrease certificates, admit
+  unranked productive components without termination authority, and report
+  structured finite-work failures by component and directed cause. Keep
+  fixed-fuel certificate construction a separate stricter gate.
+- [ ] Retarget LICM and other loop-forest consumers to validated Terminal SCCs.
+  A transform that changes component membership, loop-carried custody, or
+  ranking edges must invalidate the old certificate and pass ordinary Terminal
+  verification; unsupported and irreducible regions may be forwarded unchanged.
 
 ## P4 — Lowering optimizer
 

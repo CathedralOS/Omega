@@ -110,47 +110,7 @@ producer claim.
 - Tempting but wrong: serialize private keys, tokens, or reusable credentials in
   `omega.lock` or source-resolution evidence.
 
-## Q3 — Cyclic control flow in Terminal Psi
-
-### Context
-
-Omega's analysis vocabulary includes block SCCs, reducible/irreducible loop
-classification, dominators, and post-dominators. Those algorithms are tested on
-synthetic graphs, but total optimizer-unit validation currently rejects every
-`ControlCycle`. Executable repetition is otherwise expressed through machines,
-state transitions, and calls.
-
-### Problem statement
-
-The optimizer cannot exercise loop transforms or production loop-forest
-consumers until the semantic handoff either admits cyclic block graphs or
-declares that Terminal Psi is intentionally acyclic. Admitting cycles requires
-defined SSA edge bindings, loop-carried ownership and cleanup frontiers,
-progress/termination evidence, observation boundaries, and logical-fuel
-accounting. Inventing those only inside the optimizer would create a second
-language semantics.
-
-### Proposed direction
-
-Decide explicitly whether Terminal Psi may contain cyclic block control flow.
-If yes, add a versioned cyclic vocabulary and validator contract that retains
-loop-carried values, ownership/frontier state, progress evidence, provenance,
-and fuel before Omega accepts the first real cycle. If no, make acyclicity a
-durable language/IR invariant and redefine loop optimization over the actual
-machine/state-transition representation rather than maintaining a decorative
-block-loop API.
-
-### Alternates
-
-- Acceptable: admit only structured reducible loops first, leaving irreducible
-  cycles rejected until their ownership and progress contracts are explicit.
-- Acceptable: keep Terminal block CFGs acyclic and expose a separate verified
-  state-machine cycle graph for loop-like optimization.
-- Tempting but wrong: permit cyclic `Jump`/`Conditional` graphs by weakening
-  validation before loop-carried SSA, ownership, cleanup, and fuel semantics
-  exist.
-
-## Q4 — Close the Delta v1 semantic contract
+## Q3 — Close the Delta v1 semantic contract
 
 ### Context
 
@@ -230,7 +190,7 @@ out of Delta without weakening its ability to host a robust compiler.
 - Tempting but wrong: retain the old translator's private capacities, exit
   codes, or Darwin output behavior as language rules.
 
-## Q5 — Select one typed executable Gamma contract
+## Q4 — Select one typed executable Gamma contract
 
 ### Context
 
@@ -300,7 +260,7 @@ failures.
 - Tempting but wrong: make Alpha I/O effects directly callable from arbitrary
   Gamma source merely to avoid defining the compiler-entry adapter.
 
-## Q6 — Fix Beta block formation and definite-initialization reachability
+## Q5 — Fix Beta block formation and definite-initialization reachability
 
 ### Context
 
@@ -365,7 +325,7 @@ semantic acceptance independent of optimizer sophistication.
 - Tempting but wrong: zero-initialize generated frame slots and call the gap
   closed; that changes Beta's written local semantics and hides skipped stores.
 
-## Q7 — Select the canonical Beta compiler outcome carrier
+## Q6 — Select the canonical Beta compiler outcome carrier
 
 ### Context
 
@@ -429,7 +389,7 @@ impossible fixup/table condition maps to `InternalFailure`.
 - Tempting but wrong: prepend a success tag to Alpha tape and thereby change the
   canonical artifact bytes or require a stripping stage.
 
-## Q8 — Canonical kernel propositions for exact scalar operations
+## Q7 — Canonical kernel propositions for exact scalar operations
 
 ### Context
 
@@ -486,7 +446,7 @@ and mirrored verifier search tree.
 - Tempting but wrong: serialize only the producer's chosen goal and trust it
   without independently reconstructing the operation-owned proposition.
 
-## Q9 — Compose the exact Alpha-to-Beta edge within checker capacity
+## Q8 — Compose the exact Alpha-to-Beta edge within checker capacity
 
 ### Context
 
@@ -548,7 +508,7 @@ of adding an assembly-specific evaluator path.
   primitive, trust a producer receipt, compare hashes, or weaken exact total
   partitioning.
 
-## Q10 — Own the ranked native-fuel sponsor entry
+## Q9 — Own the ranked native-fuel sponsor entry
 
 ### Context
 
@@ -596,7 +556,7 @@ prove the final call target is exactly that admitted sponsor entry.
 - Tempting but wrong: append an anonymous helper, magic host callback, script,
   or test-only trampoline and treat successful execution as chain evidence.
 
-## Q11 — Semantic loci for the remaining dangerous-authority classes
+## Q10 — Semantic loci for the remaining dangerous-authority classes
 
 ### Context
 
