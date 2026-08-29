@@ -164,9 +164,22 @@ pub(crate) fn project_callable_conformances(
                 ))]);
             }
             if external_operator {
-                if operator.spelling.is_some() {
+                let Some((_, binding)) = expected_external.as_ref() else {
                     return Err(vec![Diagnostic::error(format!(
-                        "reviewed callable `{}` realizes fixed-token boundary operator `{}::{}` before external token dispatch is represented",
+                        "reviewed callable `{}` realizes boundary operator `{}::{}` through an external binding without exact external supply",
+                        machine.name, conformance.name, requirement_name
+                    ))]);
+                };
+                if operator.spelling.is_some()
+                    && (!matches!(binding, PackageReviewExternalBinding::CompilerIntrinsic)
+                        || omega_provider_planning::plans::primitive_float_binary_intrinsic_execution_identity(
+                            &compilation.typed,
+                            operator,
+                        )
+                        .is_none())
+                {
+                    return Err(vec![Diagnostic::error(format!(
+                        "reviewed callable `{}` realizes fixed-token boundary operator `{}::{}` without one exact closed compiler-intrinsic execution",
                         machine.name, conformance.name, requirement_name
                     ))]);
                 }
@@ -186,12 +199,6 @@ pub(crate) fn project_callable_conformances(
                         machine.name, conformance.name, requirement_name
                     ))]);
                 }
-                let Some((_, binding)) = expected_external.as_ref() else {
-                    return Err(vec![Diagnostic::error(format!(
-                        "reviewed callable `{}` realizes boundary operator `{}::{}` through an external binding without exact external supply",
-                        machine.name, conformance.name, requirement_name
-                    ))]);
-                };
                 validate_selected_boundary_operator_external_supply(
                     compilation,
                     machine,

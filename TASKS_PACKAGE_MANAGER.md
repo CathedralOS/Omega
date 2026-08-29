@@ -68,20 +68,6 @@ closed. Compiler-issued package review remains non-admitting.
   custody or fail before review. Toolchain-authored bodies remain outside
   ordinary package admission.
 
-- [ ] **CLOSE-COMPILER-SEMANTIC-SUBJECTS.** Give every source-free
-  compiler-owned semantic subject admitted by package review a closed identity
-  selected from exact compiler state, never spelling. The existing closed floor
-  covers builtin types, all compiler-installed builtin functions (including
-  `min`, `max`, and `sqrt`), unary operators, byte predicates, and collection
-  length. Builtin-backed boundary-operator provider rows now retain and
-  rederive their exact builtin execution child. Named-float negation and
-  conversion provider rows likewise retain closed execution atoms independently
-  of their authored realization machines; conversion commits its numeric source
-  type, numeric target type, and arithmetic domain together. Remaining work
-  includes other non-builtin intrinsic provider executions and any source-free
-  child still represented as unresolved nominal ownership. Package-authored
-  lookalikes must remain ordinary package nominals.
-
 - [ ] **COMPLETE-CONFORMANCE-IDENTITY.** Retain complete public conformance
   applications, including target-trait lifetime arguments once OWNER Q6 is
   settled. Unsupported generic, lifetime-bearing, private, or aliased forms

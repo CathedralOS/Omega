@@ -725,6 +725,14 @@ float-to-integer width and signedness and distinguishes `Exact`, `Saturating`,
 and `Trapping` integer results. The compiler derives all three coordinates from
 the exact checked overload; changing or omitting any coordinate rejects during
 review reconciliation rather than degrading to an authored name.
+Review v81 and canonical row v39 close the primitive float binary family as one
+atom containing the exact operation and permanent `f32` or `f64` format. The
+compiler also requires the matching fixed token, two same-format operands, and
+the operation-implied float or boolean result before selecting that atom.
+Tokenless and malformed lookalikes therefore reject. Arithmetic policy adapters
+remain separate selected evidence; requirement and realization declarations
+remain separately package-qualified. Unknown compiler subjects continue to
+fail closed rather than entering a generic source-free identity.
 Review v75 and canonical row v33 likewise admit the compiler-owned collection-
 length projection in public contract expressions. Checked proof-static member
 resolution derives the receiver type from its retained declaration symbol,

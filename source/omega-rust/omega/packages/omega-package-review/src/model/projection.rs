@@ -89,6 +89,10 @@ impl PackageReviewCheckedServiceReach {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PackageReviewCompilerIntrinsicExecution {
     BuiltinFunction(psi_symbols::BuiltinFunction),
+    PrimitiveFloatBinary {
+        operation: omega_provider_planning::plans::CompilerPrimitiveFloatBinaryOperation,
+        format: psi_numerics::literals::FloatFormat,
+    },
     NamedFloatNegation(psi_numerics::literals::FloatFormat),
     NamedFloatConversion {
         source: omega_provider_planning::plans::CompilerNumericType,
@@ -126,7 +130,8 @@ impl CheckedPackageProviderRowIdentity {
             Some(PackageReviewCompilerIntrinsicExecution::BuiltinFunction(function)) => {
                 Some(function)
             }
-            Some(PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(_))
+            Some(PackageReviewCompilerIntrinsicExecution::PrimitiveFloatBinary { .. })
+            | Some(PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(_))
             | Some(PackageReviewCompilerIntrinsicExecution::NamedFloatConversion { .. })
             | None => None,
         }
@@ -143,7 +148,7 @@ impl CheckedPackageProviderRowIdentity {
 /// rejects if those owners disagree with the selected plan. Readable provider-
 /// plan strings remain execution/audit data and are not asked to stand in for
 /// those declarations. Supported compiler-intrinsic rows additionally retain
-/// a closed execution atom; unsupported primitive-expression children remain
+/// a closed execution atom; unsupported compiler-expression children remain
 /// inadmissible until they receive their own closed identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedPackageProviderReview {

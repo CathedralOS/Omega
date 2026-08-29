@@ -47,6 +47,7 @@ pub enum SelectedCompilerIntrinsicExecutionIdentity {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SelectedCompilerIntrinsicRealization {
+    PrimitiveFloatBinary(CompilerIntrinsicExecutionIdentity),
     NamedFloat(NamedFloatRealization),
     OtherCompilerPath,
 }
@@ -354,6 +355,13 @@ pub fn derive_selected_compiler_intrinsic_execution_identity(
     else {
         return Ok(None);
     };
+    if let SelectedCompilerIntrinsicRealization::PrimitiveFloatBinary(identity) =
+        selected_realization
+    {
+        return Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
+            identity,
+        )));
+    }
     let SelectedCompilerIntrinsicRealization::NamedFloat(realization) = selected_realization else {
         return Ok(Some(
             SelectedCompilerIntrinsicExecutionIdentity::Unsupported,
@@ -517,6 +525,16 @@ fn selected_compiler_intrinsic_realization(
             "selected overload `{overload_identity}` has no compiler-known intrinsic realization",
         ))
     })?;
+    if let Some(identity) =
+        omega_provider_planning::plans::primitive_float_binary_intrinsic_execution_identity(
+            &checked.typed,
+            operator,
+        )
+    {
+        return Ok(Some(
+            SelectedCompilerIntrinsicRealization::PrimitiveFloatBinary(identity),
+        ));
+    }
     Ok(Some(
         named_float_realization_from_operator(&checked.typed, operator)
             .map(SelectedCompilerIntrinsicRealization::NamedFloat)

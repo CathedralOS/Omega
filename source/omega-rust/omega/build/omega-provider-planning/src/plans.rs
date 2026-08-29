@@ -15,6 +15,11 @@ use std::sync::Arc;
 #[path = "plans/external_binding_rows.rs"]
 mod external_binding_rows;
 pub use external_binding_rows::{extract_external_binding_rows, settle_external_binding_rows};
+#[path = "plans/intrinsic_execution.rs"]
+mod intrinsic_execution;
+pub use intrinsic_execution::{
+    CompilerPrimitiveFloatBinaryOperation, primitive_float_binary_intrinsic_execution_identity,
+};
 
 /// Exact selected provider-plan input consumed by external-root construction.
 ///
@@ -1696,33 +1701,17 @@ pub fn compiler_intrinsic_diagnostic_label(
     typed: &TypedTrees,
     operator: &psi_typed_trees::operator::OperatorDefinition,
 ) -> Option<String> {
+    if let Some(CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary { operation, format }) =
+        primitive_float_binary_intrinsic_execution_identity(typed, operator)
+    {
+        return Some(format!("Float::{}.{}", operation.name(), format.name()));
+    }
     let path = typed.operator_path_members(operator.name);
     let [namespace, requirement] = path else {
         return None;
     };
     let parameters = typed.operator_parameters(operator);
     let (operation, primitive, expected_result) = match namespace.as_str() {
-        "Float" => {
-            let operation = match requirement.as_str() {
-                "add" | "subtract" | "multiply" | "divide" | "equal" | "not_equal" | "less"
-                | "less_or_equal" | "greater" | "greater_or_equal" => requirement.as_str(),
-                _ => return None,
-            };
-            let [left, right] = parameters else {
-                return None;
-            };
-            let primitive = typed.primitive_type_reference(left.type_reference)?;
-            if typed.primitive_type_reference(right.type_reference) != Some(primitive) {
-                return None;
-            }
-            let expected_result = if matches!(operation, "add" | "subtract" | "multiply" | "divide")
-            {
-                primitive
-            } else {
-                psi_typed_trees::types::PrimitiveType::Bool
-            };
-            (operation, primitive, expected_result)
-        }
         "F32" | "F64" => {
             if matches!(requirement.as_str(), "from_f64" | "from_f32") {
                 let (expected_source, expected_result, source_name) =
@@ -3703,6 +3692,10 @@ impl CompilerNumericType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompilerIntrinsicExecutionIdentity {
     BuiltinFunction(psi_symbols::BuiltinFunction),
+    PrimitiveFloatBinary {
+        operation: CompilerPrimitiveFloatBinaryOperation,
+        format: psi_numerics::literals::FloatFormat,
+    },
     NamedFloatNegation(psi_numerics::literals::FloatFormat),
     NamedFloatConversion {
         source: CompilerNumericType,

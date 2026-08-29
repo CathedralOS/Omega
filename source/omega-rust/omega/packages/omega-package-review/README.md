@@ -66,9 +66,11 @@ The crate root exports the stable external surface. Cross-responsibility
 construction helpers and fields remain `pub(crate)` and are not external API.
 Compiler-owned provider execution identity is retained independently from the
 authored realization nominal. The closed review vocabulary currently covers
-builtin functions, exact named-float negation formats, and named-float
-conversions with explicit source type, target type, and arithmetic domain.
-Unsupported intrinsic forms remain inadmissible until they receive a closed
-identity.
+builtin functions, the ten primitive float binary operations in both permanent
+formats, exact named-float negation formats, and named-float conversions with
+explicit source type, target type, and arithmetic domain. Primitive float
+execution additionally requires the exact fixed operator token; tokenless and
+mismatched package lookalikes remain inadmissible. Unknown intrinsic forms
+remain fail-closed until they receive a specific closed identity.
 
-The canonical review schema is version 80 and row schema version 38.
+The canonical review schema is version 81 and row schema version 39.
