@@ -4,12 +4,9 @@ use crate::identity::PackageName;
 use omega_build_declarations as shared;
 use std::path::Path;
 
-pub use shared::BuildDeclarationError as PackageDeclarationError;
+pub use shared::BuildDeclarationError;
 pub use shared::BuildDeclarationKind;
 pub use shared::WorkspaceMemberPath;
-
-/// Backward-compatible package-manager name for the shared declaration error.
-pub type BuildDeclarationError = PackageDeclarationError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BuildDeclaration {
@@ -49,14 +46,14 @@ pub struct WorkspaceDeclaration {
 /// authority lives in `omega-build-declarations`.
 pub fn extract_package_declaration(
     package_root: impl AsRef<Path>,
-) -> Result<PackageDeclaration, PackageDeclarationError> {
+) -> Result<PackageDeclaration, BuildDeclarationError> {
     match extract_build_declaration(package_root) {
         Ok(BuildDeclaration::Package(declaration)) => Ok(declaration),
-        Ok(other) => Err(PackageDeclarationError::ExpectedPackageDeclaration {
+        Ok(other) => Err(BuildDeclarationError::ExpectedPackageDeclaration {
             found: other.kind(),
         }),
-        Err(PackageDeclarationError::MissingBuildDeclaration) => {
-            Err(PackageDeclarationError::MissingPackageDeclaration)
+        Err(BuildDeclarationError::MissingBuildDeclaration) => {
+            Err(BuildDeclarationError::MissingPackageDeclaration)
         }
         Err(error) => Err(error),
     }
@@ -135,13 +132,13 @@ mod tests {
             extract_from_source(
                 r#"machine build(builder: &mut Build, filesystem: &mut Filesystem) {}"#,
             ),
-            Err(PackageDeclarationError::InvalidBuildParameter)
+            Err(BuildDeclarationError::InvalidBuildParameter)
         );
         assert_eq!(
             extract_from_source(
                 r#"machine build(filesystem: &mut Filesystem, builder: &mut Build) {}"#,
             ),
-            Err(PackageDeclarationError::InvalidBuildParameter)
+            Err(BuildDeclarationError::InvalidBuildParameter)
         );
         assert!(
             extract_from_source(
@@ -157,7 +154,7 @@ mod tests {
     fn package_only_wrapper_retains_legacy_missing_and_wrong_kind_errors() {
         assert_eq!(
             extract_from_source("machine build(builder: &mut Build) {}"),
-            Err(PackageDeclarationError::MissingBuildDeclaration)
+            Err(BuildDeclarationError::MissingBuildDeclaration)
         );
         let application = extract_from_source(
             r#"machine build(builder: &mut Build) { builder.application("app"); }"#,

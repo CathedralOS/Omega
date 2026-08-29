@@ -35,7 +35,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     let review = project_checked_package_review(&checked)
         .expect("authored invocation spans should join exact checked targets");
     let rows = review.canonical_rows().expect("invocation source rows");
-    let invocation_text = |row: &omega_package_review::evidence::PackageReviewCanonicalRow| {
+    let invocation_text = |row: &omega_package_evidence::evidence::PackageReviewCanonicalRow| {
         let mut text = row
             .source()
             .authored_locations()
@@ -184,7 +184,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     let review = project_checked_package_review(&checked)
         .expect("authored service-reach spans should join exact checked rows");
     let rows = review.canonical_rows().expect("service-reach source rows");
-    let reach_text = |row: &omega_package_review::evidence::PackageReviewCanonicalRow| {
+    let reach_text = |row: &omega_package_evidence::evidence::PackageReviewCanonicalRow| {
         let mut text = row
             .source()
             .authored_locations()

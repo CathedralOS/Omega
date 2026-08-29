@@ -1,5 +1,5 @@
 use crate::declarations::dependencies::read::DependencyProjectionError;
-use crate::declarations::project::PackageDeclarationError;
+use crate::declarations::project::BuildDeclarationError;
 use crate::discovery::git::workspace::GitWorkspaceSelectionError;
 use omega_package_source::IdentityError;
 use omega_package_source::SourceRelativePath;
@@ -10,7 +10,7 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResolvePackageSourceError {
     Source(SourceResolveError),
-    Declaration(PackageDeclarationError),
+    Declaration(BuildDeclarationError),
     DependencyProjection(DependencyProjectionError),
     Identity(IdentityError),
     WorkspacePath {
@@ -89,8 +89,8 @@ impl From<SourceResolveError> for ResolvePackageSourceError {
     }
 }
 
-impl From<PackageDeclarationError> for ResolvePackageSourceError {
-    fn from(error: PackageDeclarationError) -> Self {
+impl From<BuildDeclarationError> for ResolvePackageSourceError {
+    fn from(error: BuildDeclarationError) -> Self {
         Self::Declaration(error)
     }
 }

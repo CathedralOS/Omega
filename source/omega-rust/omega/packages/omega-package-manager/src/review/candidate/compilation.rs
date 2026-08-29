@@ -15,11 +15,11 @@ use super::{
 use crate::graph::ResolvedPackageSourceClosure;
 use omega_compiler::compile_to_checked_with_packages_in_sponsored_build_dir;
 use omega_package_compilation::PackageCompilationInputError;
-use omega_package_review::obligations::{
+use omega_package_evidence::obligations::{
     ordinary_package_obligation_ledger_from_compiler_rows,
     validate_ordinary_package_obligation_ledger,
 };
-use omega_package_review::project_checked_package_review;
+use omega_package_evidence::project_checked_package_review;
 use psi_checked_interpreter::FilesystemSponsor;
 use psi_diagnostics::Diagnostic;
 use std::path::Path;
@@ -188,7 +188,7 @@ fn compile_resolved_package_reviews_in_session(
                 )],
             }
         })?;
-        let obligation_ledger = ordinary_package_obligation_ledger_from_compiler_rows(
+        let obligations = ordinary_package_obligation_ledger_from_compiler_rows(
             dependency_closure,
             &canonical_rows,
         )
@@ -198,13 +198,13 @@ fn compile_resolved_package_reviews_in_session(
                 "compiler-issued ordinary package obligation ledger is structurally invalid: {error}"
             ))],
         })?;
-        validate_ordinary_package_obligation_ledger(&obligation_ledger, &checked).map_err(
+        validate_ordinary_package_obligation_ledger(&obligations, &checked).map_err(
             |diagnostics| CompileResolvedPackageReviewsError::Projection {
                 package: key.clone(),
                 diagnostics,
             },
         )?;
-        let obligation_ledger_bytes = retained_obligation_ledger_bytes(&obligation_ledger)
+        let obligations_bytes = retained_obligation_ledger_bytes(&obligations)
             .ok_or_else(
                 || CompileResolvedPackageReviewsError::RetainedObligationLedgerBudget {
                     package: key.clone(),
@@ -213,7 +213,7 @@ fn compile_resolved_package_reviews_in_session(
             )?;
         retained_obligation_ledger_total = reserve_retained_obligation_ledger_bytes(
             retained_obligation_ledger_total,
-            obligation_ledger_bytes,
+            obligations_bytes,
         )
         .ok_or_else(|| {
             CompileResolvedPackageReviewsError::RetainedObligationLedgerBudget {
@@ -234,7 +234,7 @@ fn compile_resolved_package_reviews_in_session(
             projection,
             canonical_review_bytes,
             canonical_rows,
-            obligation_ledger,
+            obligations,
             comparison_rows,
         });
     }

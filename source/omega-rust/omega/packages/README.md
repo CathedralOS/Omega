@@ -7,7 +7,7 @@ appears in Cargo metadata.
 ```text
 packages/
 ├── README.md                    this entrance
-├── omega-package-manager/       operations, declarations, graph, review, admission
+├── omega-package-manager/       operations, declarations, graph, and review policy
 ├── omega-package-source/        immutable local and Git source acquisition
 ├── omega-resolver-execution/    confined native resolver processes
 ├── omega-package-evidence/      checked compiler state as inert package evidence

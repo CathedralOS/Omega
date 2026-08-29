@@ -3,11 +3,11 @@ pub(crate) use omega_compiler::{CheckedCompilation, compile_to_checked_with_pack
 pub(crate) use omega_package_compilation::{
     BuildDeclarationKind, PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
 };
-pub(crate) use omega_package_review::encoding::{
+pub(crate) use omega_package_evidence::encoding::{
     PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION,
     decode_package_review_canonical_row, encode_package_review_canonical_row,
 };
-pub(crate) use omega_package_review::evidence::{
+pub(crate) use omega_package_evidence::evidence::{
     CheckedPackageReviewProjection, PackageReviewArithmeticDomain, PackageReviewAtomicLoadOrdering,
     PackageReviewByteSequencePredicate, PackageReviewCallableRole, PackageReviewCallableSupply,
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCastForm,
@@ -29,13 +29,13 @@ pub(crate) use omega_package_review::evidence::{
     PackageReviewSourceLocationRole, PackageReviewSynchronousInvocation,
     PackageReviewSyntheticSourceKind, PackageReviewTypeParameterKind,
 };
-pub(crate) use omega_package_review::obligations::{
+pub(crate) use omega_package_evidence::obligations::{
     decode_ordinary_package_obligation_ledger, encode_ordinary_package_obligation_ledger,
     ordinary_package_obligation_ledger_fingerprint,
     ordinary_package_obligation_ledger_from_compiler_rows,
     recover_ordinary_package_obligation_ledger, validate_ordinary_package_obligation_ledger,
 };
-pub(crate) use omega_package_review::project_checked_package_review;
+pub(crate) use omega_package_evidence::project_checked_package_review;
 pub(crate) use psi_core::PackageKeyIdentity;
 pub(crate) use std::fs;
 pub(crate) use std::path::{Path, PathBuf};

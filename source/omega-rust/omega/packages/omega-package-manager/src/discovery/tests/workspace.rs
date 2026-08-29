@@ -39,7 +39,7 @@ fn workspace_member_resolution_binds_root_lineage_path_and_member_snapshot() {
         WorkspaceLineageIdentity::from_root_source(&workspace_root_source)
             .expect("workspace identity");
     let source_limits = LocalSourceLimits {
-        max_files: 32,
+        max_entries: 32,
         max_bytes: 4096,
         max_depth: 8,
     };

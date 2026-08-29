@@ -72,14 +72,14 @@ impl CanonicalPackageReconstructionQuestion {
                         )
                     })?
                     .dependency_closure();
-            if review.obligation_ledger().dependency_closure() != &expected_dependency_closure {
+            if review.obligations().dependency_closure() != &expected_dependency_closure {
                 return Err(CanonicalPackageReconstructionQuestionError::new(
                     "package review dependency closure does not match current source custody",
                 ));
             }
             entries.push(CanonicalPackageReconstructionEntry {
                 package: selected.key().clone(),
-                obligation_ledger: review.obligation_ledger().clone(),
+                obligations: review.obligations().clone(),
             });
         }
         if !reviews_by_package.is_empty() {

@@ -27,7 +27,7 @@ use omega_build_evaluation::{
     BuildFilesystemReplayRecordLimits, ReviewOnlyBuildFilesystemReplayRecord,
     capture_verified_build_filesystem_replay_record,
 };
-use omega_package_review::encoding::{
+use omega_package_evidence::encoding::{
     decode_package_review_canonical_row_with_limits,
     encode_package_review_canonical_row_with_limits,
 };

@@ -2,7 +2,7 @@ use super::PackageSourceVerificationPhase;
 use crate::discovery::PackageSourceSelectionEvidenceError;
 use crate::identity::PackageKey;
 use omega_package_compilation::PackageCompilationInputError;
-use omega_package_review::encoding::PackageReviewEncodingError;
+use omega_package_evidence::encoding::PackageReviewEncodingError;
 use omega_package_source::SourceResolveError;
 use psi_checked_interpreter::FilesystemSponsorError;
 use psi_diagnostics::Diagnostic;

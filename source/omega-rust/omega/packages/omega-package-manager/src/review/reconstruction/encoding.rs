@@ -8,7 +8,7 @@ use super::{
     RECONSTRUCTION_QUESTION_MAGIC,
 };
 use crate::graph::CanonicalSourceClosureSubject;
-use omega_package_review::obligation_ledger::{
+use omega_package_evidence::obligations::{
     decode_ordinary_package_obligation_ledger, encode_ordinary_package_obligation_ledger,
 };
 use sha2::{Digest, Sha256};
@@ -72,7 +72,7 @@ impl CanonicalPackageReconstructionQuestion {
                     "package reconstruction question exceeds its total ledger-byte ceiling",
                 ));
             }
-            let obligation_ledger = decode_ordinary_package_obligation_ledger(ledger_bytes)
+            let obligations = decode_ordinary_package_obligation_ledger(ledger_bytes)
                 .map_err(|_| {
                     CanonicalPackageReconstructionQuestionError::new(
                         "package reconstruction question contains an invalid obligation ledger",
@@ -80,7 +80,7 @@ impl CanonicalPackageReconstructionQuestion {
                 })?;
             entries.push(CanonicalPackageReconstructionEntry {
                 package: selected.key().clone(),
-                obligation_ledger,
+                obligations,
             });
         }
         decoder.finish()?;
@@ -106,7 +106,7 @@ pub(super) fn encode_question(
     encoder.bytes(source_closure.canonical_bytes())?;
     encoder.count(entries.len())?;
     for entry in entries {
-        let ledger_bytes = encode_ordinary_package_obligation_ledger(&entry.obligation_ledger)
+        let ledger_bytes = encode_ordinary_package_obligation_ledger(&entry.obligations)
             .map_err(|_| {
                 CanonicalPackageReconstructionQuestionError::new(
                     "package reconstruction question contains an invalid obligation ledger",

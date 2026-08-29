@@ -2,7 +2,7 @@ use super::{
     CompilerReviewTriage, PackageTriageDecision, PackageTriageDisposition, PackageTriageReason,
 };
 use crate::identity::PackageKey;
-use omega_package_review::evidence::PackageReviewDangerousAuthorityClass;
+use omega_package_evidence::evidence::PackageReviewDangerousAuthorityClass;
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

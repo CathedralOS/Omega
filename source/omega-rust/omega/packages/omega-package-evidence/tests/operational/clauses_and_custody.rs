@@ -65,7 +65,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
             })
             .unwrap_or_else(|| panic!("{name} review row"))
     };
-    let role_text = |row: &omega_package_review::evidence::PackageReviewCanonicalRow,
+    let role_text = |row: &omega_package_evidence::evidence::PackageReviewCanonicalRow,
                      role: PackageReviewSourceLocationRole| {
         row.source()
             .authored_locations()

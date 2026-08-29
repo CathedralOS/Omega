@@ -1,11 +1,11 @@
 [package]
-name = "omega-package-review"
+name = "omega-package-evidence"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 [lib]
-name = "omega_package_review"
+name = "omega_package_evidence"
 path = "src/lib.rs"
 
 [dependencies]

@@ -8,6 +8,7 @@ mod commitments;
 mod compare;
 mod format;
 mod model;
+mod render_error;
 
 pub use compare::compare_review_only_capabilities;
 pub(crate) use compare::{
@@ -18,10 +19,11 @@ pub use model::{
     ReviewOnlyCandidateClosureCommitment, ReviewOnlyCapabilityConflict,
     ReviewOnlyCapabilityConflictChange, ReviewOnlyCapabilityConflictError,
     ReviewOnlyCapabilityConflictFingerprint, ReviewOnlyCapabilityConflictLimits,
-    ReviewOnlyCapabilityConflictRenderError, ReviewOnlyCapabilityConflictSet,
-    ReviewOnlyPackageCapabilityConflicts, ReviewOnlyRootRoleChange,
-    ReviewOnlyRootRoleComparisonError, ReviewOnlyRootRoleContract, ReviewSetRole,
+    ReviewOnlyCapabilityConflictSet, ReviewOnlyPackageCapabilityConflicts,
+    ReviewOnlyRootRoleChange, ReviewOnlyRootRoleComparisonError, ReviewOnlyRootRoleContract,
+    ReviewSetRole,
 };
+pub use render_error::ReviewOnlyCapabilityConflictRenderError;
 
 #[cfg(test)]
 mod tests;

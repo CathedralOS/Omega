@@ -34,7 +34,7 @@ impl ReviewBuildSession {
         for _ in 0..128 {
             let sequence = REVIEW_BUILD_SESSION_SEQUENCE.fetch_add(1, Ordering::Relaxed);
             let root = canonical_workspace.join(format!(
-                ".omega-package-review-{}-{sequence}",
+                ".omega-package-evidence-{}-{sequence}",
                 std::process::id()
             ));
             match create_private_directory(&root) {
@@ -151,7 +151,7 @@ mod tests {
 
     fn temporary_workspace(label: &str) -> PathBuf {
         std::env::temp_dir().join(format!(
-            "omega-package-review-{label}-{}-{}",
+            "omega-package-evidence-{label}-{}-{}",
             std::process::id(),
             REVIEW_BUILD_SESSION_SEQUENCE.fetch_add(1, Ordering::Relaxed)
         ))

@@ -10,7 +10,7 @@ use crate::review::candidate::ReviewOnlyCanonicalRow;
 use omega_build_evaluation::{
     ReviewOnlyBuildFilesystemReplayRecord, recover_review_only_build_filesystem_replay_record,
 };
-use omega_package_review::encoding::{
+use omega_package_evidence::encoding::{
     PackageReviewCanonicalRowRecoveryLimits, decode_package_review_canonical_row_with_limits,
 };
 use omega_package_source::{

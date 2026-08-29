@@ -1,6 +1,6 @@
 use super::{make_tree_owner_writable, temp_root, write_package};
 use crate::declarations::dependencies::read::{DependencyProjectionError, DependencySourceRequest};
-use crate::declarations::project::PackageDeclarationError;
+use crate::declarations::project::BuildDeclarationError;
 use crate::discovery::{ResolvePackageSourceError, resolve_external_local_package_source};
 use omega_package_source::{ExternalSourceContext, LocalSourceLimits};
 
@@ -21,7 +21,7 @@ fn declaration_failure_does_not_fall_back_to_repository_name() {
 
     assert!(matches!(
         error,
-        ResolvePackageSourceError::Declaration(PackageDeclarationError::MissingBuildFile { .. })
+        ResolvePackageSourceError::Declaration(BuildDeclarationError::MissingBuildFile { .. })
     ));
 
     let _ = std::fs::remove_dir_all(&root);
@@ -52,7 +52,7 @@ fn application_role_cannot_be_bound_as_a_package_source() {
     assert!(matches!(
         error,
         ResolvePackageSourceError::Declaration(
-            PackageDeclarationError::ExpectedPackageDeclaration {
+            BuildDeclarationError::ExpectedPackageDeclaration {
                 found: crate::declarations::project::BuildDeclarationKind::Application
             }
         )

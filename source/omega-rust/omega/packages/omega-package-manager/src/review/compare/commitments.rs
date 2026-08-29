@@ -11,7 +11,7 @@ use crate::graph::{
 };
 use crate::identity::PackageKey;
 use crate::review::candidate::PackageReviewEvidence;
-use omega_package_review::evidence::{
+use omega_package_evidence::evidence::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
     PackageReviewSourceLocationOwner,
 };

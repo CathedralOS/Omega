@@ -874,10 +874,10 @@ fn package_review_is_not_owned_or_reexported_by_the_compiler() {
         "package review projection and evidence schemas must not return to omega-compiler"
     );
 
-    let owner = root.join("source/omega-rust/omega/packages/omega-package-review/src/lib.rs");
+    let owner = root.join("source/omega-rust/omega/packages/omega-package-evidence/src/lib.rs");
     assert!(
         owner.is_file(),
-        "omega-package-review must own package review"
+        "omega-package-evidence must own package review"
     );
 
     let public_api =
@@ -895,12 +895,13 @@ fn package_review_is_not_owned_or_reexported_by_the_compiler() {
     }
 }
 
+#[test]
 fn package_crates_keep_one_way_ownership() {
     let graph = load_graph();
     let manager = graph
         .get("omega-package-manager")
         .expect("package manager crate participates in architecture metadata");
-    for required in ["omega-package-review", "omega-package-source"] {
+    for required in ["omega-package-evidence", "omega-package-source"] {
         assert!(
             manager.deps.iter().any(|dependency| dependency == required),
             "package manager must compose its supporting owner {required}"
@@ -919,7 +920,7 @@ fn package_crates_keep_one_way_ownership() {
     );
 
     for leaf in [
-        "omega-package-review",
+        "omega-package-evidence",
         "omega-package-source",
         "omega-resolver-execution",
     ] {
@@ -928,7 +929,7 @@ fn package_crates_keep_one_way_ownership() {
             .unwrap_or_else(|| panic!("package support crate missing from metadata: {leaf}"));
         for forbidden in [
             "omega-package-manager",
-            "omega-package-review",
+            "omega-package-evidence",
             "omega-package-source",
             "omega-resolver-execution",
         ] {
@@ -3883,7 +3884,7 @@ fn external_root_stack_and_fuel_fingerprints_are_report_only() {
 fn package_review_provider_plan_fingerprints_are_report_only() {
     let root = workspace_root();
     let evidence_path = root.join(
-        "source/omega-rust/omega/packages/omega-package-review/src/evidence/review/providers.rs",
+        "source/omega-rust/omega/packages/omega-package-evidence/src/evidence/package/providers.rs",
     );
     let evidence = std::fs::read_to_string(&evidence_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", evidence_path.display()));
@@ -3898,7 +3899,7 @@ fn package_review_provider_plan_fingerprints_are_report_only() {
     );
 
     let encoding_path = root.join(
-        "source/omega-rust/omega/packages/omega-package-review/src/encoding/values/providers.rs",
+        "source/omega-rust/omega/packages/omega-package-evidence/src/encoding/values/providers.rs",
     );
     let encoding = std::fs::read_to_string(&encoding_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", encoding_path.display()));

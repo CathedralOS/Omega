@@ -98,7 +98,7 @@ members = [
     "source/omega-rust/omega/build/omega-trust-model",
     "source/omega-rust/omega/build/omega-trust-ledger",
     "source/omega-rust/omega/compiler/omega-compiler",
-    "source/omega-rust/omega/packages/omega-package-review",
+    "source/omega-rust/omega/packages/omega-package-evidence",
     "source/omega-rust/omega/build/omega-package-compilation",
     "source/omega-rust/omega/packages/omega-package-source",
     "source/omega-rust/omega/packages/omega-resolver-execution",

@@ -1,6 +1,6 @@
 use crate::graph::{CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits};
 use crate::identity::PackageKey;
-use omega_package_review::obligation_ledger::OrdinaryPackageObligationLedger;
+use omega_package_evidence::obligations::OrdinaryPackageObligationLedger;
 use std::fmt;
 
 const ABSOLUTE_RECORD_BYTE_LIMIT: usize = 128 * 1024 * 1024;
@@ -104,7 +104,7 @@ impl fmt::Display for CanonicalPackageReconstructionQuestionFingerprint {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CanonicalPackageReconstructionEntry {
     pub(super) package: PackageKey,
-    pub(super) obligation_ledger: OrdinaryPackageObligationLedger,
+    pub(super) obligations: OrdinaryPackageObligationLedger,
 }
 
 impl CanonicalPackageReconstructionEntry {
@@ -112,8 +112,8 @@ impl CanonicalPackageReconstructionEntry {
         &self.package
     }
 
-    pub const fn obligation_ledger(&self) -> &OrdinaryPackageObligationLedger {
-        &self.obligation_ledger
+    pub const fn obligations(&self) -> &OrdinaryPackageObligationLedger {
+        &self.obligations
     }
 }
 
@@ -152,6 +152,6 @@ impl CanonicalPackageReconstructionQuestion {
     }
 
     pub fn target_name(&self) -> &'static str {
-        self.entries[0].obligation_ledger.target().target_name()
+        self.entries[0].obligations.target().target_name()
     }
 }

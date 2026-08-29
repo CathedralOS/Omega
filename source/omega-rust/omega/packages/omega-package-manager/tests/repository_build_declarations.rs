@@ -1,5 +1,5 @@
 use omega_package_manager::declarations::{
-    BuildDeclaration, PackageDeclarationError, WorkspaceMemberPath, extract_build_declaration,
+    BuildDeclaration, BuildDeclarationError, WorkspaceMemberPath, extract_build_declaration,
 };
 use omega_package_manager::identity::PackageName;
 use std::fs;
@@ -153,7 +153,7 @@ fn ordinary_omega_case_projects_declare_canonical_application_roles() {
         if DECLARATION_REJECTION_CASES.contains(&omega_case_key(&cases, &root).as_str()) {
             assert_eq!(
                 extract_build_declaration(&root),
-                Err(PackageDeclarationError::InvalidBuildParameter),
+                Err(BuildDeclarationError::InvalidBuildParameter),
                 "unexpected declaration rejection in {}",
                 root.display()
             );

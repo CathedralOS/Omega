@@ -11,7 +11,7 @@ use crate::review::candidate::validation::{
     validate_review_only_records,
 };
 use crate::review::candidate::{PackageReviewEvidence, ReviewOnlyCanonicalRow};
-use omega_package_review::evidence::{
+use omega_package_evidence::evidence::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
 };
 use std::cmp::Ordering;

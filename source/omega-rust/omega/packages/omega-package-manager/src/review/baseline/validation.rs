@@ -12,8 +12,8 @@ use crate::review::candidate::validation::validate_review_only_records;
 use omega_build_evaluation::{
     BuildFilesystemReplayRecordLimits, recover_review_only_build_filesystem_replay_record,
 };
-use omega_package_review::encoding::PackageReviewCanonicalRowRecoveryLimits;
-use omega_package_review::evidence::PackageReviewCanonicalRowKind;
+use omega_package_evidence::encoding::PackageReviewCanonicalRowRecoveryLimits;
+use omega_package_evidence::evidence::PackageReviewCanonicalRowKind;
 use omega_package_source::ImmutableSourceResolution;
 use std::collections::{BTreeMap, VecDeque};
 
