@@ -7,8 +7,9 @@ baseline, and will eventually publish install and update transactions.
 
 The crate is not yet an admission-complete package manager. Start with
 [`TASKS_PACKAGE_MANAGER.md`](../../../../../TASKS_PACKAGE_MANAGER.md) for the
-remaining release work and [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md)
-for the detailed implemented security floor.
+remaining release work. Resolver guarantees and gaps are maintained in
+[`SOURCE_RESOLVER_SECURITY.md`](SOURCE_RESOLVER_SECURITY.md); settled language
+and package semantics live in the design references below.
 
 ## Read the source in workflow order
 
