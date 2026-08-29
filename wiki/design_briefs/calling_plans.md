@@ -841,6 +841,15 @@ trait/requirement/fingerprint realization. The validated payloadless thunk and
 its address-free relocation demand are now retained; target/object relocation
 and runtime registration remain later lowering slices.
 
+The canonical checked-to-Terminal producer does not yet accept that retained
+callback-placement sidecar. Check-only compilation therefore remains valid,
+while the product driver rejects nonempty sidecars for both Terminal and native
+artifact requests before invoking the Terminal producer. The diagnostic names
+the exact row count and canonical callback overloads. This is a custody fence,
+not a claim that the rows are unsupported or may be cleared; it can be removed
+only when the canonical Terminal handoff explicitly consumes and preserves
+every row.
+
 The identity row additionally pins two separate normalized public-contract
 endpoints: the callback requirement capsule and the selected machine's declared
 contract plan. A validated-refinement receipt explicitly binds those two

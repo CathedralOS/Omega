@@ -308,6 +308,14 @@ no resolved address and grants no registrar invocation, source `Registration`,
 capacity, lease, or publication authority. `DataAddress`, Q13 direct parameters,
 and multi-segment physical paths remain fenced.
 
+The current canonical checked-to-Terminal function has no input field for the
+compiler's validated callback-placement sidecar. The compiler product driver
+therefore accepts those rows for check-only output but rejects Terminal and
+native artifact production before calling the Terminal producer. It reports
+the complete row count and canonical callback identities rather than clearing
+or reconstructing the sidecar. Canonical artifact production remains fenced
+until this handoff has an explicit custody carrier and consumer.
+
 Deployment now owns a separate two-phase reclaimable callback custody path. It
 installs an independently admitted root before the ordinary registrar call and
 retains the installed root plus exact ledger in a pending non-Clone carrier.

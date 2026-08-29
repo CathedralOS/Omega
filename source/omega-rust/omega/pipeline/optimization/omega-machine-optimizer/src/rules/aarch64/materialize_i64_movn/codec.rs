@@ -44,7 +44,7 @@ impl std::fmt::Display for Aarch64MovnMaterializationDecodeError {
 impl std::error::Error for Aarch64MovnMaterializationDecodeError {}
 
 pub(crate) fn encode(plan: &Aarch64MovnMaterializationPlan) -> Vec<u8> {
-    let content = crate::aarch64_movn_identity::encode_content(plan);
+    let content = super::identity::encode_content(plan);
     let mut encoded = Vec::with_capacity(44 + content.len());
     encoded.extend_from_slice(MAGIC);
     encoded.extend_from_slice(&VERSION.to_le_bytes());

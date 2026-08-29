@@ -1,4 +1,6 @@
 use omega_optimization_core::{AcceptedObligationFactIdentity, OptimizationUnitIdentity};
+
+use super::identity;
 use omega_optimization_unit::{EffectLink, FuelSettlement, OwnershipEvent, PsiProvenance};
 use omega_register_model::{
     RegisterConstraintCatalogIdentity, RegisterConstraintFamily, RegisterConstraintKey,
@@ -56,8 +58,7 @@ impl std::error::Error for PreAllocationMachineEffectDecodeError {}
 pub(crate) fn encode_terminal_pre_allocation_machine_effect_plan(
     plan: &PreAllocationMachineEffectPlan,
 ) -> Vec<u8> {
-    let content =
-        crate::effect_identity::encode_terminal_pre_allocation_machine_effect_content(plan);
+    let content = identity::encode_terminal_pre_allocation_machine_effect_content(plan);
     let mut encoded = Vec::with_capacity(44 + content.len());
     encoded.extend_from_slice(MAGIC);
     encoded.extend_from_slice(&VERSION.to_le_bytes());
