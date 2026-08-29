@@ -3,8 +3,8 @@
 > **Status: fixed architecture, incomplete upper implementations.** The language
 > spine is `Alpha → Beta → Gamma → Delta → Omega`. Alpha tape is the canonical
 > executable form of every bootstrap compiler. Alpha is operational; current
-> Beta fixed-point machinery is migration evidence, and every canonical
-> immediate-predecessor compiler edge remains to be completed.
+> Beta now has its canonical immediate-predecessor source and direct tape;
+> its full refinement remains open, as do the upper compiler implementations.
 
 ## The chain
 

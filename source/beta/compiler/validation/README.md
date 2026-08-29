@@ -3,12 +3,11 @@
 This owner now retains only machinery with a direct adaptation to the
 Alpha-written canonical Beta compiler or a bounded, named diagnostic role.
 
-## Canonical-edge candidates
+## Canonical-edge checks
 
 - `admission/bc-artifact-structure.alpha` is a general Alpha-tape structural
-  checker. Its wrapper accepts an explicit candidate tape; its no-argument
-  default remains the migration artifact until `beta_compiler.alpha` is
-  promoted.
+  checker. Its wrapper accepts an explicit tape; its no-argument default is the
+  canonical compiler artifact.
 - `admission/fol/` proves that the selected first-order checker can express
   non-lockstep traces, silent stuttering with a decreasing rank, cyclic
   execution, and the required negative controls. It contains no exact
@@ -23,14 +22,12 @@ Alpha-written subject.
 
 ## Diagnostics retained conditionally
 
-- `cold-start/rebuild-artifact.sh --check` is the sole temporary owner of the
-  independent `bc.beta` fixed-point comparison while the migration artifact is
-  still consumed. A duplicate validation wrapper was deleted.
-- `stress/refinement.sh` constructs the Alpha-written compiler candidate and
-  proves source/tape agreement for 100 curated and generated programs inside
+- `stress/refinement.sh` constructs the canonical Alpha-written compiler and
+  proves source/tape agreement for 71 curated and deterministic generated programs inside
   the explicitly modeled arithmetic, state-machine, memory, I/O, and bounded
-  control fragment. The measured full gate is about two minutes on the
-  development host. This is a bounded compiler-edge diagnostic, not proof of
+  control fragment. Deeper fuzz counts are explicit environment overrides;
+  the measured default is 114 seconds on the development host and is not part
+  of the fast suite. This is a compiler-edge diagnostic, not proof of
   the unmodeled language or a bootstrap premise.
 
 The historical-compiler surface wrapper, a repository-shape ownership test,
@@ -38,9 +35,8 @@ and a duplicate three-checker certificate diamond were deleted. Their distinct
 cases moved to the direct compiler suite; checker implementation agreement is
 already Alpha-checker-owned.
 
-No command here is a default lattice edge until it names the exact
-`beta_compiler.alpha` source and canonical tape. Artifact identity,
-source-language correctness, and tape structure remain separate obligations.
+Artifact identity, source-language correctness, and tape structure remain
+separate obligations.
 
 Run the retained focused seams directly:
 

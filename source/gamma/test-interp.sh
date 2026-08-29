@@ -20,12 +20,10 @@ fi
 cd "$OMEGA_GATE_DIR"
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
-ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 stamp_beta_compiler "$T/bc.exe" >/dev/null
 
-"$T/bc.exe" < interp.beta > "$T/g.asm" || { echo "bc(interp.beta) failed"; exit 1; }
-"$ASM" < "$T/g.asm" > "$T/g.tape" || { echo "assemble failed"; exit 1; }
+"$T/bc.exe" < interp.beta > "$T/g.tape" || { echo "bc(interp.beta) failed"; exit 1; }
 stamp_seed "$T/g.tape" "$SEED" "$T/g.exe" >/dev/null 2>&1
 echo "interp tape: $(wc -c < "$T/g.tape" | tr -d ' ') B (compiled by bc)"
 

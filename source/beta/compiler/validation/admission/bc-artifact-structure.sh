@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 # Lower-rooted structural obligations for one exact Alpha tape. The optional
-# argument lets construction gates check the candidate before it is persisted.
+# argument lets construction gates check any explicit tape before persistence.
 set -eu
 
 [ "$#" -le 1 ] || { echo "usage: $0 [ALPHA_TAPE]" >&2; exit 2; }
@@ -71,9 +71,9 @@ printf '\377\377\377\377\377\377\377\377' > "$T/max.le64"
 dd if="$T/max.le64" of="$T/range-target" bs=1 seek=1 conv=notrunc 2>/dev/null
 case_run "out-of-range direct target" 1 "$T/range-target"
 
-# The whole-artifact checker also reconstructs bc's procedure regions from
-# direct-call entries. Only the root may halt; every callee region must return;
-# and non-call control flow may not enter or leave a procedure region.
+# The whole-artifact checker also reconstructs procedure regions from direct
+# call entries. The root must halt; a callee may return or terminate the whole
+# run; and non-call control flow may not enter or leave a procedure region.
 printf '%s\n' \
   'call f' \
   'imm r0, 0' \
@@ -97,7 +97,7 @@ printf '%s\n' \
   'imm r0, 0' \
   'halt r0' > "$T/callee-halt.alpha"
 "$ASM" < "$T/callee-halt.alpha" > "$T/callee-halt.tape"
-case_run "callee halt" 1 "$T/callee-halt.tape"
+case_run "callee whole-run halt" 0 "$T/callee-halt.tape"
 
 printf '%s\n' \
   'call f' \

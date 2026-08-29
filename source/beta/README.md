@@ -4,31 +4,29 @@ This directory owns the Beta language and the compiler accepting Beta. Under
 D11 the canonical compiler edge is implemented in Alpha and produces the
 platform-independent Beta compiler tape. The existing
 [`compiler/bc.beta`](compiler/bc.beta) self-host remains useful differential and
-fixed-point evidence; reproduction does not make it the required predecessor
+self-host evidence; reproduction does not make it the required predecessor
 edge or prove compiler correctness.
 
 ```text
-compiler/     bc source, artifact, Alpha cold start, and adjacent validation
+compiler/     canonical source, artifact, construction tests, and validation
 reference/    optional executable reference meaning
 ```
 
-## Current construction and migration
+## Canonical construction
 
 ```text
-bc-alpha.alpha --(Alpha seed + assembler)--> cold-start compiler
-bc.beta        --(cold-start compiler)-----> initial bc tape
-bc.beta        --(initial bc)--------------> persisted fixed-point beta_compiler_bytecode.tape
+beta_compiler.alpha --(Alpha seed + assembler)--> beta_compiler_bytecode.tape
 ```
 
 [`compiler/cold-start/`](compiler/cold-start/README.md) owns the lower-rooted
-construction. It covers the exact pinned Beta surface, rebuilds `bc.beta`, and
-reaches the accepted [`compiler/artifacts/beta_compiler_bytecode.tape`](compiler/artifacts/README.md)
-without a Rust producer. The current tape is 40,693 bytes.
+construction. It rebuilds the accepted
+[`compiler/artifacts/beta_compiler_bytecode.tape`](compiler/artifacts/README.md)
+directly, without a Rust producer or Beta self-host stage. The current tape is
+20,717 bytes.
 
-The Alpha-written `cold-start/bc-alpha.alpha` must become or construct the
-complete canonical Beta compiler used by the direct chain. Any remaining
-dependence on compiling `bc.beta` is migration work, not a permanent extra
-self-host stage.
+The Alpha-written [`compiler/beta_compiler.alpha`](compiler/beta_compiler.alpha)
+is the complete canonical Beta compiler used by the direct chain. Remaining
+`bc.beta` executions are bounded differential diagnostics, never construction.
 
 [`compiler/validation/`](compiler/validation/README.md) retains the general
 Alpha-tape structure checker, ordinary-FOL simulation seams, and bounded
@@ -43,7 +41,7 @@ compiler and emits `gamma_compiler_bytecode.tape`. It does not parse Delta.
 The Alpha-owned derivation checker is a trust-floor service beside these
 producer edges, not another compiler rung.
 
-Run the migration and diagnostic gates directly with:
+Run the construction and diagnostic gates directly with:
 
 ```sh
 sh source/beta/compiler/cold-start/rebuild-artifact.sh --check

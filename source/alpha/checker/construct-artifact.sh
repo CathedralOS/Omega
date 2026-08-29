@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 # Construct proof_checker_bytecode.tape directly through the Alpha assembler
-# and Alpha-written Beta compiler. No accepted historical Beta compiler or
+# and canonical Alpha-written Beta compiler. No Beta self-host or
 # post-compilation assembler stage participates.
 set -eu
 
@@ -21,7 +21,7 @@ SEED="$OMEGA_PATH_ALPHA/$ALPHA_SEED"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
-"$ASSEMBLER" < "$OMEGA_PATH_BETA_COMPILER/cold-start/bc-alpha.alpha" > "$TMP/cold.tape"
-stamp_seed "$TMP/cold.tape" "$SEED" "$TMP/cold" >/dev/null
-"$TMP/cold" < "$SCRIPT_DIR/implementations/beta/check.beta" > "$TMP/proof_checker_bytecode.tape"
+"$ASSEMBLER" < "$OMEGA_PATH_BETA_COMPILER/beta_compiler.alpha" > "$TMP/compiler.tape"
+stamp_seed "$TMP/compiler.tape" "$SEED" "$TMP/compiler" >/dev/null
+"$TMP/compiler" < "$SCRIPT_DIR/implementations/beta/check.beta" > "$TMP/proof_checker_bytecode.tape"
 cp "$TMP/proof_checker_bytecode.tape" "$1"

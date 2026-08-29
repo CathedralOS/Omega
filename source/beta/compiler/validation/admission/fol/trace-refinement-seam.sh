@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 # Rooted ordinary-FOL seam for the non-lockstep trace architecture selected by
-# BETA-COMPILER-FOL-REFINEMENT.  This does not claim bc.beta admission.
+# BETA-COMPILER-FOL-REFINEMENT. This does not by itself admit the compiler.
 OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
   OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
@@ -24,9 +24,6 @@ trap 'rm -rf "$OMEGA_TRACE_TMP"' EXIT
 stamp_beta_compiler "$OMEGA_TRACE_TMP/bc.exe" >/dev/null || exit $?
 stamp_proof_checker "$OMEGA_TRACE_TMP/check.exe" >/dev/null || exit $?
 "$OMEGA_TRACE_TMP/bc.exe" < "$OMEGA_PATH_GAMMA/interp.beta" \
-  > "$OMEGA_TRACE_TMP/interp.alpha" 2>/dev/null || exit $?
-"$OMEGA_PATH_ALPHA_ASSEMBLER/$BETA_SEED" \
-  < "$OMEGA_TRACE_TMP/interp.alpha" \
   > "$OMEGA_TRACE_TMP/gamma_interpreter_bytecode.tape" 2>/dev/null || exit $?
 stamp_seed "$OMEGA_TRACE_TMP/gamma_interpreter_bytecode.tape" \
   "$OMEGA_PATH_ALPHA/$ALPHA_SEED" \

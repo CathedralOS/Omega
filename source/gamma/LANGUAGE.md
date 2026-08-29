@@ -51,11 +51,10 @@ the evaluation. A parsed variable expression may likewise cache its resolved
 slot relative to the current function frame: Gamma has no closures, lookup does
 not cross that frame, and the slot is fixed by the expression's lexical
 position, so repeated calls and recursive re-entry still read the current
-binding. Runtime values may be reclaimed by a stable-address,
-representation-aware conservative collector: candidate roots must decode to
-exact live allocation starts, so conservative retention cannot change values,
-matching, evaluation order, or printed constructor trees. Exhausting the
-runtime heap after reclamation remains the same fail-closed host outcome.
+binding. The current interpreter uses a stable-address fixed arena for syntax
+and runtime values. It does not alias compiler-generated Beta frames into raw
+memory or attempt reclamation without an explicit complete root set. Exhausting
+the arena remains a fail-closed host outcome.
 The evaluator checks fuel at its external entry and before each decremented
 function-body transfer. Internal subexpression evaluation preserves the
 positive-fuel invariant, so eliminating duplicate child-level checks does not

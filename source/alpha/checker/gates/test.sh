@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 # Gate for the proof-kernel certificate checker. Stamps the persisted checker
-# tape constructed by the Alpha-written cold compiler, then feeds it proof
+# tape constructed by the canonical Alpha-written Beta compiler, then feeds it proof
 # certificates: valid ones must `accept`, invalid ones must `reject`.
 OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
@@ -21,16 +21,14 @@ fi
 cd "$OMEGA_PATH_ALPHA_CHECKER"
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
-ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 stamp_beta_compiler "$T/bc.exe" >/dev/null
 
 # Build .beta programs with the canonical lattice-built bc artifact.
 buildbc() { # src.beta -> $T/out.exe
-  "$T/bc.exe" < "$1" > "$T/p.asm" || { echo "bc($1) failed"; exit 1; }
-  "$ASM" < "$T/p.asm" > "$T/p.tape" || { echo "assemble $1 failed"; exit 1; }
+  "$T/bc.exe" < "$1" > "$T/p.tape" || { echo "bc($1) failed"; exit 1; }
   stamp_seed "$T/p.tape" "$SEED" "$2" >/dev/null 2>&1
-  echo "$1 tape: $(wc -c < "$T/p.tape" | tr -d ' ') B (compiled by bc)"
+  echo "$1 tape: $(wc -c < "$T/p.tape" | tr -d ' ') B (emitted directly by the Alpha-written Beta compiler)"
 }
 stamp_proof_checker "$T/check.exe" >/dev/null || { echo "checker artifact unavailable"; exit 1; }
 PASS=0; FAIL=0

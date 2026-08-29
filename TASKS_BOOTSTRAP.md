@@ -76,7 +76,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 | Edge | Reusable work | Missing canonical result |
 | --- | --- | --- |
 | Alpha seed | written semantics, two native seeds, assembler, checker | keep trust floor small and exact |
-| Alpha-written Beta compiler | `cold-start/bc-alpha.alpha`, construction tests, tape machinery | promote one general Alpha implementation and prove its source-to-tape edge |
+| Alpha-written Beta compiler | canonical `beta_compiler.alpha` and direct tape artifact | close remaining language/resource checks and exact source-to-tape refinement |
 | Beta-written Gamma compiler | `interp.beta`, `typeck.beta`, Gamma semantics/tests | standalone Gamma-to-Alpha compiler tape and refinement |
 | Gamma-written Delta compiler | Delta contract and test corpus | compiler source, tape, and refinement |
 | `D → omega₀` | full Omega/Rust implementation as a nonauthoritative reference | correctly owned complete Delta closure `D`, full Omega acceptance, tape, and refinement |
@@ -131,54 +131,60 @@ code, discover a closure, manufacture proof premises, or decide admission.
   A general checked Alpha-to-native realization may be proposed; source-,
   function-, hash-, or workload-specific jets are forbidden. No current floor
   measurement triggers escalation: the complete Alpha-written Beta compiler
-  surface gate runs 111 cases in under three seconds on the development host.
+  surface gate runs 120 cases in under three seconds on the development host.
 
 ## 2. Alpha-written Beta compiler
 
-- [ ] **PROMOTE-ALPHA-BETA-COMPILER.** Audit
-  `source/beta/compiler/cold-start/bc-alpha.alpha` against the complete Beta v1
-  contract. Generalize any pinned-source assumptions, rename/move it to
-  `beta_compiler.alpha`, and make its exact Alpha tape the canonical Beta
+- [ ] **ADMIT-ALPHA-BETA-COMPILER.** Audit the canonical
+  `source/beta/compiler/beta_compiler.alpha` against the complete Beta v1
+  contract. Its exact directly assembled Alpha tape is now the canonical Beta
   compiler artifact. It must accept arbitrary valid Beta within explicit
   resource bounds and reject or return `Incomplete` fail-closed.
   - [x] Remove pinned syntax/runtime defects found by the general-source audit:
     full-range Word literals, zero final fallthrough, `r13=8` stack convention,
     reserved intrinsic names, and disjoint callable procedure regions. The
-    focused suite now passes 111 cases and the candidate tape passes the generic
+    focused suite now passes 120 cases and the canonical tape passes the generic
     structural checker.
   - [x] Replace emitted Alpha text plus an external assembler invocation with
     direct Alpha tape emission inside the compiler. The Alpha assembler may
     construct the compiler artifact, but it cannot remain a semantic stage when
-    the compiler processes Beta input. The candidate now reserves and encodes a
+    the compiler processes Beta input. The compiler now reserves and encodes a
     private bounded tape, resolves procedure/state/internal fixups, and publishes
-    only after complete replay. All 111 focused cases and the full `bc.beta`
-    source were byte-identical to the removed text-plus-assembler route; both
-    resulting tapes pass the generic structural gate. Checker construction and
-    refinement diagnostics now consume the direct tape.
+    only after complete replay. The full `bc.beta` source was byte-identical to
+    the removed text-plus-assembler route; the direct encoder then deliberately
+    corrected that assembler's signed-division bug for high-bit `u64` immediate
+    bytes. The canonical tape passes the generic structural gate. Every
+    production consumer now uses its direct tape output.
   - [ ] **DESIGN-BLOCKED — Q17:** Enforce Beta definite initialization across
     state/transition CFGs after fixing the flat-block formation and guarded-edge
     well-formedness rules. A source-order symbol-table pass alone does not prove
     initialization on every path; the byte-vector must-analysis and bounded
     table/worklist layout are otherwise fully specified implementation work.
   - [ ] Separate source-visible raw Beta memory from generated frame/expression
-    stacks and bind the call/stack profile that proves non-aliasing.
+    stacks and bind the call/stack profile that proves non-aliasing. Raw memory
+    is now a checked, zeroed 32 MiB logical region biased above the data stack;
+    dynamic data-stack and semantic call/return-stack bounds remain open.
   - [ ] Project malformed source and each private capacity failure to exact,
     typed no-partial-output outcomes rather than relying on numeric host exit
     status alone.
-- [ ] Redirect the existing cold construction, exact-tape comparison, and
+- [x] Redirect the existing cold construction, exact-tape comparison, and
   focused language tests to the Alpha source subject. Remove any two-stage
-  “cold compiler builds `bc.beta`, then `bc.beta` becomes canonical” logic.
+  “cold compiler builds `bc.beta`, then `bc.beta` becomes canonical” logic. The
+  persisted artifact is now the 20,717-byte direct assembly of
+  `beta_compiler.alpha`; checker, Gamma, reference, and seed-diamond consumers
+  no longer invoke an assembler after compiling Beta.
 - [x] Reassess the large `bc.beta` refinement/admission tree module by module.
   Adapt general Alpha-machine decoding, observation, stuttering, and proof-DAG
   machinery to the actual Alpha-written compiler edge. Delete source-specific
   machinery that exists only to prove the noncanonical `bc.beta` fixed point.
   The retained surface is the generic artifact-structure check, generic FOL
-  trace seam, stress/refinement harness, and bounded fixed-point comparator;
+  trace seam, stress/refinement harness, and bounded implementation comparator;
   about 65,000 source-specific lines and their wrapper scripts were removed.
 - [ ] Retain `bc.beta` only long enough to run a bounded, measured comparison
   against the promoted Alpha compiler. Record the distinct failures it exposes
-  or delete it, its fixed-point artifact, and its gate. Reproduction by itself
-  is not a continuing role.
+  or delete it and its comparison gate. Its fixed-point artifact and all
+  production consumers have already been removed. Reproduction by itself is
+  not a continuing role.
 - [ ] Close exact Alpha-source-to-Alpha-tape refinement with termination, trap,
   resource exhaustion, output, and divergence observations. Ordinary checked
   first-order simulation and well-founded stuttering remain the selected proof

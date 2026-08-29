@@ -721,16 +721,16 @@ eo_emit:
         load  r0, r3           ; value
         imm   r3, 524392
         load  r1, r3           ; width
+        imm   r2, 0            ; byte index into stored NUM word
 eo_bloop:
-        imm   r2, 0
-        jeq   r1, r2, eo_done
-        mov   r3, r0
-        imm   r4, 256
-        mod   r3, r4
+        imm   r4, 0
+        jeq   r1, r4, eo_done
+        imm   r3, 524384
+        add   r3, r2
+        loadb r3, r3
         write r3
-        imm   r4, 256
-        div   r0, r4
         imm   r4, 1
+        add   r2, r4
         sub   r1, r4
         jmp   eo_bloop
 eo_done:

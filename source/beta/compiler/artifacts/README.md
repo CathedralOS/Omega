@@ -1,31 +1,28 @@
 # Persisted Beta compiler artifact
 
-`beta_compiler_bytecode.tape` is currently the platform-independent Alpha tape
-for the historical fixed-point Beta compiler. D10 selected this descriptive committed name; the atomic naming
-migration updated every consumer without changing the tape bytes or content
-hash.
+`beta_compiler_bytecode.tape` is the platform-independent Alpha tape emitted
+directly from the canonical Alpha-written Beta compiler.
 
-Its migration construction lineage is:
+Its construction lineage is exactly:
 
 ```text
-Alpha seed + Alpha-written assembler
-  -> cold-start/bc-alpha.alpha
-  -> compile bc.beta once (initial bc)
-  -> compile bc.beta again (persisted fixed-point beta_compiler_bytecode.tape)
+audited Alpha seed + Alpha-written assembler
+  -> beta_compiler.alpha
+  -> beta_compiler_bytecode.tape
 ```
 
 `cold-start/rebuild-artifact.sh --check` reconstructs that tape and compares it
 byte-for-byte without changing the repository. `artifact_env.sh` stamps it
-into the host's audited Alpha seed for downstream lattice gates. Fixed-point
-repetition and the complete Beta corpus remain useful focused diagnostics, not
-additional producer edges. The historical Rust producer is retired and was
-never in this artifact's lineage.
+into the host's audited Alpha seed for downstream lattice gates. No Beta
+self-host, textual Alpha output, or second assembler invocation lies on this
+edge. The historical `bc.beta` implementation is a bounded differential subject
+only and has no production consumer.
 
 Regenerate deliberately with `cold-start/rebuild-artifact.sh`; commit a changed
 tape only together with the source/compiler change and a green construction
 check plus the directly relevant focused tests.
 
-The committed artifact is 40,693 bytes. Its SHA-256 digest is
-`73a0087da97b0629617ba8ced637a7783b2cc6911be906d1b4df5801e65c2cdd`.
+The committed artifact is 20,717 bytes. Its SHA-256 digest is
+`e2b27ed9670fad3116d3cbcf41fe2a65d0da7ed681d3af2bd0aecb1785d10512`.
 The reconstruction gate's byte comparison is authoritative for repository
 identity; the digest is recorded for convenient audit and transport checks.

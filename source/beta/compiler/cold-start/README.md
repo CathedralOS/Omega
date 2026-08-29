@@ -1,15 +1,13 @@
-# Alpha-written Beta cold start
+# Canonical Beta compiler construction
 
-This directory contains the existing Alpha-written Beta compiler candidate. It
-is assembled and executed only through the audited Alpha seed and Alpha-written
-assembler. Today it accepts the complete pinned `bc.beta` surface and feeds a
-self-hosted fixed point. The canonical edge instead promotes and generalizes
-this Alpha implementation so it directly owns the persisted Beta compiler tape;
-the fixed point then becomes diagnostic.
+This directory owns the one-step construction and focused language tests for
+[`../beta_compiler.alpha`](../beta_compiler.alpha). The Alpha-written assembler
+turns that source directly into the persisted compiler tape; no Beta self-host
+or textual-output assembler stage follows it.
 
 ## Complete Beta surface
 
-[`bc-alpha.alpha`](bc-alpha.alpha) currently accepts exactly:
+[`../beta_compiler.alpha`](../beta_compiler.alpha) currently accepts exactly:
 
 ```text
 program   := proc+
@@ -40,7 +38,10 @@ local, parameter, and state declarations.
 Comparisons are signed except full-width equality and materialize exactly zero
 or one. Procedure-scoped `state` labels fall through in source order;
 unconditional `to` jumps, while `to … when expr` jumps only for nonzero guards.
-Byte/word memory lowers directly to Alpha loads and stores. `read_byte()` and
+Byte/word memory is a 32 MiB zeroed logical region biased to physical Alpha
+addresses `2097152..35651583`; generated signed-negative and exclusive-upper
+guards run before the bias and every load/store. It is therefore disjoint from
+the tape and current generated data-stack region. `read_byte()` and
 `write_byte(x)` are the sole runtime I/O intrinsics. `emit("…")` decodes Beta's
 six string escapes and emits one Alpha `write` per byte; the pinned `bc.beta`
 contains only 791 literal payload bytes, so this direct lowering remains well
@@ -66,27 +67,29 @@ explicit return values through full epilogues. Generated `$L…` and `$S…$…`
 labels use bytes that Beta identifiers cannot spell, preventing collisions with
 source names.
 
-This accepts the exact pinned `bc.beta` profile and closes its external-producer
-dependency for the historical construction. [`rebuild-artifact.sh`](rebuild-artifact.sh)
-builds `bc.beta` through the Alpha-written compiler and advances to the
-self-hosted fixed point. Its `--check` mode reconstructs
+This accepts arbitrary programs in the bounded surface above, including the
+current `bc.beta` comparison source. [`rebuild-artifact.sh`](rebuild-artifact.sh)
+assembles the canonical Alpha source directly. Its `--check` mode reconstructs
 [`../artifacts/beta_compiler_bytecode.tape`](../artifacts/README.md) byte-for-byte without changing
 the repository; its default mode deliberately installs that reconstruction.
-The focused [`test.sh`](test.sh) exercises the cold compiler's accepted and
+The focused [`test.sh`](test.sh) exercises the compiler's accepted and
 rejected Beta surface, but that regression suite is not a compiler-lattice
 edge. The direct emitter was migration-checked byte-for-byte against the former
 textual-output-plus-Alpha-assembler route, after which that obsolete oracle was
-removed. The adjacent validation directory now retains only general artifact
-structure, trace-refinement, stress, and bounded fixed-point comparisons. The
+removed. Its stored-word encoder subsequently corrected the old assembler's
+high-bit `u64` quotient bug, so that intentional semantic repair supersedes
+blanket byte identity with the historical route. The adjacent validation
+directory now retains only general artifact
+structure, trace-refinement, stress, and bounded implementation comparisons. The
 former exact-`bc.beta` admission forest was deleted because none of its
 source/PC/count-specific propositions transferred to the promoted Alpha source.
 
-## Full-source target profile
+## Comparison-source profile
 
-The target is pinned to the current `bc.beta` source, SHA-256
+The retained comparison input is the current `bc.beta` source, SHA-256
 `b6ad15ed9cc540a628b83c671bd8c6629770056a641d72d885e41354a8b06c4c`:
 32,605 bytes. Its measured surface remains inside every adjacent-boundary-tested
-cold-compiler capacity. It uses
+compiler capacity. It uses
 every arithmetic and comparison operator, byte/word memory, calls, CFG
 transitions, byte I/O, and fixed-string emission. These measurements define
 implementation capacities; they do not broaden Beta's language meaning.
@@ -97,7 +100,7 @@ Run the focused gate with:
 sh source/beta/compiler/cold-start/test.sh
 ```
 
-Recheck the current migration construction with:
+Recheck the canonical construction with:
 
 ```sh
 sh source/beta/compiler/cold-start/rebuild-artifact.sh --check

@@ -164,11 +164,10 @@ loudly instead of hanging the gate.
 `byte[5000] = a + b; return byte[5000] * 2` certifies: both engines model a byte map at concrete addresses.
 A stored **symbolic** value is kept *untruncated* even though `storeb` keeps only the low byte — sound
 because the observable is mod 256 and `+`/`−`/`*` respect mod-256 congruence (a ring homomorphism ℤ→ℤ/256),
-so every observed byte matches the machine; concrete stores truncate exactly. Alpha's initial byte memory is
-the **tape image** (as on the machine) while the source interpreter's is zeroed — a low-address program
-would honestly FAIL the cross-engine proof, which is correct: it genuinely behaves differently interpreted
-vs compiled. Word↔byte aliasing refuses on both directions; `word[..]` and byte ops inside loops are later
-slices.
+so every observed byte matches the machine; concrete stores truncate exactly. Alpha's physical memory still
+begins with the tape image, but the compiler maps Beta's zeroed logical byte memory into a disjoint biased
+region. Low logical addresses therefore no longer alias instructions. Word↔byte aliasing refuses on both
+directions; `word[..]` and byte ops inside loops are later slices.
 
 ### Monus trip counts (symbolic counter starts)
 
@@ -227,6 +226,12 @@ break the summarizer's slot matching — found when the basic `n·a` loop fork-b
 
 ### Buffer copy loops (fill segments)
 
+This remains a source-symbolic unit model only. It is deliberately excluded
+from the end-to-end compiler refinement gate after Beta gained checked logical
+raw-memory bounds: the current proof vocabulary does not express the address
+range premise needed to discard generated fault branches. Treating those
+branches as impossible would overclaim refinement.
+
 `while (i<n): byte[base+i] = read_byte()` — the read-n-bytes-into-a-buffer idiom — summarizes to a
 **segment** `(base, trip, rdbase)`: `byte[base+j] = input[rdbase+j]` for `j < trip`. A post-loop read at a
 concrete offset becomes the conditional term `(k 9 (k 10 j trip) (k 7 rdbase+j) old)` — in-range reads the
@@ -269,7 +274,7 @@ A symbolic trip count `n` can't be unrolled. Both sides recognize the loop and r
 | `refinement_fuzz_gen.py` | random straight-line arithmetic programs |
 | `refinement_loop_gen.py` | random data-dependent counter loops (`<` / `<=`) |
 | `refinement_compose_gen.py` | random pre-loop + loop + post-loop compositions |
-| `refinement.sh` | constructs the Alpha-written compiler candidate, stamps the below-Beta checker artifact, and runs the bounded driver |
+| `refinement.sh` | constructs the canonical Alpha-written compiler, stamps the below-Beta checker artifact, and runs the bounded driver |
 | `refinement-samples/*.beta` | curated end-to-end samples (muln, countn, tri, muln_le, …) |
 | `symbolic_loop_check.py` + `symbolic-loops.sh` | source-side soundness gate: `beta_symbolic`'s loop summaries pinned to `../../../reference/beta_interp.py` over an input grid |
 

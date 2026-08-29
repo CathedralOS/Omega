@@ -20,19 +20,15 @@ Beta's meaning is the written small-step
 compiler is written in Alpha and emits Alpha tape. Its output is the standalone
 compiler used to consume the Beta-written Gamma compiler source.
 
-## Current migration
+## Current implementation
 
-The repository currently promotes the self-hosted `bc.beta` fixed point as the
-Beta compiler and keeps the Alpha-written implementation under
-`compiler/cold-start/bc-alpha.alpha`. D11 reverses that authority relationship:
-the Alpha-written compiler must become or construct the complete canonical Beta
-compiler edge. The `bc.beta` fixed point may remain valuable differential and
-self-host evidence, but it is not an extra required rung.
+The repository promotes `compiler/beta_compiler.alpha` directly as the Beta
+compiler. Its persisted artifact is the one-step output of the Alpha-written
+assembler. The historical `bc.beta` self-host has no production consumer and
+may remain only for the bounded comparison tracked in `TASKS_BOOTSTRAP.md`.
 
-Existing source/artifact refinement work against the persisted Beta tape
-remains useful only where its exact source proposition matches the new canonical
-Alpha-written compiler edge. Evidence tied specifically to “Beta source admits
-the Beta compiler” must be reclassified rather than silently reused.
+Evidence tied specifically to “Beta source admits the Beta compiler” does not
+apply to this edge and cannot be reused as authority.
 
 ## Must not contain
 

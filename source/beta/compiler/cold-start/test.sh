@@ -7,7 +7,7 @@ OMEGA_REPO_ROOT=$SCRIPT_DIR
 while [ ! -f "$OMEGA_REPO_ROOT/tools/lattice/paths.sh" ]; do
   OMEGA_PATH_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
   [ "$OMEGA_PATH_PARENT" != "$OMEGA_REPO_ROOT" ] || {
-    echo "bc Alpha cold start: cannot find repository root" >&2
+    echo "Beta compiler gate: cannot find repository root" >&2
     exit 2
   }
   OMEGA_REPO_ROOT=$OMEGA_PATH_PARENT
@@ -21,8 +21,8 @@ SEED="$OMEGA_PATH_ALPHA/$ALPHA_SEED"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
-"$ASSEMBLER" < "$SCRIPT_DIR/bc-alpha.alpha" > "$TMP/bc-alpha.tape"
-stamp_seed "$TMP/bc-alpha.tape" "$SEED" "$TMP/bc-alpha" >/dev/null
+"$ASSEMBLER" < "$OMEGA_PATH_BETA_COMPILER/beta_compiler.alpha" > "$TMP/compiler.tape"
+stamp_seed "$TMP/compiler.tape" "$SEED" "$TMP/compiler" >/dev/null
 
 pass=0
 fail=0
@@ -31,9 +31,9 @@ accept() {
   name=$1
   source=$2
   expected=$3
-  if ! printf '%s\n' "$source" | "$TMP/bc-alpha" > "$TMP/$name.tape"; then
+  if ! printf '%s\n' "$source" | "$TMP/compiler" > "$TMP/$name.tape"; then
     set +e
-    printf '%s\n' "$source" | "$TMP/bc-alpha" > /dev/null
+    printf '%s\n' "$source" | "$TMP/compiler" > /dev/null
     status=$?
     set -e
     echo "FAIL $name: compiler rejected valid Beta source (status $status)" >&2
@@ -59,7 +59,7 @@ accept_io() {
   input=$3
   expected_status=$4
   expected_output=$5
-  if ! printf '%s\n' "$source" | "$TMP/bc-alpha" > "$TMP/$name.tape"; then
+  if ! printf '%s\n' "$source" | "$TMP/compiler" > "$TMP/$name.tape"; then
     echo "FAIL $name: compiler rejected valid I/O source" >&2
     fail=$((fail + 1))
     return
@@ -82,7 +82,7 @@ reject() {
   name=$1
   source=$2
   set +e
-  printf '%s\n' "$source" | "$TMP/bc-alpha" > "$TMP/$name.out"
+  printf '%s\n' "$source" | "$TMP/compiler" > "$TMP/$name.out"
   status=$?
   set -e
   if [ "$status" -ne 0 ] && [ ! -s "$TMP/$name.out" ]; then
@@ -93,9 +93,35 @@ reject() {
   fi
 }
 
+# A memory-invalid run is outside the admitted Beta profile, but the generated
+# tape must contain it before any physical tape/stack access rather than aliasing
+# another Alpha region. Its numeric host status is deliberately not pinned.
+contain_memory_fault() {
+  name=$1
+  source=$2
+  if ! printf '%s\n' "$source" | "$TMP/compiler" > "$TMP/$name.tape"; then
+    echo "FAIL $name: compiler rejected memory-containment source" >&2
+    fail=$((fail + 1))
+    return
+  fi
+  stamp_seed "$TMP/$name.tape" "$SEED" "$TMP/$name" >/dev/null
+  set +e
+  "$TMP/$name" </dev/null > "$TMP/$name.stdout"
+  status=$?
+  set -e
+  if [ "$status" -ne 0 ] && [ ! -s "$TMP/$name.stdout" ]; then
+    pass=$((pass + 1))
+  else
+    echo "FAIL $name: invalid memory escaped containment (status $status)" >&2
+    fail=$((fail + 1))
+  fi
+}
+
 accept literal 'proc main() { return 42 }' 42
 accept full_word 'proc main() { return 18446744073709551615 }' 255
 accept full_word_wrap 'proc main() { return 18446744073709551615 + 1 }' 0
+accept full_word_high_byte 'proc main() { word[0] = 18446744073709551615 return byte[7] }' 255
+accept full_word_signed 'proc main() { return 18446744073709551615 < 0 }' 1
 accept leading_zero_word 'proc main() { return 00000000000000000000000000042 }' 42
 accept precedence 'proc main() { return 2 + 3 * 4 }' 14
 accept parentheses 'proc main() { return (2 + 3) * 4 }' 20
@@ -141,6 +167,13 @@ accept shared_state_spelling 'proc main() { let shared = 1 state shared { return
 accept adversarial_labels 'proc main() { state main { return _L0() } } proc _L0() { state foo__bar { return 42 } } proc foo__bar() { return 0 }' 42
 accept byte_memory 'proc main() { let b = 2097152 byte[b] = 65 byte[b + 1] = 66 return byte[b] + byte[b + 1] }' 131
 accept word_memory 'proc main() { let b = 2097152 word[b] = 42 return word[b] }' 42
+accept zeroed_byte_memory 'proc main() { return byte[0] }' 0
+accept zeroed_word_memory 'proc main() { return word[0] }' 0
+accept last_byte_memory 'proc main() { byte[33554431] = 77 return byte[33554431] }' 77
+accept last_word_memory 'proc main() { word[33554424] = 42 return word[33554424] }' 42
+contain_memory_fault byte_memory_over 'proc main() { return byte[33554432] }'
+contain_memory_fault word_memory_over 'proc main() { return word[33554425] }'
+contain_memory_fault negative_memory_address 'proc main() { byte[18446744073709551615] = 1 return 0 }'
 accept word_array_loop 'proc main() { let base = 2097152 let i = 0 state fill { to fb when i < 5 to sum_init } state fb { word[base + i * 8] = i * i i = i + 1 to fill } state sum_init { let t = 0 i = 0 to sum } state sum { to sb when i < 5 return t } state sb { t = t + word[base + i * 8] i = i + 1 to sum } }' 30
 accept nested_memory 'proc main() { let b = 2097152 word[b] = b + 16 byte[b + 16] = 77 return byte[word[b]] }' 77
 accept call_statement 'proc main() { let b = 2097152 touch(b) return word[b] } proc touch(p) { word[p] = 42 return 0 }' 42
@@ -275,7 +308,7 @@ printf '%s' 'proc main() { return 42 }' > "$limit_source"
 used=$(wc -c < "$limit_source" | tr -d ' ')
 remaining=$((1048576 - used))
 dd if=/dev/zero bs="$remaining" count=1 2>/dev/null >> "$limit_source"
-if "$TMP/bc-alpha" < "$limit_source" > "$TMP/source-limit.tape"; then
+if "$TMP/compiler" < "$limit_source" > "$TMP/source-limit.tape"; then
   pass=$((pass + 1))
 else
   echo "FAIL source_limit: exact 1 MiB source was not accepted" >&2
@@ -283,7 +316,7 @@ else
 fi
 printf '\000' >> "$limit_source"
 set +e
-"$TMP/bc-alpha" < "$limit_source" > "$TMP/source-over.out"
+"$TMP/compiler" < "$limit_source" > "$TMP/source-over.out"
 status=$?
 set -e
 if [ "$status" -eq 2 ] && [ ! -s "$TMP/source-over.out" ]; then
@@ -293,5 +326,5 @@ else
   fail=$((fail + 1))
 fi
 
-echo "bc Alpha cold start complete surface: $pass passed, $fail failed ($(wc -c < "$TMP/bc-alpha.tape" | tr -d ' ')-byte compiler tape)"
+echo "Beta compiler complete surface: $pass passed, $fail failed ($(wc -c < "$TMP/compiler.tape" | tr -d ' ')-byte compiler tape)"
 [ "$fail" -eq 0 ]

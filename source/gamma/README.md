@@ -8,17 +8,11 @@ parsers, validators, interpreters, and an alternate Alpha-owned checker.
 The reference evaluator implements proper tail calls and uses variable-size AST
 nodes, immediate nonnegative `u32` integers with a boxed fallback, and headerless
 two-word representations for ordinary `Cons` cells and the `Node` and `Chunks`
-constructors used by bounded persistent-array workloads. Its parsed AST is an
-immutable pinned heap prefix. Evaluation values
-occupy a stable-address 40 MiB heap with a separate byte-per-word allocation,
-representation-kind, and mark map. When that heap fills, a non-moving
-conservative mark/sweep validates every candidate root against an exact
-allocation start, follows ordinary and compact constructor children to a fixed
-point, and reuses dead blocks with next-fit search. It scans the Beta compiler's
-explicit frame/data-stack reserve, live Gamma environments, and live argument
-scratch; the separate Alpha return stack contains return addresses rather than
-Gamma values. Conservative false roots can delay reclamation but cannot move or
-prematurely reclaim an observable Gamma value. Known `Nil`, `ZeroTree`, `Cons`,
+constructors used by bounded persistent-array workloads. Its parsed AST and
+evaluation values occupy one stable-address checked 16 MiB bump arena. The
+interpreter deliberately does not inspect compiler-generated Beta frames as
+source-visible memory; exhaustion is fail-closed rather than reclaimed by a
+collector with an incomplete explicit root set. Known `Nil`, `ZeroTree`, `Cons`,
 `Node`, and `Chunks` patterns are classified once while parsing; expression and
 value constructors retain their ordinary representation. Direct call
 expressions also cache their resolved function-table index after the first
@@ -42,16 +36,15 @@ evaluation or output rather than overlapping the function table. Evaluated call 
 a checked 4 KiB interpreter-private scratch stack, and exhaustion exits 253
 without printing a partial result. Tail transfers therefore do not allocate
 source-visible persistent lists merely to move values between evaluator frames.
-The heap occupies `[16 MiB,56 MiB)`, its map occupies `[56 MiB,61 MiB)`, and the
-top 1 MiB remains reserved below Alpha's descending return stack. Exhaustion
-after collection exits 254 without partial output instead of falling into
+The arena occupies `[16 MiB,32 MiB)` of Beta's logical raw-memory profile.
+Exhaustion exits 254 without partial output instead of falling into
 Alpha's undefined out-of-range-memory edge.
 
 The current reference implementation path is Rust-free but is migration and
 semantic-oracle infrastructure, not a canonical compiler edge:
 
 ```text
-interp.beta / typeck.beta --bc.beta--> Alpha assembly --assembler--> tape --seed-->
+interp.beta / typeck.beta --beta_compiler.alpha--> Alpha tape --seed-->
     canonical interpreter / type checker consuming Gamma source
 ```
 
@@ -75,7 +68,6 @@ Run the principal gates from the repository root:
 
 ```sh
 sh source/gamma/test-interp.sh
-sh source/gamma/test-interp-gc.sh
 sh source/gamma/test-interp-arena.sh
 sh source/gamma/test-typeck.sh
 sh source/alpha/checker/gates/gamma-checker.sh

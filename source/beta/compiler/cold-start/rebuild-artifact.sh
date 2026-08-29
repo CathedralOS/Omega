@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
-# Rebuild the fixed-point bc tape through Alpha -> Beta only. With --check,
-# compare the reconstruction to the persisted artifact without changing it.
+# Rebuild the canonical Beta compiler tape directly from its Alpha source. With
+# --check, compare the reconstruction to the persisted artifact without changing it.
 set -eu
 
 MODE=${1:-install}
@@ -28,19 +28,14 @@ SEED="$OMEGA_PATH_ALPHA/$ALPHA_SEED"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
-"$ASSEMBLER" < "$SCRIPT_DIR/bc-alpha.alpha" > "$TMP/cold.tape"
-stamp_seed "$TMP/cold.tape" "$SEED" "$TMP/cold" >/dev/null
-"$TMP/cold" < "$OMEGA_PATH_BETA_COMPILER/bc.beta" > "$TMP/bootstrap.tape"
-stamp_seed "$TMP/bootstrap.tape" "$SEED" "$TMP/bootstrap-bc" >/dev/null
-"$TMP/bootstrap-bc" < "$OMEGA_PATH_BETA_COMPILER/bc.beta" > "$TMP/fixed.alpha"
-"$ASSEMBLER" < "$TMP/fixed.alpha" > "$TMP/fixed.tape"
+"$ASSEMBLER" < "$OMEGA_PATH_BETA_COMPILER/beta_compiler.alpha" > "$TMP/compiler.tape"
 
 ARTIFACT="$OMEGA_PATH_BETA_COMPILER/artifacts/beta_compiler_bytecode.tape"
 if [ "$MODE" = "--check" ]; then
-  cmp "$TMP/fixed.tape" "$ARTIFACT"
-  echo "Alpha-rooted bc construction matches the persisted artifact ($(wc -c < "$ARTIFACT" | tr -d ' ') bytes)"
+  cmp "$TMP/compiler.tape" "$ARTIFACT"
+  echo "Alpha-written Beta compiler matches the persisted artifact ($(wc -c < "$ARTIFACT" | tr -d ' ') bytes)"
 else
   mkdir -p "$OMEGA_PATH_BETA_COMPILER/artifacts"
-  cp "$TMP/fixed.tape" "$ARTIFACT"
-  echo "rebuilt lattice bc artifact ($(wc -c < "$ARTIFACT" | tr -d ' ') bytes)"
+  cp "$TMP/compiler.tape" "$ARTIFACT"
+  echo "rebuilt canonical Beta compiler artifact ($(wc -c < "$ARTIFACT" | tr -d ' ') bytes)"
 fi
