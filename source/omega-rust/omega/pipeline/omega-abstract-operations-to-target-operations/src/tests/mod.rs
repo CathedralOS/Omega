@@ -42,6 +42,7 @@ mod translation_validation_boolean_equal_parameters;
 mod translation_validation_boolean_not_parameter;
 mod translation_validation_boolean_parameter;
 mod translation_validation_crash;
+mod translation_validation_integer_equal_parameters;
 mod translation_validation_integer_parameter;
 mod unit_and_settlements;
 

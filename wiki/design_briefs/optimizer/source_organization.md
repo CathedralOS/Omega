@@ -285,14 +285,16 @@ then descends to the sibling
 `straight_line_integer_immediate.rs` and
 `straight_line_boolean_immediate.rs` literal leaves or
 `straight_line_scalar_crash.rs` and
-`straight_line_parameter/{integer,boolean,boolean_not,boolean_equal}.rs`. The
+`straight_line_parameter/{integer,boolean,boolean_not,boolean_equal,integer_equal}.rs`. The
 governed parameter coordinator visibly joins the `source/mod.rs` grammar map,
 its shared `envelope.rs`, and the `direct.rs`, `boolean_not.rs`, or
-`boolean_equal.rs` grammar leaf to whole-roster `abi.rs` calling-plan replay.
-`derived.rs` then joins derived source identity to exact register/stack
+typed equality grammar leaves to whole-roster `abi.rs` calling-plan replay.
+`derived/mod.rs` owns the unary join and descends to `derived/equality.rs` for
+Boolean or integer equality source identity, exact register/stack
 placements and provenance before the typed target leaf. Boolean-not preserves
-its operand and Boolean equality preserves both ordered operands, including
-identity, alongside produced value, operation, and edge custody. Immutable
+its operand; each equality family preserves both ordered operands, including
+identity, while integer equality also retains the exact common integer type,
+alongside produced value, operation, and edge custody. Immutable
 root and family vocabulary descend through small `model/error/` and
 `model/receipt/` maps and semantic leaves. The optimizer's sub-100-line
 target-operation entrance owns the visible

@@ -2954,9 +2954,12 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "straight_line_parameter::boolean_not::validate",
         "straight_line_parameter::boolean_equal::is_candidate",
         "straight_line_parameter::boolean_equal::validate",
+        "straight_line_parameter::integer_equal::is_candidate",
+        "straight_line_parameter::integer_equal::validate",
         "source::reconstruct_direct",
         "source::reconstruct_boolean_not",
         "source::reconstruct_boolean_equal",
+        "source::reconstruct_integer_equal",
         "abi::replay",
         "straight_line_scalar_crash::is_candidate",
         "straight_line_scalar_crash::validate",
@@ -2995,6 +2998,7 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "boolean.rs",
         "boolean_not.rs",
         "boolean_equal.rs",
+        "integer_equal.rs",
     ] {
         let typed_replay = std::fs::read_to_string(parameter_validation.join(leaf))
             .expect("read typed parameter-return replay");
@@ -3034,6 +3038,18 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
             "Boolean-equality source replay must visibly own {required}",
         );
     }
+    let integer_equal_source =
+        std::fs::read_to_string(parameter_validation.join("source/integer_equal.rs"))
+            .expect("read integer-equality parameter source replay");
+    for required in [
+        "AbstractOperation::IntegerEqual",
+        "AbstractOperation::Return",
+    ] {
+        assert!(
+            integer_equal_source.contains(required),
+            "integer-equality source replay must visibly own {required}",
+        );
+    }
     let source_envelope = std::fs::read_to_string(parameter_validation.join("source/envelope.rs"))
         .expect("read common parameter source envelope");
     for required in [
@@ -3048,6 +3064,7 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
     for forbidden in [
         "AbstractOperation::BooleanNot",
         "AbstractOperation::BooleanEqual",
+        "AbstractOperation::IntegerEqual",
     ] {
         assert!(
             !source_envelope.contains(forbidden),
@@ -3063,6 +3080,10 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
     assert!(
         !parameter_validation.join("source.rs").exists(),
         "the retired flat parameter source replay must not return",
+    );
+    assert!(
+        !parameter_validation.join("derived.rs").exists(),
+        "the retired flat derived-expression replay must not return",
     );
     assert!(
         !stage.join("validation/model/error.rs").exists(),

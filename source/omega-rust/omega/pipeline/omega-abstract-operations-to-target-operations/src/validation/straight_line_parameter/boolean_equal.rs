@@ -20,7 +20,8 @@ pub(crate) fn validate(
     StraightLineBooleanEqualParametersTranslationReceipt,
     StraightLineBooleanEqualParametersTranslationError,
 > {
-    let reconstructed = super::derived::reconstruct_boolean_equal(source, expected_target, target)?;
+    let reconstructed =
+        super::derived::equality::reconstruct_boolean_equal(source, expected_target, target)?;
     let TargetOperation::ReturnBooleanExpression {
         psi_edge,
         source_value,

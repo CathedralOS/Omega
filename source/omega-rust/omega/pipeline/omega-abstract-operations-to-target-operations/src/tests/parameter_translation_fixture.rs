@@ -149,3 +149,46 @@ pub(super) fn uniform_boolean_equal_plan(parameter_count: usize) -> AbstractOper
         parameter_count - 1,
     )
 }
+
+pub(super) fn integer_equal_parameters_plan(
+    parameter_types: &[ScalarType],
+    left_parameter: usize,
+    right_parameter: usize,
+) -> AbstractOperationPlan {
+    let mut plan = parameter_return_plan(parameter_types, left_parameter);
+    let function = &mut plan.functions[0];
+    let equal_result = ValueId::new(3_901).unwrap();
+    function.operations.insert(
+        0,
+        AbstractOperation::IntegerEqual {
+            psi_operation: OperationId::new(3_900).unwrap(),
+            result: equal_result,
+            left: function.parameters[left_parameter].value,
+            right: function.parameters[right_parameter].value,
+        },
+    );
+    let AbstractOperation::Return {
+        value, scalar_type, ..
+    } = &mut function.operations[1]
+    else {
+        unreachable!("fixture ends in return")
+    };
+    *value = equal_result;
+    *scalar_type = ScalarType::Boolean;
+    function.result = AbstractFunctionResult::Scalar(AbstractResult {
+        value: ValueId::new(3_003).unwrap(),
+        scalar_type: ScalarType::Boolean,
+    });
+    plan
+}
+
+pub(super) fn uniform_integer_equal_plan(
+    integer: IntegerType,
+    parameter_count: usize,
+) -> AbstractOperationPlan {
+    integer_equal_parameters_plan(
+        &vec![ScalarType::Integer(integer); parameter_count],
+        parameter_count - 2,
+        parameter_count - 1,
+    )
+}

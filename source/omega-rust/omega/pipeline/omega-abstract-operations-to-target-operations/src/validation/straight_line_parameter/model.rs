@@ -1,6 +1,6 @@
 use omega_abstract_operations::{AbstractFunctionResult, AbstractParameter};
 use omega_target_operations::ScalarParameterLocation;
-use psi_core::{EdgeId, OperationId, ValueId};
+use psi_core::{EdgeId, IntegerType, OperationId, ValueId};
 
 #[derive(Clone, Copy)]
 pub(super) enum ParameterResultKind {
@@ -73,6 +73,30 @@ pub(super) struct BooleanEqualParametersSource {
     pub(super) equal_operation: OperationId,
     pub(super) return_edge: EdgeId,
     pub(super) source_value: ValueId,
+    pub(super) left_value: ValueId,
+    pub(super) right_value: ValueId,
+    pub(super) left_parameter_index: usize,
+    pub(super) right_parameter_index: usize,
+}
+
+pub(super) struct ReconstructedIntegerEqualParameters {
+    pub(super) equal_operation: OperationId,
+    pub(super) return_edge: EdgeId,
+    pub(super) source_value: ValueId,
+    pub(super) scalar_type: IntegerType,
+    pub(super) left_value: ValueId,
+    pub(super) right_value: ValueId,
+    pub(super) left_parameter_index: usize,
+    pub(super) right_parameter_index: usize,
+    pub(super) left_location: ScalarParameterLocation,
+    pub(super) right_location: ScalarParameterLocation,
+}
+
+pub(super) struct IntegerEqualParametersSource {
+    pub(super) equal_operation: OperationId,
+    pub(super) return_edge: EdgeId,
+    pub(super) source_value: ValueId,
+    pub(super) scalar_type: IntegerType,
     pub(super) left_value: ValueId,
     pub(super) right_value: ValueId,
     pub(super) left_parameter_index: usize,

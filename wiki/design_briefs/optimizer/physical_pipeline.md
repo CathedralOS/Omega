@@ -15,16 +15,17 @@ sibling responsibilities rather than hidden branches in one lowering file.
 The adjacent sub-100-line translation-validation entrance is independent of those
 producer routes. It first binds Psi identity, requested target, entry, function
 count/order, machine, and attachment, then descends into exact family replay.
-Its first seven families reconstruct parameterless straight-line integer and
+Its first eight families reconstruct parameterless straight-line integer and
 Boolean literal returns, scalar `Crash`, direct integer and Boolean parameter
 returns, Boolean negation of a parameter, and equality of two Boolean
-parameters without calling `lowering`, `KnownScalar`, or the scalar-return
+parameters or two same-type integer parameters without calling `lowering`,
+`KnownScalar`, or the scalar-return
 helper. The distinct parameter families share governed source-envelope and
 whole-roster ABI replay rungs, which independently apply the target's calling
 policy to prove every incoming register or stack location. The derived join
-binds operand/result identity and exact operation/edge provenance; equality
-retains ordered and identical operands through the first recursive
-`ReturnBooleanExpression` receipt. Its adjacent sub-100-line ordered
+binds operand/result identity and exact operation/edge provenance; Boolean and
+typed integer equality retain ordered and identical operands through recursive
+`ReturnBooleanExpression` receipts. Its adjacent sub-100-line ordered
 catalog is the sole enable/disable inventory. Each descriptor joins one source
 classifier to one typed replay adapter; zero matches are explicitly uncovered,
 one match is retained on that function's roster row, and ambiguity fails closed.

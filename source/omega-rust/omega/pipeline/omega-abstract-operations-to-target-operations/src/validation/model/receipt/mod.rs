@@ -11,7 +11,9 @@ pub use immediate::{
 pub use parameter::{
     StraightLineBooleanEqualParametersTranslationReceipt,
     StraightLineBooleanNotParameterTranslationReceipt,
-    StraightLineBooleanParameterTranslationReceipt, StraightLineIntegerParameterTranslationReceipt,
+    StraightLineBooleanParameterTranslationReceipt,
+    StraightLineIntegerEqualParametersTranslationReceipt,
+    StraightLineIntegerParameterTranslationReceipt,
 };
 pub use roster::{
     AbstractToTargetFunctionRosterReceipt, AbstractToTargetFunctionTranslationDisposition,
@@ -30,6 +32,7 @@ pub enum AbstractToTargetFunctionTranslationReceipt {
     StraightLineBooleanParameter(StraightLineBooleanParameterTranslationReceipt),
     StraightLineBooleanNotParameter(StraightLineBooleanNotParameterTranslationReceipt),
     StraightLineBooleanEqualParameters(StraightLineBooleanEqualParametersTranslationReceipt),
+    StraightLineIntegerEqualParameters(StraightLineIntegerEqualParametersTranslationReceipt),
 }
 
 impl AbstractToTargetFunctionTranslationReceipt {
@@ -55,6 +58,9 @@ impl AbstractToTargetFunctionTranslationReceipt {
             }
             Self::StraightLineBooleanEqualParameters(_) => {
                 AbstractToTargetTranslationFamily::StraightLineBooleanEqualParameters
+            }
+            Self::StraightLineIntegerEqualParameters(_) => {
+                AbstractToTargetTranslationFamily::StraightLineIntegerEqualParameters
             }
         }
     }

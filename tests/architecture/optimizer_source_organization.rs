@@ -192,7 +192,7 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/catalog/dispatch/mod.rs",
-        coordination_marker: "STRAIGHT_LINE_BOOLEAN_EQUAL_PARAMETERS",
+        coordination_marker: "STRAIGHT_LINE_INTEGER_EQUAL_PARAMETERS",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/mod.rs",
@@ -200,11 +200,15 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/source/mod.rs",
-        coordination_marker: "fn reconstruct_boolean_equal",
+        coordination_marker: "fn reconstruct_integer_equal",
     },
     RequiredCoordinationEntrance {
-        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/derived.rs",
-        coordination_marker: "fn reconstruct_boolean_equal",
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/derived/mod.rs",
+        coordination_marker: "fn reconstruct_boolean_not",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/derived/equality.rs",
+        coordination_marker: "fn reconstruct_integer_equal",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/model/error/mod.rs",
