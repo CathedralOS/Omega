@@ -42,9 +42,14 @@ no-ops; publication retains the authored/requested/applied/effective receipt;
 and rollback-to-empty matches the ordinary path byte-for-byte on all four
 hosted native targets.
 
-[>] Add the broader four-ABI corruption matrix and continue general
-allocator/frame work. Closed vocabulary and no-selection compatibility remain
-enforced.
+[x] Target-register-environment corruption coverage now spans System V AMD64,
+Microsoft x64, AAPCS64, and Darwin AAPCS64 across all five supported native
+targets. General selected-call lowering and live-across-call allocation remain
+separate work because calls are not yet present in the selected CFG.
+
+[>] Make every rule-owning optimizer crate expose its catalog at the rule
+entrance; cross-stage custody code must consume catalogs rather than own a
+second enable/order table.
 
 ## Completed foundation
 
@@ -341,7 +346,10 @@ enforced.
   rematerialization cost decisions.
 - [ ] Implement frame layout, alignment, red-zone/shadow-space, unwind, probing,
   stable-address loans, and dynamic-allocation constraints.
-- [ ] Add x86-64 and AArch64 ABI/call-clobber corruption matrices.
+- [x] Add x86-64 and AArch64 target-register-environment ABI/call-clobber
+  corruption matrices.
+- [ ] Extend ABI/call-clobber validation through general selected scalar calls
+  and live-across-call allocation after general calls enter the selected CFG.
 
 ## P6 — Machine optimizer
 
@@ -417,6 +425,9 @@ rewrite or opt a program into lossy floating-point semantics.
    publication and callable entry.
 6. [x] Finish the remaining stage-entrance taxonomy migration and make the
    navigation contract executable for each migrated stage.
-7. [>] Add the broader target/ABI corruption matrix.
-8. [ ] Finish workspace validation and rollout canaries before promoting any
+7. [x] Add the broader target-register-environment ABI corruption matrix.
+8. [>] Move allocation-recovery and post-allocation-machine catalogs to their
+   rule-owning crate entrances, and make the navigation gate enforce those
+   ownership points.
+9. [ ] Finish workspace validation and rollout canaries before promoting any
    rule beyond explicit opt-in.
