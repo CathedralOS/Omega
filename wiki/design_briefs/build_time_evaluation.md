@@ -312,10 +312,10 @@ the existing atomic aggregate writer. Applying the carrier copies only after
 replay succeeds, so malformed evidence or a short destination leaves the
 destination unchanged.
 
-The normalized layout fingerprint and deterministic materialization identity
-are compact, non-authoritative report coordinates. Their compatibility
-accessors remain available, but the owning fields and explicit accessors name
-that report-only role. Fixed-record and conventional-sum replay authority comes
+The normalized schema/layout fingerprints and deterministic materialization
+identity are compact, non-authoritative report coordinates. Only explicitly
+named non-authoritative report accessors expose them. Fixed-record and
+conventional-sum replay authority comes
 from the retained typed value, complete layout report, target byte order, and
 exact staged bytes. Even if a substituted layout is assigned the same compact
 report coordinate, the hash-free structural comparison rejects it before

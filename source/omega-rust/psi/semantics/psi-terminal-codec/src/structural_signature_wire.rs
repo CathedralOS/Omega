@@ -67,7 +67,7 @@ pub(super) fn encode_boundary_machine(
             &schema.algebra.parameter,
         )?;
         encode_content_projection_expression(writer, &schema.capacity)?;
-        writer.u64(schema.identity);
+        writer.u64(schema.compatibility_report_identity);
     }
     writer.len(
         "boundary content guarantees",
@@ -211,7 +211,7 @@ pub(super) fn decode_boundary_machine(
             };
             let algebra_parameter = reader.string("program-local content algebra parameter")?;
             let capacity = decode_content_projection_expression(reader, 0)?;
-            let identity = reader.u64()?;
+            let compatibility_report_identity = reader.u64()?;
             Ok(ProgramLocalRootIntroductionSchema {
                 argument_index,
                 source_parameter_position,
@@ -226,7 +226,7 @@ pub(super) fn decode_boundary_machine(
                     parameter: algebra_parameter,
                 },
                 capacity,
-                identity,
+                compatibility_report_identity,
             })
         })?,
         content_guarantees: decode_counted(reader, decode_content_conservation_guarantee)?,

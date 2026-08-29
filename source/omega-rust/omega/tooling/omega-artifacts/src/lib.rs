@@ -180,17 +180,19 @@ pub struct WireProtocolReport {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct WireSchemaReportEntry {
     pub name: String,
-    pub normalized_schema_identity: u64,
+    /// Compact report coordinate for the normalized schema. Compatibility
+    /// decisions must compare the retained exact field/case rows instead.
+    pub normalized_schema_report_identity: u64,
     /// Whether the compiler exposed generated codec entries for this schema.
-    /// Identity-numbered ordinary data may carry both this realization fact
-    /// and its normalized reflected schema identity in the same merged row.
+    /// Ordinary data may carry both this realization fact and its normalized
+    /// reflected schema report coordinate in the same merged row.
     pub synthesized_codec: bool,
     pub encoding: Option<String>,
     pub codec_requirement: Option<String>,
-    pub codec_requirement_identity: Option<u64>,
+    pub codec_requirement_report_identity: Option<u64>,
     pub encode_requirement: Option<String>,
-    pub encode_requirement_identity: Option<u64>,
-    pub normalized_plan_identity: Option<u64>,
+    pub encode_requirement_report_identity: Option<u64>,
+    pub normalized_plan_report_identity: Option<u64>,
     pub encode_obligations: Vec<String>,
     pub realization_origin: Option<WireRealizationOrigin>,
     pub trust_class: Option<WireTrustClass>,
@@ -696,7 +698,6 @@ impl Default for TrustReport {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests;

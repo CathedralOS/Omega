@@ -115,9 +115,13 @@ chain across an acyclic same-stack call graph. Sequential sibling calls share
 capacity, opaque same-stack leaves require an explicit admitted contribution,
 and missing edges, residual cycles, unreachable summaries, invalid alignment,
 and arithmetic overflow reject. The opaque-leaf carrier is sealed behind an
-admission gate: it exact-matches the selected provider-plan and authored
-requirement identities, retains a nonzero independent receipt plus validated
-bytes/alignment, and derives its normalized identity from all of that evidence.
+admission gate: it exact-matches the selected provider plan's domain-separated
+commitment and authored requirement identity, retains the historical compact
+plan value only as a report coordinate, and retains a nonzero independent
+receipt plus validated bytes/alignment. Its compact report identity and a
+separate domain-separated contribution commitment include the strong plan
+commitment and all of that evidence; later WCSU projection retains the strong
+contribution commitment.
 Call-graph consumers therefore cannot construct a trusted contribution from a
 byte count directly. Compiler collection of those summaries, binding the
 composition evidence into the activation `StackPlan`, and stack reservation

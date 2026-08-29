@@ -146,12 +146,6 @@ impl ProgramEntryPhysicalContractPlan {
             )
     }
 
-    /// Compatibility accessor for the compact, non-authoritative source report
-    /// coordinate.
-    pub const fn target_package_fingerprint(&self) -> u64 {
-        self.non_authoritative_target_package_source_report_fingerprint
-    }
-
     pub const fn non_authoritative_target_package_source_report_fingerprint(&self) -> u64 {
         self.non_authoritative_target_package_source_report_fingerprint
     }

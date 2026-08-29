@@ -1,4 +1,4 @@
-//! Repository-wide guard for compact fingerprint declarations.
+//! Repository-wide guard for compact fingerprint declarations and accessors.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -47,18 +47,63 @@ fn compact_fingerprint_declaration(line: &str) -> Option<&str> {
     }
     let ty = ty.trim_start();
     let ty = ty.split_once("//").map_or(ty, |(ty, _)| ty);
-    let contains_compact_u64 = ty.match_indices("u64").any(|(index, _)| {
-        let before = ty[..index].chars().next_back();
-        let after = ty[index + 3..].chars().next();
-        let is_identifier = |character: char| character.is_ascii_alphanumeric() || character == '_';
-        before.is_none_or(|character| !is_identifier(character))
-            && after.is_none_or(|character| !is_identifier(character))
-    });
+    let contains_compact_u64 = contains_standalone_u64(ty);
     if (name.ends_with("fingerprint") || name.ends_with("fingerprints")) && contains_compact_u64 {
         Some(name)
     } else {
         None
     }
+}
+
+fn contains_standalone_u64(text: &str) -> bool {
+    text.match_indices("u64").any(|(index, _)| {
+        let before = text[..index].chars().next_back();
+        let after = text[index + 3..].chars().next();
+        let is_identifier = |character: char| character.is_ascii_alphanumeric() || character == '_';
+        before.is_none_or(|character| !is_identifier(character))
+            && after.is_none_or(|character| !is_identifier(character))
+    })
+}
+
+fn compact_fingerprint_accessor(declaration: &str) -> Option<&str> {
+    let function = declaration.find("fn ")?;
+    let after_function = &declaration[function + 3..];
+    let name_end = after_function.find('(')?;
+    let name = after_function[..name_end].trim();
+    if !name.contains("fingerprint")
+        || name.is_empty()
+        || !name
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || character == '_')
+    {
+        return None;
+    }
+    let (_, return_and_tail) = after_function[name_end..].split_once("->")?;
+    let return_type = return_and_tail
+        .split(['{', ';'])
+        .next()
+        .unwrap_or(return_and_tail);
+    contains_standalone_u64(return_type).then_some(name)
+}
+
+fn function_declarations(source: &str) -> Vec<String> {
+    let mut declarations = Vec::new();
+    let mut pending = None::<String>;
+    for line in source.lines() {
+        let trimmed = line.trim();
+        if pending.is_none() && !trimmed.contains("fn ") {
+            continue;
+        }
+        let declaration = pending.get_or_insert_with(String::new);
+        if !declaration.is_empty() {
+            declaration.push(' ');
+        }
+        declaration.push_str(trimmed);
+        if trimmed.contains('{') || trimmed.ends_with(';') {
+            declarations.push(pending.take().expect("pending function declaration"));
+        }
+    }
+    declarations
 }
 
 #[test]
@@ -87,6 +132,26 @@ fn compact_fingerprint_scanner_covers_wrapped_and_collection_u64_fields() {
     );
     assert_eq!(
         compact_fingerprint_declaration("fn helper(fingerprint: u64) {}"),
+        None,
+    );
+}
+
+#[test]
+fn compact_fingerprint_scanner_covers_accessor_return_types() {
+    for declaration in [
+        "pub const fn fingerprint(&self) -> u64 {",
+        "fn artifact_fingerprint(&self) -> Option<u64>;",
+        "pub fn report_fingerprint(\n    &self,\n) -> u64\n{",
+    ] {
+        assert!(
+            function_declarations(declaration)
+                .iter()
+                .any(|function| compact_fingerprint_accessor(function).is_some()),
+            "scanner missed compact accessor `{declaration}`",
+        );
+    }
+    assert_eq!(
+        compact_fingerprint_accessor("pub fn fingerprint(&self) -> [u8; 32] {"),
         None,
     );
 }
@@ -154,6 +219,222 @@ fn every_u64_fingerprint_declaration_requires_explicit_classification() {
     assert!(
         stale_or_overstated.is_empty(),
         "the legacy compact-fingerprint ceiling must shrink in the same change that classifies a field; stale or overstated rows: {stale_or_overstated:#?}",
+    );
+}
+
+#[test]
+fn every_u64_fingerprint_accessor_requires_explicit_classification() {
+    let root = workspace_root();
+    let source_root = root.join("source/omega-rust");
+    let mut sources = Vec::new();
+    collect_rust_sources(&source_root, &mut sources);
+
+    // This ceiling records accessor spellings still awaiting classification.
+    // It may only shrink: new compact-returning fingerprint accessors must use
+    // explicit report/cache/compatibility vocabulary or return strong/exact
+    // authority instead.
+    let legacy_maximums = BTreeMap::from([
+        (
+            "source/omega-rust/omega/backend/artifacts/omega-native-artifact/src/lib.rs:boundary_contract_fingerprint",
+            1,
+        ),
+        (
+            "source/omega-rust/omega/backend/artifacts/omega-native-artifact/src/lib.rs:provider_execution_fingerprint",
+            1,
+        ),
+        (
+            "source/omega-rust/omega/backend/images/omega-image-emission/tests/artifacts.rs:boundary_contract_fingerprint",
+            2,
+        ),
+        (
+            "source/omega-rust/omega/backend/images/omega-image-emission/tests/artifacts.rs:provider_execution_fingerprint",
+            2,
+        ),
+        (
+            "source/omega-rust/omega/backend/images/omega-image/src/relocation_envelope.rs:fingerprint_bytes",
+            1,
+        ),
+        (
+            "source/omega-rust/omega/backend/runtime/omega-component-publication/src/tests.rs:boundary_contract_fingerprint",
+            1,
+        ),
+        (
+            "source/omega-rust/omega/backend/runtime/omega-component-publication/src/tests.rs:provider_execution_fingerprint",
+            1,
+        ),
+        (
+            "source/omega-rust/omega/backend/runtime/omega-executable-installation/src/lib.rs:normalized_fragment_fingerprint",
+            3,
+        ),
+        (
+            "source/omega-rust/omega/backend/runtime/omega-external-roots/src/fixed_fuel.rs:composition_fingerprint",
+            2,
+        ),
+        (
+            "source/omega-rust/omega/backend/runtime/omega-external-roots/src/progress_profile_installation.rs:fingerprint",
+            2,
+        ),
+        (
+            "source/omega-rust/omega/backend/runtime/omega-external-roots/src/provider_execution.rs:boundary_contract_fingerprint",
+            1,
+        ),
+        (
+            "source/omega-rust/omega/backend/runtime/omega-external-roots/src/provider_execution.rs:provider_execution_fingerprint",
+            1,
+        ),
+        (
+            "source/omega-rust/omega/backend/runtime/omega-external-roots/src/stack_demand.rs:artifact_composition_fingerprint",
+            1,
+        ),
+        (
+            "source/omega-rust/omega/backend/runtime/omega-external-roots/src/stack_demand.rs:composition_fingerprint",
+            2,
+        ),
+        (
+            "source/omega-rust/omega/compiler/omega-compiler/tests/service_operational_contracts.rs:contract_fingerprint_for",
+            1,
+        ),
+        (
+            "source/omega-rust/omega/representations/omega-calling-conventions/src/plans.rs:contract_fingerprint",
+            1,
+        ),
+        (
+            "source/omega-rust/omega/representations/omega-calling-conventions/src/plans.rs:evidence_fingerprint",
+            1,
+        ),
+        (
+            "source/omega-rust/omega/representations/omega-effects/src/capabilities/provider_plan.rs:identity_fingerprint",
+            1,
+        ),
+        (
+            "source/omega-rust/omega/representations/omega-effects/src/indexed_provider_applications.rs:fingerprint_application",
+            1,
+        ),
+        (
+            "source/omega-rust/omega/representations/omega-effects/src/indexed_provider_applications.rs:fingerprint_closed_set",
+            1,
+        ),
+        (
+            "source/omega-rust/omega/representations/omega-effects/src/indexed_provider_applications.rs:fingerprint_coverage",
+            1,
+        ),
+        (
+            "source/omega-rust/omega/representations/omega-effects/src/selected_provider_plans.rs:fingerprint_selected_closure",
+            1,
+        ),
+        (
+            "source/omega-rust/omega/representations/omega-effects/src/selected_provider_plans.rs:fingerprint_selected_plans",
+            1,
+        ),
+        (
+            "source/omega-rust/omega/representations/omega-installation-evidence/src/lib.rs:boundary_contract_fingerprint",
+            1,
+        ),
+        (
+            "source/omega-rust/omega/representations/omega-installation-evidence/src/lib.rs:provider_execution_fingerprint",
+            1,
+        ),
+        (
+            "source/omega-rust/omega/representations/omega-installation-evidence/src/native_fuel/evidence.rs:fingerprint",
+            1,
+        ),
+        (
+            "source/omega-rust/omega/representations/omega-installation-evidence/src/native_fuel/fingerprint.rs:fingerprint_transfer_plan",
+            1,
+        ),
+        (
+            "source/omega-rust/omega/representations/omega-target/src/elf_loader.rs:fingerprint",
+            1,
+        ),
+        (
+            "source/omega-rust/omega/representations/omega-target/src/foreign_locator.rs:fingerprint",
+            1,
+        ),
+        (
+            "source/omega-rust/psi/foundation/psi-layout-plans/src/lib.rs:generated_post_handoff_writer_fingerprint",
+            1,
+        ),
+        (
+            "source/omega-rust/psi/foundation/psi-layout-plans/src/lib.rs:normalized_conventional_sum_layout_fingerprint",
+            1,
+        ),
+        (
+            "source/omega-rust/psi/foundation/psi-layout-plans/src/lib.rs:normalized_layout_plan_fingerprint",
+            1,
+        ),
+        (
+            "source/omega-rust/psi/foundation/psi-layout-plans/src/lib.rs:normalized_native_layout_plan_fingerprint",
+            1,
+        ),
+        (
+            "source/omega-rust/psi/pipeline/psi-typed-trees-to-checked-trees/src/monomorphization.rs:canonical_state_signature_fingerprint",
+            1,
+        ),
+        (
+            "source/omega-rust/psi/pipeline/psi-typed-trees-to-checked-trees/src/tests/generics.rs:fingerprint",
+            8,
+        ),
+        (
+            "source/omega-rust/psi/pipeline/psi-typed-trees-to-checked-trees/src/tests/generics.rs:reach_fingerprint",
+            1,
+        ),
+        (
+            "source/omega-rust/psi/pipeline/psi-typed-trees-to-checked-trees/src/tests/generics.rs:slot_fingerprint",
+            2,
+        ),
+        (
+            "source/omega-rust/psi/pipeline/psi-typed-trees-to-checked-trees/src/tests/generics.rs:slot_reach_fingerprint",
+            1,
+        ),
+        (
+            "source/omega-rust/psi/pipeline/psi-typed-trees-to-checked-trees/src/tests/generics.rs:template_fingerprint",
+            1,
+        ),
+        (
+            "source/omega-rust/psi/representations/psi-typed-trees/src/typed_trees.rs:boundary_calling_plan_fingerprint",
+            1,
+        ),
+        (
+            "source/omega-rust/psi/representations/psi-typed-trees/src/typed_trees.rs:boundary_calling_plan_fingerprint_for_arguments",
+            1,
+        ),
+    ]);
+    let mut observed = BTreeMap::<String, usize>::new();
+    for path in sources {
+        let relative = path.strip_prefix(&root).expect("source is below workspace");
+        let source = fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
+        for declaration in function_declarations(&source) {
+            let Some(accessor) = compact_fingerprint_accessor(&declaration) else {
+                continue;
+            };
+            if explicitly_non_authoritative(accessor) {
+                continue;
+            }
+            let key = format!("{}:{accessor}", relative.display());
+            *observed.entry(key).or_default() += 1;
+        }
+    }
+
+    let unexpected = observed
+        .iter()
+        .filter(|(key, count)| {
+            legacy_maximums
+                .get(key.as_str())
+                .is_none_or(|max| *count > max)
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        unexpected.is_empty(),
+        "compact fingerprint accessors must be named as report/cache/compatibility data or return exact/strong authority; unexpected accessors: {unexpected:#?}",
+    );
+    let stale_or_overstated = legacy_maximums
+        .iter()
+        .filter(|(key, maximum)| observed.get(**key) != Some(maximum))
+        .collect::<Vec<_>>();
+    assert!(
+        stale_or_overstated.is_empty(),
+        "the legacy compact-accessor ceiling must shrink in the same change that classifies an accessor; stale or overstated rows: {stale_or_overstated:#?}",
     );
 }
 

@@ -16,7 +16,8 @@ use psi_terminal::{
     PropositionEvidence, StructuralAccess, StructuralArgument, StructuralFieldType,
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
     StructuralPlaceDeclaration, StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, program_local_root_introduction_identity,
+    TerminalMachineResult, TerminalModule, Terminator,
+    program_local_root_introduction_compatibility_report_identity,
 };
 
 use crate::verification::{

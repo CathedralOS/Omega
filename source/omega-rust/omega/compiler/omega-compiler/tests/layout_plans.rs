@@ -1191,7 +1191,10 @@ machine Main::main(&mut self) { }
         big.bytes(),
         &[7, 0, 0, 0, 1, 0, 0, 0, 0x11, 0x22, 0x33, 0x44, 1, 2, 3, 4]
     );
-    assert_ne!(little.identity(), big.identity());
+    assert_ne!(
+        little.non_authoritative_materialization_report_fingerprint(),
+        big.non_authoritative_materialization_report_fingerprint()
+    );
 
     let mut destination = [0xa5; 20];
     little
@@ -1304,7 +1307,10 @@ machine Main::main(&mut self) { }
             0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ]
     );
-    assert_ne!(little.identity(), big.identity());
+    assert_ne!(
+        little.non_authoritative_materialization_report_fingerprint(),
+        big.non_authoritative_materialization_report_fingerprint()
+    );
 
     let mut nan = value.clone();
     let BuildTimeValue::Struct { fields, .. } = &mut nan else {

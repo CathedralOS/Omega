@@ -5,7 +5,7 @@ use psi_proof_admission::AdmissionProfile;
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use psi_terminal::program_local_root_introduction_identity;
+use psi_terminal::program_local_root_introduction_compatibility_report_identity;
 use psi_terminal_codec::{
     VerifiedProgramLocalRootProducerCatalog, decode_module, encode_module, terminal_psi_identity,
 };
@@ -152,8 +152,8 @@ fn source_route_lowers_exact_source_free_program_local_schema() {
         ))
     );
     assert_eq!(
-        schema.identity,
-        program_local_root_introduction_identity(
+        schema.compatibility_report_identity,
+        program_local_root_introduction_compatibility_report_identity(
             &boundary.identity,
             &domain.identity,
             &module
@@ -213,7 +213,7 @@ fn verified_catalog_owns_canonical_source_free_producer_rows() {
 }
 
 #[test]
-fn verifier_rejects_tampering_of_every_schema_identity_input() {
+fn verifier_rejects_tampering_of_every_schema_report_identity_input() {
     let lowered = lowered();
     let module = lowered.semantic_module;
 
@@ -243,7 +243,7 @@ fn verifier_rejects_tampering_of_every_schema_identity_input() {
             ContentProjectionScalar::Natural("2".to_owned()),
         );
     });
-    mutate(|schema| schema.identity ^= 1);
+    mutate(|schema| schema.compatibility_report_identity ^= 1);
 }
 
 #[test]
@@ -270,12 +270,13 @@ fn coherently_understated_route_schema_cannot_rewrite_its_owner_projection() {
         .iter()
         .find(|carrier| carrier.id == schema.carrier)
         .expect("carrier");
-    schema.identity = program_local_root_introduction_identity(
-        &boundary.identity,
-        &domain.identity,
-        &carrier.identity,
-        schema,
-    );
+    schema.compatibility_report_identity =
+        program_local_root_introduction_compatibility_report_identity(
+            &boundary.identity,
+            &domain.identity,
+            &carrier.identity,
+            schema,
+        );
 
     assert!(matches!(
         psi_terminal_verifier::validate_module_representation(&understated),
@@ -353,7 +354,10 @@ fn closed_indexed_domain_applications_remain_exact_program_local_root_families()
     assert!(first_domain.identity.contains("integer:u64:4"));
     assert!(second_domain.identity.contains("integer:u64:8"));
     assert_ne!(first_domain.identity, second_domain.identity);
-    assert_ne!(first_schema.identity, second_schema.identity);
+    assert_ne!(
+        first_schema.compatibility_report_identity,
+        second_schema.compatibility_report_identity
+    );
     assert_eq!(
         first_domain
             .content_projection
