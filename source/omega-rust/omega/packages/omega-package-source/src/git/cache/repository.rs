@@ -20,9 +20,9 @@ use crate::custody::tree::{
     verify_cache_custody_from_open_root,
 };
 use crate::git::cache::configuration::replace_canonical_git_control_file_from_open_repository;
+use crate::git::commands::invocation::{run_git, run_git_bytes_stdout, run_git_stdout};
+use crate::git::commands::reconciliation::reconcile_git_cache_operation_result;
 use crate::git::executable::executor::GitExecutor;
-use crate::git::process::invocation::{run_git, run_git_bytes_stdout, run_git_stdout};
-use crate::git::process::reconciliation::reconcile_git_cache_operation_result;
 use crate::git::request::GitExecutionTransport;
 use crate::limits::{
     GIT_CACHE_METADATA, GIT_CACHE_REPOSITORY, GIT_CACHE_SNAPSHOTS, GIT_CONFIG_SHA1,

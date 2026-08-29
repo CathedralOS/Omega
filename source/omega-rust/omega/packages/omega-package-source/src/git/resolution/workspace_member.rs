@@ -124,7 +124,7 @@ where
     Planner: GitWorkspaceProjectionPlanner,
 {
     validate_workspace_declaration_limits(limits, declaration_limits)?;
-    let maximum_members = declaration_limits.maximum_members().min(limits.max_files);
+    let maximum_members = declaration_limits.maximum_members().min(limits.max_entries);
     let maximum_declaration_bytes = declaration_limits
         .maximum_declaration_bytes()
         .min(limits.max_bytes);
@@ -140,7 +140,7 @@ where
         repository,
         [root_path.clone()],
         LocalSourceLimits {
-            max_files: 1,
+            max_entries: 1,
             max_bytes: maximum_declaration_bytes,
             max_depth: limits.max_depth,
         },
@@ -191,7 +191,7 @@ where
         repository,
         member_declaration_paths.clone(),
         LocalSourceLimits {
-            max_files: maximum_members,
+            max_entries: maximum_members,
             max_bytes: remaining_declaration_bytes,
             max_depth: limits.max_depth,
         },
@@ -271,7 +271,7 @@ fn validate_workspace_declaration_limits(
     source_limits: LocalSourceLimits,
     declaration_limits: GitWorkspaceDeclarationLimits,
 ) -> Result<(), SourceResolveError> {
-    if source_limits.max_files == 0
+    if source_limits.max_entries == 0
         || source_limits.max_bytes == 0
         || declaration_limits.maximum_members() == 0
         || declaration_limits.maximum_declaration_bytes() == 0

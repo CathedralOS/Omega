@@ -17,7 +17,7 @@ src/
 │   ├── request.rs      validate transport, locator, revision, and endpoint
 │   ├── cache/          create, verify, repair, and invalidate retained stores
 │   ├── executable/     select and retain exact helper executables
-│   ├── process/        construct and reconcile bounded Git commands
+│   ├── commands/       construct and reconcile bounded Git commands
 │   ├── objects/        authenticate commit/tree/blob object graphs
 │   ├── resolution/     acquire, authenticate, materialize, and issue custody
 │   ├── snapshot/       build and atomically publish immutable source trees

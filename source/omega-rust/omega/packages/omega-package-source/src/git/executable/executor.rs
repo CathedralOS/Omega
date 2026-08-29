@@ -11,8 +11,8 @@ use super::selection::{
     verify_git_transport_executable,
 };
 use crate::SourceResolveError;
-use crate::git::process::capture::{BoundedCommandOutput, duration_millis};
-use crate::git::process::identity::format_sha256;
+use crate::git::commands::capture::{BoundedCommandOutput, duration_millis};
+use crate::git::commands::identity::format_sha256;
 use crate::git::request::GitExecutionTransport;
 use crate::limits::{
     GIT_COMMAND_TIMEOUT, GIT_FIXED_COMMAND_ALLOWANCE, GIT_RESOLUTION_TIMEOUT, LocalSourceLimits,

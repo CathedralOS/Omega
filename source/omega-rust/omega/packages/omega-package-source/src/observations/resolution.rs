@@ -1,8 +1,8 @@
 use crate::SourceResolveError;
-use crate::git::objects::identity::{git_object_algorithm, git_object_invalid};
-use crate::git::process::identity::{
+use crate::git::commands::identity::{
     format_sha256, git_command_configuration_identity_from_resolver,
 };
+use crate::git::objects::identity::{git_object_algorithm, git_object_invalid};
 use crate::identity::GitObjectIdAlgorithm;
 use crate::limits::{
     GIT_CACHE_POLICY, GIT_FIXED_COMMAND_ALLOWANCE, GIT_RESOLUTION_OBSERVATION_DOMAIN,
@@ -193,7 +193,7 @@ pub(crate) fn issue_git_source_resolution_observation(
     hash_resolution_usize(&mut hasher, resolved.local.file_count);
     hash_resolution_u64(&mut hasher, resolved.local.byte_count);
     hash_resolution_field(&mut hasher, resolved.local.content_identity.as_bytes());
-    hash_resolution_usize(&mut hasher, limits.max_files);
+    hash_resolution_usize(&mut hasher, limits.max_entries);
     hash_resolution_u64(&mut hasher, limits.max_bytes);
     hash_resolution_usize(&mut hasher, limits.max_depth);
 

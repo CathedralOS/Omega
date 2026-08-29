@@ -33,7 +33,7 @@ pub(super) fn parse_git_tree_graph_entries(
         listing,
         repository,
         LocalSourceLimits {
-            max_files: SOURCE_ENTRY_ABSOLUTE_LIMIT,
+            max_entries: SOURCE_ENTRY_ABSOLUTE_LIMIT,
             max_bytes: u64::MAX,
             max_depth: SOURCE_DEPTH_ABSOLUTE_LIMIT,
         },
@@ -129,11 +129,11 @@ fn parse_git_tree_entries_with_policy(
                 .len()
                 .checked_add(1)
                 .ok_or(SourceResolveError::TooManyFiles {
-                    limit: limits.max_files,
+                    limit: limits.max_entries,
                 })?;
-        if identity_entry_count > limits.max_files {
+        if identity_entry_count > limits.max_entries {
             return Err(SourceResolveError::TooManyFiles {
-                limit: limits.max_files,
+                limit: limits.max_entries,
             });
         }
         if payload_limit_policy == GitTreePayloadLimitPolicy::WholeTree

@@ -9,3 +9,6 @@ pub(crate) mod lock;
 pub(crate) mod platform;
 pub(crate) mod publication;
 pub(crate) mod tree;
+
+#[cfg(test)]
+mod tests;

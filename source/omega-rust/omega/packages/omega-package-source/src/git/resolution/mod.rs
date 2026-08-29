@@ -23,18 +23,15 @@ mod repository;
 mod workspace_member;
 
 use acquisition::resolve_git_source_from_retained_cache_with;
-#[cfg(test)]
-pub(crate) use issuance::{validate_pending_git_request, verify_pending_git_snapshot};
 use materialization::materialize_whole_git_source;
-#[cfg(test)]
-pub(crate) use network::bounded_git_fetch_arguments;
-#[cfg(test)]
-pub(crate) use repository::resolve_verified_git_cache_entry;
 
 pub use workspace_member::{
     resolve_git_workspace_member_from_pin_in_lanes, resolve_git_workspace_member_in_lanes,
     resolve_git_workspace_member_with_storage,
 };
+
+#[cfg(test)]
+mod tests;
 
 pub fn resolve_git_source_in_lane(
     request: &GitSourceRequest,

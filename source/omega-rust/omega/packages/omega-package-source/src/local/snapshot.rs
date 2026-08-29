@@ -21,7 +21,7 @@ use crate::custody::lock::CacheEntryLock;
 use crate::custody::tree::verify_local_cache_root_custody;
 use crate::custody::tree::{CacheCustodyKind, verify_local_cache_custody};
 use crate::git::cache::identity::local_snapshot_invalid;
-use crate::git::process::identity::format_sha256;
+use crate::git::commands::identity::format_sha256;
 use crate::git::snapshot::construction::{
     create_snapshot_symlink_from_open_root, open_or_create_snapshot_directory,
     write_snapshot_file_from_open_root,

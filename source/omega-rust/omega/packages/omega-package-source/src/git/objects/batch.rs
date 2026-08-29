@@ -27,15 +27,17 @@ use crate::custody::tree::CacheCustodyKind;
 use crate::error::SourceResolveError;
 use crate::git::cache::identity::cache_invalid;
 use crate::git::cache::repository::VerifiedGitRepository;
-use crate::git::executable::executor::GitExecutor;
-use crate::git::process::capture::{
+use crate::git::commands::capture::{
     ResolverCommandInput, run_command_bounded_with_stdin_and_budget,
 };
-use crate::git::process::command::sealed_git_command_with_route;
-use crate::git::process::identity::{git_command_configuration_identity, git_exact_input_identity};
-use crate::git::process::reconciliation::{
+use crate::git::commands::command::sealed_git_command_with_route;
+use crate::git::commands::identity::{
+    git_command_configuration_identity, git_exact_input_identity,
+};
+use crate::git::commands::reconciliation::{
     reconcile_git_cache_operation_result, reconcile_git_command_result,
 };
+use crate::git::executable::executor::GitExecutor;
 use crate::limits::{GIT_STDERR_LIMIT, LocalSourceLimits, STAGING_SEQUENCE};
 use crate::local::capture::io_error;
 

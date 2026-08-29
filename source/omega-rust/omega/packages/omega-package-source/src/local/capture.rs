@@ -13,7 +13,7 @@ use sha2::{Digest, Sha256};
 
 use super::model::ResolvedLocalSource;
 use crate::SourceResolveError;
-use crate::git::process::identity::format_sha256;
+use crate::git::commands::identity::format_sha256;
 use crate::limits::{CANONICAL_DIRECTORY_MODE, DEFAULT_BUILD_OUTPUT_DIRECTORY, LocalSourceLimits};
 
 #[derive(Debug)]
@@ -168,7 +168,7 @@ pub(crate) fn capture_local_source_from_open_root(
     entries
         .try_reserve_exact(source_entries.len())
         .map_err(|_| SourceResolveError::TooManyFiles {
-            limit: limits.max_files,
+            limit: limits.max_entries,
         })?;
     for entry in source_entries {
         let kind = match entry.kind {
@@ -224,7 +224,7 @@ fn visit_directory(
         });
     }
 
-    let remaining_entries = limits.max_files.saturating_sub(entries.len());
+    let remaining_entries = limits.max_entries.saturating_sub(entries.len());
     let excluded_entry_allowance = match policy {
         SourceTreePolicy::ExactMaterialized => 0,
         SourceTreePolicy::LocalPackage if logical_dir.as_os_str().is_empty() => 2,
@@ -238,7 +238,7 @@ fn visit_directory(
     {
         if entry_names.len() >= directory_listing_limit {
             return Err(SourceResolveError::TooManyFiles {
-                limit: limits.max_files,
+                limit: limits.max_entries,
             });
         }
         entry_names.push(
@@ -256,9 +256,9 @@ fn visit_directory(
         {
             continue;
         }
-        if entries.len() >= limits.max_files {
+        if entries.len() >= limits.max_entries {
             return Err(SourceResolveError::TooManyFiles {
-                limit: limits.max_files,
+                limit: limits.max_entries,
             });
         }
         let display_path = display_dir.join(&name);
@@ -395,9 +395,9 @@ fn push_entry(
     kind: SourceEntryKind,
     limits: LocalSourceLimits,
 ) -> Result<(), SourceResolveError> {
-    if entries.len() >= limits.max_files {
+    if entries.len() >= limits.max_entries {
         return Err(SourceResolveError::TooManyFiles {
-            limit: limits.max_files,
+            limit: limits.max_entries,
         });
     }
     entries.push(SourceEntry {

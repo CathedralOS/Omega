@@ -6,7 +6,7 @@ use std::path::Path;
 use super::capture::hash_bytes;
 use super::model::{LocalSourceResolutionObservation, ResolvedLocalSource};
 use super::snapshot::local_snapshot_custody_identity;
-use crate::git::process::identity::format_sha256;
+use crate::git::commands::identity::format_sha256;
 use crate::limits::{
     LOCAL_RESOLUTION_OBSERVATION_DOMAIN, LOCAL_RESOLUTION_OBSERVATION_SCHEMA_VERSION,
     LOCAL_SNAPSHOT_CUSTODY_POLICY, LOCAL_SNAPSHOT_POLICY, LocalSourceLimits,
@@ -36,7 +36,7 @@ pub(super) fn issue_local_source_resolution_observation(
     hash_usize(&mut hasher, final_snapshot.file_count);
     hash_u64(&mut hasher, final_snapshot.byte_count);
     hash_field(&mut hasher, final_snapshot.content_identity.as_bytes());
-    hash_usize(&mut hasher, limits.max_files);
+    hash_usize(&mut hasher, limits.max_entries);
     hash_u64(&mut hasher, limits.max_bytes);
     hash_usize(&mut hasher, limits.max_depth);
     hash_field(&mut hasher, custody_identity.as_bytes());

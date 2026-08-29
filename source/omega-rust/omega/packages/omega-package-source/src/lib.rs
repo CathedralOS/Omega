@@ -35,8 +35,6 @@ pub use limits::LocalSourceLimits;
 pub use local::model::{
     LocalSourceResolutionObservation, ResolvedLocalSnapshot, ResolvedLocalSource,
 };
-#[cfg(test)]
-pub(crate) use local::operations::resolve_local_source_snapshot_at_path;
 pub use local::operations::{resolve_local_source, resolve_local_source_snapshot_with_storage};
 pub use observations::accounting::GitNetworkTransferObservation;
 pub use observations::execution::{
@@ -51,4 +49,4 @@ pub use observations::storage::GitRetainedStorageObservation;
 pub use storage::SourceResolverStorage;
 
 #[cfg(test)]
-mod tests;
+mod test_support;
