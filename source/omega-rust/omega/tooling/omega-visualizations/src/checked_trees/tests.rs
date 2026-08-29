@@ -1,9 +1,9 @@
 use super::{
     carry_manifest_json, claim_outcome_manifest_json, exact_manifest_crash_call_source,
-    exact_manifest_crash_source_state, exact_manifest_crash_target, machine_blocking_summary,
-    machine_contract_manifest_json, machine_suspension_summary, push_termination_interface_json,
-    qualification_evidence_manifest_json, qualification_requirement_identity,
-    qualification_subject, specialization_instance_contract_report_fingerprint, symbol_label,
+    exact_manifest_crash_source_state, exact_manifest_crash_target, machine_contract_manifest_json,
+    push_termination_interface_json, qualification_evidence_manifest_json,
+    qualification_requirement_identity, qualification_subject,
+    specialization_instance_contract_report_fingerprint, symbol_label,
     task_activation_manifest_json, validate_content_conservation_plan,
     validate_content_identity_reshuffle, validate_content_partition_input_custody,
     validate_content_partition_lineage, validate_content_partition_result_rewrites,
@@ -32,12 +32,11 @@ use psi_language_semantics::content::{
     conservation_report_fingerprint, projection_report_fingerprint,
 };
 use psi_language_semantics::{
-    BlockingInterface, BlockingPlan, BlockingSummary, CarryAddress, CarryCpu, CarryHostThread,
-    CarryPolicy, CarrySuspension, MachineSupplyMode, MachineTerminationPlan, PermissionAccess,
+    BlockingInterface, BlockingPlan, CarryAddress, CarryCpu, CarryHostThread, CarryPolicy,
+    CarrySuspension, MachineSupplyMode, MachineTerminationPlan, PermissionAccess,
     PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, PermissionProvenance,
     QualificationEvidenceOrigin, RankingViewId, RankingWitness, ReferenceAccess, SemanticDomainId,
-    SuspensionInterface, SuspensionPlan, SuspensionSummary, TerminationGuarantee,
-    TerminationInterface,
+    SuspensionInterface, SuspensionPlan, TerminationGuarantee, TerminationInterface,
 };
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::data::{MachineParameterContract, TypeParameter, TypeParameterKind};
@@ -375,22 +374,6 @@ fn panic_message(payload: Box<dyn std::any::Any + Send>) -> String {
     } else {
         "<non-string panic>".to_owned()
     }
-}
-
-fn push_behavior_flow_state(
-    program: &mut CheckedTrees,
-    machine_symbol: SymbolHandle,
-    state_symbol: SymbolHandle,
-    suspension: SuspensionSummary,
-    blocking: BlockingSummary,
-) {
-    program.facts.flow.control.states.insert(FlowStateFact {
-        machine_symbol,
-        state_symbol,
-        suspension,
-        blocking,
-        ..Default::default()
-    });
 }
 
 fn mutation_state_owner_fixture() -> (CheckedTrees, SymbolHandle, SymbolHandle, SymbolHandle) {
