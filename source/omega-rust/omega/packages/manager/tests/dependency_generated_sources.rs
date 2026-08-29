@@ -47,7 +47,7 @@ fn resolve_workspace_package_closure(
 }
 
 #[test]
-#[ignore = "OWNER Q6: generated-table's filesystem service needs authenticated ordinary-package authority after std relocation"]
+#[ignore = "OWNER Q5: generated-table's filesystem service needs authenticated ordinary-package authority after std relocation"]
 fn dependency_generated_source_enters_consumer_without_rerunning_the_dependency_build() {
     let temporary = temporary_root();
     let fixtures = workspace_root().join("tests/fixtures/packages");

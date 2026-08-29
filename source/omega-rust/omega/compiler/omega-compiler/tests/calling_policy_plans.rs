@@ -552,7 +552,7 @@ machine Main::main(&mut self) { }
 "#;
 
 #[test]
-#[ignore = "OWNER_QUESTIONS Q1: opaque by-value boundary ABI is not settled"]
+#[ignore = "TASKS_PACKAGE_MANAGER OPAQUE-BY-VALUE-BOUNDARY-ABI: implementation pending"]
 fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
     let main_path = write_program("interrupt-entry", INTERRUPT_POLICY);
     let checked = compile_to_checked(&main_path, None).expect("interrupt policy should compile");

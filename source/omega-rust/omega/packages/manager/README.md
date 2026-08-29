@@ -45,6 +45,24 @@ graph/
 └── subject/         canonical identity of the exact closure
 ```
 
+### Identity and reconciliation
+
+`PackageKey` is the authored package name plus canonical source lineage. For
+Git, lineage names the repository namespace and deliberately excludes revisions,
+commits, trees, and content; those identify an exact package instance. Requester
+aliases are local graph edges and never enter package, type, conformance, or
+evidence identity.
+
+A multi-package Git request acquires one repository/revision and separately
+selects `Root` or `Named(PackageName)`. Selected members share the authenticated
+fetch and tree. The resolved member path is retained for navigation, replay, and
+relative-dependency custody, but moving it does not replace the package.
+
+Requests for one key that resolve to the same immutable source deduplicate.
+Different resolutions reject with all dependency paths. Multiple simultaneous
+instances per key are unsupported because they would require package-instance
+qualification throughout the nominal identity substrate, not merely new aliases.
+
 ## Review
 
 ```text

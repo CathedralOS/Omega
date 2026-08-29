@@ -46,6 +46,12 @@ impl AliasName {
     }
 }
 
+/// Stable nominal identity: authored name plus canonical source lineage.
+///
+/// Git lineage names the repository namespace. Requested revisions, resolved
+/// commits, trees, and content belong to the exact package instance and must not
+/// enter this key; competing revisions reconcile or conflict instead of silently
+/// creating two nominal universes.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PackageKey {
     name: PackageName,

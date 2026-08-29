@@ -28,9 +28,12 @@ Every `build.omg` states its kind explicitly — `builder.package` for a package
 `builder.member` for a workspace root, `builder.application` for an
 application. No role is inferred from an absent declaration.
 
-The compiler evaluates this declaration hermetically before dependency
-resolution or build execution. The directory and repository names do not
-establish identity. The declared name is qualified by canonical source lineage
+The package manager statically projects this declaration from parsed source
+before dependency resolution or build execution; it does not execute the build
+machine to discover the graph. Graph-forming calls such as `package`, `member`,
+and `depend` therefore use a closed, directly projectable form. Arbitrary build
+control flow cannot hide a dependency edge. The directory and repository names
+do not establish identity. The declared name is qualified by canonical source lineage
 to form the stable `PackageKey` used by locks and nominal symbols; exact source
 content, produced artifact identity, per-subject obligation-semantics identity,
 re-derived verification results, and disclosed open assumptions form a
@@ -39,6 +42,13 @@ therefore a different identity. Compiler and toolchain provenance remain
 separate review metadata for reproduction, cache partitioning, and incident
 response; it never seals the instance or proves that the producer or an audit
 was trustworthy.
+
+`PackageName` is not globally unique. For Git, `PackageKey` lineage identifies
+the canonical repository namespace and
+does **not** include the requested revision, resolved commit, tree, or content.
+Those exact values belong to `PackageInstance`. Consequently, two revisions of
+the same declared package collide on one key and must reconcile rather than
+silently becoming two nominal universes.
 
 Packages expose public data, machines, traits, domains, wire schemas, and
 boundary surfaces.
@@ -52,6 +62,23 @@ Omega reads the dependency's own `builder.package("name")` declaration and
 derives the default local alias
 by mapping kebab-case to snake_case. Explicit aliases are exceptional local
 renames and never package identity.
+
+A Git request has two independent coordinates: acquisition identifies the
+repository and revision to fetch, while package selection is explicitly
+`Root` or `Named(PackageName)`. Omitted source spelling normalizes immediately
+to `Root`; absence is not retained in locks or evidence. `Named` selection
+authenticates the repository root, statically projects its declared workspace
+members, and requires exactly one member whose own `builder.package` declaration
+matches. Recursive `build.omg` search, caller-authored member paths, escaping
+members, and duplicate names reject.
+
+The resolved member path is retained as navigation and replay custody, including
+the base for that member's relative dependencies. It is not package identity:
+moving a member inside the same repository lineage preserves its `PackageKey`.
+Different requesters may use different local aliases for that key, and a parent
+cannot rename aliases internal to a child. A consumer that names a dependency's
+declaration needs its own dependency edge and alias; one that merely carries an
+inferred opaque value through another package's API need not name that package.
 
 After reconciliation, the compiler receives the complete requester-local alias
 graph together with an opaque commitment to each `PackageKey` and each
@@ -69,8 +96,13 @@ representation application; `Unbound` is complete only when no by-value use
 needs one. Chapter 19 defines the distinction. The compiler consumes the lock
 rather than silently resolving mutable selectors. The lock should normally be
 committed; source caches may be ignored. The first implementation performs no
-semantic-version solving and rejects incompatible requests for one `PackageKey`
-with their complete dependency paths.
+semantic-version solving. Requests for one `PackageKey` that resolve to the same
+immutable source instance deduplicate, even when their request spellings differ;
+different immutable resolutions reject with every conflicting dependency path.
+There is no intermediate "compatible version" relation. Multiple simultaneous
+instances of one key are unsupported: adding them would require nominal types,
+conformances, provider selections, and evidence rows to be qualified by package
+instance rather than package key, not merely a second local alias.
 
 Package review is proposed by the selected local compiler rather than accepted
 from dependency source. This prevents a package from declaring its own

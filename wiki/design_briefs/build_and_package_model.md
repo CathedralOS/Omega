@@ -82,10 +82,12 @@ The canonical name begins with an ASCII lowercase letter and otherwise contains
 only lowercase ASCII letters, digits, and single hyphen separators, ensuring
 that its default kebab-to-snake alias is a valid Omega identifier.
 
-The declared `PackageName` is not security identity. `PackageKey` joins it to
-canonical source lineage and is the security identity intended to qualify
-package symbols across updates. Managed imports and authored symbols now retain
-it. Post-resolution compiler symbols require one existing derivation origin and
+The declared `PackageName` is neither globally unique nor security identity.
+`PackageKey` joins it to canonical source lineage and is the security identity intended to qualify
+package symbols across updates. For Git, that lineage is the canonical repository
+namespace and excludes the requested revision, resolved commit, tree, and source
+content; exact resolution belongs to `PackageInstance`. Managed imports and
+authored symbols now retain it. Post-resolution compiler symbols require one existing derivation origin and
 inherit its exact authored package/toolchain provenance; truly source-free
 symbols remain unresolved. Checked provider-adapter rows now retain a canonical
 machine-overload identity and its exact package owner, and every compiler
@@ -130,6 +132,21 @@ either way.
 
 `build.omg` uses normal data, calls, control flow, domains, and contracts. It
 does not introduce `depends {}`, `target {}`, or another block dialect.
+
+Graph discovery is nevertheless static projection, not execution. The package
+manager parses `build.omg` and projects the closed graph-forming surface
+(`package`, `member`, and dependency requests) before any dependency can run or
+supply build services. These declarations must be direct and statically
+projectable; hiding them behind arbitrary machine control flow rejects. Ordinary
+build behavior such as provider selection and root binding remains evaluated
+Omega code after graph closure.
+
+The initial projector accepts unconditional dependency edges. That implementation
+limit is not a permanent declaration that target-conditioned dependencies are
+meaningless. If introduced, they must use a closed statically projectable
+condition over request-time inputs such as `TargetProfile`, normalize to an
+explicit edge condition, and be retained with the selected target and closure in
+the lock. Arbitrary evaluated build control flow may never decide the graph.
 
 ```omega
 machine build(builder: &mut Build)
@@ -193,7 +210,7 @@ admission evidence nor a package instance and has no decoder or public
 constructor.
 
 The post-relocation filesystem-producing two-package canary remains blocked on
-the exact ordinary-package staging-authority role in OWNER Q6. A physical-path
+the exact ordinary-package staging-authority role in OWNER Q5. A physical-path
 or spelling exception would invalidate the authority model; the lower-level
 generated-source custody and import path is independently tested without one.
 
@@ -201,7 +218,17 @@ The dependency's own `builder.package("canonical-name")` declaration supplies
 its name. Its default local import alias is derived mechanically from
 kebab-case to snake_case; only a real local collision uses the exceptional
 `builder.depend_as(alias, source)` operation. The alias is name-resolution
-syntax, never package identity.
+syntax, never package identity. Different requesters may bind different aliases
+to the same package key; no ancestor renames an alias inside a dependency.
+
+A Git request separates acquisition from package selection. Acquisition names
+one repository and revision. Selection normalizes to `Root` or
+`Named(PackageName)` and is excluded from `SourceIdentity`, so several members at
+one revision share one authenticated fetch and tree. `Named` selection consults
+only the authenticated root's statically declared member set and requires one
+member whose own package declaration matches. The resolved member path is
+retained as navigation/replay custody and as the base for relative dependencies,
+but it is not `PackageKey` identity.
 
 Library values such as `Source::Path`, `KiB`, and `Subsystem` carry the
 vocabulary. Adding a target option normally extends `Build`/library data rather
@@ -1694,7 +1721,9 @@ The unified lock artifact records the resolved closure:
 
 - package names, source-qualified `PackageKey` values, and exact
   `PackageInstance` values;
-- source selectors plus resolved commit/tree/content identities;
+- source acquisition requests, explicit `Root`/`Named` package selections,
+  resolved member-path custody, and resolved commit/tree/content identities;
+- requester-local alias edges and any statically closed dependency conditions;
 - per-subject obligation-semantics and evidence-schema identities;
 - exact certificate provenance, re-derived discharge results, and transitive
   open obligations;
@@ -1715,8 +1744,12 @@ evidence fingerprint while the corresponding normalized baseline is absent, it
 is not sufficient for update admission.
 
 The first implementation performs no semantic-version solving. Requests for
-one `PackageKey` must reconcile to one immutable instance or fail with every
-conflicting dependency path.
+one `PackageKey` that resolve to one immutable source instance deduplicate even
+when their authored selectors differ. Different immutable resolutions fail with
+every conflicting dependency path; there is no undefined "compatible request"
+relation. Multiple simultaneous instances per key are unsupported. Supporting
+them would require nominal types, conformances, provider selections, and evidence
+rows to use package-instance identity, not merely another alias.
 
 ## Package reach boundary
 
@@ -2544,10 +2577,18 @@ consults the member list, and selects by declared name. One repository may
 therefore publish several packages, and moving one inside its repository breaks
 no consumer.
 
+The selected path remains operational custody: it locates retained bytes and is
+the base for the member's relative dependency requests. It never becomes stable
+package identity. Missing and duplicate declared names, undeclared or escaping
+member paths, and recursive `build.omg` search reject.
+
 `SourceIdentity { kind, locator, resolved }` keeps `kind` open. Git is one
-supported source kind, not the blessed model. There is no package version
-field: identity is the declared name plus the resolved source revision, and a
-moving locator such as a branch resolves once and is pinned thereafter.
+supported source kind, not the blessed model. Package selection is a separate
+projection and does not fragment one fetched tree into several source identities.
+There is no package version field: `PackageKey` is the declared name plus
+canonical repository lineage, while `PackageInstance` carries the exact resolved
+revision/tree/content. A moving locator such as a branch resolves once and is
+pinned thereafter.
 
 One `omega.lock` lives at the workspace root, and a dependency's lock is never
 read by its consumers. The lock belongs to whoever builds an artifact; a library
