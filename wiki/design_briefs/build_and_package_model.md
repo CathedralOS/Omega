@@ -1388,6 +1388,23 @@ still do not mix; missing or late parents, duplicate paths, root changes,
 generated-source handoffs, alternate operations, and failures remain
 non-receipted.
 
+Summary v43 and replay-record v24 unify the directory and regular-file lanes
+as one ordered Output-tree grammar. Each entry is either one exact successful
+`create_dir` or one complete file `create`/admitted-operation*/`close` chain;
+file chains remain contiguous while directory and file entries may occur in
+authored order. Every nested entry, including a regular file, is admitted only
+after its exact parent directory has been created. Exact path collisions,
+file-as-parent shapes, missing or late parents, root changes, and descriptor
+reuse reject. Regular files retain the complete operation grammar already
+admitted above, including explicit generated-source handoffs at their exact
+post-close ordinals. Provider-free replay reproduces the authored attempts and
+requires exact final mixed namespace, teardown, handoff sequence, and sponsored
+staged-tree equality. One tree retains at most 4,096 entries, 4,096 bytes per
+path, and 16 MiB of aggregate path spelling; existing operation, descriptor,
+extent, and unique-content ceilings continue to apply. Symlinks, hard links,
+implicit parent creation, interleaved file chains, alternate namespace
+operations, and failed outcomes remain observed but non-receipted.
+
 Byte-valued inputs are evaluated once by the shared preparer and reject above
 the evaluator's current 16 MiB sponsor ceiling before provider cloning/
 allocation. Raw transfer counts use one checked conversion and
@@ -1423,7 +1440,7 @@ empty-file, v34/v15 successful-sync, v35/v16 successful-set-length, v36/v17
 successful-seek, v37/v18 successful-descriptor-permission, v38/v19
 successful-descriptor-time, v39/v20 immediate-descriptor-duplicate, v40/v21
 successful-descriptor-lock, v41/v22 single-empty-directory, and v42/v23
-empty-directory-tree grammars above may join them to
+empty-directory-tree, and v43/v24 mixed-output-tree grammars above may join them to
 verified operation replay and reproduced tree equality.
 Sponsored package review does retain a versioned commitment to
 the complete fresh Output tree after successful evaluator/provider teardown
@@ -1448,7 +1465,7 @@ v34/v15 successful-sync, v35/v16 successful-set-length, v36/v17
 successful-seek, v37/v18 successful-descriptor-permission, v38/v19
 successful-descriptor-time, v39/v20 immediate-descriptor-duplicate, v40/v21
 successful-descriptor-lock, v41/v22 single-empty-directory, and v42/v23
-empty-directory-tree grammars above supply canonical
+empty-directory-tree, and v43/v24 mixed-output-tree grammars above supply canonical
 operation replay and retained observed inputs.
 Generated-source cases bind the complete present
 handoff sequence; ordinary-artifact cases bind its absence. All broader shapes

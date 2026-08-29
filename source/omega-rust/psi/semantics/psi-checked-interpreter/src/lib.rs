@@ -2497,15 +2497,7 @@ impl FilesystemReplay {
     /// records return an empty vector. Public constructors ensure every present
     /// file is exact, distinct, and ordered as authored.
     pub fn output_files(&self) -> Vec<FilesystemOutputFileReplayRecord> {
-        let Some(output_start) = self
-            .attempts
-            .iter()
-            .position(|attempt| matches!(attempt.operation_tag(), 1 | 11))
-        else {
-            return Vec::new();
-        };
-        output_tree_entries_from_attempts(&self.attempts[output_start..])
-            .expect("validated filesystem replay retains exact Output entries")
+        self.output_entries()
             .into_iter()
             .filter_map(|entry| match entry {
                 FilesystemOutputTreeEntryReplayRecord::Directory(_) => None,
@@ -2514,9 +2506,8 @@ impl FilesystemReplay {
             .collect()
     }
 
-    /// Reconstruct the exact ordered Output directories retained by this
-    /// replay. File-only and source-only records return an empty vector.
-    pub fn output_directories(&self) -> Vec<FilesystemOutputDirectoryReplayRecord> {
+    /// Reconstruct all exact Output entries in authored operation order.
+    pub fn output_entries(&self) -> Vec<FilesystemOutputTreeEntryReplayRecord> {
         let Some(output_start) = self
             .attempts
             .iter()
@@ -2526,6 +2517,12 @@ impl FilesystemReplay {
         };
         output_tree_entries_from_attempts(&self.attempts[output_start..])
             .expect("validated filesystem replay retains exact Output entries")
+    }
+
+    /// Reconstruct the exact ordered Output directories retained by this
+    /// replay. File-only and source-only records return an empty vector.
+    pub fn output_directories(&self) -> Vec<FilesystemOutputDirectoryReplayRecord> {
+        self.output_entries()
             .into_iter()
             .filter_map(|entry| match entry {
                 FilesystemOutputTreeEntryReplayRecord::Directory(directory) => Some(directory),

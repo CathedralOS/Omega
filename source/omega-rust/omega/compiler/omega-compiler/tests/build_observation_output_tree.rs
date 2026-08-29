@@ -72,6 +72,42 @@ reaches FilesystemHost
             .expect("write directory main source");
     }
 
+    fn write_mixed_sources(&self, target: &str) {
+        std::fs::write(
+            self.source.join("build.omg"),
+            format!(
+                r#"use omega::language::std::filesystem_host;
+
+target {target} {{}}
+
+machine build(builder: &mut Build)
+reaches FilesystemHost
+{{
+    builder.package("mixed-output-tree");
+    let input: &[u8] in Path = builder.source.resolve("main.omg");
+    let source_descriptor: i32 = builder.filesystem.open(input, 0);
+    let source_buffer: [u8; 64] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    let source_count: i64 = builder.filesystem.read(source_descriptor, &mut source_buffer, 64);
+    let source_close: i32 = builder.filesystem.close(source_descriptor);
+    let generated: &[u8] in Path = builder.output.resolve("generated");
+    let generated_result: i32 = builder.filesystem.create_dir(generated, 493);
+    let nested_source: &[u8] in Path = builder.output.resolve("generated/table.omg");
+    let output_descriptor: i32 = builder.filesystem.create(nested_source, 438);
+    let output_count: i64 = builder.filesystem.write(output_descriptor, "data Table {{}}\n");
+    let output_close: i32 = builder.filesystem.close(output_descriptor);
+    builder.output.include_source(nested_source);
+    let sibling: &[u8] in Path = builder.output.resolve("assets");
+    let sibling_result: i32 = builder.filesystem.create_dir(sibling, 493);
+    builder.freestanding = false;
+}}
+"#,
+            ),
+        )
+        .expect("write mixed Output-tree build source");
+        std::fs::write(self.source.join("main.omg"), "data Main { value: u8; }\n")
+            .expect("write mixed Output-tree main source");
+    }
+
     fn sponsored_output(&self) -> (PathBuf, FilesystemSponsor) {
         let session = std::fs::canonicalize(&self.session).expect("canonicalize session");
         let sponsor = FilesystemSponsor::new(&session).expect("create sponsor");
@@ -123,9 +159,9 @@ fn set_tree_permissions(root: &Path, sealed: bool) {
 #[cfg(not(unix))]
 fn set_tree_permissions(_root: &Path, _sealed: bool) {}
 
-fn package_inputs(source: &Path) -> PackageCompilationInputs {
+fn package_inputs(source: &Path, package_name: &str) -> PackageCompilationInputs {
     let package = PackageKeyIdentity::from_digest([122; 32]).expect("nonzero package identity");
-    let source = PackageSourceBinding::new(package, "empty-directory", source.to_path_buf())
+    let source = PackageSourceBinding::new(package, package_name, source.to_path_buf())
         .with_canonical_source_metadata()
         .expect("capture directory source metadata");
     PackageCompilationInputs::new_package(package, vec![source], Vec::new())
@@ -139,7 +175,7 @@ fn empty_output_directory_tree_replays_without_host_output() {
     project.write_sources(profile.target_name());
     let (output, sponsor) = project.sponsored_output();
     set_tree_permissions(&project.source, true);
-    let inputs = package_inputs(&project.source);
+    let inputs = package_inputs(&project.source, "empty-directory");
     let checked = compile_to_checked_with_packages_in_sponsored_build_dir(
         &project.source.join("main.omg"),
         &output,
@@ -152,7 +188,7 @@ fn empty_output_directory_tree_replays_without_host_output() {
     let summary = checked
         .build_observation_summary()
         .expect("directory build retains observations");
-    assert_eq!(summary.schema_version(), 42);
+    assert_eq!(summary.schema_version(), 43);
     assert!(summary.operation_replay_verified());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
@@ -228,6 +264,91 @@ fn empty_output_directory_tree_replays_without_host_output() {
         replayed_summary
             .staged_output_tree()
             .expect("replayed directory staged custody"),
+        staged
+    );
+}
+
+#[test]
+fn mixed_output_tree_with_nested_generated_source_replays_without_host_output() {
+    let profile = omega_target::TargetProfile::host();
+    let project = TestProject::new();
+    project.write_mixed_sources(profile.target_name());
+    let (output, sponsor) = project.sponsored_output();
+    set_tree_permissions(&project.source, true);
+    let inputs = package_inputs(&project.source, "mixed-output-tree");
+    let checked = compile_to_checked_with_packages_in_sponsored_build_dir(
+        &project.source.join("main.omg"),
+        &output,
+        Some(profile.target_name()),
+        inputs.clone(),
+        sponsor,
+    )
+    .expect("exact mixed Output tree should receipt");
+
+    let summary = checked
+        .build_observation_summary()
+        .expect("mixed Output tree retains observations");
+    assert!(summary.operation_replay_verified());
+    assert_eq!(summary.realized(), BuildObservationClass::Receipted);
+    assert_eq!(
+        summary
+            .filesystem_operation_attempts()
+            .iter()
+            .map(|attempt| attempt.operation_tag())
+            .collect::<Vec<_>>(),
+        vec![2, 4, 8, 11, 1, 5, 8, 11]
+    );
+    assert_eq!(summary.included_source_handoffs().len(), 1);
+    assert_eq!(
+        summary.included_source_handoffs()[0].relative_path(),
+        b"generated/table.omg"
+    );
+    assert_eq!(
+        summary.included_source_handoffs()[0].filesystem_attempt_ordinal(),
+        7
+    );
+    let staged = summary
+        .staged_output_tree()
+        .expect("mixed tree has explicit staged custody");
+    assert_eq!(staged.entry_count(), 3);
+    assert_eq!(staged.file_bytes(), 14);
+
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let record = capture_verified_build_filesystem_replay_record(summary, limits)
+        .expect("mixed Output-tree receipt encodes")
+        .expect("mixed Output-tree receipt retains custody");
+    assert_eq!(
+        recover_review_only_build_filesystem_replay_record(record.canonical_bytes(), limits)
+            .expect("mixed Output-tree receipt recovers"),
+        record
+    );
+
+    std::fs::remove_dir_all(output.join("generated")).expect("remove captured generated subtree");
+    std::fs::write(output.join("generated"), "spoofed host file")
+        .expect("replace generated subtree with host file");
+    std::fs::remove_dir(output.join("assets")).expect("remove captured assets directory");
+    std::fs::write(output.join("assets"), "second spoofed host file")
+        .expect("replace assets directory with host file");
+    let replayed = compile_to_checked_with_packages_and_replay_record(
+        &project.source.join("main.omg"),
+        Some(profile.target_name()),
+        inputs,
+        record,
+    )
+    .expect("mixed Output-tree replay must not consult drifted host Output");
+    set_tree_permissions(&project.source, false);
+    let replayed_summary = replayed
+        .build_observation_summary()
+        .expect("replayed mixed Output tree retains observations");
+    assert!(replayed_summary.operation_replay_verified());
+    assert_eq!(
+        replayed_summary.realized(),
+        BuildObservationClass::Receipted
+    );
+    assert_eq!(
+        replayed_summary
+            .staged_output_tree()
+            .expect("replayed mixed Output tree staged custody"),
         staged
     );
 }
