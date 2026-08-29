@@ -72,6 +72,10 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn baseline_target_register_environment",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/selection/selection/mod.rs",
+        coordination_marker: "pub fn stage_optimized_instruction_selection",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/allocation/allocation_legality/mod.rs",
         coordination_marker: "pub fn stage_optimized_allocation_legality_with_availability",
     },

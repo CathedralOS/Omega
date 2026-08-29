@@ -137,10 +137,13 @@ relocation-free object-container boundary mirrors it and keeps codec tests out
 of production leaves. Target register-environment custody exposes one
 build/validation entrance above the exact target catalog, validated custody
 model, validation mechanics, and tests; the target/ABI matrix is therefore
-visible without burying the stage join in that catalog. Allocation-legality
-staging puts each exact availability policy in one visible leaf and keeps
-analysis, independent replay, custody projection, and the retained model
-separate; its entrance owns policy selection plus the replay-gated stage join.
+visible without burying the stage join in that catalog. Selected-instruction
+staging separates retained model, construction, fixed-input constraint
+projection, and independent replay; its entrance owns the exact environment
+through replayed-result custody join. Allocation-legality staging puts each
+exact availability policy in one visible leaf and keeps analysis, independent
+replay, custody projection, and the retained model separate; its entrance owns
+policy selection plus the replay-gated stage join.
 Register-home staging preserves baseline-legality and post-copy-reanalysis as
 explicit source families while sharing construction, independent validation,
 custody projection, and model leaves below one replay-gated entrance.
