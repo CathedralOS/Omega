@@ -18,7 +18,7 @@ mod duplicates;
 mod lock_tests;
 mod locks;
 
-use directories::validate_output_directory_shapes;
+use directories::validate_output_directory_shape;
 use duplicates::validate_output_duplicate_shapes;
 use locks::validate_output_lock_shapes;
 
@@ -260,244 +260,37 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
                 )
             });
     }
-    if shapes[output_start].operation == 11 {
-        let directories = shapes[output_start..]
-            .iter()
-            .map(|directory| {
-                let [rooted] = directory.rooted_paths.as_slice() else {
-                    unreachable!("validated Output directory has one rooted path")
-                };
-                psi_checked_interpreter::FilesystemOutputDirectoryReplayRecord::new(
-                    crate::BUILD_OUTPUT_ROOT_IDENTITY,
-                    clone_bytes(rooted.bytes)?,
-                )
-                .map_err(|_| {
-                    BuildFilesystemReplayRecordError::new(
-                        "filesystem replay Output directory could not be rehydrated",
-                    )
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let typed_record =
-            psi_checked_interpreter::FilesystemInputOutputDirectoryReplayRecord::new(
-                typed_record,
-                directories,
-            )
-            .map_err(|_| {
-                BuildFilesystemReplayRecordError::new(
-                    "filesystem replay input/directory record could not be rehydrated",
-                )
-            })?;
-        return psi_checked_interpreter::FilesystemReplay::from_input_output_directory_record(
-            typed_record,
-        )
-        .map_err(|_| {
-            BuildFilesystemReplayRecordError::new(
-                "filesystem replay input/directory record exceeds retained replay policy",
-            )
-        });
-    }
-    let mut output_records = Vec::new();
-    let output_ranges = output_file_ranges(&shapes, output_start)?;
-    output_records
+    let output_ranges = output_tree_ranges(&shapes, output_start)?;
+    let mut output_entries = Vec::new();
+    output_entries
         .try_reserve_exact(output_ranges.len())
         .map_err(|_| {
-            BuildFilesystemReplayRecordError::new(
-                "filesystem replay output-chain allocation failed",
-            )
+            BuildFilesystemReplayRecordError::new("filesystem replay Output-tree allocation failed")
         })?;
-    for (start, end) in output_ranges {
-        let chain = &shapes[start..end];
-        let create = &chain[0];
-        let close = chain.last().expect("validated Output file has a close");
-        let operations = &chain[1..chain.len() - 1];
-        let Some(output) = create.output else {
-            unreachable!("validated receipted output create has a descriptor")
-        };
-        let [rooted] = create.rooted_paths.as_slice() else {
-            unreachable!("validated receipted output create has one rooted path")
-        };
-        let mut operation_records = Vec::new();
-        operation_records
-            .try_reserve_exact(operations.len())
-            .map_err(|_| {
-                BuildFilesystemReplayRecordError::new(
-                    "filesystem replay output-operation allocation failed",
-                )
-            })?;
-        let mut operation_cursor = 0;
-        while operation_cursor < operations.len() {
-            let operation = &operations[operation_cursor];
-            if operation.operation == 45 {
-                let Some(duplicate) = operation.output else {
-                    unreachable!("validated Output duplicate has one fresh identity")
+    for range in output_ranges {
+        output_entries.push(match range {
+            OutputShapeRange::Directory(index) => {
+                let [rooted] = shapes[index].rooted_paths.as_slice() else {
+                    unreachable!("validated Output directory has one rooted path")
                 };
-                operation_records.push(
-                    psi_checked_interpreter::FilesystemOutputFileOperationReplayRecord::DuplicateAndClose(
-                        psi_checked_interpreter::FilesystemOutputDuplicateReplayRecord::new(
-                            duplicate.identity,
-                        )
-                        .map_err(|_| {
-                            BuildFilesystemReplayRecordError::new(
-                                "filesystem replay Output duplicate could not be rehydrated",
-                            )
-                        })?,
-                    ),
-                );
-                operation_cursor += 2;
-                continue;
-            }
-            if operation.operation == 46 {
-                let release = &operations[operation_cursor + 1];
-                let [(1, ShapeScalar::I32(acquire_operation))] = operation.scalars.as_slice()
-                else {
-                    unreachable!("validated Output lock acquire has one i32 scalar")
-                };
-                let [(1, ShapeScalar::I32(release_operation))] = release.scalars.as_slice() else {
-                    unreachable!("validated Output lock release has one i32 scalar")
-                };
-                let ShapeResult::Scalar(acquire_result) = operation.result else {
-                    unreachable!("validated Output lock acquire has one scalar result")
-                };
-                let ShapeResult::Scalar(release_result) = release.result else {
-                    unreachable!("validated Output lock release has one scalar result")
-                };
-                operation_records.push(
-                    psi_checked_interpreter::FilesystemOutputFileOperationReplayRecord::LockAndUnlock(
-                        psi_checked_interpreter::FilesystemOutputLockReplayRecord::new(
-                            *acquire_operation,
-                            acquire_result,
-                            operation.post_error,
-                            *release_operation,
-                            release_result,
-                            release.post_error,
-                        )
-                        .map_err(|_| {
-                            BuildFilesystemReplayRecordError::new(
-                                "filesystem replay Output lock could not be rehydrated",
-                            )
-                        })?,
-                    ),
-                );
-                operation_cursor += 2;
-                continue;
-            }
-            if operation.operation == 10 {
-                let [(1, ShapeScalar::I64(offset)), (2, ShapeScalar::I32(whence))] =
-                    operation.scalars.as_slice()
-                else {
-                    unreachable!("validated Output seek has exact offset and whence")
-                };
-                let ShapeResult::Scalar(result) = operation.result else {
-                    unreachable!("validated Output seek returns a scalar")
-                };
-                operation_records.push(
-                    psi_checked_interpreter::FilesystemOutputFileOperationReplayRecord::Seek {
-                        offset: *offset,
-                        whence: *whence,
-                        result,
-                    },
-                );
-                operation_cursor += 1;
-                continue;
-            }
-            if operation.operation == 41 {
-                let [(1, ShapeScalar::I64(length))] = operation.scalars.as_slice() else {
-                    unreachable!("validated Output set_len has one i64 length")
-                };
-                operation_records.push(
-                    psi_checked_interpreter::FilesystemOutputFileOperationReplayRecord::SetLength {
-                        length: *length,
-                    },
-                );
-                operation_cursor += 1;
-                continue;
-            }
-            if operation.operation == 17 {
-                let [(1, ShapeScalar::U32(mode))] = operation.scalars.as_slice() else {
-                    unreachable!("validated Output set_file_permissions has one u32 mode")
-                };
-                operation_records.push(
-                    psi_checked_interpreter::FilesystemOutputFileOperationReplayRecord::SetFilePermissions {
-                        mode: *mode,
-                    },
-                );
-                operation_cursor += 1;
-                continue;
-            }
-            if operation.operation == 42 {
-                let [(1, times)] = operation.mutable_byte_resolutions.as_slice() else {
-                    unreachable!("validated Output set_file_times has one exact carrier")
-                };
-                operation_records.push(
-                    psi_checked_interpreter::FilesystemOutputFileOperationReplayRecord::SetFileTimes {
-                        times: clone_bytes(times)?,
-                    },
-                );
-                operation_cursor += 1;
-                continue;
-            }
-            if matches!(operation.operation, 43 | 44) {
-                operation_records.push(if operation.operation == 43 {
-                    psi_checked_interpreter::FilesystemOutputFileOperationReplayRecord::Sync
-                } else {
-                    psi_checked_interpreter::FilesystemOutputFileOperationReplayRecord::SyncData
-                });
-                operation_cursor += 1;
-                continue;
-            }
-            let write = operation;
-            let [(_, payload)] = write.byte_operands.as_slice() else {
-                unreachable!("validated receipted output write has one payload")
-            };
-            let ShapeResult::Scalar(write_result) = write.result else {
-                unreachable!("validated receipted output write returns a scalar")
-            };
-            let write_record = match write.operation {
-                5 => psi_checked_interpreter::FilesystemOutputWriteReplayRecord::new(
-                    clone_bytes(payload)?,
-                    write_result,
-                    write.post_error,
-                ),
-                7 => {
-                    let [(2, ShapeScalar::I64(offset))] = write.scalars.as_slice() else {
-                        unreachable!("validated positioned write has one i64 offset")
-                    };
-                    psi_checked_interpreter::FilesystemOutputWriteReplayRecord::positioned(
-                        *offset,
-                        clone_bytes(payload)?,
-                        write_result,
-                        write.post_error,
+                psi_checked_interpreter::FilesystemOutputTreeEntryReplayRecord::Directory(
+                    psi_checked_interpreter::FilesystemOutputDirectoryReplayRecord::new(
+                        crate::BUILD_OUTPUT_ROOT_IDENTITY,
+                        clone_bytes(rooted.bytes)?,
                     )
-                }
-                _ => unreachable!("validated output write has a supported operation"),
-            };
-            operation_records.push(
-                psi_checked_interpreter::FilesystemOutputFileOperationReplayRecord::Write(
-                    write_record.map_err(|_| {
+                    .map_err(|_| {
                         BuildFilesystemReplayRecordError::new(
-                            "filesystem replay output write could not be rehydrated",
+                            "filesystem replay Output directory could not be rehydrated",
                         )
                     })?,
-                ),
-            );
-            operation_cursor += 1;
-        }
-        output_records.push(
-            psi_checked_interpreter::FilesystemOutputFileReplayRecord::with_operations(
-                crate::BUILD_OUTPUT_ROOT_IDENTITY,
-                clone_bytes(rooted.bytes)?,
-                output.identity,
-                create.post_error,
-                operation_records,
-                close.post_error,
-            )
-            .map_err(|_| {
-                BuildFilesystemReplayRecordError::new(
-                    "filesystem replay Output file could not be rehydrated",
                 )
-            })?,
-        );
+            }
+            OutputShapeRange::File { start, end } => {
+                psi_checked_interpreter::FilesystemOutputTreeEntryReplayRecord::File(
+                    rehydrate_output_file_shape(&shapes[start..end])?,
+                )
+            }
+        });
     }
     let mut expected_included_sources = Vec::new();
     expected_included_sources
@@ -525,23 +318,201 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
             })?,
         );
     }
-    let typed_record = psi_checked_interpreter::FilesystemInputOutputReplayRecord::new(
+    let typed_record = psi_checked_interpreter::FilesystemInputOutputTreeReplayRecord::new(
         typed_record,
-        output_records,
+        output_entries,
         expected_included_sources,
     )
     .map_err(|_| {
         BuildFilesystemReplayRecordError::new(
-            "filesystem replay input/output record could not be rehydrated",
+            "filesystem replay input/Output-tree record could not be rehydrated",
         )
     })?;
-    psi_checked_interpreter::FilesystemReplay::from_input_output_record(typed_record).map_err(
+    psi_checked_interpreter::FilesystemReplay::from_input_output_tree_record(typed_record).map_err(
         |_| {
             BuildFilesystemReplayRecordError::new(
-                "filesystem replay input/output record exceeds retained replay policy",
+                "filesystem replay input/Output-tree record exceeds retained replay policy",
             )
         },
     )
+}
+
+fn rehydrate_output_file_shape(
+    chain: &[AttemptShape<'_>],
+) -> Result<
+    psi_checked_interpreter::FilesystemOutputFileReplayRecord,
+    BuildFilesystemReplayRecordError,
+> {
+    let create = &chain[0];
+    let close = chain.last().expect("validated Output file has a close");
+    let operations = &chain[1..chain.len() - 1];
+    let Some(output) = create.output else {
+        unreachable!("validated receipted output create has a descriptor")
+    };
+    let [rooted] = create.rooted_paths.as_slice() else {
+        unreachable!("validated receipted output create has one rooted path")
+    };
+    let mut operation_records = Vec::new();
+    operation_records
+        .try_reserve_exact(operations.len())
+        .map_err(|_| {
+            BuildFilesystemReplayRecordError::new(
+                "filesystem replay output-operation allocation failed",
+            )
+        })?;
+    let mut operation_cursor = 0;
+    while operation_cursor < operations.len() {
+        let operation = &operations[operation_cursor];
+        let record = match operation.operation {
+            45 => {
+                let Some(duplicate) = operation.output else {
+                    unreachable!("validated Output duplicate has one fresh identity")
+                };
+                operation_cursor += 2;
+                psi_checked_interpreter::FilesystemOutputFileOperationReplayRecord::DuplicateAndClose(
+                    psi_checked_interpreter::FilesystemOutputDuplicateReplayRecord::new(
+                        duplicate.identity,
+                    )
+                    .map_err(|_| {
+                        BuildFilesystemReplayRecordError::new(
+                            "filesystem replay Output duplicate could not be rehydrated",
+                        )
+                    })?,
+                )
+            }
+            46 => {
+                let release = &operations[operation_cursor + 1];
+                let [(1, ShapeScalar::I32(acquire_operation))] = operation.scalars.as_slice()
+                else {
+                    unreachable!("validated Output lock acquire has one i32 scalar")
+                };
+                let [(1, ShapeScalar::I32(release_operation))] = release.scalars.as_slice() else {
+                    unreachable!("validated Output lock release has one i32 scalar")
+                };
+                let ShapeResult::Scalar(acquire_result) = operation.result else {
+                    unreachable!("validated Output lock acquire has one scalar result")
+                };
+                let ShapeResult::Scalar(release_result) = release.result else {
+                    unreachable!("validated Output lock release has one scalar result")
+                };
+                operation_cursor += 2;
+                psi_checked_interpreter::FilesystemOutputFileOperationReplayRecord::LockAndUnlock(
+                    psi_checked_interpreter::FilesystemOutputLockReplayRecord::new(
+                        *acquire_operation,
+                        acquire_result,
+                        operation.post_error,
+                        *release_operation,
+                        release_result,
+                        release.post_error,
+                    )
+                    .map_err(|_| {
+                        BuildFilesystemReplayRecordError::new(
+                            "filesystem replay Output lock could not be rehydrated",
+                        )
+                    })?,
+                )
+            }
+            10 => {
+                let [(1, ShapeScalar::I64(offset)), (2, ShapeScalar::I32(whence))] =
+                    operation.scalars.as_slice()
+                else {
+                    unreachable!("validated Output seek has exact offset and whence")
+                };
+                let ShapeResult::Scalar(result) = operation.result else {
+                    unreachable!("validated Output seek returns a scalar")
+                };
+                operation_cursor += 1;
+                psi_checked_interpreter::FilesystemOutputFileOperationReplayRecord::Seek {
+                    offset: *offset,
+                    whence: *whence,
+                    result,
+                }
+            }
+            41 => {
+                let [(1, ShapeScalar::I64(length))] = operation.scalars.as_slice() else {
+                    unreachable!("validated Output set_len has one i64 length")
+                };
+                operation_cursor += 1;
+                psi_checked_interpreter::FilesystemOutputFileOperationReplayRecord::SetLength {
+                    length: *length,
+                }
+            }
+            17 => {
+                let [(1, ShapeScalar::U32(mode))] = operation.scalars.as_slice() else {
+                    unreachable!("validated Output set_file_permissions has one u32 mode")
+                };
+                operation_cursor += 1;
+                psi_checked_interpreter::FilesystemOutputFileOperationReplayRecord::SetFilePermissions {
+                    mode: *mode,
+                }
+            }
+            42 => {
+                let [(1, times)] = operation.mutable_byte_resolutions.as_slice() else {
+                    unreachable!("validated Output set_file_times has one exact carrier")
+                };
+                operation_cursor += 1;
+                psi_checked_interpreter::FilesystemOutputFileOperationReplayRecord::SetFileTimes {
+                    times: clone_bytes(times)?,
+                }
+            }
+            43 => {
+                operation_cursor += 1;
+                psi_checked_interpreter::FilesystemOutputFileOperationReplayRecord::Sync
+            }
+            44 => {
+                operation_cursor += 1;
+                psi_checked_interpreter::FilesystemOutputFileOperationReplayRecord::SyncData
+            }
+            5 | 7 => {
+                let [(_, payload)] = operation.byte_operands.as_slice() else {
+                    unreachable!("validated receipted output write has one payload")
+                };
+                let ShapeResult::Scalar(write_result) = operation.result else {
+                    unreachable!("validated receipted output write returns a scalar")
+                };
+                let write_record = if operation.operation == 5 {
+                    psi_checked_interpreter::FilesystemOutputWriteReplayRecord::new(
+                        clone_bytes(payload)?,
+                        write_result,
+                        operation.post_error,
+                    )
+                } else {
+                    let [(2, ShapeScalar::I64(offset))] = operation.scalars.as_slice() else {
+                        unreachable!("validated positioned write has one i64 offset")
+                    };
+                    psi_checked_interpreter::FilesystemOutputWriteReplayRecord::positioned(
+                        *offset,
+                        clone_bytes(payload)?,
+                        write_result,
+                        operation.post_error,
+                    )
+                };
+                operation_cursor += 1;
+                psi_checked_interpreter::FilesystemOutputFileOperationReplayRecord::Write(
+                    write_record.map_err(|_| {
+                        BuildFilesystemReplayRecordError::new(
+                            "filesystem replay output write could not be rehydrated",
+                        )
+                    })?,
+                )
+            }
+            _ => unreachable!("validated Output file has an admitted operation"),
+        };
+        operation_records.push(record);
+    }
+    psi_checked_interpreter::FilesystemOutputFileReplayRecord::with_operations(
+        crate::BUILD_OUTPUT_ROOT_IDENTITY,
+        clone_bytes(rooted.bytes)?,
+        output.identity,
+        create.post_error,
+        operation_records,
+        close.post_error,
+    )
+    .map_err(|_| {
+        BuildFilesystemReplayRecordError::new(
+            "filesystem replay Output file could not be rehydrated",
+        )
+    })
 }
 
 fn rehydrate_path_metadata_shape(
@@ -1357,11 +1328,12 @@ fn validate_first_rung(
         ));
     }
     if cursor < shapes.len() {
-        if shapes[cursor].operation == 11 {
-            validate_output_directory_shapes(&shapes[cursor..])?;
-            return Ok(());
+        let output_ranges = output_tree_ranges(shapes, cursor)?;
+        if output_ranges.len() > psi_checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES {
+            return Err(BuildFilesystemReplayRecordError::new(
+                "receipted build output exceeds the Output-tree entry ceiling",
+            ));
         }
-        let output_ranges = output_file_ranges(shapes, cursor)?;
         let mut output_paths = Vec::new();
         output_paths
             .try_reserve_exact(output_ranges.len())
@@ -1373,7 +1345,52 @@ fn validate_first_rung(
         let mut aggregate_output_extent = 0usize;
         let mut aggregate_output_duplicates = 0usize;
         let mut aggregate_output_lock_pairs = 0usize;
-        for (start, end) in output_ranges {
+        let mut aggregate_path_bytes = 0usize;
+        for (entry_index, range) in output_ranges.iter().copied().enumerate() {
+            let path = range.path(shapes);
+            if path.len()
+                > psi_checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_PATH_BYTES
+            {
+                return Err(BuildFilesystemReplayRecordError::new(
+                    "receipted build output path exceeds its explicit ceiling",
+                ));
+            }
+            aggregate_path_bytes = aggregate_path_bytes
+                .checked_add(path.len())
+                .filter(|bytes| {
+                    *bytes
+                        <= psi_checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_RETAINED_PATH_BYTES
+                })
+                .ok_or_else(|| {
+                    BuildFilesystemReplayRecordError::new(
+                        "receipted build output paths exceed their aggregate ceiling",
+                    )
+                })?;
+            if output_paths.contains(&path) {
+                return Err(BuildFilesystemReplayRecordError::new(
+                    "filesystem replay Output path appears more than once",
+                ));
+            }
+            if let Some(separator) = path.iter().rposition(|byte| *byte == b'/') {
+                let parent = &path[..separator];
+                if !output_ranges[..entry_index]
+                    .iter()
+                    .any(|prior| prior.is_directory() && prior.path(shapes) == parent)
+                {
+                    return Err(BuildFilesystemReplayRecordError::new(
+                        "receipted nested Output entry does not follow its exact parent directory",
+                    ));
+                }
+            }
+            output_paths.push(path);
+
+            let OutputShapeRange::File { start, end } = range else {
+                let OutputShapeRange::Directory(index) = range else {
+                    unreachable!("Output range has one variant")
+                };
+                validate_output_directory_shape(&shapes[index])?;
+                continue;
+            };
             let chain = &shapes[start..end];
             let create = &chain[0];
             let close = chain.last().expect("validated Output file has a close");
@@ -1391,10 +1408,6 @@ fn validate_first_rung(
             let output = create
                 .output
                 .expect("validated output create has a descriptor");
-            let rooted = create
-                .rooted_paths
-                .first()
-                .expect("validated output create has a rooted path");
             for identity in std::iter::once(output.identity).chain(
                 chain[1..chain.len() - 1]
                     .iter()
@@ -1441,84 +1454,120 @@ fn validate_first_rung(
                         "receipted build outputs exceed the descriptor-lock-pair ceiling",
                     )
                 })?;
-            if output_paths.contains(&rooted.bytes) {
-                return Err(BuildFilesystemReplayRecordError::new(
-                    "filesystem replay Output path appears more than once",
-                ));
-            }
-            output_paths.push(rooted.bytes);
         }
     }
     Ok(())
 }
 
-fn output_file_ranges(
-    shapes: &[AttemptShape<'_>],
-    output_start: usize,
-) -> Result<Vec<(usize, usize)>, BuildFilesystemReplayRecordError> {
-    let mut ranges = Vec::new();
-    let mut cursor = output_start;
-    while cursor < shapes.len() {
-        let start = cursor;
-        if shapes[cursor].operation != 1 {
-            return Err(BuildFilesystemReplayRecordError::new(
-                "filesystem replay Output file must begin with create",
-            ));
-        }
-        let Some(root_identity) = shapes[cursor].output.map(|output| output.identity) else {
-            return Err(BuildFilesystemReplayRecordError::new(
-                "filesystem replay Output create has no descriptor identity",
-            ));
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OutputShapeRange {
+    Directory(usize),
+    File { start: usize, end: usize },
+}
+
+impl OutputShapeRange {
+    fn path<'a>(self, shapes: &'a [AttemptShape<'a>]) -> &'a [u8] {
+        let index = match self {
+            Self::Directory(index) | Self::File { start: index, .. } => index,
         };
-        cursor += 1;
-        loop {
-            if cursor == shapes.len() {
-                return Err(BuildFilesystemReplayRecordError::new(
-                    "receipted build output must contain complete create-operation*-close files",
-                ));
-            }
-            if matches!(
-                shapes[cursor].operation,
-                5 | 7 | 10 | 17 | 41 | 42 | 43 | 44
-            ) {
-                cursor += 1;
-                continue;
-            }
-            if shapes[cursor].operation == 45 {
-                if cursor + 1 >= shapes.len() || shapes[cursor + 1].operation != 8 {
-                    return Err(BuildFilesystemReplayRecordError::new(
-                        "receipted build output duplicate must be immediately retired",
-                    ));
-                }
-                cursor += 2;
-                continue;
-            }
-            if shapes[cursor].operation == 46 {
-                if cursor + 1 >= shapes.len() || shapes[cursor + 1].operation != 46 {
-                    return Err(BuildFilesystemReplayRecordError::new(
-                        "receipted build output lock must be immediately released",
-                    ));
-                }
-                cursor += 2;
-                continue;
-            }
-            let closes_root = shapes[cursor].operation == 8
-                && matches!(
-                    shapes[cursor].inputs.as_slice(),
-                    [ShapeLogicalInput {
-                        resolution: Some(identity),
-                        ..
-                    }] if *identity == root_identity
-                );
-            if closes_root {
-                break;
-            }
+        shapes[index]
+            .rooted_paths
+            .first()
+            .expect("validated Output entry has one rooted path")
+            .bytes
+    }
+
+    const fn is_directory(self) -> bool {
+        matches!(self, Self::Directory(_))
+    }
+}
+
+fn output_file_end(
+    shapes: &[AttemptShape<'_>],
+    start: usize,
+) -> Result<usize, BuildFilesystemReplayRecordError> {
+    if shapes.get(start).is_none_or(|shape| shape.operation != 1) {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "filesystem replay Output file must begin with create",
+        ));
+    }
+    let Some(root_identity) = shapes[start].output.map(|output| output.identity) else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "filesystem replay Output create has no descriptor identity",
+        ));
+    };
+    let mut cursor = start + 1;
+    loop {
+        if cursor == shapes.len() {
             return Err(BuildFilesystemReplayRecordError::new(
                 "receipted build output must contain complete create-operation*-close files",
             ));
         }
-        cursor += 1;
-        ranges.push((start, cursor));
+        if matches!(
+            shapes[cursor].operation,
+            5 | 7 | 10 | 17 | 41 | 42 | 43 | 44
+        ) {
+            cursor += 1;
+            continue;
+        }
+        if shapes[cursor].operation == 45 {
+            if cursor + 1 >= shapes.len() || shapes[cursor + 1].operation != 8 {
+                return Err(BuildFilesystemReplayRecordError::new(
+                    "receipted build output duplicate must be immediately retired",
+                ));
+            }
+            cursor += 2;
+            continue;
+        }
+        if shapes[cursor].operation == 46 {
+            if cursor + 1 >= shapes.len() || shapes[cursor + 1].operation != 46 {
+                return Err(BuildFilesystemReplayRecordError::new(
+                    "receipted build output lock must be immediately released",
+                ));
+            }
+            cursor += 2;
+            continue;
+        }
+        let closes_root = shapes[cursor].operation == 8
+            && matches!(
+                shapes[cursor].inputs.as_slice(),
+                [ShapeLogicalInput {
+                    resolution: Some(identity),
+                    ..
+                }] if *identity == root_identity
+            );
+        if closes_root {
+            return Ok(cursor + 1);
+        }
+        return Err(BuildFilesystemReplayRecordError::new(
+            "receipted build output must contain complete create-operation*-close files",
+        ));
+    }
+}
+
+fn output_tree_ranges(
+    shapes: &[AttemptShape<'_>],
+    output_start: usize,
+) -> Result<Vec<OutputShapeRange>, BuildFilesystemReplayRecordError> {
+    let mut ranges = Vec::new();
+    let mut cursor = output_start;
+    while cursor < shapes.len() {
+        match shapes[cursor].operation {
+            11 => {
+                ranges.push(OutputShapeRange::Directory(cursor));
+                cursor += 1;
+            }
+            1 => {
+                let end = output_file_end(shapes, cursor)?;
+                ranges.push(OutputShapeRange::File { start: cursor, end });
+                cursor = end;
+            }
+            _ => {
+                return Err(BuildFilesystemReplayRecordError::new(
+                    "receipted build output must contain ordered directory or complete file entries",
+                ));
+            }
+        }
     }
     Ok(ranges)
 }
@@ -1537,13 +1586,13 @@ fn validate_included_source_shapes(
     }
     let output_start = shapes
         .iter()
-        .position(|shape| shape.operation == 1)
+        .position(|shape| matches!(shape.operation, 1 | 11))
         .ok_or_else(|| {
             BuildFilesystemReplayRecordError::new(
                 "source-only filesystem replay cannot retain included-source handoffs",
             )
         })?;
-    let output_ranges = output_file_ranges(shapes, output_start)?;
+    let output_ranges = output_tree_ranges(shapes, output_start)?;
     let total_attempt_count = u64::try_from(shapes.len()).map_err(|_| {
         BuildFilesystemReplayRecordError::new(
             "filesystem replay attempt count exceeds canonical u64",
@@ -1571,18 +1620,19 @@ fn validate_included_source_shapes(
         }
         let output_index = output_ranges
             .iter()
-            .position(|(start, _)| {
-                shapes[*start]
-                    .rooted_paths
-                    .first()
-                    .is_some_and(|rooted| rooted.bytes == included.relative_path)
+            .position(|range| {
+                matches!(range, OutputShapeRange::File { .. })
+                    && range.path(shapes) == included.relative_path
             })
             .ok_or_else(|| {
                 BuildFilesystemReplayRecordError::new(
                     "filesystem replay included-source path has no matching Output file",
                 )
             })?;
-        let earliest_ordinal = u64::try_from(output_ranges[output_index].1).map_err(|_| {
+        let OutputShapeRange::File { end, .. } = output_ranges[output_index] else {
+            unreachable!("included source matched an Output file range")
+        };
+        let earliest_ordinal = u64::try_from(end).map_err(|_| {
             BuildFilesystemReplayRecordError::new(
                 "filesystem replay included-source ordinal exceeds canonical u64",
             )
@@ -1629,7 +1679,6 @@ fn validate_output_file(
             )]
         || rooted.ordinal != 0
         || rooted.root != 1
-        || rooted.bytes.contains(&b'/')
         || !psi_checked_interpreter::filesystem_root_relative_path_is_canonical(rooted.bytes, false)
         || authorized.ordinal != 0
         || authorized.access != 1
