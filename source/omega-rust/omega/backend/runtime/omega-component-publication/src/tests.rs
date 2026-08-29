@@ -12,8 +12,8 @@ use omega_effects::{
     evaluate_executable_tcb_profile,
 };
 use omega_executable_installation::{
-    AdmissionReceiptId, Artifact, ArtifactAdmissionEvidence, ArtifactContentId, ArtifactEntry,
-    ArtifactId, CodePlacementAuthority, CodePlacementId, EntrySetId, FinalValidationCertificate,
+    AdmissionReceiptId, Artifact, ArtifactAdmissionEvidence, ArtifactEntry, ArtifactId,
+    CodePlacementAuthority, CodePlacementId, EntrySetId, FinalValidationCertificate,
     FinalValidationId, InstallAuthority, InstallationAudience, InstallationReceipt,
     InstallationScopeId, InstalledCode, InstalledCodeId, MachineContractSetId, MachineFootprintId,
     MaterializationReceipt, PlacementPlanId, RelocationSetId, WxEnforcement, admit_executable,
@@ -360,10 +360,6 @@ fn install_terminal_text(
     let entry = psi_layout_plans::EntryStubId::from_normalized_identity(1).expect("entry");
     let artifact = Artifact::from_canonical_decode(
         install_id(artifact_identity, ArtifactId::from_normalized_identity),
-        install_id(
-            artifact_identity + 1,
-            ArtifactContentId::from_normalized_identity,
-        ),
         object.target().architecture,
         object.text_bytes().to_vec(),
         install_id(2, MachineContractSetId::from_normalized_identity),

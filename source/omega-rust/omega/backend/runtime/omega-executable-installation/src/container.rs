@@ -5,13 +5,12 @@ const CANONICAL_ENTRY_RECORD_BYTES: u64 = 16;
 const CANONICAL_RELOCATION_COUNT_BYTES: u64 = 8;
 const CANONICAL_RELOCATION_RECORD_BYTES: u64 = 32;
 
-pub fn normalized_proof_payload_identity(proof: &[u8]) -> ProofPayloadId {
-    let mut hash = 0xcbf29ce484222325u64;
-    for byte in b"omega.proof-payload.v1".iter().chain(proof) {
-        hash ^= u64::from(*byte);
-        hash = hash.wrapping_mul(0x100000001b3);
-    }
-    ProofPayloadId(if hash == 0 { 1 } else { hash })
+pub fn normalized_proof_payload_digest(proof: &[u8]) -> ProofPayloadDigest {
+    let mut digest = Sha256::new();
+    digest.update(b"omega.proof-payload.sha256.v1\0");
+    digest.update((proof.len() as u64).to_le_bytes());
+    digest.update(proof);
+    ProofPayloadDigest::from_digest(digest.finalize().into())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,8 +36,8 @@ pub enum ContainerSectionKind {
     Footprint(MachineFootprintId),
     Placement(PlacementPlanId),
     Entries(EntrySetId),
-    Proof(ProofPayloadId),
-    Informational(InformationalSectionId),
+    Proof(ProofPayloadDigest),
+    Informational(NonAuthoritativeInformationalFingerprint64),
     /// An unrecognized optional section is informational by definition. It
     /// cannot supply an identity used by admission.
     Unknown {
@@ -100,7 +99,7 @@ pub struct DecodedArtifactContainer {
     pub format_marker: u16,
     pub total_length: u64,
     pub artifact: ArtifactId,
-    pub content: ArtifactContentId,
+    pub content_fingerprint: NonAuthoritativeContainerFingerprint64,
     pub architecture: Architecture,
     pub code_length: u64,
     /// Exact decoded executable bytes. The post-decode validator binds these
@@ -119,7 +118,7 @@ pub struct DecodedArtifactContainer {
     pub entries: Vec<ArtifactEntry>,
     pub relocation_set: RelocationSetId,
     pub relocations: Vec<DecodedArtifactRelocation>,
-    pub proof_payload: ProofPayloadId,
+    pub proof_payload: ProofPayloadDigest,
     /// Exact identity-invisible proof bytes. Admission binds these bytes even
     /// though executable-content identity deliberately excludes them.
     pub proof: Vec<u8>,
@@ -129,9 +128,9 @@ pub struct DecodedArtifactContainer {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedArtifactContainer {
     artifact: Artifact,
-    proof_payload: ProofPayloadId,
+    proof_payload: ProofPayloadDigest,
     proof: Vec<u8>,
-    informational_sections: Vec<InformationalSectionId>,
+    informational_sections: Vec<NonAuthoritativeInformationalFingerprint64>,
     unknown_informational_sections: Vec<u64>,
 }
 
@@ -150,7 +149,7 @@ impl ValidatedArtifactContainer {
         self.artifact.relocations()
     }
 
-    pub const fn proof_payload(&self) -> ProofPayloadId {
+    pub const fn proof_payload(&self) -> ProofPayloadDigest {
         self.proof_payload
     }
 
@@ -158,7 +157,7 @@ impl ValidatedArtifactContainer {
         &self.proof
     }
 
-    pub fn informational_sections(&self) -> &[InformationalSectionId] {
+    pub fn informational_sections(&self) -> &[NonAuthoritativeInformationalFingerprint64] {
         &self.informational_sections
     }
 
@@ -174,7 +173,7 @@ impl ValidatedArtifactContainer {
 pub struct ValidatedContainerAdmissionEvidence {
     receipt: AdmissionReceiptId,
     artifact: Artifact,
-    proof_payload: ProofPayloadId,
+    proof_payload: ProofPayloadDigest,
     proof: Vec<u8>,
     accepted: bool,
 }
@@ -218,14 +217,19 @@ pub fn admit_validated_container(
             "artifact admission evidence names a different validated container".into(),
         ));
     }
-    admit_executable(
+    let mut admitted = admit_executable(
         &container.artifact,
         ArtifactAdmissionEvidence::from_validator(
             evidence.receipt,
             &evidence.artifact,
             evidence.accepted,
         ),
-    )
+    )?;
+    admitted.container_proof = Some(RetainedContainerProof {
+        digest: container.proof_payload,
+        bytes: container.proof.clone(),
+    });
+    Ok(admitted)
 }
 
 pub fn validate_decoded_container(
@@ -272,7 +276,7 @@ pub fn validate_decoded_container(
             decoded.code_length
         )));
     }
-    if decoded.proof_payload != normalized_proof_payload_identity(&decoded.proof) {
+    if decoded.proof_payload != normalized_proof_payload_digest(&decoded.proof) {
         return Err(InstallationDiagnostic(
             "proof-payload identity does not match the exact proof bytes".into(),
         ));
@@ -422,7 +426,7 @@ pub fn validate_decoded_container(
         decoded.code_length,
         limits.max_relocations,
     )?;
-    let computed_content = compute_content_identity(
+    let (_, computed_fingerprint) = derive_artifact_content_commitments(
         decoded.architecture,
         &decoded.code,
         decoded.contracts,
@@ -434,16 +438,15 @@ pub fn validate_decoded_container(
         decoded.relocation_set,
         &relocations,
     )?;
-    if computed_content != decoded.content {
+    if computed_fingerprint != decoded.content_fingerprint {
         return Err(InstallationDiagnostic(format!(
-            "artifact content identity {} does not match normalized executable content {}",
-            decoded.content.normalized_identity(),
-            computed_content.normalized_identity()
+            "container-v1 content fingerprint {} does not match normalized compatibility fingerprint {}",
+            decoded.content_fingerprint.compatibility_value(),
+            computed_fingerprint.compatibility_value()
         )));
     }
     let artifact = Artifact::from_canonical_decode(
         decoded.artifact,
-        decoded.content,
         decoded.architecture,
         decoded.code,
         decoded.contracts,
@@ -468,16 +471,16 @@ pub fn validate_decoded_container(
 /// schema decode. Container byte order, section order, proof payloads, and
 /// informational sections do not participate; executable bytes and every
 /// published semantic commitment do.
-pub fn normalized_decoded_content_identity(
+pub fn normalized_decoded_content_digest(
     decoded: &DecodedArtifactContainer,
-) -> Result<ArtifactContentId, InstallationDiagnostic> {
+) -> Result<ArtifactContentDigest, InstallationDiagnostic> {
     let relocations = validate_decoded_relocations(
         decoded.relocations.clone(),
         decoded.architecture,
         decoded.code_length,
         decoded.relocations.len().max(1),
     )?;
-    compute_content_identity(
+    derive_artifact_content_commitments(
         decoded.architecture,
         &decoded.code,
         decoded.contracts,
@@ -489,10 +492,38 @@ pub fn normalized_decoded_content_identity(
         decoded.relocation_set,
         &relocations,
     )
+    .map(|(digest, _)| digest)
+}
+
+/// Legacy container-v1 checksum of the normalized semantic payload. This is
+/// retained for wire compatibility only and never substitutes for the strong
+/// content digest or exact artifact replay.
+pub fn non_authoritative_decoded_container_fingerprint(
+    decoded: &DecodedArtifactContainer,
+) -> Result<NonAuthoritativeContainerFingerprint64, InstallationDiagnostic> {
+    let relocations = validate_decoded_relocations(
+        decoded.relocations.clone(),
+        decoded.architecture,
+        decoded.code_length,
+        decoded.relocations.len().max(1),
+    )?;
+    derive_artifact_content_commitments(
+        decoded.architecture,
+        &decoded.code,
+        decoded.contracts,
+        decoded.declared_footprint,
+        decoded.placement_plan,
+        decoded.placement_constraints,
+        decoded.entry_set,
+        &decoded.entries,
+        decoded.relocation_set,
+        &relocations,
+    )
+    .map(|(_, fingerprint)| fingerprint)
 }
 
 #[allow(clippy::too_many_arguments)]
-fn compute_content_identity(
+pub(super) fn derive_artifact_content_commitments(
     architecture: Architecture,
     code: &[u8],
     contracts: MachineContractSetId,
@@ -503,18 +534,31 @@ fn compute_content_identity(
     entries: &[ArtifactEntry],
     relocation_set: RelocationSetId,
     relocations: &[DecodedArtifactRelocation],
-) -> Result<ArtifactContentId, InstallationDiagnostic> {
+) -> Result<
+    (
+        ArtifactContentDigest,
+        NonAuthoritativeContainerFingerprint64,
+    ),
+    InstallationDiagnostic,
+> {
+    let mut digest = Sha256::new();
+    digest.update(b"omega.executable-content.sha256.v1\0");
     let mut fingerprint = 0xcbf2_9ce4_8422_2325u64;
     fingerprint_bytes(&mut fingerprint, b"omega-executable-content-v1");
-    fingerprint_bytes(
+    content_commitment_bytes(
+        &mut digest,
         &mut fingerprint,
         &[match architecture {
             Architecture::Aarch64 => 1,
             Architecture::X86_64 => 2,
         }],
     );
-    fingerprint_bytes(&mut fingerprint, &(code.len() as u64).to_le_bytes());
-    fingerprint_bytes(&mut fingerprint, code);
+    content_commitment_bytes(
+        &mut digest,
+        &mut fingerprint,
+        &(code.len() as u64).to_le_bytes(),
+    );
+    content_commitment_bytes(&mut digest, &mut fingerprint, code);
     for identity in [
         contracts.normalized_identity(),
         footprint.normalized_identity(),
@@ -522,24 +566,38 @@ fn compute_content_identity(
         entry_set.normalized_identity(),
         relocation_set.normalized_identity(),
     ] {
-        fingerprint_bytes(&mut fingerprint, &identity.to_le_bytes());
+        content_commitment_bytes(&mut digest, &mut fingerprint, &identity.to_le_bytes());
     }
-    fingerprint_placement(&mut fingerprint, placement);
+    fingerprint_placement(&mut digest, &mut fingerprint, placement);
 
     let mut entries = entries.to_vec();
     entries.sort_unstable_by_key(|entry| (entry.identity(), entry.code_offset()));
-    fingerprint_bytes(&mut fingerprint, &(entries.len() as u64).to_le_bytes());
+    content_commitment_bytes(
+        &mut digest,
+        &mut fingerprint,
+        &(entries.len() as u64).to_le_bytes(),
+    );
     for entry in entries {
-        fingerprint_bytes(
+        content_commitment_bytes(
+            &mut digest,
             &mut fingerprint,
             &entry.identity().normalized_identity().to_le_bytes(),
         );
-        fingerprint_bytes(&mut fingerprint, &entry.code_offset().to_le_bytes());
+        content_commitment_bytes(
+            &mut digest,
+            &mut fingerprint,
+            &entry.code_offset().to_le_bytes(),
+        );
     }
 
-    fingerprint_bytes(&mut fingerprint, &(relocations.len() as u64).to_le_bytes());
+    content_commitment_bytes(
+        &mut digest,
+        &mut fingerprint,
+        &(relocations.len() as u64).to_le_bytes(),
+    );
     for relocation in relocations {
-        fingerprint_bytes(
+        content_commitment_bytes(
+            &mut digest,
             &mut fingerprint,
             &[match relocation.kind {
                 ArtifactRelocationKind::Absolute64 => 1,
@@ -549,46 +607,61 @@ fn compute_content_identity(
                 ArtifactRelocationKind::Aarch64Branch26 => 5,
             }],
         );
-        fingerprint_bytes(
+        content_commitment_bytes(
+            &mut digest,
             &mut fingerprint,
             &relocation.destination_offset.to_le_bytes(),
         );
         match relocation.target {
             RelocationTarget::Data(identity) => {
-                fingerprint_bytes(&mut fingerprint, &[1]);
-                fingerprint_bytes(
+                content_commitment_bytes(&mut digest, &mut fingerprint, &[1]);
+                content_commitment_bytes(
+                    &mut digest,
                     &mut fingerprint,
                     &identity.normalized_identity().to_le_bytes(),
                 );
             }
             RelocationTarget::Entry(identity) => {
-                fingerprint_bytes(&mut fingerprint, &[2]);
-                fingerprint_bytes(
+                content_commitment_bytes(&mut digest, &mut fingerprint, &[2]);
+                content_commitment_bytes(
+                    &mut digest,
                     &mut fingerprint,
                     &identity.normalized_identity().to_le_bytes(),
                 );
             }
         }
-        fingerprint_bytes(&mut fingerprint, &relocation.addend.to_le_bytes());
+        content_commitment_bytes(
+            &mut digest,
+            &mut fingerprint,
+            &relocation.addend.to_le_bytes(),
+        );
     }
 
-    // FNV's offset basis and the nonempty domain separator make zero
-    // fantastically unlikely, but normalized identities categorically exclude
-    // it. Use one fixed nonzero representative rather than admitting an
-    // unconstructible result.
-    ArtifactContentId::from_normalized_identity(if fingerprint == 0 { 1 } else { fingerprint })
+    Ok((
+        ArtifactContentDigest::from_digest(digest.finalize().into()),
+        NonAuthoritativeContainerFingerprint64::from_compatibility_value(if fingerprint == 0 {
+            1
+        } else {
+            fingerprint
+        })?,
+    ))
 }
 
-fn fingerprint_placement(fingerprint: &mut u64, placement: PlacementConstraints) {
+fn fingerprint_placement(
+    digest: &mut Sha256,
+    fingerprint: &mut u64,
+    placement: PlacementConstraints,
+) {
     if let Some(range) = placement.permitted_range() {
-        fingerprint_bytes(fingerprint, &[1]);
-        fingerprint_bytes(fingerprint, &range.start_inclusive().to_le_bytes());
-        fingerprint_bytes(fingerprint, &range.end_exclusive().to_le_bytes());
+        content_commitment_bytes(digest, fingerprint, &[1]);
+        content_commitment_bytes(digest, fingerprint, &range.start_inclusive().to_le_bytes());
+        content_commitment_bytes(digest, fingerprint, &range.end_exclusive().to_le_bytes());
     } else {
-        fingerprint_bytes(fingerprint, &[0]);
+        content_commitment_bytes(digest, fingerprint, &[0]);
     }
-    fingerprint_bytes(fingerprint, &placement.alignment().to_le_bytes());
-    fingerprint_bytes(
+    content_commitment_bytes(digest, fingerprint, &placement.alignment().to_le_bytes());
+    content_commitment_bytes(
+        digest,
         fingerprint,
         &[match placement.phase() {
             psi_layout_plans::PlacementPhase::Build => 1,
@@ -597,17 +670,30 @@ fn fingerprint_placement(fingerprint: &mut u64, placement: PlacementConstraints)
         }],
     );
     if let Some(regime) = placement.machine_regime() {
-        fingerprint_bytes(fingerprint, &[1]);
-        fingerprint_bytes(fingerprint, &regime.normalized_identity().to_le_bytes());
+        content_commitment_bytes(digest, fingerprint, &[1]);
+        content_commitment_bytes(
+            digest,
+            fingerprint,
+            &regime.normalized_identity().to_le_bytes(),
+        );
     } else {
-        fingerprint_bytes(fingerprint, &[0]);
+        content_commitment_bytes(digest, fingerprint, &[0]);
     }
     if let Some(scope) = placement.installation_scope() {
-        fingerprint_bytes(fingerprint, &[1]);
-        fingerprint_bytes(fingerprint, &scope.normalized_identity().to_le_bytes());
+        content_commitment_bytes(digest, fingerprint, &[1]);
+        content_commitment_bytes(
+            digest,
+            fingerprint,
+            &scope.normalized_identity().to_le_bytes(),
+        );
     } else {
-        fingerprint_bytes(fingerprint, &[0]);
+        content_commitment_bytes(digest, fingerprint, &[0]);
     }
+}
+
+fn content_commitment_bytes(digest: &mut Sha256, fingerprint: &mut u64, bytes: &[u8]) {
+    digest.update(bytes);
+    fingerprint_bytes(fingerprint, bytes);
 }
 
 fn fingerprint_bytes(fingerprint: &mut u64, bytes: &[u8]) {
@@ -705,73 +791,76 @@ mod tests {
         let placement = id(5, PlacementPlanId::from_normalized_identity);
         let relocations = id(6, RelocationSetId::from_normalized_identity);
         let proof_bytes = vec![0xa5; 64];
-        let proof = normalized_proof_payload_identity(&proof_bytes);
+        let proof = normalized_proof_payload_digest(&proof_bytes);
         let entry_set = id(8, EntrySetId::from_normalized_identity);
         let entry = EntryStubId::from_normalized_identity(9).expect("entry identity");
-        let mut decoded = DecodedArtifactContainer {
-            format_marker: OMEGA_EXECUTABLE_CONTAINER_MARKER,
-            total_length: 448,
-            artifact: id(1, ArtifactId::from_normalized_identity),
-            content: id(2, ArtifactContentId::from_normalized_identity),
-            architecture: Architecture::X86_64,
-            code_length: 64,
-            code: vec![0x90; 64],
-            contracts,
-            declared_footprint: footprint,
-            placement_plan: placement,
-            placement_constraints: PlacementConstraints::unconstrained(
-                psi_layout_plans::PlacementPhase::Load,
-            ),
-            entry_set,
-            entries: vec![ArtifactEntry::from_canonical_decode(entry, 16)],
-            relocation_set: relocations,
-            relocations: vec![DecodedArtifactRelocation {
-                kind: ArtifactRelocationKind::X86Relative32,
-                destination_offset: 32,
-                target: RelocationTarget::Entry(entry),
-                addend: -4,
-            }],
-            proof_payload: proof,
-            proof: proof_bytes,
-            sections: vec![
-                ContainerSection {
-                    kind: ContainerSectionKind::Code,
-                    offset: 0,
-                    length: 64,
-                },
-                ContainerSection {
-                    kind: ContainerSectionKind::Relocations(relocations),
-                    offset: 64,
-                    length: 40,
-                },
-                ContainerSection {
-                    kind: ContainerSectionKind::Contracts(contracts),
-                    offset: 144,
-                    length: 64,
-                },
-                ContainerSection {
-                    kind: ContainerSectionKind::Footprint(footprint),
-                    offset: 208,
-                    length: 64,
-                },
-                ContainerSection {
-                    kind: ContainerSectionKind::Placement(placement),
-                    offset: 272,
-                    length: 64,
-                },
-                ContainerSection {
-                    kind: ContainerSectionKind::Entries(entry_set),
-                    offset: 336,
-                    length: 16,
-                },
-                ContainerSection {
-                    kind: ContainerSectionKind::Proof(proof),
-                    offset: 384,
-                    length: 64,
-                },
-            ],
-        };
-        decoded.content = normalized_decoded_content_identity(&decoded).expect("content identity");
+        let mut decoded =
+            DecodedArtifactContainer {
+                format_marker: OMEGA_EXECUTABLE_CONTAINER_MARKER,
+                total_length: 448,
+                artifact: id(1, ArtifactId::from_normalized_identity),
+                content_fingerprint:
+                    NonAuthoritativeContainerFingerprint64::from_compatibility_value(2).unwrap(),
+                architecture: Architecture::X86_64,
+                code_length: 64,
+                code: vec![0x90; 64],
+                contracts,
+                declared_footprint: footprint,
+                placement_plan: placement,
+                placement_constraints: PlacementConstraints::unconstrained(
+                    psi_layout_plans::PlacementPhase::Load,
+                ),
+                entry_set,
+                entries: vec![ArtifactEntry::from_canonical_decode(entry, 16)],
+                relocation_set: relocations,
+                relocations: vec![DecodedArtifactRelocation {
+                    kind: ArtifactRelocationKind::X86Relative32,
+                    destination_offset: 32,
+                    target: RelocationTarget::Entry(entry),
+                    addend: -4,
+                }],
+                proof_payload: proof,
+                proof: proof_bytes,
+                sections: vec![
+                    ContainerSection {
+                        kind: ContainerSectionKind::Code,
+                        offset: 0,
+                        length: 64,
+                    },
+                    ContainerSection {
+                        kind: ContainerSectionKind::Relocations(relocations),
+                        offset: 64,
+                        length: 40,
+                    },
+                    ContainerSection {
+                        kind: ContainerSectionKind::Contracts(contracts),
+                        offset: 144,
+                        length: 64,
+                    },
+                    ContainerSection {
+                        kind: ContainerSectionKind::Footprint(footprint),
+                        offset: 208,
+                        length: 64,
+                    },
+                    ContainerSection {
+                        kind: ContainerSectionKind::Placement(placement),
+                        offset: 272,
+                        length: 64,
+                    },
+                    ContainerSection {
+                        kind: ContainerSectionKind::Entries(entry_set),
+                        offset: 336,
+                        length: 16,
+                    },
+                    ContainerSection {
+                        kind: ContainerSectionKind::Proof(proof),
+                        offset: 384,
+                        length: 64,
+                    },
+                ],
+            };
+        decoded.content_fingerprint =
+            non_authoritative_decoded_container_fingerprint(&decoded).expect("content fingerprint");
         decoded
     }
 
@@ -832,10 +921,16 @@ mod tests {
             admitted.admission(),
             id(70, AdmissionReceiptId::from_normalized_identity)
         );
+        let retained = admitted
+            .container_proof
+            .as_ref()
+            .expect("validated-container admission retains proof custody");
+        assert_eq!(retained.digest, container.proof_payload());
+        assert_eq!(retained.bytes, container.proof());
 
         let mut changed = decoded();
         changed.proof[0] ^= 1;
-        changed.proof_payload = normalized_proof_payload_identity(&changed.proof);
+        changed.proof_payload = normalized_proof_payload_digest(&changed.proof);
         changed.sections[6].kind = ContainerSectionKind::Proof(changed.proof_payload);
         let changed = validate_decoded_container(changed, limits()).expect("changed proof");
         let replay = ValidatedContainerAdmissionEvidence::from_validator(
@@ -876,10 +971,9 @@ mod tests {
         let mut decorated = decoded();
         decorated.total_length = 512;
         decorated.sections.push(ContainerSection {
-            kind: ContainerSectionKind::Informational(id(
-                88,
-                InformationalSectionId::from_normalized_identity,
-            )),
+            kind: ContainerSectionKind::Informational(
+                NonAuthoritativeInformationalFingerprint64::from_compatibility_value(88).unwrap(),
+            ),
             offset: 448,
             length: 64,
         });
@@ -893,13 +987,13 @@ mod tests {
     fn content_identity_binds_the_instruction_set_architecture() {
         let mut changed = decoded();
         changed.relocations[0].kind = ArtifactRelocationKind::Absolute64;
-        changed.content =
-            normalized_decoded_content_identity(&changed).expect("portable relocation identity");
+        changed.content_fingerprint = non_authoritative_decoded_container_fingerprint(&changed)
+            .expect("portable relocation fingerprint");
         changed.architecture = Architecture::Aarch64;
 
         let error =
             validate_decoded_container(changed, limits()).expect_err("architecture drift rejects");
-        assert!(error.0.contains("content identity"));
+        assert!(error.0.contains("content fingerprint"));
     }
 
     #[test]
@@ -909,8 +1003,8 @@ mod tests {
         aarch64.architecture = Architecture::Aarch64;
         aarch64.entries = vec![ArtifactEntry::from_canonical_decode(entry, 17)];
         aarch64.relocations[0].kind = ArtifactRelocationKind::Absolute64;
-        aarch64.content =
-            normalized_decoded_content_identity(&aarch64).expect("candidate identity");
+        aarch64.content_fingerprint = non_authoritative_decoded_container_fingerprint(&aarch64)
+            .expect("candidate fingerprint");
 
         let error = validate_decoded_container(aarch64, limits())
             .expect_err("unaligned AArch64 entry rejects");
@@ -918,7 +1012,8 @@ mod tests {
 
         let mut x86 = decoded();
         x86.entries = vec![ArtifactEntry::from_canonical_decode(entry, 17)];
-        x86.content = normalized_decoded_content_identity(&x86).expect("x86 candidate identity");
+        x86.content_fingerprint = non_authoritative_decoded_container_fingerprint(&x86)
+            .expect("x86 candidate fingerprint");
         validate_decoded_container(x86, limits()).expect("x86 permits byte-aligned entries");
     }
 
@@ -990,16 +1085,16 @@ mod tests {
         let mut duplicate = decoded();
         duplicate.entries.push(duplicate.entries[0]);
         duplicate.sections[5].length = 32;
-        duplicate.content =
-            normalized_decoded_content_identity(&duplicate).expect("duplicate content identity");
+        duplicate.content_fingerprint = non_authoritative_decoded_container_fingerprint(&duplicate)
+            .expect("duplicate content fingerprint");
         let error = validate_decoded_container(duplicate, limits()).expect_err("duplicate entry");
         assert!(error.0.contains("must be unique"));
 
         let mut outside = decoded();
         let identity = EntryStubId::from_normalized_identity(10).expect("entry identity");
         outside.entries = vec![ArtifactEntry::from_canonical_decode(identity, 64)];
-        outside.content =
-            normalized_decoded_content_identity(&outside).expect("outside content identity");
+        outside.content_fingerprint = non_authoritative_decoded_container_fingerprint(&outside)
+            .expect("outside content fingerprint");
         let error = validate_decoded_container(outside, limits()).expect_err("outside entry");
         assert!(error.0.contains("lies outside"));
 
@@ -1029,8 +1124,8 @@ mod tests {
             },
         ];
         canonical.sections[1].length = 72;
-        canonical.content =
-            normalized_decoded_content_identity(&canonical).expect("relocation content identity");
+        canonical.content_fingerprint = non_authoritative_decoded_container_fingerprint(&canonical)
+            .expect("relocation content fingerprint");
         let validated =
             validate_decoded_container(canonical, limits()).expect("canonical relocations");
         assert_eq!(validated.relocations()[0].destination_offset, 8);
@@ -1091,8 +1186,9 @@ mod tests {
         let mut portable_absolute = decoded();
         portable_absolute.architecture = Architecture::Aarch64;
         portable_absolute.relocations[0].kind = ArtifactRelocationKind::Absolute64;
-        portable_absolute.content = normalized_decoded_content_identity(&portable_absolute)
-            .expect("absolute relocation is valid on AArch64");
+        portable_absolute.content_fingerprint =
+            non_authoritative_decoded_container_fingerprint(&portable_absolute)
+                .expect("absolute relocation is valid on AArch64");
         validate_decoded_container(portable_absolute, limits())
             .expect("absolute relocation remains architecture-neutral");
     }
@@ -1100,19 +1196,20 @@ mod tests {
     #[test]
     fn content_identity_binds_code_and_normalized_semantics_not_evidence() {
         let baseline = decoded();
-        let baseline_identity = baseline.content;
+        let baseline_identity =
+            normalized_decoded_content_digest(&baseline).expect("baseline strong digest");
 
         let mut changed_code = decoded();
         changed_code.code[0] ^= 1;
         let error =
             validate_decoded_container(changed_code, limits()).expect_err("code drift rejects");
-        assert!(error.0.contains("content identity"));
+        assert!(error.0.contains("content fingerprint"));
 
         let mut changed_relocation = decoded();
         changed_relocation.relocations[0].addend = 1;
         let error = validate_decoded_container(changed_relocation, limits())
             .expect_err("relocation drift rejects");
-        assert!(error.0.contains("content identity"));
+        assert!(error.0.contains("content fingerprint"));
 
         let mut reordered = decoded();
         let entry = EntryStubId::from_normalized_identity(10).expect("entry identity");
@@ -1120,9 +1217,10 @@ mod tests {
             .entries
             .push(ArtifactEntry::from_canonical_decode(entry, 24));
         reordered.sections[5].length = 32;
-        reordered.content =
-            normalized_decoded_content_identity(&reordered).expect("two-entry identity");
-        let two_entry_identity = reordered.content;
+        reordered.content_fingerprint = non_authoritative_decoded_container_fingerprint(&reordered)
+            .expect("two-entry fingerprint");
+        let two_entry_identity =
+            normalized_decoded_content_digest(&reordered).expect("two-entry strong digest");
         reordered.entries.reverse();
         let validated =
             validate_decoded_container(reordered, limits()).expect("entry order normalizes");
@@ -1130,7 +1228,7 @@ mod tests {
 
         let mut changed_proof = decoded();
         changed_proof.proof[0] ^= 1;
-        changed_proof.proof_payload = normalized_proof_payload_identity(&changed_proof.proof);
+        changed_proof.proof_payload = normalized_proof_payload_digest(&changed_proof.proof);
         changed_proof.sections[6].kind = ContainerSectionKind::Proof(changed_proof.proof_payload);
         let validated =
             validate_decoded_container(changed_proof, limits()).expect("proof is evidence");
