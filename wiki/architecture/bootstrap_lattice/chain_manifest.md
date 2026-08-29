@@ -64,9 +64,6 @@ they are not language rungs.
 
 - `source/beta/compiler/beta_compiler.alpha` is the canonical Alpha-written
   Beta compiler. Its direct assembly is the persisted tape consumed above.
-- `source/beta/compiler/bc.beta` may temporarily remain as bounded differential
-  Beta-language evidence. Its fixed-point artifact is gone and it has no
-  production consumer.
 - `source/gamma/interp.beta` and `source/gamma/typeck.beta` are reusable Gamma
   semantic components and oracles. They must feed a Beta-written Gamma compiler
   or be reduced to focused tests; they do not constitute a compiler edge alone.

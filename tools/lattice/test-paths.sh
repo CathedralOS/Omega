@@ -78,12 +78,11 @@ done
 [ ! -e "$OMEGA_REPO_ROOT/tools/bootstrap" ] || fail "generic bootstrap tooling bucket remains"
 [ ! -e "$OMEGA_REPO_ROOT/tools/assurance" ] || fail "generic assurance tooling bucket remains"
 
-# The current Beta construction still targets the noncanonical self-hosted
-# `bc.beta` subject. Keep it directly invocable, but do not present it as a
-# closed direct-lattice edge until the Alpha-written compiler is promoted.
+# The canonical Beta source/artifact exist, but exact edge admission remains
+# open. Do not present diagnostic construction as a closed lattice row.
 beta_step_count=$(grep -c '^step "beta — ' "$OMEGA_LATTICE_RUNNER" || true)
 [ "$beta_step_count" -eq 0 ] ||
-  fail "default lattice presents $beta_step_count noncanonical Beta rows"
+  fail "default lattice presents $beta_step_count unadmitted Beta rows"
 
 for diagnostic in \
   'check-path-hygiene.sh' \

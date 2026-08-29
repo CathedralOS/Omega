@@ -11,9 +11,9 @@ Alpha-written canonical Beta compiler or a bounded, named diagnostic role.
 - `admission/fol/` proves that the selected first-order checker can express
   non-lockstep traces, silent stuttering with a decreasing rank, cyclic
   execution, and the required negative controls. It contains no exact
-  `bc.beta` proposition.
+  former self-host proposition.
 
-The former 193-module exact-`bc.beta` ROOT reconstruction, source/PC witnesses,
+The former 193-module exact-self-host ROOT reconstruction, source/PC witnesses,
 `B_bc1` profile, and resource-cutpoint proofs were deleted. They described the
 wrong canonical source and could not be adapted without replacing their exact
 subjects, tables, counts, procedure identities, and most propositions. Generic

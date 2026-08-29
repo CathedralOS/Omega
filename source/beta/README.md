@@ -2,10 +2,8 @@
 
 This directory owns the Beta language and the compiler accepting Beta. Under
 D11 the canonical compiler edge is implemented in Alpha and produces the
-platform-independent Beta compiler tape. The existing
-[`compiler/bc.beta`](compiler/bc.beta) self-host remains useful differential and
-self-host evidence; reproduction does not make it the required predecessor
-edge or prove compiler correctness.
+platform-independent Beta compiler tape. No Beta self-host participates in or
+shadows that edge.
 
 ```text
 compiler/     canonical source, artifact, construction tests, and validation
@@ -25,13 +23,12 @@ directly, without a Rust producer or Beta self-host stage. The current tape is
 20,977 bytes.
 
 The Alpha-written [`compiler/beta_compiler.alpha`](compiler/beta_compiler.alpha)
-is the complete canonical Beta compiler used by the direct chain. Remaining
-`bc.beta` executions are bounded differential diagnostics, never construction.
+is the complete canonical Beta compiler used by the direct chain.
 
 [`compiler/validation/`](compiler/validation/README.md) retains the general
 Alpha-tape structure checker, ordinary-FOL simulation seams, and bounded
-differential stress tools that can target the promoted compiler. The 60k-line
-exact-`bc.beta` obligation tree and source/PC witnesses were deleted because
+differential stress tools that target the canonical compiler. The 60k-line
+former self-host obligation tree and source/PC witnesses were deleted because
 their proposition cannot admit an Alpha-written source.
 
 ## Role in the lattice

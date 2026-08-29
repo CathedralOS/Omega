@@ -7,8 +7,8 @@
 > tape is constructed directly from the Alpha-written Beta compiler source,
 > independently of the persisted Beta compiler artifact. The lattice
 > requires every compiler edge to relate its immediate-predecessor source
-> directly to Alpha tape. Existing `bc.beta`-specific proof machinery is
-> retained only where it targets the canonical Alpha-written Beta compiler or a
+> directly to Alpha tape. Former self-host-specific proof machinery was deleted;
+> retained machinery targets the canonical Alpha-written Beta compiler or a
 > later source-to-tape edge. No coinductive kernel extension is selected.
 
 The proof kernel is deliberately not a language rung. Programs do not elaborate

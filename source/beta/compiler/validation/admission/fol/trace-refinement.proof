@@ -1,10 +1,10 @@
 ; First ordinary-FOL operational-refinement seam for the Beta compiler edge.
 ;
 ; This is deliberately a small, closed pair of machines.  It checks that the
-; existing kernel can express the proof architecture selected for bc.beta:
+; existing kernel can express the proof architecture selected for the canonical edge:
 ; constructive traces, nondecreasing synchronization, zero/many target steps,
 ; a decreasing rank for erased progress, and a genuinely cyclic running trace.
-; It is not the bc.beta admission certificate.
+; It is not the compiler's admission certificate.
 
 ; Generic trace induction.  Function 60 is the source trace, 61 the target
 ; trace, 62 the synchronization function, and relation 900 the symbolic schema.

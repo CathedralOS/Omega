@@ -1,7 +1,7 @@
 # The Beta language
 
 > The small structured systems layer above Alpha assembly. The canonical
-> compiler is implemented in Alpha; `bc.beta` is a self-hosted comparison.
+> compiler is implemented in Alpha.
 > The rung name and place in `Alpha → Beta → Gamma → Delta` are fixed by
 > bootstrap decision D6.
 > Runtime meaning is fixed separately by [`SEMANTICS.md`](SEMANTICS.md).
@@ -84,7 +84,5 @@ assembly mnemonics) without spelling every byte. `"..."` escapes: `\n \t \r \0 \
 These are rung boundaries, not unfinished Gamma or Delta features. The
 canonical Alpha-written compiler is
 [`compiler/beta_compiler.alpha`](compiler/beta_compiler.alpha).
-[`compiler/bc.beta`](compiler/bc.beta) remains temporary bounded differential
-evidence; its fixed-point artifact is gone and it does not define compiler
-authority. The former duplicate historical-compiler surface
-suite was folded into the direct compiler's focused gate and deleted.
+The former self-host and duplicate historical-compiler surface suite were
+deleted once the direct compiler and focused gate subsumed their useful role.

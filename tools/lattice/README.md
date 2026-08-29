@@ -12,7 +12,7 @@ sh tools/lattice/verify-lattice.sh
 
 The runner contains only the presently closed floor: selected Alpha seed
 behavior plus exact assembler construction and construction of the below-Beta
-checker. The current `bc.beta` fixed point, generic artifact-framing gate,
+checker. The canonical Beta artifact's generic structure/refinement diagnostics,
 Gamma program suites, path-policy test, and stress tools remain directly
 runnable diagnostics; repeating them as top-level rows would falsely present
 an open compiler edge as closed.
