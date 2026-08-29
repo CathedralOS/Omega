@@ -1,10 +1,17 @@
+use super::super::graph::PackageClosureValidationError;
 use super::*;
+use crate::declarations::dependency_projection::DependencySourceRequest;
 use crate::source::identity::{
-    GitCommitId, GitTreeId, PackageName, SourceContentDigest, SourceLineage, WorkspaceMemberPath,
+    AliasName, GitCommitId, GitTreeId, ImmutableSourceResolution, PackageKey, PackageName,
+    SourceContentDigest, SourceLineage, WorkspaceMemberPath,
 };
-use crate::{LocalSourceLimits, ResolvedPackageSource, resolve_workspace_member_package_source};
+use crate::{
+    GitSourceRequest, LocalSourceLimits, ResolvedPackageSource,
+    resolve_workspace_member_package_source,
+};
 use std::cell::RefCell;
-use std::path::Component;
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::{Component, Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn key(name: &str, repository: &str) -> PackageKey {

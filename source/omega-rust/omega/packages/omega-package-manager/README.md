@@ -47,6 +47,11 @@ src/
 |   |   |-- cache.rs       Access retained source-storage lanes.
 |   |   `-- errors.rs      Public traversal failure vocabulary.
 |   |-- reconciliation/    Reconcile the complete dependency closure.
+|   |   |-- mod.rs         Reconciliation facade and result vocabulary.
+|   |   |-- source_custody.rs Exact root requests and immutable custody.
+|   |   |-- resolution.rs  Bounded traversal and conflict-path collection.
+|   |   |-- resolved_closure.rs Validated closure and source-selection views.
+|   |   `-- model.rs       Paths, limits, conflicts, and failures.
 |   |-- graph/             Validate package nodes, edges, aliases, and reachability.
 |   `-- subject/           Canonically encode the exact resolved closure.
 |-- review/
