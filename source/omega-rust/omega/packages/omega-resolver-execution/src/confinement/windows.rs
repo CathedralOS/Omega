@@ -31,7 +31,7 @@ use windows_sys::Win32::System::Threading::{
     CREATE_SUSPENDED, GetProcessId, OpenThread, ResumeThread, THREAD_SUSPEND_RESUME,
 };
 
-use super::{
+use crate::process::limits::{
     CHILD_AGGREGATE_CPU_SECONDS, CHILD_AGGREGATE_MEMORY_BYTES, CHILD_PROCESS_LIMIT,
     CHILD_PROCESS_MEMORY_BYTES,
 };
