@@ -363,3 +363,11 @@ pub enum OptimizationUnitValidationError {
     CandidateIncomingBindingMismatch,
     CandidateSubstitutionMismatch,
 }
+
+impl std::fmt::Display for OptimizationUnitValidationError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "invalid Psi optimization unit: {self:?}")
+    }
+}
+
+impl std::error::Error for OptimizationUnitValidationError {}

@@ -13,6 +13,10 @@ name = "layering"
 path = "layering.rs"
 
 [[test]]
+name = "optimizer_source_organization"
+path = "optimizer_source_organization.rs"
+
+[[test]]
 name = "semantic_taxonomy_inventory"
 path = "semantic_taxonomy_inventory.rs"
 

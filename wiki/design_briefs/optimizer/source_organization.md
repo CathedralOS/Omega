@@ -100,7 +100,17 @@ and fragment publication has one generic post-allocation source. Adding
 XOR-zero did not copy the former MOVN route, and the named CBNZ/MOVN owning
 complete routes were removed.
 
-The next organization work is registry coverage and enforcement rather than
-another route refactor: exhaustively cross-check build/report mappings against
-`Optimization::ALL`, finish the remaining semantic file splits, and add the
-repository size/navigation check described above.
+The organization gate is now executable. `omega-optimization-core` declares
+each exact name, stable tag, build case, build counter, phase, and canonical
+order once; its descriptor generates both `Optimization` and
+`Optimization::ALL`. Both injected build preludes are parsed against those
+generated views and every exact name is evaluated independently through both
+preludes, so swapped name-to-counter mappings fail.
+
+Psi, selected-lowering, allocation-recovery, post-allocation, and
+function-relative-layout stages expose ordered catalogs with phase coverage
+tests. Validator candidates, semantic analyses, optimization-unit identity and
+rewrite machinery, projection tests, and physical custody tests descend through
+small named entrances rather than monoliths. The repository architecture test
+enforces the 1,500-line file ceiling and the entrance exception contract over
+the governed optimizer roots.

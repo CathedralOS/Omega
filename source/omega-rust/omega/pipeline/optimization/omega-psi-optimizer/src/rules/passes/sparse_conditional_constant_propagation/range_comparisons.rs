@@ -15,7 +15,8 @@ use crate::{
     ScalarConstantAnalysis, ValueRangeAnalysis,
 };
 
-use super::{SCCP_PASS_NAME, integer_value_type, literal_integer_constant};
+use super::{super::SCCP_PASS_NAME, constant_evaluation::integer_value_type};
+use crate::rules::passes::support::literal_integer_constant;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::rules::passes) enum IntegerRangeComparisonKind {

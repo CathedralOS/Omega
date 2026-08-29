@@ -3,6 +3,29 @@
 use super::*;
 
 #[test]
+fn ordered_catalog_covers_every_declared_psi_optimization_once() {
+    let mut declared = Optimization::ALL
+        .into_iter()
+        .filter(|optimization| {
+            optimization.execution_phase()
+                == omega_optimization_core::OptimizationExecutionPhase::Psi
+        })
+        .collect::<Vec<_>>();
+    let mut catalog = ORDERED_PSI_PASSES.to_vec();
+    declared.sort_unstable();
+    catalog.sort_unstable();
+    catalog.dedup();
+    assert_eq!(catalog.len(), ORDERED_PSI_PASSES.len());
+    assert_eq!(catalog, declared);
+    for optimization in ORDERED_PSI_PASSES {
+        let selections = OptimizationSelections::new([optimization]).unwrap();
+        let scheduled = built_in_psi_registries(&selections).unwrap();
+        assert_eq!(scheduled.len(), 1, "{optimization:?} must schedule once");
+        assert!(!scheduled[0].is_empty(), "{optimization:?} has no rules");
+    }
+}
+
+#[test]
 fn built_in_schedule_is_independent_of_registration_arrival_order() {
     for optimization in [
         Optimization::SparseConditionalConstantPropagation,

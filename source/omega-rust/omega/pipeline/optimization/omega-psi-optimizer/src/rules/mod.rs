@@ -7,5 +7,5 @@
 mod catalog;
 mod passes;
 
-pub use catalog::{built_in_psi_registries, built_in_psi_registry};
+pub use catalog::{ORDERED_PSI_PASSES, built_in_psi_registries, built_in_psi_registry};
 pub use passes::*;

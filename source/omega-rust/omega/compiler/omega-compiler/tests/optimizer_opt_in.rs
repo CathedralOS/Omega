@@ -4,6 +4,7 @@ use omega_optimization_pipeline::OptimizationReportRequest;
 use omega_package_compilation::{
     PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
 };
+use std::fmt::Write as _;
 
 fn compile(
     options: CompileOptions,
@@ -61,6 +62,32 @@ fn diagnostic_messages(diagnostics: &[psi_diagnostics::Diagnostic]) -> String {
 
 fn package_identity(marker: u8) -> PackageKeyIdentity {
     PackageKeyIdentity::from_digest([marker; 32]).expect("nonzero package identity")
+}
+
+fn exact_optimization_vocabulary_build(
+    optimization: Optimization,
+    filesystem_prelude: bool,
+) -> String {
+    let mut enable_call = String::new();
+    writeln!(
+        enable_call,
+        "    builder.optimizations.enable(Optimization::{});",
+        optimization.build_case_name()
+    )
+    .expect("writing an optimization enable call to a String cannot fail");
+    let import = if filesystem_prelude {
+        "use omega::language::std::filesystem_host;\n\n"
+    } else {
+        ""
+    };
+    let service_reach = if filesystem_prelude {
+        "reaches FilesystemHost\n"
+    } else {
+        ""
+    };
+    format!(
+        "{import}machine build(builder: &mut Build)\n{service_reach}{{\n    builder.application(\"optimizer-exact-vocabulary\");\n{enable_call}    builder.optimizations.emit_report();\n}}\n"
+    )
 }
 
 #[test]
@@ -132,49 +159,31 @@ fn duplicate_human_report_requests_reject_during_build_evaluation() {
 }
 
 #[test]
-fn enable_calls_project_the_exact_canonical_named_set() {
-    let root = project(
-        "selected",
-        Some(
-            r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-selected");
-    builder.optimizations.enable(Optimization::ProofCheckElision);
-    builder.optimizations.enable(Optimization::ControlFlowCleanup);
-    builder.optimizations.enable(Optimization::CopyPropagation);
-    builder.optimizations.enable(Optimization::SelectedIncomingU12ExactAddImmediate);
-    builder.optimizations.enable(Optimization::X86RelaxConditionalBranchesToRel8V1);
-    builder.optimizations.enable(Optimization::SelectedIncomingU12ExactSubtractImmediate);
-    builder.optimizations.enable(Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1);
-    builder.optimizations.enable(Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1);
-    builder.optimizations.enable(Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1);
-    builder.optimizations.enable(Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1);
-    builder.optimizations.enable(Optimization::X86SelectXorZeroI64MaterializationV1);
-}
-"#,
-        ),
-    );
-    let checked = compile_to_checked(&root.join("main.omg"), None)
-        .expect("explicit named selections should evaluate");
-    assert_eq!(
-        checked.optimization_selections().as_slice(),
-        &[
-            Optimization::ControlFlowCleanup,
-            Optimization::CopyPropagation,
-            Optimization::ProofCheckElision,
-            Optimization::SelectedIncomingU12ExactAddImmediate,
-            Optimization::X86RelaxConditionalBranchesToRel8V1,
-            Optimization::SelectedIncomingU12ExactSubtractImmediate,
-            Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
-            Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
-            Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
-            Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
-            Optimization::X86SelectXorZeroI64MaterializationV1,
-        ]
-    );
-    assert_eq!(
-        checked.optimization_selection_identity(),
-        checked.optimization_selections().identity()
-    );
+fn every_exact_enable_call_maps_to_itself_through_both_build_preludes() {
+    for optimization in Optimization::ALL {
+        for (prelude_label, filesystem_prelude) in [("ordinary", false), ("filesystem", true)] {
+            let build = exact_optimization_vocabulary_build(optimization, filesystem_prelude);
+            let label = format!(
+                "selected-{prelude_label}-{}",
+                optimization.build_counter_field()
+            );
+            let root = project(&label, Some(&build));
+            let checked = compile_to_checked(&root.join("main.omg"), None)
+                .expect("the exact named selection should evaluate");
+            assert_eq!(
+                checked.optimization_selections().as_slice(),
+                &[optimization]
+            );
+            assert_eq!(
+                checked.optimization_report_request(),
+                OptimizationReportRequest::EmitHumanText
+            );
+            assert_eq!(
+                checked.optimization_selection_identity(),
+                checked.optimization_selections().identity()
+            );
+        }
+    }
 }
 
 #[test]

@@ -72,5 +72,5 @@ pub use rules::{
     WrappingIntegerDivideConstantsRule, WrappingIntegerMultiplyConstantsRule,
     WrappingIntegerRemainderConstantsRule, WrappingIntegerShiftLeftConstantsRule,
     WrappingIntegerShiftRightConstantsRule, WrappingIntegerSubtractConstantsRule,
-    built_in_psi_registries, built_in_psi_registry,
+    ORDERED_PSI_PASSES, built_in_psi_registries, built_in_psi_registry,
 };

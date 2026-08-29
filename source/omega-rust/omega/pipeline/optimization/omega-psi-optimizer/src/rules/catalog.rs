@@ -6,6 +6,17 @@ use crate::{OrderedRuleRegistry, PsiOptimizationRule, RuleRegistryError};
 
 use super::passes::*;
 
+/// Canonical Psi pass-group order. This is the only mapping from exact Psi
+/// selections to pass groups; individual pass groups own their rule order.
+pub const ORDERED_PSI_PASSES: [Optimization; 6] = [
+    Optimization::SparseConditionalConstantPropagation,
+    Optimization::ControlFlowCleanup,
+    Optimization::CopyPropagation,
+    Optimization::GlobalValueNumbering,
+    Optimization::ProofCheckElision,
+    Optimization::DeadPureScalarElimination,
+];
+
 pub fn built_in_psi_registry(
     selections: &OptimizationSelections,
 ) -> Result<OrderedRuleRegistry, RuleRegistryError> {
@@ -30,43 +41,18 @@ pub fn built_in_psi_registries(
     selections: &OptimizationSelections,
 ) -> Result<Vec<OrderedRuleRegistry>, RuleRegistryError> {
     let psi_selections = selections.for_phase(OptimizationExecutionPhase::Psi);
-    if let Some(unsupported) = psi_selections.as_slice().iter().find(|optimization| {
-        !matches!(
-            optimization,
-            Optimization::SparseConditionalConstantPropagation
-                | Optimization::ControlFlowCleanup
-                | Optimization::CopyPropagation
-                | Optimization::GlobalValueNumbering
-                | Optimization::DeadPureScalarElimination
-                | Optimization::ProofCheckElision
-        )
-    }) {
+    if let Some(unsupported) = psi_selections
+        .as_slice()
+        .iter()
+        .find(|optimization| !ORDERED_PSI_PASSES.contains(optimization))
+    {
         return Err(RuleRegistryError::UnsupportedOptimization(*unsupported));
     }
     let mut registries = Vec::new();
-    if psi_selections.contains(Optimization::SparseConditionalConstantPropagation) {
-        registries.push(registry_for_optimization(
-            Optimization::SparseConditionalConstantPropagation,
-        )?);
-    }
-    if psi_selections.contains(Optimization::ControlFlowCleanup) {
-        registries.push(registry_for_optimization(Optimization::ControlFlowCleanup)?);
-    }
-    if psi_selections.contains(Optimization::CopyPropagation) {
-        registries.push(registry_for_optimization(Optimization::CopyPropagation)?);
-    }
-    if psi_selections.contains(Optimization::GlobalValueNumbering) {
-        registries.push(registry_for_optimization(
-            Optimization::GlobalValueNumbering,
-        )?);
-    }
-    if psi_selections.contains(Optimization::ProofCheckElision) {
-        registries.push(registry_for_optimization(Optimization::ProofCheckElision)?);
-    }
-    if psi_selections.contains(Optimization::DeadPureScalarElimination) {
-        registries.push(registry_for_optimization(
-            Optimization::DeadPureScalarElimination,
-        )?);
+    for optimization in ORDERED_PSI_PASSES {
+        if psi_selections.contains(optimization) {
+            registries.push(registry_for_optimization(optimization)?);
+        }
     }
     Ok(registries)
 }
