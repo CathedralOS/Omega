@@ -21,6 +21,7 @@ pub enum NativeFuelInstrumentationError {
     NoAttributions,
     NonCanonicalAttributions(MachineId),
     InvalidAttribution(MachineId),
+    RankedCountdownRequiresBranchRebasing(MachineId),
     SizeOverflow,
     Encoding(String),
 }
@@ -54,6 +55,13 @@ pub fn instrument_native_fuel(
     let mut total_sites = 0usize;
     let mut prepared = Vec::with_capacity(source.functions.len());
     for function in &source.functions {
+        if function.requires_ranked_countdown_replay() {
+            return Err(
+                NativeFuelInstrumentationError::RankedCountdownRequiresBranchRebasing(
+                    function.machine,
+                ),
+            );
+        }
         total_sites = total_sites
             .checked_add(function.fuel_attribution.len())
             .ok_or(NativeFuelInstrumentationError::SizeOverflow)?;
@@ -327,6 +335,7 @@ mod tests {
             scalar_control_affine_cleanups: Vec::new(),
             scalar_structural_parameters: Vec::new(),
             scalar_structural_parameter_homes: Vec::new(),
+            ranked_u32_countdown: None,
             fuel_attribution: vec![
                 NativeFuelAttribution {
                     schedule,
@@ -477,6 +486,62 @@ mod tests {
         assert_eq!(
             instrument_native_fuel(plan, target_policy(TargetProfile::WindowsX64)),
             Err(NativeFuelInstrumentationError::TargetMismatch)
+        );
+    }
+
+    #[test]
+    fn ranked_shape_rejects_instrumentation_even_after_optional_custody_is_removed() {
+        let profile = TargetProfile::LinuxX64;
+        let mut plan = source(profile, 1);
+        let function = &mut plan.functions[0];
+        let operations = [
+            OperationId::new(11).unwrap(),
+            OperationId::new(12).unwrap(),
+            OperationId::new(13).unwrap(),
+            OperationId::new(14).unwrap(),
+        ];
+        let edges = [
+            EdgeId::new(11).unwrap(),
+            EdgeId::new(12).unwrap(),
+            EdgeId::new(13).unwrap(),
+            EdgeId::new(14).unwrap(),
+            EdgeId::new(15).unwrap(),
+        ];
+        function.provenance = TerminalPsiProvenance {
+            operations: operations.to_vec(),
+            edges: edges.to_vec(),
+        };
+        function.ranked_u32_countdown = None;
+        let schedule = FuelScheduleIdentity::new(1).unwrap();
+        function.fuel_attribution = [
+            NativeFuelSite::Edge(edges[0]),
+            NativeFuelSite::Operation(operations[0]),
+            NativeFuelSite::Operation(operations[1]),
+            NativeFuelSite::Edge(edges[1]),
+            NativeFuelSite::Operation(operations[2]),
+            NativeFuelSite::Operation(operations[3]),
+            NativeFuelSite::Edge(edges[3]),
+            NativeFuelSite::Edge(edges[2]),
+            NativeFuelSite::Edge(edges[4]),
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(operation_ordinal, site)| NativeFuelAttribution {
+            schedule,
+            site,
+            units: 1,
+            operation_ordinal,
+            code_offset: 0,
+            byte_count: 0,
+        })
+        .collect();
+        assert_eq!(
+            instrument_native_fuel(plan, target_policy(profile)),
+            Err(
+                NativeFuelInstrumentationError::RankedCountdownRequiresBranchRebasing(
+                    MachineId::new(1).unwrap()
+                )
+            )
         );
     }
 }

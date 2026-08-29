@@ -8,13 +8,13 @@ pub(crate) fn lower_realization_input(
     request: &NativeRealizationRequest<'_>,
 ) -> Result<NativeRealizationInput, Vec<Diagnostic>> {
     if request.optimization_selections.is_empty() {
-        Ok(NativeRealizationInput::Ordinary(
-            omega_psi_to_abstract_operations::lower_artifact_sections(
+        Ok(NativeRealizationInput::Unoptimized(
+            omega_psi_to_abstract_operations::lower_artifact_sections_for_native_realization(
                 semantic_bytes,
                 proof_bytes,
                 request.profile,
             )
-            .map_err(|error| realization_error("ordinary artifact lowering", error))?,
+            .map_err(|error| realization_error("native artifact lowering", error))?,
         ))
     } else {
         Ok(NativeRealizationInput::ExplicitOptimization(

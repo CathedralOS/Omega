@@ -35,6 +35,8 @@ use unit::{emit_aarch64_unit_call, emit_unit_body, emit_x86_64_unit_call};
 mod native_fuel;
 pub use native_fuel::{NativeFuelInstrumentationError, instrument_native_fuel};
 
+mod ranked_countdown;
+
 mod structural_result;
 mod structural_scalar;
 
@@ -84,13 +86,14 @@ pub fn emit_machine_code(plan: &AssignedOperationPlan) -> Result<MachineCodePlan
         functions: plan
             .functions
             .iter()
-            .map(|function| emit_function(function, plan.target, &plan.functions))
+            .map(|function| emit_function(function, plan.psi, plan.target, &plan.functions))
             .collect::<Result<Vec<_>, _>>()?,
     })
 }
 
 fn emit_function(
     function: &AssignedFunction,
+    psi: psi_terminal::TerminalPsiIdentity,
     target: NativeTarget,
     functions: &[AssignedFunction],
 ) -> Result<MachineCodeFunction, EmissionError> {
@@ -111,6 +114,7 @@ fn emit_function(
             structural_parameters,
             cleanup_actions,
             *psi_edge,
+            psi,
             target,
             functions,
         );
@@ -134,6 +138,9 @@ fn emit_function(
             functions,
         );
     }
+    if let AssignedOperation::RankedU32Countdown(countdown) = &function.operation {
+        return ranked_countdown::emit(function, countdown, psi, target);
+    }
     let architecture = target.architecture;
     let mut internal_calls = Vec::new();
     let mut internal_unit_calls = Vec::new();
@@ -151,9 +158,7 @@ fn emit_function(
     let mut scalar_control_flow = ScalarControlFlowEvidence::Linear;
     let bytes = match &function.operation {
         AssignedOperation::RankedU32Countdown(_) => {
-            return Err(EmissionError::RankedCountdownNotYetEmittable(
-                function.machine,
-            ));
+            unreachable!("ranked countdowns are emitted by the early carrier path")
         }
         AssignedOperation::ScalarReturnWithCleanup { .. } => {
             unreachable!("scalar cleanup returns are emitted by the early carrier path")
@@ -764,6 +769,7 @@ fn emit_function(
         scalar_control_affine_cleanups: Vec::new(),
         scalar_structural_parameters,
         scalar_structural_parameter_homes,
+        ranked_u32_countdown: None,
         fuel_attribution,
         port_effects,
         boundary_settlements,
@@ -987,7 +993,7 @@ fn append_aarch64_instructions(bytes: &mut Vec<u8>, instructions: Vec<u32>) {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EmissionError {
-    RankedCountdownNotYetEmittable(MachineId),
+    InvalidRankedCountdown(MachineId),
     UnitOperationAfterReturn,
     UnitFunctionHasNoReturn,
     UnitCallStackAreaNotEncodable,

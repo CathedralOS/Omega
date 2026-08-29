@@ -8,6 +8,7 @@ mod fma;
 mod machine_effects;
 mod native_fuel_runtime;
 mod post_handoff_writer;
+mod ranked_u32_countdown;
 mod register_model;
 mod selected_form_encoding;
 mod semantic_unit_wrapper_encoding;
@@ -26,6 +27,7 @@ pub use post_handoff_writer::{
     generated_post_handoff_writer_additional_machine_state, generated_post_handoff_writer_clobbers,
     generated_post_handoff_writer_width,
 };
+pub use ranked_u32_countdown::*;
 pub use register_model::{
     X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_COMPARE_I64_ZERO, X86_64_CONDITIONAL_BRANCH,
     X86_64_COPY_I64, X86_64_INLINE_ASSEMBLY_DEFAULT, X86_64_LINUX_SYSTEM_CALL,

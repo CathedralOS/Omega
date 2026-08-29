@@ -415,6 +415,11 @@ code, discover a closure, manufacture proof premises, or decide admission.
   `source/omega/build.omg`. Psi modules are included only when imported by the
   compiler executable; interpreters, viewers, REPLs, proof explorers, and other
   adjacent tools are excluded unless truly required.
+  Before freezing that closure, finish the regular `TASKS.md` C cleanup: one
+  canonical typed-token owner, gate-only diagnostic serialization outside the
+  product entrypoint, and one production compilation/artifact manifest. Delete
+  the mismatched standalone source-snapshot/census command and schemas as the
+  production manifest lands; they are not a second bootstrap observation.
 - [ ] Author `C` with a conservative compositional subset of ordinary Omega to
   simplify the first self-build. This is an incidental source profile, never a
   named dialect or permission for `omega₀` to implement less than full Omega.

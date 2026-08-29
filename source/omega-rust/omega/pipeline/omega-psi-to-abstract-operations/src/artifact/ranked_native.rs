@@ -28,10 +28,18 @@ pub fn lower_artifact_sections_for_native_ranked_countdown(
     let proof = psi_terminal_codec::decode_proof_bundle(proof_bytes)
         .map_err(ArtifactLoweringError::ProofDecode)?;
 
+    lower_decoded_native_ranked_countdown(&module, &proof, profile)
+}
+
+pub(super) fn lower_decoded_native_ranked_countdown(
+    module: &psi_terminal::TerminalModule,
+    proof: &psi_terminal_verifier::ProofBundle,
+    profile: &psi_proof_admission::AdmissionProfile,
+) -> Result<RankedNativeAbstractOperationPlan, ArtifactLoweringError> {
     let native =
-        psi_terminal_verifier::verify_module_for_native_ranked_countdown(&module, &proof, profile)
+        psi_terminal_verifier::verify_module_for_native_ranked_countdown(module, proof, profile)
             .map_err(ArtifactLoweringError::Verification)?;
-    let fixed = psi_terminal_verifier::verify_module_for_fixed_fuel(&module, &proof, profile)
+    let fixed = psi_terminal_verifier::verify_module_for_fixed_fuel(module, proof, profile)
         .map_err(ArtifactLoweringError::Verification)?;
     let fixed_fuel =
         psi_terminal_fixed_fuel::derive_ranked_countdown_entry_fuel(&fixed, module.entry)
@@ -51,7 +59,7 @@ pub fn lower_artifact_sections_for_native_ranked_countdown(
         ));
     }
 
-    let machine = entry_machine(&module)?;
+    let machine = entry_machine(module)?;
     let ranked_scc =
         machine
             .ranked_scc

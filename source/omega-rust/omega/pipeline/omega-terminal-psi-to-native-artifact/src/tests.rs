@@ -21,6 +21,106 @@ fn checked(source: &str) -> psi_checked_trees::CheckedTrees {
     lower_typed_trees(typed).expect("check")
 }
 
+const RANKED_COUNTDOWN_SOURCE: &str = r#"
+    data Token { value: i32; }
+    data Root {}
+
+    machine Root::countdown(token: Token, remaining: u32)
+    terminates by remaining -> Nat::Descending;
+    {
+        transition remaining > 0 {
+            true -> countdown(token, remaining - 1)
+            _ -> done(token)
+        }
+        state done(token: Token) {}
+    }
+"#;
+
+#[test]
+fn ranked_native_dispatch_emits_exact_machine_body_and_logical_fuel_sites() {
+    let checked = checked(RANKED_COUNTDOWN_SOURCE);
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::countdown")
+        .expect("lower ranked Terminal Psi");
+    let semantic = psi_terminal_codec::encode_module(&lowered.semantic_module)
+        .expect("encode ranked semantics");
+    let proof = psi_terminal_codec::encode_proof_bundle(&lowered.proof_bundle)
+        .expect("encode ranked proof");
+    let admitted =
+        omega_psi_to_abstract_operations::lower_artifact_sections_for_native_realization(
+            &semantic,
+            &proof,
+            &psi_proof_admission::AdmissionProfile::default(),
+        )
+        .expect("dispatch ranked native custody");
+    let omega_psi_to_abstract_operations::NativeArtifactOperationPlan::RankedU32Countdown(ranked) =
+        admitted
+    else {
+        panic!("ranked module must not enter ordinary native lowering")
+    };
+
+    for target in [
+        omega_target::NativeTarget::linux_x64(),
+        omega_target::NativeTarget::linux_arm64(),
+    ] {
+        let target_plan =
+            omega_abstract_operations_to_target_operations::lower_ranked_to_target_operations(
+                &ranked, target,
+            )
+            .expect("lower ranked target operations");
+        let assigned =
+            omega_target_operations_to_assigned_target_operations::assign_registers(&target_plan)
+                .expect("assign ranked register");
+        let emitted = omega_machine_emission::emit_machine_code(&assigned)
+            .expect("emit ranked countdown machine code");
+        let function = &emitted.functions[0];
+        let record = function
+            .ranked_u32_countdown
+            .as_ref()
+            .expect("retain ranked machine custody");
+        assert_eq!(record.custody, ranked.countdown);
+        assert_eq!(
+            function.bytes,
+            match target.architecture {
+                omega_target::Architecture::X86_64 => {
+                    omega_isa_x86_64::encode_ranked_u32_countdown_in_edi().to_vec()
+                }
+                omega_target::Architecture::Aarch64 => vec![
+                    0x01, 0x00, 0x00, 0x14, 0x1f, 0x00, 0x00, 0x71, 0x60, 0x00, 0x00, 0x54, 0x00,
+                    0x04, 0x00, 0x51, 0xfd, 0xff, 0xff, 0x17, 0xc0, 0x03, 0x5f, 0xd6,
+                ],
+            }
+        );
+        let graph = record.custody.graph;
+        let covered = &record.custody.ranked_scc.covered_cyclic_edges[0];
+        let psi_terminal::TerminalRankedGuard::UnsignedParameterPositive {
+            edge: guard_edge, ..
+        } = covered.guard;
+        assert_eq!(
+            function
+                .fuel_attribution
+                .iter()
+                .map(|row| row.site)
+                .collect::<Vec<_>>(),
+            vec![
+                omega_machine_code::NativeFuelSite::Edge(graph.preheader_edge),
+                omega_machine_code::NativeFuelSite::Operation(graph.zero_operation),
+                omega_machine_code::NativeFuelSite::Operation(graph.compare_operation),
+                omega_machine_code::NativeFuelSite::Edge(guard_edge),
+                omega_machine_code::NativeFuelSite::Operation(graph.one_operation),
+                omega_machine_code::NativeFuelSite::Operation(graph.subtract_operation),
+                omega_machine_code::NativeFuelSite::Edge(covered.edge),
+                omega_machine_code::NativeFuelSite::Edge(graph.false_exit_edge),
+                omega_machine_code::NativeFuelSite::Edge(graph.return_edge),
+            ]
+        );
+        assert!(function.fuel_attribution.iter().all(|row| row.units == 1));
+        assert_eq!(
+            record.custody.fixed_fuel.ceiling_units(),
+            5 + 6 * u64::from(u32::MAX)
+        );
+    }
+}
+
 fn hosted_custody() -> (
     psi_terminal_codec::CanonicalTerminalArtifact,
     CheckedProgramEntryTerminalReceipt,

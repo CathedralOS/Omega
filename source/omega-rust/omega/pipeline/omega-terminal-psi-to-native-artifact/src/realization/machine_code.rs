@@ -15,7 +15,9 @@ pub(crate) fn emit_realization_machine_code(
     request: &NativeRealizationRequest<'_>,
 ) -> Result<MachineCodePlan, Vec<Diagnostic>> {
     match input {
-        NativeRealizationInput::Ordinary(plan) => {
+        NativeRealizationInput::Unoptimized(
+            omega_psi_to_abstract_operations::NativeArtifactOperationPlan::Ordinary(plan),
+        ) => {
             let target = match provider_installation {
                 Some(installation) => {
                     omega_abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions_and_installation(
@@ -37,6 +39,29 @@ pub(crate) fn emit_realization_machine_code(
                     .map_err(|error| realization_error("ordinary physical assignment", error))?;
             omega_machine_emission::emit_machine_code(&assigned)
                 .map_err(|error| realization_error("machine-code emission", error))
+        }
+        NativeRealizationInput::Unoptimized(
+            omega_psi_to_abstract_operations::NativeArtifactOperationPlan::RankedU32Countdown(
+                ranked,
+            ),
+        ) => {
+            if provider_installation.is_some() || !settlements.is_empty() {
+                return Err(realization_error(
+                    "ranked native provider isolation",
+                    "the exact ranked countdown admits no provider installation or boundary settlement",
+                ));
+            }
+            let target =
+                omega_abstract_operations_to_target_operations::lower_ranked_to_target_operations(
+                    &ranked,
+                    request.target,
+                )
+                .map_err(|error| realization_error("ranked target lowering", error))?;
+            let assigned =
+                omega_target_operations_to_assigned_target_operations::assign_registers(&target)
+                    .map_err(|error| realization_error("ranked physical assignment", error))?;
+            omega_machine_emission::emit_machine_code(&assigned)
+                .map_err(|error| realization_error("ranked machine-code emission", error))
         }
         NativeRealizationInput::ExplicitOptimization(input) => {
             let optimization_request = omega_optimization_pipeline::compiler_baseline_request_v1(

@@ -21,15 +21,15 @@ pub(crate) fn admit_checked_provider_installation(
         return Ok(None);
     }
     let installation = match input {
-        NativeRealizationInput::Ordinary(_) => {
-            omega_psi_to_abstract_operations::admit_provider_installation(
-                plan,
-                semantic_bytes,
-                proof_bytes,
-                request.profile,
-                &selected,
-            )
-        }
+        NativeRealizationInput::Unoptimized(
+            omega_psi_to_abstract_operations::NativeArtifactOperationPlan::Ordinary(_),
+        ) => omega_psi_to_abstract_operations::admit_provider_installation(
+            plan,
+            semantic_bytes,
+            proof_bytes,
+            request.profile,
+            &selected,
+        ),
         NativeRealizationInput::ExplicitOptimization(_) => {
             omega_psi_to_abstract_operations::admit_provider_installation_for_optimization(
                 plan,
@@ -39,6 +39,9 @@ pub(crate) fn admit_checked_provider_installation(
                 &selected,
             )
         }
+        NativeRealizationInput::Unoptimized(
+            omega_psi_to_abstract_operations::NativeArtifactOperationPlan::RankedU32Countdown(_),
+        ) => return Ok(None),
     }
     .map_err(|error| realization_error("checked-provider installation", format!("{error:?}")))?;
     Ok(Some(installation))

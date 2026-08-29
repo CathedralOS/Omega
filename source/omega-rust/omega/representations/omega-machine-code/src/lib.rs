@@ -7,12 +7,13 @@ mod function_fragments;
 
 pub use function_fragments::*;
 
-use omega_calling_conventions::{ValuePlacement, ValueShape};
+use omega_abstract_operations::RankedU32CountdownCustody;
+use omega_calling_conventions::{CallPlan, ValuePlacement, ValueShape};
 use omega_installation_evidence::NativeFuelTargetPlanProjection;
 use omega_target::NativeTarget;
 use omega_target_operations::{
     BoundaryRealization, BoundaryScalarArgument, CallSiteOwner, CompletionClaimSource,
-    ProviderExecutionBinding, TerminalPsiProvenance,
+    ProviderExecutionBinding, TargetStructuralParameter, TerminalPsiProvenance,
 };
 use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, FuelScheduleIdentity, MachineId, OperationId, PlaceId,
@@ -109,6 +110,10 @@ pub struct MachineCodeFunction {
     pub scalar_control_affine_cleanups: Vec<ScalarControlAffineCleanupRecord>,
     pub scalar_structural_parameters: Vec<UnitParameterRecord>,
     pub scalar_structural_parameter_homes: Vec<UnitParameterHomeRecord>,
+    /// Exact first-slice ranked countdown custody and its target byte layout.
+    /// Object construction remains fail-closed until it independently replays
+    /// this record; ordinary scalar/control evidence cannot stand in for it.
+    pub ranked_u32_countdown: Option<RankedU32CountdownMachineCodeRecord>,
     /// Exact native byte intervals attributed to the current Psi logical-fuel
     /// schedule. These records are accounting provenance, not runtime charges.
     pub fuel_attribution: Vec<NativeFuelAttribution>,
@@ -123,6 +128,58 @@ pub struct MachineCodeFunction {
     /// interval. Claim identities are semantic metadata, never hidden ABI
     /// words.
     pub structural_return: Option<StructuralReturnRecord>,
+}
+
+impl MachineCodeFunction {
+    /// Conservative publication fence for the first ranked carrier.
+    ///
+    /// The shape check prevents an optional-custody stripping mutation from
+    /// reclassifying the exact emitted countdown as ordinary code. Delete this
+    /// fallback when `MachineCodeFunction` has a closed disjoint body carrier
+    /// and object replay accepts the ranked variant directly.
+    pub fn requires_ranked_countdown_replay(&self) -> bool {
+        if self.ranked_u32_countdown.is_some() {
+            return true;
+        }
+        let [zero, compare, one, subtract] = self.provenance.operations.as_slice() else {
+            return false;
+        };
+        let [preheader, positive, false_exit, backedge, returned] =
+            self.provenance.edges.as_slice()
+        else {
+            return false;
+        };
+        let expected = [
+            NativeFuelSite::Edge(*preheader),
+            NativeFuelSite::Operation(*zero),
+            NativeFuelSite::Operation(*compare),
+            NativeFuelSite::Edge(*positive),
+            NativeFuelSite::Operation(*one),
+            NativeFuelSite::Operation(*subtract),
+            NativeFuelSite::Edge(*backedge),
+            NativeFuelSite::Edge(*false_exit),
+            NativeFuelSite::Edge(*returned),
+        ];
+        self.fuel_attribution.len() == expected.len()
+            && self.fuel_attribution.iter().zip(expected).enumerate().all(
+                |(ordinal, (row, site))| {
+                    row.site == site && row.units == 1 && row.operation_ordinal == ordinal
+                },
+            )
+    }
+}
+
+/// Complete machine-code custody for the one admitted structural Unit / `u32`
+/// countdown. Target layout is deliberately not copied here: object replay
+/// must derive it independently from the target's canonical encoding and bind
+/// the generic fuel rows to that result.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RankedU32CountdownMachineCodeRecord {
+    pub custody: RankedU32CountdownCustody,
+    pub call_plan: CallPlan,
+    pub structural_types: Vec<StructuralTypeDeclaration>,
+    pub structural_parameters: Vec<TargetStructuralParameter>,
+    pub cleanup_actions: Vec<TerminalAffineCleanupAction>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
