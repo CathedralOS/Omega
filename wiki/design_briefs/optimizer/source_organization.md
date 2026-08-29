@@ -152,6 +152,10 @@ from replay validation and the sealed model, while its entrance owns the
 common effects-plus-machine custody join. Active-resident rematerialization
 keeps producer computation and independent replay validation in separate
 leaves; its entrance alone grants stage custody after that reconstruction.
+Pre-allocation machine-effect staging keeps its exact ISA catalog, analysis,
+source-route construction, independent replay, custody projection, and model
+in named leaves; its entrance replay-gates every supported selected-source
+lineage.
 Liveness computation and pre-allocation machine-effect encoding also keep
 their broad fixtures in sibling test leaves, so production file size measures
 production responsibility.

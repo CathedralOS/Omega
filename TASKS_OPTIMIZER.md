@@ -133,6 +133,9 @@ and no-selection compatibility remain enforced.
 - [x] Split active-resident rematerialization into producer computation,
   independent replay validation, custody projection, and model leaves; its
   entrance alone grants stage custody after compute-to-validation replay.
+- [x] Split machine-effect staging into an exact ISA catalog, analysis,
+  source-route construction, independent replay, custody, and model leaves;
+  its entrance replay-gates every supported selected-source lineage.
 - [x] Split the flat optimized object-artifact stage; its small entrance owns
   the terminal/object build-and-replay join while model, reconstruction, and
   canonical codec descend into named leaves.
