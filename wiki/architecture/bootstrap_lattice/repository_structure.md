@@ -58,15 +58,10 @@ Names identify accepted language and implementation format without inventing
 `bootstrap/`, `on-ramp/`, `assurance/`, `canaries/`, or generation-owned source
 trees. `omega₀` and `omega` are artifacts, not directories or languages.
 
-## Current migration
+## Current gaps
 
-The committed tree predates D11 in three important places:
+The committed tree still has two important gaps:
 
-- `source/beta/compiler/cold-start/bc-alpha.alpha` is the existing
-  Alpha-written construction, while `bc.beta` is the self-hosted implementation
-  currently treated as canonical. The Alpha implementation must become the
-  direct-edge compiler or be completed into it; the Beta self-host may remain
-  diagnostic.
 - `source/gamma/interp.beta` and `typeck.beta` supply real Beta-written Gamma
   meaning but do not yet form the standalone Gamma-to-Alpha compiler required
   by the lattice.
@@ -77,7 +72,7 @@ The committed tree predates D11 in three important places:
   was neither that compiler nor the full Omega closure `D` and had no economical
   unit-level adaptation into either owner.
 
-These mismatches are migration work, not alternate accepted architectures. A
+These gaps are implementation work, not alternate accepted architectures. A
 legacy file stays only when this document or `TASKS_BOOTSTRAP.md` names its
 direct adaptation into a canonical edge, canonical owner, and deletion
 condition. Otherwise it has negative value: it enlarges the audit surface,

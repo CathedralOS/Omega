@@ -1,4 +1,4 @@
-; bc-alpha.alpha — complete Alpha-written cold-start compiler for Beta.
+; beta_compiler.alpha — canonical Alpha-written compiler for Beta.
 ;
 ; Accepted source:
 ;   proc IDENT(PARAMS) { STATEMENT* }
@@ -33,7 +33,10 @@
 ;   524592 PROC_STATE_COUNT 524600 PROC_EDGE_COUNT
 ;   524608 STATE_CURSOR 524616 EDGE_CURSOR 524624 CALL_CURSOR
 ;   524640 STORE_WIDTH 524648 MAIN_PROC 524656 FIXUP_COUNT
-;   524664 EXPECT_OUTLEN
+;   524664 EXPECT_OUTLEN 524672 MEM_ADDR_REG 524680 MEM_LIMIT
+;   524688 U64_SCRATCH 524696 U64_INDEX
+;   524704 MEM_GUARD_ID 524712 MEM_GUARD_NEEDED
+;   524720 MEM_SITE_LABEL
 ; Buffers:
 ;   1048576 SOURCE (1048576-byte checked compiler extent)
 ;   2097152 TAPE_BUFFER (262140-byte checked Alpha payload extent)
@@ -146,6 +149,10 @@ parse_program:
         store r0, r1
         imm   r0, 524536
         store r0, r1
+        imm   r0, 524704
+        store r0, r1
+        imm   r0, 524712
+        store r0, r1
         imm   r0, 524608
         store r0, r1
         imm   r0, 524616
@@ -165,6 +172,9 @@ pp_loop:
         jnz   r0, pp_return
         jmp   pp_loop
 pp_finish:
+        call  emit_memory_guard_runtime
+        call  error_value
+        jnz   r0, pp_return
         imm   r0, 524312
         load  r0, r0
         jnz   r0, pp_check_publication
@@ -869,12 +879,18 @@ finish_memory_load:
         load  r6, r0
         imm   r0, 1
         jeq   r6, r0, fml_byte
+        imm   r0, 0
+        imm   r1, 33554425
+        call  emit_memory_guard
         imm   r0, 10
         imm   r1, 0
         imm   r2, 0
         call  emit_rr
         ret
 fml_byte:
+        imm   r0, 0
+        imm   r1, 33554432
+        call  emit_memory_guard
         imm   r0, 8
         imm   r1, 0
         imm   r2, 0
@@ -885,19 +901,170 @@ emit_memory_store:
         imm   r0, 1
         call  emit_pop_register
         imm   r0, 524640
-        load  r0, r0
+        load  r6, r0
         imm   r1, 1
-        jeq   r0, r1, ems_byte
+        jeq   r6, r1, ems_guard_byte
+        imm   r0, 1
+        imm   r1, 33554425
+        call  emit_memory_guard
         imm   r0, 11
         imm   r1, 1
         imm   r2, 0
         call  emit_rr
         ret
-ems_byte:
+ems_guard_byte:
+        imm   r0, 1
+        imm   r1, 33554432
+        call  emit_memory_guard
         imm   r0, 9
         imm   r1, 1
         imm   r2, 0
         call  emit_rr
+        ret
+
+; Input r0 is the generated address register and r1 is the exclusive logical
+; bound. Call one emitted runtime guard, which returns the biased address in r4.
+emit_memory_guard:
+        imm   r2, 524672
+        store r2, r0
+        imm   r2, 524680
+        store r2, r1
+        imm   r0, 524712
+        load  r6, r0
+        jnz   r6, emg_known
+        imm   r0, 524536
+        load  r6, r0
+        imm   r1, 65536
+        jeq   r6, r1, emg_error
+        imm   r0, 524704
+        store r0, r6
+        imm   r1, 1
+        add   r6, r1
+        imm   r0, 524536
+        store r0, r6
+        imm   r0, 524712
+        store r0, r1
+emg_known:
+        imm   r0, 524536
+        load  r6, r0
+        imm   r1, 65536
+        jeq   r6, r1, emg_error
+        imm   r0, 524720
+        store r0, r6
+        imm   r1, 1
+        add   r6, r1
+        imm   r0, 524536
+        store r0, r6
+        imm   r0, 2
+        imm   r1, 4
+        imm   r2, 524672
+        load  r2, r2
+        call  emit_rr
+        imm   r0, 5
+        imm   r1, 524680
+        load  r1, r1
+        call  emit_imm
+        imm   r0, 19
+        imm   r1, 2
+        imm   r2, 524704
+        load  r2, r2
+        call  emit_ref0
+        imm   r0, 13
+        imm   r1, 3
+        imm   r2, 2
+        imm   r3, 524720
+        load  r3, r3
+        call  emit_ref1
+        imm   r0, 0
+        imm   r1, 251
+        call  emit_imm
+        imm   r0, 0
+        imm   r1, 0
+        call  emit_r
+        imm   r0, 524720
+        load  r0, r0
+        call  record_internal_pc
+        imm   r0, 2
+        imm   r1, 524672
+        load  r1, r1
+        imm   r2, 4
+        call  emit_rr
+        ret
+emg_error:
+        call  set_error
+        ret
+
+; Emit the shared generated guard after all procedures. It returns r3=1 for a
+; negative or too-large Word address and r3=0 with the biased address in r4.
+; Each call site owns its unreachable fail-closed Halt(251), so this callable
+; region always returns and remains structurally ordinary. The helper adds one
+; transient Alpha return frame per memory access instead of duplicating the full
+; comparison and bias sequence at every access site.
+emit_memory_guard_runtime:
+        imm   r0, 524712
+        load  r0, r0
+        jz    r0, emgr_done
+        imm   r0, 524704
+        load  r0, r0
+        call  record_internal_pc
+        imm   r0, 524536
+        load  r6, r0
+        imm   r1, 65534
+        jlt   r6, r1, emgr_labels
+        call  set_error
+        ret
+emgr_labels:
+        imm   r0, 524544
+        store r0, r6
+        imm   r1, 1
+        add   r6, r1
+        imm   r0, 524552
+        store r0, r6
+        add   r6, r1
+        imm   r0, 524536
+        store r0, r6
+        imm   r0, 2
+        imm   r1, 0
+        call  emit_imm
+        imm   r0, 15
+        imm   r1, 4
+        imm   r2, 2
+        imm   r3, 2
+        imm   r4, 524544
+        load  r4, r4
+        call  emit_ref2
+        imm   r0, 15
+        imm   r1, 4
+        imm   r2, 5
+        imm   r3, 2
+        imm   r4, 524552
+        load  r4, r4
+        call  emit_ref2
+        imm   r0, 524544
+        load  r0, r0
+        call  record_internal_pc
+        imm   r0, 3
+        imm   r1, 1
+        call  emit_imm
+        imm   r0, 20
+        call  emit_op0
+
+        imm   r0, 524552
+        load  r0, r0
+        call  record_internal_pc
+        imm   r0, 2
+        imm   r1, 2097152
+        call  emit_imm
+        imm   r0, 3
+        imm   r1, 4
+        imm   r2, 2
+        call  emit_rr
+        imm   r0, 3
+        imm   r1, 0
+        call  emit_imm
+        imm   r0, 20
+        call  emit_op0
+emgr_done:
         ret
 
 restore_tmp_name:
@@ -2891,19 +3058,26 @@ emit_ref2:
 
 ; Input r0=word. Append little-endian bytes.
 emit_u64:
-        mov   r6, r0
-        imm   r7, 0
+        imm   r1, 524688
+        store r1, r0
+        imm   r0, 524696
+        imm   r1, 0
+        store r0, r1
 eu64_loop:
+        imm   r0, 524696
+        load  r7, r0
         imm   r0, 8
         jeq   r7, r0, eu64_done
-        mov   r0, r6
-        imm   r1, 256
-        mod   r0, r1
+        imm   r0, 524688
+        add   r0, r7
+        loadb r0, r0
         call  emit_byte
-        imm   r1, 256
-        div   r6, r1
+        imm   r0, 524696
+        load  r7, r0
         imm   r0, 1
         add   r7, r0
+        imm   r0, 524696
+        store r0, r7
         jmp   eu64_loop
 eu64_done:
         ret

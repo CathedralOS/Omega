@@ -4,10 +4,10 @@ This Alpha-owned service is where the lattice's whole thesis — **trust by
 checking, not by pedigree** — becomes concrete. The bootstrap spine gives us a
 Rust-free route to run its current implementations.
 
-The authoritative Beta checker artifact is compiled by the Alpha-written cold
-Beta compiler, below `bc`, and reconstructed byte-for-byte by
-`reconstruct-artifact.sh`. A second checker compiled by `bc` remains useful
-regression and differential evidence, but cannot admit its own producer.
+The authoritative Beta checker artifact is compiled by a fresh direct assembly
+of the canonical Alpha-written Beta compiler source and reconstructed
+byte-for-byte by `reconstruct-artifact.sh`. Its authority does not depend on the
+persisted Beta compiler artifact.
 
 This tree is checker infrastructure rather than a compiler or language rung.
 Canonical callers resolve the `alpha-checker` role through `tools/lattice/paths.sh`.
@@ -23,7 +23,7 @@ implementations/
   gamma/             independent Gamma checker and its typed form
 artifacts/            persisted below-Beta checker tape and rebuild entry
 artifact_env.sh       stamps the accepted tape into the audited host seed
-construct-artifact.sh direct Alpha -> cold Beta -> checker construction
+construct-artifact.sh direct Alpha source -> Beta compiler -> checker construction
 tools/                untrusted elaboration, proof search, and certificate conversion
 corpus/               proof sources, shared libraries, and deterministic fuzz generators
 gates/                executable soundness, cross-check, and operational-seam policy
@@ -140,7 +140,7 @@ the hand-audited seed:
 ```
 hand-audited alpha seed
   runs the assembler (written in alpha)
-  which lowers the cold Beta compiler (written in alpha)
+  which lowers the canonical Beta compiler (written in alpha)
   which compiles check.beta (this checker) to artifacts/proof_checker_bytecode.tape
   which validates a certificate -> accept / reject
 ```
@@ -148,9 +148,7 @@ hand-audited alpha seed
 `reconstruct-artifact.sh` builds that tape once below Beta and compares it
 byte-for-byte with the committed artifact before running accept/reject controls.
 A second identical construction is reproducibility evidence, not another
-checker-lineage premise. The accepted `beta_compiler_bytecode.tape` may separately compile the
-same checker source as differential evidence, but that product cannot admit the
-compiler that produced it.
+checker-lineage premise.
 
 A separate, untrusted, arbitrarily-clever proof-**search** engine may produce
 certificates; it has no authority — a false proposition cannot get past `check`,

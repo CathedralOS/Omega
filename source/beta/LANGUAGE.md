@@ -71,7 +71,7 @@ assembly mnemonics) without spelling every byte. `"..."` escapes: `\n \t \r \0 \
 | `state S { ... }` | a label `<proc>__S:`; falls through to the next state |
 | `to S` / `to S when e` | `jmp <proc>__S` / evaluate `e`, `jz` past a `jmp` to it |
 | `return e` | evaluate `e` into `r0`; epilogue; `ret` |
-| `byte[e]` / `word[e]` | `loadb` / `load`; the store forms → `storeb` / `store` |
+| `byte[e]` / `word[e]` | checked logical raw-memory address, physical-region bias, then `loadb` / `load`; stores analogously |
 
 ## Deliberate limits
 
@@ -81,10 +81,10 @@ assembly mnemonics) without spelling every byte. `"..."` escapes: `\n \t \r \0 \
 - No algebraic data, pattern matching, ownership, effects, generics, or proofs.
 - String literals exist only inside `emit`; there is no string value type.
 
-These are rung boundaries, not unfinished Gamma or Delta features. The current
-Alpha-written compiler candidate is
-[`compiler/cold-start/bc-alpha.alpha`](compiler/cold-start/bc-alpha.alpha).
-[`compiler/bc.beta`](compiler/bc.beta) and its fixed point remain bounded
-differential evidence while the Alpha implementation is promoted; they do not
-define compiler authority. The former duplicate historical-compiler surface
+These are rung boundaries, not unfinished Gamma or Delta features. The
+canonical Alpha-written compiler is
+[`compiler/beta_compiler.alpha`](compiler/beta_compiler.alpha).
+[`compiler/bc.beta`](compiler/bc.beta) remains temporary bounded differential
+evidence; its fixed-point artifact is gone and it does not define compiler
+authority. The former duplicate historical-compiler surface
 suite was folded into the direct compiler's focused gate and deleted.

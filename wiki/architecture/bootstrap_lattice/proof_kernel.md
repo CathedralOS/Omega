@@ -2,14 +2,14 @@
 
 [Lattice overview](bootstrap_lattice.md) | [Omega product toolchain](omega_toolchain.md) | [Terminal Psi](../pipeline/terminal_psi.md)
 
-> **Status: ROOTED CHECKER SERVICE; CANONICAL EDGE MIGRATION OPEN.** Beta and
+> **Status: ROOTED CHECKER SERVICE; EDGE ADMISSION OPEN.** Beta and
 > Gamma implementations exercise the shared calculus, and the accepted checker
-> tape is constructed below the self-hosted Beta compiler. The lattice now
+> tape is constructed directly from the Alpha-written Beta compiler source,
+> independently of the persisted Beta compiler artifact. The lattice
 > requires every compiler edge to relate its immediate-predecessor source
 > directly to Alpha tape. Existing `bc.beta`-specific proof machinery is
-> retained only where it can be adapted to the canonical Alpha-written Beta
-> compiler or to later source-to-tape edges. No coinductive kernel extension is
-> selected.
+> retained only where it targets the canonical Alpha-written Beta compiler or a
+> later source-to-tape edge. No coinductive kernel extension is selected.
 
 The proof kernel is deliberately not a language rung. Programs do not elaborate
 through it, and it adds no stage between Gamma and Delta. It is an Alpha-owned

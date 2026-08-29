@@ -36,7 +36,7 @@ receipt ceremony without a semantic edge has negative maintenance value.
 | Canonical subject | Source language | Required obligation | Current state |
 | --- | --- | --- | --- |
 | Alpha VM seed | native assembly | audited realization of `source/alpha/SEMANTICS.md` | Darwin arm64 and Windows x64 seeds exist; human binary/listing and physical-platform admissions remain irreducible |
-| Beta compiler | Alpha | exact Alpha source refines the exact Beta-compiler tape | Alpha cold compiler exists but must be promoted, named, and admitted as the canonical implementation |
+| Beta compiler | Alpha | exact Alpha source refines the exact Beta-compiler tape | canonical source and direct artifact exist; full refinement and resource outcomes remain open |
 | Gamma compiler | Beta | exact Beta source refines the exact Gamma-compiler tape | interpreter and type-checker components exist; standalone compiler-to-tape edge is open |
 | Delta compiler | Gamma | exact Gamma source refines the exact Delta-compiler tape | open |
 | `omega₀` | Delta closure `D` | exact `D` refines a full Omega compiler represented as Alpha tape | `D` is not yet authored; the obsolete native prototype was deleted |
@@ -62,13 +62,11 @@ they are not language rungs.
 
 ## Migration evidence that may be retained
 
-- `source/beta/compiler/cold-start/bc-alpha.alpha` already implements the
-  strongest candidate for the canonical Alpha-written Beta compiler. Its
-  construction tests and exact-tape machinery are retained only to the extent
-  they can be redirected to that canonical source subject.
-- `source/beta/compiler/bc.beta` and its fixed point may remain as differential
-  Beta-language evidence. It is not the canonical Beta compiler merely because
-  it can reproduce itself.
+- `source/beta/compiler/beta_compiler.alpha` is the canonical Alpha-written
+  Beta compiler. Its direct assembly is the persisted tape consumed above.
+- `source/beta/compiler/bc.beta` may temporarily remain as bounded differential
+  Beta-language evidence. Its fixed-point artifact is gone and it has no
+  production consumer.
 - `source/gamma/interp.beta` and `source/gamma/typeck.beta` are reusable Gamma
   semantic components and oracles. They must feed a Beta-written Gamma compiler
   or be reduced to focused tests; they do not constitute a compiler edge alone.

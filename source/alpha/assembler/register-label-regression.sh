@@ -12,7 +12,6 @@ done
 export OMEGA_REPO_ROOT
 . "$OMEGA_REPO_ROOT/tools/lattice/paths.sh"
 . "$OMEGA_PATH_ALPHA/seed_env.sh"
-. "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh"
 cd "$GATE_DIR"
 
 case "$(uname -sm)" in
@@ -29,8 +28,6 @@ trap 'rm -rf "$T"' EXIT
 START=$(python3 -c 'import time; print(time.time())')
 ASM="$OMEGA_PATH_ALPHA_ASSEMBLER/$BETA_SEED"
 SEED="$OMEGA_PATH_ALPHA/$ALPHA_SEED"
-BC="$T/bc"
-stamp_beta_compiler "$BC" >/dev/null
 
 expect_equal() {
   NAME=$1 SOURCE=$2
@@ -53,21 +50,6 @@ expect_exit() {
   [ ! -s "$T/$NAME.stdout" ] && [ ! -s "$T/$NAME.stderr" ]
 }
 
-# This is the exact Beta-produced shape that exposed `call r5x` being encoded
-# as address 5 rather than resolving the procedure label.
-printf '%s\n' 'proc r5x() { return 252 } proc main() { return r5x() }' \
-  | "$BC" > "$T/beta-r5x.alpha"
-grep -q '^call r5x$' "$T/beta-r5x.alpha"
-expect_equal beta-r5x "$T/beta-r5x.alpha"
-python3 - "$T/beta-r5x.tape" <<'PY'
-from pathlib import Path
-import sys
-tape = Path(sys.argv[1]).read_bytes()
-if len(tape) != 220 or tape[171] != 0x13 or int.from_bytes(tape[172:180], "little") != 83:
-    raise SystemExit("Beta r5x call is not canonical target 83")
-PY
-expect_exit beta-r5x 252
-
 printf '%s\n' \
   '        jmp r256x' \
   'r256x:' \
@@ -89,6 +71,20 @@ printf '%s\n' \
 expect_equal register-bounds "$T/register-bounds.alpha"
 expect_exit register-bounds 252
 
+# A quotient-based encoder accidentally treated high-bit words as signed and
+# emitted only their low byte. Pin every byte against the independent assembler
+# and observe the high byte after a word store.
+printf '%s\n' \
+  '        imm r0, 18446744073709551615' \
+  '        imm r1, 1048576' \
+  '        store r1, r0' \
+  '        imm r2, 7' \
+  '        add r1, r2' \
+  '        loadb r0, r1' \
+  '        halt r0' > "$T/full-word.alpha"
+expect_equal full-word "$T/full-word.alpha"
+expect_exit full-word 255
+
 # Canonical assembler operand errors use the existing status 7. The reference
 # independently rejects the same out-of-range register grammar.
 printf '%s\n' 'imm r256, 0' > "$T/register-over.alpha"
@@ -106,4 +102,4 @@ import sys, time
 print(f"{time.time() - float(sys.argv[1]):.3f}")
 PY
 )
-echo "Alpha assembler register-label regression: Beta call r5x, r0foo/r5x/r256x labels, r0/r255, and r256 rejection passed (${ELAPSED}s)"
+echo "Alpha assembler regression: r0foo/r5x/r256x labels, r0/r255, full Word, and r256 rejection passed (${ELAPSED}s)"

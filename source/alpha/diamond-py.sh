@@ -57,10 +57,9 @@ hex bad_opcode    "ff 00" ""                                                    
 
 # --- REAL bc-compiled programs: call/ret/frames/recursion/memory/IO through actual generated code ---
 BC="$T/bc.exe"
-ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
 stamp_beta_compiler "$BC" >/dev/null 2>&1 || { echo "seed diamond: lattice bc artifact unavailable"; exit 1; }
-mkbeta() { "$BC" < "$1" > "$T/b.asm" 2>/dev/null && "$ASM" < "$T/b.asm" > "$T/$2.tape" 2>/dev/null; }
-if [ -x "$BC" ] && [ -x "$ASM" ]; then
+mkbeta() { "$BC" < "$1" > "$T/$2.tape" 2>/dev/null; }
+if [ -x "$BC" ]; then
   printf 'proc fact(n){ state c{ to r when (n>1) return 1 } state r{ return n*fact(n-1) } }\nproc main(){ return fact(5) }\n' > "$T/f.beta"
   printf 'proc gcd(a,b){ state c{ to d when (b==0) return gcd(b, a%%b) } state d{ return a } }\nproc main(){ return gcd(48,36) }\n' > "$T/g.beta"
   printf 'proc main(){ let c=read_byte()  state l{ to b when (c>=0) return 0 } state b{ write_byte(c) c=read_byte() to l } }\n' > "$T/e.beta"
@@ -70,7 +69,7 @@ if [ -x "$BC" ] && [ -x "$ASM" ]; then
   mkbeta "$T/e.beta" echo && cmp_tape "real: echo read/write/loop"     "$T/echo.tape" "diamond!"
   mkbeta "$T/p.beta" pn   && cmp_tape "real: print_num 1234"           "$T/pn.tape"   ""
 else
-  echo "  (skipped real-program cases — bc/assembler not available)"
+  echo "  (skipped real-program cases — Beta compiler not available)"
 fi
 
 echo "seed diamond (independent Python reference VM alpha_ref.py agrees with the host seed on edges + real programs): $PASS ok, $FAIL failed"

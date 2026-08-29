@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
-# Focused Gamma interpreter retained-live capacity tooth. Kept separate from
-# the fast semantic and reclaimable-GC suites because deliberately retaining
-# more than the complete 40 MiB heap takes seconds.
+# Focused Gamma interpreter fixed-arena capacity tooth. Kept separate from the
+# fast semantic suite because deliberately retaining more than the complete
+# 16 MiB arena takes seconds.
 set -eu
 
 OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
@@ -21,14 +21,12 @@ fi
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 stamp_beta_compiler "$T/bc.exe" >/dev/null
-"$T/bc.exe" < "$OMEGA_PATH_GAMMA/interp.beta" > "$T/interp.asm"
-"$OMEGA_PATH_ALPHA_ASSEMBLER/$BETA_SEED" < "$T/interp.asm" > "$T/gamma_interpreter_bytecode.tape"
+"$T/bc.exe" < "$OMEGA_PATH_GAMMA/interp.beta" > "$T/gamma_interpreter_bytecode.tape"
 stamp_seed "$T/gamma_interpreter_bytecode.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$T/interp.exe" >/dev/null 2>&1
 
-# Eight compact Cons allocations per tail step retain 49,664,000 bytes. No
-# collector may reclaim this reachable list; the exact checked boundary must
-# therefore remain status 254 with no partial output.
-PROGRAM='(def fill (n xs) (if (eq n 0) 0 (fill (- n 1) (Cons 0 (Cons 0 (Cons 0 (Cons 0 (Cons 0 (Cons 0 (Cons 0 (Cons 0 xs))))))))))) (fill 388000 Nil)'
+# Eight compact Cons allocations per tail step retain 17,920,000 bytes. The
+# exact checked boundary must remain status 254 with no partial output.
+PROGRAM='(def fill (n xs) (if (eq n 0) 0 (fill (- n 1) (Cons 0 (Cons 0 (Cons 0 (Cons 0 (Cons 0 (Cons 0 (Cons 0 (Cons 0 xs))))))))))) (fill 140000 Nil)'
 START=$(date +%s)
 set +e
 printf '%s' "$PROGRAM" | "$T/interp.exe" > "$T/stdout"

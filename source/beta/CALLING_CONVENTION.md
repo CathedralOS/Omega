@@ -26,6 +26,25 @@ explicit stack in memory:
 Recursion works because each call's frame is a fresh region on the data stack, and
 its return address is a fresh slot on the hidden stack. Neither clobbers the other.
 
+## Current canonical-compiler memory profile
+
+The Alpha-written Beta compiler currently emits this physical layout:
+
+```text
+[0, 262140)                 Alpha tape payload
+[262144, 1048576)           downward generated data stack (guard still open)
+[1048576, 2097152)          reserved separation
+[2097152, 35651584)         biased 32 MiB source-visible raw memory
+[35651584, 67108864)        hidden-return-stack allowance (limit still open)
+```
+
+Every emitted byte/word access now checks the logical 32 MiB bound, rejects a
+signed-negative Word address, and adds the raw base before touching Alpha
+memory. Thus logical address zero is initially zero rather than tape byte zero.
+This is not yet the complete non-alias theorem: generated `r15` reservations
+must still be guarded at `262144`, and semantic call depth must be bounded so
+the hidden Alpha return stack cannot descend below `35651584`.
+
 ## Register roles
 
 | Register | Role |

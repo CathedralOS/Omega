@@ -4,9 +4,10 @@
 ; reachable instruction must be completely encoded inside the tape; every direct
 ; branch/call target and fallthrough must start an instruction; and no two
 ; reachable instructions may overlap. It then reconstructs procedure regions
-; from direct-call entries and checks static call/return discipline: only the
-; root halts, callees return, call continuations stay in their caller, and no
-; non-call edge crosses a procedure boundary. Unreachable bytes are permitted
+; from direct-call entries and checks static call/return discipline: the root
+; halts, callees either return or terminate the whole run, call continuations
+; stay in their caller, and no non-call edge crosses a procedure boundary.
+; Unreachable bytes are permitted
 ; because Alpha programs use jump-skipped inline data.
 ;
 ; Exit 0: structurally valid. Exit 1: malformed. Exit 253: input exceeds the
@@ -271,7 +272,8 @@ load_direct_target:
 ; procedure regions. Region zero is the entry root; each distinct direct-call
 ; target starts the next region. This is valid for the exact bc artifact and is
 ; checked rather than assumed below: every non-call edge must remain in its
-; region, only region zero may halt, and every other region must contain a ret.
+; region, region zero must halt rather than return, and every other region must
+; contain either a return or a whole-run halt.
 verify_partition_init:
         imm   r0, 0
         imm   r3, 524352
@@ -327,15 +329,11 @@ verify_partition_start:
         add   r3, r6
         loadb r7, r3
         imm   r1, 0
-        jeq   r7, r1, verify_root_halt
+        jeq   r7, r1, verify_mark_terminal
         imm   r1, 20
         jeq   r7, r1, verify_callee_ret
         jmp   verify_partition_next
 
-verify_root_halt:
-        imm   r1, 0
-        jeq   r5, r1, verify_mark_terminal
-        jmp   reject
 verify_callee_ret:
         imm   r1, 0
         jeq   r5, r1, reject

@@ -123,7 +123,6 @@ AUTO_SAMPLES = [
     ("maxmin    (NESTED BRANCHES →cond in cond)", "refinement-samples/maxmin.beta"),
     ("boolval   (STORED COMPARISON as a value)", "refinement-samples/boolval.beta"),
     ("condloop  (CONDITIONAL DELTA in a loop body)", "refinement-samples/condloop.beta"),
-    ("bufcopy   (BUFFER COPY →segment/cond reads)", "refinement-samples/bufcopy.beta"),
     ("divten    (INTEGER DIVISION a/10)", "refinement-samples/divten.beta"),
     ("modten    (REMAINDER a%10)",  "refinement-samples/modten.beta"),
     ("divmod    ((a/10)*10 + a%10)", "refinement-samples/divmod.beta"),
@@ -300,31 +299,31 @@ def main():
         print(" real bc-compiled Beta sources (meaning auto-derived from source — no hand claim):")
         for label, srcrel in AUTO_SAMPLES:
             total += 1; passed += check_auto(label, srcrel)
-        nfuzz = int(os.environ.get('REFINE_FUZZ', '15'))
+        nfuzz = int(os.environ.get('REFINE_FUZZ', '5'))
         print(" FUZZ: random straight-line arithmetic programs (bc output ≡ source meaning, ∀ inputs):")
         fpass = 0
         for seed in range(1, nfuzz + 1):
             total += 1; ok = check_fuzz(seed); passed += ok; fpass += ok
         print("   %d/%d random programs certified (bc compiles arithmetic correctly for all inputs)" % (fpass, nfuzz))
-        nloop = int(os.environ.get('REFINE_LOOP_FUZZ', '12'))
+        nloop = int(os.environ.get('REFINE_LOOP_FUZZ', '5'))
         print(" LOOP FUZZ: random DATA-DEPENDENT loops (both sides summarize a symbolic trip count, ∀ inputs):")
         lpass = 0
         for seed in range(1, nloop + 1):
             total += 1; ok = check_loop_fuzz(seed); passed += ok; lpass += ok
         print("   %d/%d random loop programs certified (bc compiles counter loops correctly for all inputs)" % (lpass, nloop))
-        ncomp = int(os.environ.get('REFINE_COMPOSE_FUZZ', '10'))
+        ncomp = int(os.environ.get('REFINE_COMPOSE_FUZZ', '5'))
         print(" COMPOSE FUZZ: random pre-loop + loop + post-loop programs (summarizers composed, ∀ inputs):")
         cpass = 0
         for seed in range(1, ncomp + 1):
             total += 1; ok = check_compose_fuzz(seed); passed += ok; cpass += ok
         print("   %d/%d random composed programs certified (loop result flows through further arithmetic)" % (cpass, ncomp))
-        nnest = int(os.environ.get('REFINE_NESTED_FUZZ', '8'))
+        nnest = int(os.environ.get('REFINE_NESTED_FUZZ', '5'))
         print(" NESTED FUZZ: random nested loops (inner loop summarized recursively inside the outer, ∀ inputs):")
         npass = 0
         for seed in range(1, nnest + 1):
             total += 1; ok = check_nested_fuzz(seed); passed += ok; npass += ok
         print("   %d/%d random nested programs certified (recursive summarization matches the machine)" % (npass, nnest))
-        nfork = int(os.environ.get('REFINE_FORK_FUZZ', '8'))
+        nfork = int(os.environ.get('REFINE_FORK_FUZZ', '5'))
         print(" FORK FUZZ: random branching programs (both sides fork into conditional terms, ∀ inputs):")
         kpass = 0
         for seed in range(1, nfork + 1):

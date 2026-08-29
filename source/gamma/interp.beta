@@ -28,10 +28,8 @@
 ;          6291456 FUNCS [6 MiB,7 MiB)
 ;          7340032 ENV [7 MiB,12 MiB)
 ;          14680096 ARG_SCRATCH [4 KiB; 512 values)  14684192 VTAIL_SENTINEL
-;          14684320 DYNAMIC_BASE 14684328 FREE_CURSOR 14684336 GC_CHANGED
-;          16777216 HEAP [16 MiB,56 MiB)
-;          58720256 HEAP_MAP [56 MiB,61 MiB), one byte per eight-byte heap word
-;          [63 MiB,64 MiB) remains the descending Alpha return-stack reserve
+;          16777216 HEAP [16 MiB,32 MiB)
+; All addresses are logical Beta raw-memory addresses inside the 32 MiB profile.
 ; AST/value nodes are 2-4 words [tag,f0,f1,f2]. Func entries 3 words
 ; [name_off, paramlist, body]. Env entries 2 words [name_off, value]; -1 = unnamed arg.
 ;
@@ -62,12 +60,7 @@ proc slurp() {
     state done {
         word[2097136] = n        ; LEN
         word[2097144] = 0        ; CUR
-        word[2097128] = 16777216 ; APTR — heap base at 16 MB. The collector owns [16,56) and its
-                                 ;   allocation-kind/mark map occupies [56,61).
-                                 ;   (The old base 3145728 gave only 1 MB before FUNCS at 4194304; a big
-                                 ;   eval — e.g. a whole certifier run — silently overflowed into the
-                                 ;   function table and corrupted the result. The checked heap and map
-                                 ;   now turn unreclaimable capacity into status 254.)
+        word[2097128] = 16777216 ; APTR — checked fixed arena [16 MiB,32 MiB).
         word[2097120] = 0        ; NFUNC
         word[2097112] = 0        ; ENVN
         word[2097104] = 0        ; FRAMEBASE
@@ -81,9 +74,6 @@ proc slurp() {
         word[14684264] = 0
         word[14684288] = 100     ; stable boxed -1 (nonnegative u32 values are immediate)
         word[14684296] = 0 - 1
-        word[14684320] = 0       ; DYNAMIC_BASE — set after the complete AST has been parsed
-        word[14684328] = 16777216 ; FREE_CURSOR — next-fit cursor after the first collection
-        word[14684336] = 0       ; GC_CHANGED — fixed-point marker
         return 0
     }
     state exhausted { return 252 }
@@ -181,251 +171,18 @@ proc allocation_exhausted(tag) {
     state value_sentinel { return 14684256 }
 }
 
-; ---- non-moving conservative collector ----
+; ---- fixed evaluation arena ----
 ;
-; The parsed AST is the immutable prefix [HEAP_BASE,DYNAMIC_BASE). Evaluation
-; allocations after that boundary are reclaimed without moving their handles.
-; HEAP_MAP has one byte per eight-byte heap word:
-;   0 free, 1 continuation, 2/3/4 raw allocation of that many words,
-;   6 compact Cons, 7 compact Node, 8 compact Chunks; +16 means marked.
-; Candidate roots are accepted only when their decoded address names an exact
-; allocation start of the matching representation. Arbitrary stack integers can
-; therefore retain an object conservatively, but can never make the collector
-; walk an interior or free address.
-
-proc map_addr(p) { return 58720256 + (p - 16777216) / 8 }
-
-proc kind_words(kind) {
-    state raw2 { to two when (kind == 2)  to raw3 }
-    state raw3 { to three when (kind == 3)  to raw4 }
-    state raw4 { to four when (kind == 4)  return 2 }
-    state two { return 2 }
-    state three { return 3 }
-    state four { return 4 }
-}
-
-proc publish_allocation(p, words, kind) {
-    byte[map_addr(p)] = kind
-    let i = 1
-    state loop { to body when (i < words)  return 0 }
-    state body {
-        byte[map_addr(p + i * 8)] = 1
-        i = i + 1
-        to loop
-    }
-}
-
-proc free_run(p, words) {
-    let i = 0
-    state loop { to body when (i < words)  return 1 }
-    state body {
-        to no when (byte[map_addr(p + i * 8)] != 0)
-        i = i + 1
-        to loop
-    }
-    state no { return 0 }
-}
-
-proc find_free(words) {
-    let base = word[14684320]
-    let end = word[2097128]
-    let p = word[14684328]
-    state normalized {
-        to from_base when (p < base)
-        to from_base when (p >= end)
-        to first
-    }
-    state from_base { p = base  to first }
-    state first {
-        to first_body when (p + words * 8 <= end)
-        p = base
-        to second
-    }
-    state first_body {
-        to hit when (free_run(p, words) == 1)
-        p = p + 8
-        to first
-    }
-    state second {
-        to second_body when (p < word[14684328])
-        return 0
-    }
-    state second_body {
-        to no when (p + words * 8 > end)
-        to hit when (free_run(p, words) == 1)
-        p = p + 8
-        to second
-    }
-    state no { return 0 }
-    state hit {
-        word[14684328] = p + words * 8
-        return p
-    }
-}
-
-proc mark_exact(p, wanted) {
-    let base = word[14684320]
-    state low { to no when (p < base)  to high }
-    state high { to no when (p >= word[2097128])  to aligned }
-    state aligned { to no when (p % 8 != 0)  to kind }
-    state kind {
-        let k = byte[map_addr(p)]
-        to marked when (k >= 16)
-        to no when (k == 0)
-        to no when (k == 1)
-        to raw when (wanted == 0)
-        to no when (k != wanted)
-        byte[map_addr(p)] = k + 16
-        word[14684336] = 1
-        return 1
-    }
-    state raw {
-        to no when (k < 2)
-        to no when (k > 4)
-        byte[map_addr(p)] = k + 16
-        word[14684336] = 1
-        return 1
-    }
-    state marked {
-        k = k - 16
-        to raw_marked when (wanted == 0)
-        to no when (k != wanted)
-        return 1
-    }
-    state raw_marked {
-        to no when (k < 2)
-        to no when (k > 4)
-        return 1
-    }
-    state no { return 0 }
-}
-
-proc mark_candidate(v) {
-    state immediate { to no when (v < 0)  to cons }
-    state cons { to do_cons when (v >= 218103808)  to chunks }
-    state do_cons { return mark_exact(v - 201326592, 6) }
-    state chunks { to do_chunks when (v >= 150994944)  to node }
-    state do_chunks { return mark_exact(v - 134217728, 8) }
-    state node { to do_node when (v >= 83886080)  to raw }
-    state do_node { return mark_exact(v - 67108864, 7) }
-    state raw { return mark_exact(v, 0) }
-    state no { return 0 }
-}
-
-proc mark_children(p, marked_kind) {
-    let kind = marked_kind - 16
-    let words = kind_words(kind)
-    let i = 0
-    state header { to payload when (kind >= 6)  i = 1  to payload }
-    state payload { to body when (i < words)  return 0 }
-    state body {
-        mark_candidate(word[p + i * 8])
-        i = i + 1
-        to payload
-    }
-}
-
-proc mark_roots() {
-    ; bc's explicit frame/data stack starts at 1 MiB and grows downward. The
-    ; hidden Alpha stack in [63,64) contains return PCs, not Beta values.
-    ; Scanning the complete tape-disjoint reserved interval includes every live
-    ; frame without requiring a Beta frame-pointer intrinsic; stale words can
-    ; only retain garbage conservatively.
-    let p = 262144
-    state stack { to stack_body when (p < 1048576)  let i = 0  to env }
-    state stack_body { mark_candidate(word[p])  p = p + 8  to stack }
-    state env { to env_body when (i < word[2097112])  p = 14680096  to args }
-    state env_body {
-        mark_candidate(word[7340032 + i * 16 + 8])
-        i = i + 1
-        to env
-    }
-    state args { to args_body when (p < word[2097096])  p = 14684192  to globals }
-    state args_body { mark_candidate(word[p])  p = p + 8  to args }
-    state globals { to globals_body when (p < 14684320)  return 0 }
-    state globals_body { mark_candidate(word[p])  p = p + 8  to globals }
-}
-
-proc mark_pass_down() {
-    let p = word[2097128] - 8
-    state loop { to body when (p >= word[14684320])  return 0 }
-    state body {
-        let k = byte[map_addr(p)]
-        to children when (k >= 18)
-        p = p - 8
-        to loop
-    }
-    state children { mark_children(p, k)  p = p - 8  to loop }
-}
-
-proc mark_pass_up() {
-    let p = word[14684320]
-    state loop { to body when (p < word[2097128])  return 0 }
-    state body {
-        let k = byte[map_addr(p)]
-        to children when (k >= 18)
-        p = p + 8
-        to loop
-    }
-    state children { mark_children(p, k)  p = p + 8  to loop }
-}
-
-proc sweep() {
-    let p = word[14684320]
-    state loop { to body when (p < word[2097128])  word[14684328] = word[14684320]  return 0 }
-    state body {
-        let k = byte[map_addr(p)]
-        to free_word when (k == 0)
-        to continuation when (k == 1)
-        to live when (k >= 16)
-        let words = kind_words(k)
-        let i = 0
-        to dead_loop
-    }
-    state dead_loop { to dead_body when (i < words)  p = p + words * 8  to loop }
-    state dead_body { byte[map_addr(p + i * 8)] = 0  i = i + 1  to dead_loop }
-    state live {
-        k = k - 16
-        byte[map_addr(p)] = k
-        p = p + kind_words(k) * 8
-        to loop
-    }
-    state continuation { byte[map_addr(p)] = 0  p = p + 8  to loop }
-    state free_word { p = p + 8  to loop }
-}
-
-proc collect() {
-    word[14684336] = 0
-    mark_roots()
-    state fixed {
-        word[14684336] = 0
-        mark_pass_down()
-        mark_pass_up()
-        to fixed when (word[14684336] != 0)
-        sweep()
-        return 0
-    }
-}
-
+; The parsed AST and all evaluation values share one stable-address bump arena.
+; Exhaustion is explicit and fail-closed. In particular, the interpreter does
+; not inspect compiler-generated Beta frames through source-visible memory.
 proc reserve(words, kind) {
     let p = word[2097128]
-    state bump { to bump_hit when (p + words * 8 <= 58720256)  to reuse }
+    state bump { to bump_hit when (p + words * 8 <= 33554432)  return 0 }
     state bump_hit {
         word[2097128] = p + words * 8
-        publish_allocation(p, words, kind)
         return p
     }
-    state reuse {
-        p = find_free(words)
-        to reused when (p != 0)
-        to no_collect when (word[14684320] == 0)
-        collect()
-        p = find_free(words)
-        to reused when (p != 0)
-        return 0
-    }
-    state reused { publish_allocation(p, words, kind)  return p }
-    state no_collect { return 0 }
 }
 
 proc alloc2(tag, f0) {
@@ -1537,10 +1294,6 @@ proc main() {
     }
     state run {
         let expr = parse_expr()
-        ; The complete parsed program is immutable. Pin it and collect only
-        ; values allocated by evaluation after this exact boundary.
-        word[14684320] = word[2097128]
-        word[14684328] = word[2097128]
         let result = eval(expr, 50000000)           ; fuel: an upper BOUND on calls, not a cost — programs
                                                     ; that terminate sooner are unaffected. 1M starved real
                                                     ; certifier runs (each list index is an O(i) nth chain).

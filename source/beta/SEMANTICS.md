@@ -220,10 +220,9 @@ fuel limit and ROOT execution remain tests, not divergence evidence.
 - `reference/beta-io-exhaust.sh` exhausts all 256 single-byte inputs for its
   admitted programs;
 - `compiler/cold-start/test.sh` exercises arbitrary accepted/rejected source
-  against the Alpha-written compiler candidate; and
+  against the canonical Alpha-written compiler; and
 - `compiler/validation/admission/bc-artifact-structure.sh` is a generic
-  reachable-instruction and procedure-region checker being retargeted to the
-  canonical compiler tape.
+  reachable-instruction and procedure-region checker for the canonical tape.
 
 These gates are regression evidence. Complete admission still requires exact
 source/tape obligation reconstruction and the ordinary first-order trace,

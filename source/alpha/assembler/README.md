@@ -9,6 +9,9 @@ canonical gates call this role `alpha-assembler`.
 (opcode names, whole-token `rN` registers for decimal `N` in `0..255`, decimal
 immediates, labels, commas as whitespace), with no
 Rust and no numeric-opcode step in normal use.
+Decimal immediates cover the complete unsigned 64-bit Alpha word range; the
+encoder walks the stored word bytes directly and does not reinterpret high-bit
+values through signed division.
 
 - `beta_x64_windows.exe` — the historically named Alpha seed with the assembler
   tape stamped into its hole. This is the working assembler executable.
