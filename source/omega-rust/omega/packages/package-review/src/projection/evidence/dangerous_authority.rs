@@ -1,5 +1,12 @@
-use super::super::exact_identity::*;
-use crate::evidence::*;
+use super::super::exact_identity::nominal_identities::nominal_identity;
+use crate::evidence::projection::{
+    ProjectedDangerousAuthorityRow, ProjectedDangerousAuthoritySlackRow, ProjectedReviewRow,
+};
+use crate::evidence::{
+    CheckedPackageCallableReview, PackageReviewDangerousAuthority,
+    PackageReviewDangerousAuthorityClass, PackageReviewDangerousAuthoritySlack,
+    PackageReviewNominalIdentity, PackageReviewSynchronousInvocation,
+};
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 use std::collections::BTreeSet;

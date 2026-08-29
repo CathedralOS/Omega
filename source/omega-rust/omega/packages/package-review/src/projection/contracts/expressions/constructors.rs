@@ -1,6 +1,8 @@
 use crate::evidence::{PackageReviewConstructorField, PackageReviewContractExpression};
-use crate::projection::contracts::ContractProjectionContext;
-use crate::projection::exact_identity::{nominal_identity, reviewed_package_owns};
+use crate::projection::contracts::metadata::contracts::ContractProjectionContext;
+use crate::projection::exact_identity::nominal_identities::{
+    nominal_identity, reviewed_package_owns,
+};
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 

@@ -1,8 +1,35 @@
-use super::contracts::*;
-use super::evidence::*;
-use super::exact_identity::*;
-use super::operational::*;
-use crate::evidence::*;
+use super::contracts::metadata::contracts::{
+    ContractProjectionContext, project_trait_requirement_contracts,
+};
+use super::contracts::metadata::operations::{
+    project_signature_invocation_source_locations, project_signature_operational_source_locations,
+};
+use super::contracts::metadata::parameters::{
+    collect_callable_parameter_source_locations, collect_type_parameter_source_locations,
+};
+use super::contracts::metadata::service_reach::project_signature_service_reach_source_locations;
+use super::contracts::metadata::source_locations::project_contract_source_locations;
+use super::contracts::propositions::evidence::collect_evidence_requirements;
+use super::evidence::source_locations::project_nested_declaration_source_location;
+use super::exact_identity::conformances::project_conformance_bounds;
+use super::exact_identity::lifetime_identities::lifetime_binder_ordinal;
+use super::exact_identity::nominal_identities::{
+    nominal_identity, reviewed_package_owns, trait_requirement_identity,
+};
+use super::exact_identity::parameter_contracts::{
+    project_type_parameters, project_type_parameters_after,
+};
+use super::exact_identity::type_identities::review_signature_type_identity_with_binders;
+use super::operational::{
+    project_crash_routes, project_service_row, project_synchronous_invocations,
+    project_trait_requirement_termination,
+};
+use crate::evidence::projection::{ProjectedNestedSourceLocation, ProjectedReviewRow};
+use crate::evidence::{
+    PackageReviewConformanceShape, PackageReviewConformanceSubject, PackageReviewEvidenceInterface,
+    PackageReviewSourceLocationRole, PackageReviewTraitParent, PackageReviewTraitRequirement,
+    PackageReviewTraitRequirementParameter, PackageReviewTraitShape,
+};
 use omega_compiler::CheckedCompilation;
 use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;

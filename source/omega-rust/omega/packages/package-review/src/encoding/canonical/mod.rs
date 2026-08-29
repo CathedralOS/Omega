@@ -1,29 +1,9 @@
 //! Canonical package-review framing and semantic row encoding.
 
-mod declarations;
-mod encoder;
-mod review;
-mod rows;
-
-#[allow(unused_imports)]
-pub(crate) use declarations::{
-    encode_conformance_bound, encode_conformance_shape, encode_dangerous_authority,
-    encode_dangerous_authority_slack, encode_data_field, encode_data_member,
-    encode_data_properties, encode_data_shape, encode_domain_alias_atom,
-    encode_domain_establishment_route, encode_domain_shape, encode_machine_parameter_contract,
-    encode_machine_parameter_signature, encode_optional_u64, encode_relevance,
-    encode_representation_tcb, encode_semantic_dependency, encode_semantic_dependency_key,
-    encode_trait_parent, encode_trait_requirement, encode_trait_shape, encode_type_identity,
-    encode_type_parameter, semantic_dependency_kind_tag,
-};
-pub(crate) use encoder::Encoder;
-#[allow(unused_imports)]
-pub(crate) use review::{encode, encode_with_limits};
-#[allow(unused_imports)]
-pub(crate) use rows::{
-    canonical_row_kind_tag, canonical_row_risk_tag, encode_row, encode_rows,
-    encode_rows_with_limits, push_row, row_source,
-};
+pub(super) mod declarations;
+pub(super) mod encoder;
+pub(super) mod review;
+pub(super) mod rows;
 
 pub(crate) const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
 pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 82;

@@ -1,12 +1,43 @@
-use super::callables::*;
-use super::contracts::*;
-use super::evidence::*;
-use super::exact_identity::*;
+use super::callables::{project_callable, project_private_external_executable_supply};
+use super::contracts::metadata::operations::{
+    project_machine_invocation_source_locations, project_machine_operational_source_locations,
+};
+use super::contracts::metadata::parameters::{
+    collect_callable_parameter_source_locations, collect_type_parameter_source_locations,
+};
+use super::contracts::metadata::service_reach::project_machine_service_reach_source_locations;
+use super::contracts::metadata::source_locations::project_contract_source_locations;
+use super::evidence::dangerous_authority::{
+    project_dangerous_authorities, project_dangerous_authority_slack,
+};
+use super::evidence::row_finalization::{
+    finalize_dangerous_authority_rows, finalize_dangerous_authority_slack_rows,
+    finalize_projected_rows, finalize_semantic_dependency_rows,
+};
+use super::evidence::selected_providers::{
+    selected_provider_row_source, validate_selected_provider_declaration_owner,
+};
+use super::evidence::semantic_projection::{
+    project_representation_tcb, project_semantic_dependencies,
+};
+use super::evidence::source_locations::validate_canonical_row_source_limits;
+use super::exact_identity::nominal_identities::{nominal_identity, provider_requirement_identity};
 use super::provider_families::project_selected_provider_families;
 use super::provider_intrinsics::project_compiler_intrinsic_execution;
-use super::public_api::*;
-use super::public_traits::*;
-use crate::evidence::*;
+use super::public_api::constants::project_public_consts;
+use super::public_api::data::projection::project_public_data;
+use super::public_api::domains::projection::project_public_domains;
+use super::public_api::operators::project_public_operators;
+use super::public_api::propositions::project_public_propositions;
+use super::public_traits::{project_public_conformances, project_public_traits};
+use crate::evidence::projection::{
+    PackageReviewCanonicalRowSources, ProjectedNestedSourceLocation, ProjectedReviewRow,
+};
+use crate::evidence::{
+    CheckedPackageProviderReview, CheckedPackageProviderRowIdentity,
+    CheckedPackageReviewProjection, PackageReviewCallableRole, PackageReviewNominalOwner,
+    PackageReviewSourceLocationRole,
+};
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::MachineSupplyMode;

@@ -1,7 +1,8 @@
-use crate::encoding::{
-    Encoder, PackageReviewEncodingError, encode_conformance_bound, encode_type_identity,
-    encode_type_parameter,
+use crate::encoding::PackageReviewEncodingError;
+use crate::encoding::canonical::declarations::{
+    encode_conformance_bound, encode_type_identity, encode_type_parameter,
 };
+use crate::encoding::canonical::encoder::Encoder;
 use crate::evidence::{
     CheckedPackageCallableReview, PackageReviewCallableConformance, PackageReviewCallableRole,
     PackageReviewCheckedServiceReach, PackageReviewExternalBinding,

@@ -5,7 +5,5 @@
 //! validation responsibilities.
 
 mod boundary_operator_selection;
-mod callable_conformances;
+pub(super) mod callable_conformances;
 mod external_supply;
-
-pub(crate) use callable_conformances::project_callable_conformances;

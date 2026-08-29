@@ -19,10 +19,12 @@ use crate::evidence::{
     PackageReviewArithmeticDomain, PackageReviewCastForm, PackageReviewContractCallTarget,
     PackageReviewContractExpression, PackageReviewContractOperatorMeaning,
 };
-use crate::projection::contracts::ContractProjectionContext;
-use crate::projection::exact_identity::{
-    nominal_identity, review_signature_type_identity_with_binders,
-    review_type_identity_with_binders, reviewed_package_owns,
+use crate::projection::contracts::metadata::contracts::ContractProjectionContext;
+use crate::projection::exact_identity::nominal_identities::{
+    nominal_identity, reviewed_package_owns,
+};
+use crate::projection::exact_identity::type_identities::{
+    review_signature_type_identity_with_binders, review_type_identity_with_binders,
 };
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;

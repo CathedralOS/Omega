@@ -1,16 +1,14 @@
-use crate::evidence::*;
+use crate::evidence::{CheckedPackageReviewProjection, PackageReviewCanonicalRow};
 
 mod canonical;
 mod obligation_ledger;
 mod recovery;
 mod values;
 
-pub(crate) use canonical::*;
 pub use canonical::{
     PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION,
     PackageReviewEncodingError,
 };
-pub(crate) use canonical::{ROW_MAGIC, encode, encode_rows};
 pub use obligation_ledger::{
     ORDINARY_PACKAGE_OBLIGATION_LEDGER_ENCODING_VERSION,
     ORDINARY_PACKAGE_OBLIGATION_SCHEMA_VERSION, OrdinaryPackageObligationLedger,
@@ -35,7 +33,7 @@ impl CheckedPackageReviewProjection {
     /// binding and remaining required admission-projection joins. Terminal
     /// evidence is separately required only for final-realization claims.
     pub fn canonical_review_bytes(&self) -> Result<Vec<u8>, PackageReviewEncodingError> {
-        encode(self)
+        canonical::review::encode(self)
     }
 
     /// Independently framed rows for review-only conflict explanation.
@@ -44,6 +42,6 @@ impl CheckedPackageReviewProjection {
     pub fn canonical_rows(
         &self,
     ) -> Result<Vec<PackageReviewCanonicalRow>, PackageReviewEncodingError> {
-        encode_rows(self)
+        canonical::rows::encode_rows(self)
     }
 }

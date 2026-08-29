@@ -1,8 +1,20 @@
-use super::contracts::*;
-use super::exact_identity::*;
-use super::operational::*;
-use super::providers::*;
-use crate::evidence::*;
+use super::contracts::metadata::contracts::project_callable_contracts;
+use super::contracts::metadata::operations::canonical_checked_invocation_targets;
+use super::exact_identity::checked_facts::exactly_one;
+use super::exact_identity::conformances::project_conformance_bounds;
+use super::exact_identity::parameter_contracts::project_type_parameters;
+use super::exact_identity::type_identities::review_signature_type_identity_with_binders;
+use super::operational::{
+    project_capability_flow, project_crash, project_installation_reaches, project_mutation,
+    project_service_row, project_synchronous_invocations, project_termination,
+};
+use super::providers::callable_conformances::project_callable_conformances;
+use crate::evidence::projection::ProjectedReviewRow;
+use crate::evidence::{
+    CheckedPackageCallableReview, PackageReviewCallableParameter, PackageReviewCallableRole,
+    PackageReviewCallableSupply, PackageReviewCheckedServiceReach,
+    PackageReviewExternalExecutableSupply, PackageReviewNominalIdentity,
+};
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::MachineSupplyMode;

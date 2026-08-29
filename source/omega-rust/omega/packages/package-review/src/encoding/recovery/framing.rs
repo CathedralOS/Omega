@@ -5,9 +5,8 @@ use super::codec::{RecoveryDecoder, clone_bytes};
 use super::model::{
     PackageReviewCanonicalRowRecoveryError, PackageReviewCanonicalRowRecoveryLimits,
 };
-use crate::encoding::{
-    PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION, ROW_MAGIC,
-};
+use crate::encoding::canonical::ROW_MAGIC;
+use crate::encoding::{PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION};
 use crate::evidence::{PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk};
 
 pub(super) struct ParsedCanonicalRow {

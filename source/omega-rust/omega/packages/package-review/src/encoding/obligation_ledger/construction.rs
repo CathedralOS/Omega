@@ -8,10 +8,8 @@ use super::model::{
     OrdinaryPackageObligationRow, OrdinaryPackageObligationSchemaIdentity,
 };
 use crate::encoding::recovery::canonical_row_subject_for_ledger;
-use crate::encoding::{
-    DecodedPackageReviewCanonicalRow, PackageReviewCanonicalRow, PackageReviewCanonicalRowKind,
-    PackageReviewCanonicalRowRisk,
-};
+use crate::encoding::{DecodedPackageReviewCanonicalRow, PackageReviewCanonicalRow};
+use crate::evidence::{PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk};
 use omega_package_compilation::PackageDependencyClosure;
 use omega_target::TargetProfile;
 use psi_core::PackageKeyIdentity;

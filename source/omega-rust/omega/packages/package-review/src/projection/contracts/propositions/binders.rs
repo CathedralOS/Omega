@@ -7,12 +7,13 @@ use crate::evidence::{
     PackageReviewPropositionBinderArgument, PackageReviewPropositionBinderValue,
     PackageReviewTypeIdentity,
 };
-use crate::projection::contracts::{
-    ContractProjectionContext, portable_parameter_position, project_evidence_interface,
+use crate::projection::contracts::expressions::names::portable_parameter_position;
+use crate::projection::contracts::metadata::contracts::ContractProjectionContext;
+use crate::projection::contracts::propositions::evidence::project_evidence_interface;
+use crate::projection::exact_identity::nominal_identities::{
+    nominal_identity, trait_requirement_identity_from_symbols,
 };
-use crate::projection::exact_identity::{
-    missing_exact_toolchain_type_owner, nominal_identity, trait_requirement_identity_from_symbols,
-};
+use crate::projection::exact_identity::type_identities::missing_exact_toolchain_type_owner;
 
 pub(crate) fn project_proposition_binder_argument(
     compilation: &CheckedCompilation,

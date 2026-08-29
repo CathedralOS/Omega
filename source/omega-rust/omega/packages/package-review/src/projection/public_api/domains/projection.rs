@@ -1,18 +1,17 @@
-use super::{
-    project_domain_alias_expansion, project_domain_establishment_route,
-    project_domain_predicate_facts,
-};
+use super::aliases::{project_domain_alias_expansion, project_domain_establishment_route};
+use super::facts::project_domain_predicate_facts;
+use crate::evidence::projection::ProjectedReviewRow;
 use crate::evidence::{
     PackageReviewDomainClassification, PackageReviewDomainSemanticRole, PackageReviewDomainShape,
-    PackageReviewNominalIdentity, ProjectedReviewRow,
+    PackageReviewNominalIdentity,
 };
-use crate::projection::contracts::{
-    collect_type_parameter_source_locations, project_required_proof_fact_source_locations,
+use crate::projection::contracts::metadata::parameters::collect_type_parameter_source_locations;
+use crate::projection::contracts::metadata::source_locations::project_required_proof_fact_source_locations;
+use crate::projection::exact_identity::nominal_identities::{
+    nominal_identity, reviewed_package_owns,
 };
-use crate::projection::exact_identity::{
-    nominal_identity, project_type_parameters, review_type_identity_with_binders,
-    reviewed_package_owns,
-};
+use crate::projection::exact_identity::parameter_contracts::project_type_parameters;
+use crate::projection::exact_identity::type_identities::review_type_identity_with_binders;
 use omega_compiler::CheckedCompilation;
 use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;

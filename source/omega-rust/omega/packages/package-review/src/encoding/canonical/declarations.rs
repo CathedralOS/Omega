@@ -1,9 +1,11 @@
-use super::{Encoder, PackageReviewEncodingError};
-use crate::encoding::values::{
-    encode_callable_contract, encode_contract_fact, encode_contract_static_argument,
-    encode_crash_route, encode_evidence_interface, encode_nominal, encode_synchronous_invocation,
-    encode_termination,
-};
+use super::PackageReviewEncodingError;
+use super::encoder::Encoder;
+use crate::encoding::values::contracts::{encode_callable_contract, encode_contract_fact};
+use crate::encoding::values::crashes::encode_crash_route;
+use crate::encoding::values::declarations::encode_evidence_interface;
+use crate::encoding::values::effects::{encode_synchronous_invocation, encode_termination};
+use crate::encoding::values::expressions::encode_contract_static_argument;
+use crate::encoding::values::identity::encode_nominal;
 use crate::evidence::{
     PackageReviewConformanceBound, PackageReviewConformanceShape, PackageReviewConformanceSubject,
     PackageReviewDangerousAuthority, PackageReviewDangerousAuthorityClass,

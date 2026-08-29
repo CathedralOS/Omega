@@ -1,5 +1,10 @@
-use super::super::exact_identity::*;
-use crate::evidence::*;
+use super::super::exact_identity::nominal_identities::{nominal_identity, reviewed_package_owns};
+use crate::evidence::projection::{ProjectedReviewRow, ProjectedSemanticDependencyRow};
+use crate::evidence::{
+    PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,
+    PackageReviewRepresentationTcb, PackageReviewSemanticDependency,
+    PackageReviewSemanticDependencyExposure, PackageReviewSemanticDependencyKind,
+};
 use omega_compiler::CheckedCompilation;
 use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;

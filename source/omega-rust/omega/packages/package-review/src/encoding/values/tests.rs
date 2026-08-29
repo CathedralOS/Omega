@@ -1,11 +1,12 @@
-use crate::encoding::{
-    Encoder, PackageReviewEncodingLimits, encode, encode_rows, encode_rows_with_limits,
-    encode_with_limits,
-};
+use crate::encoding::canonical::PackageReviewEncodingLimits;
+use crate::encoding::canonical::encoder::Encoder;
+use crate::encoding::canonical::review::{encode, encode_with_limits};
+use crate::encoding::canonical::rows::{encode_rows, encode_rows_with_limits};
+use crate::evidence::projection::PackageReviewCanonicalRowSources;
 use crate::evidence::{
     CheckedPackageReviewProjection, PackageReviewCanonicalRowSource,
-    PackageReviewCanonicalRowSources, PackageReviewCompilerIntrinsicExecution,
-    PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewSyntheticSourceKind,
+    PackageReviewCompilerIntrinsicExecution, PackageReviewNominalIdentity,
+    PackageReviewNominalOwner, PackageReviewSyntheticSourceKind,
 };
 use omega_effects::provider_plan::ProviderBinding;
 use psi_core::PackageKeyIdentity;

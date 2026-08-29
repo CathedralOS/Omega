@@ -1,7 +1,7 @@
 mod authority;
 mod contracts;
 mod identity;
-mod projection;
+pub(crate) mod projection;
 mod public_api;
 mod rows;
 mod signatures;
@@ -43,11 +43,6 @@ pub use projection::{
     CheckedPackageProviderRowIdentity, CheckedPackageReviewProjection,
     PackageReviewCheckedServiceReach, PackageReviewCompilerIntrinsicExecution,
     PackageReviewProviderFamilyCoverage, PackageReviewProviderSelectionAuthority,
-};
-pub(crate) use projection::{
-    PackageReviewCanonicalRowSources, ProjectedDangerousAuthorityRow,
-    ProjectedDangerousAuthoritySlackRow, ProjectedNestedSourceLocation, ProjectedReviewRow,
-    ProjectedSemanticDependencyRow,
 };
 pub use public_api::{
     PackageReviewDataField, PackageReviewDataKind, PackageReviewDataMember, PackageReviewDataShape,

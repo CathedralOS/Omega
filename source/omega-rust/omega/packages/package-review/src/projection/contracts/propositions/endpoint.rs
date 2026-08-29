@@ -8,9 +8,10 @@ use crate::evidence::{
     PackageReviewPropositionBinderKind, PackageReviewPropositionEvidence,
     PackageReviewTypeIdentity,
 };
-use crate::projection::exact_identity::{nominal_identity, review_type_identity_with_binders};
+use crate::projection::exact_identity::nominal_identities::nominal_identity;
+use crate::projection::exact_identity::type_identities::review_type_identity_with_binders;
 
-use super::project_evidence_interface;
+use super::evidence::project_evidence_interface;
 
 pub(crate) fn project_proposition_endpoint(
     compilation: &CheckedCompilation,

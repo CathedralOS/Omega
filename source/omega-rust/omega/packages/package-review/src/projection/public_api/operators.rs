@@ -1,16 +1,21 @@
+use crate::evidence::projection::ProjectedReviewRow;
 use crate::evidence::{
     PackageReviewCallableParameter, PackageReviewCrashRoute, PackageReviewCrashRouteGuard,
-    PackageReviewOperatorCoordinate, PackageReviewOperatorShape, ProjectedReviewRow,
+    PackageReviewOperatorCoordinate, PackageReviewOperatorShape,
 };
-use crate::projection::contracts::{
-    ContractProjectionContext, collect_callable_parameter_source_locations,
-    collect_type_parameter_source_locations, project_contract_expression,
-    project_contract_source_locations, project_contracts,
+use crate::projection::contracts::expressions::projection::project_contract_expression;
+use crate::projection::contracts::metadata::contracts::{
+    ContractProjectionContext, project_contracts,
 };
-use crate::projection::exact_identity::{
-    nominal_identity, project_type_parameters, review_signature_type_identity_with_binders,
-    reviewed_package_owns,
+use crate::projection::contracts::metadata::parameters::{
+    collect_callable_parameter_source_locations, collect_type_parameter_source_locations,
 };
+use crate::projection::contracts::metadata::source_locations::project_contract_source_locations;
+use crate::projection::exact_identity::nominal_identities::{
+    nominal_identity, reviewed_package_owns,
+};
+use crate::projection::exact_identity::parameter_contracts::project_type_parameters;
+use crate::projection::exact_identity::type_identities::review_signature_type_identity_with_binders;
 use omega_compiler::CheckedCompilation;
 use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;

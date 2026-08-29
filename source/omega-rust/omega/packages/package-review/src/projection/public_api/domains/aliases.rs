@@ -2,7 +2,9 @@ use crate::evidence::{
     PackageReviewDomainAliasAtom, PackageReviewDomainEstablishmentKind,
     PackageReviewDomainEstablishmentRoute,
 };
-use crate::projection::exact_identity::{nominal_identity, trait_requirement_identity};
+use crate::projection::exact_identity::nominal_identities::{
+    nominal_identity, trait_requirement_identity,
+};
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 use psi_symbols::SymbolHandle;
