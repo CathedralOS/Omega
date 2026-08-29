@@ -59,12 +59,17 @@ The target-owned UEFI x64 layout plan retains the complete known 120-byte
 and every console, service, table-count, and configuration-table field. Exact
 target-package, entry-slot, Microsoft-x64 calling-plan, order, offset, width,
 alignment, coverage, and layout identity replay independently. In particular,
-the plan proves `ConOut` at byte 64 and `BootServices` at byte 96. It does not
-inspect a runtime occurrence, header signature, revision, CRC, or `HeaderSize`,
-and grants no pointer, provider, lifecycle, root, shell, or execution authority.
-A lifecycle-scoped provider must separately validate the occurrence and require
-that its runtime header covers this retained prefix before projecting any
-service.
+the plan proves `ConOut` at byte 64 and `BootServices` at byte 96. The plan
+itself does not inspect a runtime occurrence and grants no pointer, provider,
+lifecycle, root, shell, or execution authority. A separate non-authorizing
+header-integrity gate consumes the plan and borrows one supplied occurrence. It
+checks the exact `EFI_SYSTEM_TABLE` signature, requires runtime `HeaderSize` to
+cover the known prefix without exceeding the supplied bytes, requires zero
+`Reserved`, and verifies the CRC across every `HeaderSize` byte with the CRC
+field zeroed. The carrier retains revision for later capability-specific policy
+and accepts CRC-covered forward-compatible suffixes, but projects no pointer
+field. A lifecycle-scoped provider must still join that integrity evidence to
+exact occurrence provenance and firmware phase before projecting any service.
 
 ```omega
 machine Application::start(
