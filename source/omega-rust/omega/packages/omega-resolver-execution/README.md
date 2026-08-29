@@ -7,13 +7,49 @@ text or containment claims.
 
 ## Structure
 
-- `src/lib.rs` defines the closed phase vocabulary, host-backend identity,
-  command construction, native policy, inherited resource limits, opaque
-  per-command policy observations, and native canaries.
-- `src/network.rs` defines typed requested endpoints, the fixed-bound loopback
-  HTTP CONNECT broker, sealed route policy, and bounded endpoint observations.
-- `src/windows.rs` owns suspended launch, Job Object limits, assignment/resume,
-  whole-job termination, and active-process-zero completion on Windows.
+- `src/lib.rs` is the documented public entrance and reexports only the closed
+  request, observation, backend, child-lifecycle, and endpoint types.
+- `src/model.rs` owns closed phases, transports, guarantees, backend identity,
+  resource ceilings, and opaque canonical policy observations.
+- `src/request.rs` validates compiler-selected executable and custody paths;
+  it does not interpret package-authored locator text.
+- `src/backend.rs` validates one launch request, selects the verified host
+  backend, and constructs a command and policy observation together.
+- `src/process/` owns child-container lifecycle and compiler-owned process
+  limits. Its tests cover inherited Unix-limit intersection and enforcement.
+- `src/network/` owns typed endpoint policy, the bounded loopback CONNECT
+  broker, the fixed connector helper protocol, and endpoint observations.
+- `src/confinement/` owns native confinement facts and implementations.
+  `macos.rs` owns Seatbelt policy/custody and its native canaries;
+  `windows.rs` owns suspended launch, Job Object assignment and limits,
+  whole-job termination, and active-process-zero completion. Linux has no
+  falsely named confinement module: its current enforcement is only the Unix
+  process limits in `src/process/limits.rs`.
+
+Tests follow the responsibility they exercise: backend request/observation
+tests live under `src/backend/tests/`, endpoint tests under `src/network/`, and
+native macOS/Windows tests beside their confinement owner.
+
+## Dependency direction
+
+```text
+lib.rs (public reexports only)
+  -> backend.rs
+       -> model.rs + request.rs + network/ + process/limits.rs
+       -> confinement/ (host policy and guarantee classification)
+  -> process/ (owned child lifecycle)
+       -> confinement/windows.rs only on Windows
+  -> network/ (sealed endpoint policy, broker, and connector helper)
+
+confinement/ -> model.rs
+model.rs -> network endpoint policy encoding
+```
+
+The model and request vocabulary do not depend on command construction.
+Platform modules never broaden caller input or mint package acceptance; they
+only realize and classify the compiler-owned launch policy. Unsupported native
+guarantees remain `Unavailable` rather than acquiring placeholder modules or
+best-effort claims.
 
 ## Current enforcement
 
