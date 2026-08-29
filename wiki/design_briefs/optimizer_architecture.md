@@ -3340,6 +3340,38 @@ pipeline as their existing monoliths are dismantled. This is a navigability and
 ownership invariant, not a request to create more crates or to combine
 independent producer and validation code.
 
+The Psi optimizer now demonstrates the target-neutral variant of the same
+invariant:
+
+```text
+omega-psi-optimizer/src/rules/
+  mod.rs                              # catalog + pass entrances
+  catalog.rs                          # exact ordered built-in registration
+  passes/
+    mod.rs                            # named pass catalog
+    control_flow_cleanup/
+      mod.rs                          # graph-transformation entrance
+      {block_merging,constant_conditionals,empty_block_threading,
+       shared_jump_fusion,unreachable_private_machines}.rs
+    global_value_numbering/
+      mod.rs                          # GVN traversal entrance
+      {expression_keys,local,dominating,phi_translated,accounting}.rs
+    proof_check_elision/              # proof-certified scalar identities
+    sparse_conditional_constant_propagation/
+      range_comparisons.rs
+    {copy_propagation,dead_scalar_elimination}.rs
+    support/{facts,control_flow}.rs       # stable cross-pass concepts only
+    tests/                            # matching pass families and fixtures
+```
+
+`rules/mod.rs` does not know rule mechanics, while `catalog.rs` visibly owns the
+only built-in ordering. `passes/mod.rs` names every transformation family and
+preserves the existing public surface. Family entrances own meaningful shared
+concepts and point to exact lower rule taxonomies; the test tree uses those same
+names. Independent candidate acceptance remains outside this tree in
+`omega-optimization-validation` and must be organized separately rather than
+silently coupled to the producer modules.
+
 ## Testing strategy
 
 Each rule has positive, negative, boundary, and fact-expiry tests. The full
