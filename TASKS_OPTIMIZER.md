@@ -17,16 +17,16 @@ another broad alias while executing this plan.
 
 ## Current stopping point
 
-[x] Abstract-to-target translation validation now has a 76-line independent
+[x] Abstract-to-target translation validation now has a sub-100-line independent
 entrance that binds Psi identity, the requested target, entry, and the complete
-function roster before descending into exact family replay. Its first two
-semantic rows reconstruct parameterless straight-line integer and Boolean
-literal returns into `ReturnIntegerImmediate` and `ReturnBooleanImmediate`,
-including block shape, scalar/result/value links, cleanup absence, exact
-provenance, and every candidate field. One adjacent ordered catalog is the
-obvious enable/disable inventory and routes each row to its named leaf. The
-optimized target carrier retains the receipt, whose row roster explicitly
-distinguishes validated families from still-uncovered ones. Focused mutation
+function roster before descending into exact family replay. The adjacent
+sub-100-line catalog is the sole enable/disable inventory; each descriptor
+joins one source classifier to one typed replay adapter. Zero matches publish
+`Uncovered`, one match publishes one receipt on that exact function-roster row,
+and duplicate or overlapping matches fail closed. The first three semantic
+rows reconstruct parameterless straight-line integer and Boolean literal
+returns plus scalar `Crash`, including block shape, scalar/result/value links,
+cleanup absence, exact provenance, and every candidate field. Focused mutation
 coverage rejects every source-shape, root, target, roster, provenance, and
 operation-field substitution across all five native targets.
 
@@ -576,7 +576,8 @@ parallel route or optional coordinator field.
 - [x] Source-to-optimized Psi projection and lower-stage custody checks.
 - [>] Complete translation validation for all lowering and machine rule
   families. Selected-lowering incoming-u12 add/subtract folds,
-  straight-line integer- and Boolean-immediate abstract-to-target translation,
+  straight-line integer-immediate, Boolean-immediate, and scalar-Crash
+  abstract-to-target translation,
   layout-independent baseline, MOVN, XOR-zero, MOV-r32-imm32, CBNZ dispositions,
   structural-Unit encodings, and resolved function-relative layouts now replay
   independently. Structural-Unit selected validation also reconstructs ABI
@@ -760,3 +761,6 @@ rewrite or opt a program into lossy floating-point semantics.
 19. [x] Add parameterless straight-line Boolean-immediate translation as a
     separate independent family row and retain its exact custody through
     optimized target lowering on all native targets.
+20. [x] Make abstract-to-target catalog classification exact-zero-or-one, bind
+    one typed disposition directly to every function-roster row, and add the
+    parameterless straight-line scalar-Crash family across all native targets.

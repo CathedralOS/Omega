@@ -8,16 +8,20 @@ mod catalog;
 mod model;
 pub(crate) mod straight_line_boolean_immediate;
 pub(crate) mod straight_line_integer_immediate;
+pub(crate) mod straight_line_scalar_crash;
 
 use omega_abstract_operations::AbstractOperationPlan;
 use omega_target::NativeTarget;
 use omega_target_operations::TargetOperationPlan;
 
 pub use model::{
-    AbstractToTargetFunctionRosterReceipt, AbstractToTargetTranslationValidationError,
+    AbstractToTargetFunctionRosterReceipt, AbstractToTargetFunctionTranslationDisposition,
+    AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamily,
+    AbstractToTargetTranslationFamilyError, AbstractToTargetTranslationValidationError,
     AbstractToTargetTranslationValidationReceipt, StraightLineBooleanImmediateTranslationError,
     StraightLineBooleanImmediateTranslationReceipt, StraightLineIntegerImmediateTranslationError,
-    StraightLineIntegerImmediateTranslationReceipt,
+    StraightLineIntegerImmediateTranslationReceipt, StraightLineScalarCrashTranslationError,
+    StraightLineScalarCrashTranslationReceipt,
 };
 
 pub fn validate_abstract_to_target_translation(
@@ -40,7 +44,6 @@ pub fn validate_abstract_to_target_translation(
     }
 
     let mut function_roster = Vec::with_capacity(source.functions.len());
-    let mut validated_families = catalog::ValidatedTranslationFamilies::default();
     for (position, (source_function, target_function)) in
         source.functions.iter().zip(&target.functions).enumerate()
     {
@@ -56,21 +59,18 @@ pub fn validate_abstract_to_target_translation(
                 },
             );
         }
+        let translation = catalog::validate_function(source_function, target_function)?;
         function_roster.push(AbstractToTargetFunctionRosterReceipt::new(
             source_function.machine,
             source_function.attachment,
+            translation,
         ));
-        validated_families.validate_function(source_function, target_function)?;
     }
-    let (straight_line_integer_immediates, straight_line_boolean_immediates) =
-        validated_families.into_receipts();
 
     Ok(AbstractToTargetTranslationValidationReceipt::new(
         source.psi,
         expected_target,
         source.entry,
         function_roster,
-        straight_line_integer_immediates,
-        straight_line_boolean_immediates,
     ))
 }
