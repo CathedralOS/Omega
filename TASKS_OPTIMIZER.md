@@ -17,6 +17,17 @@ another broad alias while executing this plan.
 
 ## Current stopping point
 
+[x] Abstract-to-target translation validation now has a tenth exact family for
+typed integer less-or-equal of two parameters. Its named source and target
+leaves share only the generic binary-Boolean carrier and the governed ordering
+reconstruction rung with strict less-than. Independent replay covers both
+signednesses at every natively supported 8/16/32/64-bit width, register and
+incoming-stack placement on all five native targets, reversed and identical
+operands, mixed rosters, provenance, and operator/operand/type corruption. The
+optimized pipeline retains the typed receipt through target custody. Catalog,
+source-grammar, ordering, and typed-leaf navigation remain architecture-pinned;
+the source entrance remains at 99 lines.
+
 [x] Psi publication now retains every independently validated candidate
 declaration, including genuine policy skips, rather than only retaining the
 declaration inside an Applied commit. Run-to-abstract replay replaced its flat
@@ -48,12 +59,13 @@ function roster before descending into exact family replay. The adjacent
 sub-100-line catalog is the sole enable/disable inventory; each descriptor
 joins one source classifier to one typed replay adapter. Zero matches publish
 `Uncovered`, one match publishes one receipt on that exact function-roster row,
-and duplicate or overlapping matches fail closed. The first nine semantic
+and duplicate or overlapping matches fail closed. The first ten semantic
 rows reconstruct parameterless straight-line integer and Boolean literal
 returns, scalar `Crash`, direct integer and Boolean parameter returns, Boolean
 negation of a parameter, ordered Boolean equality of two parameters, and typed
-integer equality or strict ordering of two same-type integer parameters. The
-parameter-derived families descend through a governed source-grammar map,
+integer equality, strict ordering, or inclusive ordering of two same-type
+integer parameters. The parameter-derived families descend through a governed
+source-grammar map,
 shared envelope, whole-roster ABI replay, and a derived-expression join.
 Boolean-not and equality replay retain their distinct operands, produced value,
 operation provenance, return edge, and exact register or stack locations.
@@ -619,7 +631,7 @@ parallel route or optional coordinator field.
   straight-line integer-immediate, Boolean-immediate, scalar-Crash,
   integer-parameter, Boolean-parameter, Boolean-not-parameter, and ordered
   Boolean-equal-parameters, typed integer-equal-parameters, and typed
-  integer-less-than-parameters
+  integer-less-than-parameters and integer-less-or-equal-parameters
   abstract-to-target translation,
   layout-independent baseline, MOVN, XOR-zero, MOV-r32-imm32, CBNZ dispositions,
   structural-Unit encodings, and resolved function-relative layouts now replay
@@ -846,7 +858,11 @@ rewrite or opt a program into lossy floating-point semantics.
     row across all native targets and integer signs/widths. Retain ordered or
     identical operands, exact integer type, full-roster ABI placements,
     provenance, and optimized-target custody beneath a named ordering replay
-    leaf; keep less-or-equal as a separate later family.
+    leaf; keep less-or-equal as the separate family completed in item 30.
 29. [x] Retain every validated Psi candidate declaration and replace flat
     Applied-only publication replay with one small all-candidate coordinator
     over manifest, independent declaration, and baseline-policy custody.
+30. [x] Add typed integer-less-or-equal-of-parameters as the tenth independent
+    abstract-to-target family. Retain exact signedness/width, ordered or
+    identical operand identity, register/stack ABI placements, provenance, and
+    optimized-target custody through named inclusive-ordering leaves.

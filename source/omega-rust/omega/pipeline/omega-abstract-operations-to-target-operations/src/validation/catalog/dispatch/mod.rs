@@ -73,3 +73,10 @@ pub(super) const STRAIGHT_LINE_INTEGER_LESS_THAN_PARAMETERS: TranslationFamilyDe
         straight_line_parameter::integer_less_than::is_candidate,
         parameter::straight_line_integer_less_than_parameters,
     );
+
+pub(super) const STRAIGHT_LINE_INTEGER_LESS_OR_EQUAL_PARAMETERS: TranslationFamilyDescriptor =
+    TranslationFamilyDescriptor::new(
+        AbstractToTargetTranslationFamily::StraightLineIntegerLessOrEqualParameters,
+        straight_line_parameter::integer_less_or_equal::is_candidate,
+        parameter::straight_line_integer_less_or_equal_parameters,
+    );

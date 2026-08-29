@@ -71,10 +71,26 @@ fn boolean_literal_pair() -> (AbstractFunction, TargetFunction) {
 
 #[test]
 fn enabled_family_identities_are_unique_and_dispatch_is_typed() {
-    let identities = ENABLED_TRANSLATION_FAMILIES
+    let ordered = ENABLED_TRANSLATION_FAMILIES
         .iter()
         .map(|descriptor| descriptor.family)
-        .collect::<BTreeSet<_>>();
+        .collect::<Vec<_>>();
+    assert_eq!(
+        ordered,
+        vec![
+            AbstractToTargetTranslationFamily::StraightLineIntegerImmediate,
+            AbstractToTargetTranslationFamily::StraightLineBooleanImmediate,
+            AbstractToTargetTranslationFamily::StraightLineScalarCrash,
+            AbstractToTargetTranslationFamily::StraightLineIntegerParameter,
+            AbstractToTargetTranslationFamily::StraightLineBooleanParameter,
+            AbstractToTargetTranslationFamily::StraightLineBooleanNotParameter,
+            AbstractToTargetTranslationFamily::StraightLineBooleanEqualParameters,
+            AbstractToTargetTranslationFamily::StraightLineIntegerEqualParameters,
+            AbstractToTargetTranslationFamily::StraightLineIntegerLessThanParameters,
+            AbstractToTargetTranslationFamily::StraightLineIntegerLessOrEqualParameters,
+        ]
+    );
+    let identities = ordered.iter().copied().collect::<BTreeSet<_>>();
     assert_eq!(identities.len(), ENABLED_TRANSLATION_FAMILIES.len());
 
     let (source, target) = boolean_literal_pair();
