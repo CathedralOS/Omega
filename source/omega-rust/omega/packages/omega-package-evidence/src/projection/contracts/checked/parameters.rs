@@ -7,7 +7,7 @@ use super::{
     source_locations::project_contract_source_locations,
 };
 use crate::evidence::PackageReviewSourceLocationRole;
-use crate::evidence::package::ProjectedNestedSourceLocation;
+use crate::projection::source::ProjectedNestedSourceLocation;
 use crate::projection::source::locations::project_nested_declaration_source_location;
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;

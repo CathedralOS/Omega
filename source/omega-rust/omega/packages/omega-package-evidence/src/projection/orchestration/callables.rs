@@ -8,11 +8,11 @@ use super::super::contracts::checked::parameters::{
 use super::super::contracts::checked::service_reach::project_machine_service_reach_source_locations;
 use super::super::contracts::checked::source_locations::project_contract_source_locations;
 use super::super::semantics::declarations::nominal_identity;
-use crate::evidence::package::{ProjectedNestedSourceLocation, ProjectedReviewRow};
 use crate::evidence::{
     CheckedPackageCallableReview, PackageReviewCallableRole, PackageReviewExternalExecutableSupply,
     PackageReviewNominalOwner, PackageReviewSourceLocationRole,
 };
+use crate::projection::source::{ProjectedNestedSourceLocation, ProjectedReviewRow};
 use omega_compiler::CheckedCompilation;
 use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;

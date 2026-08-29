@@ -5,10 +5,10 @@ use super::super::semantics::declarations::{
 };
 use super::super::semantics::signatures::parameters::project_type_parameters;
 use super::super::semantics::types::review_signature_type_identity_with_binders;
-use crate::evidence::package::ProjectedReviewRow;
 use crate::evidence::{
     PackageReviewConformanceShape, PackageReviewConformanceSubject, PackageReviewEvidenceInterface,
 };
+use crate::projection::source::ProjectedReviewRow;
 use omega_compiler::CheckedCompilation;
 use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;

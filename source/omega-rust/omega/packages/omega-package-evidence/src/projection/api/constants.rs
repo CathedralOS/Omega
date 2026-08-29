@@ -1,7 +1,7 @@
-use crate::evidence::package::{ProjectedNestedSourceLocation, ProjectedReviewRow};
 use crate::evidence::{PackageReviewConstShape, PackageReviewSourceLocationRole};
 use crate::projection::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::projection::semantics::types::review_type_identity_with_binders;
+use crate::projection::source::{ProjectedNestedSourceLocation, ProjectedReviewRow};
 use omega_compiler::CheckedCompilation;
 use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;

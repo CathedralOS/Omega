@@ -9,12 +9,12 @@ use super::semantics::conformances::project_conformance_bounds;
 use super::semantics::facts::exactly_one;
 use super::semantics::signatures::parameters::project_type_parameters;
 use super::semantics::types::review_signature_type_identity_with_binders;
-use crate::evidence::package::ProjectedReviewRow;
 use crate::evidence::{
     CheckedPackageCallableReview, PackageReviewCallableParameter, PackageReviewCallableRole,
     PackageReviewCallableSupply, PackageReviewCheckedServiceReach,
     PackageReviewExternalExecutableSupply, PackageReviewNominalIdentity,
 };
+use crate::projection::source::ProjectedReviewRow;
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::MachineSupplyMode;

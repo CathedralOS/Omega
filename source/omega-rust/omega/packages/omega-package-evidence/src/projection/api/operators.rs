@@ -1,4 +1,3 @@
-use crate::evidence::package::ProjectedReviewRow;
 use crate::evidence::{
     PackageReviewCallableParameter, PackageReviewCrashRoute, PackageReviewCrashRouteGuard,
     PackageReviewOperatorCoordinate, PackageReviewOperatorShape,
@@ -12,6 +11,7 @@ use crate::projection::contracts::expressions::projection::project_contract_expr
 use crate::projection::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::projection::semantics::signatures::parameters::project_type_parameters;
 use crate::projection::semantics::types::review_signature_type_identity_with_binders;
+use crate::projection::source::ProjectedReviewRow;
 use omega_compiler::CheckedCompilation;
 use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;

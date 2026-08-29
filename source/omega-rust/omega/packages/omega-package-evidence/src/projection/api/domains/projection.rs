@@ -1,6 +1,5 @@
 use super::aliases::{project_domain_alias_expansion, project_domain_establishment_route};
 use super::facts::project_domain_predicate_facts;
-use crate::evidence::package::ProjectedReviewRow;
 use crate::evidence::{
     PackageReviewDomainClassification, PackageReviewDomainSemanticRole, PackageReviewDomainShape,
     PackageReviewNominalIdentity,
@@ -10,6 +9,7 @@ use crate::projection::contracts::checked::source_locations::project_required_pr
 use crate::projection::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::projection::semantics::signatures::parameters::project_type_parameters;
 use crate::projection::semantics::types::review_type_identity_with_binders;
+use crate::projection::source::ProjectedReviewRow;
 use omega_compiler::CheckedCompilation;
 use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;

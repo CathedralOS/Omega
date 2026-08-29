@@ -7,11 +7,11 @@ use super::super::source::locations::validate_canonical_row_source_limits;
 use super::callables::ProjectedPackageCallables;
 use super::providers::ProjectedProviders;
 use super::surface::ProjectedPackageSurface;
-use crate::evidence::package::{
-    PackageReviewCanonicalRowSources, ProjectedDangerousAuthorityRow,
-    ProjectedDangerousAuthoritySlackRow,
-};
+use crate::evidence::package::PackageReviewCanonicalRowSources;
 use crate::evidence::{CheckedPackageReviewProjection, PackageReviewSourceLocationRole};
+use crate::projection::source::{
+    ProjectedDangerousAuthorityRow, ProjectedDangerousAuthoritySlackRow,
+};
 use omega_compiler::CheckedCompilation;
 use omega_target::TargetProfile;
 use psi_core::PackageKeyIdentity;
