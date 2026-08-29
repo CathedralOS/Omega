@@ -15,8 +15,8 @@ pub use foreign_locator::{
     normalize_foreign_locator,
 };
 pub use uefi_boot_services::{
-    UefiBootServicesNativeField, UefiBootServicesNativeFieldKind,
-    UefiBootServicesNativeFieldLayout, UefiBootServicesNativeLayoutError,
+    UEFI_LOADED_IMAGE_PROTOCOL_GUID, UefiBootServicesNativeField, UefiBootServicesNativeFieldKind,
+    UefiBootServicesNativeFieldLayout, UefiBootServicesNativeLayoutError, UefiProtocolGuid,
     ValidatedUefiBootServicesNativeLayout, plan_uefi_boot_services_native_layout,
 };
 pub use uefi_boot_services_occurrence::{
