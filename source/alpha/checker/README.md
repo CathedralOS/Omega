@@ -72,6 +72,16 @@ binds a derivation proposition to exact bytes without trusting a hash or a
 shell-generated literal, but a caller still needs a checked artifact-specific
 ledger proving the intended relation.
 
+Definitional equality uses the permanent arena for parsed declarations and raw
+subjects. The checker records the closed arena range occupied by its immutable,
+already-normal subject trees; normalization preserves pointers in that range,
+so selecting one indexed byte does not copy the selected subtree. Other normal
+forms created solely for one conversion decision are scratch: the checker
+restores the arena mark after their structural comparison. No returned proof or
+term can reference those temporary nodes. Together these rules keep a balanced
+artifact certificate with many independent computations from turning dead
+normal forms into permanent memory pressure.
+
 ## Retention inventory
 
 Every retained owned file must strengthen the rooted checker service or one

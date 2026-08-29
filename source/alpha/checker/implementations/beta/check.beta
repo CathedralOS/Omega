@@ -49,6 +49,7 @@
 ;          2097120 CTXN  2097112 IDEP  2097104 FRAMED
 ;          2097096 SOURCE_LIST  2097088 TAPE_LIST  2097080 INPUT_OVERFLOW
 ;          2097072 PARSE_ERROR  2097064 THEORY_FROZEN
+;          2097056 RAW_BEGIN    2097048 RAW_END
 ;          4194304 CTX (type stack)  6422528 DATA_DECLARED
 ;          6553600 BYTE_TERM_CACHE  6555648 NIBBLE_TERM_CACHE
 ;          6555776 RAW_CON_CACHE  8388608 ARENA (bump)
@@ -98,6 +99,8 @@ proc slurp() {
         word[2097080] = 0            ; INPUT_OVERFLOW
         word[2097072] = 0            ; PARSE_ERROR
         word[2097064] = 0            ; THEORY_FROZEN
+        word[2097056] = 0            ; RAW_BEGIN
+        word[2097048] = 0            ; RAW_END
     }
 }
 
@@ -268,9 +271,11 @@ proc prepare_input() {
         to bind
     }
     state bind {
+        word[2097056] = word[2097128]
         bind_raw_theory()
         word[2097096] = raw_tree(source_start, source_len, raw_span(source_len))
         word[2097088] = raw_tree(tape_start, tape_len, raw_span(tape_len))
+        word[2097048] = word[2097128]
         copy_cert(cert_start, cert_len)
         word[2097136] = cert_len
         word[2097144] = 0
@@ -459,6 +464,12 @@ proc parse_nat() {
 
 ; reduce a Peano term to normal form, fuel-bounded (total — the slow ref route).
 proc normalize(t, fuel) {
+    ; Framing constructs already-normal immutable raw subjects before parsing
+    ; any certificate node. Preserve every pointer in that closed arena range:
+    ; a selector can then descend one branch without strongly copying the
+    ; selected raw subtree.
+    state raw_low { to fuelchk when (t < word[2097056])  to raw_high }
+    state raw_high { to ret_t when (t < word[2097048])  to fuelchk }
     state fuelchk { to live when (fuel >= 1)  return t }
     state live {
         let tag = word[t]
@@ -940,12 +951,22 @@ proc constructor_cid(t) {
 proc conv_eq(a, b) {
     let acid = constructor_cid(a)
     let bcid = 0 - 1
+    let mark = 0
+    let equal = 0
     state same { to yes when (a == b)  to raw_low }
     state raw_low { to ordinary when (acid < 61)  to raw_high }
     state raw_high { to ordinary when (acid > 63)  bcid = constructor_cid(b)  to raw_rhs }
     state raw_rhs { to ordinary when (bcid < 61)  to raw_rhs_high }
     state raw_rhs_high { to ordinary when (bcid > 63)  return nat_eq(a, b) }
-    state ordinary { return nat_eq(normalize(a, 100000), normalize(b, 100000)) }
+    state ordinary {
+        ; Normal forms produced solely for this decision cannot escape it.
+        ; Reclaim them after comparison so a certificate with many independent
+        ; computed equalities does not consume the permanent parse/subject arena.
+        mark = word[2097128]
+        equal = nat_eq(normalize(a, 100000), normalize(b, 100000))
+        word[2097128] = mark
+        return equal
+    }
     state yes { return 1 }
 }
 

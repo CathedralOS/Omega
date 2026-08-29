@@ -149,8 +149,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
   function-, hash-, or workload-specific jets are forbidden. No current floor
   measurement triggers escalation: the complete Alpha-written Beta compiler
   surface gate runs 121 cases in under three seconds on the development host.
-  The largest current retained Beta output, the 233,813-byte checker tape,
-  leaves 28,327 bytes in the Alpha payload after replacing repeated inline
+  The largest current retained Beta output, the 236,076-byte checker tape,
+  leaves 26,064 bytes in the Alpha payload after replacing repeated inline
   stack-fault blocks with one local terminal block per procedure.
 
 ## 2. Alpha-written Beta compiler
@@ -241,8 +241,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
     certificate extents; checker-built immutable power-of-two-indexed byte trees are available only
     as the framed `source` and `tape` constants. Identical subjects accept a
     reflexivity control, a one-byte mutation rejects, unframed input cannot
-    spoof either constant, and the rebuilt 233,813-byte checker tape retains
-    28,327 bytes of Alpha payload headroom. The exact 78,109-byte compiler
+    spoof either constant, and the rebuilt 236,076-byte checker tape retains
+    26,064 bytes of Alpha payload headroom. The exact 78,109-byte compiler
     source plus 20,977-byte tape carrier runs in under one second. Fixed
     byte/empty/leaf/node constructors give every real byte a stable fixed-depth
     path and make subject structure available to ordinary bounded certificate
@@ -272,11 +272,15 @@ code, discover a closure, manufacture proof premises, or decide admission.
       Root cuts and totals must prove both subjects fully exhausted, without
       gaps or suffixes.
     - Direct sequential accumulation over all 78,109 source bytes exhausts the
-      generated semantic stack, while repeated allocation-heavy whole-subject
-      computations exhaust the arena. Keep local work bounded by item leaves
-      and global combination balanced. Fixed paths over the indexed raw trees
-      reach the canonical final source and tape bytes in under one second; this
-      is an engineering constraint, not grounds for a trusted primitive.
+      generated semantic stack. Keep local work bounded by item leaves and
+      global combination balanced. Immutable checker-built subject nodes are
+      already normal and are preserved by pointer, so fixed-path selection is
+      proportional to path depth rather than selected-subtree size. Conversion
+      also reclaims other temporary normal forms after each equality decision,
+      so repeated independent computations do not exhaust the permanent arena;
+      a compiler-scale multi-path control pins both behaviors. Fixed paths reach
+      the canonical endpoints in under one second. These are engineering
+      constraints, not grounds for a trusted primitive.
     - First try a static checked certificate. If measured construction requires
       a producer, transform the existing Alpha ledger into the sole proof-term
       producer and keep the obligation/goal owner-fixed outside its output.
