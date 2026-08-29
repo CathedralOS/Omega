@@ -205,6 +205,9 @@ and no-selection compatibility remain enforced.
 - [x] Split per-function unit validation into CFG, entry/parameter, result,
   structural-root, fact-index, and provenance/fuel/effect leaves below one
   ordered acceptance entrance.
+- [x] Split derived operation metadata into dominance/control-flow, declared
+  places, scalar values, provenance, successor edges, and ownership leaves
+  below one place-and-claim admission entrance.
 - [>] Replace remaining flat executable stages and mixed-responsibility files
   with semantic folders whose small `mod.rs` owns the real stage join. Tighten
   the production-file ceiling as each named legacy leaf is removed.
