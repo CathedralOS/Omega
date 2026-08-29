@@ -4,6 +4,7 @@ use omega_image::{
 };
 use psi_diagnostics::Diagnostic;
 
+mod assembled_dynamic_file;
 mod bytes;
 mod constants;
 mod dynamic_file_envelope;
@@ -34,6 +35,10 @@ mod sections;
 #[cfg(test)]
 mod tests;
 
+pub use assembled_dynamic_file::{
+    ElfDynamicFileAssemblyError, ElfDynamicFileFragmentKind, ElfDynamicFileFragmentPlacement,
+    ValidatedElfAssembledDynamicFile, assemble_elf_dynamic_file,
+};
 pub use dynamic_file_envelope::{
     ElfDynamicFileEnvelopeSerializationError, ValidatedElfDynamicFileEnvelope,
     serialize_elf_dynamic_file_envelope,
