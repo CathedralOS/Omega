@@ -2,8 +2,8 @@ use super::model::{
     CanonicalPackageReconstructionEntry, CanonicalPackageReconstructionQuestionError,
     CanonicalPackageReconstructionQuestionLimits,
 };
+use crate::graph::CanonicalSourceClosureSubject;
 use crate::identity::PackageKey;
-use crate::resolution::CanonicalSourceClosureSubject;
 use omega_package_review::obligation_ledger::encode_ordinary_package_obligation_ledger;
 use psi_core::PackageKeyIdentity;
 use std::collections::{BTreeMap, BTreeSet};

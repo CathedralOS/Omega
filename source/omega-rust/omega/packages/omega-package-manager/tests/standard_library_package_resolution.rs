@@ -1,5 +1,5 @@
 use omega_compiler::compile_to_checked_with_packages;
-use omega_package_manager::resolution::{
+use omega_package_manager::graph::{
     PackageSourceClosureLimits, resolve_external_local_package_closure_with_storage,
 };
 use omega_package_manager::review::package_compilation_inputs;

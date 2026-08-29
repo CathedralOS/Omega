@@ -1,7 +1,8 @@
 mod patches;
 mod validation;
 
-use crate::resolution::{PackageSourceCustody, ResolvedPackageSourceClosure};
+use crate::discovery::PackageSourceCustody;
+use crate::graph::ResolvedPackageSourceClosure;
 use crate::review::records::PackageReviewEvidence;
 use crate::review::records::validation::{
     validate_review_only_closure, validate_review_only_records,

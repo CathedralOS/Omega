@@ -3,7 +3,7 @@
 use super::diff::{DiffBudget, myers_diff, render_hunks, source_line_count, split_lines};
 use super::output::BoundedOutput;
 use super::{PackageSourcePatchError, PackageSourcePatchLimits, PackageSourcePatchSide};
-use crate::resolution::PackageSourceCustody;
+use crate::discovery::PackageSourceCustody;
 use omega_package_source::local::model::{
     VerifiedPackageSourceEntry, VerifiedPackageSourceEntryKind,
 };

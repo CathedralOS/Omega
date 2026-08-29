@@ -1,9 +1,9 @@
-use omega_package_manager::resolution::{
+use omega_package_manager::discovery::ResolvePackageSourceError;
+use omega_package_manager::graph::{
     CanonicalDependencySourceRequest, CanonicalRootSourceRequest, CanonicalSourceClosureSubject,
     CanonicalSourceClosureSubjectLimits, PackageSourceClosureLimits,
-    ResolveExternalLocalPackageClosureError, ResolvePackageSourceError,
-    ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure,
-    resolve_external_local_package_closure_with_storage,
+    ResolveExternalLocalPackageClosureError, ResolveWorkspacePackageClosureError,
+    ResolvedPackageSourceClosure, resolve_external_local_package_closure_with_storage,
     resolve_workspace_package_closure_with_storage,
 };
 use omega_package_source::{

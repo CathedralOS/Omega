@@ -10,7 +10,7 @@ use super::{
     CompileResolvedPackageReviewsError, CompilerIssuedPackageReview,
     CompilerIssuedPackageReviewSet, PackageSourceVerificationPhase,
 };
-use crate::resolution::ResolvedPackageSourceClosure;
+use crate::graph::ResolvedPackageSourceClosure;
 use crate::review::compilation::inputs::reachable_package_keys;
 use crate::review::package_compilation_inputs_for;
 use crate::review::records::ReviewOnlyCanonicalRow;

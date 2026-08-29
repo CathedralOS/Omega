@@ -1,5 +1,6 @@
-use omega_package_manager::resolution::{
-    PackageSourceClosureLimits, ResolveExternalLocalPackageClosureError, ResolvePackageSourceError,
+use omega_package_manager::discovery::ResolvePackageSourceError;
+use omega_package_manager::graph::{
+    PackageSourceClosureLimits, ResolveExternalLocalPackageClosureError,
     ResolvedPackageSourceClosure, resolve_external_local_package_closure_with_storage,
 };
 use omega_package_manager::review::{

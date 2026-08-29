@@ -1,7 +1,8 @@
 use omega_build_evaluation::{BuildFilesystemObservedByteRegionKind, BuildObservationClass};
-use omega_package_manager::resolution::{
-    PackageSourceClosureLimits, ResolvePackageSourceError, ResolveWorkspacePackageClosureError,
-    ResolvedPackageSourceClosure, resolve_workspace_package_closure_with_storage,
+use omega_package_manager::discovery::ResolvePackageSourceError;
+use omega_package_manager::graph::{
+    PackageSourceClosureLimits, ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure,
+    resolve_workspace_package_closure_with_storage,
 };
 use omega_package_manager::review::{
     CompileResolvedPackageReviewsError, PackageSourceVerificationPhase, PackageTriageDisposition,

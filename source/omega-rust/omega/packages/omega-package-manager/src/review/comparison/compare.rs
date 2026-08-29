@@ -2,11 +2,9 @@
 
 use super::commitments::{derive_candidate_closure_commitment, derive_conflict_fingerprint};
 use super::model::*;
+use crate::declarations::BuildDeclarationKind;
+use crate::graph::{DependencyRequestPath, ResolvedPackageClosure, ResolvedPackageSourceClosure};
 use crate::identity::PackageKey;
-use crate::manifest::BuildDeclarationKind;
-use crate::resolution::{
-    DependencyRequestPath, ResolvedPackageClosure, ResolvedPackageSourceClosure,
-};
 use crate::review::CompilerIssuedPackageReviewSet;
 use crate::review::records::validation::{
     ReviewOnlyClosureValidationError, ReviewOnlySetValidationError, validate_review_only_closure,

@@ -1,7 +1,8 @@
 //! Exact-key validation across compiler review and resolved source custody.
 
+use crate::discovery::PackageSourceCustody;
+use crate::graph::ResolvedPackageSourceClosure;
 use crate::identity::PackageKey;
-use crate::resolution::{PackageSourceCustody, ResolvedPackageSourceClosure};
 use crate::review::CompilerIssuedPackageReviewSet;
 use crate::review::records::PackageReviewEvidence;
 use omega_package_source::ImmutableSourceResolution;
