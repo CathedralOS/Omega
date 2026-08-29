@@ -4,8 +4,6 @@
 //! construction and invariant-preserving access, and `codec` owns canonical
 //! candidate identity encoding. Callers never observe a partially built plan.
 
-use std::collections::BTreeSet;
-
 use omega_optimization_core::{
     AcceptedObligationFactIdentity, AnalysisInvalidationSet, AnalysisSet,
     OptimizationCandidateIdentity, OptimizationFactReference, OptimizationRuleContract,

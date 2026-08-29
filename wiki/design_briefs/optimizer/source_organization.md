@@ -170,6 +170,13 @@ exact casts, unary operations, and shared fact lookup. The ordered SCCP catalog
 above it remains the sole enable/order table; no leaf in the constant-evaluation
 subtree exceeds 750 lines.
 
+Optimization-unit rewrite candidates now expose a 76-line admission entrance.
+Scalar and control-flow constructors rejoin there for canonical decision-point
+derivation, common custody checks, exact patch-family validation, identity
+encoding, and immutable construction. Read-only access is a separate leaf.
+The former 1,253-line construction/validation/access file is gone, and no leaf
+in the candidate subtree exceeds 400 lines.
+
 The layout-independent selected-form encoding stage applies the same
 navigational rule to a custody join rather than a rule catalog. Its 57-line
 entrance owns construction followed by independent admission. Validation then
