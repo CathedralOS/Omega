@@ -2,6 +2,7 @@
 
 use super::super::PackageClosureValidationError;
 use crate::identity::{AliasName, PackageKey};
+use crate::manifest::BuildDeclarationKind;
 use crate::manifest::dependencies::read::DependencySourceRequest;
 use crate::resolution::source::PackageSourceCustody;
 
@@ -136,13 +137,24 @@ pub enum PackageSourceClosureResolutionError<E> {
     InvalidClosure {
         errors: Vec<PackageClosureValidationError>,
     },
+    /// A dependency adapter returned a source whose authored role is not
+    /// importable. Applications may be selected only as the closure root.
+    InvalidDependencyRole {
+        requester: PackageKey,
+        dependency_index: usize,
+        selected: PackageKey,
+        role: BuildDeclarationKind,
+    },
 }
 
 impl<E> PackageSourceClosureResolutionError<E> {
     pub fn conflicts(&self) -> Option<&[PackageSourceClosureConflict]> {
         match self {
             Self::ConflictingCustody { conflicts } => Some(conflicts),
-            Self::Adapter { .. } | Self::LimitExceeded { .. } | Self::InvalidClosure { .. } => None,
+            Self::Adapter { .. }
+            | Self::LimitExceeded { .. }
+            | Self::InvalidClosure { .. }
+            | Self::InvalidDependencyRole { .. } => None,
         }
     }
 }
@@ -173,6 +185,17 @@ impl<E: fmt::Display> fmt::Display for PackageSourceClosureResolutionError<E> {
                 formatter,
                 "resolved package source closure failed {} graph validation check(s)",
                 errors.len()
+            ),
+            Self::InvalidDependencyRole {
+                requester,
+                dependency_index,
+                selected,
+                role,
+            } => write!(
+                formatter,
+                "dependency row {dependency_index} of package `{}` selected `{}` with non-package role {role:?}",
+                requester.name().as_str(),
+                selected.name().as_str(),
             ),
         }
     }

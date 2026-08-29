@@ -35,7 +35,7 @@ pub(super) fn bind_projected_git_package_source(
         });
     }
     let snapshot_root = source.snapshot_root().to_path_buf();
-    let (declaration, dependency_requests) = project_package_build(&snapshot_root, false)?;
+    let declaration = project_package_build(&snapshot_root, false)?;
     let resolution = ImmutableSourceResolution::git(
         GitCommitId::parse_hex(source.commit())?,
         GitTreeId::parse_hex(source.tree())?,
@@ -50,13 +50,14 @@ pub(super) fn bind_projected_git_package_source(
 
     Ok(ResolvedPackageSource::from_resolved_parts(
         PackageKey::new(declaration.name, lineage),
+        declaration.role,
         resolution,
         materialization,
         snapshot_root,
         PackageSourceNavigation::Member(projection.selected_member_path().clone()),
         PackageSourceSelectionEvidence::GitWorkspace(selection_evidence),
         limits,
-        dependency_requests,
+        declaration.dependencies,
         source,
     ))
 }
@@ -67,7 +68,7 @@ pub(super) fn bind_git_root_package_source(
     limits: LocalSourceLimits,
 ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
     let snapshot_root = source.snapshot_root().to_path_buf();
-    let (declaration, dependency_requests) = project_package_build(&snapshot_root, false)?;
+    let declaration = project_package_build(&snapshot_root, false)?;
     let resolution = ImmutableSourceResolution::git(
         GitCommitId::parse_hex(source.commit())?,
         GitTreeId::parse_hex(source.tree())?,
@@ -76,13 +77,14 @@ pub(super) fn bind_git_root_package_source(
 
     Ok(ResolvedPackageSource::from_resolved_parts(
         PackageKey::new(declaration.name, lineage),
+        declaration.role,
         resolution,
         materialization,
         snapshot_root,
         PackageSourceNavigation::Root,
         PackageSourceSelectionEvidence::Root,
         limits,
-        dependency_requests,
+        declaration.dependencies,
         source,
     ))
 }

@@ -1,5 +1,6 @@
 use super::*;
 use crate::identity::{AliasName, PackageName};
+use crate::manifest::BuildDeclarationKind;
 use omega_package_source::{
     GitCommitId, GitTreeId, ImmutableSourceResolution, SourceLineage, SourceRelativePath,
 };
@@ -39,6 +40,7 @@ fn root_git_selection(
             requested_revision: "main".to_owned(),
             selection: crate::manifest::PackageSelection::Root,
         },
+        role: BuildDeclarationKind::Package,
         selected: selected.clone(),
     }
 }
@@ -75,6 +77,42 @@ fn exact_git_request_spelling_changes_subject_without_changing_selection() {
 }
 
 #[test]
+fn root_role_is_canonical_identity_and_survives_recovery() {
+    let selected = git_source("codec", "codec", 1);
+    let package = finish(
+        root_git_selection("https://github.com/CathedralOS/codec.git", &selected),
+        vec![selected.clone()],
+        Vec::new(),
+        CanonicalSourceClosureSubjectLimits::default(),
+    )
+    .expect("package root subject");
+    let mut application_root =
+        root_git_selection("https://github.com/CathedralOS/codec.git", &selected);
+    application_root.role = BuildDeclarationKind::Application;
+    let application = finish(
+        application_root,
+        vec![selected],
+        Vec::new(),
+        CanonicalSourceClosureSubjectLimits::default(),
+    )
+    .expect("application root subject");
+
+    assert_eq!(package.root_role(), BuildDeclarationKind::Package);
+    assert_eq!(application.root_role(), BuildDeclarationKind::Application);
+    assert_ne!(package.canonical_bytes(), application.canonical_bytes());
+    assert_ne!(package.fingerprint(), application.fingerprint());
+    assert_eq!(
+        CanonicalSourceClosureSubject::recover(
+            application.canonical_bytes(),
+            CanonicalSourceClosureSubjectLimits::default(),
+        )
+        .expect("recover application role")
+        .root_role(),
+        BuildDeclarationKind::Application
+    );
+}
+
+#[test]
 fn root_git_package_selection_and_navigation_change_the_subject() {
     let selected = git_source("matrix", "workspace", 1);
     let subject = |selection, navigation| {
@@ -85,6 +123,7 @@ fn root_git_package_selection_and_navigation_change_the_subject() {
                     requested_revision: "main".to_owned(),
                     selection,
                 },
+                role: BuildDeclarationKind::Package,
                 selected: selected.clone(),
             },
             vec![selected.clone()],

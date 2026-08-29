@@ -55,11 +55,30 @@ pub(super) fn custody(
     snapshot_root: &str,
     dependency_requests: Vec<DependencySourceRequest>,
 ) -> PackageSourceCustody {
+    custody_with_role(
+        name,
+        repository,
+        marker,
+        snapshot_root,
+        crate::manifest::BuildDeclarationKind::Package,
+        dependency_requests,
+    )
+}
+
+pub(super) fn custody_with_role(
+    name: &str,
+    repository: &str,
+    marker: u8,
+    snapshot_root: &str,
+    role: crate::manifest::BuildDeclarationKind,
+    dependency_requests: Vec<DependencySourceRequest>,
+) -> PackageSourceCustody {
     let resolution = resolution(marker);
     let materialization =
         crate::resolution::PackageSourceMaterialization::synthetic(resolution.content().clone());
     PackageSourceCustody::from_resolved_parts(
         key(name, repository),
+        role,
         resolution,
         materialization,
         PathBuf::from(snapshot_root),

@@ -101,7 +101,7 @@ fn bind_workspace_member_package_source(
 ) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
     let lineage =
         SourceLineage::Workspace(WorkspaceMemberLineage::new(workspace_identity, member_path));
-    let (declaration, dependency_requests) = project_package_build(source.snapshot_root(), false)?;
+    let declaration = project_package_build(source.snapshot_root(), false)?;
     let resolution = ImmutableSourceResolution::workspace(SourceContentDigest::derive(
         source.normalized().content_identity.as_bytes(),
     ));
@@ -109,13 +109,14 @@ fn bind_workspace_member_package_source(
 
     Ok(ResolvedPackageSource::from_resolved_parts(
         PackageKey::new(declaration.name, lineage),
+        declaration.role,
         resolution,
         materialization,
         source.snapshot_root().to_path_buf(),
         super::PackageSourceNavigation::Root,
         super::PackageSourceSelectionEvidence::Root,
         limits,
-        dependency_requests,
+        declaration.dependencies,
         source,
     ))
 }

@@ -1,14 +1,25 @@
 use super::ResolvePackageSourceError;
+use crate::identity::PackageName;
 use crate::manifest::dependencies::read::{
     DependencyProjectionError, DependencySourceRequest, extract_build_dependency_projection,
 };
-use crate::manifest::roles::{BuildDeclaration, PackageDeclaration, PackageDeclarationError};
+use crate::manifest::roles::{BuildDeclaration, BuildDeclarationKind, PackageDeclarationError};
 use std::path::Path;
+
+/// The identity-bearing declaration projected from one selected source root.
+///
+/// The declared role remains separate from `PackageKey`: roots may be packages
+/// or applications, while dependency adapters accept packages only.
+pub(super) struct ProjectedPackageBuild {
+    pub(super) name: PackageName,
+    pub(super) role: BuildDeclarationKind,
+    pub(super) dependencies: Vec<DependencySourceRequest>,
+}
 
 pub(super) fn project_package_build(
     snapshot_root: &Path,
     application_root_allowed: bool,
-) -> Result<(PackageDeclaration, Vec<DependencySourceRequest>), ResolvePackageSourceError> {
+) -> Result<ProjectedPackageBuild, ResolvePackageSourceError> {
     let projection = match extract_build_dependency_projection(snapshot_root) {
         Ok(projection) => projection,
         Err(DependencyProjectionError::MissingBuildFile { path }) => {
@@ -43,13 +54,18 @@ pub(super) fn project_package_build(
     };
     let (declaration, dependencies) = projection.into_parts();
     match declaration {
-        BuildDeclaration::Package(package) => Ok((package, dependencies)),
-        BuildDeclaration::Application(application) if application_root_allowed => Ok((
-            PackageDeclaration {
-                name: application.name,
-            },
+        BuildDeclaration::Package(package) => Ok(ProjectedPackageBuild {
+            name: package.name,
+            role: BuildDeclarationKind::Package,
             dependencies,
-        )),
+        }),
+        BuildDeclaration::Application(application) if application_root_allowed => {
+            Ok(ProjectedPackageBuild {
+                name: application.name,
+                role: BuildDeclarationKind::Application,
+                dependencies,
+            })
+        }
         other => Err(ResolvePackageSourceError::Declaration(
             PackageDeclarationError::ExpectedPackageDeclaration {
                 found: other.kind(),

@@ -199,6 +199,7 @@ mod tests {
         let materialization = crate::resolution::PackageSourceMaterialization::from_local(&source);
         PackageSourceCustody::from_resolved_parts(
             key,
+            crate::manifest::BuildDeclarationKind::Package,
             resolution,
             materialization,
             source_root,

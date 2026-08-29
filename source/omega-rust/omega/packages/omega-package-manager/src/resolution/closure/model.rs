@@ -1,6 +1,7 @@
 //! Validated package-closure model over immutable source identities.
 
 use crate::identity::{AliasName, PackageKey};
+use crate::manifest::BuildDeclarationKind;
 use omega_package_source::{IdentityError, ImmutableSourceResolution};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -96,6 +97,7 @@ impl ResolvedPackageNode {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedPackageClosure {
     root: PackageKey,
+    root_role: BuildDeclarationKind,
     packages: Vec<ResolvedPackageNode>,
     package_indices: BTreeMap<PackageKey, usize>,
 }
@@ -103,6 +105,7 @@ pub struct ResolvedPackageClosure {
 impl ResolvedPackageClosure {
     pub fn new(
         root: PackageKey,
+        root_role: BuildDeclarationKind,
         packages: Vec<ResolvedPackageNode>,
     ) -> Result<Self, Vec<PackageClosureValidationError>> {
         let mut errors = Vec::new();
@@ -135,6 +138,10 @@ impl ResolvedPackageClosure {
                     });
                 }
             }
+        }
+
+        if root_role == BuildDeclarationKind::Workspace {
+            errors.push(PackageClosureValidationError::InvalidRootRole { role: root_role });
         }
 
         if !package_indices.contains_key(&root) {
@@ -171,6 +178,7 @@ impl ResolvedPackageClosure {
         if errors.is_empty() {
             Ok(Self {
                 root,
+                root_role,
                 packages,
                 package_indices,
             })
@@ -181,6 +189,10 @@ impl ResolvedPackageClosure {
 
     pub fn root(&self) -> &PackageKey {
         &self.root
+    }
+
+    pub const fn root_role(&self) -> BuildDeclarationKind {
+        self.root_role
     }
 
     pub fn packages(&self) -> &[ResolvedPackageNode] {
@@ -196,6 +208,9 @@ impl ResolvedPackageClosure {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageClosureValidationError {
+    InvalidRootRole {
+        role: BuildDeclarationKind,
+    },
     MissingRoot {
         root: PackageKey,
     },

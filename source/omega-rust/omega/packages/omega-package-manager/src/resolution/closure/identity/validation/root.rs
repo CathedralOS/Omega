@@ -3,6 +3,7 @@ use super::super::{
     CanonicalSourceClosureSubjectLimits,
 };
 use super::source::{validate_git_selection, validate_request_bytes, validate_source_lineage};
+use crate::manifest::BuildDeclarationKind;
 use crate::resolution::closure::reconciliation::PackageRootSourceRequest;
 use crate::resolution::source::PackageSourceNavigation;
 use omega_package_source::{
@@ -45,6 +46,11 @@ pub(super) fn validate_root_request(
     navigation: &PackageSourceNavigation,
     limits: CanonicalSourceClosureSubjectLimits,
 ) -> Result<(), CanonicalSourceClosureSubjectError> {
+    if root.role == BuildDeclarationKind::Workspace {
+        return Err(CanonicalSourceClosureSubjectError::new(
+            "source-closure root has workspace declaration role",
+        ));
+    }
     match &root.request {
         CanonicalRootSourceRequest::Git {
             requested_locator,

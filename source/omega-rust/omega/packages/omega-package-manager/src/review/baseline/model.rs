@@ -6,7 +6,7 @@ pub(super) const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-BASELINE\0";
 pub(super) const CHECKSUM_DOMAIN: &[u8] = b"OMEGA-PACKAGE-REVIEW-BASELINE-CAPSULE\0";
 pub(super) const REPLAY_PARENT_BINDING_DOMAIN: &[u8] =
     b"OMEGA-PACKAGE-REVIEW-REPLAY-PARENT-BINDING\0";
-pub(super) const VERSION: u16 = 3;
+pub(super) const VERSION: u16 = 4;
 pub(super) const REVIEW_ONLY_ARTIFACT_CLASS: u8 = 0;
 pub(super) const CHECKSUM_BYTES: usize = 32;
 pub(super) const BASELINE_NAME_MAXIMUM_BYTES: usize = 255;

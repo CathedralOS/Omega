@@ -122,8 +122,7 @@ fn bind_external_local_declared_source(
         source.canonical_live_root(),
         source_context,
     )?);
-    let (declaration, dependency_requests) =
-        project_package_build(source.snapshot_root(), application_root_allowed)?;
+    let declaration = project_package_build(source.snapshot_root(), application_root_allowed)?;
     let resolution = ImmutableSourceResolution::external_local(SourceContentDigest::derive(
         source.normalized().content_identity.as_bytes(),
     ));
@@ -131,13 +130,14 @@ fn bind_external_local_declared_source(
 
     Ok(ResolvedPackageSource::from_resolved_parts(
         PackageKey::new(declaration.name, lineage),
+        declaration.role,
         resolution,
         materialization,
         source.snapshot_root().to_path_buf(),
         super::PackageSourceNavigation::Root,
         super::PackageSourceSelectionEvidence::Root,
         limits,
-        dependency_requests,
+        declaration.dependencies,
         source,
     ))
 }

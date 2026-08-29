@@ -10,6 +10,7 @@ use super::model::{
 };
 use super::resolved_closure::ResolvedPackageSourceClosure;
 use crate::identity::{AliasName, PackageKey};
+use crate::manifest::BuildDeclarationKind;
 use crate::manifest::dependencies::read::DependencySourceRequest;
 use crate::resolution::closure::PackageRootSourceRequest;
 use crate::resolution::source::PackageSourceCustody;
@@ -73,6 +74,7 @@ where
         });
     }
     let root_key = root.key().clone();
+    let root_role = root.role();
     let mut accepted = BTreeMap::<PackageKey, PackageSourceCustody>::new();
     accepted.insert(root_key.clone(), root.clone());
 
@@ -121,6 +123,14 @@ where
                     error,
                 }
             })?;
+            if dependency.role() != BuildDeclarationKind::Package {
+                return Err(PackageSourceClosureResolutionError::InvalidDependencyRole {
+                    requester: requester_key.clone(),
+                    dependency_index,
+                    selected: dependency.key().clone(),
+                    role: dependency.role(),
+                });
+            }
             let alias = request.resolved_alias(dependency.key().name());
             let target = dependency.key().clone();
 
@@ -177,7 +187,7 @@ where
             )
         })
         .collect();
-    let graph = ResolvedPackageClosure::new(root_key, nodes)
+    let graph = ResolvedPackageClosure::new(root_key, root_role, nodes)
         .map_err(|errors| PackageSourceClosureResolutionError::InvalidClosure { errors })?;
 
     let custodies: Vec<_> = accepted.into_values().collect();

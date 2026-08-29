@@ -12,6 +12,7 @@ use super::source::{
     encode_source_identity, encode_source_lineage,
 };
 use crate::identity::{AliasName, PackageName};
+use crate::manifest::BuildDeclarationKind;
 use crate::manifest::dependencies::read::PackageSelection;
 use crate::resolution::closure::ResolvedSourceIdentity;
 use crate::resolution::source::PackageSourceNavigation;
@@ -82,6 +83,7 @@ fn encode_root_selection(
             encoder.fixed(&decode_hex_32(&source_context.to_hex())?);
         }
     }
+    encode_build_declaration_kind(encoder, root.role);
     encode_source_identity(encoder, &root.selected, limits.maximum_identity_bytes)
 }
 
@@ -120,8 +122,34 @@ pub(in super::super) fn decode_root_selection(
             ));
         }
     };
+    let role = decode_build_declaration_kind(decoder)?;
     let selected = decode_source_identity(decoder, limits.maximum_identity_bytes)?;
-    Ok(CanonicalRootSourceSelection { request, selected })
+    Ok(CanonicalRootSourceSelection {
+        request,
+        role,
+        selected,
+    })
+}
+
+fn encode_build_declaration_kind(encoder: &mut Encoder, role: BuildDeclarationKind) {
+    encoder.byte(match role {
+        BuildDeclarationKind::Package => 0,
+        BuildDeclarationKind::Application => 1,
+        BuildDeclarationKind::Workspace => 2,
+    });
+}
+
+fn decode_build_declaration_kind(
+    decoder: &mut Decoder<'_>,
+) -> Result<BuildDeclarationKind, CanonicalSourceClosureSubjectError> {
+    match decoder.byte()? {
+        0 => Ok(BuildDeclarationKind::Package),
+        1 => Ok(BuildDeclarationKind::Application),
+        2 => Ok(BuildDeclarationKind::Workspace),
+        _ => Err(CanonicalSourceClosureSubjectError::new(
+            "invalid root declaration-role tag",
+        )),
+    }
 }
 
 fn encode_dependency_selection(
