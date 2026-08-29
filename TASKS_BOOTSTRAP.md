@@ -40,9 +40,15 @@ delete it. Git history is the archive; the repository is not.
   no unit-level adaptation was economical. Also delete the 31 `certify-*`
   proof-application programs; they serialized checker certificates but did not
   state Delta semantics or test the replacement compiler.
-- [ ] Audit every remaining bootstrap viewer, generated report, repeated-run
+- [x] Audit every remaining bootstrap viewer, generated report, repeated-run
   receipt, wrapper, fixed-point gate, and differential implementation. Give it
-  one bounded diagnostic or canonical-edge role, or delete it.
+  one bounded diagnostic or canonical-edge role, or delete it. No viewer,
+  report, receipt, `bootstrap/`, or canary tree remains in the Alpha–Delta
+  lattice. Retained wrappers now divide into exact seed/assembler construction,
+  below-Beta checker construction and soundness tests, one temporary historical
+  Beta artifact reconstruction, generic structure/FOL checks, and a retargetable
+  compiler differential harness. The duplicate Beta self-host wrapper was
+  deleted.
 
 ## Non-negotiable edge contract
 
@@ -125,6 +131,23 @@ code, discover a closure, manufacture proof premises, or decide admission.
   `beta_compiler.alpha`, and make its exact Alpha tape the canonical Beta
   compiler artifact. It must accept arbitrary valid Beta within explicit
   resource bounds and reject or return `Incomplete` fail-closed.
+  - [x] Remove pinned syntax/runtime defects found by the general-source audit:
+    full-range Word literals, zero final fallthrough, `r13=8` stack convention,
+    reserved intrinsic names, and disjoint callable procedure regions. The
+    focused suite now passes 107 cases and the candidate tape passes the generic
+    structural checker.
+  - [ ] Replace emitted Alpha text plus an external assembler invocation with
+    direct Alpha tape emission inside the compiler. The Alpha assembler may
+    construct the compiler artifact, but it cannot remain a semantic stage when
+    the compiler processes Beta input.
+  - [ ] Enforce Beta definite initialization across state/transition CFGs; a
+    source-order symbol-table pass alone does not prove initialization on every
+    path.
+  - [ ] Separate source-visible raw Beta memory from generated frame/expression
+    stacks and bind the call/stack profile that proves non-aliasing.
+  - [ ] Project malformed source and each private capacity failure to exact,
+    typed no-partial-output outcomes rather than relying on numeric host exit
+    status alone.
 - [ ] Redirect the existing cold construction, exact-tape comparison, and
   focused language tests to the Alpha source subject. Remove any two-stage
   “cold compiler builds `bc.beta`, then `bc.beta` becomes canonical” logic.

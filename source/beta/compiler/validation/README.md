@@ -22,9 +22,9 @@ Alpha-written subject.
 
 ## Diagnostics retained conditionally
 
-- `selfhost.sh` checks the independent `bc.beta` fixed point. It remains only
-  while that comparison exposes failures not covered by the canonical compiler
-  suite.
+- `cold-start/rebuild-artifact.sh --check` is the sole temporary owner of the
+  independent `bc.beta` fixed-point comparison while the migration artifact is
+  still consumed. A duplicate validation wrapper was deleted.
 - `stress/` reconstructs small Beta/Alpha program relations independently of a
   product compiler backend. Its curated and generated cases are bounded
   language/compiler diagnostics, not a bootstrap premise.
