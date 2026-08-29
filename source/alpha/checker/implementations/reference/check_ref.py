@@ -105,7 +105,10 @@ def normalize(t, fuel=FUEL):
     return t                                           # (v i) etc. — normal
 
 def reduce_fun(fid, scrut, extra, fuel):               # one rewrite of (f fid scrut extra), or None if stuck
-    a = normalize(scrut, fuel)
+    # Constructor matching is weak-head: fields need not be normalized merely
+    # to select the rule. This is observable only in work/fuel for pure terms,
+    # and keeps framed constructor trees bounded like the authoritative checker.
+    a = scrut if isinstance(scrut, list) and scrut and scrut[0] == 'k' else normalize(scrut, fuel)
     if isinstance(a, list) and a and a[0] == 'k':
         body = FUNS.get((fid, a[1]))
         if body is not None:

@@ -20,9 +20,9 @@ checker and compiler-refinement gates consume this artifact through
 `../artifact_env.sh`. The canonical Beta compiler artifact may compile the same
 source as differential evidence only; it is not this artifact's authority.
 
-The current artifact is 229,192 bytes. It accepts the bounded `OMGCHK1` binary
+The current artifact is 233,813 bytes. It accepts the bounded `OMGCHK1` binary
 frame documented in the parent README and constructs exact raw `source` and
-`tape` byte-list constants internally; the framing path leaves 32,948 bytes in
+`tape` balanced byte-tree constants internally; the framing path leaves 28,327 bytes in
 the 262,140-byte Alpha payload extent.
 
 Regenerate deliberately with `rebuild.sh`. Commit a changed tape only with its
