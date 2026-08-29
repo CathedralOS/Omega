@@ -284,7 +284,11 @@ analysis/replay custody shape before allocation legality. Live-range
 validation has its own 34-line entrance: it first replays liveness custody,
 then descends into independent reconstruction, receipt projection, and focused
 corruption tests. The former 1,294-line validation catch-all is gone; its
-largest leaf is below the new default ceiling. Allocation-legality staging
+largest leaf is below the new default ceiling. Computation has a separate
+62-line plan-assembly coordinator over function construction,
+tied/early-clobber constraints, virtual fragments, architectural register
+units, and focused tests. Its former 1,071-line mixed compute/fixture file is
+gone and no replacement exceeds 416 lines. Allocation-legality staging
 puts each exact availability policy in one visible leaf and keeps
 analysis, independent replay, custody projection, and the retained model
 separate; its entrance owns policy selection plus the replay-gated stage join.
