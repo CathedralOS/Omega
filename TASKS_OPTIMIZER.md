@@ -1304,13 +1304,17 @@ prove every enabled rule phase is actually scheduled.
   separately to compiler-facing `coordination` and the ordered custody
   `stages`. The stage catalog descends through selection, allocation, machine,
   encoding, layout, realization, and artifact boundaries; each family entrance
-  names its exact stage files. The former 14,503-line `tests.rs` now mirrors
-  that coordination/stage taxonomy, with typed fixtures separately cataloged
-  by common artifact, control-flow, selected-lowering, structural-Unit, and raw
-  validation responsibility. All 107 broad integration tests remain present,
-  the complete crate still runs 122 tests, and no test or fixture file exceeds
-  1,501 lines. The 346-name public surface and all 16 serialized `omega.*`
-  identities exactly match the pre-split crate.
+  names its exact stage files. The compiler-facing physical coordinator has the
+  same descending shape: its 54-line entrance admits input and performs the
+  exact active-rematerialization-versus-selected-phase route decision, while
+  `input`, `model`, `error`, and `routes/{active_resident,selected_phases}` own
+  their separate lower responsibilities. The former 14,503-line `tests.rs` now
+  mirrors that coordination/stage taxonomy, with typed fixtures separately
+  cataloged by common artifact, control-flow, selected-lowering,
+  structural-Unit, and raw validation responsibility. All 107 broad integration
+  tests remain present, the complete crate still runs 122 tests, and no test or
+  fixture file exceeds 1,501 lines. The 346-name public surface and all 16
+  serialized `omega.*` identities exactly match the pre-split crate.
 
   This completes the source-organization gate for the current optimizer
   crates. Preserve these entrances as new analyses, rules, custody stages, and

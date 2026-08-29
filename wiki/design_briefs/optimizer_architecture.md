@@ -3435,7 +3435,16 @@ omega-optimization-pipeline/src/
   lib.rs                         # coordination + custody stages
   coordination/
     mod.rs                       # compiler-facing route catalog
-    {psi_optimization,native_continuation,physical_pipeline,report}.rs
+    {psi_optimization,native_continuation,report}.rs
+    physical_pipeline/
+      mod.rs                     # exact phase-set route decision
+      input.rs                   # provider-aware target admission
+      model.rs                   # complete-route result carrier
+      error.rs                   # closed route failure surface
+      routes/
+        mod.rs                   # named physical-route catalog
+        active_resident.rs       # bounded rematerialization route
+        selected_phases.rs       # remaining explicit phase compositions
   stages/
     mod.rs                       # ordered custody-boundary catalog
     selection/                   # target lowering, assignment, selection
@@ -3455,11 +3464,13 @@ omega-optimization-pipeline/src/
 The crate entrance does not enumerate implementation files. `coordination`
 owns complete-route entry points and exact optimization requests, while
 `stages` makes every intermediate custody boundary discoverable without a flat
-`#[path]` wall. The test catalog follows the same route and stage vocabulary;
-broad fixtures are named separately rather than hiding the stage taxonomy in a
-single integration file. Reorganization must not change the flat public
-compatibility surface, semantic identities, exact selected schedule, or stage
-outputs.
+`#[path]` wall. Its physical-pipeline entrance owns the meaningful top-level
+decision—route one exact phase set—without also owning carrier accessors,
+provider admission, error definitions, or the lower route bodies. The test
+catalog follows the same route and stage vocabulary; broad fixtures are named
+separately rather than hiding the stage taxonomy in a single integration file.
+Reorganization must not change the flat public compatibility surface, semantic
+identities, exact selected schedule, or stage outputs.
 
 ## Testing strategy
 
