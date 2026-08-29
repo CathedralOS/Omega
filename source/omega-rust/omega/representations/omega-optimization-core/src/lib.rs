@@ -41,7 +41,8 @@ pub use identities::{
 };
 pub use manifest::{
     InvalidOptimizationManifestRecord, OptimizationDecisionRecord, OptimizationFactReference,
-    OptimizationManifestDecodeError, OptimizationPassManifestRecord, OptimizationWorkUsage,
+    OptimizationFactReferenceDecodeError, OptimizationManifestDecodeError,
+    OptimizationPassManifestRecord, OptimizationWorkUsage,
 };
 pub use selection::{
     DuplicateOptimization, Optimization, OptimizationCatalogDescriptor, OptimizationExecutionPhase,

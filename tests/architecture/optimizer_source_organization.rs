@@ -83,6 +83,14 @@ struct RequiredCoordinationEntrance {
 /// and leaving a re-export wall must fail this architecture test.
 const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-policy/src/external_schema/mod.rs",
+        coordination_marker: "impl ExternalDecisionPoint",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/pass_manager/external_policy/mod.rs",
+        coordination_marker: "pub(super) fn validated_candidate_features",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/backend/images/omega-image-emission/src/native_fuel/mod.rs",
         coordination_marker: "pub fn validate_native_fuel_plan",
     },
@@ -929,6 +937,13 @@ fn optimizer_source_organization_is_bounded_and_navigable() {
     {
         violations.insert(format!(
             "selected lowering retains a proxy schedule beside its owning rule catalog: {obsolete_selected_lowering_schedule}"
+        ));
+    }
+
+    let obsolete_external_policy_schema = "source/omega-rust/omega/pipeline/optimization/omega-optimization-policy/src/external_schema.rs";
+    if repository.join(obsolete_external_policy_schema).exists() {
+        violations.insert(format!(
+            "external policy retains the mixed flat schema beside its governed entrance: {obsolete_external_policy_schema}"
         ));
     }
     for path in source_lines.keys().filter(|path| {

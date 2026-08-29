@@ -101,3 +101,42 @@ impl PsiOptimizationRule for InvalidEvaluationExactRule {
                 .collect()
     }
 }
+
+#[derive(Debug)]
+pub(super) struct DetachedCandidateContractRule;
+
+impl PsiOptimizationRule for DetachedCandidateContractRule {
+    fn contract(&self) -> omega_optimization_core::OptimizationRuleContract {
+        ExactIntegerAddConstantsRule::contract()
+    }
+
+    fn propose(
+        &self,
+        unit: &PsiOptimizationUnit,
+        analyses: RuleAnalysisView<'_>,
+    ) -> Result<Vec<omega_optimization_unit::PsiRewriteCandidate>, RuleProposalError> {
+        ExactIntegerAddConstantsRule
+            .propose(unit, analyses)?
+            .into_iter()
+            .map(|candidate| {
+                let PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch) = candidate.patch()
+                else {
+                    return Err(RuleProposalError::InvalidCandidate(
+                        omega_optimization_unit::PsiRewriteCandidateError::PatchDecisionPointMismatch,
+                    ));
+                };
+                omega_optimization_unit::PsiRewriteCandidate::new_integer_evaluation(
+                    candidate.input(),
+                    ExactIntegerSubtractConstantsRule::contract(),
+                    candidate.affected_blocks().to_vec(),
+                    candidate.substitutions().to_vec(),
+                    candidate.provenance().to_vec(),
+                    candidate.scalar_evaluation_witness().unwrap(),
+                    candidate.predicted_cost_delta(),
+                    patch,
+                )
+                .map_err(RuleProposalError::InvalidCandidate)
+            })
+            .collect()
+    }
+}

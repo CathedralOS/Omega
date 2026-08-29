@@ -114,9 +114,15 @@ those rows, never authoritative inputs.
 
 An external policy may rank or choose already-declared candidates through a
 versioned input/output schema. The request binds source, selections, target,
-rule catalog, cost model, and feature identities. The response names candidate
-identities and scores or decisions. Missing, malformed, stale, or mismatched
-responses fail closed or use an explicitly selected deterministic fallback.
+rule catalog, cost model, and one canonical row per validated candidate. Schema
+v2 exposes only the candidate identity, predicted structural cost delta,
+scheduled analysis set, and exact sorted proof/ownership/fact identities. Its
+closed response is either `Choose(candidate)` or `Skip(reason)`; it does not
+need an opaque `O1`/`O2`/`O3` profile or a model-authored rewrite. Record-only
+mode reconstructs those rows independently from decision manifests, while
+replay requires an exact context and row match before consuming the decision.
+Missing, malformed, stale, or mismatched responses fail closed or use an
+explicitly selected deterministic fallback.
 
 Search and ML never invent unchecked rewrites, mutate semantic contracts,
 grant publication authority, or make the baseline compiler depend on a model.

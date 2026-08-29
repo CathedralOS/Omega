@@ -303,7 +303,15 @@ local rule catalog for every Psi pass; a small re-export wall no longer passes
 that check. The optimized ordinary-callable-entry stage is a physical example:
 its `mod.rs` owns build/replay, with records in `model.rs`, semantic
 reconstruction in `reconstruction.rs`, and wire format in `codec.rs`. The
-selected-lowering literal-fold stage follows the same rule: its phase entrance
+External Psi policy follows the same navigation rule. The policy crate enters
+through `external_schema/mod.rs`, where candidate canonicalization and point/log
+identity joins are visible; `model`, `identity`, and `codec` are separate
+leaves. Pass-manager policy coordination enters through
+`pass_manager/external_policy/mod.rs`, which owns the sole validated-feature
+projection boundary before descending into context, candidate-feature,
+recording, and replay leaves. The former flat schema and mixed execution-policy
+coordination are not alternative routes.
+The selected-lowering literal-fold stage follows the same rule: its phase entrance
 owns exact selection projection through the adjacent catalog, and the
 `literal_fold/mod.rs` entrance owns the proposal-to-independent-validation
 join. Proposal and

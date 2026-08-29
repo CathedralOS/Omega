@@ -3,13 +3,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use omega_optimization_core::{
     OptimizationCandidateVerdict, OptimizationDecisionRecord, OptimizationExecutionPhase,
     OptimizationIdentityBundle, OptimizationPassManifestRecord, OptimizationReasonCode,
-    OptimizationRuleIdentity, OptimizationRuleSetIdentity, OptimizationSelections,
+    OptimizationRuleContract, OptimizationRuleSetIdentity, OptimizationSelections,
     OptimizationUnitIdentity, OptimizationWorkBudget,
 };
 use omega_optimization_policy::{
-    BaselineDecisionLog, BaselineDecisionOutcome, BaselinePolicy, ExternalDecisionAction,
-    ExternalDecisionContext, ExternalDecisionLog, ExternalDecisionPoint, ValidatedCandidateSummary,
-    external_psi_decision_schema_v1_identity, psi_target_neutral_decision_target_v1_identity,
+    BaselineDecisionLog, BaselineDecisionOutcome, BaselinePolicy, ExternalDecisionLog,
 };
 use omega_optimization_unit::{
     PsiOptimizationUnit, PsiTransformationLedger, PsiTransformationRecord,
@@ -19,9 +17,14 @@ use omega_optimization_validation::{ValidatedPsiRewrite, validate_psi_rewrite_ca
 use crate::{AnalysisManager, OrderedRuleRegistry, RuleAnalysisView};
 
 use super::{
-    ExternalDecisionContextAxis, ExternalDecisionReplayError, OptimizationRun,
-    OptimizationRunError, OptimizationRunUsage, PsiOptimizationCommit,
-    VerifiedPsiOptimizationSession, accounting::*, baseline_psi_cost_model_identity,
+    CandidateContractAxis, ExternalDecisionReplayError, OptimizationRun, OptimizationRunError,
+    OptimizationRunUsage, PsiOptimizationCommit, VerifiedPsiOptimizationSession,
+    accounting::*,
+    baseline_psi_cost_model_identity,
+    external_policy::{
+        ExternalDecisionReplayCursor, expected_context, external_points_from_manifest_decisions,
+        validated_candidate_features,
+    },
 };
 
 pub(super) fn run_registries(
@@ -67,14 +70,11 @@ fn run_registries_inner(
         .collect::<Vec<_>>();
     let ordered_rule_set = OptimizationRuleSetIdentity::from_ordered_rules(&ordered_rules)
         .map_err(|_| OptimizationRunError::DuplicatePipelineRule)?;
-    let expected_external_context = ExternalDecisionContext::new(
-        external_psi_decision_schema_v1_identity(),
+    let expected_external_context = expected_context(
         initial_identity,
-        selections.identity(),
-        psi_selections.identity(),
-        psi_target_neutral_decision_target_v1_identity(),
+        selections,
+        &psi_selections,
         ordered_rule_set,
-        baseline_psi_cost_model_identity(),
     );
     let mut external_replay = supplied_external_decisions
         .as_ref()
@@ -164,226 +164,6 @@ fn run_registries_inner(
     })
 }
 
-pub(super) struct ExternalDecisionReplayCursor<'log> {
-    points: &'log [ExternalDecisionPoint],
-    pub(super) next: usize,
-}
-
-impl<'log> ExternalDecisionReplayCursor<'log> {
-    pub(super) fn new(
-        decisions: &'log ExternalDecisionLog,
-        expected_context: ExternalDecisionContext,
-    ) -> Result<Self, ExternalDecisionReplayError> {
-        if let Some(axis) = external_context_mismatch(expected_context, decisions.context()) {
-            return Err(ExternalDecisionReplayError::ContextMismatch(axis));
-        }
-        let mut loci = BTreeSet::new();
-        for point in decisions.points() {
-            if !loci.insert((point.input(), point.rule())) {
-                return Err(ExternalDecisionReplayError::DuplicateDecision {
-                    input: point.input(),
-                    rule: point.rule(),
-                });
-            }
-        }
-        Ok(Self {
-            points: decisions.points(),
-            next: 0,
-        })
-    }
-
-    pub(super) fn choose(
-        &mut self,
-        input: OptimizationUnitIdentity,
-        rule: OptimizationRuleIdentity,
-        candidates: &[ValidatedCandidateSummary],
-    ) -> Result<BaselineDecisionOutcome, ExternalDecisionReplayError> {
-        let ordinal = self.next;
-        let point =
-            self.points
-                .get(ordinal)
-                .ok_or(ExternalDecisionReplayError::MissingDecision {
-                    ordinal,
-                    input,
-                    rule,
-                })?;
-        let mut legal_candidates = candidates.to_vec();
-        legal_candidates.sort_by_key(|candidate| candidate.candidate);
-        if point.input() != input
-            || point.rule() != rule
-            || point.legal_candidates() != legal_candidates
-        {
-            return Err(ExternalDecisionReplayError::IllegalDecision {
-                ordinal,
-                expected_input: input,
-                expected_rule: rule,
-            });
-        }
-        self.next += 1;
-        Ok(match point.action() {
-            ExternalDecisionAction::Choose(candidate) => BaselineDecisionOutcome::Choose(candidate),
-            ExternalDecisionAction::Skip(reason) => BaselineDecisionOutcome::Skip(reason),
-        })
-    }
-
-    fn require_exhausted(&self) -> Result<(), ExternalDecisionReplayError> {
-        let remaining = self.points.len() - self.next;
-        if remaining == 0 {
-            Ok(())
-        } else {
-            Err(ExternalDecisionReplayError::LeftoverDecisions {
-                first_unused: self.next,
-                remaining,
-            })
-        }
-    }
-}
-
-fn external_context_mismatch(
-    expected: ExternalDecisionContext,
-    supplied: ExternalDecisionContext,
-) -> Option<ExternalDecisionContextAxis> {
-    if expected.schema() != supplied.schema() {
-        Some(ExternalDecisionContextAxis::Schema)
-    } else if expected.source() != supplied.source() {
-        Some(ExternalDecisionContextAxis::Source)
-    } else if expected.selections() != supplied.selections() {
-        Some(ExternalDecisionContextAxis::Selections)
-    } else if expected.phase_selections() != supplied.phase_selections() {
-        Some(ExternalDecisionContextAxis::PhaseSelections)
-    } else if expected.target() != supplied.target() {
-        Some(ExternalDecisionContextAxis::Target)
-    } else if expected.rule_set() != supplied.rule_set() {
-        Some(ExternalDecisionContextAxis::RuleSet)
-    } else if expected.cost_model() != supplied.cost_model() {
-        Some(ExternalDecisionContextAxis::CostModel)
-    } else {
-        None
-    }
-}
-
-fn add_usage(
-    left: OptimizationRunUsage,
-    right: OptimizationRunUsage,
-) -> Result<OptimizationRunUsage, OptimizationRunError> {
-    Ok(OptimizationRunUsage {
-        rule_evaluations: left
-            .rule_evaluations
-            .checked_add(right.rule_evaluations)
-            .ok_or(OptimizationRunError::WorkUsageOverflow)?,
-        candidates: left
-            .candidates
-            .checked_add(right.candidates)
-            .ok_or(OptimizationRunError::WorkUsageOverflow)?,
-        validation_steps: left
-            .validation_steps
-            .checked_add(right.validation_steps)
-            .ok_or(OptimizationRunError::WorkUsageOverflow)?,
-        commits: left
-            .commits
-            .checked_add(right.commits)
-            .ok_or(OptimizationRunError::WorkUsageOverflow)?,
-        iterations: left
-            .iterations
-            .checked_add(right.iterations)
-            .ok_or(OptimizationRunError::WorkUsageOverflow)?,
-    })
-}
-
-fn external_points_from_manifest_decisions(
-    decisions: &BaselineDecisionLog,
-    manifest_decisions: &[&OptimizationDecisionRecord],
-) -> Result<Vec<ExternalDecisionPoint>, OptimizationRunError> {
-    let mut points = Vec::with_capacity(decisions.records.len());
-    for record in &decisions.records {
-        let mut rule = None;
-        for candidate in &record.considered {
-            let matching = manifest_decisions
-                .iter()
-                .copied()
-                .filter(|decision| {
-                    decision.input() == record.input && decision.candidate() == candidate.candidate
-                })
-                .collect::<Vec<_>>();
-            let [decision] = matching.as_slice() else {
-                return Err(OptimizationRunError::ExternalDecisionManifestMismatch);
-            };
-            if let Some(expected) = rule {
-                if decision.rule() != expected {
-                    return Err(OptimizationRunError::ExternalDecisionManifestMismatch);
-                }
-            } else {
-                rule = Some(decision.rule());
-            }
-            let expected_verdict = match record.outcome {
-                BaselineDecisionOutcome::Choose(chosen) if chosen == candidate.candidate => {
-                    OptimizationCandidateVerdict::Applied
-                }
-                BaselineDecisionOutcome::Choose(_) => {
-                    OptimizationCandidateVerdict::Skipped(OptimizationReasonCode::Superseded)
-                }
-                BaselineDecisionOutcome::Skip(reason) => {
-                    OptimizationCandidateVerdict::Skipped(reason)
-                }
-            };
-            if decision.verdict() != expected_verdict {
-                return Err(OptimizationRunError::ExternalDecisionManifestMismatch);
-            }
-        }
-        points.push(
-            ExternalDecisionPoint::new(
-                record.input,
-                rule.ok_or(OptimizationRunError::ExternalDecisionManifestMismatch)?,
-                record.considered.iter().copied(),
-                record.outcome.into(),
-            )
-            .map_err(OptimizationRunError::ExternalDecisionSchema)?,
-        );
-    }
-    Ok(points)
-}
-
-/// Reconstruct the recorded external policy surface from the ordinary
-/// baseline log and independently validated pass manifests. This validator is
-/// intentionally separate from recording and derives no field from the
-/// recorded points.
-pub fn validate_external_decision_recording(
-    run: &OptimizationRun,
-) -> Result<(), OptimizationRunError> {
-    let ordered_rules = run
-        .pass_manifests()
-        .iter()
-        .flat_map(|manifest| manifest.ordered_rules().iter().copied())
-        .collect::<Vec<_>>();
-    let ordered_rule_set = OptimizationRuleSetIdentity::from_ordered_rules(&ordered_rules)
-        .map_err(|_| OptimizationRunError::DuplicatePipelineRule)?;
-    let manifest_decisions = run
-        .pass_manifests()
-        .iter()
-        .flat_map(|manifest| manifest.decisions())
-        .collect::<Vec<_>>();
-    let points = external_points_from_manifest_decisions(run.decisions(), &manifest_decisions)?;
-    let expected = ExternalDecisionLog::new(
-        ExternalDecisionContext::new(
-            external_psi_decision_schema_v1_identity(),
-            run.transformation_ledger().input(),
-            run.selections().identity(),
-            run.psi_selections().identity(),
-            psi_target_neutral_decision_target_v1_identity(),
-            ordered_rule_set,
-            baseline_psi_cost_model_identity(),
-        ),
-        points,
-    )
-    .map_err(OptimizationRunError::ExternalDecisionSchema)?;
-    let decoded = ExternalDecisionLog::decode(&run.external_decisions().encode())
-        .map_err(OptimizationRunError::ExternalDecisionSchema)?;
-    if decoded != expected {
-        return Err(OptimizationRunError::ExternalDecisionManifestMismatch);
-    }
-    Ok(())
-}
-
 type OptimizationRunOutput = (
     PsiOptimizationUnit,
     Vec<PsiOptimizationCommit>,
@@ -451,6 +231,7 @@ pub(super) fn run_unit_inner(
             }
             let mut validated = Vec::with_capacity(candidates.len());
             for candidate in candidates {
+                validate_candidate_contract(&candidate, unit.identity, contract)?;
                 if !seen_candidates.insert(candidate.identity()) {
                     return Err(OptimizationRunError::DuplicateCandidate(
                         candidate.identity(),
@@ -468,16 +249,18 @@ pub(super) fn run_unit_inner(
             if validated.is_empty() {
                 continue;
             }
-            let summaries = validated
+            let external_features = validated
                 .iter()
-                .map(|(candidate, _)| ValidatedCandidateSummary {
-                    candidate: candidate.identity(),
-                    predicted_cost_delta: candidate.predicted_cost_delta(),
-                })
+                .map(|(candidate, _)| validated_candidate_features(candidate, contract))
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(OptimizationRunError::ExternalDecisionSchema)?;
+            let summaries = external_features
+                .iter()
+                .map(|features| features.summary())
                 .collect::<Vec<_>>();
             let outcome = if let Some(replay) = external_replay.as_deref_mut() {
                 let outcome = replay
-                    .choose(unit.identity, contract.identity(), &summaries)
+                    .choose(unit.identity, contract.identity(), &external_features)
                     .map_err(OptimizationRunError::ExternalDecisionReplay)?;
                 policy
                     .record_validated_outcome(unit.identity, summaries.iter().copied(), outcome)
@@ -597,5 +380,33 @@ pub(super) fn run_unit_inner(
             declaration: candidate,
         });
         unit = next;
+    }
+}
+
+fn validate_candidate_contract(
+    candidate: &omega_optimization_unit::PsiRewriteCandidate,
+    input: OptimizationUnitIdentity,
+    contract: OptimizationRuleContract,
+) -> Result<(), OptimizationRunError> {
+    let axis = if candidate.input() != input {
+        Some(CandidateContractAxis::Input)
+    } else if candidate.rule() != contract.identity() {
+        Some(CandidateContractAxis::Rule)
+    } else if candidate.required_analyses() != contract.required_analyses() {
+        Some(CandidateContractAxis::RequiredAnalyses)
+    } else if candidate.invalidated_analyses() != contract.invalidated_analyses() {
+        Some(CandidateContractAxis::InvalidatedAnalyses)
+    } else if candidate.safety_class() != contract.safety_class() {
+        Some(CandidateContractAxis::SafetyClass)
+    } else {
+        None
+    };
+    if let Some(axis) = axis {
+        Err(OptimizationRunError::CandidateContractMismatch {
+            candidate: candidate.identity(),
+            axis,
+        })
+    } else {
+        Ok(())
     }
 }

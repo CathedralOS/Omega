@@ -161,6 +161,10 @@ pub enum OptimizationRunError {
     },
     RegistryCoverageMismatch,
     DuplicateCandidate(OptimizationCandidateIdentity),
+    CandidateContractMismatch {
+        candidate: OptimizationCandidateIdentity,
+        axis: CandidateContractAxis,
+    },
     PolicySelectionMissing(OptimizationCandidateIdentity),
     InvalidManifest(InvalidOptimizationManifestRecord),
     InvalidTransformationLedger(InvalidPsiTransformationLedger),
@@ -173,6 +177,15 @@ pub enum OptimizationRunError {
     DuplicatePipelineRule,
     RegistryConstruction(RuleRegistryError),
     SelectionRegistryMismatch,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CandidateContractAxis {
+    Input,
+    Rule,
+    RequiredAnalyses,
+    InvalidatedAnalyses,
+    SafetyClass,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
