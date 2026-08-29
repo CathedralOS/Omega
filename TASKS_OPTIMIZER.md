@@ -168,6 +168,10 @@ selection identity.
   Abstract-to-target Unit lowering is complete as well: its ordered setup/loop
   now descends into separate boundary-realization and cleanup-return leaves;
   the former 1,034-line file is gone and no replacement exceeds 453 lines.
+  The optimization-unit model is complete too: its 57-line aggregate/map owns
+  `PsiOptimizationUnit` above graph, proof, range, ownership, and one-time
+  attachment leaves; the former 1,023-line file is gone and no replacement
+  exceeds 323 lines.
   Continue through the exact exception table in the architecture guard,
   removing each exception as its file falls below the 1,000-line default.
 - [x] Clear the current production-file size violations by semantic split, not

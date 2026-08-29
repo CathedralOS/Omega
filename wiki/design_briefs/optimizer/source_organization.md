@@ -175,7 +175,11 @@ Scalar and control-flow constructors rejoin there for canonical decision-point
 derivation, common custody checks, exact patch-family validation, identity
 encoding, and immutable construction. Read-only access is a separate leaf.
 The former 1,253-line construction/validation/access file is gone, and no leaf
-in the candidate subtree exceeds 400 lines.
+in the candidate subtree exceeds 400 lines. The adjacent immutable model has a
+57-line aggregate/map that owns `PsiOptimizationUnit` above executable graph,
+proof custody, derived range, ownership-frontier, and one-time attachment
+leaves. Its former 1,023-line mixed model is gone and no replacement exceeds
+323 lines.
 
 The layout-independent selected-form encoding stage applies the same
 navigational rule to a custody join rather than a rule catalog. Its 57-line

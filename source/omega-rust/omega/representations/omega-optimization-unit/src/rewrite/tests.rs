@@ -1,5 +1,7 @@
 //! Rewrite model, construction, and identity tests.
 
+use std::collections::BTreeSet;
+
 use super::*;
 
 #[test]
