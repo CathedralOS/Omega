@@ -211,6 +211,9 @@ and no-selection compatibility remain enforced.
 - [x] Split current-value-range validation into applicability, independent
   reconstruction, canonical proof-goal, and exact interval-algebra leaves
   below one fact-first validation entrance.
+- [x] Split optimized abstract-plan projection into receipt/error models,
+  initial-unit and ledger custody, identity-bundle checks, manifest replay,
+  source custody, and reconstructible shape leaves below one ordered entrance.
 - [>] Replace remaining flat executable stages and mixed-responsibility files
   with semantic folders whose small `mod.rs` owns the real stage join. Tighten
   the production-file ceiling as each named legacy leaf is removed.
