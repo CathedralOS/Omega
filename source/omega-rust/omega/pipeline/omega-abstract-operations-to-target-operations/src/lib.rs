@@ -17,7 +17,8 @@ pub use lowering::{
 pub use model::{AdmittedBoundarySettlement, LoweringError};
 pub use validation::{
     AbstractToTargetFunctionRosterReceipt, AbstractToTargetTranslationValidationError,
-    AbstractToTargetTranslationValidationReceipt, StraightLineIntegerImmediateTranslationError,
+    AbstractToTargetTranslationValidationReceipt, StraightLineBooleanImmediateTranslationError,
+    StraightLineBooleanImmediateTranslationReceipt, StraightLineIntegerImmediateTranslationError,
     StraightLineIntegerImmediateTranslationReceipt, validate_abstract_to_target_translation,
 };
 

@@ -16,6 +16,7 @@ pub struct AbstractToTargetTranslationValidationReceipt {
     entry: MachineId,
     function_roster: Vec<AbstractToTargetFunctionRosterReceipt>,
     straight_line_integer_immediates: Vec<StraightLineIntegerImmediateTranslationReceipt>,
+    straight_line_boolean_immediates: Vec<StraightLineBooleanImmediateTranslationReceipt>,
 }
 
 impl AbstractToTargetTranslationValidationReceipt {
@@ -25,6 +26,7 @@ impl AbstractToTargetTranslationValidationReceipt {
         entry: MachineId,
         function_roster: Vec<AbstractToTargetFunctionRosterReceipt>,
         straight_line_integer_immediates: Vec<StraightLineIntegerImmediateTranslationReceipt>,
+        straight_line_boolean_immediates: Vec<StraightLineBooleanImmediateTranslationReceipt>,
     ) -> Self {
         Self {
             psi,
@@ -32,6 +34,7 @@ impl AbstractToTargetTranslationValidationReceipt {
             entry,
             function_roster,
             straight_line_integer_immediates,
+            straight_line_boolean_immediates,
         }
     }
 
@@ -60,6 +63,12 @@ impl AbstractToTargetTranslationValidationReceipt {
     ) -> &[StraightLineIntegerImmediateTranslationReceipt] {
         &self.straight_line_integer_immediates
     }
+
+    pub fn straight_line_boolean_immediates(
+        &self,
+    ) -> &[StraightLineBooleanImmediateTranslationReceipt] {
+        &self.straight_line_boolean_immediates
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -82,6 +91,53 @@ impl AbstractToTargetFunctionRosterReceipt {
 
     pub const fn attachment(self) -> Option<StructuralTypeId> {
         self.attachment
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StraightLineBooleanImmediateTranslationReceipt {
+    machine: MachineId,
+    constant_operation: OperationId,
+    return_edge: EdgeId,
+    source_value: ValueId,
+    value: bool,
+}
+
+impl StraightLineBooleanImmediateTranslationReceipt {
+    pub(super) const fn new(
+        machine: MachineId,
+        constant_operation: OperationId,
+        return_edge: EdgeId,
+        source_value: ValueId,
+        value: bool,
+    ) -> Self {
+        Self {
+            machine,
+            constant_operation,
+            return_edge,
+            source_value,
+            value,
+        }
+    }
+
+    pub const fn machine(self) -> MachineId {
+        self.machine
+    }
+
+    pub const fn constant_operation(self) -> OperationId {
+        self.constant_operation
+    }
+
+    pub const fn return_edge(self) -> EdgeId {
+        self.return_edge
+    }
+
+    pub const fn source_value(self) -> ValueId {
+        self.source_value
+    }
+
+    pub const fn value(self) -> bool {
+        self.value
     }
 }
 
@@ -155,6 +211,25 @@ pub enum AbstractToTargetTranslationValidationError {
         machine: MachineId,
         error: StraightLineIntegerImmediateTranslationError,
     },
+    StraightLineBooleanImmediate {
+        machine: MachineId,
+        error: StraightLineBooleanImmediateTranslationError,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StraightLineBooleanImmediateTranslationError {
+    SourceParameters,
+    SourceStructuralParameters,
+    SourceResult,
+    SourceEntryClaims,
+    SourcePublishedServices,
+    SourceBlockRoster,
+    SourceOperationRoster,
+    SourceResultLink,
+    SourceCleanup,
+    TargetProvenance,
+    TargetOperation,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
