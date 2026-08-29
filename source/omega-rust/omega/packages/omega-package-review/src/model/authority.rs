@@ -1,4 +1,4 @@
-use super::*;
+use super::{contracts::PackageReviewContractExpression, identity::PackageReviewNominalIdentity};
 
 /// A compiler-owned risk class for authority exposed by a reviewed package.
 ///

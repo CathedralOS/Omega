@@ -20,15 +20,6 @@ Do not wire mutating `omega install` or `omega update` until the P0 source
 boundary, recheckable evidence, accepted lock, and transaction gates below are
 closed. Compiler-issued package review remains non-admitting.
 
-## Engineering structure
-
-- [ ] **PACKAGE-MANAGER-SOURCE-ARCHITECTURE.** Finish replacing the iterative
-  monolith layout with a source tree that exposes the package workflow and its
-  trust boundaries. Remaining work is to split the large behavioral test
-  modules by coherent responsibility, remove the remaining production
-  `use super::*` prelude coupling, and narrow the historical flat facade
-  without changing public behavior.
-
 ## P0 — Source resolver boundary
 
 - [ ] **PRIVATE-RESOLVER-STORAGE-BY-DEFAULT.** Replace the ambient-filesystem

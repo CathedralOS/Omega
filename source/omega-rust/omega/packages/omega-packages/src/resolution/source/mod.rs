@@ -4,41 +4,44 @@
 //! live under [`local`]; Git request validation, object authentication,
 //! materialization, cache custody, and process execution live under [`git`].
 
-use crate::resolution::identity::{GitObjectIdAlgorithm, SourceContentDigest};
-use crate::storage::record_file::{RecordFileLimits, RecordFileRoot};
-use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt};
+use crate::resolution::identity::GitObjectIdAlgorithm;
+#[cfg(test)]
+use crate::resolution::identity::SourceContentDigest;
+use cap_fs_ext::FollowSymlinks;
+#[cfg(test)]
+use cap_std::ambient_authority;
+use cap_std::fs::{
+    Dir as CapabilityDirectory, Metadata as CapabilityMetadata,
+    OpenOptions as CapabilityOpenOptions,
+};
 #[cfg(unix)]
 use cap_std::fs::{
     OpenOptionsExt as CapabilityOpenOptionsExt, PermissionsExt as CapabilityPermissionsExt,
 };
-use cap_std::{
-    ambient_authority,
-    fs::{
-        Dir as CapabilityDirectory, Metadata as CapabilityMetadata,
-        OpenOptions as CapabilityOpenOptions,
-    },
-};
+use omega_resolver_execution::ResolverExecutionPhase;
+#[cfg(test)]
+use omega_resolver_execution::ResolverExecutionRequestedEndpoint;
 #[cfg(test)]
 use omega_resolver_execution::{
     RESOLVER_CONNECT_BROKER_ENVIRONMENT, RESOLVER_CONNECT_HELPER_BASENAME,
     RESOLVER_CONNECT_TARGET_ENVIRONMENT,
 };
-use omega_resolver_execution::{ResolverExecutionPhase, ResolverExecutionRequestedEndpoint};
 use sha1_checked::Sha1 as CheckedSha1;
-use sha2::{Digest, Sha256};
+#[cfg(test)]
+use sha2::Digest;
 #[cfg(test)]
 use std::collections::BTreeSet;
-use std::ffi::{OsStr, OsString};
+#[cfg(test)]
+use std::ffi::OsStr;
 #[cfg(test)]
 use std::fs::OpenOptions;
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::io::{Seek, SeekFrom, Write};
+#[cfg(test)]
 use std::path::{Path, PathBuf};
 #[cfg(test)]
 use std::process::{Command, Stdio};
 #[cfg(test)]
 use std::sync::Arc;
-#[cfg(test)]
-use std::time::{Duration, Instant};
 
 mod custody;
 mod error;
@@ -53,6 +56,7 @@ use git::execution::format_sha256;
 use git::*;
 use limits::*;
 use local::*;
+#[cfg(test)]
 use observations::*;
 
 pub use error::SourceResolveError;

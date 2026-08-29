@@ -123,6 +123,7 @@ mod tests {
     };
     use crate::resolution::package_closure::reconcile::resolve_package_source_closure;
     use crate::resolution::package_closure::{PackageRootSourceRequest, PackageSourceCustody};
+    #[cfg(unix)]
     use psi_checked_interpreter::CanonicalFilesystemMetadataRowKind;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};

@@ -1,4 +1,10 @@
-use super::*;
+use super::{
+    authority::PackageReviewCrashRoute,
+    identity::PackageReviewNominalIdentity,
+    signatures::{
+        PackageReviewCallableParameter, PackageReviewTypeIdentity, PackageReviewTypeParameter,
+    },
+};
 use psi_symbols::BuiltinFunction;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

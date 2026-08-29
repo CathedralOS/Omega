@@ -1,6 +1,36 @@
 //! End-to-end Git resolution and final custody reconciliation.
 
-use super::*;
+use crate::resolution::source::custody::{
+    CacheCustodyKind, CacheEntryLock, direct_cache_child_name, retained_cache_directory_exists,
+    same_capability_file_identity, verify_git_cache_custody, verify_git_cache_root_custody,
+};
+use crate::resolution::source::error::SourceResolveError;
+use crate::resolution::source::limits::{GIT_CONFIG_SHA256, LocalSourceLimits};
+use crate::resolution::source::local::{SourceTreePolicy, capture_local_source, io_error};
+use crate::resolution::source::observations::{
+    PendingResolvedGitSource, ResolvedGitSource, issue_git_source_resolution_observation,
+};
+use crate::storage::record_file::{RecordFileLimits, RecordFileRoot};
+use cap_fs_ext::DirExt;
+use cap_std::fs::Dir as CapabilityDirectory;
+use std::ffi::{OsStr, OsString};
+use std::path::Path;
+
+use super::cache::{
+    VerifiedGitRepository, cache_invalid, create_git_cache_entry, git_cache_identity,
+    invalidate_git_cache_entry_from_open_parent,
+};
+#[cfg(test)]
+use super::execution::test_file_network_endpoint;
+use super::execution::{
+    GitExecutor, reconcile_git_cache_operation_result, reconcile_git_command_result,
+};
+use super::objects::{
+    authenticate_git_commit, inspect_git_tree, is_object_id, verify_exact_git_revision,
+};
+use super::request::{GitExecutionTransport, GitSourceRequest};
+use super::snapshot::resolve_git_snapshot;
+use omega_resolver_execution::ResolverExecutionRequestedEndpoint;
 
 pub fn resolve_git_source(
     request: &GitSourceRequest,

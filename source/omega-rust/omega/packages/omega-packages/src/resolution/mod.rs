@@ -14,7 +14,27 @@ pub use identity::{
     SourceContentDigest, SourceLineage, WorkspaceLineageIdentity, WorkspaceMemberLineage,
     WorkspaceMemberPath,
 };
-pub use package_closure::*;
+pub use package_closure::{
+    CanonicalDependencySourceRequest, CanonicalDependencySourceSelection,
+    CanonicalRootSourceRequest, CanonicalRootSourceSelection, CanonicalSourceClosureSubject,
+    CanonicalSourceClosureSubjectError, CanonicalSourceClosureSubjectFingerprint,
+    CanonicalSourceClosureSubjectLimits, DependencyRequestPath, DependencyRequestPathStep,
+    PackageClosureValidationError, PackageRootSourceRequest, PackageSourceClosureConflict,
+    PackageSourceClosureConflictCandidate, PackageSourceClosureLimitKind,
+    PackageSourceClosureLimits, PackageSourceClosureResolutionError, PackageSourceCustody,
+    ResolveDependencySourceError, ResolveExternalLocalPackageClosureError,
+    ResolveGitPackageClosureError, ResolveWorkspacePackageClosureError, ResolvedDependency,
+    ResolvedDependencySourceRequest, ResolvedPackageClosure, ResolvedPackageNode,
+    ResolvedPackageSourceClosure, ResolvedPackageSourceRequestSet,
+    ResolvedRootPackageSourceRequest, ResolvedSourceIdentity,
+    SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION, resolve_external_local_package_closure,
+    resolve_external_local_package_closure_with_storage, resolve_external_local_project_closure,
+    resolve_external_local_project_closure_with_storage, resolve_git_package_closure,
+    resolve_git_package_closure_with_storage, resolve_workspace_package_closure,
+    resolve_workspace_package_closure_in_context,
+    resolve_workspace_package_closure_in_context_with_storage,
+    resolve_workspace_package_closure_with_storage,
+};
 pub use package_source::{
     ResolvePackageSourceError, ResolvedPackageSource, resolve_external_local_package_source,
     resolve_external_local_project_source, resolve_git_package_source,
