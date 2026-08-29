@@ -1,5 +1,5 @@
 use crate::evidence::{PackageReviewConstructorField, PackageReviewContractExpression};
-use crate::projection::contracts::checked::facts::ContractProjectionContext;
+use crate::projection::contracts::callables::ContractProjectionContext;
 use crate::projection::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;

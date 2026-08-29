@@ -1,4 +1,4 @@
-use super::checked_evidence::{
+use super::evidence::{
     checked_contract_fact, checked_outcome_specific_guarantee, validate_checked_contract_evidence,
     validate_checked_contract_evidence_components,
 };

@@ -9,10 +9,10 @@ mod authority;
 mod behavior;
 mod callables;
 mod contracts;
-mod orchestration;
 mod providers;
 mod representation;
+mod review;
 mod semantics;
 mod source;
 
-pub use orchestration::project_checked_package_review;
+pub use review::project_checked_package_review;

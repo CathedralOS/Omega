@@ -1,4 +1,4 @@
-//! Checked package-review projection orchestration.
+//! Complete checked package-review projection operation.
 //!
 //! The entrance validates compiler custody, collects independently reviewable
 //! surfaces, and delegates canonical source assembly without owning any of

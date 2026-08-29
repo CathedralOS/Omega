@@ -7,7 +7,7 @@ use crate::evidence::{
     PackageReviewPropositionBinderArgument, PackageReviewPropositionBinderArgumentKind,
     PackageReviewPropositionBinderValue, PackageReviewTypeIdentity,
 };
-use crate::projection::contracts::checked::facts::ContractProjectionContext;
+use crate::projection::contracts::callables::ContractProjectionContext;
 use crate::projection::contracts::expressions::names::portable_parameter_position;
 use crate::projection::contracts::propositions::evidence::project_evidence_interface;
 use crate::projection::semantics::declarations::{

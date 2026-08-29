@@ -4,8 +4,8 @@ use crate::evidence::{
     PackageReviewDomainClassification, PackageReviewDomainSemanticRole, PackageReviewDomainShape,
     PackageReviewNominalIdentity,
 };
-use crate::projection::contracts::checked::parameters::collect_type_parameter_source_locations;
-use crate::projection::contracts::checked::source_locations::project_required_proof_fact_source_locations;
+use crate::projection::contracts::parameters::collect_type_parameter_source_locations;
+use crate::projection::contracts::source_locations::project_required_proof_fact_source_locations;
 use crate::projection::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::projection::semantics::signatures::parameters::project_type_parameters;
 use crate::projection::semantics::types::review_type_identity_with_binders;
