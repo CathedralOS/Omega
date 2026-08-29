@@ -1,8 +1,10 @@
 //! Capability-relative snapshot directory, file, and symlink construction.
 
+use crate::source::SourceResolveError;
+use crate::source::custody::tree::{CacheCustodyKind, cache_custody_invalid};
 #[cfg(not(unix))]
-use crate::source::git_tree_invalid;
-use crate::source::{CacheCustodyKind, SourceResolveError, cache_custody_invalid, io_error};
+use crate::source::git::objects::tree::git_tree_invalid;
+use crate::source::local::capture::io_error;
 use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt};
 #[cfg(unix)]
 use cap_std::fs::OpenOptionsExt as CapabilityOpenOptionsExt;

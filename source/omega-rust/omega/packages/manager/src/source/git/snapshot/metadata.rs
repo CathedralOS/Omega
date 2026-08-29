@@ -1,12 +1,19 @@
 //! Snapshot identity records and published-snapshot verification.
 
-use crate::source::{
-    CacheCustodyKind, GIT_SNAPSHOT_POLICY, LOCAL_SNAPSHOT_METADATA, LOCAL_SNAPSHOT_POLICY,
-    LOCAL_SNAPSHOT_SOURCE, LocalSourceLimits, ResolvedLocalSource, SourceResolveError,
-    SourceTreePolicy, append_framed_bytes, cache_invalid, capture_local_source_from_open_root,
-    is_object_id, local_snapshot_invalid, open_absolute_directory_nofollow,
-    read_bounded_cache_record,
+use crate::source::SourceResolveError;
+use crate::source::custody::tree::{CacheCustodyKind, read_bounded_cache_record};
+use crate::source::git::cache::identity::{
+    append_framed_bytes, cache_invalid, local_snapshot_invalid,
 };
+use crate::source::git::objects::identity::is_object_id;
+use crate::source::limits::{
+    GIT_SNAPSHOT_POLICY, LOCAL_SNAPSHOT_METADATA, LOCAL_SNAPSHOT_POLICY, LOCAL_SNAPSHOT_SOURCE,
+    LocalSourceLimits,
+};
+use crate::source::local::capture::{
+    SourceTreePolicy, capture_local_source_from_open_root, open_absolute_directory_nofollow,
+};
+use crate::source::local::model::ResolvedLocalSource;
 use cap_fs_ext::DirExt;
 use std::path::Path;
 

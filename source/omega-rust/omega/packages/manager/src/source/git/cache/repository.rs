@@ -3,24 +3,39 @@
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
-use crate::source::{
-    CacheCustodyKind, CapabilityDirectory, CapabilityMetadata, GIT_CACHE_METADATA,
-    GIT_CACHE_REPOSITORY, GIT_CACHE_SNAPSHOTS, GIT_CONFIG_SHA1, GIT_CONFIG_SHA256,
-    GitExecutionTransport, GitExecutor, LocalSourceLimits, ProvisionalCacheDirectory,
-    ResolverExecutionPhase, SourceResolveError, create_private_cache_directory,
-    git_cache_custody_byte_limit, io_error, read_bounded_cache_record_from_open_directory,
-    reconcile_git_cache_operation_result, replace_canonical_git_control_file_from_open_repository,
-    retain_private_cache_directory, run_git, run_git_bytes_stdout, run_git_stdout,
-    verify_cache_custody_from_open_root, verify_capability_cache_node_owner_and_mode,
-    verify_macos_open_cache_extended_acl_custody, verify_retained_cache_parent_path,
+use cap_std::fs::{Dir as CapabilityDirectory, Metadata as CapabilityMetadata};
+use omega_resolver_execution::ResolverExecutionPhase;
+
+use crate::source::SourceResolveError;
+use crate::source::custody::lock::verify_retained_cache_parent_path;
+use crate::source::custody::platform::{
+    verify_capability_cache_node_owner_and_mode, verify_macos_open_cache_extended_acl_custody,
     verify_windows_open_cache_custody,
 };
+use crate::source::custody::publication::{
+    ProvisionalCacheDirectory, create_private_cache_directory, retain_private_cache_directory,
+};
+use crate::source::custody::tree::{
+    CacheCustodyKind, git_cache_custody_byte_limit, read_bounded_cache_record_from_open_directory,
+    verify_cache_custody_from_open_root,
+};
+use crate::source::git::executable::executor::GitExecutor;
+use crate::source::git::process::invocation::{run_git, run_git_bytes_stdout, run_git_stdout};
+use crate::source::git::process::reconciliation::reconcile_git_cache_operation_result;
+use crate::source::git::request::GitExecutionTransport;
+use crate::source::git::resolve::replace_canonical_git_control_file_from_open_repository;
+use crate::source::limits::{
+    GIT_CACHE_METADATA, GIT_CACHE_REPOSITORY, GIT_CACHE_SNAPSHOTS, GIT_CONFIG_SHA1,
+    GIT_CONFIG_SHA256, LocalSourceLimits,
+};
+use crate::source::local::capture::io_error;
 
 use super::custody::{
     open_retained_git_directory, reject_retained_git_path,
     verify_git_repository_tree_from_open_root, verify_retained_git_directory_identity,
 };
-use super::{RetainedGitSnapshots, cache_invalid, git_cache_metadata};
+use super::identity::{cache_invalid, git_cache_metadata};
+use super::snapshots::RetainedGitSnapshots;
 
 pub(in crate::source) struct VerifiedGitRepository {
     pub(in crate::source) entry_root: PathBuf,

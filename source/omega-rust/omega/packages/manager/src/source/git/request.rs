@@ -1,7 +1,7 @@
 //! Validated Git locators, revisions, transports, and endpoint identity.
 
 #[cfg(test)]
-use crate::source::git::format_sha256;
+use crate::source::git::process::identity::format_sha256;
 use crate::source::identity::{
     GitRequestedNetworkEndpoint, GitTransport, IdentityError, SourceLineage,
 };

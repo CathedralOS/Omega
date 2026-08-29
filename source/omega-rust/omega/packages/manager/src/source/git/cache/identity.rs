@@ -4,9 +4,11 @@ use std::path::Path;
 
 use sha2::{Digest, Sha256};
 
-use crate::source::{
-    GIT_CACHE_POLICY, GitExecutionTransport, SourceResolveError, format_sha256, hash_bytes,
-};
+use crate::source::SourceResolveError;
+use crate::source::git::process::identity::format_sha256;
+use crate::source::git::request::GitExecutionTransport;
+use crate::source::limits::GIT_CACHE_POLICY;
+use crate::source::local::capture::hash_bytes;
 
 pub(in crate::source) fn git_cache_identity(
     url: &str,

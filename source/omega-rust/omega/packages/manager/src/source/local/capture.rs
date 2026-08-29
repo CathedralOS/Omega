@@ -12,9 +12,10 @@ use cap_std::{
 use sha2::{Digest, Sha256};
 
 use super::model::ResolvedLocalSource;
-use crate::source::git::format_sha256;
-use crate::source::{
-    CANONICAL_DIRECTORY_MODE, DEFAULT_BUILD_OUTPUT_DIRECTORY, LocalSourceLimits, SourceResolveError,
+use crate::source::SourceResolveError;
+use crate::source::git::process::identity::format_sha256;
+use crate::source::limits::{
+    CANONICAL_DIRECTORY_MODE, DEFAULT_BUILD_OUTPUT_DIRECTORY, LocalSourceLimits,
 };
 
 #[derive(Debug)]

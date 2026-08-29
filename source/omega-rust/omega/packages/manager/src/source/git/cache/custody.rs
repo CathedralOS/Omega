@@ -3,15 +3,19 @@
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
-use cap_fs_ext::{DirExt, OpenOptionsFollowExt};
-
-use crate::source::{
-    CACHE_CUSTODY_DEPTH_LIMIT, CACHE_CUSTODY_ENTRY_LIMIT, CacheCustodyKind, CapabilityDirectory,
-    CapabilityMetadata, CapabilityOpenOptions, FollowSymlinks, SourceResolveError, io_error,
-    open_cache_custody_directory, same_capability_file_identity,
+use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt};
+use cap_std::fs::{
+    Dir as CapabilityDirectory, Metadata as CapabilityMetadata,
+    OpenOptions as CapabilityOpenOptions,
 };
 
-use super::cache_invalid;
+use crate::source::SourceResolveError;
+use crate::source::custody::platform::same_capability_file_identity;
+use crate::source::custody::tree::{CacheCustodyKind, open_cache_custody_directory};
+use crate::source::limits::{CACHE_CUSTODY_DEPTH_LIMIT, CACHE_CUSTODY_ENTRY_LIMIT};
+use crate::source::local::capture::io_error;
+
+use super::identity::cache_invalid;
 
 pub(super) fn open_retained_git_directory(
     parent: &CapabilityDirectory,

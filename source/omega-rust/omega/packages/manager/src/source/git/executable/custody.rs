@@ -2,7 +2,7 @@
 
 use crate::source::SourceResolveError;
 #[cfg(any(target_os = "macos", windows))]
-use crate::source::custody::same_std_and_capability_file_identity;
+use crate::source::custody::lock::same_std_and_capability_file_identity;
 #[cfg(any(target_os = "macos", windows))]
 use crate::source::local::capture::open_absolute_directory_nofollow;
 #[cfg(any(target_os = "macos", windows))]

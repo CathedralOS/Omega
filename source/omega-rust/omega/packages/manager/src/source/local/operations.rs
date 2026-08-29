@@ -2,11 +2,14 @@
 
 use std::path::Path;
 
-use crate::source::custody::CacheCustodyKind;
-use crate::source::git::{local_snapshot_invalid, verify_open_snapshot_tree_modes};
+use crate::source::SourceResolveError;
+use crate::source::custody::tree::CacheCustodyKind;
+use crate::source::git::cache::identity::local_snapshot_invalid;
+use crate::source::git::snapshot::permissions::verify_open_snapshot_tree_modes;
 use crate::source::identity::SourceContentDigest;
+use crate::source::limits::LocalSourceLimits;
 use crate::source::storage::RetainedStorageLane;
-use crate::source::{LocalSourceLimits, SourceResolveError, SourceResolverStorage};
+use crate::source::storage::SourceResolverStorage;
 
 use super::capture::{
     CapturedLocalEntryKind, SourceTreePolicy, capture_local_source,

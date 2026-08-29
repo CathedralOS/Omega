@@ -1,9 +1,9 @@
 //! Sealed Git command policy and platform-specific helper configuration.
 
 use crate::source::SourceResolveError;
-use crate::source::git::executable::GitExecutor;
+use crate::source::git::executable::executor::GitExecutor;
 use crate::source::git::request::GitExecutionTransport;
-use crate::source::local::io_error;
+use crate::source::local::capture::io_error;
 #[cfg(unix)]
 use omega_resolver_execution::RESOLVER_CONNECT_HELPER_BASENAME;
 use omega_resolver_execution::{

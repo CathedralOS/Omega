@@ -1,34 +1,40 @@
 //! End-to-end Git resolution and final custody reconciliation.
 
 use crate::records::atomic_file::{RecordFileLimits, RecordFileRoot};
-use crate::source::custody::{
-    CacheCustodyKind, CacheEntryLock, direct_cache_child_name, retained_cache_directory_exists,
-    same_capability_file_identity, verify_git_cache_custody, verify_git_cache_root_custody,
+use crate::source::custody::lock::CacheEntryLock;
+use crate::source::custody::platform::same_capability_file_identity;
+use crate::source::custody::publication::{
+    direct_cache_child_name, retained_cache_directory_exists,
+};
+use crate::source::custody::tree::{
+    CacheCustodyKind, verify_git_cache_custody, verify_git_cache_root_custody,
 };
 use crate::source::error::SourceResolveError;
 use crate::source::limits::{GIT_CONFIG_SHA256, LocalSourceLimits};
-use crate::source::local::{SourceTreePolicy, capture_local_source, io_error};
-use crate::source::observations::{
-    PendingResolvedGitSource, ResolvedGitSource, issue_git_source_resolution_observation,
-};
+use crate::source::local::capture::{SourceTreePolicy, capture_local_source, io_error};
+use crate::source::observations::resolution::issue_git_source_resolution_observation;
+use crate::source::observations::resolved::{PendingResolvedGitSource, ResolvedGitSource};
 use crate::source::storage::{RetainedStorageLane, SourceResolverStorage};
 use cap_fs_ext::DirExt;
 use cap_std::fs::Dir as CapabilityDirectory;
 use std::ffi::{OsStr, OsString};
 use std::path::Path;
 
-use super::cache::{
-    VerifiedGitRepository, cache_invalid, create_git_cache_entry, git_cache_identity,
-    invalidate_git_cache_entry_from_open_parent,
-};
-use super::objects::{
-    authenticate_git_commit, inspect_git_tree, is_object_id, verify_exact_git_revision,
+use super::cache::creation::create_git_cache_entry;
+use super::cache::identity::{cache_invalid, git_cache_identity};
+use super::cache::invalidation::invalidate_git_cache_entry_from_open_parent;
+use super::cache::repository::VerifiedGitRepository;
+use super::executable::executor::GitExecutor;
+#[cfg(test)]
+use super::executable::executor::test_file_network_endpoint;
+use super::objects::authentication::{authenticate_git_commit, verify_exact_git_revision};
+use super::objects::identity::is_object_id;
+use super::objects::inspect_git_tree;
+use super::process::reconciliation::{
+    reconcile_git_cache_operation_result, reconcile_git_command_result,
 };
 use super::request::{GitExecutionTransport, GitSourceRequest};
-use super::snapshot::resolve_git_snapshot;
-#[cfg(test)]
-use super::test_file_network_endpoint;
-use super::{GitExecutor, reconcile_git_cache_operation_result, reconcile_git_command_result};
+use super::snapshot::materialization::resolve_git_snapshot;
 use omega_resolver_execution::ResolverExecutionRequestedEndpoint;
 
 pub(crate) fn resolve_git_source_in_lane(

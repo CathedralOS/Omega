@@ -4,7 +4,7 @@ use std::ffi::{OsStr, OsString};
 use std::fs::File;
 #[cfg(test)]
 use std::fs::OpenOptions;
-use std::io::Write;
+use std::io::{Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
@@ -18,22 +18,28 @@ use cap_std::fs::{
 };
 use omega_resolver_execution::ResolverExecutionPhase;
 
-use crate::source::custody::{
-    CacheCustodyKind, same_capability_file_identity, same_std_and_capability_file_identity,
-    verify_capability_cache_node_owner_and_mode, verify_macos_open_cache_extended_acl_custody,
-    verify_windows_open_cache_custody,
+use crate::source::custody::lock::same_std_and_capability_file_identity;
+use crate::source::custody::platform::{
+    same_capability_file_identity, verify_capability_cache_node_owner_and_mode,
+    verify_macos_open_cache_extended_acl_custody, verify_windows_open_cache_custody,
 };
+use crate::source::custody::tree::CacheCustodyKind;
 use crate::source::error::SourceResolveError;
-use crate::source::git::cache::{VerifiedGitRepository, cache_invalid};
-use crate::source::git::{
-    GitExecutor, ResolverCommandInput, git_batch_stdin_identity,
-    git_command_configuration_identity, reconcile_git_cache_operation_result,
-    reconcile_git_command_result, run_command_bounded_with_stdin_and_budget,
-    sealed_git_command_with_route,
+use crate::source::git::cache::identity::cache_invalid;
+use crate::source::git::cache::repository::VerifiedGitRepository;
+use crate::source::git::executable::executor::GitExecutor;
+use crate::source::git::process::capture::{
+    ResolverCommandInput, run_command_bounded_with_stdin_and_budget,
+};
+use crate::source::git::process::command::sealed_git_command_with_route;
+use crate::source::git::process::identity::{
+    git_batch_stdin_identity, git_command_configuration_identity,
+};
+use crate::source::git::process::reconciliation::{
+    reconcile_git_cache_operation_result, reconcile_git_command_result,
 };
 use crate::source::limits::{GIT_STDERR_LIMIT, LocalSourceLimits, STAGING_SEQUENCE};
 use crate::source::local::capture::io_error;
-use crate::source::{Seek, SeekFrom};
 
 use super::tree::{git_tree_invalid, validate_git_symlink_target};
 use super::{GitBlobBytes, GitTreeEntry, GitTreeEntryKind};

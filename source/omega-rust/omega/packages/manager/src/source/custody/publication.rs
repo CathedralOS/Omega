@@ -9,8 +9,8 @@ use super::platform::{
 use super::tree::verify_cache_custody_root;
 use super::tree::{CacheCustodyKind, cache_custody_invalid};
 use crate::source::SourceResolveError;
-use crate::source::git::cache::cache_invalid;
-use crate::source::git::snapshot::make_open_tree_owner_writable;
+use crate::source::git::cache::identity::cache_invalid;
+use crate::source::git::snapshot::permissions::make_open_tree_owner_writable;
 use crate::source::limits::STAGING_SEQUENCE;
 use crate::source::local::capture::io_error;
 #[cfg(test)]
