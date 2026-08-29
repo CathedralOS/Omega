@@ -9,11 +9,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 const PACKAGE_CRATES: &[&str] = &[
-    "omega-package-advisory",
-    "omega-package-evidence",
-    "omega-package-manager",
-    "omega-package-source",
-    "omega-resolver-execution",
+    "advisory",
+    "evidence",
+    "manager",
+    "resolver-execution",
+    "source",
 ];
 const MANAGER_OWNERS: &[&str] = &[
     "declarations",
@@ -132,13 +132,13 @@ fn package_top_level_is_the_exact_advertised_crate_map() {
 #[test]
 fn manager_and_compiler_evidence_have_exact_reader_entrances() {
     let packages = package_root();
-    assert_documented_owners(&packages.join("omega-package-manager"), MANAGER_OWNERS);
-    assert_documented_owners(&packages.join("omega-package-evidence"), EVIDENCE_OWNERS);
+    assert_documented_owners(&packages.join("manager"), MANAGER_OWNERS);
+    assert_documented_owners(&packages.join("evidence"), EVIDENCE_OWNERS);
 }
 
 #[test]
 fn stable_package_evidence_excludes_compiler_private_projection_handles() {
-    let evidence = package_root().join("omega-package-evidence/src/evidence");
+    let evidence = package_root().join("evidence/src/evidence");
     for path in rust_files(&evidence) {
         let source = fs::read_to_string(&path)
             .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
@@ -154,7 +154,7 @@ fn stable_package_evidence_excludes_compiler_private_projection_handles() {
 
 #[test]
 fn stable_evidence_and_encoding_exclude_compiler_representations() {
-    let package = package_root().join("omega-package-evidence/src");
+    let package = package_root().join("evidence/src");
     for owner in ["evidence", "encoding"] {
         for path in rust_files(&package.join(owner)) {
             let source = fs::read_to_string(&path)
@@ -172,7 +172,7 @@ fn stable_evidence_and_encoding_exclude_compiler_representations() {
 
 #[test]
 fn package_evidence_encoding_has_one_canonical_encoder_owner() {
-    let encoding = package_root().join("omega-package-evidence/src/encoding");
+    let encoding = package_root().join("evidence/src/encoding");
     assert_eq!(
         directory_entries(&encoding),
         BTreeSet::from([
@@ -207,7 +207,7 @@ fn package_evidence_encoding_has_one_canonical_encoder_owner() {
 
 #[test]
 fn source_tests_live_with_their_owners() {
-    let source = package_root().join("omega-package-source/src");
+    let source = package_root().join("source/src");
     assert!(
         !source.join("tests").exists(),
         "package source must not recover a crate-wide wildcard test hub"

@@ -48,15 +48,15 @@ they consume, so source paths continue to explain authority and data flow.
 
 Supporting crates have one-way responsibilities:
 
-- [`omega-package-source`](../omega-package-source/README.md) acquires and
+- [`omega-package-source`](../source/README.md) acquires and
   authenticates immutable local and Git source without selecting or admitting a
   package graph.
-- [`omega-package-evidence`](../omega-package-evidence/README.md) projects
+- [`omega-package-evidence`](../evidence/README.md) projects
   checked compiler state into inert, canonically encoded evidence. It cannot
   make review or admission decisions.
-- [`omega-package-advisory`](../omega-package-advisory/README.md) owns optional
+- [`omega-package-advisory`](../advisory/README.md) owns optional
   model-facing audit assistance. It cannot alter deterministic manager policy.
-- [`omega-resolver-execution`](../omega-resolver-execution/README.md) owns
+- [`omega-resolver-execution`](../resolver-execution/README.md) owns
   confined native helper execution used by source acquisition.
 
 ## Core invariants
@@ -86,7 +86,7 @@ code and behavior may still have changed.
 
 ## Security references
 
-- [Source resolver security](../omega-package-source/SOURCE_RESOLVER_SECURITY.md)
+- [Source resolver security](../source/SOURCE_RESOLVER_SECURITY.md)
 - [Package manager design draft](../../../../../wiki/design_briefs/package_manager_first_draft.md)
 - [Build and package model](../../../../../wiki/design_briefs/build_and_package_model.md)
 - [Capabilities, effects, and boundaries](../../../../../wiki/language_guide/chapter_19_capabilities_effects_boundaries.md)

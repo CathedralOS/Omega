@@ -29,7 +29,7 @@ src/
 └── error.rs        fail-closed acquisition errors
 ```
 
-Native child-process confinement lives in `../omega-resolver-execution/`.
+Native child-process confinement lives in `../resolver-execution/`.
 Package declarations, graph reconciliation, review, and admission remain
 manager responsibilities. `SourceRelativePath` is lexical source navigation,
 not an authored workspace-member declaration.
