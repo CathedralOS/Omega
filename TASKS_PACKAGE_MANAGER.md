@@ -57,7 +57,7 @@ closed. Compiler-issued package review remains non-admitting.
 
   The detailed established floor and remaining platform gaps are maintained in
   `SOURCE_RESOLVER_SECURITY.md`. Strict SSH trust and credential authority is
-  design-blocked on OWNER Q14; the other bullets are engineering work.
+  design-blocked on OWNER Q13; the other bullets are engineering work.
 
 ## P1 — Total package semantic identity
 
@@ -289,7 +289,15 @@ closed. Compiler-issued package review remains non-admitting.
   public family gains an uncovered coordinate. Package evidence must never use
   declaration order, display signatures, ordinals, or reach-selected subsets.
 
-- [ ] **BLOCKED — OWNER Q14: STRICT-SSH-CUSTODY.** Settle host-key, key,
+- [ ] Consume **TOP-LEVEL-BOUNDARY-REQUIREMENTS** from `TASKS.md`: publish the
+  explicit requirement declaration separately from every checked/external
+  satisfier and selected provider. Retain visibility, exact operation/static
+  telescope/signature/contract, authored selection custody, bounded reach,
+  installed execution and era, and disclosed admissions. Neither equal reach,
+  bodylessness, catalog presence, nor build policy may synthesize a requirement
+  or satisfier edge.
+
+- [ ] **BLOCKED — OWNER Q13: STRICT-SSH-CUSTODY.** Settle host-key, key,
   credential-provider, and credential-file authority before narrowing the
   remaining SSH read surface or treating SSH resolution as strict evidence.
 

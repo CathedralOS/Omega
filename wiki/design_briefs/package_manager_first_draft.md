@@ -473,7 +473,7 @@ stage. Public-trait parent requirements are the first implemented carrier.
 Their typed owner already retains the exact authored identifier span, which now travels
 with the trait row under `trait_parent` through sorting. Syntax, resolved, and
 typed contracts now retain the exact authored clause keyword independently from
-their semantic facts. Direct machine, public-trait requirement, and public-
+their semantic facts. Direct machine, public trait/top-level-requirement, and public-
 operator contracts carry it under `contract_clause`, and accepted-claim rows
 reuse the callable sidecar. Every projected declaration family recursively
 collects the same anchor from structural static-machine parameter contracts.
@@ -490,7 +490,7 @@ where the call was authored, not that target finalization has occurred.
 Authored `invokes` targets now enter typed trees as one record binding the
 diagnostic name, exact parameter-symbol/ordinal or exact boundary-trait symbol,
 and exact target-name span. Invocation inference consumes the retained target,
-never a later same-spelled trait scan. Callable, public-trait requirement, and
+never a later same-spelled trait scan. Callable, public trait/top-level-requirement, and
 recursively structural machine-parameter rows carry those spans under
 `synchronous_invocation`; top-level projection joins them to the exact checked
 plan and rejects missing, malformed, duplicate, aliased, or stale custody.
@@ -510,7 +510,7 @@ invocation-only reach. Recovery envelope v6, conflict fingerprint v9, and
 renderer V8 bind that reach-source schema. Authored `suspends` and `blocks`
 keyword occurrences now follow the same custody rule through syntax,
 resolution, typing, trait-default synthesis, copying, and specialization.
-Callable, public-trait requirement, and recursively structural machine-
+Callable, public trait/top-level-requirement, and recursively structural machine-
 parameter rows use distinct `suspension` and `blocking` roles. Projection
 requires the authored boolean, retained keywords, and exact checked interface
 to agree; omission and inference acquire no invented location. For public or
@@ -543,7 +543,7 @@ declaration under `trait_requirement`; public data rows retain fields, sum
 cases, and payload fields under `data_member`. These roles consume the existing
 typed declaration symbols. Direct declarations use their authored spans;
 generated declarations expose only their real derivation origin.
-Reviewed package callables, public operators, and public trait requirements
+Reviewed package callables, public operators, and public trait/top-level requirements
 likewise retain every value-parameter declaration under `callable_parameter`.
 The same compiler-owned walk covers value parameters nested in structural
 static-machine contracts. These coordinates bind what review displays without

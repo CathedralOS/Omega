@@ -150,6 +150,13 @@ closure must equal the retained root declaration: missing, padded, stale, or
 unused rows reject. A direct service use is not erased merely because the same
 service also occurs in an abstract row's upper bound.
 
+Trait requirements and explicit top-level `boundary requirement` declarations
+retain distinct canonical requirement kinds. A top-level requirement keeps its
+package-qualified operation, static telescope, signature, contract, and
+visibility; a bodyless boundary machine, bounded row, or later selection cannot
+synthesize that identity. Its checked or external satisfier is resolved by the
+same exact provider-plan machinery as a trait requirement.
+
 ## The cut
 
 `psi-checked-trees-to-terminal` is the sole executable semantic handoff.

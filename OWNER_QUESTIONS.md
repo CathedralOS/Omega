@@ -365,52 +365,7 @@ closed.
 - Tempting but wrong: retain only a solver `Proven` verdict without the selected
   theorem identity, ordered premises, per-side application, and replay data.
 
-## Q9 — Provider selection for a top-level boundary requirement
-
-### Context
-
-Bounded installation-reach rows can now remain symbolic until an installed
-root joins them to one exact selected provider plan. Trait and operator
-requirements already have authored `satisfies Trait::requirement` selection,
-but core also owns bodyless top-level boundary requirements. Interrupt entry
-and acknowledgement completion need distinct exact operation rows: PIC
-completion resolves to `PortIo`, while LAPIC/x2APIC completion resolves to
-`MachineControl`.
-
-### Problem statement
-
-No approved source form selects the realization of one exact top-level
-bodyless boundary requirement. Reusing trait `satisfies` would invent an owner
-that the requirement does not have; inferring a provider from equal resolved
-reach rows would erase the distinct entry/completion operations and their token
-lineage. Until this is settled, provider selection cannot close the top-level
-completion dependency and the public interrupt completion contract cannot
-replace its conservative fixed reach with a separately resolved bound.
-
-### Proposed direction
-
-Add one explicit nominal provider-binding form for a canonical top-level
-requirement path. The binding must name the selected realization directly,
-retain the requirement and operation identity independently from its bounded
-reach row, and flow through selected-provider, installed-root, acknowledgement
-policy, invocation, and token-lineage evidence. Missing, ambiguous, foreign,
-or duplicate bindings reject; row equality grants neither selection nor
-settlement authority.
-
-### Alternates
-
-- Acceptable: place the explicit selection in target/build provider policy if
-  it still names the exact top-level requirement and realization and survives
-  into installed evidence.
-- Acceptable: give top-level boundary requirements a nominal owner solely for
-  provider selection, provided that ownership is ordinary declared language
-  structure rather than a compiler-synthesized trait.
-- Tempting but wrong: choose the unique visible provider whose concrete reach
-  happens to refine the same bound.
-- Tempting but wrong: keep one hardcoded `PortIo` completion row and treat it as
-  proof of PIC/LAPIC provider coherence.
-
-## Q10 — Source result schema for placed-view establishment
+## Q9 — Source result schema for placed-view establishment
 
 ### Context
 
@@ -472,7 +427,7 @@ outputs outside the runtime result.
 - Tempting but wrong: derive result identity from source spelling, call-site
   order, accessor names, parameter ordinals, or compact plan fingerprints.
 
-## Q11 — Declaring a direct native-parameter callback destination
+## Q10 — Declaring a direct native-parameter callback destination
 
 ### Context
 
@@ -529,7 +484,7 @@ that would add or reorder ABI parameters.
 - Tempting but wrong: expose a raw parameter ordinal, physical register/stack
   location, or callback code address to source policy.
 
-## Q12 — Reborrow restoration disposition
+## Q11 — Reborrow restoration disposition
 
 ### Context
 
@@ -578,7 +533,7 @@ post-return use, cleanup, or Terminal resource claim may be derived from them.
 - Tempting but wrong: skip retired projected parents and return authority
   directly to a root without retaining and validating the complete path.
 
-## Q13 — Nominal result carriers for observing compare-exchange
+## Q12 — Nominal result carriers for observing compare-exchange
 
 ### Context
 
@@ -649,7 +604,7 @@ operation requirement identities separate from these value-type identities.
 - Tempting but wrong: expose `Uncommitted` on the decisive result merely because
   one larger runtime layout would be convenient.
 
-## Q14 — Strict SSH trust and credential authority
+## Q13 — Strict SSH trust and credential authority
 
 ### Context
 
@@ -698,7 +653,7 @@ producer claim.
 - Tempting but wrong: serialize private keys, tokens, or reusable credentials in
   `omega.lock` or source-resolution evidence.
 
-## Q15 — Suspension as control-flow exit or resumable continuation
+## Q14 — Suspension as control-flow exit or resumable continuation
 
 ### Context
 
@@ -737,7 +692,7 @@ and its custody.
 - Tempting but wrong: classify every `MaySuspend` call as a local CFG exit
   without retaining its continuation and outcome-specific state.
 
-## Q16 — Cyclic control flow in Terminal Psi
+## Q15 — Cyclic control flow in Terminal Psi
 
 ### Context
 
@@ -777,7 +732,7 @@ block-loop API.
   validation before loop-carried SSA, ownership, cleanup, and fuel semantics
   exist.
 
-## Q18 — Close the Delta v1 semantic contract
+## Q16 — Close the Delta v1 semantic contract
 
 ### Context
 
@@ -857,7 +812,7 @@ out of Delta without weakening its ability to host a robust compiler.
 - Tempting but wrong: retain the old translator's private capacities, exit
   codes, or Darwin output behavior as language rules.
 
-## Q19 — Select one typed executable Gamma contract
+## Q17 — Select one typed executable Gamma contract
 
 ### Context
 

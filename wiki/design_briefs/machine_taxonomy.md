@@ -6,6 +6,8 @@ not itself settle the reach algebra; decision 22 has since done so.
 Decision 23 has since settled termination guarantees, private ranking
 witnesses, and opaque boundary progress profiles. Suspension lowering and
 component-versioning policy remain downstream contracts over this model.
+The 2026-08-28 addendum makes carrier-owned top-level boundary requirements
+explicit and removes proof term formers from the bodyless-machine bucket.
 
 ## One semantic construct
 
@@ -85,18 +87,19 @@ one axis rejects substitution.
 
 ## Supply modes
 
-Supply answers **where the implementation or accepted evidence comes from**:
+Supply answers **where the implementation or claimed evidence comes from**:
 
 1. **Checked body.** Ordinary authored machine code, checked against its
    contract.
-2. **Required body.** A trait or component requirement to be supplied by a
-   conforming implementation. A default or generated body is still checked
-   body supply after generation.
+2. **Required body.** A trait/component requirement or an explicitly declared
+   top-level `boundary requirement`, to be supplied by a conforming
+   implementation. A default or generated body is still checked body supply
+   after generation.
 3. **External provider.** A boundary implementation supplies the behavior;
    admission is gated by the pinned boundary contract and trust policy.
-4. **Accepted declaration.** The program deliberately accepts a theorem or
-   external behavior at a named trust boundary. The artifact must report this
-   trust expenditure.
+4. **Admission-bearing declaration.** Source publishes an unproved theorem or
+   external-behavior claim at a named trust boundary. Acceptance is a separate
+   owner-policy decision, and every artifact must report the expenditure.
 
 These modes must be explicit in checked artifacts. A boolean such as
 `boundary` is not a sufficient semantic representation: it does not say
@@ -109,8 +112,9 @@ The source forms are deliberately distinct:
 |---|---|
 | Checked body | An ordinary machine with a `{ ... }` body |
 | Required body | A bodyless machine declaration inside a trait |
+| Top-level required body | `boundary requirement Package::operation(...);` |
 | External provider | A bodyless `boundary machine` that `satisfies` a requirement, with `via` only when an explicit binding payload is required |
-| Accepted declaration | A bodyless `boundary machine ... ensures ...;` declaration |
+| Admission-bearing declaration | A bodyless `boundary machine ... ensures ...;` declaration |
 
 There are no expression-bodied machines. `{ ... }` is the sole executable
 machine-body syntax; even a one-expression predicate uses braces. `boundary`
@@ -139,6 +143,26 @@ primitive fact, a witness-bearing declaration publishes one canonical
 carrierless evidence interface, and `=` defines a transparent logical
 expansion. The witness-bearing form uses an `evidence Interface;` clause after
 the proposition signature. None is a machine body or machine supply mode.
+Compiler-owned fact-position term formers such as `embed(value)` likewise have
+canonical proof semantics and are not fake bodyless boundary machines.
+
+The legacy core inventory is migrated by meaning, not mechanically:
+
+- `InterruptMaskGuard::restore`, `InterruptAcknowledgement::complete`,
+  `Task::request_cancel`, and `Task::finish` become top-level boundary
+  requirements;
+- `PlacedField::read/take/write` remain external realizations because their
+  exact trait requirements are already named by `satisfies`;
+- `no_wrap` becomes its transparent proposition formula;
+- `embed` becomes only the canonical compiler-owned proof term former; and
+- N5's temporary claim-free `Real` symbols disappear with the constructive
+  quotient, while its bodyless law claims remain disclosed axioms until checked
+  proof bodies replace them.
+
+A bodyless declaration carrying `ensures` is not a theorem merely because of
+its name. Without a checked body it is an admission-bearing claim.
+A claim-free bodyless free machine has no residual supply mode and rejects once
+the temporary core migrations above are complete.
 
 When present, the expression after `via` must be compile-time evaluable to a
 normalized `Binding` value. Its normalized identity enters the derived provider
@@ -154,10 +178,10 @@ compile-time values. A DLL locator is one object-format-specific sum case
 containing all of its name, ordinal, or version coordinates as fixed byte arrays
 and scalars.
 
-`satisfies`, not `via`, distinguishes external provider supply from a standalone
-accepted declaration: the former refines a separately published requirement;
-the latter publishes only its own admitted contract. Removing an empty binding
-clause therefore creates no ambiguity.
+`satisfies`, not `via`, distinguishes external provider supply: it refines an
+explicit trait/operator requirement or top-level `boundary requirement`.
+Standalone admission-bearing declarations publish only their own claim.
+Removing an empty binding clause therefore creates no ambiguity.
 The satisfied requirement's `Calling<C, Policy>` relationship separately
 produces the evaluated `CallPlan`; `Binding` neither carries nor reselects it. Raw
 linker bytes are target-package data and never Omega symbols, requirement keys,
@@ -171,7 +195,7 @@ requirement's service-reach row, `suspends`/`blocks` fields, and guarded
 `crashes` buckets are public ceilings. The realization's checked provider behavior is derived from its
 binding/provider contract and must refine every ceiling during validation and
 admission; a `via` declaration does not author a second copy of them.
-An installation-bound requirement may carry one path-keyed abstract reach row
+An installation-bound top-level requirement may carry one path-keyed abstract reach row
 with a written upper bound. Its realization supplies the exact row, and root
 admission substitutes it through that installation closure; it cannot escape
 as an unpinned ordinary import or remain unresolved in a final artifact.

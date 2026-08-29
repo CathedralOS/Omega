@@ -1004,6 +1004,12 @@ quotient formation or lift.
 
 ## Proof Views
 
+`embed(value)` is a compiler-owned fact-position term former with canonical
+semantics, like `old(&place)`. It is not executed, overridden, selected, or
+declared as a bodyless boundary machine. A package-declarable proof-term-symbol
+surface, if ever justified independently, must be designed explicitly rather
+than inferred from the temporary Real scaffold.
+
 Runtime data often needs a mathematical view before it can be reasoned about.
 
 For slices, useful proof views include:
@@ -1340,12 +1346,13 @@ Trust has a data face too. `boundary data` declares a type whose source
 representation is externally admitted rather than structurally defined. It
 does not mean “imported layout” or “exported layout,” and the keyword does not
 encode traffic direction. A `boundary machine` is likewise classified by its
-supply mode—checked body, trait requirement, selected provider, or accepted
-declaration—rather than by an inbound/outbound reading of `boundary`.
+supply mode—external realization through `satisfies`, or an admission-bearing
+claim—rather than by an inbound/outbound reading of `boundary`. An abstract
+carrier-owned provider slot instead uses explicit `boundary requirement`.
 
-The N5
-`omega::language::core::real` package is an ordinary core declaration built
-from this surface; its relevant contents are:
+The N5 `omega::language::core::real` package is temporary axiomatic scaffolding;
+it is not precedent for a claim-free bodyless boundary-machine category. Its
+current contents include:
 
 ```omega
 boundary data Real;                                    // opaque proof-only carrier
@@ -1354,14 +1361,13 @@ boundary machine real_add_commutative(a: Real, b: Real)
 ensures Real::add(a, b) == Real::add(b, a);            // an axiom: one trust row
 ```
 
-The carrier is proof-only (nothing without a definition can have a layout);
-its meaning is exactly its axiom machines; the package rides the same
-grant/lockfile/report machinery. An ensures-less declaration claims nothing
-and needs no grant; it still appears as claim-free representation-TCB evidence,
-with introduction or material change recommending code/ABI audit under Chapter
-19's package rule. Each axiom is one accepted-tier row. Axioms retire by the
-standard upgrade: ship the constructed type with its proven theorems, and
-consumers swap grant for import.
+The carrier is proof-only. The claim-free `Real::add` spelling merely introduces
+a temporary proof symbol; it must not mint a general language surface. N6/N8
+replace it with the constructed Cauchy quotient and ordinary checked
+operations. Each bodyless law carrying `ensures` is an admission-bearing axiom,
+not a proved theorem, and remains one disclosed trust row until an ordinary
+proof-machine body replaces it. Consumers then swap admission for checked
+import.
 
 Core ships classical logic itself this way: excluded middle is a boundary
 machine, granted like anything else — nothing is granted by default, not

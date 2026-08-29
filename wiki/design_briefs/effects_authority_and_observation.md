@@ -1,6 +1,6 @@
 # Design Brief: Service Reach, Synchronous Invocation, Authority, And Observation
 
-Revised 2026-08-20. This brief defines a service-reach `reaches` row, a direct
+Revised 2026-08-28. This brief defines a service-reach `reaches` row, a direct
 synchronous `invokes` ceiling, independent `suspends` and `blocks` operational
 ceilings, and the guarded `crashes` ceiling. `terminates` remains the separate
 positive progress guarantee settled by decision 23. It records each axis's
@@ -121,14 +121,13 @@ An installation-bound provider requirement may leave its exact row to the
 selected realization while publishing a finite upper bound:
 
 ```omega
-boundary machine InterruptAcknowledgement::complete(self)
+pub boundary requirement InterruptAcknowledgement::complete(self)
 reaches <= MachineControl + PortIo
 requires
-    self in InterruptAcknowledgement::Pending
-ensures true;
+    self in InterruptAcknowledgement::Pending;
 ```
 
-The requirement path is the abstract-row identity. The selected provider row
+The explicit requirement path is the abstract-row identity. The selected provider row
 must be a subset of the bound and replaces the symbolic row in the installed
 closure. The unresolved row and bound are manifest facts before selection;
 the exact provider, operation, and resolved row are manifest facts afterward.
@@ -146,7 +145,8 @@ completion operation that issued its debt, and the later consuming completion.
 
 Internal machines may omit these clauses and receive inferred service,
 suspension, blocking, and crash summaries. Exported machines, boundary
-operations, and trait requirements publish each ceiling. An omitted `reaches`
+operations, trait requirements, and explicit top-level boundary requirements
+publish each ceiling. An omitted `reaches`
 row there is empty; omitted `suspends` means never parks; omitted `blocks`
 means never blocks a worker; and an omitted crash cause is forbidden.
 Diagnostics name the violated axis.

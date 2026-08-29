@@ -89,6 +89,11 @@ Must own:
   trait requirement family produces one declaration-anchored compatibility
   diagnostic plus source-ordered diagnostics for every affected nominal
   machine binder and authored domain route.
+- Resolving an explicit top-level `boundary requirement` to one exact package,
+  attached carrier/path, static telescope, signature, visibility, and contract.
+  A later `satisfies` or `select_provider` path may cite only that retained
+  identity; bodylessness, reach clauses, and catalog presence never synthesize
+  it.
 
 Must not own:
 

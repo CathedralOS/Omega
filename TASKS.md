@@ -360,6 +360,43 @@ Remaining:
   exact-leaf delegation versus recursive redispatch, missing intrinsic catalog
   entries, payload-bearing bindings, and retired numeric slots.
 
+  **TOP-LEVEL-BOUNDARY-REQUIREMENTS** must add the explicit
+  `pub boundary requirement Package::operation(...);` declaration and retain
+  its package-qualified operation, visibility, static telescope, signature,
+  complete contract, and optional installation-bound reach row through parsed,
+  resolved, typed, checked, Terminal Psi, package-review, and artifact identity.
+  Replace the undifferentiated semantic `Boundary` supply mode with explicit
+  requirement, external-realization, or admission-claim modes; a claim-free
+  bodyless free machine must reject once the temporary core migrations finish.
+  Rename/normalize the existing `Accepted` semantic variant as an admission
+  claim whose later owner-policy receipt is separate from declaration identity.
+  Extend `satisfies` to target that exact declaration and extend the typed
+  `select_provider` subject with `BoundaryRequirement`; build policy selects
+  only an already-declared candidate and never creates the satisfier edge.
+  Missing, private, ambiguous, foreign, duplicate, wrong-signature, and
+  wrong-target candidates reject. Provider/operation identity stays separate
+  from reach, and invocation of a carrier-owned operation must replay the exact
+  installed execution and era retained by the linear token rather than ambient
+  redispatch or row equality.
+
+  Migrate `InterruptMaskGuard::restore`,
+  `InterruptAcknowledgement::complete`, `Task::request_cancel`, and
+  `Task::finish` to this form. Change `complete` to
+  `reaches <= MachineControl + PortIo` only when its satisfier and selection
+  route land, and remove vacuous `ensures true` clauses. Keep
+  `PlacedField::read/take/write` as external realizations: they already carry
+  exact `satisfies` edges. Complete the `no_wrap` proposition migration under
+  **TARGET-SEMANTIC-APPLICATIONS**; remove the fake bodyless `embed` declaration in favor of the
+  canonical compiler-owned fact-position term former; and do not turn N5's
+  temporary claim-free `Real` symbols into a language category. N6/N8 must
+  replace those symbols with constructed checked operations, while current
+  bodyless Real laws remain disclosed axioms until checked proof bodies replace
+  them. Add pass/fail canaries for explicit declaration kind, checked and
+  external satisfiers, same-reach alternate providers, cross-package
+  visibility, exact build selection, unresolved installation rows, token-era
+  drift, absence of inference from `reaches <=`/bodylessness/catalog lookup,
+  and the complete declaration-classification migration.
+
   The lexical claim is design-blocked at explicit specification conflicts. The
   current Omega-written lexer accepts Unicode XID identifiers despite the
   guide's ASCII-transparent/source-payload-only wording, accepts `\u{...}`
@@ -1443,7 +1480,7 @@ Owners:
   consumer. Finish owned destruction/move-out evidence before returning
   `Granted & Vacant`.
   The first source-visible establishment carrier is design-blocked on
-  [OWNER_QUESTIONS.md Q10](OWNER_QUESTIONS.md#q10--source-result-schema-for-placed-view-establishment):
+  [OWNER_QUESTIONS.md Q9](OWNER_QUESTIONS.md#q9--source-result-schema-for-placed-view-establishment):
   the core operation signatures and nominal outcome/returned-row schema must
   be fixed before source typing can publish an owned `Placed<P, T>` call.
   Existing Rust admission and occurrence identifiers remain implementation
@@ -6002,7 +6039,7 @@ Owners:
   use legality, cleanup, Terminal resource row, or distinction between final
   retirement and discard. Promoting this classification to usable or Terminal
   authority is design-blocked on
-  [OWNER_QUESTIONS.md Q12](OWNER_QUESTIONS.md#q12--reborrow-restoration-disposition).
+  [OWNER_QUESTIONS.md Q11](OWNER_QUESTIONS.md#q11--reborrow-restoration-disposition).
 
   Loan formation freezes exact owner/place occurrences and evaluated range
   values. Every premise must dominate the formation event and be valid at the
@@ -7992,7 +8029,7 @@ Owners:
   required named slot conformance. Two distinct cited slots at one physical
   extent also reject as overlapping supply. The direct-parameter pass canary is
   design-blocked on
-  [OWNER_QUESTIONS.md Q11](OWNER_QUESTIONS.md#q11--declaring-a-direct-native-parameter-callback-destination):
+  [OWNER_QUESTIONS.md Q10](OWNER_QUESTIONS.md#q10--declaring-a-direct-native-parameter-callback-destination):
   normalized `NativePlace::Parameter` exists, but the source model has no
   declaration that marks one already-declared runtime native parameter as the
   callback destination and binds its exact callback requirement. Settle that
@@ -8128,8 +8165,8 @@ state through a raw address.
 - **BOUNDED-INSTALLATION-REACH-ROWS.** Implement bounded installation reach
   rows on installation-bound boundary requirements.
   - **Live:** `reaches <= Bound` parses only on fresh bodyless boundary
-    requirements, whether declared as a boundary-trait requirement or as a
-    top-level `boundary machine`; syntax through typed snapshots retain the
+    requirements, currently declared inside boundary traits or through the
+    transitional top-level `boundary machine` spelling; syntax through typed snapshots retain the
     marker. Checked inference propagates exact requirement dependencies
     separately from the conservative bound and from concrete reach.
     Conformance rejects a provider
@@ -8154,7 +8191,7 @@ state through a raw address.
     the same closure: nominal static-machine calls retain their exact bounded
     requirement, primitive results no longer require an unrelated custody
     transfer, and codec/verifier canaries reject deletion, drift, or padding.
-    Top-level installation-bound `boundary machine` requirements now lower the
+    Transitional top-level installation-bound requirements now lower the
     same exact dependency through their normalized machine-overload identity;
     trait requirements retain their normalized trait-requirement identity.
     Missing, ambiguous, wrong-kind, duplicate, changed-bound, and unused rows
@@ -8173,12 +8210,11 @@ state through a raw address.
     producers contain no service-bearing boundary operation, so there is no
     additional producer row to populate today; verifier reconstruction remains
     the fail-closed fence if one gains such an operation.
-    **Design-blocked on `OWNER_QUESTIONS.md` Q9:** settle how a realization
-    supplies one exact top-level bodyless boundary requirement. The existing
-    `satisfies Trait::requirement` surface selects trait/operator requirements;
-    no approved source form yet binds a provider to a top-level requirement
-    path. Until that is settled, provider selection cannot close the new
-    top-level dependency, so the public source declaration for
+    **Implementation-blocked on TOP-LEVEL-BOUNDARY-REQUIREMENTS:** migrate the
+    transitional top-level identity to explicit `boundary requirement`, admit
+    exact checked/external satisfiers, and select the declared operation through
+    the typed provider slot. Until that lands, provider selection cannot close
+    the new top-level dependency, so the source declaration for
     `InterruptAcknowledgement::complete` must retain its fixed `PortIo` row.
     Installation settlement no longer depends on that placeholder: its sealed
     completion route replays the exact installed reach resolution and binds the
@@ -8199,7 +8235,8 @@ state through a raw address.
   the exact installed provider execution, acknowledgement policy, operation,
   and token lineage rather than row equality. That installation-only route is
   now sealed and replayed at acknowledgement settlement; migrating the public
-  completion declaration to its distinct bound remains Q11-blocked. PIC
+  completion declaration to its distinct bound remains blocked on
+  **TOP-LEVEL-BOUNDARY-REQUIREMENTS**. PIC
   completion resolves to `PortIo`; LAPIC/x2APIC completion resolves to
   `MachineControl`. Checked and terminal artifacts retain the
   selected provider, operation, bound, resolved row, and refinement evidence
