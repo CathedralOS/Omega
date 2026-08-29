@@ -138,6 +138,16 @@ pub fn reconstruct_interpretable_operation_obligations(
     Ok(obligations)
 }
 
+/// Reconstruct the complete proof question for a module admitted by the
+/// interpreter profile. Ranked modules use this to bind canonical artifact
+/// identity without pretending that ordinary acyclic execution validation
+/// accepted them.
+pub fn reconstruct_interpretable_terminal_obligations(
+    validated: ValidatedInterpretableTerminalModule<'_>,
+) -> Result<ReconstructedTerminalObligationSet, ModuleError> {
+    reconstruct_validated_terminal_obligations(validated.module())
+}
+
 /// Reconstruct the complete proof question replayed by [`crate::verify_module`].
 /// Rows retain exact semantic owners, assumptions, and axiom ordering. The set
 /// contains both executable-site obligations and every published contract

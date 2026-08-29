@@ -240,9 +240,53 @@ fn ranked_native_dispatch_emits_exact_machine_body_and_logical_fuel_sites() {
         let container = omega_image_emission::emit_object_container(&object);
         assert_eq!(container.output.text_bytes, function.bytes.len());
         assert_eq!(container.output.relocations, 0);
-        let image_error = omega_image_emission::emit_executable_image(&object, 0)
-            .expect_err("ranked final-image replay remains a later boundary");
-        assert!(image_error.message.contains("no final-image replay"));
+        let image = omega_image_emission::emit_executable_image(&object, 0)
+            .expect("ranked final-image replay should preserve object custody");
+        omega_image_emission::validate_executable_image(&object, &image)
+            .expect("ranked object/image custody should replay independently");
+        assert_eq!(
+            image.functions()[0].ranked_u32_countdown.as_ref(),
+            Some(record)
+        );
+        let installation = omega_image_emission::build_installation_record(
+            &image,
+            psi_core::ProfileDecisionId::new(1).expect("profile decision"),
+        )
+        .expect("ranked final image should enter canonical installation custody");
+        assert!(installation.functions()[0].ranked_u32_countdown);
+        let installation_bytes = omega_image_emission::encode_installation_record(&installation)
+            .expect("encode ranked installation");
+        let decoded = omega_image_emission::decode_installation_record(&installation_bytes)
+            .expect("decode ranked installation");
+        assert!(decoded.functions()[0].ranked_u32_countdown);
+        omega_image_emission::validate_installation_record(&decoded, &image)
+            .expect("decoded ranked installation must bind its exact final image");
+        let canonical = psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            None,
+        )
+        .expect("encode canonical ranked artifact");
+        let native =
+            omega_native_artifact::NativeArtifact::from_replayed_parts(
+                omega_native_artifact::NativeArtifactParts {
+                    target,
+                    psi_artifact: canonical,
+                    object,
+                    image,
+                    selected_provider_closure_report_identity: 1,
+                    selected_provider_closure_digest:
+                        omega_native_artifact::NativeSelectedProviderClosureDigest::from_digest(
+                            [1; 32],
+                        ),
+                    selected_provider_plans: Vec::new(),
+                    provider_executions: Vec::new(),
+                },
+            )
+            .expect("ranked object and final image should enter native-artifact custody");
+        native
+            .validate()
+            .expect("ranked native artifact should replay independently");
 
         let assert_invalid = |candidate: &omega_machine_code::MachineCodePlan| {
             assert!(matches!(

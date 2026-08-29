@@ -11,7 +11,8 @@ use psi_proof_admission::{AdmissionKind, AuthorizedAdmission, Obligation, Obliga
 use psi_terminal::{SemanticFingerprint, TerminalModule, TerminalPsiIdentity, VocabularyMarker};
 use psi_terminal_verifier::{
     ReconstructedTerminalObligation, ReconstructedTerminalObligationOwner,
-    reconstruct_terminal_obligations,
+    reconstruct_interpretable_terminal_obligations, reconstruct_terminal_obligations,
+    validate_module_for_interpretation,
 };
 use sha2::{Digest, Sha256};
 
@@ -74,10 +75,23 @@ pub fn build_terminal_obligation_ledger(
     trust_graph: &ValidatedTerminalTrustGraph,
 ) -> Result<TerminalObligationLedger, CodecError> {
     let terminal_psi = terminal_psi_identity(module)?;
-    let obligations = reconstruct_terminal_obligations(module)
-        .map_err(CodecError::InvalidModule)?
-        .obligations()
-        .to_vec();
+    let has_ranked_scc = module
+        .machines
+        .iter()
+        .any(|machine| machine.ranked_scc.is_some());
+    let obligations = if has_ranked_scc {
+        let interpreted =
+            validate_module_for_interpretation(module).map_err(CodecError::InvalidModule)?;
+        reconstruct_interpretable_terminal_obligations(interpreted)
+            .map_err(CodecError::InvalidModule)?
+            .obligations()
+            .to_vec()
+    } else {
+        reconstruct_terminal_obligations(module)
+            .map_err(CodecError::InvalidModule)?
+            .obligations()
+            .to_vec()
+    };
     Ok(TerminalObligationLedger {
         terminal_psi,
         trust_graph: trust_graph.identity(),

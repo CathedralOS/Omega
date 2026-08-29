@@ -48,7 +48,8 @@ pub(super) fn encode_functions(
         );
         encode_function_stack_facts(bytes, function)?;
         bytes.push(u8::from(function.unit_body));
-        bytes.extend_from_slice(&[0; 3]);
+        bytes.push(u8::from(function.ranked_u32_countdown));
+        bytes.extend_from_slice(&[0; 2]);
         encode_parameter_records(bytes, &function.unit_parameters)?;
         encode_parameter_homes(bytes, &function.unit_parameter_homes)?;
         match &function.unit_affine_cleanup {
@@ -116,7 +117,8 @@ pub(super) fn decode_functions(
         let (unit_stack, scalar_stack, unit_call_stacks, scalar_call_stacks) =
             decode_function_stack_facts(reader)?;
         let unit_body = decode_boolean(reader.u8()?)?;
-        if reader.take(3)? != [0; 3] {
+        let ranked_u32_countdown = decode_boolean(reader.u8()?)?;
+        if reader.take(2)? != [0; 2] {
             return Err(InstallationError::NonzeroReservedField);
         }
         let unit_parameters = decode_unit_parameter_records(reader)?;
@@ -131,6 +133,7 @@ pub(super) fn decode_functions(
             unit_call_stacks,
             scalar_call_stacks,
             unit_body,
+            ranked_u32_countdown,
             unit_parameters,
             unit_parameter_homes,
             unit_affine_cleanup: match reader.u8()? {

@@ -75,7 +75,7 @@ use structural_scalar_codec::{
 };
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 42;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 43;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -298,6 +298,10 @@ pub struct InstalledFunction {
     pub unit_call_stacks: Vec<crate::ObjectUnitCallStack>,
     pub scalar_call_stacks: Vec<crate::ObjectScalarCallStack>,
     pub unit_body: bool,
+    /// The exact function remains governed by the independently replayed
+    /// ranked-`u32` object/image carrier. This closed body tag prevents
+    /// canonical installation encoding from shedding that disjoint custody.
+    pub ranked_u32_countdown: bool,
     pub unit_parameters: Vec<omega_machine_code::UnitParameterRecord>,
     pub unit_parameter_homes: Vec<omega_machine_code::UnitParameterHomeRecord>,
     pub unit_affine_cleanup: Option<omega_machine_code::UnitAffineCleanupRecord>,
@@ -606,6 +610,7 @@ where
                 unit_call_stacks: function.unit_call_stacks.clone(),
                 scalar_call_stacks: function.scalar_call_stacks.clone(),
                 unit_body: function.unit_affine_cleanup.is_some(),
+                ranked_u32_countdown: function.ranked_u32_countdown.is_some(),
                 unit_parameters: function.unit_parameters.clone(),
                 unit_parameter_homes: function.unit_parameter_homes.clone(),
                 unit_affine_cleanup: function.unit_affine_cleanup.clone(),
@@ -1151,6 +1156,7 @@ pub fn validate_installation_record(
                     || installed.unit_call_stacks != emitted.unit_call_stacks
                     || installed.scalar_call_stacks != emitted.scalar_call_stacks
                     || installed.unit_body != emitted.unit_affine_cleanup.is_some()
+                    || installed.ranked_u32_countdown != emitted.ranked_u32_countdown.is_some()
                     || installed.unit_parameters != emitted.unit_parameters
                     || installed.unit_parameter_homes != emitted.unit_parameter_homes
                     || installed.unit_affine_cleanup != emitted.unit_affine_cleanup
@@ -1279,7 +1285,32 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 )
         });
         let has_scalar_custody = has_scalar_cleanup || has_scalar_boundary_custody;
+        let ranked_body_is_exclusive = !function.ranked_u32_countdown
+            || (record.functions.len() == 1
+                && function.attachment.is_some()
+                && function.unit_stack.is_none()
+                && function.scalar_stack.is_none()
+                && function.unit_call_stacks.is_empty()
+                && function.scalar_call_stacks.is_empty()
+                && !function.unit_body
+                && function.unit_parameters.is_empty()
+                && function.unit_parameter_homes.is_empty()
+                && function.unit_affine_cleanup.is_none()
+                && function.scalar_affine_cleanup.is_none()
+                && function.scalar_control_affine_cleanups.is_empty()
+                && function.scalar_structural_parameters.is_empty()
+                && function.scalar_structural_parameter_homes.is_empty()
+                && record.structural_returns.is_empty()
+                && record.internal_unit_calls.is_empty()
+                && record.port_effects.is_empty()
+                && record.boundary_settlements.is_empty()
+                && record.fuel_attribution.len() == 9
+                && record
+                    .fuel_attribution
+                    .iter()
+                    .all(|row| row.machine == function.machine));
         if !installed_stack_facts_are_canonical(function, &attachments)
+            || !ranked_body_is_exclusive
             || function.unit_parameters.len() != function.unit_parameter_homes.len()
             || function.unit_body != function.unit_affine_cleanup.is_some()
             || (!function.unit_body
@@ -3283,6 +3314,7 @@ mod resource_tests {
             }],
             scalar_call_stacks: Vec::new(),
             unit_body: false,
+            ranked_u32_countdown: false,
             unit_parameters: Vec::new(),
             unit_parameter_homes: Vec::new(),
             unit_affine_cleanup: None,
