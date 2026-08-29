@@ -1149,7 +1149,7 @@ mod tests {
     #[test]
     fn multiple_early_clobber_rows_replay_and_reject_individual_corruption() {
         let selected =
-            crate::analyses::liveness::compute::tests::supported_multiple_early_clobber_function();
+            crate::analyses::liveness::tests::supported_multiple_early_clobber_function();
         let live = crate::analyses::liveness::compute::compute_function(0, &selected).unwrap();
         let expected =
             crate::analyses::live_ranges::compute::derive_early_clobbers(0, &live).unwrap();
@@ -1181,7 +1181,8 @@ mod tests {
 
     #[test]
     fn isolated_tied_early_clobber_replay_rejects_malformed_and_corrupt_rows() {
-        let selected = crate::analyses::liveness::compute::tests::supported_isolated_tied_early_clobber_function();
+        let selected =
+            crate::analyses::liveness::tests::supported_isolated_tied_early_clobber_function();
         let live = crate::analyses::liveness::compute::compute_function(0, &selected).unwrap();
         let expected =
             crate::analyses::live_ranges::compute::derive_early_clobbers(0, &live).unwrap();
@@ -1231,7 +1232,8 @@ mod tests {
 
     #[test]
     fn component_tied_early_clobber_replay_matches_and_rejects_a_second_early_member() {
-        let selected = crate::analyses::liveness::compute::tests::supported_component_tied_early_clobber_function();
+        let selected =
+            crate::analyses::liveness::tests::supported_component_tied_early_clobber_function();
         let live = crate::analyses::liveness::compute::compute_function(0, &selected).unwrap();
         assert_eq!(
             independently_derive_early_clobbers(0, &live).unwrap(),

@@ -6,6 +6,9 @@ pub(crate) mod identity;
 mod model;
 mod validate;
 
+#[cfg(test)]
+mod codec_tests;
+
 pub use codec::PreAllocationMachineEffectDecodeError;
 pub use identity::pre_allocation_machine_effect_identity;
 pub use model::*;
