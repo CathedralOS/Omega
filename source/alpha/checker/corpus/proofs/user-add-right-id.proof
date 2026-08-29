@@ -1,8 +1,0 @@
-; user Nat right identity: forall x. add(x, Z) = x   (structural induction via rec)
-(data 2 0 0 0) (data 3 1 1 0)
-(fun 10 2 (y 0)) (fun 10 3 (k 3 (rec 0)))
-(all x (= (f 10 x (k 2)) x))
-(rec 2 3 x (= (f 10 x (k 2)) x)
-  (refl (k 2))
-  (gen x2 (lam ih (= (f 10 x2 (k 2)) x2)
-    (eqelim hole (= (f 10 (k 3 x2) (k 2)) (k 3 hole)) ih (refl (f 10 (k 3 x2) (k 2)))))))

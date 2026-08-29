@@ -1,10 +1,9 @@
-# Proof-kernel corpus
+# Checker diagnostic corpus
 
-This directory owns declarative proof sources, shared proof libraries, and
-deterministic fuzz/oracle generators. Corpus members exercise checker behavior;
-they are neither checker implementations nor policy entry points.
+| Retained child | Role | Deletion condition |
+| --- | --- | --- |
+| `fuzz/` | `check-ref-fuzz.py` generates deterministic complete-rule comparisons for the single independent checker diamond. | Delete with `gates/check-ref-diamond.sh` or replace atomically with its successor generator. |
 
-- `proofs/` contains the theorem library and negative-control source material.
-- `lib/` contains proof fragments shared by several theorem sources.
-- `fuzz/` contains deterministic case generators and executable test oracles
-  consumed by gates.
+This service intentionally owns no theorem library. Mathematical examples and
+proof-search fixtures do not strengthen the direct compiler lattice and are not
+retained here.

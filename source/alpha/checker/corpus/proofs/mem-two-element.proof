@@ -1,4 +1,0 @@
-; membership in an explicit two-element list is a disjunction of equalities: Mem(x,[a,b]) -> x=a or x=b
-; nested memcons inversions + case: peel off a (x=a or Mem(x,[b])), then b (x=b or Mem(x,nil)=bot). The pattern for reasoning about membership in a fixed finite list.
-(all x1 (all x2 (all x3 (-> (rel 777 x1 (cons x2 (cons x3 nil))) (or (= x1 x2) (= x1 x3))))))
-(gen x1 (gen x2 (gen x3 (lam h4 (rel 777 x1 (cons x2 (cons x3 nil))) (case (memcons h4) (lam h5 (= x1 x2) (inl (= x1 x3) h5)) (lam h6 (rel 777 x1 (cons x3 nil)) (case (memcons h6) (lam h7 (= x1 x3) (inr (= x1 x2) h7)) (lam h8 (rel 777 x1 nil) (absurd (or (= x1 x2) (= x1 x3)) (memnil h8))))))))))

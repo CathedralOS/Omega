@@ -6,7 +6,7 @@ set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 TMP=$(mktemp -d)
-trap 'rm -rf "$TMP"' EXIT
+trap 'trash "$TMP"' EXIT
 
 sh "$SCRIPT_DIR/construct-artifact.sh" "$TMP/check.tape"
 cmp "$TMP/check.tape" "$SCRIPT_DIR/artifacts/proof_checker_bytecode.tape"

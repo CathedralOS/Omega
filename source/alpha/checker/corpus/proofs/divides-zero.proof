@@ -1,3 +1,0 @@
-; a|0  — everything divides zero  (a|b := exists m. m*a=b)
-(all a (ex m (= (* m a) 0)))
-(gen a (wit m (= (* m a) 0) 0 (refl (* 0 a))))

@@ -1,7 +1,0 @@
-; user-list append right identity: L++Nil = L
-(data 2 0 0 0)
-(data 3 2 0 1)
-(fun 8 2 (y 0))
-(fun 8 3 (k 3 (v 0) (rec 1)))
-(all x1 (= (f 8 x1 (k 2)) x1))
-(rec 2 3 x1 (= (f 8 x1 (k 2)) x1) (refl (k 2)) (gen x2 (gen x3 (lam h4 (= (f 8 x3 (k 2)) x3) (eqelim x5 (= (k 3 x2 (f 8 x3 (k 2))) (k 3 x2 x5)) h4 (refl (k 3 x2 (f 8 x3 (k 2)))))))))

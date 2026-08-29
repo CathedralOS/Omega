@@ -1,7 +1,0 @@
-; a + (s b) = s(a + b) -- the right-successor law for addition.
-; The primitive + reduces on its LEFT argument ((s a)+b = s(a+b) is definitional), so the symmetric
-; right-successor law is NOT free: induction on a. Base z+(s b) = s b = s(z+b) by reduction; step
-; rewrites with the IH under the left-reduction (eqelim with motive (+ (s a)(s b)) = s _, base refl).
-; The lemma the additive-algebra family needs -- e.g. (s k)+(s k) = s(s(k+k)) for parity alternation.
-(all x1 (all x2 (= (+ x1 (s x2)) (s (+ x1 x2)))))
-(natind x1 (all x2 (= (+ x1 (s x2)) (s (+ x1 x2)))) (gen x3 (refl (s x3))) (gen x4 (lam h5 (all x6 (= (+ x4 (s x6)) (s (+ x4 x6)))) (gen x7 (eqelim x8 (= (+ (s x4) (s x7)) (s x8)) (inst h5 x7) (refl (+ (s x4) (s x7))))))))

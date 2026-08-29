@@ -1,4 +1,0 @@
-; membership implies non-empty: Mem(x,L) -> 0 < len L
-; list induction; nil case absurd via memnil, cons case witnesses len t (Mem hyp unused there).
-(all x1 (all x2 (-> (rel 777 x1 x2) (ex x3 (= (+ z (s x3)) (len x2))))))
-(gen x1 (listind x2 (-> (rel 777 x1 x2) (ex x3 (= (+ z (s x3)) (len x2)))) (lam h4 (rel 777 x1 nil) (absurd (ex x5 (= (+ z (s x5)) (len nil))) (memnil h4))) (gen x6 (gen x7 (lam h8 (-> (rel 777 x1 x7) (ex x9 (= (+ z (s x9)) (len x7)))) (lam h10 (rel 777 x1 (cons x6 x7)) (wit x11 (= (+ z (s x11)) (len (cons x6 x7))) (len x7) (refl (s (len x7))))))))))

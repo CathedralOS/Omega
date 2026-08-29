@@ -2,8 +2,8 @@
 
 [Lattice overview](bootstrap_lattice.md) | [Omega product toolchain](omega_toolchain.md) | [Terminal Psi](../pipeline/terminal_psi.md)
 
-> **Status: ROOTED CHECKER SERVICE; EDGE ADMISSION OPEN.** Beta and
-> Gamma implementations exercise the shared calculus, and the accepted checker
+> **Status: ROOTED CHECKER SERVICE; EDGE ADMISSION OPEN.** The authoritative
+> Beta implementation and one independent diagnostic reference exercise the shared calculus, and the accepted checker
 > tape is constructed directly from the Alpha-written Beta compiler source,
 > independently of the persisted Beta compiler artifact. The lattice
 > requires every compiler edge to relate its immediate-predecessor source
@@ -15,9 +15,11 @@ The proof kernel is deliberately not a language rung. Programs do not elaborate
 through it, and it adds no stage between Gamma and Delta. It is an Alpha-owned
 service used by producers and artifact verifiers throughout the build lattice.
 
-Its canonical owner is `source/alpha/checker/`. Beta, Gamma, and
-executable reference implementations live under `implementations/`; untrusted automation,
-fixtures, and executable policy live under `tools/`, `corpus/`, and `gates/`.
+Its canonical owner is `source/alpha/checker/`. The authoritative Beta and
+untrusted executable reference implementations live under `implementations/`;
+the one retained deterministic generator and executable policy live under
+`corpus/` and `gates/`. A theorem library, proof-search stack, conversion layer,
+or collection of language-hosted checker copies is not part of the service.
 The product-local Rust crate `psi-proof-admission` remains under Psi semantics;
 it checks Psi judgments and admission policy and is not this generic bootstrap
 derivation checker. Its role name does not move it into the bootstrap assurance
@@ -55,18 +57,18 @@ they gain no authority by producing a candidate certificate.
 
 ## Implementations
 
-The principal low-rung implementations are:
+The retained implementations are:
 
 - `source/alpha/checker/implementations/beta/check.beta` — logical proof checking in Beta;
 - `source/alpha/checker/implementations/beta/eq.beta` — fuel-bounded definitional equality;
-- `source/alpha/checker/implementations/gamma/checker.gamma` — independently written Gamma checker;
-- `source/alpha/checker/implementations/gamma/checker_typed.gamma` — typed Gamma form checked by Gamma's
-  static type checker.
+- `source/alpha/checker/implementations/reference/check_ref.py` — one
+  independently written, untrusted complete diagnostic checker.
 
-They are separately written implementations of a shared calculus. Shared
-positive and negative corpora, cross-checks, fuzzers, and operational seams test
-that they decide the same judgments. Agreement is evidence while the formal
-soundness bridge matures; it does not grant either implementation
+The compact discriminator and adversarial suites exercise the authoritative
+checker. One deterministic differential generator checks the complete retained
+rule set against the independent reference, and one bounded operational seam
+compares definitional equality with Gamma evaluation. Agreement is evidence
+while the formal soundness bridge matures; it does not grant the reference
 authority over artifact-specific obligation reconstruction. The accepted
 checker artifact is reconstructed independently below `bc`. Checker acceptance
 can authorize a compiler edge only after an artifact-aware producer
@@ -95,9 +97,10 @@ reconstructed independently from the fingerprinted artifact. A producer cannot
 omit an access, weaken a contract, relabel a derived fact as admitted, or attach
 a valid theorem to unrelated code.
 
-This is why Gamma is not “the Psi proof checker.” Gamma hosts one generic kernel
-implementation. A low-rung Psi-aware semantic-ledger generator supplies the
-artifact-specific reconstruction assurance. A future Psi- or Omega-hosted kernel
+This is why Gamma is not “the Psi proof checker.” Gamma's evaluator participates
+only in one bounded semantic diagnostic; it does not own checker authority. A
+low-rung Psi-aware semantic-ledger generator supplies the artifact-specific
+reconstruction assurance. A future Psi- or Omega-hosted kernel
 may accelerate or independently cross-check validation, but it cannot replace
 that reconstruction step merely by understanding the proof calculus.
 

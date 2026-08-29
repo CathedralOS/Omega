@@ -1,2 +1,0 @@
-(all n (-> (= 0 (s n)) bot))
-(gen n (lam h (= 0 (s n)) (disj h)))

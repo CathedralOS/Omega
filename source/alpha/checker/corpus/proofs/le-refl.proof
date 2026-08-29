@@ -1,7 +1,0 @@
-; a <= a   (<= is exists c. a+c=b);  witness 0, via n+0=n
-(def 0 (all n (= (+ n 0) n))
-  (natind n (= (+ n 0) n) (refl 0)
-    (gen n2 (lam ih (= (+ n2 0) n2)
-      (eqelim hole (= (s (+ n2 0)) (s hole)) ih (refl (s (+ n2 0))))))))
-(all a (ex c (= (+ a c) a)))
-(gen a (wit c (= (+ a c) a) 0 (inst (use 0) a)))

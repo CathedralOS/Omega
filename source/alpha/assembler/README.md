@@ -31,6 +31,16 @@ The historical Rust cold-start producer has been retired. The checked-in seed,
 written assembly/VM semantics, self-hosting reconstruction, and independent reference gate
 are the maintained path.
 
+## Retention inventory
+
+| Retained child | Direct role | Deletion condition |
+| --- | --- | --- |
+| `examples/` | Small source cases consumed by the assembler behavior and reference gates. | Delete a case when another retained case covers the same encoding boundary; delete the directory when generated discriminators fully replace it. |
+
+The root retains one authoritative Alpha source, the two platform assembler
+realizations, exact self-host/build entry points, one independent reference,
+and focused encoding regressions. Historical producer routes are not retained.
+
 ```
 ./selfhost.sh                                                  # Alpha assembler rebuilds itself, no Rust
 ./build.sh examples/multiply.alpha && ./build/multiply.exe       # exits 42

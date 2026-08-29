@@ -1,7 +1,0 @@
-; a divisor is at most its positive dividend: a|b & 0<b -> a<=b
-(def 0 (all x1 (all x2 (-> (= x1 x2) (= x2 x1)))) (gen x3 (gen x4 (lam h5 (= x3 x4) (eqelim x6 (= x6 x3) h5 (refl x3))))))
-(def 1 (all x1 (all x2 (all x3 (-> (= x1 x2) (-> (= x2 x3) (= x1 x3)))))) (gen x4 (gen x5 (gen x6 (lam h7 (= x4 x5) (lam h8 (= x5 x6) (eqelim x9 (= x4 x9) h8 h7)))))))
-(def 2 (all x1 (all x2 (= (* (s x1) x2) (+ x2 (* x1 x2))))) (gen x3 (gen x4 (refl (* (s x3) x4)))))
-(def 3 (all x1 (or (= x1 z) (ex x2 (= x1 (s x2))))) (natind x3 (or (= x3 z) (ex x4 (= x3 (s x4)))) (inl (ex x5 (= z (s x5))) (refl z)) (gen x6 (lam h7 (or (= x6 z) (ex x8 (= x6 (s x8)))) (inr (= (s x6) z) (wit x9 (= (s x6) (s x9)) x6 (refl (s x6))))))))
-(all x1 (all x2 (-> (ex x3 (= (* x3 x1) x2)) (-> (ex x4 (= (+ z (s x4)) x2)) (ex x5 (= (+ x1 x5) x2))))))
-(gen x1 (gen x2 (lam h3 (ex x4 (= (* x4 x1) x2)) (lam h5 (ex x6 (= (+ z (s x6)) x2)) (unpack h3 (gen x7 (lam h8 (= (* x7 x1) x2) (case (inst (use 3) x7) (lam h9 (= x7 z) (unpack h5 (gen x10 (lam h11 (= (+ z (s x10)) x2) (absurd (ex x12 (= (+ x1 x12) x2)) (disj (app (app (inst (inst (inst (use 1) (+ z (s x10))) x2) z) h11) (app (app (inst (inst (inst (use 1) x2) (* x7 x1)) z) (app (inst (inst (use 0) (* x7 x1)) x2) h8)) (app (app (inst (inst (inst (use 1) (* x7 x1)) (* z x1)) z) (eqelim x13 (= (* x7 x1) (* x13 x1)) h9 (refl (* x7 x1)))) (refl z)))))))))) (lam h14 (ex x15 (= x7 (s x15))) (unpack h14 (gen x16 (lam h17 (= x7 (s x16)) (wit x18 (= (+ x1 x18) x2) (* x16 x1) (eqelim x19 (= (* x19 x1) x2) h17 h8))))))))))))))

@@ -1,5 +1,0 @@
-(all a (all b (-> (ex c (= (+ a c) b)) (ex c (= (+ (s a) c) (s b))))))
-(gen a (gen b (lam h (ex c (= (+ a c) b))
-  (unpack h (gen c (lam pf (= (+ a c) b)
-    (wit c2 (= (+ (s a) c2) (s b)) c
-      (eqelim hole (= (+ (s a) c) (s hole)) pf (refl (+ (s a) c))))))))))

@@ -1,5 +1,0 @@
-; the successor of an even number is odd -- half of "parity alternates with successor".
-; If n = j+j then s n = s(j+j), which is odd with the same witness j. A one-step cong-s on the
-; even witness (eqelim rewriting n -> j+j under a successor). The base case of parity alternation.
-(all x1 (-> (ex x2 (= x1 (+ x2 x2))) (ex x3 (= (s x1) (s (+ x3 x3))))))
-(gen x1 (lam h2 (ex x3 (= x1 (+ x3 x3))) (unpack h2 (gen x4 (lam h5 (= x1 (+ x4 x4)) (wit x6 (= (s x1) (s (+ x6 x6))) x4 (eqelim x7 (= (s x1) (s x7)) h5 (refl (s x1)))))))))

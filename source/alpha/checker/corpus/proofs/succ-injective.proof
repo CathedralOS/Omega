@@ -1,2 +1,0 @@
-(all a (all b (-> (= (s a) (s b)) (= a b))))
-(gen a (gen b (lam h (= (s a) (s b)) (sinj h))))

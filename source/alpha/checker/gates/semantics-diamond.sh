@@ -27,7 +27,7 @@ fi
 cd "$OMEGA_PATH_ALPHA_CHECKER"
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+T=$(mktemp -d); trap 'trash "$T"' EXIT
 stamp_beta_compiler "$T/bc.exe" >/dev/null
 b() { "$T/bc.exe" < "$1" > "$T/x.tape" && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
 b implementations/beta/eq.beta "$T/eq.exe"           || { echo "build implementations/beta/eq.beta failed"; exit 1; }

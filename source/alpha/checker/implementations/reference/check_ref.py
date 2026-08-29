@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-# check_ref.py — an INDEPENDENT reference proof checker for the proof kernel's PROPOSITIONAL fragment, written from the
-# natural-deduction typing rules, NOT ported from check.beta / checker.gamma. Reads "<goal> <proof>" on
-# stdin and prints 'accept' iff the proof proves the goal, else 'reject' (matching check.beta's interface).
+# check_ref.py — an INDEPENDENT reference proof checker written from the
+# natural-deduction rules, not ported from check.beta. Reads "<goal> <proof>" on
+# stdin and prints the same accept/reject interface as the authoritative checker.
 #
-# WHY THIS EXISTS — the trust anchor is the one lattice component whose two implementations (check.beta in
-# Beta, checker.gamma in Gamma) are BOTH lattice-lineage (compiled by bc). Every other rung now has a truly
-# independent, auditable reference — alpha_ref.py (VM), asm_ref.py (assembler), beta_interp.py (bc behavior),
-# gamma_ref.py (meaning). This is that reference for the checker's core: intuitionistic propositional logic
+# The Beta checker is lattice-lineage and authoritative. This Python program is
+# one untrusted, auditable differential reference for its complete retained core:
+# intuitionistic propositional logic
 # (->, &, +, bot with intro+elim), PLUS first-order (All/Exists, de Bruijn), equality by conversion (refl +
 # Peano/list/user-function normalization), and the FULL induction fragment (natind/listind/eqelim/disj/sinj).
 # PLUS the inductive predicates Mem/ProdIs/Perm (Rel 777/778/779), generic structural induction over user

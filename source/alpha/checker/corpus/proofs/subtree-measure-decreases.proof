@@ -1,9 +1,0 @@
-; structural termination: a proper subtree has strictly fewer leaves than the whole tree -- count l < count(Node l r).
-; count(Node l r) = count l + count r, and count r > 0 (count-positive), so count l < count l + count r. The witness is the predecessor of count r supplied by the count-positive proof. This is the `decreases` obligation a verifier discharges to admit structural recursion on a tree: every recursive descent strictly shrinks the measure (the right subtree is symmetric via commutativity).
-(data 6 1 0 0)
-(data 7 2 1 1)
-(fun 13 6 (s z))
-(fun 13 7 (+ (rec 0) (rec 1)))
-(def 0 (all x1 (ex x2 (= (+ z (s x2)) (f 13 x1)))) (rec 6 7 x3 (ex x4 (= (+ z (s x4)) (f 13 x3))) (gen x5 (wit x6 (= (+ z (s x6)) (f 13 (k 6 x5))) z (refl (s z)))) (gen x7 (gen x8 (lam h9 (ex x10 (= (+ z (s x10)) (f 13 x7))) (lam h11 (ex x12 (= (+ z (s x12)) (f 13 x8))) (unpack h9 (gen x13 (lam h14 (= (+ z (s x13)) (f 13 x7)) (wit x15 (= (+ z (s x15)) (f 13 (k 7 x7 x8))) (+ x13 (f 13 x8)) (eqelim x16 (= (s (+ x13 (f 13 x8))) (+ x16 (f 13 x8))) h14 (refl (s (+ x13 (f 13 x8)))))))))))))))
-(all x1 (all x2 (ex x3 (= (+ (f 13 x1) (s x3)) (f 13 (k 7 x1 x2))))))
-(gen x1 (gen x2 (unpack (inst (use 0) x2) (gen x3 (lam h4 (= (+ z (s x3)) (f 13 x2)) (wit x5 (= (+ (f 13 x1) (s x5)) (f 13 (k 7 x1 x2))) x3 (eqelim x6 (= (+ (f 13 x1) (s x3)) (+ (f 13 x1) x6)) h4 (refl (+ (f 13 x1) (s x3))))))))))
