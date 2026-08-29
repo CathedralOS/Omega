@@ -26,8 +26,9 @@ their APIs into a second, ambiguous namespace.
 ## Source custody
 
 Immutable acquisition is delegated to
-[`source/acquisition`](../source/acquisition/README.md), which composes confined
-native execution from [`source/execution`](../source/execution/README.md).
+[`omega-package-source`](../omega-package-source/README.md), which composes
+confined native execution from
+[`omega-resolver-execution`](../omega-resolver-execution/README.md).
 Acquisition does not know graph identity. `resolution/package/` performs the
 declaration join before `resolution/graph/` derives graph-owned identities.
 
@@ -80,7 +81,7 @@ The package manager is not admission-complete. In particular, no accepted lock
 or atomic install/update transaction exists yet. Remaining work is maintained
 in [`TASKS_PACKAGE_MANAGER.md`](../../../../../TASKS_PACKAGE_MANAGER.md), and
 resolver guarantees and gaps are maintained by source acquisition in
-[`SOURCE_RESOLVER_SECURITY.md`](../source/acquisition/SOURCE_RESOLVER_SECURITY.md).
+[`SOURCE_RESOLVER_SECURITY.md`](../omega-package-source/SOURCE_RESOLVER_SECURITY.md).
 
 Capability-safe atomic record persistence is shared infrastructure owned by
 `omega-platform-custody`, not a package-manager responsibility.
@@ -92,8 +93,8 @@ change acceptance, conflicts, or compiler-owned audit recommendations.
 
 Package-authored code never chooses admitted capabilities, accepted lock state,
 resolver policy, or review outcome. `build.omg` provides compiler-checked
-declarations; [`review/evidence`](../review/evidence/README.md) projects checked
-semantic facts without admission authority.
+declarations; [`omega-package-review`](../omega-package-review/README.md)
+projects checked semantic facts without admission authority.
 
 Language and design references:
 

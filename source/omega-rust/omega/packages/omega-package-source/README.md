@@ -1,4 +1,4 @@
-# Package Source Acquisition
+# Omega Package Source
 
 This crate owns immutable source identity, local snapshot capture, Git
 acquisition, cache custody, and successful non-admitting resolution
@@ -19,9 +19,9 @@ src/
 └── error.rs        fail-closed acquisition errors
 ```
 
-Native child-process confinement lives in `../execution/`. Package
-declarations, graph reconciliation, review, and admission remain manager
-responsibilities.
+Native child-process confinement lives in `../omega-resolver-execution/`.
+Package declarations, graph reconciliation, review, and admission remain
+manager responsibilities.
 
 The current enforced floor and remaining platform gaps are maintained in
 [`SOURCE_RESOLVER_SECURITY.md`](SOURCE_RESOLVER_SECURITY.md).
