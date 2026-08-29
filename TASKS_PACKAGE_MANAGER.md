@@ -340,10 +340,11 @@ explicitly.
   entries with directed diagnostics, and retain transitive helper contracts.
   Finish retiring scoped roots from the seven filesystem-heavy
   `build_config_granted.rs` fixtures, three native-differential filesystem
-  fixtures, and package-manager review fixtures. First repair the evaluator
-  write-back defect exposed when a free root repeatedly operates through
-  `builder.filesystem` (`cannot read field fd of Int(...)`); do not weaken the
-  observation assertions to make migration pass.
+  fixtures, and package-manager review fixtures. Direct canonical-root probes
+  confirm repeated `builder.filesystem` calls, state transitions, and ordinary
+  helper forwarding preserve mutable Build write-back; migrate scoped `self`
+  carrier fields to local root variables without weakening observation
+  assertions.
 
 - [ ] **OPTIONAL-STDLIB-BUILD-PROTOCOL-AND-SEMANTIC-BINDINGS.** Finish the
   ordinary-package std migration without recreating a privileged `std` role.
