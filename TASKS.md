@@ -474,13 +474,19 @@ Remaining:
   validates the affine-owned structural frontier and exact exit cleanup, and
   preserves the fixed-fuel identity. Assignment accepts only the ABI-prescribed
   rank register (`rdi` on Linux x86-64, `x0` on Linux AArch64) and rejects
-  stack, cross-target, or call-plan drift. Selected-instruction legalization
-  and machine emission reject this carrier explicitly rather than erasing it
-  into an acyclic control tree. The next substep is instruction selection and
-  machine emission for both supported ISAs, including the backward branch,
-  relocation/replay, native fuel rebasing, and final object/image/install/native
-  artifact custody. Then execute ranks 0, 1, and 3 natively and compare their
-  exact schedules before retrying the product build.
+  stack, cross-target, or call-plan drift. The ordinary selected-instruction
+  path remains fail-closed. A disjoint unoptimized route now carries the exact
+  ranked authority through assignment and emits the fixed relocation-free
+  countdown body for both Linux ISAs, including the one-time preheader and the
+  header-targeting backward branch. Machine code retains semantic custody,
+  complete ABI/structural inputs, and all four operation plus five edge fuel
+  sites; it does not duplicate target-constant layout as evidence. Generic
+  native-fuel instrumentation rejects this carrier until it can rebase internal
+  branches, and object construction rejects both intact custody and the exact
+  ranked shape with that optional record removed. The next substep is exact
+  unmetered object replay from the disjoint carrier, followed by ranked-aware
+  native-fuel rebasing, final image/install/native-artifact custody, and native
+  rank 0, 1, and 3 schedule comparison before retrying the product build.
   Later product-required slices must then add persistent mutable receiver and
   subplace custody, mixed operations in multi-state blocks, structural-result
   boundary calls and payload cases, nested field/index reads and writes, and
@@ -517,16 +523,18 @@ Remaining:
   Freeze the exact manifest and feature census only for the complete compiler
   closure at the Delta-to-Omega join.
 
-  The diagnostic v4 source-closure observer now resolves every declared
-  application/package root through package custody even when it has no
-  dependencies. It retains the package system's complete canonical closure
-  subject beside package-qualified, package-relative identities and hashes for
-  the source units actually loaded by compiler discovery. This is reusable
-  scaffolding, not frozen `C`: final closure publication must come from the
-  complete checked product build and additionally bind generated/compile-time
-  source, build inputs and observations, imported build tools, target
-  acceptance, and emitted-artifact custody. Do not promote an earlier
-  discovery snapshot merely because its package graph is exact.
+  The standalone `source-snapshot` / feature-census surface is not reusable
+  `C` scaffolding. It resolves with `omega-source-inspection-v1` while product
+  compilation resolves with `omega-local-project-v1`, stops before generated
+  and build-tool inputs exist, and never joins an emitted artifact. Its second
+  fingerprint and diagnostic closure are therefore parallel non-production
+  truth. Do not extend or freeze it. Atomically move only the needed loaded-unit
+  projection into the actual `CompileRequest` / `CheckedCompilation` path,
+  publish one manifest binding the production package subject, all consumed,
+  generated, toolchain, and build custody, selected target, and emitted
+  artifact identity, then delete the standalone command, schemas, census, and
+  bespoke gates. If that direct adaptation is not economical, delete the
+  standalone surface outright; reconciling two manifests is forbidden.
 
   The product build directly selects the complete `ConsoleNativeProvider`
   through the normative

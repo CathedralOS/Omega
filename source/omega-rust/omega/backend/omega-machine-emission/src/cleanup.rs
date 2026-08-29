@@ -29,6 +29,7 @@ pub(super) fn emit_scalar_return_with_cleanup(
     structural_parameters: &[omega_target_operations::TargetStructuralParameter],
     cleanup_actions: &[psi_terminal::TerminalAffineCleanupAction],
     psi_edge: psi_core::EdgeId,
+    psi: psi_terminal::TerminalPsiIdentity,
     target: NativeTarget,
     functions: &[AssignedFunction],
 ) -> Result<MachineCodeFunction, EmissionError> {
@@ -64,6 +65,7 @@ pub(super) fn emit_scalar_return_with_cleanup(
             provenance: function.provenance.clone(),
             operation: scalar.clone(),
         },
+        psi,
         target,
         functions,
     )?;
@@ -486,6 +488,7 @@ pub(super) fn emit_boolean_control_with_cleanup(
         scalar_control_affine_cleanups: emitted.cleanups,
         scalar_structural_parameters: parameter_records,
         scalar_structural_parameter_homes: parameter_homes,
+        ranked_u32_countdown: None,
         fuel_attribution,
         port_effects: Vec::new(),
         boundary_settlements: Vec::new(),

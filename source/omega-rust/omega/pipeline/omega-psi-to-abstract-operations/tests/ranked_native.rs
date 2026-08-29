@@ -1,6 +1,7 @@
 use omega_psi_to_abstract_operations::{
-    ArtifactLoweringError, lower_artifact_sections,
+    ArtifactLoweringError, NativeArtifactOperationPlan, lower_artifact_sections,
     lower_artifact_sections_for_native_ranked_countdown,
+    lower_artifact_sections_for_native_realization,
 };
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -55,6 +56,13 @@ fn explicit_ranked_admission_retains_exact_fuel_graph_and_frontier_custody() {
 
     let admitted = lower_artifact_sections_for_native_ranked_countdown(&semantic, &proof, &profile)
         .expect("the exact structural Unit u32 countdown has native custody");
+    let selected = lower_artifact_sections_for_native_realization(&semantic, &proof, &profile)
+        .expect("native entrance selects the ranked authority");
+    assert!(matches!(
+        selected,
+        NativeArtifactOperationPlan::RankedU32Countdown(ref selected)
+            if selected == &admitted
+    ));
     let machine = module
         .machines
         .iter()
@@ -177,6 +185,18 @@ fn explicit_ranked_admission_rejects_a_wider_rank_carrier() {
 
     assert!(matches!(
         lower_artifact_sections_for_native_ranked_countdown(
+            &semantic,
+            &proof,
+            &psi_proof_admission::AdmissionProfile::default(),
+        ),
+        Err(ArtifactLoweringError::Verification(
+            psi_terminal_verifier::VerificationError::Module(
+                psi_terminal_verifier::ModuleError::NonExecutableRankedScc(machine)
+            )
+        )) if machine == module.entry
+    ));
+    assert!(matches!(
+        lower_artifact_sections_for_native_realization(
             &semantic,
             &proof,
             &psi_proof_admission::AdmissionProfile::default(),

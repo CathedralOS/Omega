@@ -747,6 +747,7 @@ mod tests {
                 scalar_control_affine_cleanups: Vec::new(),
                 scalar_structural_parameters: Vec::new(),
                 scalar_structural_parameter_homes: Vec::new(),
+                ranked_u32_countdown: None,
                 fuel_attribution: vec![NativeFuelAttribution {
                     schedule: TerminalFuelSchedule::CURRENT.identity(),
                     site: NativeFuelSite::Operation(operation),

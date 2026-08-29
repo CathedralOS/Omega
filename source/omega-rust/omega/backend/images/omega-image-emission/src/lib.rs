@@ -436,6 +436,11 @@ pub fn build_object_artifact(plan: &MachineCodePlan) -> Result<ObjectArtifact, O
         if function.bytes.is_empty() {
             return Err(ObjectError::EmptyFunction(function.machine));
         }
+        if function.requires_ranked_countdown_replay() {
+            return Err(ObjectError::RankedCountdownNotYetReplayable(
+                function.machine,
+            ));
+        }
         if function
             .internal_calls
             .windows(2)
@@ -1426,6 +1431,7 @@ pub enum ObjectError {
         current: MachineId,
     },
     EmptyFunction(MachineId),
+    RankedCountdownNotYetReplayable(MachineId),
     NonCanonicalInternalCallOrder(MachineId),
     NonCanonicalFuelAttributionOrder(MachineId),
     FuelAttributionOutsideFunction(MachineId),

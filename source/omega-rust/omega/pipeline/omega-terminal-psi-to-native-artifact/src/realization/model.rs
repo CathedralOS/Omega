@@ -6,14 +6,14 @@ use omega_native_artifact::NativeArtifact;
 use omega_target_operations::BoundaryRealization;
 
 pub(crate) enum NativeRealizationInput {
-    Ordinary(omega_abstract_operations::AbstractOperationPlan),
+    Unoptimized(omega_psi_to_abstract_operations::NativeArtifactOperationPlan),
     ExplicitOptimization(omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput),
 }
 
 impl NativeRealizationInput {
     pub(crate) fn plan(&self) -> &omega_abstract_operations::AbstractOperationPlan {
         match self {
-            Self::Ordinary(plan) => plan,
+            Self::Unoptimized(input) => input.plan(),
             Self::ExplicitOptimization(input) => input.plan(),
         }
     }

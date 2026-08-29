@@ -13,8 +13,9 @@ mod provider_installation;
 mod shared;
 
 pub use artifact::{
-    ArtifactLoweringError, lower_artifact_sections,
-    lower_artifact_sections_for_native_ranked_countdown, lower_artifact_sections_for_optimization,
+    ArtifactLoweringError, NativeArtifactOperationPlan, lower_artifact_sections,
+    lower_artifact_sections_for_native_ranked_countdown,
+    lower_artifact_sections_for_native_realization, lower_artifact_sections_for_optimization,
     lower_replay_artifact_sections, lower_replay_artifact_sections_for_optimization,
 };
 pub use lowering::LoweringError;

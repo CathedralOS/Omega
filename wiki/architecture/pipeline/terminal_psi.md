@@ -940,13 +940,18 @@ premise, and requires the exact-subtract evidence before constructing resumable
   proof, exact fixed-fuel certificate, converged structural frontier, and the
   reconstructed preheader/header/guard/subtract/backedge graph into one custody
   object. Abstract, target, and assigned-target representations retain that
-  object unchanged. Target lowering must replay the exact graph, affine-owned
+  object unchanged. Target lowering replays the exact graph, affine-owned
   structural parameter, exit cleanup, and ABI placement; assignment accepts
-  only the target-prescribed rank register. Instruction selection and machine
-  emission remain fail-closed until they preserve the same identity through
-  both supported ISA encoders and backward-edge relocation. This authority is
-  not a general cyclic-control exception and cannot be obtained by converting
-  either the interpreter carrier or ordinary acyclic verification.
+  only the target-prescribed rank register. The ordinary selected-instruction
+  path stays closed, while a disjoint unoptimized route emits the exact Linux
+  x86-64 and AArch64 countdown bodies from assigned custody. The machine-code
+  carrier retains the semantic custody, complete ABI/structural inputs, and
+  canonical four-operation/five-edge logical-fuel attribution. Object replay
+  and generic native-fuel instrumentation remain closed: the former has not
+  independently replayed the ranked body, and the latter cannot yet rebase its
+  internal branches around inserted charge sites. This authority is not a
+  general cyclic-control exception and cannot be obtained by converting either
+  the interpreter carrier or ordinary acyclic verification.
 Unconditional jumps and conditional arms may additionally pass
 direct primitive scalar inputs into typed successor block parameters; the edge
 materializes those arguments before committing its structural cleanup.

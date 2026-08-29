@@ -238,6 +238,7 @@ fn linux_exit_group_object_validation_replays_exact_scalar_and_trap_bytes() {
                 scalar_control_affine_cleanups: Vec::new(),
                 scalar_structural_parameters: Vec::new(),
                 scalar_structural_parameter_homes: Vec::new(),
+                ranked_u32_countdown: None,
                 structural_return: None,
             }],
         };
@@ -489,6 +490,7 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
             scalar_control_affine_cleanups: Vec::new(),
             scalar_structural_parameters: Vec::new(),
             scalar_structural_parameter_homes: Vec::new(),
+            ranked_u32_countdown: None,
             structural_return: None,
         }],
     };
@@ -538,6 +540,55 @@ fn object_boundary_rejects_noncanonical_or_incomplete_machine_code_plans() {
     assert_eq!(
         build_object_artifact(&empty_function),
         Err(ObjectError::EmptyFunction(machine_id(1)))
+    );
+
+    let mut stripped_ranked_custody = two_function_plan();
+    let function = &mut stripped_ranked_custody.functions[0];
+    let operations = [
+        operation_id(11),
+        operation_id(12),
+        operation_id(13),
+        operation_id(14),
+    ];
+    let edges = [
+        edge_id(11),
+        edge_id(12),
+        edge_id(13),
+        edge_id(14),
+        edge_id(15),
+    ];
+    function.provenance = TerminalPsiProvenance {
+        operations: operations.to_vec(),
+        edges: edges.to_vec(),
+    };
+    function.bytes = omega_isa_x86_64::encode_ranked_u32_countdown_in_edi().to_vec();
+    function.ranked_u32_countdown = None;
+    let schedule = psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity();
+    function.fuel_attribution = [
+        NativeFuelSite::Edge(edges[0]),
+        NativeFuelSite::Operation(operations[0]),
+        NativeFuelSite::Operation(operations[1]),
+        NativeFuelSite::Edge(edges[1]),
+        NativeFuelSite::Operation(operations[2]),
+        NativeFuelSite::Operation(operations[3]),
+        NativeFuelSite::Edge(edges[3]),
+        NativeFuelSite::Edge(edges[2]),
+        NativeFuelSite::Edge(edges[4]),
+    ]
+    .into_iter()
+    .enumerate()
+    .map(|(operation_ordinal, site)| NativeFuelAttribution {
+        schedule,
+        site,
+        units: 1,
+        operation_ordinal,
+        code_offset: 0,
+        byte_count: 0,
+    })
+    .collect();
+    assert_eq!(
+        build_object_artifact(&stripped_ranked_custody),
+        Err(ObjectError::RankedCountdownNotYetReplayable(machine_id(1)))
     );
 }
 
@@ -2168,6 +2219,7 @@ fn supported_writers_preserve_exact_terminal_text_and_complete_regions() {
                 scalar_control_affine_cleanups: Vec::new(),
                 scalar_structural_parameters: Vec::new(),
                 scalar_structural_parameter_homes: Vec::new(),
+                ranked_u32_countdown: None,
                 structural_return: None,
             }],
         };
@@ -2493,6 +2545,7 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
             scalar_control_affine_cleanups: Vec::new(),
             scalar_structural_parameters: Vec::new(),
             scalar_structural_parameter_homes: Vec::new(),
+            ranked_u32_countdown: None,
             structural_return: None,
         }],
     };
@@ -2618,6 +2671,7 @@ fn two_function_plan() -> MachineCodePlan {
                 scalar_control_affine_cleanups: Vec::new(),
                 scalar_structural_parameters: Vec::new(),
                 scalar_structural_parameter_homes: Vec::new(),
+                ranked_u32_countdown: None,
                 structural_return: None,
             },
             MachineCodeFunction {
@@ -2642,6 +2696,7 @@ fn two_function_plan() -> MachineCodePlan {
                 scalar_control_affine_cleanups: Vec::new(),
                 scalar_structural_parameters: Vec::new(),
                 scalar_structural_parameter_homes: Vec::new(),
+                ranked_u32_countdown: None,
                 structural_return: None,
             },
         ],
@@ -2684,6 +2739,7 @@ fn internal_call_plan(target: NativeTarget) -> MachineCodePlan {
                 scalar_control_affine_cleanups: Vec::new(),
                 scalar_structural_parameters: Vec::new(),
                 scalar_structural_parameter_homes: Vec::new(),
+                ranked_u32_countdown: None,
                 structural_return: None,
             },
             MachineCodeFunction {
@@ -2714,6 +2770,7 @@ fn internal_call_plan(target: NativeTarget) -> MachineCodePlan {
                 scalar_control_affine_cleanups: Vec::new(),
                 scalar_structural_parameters: Vec::new(),
                 scalar_structural_parameter_homes: Vec::new(),
+                ranked_u32_countdown: None,
                 structural_return: None,
             },
         ],
@@ -3662,6 +3719,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                 scalar_control_affine_cleanups: Vec::new(),
                 scalar_structural_parameters: Vec::new(),
                 scalar_structural_parameter_homes: Vec::new(),
+                ranked_u32_countdown: None,
                 structural_return: None,
             },
             MachineCodeFunction {
@@ -3698,6 +3756,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                 scalar_control_affine_cleanups: Vec::new(),
                 scalar_structural_parameters: Vec::new(),
                 scalar_structural_parameter_homes: Vec::new(),
+                ranked_u32_countdown: None,
                 structural_return: None,
             },
             MachineCodeFunction {
@@ -3781,6 +3840,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                 scalar_control_affine_cleanups: Vec::new(),
                 scalar_structural_parameters: Vec::new(),
                 scalar_structural_parameter_homes: Vec::new(),
+                ranked_u32_countdown: None,
                 structural_return: None,
             },
         ],
