@@ -24,8 +24,8 @@ compiler used to consume the Beta-written Gamma compiler source.
 
 The repository promotes `compiler/beta_compiler.alpha` directly as the Beta
 compiler. Its persisted artifact is the one-step output of the Alpha-written
-assembler. The historical `bc.beta` self-host has no production consumer and
-may remain only for the bounded comparison tracked in `TASKS_BOOTSTRAP.md`.
+assembler. The historical Beta self-host was deleted after the direct artifact
+and focused compiler gate subsumed its useful migration role.
 
 Evidence tied specifically to “Beta source admits the Beta compiler” does not
 apply to this edge and cannot be reused as authority.

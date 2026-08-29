@@ -46,9 +46,8 @@ reservation checks the data-stack floor before its next access; the mandatory
 frame word also bounds Alpha's hidden return stack. Exhaustion halts with status
 250 inside the current procedure. `read_byte()` and
 `write_byte(x)` are the sole runtime I/O intrinsics. `emit("…")` decodes Beta's
-six string escapes and emits one Alpha `write` per byte; the pinned `bc.beta`
-contains only 791 literal payload bytes, so this direct lowering remains well
-inside the checked output extent.
+six string escapes and emits one Alpha `write` per byte inside the checked
+output extent.
 
 The compiler reads at most 1,048,576 source bytes into a checked fixed extent,
 bounds expression/call nesting at 64, procedure count at 128, recorded calls at
@@ -70,9 +69,9 @@ explicit return values through full epilogues. Generated `$L…` and `$S…$…`
 labels use bytes that Beta identifiers cannot spell, preventing collisions with
 source names.
 
-This accepts arbitrary programs in the bounded surface above, including the
-current `bc.beta` comparison source. [`rebuild-artifact.sh`](rebuild-artifact.sh)
-assembles the canonical Alpha source directly. Its `--check` mode reconstructs
+This accepts arbitrary programs in the bounded surface above.
+[`rebuild-artifact.sh`](rebuild-artifact.sh) assembles the canonical Alpha source
+directly. Its `--check` mode reconstructs
 [`../artifacts/beta_compiler_bytecode.tape`](../artifacts/README.md) byte-for-byte without changing
 the repository; its default mode deliberately installs that reconstruction.
 The focused [`test.sh`](test.sh) exercises the compiler's accepted and
@@ -83,19 +82,9 @@ removed. Its stored-word encoder subsequently corrected the old assembler's
 high-bit `u64` quotient bug, so that intentional semantic repair supersedes
 blanket byte identity with the historical route. The adjacent validation
 directory now retains only general artifact
-structure, trace-refinement, stress, and bounded implementation comparisons. The
-former exact-`bc.beta` admission forest was deleted because none of its
+structure, trace-refinement, and bounded stress checks. The former self-hosted
+compiler and its exact admission forest were deleted because none of their
 source/PC/count-specific propositions transferred to the promoted Alpha source.
-
-## Comparison-source profile
-
-The retained comparison input is the current `bc.beta` source, SHA-256
-`b6ad15ed9cc540a628b83c671bd8c6629770056a641d72d885e41354a8b06c4c`:
-32,605 bytes. Its measured surface remains inside every adjacent-boundary-tested
-compiler capacity. It uses
-every arithmetic and comparison operator, byte/word memory, calls, CFG
-transitions, byte I/O, and fixed-string emission. These measurements define
-implementation capacities; they do not broaden Beta's language meaning.
 
 Run the focused gate with:
 

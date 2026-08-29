@@ -889,3 +889,67 @@ semantic acceptance independent of optimizer sophistication.
   increasingly sophisticated evaluator.
 - Tempting but wrong: zero-initialize generated frame slots and call the gap
   closed; that changes Beta's written local semantics and hides skipped stores.
+
+## Q18 — Select the canonical Beta compiler outcome carrier
+
+### Context
+
+The canonical Alpha-written Beta compiler now publishes its complete Alpha tape
+only after two checked passes and fixup resolution. Every current failure leaves
+artifact stdout empty, but the boundary still identifies failure with numeric
+Alpha halt values: malformed-source paths expose parser phase numbers, source
+capacity uses another number, and internal replay/fixup failures use another.
+`TASKS_BOOTSTRAP.md` requires typed `Reject` and private-budget `Incomplete`
+outcomes rather than treating host process status as the semantic contract.
+
+This question concerns compilation itself. Status 250 for a generated Beta
+program's data-stack exhaustion and status 251 for its invalid raw-memory access
+are runtime containment outcomes and must not be conflated with compiler
+failure.
+
+### Problem statement
+
+Select one closed compiler-boundary result and its exact Alpha realization:
+
+1. Define the cases, at least successful artifact, malformed/invalid source,
+   private producer exhaustion, and compiler invariant failure.
+2. Decide which rejection reason, source offset, resource kind, limit, and
+   requested amount are observable, and how they are represented within
+   Alpha's sealed stdin/stdout/halt observation model.
+3. Preserve raw tape bytes as the exact successful artifact while ensuring a
+   failed run cannot be mistaken for a partial tape. No shell wrapper or host
+   script may supply the missing type distinction.
+4. Classify identifier, syntax-nesting, procedure/state/edge/call/slot tables,
+   internal labels/fixups, private tape extent, and source extent consistently
+   as language rejection, profiled `Incomplete`, or internal failure.
+
+### Proposed direction
+
+Use a proof-level closed sum such as:
+
+```text
+BetaCompileOutcome =
+    Complete(Bytes)
+  | Reject(phase, source_offset, reason)
+  | Incomplete(resource, limit, requested)
+  | InternalFailure(code)
+```
+
+`Complete` alone publishes the raw Alpha tape. Every other case publishes no
+artifact bytes. Bind an exact Alpha-level encoding of the selected case and
+fields, then make gates decode that encoding into the sum; a Unix shell's
+truncated exit status is only a realization detail, never the definition.
+Malformed or statically invalid Beta maps to `Reject`, checked private ceilings
+map to `Incomplete`, and disagreement between the two compiler passes or an
+impossible fixup/table condition maps to `InternalFailure`.
+
+### Alternates
+
+- Acceptable: publish a canonical tagged diagnostic byte sequence on failure,
+  provided it is unambiguously not an artifact and no partial tape precedes it.
+- Acceptable: keep failure stdout empty and use a compact halt-word encoding if
+  every required field and the host-realization projection are exact.
+- Tempting but wrong: assign a few undocumented process exit numbers and call
+  them typed outcomes.
+- Tempting but wrong: prepend a success tag to Alpha tape and thereby change the
+  canonical artifact bytes or require a stripping stage.

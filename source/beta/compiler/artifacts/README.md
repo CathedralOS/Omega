@@ -15,8 +15,7 @@ audited Alpha seed + Alpha-written assembler
 byte-for-byte without changing the repository. `artifact_env.sh` stamps it
 into the host's audited Alpha seed for downstream lattice gates. No Beta
 self-host, textual Alpha output, or second assembler invocation lies on this
-edge. The historical `bc.beta` implementation is a bounded differential subject
-only and has no production consumer.
+edge.
 
 Regenerate deliberately with `cold-start/rebuild-artifact.sh`; commit a changed
 tape only together with the source/compiler change and a green construction

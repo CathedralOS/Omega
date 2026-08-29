@@ -153,7 +153,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     construct the compiler artifact, but it cannot remain a semantic stage when
     the compiler processes Beta input. The compiler now reserves and encodes a
     private bounded tape, resolves procedure/state/internal fixups, and publishes
-    only after complete replay. The full `bc.beta` source was byte-identical to
+    only after complete replay. The former full self-host source was byte-identical to
     the removed text-plus-assembler route; the direct encoder then deliberately
     corrected that assembler's signed-division bug for high-bit `u64` immediate
     bytes. The canonical tape passes the generic structural gate. Every
@@ -170,27 +170,29 @@ code, discover a closure, manufacture proof premises, or decide admission.
     frame word bounds semantic depth and leaves the hidden Alpha return stack
     above 66,322,424 even at the failing edge. A 64-slot recursive stress case
     reaches fail-closed status 250 without output or aliasing.
-  - [ ] Project malformed source and each private capacity failure to exact,
-    typed no-partial-output outcomes rather than relying on numeric host exit
-    status alone.
+  - [ ] **DESIGN-BLOCKED — Q18:** Project malformed source and each private
+    capacity failure to exact, typed no-partial-artifact outcomes. The Alpha
+    boundary currently exposes raw success bytes plus a halt code and has no
+    selected canonical carrier for `Complete`, `Reject`, `Incomplete`, and
+    internal failure; choosing its framing locally would invent edge semantics.
 - [x] Redirect the existing cold construction, exact-tape comparison, and
   focused language tests to the Alpha source subject. Remove any two-stage
-  “cold compiler builds `bc.beta`, then `bc.beta` becomes canonical” logic. The
+  “cold compiler builds a Beta self-host, then that self-host becomes canonical” logic. The
   persisted artifact is now the direct assembly of
   `beta_compiler.alpha`; checker, Gamma, reference, and seed-diamond consumers
   no longer invoke an assembler after compiling Beta.
-- [x] Reassess the large `bc.beta` refinement/admission tree module by module.
+- [x] Reassess the large historical self-host refinement/admission tree module by module.
   Adapt general Alpha-machine decoding, observation, stuttering, and proof-DAG
   machinery to the actual Alpha-written compiler edge. Delete source-specific
-  machinery that exists only to prove the noncanonical `bc.beta` fixed point.
+  machinery that exists only to prove the noncanonical Beta fixed point.
   The retained surface is the generic artifact-structure check, generic FOL
   trace seam, stress/refinement harness, and bounded implementation comparator;
   about 65,000 source-specific lines and their wrapper scripts were removed.
-- [ ] Retain `bc.beta` only long enough to run a bounded, measured comparison
-  against the promoted Alpha compiler. Record the distinct failures it exposes
-  or delete it and its comparison gate. Its fixed-point artifact and all
-  production consumers have already been removed. Reproduction by itself is
-  not a continuing role.
+- [x] Delete the historical Beta self-host after promotion. Its full-source
+  migration comparison helped pin the direct emitter, but it had zero remaining
+  executable consumers and no bounded comparison gate; constructing a new gate
+  merely to justify retention would reverse the repository policy. Its fixed
+  point and source now survive only in Git history.
 - [ ] Close exact Alpha-source-to-Alpha-tape refinement with termination, trap,
   resource exhaustion, output, and divergence observations. Ordinary checked
   first-order simulation and well-founded stuttering remain the selected proof
