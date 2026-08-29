@@ -60,7 +60,7 @@ use omega_optimization_core::{Optimization, OptimizationSelections};
 use omega_provider_planning::{ProviderSelection, ProviderSelectionIdentity};
 
 use omega_build_output::{
-    BuildStagedOutputTree, PackageGeneratedSource, capture, empty, replayed_single_ordinary_file,
+    BuildStagedOutputTree, PackageGeneratedSource, capture, empty, replayed_ordinary_files,
     select_included_sources,
 };
 
@@ -300,7 +300,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 28;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 29;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -2257,22 +2257,30 @@ struct ReceiptedOutputFile {
     bytes: Vec<u8>,
 }
 
-fn receipted_output_file(
+fn receipted_output_files(
     replay: &psi_checked_interpreter::FilesystemReplay,
-) -> Option<ReceiptedOutputFile> {
-    let output = replay.output_write_chain()?;
-    if output.output_root() != BUILD_OUTPUT_ROOT_IDENTITY
-        || output.output_relative_path().contains(&b'/')
-        || output.create_post_error() != 0
-        || output.write_post_error() != 0
-        || output.close_post_error() != 0
-    {
+) -> Option<Vec<ReceiptedOutputFile>> {
+    let outputs = replay.output_write_chains();
+    if outputs.is_empty() {
         return None;
     }
-    Some(ReceiptedOutputFile {
-        relative_path: output.output_relative_path().to_vec(),
-        bytes: output.write_bytes().to_vec(),
-    })
+    outputs
+        .into_iter()
+        .map(|output| {
+            if output.output_root() != BUILD_OUTPUT_ROOT_IDENTITY
+                || output.output_relative_path().contains(&b'/')
+                || output.create_post_error() != 0
+                || output.write_post_error() != 0
+                || output.close_post_error() != 0
+            {
+                return None;
+            }
+            Some(ReceiptedOutputFile {
+                relative_path: output.output_relative_path().to_vec(),
+                bytes: output.write_bytes().to_vec(),
+            })
+        })
+        .collect()
 }
 
 fn source_path_metadata_is_exact(
@@ -2771,8 +2779,8 @@ pub fn compute_build_config(
     let usage = measured.usage();
     let replay = if filesystem_reachable {
         let attempts = measured.observations().filesystem_operation_attempts();
-        if source_input_replay_prefix_end(attempts).and_then(|end| end.checked_add(3))
-            == Some(attempts.len())
+        if source_input_replay_prefix_end(attempts)
+            .is_some_and(|end| end < attempts.len() && (attempts.len() - end) % 3 == 0)
         {
             psi_checked_interpreter::FilesystemReplay::from_input_output_observations(
                 measured.observations(),
@@ -2792,7 +2800,7 @@ pub fn compute_build_config(
     };
     let source_only_replay =
         replay.is_some() && is_source_input_replay_record(measured.observations());
-    let receipted_output = replay.as_ref().and_then(receipted_output_file);
+    let receipted_outputs = replay.as_ref().and_then(receipted_output_files);
     let source_inputs_replay_verified = if let Some(replay) = replay {
         let replayed = psi_build_time_evaluation::evaluate_build_machine_arguments_measured(
             &prepared,
@@ -2822,9 +2830,15 @@ pub fn compute_build_config(
     let replayed_output_tree = if source_only_replay {
         Some(empty())
     } else {
-        receipted_output
+        receipted_outputs
             .as_ref()
-            .map(|output| replayed_single_ordinary_file(&output.relative_path, &output.bytes))
+            .map(|outputs| {
+                let files = outputs
+                    .iter()
+                    .map(|output| (output.relative_path.as_slice(), output.bytes.as_slice()))
+                    .collect::<Vec<_>>();
+                replayed_ordinary_files(&files)
+            })
             .transpose()?
     };
     let observation_ceiling = if filesystem_reachable {

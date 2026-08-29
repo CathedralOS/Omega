@@ -12,7 +12,7 @@ use std::fmt;
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 9;
+const VERSION: u16 = 10;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -252,41 +252,56 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
                 )
             });
     }
-    let [create, write, close] = &shapes[output_start..] else {
-        unreachable!("validated receipted output is one create-write-close chain")
-    };
-    let Some(output) = create.output else {
-        unreachable!("validated receipted output create has a descriptor")
-    };
-    let [rooted] = create.rooted_paths.as_slice() else {
-        unreachable!("validated receipted output create has one rooted path")
-    };
-    let [(_, payload)] = write.byte_operands.as_slice() else {
-        unreachable!("validated receipted output write has one payload")
-    };
-    let ShapeResult::Scalar(write_result) = write.result else {
-        unreachable!("validated receipted output write returns a scalar")
-    };
-    let output_record = psi_checked_interpreter::FilesystemOutputWriteChainReplayRecord::new(
-        crate::BUILD_OUTPUT_ROOT_IDENTITY,
-        clone_bytes(rooted.bytes)?,
-        output.identity,
-        create.post_error,
-        clone_bytes(payload)?,
-        write_result,
-        write.post_error,
-        close.post_error,
-    )
-    .map_err(|_| {
-        BuildFilesystemReplayRecordError::new(
-            "filesystem replay output chain could not be rehydrated",
-        )
-    })?;
-    let expected_included_source = output_has_included_source
-        .then(|| {
-            psi_checked_interpreter::BuildIncludedSource::from_coordinate(
+    let mut output_records = Vec::new();
+    output_records
+        .try_reserve_exact((shapes.len() - output_start) / 3)
+        .map_err(|_| {
+            BuildFilesystemReplayRecordError::new(
+                "filesystem replay output-chain allocation failed",
+            )
+        })?;
+    for chain in shapes[output_start..].chunks_exact(3) {
+        let [create, write, close] = chain else {
+            unreachable!("validated receipted output is a create-write-close chain")
+        };
+        let Some(output) = create.output else {
+            unreachable!("validated receipted output create has a descriptor")
+        };
+        let [rooted] = create.rooted_paths.as_slice() else {
+            unreachable!("validated receipted output create has one rooted path")
+        };
+        let [(_, payload)] = write.byte_operands.as_slice() else {
+            unreachable!("validated receipted output write has one payload")
+        };
+        let ShapeResult::Scalar(write_result) = write.result else {
+            unreachable!("validated receipted output write returns a scalar")
+        };
+        output_records.push(
+            psi_checked_interpreter::FilesystemOutputWriteChainReplayRecord::new(
                 crate::BUILD_OUTPUT_ROOT_IDENTITY,
                 clone_bytes(rooted.bytes)?,
+                output.identity,
+                create.post_error,
+                clone_bytes(payload)?,
+                write_result,
+                write.post_error,
+                close.post_error,
+            )
+            .map_err(|_| {
+                BuildFilesystemReplayRecordError::new(
+                    "filesystem replay output chain could not be rehydrated",
+                )
+            })?,
+        );
+    }
+    let expected_included_source = output_has_included_source
+        .then(|| {
+            let output = output_records
+                .first()
+                .expect("validated generated-source replay has one output");
+            psi_checked_interpreter::BuildIncludedSource::from_coordinate(
+                crate::BUILD_OUTPUT_ROOT_IDENTITY,
+                clone_bytes(output.output_relative_path())?,
                 shapes.len(),
             )
             .map_err(|_| {
@@ -298,7 +313,7 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
         .transpose()?;
     let typed_record = psi_checked_interpreter::FilesystemInputOutputReplayRecord::new(
         typed_record,
-        output_record,
+        output_records,
         expected_included_source,
     )
     .map_err(|_| {
@@ -531,9 +546,10 @@ fn decode_shapes(
     }
     decoder.finish()?;
     validate_first_rung(&shapes)?;
-    if output_has_included_source && !shapes.iter().any(|shape| shape.operation == 1) {
+    let output_chain_count = shapes.iter().filter(|shape| shape.operation == 1).count();
+    if output_has_included_source && output_chain_count != 1 {
         return Err(BuildFilesystemReplayRecordError::new(
-            "source-only filesystem replay cannot retain an included-source handoff",
+            "generated-source filesystem replay requires exactly one Output chain",
         ));
     }
     Ok(DecodedReplay {
@@ -1115,20 +1131,45 @@ fn validate_first_rung(
         ));
     }
     if cursor < shapes.len() {
-        let [create, write, close] = &shapes[cursor..] else {
+        let output_shapes = &shapes[cursor..];
+        if output_shapes.len() % 3 != 0 {
             return Err(BuildFilesystemReplayRecordError::new(
-                "receipted build output must be one create-write-close chain",
-            ));
-        };
-        if create
-            .output
-            .is_some_and(|output| identities.contains(&output.identity))
-        {
-            return Err(BuildFilesystemReplayRecordError::new(
-                "filesystem replay Output descriptor overlaps a Source descriptor",
+                "receipted build output must contain complete create-write-close chains",
             ));
         }
-        validate_output_write_chain(create, write, close)?;
+        let mut output_paths = Vec::new();
+        output_paths
+            .try_reserve_exact(output_shapes.len() / 3)
+            .map_err(|_| {
+                BuildFilesystemReplayRecordError::new(
+                    "filesystem replay output-path allocation failed",
+                )
+            })?;
+        for chain in output_shapes.chunks_exact(3) {
+            let [create, write, close] = chain else {
+                unreachable!("exact chunks have three output operations")
+            };
+            validate_output_write_chain(create, write, close)?;
+            let output = create
+                .output
+                .expect("validated output create has a descriptor");
+            let rooted = create
+                .rooted_paths
+                .first()
+                .expect("validated output create has a rooted path");
+            if identities.contains(&output.identity) {
+                return Err(BuildFilesystemReplayRecordError::new(
+                    "filesystem replay Output descriptor overlaps another descriptor",
+                ));
+            }
+            identities.push(output.identity);
+            if output_paths.contains(&rooted.bytes) {
+                return Err(BuildFilesystemReplayRecordError::new(
+                    "filesystem replay Output path appears more than once",
+                ));
+            }
+            output_paths.push(rooted.bytes);
+        }
     }
     Ok(())
 }

@@ -1971,22 +1971,32 @@ impl FilesystemOutputWriteChainReplayRecord {
 
 /// Typed record for the bounded Source-input/Output-write replay grammar.
 /// Source events are replayed first in their authored order, followed by the
-/// single output chain. An optional generated-source handoff must name that
-/// exact Output coordinate; absence retains an ordinary non-source artifact.
+/// output chains. The first generated-source rung remains exactly one output
+/// chain and one matching handoff; absent handoff permits multiple ordinary
+/// non-source artifacts.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FilesystemInputOutputReplayRecord {
     source_input: FilesystemSourceInputReplayRecord,
-    output_write_chain: FilesystemOutputWriteChainReplayRecord,
+    output_write_chains: Vec<FilesystemOutputWriteChainReplayRecord>,
     expected_included_source: Option<BuildIncludedSource>,
 }
 
 impl FilesystemInputOutputReplayRecord {
     pub fn new(
         source_input: FilesystemSourceInputReplayRecord,
-        output_write_chain: FilesystemOutputWriteChainReplayRecord,
+        output_write_chains: Vec<FilesystemOutputWriteChainReplayRecord>,
         expected_included_source: Option<BuildIncludedSource>,
     ) -> Result<Self, String> {
+        if output_write_chains.is_empty() {
+            return Err("filesystem replay requires at least one Output write chain".to_owned());
+        }
         if let Some(expected_included_source) = &expected_included_source {
+            let [output_write_chain] = output_write_chains.as_slice() else {
+                return Err(
+                    "bounded generated-source replay requires exactly one Output write chain"
+                        .to_owned(),
+                );
+            };
             if expected_included_source.root() != output_write_chain.output_root()
                 || expected_included_source.relative_path()
                     != output_write_chain.output_relative_path()
@@ -2009,7 +2019,7 @@ impl FilesystemInputOutputReplayRecord {
                     FilesystemSourceInputReplayEventRecord::PathMetadata(_) => 1,
                 })
             })
-            .and_then(|count| count.checked_add(3))
+            .and_then(|count| count.checked_add(output_write_chains.len().checked_mul(3)?))
             .ok_or_else(|| "filesystem replay event count overflowed".to_owned())?;
         if expected_included_source
             .as_ref()
@@ -2019,29 +2029,39 @@ impl FilesystemInputOutputReplayRecord {
                 "filesystem replay included-source handoff must follow Output close".to_owned(),
             );
         }
-        if source_input.events.iter().any(|event| match event {
-            FilesystemSourceInputReplayEventRecord::ReadChain(chain) => {
-                chain.source_root == output_write_chain.output_root
-                    || chain.logical_handle_identity == output_write_chain.logical_handle_identity
+        for (ordinal, output) in output_write_chains.iter().enumerate() {
+            if output_write_chains[..ordinal].iter().any(|prior| {
+                (prior.output_root == output.output_root
+                    && prior.output_relative_path == output.output_relative_path)
+                    || prior.logical_handle_identity == output.logical_handle_identity
+            }) {
+                return Err(
+                    "filesystem replay Output paths and descriptors must be distinct".to_owned(),
+                );
             }
-            FilesystemSourceInputReplayEventRecord::DescriptorMetadata(metadata) => {
-                metadata.source_root == output_write_chain.output_root
-                    || metadata.logical_handle_identity
-                        == output_write_chain.logical_handle_identity
+            if source_input.events.iter().any(|event| match event {
+                FilesystemSourceInputReplayEventRecord::ReadChain(chain) => {
+                    chain.source_root == output.output_root
+                        || chain.logical_handle_identity == output.logical_handle_identity
+                }
+                FilesystemSourceInputReplayEventRecord::DescriptorMetadata(metadata) => {
+                    metadata.source_root == output.output_root
+                        || metadata.logical_handle_identity == output.logical_handle_identity
+                }
+                FilesystemSourceInputReplayEventRecord::PathMetadata(metadata) => {
+                    metadata.source_root == output.output_root
+                        || metadata.authorized_root == output.output_root
+                }
+            }) {
+                return Err(
+                    "filesystem replay Source and Output roots and descriptors must be distinct"
+                        .to_owned(),
+                );
             }
-            FilesystemSourceInputReplayEventRecord::PathMetadata(metadata) => {
-                metadata.source_root == output_write_chain.output_root
-                    || metadata.authorized_root == output_write_chain.output_root
-            }
-        }) {
-            return Err(
-                "filesystem replay Source and Output roots and descriptors must be distinct"
-                    .to_owned(),
-            );
         }
         Ok(Self {
             source_input,
-            output_write_chain,
+            output_write_chains,
             expected_included_source,
         })
     }
@@ -2050,8 +2070,8 @@ impl FilesystemInputOutputReplayRecord {
         &self.source_input
     }
 
-    pub const fn output_write_chain(&self) -> &FilesystemOutputWriteChainReplayRecord {
-        &self.output_write_chain
+    pub fn output_write_chains(&self) -> &[FilesystemOutputWriteChainReplayRecord] {
+        &self.output_write_chains
     }
 
     pub const fn expected_included_source(&self) -> Option<&BuildIncludedSource> {
@@ -2061,10 +2081,10 @@ impl FilesystemInputOutputReplayRecord {
 
 impl FilesystemReplay {
     pub(crate) fn executes_output_attempt(&self, attempt_index: usize) -> bool {
-        let Some(output_start) = self.attempts.len().checked_sub(3) else {
-            return false;
-        };
-        self.attempts[output_start].operation_tag() == 1 && attempt_index >= output_start
+        self.attempts
+            .iter()
+            .position(|attempt| attempt.operation_tag() == 1)
+            .is_some_and(|output_start| attempt_index >= output_start)
     }
 
     pub fn from_source_input_observations(
@@ -2088,12 +2108,19 @@ impl FilesystemReplay {
         &self.attempts
     }
 
-    /// Reconstruct the typed Output chain retained by this replay. Source-only
-    /// records return `None`. Public constructors ensure a present chain is
-    /// exact, so malformed raw attempts are not exposed as typed output data.
-    pub fn output_write_chain(&self) -> Option<FilesystemOutputWriteChainReplayRecord> {
-        let output_start = self.attempts.len().checked_sub(3)?;
-        output_write_chain_record_from_attempts(&self.attempts[output_start..]).ok()
+    /// Reconstruct the typed Output chains retained by this replay. Source-only
+    /// records return an empty vector. Public constructors ensure every present
+    /// chain is exact, distinct, and ordered as authored.
+    pub fn output_write_chains(&self) -> Vec<FilesystemOutputWriteChainReplayRecord> {
+        let Some(output_start) = self
+            .attempts
+            .iter()
+            .position(|attempt| attempt.operation_tag() == 1)
+        else {
+            return Vec::new();
+        };
+        output_write_chain_records_from_attempts(&self.attempts[output_start..])
+            .expect("validated filesystem replay retains exact Output chains")
     }
 
     /// The generated-source coordinate expected after an Output replay, if the
@@ -2113,9 +2140,10 @@ impl FilesystemReplay {
         })
     }
 
-    /// Validate one observed Source-input prefix followed by exactly one
-    /// create/write/close Output chain and either no handoff or one matching
-    /// generated-source handoff.
+    /// Validate one observed Source-input prefix followed by one or more exact
+    /// create/write/close Output chains. Multiple chains require no generated-
+    /// source handoff; the existing one-chain generated-source rung remains
+    /// unchanged.
     pub fn from_input_output_observations(
         observations: &EvaluationObservations,
     ) -> Result<Self, String> {
@@ -2126,33 +2154,39 @@ impl FilesystemReplay {
         }
         let attempts = observations.filesystem_operation_attempts();
         validate_filesystem_replay_size(attempts)?;
-        let output_start = attempts.len().checked_sub(3).ok_or_else(|| {
-            "bounded filesystem replay requires Source inputs before one Output chain".to_owned()
-        })?;
+        let output_start = attempts
+            .iter()
+            .position(|attempt| attempt.operation_tag() == 1)
+            .ok_or_else(|| {
+                "bounded filesystem replay requires Source inputs before Output chains".to_owned()
+            })?;
         if output_start == 0 {
             return Err(
-                "bounded filesystem replay requires Source inputs before one Output chain"
-                    .to_owned(),
+                "bounded filesystem replay requires Source inputs before Output chains".to_owned(),
             );
         }
         validate_source_input_attempts(&attempts[..output_start])?;
-        let output = output_write_chain_record_from_attempts(&attempts[output_start..])?;
-        if source_attempts_overlap_output(
-            &attempts[..output_start],
-            output.output_root,
-            output.logical_handle_identity,
-        ) {
-            return Err(
-                "filesystem replay Source and Output roots and descriptors must be distinct"
-                    .to_owned(),
-            );
+        let outputs = output_write_chain_records_from_attempts(&attempts[output_start..])?;
+        for output in &outputs {
+            if source_attempts_overlap_output(
+                &attempts[..output_start],
+                output.output_root,
+                output.logical_handle_identity,
+            ) {
+                return Err(
+                    "filesystem replay Source and Output roots and descriptors must be distinct"
+                        .to_owned(),
+                );
+            }
         }
         let expected_included_source = match observations.build_included_sources() {
             [] => None,
             [included_source]
-                if included_source.root() == output.output_root()
-                    && included_source.relative_path() == output.output_relative_path()
-                    && included_source.filesystem_attempt_ordinal() == attempts.len() =>
+                if outputs.as_slice().first().is_some_and(|output| {
+                    outputs.len() == 1
+                        && included_source.root() == output.output_root()
+                        && included_source.relative_path() == output.output_relative_path()
+                }) && included_source.filesystem_attempt_ordinal() == attempts.len() =>
             {
                 Some(included_source.clone())
             }
@@ -2180,7 +2214,9 @@ impl FilesystemReplay {
         record: FilesystemInputOutputReplayRecord,
     ) -> Result<Self, String> {
         let mut attempts = source_input_record_attempts(record.source_input);
-        attempts.extend(output_write_chain_attempts(record.output_write_chain));
+        for output in record.output_write_chains {
+            attempts.extend(output_write_chain_attempts(output));
+        }
         validate_filesystem_replay_size(&attempts)?;
         Ok(Self {
             attempts: attempts.into(),
@@ -2555,6 +2591,38 @@ fn output_write_chain_record_from_attempts(
     )
 }
 
+fn output_write_chain_records_from_attempts(
+    attempts: &[FilesystemOperationAttempt],
+) -> Result<Vec<FilesystemOutputWriteChainReplayRecord>, String> {
+    if attempts.is_empty() || attempts.len() % 3 != 0 {
+        return Err(
+            "bounded filesystem replay requires complete create/write/close Output chains"
+                .to_owned(),
+        );
+    }
+    let mut outputs = Vec::new();
+    outputs
+        .try_reserve_exact(attempts.len() / 3)
+        .map_err(|_| "filesystem replay Output-chain allocation failed".to_owned())?;
+    for attempts in attempts.chunks_exact(3) {
+        let output = output_write_chain_record_from_attempts(attempts)?;
+        if outputs
+            .iter()
+            .any(|prior: &FilesystemOutputWriteChainReplayRecord| {
+                (prior.output_root == output.output_root
+                    && prior.output_relative_path == output.output_relative_path)
+                    || prior.logical_handle_identity == output.logical_handle_identity
+            })
+        {
+            return Err(
+                "filesystem replay Output paths and descriptors must be distinct".to_owned(),
+            );
+        }
+        outputs.push(output);
+    }
+    Ok(outputs)
+}
+
 fn output_write_chain_attempts(
     record: FilesystemOutputWriteChainReplayRecord,
 ) -> [FilesystemOperationAttempt; 3] {
@@ -2747,7 +2815,7 @@ mod filesystem_replay_record_tests {
         )
         .expect("handoff path is canonical");
         let record =
-            FilesystemInputOutputReplayRecord::new(source_input(1), output, Some(included))
+            FilesystemInputOutputReplayRecord::new(source_input(1), vec![output], Some(included))
                 .expect("Source and Output coordinates are distinct");
         FilesystemReplay::from_input_output_record(record).expect("typed replay fits policy")
     }
@@ -2755,7 +2823,7 @@ mod filesystem_replay_record_tests {
     #[test]
     fn typed_input_output_record_emits_one_exact_chain_and_handoff() {
         let source_only = FilesystemReplay::from_source_input_record(source_input(1)).unwrap();
-        assert!(source_only.output_write_chain().is_none());
+        assert!(source_only.output_write_chains().is_empty());
         assert!(source_only.expected_included_source().is_none());
 
         let replay = typed_replay();
@@ -2767,7 +2835,10 @@ mod filesystem_replay_record_tests {
                 .collect::<Vec<_>>(),
             vec![2, 4, 8, 1, 5, 8]
         );
-        let output = replay.output_write_chain().expect("output chain is typed");
+        let outputs = replay.output_write_chains();
+        let [output] = outputs.as_slice() else {
+            panic!("one output chain is typed")
+        };
         assert_eq!(output.output_root(), root(2));
         assert_eq!(output.output_relative_path(), b"table.generated.omg");
         assert_eq!(output.logical_handle_identity().get(), 2);
@@ -2782,11 +2853,12 @@ mod filesystem_replay_record_tests {
 
     #[test]
     fn typed_input_output_record_retains_an_ordinary_file_without_handoff() {
-        let record = FilesystemInputOutputReplayRecord::new(source_input(1), output_chain(2), None)
-            .expect("ordinary output needs no generated-source handoff");
+        let record =
+            FilesystemInputOutputReplayRecord::new(source_input(1), vec![output_chain(2)], None)
+                .expect("ordinary output needs no generated-source handoff");
         let replay = FilesystemReplay::from_input_output_record(record)
             .expect("ordinary output replay fits policy");
-        assert!(replay.output_write_chain().is_some());
+        assert_eq!(replay.output_write_chains().len(), 1);
         assert!(replay.expected_included_source().is_none());
 
         let observations = EvaluationObservations::from_filesystem_operation_attempts(
@@ -2795,6 +2867,38 @@ mod filesystem_replay_record_tests {
         );
         let decoded = FilesystemReplay::from_input_output_observations(&observations)
             .expect("observed ordinary output is accepted");
+        assert!(decoded.expected_included_source().is_none());
+    }
+
+    #[test]
+    fn typed_input_output_record_retains_multiple_ordinary_files_without_handoff() {
+        let mut second = output_chain(3);
+        second.output_relative_path = b"metadata.bin".to_vec();
+        let record = FilesystemInputOutputReplayRecord::new(
+            source_input(1),
+            vec![output_chain(2), second],
+            None,
+        )
+        .expect("distinct ordinary outputs need no generated-source handoff");
+        let replay = FilesystemReplay::from_input_output_record(record)
+            .expect("multiple ordinary output replay fits policy");
+        assert_eq!(replay.output_write_chains().len(), 2);
+        assert_eq!(
+            replay
+                .attempts()
+                .iter()
+                .map(FilesystemOperationAttempt::operation_tag)
+                .collect::<Vec<_>>(),
+            vec![2, 4, 8, 1, 5, 8, 1, 5, 8]
+        );
+
+        let observations = EvaluationObservations::from_filesystem_operation_attempts(
+            replay.attempts().to_vec(),
+            Vec::new(),
+        );
+        let decoded = FilesystemReplay::from_input_output_observations(&observations)
+            .expect("observed ordinary outputs are accepted");
+        assert_eq!(decoded.output_write_chains().len(), 2);
         assert!(decoded.expected_included_source().is_none());
     }
 
@@ -2829,6 +2933,7 @@ mod filesystem_replay_record_tests {
 
     #[test]
     fn typed_output_rejects_partial_noncanonical_and_overlapping_records() {
+        assert!(FilesystemInputOutputReplayRecord::new(source_input(1), Vec::new(), None).is_err());
         assert!(
             FilesystemOutputWriteChainReplayRecord::new(
                 root(2),
@@ -2863,16 +2968,61 @@ mod filesystem_replay_record_tests {
         )
         .unwrap();
         assert!(
-            FilesystemInputOutputReplayRecord::new(source_input(1), output, Some(included))
+            FilesystemInputOutputReplayRecord::new(source_input(1), vec![output], Some(included))
                 .is_err()
+        );
+
+        let first = output_chain(2);
+        let duplicate_path = output_chain(3);
+        assert!(
+            FilesystemInputOutputReplayRecord::new(
+                source_input(1),
+                vec![first, duplicate_path],
+                None,
+            )
+            .is_err()
+        );
+
+        let first = output_chain(2);
+        let mut duplicate_descriptor = output_chain(2);
+        duplicate_descriptor.output_relative_path = b"other.bin".to_vec();
+        assert!(
+            FilesystemInputOutputReplayRecord::new(
+                source_input(1),
+                vec![first, duplicate_descriptor],
+                None,
+            )
+            .is_err()
+        );
+
+        let first = output_chain(2);
+        let mut second = output_chain(3);
+        second.output_relative_path = b"other.bin".to_vec();
+        let included = BuildIncludedSource::from_coordinate(
+            first.output_root(),
+            first.output_relative_path().to_vec(),
+            9,
+        )
+        .unwrap();
+        assert!(
+            FilesystemInputOutputReplayRecord::new(
+                source_input(1),
+                vec![first, second],
+                Some(included),
+            )
+            .is_err()
         );
 
         let output = output_chain(2);
         let wrong_handoff =
             BuildIncludedSource::from_coordinate(root(2), b"other.omg".to_vec(), 6).unwrap();
         assert!(
-            FilesystemInputOutputReplayRecord::new(source_input(1), output, Some(wrong_handoff))
-                .is_err()
+            FilesystemInputOutputReplayRecord::new(
+                source_input(1),
+                vec![output],
+                Some(wrong_handoff),
+            )
+            .is_err()
         );
 
         let output = output_chain(2);
@@ -2883,8 +3033,12 @@ mod filesystem_replay_record_tests {
         )
         .unwrap();
         assert!(
-            FilesystemInputOutputReplayRecord::new(source_input(1), output, Some(early_handoff))
-                .is_err()
+            FilesystemInputOutputReplayRecord::new(
+                source_input(1),
+                vec![output],
+                Some(early_handoff),
+            )
+            .is_err()
         );
     }
 
@@ -2955,7 +3109,7 @@ mod filesystem_replay_record_tests {
         )
         .unwrap();
         let record =
-            FilesystemInputOutputReplayRecord::new(source_input(1), output, Some(included))
+            FilesystemInputOutputReplayRecord::new(source_input(1), vec![output], Some(included))
                 .expect("large typed record is valid before replay-retention policy");
         assert!(FilesystemReplay::from_input_output_record(record).is_err());
     }

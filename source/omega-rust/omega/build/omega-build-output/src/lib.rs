@@ -193,42 +193,74 @@ pub fn empty() -> BuildStagedOutputTree {
     finish_commitment(Vec::new())
 }
 
-/// Reconstruct the first receipted Output grammar's complete staged tree from
-/// canonical replay operands. The initial grammar admits exactly one ordinary
-/// direct-child file; broader namespace effects require their own replay
-/// semantics rather than being inferred from a final digest.
+/// Reconstruct the initial singleton Output grammar's complete staged tree.
 pub fn replayed_single_ordinary_file(
     relative_path: &[u8],
     bytes: &[u8],
 ) -> Result<BuildStagedOutputTree, Vec<Diagnostic>> {
-    let native = retained_native_path(relative_path).map_err(|error| {
-        diagnostics(format!(
-            "receipted build output path is not canonical: {error}"
-        ))
-    })?;
-    if native
-        .parent()
-        .is_some_and(|parent| !parent.as_os_str().is_empty())
-    {
+    replayed_ordinary_files(&[(relative_path, bytes)])
+}
+
+/// Reconstruct the repeated ordinary-artifact receipt grammar from canonical
+/// replay operands. Every file is a distinct direct child created by one exact
+/// create/full-write/close chain. Directory and other namespace effects remain
+/// outside this grammar rather than being inferred from a final digest.
+pub fn replayed_ordinary_files(
+    files: &[(&[u8], &[u8])],
+) -> Result<BuildStagedOutputTree, Vec<Diagnostic>> {
+    if files.is_empty() {
         return Err(diagnostics(
-            "the first receipted build output grammar requires one direct-child file",
+            "receipted ordinary build output requires at least one file",
         ));
     }
-    let byte_length = u64::try_from(bytes.len()).map_err(|_| {
-        diagnostics("receipted build output length cannot be represented canonically")
-    })?;
-    if byte_length > MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES {
+    if files.len() > MAX_STAGED_OUTPUT_ENTRIES {
         return Err(diagnostics(format!(
-            "receipted build output exceeds its {MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES}-byte object ceiling"
+            "receipted build output exceeds its {MAX_STAGED_OUTPUT_ENTRIES}-entry ceiling"
         )));
     }
-    let entries = vec![RetainedStagedOutputEntry {
-        relative_path: relative_path.to_vec(),
-        kind: RetainedStagedOutputEntryKind::File {
-            bytes: Arc::from(bytes),
-            executable: false,
-        },
-    }];
+    let mut entries = Vec::new();
+    entries.try_reserve_exact(files.len()).map_err(|_| {
+        diagnostics("receipted build output entry allocation failed on this compiler host")
+    })?;
+    for (relative_path, bytes) in files {
+        let native = retained_native_path(relative_path).map_err(|error| {
+            diagnostics(format!(
+                "receipted build output path is not canonical: {error}"
+            ))
+        })?;
+        if native
+            .parent()
+            .is_some_and(|parent| !parent.as_os_str().is_empty())
+        {
+            return Err(diagnostics(
+                "the repeated ordinary-artifact grammar requires direct-child files",
+            ));
+        }
+        let byte_length = u64::try_from(bytes.len()).map_err(|_| {
+            diagnostics("receipted build output length cannot be represented canonically")
+        })?;
+        if byte_length > MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES {
+            return Err(diagnostics(format!(
+                "receipted build output exceeds its {MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES}-byte object ceiling"
+            )));
+        }
+        entries.push(RetainedStagedOutputEntry {
+            relative_path: relative_path.to_vec(),
+            kind: RetainedStagedOutputEntryKind::File {
+                bytes: Arc::from(*bytes),
+                executable: false,
+            },
+        });
+    }
+    entries.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
+    if entries
+        .windows(2)
+        .any(|pair| pair[0].relative_path == pair[1].relative_path)
+    {
+        return Err(diagnostics(
+            "receipted build output contains a duplicate file path",
+        ));
+    }
     let commitment = commitment_for_retained_entries(&entries).ok_or_else(|| {
         diagnostics("receipted build output exceeds the staged-output unique-content ceiling")
     })?;
@@ -1577,6 +1609,34 @@ mod tests {
     use std::sync::atomic::{AtomicU64, Ordering};
 
     static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
+
+    #[test]
+    fn replayed_ordinary_files_are_canonical_and_order_independent() {
+        let first = replayed_ordinary_files(&[
+            (b"z.bin", b"last"),
+            (b"a.bin", b"first"),
+            (b"m.bin", b"middle"),
+        ])
+        .unwrap();
+        let reordered = replayed_ordinary_files(&[
+            (b"m.bin", b"middle"),
+            (b"z.bin", b"last"),
+            (b"a.bin", b"first"),
+        ])
+        .unwrap();
+        assert_eq!(first, reordered);
+        assert_eq!(first.entry_count(), 3);
+        assert_eq!(first.file_bytes(), 15);
+    }
+
+    #[test]
+    fn replayed_ordinary_files_reject_empty_duplicate_and_nested_shapes() {
+        assert!(replayed_ordinary_files(&[]).is_err());
+        assert!(
+            replayed_ordinary_files(&[(b"same.bin", b"first"), (b"same.bin", b"second")]).is_err()
+        );
+        assert!(replayed_ordinary_files(&[(b"nested/file.bin", b"bytes")]).is_err());
+    }
 
     struct Fixture {
         session: PathBuf,

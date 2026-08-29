@@ -314,7 +314,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 28);
+    assert_eq!(checked_observations.schema_version(), 29);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -2166,6 +2166,136 @@ fn ordinary_output_file_replays_without_generated_source_handoff() {
     let _ = std::fs::remove_dir_all(&project);
     let _ = std::fs::remove_dir_all(rooted_build_session(&project, "ordinary-output-review"));
     let _ = std::fs::remove_dir_all(rooted_build_session(&project, "ordinary-output-mismatch"));
+}
+
+#[test]
+fn multiple_ordinary_output_files_replay_as_one_exact_tree() {
+    let (project, profile) = rooted_build_probe_project(
+        "multiple-ordinary-output-files-receipt",
+        r#"    let input: &[u8] in Path = builder.source.resolve("main.omg");
+    self.descriptor = self.filesystem.open(input, 0);
+    self.result = self.filesystem.read(self.descriptor, &mut self.buffer, 23);
+    self.code = self.filesystem.close(self.descriptor);
+    let artifact: &[u8] in Path = builder.output.resolve("artifact.bin");
+    self.descriptor = self.filesystem.create(artifact, 438);
+    self.result = self.filesystem.write(self.descriptor, "ordinary artifact");
+    self.code = self.filesystem.close(self.descriptor);
+    let metadata: &[u8] in Path = builder.output.resolve("metadata.bin");
+    self.descriptor = self.filesystem.create(metadata, 438);
+    self.result = self.filesystem.write(self.descriptor, "ordinary metadata");
+    self.code = self.filesystem.close(self.descriptor);
+    let index: &[u8] in Path = builder.output.resolve("index.bin");
+    self.descriptor = self.filesystem.create(index, 438);
+    self.result = self.filesystem.write(self.descriptor, "ordinary index");
+    self.code = self.filesystem.close(self.descriptor);"#,
+    );
+    let checked =
+        compile_rooted_probe_with_sponsored_output(&project, profile, "multiple-output-review")
+            .expect("multiple ordinary outputs with exact sponsored custody should compile");
+    let summary = checked
+        .build_observation_summary()
+        .expect("multiple-output receipt retains observations");
+    assert!(summary.source_inputs_replay_verified());
+    assert!(summary.operation_replay_verified());
+    assert_eq!(summary.realized(), BuildObservationClass::Receipted);
+    assert!(summary.included_source_paths().is_empty());
+    let staged = summary
+        .staged_output_tree()
+        .expect("multiple outputs retain exact staged-tree custody");
+    assert_eq!(staged.entry_count(), 3);
+    assert_eq!(
+        staged.file_bytes(),
+        (b"ordinary artifact".len() + b"ordinary metadata".len() + b"ordinary index".len()) as u64
+    );
+    let staged_digest = staged.digest();
+
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let record = capture_verified_build_filesystem_replay_record(summary, limits)
+        .expect("multiple-output receipt should encode")
+        .expect("multiple-output receipt should retain replay custody");
+    assert_eq!(
+        recover_review_only_build_filesystem_replay_record(record.canonical_bytes(), limits)
+            .expect("multiple-output replay record should recover"),
+        record
+    );
+    let mut invented_handoff = record.canonical_bytes().to_vec();
+    let handoff_offset = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0".len()
+        + 2
+        + 4
+        + 4
+        + 1
+        + if summary.canonical_source_metadata_identity().is_some() {
+            4 + 32
+        } else {
+            0
+        };
+    assert_eq!(invented_handoff[handoff_offset], 0);
+    invented_handoff[handoff_offset] = 1;
+    assert_eq!(
+        recover_review_only_build_filesystem_replay_record(&invented_handoff, limits)
+            .expect_err("multiple ordinary outputs cannot acquire a source handoff")
+            .message(),
+        "generated-source filesystem replay requires exactly one Output chain"
+    );
+
+    let package = PackageKeyIdentity::from_digest([99; 32]).expect("nonzero package identity");
+    set_canonical_source_tree_permissions(&project, true);
+    let package_source = PackageSourceBinding::new(package, "multiple-output", project.clone())
+        .with_canonical_source_metadata()
+        .expect("capture multiple-output canonical metadata");
+    let package_inputs = PackageCompilationInputs::new(package, vec![package_source], Vec::new())
+        .expect("single-package multiple-output input");
+    std::fs::write(
+        rooted_build_session(&project, "multiple-output-review").join("output/metadata.bin"),
+        "host drift",
+    )
+    .expect("change one physical Output file after receipt capture");
+    let replayed = compile_to_checked_with_packages_and_replay_record(
+        &project.join("main.omg"),
+        Some(profile.target_name()),
+        package_inputs,
+        record,
+    )
+    .expect("multiple ordinary outputs should reopen without consulting host Output");
+    set_canonical_source_tree_permissions(&project, false);
+    let replayed_summary = replayed
+        .build_observation_summary()
+        .expect("reopened multiple-output build retains observations");
+    assert!(replayed_summary.operation_replay_verified());
+    assert_eq!(
+        replayed_summary.realized(),
+        BuildObservationClass::Receipted
+    );
+    assert!(replayed_summary.included_source_paths().is_empty());
+    assert_eq!(
+        replayed_summary
+            .staged_output_tree()
+            .expect("replay reconstructs the complete ordinary output tree")
+            .digest(),
+        staged_digest
+    );
+    assert!(replayed.typed.symbols.source_files().all(|source| {
+        !["artifact.bin", "metadata.bin", "index.bin"]
+            .iter()
+            .any(|artifact| source.path.ends_with(artifact))
+    }));
+
+    let mismatch = compile_rooted_probe_with_sponsored_output_seed(
+        &project,
+        profile,
+        "multiple-output-mismatch",
+        Some((Path::new("unexpected.bin"), b"unexplained output")),
+    )
+    .expect_err("an unexplained physical Output entry must reject receipt issuance");
+    assert!(mismatch.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("Output tree that differs from sponsored staged-output custody")
+    }));
+
+    let _ = std::fs::remove_dir_all(&project);
+    let _ = std::fs::remove_dir_all(rooted_build_session(&project, "multiple-output-review"));
+    let _ = std::fs::remove_dir_all(rooted_build_session(&project, "multiple-output-mismatch"));
 }
 
 #[test]

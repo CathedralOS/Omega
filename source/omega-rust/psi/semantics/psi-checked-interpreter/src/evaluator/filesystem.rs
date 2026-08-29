@@ -224,12 +224,13 @@ impl<'program> Evaluator<'program> {
                 replay.attempts().len()
             ));
         }
-        let Some(output) = replay.output_write_chain() else {
+        let outputs = replay.output_write_chains();
+        if outputs.is_empty() {
             if !self.build_included_sources.is_empty() {
                 return trap("source-only filesystem replay observed generated-source handoff");
             }
             return Ok(());
-        };
+        }
         match replay.expected_included_source() {
             None if !self.build_included_sources.is_empty() => {
                 return trap("filesystem replay unexpectedly handed off an ordinary output file");
@@ -241,12 +242,19 @@ impl<'program> Evaluator<'program> {
             }
             _ => {}
         }
-        let mut expected_path = format!("/root/{}", output.output_root().get()).into_bytes();
-        expected_path.push(b'/');
-        expected_path.extend_from_slice(output.output_relative_path());
-        if self.virtual_files.len() != 1
-            || self.virtual_files.get(&expected_path).map(Vec::as_slice)
-                != Some(output.write_bytes())
+        let mut expected_files = std::collections::BTreeMap::new();
+        for output in outputs {
+            let mut expected_path = format!("/root/{}", output.output_root().get()).into_bytes();
+            expected_path.push(b'/');
+            expected_path.extend_from_slice(output.output_relative_path());
+            if expected_files
+                .insert(expected_path, output.write_bytes().to_vec())
+                .is_some()
+            {
+                return trap("filesystem replay contains duplicate Output paths");
+            }
+        }
+        if self.virtual_files != expected_files
             || !self.virtual_fds.is_empty()
             || !self.virtual_dirs.is_empty()
             || !self.virtual_finds.is_empty()

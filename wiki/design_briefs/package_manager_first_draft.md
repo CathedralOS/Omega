@@ -1369,6 +1369,19 @@ inferring publication from the output file. It remains non-authoritative and
 must still rejoin its Source-metadata identity to current compiler-validated
 package custody.
 
+Observation summary v29 and compiler replay-record v10 generalize only the
+ordinary-artifact cardinality. After the Source-input prefix, a nonempty
+sequence of distinct direct-child files may each use the same exact
+`create(438)`/full-write/close chain, with no generated-source handoff. Paths
+and logical descriptors must be distinct, chains cannot interleave, and replay
+executes every operation in authored order in the fresh virtual namespace. The
+final namespace must equal exactly those files and bytes with no live handles
+or other namespace state. Canonical tree identity sorts files independently of
+chain order before exact sponsored-custody comparison. Existing replay,
+staged-entry, path, and unique-content ceilings remain in force. Nested paths,
+directories, other operations, handled failures, and multiple generated-source
+handoffs remain outside this rung.
+
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities reject negative, wrapped, or
