@@ -75,9 +75,13 @@ execution additionally requires the exact fixed operator token; tokenless and
 mismatched package lookalikes remain inadmissible. Unknown intrinsic forms
 remain fail-closed until they receive a specific closed identity.
 
+Public contract expressions retain width-landed float literals by checked
+`f32`/`f64` format and exact IEEE bits. Decimal source spelling is excluded;
+unlanded literals remain fail-closed.
+
 Explicit boundary-operator family review rows retain one exact family and
 provider identity, selected target, selection authority, complete-declaration
 coverage, and the canonical exact-coordinate-to-plan mapping. Independent
 single-coordinate selections are not inferred into a family.
 
-The canonical review schema is version 82 and row schema version 40.
+The canonical review schema is version 83 and row schema version 41.

@@ -6,6 +6,7 @@ use crate::evidence::{
     PackageReviewContractBinaryOperator, PackageReviewContractCallTarget,
     PackageReviewContractExpression, PackageReviewContractOperatorMeaning,
     PackageReviewContractStaticArgument, PackageReviewContractUnaryOperator,
+    PackageReviewFloatLiteral,
 };
 
 use super::declarations::encode_operator_coordinate;
@@ -23,6 +24,19 @@ pub(crate) fn encode_contract_expression(
         PackageReviewContractExpression::Integer(value) => {
             encoder.byte(1);
             encoder.string(value)?;
+        }
+        PackageReviewContractExpression::Float(value) => {
+            encoder.byte(19);
+            match value {
+                PackageReviewFloatLiteral::F32(bits) => {
+                    encoder.byte(0);
+                    encoder.u32(*bits);
+                }
+                PackageReviewFloatLiteral::F64(bits) => {
+                    encoder.byte(1);
+                    encoder.u64(*bits);
+                }
+            }
         }
         PackageReviewContractExpression::Array(values) => {
             encoder.byte(14);

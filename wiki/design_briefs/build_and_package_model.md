@@ -2140,6 +2140,13 @@ selected plan and its retained declaration provenance; absent, duplicate,
 cross-family, or provider-drifting mappings reject. Generic/exact-application
 coverage remains fail-closed until it receives a distinct compiler-owned
 carrier.
+Review v83 and canonical row v41 admit width-landed float literals in public
+contract expressions, including transparent propositions whose comparison
+operand is a typed named parameter. The row contains the checked `f32` or `f64`
+format and its exact IEEE bits; decimal source spelling never enters identity.
+Equivalent spellings therefore compare equally, while format or bit changes
+alter the package contract. A float literal that reaches review without one
+exact checked width landing remains fail-closed.
 Review v75 and canonical row v33 likewise admit the compiler-owned collection-
 length projection in public contract expressions. Checked proof-static member
 resolution derives the receiver type from its retained declaration symbol,

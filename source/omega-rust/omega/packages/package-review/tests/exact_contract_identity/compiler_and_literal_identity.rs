@@ -1,6 +1,64 @@
 use crate::support::*;
 
 #[test]
+fn review_projects_width_landed_float_literals_by_exact_bits() {
+    let project = |parameter_type: &str, literal: &str| {
+        let package = TempPackage::new();
+        package.write(
+            "main.omg",
+            &format!("pub proposition reviewed(value: {parameter_type}) = value == {literal};\n"),
+        );
+        package.write(
+            "build.omg",
+            "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        );
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some("windows_x64"),
+            package_inputs(&package.0),
+        )
+        .expect("width-landed float-literal contract should check");
+        project_checked_package_review(&checked)
+            .expect("width-landed float literal should have exact review identity")
+    };
+
+    let f32_review = project("f32", "1.25");
+    let f64_review = project("f64", "1.25");
+    let equivalent_f64_review = project("f64", "1.2500");
+    let changed_f64_review = project("f64", "1.5");
+
+    let [proposition] = f32_review.public_propositions() else {
+        panic!("one public proposition")
+    };
+    let PackageReviewPublicPropositionBody::Transparent(PackageReviewContractFact::Expression(
+        PackageReviewContractExpression::Binary { right, .. },
+    )) = proposition.body()
+    else {
+        panic!("transparent float comparison")
+    };
+    assert_eq!(
+        right.as_ref(),
+        &PackageReviewContractExpression::Float(PackageReviewFloatLiteral::F32(1.25f32.to_bits(),)),
+    );
+
+    assert_ne!(
+        f32_review.canonical_review_bytes().unwrap(),
+        f64_review.canonical_review_bytes().unwrap(),
+        "float format is part of package-review contract identity",
+    );
+    assert_eq!(
+        f64_review.canonical_review_bytes().unwrap(),
+        equivalent_f64_review.canonical_review_bytes().unwrap(),
+        "equivalent decimal spellings must normalize to the same landed float identity",
+    );
+    assert_ne!(
+        f64_review.canonical_review_bytes().unwrap(),
+        changed_f64_review.canonical_review_bytes().unwrap(),
+        "landed float bits are part of package-review contract identity",
+    );
+}
+
+#[test]
 fn review_projects_exact_compiler_byte_sequence_predicate_identity() {
     let project = |predicate: &str| {
         let package = TempPackage::new();

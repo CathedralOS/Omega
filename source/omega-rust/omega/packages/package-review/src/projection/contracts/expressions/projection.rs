@@ -18,6 +18,7 @@ use super::static_arguments::{
 use crate::evidence::{
     PackageReviewArithmeticDomain, PackageReviewCastForm, PackageReviewContractCallTarget,
     PackageReviewContractExpression, PackageReviewContractOperatorMeaning,
+    PackageReviewFloatLiteral,
 };
 use crate::projection::contracts::metadata::contracts::ContractProjectionContext;
 use crate::projection::exact_identity::nominal_identities::{
@@ -84,6 +85,22 @@ pub(crate) fn project_contract_expression_with_substitutions(
         ExpressionNode::Boolean(value) => Ok(PackageReviewContractExpression::Boolean(*value)),
         ExpressionNode::Integer(value) => Ok(PackageReviewContractExpression::Integer(
             value.text().to_owned(),
+        )),
+        ExpressionNode::Float(value) => Ok(PackageReviewContractExpression::Float(
+            match value.landing() {
+                Some(psi_numerics::literals::FloatFormat::F32) => {
+                    PackageReviewFloatLiteral::F32(value.f32_bits())
+                }
+                Some(psi_numerics::literals::FloatFormat::F64) => {
+                    PackageReviewFloatLiteral::F64(value.landed_f64().to_bits())
+                }
+                None => {
+                    return Err(vec![Diagnostic::error(format!(
+                        "reviewed {} `{}` contains a float literal without an exact checked width landing",
+                        context.subject_kind, context.subject_name
+                    ))]);
+                }
+            },
         )),
         ExpressionNode::ArrayLiteral(values) => Ok(PackageReviewContractExpression::Array(
             compilation
