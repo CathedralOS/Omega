@@ -10,10 +10,10 @@ use super::cache::{
 };
 use super::errors::ResolveDependencySourceError;
 use crate::manifest::dependencies::read::DependencySourceRequest;
-use crate::manifest::{BuildDeclaration, extract_build_declaration};
+use crate::resolution::binding::git_selection::{GitWorkspaceEvidence, GitWorkspaceSelectionPlan};
 use crate::resolution::binding::{
     GitPackageSourceRequest, PackageSourceCustody, PackageSourceNavigation,
-    ResolvePackageSourceError, bind_git_member_package_custody,
+    PackageSourceSelectionEvidence, ResolvePackageSourceError, bind_git_member_package_custody,
 };
 use omega_package_source::LocalSourceLimits;
 use omega_package_source::{
@@ -35,6 +35,7 @@ pub(super) struct WorkspaceContext {
 struct GitRepositoryContext {
     resolution: ImmutableSourceResolution,
     declared_members: BTreeSet<WorkspaceMemberPath>,
+    workspace_evidence: Option<GitWorkspaceEvidence>,
     source_limits: LocalSourceLimits,
 }
 
@@ -95,6 +96,7 @@ pub(super) fn resolve_registered_package_closure(
                     resolved.key().source_lineage(),
                     resolved.acquisition_root(),
                     resolved.resolution(),
+                    resolved.selection_evidence(),
                     resolved.source_limits(),
                 )?;
                 Ok(resolved.into_custody())
@@ -134,7 +136,8 @@ pub(super) fn resolve_registered_package_closure(
                                 requester.key().source_lineage().clone(),
                                 git_repository.resolution.clone(),
                                 &context.root,
-                                member_path,
+                                member_path.clone(),
+                                git_workspace_member_selection(git_repository, &member_path),
                                 git_repository.source_limits,
                             )
                             .map_err(ResolveDependencySourceError::from)
@@ -177,13 +180,18 @@ pub(super) fn register_git_repository(
     root_source: &SourceLineage,
     acquisition_root: &Path,
     resolution: &ImmutableSourceResolution,
+    selection_evidence: &PackageSourceSelectionEvidence,
     source_limits: LocalSourceLimits,
 ) -> Result<WorkspaceLineageIdentity, ResolveDependencySourceError> {
-    let declaration =
-        extract_build_declaration(acquisition_root).map_err(ResolvePackageSourceError::from)?;
-    let declared_members = match declaration {
-        BuildDeclaration::Workspace(workspace) => workspace.members.into_iter().collect(),
-        BuildDeclaration::Package(_) | BuildDeclaration::Application(_) => BTreeSet::new(),
+    let (declared_members, workspace_evidence) = match selection_evidence {
+        PackageSourceSelectionEvidence::Root => (BTreeSet::new(), None),
+        PackageSourceSelectionEvidence::GitWorkspace(plan) => (
+            plan.members()
+                .iter()
+                .map(|member| WorkspaceMemberPath::from(member.member_path().clone()))
+                .collect(),
+            Some(plan.workspace_evidence().clone()),
+        ),
     };
     let identity = WorkspaceLineageIdentity::from_root_source(root_source)
         .map_err(ResolvePackageSourceError::from)?;
@@ -194,6 +202,7 @@ pub(super) fn register_git_repository(
         git_repository: Some(GitRepositoryContext {
             resolution: resolution.clone(),
             declared_members,
+            workspace_evidence,
             source_limits: source_limits.compiler_bounded(),
         }),
     };
@@ -205,6 +214,19 @@ pub(super) fn register_git_repository(
         workspaces.insert(identity.clone(), context);
     }
     Ok(identity)
+}
+
+fn git_workspace_member_selection(
+    repository: &GitRepositoryContext,
+    member_path: &WorkspaceMemberPath,
+) -> GitWorkspaceSelectionPlan {
+    let shared_path = omega_build_declarations::WorkspaceMemberPath::parse(member_path.as_str())
+        .expect("package-source and build-declaration member paths share one grammar");
+    repository
+        .workspace_evidence
+        .as_ref()
+        .and_then(|evidence| evidence.select_declared_member(&shared_path))
+        .expect("declared Git member set and retained workspace selection are one custody value")
 }
 
 fn resolve_external_dependency(

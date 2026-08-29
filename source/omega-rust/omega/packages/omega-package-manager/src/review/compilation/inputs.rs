@@ -35,6 +35,7 @@ pub fn package_compilation_inputs_for(
         .iter()
         .filter(|custody| reachable.contains(custody.key()))
         .map(|custody| {
+            revalidate_package_source_selection(custody)?;
             let binding = PackageSourceBinding::new(
                 custody.key().identity(),
                 custody.key().name().as_str(),
@@ -102,6 +103,19 @@ fn binding_with_canonical_source_metadata(
             reason: format!("invalid canonical build-source metadata: {reason}"),
         }
     })
+}
+
+fn revalidate_package_source_selection(
+    custody: &crate::resolution::binding::PackageSourceCustody,
+) -> Result<(), PackageCompilationInputError> {
+    custody
+        .selection_evidence()
+        .revalidate(custody.acquisition_root())
+        .map_err(|error| PackageCompilationInputError::InvalidSourceRoot {
+            identity: custody.key().identity(),
+            path: custody.acquisition_root().to_path_buf(),
+            reason: format!("could not revalidate package selection evidence: {error}"),
+        })
 }
 
 pub(crate) fn reachable_package_keys(
@@ -208,6 +222,7 @@ mod tests {
             source_root.clone(),
             source_root,
             crate::resolution::PackageSourceNavigation::Root,
+            crate::resolution::PackageSourceSelectionEvidence::Root,
             omega_package_source::LocalSourceLimits::default(),
             dependency_requests,
         )

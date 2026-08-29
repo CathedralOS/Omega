@@ -522,8 +522,9 @@ fn named_git_binding_rejects_missing_and_duplicate_declared_names() {
     .expect_err("missing declared package rejects");
     assert!(matches!(
         missing,
-        ResolvePackageSourceError::NamedGitPackageMissing { package }
-            if package.as_str() == "missing"
+        ResolvePackageSourceError::GitWorkspaceSelection(
+            super::git_selection::GitWorkspaceSelectionError::PackageMissing { package_name }
+        ) if package_name.as_str() == "missing"
     ));
 
     let duplicate = resolve_selected_git_package_source_with_storage(
@@ -539,10 +540,12 @@ fn named_git_binding_rejects_missing_and_duplicate_declared_names() {
     .expect_err("duplicate declared package name rejects");
     assert!(matches!(
         duplicate,
-        ResolvePackageSourceError::NamedGitPackageDuplicate {
-            package,
-            member_paths,
-        } if package.as_str() == "same-name" && member_paths.len() == 2
+        ResolvePackageSourceError::GitWorkspaceSelection(
+            super::git_selection::GitWorkspaceSelectionError::PackageDuplicate {
+                package_name,
+                member_paths,
+            }
+        ) if package_name.as_str() == "same-name" && member_paths.len() == 2
     ));
 
     drop(storage);

@@ -1,7 +1,12 @@
 use super::projection::project_package_build;
+use super::selection::read_bounded_declaration;
 use super::{PackageSourceCustody, ResolvePackageSourceError, ResolvedPackageSource};
+use crate::manifest::PackageDeclarationError;
 use crate::manifest::dependencies::read::PackageSelection;
-use crate::manifest::{BuildDeclaration, extract_build_declaration};
+use crate::resolution::binding::git_selection::{
+    GitWorkspaceMemberBuild, GitWorkspaceSelectionPlan, account_declaration_bytes,
+    discover_git_workspace, plan_git_workspace_selection,
+};
 use omega_package_source::{
     GitCommitId, GitTreeId, ImmutableSourceResolution, PackageKey, SourceContentDigest,
     SourceLineage,
@@ -107,17 +112,19 @@ pub(crate) fn bind_git_package_source(
     selection: &PackageSelection,
 ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
     let acquisition_root = source.snapshot_root().to_path_buf();
-    let (snapshot_root, navigation) = match selection {
+    let (snapshot_root, navigation, selection_evidence) = match selection {
         PackageSelection::Root => (
             acquisition_root.clone(),
             super::PackageSourceNavigation::Root,
+            super::PackageSourceSelectionEvidence::Root,
         ),
         PackageSelection::Named(package) => {
-            let member_path = select_named_git_member(&acquisition_root, package)?;
+            let (member_path, plan) = select_named_git_member(&acquisition_root, package)?;
             let member_root = validate_git_member_root(&acquisition_root, &member_path)?;
             (
                 member_root,
                 super::PackageSourceNavigation::Member(member_path),
+                super::PackageSourceSelectionEvidence::GitWorkspace(plan),
             )
         }
     };
@@ -143,6 +150,7 @@ pub(crate) fn bind_git_package_source(
         acquisition_root,
         snapshot_root,
         navigation,
+        selection_evidence,
         limits,
         dependency_requests,
         source,
@@ -152,38 +160,54 @@ pub(crate) fn bind_git_package_source(
 fn select_named_git_member(
     acquisition_root: &Path,
     selected: &omega_package_source::PackageName,
-) -> Result<omega_package_source::WorkspaceMemberPath, ResolvePackageSourceError> {
-    let declaration = extract_build_declaration(acquisition_root)?;
-    let BuildDeclaration::Workspace(workspace) = declaration else {
-        return Err(
-            ResolvePackageSourceError::NamedGitSelectionRequiresWorkspace {
-                found: declaration.kind(),
-            },
-        );
-    };
-    let mut matches = Vec::new();
-    for member_path in workspace.members {
-        let member_root = validate_git_member_root(acquisition_root, &member_path)?;
-        let (declaration, _) = project_package_build(&member_root, false).map_err(|error| {
-            ResolvePackageSourceError::GitWorkspaceMemberInvalid {
-                member_path: member_path.clone(),
-                error: Box::new(error),
+) -> Result<
+    (
+        omega_package_source::WorkspaceMemberPath,
+        GitWorkspaceSelectionPlan,
+    ),
+    ResolvePackageSourceError,
+> {
+    let root_build = read_git_build(acquisition_root, Path::new("build.omg"))?;
+    let discovery = discover_git_workspace(&root_build)?;
+    let mut total_bytes = account_declaration_bytes(0, &root_build)?;
+    let mut member_builds = Vec::with_capacity(discovery.member_paths().len());
+    for declared_path in discovery.member_paths() {
+        let member_path = omega_package_source::WorkspaceMemberPath::from(declared_path.clone());
+        validate_git_member_root(acquisition_root, &member_path)?;
+        let build_path = PathBuf::from(declared_path.as_str()).join("build.omg");
+        let build = read_git_build(acquisition_root, &build_path)?;
+        total_bytes = account_declaration_bytes(total_bytes, &build)?;
+        member_builds.push((declared_path.clone(), build));
+    }
+    let supplied = member_builds
+        .iter()
+        .map(|(member_path, build_bytes)| {
+            GitWorkspaceMemberBuild::new(member_path, build_bytes.as_slice())
+        })
+        .collect::<Vec<_>>();
+    let selected = omega_build_declarations::ProjectName::parse(selected.as_str())
+        .expect("package-source and build-declaration names share one grammar");
+    let plan = plan_git_workspace_selection(&selected, &root_build, &supplied)?;
+    let member_path =
+        omega_package_source::WorkspaceMemberPath::from(plan.selected_member_path().clone());
+    Ok((member_path, plan))
+}
+
+fn read_git_build(
+    acquisition_root: &Path,
+    relative_path: &Path,
+) -> Result<Vec<u8>, ResolvePackageSourceError> {
+    let path = acquisition_root.join(relative_path);
+    read_bounded_declaration(&path).map_err(|error| {
+        ResolvePackageSourceError::Declaration(if error.kind() == std::io::ErrorKind::NotFound {
+            PackageDeclarationError::MissingBuildFile { path }
+        } else {
+            PackageDeclarationError::ReadBuildFile {
+                path,
+                message: error.to_string(),
             }
-        })?;
-        if &declaration.name == selected {
-            matches.push(member_path);
-        }
-    }
-    match matches.len() {
-        0 => Err(ResolvePackageSourceError::NamedGitPackageMissing {
-            package: selected.clone(),
-        }),
-        1 => Ok(matches.pop().expect("one selected Git member")),
-        _ => Err(ResolvePackageSourceError::NamedGitPackageDuplicate {
-            package: selected.clone(),
-            member_paths: matches,
-        }),
-    }
+        })
+    })
 }
 
 fn validate_git_member_root(
@@ -220,6 +244,7 @@ pub(crate) fn bind_git_member_package_custody(
     resolution: ImmutableSourceResolution,
     acquisition_root: &Path,
     member_path: omega_package_source::WorkspaceMemberPath,
+    selection_plan: GitWorkspaceSelectionPlan,
     limits: LocalSourceLimits,
 ) -> Result<PackageSourceCustody, ResolvePackageSourceError> {
     let snapshot_root = validate_git_member_root(acquisition_root, &member_path)?;
@@ -235,6 +260,7 @@ pub(crate) fn bind_git_member_package_custody(
         acquisition_root.to_path_buf(),
         snapshot_root,
         super::PackageSourceNavigation::Member(member_path),
+        super::PackageSourceSelectionEvidence::GitWorkspace(selection_plan),
         limits,
         dependency_requests,
     ))

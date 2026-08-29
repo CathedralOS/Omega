@@ -9,7 +9,8 @@ pub mod closure;
 
 pub use binding::{
     GitPackageSourceRequest, PackageSourceCustody, PackageSourceMaterialization,
-    PackageSourceNavigation, ResolvePackageSourceError, ResolvedPackageSource,
+    PackageSourceNavigation, PackageSourceSelectionEvidence, PackageSourceSelectionEvidenceError,
+    ResolvePackageSourceError, ResolvedPackageSource,
     resolve_external_local_package_source_with_storage,
     resolve_external_local_project_source_with_storage, resolve_git_package_source_with_storage,
     resolve_selected_git_package_source_with_storage,

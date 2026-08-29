@@ -2,6 +2,7 @@ use crate::manifest::dependencies::read::DependencySourceRequest;
 use crate::resolution::binding::PackageSourceCustody;
 use crate::resolution::binding::PackageSourceMaterialization;
 use crate::resolution::binding::PackageSourceNavigation;
+use crate::resolution::binding::PackageSourceSelectionEvidence;
 use omega_package_source::LocalSourceLimits;
 use omega_package_source::{ImmutableSourceResolution, PackageKey};
 use std::path::{Path, PathBuf};
@@ -20,6 +21,7 @@ pub struct ResolvedPackageSource<S> {
     acquisition_root: PathBuf,
     snapshot_root: PathBuf,
     navigation: PackageSourceNavigation,
+    selection_evidence: PackageSourceSelectionEvidence,
     source_limits: LocalSourceLimits,
     dependency_requests: Vec<DependencySourceRequest>,
     source: S,
@@ -33,6 +35,7 @@ impl<S> ResolvedPackageSource<S> {
         acquisition_root: PathBuf,
         snapshot_root: PathBuf,
         navigation: PackageSourceNavigation,
+        selection_evidence: PackageSourceSelectionEvidence,
         source_limits: LocalSourceLimits,
         dependency_requests: Vec<DependencySourceRequest>,
         source: S,
@@ -44,6 +47,7 @@ impl<S> ResolvedPackageSource<S> {
             acquisition_root,
             snapshot_root,
             navigation,
+            selection_evidence,
             source_limits,
             dependency_requests,
             source,
@@ -74,6 +78,10 @@ impl<S> ResolvedPackageSource<S> {
         &self.navigation
     }
 
+    pub const fn selection_evidence(&self) -> &PackageSourceSelectionEvidence {
+        &self.selection_evidence
+    }
+
     pub fn dependency_requests(&self) -> &[DependencySourceRequest] {
         &self.dependency_requests
     }
@@ -100,6 +108,7 @@ impl<S> ResolvedPackageSource<S> {
             self.acquisition_root,
             self.snapshot_root,
             self.navigation,
+            self.selection_evidence,
             self.source_limits,
             self.dependency_requests,
         )

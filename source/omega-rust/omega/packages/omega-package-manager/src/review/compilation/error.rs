@@ -1,4 +1,5 @@
 use super::PackageSourceVerificationPhase;
+use crate::resolution::PackageSourceSelectionEvidenceError;
 use omega_package_compilation::PackageCompilationInputError;
 use omega_package_review::PackageReviewEncodingError;
 use omega_package_source::PackageKey;
@@ -29,6 +30,12 @@ pub enum CompileResolvedPackageReviewsError {
         source_package: PackageKey,
         phase: PackageSourceVerificationPhase,
         error: SourceResolveError,
+    },
+    SourceSelectionCustody {
+        compiling_package: PackageKey,
+        source_package: PackageKey,
+        phase: PackageSourceVerificationPhase,
+        error: PackageSourceSelectionEvidenceError,
     },
     CompilationInputs {
         package: PackageKey,
@@ -94,6 +101,17 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
             } => write!(
                 formatter,
                 "source custody verification failed {phase:?} for package `{}` while compiling `{}`: {error}",
+                source_package.name().as_str(),
+                compiling_package.name().as_str()
+            ),
+            Self::SourceSelectionCustody {
+                compiling_package,
+                source_package,
+                phase,
+                error,
+            } => write!(
+                formatter,
+                "source selection verification failed {phase:?} for package `{}` while compiling `{}`: {error}",
                 source_package.name().as_str(),
                 compiling_package.name().as_str()
             ),

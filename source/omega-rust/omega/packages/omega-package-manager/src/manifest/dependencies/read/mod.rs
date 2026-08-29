@@ -12,6 +12,7 @@ pub use extraction::{extract_build_dependency_projection, extract_dependency_pro
 pub use model::{BuildDependencyProjection, DependencySourceRequest, PackageSelection};
 
 pub(crate) use extraction::extract_from_source;
+pub(crate) use projection::validate_static_dependency_source;
 
 #[cfg(test)]
 mod tests;

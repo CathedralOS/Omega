@@ -36,6 +36,16 @@ vocabulary, but cannot select a dependency closure or admit it.
 `resolution/binding/` performs the declaration join before
 `resolution/closure/` derives closure-owned identities.
 
+```text
+resolution/binding/
+├── git.rs             join one resolved Git acquisition to package custody
+├── git_selection/     discover, select, commit, and replay workspace declarations
+├── local.rs           bind external-local snapshots
+├── workspace.rs       bind explicit live-workspace members
+├── custody.rs         transport-erased package source custody
+└── materialization.rs exact selected compilation-root commitment
+```
+
 ## Dependency graph
 
 ```text
@@ -83,7 +93,12 @@ it never compares a member-only digest to the repository digest.
 Operational custody separately retains the selected package materialization
 commitment and its file/byte counts. This keeps one repository commit/root-tree
 resolution shareable across members while every compilation root remains
-independently recheckable.
+independently recheckable. Named Git selection additionally retains every
+declared member path, package role/name, declaration byte count, and
+domain-separated declaration commitment. Closure reconciliation compares the
+complete evidence; review and compiler handoff replay it from retained bytes.
+Declaration text does not enter the compilation root merely to carry this
+evidence.
 
 ## Review
 

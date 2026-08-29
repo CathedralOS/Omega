@@ -69,6 +69,10 @@ pub(super) fn capture_snapshot(
     side: PackageSourcePatchSide,
     limits: PackageSourcePatchLimits,
 ) -> Result<BTreeMap<Vec<u8>, VerifiedPackageSourceEntryKind>, PackageSourcePatchError> {
+    custody
+        .selection_evidence()
+        .revalidate(custody.acquisition_root())
+        .map_err(|error| PackageSourcePatchError::SourceSelectionCustody { side, error })?;
     let custody_limits = custody.source_limits();
     let review_limits = LocalSourceLimits {
         max_files: custody_limits
@@ -125,6 +129,10 @@ pub(super) fn revalidate_snapshot(
     custody: &PackageSourceCustody,
     side: PackageSourcePatchSide,
 ) -> Result<(), PackageSourcePatchError> {
+    custody
+        .selection_evidence()
+        .revalidate(custody.acquisition_root())
+        .map_err(|error| PackageSourcePatchError::SourceSelectionCustody { side, error })?;
     verify_package_source_snapshot(
         custody.acquisition_root(),
         custody.resolution().content(),

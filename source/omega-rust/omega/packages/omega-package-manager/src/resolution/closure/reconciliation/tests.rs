@@ -71,6 +71,7 @@ fn custody(
         PathBuf::from(snapshot_root),
         PathBuf::from(snapshot_root),
         crate::resolution::PackageSourceNavigation::Root,
+        crate::resolution::PackageSourceSelectionEvidence::Root,
         LocalSourceLimits::default(),
         dependency_requests,
     )

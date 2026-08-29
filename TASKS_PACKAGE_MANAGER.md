@@ -235,16 +235,19 @@ closed. Compiler-issued package review remains non-admitting.
 
   Remaining work:
 
-  - expose a manager-owned projection planner over one locked, exact Git
-    acquisition; `omega-package-source` must not learn Omega package syntax;
-  - authenticate and retain root/member declaration paths, then batch-open only
-    those blobs and the selected member subtree after complete parent-tree edge
-    authentication;
-  - publish immutable member snapshots separately from repository resolution,
-    retaining exact selection evidence outside the compilation root;
-  - carry repository, materialization, navigation, and declaration commitments
-    through source observations, strict-receipt reconstruction, cache reuse,
-    package custody, review, and eventual lock reconstruction;
+  - feed the landed manager-owned, byte-driven workspace discovery/selection
+    planner from a syntax-agnostic source inspection session held under the one
+    locked exact Git acquisition; the source layer must not learn Omega syntax;
+  - authenticate root/member declaration paths against the retained tree graph,
+    then batch-open only those blobs and the selected member subtree;
+  - publish immutable member snapshots separately from repository resolution
+    and retain the authenticated declaration bytes outside the compilation
+    root. Manager custody already retains and replays exact paths, byte counts,
+    domain-separated commitments, package roles, and the selected member;
+  - extend the landed repository/materialization/navigation/declaration custody
+    through source observations, strict-receipt reconstruction, selective cache
+    reuse, and eventual lock reconstruction. Manager closure reconciliation
+    already compares it, while compiler handoff and source review replay it;
   - reject missing/changed declaration evidence, forged or omitted tree edges,
     undeclared/escaping/symlinked members, absent selected blobs, and any
     checkout, filter, hook, submodule, or lazy-fetch route.
