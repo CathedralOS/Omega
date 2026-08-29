@@ -1,4 +1,20 @@
-use super::*;
+use super::{
+    authority::{PackageReviewDangerousAuthority, PackageReviewDangerousAuthoritySlack},
+    contracts::{
+        PackageReviewConstShape, PackageReviewOperatorShape, PackageReviewPropositionShape,
+    },
+    identity::{PackageReviewSemanticDependency, PackageReviewToolchainSourceIdentity},
+    projection::{
+        CheckedPackageCallableReview, CheckedPackageProviderReview, CheckedPackageReviewProjection,
+    },
+    public_api::{
+        PackageReviewDataShape, PackageReviewDomainShape, PackageReviewRepresentationTcb,
+    },
+    signatures::{
+        PackageReviewConformanceShape, PackageReviewExternalExecutableSupply,
+        PackageReviewTraitShape,
+    },
+};
 use psi_core::PackageKeyIdentity;
 
 /// Compiler-owned granularity for review-only capability/API comparison.

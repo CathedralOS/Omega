@@ -1,6 +1,30 @@
 //! Local snapshot staging, publication, reuse, and topology checks.
 
-use super::*;
+use std::ffi::{OsStr, OsString};
+use std::path::{Path, PathBuf};
+
+use cap_fs_ext::DirExt;
+use sha2::{Digest, Sha256};
+
+use super::capture::{
+    CapturedLocalEntryKind, CapturedLocalTree, SourceTreePolicy,
+    capture_local_source_from_open_root, hash_bytes, io_error, raw_os_bytes,
+};
+use super::model::{ResolvedLocalSnapshot, ResolvedLocalSource};
+use super::operations::resolve_local_source;
+use crate::resolution::source::custody::{
+    CacheCustodyKind, CacheEntryLock, verify_local_cache_custody, verify_local_cache_root_custody,
+};
+use crate::resolution::source::git::execution::format_sha256;
+use crate::resolution::source::git::{
+    PendingMaterializedSnapshot, create_snapshot_symlink_from_open_root, local_snapshot_invalid,
+    local_snapshot_metadata, make_open_snapshot_read_only, open_or_create_snapshot_directory,
+    verify_local_snapshot, write_snapshot_file_from_open_root,
+};
+use crate::resolution::source::{
+    LOCAL_CACHE_SNAPSHOTS, LOCAL_SNAPSHOT_CUSTODY_POLICY, LOCAL_SNAPSHOT_METADATA,
+    LOCAL_SNAPSHOT_SOURCE, LocalSourceLimits, SourceResolveError,
+};
 
 pub(in crate::resolution::source) fn publish_local_snapshot(
     requested_root: PathBuf,

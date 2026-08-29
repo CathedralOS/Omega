@@ -63,9 +63,9 @@ src/
 `-- storage/               Bounded internal record persistence.
 ```
 
-The current public facade preserves historical flat re-exports. New code should
-enter through the responsibility modules above; the flat surface is a
-compatibility seam to narrow before command release.
+The public facade preserves historical flat names through an explicit
+compatibility list; it does not inherit transitive glob exports. New code should
+enter through the responsibility modules above.
 
 ## Trust boundaries
 

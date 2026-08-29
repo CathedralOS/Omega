@@ -1,6 +1,21 @@
 //! Capability-relative local tree capture and canonical content identity.
 
-use super::*;
+use std::ffi::OsStr;
+use std::io::Read;
+use std::path::{Path, PathBuf};
+
+use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt};
+use cap_std::{
+    ambient_authority,
+    fs::{Dir as CapabilityDirectory, OpenOptions as CapabilityOpenOptions},
+};
+use sha2::{Digest, Sha256};
+
+use super::model::ResolvedLocalSource;
+use crate::resolution::source::git::execution::format_sha256;
+use crate::resolution::source::{
+    CANONICAL_DIRECTORY_MODE, DEFAULT_BUILD_OUTPUT_DIRECTORY, LocalSourceLimits, SourceResolveError,
+};
 
 #[derive(Debug)]
 struct SourceEntry {
@@ -483,6 +498,7 @@ pub(in crate::resolution::source) fn is_executable(metadata: &std::fs::Metadata)
 }
 
 #[cfg(not(unix))]
+#[allow(dead_code)] // Kept for the existing source-internal cross-platform facade.
 pub(in crate::resolution::source) fn is_executable(_metadata: &std::fs::Metadata) -> bool {
     false
 }

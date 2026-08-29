@@ -10,7 +10,9 @@ use crate::resolution::identity::{
     ExternalSourceContext, IdentityError, ImmutableSourceResolution, SourceLineage,
     WorkspaceLineageIdentity, WorkspaceMemberLineage, WorkspaceMemberPath,
 };
-use crate::source::{GitSourceRequest, LocalSourceLimits, SourceResolveError};
+#[cfg(unix)]
+use crate::source::SourceResolveError;
+use crate::source::{GitSourceRequest, LocalSourceLimits};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
