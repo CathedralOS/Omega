@@ -10,6 +10,7 @@ use super::execution::{
 };
 use super::receipt::{GitSourceStrictReceipt, GitSourceStrictReceiptError};
 use super::resolution::GitSourceResolutionObservation;
+use super::storage::GitRetainedStorageObservation;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedGitSource {
@@ -40,6 +41,7 @@ pub struct ResolvedGitSource {
     pub(crate) command_execution_observations: Vec<GitCommandExecutionObservation>,
     pub(crate) captured_output_observation: GitCapturedOutputObservation,
     pub(crate) network_transfer_observation: GitNetworkTransferObservation,
+    pub(crate) retained_storage_observation: GitRetainedStorageObservation,
     pub(crate) resolution_observation: GitSourceResolutionObservation,
     pub(crate) strict_receipt: Result<GitSourceStrictReceipt, GitSourceStrictReceiptError>,
 }
@@ -136,6 +138,12 @@ impl ResolvedGitSource {
 
     pub const fn network_transfer_observation(&self) -> &GitNetworkTransferObservation {
         &self.network_transfer_observation
+    }
+
+    /// Exact post-helper cache state accepted by the final capability-rooted
+    /// custody walk. This does not claim a during-write disk quota.
+    pub const fn retained_storage_observation(&self) -> &GitRetainedStorageObservation {
+        &self.retained_storage_observation
     }
 
     /// Canonical final-result provenance issued only after source, cache,

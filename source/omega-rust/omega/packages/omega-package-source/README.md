@@ -23,7 +23,7 @@ src/
 │   ├── snapshot/       build and atomically publish immutable source trees
 │   └── workspace/      syntax-neutral workspace declaration exchange
 ├── custody/        locks, tree validation, and atomic publication
-├── observations/   bounded successful-resolution observations
+├── observations/   execution, accounting, retained-storage, and receipt evidence
 ├── storage.rs      retained private storage and explicit acquisition lanes
 ├── limits.rs       compiler-owned acquisition ceilings
 └── error.rs        fail-closed acquisition errors

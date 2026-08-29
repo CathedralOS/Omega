@@ -29,6 +29,16 @@ pub(crate) enum CacheCustodyKind {
     LocalSnapshot,
 }
 
+/// Exact bounded measurements produced by one complete capability-rooted
+/// custody walk. This records accepted resident state after a helper exits; it
+/// is not a during-write storage quota.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct CacheCustodyMeasurement {
+    pub(crate) entry_count: usize,
+    pub(crate) logical_bytes: u64,
+    pub(crate) maximum_depth: usize,
+}
+
 pub(crate) fn read_bounded_cache_record(
     kind: CacheCustodyKind,
     root: &Path,
@@ -80,7 +90,7 @@ pub(crate) fn read_bounded_cache_record_from_open_directory(
 pub(crate) fn verify_git_cache_custody(
     root: &Path,
     limits: LocalSourceLimits,
-) -> Result<(), SourceResolveError> {
+) -> Result<CacheCustodyMeasurement, SourceResolveError> {
     verify_cache_custody(
         root,
         CacheCustodyKind::Git,
@@ -101,6 +111,7 @@ pub(crate) fn verify_local_cache_custody(
         CacheCustodyKind::LocalSnapshot,
         local_cache_custody_byte_limit(limits),
     )
+    .map(|_| ())
 }
 
 #[cfg(test)]
@@ -202,7 +213,7 @@ pub(crate) fn verify_cache_custody(
     root: &Path,
     kind: CacheCustodyKind,
     byte_limit: u64,
-) -> Result<(), SourceResolveError> {
+) -> Result<CacheCustodyMeasurement, SourceResolveError> {
     verify_cache_custody_root(root, kind)?;
     let root_directory = open_absolute_directory_nofollow(root)
         .map_err(|error| cache_custody_invalid(kind, root, error.to_string()))?;
@@ -214,14 +225,16 @@ pub(crate) fn verify_cache_custody_from_open_root(
     root_directory: CapabilityDirectory,
     kind: CacheCustodyKind,
     byte_limit: u64,
-) -> Result<(), SourceResolveError> {
+) -> Result<CacheCustodyMeasurement, SourceResolveError> {
     let root_metadata = root_directory
         .dir_metadata()
         .map_err(|error| io_error(root, error))?;
     let mut pending = vec![(PathBuf::new(), root.to_path_buf(), root_metadata, 0usize)];
     let mut observed = 0usize;
     let mut logical_bytes = 0u64;
+    let mut maximum_depth = 0usize;
     while let Some((relative_path, path, classified, depth)) = pending.pop() {
+        maximum_depth = maximum_depth.max(depth);
         observed = observed.checked_add(1).ok_or_else(|| {
             cache_custody_invalid(kind, &path, "cache custody entry count overflowed")
         })?;
@@ -348,7 +361,11 @@ pub(crate) fn verify_cache_custody_from_open_root(
             }
         }
     }
-    Ok(())
+    Ok(CacheCustodyMeasurement {
+        entry_count: observed,
+        logical_bytes,
+        maximum_depth,
+    })
 }
 
 pub(crate) fn cache_custody_has_capacity(observed: usize, pending: usize) -> bool {

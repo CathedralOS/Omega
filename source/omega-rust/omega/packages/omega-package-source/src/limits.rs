@@ -46,8 +46,11 @@ pub(crate) const GIT_FIXED_COMMAND_ALLOWANCE: usize = 64;
 pub(crate) const GIT_COMMAND_CLEANUP_TIMEOUT: Duration = Duration::from_secs(2);
 pub(crate) const LOCAL_SNAPSHOT_LOCK_TIMEOUT: Duration = Duration::from_secs(120);
 pub(crate) const PROCESS_POLL_INTERVAL: Duration = Duration::from_millis(5);
-pub(crate) const GIT_RESOLUTION_OBSERVATION_SCHEMA_VERSION: u32 = 6;
-pub(crate) const GIT_RESOLUTION_OBSERVATION_DOMAIN: &[u8] = b"omega-git-resolution-observation-v5";
+pub(crate) const GIT_RESOLUTION_OBSERVATION_SCHEMA_VERSION: u32 = 7;
+pub(crate) const GIT_RESOLUTION_OBSERVATION_DOMAIN: &[u8] = b"omega-git-resolution-observation-v6";
+pub(crate) const GIT_RETAINED_STORAGE_OBSERVATION_SCHEMA_VERSION: u32 = 1;
+pub(crate) const GIT_RETAINED_STORAGE_OBSERVATION_DOMAIN: &[u8] =
+    b"omega-git-retained-storage-observation-v1";
 pub(crate) static STAGING_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

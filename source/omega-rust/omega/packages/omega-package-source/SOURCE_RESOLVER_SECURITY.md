@@ -122,19 +122,25 @@ immediately after final cache, executable, command, endpoint, accounting, and
 snapshot revalidation. `ResolvedGitSource` retains either an opaque
 `GitSourceStrictReceipt` or one closed `GitSourceStrictReceiptError`. The
 reconstructor first reproduces the complete non-admitting resolution
-observation exactly, rejoins each package command identity to its native
-completion and exact null-or-byte input commitment, verifies executable path and
-endpoint custody, and calls `require_strict` on every native policy. Missing or
-changed policy, completion, input, endpoint, executable, accounting, source, or
-limit rows reject. Persisted strings cannot construct or decode the receipt.
+observation exactly, requires the opaque retained-storage row issued by the
+final capability-rooted cache traversal, rejoins each package command identity
+to its native completion and exact null-or-byte input commitment, verifies
+executable path and endpoint custody, and calls `require_strict` on every native
+policy. Missing or changed policy, completion, input, endpoint, executable,
+accounting, source, or limit rows reject. A missing, changed, differently
+rooted, or differently bounded retained-storage row rejects too. Persisted
+strings cannot construct or decode the receipt.
 
 No success issuer exists yet. The current native backends still expose
 unavailable guarantees; after those pass, the reconstruction attempt rejects
 the test-only transport or the first still-unimplemented transport-trust row.
 Credential custody, whole-operation storage/resource ceilings, and same-user
 mutation isolation do not yet have evidence carriers and therefore are not
-represented as if checked. Each must acquire a real locally reconstructed row
-before the success type gains an issuer.
+represented as if checked. The retained-storage row is deliberately narrower:
+it records only the exact resident entry count, logical bytes, and maximum depth
+accepted after the helper exits. Each missing whole-operation requirement must
+acquire a real locally reconstructed row before the success type gains an
+issuer.
 
 The complete `SourceResolutionReceiptV1` target is an opaque, canonical value
 issued by the trusted resolver path. Parsing a persisted receipt never mints
@@ -274,7 +280,9 @@ binds the exact source policy ceilings, request and normalized locator,
 transport and object format, selected commit/tree, immutable snapshot
 path/content/counts, Git and helper content identities, every native policy row,
 every completed-command row, the cumulative captured-output ceiling/count, and
-the directional broker-transfer ceiling/counts.
+the directional broker-transfer ceiling/counts. It also binds the opaque
+retained-storage identity and its exact entry, byte, and depth ceilings and
+observations.
 The observation has no public constructor or decoder and is issued with the
 fixed outcome `resolved-non-admitting`; changing even a source ceiling changes
 its identity. This closes the successful-result join that the narrower rows
@@ -681,7 +689,12 @@ parent traversal before and after use. That traversal sums regular-file and
 symlink logical lengths. Git entries reject above
 `min(3 * source-byte-limit + 64 MiB, 1 GiB)`; local publications reject above
 `min(source-byte-limit + 64 MiB, 512 MiB)`. These are post-helper acceptance
-ceilings for resident cache state, not during-write disk quotas. They are
+ceilings for resident cache state, not during-write disk quotas. The final Git
+walk now returns its exact entry count, logical-byte count, and maximum depth;
+the resolver seals those measurements with the private cache root and policy
+ceilings into `GitRetainedStorageObservation`, binds that row into the final
+resolution identity, and requires it during strict-receipt reconstruction. It
+has no public constructor or decoder. These measurements are
 independent from the broker's transfer measurements: a helper without an
 aggregate disk quota may still exhaust
 storage before the parent can reject its output. Every Git or local publication lock opens
