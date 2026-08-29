@@ -91,24 +91,29 @@ case_run() { # name expected-status frame
   fi
 }
 
+checker_case_run() { # name expected-status expected-output frame
+  set +e
+  CHECKER_OUT=$("$T/checker" < "$4")
+  CHECKER_STATUS=$?
+  set -e
+  if [ "$CHECKER_STATUS" = "$2" ] && [ "$CHECKER_OUT" = "$3" ]; then
+    PASS=$((PASS + 1))
+  else
+    FAIL=$((FAIL + 1))
+    echo "  FAIL $1: expected $2/$3, got $CHECKER_STATUS/$CHECKER_OUT"
+  fi
+}
+
 frame "$SOURCE" 78109 "$TAPE" 20977 "$T/valid.frame"
 case_run "canonical source and tape" 0 "$T/valid.frame"
 
-# Exercise the exact checker carrier at compiler scale. This is deliberately
-# only a capacity/binding control; the status-only Alpha ledger below remains
-# nonauthoritative until its full relation is emitted as the checked proof.
-CHECKER_CERT='(& (= source source) (= tape tape)) (pair (refl source) (refl tape))'
+# Exercise computation over both exact subjects at compiler scale. Function 101
+# follows the balanced tree's left branch to its first byte: source begins ';'
+# (0x3b) and the tape begins opcode 1 (0x01). The status-only Alpha ledger below
+# remains nonauthoritative until its complete relation is emitted as the proof.
+CHECKER_CERT='(fun 101 62 (v 0)) (fun 101 63 (rec 0)) (& (= (f 101 source) (k 60 (k 3) (k 11))) (= (f 101 tape) (k 60 (k 0) (k 1)))) (pair (refl (k 60 (k 3) (k 11))) (refl (k 60 (k 0) (k 1))))'
 checker_frame "$SOURCE" "$TAPE" "$CHECKER_CERT" "$T/checker.frame"
-set +e
-CHECKER_OUT=$("$T/checker" < "$T/checker.frame")
-CHECKER_STATUS=$?
-set -e
-if [ "$CHECKER_STATUS" = 1 ] && [ "$CHECKER_OUT" = accept ]; then
-  PASS=$((PASS + 1))
-else
-  FAIL=$((FAIL + 1))
-  echo "  FAIL exact checker subject carrier: expected 1/accept, got $CHECKER_STATUS/$CHECKER_OUT"
-fi
+checker_case_run "exact checker subject computation" 1 accept "$T/checker.frame"
 
 # Source-byte control: change the immediate in the first `imm r0, 0` to one.
 # This preserves both extents and syntax, but changes one reconstructed byte.
@@ -186,6 +191,8 @@ cp "$TAPE" "$T/tape-byte.tape"
 printf '\002' | dd of="$T/tape-byte.tape" bs=1 seek=0 conv=notrunc status=none
 frame "$SOURCE" 78109 "$T/tape-byte.tape" 20977 "$T/tape-byte.frame"
 case_run "tape byte" 1 "$T/tape-byte.frame"
+checker_frame "$SOURCE" "$T/tape-byte.tape" "$CHECKER_CERT" "$T/checker-tape-byte.frame"
+checker_case_run "checker-bound tape byte" 0 reject "$T/checker-tape-byte.frame"
 
 # Label-target control: byte 25 is the low byte of the first conditional branch
 # target (92).  Changing only that fixup must be detected by pass-two resolution.

@@ -119,10 +119,12 @@ chk "product witness" "(Rel 778 (cons (s (s z)) nil) (m (s (s z)) (s z))) (pcons
 chk "product witness result mismatch" "(Rel 778 nil (s (s z))) (pnil)" reject
 chk "product nil inversion" "(All (-> (Rel 778 nil (v 0)) (= (v 0) (s z)))) (gen (lam (Rel 778 nil (v 0)) (prodnilinv (hyp 0))))" accept
 
-# Framed subjects are checker-bound raw byte lists. The same certificate must
+# Framed subjects are checker-bound raw byte trees. The same certificate must
 # distinguish a one-byte subject mutation, while legacy input cannot name them.
 frame_chk "framed raw subjects equal" 'abc' 'abc' '(= source tape) (refl source)' accept
 frame_chk "framed raw subject mutation" 'abc' 'abd' '(= source tape) (refl source)' reject
+RAW_TREE_FOLD='(fun 100 61 z) (fun 100 62 (s z)) (fun 100 63 (p (rec 0) (rec 1)))'
+frame_chk "framed raw tree is computable" 'abc' 'x' "$RAW_TREE_FOLD (= (f 100 source) (s (s (s z)))) (refl (s (s (s z))))" accept
 chk "raw subject constants require a frame" "(= source source) (refl source)" reject
 
 echo "checker rule discriminators: $PASS passed, $FAIL failed"

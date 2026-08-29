@@ -24,8 +24,9 @@
 ;   "OMGCHK1\n" u64le(source_len) source u64le(tape_len) tape
 ;               u64le(cert_len) cert
 ; A framed certificate may use the individual constants `source` and `tape`.
-; They are checker-built immutable lists of raw bytes, with each byte represented
-; by the nullary constructor (k (1024 + byte)). The certificate stream itself is
+; They are checker-built immutable balanced byte trees. A byte is
+; (k 60 (k HIGH_NIBBLE) (k LOW_NIBBLE)); tree constructors are empty/leaf/node
+; CIDs 61/62/63. The certificate stream itself is
 ; then zero or more declarations, a goal proposition, and a certificate term.
 ;   ( def N prop term )        a lemma: checked like any proof, then citable by ( use N )
 ;   ( data CID ARITY R0 R1 )   a user constructor: arity (0/1/2) and which args recurse
@@ -48,7 +49,9 @@
 ;          2097120 CTXN  2097112 IDEP  2097104 FRAMED
 ;          2097096 SOURCE_LIST  2097088 TAPE_LIST  2097080 INPUT_OVERFLOW
 ;          2097072 PARSE_ERROR  2097064 THEORY_FROZEN
-;          4194304 CTX (type stack)  6553600 BYTE_TERM_CACHE  8388608 ARENA (bump)
+;          4194304 CTX (type stack)  6422528 DATA_DECLARED
+;          6553600 BYTE_TERM_CACHE  6555648 NIBBLE_TERM_CACHE
+;          6555776 RAW_CON_CACHE  8388608 ARENA (bump)
 ; Nodes are 3 words [tag, f0, f1] at 24-byte stride. 0 is the reject/none sentinel.
 ;
 ; Tags:  type  0 ATOM(char) 1 ARROW(l,r) 2 AND(l,r) 3 FALSE 4 OR(l,r) 5 EQ(t1,t2)
@@ -124,27 +127,79 @@ proc has_frame_magic() {
     state no { return 0 }
 }
 
-; Build the immutable raw-byte list backwards. Byte values are interned as
-; CON(1024+b), so subject size costs one CONS node per byte rather than a Peano
-; numeral per byte.
+proc raw_con(cid) {
+    let slot = 6555776 + (cid - 60) * 8
+    let t = word[slot]
+    state cached { to make when (t == 0)  return t }
+    state make {
+        t = alloc(50, cid, 0)
+        word[slot] = t
+        return t
+    }
+}
+
+proc raw_nibble_term(n) {
+    let t = word[6555648 + n * 8]
+    state cached { to make when (t == 0)  return t }
+    state make {
+        t = alloc(50, n, 0)
+        word[6555648 + n * 8] = t
+        return t
+    }
+}
+
+; Byte values are interned as BYTE(high-nibble, low-nibble), using only the
+; existing bounded constructor vocabulary available to certificate functions.
 proc raw_byte_term(b) {
     let t = word[6553600 + b * 8]
     state cached { to make when (t == 0)  return t }
     state make {
-        t = alloc(50, 1024 + b, 0)
+        let hi = b / 16
+        let lo = b - hi * 16
+        t = alloc(51, alloc(51, raw_con(60), raw_nibble_term(hi)), raw_nibble_term(lo))
         word[6553600 + b * 8] = t
         return t
     }
 }
 
-proc raw_list(start, n) {
-    let out = alloc(35, 0, 0)
-    let i = n
-    state loop { to body when (i > 0)  return out }
-    state body {
-        i = i - 1
-        out = alloc(36, raw_byte_term(byte[2097152 + start + i]), out)
-        to loop
+; A balanced tree keeps computation/proof recursion logarithmic in subject
+; size. EMPTY=61, LEAF(byte)=62, NODE(left,right)=63.
+proc raw_tree(start, n) {
+    state empty { to leaf when (n == 1)  to node }
+    state leaf {
+        return alloc(51, raw_con(62), raw_byte_term(byte[2097152 + start]))
+    }
+    state node {
+        to do_empty when (n == 0)
+        let left_n = n / 2
+        let left = raw_tree(start, left_n)
+        let right = raw_tree(start + left_n, n - left_n)
+        return alloc(51, alloc(51, raw_con(63), left), right)
+    }
+    state do_empty { return raw_con(61) }
+}
+
+proc bind_raw_ctor(cid, arity, rec0, rec1) {
+    word[5505024 + cid * 8] = arity
+    word[5636096 + cid * 8] = rec0
+    word[5767168 + cid * 8] = rec1
+    word[6422528 + cid * 8] = 1
+}
+
+proc bind_raw_theory() {
+    let cid = 0
+    state nibbles { to nibble when (cid < 16)  to byte_ctor }
+    state nibble {
+        bind_raw_ctor(cid, 0, 0, 0)
+        cid = cid + 1
+        to nibbles
+    }
+    state byte_ctor {
+        bind_raw_ctor(60, 2, 0, 0)
+        bind_raw_ctor(61, 0, 0, 0)
+        bind_raw_ctor(62, 1, 0, 0)
+        bind_raw_ctor(63, 2, 1, 1)
+        return 0
     }
 }
 
@@ -200,8 +255,9 @@ proc prepare_input() {
         to bind
     }
     state bind {
-        word[2097096] = raw_list(source_start, source_len)
-        word[2097088] = raw_list(tape_start, tape_len)
+        bind_raw_theory()
+        word[2097096] = raw_tree(source_start, source_len)
+        word[2097088] = raw_tree(tape_start, tape_len)
         copy_cert(cert_start, cert_len)
         word[2097136] = cert_len
         word[2097144] = 0
@@ -509,8 +565,17 @@ proc reduce_fun(fid, arg, fuel) {
     let a = 0
     let cid = 0
     let body = 0
-    state bundle { to do_bundle when (word[arg] == 53)  to norm }    ; binary application
-    state do_bundle { scrut = word[arg + 8]  extra = word[arg + 16]  to norm }
+    state bundle { to do_bundle when (word[arg] == 53)  to view }    ; binary application
+    state do_bundle { scrut = word[arg + 8]  extra = word[arg + 16]  to view }
+    ; Constructor heads are already visible. Do not normalize their fields just
+    ; to select a rule; a framed subject may contain hundreds of thousands of
+    ; already-normal constructor nodes.
+    state view {
+        a = scrut
+        to nullary when (word[a] == 50)
+        to applied when (word[a] == 51)
+        to norm
+    }
     state norm { a = normalize(scrut, fuel)  to nullary }
     state nullary { to do_null when (word[a] == 50)  to applied }    ; CON(cid) — arity 0
     state do_null {
@@ -596,6 +661,7 @@ proc instantiate(t, fid, flds, extra) {
 }
 
 proc nat_eq(a, b) {
+    state same { to z when (a == b)  to tchk }
     state tchk { to teq when (word[a] == word[b])  return 0 }
     state teq { to z when (word[a] == 30)  to nilc }
     state z { return 1 }
@@ -847,36 +913,25 @@ proc shift_prop(p, d, cutoff) {
     state conn { return alloc(tag, shift_prop(word[p + 8], d, cutoff), shift_prop(word[p + 16], d, cutoff)) }
 }
 
-; Framed raw subjects are already-normal constructor lists and can be much
-; larger than the generated Beta call stack. Compare that spine iteratively;
-; normalizing it would allocate a duplicate and recurse once per subject byte.
-proc raw_list_eq(a, b) {
-    let x = a
-    let y = b
-    state same { to yes when (x == y)  to tags }
-    state tags { to no when (word[x] != word[y])  to nil }
-    state nil { to yes when (word[x] == 35)  to cons }
-    state cons { to no when (word[x] != 36)  to heads }
-    state heads { to no when (word[word[x + 8]] != 50)  to rhs_head }
-    state rhs_head { to no when (word[word[y + 8]] != 50)  to cid }
-    state cid { to no when (word[word[x + 8] + 8] != word[word[y + 8] + 8])  to next }
-    state next {
-        x = word[x + 16]
-        y = word[y + 16]
-        to same
-    }
-    state yes { return 1 }
-    state no { return 0 }
+proc constructor_cid(t) {
+    let x = t
+    state loop { to con when (word[x] == 50)  to app }
+    state app { to no when (word[x] != 51)  x = word[x + 8]  to loop }
+    state con { return word[x + 8] }
+    state no { return 0 - 1 }
 }
 
-; Definitional equality preserves pointer identity, compares checker-owned raw
-; lists without recursion, then normalizes ordinary calculus terms.
+; Definitional equality preserves pointer identity. Checker-owned subjects are
+; already-normal balanced trees, so structural comparison is logarithmic-depth
+; and does not allocate a normalized duplicate.
 proc conv_eq(a, b) {
-    state same { to yes when (a == b)  to raw_lhs }
-    state raw_lhs { to ordinary when (word[a] != 36)  to raw_rhs }
-    state raw_rhs { to ordinary when (word[b] != 36)  to raw_head }
-    state raw_head { to ordinary when (word[word[a + 8]] != 50)  to raw_cid }
-    state raw_cid { to ordinary when (word[word[a + 8] + 8] < 1024)  return raw_list_eq(a, b) }
+    let acid = constructor_cid(a)
+    let bcid = 0 - 1
+    state same { to yes when (a == b)  to raw_low }
+    state raw_low { to ordinary when (acid < 61)  to raw_high }
+    state raw_high { to ordinary when (acid > 63)  bcid = constructor_cid(b)  to raw_rhs }
+    state raw_rhs { to ordinary when (bcid < 61)  to raw_rhs_high }
+    state raw_rhs_high { to ordinary when (bcid > 63)  return nat_eq(a, b) }
     state ordinary { return nat_eq(normalize(a, 100000), normalize(b, 100000)) }
     state yes { return 1 }
 }

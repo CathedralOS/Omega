@@ -60,9 +60,12 @@ u64le cert_length   | certificate bytes
 Lengths have zero high halves and checker-owned limits, the certificate must
 end exactly at the frame boundary, and the whole input is bounded before it can
 overlap checker tables. Within a valid frame, `source` and `tape` parse as
-immutable lists of raw bytes constructed by the checker itself. Each byte is a
-nullary constructor with identity `1024 + byte`; byte terms are interned and
-the lists share them. Those constants are unavailable to unframed input. This
+immutable balanced byte trees constructed by the checker itself. A byte is
+constructor 60 applied to fixed high- and low-nibble constructors 0 through 15;
+constructors 61, 62, and 63 are empty, leaf, and binary node. Byte terms are
+interned, tree depth is logarithmic in the subject extent, and framed
+certificate functions may dispatch on those fixed shapes without redeclaring
+them. The constants and fixed shapes are unavailable to unframed input. This
 binds a derivation proposition to exact bytes without trusting a hash or a
 shell-generated literal, but a caller still needs a checked artifact-specific
 ledger proving the intended relation.

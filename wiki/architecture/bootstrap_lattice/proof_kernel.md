@@ -154,7 +154,8 @@ physical deployment H
 
 For low-rung byte artifacts, the checker supports a bounded exact-subject frame:
 raw source and tape extents are retained by the checker and exposed to the
-certificate as immutable byte lists. This removes hashes, shell-rendered term
+certificate as immutable balanced byte trees with fixed byte/empty/leaf/node
+constructors. This removes hashes, shell-rendered term
 literals, and producer-selected subject identities from the binding step. It
 does not make an arbitrary proposition sufficient; the artifact owner must
 still reconstruct and check the canonical ledger relation over those exact

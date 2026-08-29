@@ -149,8 +149,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
   function-, hash-, or workload-specific jets are forbidden. No current floor
   measurement triggers escalation: the complete Alpha-written Beta compiler
   surface gate runs 121 cases in under three seconds on the development host.
-  The largest current retained Beta output, the 229,192-byte checker tape,
-  leaves 32,948 bytes in the Alpha payload after replacing repeated inline
+  The largest current retained Beta output, the 233,813-byte checker tape,
+  leaves 28,327 bytes in the Alpha payload after replacing repeated inline
   stack-fault blocks with one local terminal block per procedure.
 
 ## 2. Alpha-written Beta compiler
@@ -238,13 +238,15 @@ code, discover a closure, manufacture proof premises, or decide admission.
     grammar failures without writing output.
   - [x] Bind proof propositions to raw persisted subjects inside the checker.
     The bounded `OMGCHK1` frame carries exact little-endian source, tape, and
-    certificate extents; checker-built immutable byte lists are available only
+    certificate extents; checker-built immutable balanced byte trees are available only
     as the framed `source` and `tape` constants. Identical subjects accept a
     reflexivity control, a one-byte mutation rejects, unframed input cannot
-    spoof either constant, and the rebuilt 229,192-byte checker tape retains
-    32,948 bytes of Alpha payload headroom. The exact 78,109-byte compiler
-    source plus 20,977-byte tape carrier runs in under one second; raw-list
-    comparison is iterative rather than proportional to the Beta call stack.
+    spoof either constant, and the rebuilt 233,813-byte checker tape retains
+    28,327 bytes of Alpha payload headroom. The exact 78,109-byte compiler
+    source plus 20,977-byte tape carrier runs in under one second. Fixed
+    byte/empty/leaf/node constructors make subject structure available to
+    ordinary bounded certificate functions at logarithmic recursion depth;
+    no assembly-specific checker rule was added.
     Declaration tables are range-checked and immutable before the first checked
     lemma, duplicate IDs and trailing forms reject, and the independent checker
     matches those controls; a later rewrite cannot change an accepted lemma's
