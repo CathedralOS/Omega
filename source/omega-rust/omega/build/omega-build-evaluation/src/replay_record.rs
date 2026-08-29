@@ -12,7 +12,7 @@ use std::fmt;
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 15;
+const VERSION: u16 = 16;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -277,6 +277,17 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
                 )
             })?;
         for operation in operations {
+            if operation.operation == 41 {
+                let [(1, ShapeScalar::I64(length))] = operation.scalars.as_slice() else {
+                    unreachable!("validated Output set_len has one i64 length")
+                };
+                operation_records.push(
+                    psi_checked_interpreter::FilesystemOutputFileOperationReplayRecord::SetLength {
+                        length: *length,
+                    },
+                );
+                continue;
+            }
             if matches!(operation.operation, 43 | 44) {
                 operation_records.push(if operation.operation == 43 {
                     psi_checked_interpreter::FilesystemOutputFileOperationReplayRecord::Sync
@@ -1258,7 +1269,7 @@ fn output_file_ranges(
             ));
         }
         cursor += 1;
-        while cursor < shapes.len() && matches!(shapes[cursor].operation, 5 | 7 | 43 | 44) {
+        while cursor < shapes.len() && matches!(shapes[cursor].operation, 5 | 7 | 41 | 43 | 44) {
             cursor += 1;
         }
         if cursor == shapes.len() || shapes[cursor].operation != 8 {
@@ -1395,7 +1406,13 @@ fn validate_output_file(
 
     let mut cursor = 0usize;
     let mut extent = 0usize;
+    let mut peak_extent = 0usize;
     for operation in operations {
+        if operation.operation == 41 {
+            extent = validate_output_set_length_shape(operation, output.identity)?;
+            peak_extent = peak_extent.max(extent);
+            continue;
+        }
         if matches!(operation.operation, 43 | 44) {
             validate_output_sync_shape(operation, output.identity)?;
             continue;
@@ -1441,6 +1458,7 @@ fn validate_output_file(
         })?;
         if !payload.is_empty() {
             extent = extent.max(end);
+            peak_extent = peak_extent.max(extent);
         }
         if write.operation == 5 {
             cursor = end;
@@ -1462,7 +1480,7 @@ fn validate_output_file(
             ));
         }
     }
-    if extent > psi_checked_interpreter::MAX_FILESYSTEM_REPLAY_RETAINED_BYTES {
+    if peak_extent > psi_checked_interpreter::MAX_FILESYSTEM_REPLAY_RETAINED_BYTES {
         return Err(BuildFilesystemReplayRecordError::new(
             "receipted build output exceeds the replay-retention ceiling",
         ));
@@ -1473,7 +1491,44 @@ fn validate_output_file(
             "receipted build output close changed the post-operation error state",
         ));
     }
-    Ok(extent)
+    Ok(peak_extent)
+}
+
+fn validate_output_set_length_shape(
+    operation: &AttemptShape<'_>,
+    identity: u64,
+) -> Result<usize, BuildFilesystemReplayRecordError> {
+    let [(1, ShapeScalar::I64(length))] = operation.scalars.as_slice() else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "receipted build output set_len has no exact length",
+        ));
+    };
+    let [input] = operation.inputs.as_slice() else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "receipted build output set_len has no unique descriptor input",
+        ));
+    };
+    let length = usize::try_from(*length).map_err(|_| {
+        BuildFilesystemReplayRecordError::new(
+            "receipted build output set_len length exceeds this compiler host",
+        )
+    })?;
+    if operation.provider != 2
+        || operation.result != ShapeResult::Scalar(0)
+        || operation.post_error != 0
+        || *input
+            != (ShapeLogicalInput {
+                ordinal: 0,
+                kind: 0,
+                resolution: Some(identity),
+            })
+        || !only_output_set_length_lanes(operation)
+    {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "receipted build output set_len is internally inconsistent",
+        ));
+    }
+    Ok(length)
 }
 
 fn validate_output_sync_shape(
@@ -1873,6 +1928,23 @@ fn only_output_sync_lanes(attempt: &AttemptShape<'_>) -> bool {
         && attempt.refusal_count == 0
 }
 
+fn only_output_set_length_lanes(attempt: &AttemptShape<'_>) -> bool {
+    attempt.byte_operands.is_empty()
+        && attempt.path_like_operand_count == 0
+        && attempt.rooted_paths.is_empty()
+        && attempt.returned_path_count == 0
+        && attempt.observed_regions.is_empty()
+        && attempt.metadata.is_empty()
+        && attempt.mutable_byte_resolutions.is_empty()
+        && attempt.mutable_i64_resolution_count == 0
+        && attempt.mutable_bytes.is_empty()
+        && attempt.mutable_i64_count == 0
+        && attempt.authorized_paths.is_empty()
+        && attempt.output.is_none()
+        && attempt.retired.is_empty()
+        && attempt.refusal_count == 0
+}
+
 fn record_commitment(bytes: &[u8]) -> [u8; 32] {
     let mut digest = Sha256::new();
     digest.update(COMMITMENT_DOMAIN);
@@ -2134,6 +2206,28 @@ mod first_rung_validation_tests {
         let mut spoofed_lane = shapes;
         spoofed_lane[4].scalars = vec![(1, ShapeScalar::I32(0))];
         assert!(validate_first_rung(&spoofed_lane).is_err());
+    }
+
+    #[test]
+    fn output_set_length_requires_exact_nonnegative_length_and_lineage() {
+        let mut shapes = exact_input_output_shapes();
+        let mut set_length = empty_shape(41, ShapeResult::Scalar(0));
+        set_length.scalars = vec![(1, ShapeScalar::I64(3))];
+        set_length.inputs = shapes[4].inputs.clone();
+        shapes.insert(5, set_length);
+        assert!(validate_first_rung(&shapes).is_ok());
+
+        let mut negative = shapes.clone();
+        negative[5].scalars = vec![(1, ShapeScalar::I64(-1))];
+        assert!(validate_first_rung(&negative).is_err());
+
+        let mut wrong_ordinal = shapes.clone();
+        wrong_ordinal[5].scalars = vec![(0, ShapeScalar::I64(3))];
+        assert!(validate_first_rung(&wrong_ordinal).is_err());
+
+        let mut wrong_descriptor = shapes;
+        wrong_descriptor[5].inputs[0].resolution = Some(9);
+        assert!(validate_first_rung(&wrong_descriptor).is_err());
     }
 
     #[test]

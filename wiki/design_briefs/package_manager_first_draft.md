@@ -1437,6 +1437,16 @@ leave bytes, extent, and cursor unchanged, then still requires exact operation,
 namespace, tree, and sponsored-custody equality. Failed syncs, malformed lanes,
 other descriptors, and sync after close remain non-receipted.
 
+Observation summary v35 and compiler replay-record v16 admit successful
+nonnegative `set_len` operations anywhere between a fresh Output file's create
+and close. Each row binds the exact requested length and same live descriptor,
+returns zero with zero post-error state, truncates or zero-extends the replayed
+file, and leaves the sequential cursor unchanged. Resource policy binds peak
+extent across the authored operation sequence, not merely final extent, so a
+large extension followed by truncation cannot evade replay limits. Negative or
+unrepresentable lengths, failures, malformed lanes, and wrong descriptors
+remain non-receipted.
+
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities reject negative, wrapped, or
