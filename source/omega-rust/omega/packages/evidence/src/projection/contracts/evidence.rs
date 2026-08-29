@@ -1,4 +1,4 @@
-use super::projection::ContractProjectionContext;
+use super::callables::ContractProjectionContext;
 use crate::evidence::{
     PackageReviewContractFact, PackageReviewContractKind, PackageReviewPropositionEvidence,
 };

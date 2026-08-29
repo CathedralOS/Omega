@@ -3,12 +3,12 @@ use crate::evidence::{
     PackageReviewOperatorCoordinate, PackageReviewOperatorShape,
 };
 use crate::projection::behavior::project_crash_cause;
-use crate::projection::contracts::checked::facts::{ContractProjectionContext, project_contracts};
-use crate::projection::contracts::checked::parameters::{
+use crate::projection::contracts::callables::{ContractProjectionContext, project_contracts};
+use crate::projection::contracts::expressions::projection::project_contract_expression;
+use crate::projection::contracts::parameters::{
     collect_callable_parameter_source_locations, collect_type_parameter_source_locations,
 };
-use crate::projection::contracts::checked::source_locations::project_contract_source_locations;
-use crate::projection::contracts::expressions::projection::project_contract_expression;
+use crate::projection::contracts::source_locations::project_contract_source_locations;
 use crate::projection::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::projection::semantics::signatures::parameters::project_type_parameters;
 use crate::projection::semantics::types::review_signature_type_identity_with_binders;

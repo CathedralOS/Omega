@@ -2,7 +2,7 @@ use crate::evidence::{
     PackageReviewContractFact, PackageReviewPropositionShape, PackageReviewPublicPropositionBody,
     PackageReviewSourceLocationRole,
 };
-use crate::projection::contracts::checked::facts::ContractProjectionContext;
+use crate::projection::contracts::callables::ContractProjectionContext;
 use crate::projection::contracts::expressions::projection::project_contract_expression;
 use crate::projection::contracts::propositions::application::project_contract_proposition;
 use crate::projection::contracts::propositions::endpoint::project_proposition_signature;

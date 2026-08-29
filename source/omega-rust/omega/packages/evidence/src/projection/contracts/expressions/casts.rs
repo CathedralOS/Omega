@@ -1,7 +1,7 @@
 use crate::evidence::{
     PackageReviewArithmeticDomain, PackageReviewCastForm, PackageReviewContractExpression,
 };
-use crate::projection::contracts::checked::facts::ContractProjectionContext;
+use crate::projection::contracts::callables::ContractProjectionContext;
 use crate::projection::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::projection::semantics::types::review_type_identity_with_binders;
 use omega_compiler::CheckedCompilation;

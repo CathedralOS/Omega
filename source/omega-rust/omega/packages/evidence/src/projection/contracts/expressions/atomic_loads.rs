@@ -1,5 +1,5 @@
 use crate::evidence::{PackageReviewAtomicLoadOrdering, PackageReviewContractExpression};
-use crate::projection::contracts::checked::facts::ContractProjectionContext;
+use crate::projection::contracts::callables::ContractProjectionContext;
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::expression::{ExpressionHandle, TableAtomicExpression};
 

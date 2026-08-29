@@ -2,17 +2,17 @@ use super::super::behavior::{
     project_crash_routes, project_service_row, project_synchronous_invocations,
     project_trait_requirement_termination,
 };
-use super::super::contracts::checked::facts::{
+use super::super::contracts::callables::{
     ContractProjectionContext, project_trait_requirement_contracts,
 };
-use super::super::contracts::checked::operations::{
+use super::super::contracts::operations::{
     project_signature_invocation_source_locations, project_signature_operational_source_locations,
 };
-use super::super::contracts::checked::parameters::{
+use super::super::contracts::parameters::{
     collect_callable_parameter_source_locations, collect_type_parameter_source_locations,
 };
-use super::super::contracts::checked::service_reach::project_signature_service_reach_source_locations;
-use super::super::contracts::checked::source_locations::project_contract_source_locations;
+use super::super::contracts::service_reach::project_signature_service_reach_source_locations;
+use super::super::contracts::source_locations::project_contract_source_locations;
 use super::super::semantics::conformances::project_conformance_bounds;
 use super::super::semantics::declarations::{
     nominal_identity, reviewed_package_owns, trait_requirement_identity,

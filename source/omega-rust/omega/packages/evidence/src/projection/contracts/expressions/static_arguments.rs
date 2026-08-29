@@ -1,6 +1,6 @@
 use super::names::portable_parameter_position;
 use crate::evidence::{PackageReviewContractStaticArgument, PackageReviewTypeIdentity};
-use crate::projection::contracts::checked::facts::ContractProjectionContext;
+use crate::projection::contracts::callables::ContractProjectionContext;
 use crate::projection::semantics::declarations::nominal_identity;
 use crate::projection::semantics::types::lifetimes::lifetime_binder_ordinal;
 use crate::projection::semantics::types::missing_exact_toolchain_type_owner;

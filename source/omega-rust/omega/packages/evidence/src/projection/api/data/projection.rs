@@ -6,9 +6,9 @@ use crate::evidence::{
 use crate::projection::api::domains::facts::{
     project_definition_contract_fact, semantic_fact_matches_definition_fact,
 };
-use crate::projection::contracts::checked::facts::ContractProjectionContext;
-use crate::projection::contracts::checked::parameters::collect_type_parameter_source_locations;
-use crate::projection::contracts::checked::source_locations::project_required_proof_fact_source_locations;
+use crate::projection::contracts::callables::ContractProjectionContext;
+use crate::projection::contracts::parameters::collect_type_parameter_source_locations;
+use crate::projection::contracts::source_locations::project_required_proof_fact_source_locations;
 use crate::projection::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::projection::semantics::signatures::parameters::project_type_parameters;
 use crate::projection::semantics::types::{

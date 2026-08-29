@@ -1,4 +1,4 @@
-use super::super::contracts::checked::parameters::collect_type_parameter_source_locations;
+use super::super::contracts::parameters::collect_type_parameter_source_locations;
 use super::super::contracts::propositions::evidence::collect_evidence_requirements;
 use super::super::semantics::declarations::{
     nominal_identity, reviewed_package_owns, trait_requirement_identity,

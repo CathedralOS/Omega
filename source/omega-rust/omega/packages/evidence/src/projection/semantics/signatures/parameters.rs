@@ -2,9 +2,7 @@ use super::super::super::behavior::{
     project_crash_routes, project_machine_parameter_termination, project_service_row,
     project_synchronous_invocations,
 };
-use super::super::super::contracts::checked::facts::{
-    ContractProjectionContext, project_contracts,
-};
+use super::super::super::contracts::callables::{ContractProjectionContext, project_contracts};
 use super::super::declarations::{nominal_identity, trait_requirement_identity};
 use super::super::types::{project_data_properties, review_signature_type_identity_with_binders};
 use crate::evidence::{
