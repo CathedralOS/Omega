@@ -172,9 +172,18 @@ Remaining:
   successor argument while ordinary execution authority rejects the cyclic
   machine. Missing rank evidence still reaches the existing unranked-cycle
   rejection, and forwarding the original rank rejects as invalid rank evidence.
-  The next substep is execution-grade cyclic ownership-frontier convergence,
-  followed by interpreter execution, derived fuel, Omega/native lowering, and
-  artifact custody for the same exact first slice.
+  Execution-grade cyclic ownership-frontier convergence is now complete for
+  that exact representation slice. Frontier replay computes the header's
+  establishment candidate over the acyclic skeleton, computes the covered
+  backedge exit after one complete cycle body, and requires exact equality of
+  live claims, owned places, and partial-custody paths. That equality is the
+  separately checked invariant-preservation fixed point for the one admitted
+  backedge; the edge is no longer silently omitted from custody validation. A
+  countdown carrying a nonempty affine frontier passes, while discarding that
+  custody only on the cycle path rejects at the header. Ordinary execution
+  authority still returns the existing `NonExecutableRankedScc` fence. The next
+  substep is interpreter execution, followed by derived fuel, Omega/native
+  lowering, and artifact custody for the same exact first slice.
   Later product-required slices must then add persistent mutable receiver and
   subplace custody, mixed operations in multi-state blocks, structural-result
   boundary calls and payload cases, nested field/index reads and writes, and
