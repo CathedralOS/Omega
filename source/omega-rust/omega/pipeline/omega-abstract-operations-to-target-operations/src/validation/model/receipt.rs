@@ -1,4 +1,5 @@
 use omega_target::NativeTarget;
+use omega_target_operations::ScalarParameterLocation;
 use psi_core::{
     ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, ScalarType,
     StructuralTypeId, ValueId,
@@ -109,6 +110,7 @@ pub enum AbstractToTargetFunctionTranslationReceipt {
     StraightLineIntegerImmediate(StraightLineIntegerImmediateTranslationReceipt),
     StraightLineBooleanImmediate(StraightLineBooleanImmediateTranslationReceipt),
     StraightLineScalarCrash(StraightLineScalarCrashTranslationReceipt),
+    StraightLineIntegerParameter(StraightLineIntegerParameterTranslationReceipt),
 }
 
 impl AbstractToTargetFunctionTranslationReceipt {
@@ -122,6 +124,9 @@ impl AbstractToTargetFunctionTranslationReceipt {
             }
             Self::StraightLineScalarCrash(_) => {
                 AbstractToTargetTranslationFamily::StraightLineScalarCrash
+            }
+            Self::StraightLineIntegerParameter(_) => {
+                AbstractToTargetTranslationFamily::StraightLineIntegerParameter
             }
         }
     }
@@ -279,5 +284,59 @@ impl StraightLineScalarCrashTranslationReceipt {
 
     pub fn frontier_lower_bound(&self) -> &[ClaimId] {
         &self.frontier_lower_bound
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StraightLineIntegerParameterTranslationReceipt {
+    machine: MachineId,
+    return_edge: EdgeId,
+    source_value: ValueId,
+    scalar_type: IntegerType,
+    parameter_index: usize,
+    location: ScalarParameterLocation,
+}
+
+impl StraightLineIntegerParameterTranslationReceipt {
+    pub(in crate::validation) const fn new(
+        machine: MachineId,
+        return_edge: EdgeId,
+        source_value: ValueId,
+        scalar_type: IntegerType,
+        parameter_index: usize,
+        location: ScalarParameterLocation,
+    ) -> Self {
+        Self {
+            machine,
+            return_edge,
+            source_value,
+            scalar_type,
+            parameter_index,
+            location,
+        }
+    }
+
+    pub const fn machine(self) -> MachineId {
+        self.machine
+    }
+
+    pub const fn return_edge(self) -> EdgeId {
+        self.return_edge
+    }
+
+    pub const fn source_value(self) -> ValueId {
+        self.source_value
+    }
+
+    pub const fn scalar_type(self) -> IntegerType {
+        self.scalar_type
+    }
+
+    pub const fn parameter_index(self) -> usize {
+        self.parameter_index
+    }
+
+    pub const fn location(self) -> ScalarParameterLocation {
+        self.location
     }
 }

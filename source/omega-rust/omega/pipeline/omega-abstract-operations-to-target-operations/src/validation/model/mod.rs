@@ -4,13 +4,13 @@ mod receipt;
 pub use error::{
     AbstractToTargetTranslationFamilyError, AbstractToTargetTranslationValidationError,
     StraightLineBooleanImmediateTranslationError, StraightLineIntegerImmediateTranslationError,
-    StraightLineScalarCrashTranslationError,
+    StraightLineIntegerParameterTranslationError, StraightLineScalarCrashTranslationError,
 };
 pub use receipt::{
     AbstractToTargetFunctionRosterReceipt, AbstractToTargetFunctionTranslationDisposition,
     AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationValidationReceipt,
     StraightLineBooleanImmediateTranslationReceipt, StraightLineIntegerImmediateTranslationReceipt,
-    StraightLineScalarCrashTranslationReceipt,
+    StraightLineIntegerParameterTranslationReceipt, StraightLineScalarCrashTranslationReceipt,
 };
 
 /// Stable identity of one independently replayed abstract-to-target family.
@@ -19,4 +19,5 @@ pub enum AbstractToTargetTranslationFamily {
     StraightLineIntegerImmediate,
     StraightLineBooleanImmediate,
     StraightLineScalarCrash,
+    StraightLineIntegerParameter,
 }

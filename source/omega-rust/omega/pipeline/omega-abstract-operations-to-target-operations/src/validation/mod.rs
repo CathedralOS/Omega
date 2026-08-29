@@ -8,6 +8,7 @@ mod catalog;
 mod model;
 pub(crate) mod straight_line_boolean_immediate;
 pub(crate) mod straight_line_integer_immediate;
+pub(crate) mod straight_line_integer_parameter;
 pub(crate) mod straight_line_scalar_crash;
 
 use omega_abstract_operations::AbstractOperationPlan;
@@ -20,7 +21,8 @@ pub use model::{
     AbstractToTargetTranslationFamilyError, AbstractToTargetTranslationValidationError,
     AbstractToTargetTranslationValidationReceipt, StraightLineBooleanImmediateTranslationError,
     StraightLineBooleanImmediateTranslationReceipt, StraightLineIntegerImmediateTranslationError,
-    StraightLineIntegerImmediateTranslationReceipt, StraightLineScalarCrashTranslationError,
+    StraightLineIntegerImmediateTranslationReceipt, StraightLineIntegerParameterTranslationError,
+    StraightLineIntegerParameterTranslationReceipt, StraightLineScalarCrashTranslationError,
     StraightLineScalarCrashTranslationReceipt,
 };
 
@@ -59,7 +61,8 @@ pub fn validate_abstract_to_target_translation(
                 },
             );
         }
-        let translation = catalog::validate_function(source_function, target_function)?;
+        let translation =
+            catalog::validate_function(source_function, expected_target, target_function)?;
         function_roster.push(AbstractToTargetFunctionRosterReceipt::new(
             source_function.machine,
             source_function.attachment,

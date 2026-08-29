@@ -31,6 +31,7 @@ pub enum AbstractToTargetTranslationFamilyError {
     StraightLineIntegerImmediate(StraightLineIntegerImmediateTranslationError),
     StraightLineBooleanImmediate(StraightLineBooleanImmediateTranslationError),
     StraightLineScalarCrash(StraightLineScalarCrashTranslationError),
+    StraightLineIntegerParameter(StraightLineIntegerParameterTranslationError),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -74,6 +75,26 @@ pub enum StraightLineScalarCrashTranslationError {
     SourcePublishedServices,
     SourceBlockRoster,
     SourceOperationRoster,
+    TargetProvenance,
+    TargetOperation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StraightLineIntegerParameterTranslationError {
+    SourceParameters,
+    SourceStructuralParameters,
+    SourceResult,
+    SourceEntryClaims,
+    SourcePublishedServices,
+    SourceBlockRoster,
+    SourceOperationRoster,
+    SourceParameterRoster,
+    SourceParameterShape,
+    SourceReturnLink,
+    SourceCleanup,
+    AbiPlan,
+    AbiParameterCount,
+    AbiParameterPlacement,
     TargetProvenance,
     TargetOperation,
 }

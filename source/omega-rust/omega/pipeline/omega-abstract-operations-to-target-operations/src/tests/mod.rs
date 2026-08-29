@@ -38,6 +38,7 @@ mod structural_and_cleanup;
 mod translation_validation;
 mod translation_validation_boolean;
 mod translation_validation_crash;
+mod translation_validation_integer_parameter;
 mod unit_and_settlements;
 
 pub(super) fn identity() -> TerminalPsiIdentity {

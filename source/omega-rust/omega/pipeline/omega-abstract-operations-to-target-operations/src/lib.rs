@@ -21,7 +21,8 @@ pub use validation::{
     AbstractToTargetTranslationFamilyError, AbstractToTargetTranslationValidationError,
     AbstractToTargetTranslationValidationReceipt, StraightLineBooleanImmediateTranslationError,
     StraightLineBooleanImmediateTranslationReceipt, StraightLineIntegerImmediateTranslationError,
-    StraightLineIntegerImmediateTranslationReceipt, StraightLineScalarCrashTranslationError,
+    StraightLineIntegerImmediateTranslationReceipt, StraightLineIntegerParameterTranslationError,
+    StraightLineIntegerParameterTranslationReceipt, StraightLineScalarCrashTranslationError,
     StraightLineScalarCrashTranslationReceipt, validate_abstract_to_target_translation,
 };
 

@@ -15,9 +15,11 @@ sibling responsibilities rather than hidden branches in one lowering file.
 The adjacent sub-100-line translation-validation entrance is independent of those
 producer routes. It first binds Psi identity, requested target, entry, function
 count/order, machine, and attachment, then descends into exact family replay.
-Its first three families reconstruct parameterless straight-line integer and
-Boolean literal returns plus scalar `Crash` without calling `lowering`,
-`KnownScalar`, or the scalar-return helper. Its adjacent sub-100-line ordered
+Its first four families reconstruct parameterless straight-line integer and
+Boolean literal returns, scalar `Crash`, and integer parameter returns without
+calling `lowering`, `KnownScalar`, or the scalar-return helper. The parameter
+family independently replays the target's calling policy to prove its exact
+incoming register or stack location. Its adjacent sub-100-line ordered
 catalog is the sole enable/disable inventory. Each descriptor joins one source
 classifier to one typed replay adapter; zero matches are explicitly uncovered,
 one match is retained on that function's roster row, and ambiguity fails closed.

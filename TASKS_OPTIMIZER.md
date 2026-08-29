@@ -23,10 +23,13 @@ function roster before descending into exact family replay. The adjacent
 sub-100-line catalog is the sole enable/disable inventory; each descriptor
 joins one source classifier to one typed replay adapter. Zero matches publish
 `Uncovered`, one match publishes one receipt on that exact function-roster row,
-and duplicate or overlapping matches fail closed. The first three semantic
+and duplicate or overlapping matches fail closed. The first four semantic
 rows reconstruct parameterless straight-line integer and Boolean literal
-returns plus scalar `Crash`, including block shape, scalar/result/value links,
-cleanup absence, exact provenance, and every candidate field. Focused mutation
+returns, scalar `Crash`, and integer parameter returns, including block shape,
+scalar/result/value links, cleanup absence, exact provenance, and every
+candidate field. Integer-parameter replay independently reconstructs the
+native calling convention and exact incoming register or stack location.
+Focused mutation
 coverage rejects every source-shape, root, target, roster, provenance, and
 operation-field substitution across all five native targets.
 
@@ -576,7 +579,8 @@ parallel route or optional coordinator field.
 - [x] Source-to-optimized Psi projection and lower-stage custody checks.
 - [>] Complete translation validation for all lowering and machine rule
   families. Selected-lowering incoming-u12 add/subtract folds,
-  straight-line integer-immediate, Boolean-immediate, and scalar-Crash
+  straight-line integer-immediate, Boolean-immediate, scalar-Crash, and
+  integer-parameter
   abstract-to-target translation,
   layout-independent baseline, MOVN, XOR-zero, MOV-r32-imm32, CBNZ dispositions,
   structural-Unit encodings, and resolved function-relative layouts now replay
@@ -764,3 +768,6 @@ rewrite or opt a program into lossy floating-point semantics.
 20. [x] Make abstract-to-target catalog classification exact-zero-or-one, bind
     one typed disposition directly to every function-roster row, and add the
     parameterless straight-line scalar-Crash family across all native targets.
+21. [x] Add straight-line integer-parameter returns as a disjoint family and
+    independently replay native ABI register/stack placement across all five
+    targets through optimized target custody.

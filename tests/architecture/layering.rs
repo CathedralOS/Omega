@@ -2891,6 +2891,8 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "KnownScalar",
         "KnownInteger",
         "insert_value",
+        "prepare_scalar_lowering",
+        "scalar_parameter_location",
     ] {
         assert!(
             !validation.contains(forbidden),
@@ -2904,8 +2906,12 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "straight_line_boolean_immediate::validate",
         "straight_line_integer_immediate::is_candidate",
         "straight_line_integer_immediate::validate",
+        "straight_line_integer_parameter::is_candidate",
+        "straight_line_integer_parameter::validate",
         "straight_line_scalar_crash::is_candidate",
         "straight_line_scalar_crash::validate",
+        "CallingPolicy::native_for_target",
+        "evaluate_call_plan",
         "AmbiguousFunctionFamily",
     ] {
         assert!(
