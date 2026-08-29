@@ -2419,6 +2419,11 @@ Remaining:
   choice rather than a Boolean seed, while `CompileReport::wrote_output`
   remains solely a post-publication custody observation. Architecture tests
   reject reintroducing output/product policy into options or request defaults.
+  Contract-entailment stand-down capture now lives on the typed-to-checked
+  `CheckedProgramSurface` beside accepted-template classification. It records
+  the existing pristine-typed machine/contract/fact/reason ledger before the
+  ownership-moving check and carries that phase-owned result into package
+  review; the driver no longer captures or couriers a raw side vector.
   Remaining post-check fact couriers remain open.
 
   Restore the driver contract:

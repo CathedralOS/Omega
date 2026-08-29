@@ -10,13 +10,14 @@ use psi_symbol_resolved_trees::SymbolResolvedTrees;
 use psi_typed_trees::TypedTrees;
 use std::sync::Arc;
 
-/// Checked Psi plus the exact trust classifications captured from its typed
-/// predecessor. This is the output of one phase transition, not source-loading
-/// state.
+/// Checked Psi plus the exact predecessor facts that must be captured before
+/// typed ownership moves into checking. This is the output of one phase
+/// transition, not source-loading state.
 pub(super) struct CheckedProgramSurface {
     pub(super) program: Arc<CheckedProgram>,
     pub(super) accepted_template_classifications:
         omega_trust_ledger::AcceptedTemplateClassifications,
+    pub(super) contract_entailment_stand_downs: Vec<psi_validation::ContractEntailmentStandDown>,
 }
 
 pub(super) fn syntax_trees_to_symbol_resolved_trees(
@@ -49,11 +50,14 @@ pub(super) fn typed_trees_to_checked_trees(
     timings.record(TYPED_TREES_TO_CHECKED_TREES, || {
         let accepted_template_classifications =
             omega_trust_ledger::AcceptedTemplateClassifications::capture(&typed);
+        let contract_entailment_stand_downs =
+            psi_validation::collect_contract_entailment_stand_downs(&typed);
         let program = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)?;
         crate::pipeline::provider_approval::check_boundary_provider_approval(&program)?;
         Ok(CheckedProgramSurface {
             program: Arc::new(program),
             accepted_template_classifications,
+            contract_entailment_stand_downs,
         })
     })
 }
