@@ -70,8 +70,9 @@ they are not language rungs.
 - `source/gamma/interp.beta` and `source/gamma/typeck.beta` are reusable Gamma
   semantic components and oracles. They must feed a Beta-written Gamma compiler
   or be reduced to focused tests; they do not constitute a compiler edge alone.
-- the current Delta-written compiler work is a candidate part of `D`. It must
-  move to Omega ownership and emit Alpha tape. It is not the Delta compiler.
+- the restricted Delta-written Darwin compiler prototype was deleted. The real
+  `D` is authored under Omega ownership rather than inheriting a compiler-shaped
+  historical monolith.
 
 The former Beta-written Delta-to-Gamma bridge and Darwin-native publication
 apparatus are deleted. They crossed an immediate-predecessor boundary and

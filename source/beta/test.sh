@@ -83,7 +83,7 @@ ret "proc main() { return sumto(10) } proc sumto(n) { let t = 0 let i = 1 state 
 # slice 4 — byte[]/word[] memory
 ret "proc main() { let b = 2097152 byte[b] = 65 byte[b + 1] = 66 return byte[b] + byte[b + 1] }" 131
 ret "proc main() { let base = 2097152 let i = 0 state fill { to fb when (i < 5) to si } state fb { word[base + i * 8] = i * i i = i + 1 to fill } state si { let t = 0 i = 0 to sl } state sl { to sb when (i < 5) return t } state sb { t = t + word[base + i * 8] i = i + 1 to sl } }" 30
-# slice 5 — char literals (intrinsics/emit/IO are covered end-to-end by selfhost.sh)
+# slice 5 — char literals (intrinsics/emit/I/O are covered by cold-start/test.sh)
 ret "proc main() { return 'A' }" 65
 ret "proc main() { return '0' + 9 }" 57
 ret "proc main() { let c = 'Z' state s { to y when (c == 90) return 0 } state y { return 42 } }" 42
