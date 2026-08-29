@@ -989,3 +989,51 @@ of adding an assembly-specific evaluator path.
 - Tempting but wrong: restore the deleted status ledger, add an assembly
   primitive, trust a producer receipt, compare hashes, or weaken exact total
   partitioning.
+
+## Q19 — Own the ranked native-fuel sponsor entry
+
+### Context
+
+The exact ranked-`u32` countdown now reaches directly metered final-image,
+format-43 installation, and source-free native-artifact custody on Linux x86-64
+and AArch64. Transfer-runtime encoding and replay already retain exact activation
+slots, interrupted/saved/restored state, transfer/resume bytes, sponsor-stack
+demand, relocations, and full unrelocated/final text fingerprints. Ranked
+transfer admission also requires the activation record to save the actual ABI
+rank carrier (`rdi` or `x0`).
+
+The runtime binder requires the sponsor symbol to be an existing nonempty text
+function in the metered object. The admitted ranked artifact deliberately owns
+exactly one semantic function: the countdown itself. Naming it as sponsor would
+make exhaustion call the countdown under an unrelated sponsor ABI and is not a
+valid execution model. Appending an unowned compiler helper would contradict
+the exact one-function artifact and hide a new authority edge.
+
+### Problem statement
+
+Choose which owner supplies the sponsor entry and how that ownership joins the
+ranked image without turning runtime scaffolding into a second semantic source
+tree. This blocks honest native rank 0, 1, and 3 execution/schedule comparison;
+it does not block direct metered publication.
+
+### Proposed direction
+
+Bind the transfer runtime to an admitted installed sponsor route owned outside
+the ranked semantic object. The installation/external-root join should name the
+exact sponsor artifact, calling contract, target, and provision, while the
+compiler-owned transfer stub remains the only appended runtime text. Preserve
+the one-function ranked semantic identity and require source-free replay to
+prove the final call target is exactly that admitted sponsor entry.
+
+### Alternates
+
+- Acceptable: define one compiler-owned sponsor body as an explicit, separately
+  identified runtime artifact with a closed ABI and proof/replay contract, then
+  compose it with the ranked image rather than laundering it into the semantic
+  object.
+- Acceptable for the first measurement only: use an already admitted fixed
+  sponsor fixture as differential-test scaffolding, provided no result is
+  reported as production installation authority.
+- Tempting but wrong: use the countdown entry itself as sponsor.
+- Tempting but wrong: append an anonymous helper, magic host callback, script,
+  or test-only trampoline and treat successful execution as chain evidence.

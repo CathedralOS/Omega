@@ -1,4 +1,4 @@
-//! Canonical format-36 native-fuel realization codec.
+//! Native-fuel section of canonical installation format 43.
 //!
 //! Semantic rows remain in source coordinates in the parent record. This
 //! section owns the distinct source-to-metered function map and exact

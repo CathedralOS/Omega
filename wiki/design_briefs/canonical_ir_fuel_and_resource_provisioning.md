@@ -686,8 +686,15 @@ verifier-issued owned semantic subject through machine code and independently
 rejoins its public ranked graph, structural signature, type declarations,
 provenance, and logical-fuel rows at object emission. This prevents coordinated
 rewrites of otherwise self-consistent projected coordinates from replacing the
-verified subject. Acyclic segment checking is not widened; final-image/native
-installation and provider dispatch remain separate milestones.
+verified subject. Its directly metered publication rederives the five ranked
+branch coordinates from immutable semantic bytes plus the nine logical fuel
+rows, decodes those targets from metered and final text on both Linux ISAs, and
+rejoins canonical installation plus source-free native-artifact custody. The
+installation does not serialize the derivable rebase record as a second truth.
+Transfer plans must preserve the exact ABI rank carrier in their activation
+slots. Honest ranked runtime execution remains owner-blocked on the ownership
+of a sponsor entry outside the deliberately one-function artifact (Q19).
+Acyclic segment checking is not widened.
 
 Every verifier, reduction-family, denotation-row, composition theorem, and
 irreducible semantic dependency has an exact versioned node in a closed trust

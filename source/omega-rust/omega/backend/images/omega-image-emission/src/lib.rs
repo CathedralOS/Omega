@@ -48,9 +48,10 @@ mod unit_stack;
 pub use image_output::{
     ExecutableImage, NativeFuelExecutableImage, NativeFuelTransferRuntimeExecutableImage,
     ObjectContainer, ScalarCallReferenceImage, can_emit_executable_image, emit_executable_image,
-    emit_native_fuel_executable_image, emit_native_fuel_object_container,
-    emit_native_fuel_transfer_runtime_executable_image, emit_object_container,
-    emit_scalar_call_reference_linux_x86_64_image, validate_executable_image,
+    emit_native_fuel_executable_image, emit_native_fuel_transfer_runtime_executable_image,
+    emit_object_container, emit_scalar_call_reference_linux_x86_64_image,
+    validate_executable_image, validate_native_fuel_executable_image,
+    validate_native_fuel_transfer_runtime_executable_image,
 };
 pub use installation::*;
 #[cfg(feature = "installed-artifact")]

@@ -102,8 +102,11 @@ publication custody now replay that record independently.
 and backedge branches to the first charge in each destination-site group and
 retains a typed coordinate record. Metered-object replay independently decodes
 both ISA charge/cold fragments and the three rebased branches, reconstructs the
-record, and admits object containers. Direct and transfer-runtime executable
-images remain explicitly fenced pending publication custody.
+record, and admits direct final-image, format-43 installation, and source-free
+ranked native-artifact custody on both Linux ISAs. The obsolete metered object-
+container publication API is deleted. Transfer-runtime replay requires the
+activation record to preserve the ABI rank carrier; honest ranked execution is
+owner-blocked on sponsor ownership (Q19).
 
 [x] Layout-independent selected-form encoding now has an independent
 validation rung. Its small entrance coordinates ordinary rows, structural
@@ -445,10 +448,9 @@ parallel route or optional coordinator field.
   independently. Structural-Unit selected validation also reconstructs ABI
   layout and call constraints without construction helpers. The unmetered
   ranked-`u32` machine carrier now has target-decoder-led unmetered and
-  native-fuel object replay. The unmetered route reaches final-image,
-  installation, native-artifact, and callable custody; direct and
-  transfer-runtime native-fuel routes now independently replay final bytes and
-  reach canonical installation custody on both ranked targets. Remaining
+  native-fuel object replay, and both unmetered and directly metered ranked
+  routes reach final-image, installation, and native-artifact custody. Ranked
+  transfer execution remains owner-blocked on sponsor ownership (Q19); other
   lowering and publication routes still need closure.
 - [ ] Add generated differential testing across interpreter/reference native
   execution for exact integer, float, trap, atomic, placed-memory, cleanup, and

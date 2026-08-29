@@ -1685,7 +1685,7 @@ Remaining work is to derive inbound and outbound machinery from the same plan,
 add state-ceiling-aware selection/allocation, and validate composed footprints
 at the final artifact. Native fuel target policy, reserved context-register
 transport, independently replayed hot charges/cold dispatchers, installed
-`FuelSuspensionFree` composition, and canonical format-42 installation evidence
+`FuelSuspensionFree` composition, and canonical format-43 installation evidence
 are live. The installation record keeps semantic/source rows unchanged and
 adds an optional target recipe, source fingerprint, source-to-metered function
 map, and exact hot/semantic/cold charge catalog; plain-image records require the
