@@ -192,6 +192,10 @@ and no-selection compatibility remain enforced.
 - [x] Split independent rewrite accounting into adjacent/non-adjacent merge,
   terminal fusion, dead scalar, proof identity, common-subexpression,
   substitution, and threading leaves below shared custody/substitution contracts.
+- [x] Split independent GVN candidate validation into exact rule classification,
+  proof admission, expression keys, dominance reconstruction, local/dominating
+  elimination, and phi-translated join synthesis below one custody-and-dispatch
+  entrance.
 - [>] Replace remaining flat executable stages and mixed-responsibility files
   with semantic folders whose small `mod.rs` owns the real stage join. Tighten
   the production-file ceiling as each named legacy leaf is removed.

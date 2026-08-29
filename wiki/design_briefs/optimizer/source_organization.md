@@ -209,6 +209,11 @@ Independent rewrite accounting keeps common edge-custody preservation and
 scalar-substitution contracts in one entrance, with adjacent/non-adjacent
 merge, terminal fusion, dead scalar, proof identity, common-subexpression,
 substitution, and threading mechanics in exact family leaves.
+Independent GVN validation now follows the same navigational contract. Its
+entrance validates candidate custody and selects local/dominating elimination
+or phi-translated join synthesis; `rule_catalog` exposes the exact admitted
+rule identities, while proof admission, expression keys, dominance replay,
+and the two rewrite protocols descend into named leaves.
 Liveness computation and pre-allocation machine-effect encoding also keep
 their broad fixtures in sibling test leaves, so production file size measures
 production responsibility.
