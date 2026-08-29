@@ -14,20 +14,28 @@ system or coinduction rule.
 - a primitive-recursive two-state cycle whose every indexed state remains
   running and observationally silent.
 
-`bc-main-resource-refinement.elab` is the 4,254-byte proof-authoring form for
-the first owner-bound subject seam. It models four symbolic Alpha cleanup
-stages against the single Beta resource return, carries an arbitrary sticky
-resource identity to typed `Exhaust`, proves every stage silent, decreases
-stage debt exactly, and makes terminal and Invalid states self-loop. Its final
-proposition instantiates the five canonical structural resource origins.
-The default `bc-block-control.sh` gate now runs an Alpha-owned ledger over the
-canonical `bc.beta`, tape, and `B_bc1`, emits the declaration/goal prefix,
+`bc-main-resource-refinement.elab` is the 7,539-byte proof-authoring form for
+the first owner-bound instruction cutpoint. Conditional on the cutpoint
+relation carrying root return slot 39, it maps one Beta resource return through
+seven Alpha controls at PCs 40251, 40261, 40264, 40267, 40270, 40273, and 39.
+It carries an arbitrary sticky resource identity to typed `Exhaust`, proves
+every running control silent, decreases debt from seven to zero one instruction
+at a time, and makes terminal and Invalid states self-loop. Cross-machine or
+malformed control tags route to Invalid. The synthetic epilogue at
+40274..40283 is not the declared successor of the return cutpoint.
+
+Subject, profile, and observation identities are arguments to the reducing
+functions rather than disconnected propositions. The final goal instantiates
+all five canonical structural resource origins through those indexed
+functions. The default `bc-block-control.sh` gate runs a dedicated Alpha ledger
+over canonical `bc.beta`, its tape, and `B_bc1`; the ledger directly builds the
+resource join after exact main-shape reconstruction and does not execute the
+ROOT GFP or maximal-observation path. It emits the declaration/goal prefix,
 byte-compares that prefix with the elaborated candidate, appends only the proof
-term, and requires the rooted checker to accept. Two controls demonstrate that
-otherwise-valid certificates with swapped subject or profile identities fail
-at the owner boundary. The remaining exact tranche must expand the four stages
-into the raw instruction-by-instruction `next_alpha` relation; this seam does
-not pretend that the stages are Alpha instructions.
+term, and requires the rooted checker to accept. Subject, profile, observation,
+and dynamic return-successor mutations are rejected by the checker as well as
+differing from the owner prefix; changed source and tape bundles are rejected
+by the Alpha ledger itself.
 
 It also checks a reusable induction lemma over opaque source/target trace
 functions, an opaque synchronization function, and a binary symbolic relation
@@ -47,6 +55,7 @@ sh source/beta/compiler/validation/admission/fol/trace-refinement-seam.sh
 ```
 
 This seam proves that the selected proof architecture is expressible and has
-operational teeth.  It does **not** admit `bc.beta`: raw Beta/Alpha state
-reconstruction, instruction-level cleanup, all `B_bc1` observations and
-terminal classes, and the complete divergence theorem remain open.
+operational teeth. It does **not** admit `bc.beta`: reachability of the resource
+cutpoint—including preservation of the root return slot through earlier
+calls—exact register/frame reconstruction, the other `B_bc1` cases, and the
+complete divergence theorem remain open.

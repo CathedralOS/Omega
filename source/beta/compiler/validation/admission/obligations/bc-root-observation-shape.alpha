@@ -16,7 +16,10 @@ root_observation_shape_init:
         imm r1, 616016
         imm r2, 826823506              ; RSH1
         store r1, r2
-        jmp root_observation_gfp_init
+        ; The linked endpoint chooses the consumer of this exact shape. ROOT
+        ; aliases it to the GFP; the FOL cleanup ledger links it directly to
+        ; its independently built resource join.
+        jmp root_observation_shape_successor_init
 
 root_observation_require_main_shape:
         ; main is exact procedure69: arity zero, one local slot, six blocks.

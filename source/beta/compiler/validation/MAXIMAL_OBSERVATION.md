@@ -100,7 +100,11 @@ The retained evidence is intentionally responsibility-specific:
   `emit_param_store` and `gen_emit`, and one same-block memory-identity swap
   control. Eight additional internal mutation teeth prove that every checked
   expression- and effect-census prefix family participates in its constant-time
-  query;
+  query. A dedicated non-GFP ledger also emits the first exact-owner FOL
+  instruction-cutpoint proposition for `main.resource`; the rooted checker
+  accepts its proof suffix and rejects subject, profile, observation, and
+  declared-return-successor mutations. Reachability of its root-return-slot
+  cutpoint remains open;
 - optional `stress/refinement.sh` checks proof-carrying
   equivalence for its stated symbolic program families with the below-Beta
   checker artifact;
