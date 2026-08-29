@@ -1131,6 +1131,8 @@ dependencies = [
 name = "omega-platform-custody"
 version = "0.1.0"
 dependencies = [
+ "cap-fs-ext",
+ "cap-std",
  "windows-sys 0.61.2",
 ]
 

@@ -12,7 +12,6 @@ src/
 ├── package/        bind snapshots to declarations and dependency rows
 ├── graph/          construct, validate, and identify the dependency closure
 ├── review/         compile, compare, triage, and apply root review policy
-└── records/        shared bounded atomic record files
 ```
 
 `workflow/source_audit/` is the first complete operation. Install/update
@@ -89,6 +88,9 @@ or atomic install/update transaction exists yet. Remaining work is maintained
 in [`TASKS_PACKAGE_MANAGER.md`](../../../../../TASKS_PACKAGE_MANAGER.md), and
 resolver guarantees and gaps are maintained in
 [`SOURCE_RESOLVER_SECURITY.md`](SOURCE_RESOLVER_SECURITY.md).
+
+Capability-safe atomic record persistence is shared infrastructure owned by
+`omega-platform-custody`, not a package-manager responsibility.
 
 Model-facing source-review prompts, response schemas, and runner integration
 live in the separate optional `omega-package-advisory` crate. Package core

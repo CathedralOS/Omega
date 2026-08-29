@@ -6,6 +6,8 @@
 
 #![deny(unsafe_op_in_unsafe_fn)]
 
+pub mod record_file;
+
 use std::fs::File;
 use std::io;
 use std::path::Path;
