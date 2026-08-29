@@ -201,8 +201,12 @@ per-result function route. Scalar lowering visibly orders setup, special
 forms, conditional routing, and straight-line lowering; structural lowering
 visibly chooses direct-call return or explicit structural return. Unit,
 boundary-settlement, cleanup, structural-layout, and four focused fixture
-families remain separate leaves. Its remaining pre-ratchet leaves are pinned
-and cannot grow, and the stage, function, scalar, and structural joins are
+families remain separate leaves. Straight-line scalar lowering now owns its
+operation lifecycle in a 50-line entrance, then descends into exhaustive
+operation routing, integer arithmetic, integer conversion, and terminal-edge
+construction; its former 1,238-line match is gone and no replacement exceeds
+600 lines. The stage's remaining pre-ratchet leaves are pinned and cannot grow,
+and the stage, function, scalar, straight-line, and structural joins are
 mandatory coordination entrances rather than re-export walls.
 
 The temporary target-to-assigned compatibility continuation is governed too.

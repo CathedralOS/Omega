@@ -24,10 +24,6 @@ const MAX_ENTRANCE_LINES: usize = 200;
 /// never enter this table.
 const LEGACY_PRODUCTION_FILE_CEILINGS: &[(&str, usize)] = &[
     (
-        "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/scalar/straight_line.rs",
-        1_238,
-    ),
-    (
         "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/scalar/conditional_scalar.rs",
         1_111,
     ),
@@ -176,6 +172,10 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/scalar/mod.rs",
         coordination_marker: "pub(super) fn lower_scalar_function",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/scalar/straight_line/mod.rs",
+        coordination_marker: "pub(super) fn lower_straight_line",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/structural/mod.rs",
