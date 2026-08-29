@@ -89,7 +89,7 @@ fn output_only_backend_compile_keeps_primary_image_and_certification() {
     let build_dir = unique_no_output_build_dir();
     let report = omega_compiler::compile(
         CompileRequest::new(CompileOptions {
-            root_path: pass_canary("psi/selected_empty_component").join("main.omg"),
+            root_path: pass_canary("terminal_psi/selected_empty_component").join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: Some("linux_x64".into()),
             write_output: true,
@@ -144,7 +144,7 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
     let native_dir = unique_no_output_build_dir();
     let native = omega_compiler::compile(
         CompileRequest::new(CompileOptions {
-            root_path: pass_canary("psi/selected_empty_component").join("main.omg"),
+            root_path: pass_canary("terminal_psi/selected_empty_component").join("main.omg"),
             build_dir: Some(native_dir.clone()),
             target_name: Some("linux_x64".into()),
             write_output: true,
@@ -183,7 +183,7 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
     let terminal_dir = unique_no_output_build_dir();
     let terminal = omega_compiler::compile(
         CompileRequest::new(CompileOptions {
-            root_path: pass_canary("psi/selected_empty_component").join("main.omg"),
+            root_path: pass_canary("terminal_psi/selected_empty_component").join("main.omg"),
             build_dir: Some(terminal_dir.clone()),
             target_name: Some("linux_x64".into()),
             write_output: true,

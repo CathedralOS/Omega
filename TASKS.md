@@ -5974,6 +5974,15 @@ Owners:
   deterministic compiler-private thunk symbol joined by placement-row index.
   That identity includes every source/selected handle generation and duplicate
   private identities reject before instruction selection.
+  The canonical checked-to-Terminal product route does not yet carry this
+  callback-placement sidecar. Its shared product driver now fails closed for
+  both Terminal and native artifact requests whenever the validated sidecar is
+  nonempty, naming the exact row count and canonical callback overloads before
+  Terminal production borrows the checked tree. Check-only requests remain
+  valid and retain the rows. The remaining engineering is to give canonical
+  Terminal production an explicit callback-use custody input/output and remove
+  this fence only when that consumer preserves every row; the deleted legacy
+  backend route is not authority to discard them.
   The symbol is planned object identity only and never an Omega value. A
   callback thunk now also has a distinct machine-function identity bound to
   its placement-row index and selected source entry, so an ordinary source
