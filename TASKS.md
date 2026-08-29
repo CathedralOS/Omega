@@ -38,7 +38,7 @@ scanners, or receipts.
 
 ## Trusted-core simplification
 
-- [ ] **DESIGN-BLOCKED — OWNER Q9. KEEP-TERMINAL-VERIFICATION-NONSEARCHING.** Separate deterministic
+- [ ] **DESIGN-BLOCKED — OWNER Q8. KEEP-TERMINAL-VERIFICATION-NONSEARCHING.** Separate deterministic
   reconstruction of the complete Terminal-Psi obligation set from discovery
   of proof routes. The producer may search and must serialize the selected
   derivation. The verifier checks that explicit derivation against the
@@ -56,7 +56,7 @@ scanners, or receipts.
   malformed producer-selected edge rejects even when the verifier could have
   rediscovered a primitive route. Mirrored candidate selectors are test-only
   for these paths. Completion is language-design blocked on
-  [`Q9`](OWNER_QUESTIONS.md#q9--canonical-kernel-propositions-for-exact-scalar-operations):
+  [`Q8`](OWNER_QUESTIONS.md#q8--canonical-kernel-propositions-for-exact-scalar-operations):
   exact cast, exact shift-left representability, and exact add/subtract/multiply
   still have no settled canonical kernel proposition and therefore retain the
   legacy sufficient-form reducer.
@@ -585,7 +585,7 @@ Remaining:
   distinct strong identity. The standalone metered object-container publication
   API was deleted once it no longer strengthened a consumer edge. Transfer-
   runtime replay now additionally requires its exact activation slots to
-  preserve the ABI rank carrier. **OWNER-BLOCKED — Q11 (ranked native-fuel sponsor):** honest ranked runtime
+  preserve the ABI rank carrier. **OWNER-BLOCKED — Q10 (ranked native-fuel sponsor):** honest ranked runtime
   execution still needs a sponsor-ownership ruling: the binder requires an
   already-owned in-object sponsor function, while the admitted ranked artifact
   is exactly one countdown function and cannot use itself as sponsor. Native
@@ -9214,7 +9214,20 @@ reach or trust, and private proof improvements do not change public identity.
 - **TR3-TR8:** finish whole-call-graph WCSU derivation, bind exact `StackPlan`
   evidence, reserve fixed nonmoving `StackLease`s, validate preservation and
   cancellation conformances, transfer arguments transactionally, lower
-  park/resume, and implement the suspension-safe-loan subset.
+  park/resume, and expand the suspension-safe-loan subset. Add one
+  `TerminalSuspensionCallPlan` per exact possibly suspending call, keyed by its
+  `OperationId` and existing `SuspensionCrossingId`. It retains the source-free
+  live place/claim frontier and carry demands without adding a local CFG
+  terminator or cleanup edge. The separate activation realization inherits
+  CPU/thread preservation into `ActivationCarryObligations` and joins the WCSU
+  stack, lease, and provider evidence; neither layer rederives liveness.
+
+  Parking leaves the call incomplete and establishes no result. Resumption
+  continues that same invocation before its one ordinary successor becomes
+  reachable. `request_cancel()` changes an eventual ordinary safe-point result
+  and consumes nothing; it cannot add a parked-state disposal edge, and only
+  `finish(self)` consumes the external task claim. Retain
+  `NoFiniteGuarantee(edge)` at waits lacking accepted finite-response evidence.
 
   The implemented terminal-image replay retains exact Unit, scalar, and
   acyclic-conditional frame/link/temporary, call, crash-terminal, provenance,
@@ -9233,8 +9246,8 @@ reach or trust, and private proof improvements do not change public identity.
   fallthrough into one affine-cleanup tail. Remaining: extend that accounting
   to general shared native joins and general affine cleanup rather than
   claiming convergence from duplicated leaves, then complete the WCSU,
-  `StackPlan`, lease, preservation, cancellation, transfer, park/resume, and
-  suspension-safe-loan work above.
+  `StackPlan`, lease, preservation, cancellation, transfer, park/resume,
+  Terminal suspension-call retention, and suspension-safe-loan work above.
 
   The task-plan foundation now projects a sealed fixed-stack shape only from
   `ComposedTaskStackDemand`, retaining the exact composition/root, byte count,

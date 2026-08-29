@@ -343,10 +343,11 @@ while the parent continues using `self` is rejected by ordinary exclusivity.
 Code should move independent work, split state into provably disjoint places,
 or communicate through a mailbox/synchronized capability.
 
-The suspension amendment must later state which loans may cross a park:
-storage lifetime and pinning, aliasing, cancellation paths, and address
-stability are independently required. Borrow/wait-cycle detection is a
-valuable later theorem but not a prerequisite for the conservative task model.
+The current rejection-first subset admits no loan merely because its carrier is
+live across a park. Widening it requires evidence for storage lifetime and
+pinning, aliasing, ordinary cancellation-result paths, and address stability on
+the exact `SuspensionCrossingId`. Borrow/wait-cycle detection is a valuable
+later theorem but not a prerequisite for the conservative task model.
 
 Carry policy itself is independent of that loan subset. Ordinary data derives a
 compiler-normalized four-axis policy from its fields and explicit type-wide
@@ -537,6 +538,16 @@ arguments remain TR3–TR8 work.
 15. A foreign same-stack call contributes admitted stack demand; a package
     blocking executor owns a separate stack and cannot launder unbounded
     completion into a bounded suspension claim.
+16. Parking leaves the exact call incomplete, establishes no result, runs no
+    cleanup, and creates no second local successor. Resumption continues that
+    same invocation before ordinary source control proceeds.
+17. `request_cancel()` cannot dispose a parked continuation. It changes the
+    ordinary safe-point outcome; source cleanup runs as frames retire normally,
+    and only `finish(self)` consumes the external task claim.
+18. A wait without accepted finite-response evidence reports
+    `NoFiniteGuarantee(edge)` at the responsible call. Bounded-response and
+    termination profiles reject it; safety still retains every parked value and
+    claim without duplication or discard.
 
 ## Engineering sequence
 
@@ -576,8 +587,13 @@ arguments remain TR3–TR8 work.
 6. Implement fixed nonmoving stack lowering, WCSU-backed `StackPlan`, stack
    reservation, and a first provider. A future stackless plan is a separate
    lowering, not a runtime contract mode.
-7. Add local carry checking and the conservative suspension-safe-loan subset,
-   then expand it without weakening the storage/alias/cancellation theorem.
+7. Retain one Terminal suspension-call plan keyed by the exact call operation
+   and existing `SuspensionCrossingId`; preserve its checked live frontier and
+   carry demands without adding a local suspension terminator. Join that row in
+   activation realization to inherited CPU/thread preservation demands,
+   `ActivationCarryObligations`, the WCSU `StackPlan`, stack lease, and selected
+   runtime evidence. Then expand the current conservative suspension-safe-loan
+   subset without weakening the storage/alias/cancellation theorem.
 8. Build `ArenaTaskPool`, bounded mailbox, and supervisor reference packages;
    promote no additional language construct unless a package finds something
    semantically inexpressible.

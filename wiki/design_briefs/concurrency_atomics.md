@@ -3,12 +3,13 @@
 Current as of 2026-08-19. This brief records the surviving concurrency model
 after decisions 20–22 and the task-runtime settlement. Chapter 18 is the
 user-facing authority; the detailed lifecycle record is
-[task_runtime_and_lifecycle.md](task_runtime_and_lifecycle.md). Continuation
-representation and suspension-safe loans remain open. Direct-call
-acknowledgements are settled and do not restore `async machine`, `Future<T>`,
-or spawn-only suspension. Bare `spawn`, single-level carry sets, blanket loan
-death, erased `Join<T>`, implicit detach, and Join-on-drop designs are not
-canon.
+[task_runtime_and_lifecycle.md](task_runtime_and_lifecycle.md). Call-keyed
+Terminal suspension representation is settled; its lowering and
+evidence-backed widening of suspension-safe loans remain implementation work.
+Direct-call acknowledgements are settled and do not restore `async machine`,
+`Future<T>`, or spawn-only suspension. Bare `spawn`, single-level carry sets,
+blanket loan death, erased `Join<T>`, implicit detach, and Join-on-drop designs
+are not canon.
 
 ## Settled language model
 
@@ -545,8 +546,9 @@ guarantee. Blocking creates no safe point.
 
 ## Implementation and deferred design work
 
-- Suspension amendment: fixed-stack park/resume lowering and
-  suspension-safe loans.
+- Retain the settled call-keyed Terminal suspension plan, implement fixed-stack
+  park/resume lowering, and widen suspension-safe loans only through exact
+  crossing evidence.
 - `TaskRuntime` selection, WCSU-derived activation `StackPlan`, transactional
   start outcome, task/provider provenance, and child-lease accounting.
 - Canonical-IR fuel metering and restricted fixed-work safe-point segments.

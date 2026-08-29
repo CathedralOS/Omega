@@ -608,11 +608,13 @@ Current ownership is:
   unrelated caller type parameters cannot qualify the target by name.
   `facts/carry.rs` derives the canonical contained-machine field topology into
   grouped machine/field/target arenas. Canonical semantic suspension crossings
-  join descendant crossing facts. Those checked facts are the semantic input
-  to a separate Omega-owned task-activation sidecar; post-check orchestration
-  combines them with target layouts, calling-plan identity, the selected
-  runtime provider, and the WCSU-backed `StackPlan`. None of that concrete
-  activation realization is stored in `CheckedTrees`.
+  join descendant crossing facts. Terminal production consumes each exact
+  crossing into one call-keyed suspension row without re-running liveness.
+  A separate Omega-owned task-activation sidecar then inherits the retained
+  carry demands and combines them with target layouts, calling-plan identity,
+  the selected runtime provider, and the WCSU-backed `StackPlan`. None of that
+  concrete activation realization is stored in `CheckedTrees` or target-neutral
+  Terminal Psi.
 - `psi-checked-trees/src/flow.rs` owns the published checked-flow fact model
   export surface. The model is split by semantic noun under
   `psi-checked-trees/src/flow/`: `contexts.rs` owns semantic/borrow
