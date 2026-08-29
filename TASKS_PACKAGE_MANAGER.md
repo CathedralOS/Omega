@@ -314,12 +314,31 @@ items are still owner-blocked.
   `Real`, wrong opaque subject, lookalike representation traits, provider drift,
   descriptor replay drift, and illegal carrier cleanup/multiplicity changes.
 
-- [ ] **BLOCKED — OWNER Q20: STATIC-TARGET-CONDITIONED-DEPENDENCIES.** Extend dependency projection
-  only through a closed condition vocabulary over request-time inputs such as
-  `TargetProfile`. Normalize every edge to `Always | TargetProfile(...)`, retain
-  the selected condition and closure in the lock, and reject arbitrary evaluated
-  build-machine control flow. The current unconditional projector is a sound
-  first implementation, not a permanent target-independence rule.
+- [ ] **STATIC-TARGET-CONDITIONED-DEPENDENCIES — project ordinary target transitions without executing `build.omg`.**
+  Extend the syntax projector to derive a target-independent
+  `ProjectedDependencies { common, by_profile }` map from the finite build
+  state graph. Follow unconditional transitions and exact
+  `transition builder.target` arms; intersect nested exact constraints, merge
+  shared states, handle cycles by fixpoint, and project each authored call once.
+  A dependency occurrence must have an authorized path and no path tainted by a
+  wildcard target arm or transition on another runtime subject. Reject tainted,
+  mixed-path, and unreachable occurrences with the dependency span plus the
+  transition/arm provenance and a directed repair. Do not add `depend_when`,
+  `depend_as_when`, condition strings, or a second dependency grammar.
+
+  Validate exact profile keys against the trusted toolchain target catalog at
+  projection time. Retain the condition-schema version and identities of only
+  the profiles actually referenced. Alias uniqueness is checked within
+  `common + by_profile[P]`: mutually exclusive profile columns may reuse an
+  alias, while a common alias conflicts in every column. Make package review
+  distinguish the complete projected map for that one fetched package from an
+  unresolved transitive graph. Extend the one workspace lock with independently
+  populated per-profile closure/review sections; locked resolution of an absent
+  column rejects without network access, while an explicit operation may
+  populate all columns. Add canaries for unconditional factoring, nested exact
+  intersections, shared states, cycles, wildcard and runtime-subject taint,
+  mixed paths, unreachable calls, alias reuse/conflict, catalog growth, stale
+  profile identity, and missing locked columns.
 
 - [ ] **BLOCKED — OWNER Q1: PACKAGE-NATIVE-GENERATED-SOURCE-TRANSACTION.**
   Route native-image production through the sponsored package transaction

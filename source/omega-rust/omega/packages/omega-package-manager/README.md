@@ -106,6 +106,23 @@ materialization is the complete published repository snapshot; the separate
 field allows selective acquisition to replace that operational snapshot
 without changing repository or selected-package identity.
 
+### Target-conditioned projection
+
+`build.omg` keeps one dependency API. Conditional edges are ordinary
+`depend`/`depend_as` calls reached through exact branches of immutable
+`builder.target`; there is no condition string or `depend_when` operation. The
+package manager does not execute the build machine. It statically closes the
+finite state graph into `ProjectedDependencies { common, by_profile }`, following
+only unconditional transitions and exact target arms. Runtime-subject paths,
+wildcard target paths, mixed safe/tainted paths, and unreachable dependency
+occurrences reject with transition provenance.
+
+Projection validates referenced profiles against the trusted toolchain catalog
+and remains target-independent. Resolution selects `common + by_profile[P]`.
+Alias uniqueness is scoped to that active set, so mutually exclusive columns
+may reuse an alias. The one workspace lock carries independently populated
+per-profile closure/review sections; an absent section rejects in locked mode.
+
 ## Review
 
 ```text

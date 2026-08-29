@@ -664,9 +664,15 @@ Remaining:
   transitive-demand failures carry a provenance path. Migrate legacy host rows
   into target-owned nominal provider realizations and the complete reach
   ceiling, then retire `target ... {}` and source assignment to `builder.target`
-  across the corpus, normalizing the legacy `windows_x64` spelling to the
-  canonical `windows_x86_64` profile identity. Do not remove the live
+  across the corpus. Normalize the legacy x86 `windows_x64`, `linux_x64`, and
+  `uefi_x64` machine-prefix/item spellings to the canonical `*_x86_64` profile
+  identities. Input-only CLI aliases may remain temporarily but must normalize
+  immediately and never enter locks or semantic identity. Do not remove the live
   declarations before the activation, provider, and denial destinations exist.
+  Keep canonical Omega case names, semantic profile identities, CLI names and
+  aliases, and validated target-package declarations in one target-catalog
+  mapping rather than argument-parsing tables; the temporary Rust enum must not
+  become the permanent profile vocabulary.
   Target-package defaults outside this explicitly selected product closure
   still require either that same ordinary build surface or exact declaration,
   receiver, target-scope, and duplicate/default precedence rules;

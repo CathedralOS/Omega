@@ -23,7 +23,7 @@ has distinct ordinary and explicit-optimizer entrances for the same reason.
 `omega-compiler/tests/no_selection_golden.rs` is the executable firewall. Its
 small entrance descends into acceptance/diagnostic and native-artifact leaves.
 On every supported host it evaluates all four hosted native targets
-(`linux_x64`, `linux_arm64`, `macos_arm64`, and `windows_x64`), compiles each
+(`linux_x86_64`, `linux_arm64`, `macos_arm64`, and `windows_x86_64`), compiles each
 retained artifact twice, compares raw bytes, and checks reviewed target-local
 metadata/digest files under `tests/omega/golden/optimizer/no_selection/`.
 UEFI is not included until its physical adapter and publication chain are
@@ -36,7 +36,7 @@ Native production accepts a repeatable release-tooling overlay:
 ```text
 omega --disable-optimization ControlFlowCleanup \
       --disable-optimization CopyPropagation \
-      --target linux_x64 main.omg
+      --target linux_x86_64 main.omg
 ```
 
 Each value must be one exact source-visible `Optimization` case name. Unknown
