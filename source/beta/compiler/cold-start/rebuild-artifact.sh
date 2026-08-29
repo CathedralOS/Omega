@@ -30,8 +30,7 @@ trap 'rm -rf "$TMP"' EXIT
 
 "$ASSEMBLER" < "$SCRIPT_DIR/bc-alpha.alpha" > "$TMP/cold.tape"
 stamp_seed "$TMP/cold.tape" "$SEED" "$TMP/cold" >/dev/null
-"$TMP/cold" < "$OMEGA_PATH_BETA_COMPILER/bc.beta" > "$TMP/bootstrap.alpha"
-"$ASSEMBLER" < "$TMP/bootstrap.alpha" > "$TMP/bootstrap.tape"
+"$TMP/cold" < "$OMEGA_PATH_BETA_COMPILER/bc.beta" > "$TMP/bootstrap.tape"
 stamp_seed "$TMP/bootstrap.tape" "$SEED" "$TMP/bootstrap-bc" >/dev/null
 "$TMP/bootstrap-bc" < "$OMEGA_PATH_BETA_COMPILER/bc.beta" > "$TMP/fixed.alpha"
 "$ASSEMBLER" < "$TMP/fixed.alpha" > "$TMP/fixed.tape"

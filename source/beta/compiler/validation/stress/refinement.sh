@@ -27,15 +27,15 @@ fi
 . "$OMEGA_REPO_ROOT/tools/lattice/paths.sh" || exit $?
 cd "$OMEGA_GATE_DIR"
 command -v python3 >/dev/null 2>&1 || { echo "refinement: skipped (python3 absent)"; exit 0; }
-. "${OMEGA_PATH_BETA_COMPILER}"/artifact_env.sh
 . "${OMEGA_PATH_ALPHA_CHECKER}"/artifact_env.sh
 SEED="${OMEGA_PATH_ALPHA}/$ALPHA_SEED"
 ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 BC="$T/bc.exe"
-stamp_beta_compiler "$BC" >/dev/null 2>&1 || { echo "refinement: lattice bc artifact unavailable"; exit 1; }
+"$ASM" < "${OMEGA_PATH_BETA_COMPILER}/cold-start/bc-alpha.alpha" > "$T/bc.tape"
+stamp_seed "$T/bc.tape" "$SEED" "$BC" >/dev/null 2>&1 || { echo "refinement: Alpha-written compiler construction failed"; exit 1; }
 stamp_proof_checker "$T/check.exe" >/dev/null 2>&1 || { echo "refinement: checker artifact unavailable"; exit 1; }
 
 echo "instruction-level refinement (alpha machine code provably computes its source meaning, checked without running it):"
 python3 "$OMEGA_GATE_DIR/alpha_refinement_check.py" \
-  "$T/check.exe" "$BC" "$ASM"
+  "$T/check.exe" "$BC"

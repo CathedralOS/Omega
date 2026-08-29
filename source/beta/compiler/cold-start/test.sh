@@ -31,17 +31,12 @@ accept() {
   name=$1
   source=$2
   expected=$3
-  if ! printf '%s\n' "$source" | "$TMP/bc-alpha" > "$TMP/$name.alpha"; then
+  if ! printf '%s\n' "$source" | "$TMP/bc-alpha" > "$TMP/$name.tape"; then
     set +e
     printf '%s\n' "$source" | "$TMP/bc-alpha" > /dev/null
     status=$?
     set -e
     echo "FAIL $name: compiler rejected valid Beta source (status $status)" >&2
-    fail=$((fail + 1))
-    return
-  fi
-  if ! "$ASSEMBLER" < "$TMP/$name.alpha" > "$TMP/$name.tape"; then
-    echo "FAIL $name: emitted invalid Alpha assembly" >&2
     fail=$((fail + 1))
     return
   fi
@@ -64,9 +59,8 @@ accept_io() {
   input=$3
   expected_status=$4
   expected_output=$5
-  if ! printf '%s\n' "$source" | "$TMP/bc-alpha" > "$TMP/$name.alpha" ||
-     ! "$ASSEMBLER" < "$TMP/$name.alpha" > "$TMP/$name.tape"; then
-    echo "FAIL $name: compiler or assembler rejected valid I/O source" >&2
+  if ! printf '%s\n' "$source" | "$TMP/bc-alpha" > "$TMP/$name.tape"; then
+    echo "FAIL $name: compiler rejected valid I/O source" >&2
     fail=$((fail + 1))
     return
   fi
@@ -117,6 +111,9 @@ accept locals 'proc main() { let a = 6 let b = 7 return a * b }' 42
 accept assignment 'proc main() { let x = 10 x = x + 32 return x }' 42
 accept forward_call 'proc main() { return double(21) } proc double(x) { return x + x }' 42
 accept nested_calls 'proc main() { return add(mul(2, 3), 4) } proc add(a, b) { return a + b } proc mul(a, b) { return a * b }' 10
+accept factorial_recursion 'proc main() { return fact(5) } proc fact(n) { state r { to b when n < 2 return n * fact(n - 1) } state b { return 1 } }' 120
+accept fibonacci_recursion 'proc main() { return fib(10) } proc fib(n) { state r { to b when n < 2 return fib(n - 1) + fib(n - 2) } state b { return n } }' 55
+accept call_state_loop 'proc main() { return sumto(10) } proc sumto(n) { let t = 0 let i = 1 state l { to b when i <= n return t } state b { t = t + i i = i + 1 to l } }' 55
 accept four_parameters 'proc sum(a, b, c, d) { let x = c * 10 + d return a + b + x } proc main() { return sum(1, 2, 3, 9) }' 42
 accept less_true 'proc main() { return 1 < 2 }' 1
 accept less_false 'proc main() { return 2 < 1 }' 0
@@ -144,6 +141,7 @@ accept shared_state_spelling 'proc main() { let shared = 1 state shared { return
 accept adversarial_labels 'proc main() { state main { return _L0() } } proc _L0() { state foo__bar { return 42 } } proc foo__bar() { return 0 }' 42
 accept byte_memory 'proc main() { let b = 2097152 byte[b] = 65 byte[b + 1] = 66 return byte[b] + byte[b + 1] }' 131
 accept word_memory 'proc main() { let b = 2097152 word[b] = 42 return word[b] }' 42
+accept word_array_loop 'proc main() { let base = 2097152 let i = 0 state fill { to fb when i < 5 to sum_init } state fb { word[base + i * 8] = i * i i = i + 1 to fill } state sum_init { let t = 0 i = 0 to sum } state sum { to sb when i < 5 return t } state sb { t = t + word[base + i * 8] i = i + 1 to sum } }' 30
 accept nested_memory 'proc main() { let b = 2097152 word[b] = b + 16 byte[b + 16] = 77 return byte[word[b]] }' 77
 accept call_statement 'proc main() { let b = 2097152 touch(b) return word[b] } proc touch(p) { word[p] = 42 return 0 }' 42
 accept final_fallthrough_zero 'proc main() { return f(42) } proc f(x) { }' 0
@@ -152,7 +150,7 @@ accept_io byte_io 'proc main() { let c = read_byte() write_byte(c + 1) return c 
 accept_io emit_text 'proc main() { emit("A\n") return 42 }' '' 42 'A\n'
 accept_io emit_empty 'proc main() { emit("") return 7 }' '' 7 ''
 
-if cmp -s "$TMP/guarded_true.alpha" "$TMP/guarded_grouped.alpha"; then
+if cmp -s "$TMP/guarded_true.tape" "$TMP/guarded_grouped.tape"; then
   pass=$((pass + 1))
 else
   echo "FAIL guard_parentheses: optional grouping changed emitted Alpha" >&2
@@ -179,11 +177,11 @@ mov r15,r14
 load r14,r15
 add r15,r13
 ret
-' > "$TMP/literal.expected"
-if cmp -s "$TMP/literal.alpha" "$TMP/literal.expected"; then
+' | "$ASSEMBLER" > "$TMP/literal.expected.tape"
+if cmp -s "$TMP/literal.tape" "$TMP/literal.expected.tape"; then
   pass=$((pass + 1))
 else
-  echo "FAIL literal_output: complete emitted Alpha stream changed" >&2
+  echo "FAIL literal_output: complete emitted Alpha tape changed" >&2
   fail=$((fail + 1))
 fi
 
@@ -277,8 +275,7 @@ printf '%s' 'proc main() { return 42 }' > "$limit_source"
 used=$(wc -c < "$limit_source" | tr -d ' ')
 remaining=$((1048576 - used))
 dd if=/dev/zero bs="$remaining" count=1 2>/dev/null >> "$limit_source"
-if "$TMP/bc-alpha" < "$limit_source" > "$TMP/source-limit.alpha" &&
-   "$ASSEMBLER" < "$TMP/source-limit.alpha" > "$TMP/source-limit.tape"; then
+if "$TMP/bc-alpha" < "$limit_source" > "$TMP/source-limit.tape"; then
   pass=$((pass + 1))
 else
   echo "FAIL source_limit: exact 1 MiB source was not accepted" >&2

@@ -84,6 +84,7 @@ assembly mnemonics) without spelling every byte. `"..."` escapes: `\n \t \r \0 \
 These are rung boundaries, not unfinished Gamma or Delta features. The current
 Alpha-written compiler candidate is
 [`compiler/cold-start/bc-alpha.alpha`](compiler/cold-start/bc-alpha.alpha).
-[`compiler/bc.beta`](compiler/bc.beta), its fixed point, and
-`source/beta/test.sh` remain bounded differential evidence while the Alpha
-implementation is promoted; they do not define compiler authority.
+[`compiler/bc.beta`](compiler/bc.beta) and its fixed point remain bounded
+differential evidence while the Alpha implementation is promoted; they do not
+define compiler authority. The former duplicate historical-compiler surface
+suite was folded into the direct compiler's focused gate and deleted.

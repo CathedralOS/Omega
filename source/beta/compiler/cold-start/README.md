@@ -49,12 +49,17 @@ inside the checked output extent.
 The compiler reads at most 1,048,576 source bytes into a checked fixed extent,
 bounds expression/call nesting at 64, procedure count at 128, recorded calls at
 1,024, frame slots per procedure at 64, states at 128 per procedure, transitions
-at 256 per procedure, and each table at 1,024 globally. It preflights emitted assembly against the Alpha assembler's
-1 MiB source region. The first parse records frozen procedure, call, state, and
-transition metadata; resolves calls and procedure-scoped edges after EOF; and
-reserves exact output without publishing it. The second parse checks every
-frozen record in source order and streams the assembly. Malformed and exhausted
-inputs therefore halt nonzero with an empty output stream. Generated frames
+at 256 per procedure, and each table at 1,024 globally. It preflights the
+actual 262,140-byte Alpha payload extent. The first parse records frozen
+procedure, call, state, and transition metadata; resolves calls and
+procedure-scoped edges to numeric identities after EOF; and reserves exact
+instruction widths without publishing anything. The second parse checks every
+frozen record in source order while encoding into a private tape buffer.
+Bounded procedure/state/internal-label PC tables and a bounded fixup table own
+all forward addresses. Only after every fixup has been resolved and the replay
+length has matched the reservation does the compiler publish the completed
+tape to stdout. Malformed, exhausted, or internally inconsistent inputs
+therefore halt nonzero with an empty output stream. Generated frames
 initialize the reserved word-size register `r13` to eight, preserve `r14`/`r15`,
 carry four live argument registers, return zero on final fallthrough, and retain
 explicit return values through full epilogues. Generated `$L…` and `$S…$…`
@@ -69,7 +74,9 @@ self-hosted fixed point. Its `--check` mode reconstructs
 the repository; its default mode deliberately installs that reconstruction.
 The focused [`test.sh`](test.sh) exercises the cold compiler's accepted and
 rejected Beta surface, but that regression suite is not a compiler-lattice
-edge. The adjacent validation directory now retains only general artifact
+edge. The direct emitter was migration-checked byte-for-byte against the former
+textual-output-plus-Alpha-assembler route, after which that obsolete oracle was
+removed. The adjacent validation directory now retains only general artifact
 structure, trace-refinement, stress, and bounded fixed-point comparisons. The
 former exact-`bc.beta` admission forest was deleted because none of its
 source/PC/count-specific propositions transferred to the promoted Alpha source.

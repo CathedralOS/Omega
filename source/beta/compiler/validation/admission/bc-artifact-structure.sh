@@ -1,6 +1,9 @@
 #!/usr/bin/env sh
-# Lower-rooted structural obligations for the persisted bc Alpha tape.
+# Lower-rooted structural obligations for one exact Alpha tape. The optional
+# argument lets construction gates check the candidate before it is persisted.
 set -eu
+
+[ "$#" -le 1 ] || { echo "usage: $0 [ALPHA_TAPE]" >&2; exit 2; }
 
 GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 OMEGA_REPO_ROOT=$GATE_DIR
@@ -15,7 +18,8 @@ unset OMEGA_PATH_PARENT
 
 ASM="$OMEGA_PATH_ALPHA_ASSEMBLER/$BETA_SEED"
 SEED="$OMEGA_PATH_ALPHA/$ALPHA_SEED"
-ARTIFACT="$OMEGA_PATH_BETA_COMPILER/artifacts/beta_compiler_bytecode.tape"
+ARTIFACT=${1:-"$OMEGA_PATH_BETA_COMPILER/artifacts/beta_compiler_bytecode.tape"}
+[ -f "$ARTIFACT" ] || { echo "missing Alpha tape: $ARTIFACT" >&2; exit 2; }
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 

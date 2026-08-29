@@ -27,7 +27,7 @@ The certificate is a diamond with the trust anchor
 ```
       Beta source P ──beta_symbolic──▶  M = ⟦P⟧_Beta  (a closed-form term over the inputs)
             │                                   │
-            │ bc + assembler                    │  prove  (= C M)  ∀ inputs
+            │ direct Beta compiler              │  prove  (= C M)  ∀ inputs
             ▼                                   │  via Alpha checker tools/prover.py → check.beta
       alpha bytecode ──alpha_symbolic──▶ C = ⟦bc(P)⟧_alpha
             │                                   │
@@ -269,7 +269,7 @@ A symbolic trip count `n` can't be unrolled. Both sides recognize the loop and r
 | `refinement_fuzz_gen.py` | random straight-line arithmetic programs |
 | `refinement_loop_gen.py` | random data-dependent counter loops (`<` / `<=`) |
 | `refinement_compose_gen.py` | random pre-loop + loop + post-loop compositions |
-| `refinement.sh` | stamps the below-Beta checker artifact and `bc`, then runs the driver; the lattice step |
+| `refinement.sh` | constructs the Alpha-written compiler candidate, stamps the below-Beta checker artifact, and runs the bounded driver |
 | `refinement-samples/*.beta` | curated end-to-end samples (muln, countn, tri, muln_le, …) |
 | `symbolic_loop_check.py` + `symbolic-loops.sh` | source-side soundness gate: `beta_symbolic`'s loop summaries pinned to `../../../reference/beta_interp.py` over an input grid |
 

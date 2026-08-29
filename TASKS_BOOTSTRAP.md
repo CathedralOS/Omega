@@ -131,7 +131,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   A general checked Alpha-to-native realization may be proposed; source-,
   function-, hash-, or workload-specific jets are forbidden. No current floor
   measurement triggers escalation: the complete Alpha-written Beta compiler
-  surface gate runs 104 cases in under three seconds on the development host.
+  surface gate runs 111 cases in under three seconds on the development host.
 
 ## 2. Alpha-written Beta compiler
 
@@ -144,12 +144,17 @@ code, discover a closure, manufacture proof premises, or decide admission.
   - [x] Remove pinned syntax/runtime defects found by the general-source audit:
     full-range Word literals, zero final fallthrough, `r13=8` stack convention,
     reserved intrinsic names, and disjoint callable procedure regions. The
-    focused suite now passes 107 cases and the candidate tape passes the generic
+    focused suite now passes 111 cases and the candidate tape passes the generic
     structural checker.
-  - [ ] Replace emitted Alpha text plus an external assembler invocation with
+  - [x] Replace emitted Alpha text plus an external assembler invocation with
     direct Alpha tape emission inside the compiler. The Alpha assembler may
     construct the compiler artifact, but it cannot remain a semantic stage when
-    the compiler processes Beta input.
+    the compiler processes Beta input. The candidate now reserves and encodes a
+    private bounded tape, resolves procedure/state/internal fixups, and publishes
+    only after complete replay. All 111 focused cases and the full `bc.beta`
+    source were byte-identical to the removed text-plus-assembler route; both
+    resulting tapes pass the generic structural gate. Checker construction and
+    refinement diagnostics now consume the direct tape.
   - [ ] **DESIGN-BLOCKED — Q18:** Enforce Beta definite initialization across
     state/transition CFGs after fixing the flat-block formation and guarded-edge
     well-formedness rules. A source-order symbol-table pass alone does not prove

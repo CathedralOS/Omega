@@ -52,8 +52,7 @@ from beta_parser import lex, Parser
 ALPHA_REF = os.path.join(ALPHA, 'alpha_ref.py')
 PROVER = os.path.join(PROOF_KERNEL, 'tools', 'prover.py')
 CHECK = sys.argv[1]
-BC = sys.argv[2] if len(sys.argv) > 2 else None       # bc.exe — enables the real-bc-output samples
-ASM = sys.argv[3] if len(sys.argv) > 3 else None      # the Alpha assembler executable
+BC = sys.argv[2] if len(sys.argv) > 2 else None       # direct Beta-to-Alpha-tape compiler
 # The recurrence prelude: user-Nat (data 2=Z, 3=S) + the triangular-sum fun g(0)=0, g(s k)=g(k)+k (fun 90),
 # which alpha_symbolic/beta_symbolic emit as ('f',90,t) for `acc += i` loops. Prepended to a cert that mentions it.
 REC_PRELUDE = '(data 2 0 0 0) (data 3 1 1 0) (fun 90 2 (k 2)) (fun 90 3 (p (rec 0) (v 0)))'
@@ -137,15 +136,10 @@ AUTO_SAMPLES = [
 ]
 
 def compile_beta_text(text):
-    """bc.exe < text | asm  ->  raw alpha tape bytes."""
-    asm = subprocess.run([BC], input=text.encode(), capture_output=True).stdout
-    with tempfile.NamedTemporaryFile(delete=False) as f:
-        f.write(asm); apath = f.name
-    try:
-        tape = subprocess.run([ASM], stdin=open(apath, 'rb'), capture_output=True).stdout
-    finally:
-        os.unlink(apath)
-    return tape
+    """Run the canonical candidate's direct Beta-to-Alpha-tape edge."""
+    return subprocess.run(
+        [BC], input=text.encode(), capture_output=True, check=True
+    ).stdout
 
 def beta_ref_observe(procs, env, n):
     """Run the concrete Beta interpreter on the given inputs; observe the exit code / stdout byte (mod 256)."""
@@ -198,11 +192,6 @@ def prove_equiv(label, text, tape, ok_msg, quiet_perturb=False, trials=40, teeth
                 proof = '(gen %s)' % proof
             cert = '%s %s %s' % (prelude.strip(), g, proof)
             verdict = subprocess.run([CHECK], input=cert, capture_output=True, text=True).stdout.strip()
-            cdir = os.environ.get('REFINE_CERT_DIR')
-            if cdir:                                   # tee the cert + check.beta's verdict for the cert diamond
-                nc = len(os.listdir(cdir))
-                with open(os.path.join(cdir, 'cert-%03d-%s.beta' % (nc, verdict or 'reject')), 'w') as cf:
-                    cf.write(cert + '\n')
             return verdict == 'accept'
         return prove(g)                                # Peano goal: prover.py searches, check.beta validates
     if not prove_eq(B.render(M)):                      # bc output ≡ source meaning, ∀ inputs
@@ -307,7 +296,7 @@ def main():
     print(" hand-built tapes:")
     for name, tape, claim, expect in PROGRAMS:
         total += 1; passed += check_one(name, tape, claim, expect)
-    if BC and ASM:
+    if BC:
         print(" real bc-compiled Beta sources (meaning auto-derived from source — no hand claim):")
         for label, srcrel in AUTO_SAMPLES:
             total += 1; passed += check_auto(label, srcrel)
@@ -342,7 +331,7 @@ def main():
             total += 1; ok = check_fork_fuzz(seed); passed += ok; kpass += ok
         print("   %d/%d random branching programs certified (conditional terms match the machine)" % (kpass, nfork))
     else:
-        print(" (real-bc samples skipped: bc.exe / assembler not provided)")
+        print(" (compiled-source samples skipped: direct compiler not provided)")
     print("%d/%d refinement checks passed" % (passed, total))
     sys.exit(0 if passed == total else 1)
 
