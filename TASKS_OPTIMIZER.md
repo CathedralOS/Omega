@@ -1868,8 +1868,8 @@ alternate semantic handoff.
   explicit executable copy form is admitted. `OPT-DEBUG-PROJECTION` separately
   owns remapping debug-map subjects that name removed values.
 
-- **OPT-GVN-CSE.** Add local CSE followed by dominator-based global value
-  numbering for pure, total operations.
+- **OPT-GVN-CSE — complete for the current verified-unit vocabulary.** Local
+  CSE and dominator-based global value numbering cover pure, total operations.
 
   Acceptance: the expression key includes complete type/domain/provider
   semantics; potentially trapping, effectful, placed, atomic, or observation-
@@ -1956,6 +1956,15 @@ alternate semantic handoff.
   dominance choice, proof fact, edge custody, and immutable accepted catalog.
   Division/remainder and the reverse obligation-free-to-exact relation remain
   excluded.
+
+  This is complete for the current acyclic scalar vocabulary: every admitted
+  obligation-free or independently proof-certified pure total expression has a
+  complete local, strict-dominator, and applicable phi-translated path. Calls,
+  boundary/provider operations, structural state, services, and control remain
+  excluded by their observable or stateful contracts rather than by an
+  incomplete key. Reopen this task when the verified unit admits cyclic CFGs,
+  a new pure scalar operation, or facts sufficient for partial redundancy
+  elimination; do not infer those capabilities from the current acyclic rules.
 
 - **OPT-DEAD-SCALAR-WORK.** Remove unused pure and total scalar operations.
 
