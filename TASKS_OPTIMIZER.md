@@ -496,10 +496,11 @@ rewrite or opt a program into lossy floating-point semantics.
 
 ## P9 — Testing, stabilization, and rollout
 
-- [ ] Repair the two external-decision exact-remainder replay fixtures whose
-  proof bundles still claim `KernelDerived(Truth)` for verifier-reconstructed
-  non-Truth obligations. A detached clean `main` worktree reproduces both
-  failures; repair the fixture certificates without weakening proof admission.
+- [x] Repair the external-decision and projection exact division/remainder
+  fixtures. Their proof bundles now derive verifier-reconstructed `/ 1`,
+  zero-dividend, `% 1`, and signed `% -1` definedness propositions from exact
+  constant semantic axioms through checked integer-bound substitution; proof
+  admission remains unchanged.
 - [ ] Per-rule positive, negative, boundary, disabled, budget, determinism,
   idempotence, and corruption suites.
 - [ ] Cross-rule phase-composition matrix, including deliberate fail-closed
