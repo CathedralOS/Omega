@@ -1100,11 +1100,11 @@ fn float_to_int_policy_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-float-int-policy-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("float-to-int policy canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
@@ -1126,11 +1126,11 @@ fn float_to_int_exact_proofs_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-float-int-exact-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("proven Exact float-to-int canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
@@ -1175,11 +1175,11 @@ fn float_saturating_arithmetic_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-float-saturating-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("Saturating float arithmetic canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
@@ -1327,11 +1327,11 @@ fn runtime_total_order_satisfiers_exit_canary_runs() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-total-float-order-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    let compilation = compile(CompileOptions {
+    let compilation = compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("total-order satisfier canary should compile natively");
 
@@ -1359,11 +1359,10 @@ fn runtime_total_order_satisfiers_exit_canary_runs() {
         ));
         let _ = fs::remove_dir_all(&cross_dir);
         omega_compiler::compile(
-            CompileRequest::new(CompileOptions {
+            CompileRequest::new(CompilerOptions {
                 root_path: main_path.clone(),
                 build_dir: Some(cross_dir.clone()),
                 target_name: Some(target.into()),
-                write_output: false,
             })
             .with_requested_product(RequestedCompileProduct::NativeArtifact)
             .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
@@ -1458,11 +1457,11 @@ fn build_runtime_float_semantics_twins_agree() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("float semantic twins should compile natively");
     let output = Command::new(build_dir.join(executable_name()))
@@ -1494,11 +1493,11 @@ fn build_runtime_float_semantics_twins_agree() {
          }\n",
     )
     .expect("write semantic-edge target manifest");
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: source_dir.join("main.omg"),
         build_dir: Some(scratch.join("out")),
         target_name: Some("linux_arm64".to_owned()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .unwrap_or_else(|diagnostics| {
         panic!("float semantic twins should compile for linux_arm64: {diagnostics:#?}")
@@ -1623,11 +1622,11 @@ fn linux_arm64_float_semantic_edge_twin_retains_artifact_evidence() {
     assert_eq!(interpreted.error, None);
     assert_eq!(interpreted.exit_code, 70);
 
-    let first_build = compile(CompileOptions {
+    let first_build = compile(CanaryCompileSpec {
         root_path: main_path.clone(),
         build_dir: Some(scratch.join("first-build")),
         target_name: Some("linux_arm64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("float twin should produce an exact linux_arm64 image");
     let first_path = first_build
@@ -1642,11 +1641,11 @@ fn linux_arm64_float_semantic_edge_twin_retains_artifact_evidence() {
         "retained ELF image must name the AArch64 machine"
     );
 
-    let second_build = compile(CompileOptions {
+    let second_build = compile(CanaryCompileSpec {
         root_path: main_path.clone(),
         build_dir: Some(scratch.join("second-build")),
         target_name: Some("linux_arm64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("float twin should reproduce its exact linux_arm64 image");
     let second_bytes = fs::read(
@@ -1807,11 +1806,11 @@ fn linux_x64_baseline_float_semantic_edge_twin_retains_artifact_evidence() {
     assert_eq!(interpreted.error, None);
     assert_eq!(interpreted.exit_code, 70);
 
-    let first_build = compile(CompileOptions {
+    let first_build = compile(CanaryCompileSpec {
         root_path: main_path.clone(),
         build_dir: Some(scratch.join("first-build")),
         target_name: Some("linux_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("baseline x86 float twin should produce an exact linux_x64 image");
     let first_path = first_build
@@ -1826,11 +1825,11 @@ fn linux_x64_baseline_float_semantic_edge_twin_retains_artifact_evidence() {
         "retained ELF image must name the x86-64 machine"
     );
 
-    let second_build = compile(CompileOptions {
+    let second_build = compile(CanaryCompileSpec {
         root_path: main_path.clone(),
         build_dir: Some(scratch.join("second-build")),
         target_name: Some("linux_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("baseline x86 float twin should reproduce its exact linux_x64 image");
     let second_bytes = fs::read(
@@ -1991,11 +1990,11 @@ fn windows_x64_baseline_float_semantic_edge_twin_retains_artifact_evidence() {
     assert_eq!(interpreted.error, None);
     assert_eq!(interpreted.exit_code, 70);
 
-    let first_build = compile(CompileOptions {
+    let first_build = compile(CanaryCompileSpec {
         root_path: main_path.clone(),
         build_dir: Some(scratch.join("first-build")),
         target_name: Some("windows_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("baseline Windows x64 float twin should produce an exact windows_x64 image");
     let first_path = first_build
@@ -2021,11 +2020,11 @@ fn windows_x64_baseline_float_semantic_edge_twin_retains_artifact_evidence() {
         "retained PE image must name the AMD64 machine"
     );
 
-    let second_build = compile(CompileOptions {
+    let second_build = compile(CanaryCompileSpec {
         root_path: main_path.clone(),
         build_dir: Some(scratch.join("second-build")),
         target_name: Some("windows_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("baseline Windows x64 float twin should reproduce its exact windows_x64 image");
     let second_bytes = fs::read(

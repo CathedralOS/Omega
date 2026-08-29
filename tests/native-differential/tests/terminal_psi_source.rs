@@ -691,7 +691,6 @@ fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
             root_path: progress_free_selected_source_canary(),
             build_dir: None,
             target_name: Some("linux_x64".into()),
-            write_output: false,
         })
         .with_requested_product(RequestedCompileProduct::NativeArtifact)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
@@ -830,7 +829,6 @@ fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
             root_path: progress_free_selected_source_canary(),
             build_dir: Some(blocked_parent),
             target_name: Some("linux_x64".into()),
-            write_output: true,
         };
         let error = write_finalized_terminal_component_output(&blocked_options, runnable)
             .expect_err("filesystem rejection must preserve runnable deployment custody");
@@ -843,7 +841,6 @@ fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
             root_path: progress_free_selected_source_canary(),
             build_dir: Some(scratch.0.join("published")),
             target_name: Some("linux_x64".into()),
-            write_output: true,
         };
         let output_path = output_options.build_dir().join(&file_name);
         let published = write_finalized_terminal_component_output(&output_options, runnable)
@@ -1003,7 +1000,6 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
             root_path: progress_source_canary(),
             build_dir: None,
             target_name: Some("linux_x64".into()),
-            write_output: false,
         })
         .with_requested_product(RequestedCompileProduct::NativeArtifact)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
@@ -1182,7 +1178,6 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
             root_path: progress_source_canary(),
             build_dir: Some(scratch.0.clone()),
             target_name: Some("linux_x64".into()),
-            write_output: true,
         };
         let published = write_finalized_terminal_component_output(&output_options, runnable)
             .expect("progress-bearing deployment should authorize exact flat output");
@@ -1328,7 +1323,6 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
             root_path: progress_source_canary(),
             build_dir: Some(scratch.0.clone()),
             target_name: Some("linux_x64".into()),
-            write_output: true,
         };
         let expected_path = options
             .build_dir()

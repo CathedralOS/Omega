@@ -30,11 +30,11 @@ fn explicit_program_entry_binding_owns_capability_manifest_identity() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_with_auxiliary_artifacts(CompileOptions {
+    compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("windows_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("explicit entry canary should emit audit artifacts");
     let manifest = fs::read_to_string(build_dir.join("05_capability_manifest.json"))
@@ -114,7 +114,7 @@ fn checked_uefi_compilation_retains_source_and_two_surface_entry_custody() {
 fn checked_compilation_does_not_infer_an_entry_for_legacy_semantic_corpus() {
     let canary = pass_canary("arithmetic/runtime_chained_field_mutation_exit");
     let checked = compile_to_checked(&canary.join("main.omg"), None)
-        .expect("legacy Main entry canary should reach checked semantics");
+        .expect("direct Main entry canary should reach checked semantics");
 
     assert_eq!(checked.selected_program_entry_machine(), None);
     let outcome = psi_checked_interpreter::interpret_entry(&checked, "Main::main", &[]);
@@ -131,11 +131,11 @@ fn production_compile_rejects_an_unrooted_legacy_entry() {
     fs::create_dir_all(&source_dir).expect("create entry-agnostic source directory");
     fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
         .expect("copy source without its entry-selecting build companion");
-    let diagnostics = production_compile(CompileOptions {
+    let diagnostics = production_compile(CanaryCompileSpec {
         root_path: source_dir.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect_err("production compilation must not discover `Main::main` by name");
     let _ = fs::remove_dir_all(scratch);
@@ -157,11 +157,11 @@ fn production_check_accepts_entry_agnostic_semantic_corpus() {
     fs::create_dir_all(&source_dir).expect("create entry-agnostic source directory");
     fs::copy(canary.join("main.omg"), source_dir.join("main.omg"))
         .expect("copy source without its entry-selecting build companion");
-    let report = production_compile(CompileOptions {
+    let report = production_compile(CanaryCompileSpec {
         root_path: source_dir.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: false,
+        product: CanaryCompileProduct::Check,
     })
     .expect("check-only compilation must not require or infer a runtime entry");
 
@@ -239,11 +239,11 @@ fn catalog_checked_assembly_is_validated_against_final_image_bytes() {
         std::env::temp_dir().join(format!("omega-final-asm-evidence-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_with_auxiliary_artifacts(CompileOptions {
+    compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("fixed checked assembly should cross-compile with final-byte evidence");
 
@@ -269,11 +269,11 @@ fn immediate_port_io_is_bound_in_final_image_validation() {
         std::env::temp_dir().join(format!("omega-final-port-evidence-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_with_auxiliary_artifacts(CompileOptions {
+    compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("immediate-port checked assembly should emit final-byte evidence");
 
@@ -305,11 +305,11 @@ fn structured_machine_control_envelopes_are_bound_in_final_image_validation() {
         ));
         let _ = fs::remove_dir_all(&build_dir);
 
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: canary.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: Some("linux_x64".into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .expect("structured machine-control assembly should emit final-byte evidence");
 
@@ -333,11 +333,11 @@ fn aarch64_hfa_entry_argument_spreads_vector_registers() {
         std::env::temp_dir().join(format!("omega-aarch64-hfa-entry-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_arm64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("flat f64 pair should cross-compile as an AAPCS64 HFA");
 
@@ -362,11 +362,11 @@ fn aarch64_small_aggregate_entry_spreads_consecutive_x_registers() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_arm64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("small fixed aggregate should cross-compile through x1/x2");
 
@@ -394,11 +394,11 @@ fn aarch64_small_aggregate_entry_falls_wholly_to_the_stack() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_arm64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("register-exhausted small aggregate should cross-compile from the stack");
 
@@ -425,11 +425,11 @@ fn aarch64_large_aggregate_entry_copies_from_the_indirect_pointer() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_arm64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("large fixed aggregate should cross-compile through an x0 pointer");
 
@@ -468,11 +468,11 @@ fn aarch64_large_aggregate_entry_loads_a_stack_passed_pointer() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_arm64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("register-exhausted large aggregate should cross-compile through a stack pointer");
 
@@ -518,11 +518,11 @@ fn aarch64_wide_aggregate_entry_uses_general_indirect_classification() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_arm64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("record beyond the boundary handoff ceiling should use AAPCS64 indirect passing");
 
@@ -567,11 +567,11 @@ fn aarch64_small_result_entry_loads_x0_and_x1() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_arm64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("AAPCS64 two-word entry result should load x0/x1");
 
@@ -607,11 +607,11 @@ fn aggregate_literal_entry_result_uses_native_fragments() {
         )
         .expect("write target manifest");
 
-        compile(CompileOptions {
+        compile(CanaryCompileSpec {
             root_path: src_dir.join("main.omg"),
             build_dir: Some(out_dir.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .expect("aggregate-literal entry result should cross-compile");
 
@@ -678,11 +678,11 @@ fn indexed_scalar_entry_result_uses_native_registers() {
         )
         .expect("write target manifest");
 
-        compile(CompileOptions {
+        compile(CanaryCompileSpec {
             root_path: src_dir.join("main.omg"),
             build_dir: Some(out_dir.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .expect("indexed scalar entry result should cross-compile");
 
@@ -714,11 +714,11 @@ fn aarch64_hfa_result_entry_loads_d0_d1_and_d2() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_arm64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("AAPCS64 24-byte HFA entry result should load d0/d1/d2");
 
@@ -754,11 +754,11 @@ fn aarch64_large_result_entry_saves_x8_and_copies_through_it() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_with_auxiliary_artifacts(CompileOptions {
+    compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_arm64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("AAPCS64 indirect entry result should preserve and populate x8's pointer");
 
@@ -814,11 +814,11 @@ fn sysv_small_aggregate_entry_spreads_consecutive_gprs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("SysV two-eightbyte record should cross-compile through rsi/rdx");
 
@@ -841,11 +841,11 @@ fn sysv_erased_small_aggregate_entry_spreads_only_relevant_fields() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("erased-stripped SysV record should cross-compile through rsi/rdx");
 
@@ -866,11 +866,11 @@ fn sysv_hfa_entry_argument_packs_eightbytes_into_xmm_registers() {
         std::env::temp_dir().join(format!("omega-sysv-hfa-entry-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("SysV f64 pair entry should cross-compile through xmm0/xmm1");
 
@@ -894,11 +894,11 @@ fn sysv_mixed_aggregate_entry_uses_independent_register_banks() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("SysV INTEGER/SSE entry record should cross-compile through rsi/xmm0");
 
@@ -923,11 +923,11 @@ fn sysv_mixed_aggregate_entry_rolls_wholly_to_stack() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("register-exhausted SysV mixed record should cross-compile wholly from the stack");
 
@@ -958,11 +958,11 @@ fn sysv_small_aggregate_entry_rolls_wholly_to_stack() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("register-exhausted SysV record should cross-compile wholly from the stack");
 
@@ -991,11 +991,11 @@ fn sysv_large_aggregate_entry_copies_the_memory_class_stack_value() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("SysV MEMORY-class entry record should copy from the incoming stack");
 
@@ -1019,11 +1019,11 @@ fn sysv_wide_aggregate_entry_uses_general_memory_classification() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("SysV record beyond 32 bytes should use general MEMORY stack passing");
 
@@ -1047,11 +1047,11 @@ fn sysv_large_result_entry_saves_and_uses_the_hidden_pointer() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_with_auxiliary_artifacts(CompileOptions {
+    compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("SysV MEMORY-result entry should preserve and populate its hidden pointer");
 
@@ -1092,11 +1092,11 @@ fn sysv_large_hfa_result_entry_remains_memory_class() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("SysV HFA above 16 bytes should remain a MEMORY-class entry result");
 
@@ -1125,11 +1125,11 @@ fn sysv_small_result_entry_loads_rax_and_rdx() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("SysV INTEGER/INTEGER entry result should load rax/rdx");
 
@@ -1152,11 +1152,11 @@ fn sysv_hfa_result_entry_loads_xmm0_and_xmm1() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("SysV SSE/SSE entry result should load xmm0/xmm1");
 
@@ -1180,11 +1180,11 @@ fn sysv_mixed_result_entry_loads_rax_and_xmm0() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("SysV INTEGER/SSE entry result should load rax/xmm0");
 
@@ -1207,11 +1207,11 @@ fn sysv_wrapped_float_entry_uses_xmm0_in_both_directions() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("one-eightbyte nested SSE record should use xmm0 for entry and result");
 
@@ -1416,12 +1416,12 @@ fn pass_canaries_compile() {
                     .is_some()
         })
         .count();
-    let legacy_elided_count = selected_active
+    let direct_elided_count = selected_active
         .iter()
         .filter(|canary_name| {
             !ROOTED_BACKEND_PASS_CANARIES.contains(canary_name)
                 && exact_native_coverage
-                    .unique_legacy_owner(canary_name)
+                    .unique_direct_owner(canary_name)
                     .is_some()
         })
         .count();
@@ -1434,17 +1434,17 @@ fn pass_canaries_compile() {
                     .is_none()
             } else {
                 exact_native_coverage
-                    .unique_legacy_owner(canary_name)
+                    .unique_direct_owner(canary_name)
                     .is_none()
             }
         })
         .collect::<Vec<_>>();
     if std::env::var_os("OMEGA_PASS_CANARY_REPORT_COUNTS").is_some() {
         eprintln!(
-            "pass-canary coverage: selected-active={} rooted-exact-native-elided={} legacy-exact-native-elided={} active-compiled={} cross-target-elided={} cross-target-compiled={} rooted-target-elided={} rooted-target-compiled={} source-files={} source-bytes={} scan-micros={}",
-            active.len() + rooted_elided_count + legacy_elided_count,
+            "pass-canary coverage: selected-active={} rooted-exact-native-elided={} direct-exact-native-elided={} active-compiled={} cross-target-elided={} cross-target-compiled={} rooted-target-elided={} rooted-target-compiled={} source-files={} source-bytes={} scan-micros={}",
+            active.len() + rooted_elided_count + direct_elided_count,
             rooted_elided_count,
-            legacy_elided_count,
+            direct_elided_count,
             active.len(),
             cross_target_elided_count,
             cross_target.len(),
@@ -1506,14 +1506,14 @@ fn discovered_exact_native_coverage_is_consistent() {
         .iter()
         .filter(|canary| coverage.unique_rooted_owner(canary).is_some())
         .count();
-    let legacy_active = ACTIVE_PASS_CANARIES
+    let direct_active = ACTIVE_PASS_CANARIES
         .iter()
         .copied()
         .filter(|canary| !ROOTED_BACKEND_PASS_CANARIES.contains(canary))
         .collect::<Vec<_>>();
-    let uniquely_legacy = legacy_active
+    let uniquely_direct = direct_active
         .iter()
-        .filter(|canary| coverage.unique_legacy_owner(canary).is_some())
+        .filter(|canary| coverage.unique_direct_owner(canary).is_some())
         .count();
     let uniquely_cross_target = CROSS_TARGET_PASS_CANARIES
         .iter()
@@ -1533,9 +1533,9 @@ fn discovered_exact_native_coverage_is_consistent() {
         "the discovered rooted duplicate-elision cohort must change deliberately after auditing every added or removed owner"
     );
     assert_eq!(
-        uniquely_legacy,
-        exact_native_coverage::EXPECTED_UNIQUE_LEGACY_ACTIVE_COVERAGE,
-        "the discovered legacy duplicate-elision cohort must change deliberately after auditing every added or removed owner"
+        uniquely_direct,
+        exact_native_coverage::EXPECTED_UNIQUE_DIRECT_ACTIVE_COVERAGE,
+        "the discovered direct duplicate-elision cohort must change deliberately after auditing every added or removed owner"
     );
     assert_eq!(
         uniquely_cross_target,
@@ -1561,9 +1561,9 @@ fn discovered_exact_native_coverage_is_consistent() {
             canary
         );
     }
-    for canary in legacy_active
+    for canary in direct_active
         .iter()
-        .filter(|canary| coverage.unique_legacy_owner(canary).is_some())
+        .filter(|canary| coverage.unique_direct_owner(canary).is_some())
     {
         assert!(
             pass_canary(canary).join("main.omg").is_file(),
@@ -1611,11 +1611,11 @@ fn discovered_exact_native_coverage_is_consistent() {
         0
     );
     assert_eq!(
-        coverage.legacy_owner_count("host/runtime_user32_key_state_exit"),
+        coverage.direct_owner_count("host/runtime_user32_key_state_exit"),
         0
     );
     assert_eq!(
-        coverage.legacy_owner_count("traits/boundary_trait_effects_host_call"),
+        coverage.direct_owner_count("traits/boundary_trait_effects_host_call"),
         0
     );
     let cross_target_positive = coverage
@@ -1648,14 +1648,14 @@ fn discovered_exact_native_coverage_is_consistent() {
         "known rooted-target control without a dedicated exact owner must remain in the umbrella"
     );
     eprintln!(
-        "exact-native coverage index: files={} bytes={} test-bodies={} qualifying-tests={} qualifying-target-compiles={} unique-rooted-active={} unique-legacy-active={} unique-cross-target={} unique-rooted-target={} scan-micros={}",
+        "exact-native coverage index: files={} bytes={} test-bodies={} qualifying-tests={} qualifying-target-compiles={} unique-rooted-active={} unique-direct-active={} unique-cross-target={} unique-rooted-target={} scan-micros={}",
         coverage.source_file_count(),
         coverage.source_byte_count(),
         coverage.test_body_count(),
         coverage.qualifying_test_count(),
         coverage.qualifying_target_compile_count(),
         uniquely_rooted,
-        uniquely_legacy,
+        uniquely_direct,
         uniquely_cross_target,
         uniquely_rooted_target,
         elapsed.as_micros(),
@@ -1676,11 +1676,11 @@ fn efi_freestanding_skeleton_emits_importless_subsystem_10_pe() {
     let build_dir = std::env::temp_dir().join(format!("omega-efi-skeleton-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("uefi_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("EFI freestanding skeleton should compile");
 
@@ -1726,11 +1726,11 @@ fn efi_entry_arguments_prologue_unmarshals_rcx_rdx() {
     let build_dir = std::env::temp_dir().join(format!("omega-efi-args-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("uefi_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("EFI entry-arguments canary should compile");
 
@@ -1793,11 +1793,11 @@ fn efi_float_entry_argument_unmarshals_xmm0() {
         std::env::temp_dir().join(format!("omega-efi-float-arg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("uefi_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("EFI float entry-argument canary should compile");
 
@@ -1839,11 +1839,11 @@ fn efi_float_entry_result_round_trips_through_xmm0() {
         std::env::temp_dir().join(format!("omega-efi-float-result-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("uefi_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("EFI float arithmetic entry-result canary should compile");
 
@@ -1883,11 +1883,11 @@ fn float_literal_entry_result_uses_native_vector_registers() {
         )
         .expect("write target manifest");
 
-        compile(CompileOptions {
+        compile(CanaryCompileSpec {
             root_path: src_dir.join("main.omg"),
             build_dir: Some(out_dir.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .expect("float-literal entry result should cross-compile");
 
@@ -1942,11 +1942,11 @@ fn scalar_float_entry_result_uses_native_vector_registers_on_linux() {
         )
         .expect("write target manifest");
 
-        compile(CompileOptions {
+        compile(CanaryCompileSpec {
             root_path: src_dir.join("main.omg"),
             build_dir: Some(out_dir.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .expect("scalar-float arithmetic entry result should cross-compile");
 
@@ -1987,11 +1987,11 @@ fn constant_u64_entry_result_uses_the_declared_native_width() {
         std::env::temp_dir().join(format!("omega-efi-u64-result-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("uefi_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("EFI u64 constant result should compile");
     let image = fs::read(build_dir.join("omega-program.exe")).expect("read emitted PE");
@@ -2015,11 +2015,11 @@ fn constant_u64_entry_result_uses_the_declared_native_width() {
     fs::write(src_dir.join("build.omg"), "target linux_arm64 {\n}\n")
         .expect("write target manifest");
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),
         build_dir: Some(out_dir.clone()),
         target_name: Some("linux_arm64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("Linux ARM64 u64 constant result should compile");
     let image = fs::read(out_dir.join("omega-program")).expect("read emitted ELF");
@@ -2039,11 +2039,11 @@ fn efi_small_aggregate_entry_uses_rcx_and_rax() {
         std::env::temp_dir().join(format!("omega-efi-small-record-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("uefi_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("Microsoft x64 direct record entry should compile");
 
@@ -2070,11 +2070,11 @@ fn efi_large_result_entry_saves_rcx_shifts_argument_and_returns_pointer() {
         std::env::temp_dir().join(format!("omega-efi-large-result-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("uefi_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("Microsoft x64 indirect-result entry should compile");
 
@@ -2103,11 +2103,11 @@ fn efi_large_aggregate_entry_copies_from_rdx_pointer() {
         std::env::temp_dir().join(format!("omega-efi-large-arg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("uefi_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("Microsoft x64 register-indirect entry record should compile");
 
@@ -2140,11 +2140,11 @@ fn efi_large_aggregate_stack_entry_loads_pointer_after_shadow_space() {
         std::env::temp_dir().join(format!("omega-efi-large-stack-arg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("uefi_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("Microsoft x64 stack-indirect entry record should compile");
 
@@ -2165,11 +2165,11 @@ fn efi_fifth_entry_argument_unmarshals_from_the_ms_x64_stack_area() {
         std::env::temp_dir().join(format!("omega-efi-stack-arg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("uefi_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("EFI stack entry-argument canary should compile");
 
@@ -2232,11 +2232,11 @@ fn entry_run_args_bytes_canary_runs() {
     let canary = pass_canary("targets/entry_run_args_bytes");
     let build_dir = std::env::temp_dir().join(format!("omega-run-args-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    let compilation = compile_with_auxiliary_artifacts(CompileOptions {
+    let compilation = compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("entry run-args canary should compile");
     let footprint_artifact = fs::read_to_string(build_dir.join("08_boundary_footprints.json"))
@@ -2353,11 +2353,11 @@ fn runtime_wire_policy_authored_nested_exit_canary_runs() {
             hosted_main_program_entry_build(target),
         )
         .expect("write wire-policy cross-target manifest");
-        compile(CompileOptions {
+        compile(CanaryCompileSpec {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(cross_build_dir),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!("nested wire policy should cross-compile for {target}: {diagnostics:?}")
@@ -2377,11 +2377,11 @@ fn efi_struct_handoff_prologue_spreads_registers() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-struct-handoff-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("struct-handoff canary should compile");
     let bytes = fs::read(build_dir.join("omega-program.exe")).expect("read emitted PE");
@@ -2434,11 +2434,11 @@ fn efi_vtable_call_emits_indirect_dispatch() {
     let canary = pass_canary("targets/efi_vtable_call");
     let build_dir = std::env::temp_dir().join(format!("omega-vtable-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_with_auxiliary_artifacts(CompileOptions {
+    compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("vtable-call canary should compile");
     let bytes = fs::read(build_dir.join("omega-program.exe")).expect("read emitted PE");
@@ -2471,11 +2471,11 @@ fn efi_ref_param_direct_faces_deref_not_flat() {
     let canary = pass_canary("targets/efi_ref_param_direct_faces");
     let build_dir = std::env::temp_dir().join(format!("omega-refparam-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_with_auxiliary_artifacts(CompileOptions {
+    compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("ref-param direct-faces canary should compile");
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
@@ -2508,11 +2508,11 @@ fn efi_ref_param_call_arg_derefs_and_dispatches() {
     let canary = pass_canary("targets/efi_ref_param_call_arg");
     let build_dir = std::env::temp_dir().join(format!("omega-refarg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_with_auxiliary_artifacts(CompileOptions {
+    compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("uefi_x64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("ref-param call-arg canary should compile");
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))

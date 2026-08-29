@@ -445,7 +445,7 @@ impl CompileReport {
     ///
     /// Compilation ends before this operation. Path selection and filesystem
     /// mutation are an explicit product operation, never another compiler
-    /// route selected by `CompileOptions`.
+    /// request route.
     pub fn publish_retained_native_artifact(
         self,
         build_dir: &std::path::Path,
@@ -709,7 +709,7 @@ impl CompileReport {
 
     pub fn summary(&self) -> String {
         format!(
-            "compiled {} source file(s) from {}; write_output={}",
+            "compiled {} source file(s) from {}; wrote_output={}",
             self.source_file_count,
             self.root_path.display(),
             self.wrote_output

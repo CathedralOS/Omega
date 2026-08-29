@@ -1482,11 +1482,11 @@ fn runtime_entry_unary_result_exit_canary_runs() {
         hosted_main_program_entry_build("linux_arm64"),
     )
     .expect("write target manifest");
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),
         build_dir: Some(out_dir.clone()),
         target_name: Some("linux_arm64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("runtime unary entry return should cross-compile for AArch64");
     fs::read(out_dir.join("omega-program")).expect("read emitted AArch64 ELF");
@@ -1522,11 +1522,11 @@ fn runtime_entry_cast_result_exit_canary_runs() {
         hosted_main_program_entry_build("linux_arm64"),
     )
     .expect("write target manifest");
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),
         build_dir: Some(out_dir.clone()),
         target_name: Some("linux_arm64".into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("runtime cast entry return should cross-compile for AArch64");
     fs::read(out_dir.join("omega-program")).expect("read emitted AArch64 ELF");
@@ -1563,11 +1563,11 @@ fn runtime_entry_scalar_operation_results_exit_canaries_run() {
         let canary = pass_canary(&format!("control_flow/{name}"));
         let build_dir = std::env::temp_dir().join(format!("omega-{name}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&build_dir);
-        let compilation = compile(CompileOptions {
+        let compilation = compile(CanaryCompileSpec {
             root_path: canary.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: None,
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .expect("scalar-operation entry return canary should compile");
         let executable = compilation.checked_native_executable_path().unwrap_or_else(|| {

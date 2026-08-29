@@ -13,23 +13,14 @@ use std::process::Command;
 fn compile(
     options: CompileOptions,
 ) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
-    let publish = options.write_output;
     let build_dir = options.build_dir();
-    let product = if publish {
-        omega_compiler::RequestedCompileProduct::NativeArtifact
-    } else {
-        omega_compiler::RequestedCompileProduct::Check
-    };
     let report = omega_compiler::compile(
-        omega_compiler::CompileRequest::new(options).with_requested_product(product),
+        omega_compiler::CompileRequest::new(options)
+            .with_requested_product(omega_compiler::RequestedCompileProduct::NativeArtifact),
     )?;
-    if publish {
-        report
-            .publish_retained_native_artifact(&build_dir)
-            .map_err(|error| vec![psi_diagnostics::Diagnostic::error(error)])
-    } else {
-        Ok(report)
-    }
+    report
+        .publish_retained_native_artifact(&build_dir)
+        .map_err(|error| vec![psi_diagnostics::Diagnostic::error(error)])
 }
 
 fn repo_root() -> PathBuf {
@@ -50,7 +41,6 @@ fn compile_and_run(canary_rel: &str, tag: &str) -> std::process::Output {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some(profile.target_name().to_owned()),
-        write_output: true,
     })
     .unwrap_or_else(|diagnostics| panic!("{canary_rel} should compile:\n{diagnostics:#?}"));
 

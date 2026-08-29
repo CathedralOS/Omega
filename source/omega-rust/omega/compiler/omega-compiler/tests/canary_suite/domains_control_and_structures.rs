@@ -2607,11 +2607,11 @@ fn runtime_tick_paced_marquee_exit_canary_runs() {
     let canary = pass_canary("host/runtime_tick_paced_marquee_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-marquee-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("tick marquee canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
@@ -3551,11 +3551,11 @@ fn trapping_float_to_int_cast_traps_aborts() {
     let build_dir = std::env::temp_dir().join(format!("omega-trap-f2i-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("trapping float->int cast canary should compile");
 
@@ -3602,11 +3602,11 @@ fn trapping_float_to_narrow_int_cast_traps_aborts() {
     let canary = pass_canary("arithmetic/trapping_float_to_narrow_int_cast_traps");
     let build_dir = std::env::temp_dir().join(format!("omega-trap-f2i-u8-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("narrow Trapping float->int canary should compile");
     let output = Command::new(build_dir.join(executable_name()))

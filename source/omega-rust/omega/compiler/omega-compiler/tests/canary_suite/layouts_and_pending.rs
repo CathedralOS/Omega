@@ -141,11 +141,11 @@ fn distinct_closed_erased_generic_sums_run_with_exact_identities() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    let compilation = compile(CompileOptions {
+    let compilation = compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("distinct closed erased sums should compile natively");
     let executable = compilation
@@ -180,11 +180,11 @@ fn mixed_closed_generic_erasure_runs_with_common_and_payload_fields() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    let compilation = compile(CompileOptions {
+    let compilation = compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("mixed closed erased sum should compile natively");
     let executable = compilation
@@ -209,11 +209,11 @@ fn generic_erased_literals_use_exact_call_and_return_contexts() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    let compilation = compile(CompileOptions {
+    let compilation = compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("exact call/return contexts should compile natively");
     let executable = compilation
@@ -280,11 +280,11 @@ fn wire_erased_field_is_semantic_but_not_encoded() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-wire-erased-field-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    let compilation = compile(CompileOptions {
+    let compilation = compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("wire erased field should compile natively");
     let executable = compilation
@@ -311,11 +311,11 @@ fn nested_wire_erased_field_is_not_encoded() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    let compilation = compile(CompileOptions {
+    let compilation = compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("nested erased wire field should compile natively");
     let executable = compilation
@@ -514,11 +514,11 @@ fn plan_laid_integer_at_unproved_write_stays_rejected() {
     let main_path = temp_dir.join("main.omg");
     fs::write(&main_path, source).expect("write unproved IntegerAt source");
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(temp_dir.join("build")),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect_err("an unconstrained value must not narrow into IntegerAt storage");
     let _ = fs::remove_dir_all(&temp_dir);
@@ -541,11 +541,11 @@ fn plan_laid_integer_at_unproved_mutable_recast_write_stays_rejected() {
     let main_path = temp_dir.join("main.omg");
     fs::write(&main_path, source).expect("write unproved IntegerAt recast source");
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(temp_dir.join("build")),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect_err("an unconstrained value must not narrow through an IntegerAt mutable recast");
     let _ = fs::remove_dir_all(&temp_dir);

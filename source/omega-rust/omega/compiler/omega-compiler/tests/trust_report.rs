@@ -7,10 +7,6 @@ use omega_compiler::{CompileOptions, compile_to_checked};
 fn compile(
     options: CompileOptions,
 ) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
-    assert!(
-        !options.write_output,
-        "trust-report fixtures are entry-agnostic semantic checks"
-    );
     let report = omega_compiler::compile(omega_compiler::CompileRequest::new(options))?;
     assert!(!report.wrote_output());
     Ok(report)
@@ -39,7 +35,6 @@ machine Main::exercise(&mut self) {
         root_path: project.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: false,
     })
     .expect("domain program should compile");
 
@@ -78,7 +73,6 @@ machine Main::exercise(&mut self) {
         root_path: project.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: false,
     })
     .expect("plain program should compile");
 
@@ -143,7 +137,6 @@ machine Main::exercise(&mut self) {}
         root_path: project.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: false,
     })
     .expect("claim-free boundary symbol program should compile");
 
@@ -202,7 +195,6 @@ machine Main::exercise(&mut self) {
         root_path: project.join("main.omg"),
         build_dir: Some(project.join("build")),
         target_name: None,
-        write_output: false,
     })
     .expect_err("a claim-free symbol has no executable provider");
     let rendered = diagnostics
@@ -251,7 +243,6 @@ machine Main::exercise(&mut self) {
         root_path: project.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: false,
     })
     .expect_err("domain and unmatched string grants must reject");
     let rendered = diagnostics
@@ -300,7 +291,6 @@ machine Main::exercise(&mut self) {}
         root_path: project.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: false,
     };
 
     std::fs::write(project.join("build.omg"), build_with("claim")).expect("write ambiguous grant");
@@ -381,7 +371,6 @@ machine Main::exercise(&mut self) {{
         root_path: project.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: false,
     };
     compile(options()).expect("granted project should compile");
 
@@ -441,7 +430,6 @@ machine Main::exercise(&mut self) {}
         root_path: project.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: false,
     };
     let lock_path = project.join("omega.lock");
 
@@ -524,7 +512,6 @@ machine Main::exercise(&mut self) {}
         root_path: project.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: false,
     };
     let lock_path = project.join("omega.lock");
     compile(options()).expect("write canonical lock");
@@ -606,7 +593,6 @@ machine Main::exercise(&mut self) {{
         root_path: project.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: false,
     };
     compile(options()).expect("granted axiom project should compile");
     let lock = std::fs::read_to_string(project.join("omega.lock")).expect("lock written");
@@ -667,7 +653,6 @@ machine Main::exercise(&mut self) {{
         root_path: project.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: false,
     };
     compile(options()).expect("granted axiom project should compile");
     let lock = std::fs::read_to_string(project.join("omega.lock")).expect("lock written");
@@ -748,7 +733,6 @@ machine Main::exercise(&mut self) {{
         root_path: project.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: false,
     };
     compile(options()).expect("granted generic axiom project should compile");
     let lock = std::fs::read_to_string(project.join("omega.lock")).expect("lock written");
@@ -905,7 +889,6 @@ machine Main::exercise(&mut self) {{
         root_path: project.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: false,
     };
     compile(options()).expect("granted plan project should compile");
     let lock = std::fs::read_to_string(project.join("omega.lock")).expect("lock written");
@@ -954,7 +937,6 @@ machine Main::exercise(&mut self) {
         root_path: project.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: false,
     })
     .expect("external-leaf project should compile");
 
@@ -1070,7 +1052,6 @@ machine Main::exercise(&mut self) {}
         root_path: project.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: false,
     })
     .expect("calling-policy provider should compile");
     let report = std::fs::read_to_string(build_dir.join("trust_report.md"))
@@ -1132,7 +1113,6 @@ machine Main::exercise(&mut self) {}
         root_path: project.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: false,
     })
     .expect("operational provider schema should compile");
 
@@ -1208,7 +1188,6 @@ machine Main::exercise(&mut self) {}
         root_path: project.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: false,
     })
     .expect("progress-premised provider requirement should compile");
 
@@ -1280,7 +1259,6 @@ machine Main::exercise(&mut self) {}
         root_path: project.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: false,
     })
     .expect("routed provider plans should compile");
 
@@ -1403,7 +1381,6 @@ machine Main::exercise(&mut self) {}
         root_path: project.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: false,
     })
     .expect("root-granted routed provider plan should compile");
 
@@ -1453,7 +1430,6 @@ machine Main::exercise(&mut self) {
         root_path: project.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: false,
     })
     .expect("satisfies-leaf project should compile");
 
@@ -1515,7 +1491,6 @@ machine Main::exercise(&mut self) {}
         root_path: project.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: false,
     })
     .expect("partial routed provider candidate should compile");
 
@@ -1587,7 +1562,6 @@ machine Main::exercise(&mut self) {
         root_path: project.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: false,
     })
     .expect("separate partial provider candidates should compile");
 
@@ -1651,7 +1625,6 @@ machine Main::exercise(&mut self) {}
         root_path: project.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: false,
     })
     .expect("explicitly selected granted provider should compile");
 
@@ -1724,7 +1697,6 @@ machine Main::exercise(&mut self) {}
             root_path: project.join("main.omg"),
             build_dir: Some(build_dir),
             target_name: None,
-            write_output: false,
         })
         .expect_err("changing the selected provider must drift the slot receipt")
     );

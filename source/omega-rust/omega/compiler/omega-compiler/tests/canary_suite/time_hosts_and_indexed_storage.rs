@@ -129,11 +129,11 @@ fn integer_result_imports_compile_on_windows_and_darwin() {
             hosted_main_program_entry_build(target),
         )
         .expect("write integer-result import target manifest");
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!("integer-result import cross-compile failed for {target}: {diagnostics:#?}")
@@ -172,11 +172,11 @@ fn storage_result_imports_compile_on_windows_and_darwin() {
             hosted_main_program_entry_build(target),
         )
         .expect("write storage-result import target manifest");
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!("storage-result import cross-compile failed for {target}: {diagnostics:#?}")
@@ -250,11 +250,11 @@ fn dereferenced_result_imports_compile_on_windows_and_darwin() {
             hosted_main_program_entry_build(target),
         )
         .expect("write dereferenced-result import target manifest");
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!("dereferenced-result import cross-compile failed for {target}: {diagnostics:#?}")
@@ -299,11 +299,11 @@ fn authored_scalar_imports_compile_on_windows_and_darwin() {
             hosted_main_program_entry_build(target),
         )
         .expect("write authored scalar import target manifest");
-        compile_with_auxiliary_artifacts(CompileOptions {
+        compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: source_dir.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!("authored scalar import cross-compile failed for {target}: {diagnostics:#?}")

@@ -346,11 +346,11 @@ fn efi_vtable_field_call_emits_indirect_dispatch() {
     let canary = pass_canary("targets/efi_vtable_field_call");
     let build_dir = std::env::temp_dir().join(format!("omega-vtable-field-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("uefi_x64".to_owned()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("vtable field-model canary should cross-compile for uefi_x64");
     let bytes = fs::read(build_dir.join("omega-program.exe")).expect("read emitted PE");
@@ -373,11 +373,11 @@ fn sysv_vtable_field_call_emits_indirect_dispatch() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-sysv-vtable-field-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_x64".to_owned()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("vtable field-model canary should cross-compile for linux_x64");
     let bytes = fs::read(build_dir.join("omega-program")).expect("read emitted ELF image");
@@ -460,11 +460,11 @@ fn efi_two_table_function_leaves_cross_compile() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-two-table-leaves-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_with_auxiliary_artifacts(CompileOptions {
+    compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("uefi_x64".to_owned()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("two attached table-function leaves should cross-compile for uefi_x64");
     let report = fs::read_to_string(build_dir.join("backend_report.txt"))
@@ -489,11 +489,11 @@ fn efi_out_param_call_marshals_addresses_and_stack_args() {
     let canary = pass_canary("targets/efi_out_param_call");
     let build_dir = std::env::temp_dir().join(format!("omega-out-param-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile_with_auxiliary_artifacts(CompileOptions {
+    compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("uefi_x64".to_owned()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("out-param canary should cross-compile for uefi_x64");
     let bytes = fs::read(build_dir.join("omega-program.exe")).expect("read emitted PE");
@@ -543,11 +543,11 @@ fn cross_console_byte_targets_emit_x86_64_flavors() {
 
     let build_dir = std::env::temp_dir().join(format!("omega-bytes-win-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: main_path.clone(),
         build_dir: Some(build_dir.clone()),
         target_name: Some("windows_x64".to_owned()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("byte-op canary should cross-compile for windows_x64");
     let pe = fs::read(build_dir.join("omega-program.exe")).expect("read emitted PE");
@@ -576,11 +576,11 @@ fn cross_console_byte_targets_emit_x86_64_flavors() {
         let build_dir =
             std::env::temp_dir().join(format!("omega-bytes-{target}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&build_dir);
-        compile(CompileOptions {
+        compile(CanaryCompileSpec {
             root_path: main_path.clone(),
             build_dir: Some(build_dir.clone()),
             target_name: Some(target.to_owned()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         })
         .unwrap_or_else(|diagnostics| {
             panic!("byte-op canary should cross-compile for {target}: {diagnostics:#?}")
@@ -590,11 +590,11 @@ fn cross_console_byte_targets_emit_x86_64_flavors() {
 
     let build_dir = std::env::temp_dir().join(format!("omega-bytes-linux-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: Some("linux_x64".to_owned()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("byte-op canary should cross-compile for linux_x64");
     let elf = fs::read(build_dir.join("omega-program")).expect("read emitted ELF");

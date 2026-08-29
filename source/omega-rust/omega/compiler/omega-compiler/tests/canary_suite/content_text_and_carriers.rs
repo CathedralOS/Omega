@@ -130,11 +130,11 @@ fn authorized_route_establishment_canaries() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-bodyless-owner-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    production_compile(CompileOptions {
+    production_compile(CanaryCompileSpec {
         root_path: pass.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: false,
+        product: CanaryCompileProduct::Check,
     })
     .expect("a carrier-owner checked machine should establish its bodyless result");
     let evidence = fs::read_to_string(build_dir.join("05_qualification_evidence.json"))
@@ -247,11 +247,11 @@ fn extent_root_provider_adapter_compiles() {
 
     let build_dir = std::env::temp_dir().join(format!("omega-extent-root-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    production_compile(CompileOptions {
+    production_compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: false,
+        product: CanaryCompileProduct::Check,
     })
     .expect(
         "a checked adapter selected through the owner-authored Extent provider \
@@ -343,11 +343,11 @@ fn content_conservation_contract_is_normalized_and_reported() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-content-conservation-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    production_compile(CompileOptions {
+    production_compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: false,
+        product: CanaryCompileProduct::Check,
     })
     .expect("the normalized conservation contract should emit its proof/debug artifact");
     let outcomes = fs::read_to_string(build_dir.join("05_claim_outcomes.json"))
@@ -366,11 +366,11 @@ fn carry_permission_provider_adapter_compiles_with_exact_artifacts() {
     let canary = pass_canary("core/carry_permission_provider_adapter");
     let build_dir = std::env::temp_dir().join(format!("omega-carry-claim-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    production_compile(CompileOptions {
+    production_compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: false,
+        product: CanaryCompileProduct::Check,
     })
     .expect(
         "the selected owner-authorized requirement should admit its exact carry \
@@ -434,11 +434,11 @@ fn boundary_qualification_evidence_names_exact_requirement() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    production_compile(CompileOptions {
+    production_compile(CanaryCompileSpec {
         root_path: pass.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: false,
+        product: CanaryCompileProduct::Check,
     })
     .expect("an exact boundary-result qualification should compile");
 

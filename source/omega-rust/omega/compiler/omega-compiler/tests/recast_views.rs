@@ -44,7 +44,6 @@ fn compile_and_run(canary_rel: &str, tag: &str) -> std::process::Output {
             root_path: canary.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: Some(profile.target_name().to_owned()),
-            write_output: true,
         })
         .with_requested_product(omega_compiler::RequestedCompileProduct::NativeArtifact),
     )
@@ -95,7 +94,6 @@ fn compile_for_cross_targets(canary_rel: &str, tag: &str) {
                 root_path: source_dir.join("main.omg"),
                 build_dir: Some(build_dir),
                 target_name: Some(target.to_owned()),
-                write_output: false,
             })
             .with_requested_product(omega_compiler::RequestedCompileProduct::NativeArtifact),
         )

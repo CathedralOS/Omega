@@ -24,11 +24,11 @@ fn cross_aarch64_authored_scalar_float_preserves_vector_class() {
     )
     .expect("write macos_arm64 target manifest");
 
-    compile_with_auxiliary_artifacts(CompileOptions {
+    compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),
         build_dir: Some(out_dir.clone()),
         target_name: Some("macos_arm64".to_owned()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("authored scalar-float import should compile for macos_arm64");
 
@@ -70,11 +70,11 @@ fn cross_aarch64_small_aggregate_import_uses_consecutive_x_registers() {
     )
     .expect("write macos_arm64 target manifest");
 
-    compile_with_auxiliary_artifacts(CompileOptions {
+    compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),
         build_dir: Some(out_dir.clone()),
         target_name: Some("macos_arm64".to_owned()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("by-value small aggregate import should compile for macos_arm64");
 
@@ -107,11 +107,11 @@ fn cross_sysv_small_aggregate_import_reaches_elf_dynamic_binding_blocker() {
     ));
     let _ = fs::remove_dir_all(&scratch);
 
-    let diagnostics = production_compile(CompileOptions {
+    let diagnostics = production_compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(scratch.clone()),
         target_name: Some("linux_x64".to_owned()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect_err("ELF direct images do not have dynamic import binding yet");
     assert!(
@@ -143,11 +143,11 @@ fn cross_aarch64_small_aggregate_import_falls_wholly_to_stack() {
     )
     .expect("write macos_arm64 target manifest");
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),
         build_dir: Some(out_dir.clone()),
         target_name: Some("macos_arm64".to_owned()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("register-exhausted small aggregate import should compile for macos_arm64");
 
@@ -183,11 +183,11 @@ fn cross_aarch64_hfa_stack_import_copies_the_aggregate() {
     )
     .expect("write macos_arm64 target manifest");
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),
         build_dir: Some(out_dir.clone()),
         target_name: Some("macos_arm64".to_owned()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("stack-resident HFA import should compile for macos_arm64");
 
@@ -223,11 +223,11 @@ fn cross_aarch64_hfa_result_import_spills_fragmented_result() {
     )
     .expect("write macos_arm64 target manifest");
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),
         build_dir: Some(out_dir.clone()),
         target_name: Some("macos_arm64".to_owned()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("HFA-returning import should compile for macos_arm64");
 
@@ -261,11 +261,11 @@ fn cross_aarch64_erased_hfa_result_keeps_two_vector_fragments() {
     )
     .expect("write macos_arm64 target manifest");
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),
         build_dir: Some(out_dir.clone()),
         target_name: Some("macos_arm64".to_owned()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("erased-stripped HFA result should compile for macos_arm64");
 
@@ -299,11 +299,11 @@ fn cross_aarch64_small_aggregate_result_import_spills_fragmented_result() {
     )
     .expect("write macos_arm64 target manifest");
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),
         build_dir: Some(out_dir.clone()),
         target_name: Some("macos_arm64".to_owned()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("small-aggregate-returning import should compile for macos_arm64");
 
@@ -338,11 +338,11 @@ fn cross_aarch64_large_aggregate_import_uses_indirect_places() {
     )
     .expect("write macos_arm64 target manifest");
 
-    compile_with_auxiliary_artifacts(CompileOptions {
+    compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: src_dir.join("main.omg"),
         build_dir: Some(out_dir.clone()),
         target_name: Some("macos_arm64".to_owned()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("large aggregate import should compile for macos_arm64");
 
@@ -377,11 +377,11 @@ fn cross_win64_large_aggregate_import_uses_an_aligned_caller_copy() {
     ));
     let _ = fs::remove_dir_all(&scratch);
 
-    compile_with_auxiliary_artifacts(CompileOptions {
+    compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(scratch.clone()),
         target_name: Some("windows_x64".to_owned()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("by-reference aggregate import should compile for windows_x64");
 
@@ -431,11 +431,11 @@ fn cross_win64_direct_aggregate_import_loads_the_record_by_value() {
     ));
     let _ = fs::remove_dir_all(&scratch);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(scratch.clone()),
         target_name: Some("windows_x64".to_owned()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("direct aggregate import should compile for windows_x64");
 
@@ -464,11 +464,11 @@ fn cross_win64_direct_aggregate_result_spills_rax_by_value() {
     ));
     let _ = fs::remove_dir_all(&scratch);
 
-    compile_with_auxiliary_artifacts(CompileOptions {
+    compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(scratch.clone()),
         target_name: Some("windows_x64".to_owned()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("direct aggregate result import should compile for windows_x64");
 
@@ -497,11 +497,11 @@ fn cross_win64_large_aggregate_result_uses_hidden_rcx_destination() {
     ));
     let _ = fs::remove_dir_all(&scratch);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(scratch.clone()),
         target_name: Some("windows_x64".to_owned()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("indirect aggregate result import should compile for windows_x64");
 
@@ -525,11 +525,11 @@ fn cross_win64_scalar_float_import_uses_positional_xmm_and_stack_locations() {
         std::env::temp_dir().join(format!("omega-win64-scalar-float-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
 
-    compile_with_auxiliary_artifacts(CompileOptions {
+    compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(scratch.clone()),
         target_name: Some("windows_x64".to_owned()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("scalar-float import should compile for windows_x64");
 
@@ -884,11 +884,11 @@ fn value_machine_self_array_local_index_exit_canary_runs() {
         std::env::temp_dir().join(format!("omega-value-machine-index-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    let compilation = compile(CompileOptions {
+    let compilation = compile(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("value-machine self-array index canary should compile");
 
@@ -937,11 +937,11 @@ fn value_machine_const_index_self_array_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    let compilation = compile(CompileOptions {
+    let compilation = compile(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("value-machine const-index canary should compile");
 
@@ -1888,11 +1888,11 @@ fn value_call_entry_host_state_payload_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    let compilation = compile(CompileOptions {
+    let compilation = compile(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("entry-host-state payload canary should compile");
 
@@ -1940,11 +1940,11 @@ fn contained_health_loop_command_branch_carrier_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    let compilation = compile(CompileOptions {
+    let compilation = compile(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("carrier health-loop canary should compile");
 
@@ -2875,11 +2875,11 @@ fn bounded_carrier_regressions_compile_on_aarch64() {
             application_target_build("linux_arm64"),
         )
         .expect("write AArch64 carrier target manifest");
-        compile(CompileOptions {
+        compile(CanaryCompileSpec {
             root_path: source.join("main.omg"),
             build_dir: Some(scratch.join("out")),
             target_name: Some("linux_arm64".into()),
-            write_output: false,
+            product: CanaryCompileProduct::Check,
         })
         .unwrap_or_else(|diagnostics| {
             panic!(
@@ -3314,11 +3314,11 @@ fn runtime_threaded_mut_arg_interrupt_soak_exit_canary_runs() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    let compilation = compile(CompileOptions {
+    let compilation = compile(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("threaded mut-arg interrupt soak canary should compile");
 
@@ -3471,11 +3471,11 @@ fn native_dungeon_crawler_runs_stable_scripted_loop() {
         std::env::temp_dir().join(format!("omega-native-dungeon-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("native dungeon crawler should compile to a runnable executable");
 
@@ -3556,11 +3556,11 @@ fn native_dungeon_direct_movement_dispatch_runs() {
     let _ = fs::remove_dir_all(&package_dir);
     copy_dir_recursive(&source, &package_dir).expect("sample package should copy into temp repro");
 
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: package_dir.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("patched dungeon direct-dispatch repro should compile");
 

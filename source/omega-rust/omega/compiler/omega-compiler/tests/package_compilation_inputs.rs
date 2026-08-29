@@ -1275,7 +1275,6 @@ machine misuse(resource: &mut Resource) {
                 root_path: root.join("main.omg"),
                 build_dir: Some(tree.0.join("native-build")),
                 target_name: Some(target_name.to_owned()),
-                write_output: false,
             })
             .with_package_inputs(inputs),
         )
@@ -3361,7 +3360,6 @@ invokes FilesystemHost;
                 root_path: root.join("main.omg"),
                 build_dir: Some(native_build.clone()),
                 target_name: Some(target_name.to_owned()),
-                write_output: false,
             })
             .with_package_inputs(inputs),
         )
@@ -3675,7 +3673,6 @@ machine build(builder: &mut Build) {
             root_path: root.join("main.omg"),
             build_dir: Some(tree.0.join("build-output")),
             target_name: Some(target_name.to_owned()),
-            write_output: false,
         })
         .with_package_inputs(inputs),
     )

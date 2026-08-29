@@ -71,26 +71,23 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-fn compile_program(
+fn compile_check(
     options: CompileOptions,
 ) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
-    let publish = options.write_output;
+    omega_compiler::compile(omega_compiler::CompileRequest::new(options))
+}
+
+fn compile_native_and_publish(
+    options: CompileOptions,
+) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
     let build_dir = options.build_dir();
-    let product = if publish {
-        omega_compiler::RequestedCompileProduct::NativeArtifact
-    } else {
-        omega_compiler::RequestedCompileProduct::Check
-    };
     let report = omega_compiler::compile(
-        omega_compiler::CompileRequest::new(options).with_requested_product(product),
+        omega_compiler::CompileRequest::new(options)
+            .with_requested_product(omega_compiler::RequestedCompileProduct::NativeArtifact),
     )?;
-    if publish {
-        report
-            .publish_retained_native_artifact(&build_dir)
-            .map_err(|error| vec![psi_diagnostics::Diagnostic::error(error)])
-    } else {
-        Ok(report)
-    }
+    report
+        .publish_retained_native_artifact(&build_dir)
+        .map_err(|error| vec![psi_diagnostics::Diagnostic::error(error)])
 }
 
 const HOSTED_SAMPLE_TARGETS: &[&str] = &["windows_x64", "linux_x64", "linux_arm64", "macos_arm64"];
@@ -444,11 +441,10 @@ fn assert_authored_entry_samples(
                 std::process::id()
             ));
             let _ = fs::remove_dir_all(&build_dir);
-            if let Err(diagnostics) = compile_program(CompileOptions {
+            if let Err(diagnostics) = compile_check(CompileOptions {
                 root_path: main_path.clone(),
                 build_dir: Some(build_dir.clone()),
                 target_name: Some((*target).to_owned()),
-                write_output: false,
             }) {
                 failures.push(format!(
                     "{sample}/{target}: direct authored-entry lowering failed: {diagnostics:#?}"
@@ -530,11 +526,10 @@ fn basics_samples_compile_from_authored_program_entry_bindings() {
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&build_dir);
-        compile_program(CompileOptions {
+        compile_check(CompileOptions {
             root_path: main_path,
             build_dir: Some(build_dir.clone()),
             target_name: Some(host_target_name().to_owned()),
-            write_output: false,
         })
         .unwrap_or_else(|diagnostics| {
             panic!(
@@ -717,11 +712,10 @@ fn proof_samples_compile_from_authored_program_entry_bindings() {
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&build_dir);
-        if let Err(diagnostics) = compile_program(CompileOptions {
+        if let Err(diagnostics) = compile_check(CompileOptions {
             root_path: main_path,
             build_dir: Some(build_dir.clone()),
             target_name: Some(host_target_name().to_owned()),
-            write_output: false,
         }) {
             lowering_failures.push(format!("{sample}: {diagnostics:#?}"));
         }
@@ -885,11 +879,10 @@ fn samples_with_documented_exit_run_correctly() {
             std::env::temp_dir().join(format!("omega-sample-run-{name}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&build_dir);
 
-        match compile_program(CompileOptions {
+        match compile_native_and_publish(CompileOptions {
             root_path: main_path.clone(),
             build_dir: Some(build_dir.clone()),
             target_name: Some(host_target_name().to_owned()),
-            write_output: true,
         }) {
             Err(error) => failures.push(format!("{name}: compile failed: {error:?}")),
             Ok(_) => {

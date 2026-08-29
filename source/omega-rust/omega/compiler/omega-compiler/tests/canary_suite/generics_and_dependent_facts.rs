@@ -658,11 +658,11 @@ fn runtime_gui_window_lifecycle_exit_canary_runs() {
     let canary = pass_canary("host/runtime_gui_window_lifecycle_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-gui-life-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("gui window lifecycle canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
@@ -702,11 +702,11 @@ fn runtime_gui_foreground_window_exit_canary_runs() {
 
     let build_dir = std::env::temp_dir().join(format!("omega-gui-fg-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("gui foreground-window canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
@@ -729,11 +729,11 @@ fn runtime_gui_window_blit_exit_canary_runs() {
     let canary = pass_canary("host/runtime_gui_window_blit_exit");
     let build_dir = std::env::temp_dir().join(format!("omega-gui-wnd-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("gui window blit canary should compile");
     let output = Command::new(build_dir.join(executable_name()))
@@ -1209,11 +1209,11 @@ fn closed_indexed_domain_canaries() {
         std::process::id()
     ));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: pass.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("closed indexed generic conversion should compile natively");
     let output = Command::new(build_dir.join(executable_name()))
@@ -1303,11 +1303,11 @@ fn std_units_package_conversion_and_operator_canaries() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-std-units-package-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
+    compile(CanaryCompileSpec {
         root_path: pass.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("shipped units package should compile natively");
     let output = Command::new(build_dir.join(executable_name()))

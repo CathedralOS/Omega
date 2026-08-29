@@ -42,7 +42,6 @@ pub(super) fn refresh(samples_root: &Path) -> ! {
                         target_name: Some(
                             omega_target::TargetProfile::host().target_name().to_owned(),
                         ),
-                        write_output: true,
                     };
                     let request = CompileRequest::new(options)
                         .with_requested_product(RequestedCompileProduct::NativeArtifact)

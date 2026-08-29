@@ -45,12 +45,11 @@ fn assert_toolchain_build_source_drops(report: &str) {
 fn output_only_checks_suppress_artifacts_without_suppressing_wire_validation() {
     let success_build_dir = unique_no_output_build_dir();
     let success = omega_compiler::compile(
-        CompileRequest::new(CompileOptions {
+        CompileRequest::new(CompilerOptions {
             root_path: pass_canary("dependent/boundary_equality_recast_witness_compile")
                 .join("main.omg"),
             build_dir: Some(success_build_dir.clone()),
             target_name: None,
-            write_output: false,
         })
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
     )
@@ -63,11 +62,10 @@ fn output_only_checks_suppress_artifacts_without_suppressing_wire_validation() {
 
     let failure_build_dir = unique_no_output_build_dir();
     let diagnostics = omega_compiler::compile(
-        CompileRequest::new(CompileOptions {
+        CompileRequest::new(CompilerOptions {
             root_path: fail_canary("wire/wire_compatibility_preservation_unmet").join("main.omg"),
             build_dir: Some(failure_build_dir.clone()),
             target_name: None,
-            write_output: false,
         })
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
     )
@@ -88,11 +86,10 @@ fn output_only_checks_suppress_artifacts_without_suppressing_wire_validation() {
 fn output_only_backend_compile_keeps_primary_image_and_certification() {
     let build_dir = unique_no_output_build_dir();
     let report = omega_compiler::compile(
-        CompileRequest::new(CompileOptions {
+        CompileRequest::new(CompilerOptions {
             root_path: pass_canary("terminal_psi/selected_empty_component").join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: Some("linux_x64".into()),
-            write_output: true,
         })
         .with_requested_product(RequestedCompileProduct::NativeArtifact)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
@@ -124,16 +121,15 @@ fn output_only_backend_compile_keeps_primary_image_and_certification() {
 fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries() {
     let check_dir = unique_no_output_build_dir();
     let report = omega_compiler::compile(
-        CompileRequest::new(CompileOptions {
+        CompileRequest::new(CompilerOptions {
             root_path: pass_canary("build/explicit_program_entry_binding").join("main.omg"),
             build_dir: Some(check_dir.clone()),
             target_name: Some("windows_x64".into()),
-            write_output: true,
         })
         .with_requested_product(omega_compiler::RequestedCompileProduct::Check)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
     )
-    .expect("the typed Check product should override the legacy output seed");
+    .expect("the explicit Check product must stop before native realization");
     assert!(!report.wrote_output());
     assert_eq!(
         report.output_kind(),
@@ -143,11 +139,10 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
 
     let native_dir = unique_no_output_build_dir();
     let native = omega_compiler::compile(
-        CompileRequest::new(CompileOptions {
+        CompileRequest::new(CompilerOptions {
             root_path: pass_canary("terminal_psi/selected_empty_component").join("main.omg"),
             build_dir: Some(native_dir.clone()),
             target_name: Some("linux_x64".into()),
-            write_output: true,
         })
         .with_requested_product(omega_compiler::RequestedCompileProduct::NativeArtifact)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
@@ -181,11 +176,10 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
     );
     let terminal_dir = unique_no_output_build_dir();
     let terminal = omega_compiler::compile(
-        CompileRequest::new(CompileOptions {
+        CompileRequest::new(CompilerOptions {
             root_path: pass_canary("terminal_psi/selected_empty_component").join("main.omg"),
             build_dir: Some(terminal_dir.clone()),
             target_name: Some("linux_x64".into()),
-            write_output: true,
         })
         .with_requested_product(omega_compiler::RequestedCompileProduct::TerminalArtifact)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
@@ -244,11 +238,10 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
         .expect("transferred native artifact custody must still replay");
 
     let unsupported = omega_compiler::compile(
-        CompileRequest::new(CompileOptions {
+        CompileRequest::new(CompilerOptions {
             root_path: pass_canary("build/explicit_program_entry_binding").join("main.omg"),
             build_dir: None,
             target_name: Some("windows_x64".into()),
-            write_output: false,
         })
         .with_requested_product(omega_compiler::RequestedCompileProduct::TerminalArtifact),
     )
@@ -261,11 +254,10 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
 
     let unsupported_native_dir = unique_no_output_build_dir();
     let unsupported_native = omega_compiler::compile(
-        CompileRequest::new(CompileOptions {
+        CompileRequest::new(CompilerOptions {
             root_path: pass_canary("build/explicit_program_entry_binding").join("main.omg"),
             build_dir: Some(unsupported_native_dir.clone()),
             target_name: Some("windows_x64".into()),
-            write_output: false,
         })
         .with_requested_product(omega_compiler::RequestedCompileProduct::NativeArtifact)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
@@ -285,11 +277,11 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
 #[test]
 fn disposable_native_canary_helper_emits_only_the_primary_image() {
     let build_dir = unique_no_output_build_dir();
-    let report = compile(CompileOptions {
+    let report = compile(CanaryCompileSpec {
         root_path: pass_canary("calls/free_standing_machine_helper_compile").join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("disposable native canary should compile through the shared helper");
 
@@ -376,11 +368,11 @@ fn boundary_trait_canary_reports_capability_use() {
     let _ = fs::remove_dir_all(&scratch);
     let checked_dir = scratch.join("checked");
 
-    let checked_compilation = compile_with_auxiliary_artifacts(CompileOptions {
+    let checked_compilation = compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: main_path.clone(),
         build_dir: Some(checked_dir.clone()),
         target_name: None,
-        write_output: false,
+        product: CanaryCompileProduct::Check,
     })
     .expect("boundary trait canary should compile with checked capability artifacts");
     assert!(!checked_compilation.wrote_output());
@@ -402,11 +394,11 @@ fn boundary_trait_canary_reports_capability_use() {
     )
     .expect("write exact macOS AArch64 ProgramEntry binding");
     let lowered_dir = scratch.join("lowered");
-    let lowered_compilation = compile_with_auxiliary_artifacts(CompileOptions {
+    let lowered_compilation = compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: source_dir.join("main.omg"),
         build_dir: Some(lowered_dir.clone()),
         target_name: Some("macos_arm64".into()),
-        write_output: false,
+        product: CanaryCompileProduct::Check,
     })
     .expect("exact-root boundary trait canary should reach lowering reports");
     assert!(!lowered_compilation.wrote_output());
@@ -526,11 +518,11 @@ fn wire_cross_era_type_change_reports_requires_migration_verdict() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    let compilation = compile_with_auxiliary_artifacts(CompileOptions {
+    let compilation = compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: false,
+        product: CanaryCompileProduct::Check,
     })
     .expect("cross-era type change canary should compile with a migration verdict, not an error");
     assert!(!compilation.wrote_output());
@@ -568,11 +560,11 @@ fn wire_compatibility_demand_reports_directional_facts_and_migration_route() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    let compilation = compile_with_auxiliary_artifacts(CompileOptions {
+    let compilation = compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: false,
+        product: CanaryCompileProduct::Check,
     })
     .expect("the declared rolling-channel demand should be satisfied");
     assert!(!compilation.wrote_output());
@@ -952,11 +944,11 @@ fn backend_report_realizes_linear_boundary_entry_from_prologue() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    compile_with_auxiliary_artifacts(CompileOptions {
+    compile_with_auxiliary_artifacts(CanaryCompileSpec {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
     .expect("linear boundary-entry handoff canary should compile");
 
@@ -1292,11 +1284,11 @@ fn capability_manifest_reports_authority_flow_verbs() {
         ));
         let _ = fs::remove_dir_all(&build_dir);
 
-        let compilation = compile_with_auxiliary_artifacts(CompileOptions {
+        let compilation = compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: canary.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: None,
-            write_output: false,
+            product: CanaryCompileProduct::Check,
         })
         .unwrap_or_else(|diagnostics| {
             panic!(
@@ -1370,11 +1362,11 @@ fn capability_flows_retain_exact_direct_and_propagated_sites() {
         ));
         let _ = fs::remove_dir_all(&build_dir);
 
-        let compilation = compile_with_auxiliary_artifacts(CompileOptions {
+        let compilation = compile_with_auxiliary_artifacts(CanaryCompileSpec {
             root_path: canary.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: None,
-            write_output: false,
+            product: CanaryCompileProduct::Check,
         })
         .unwrap_or_else(|diagnostics| {
             panic!(

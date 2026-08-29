@@ -1,65 +1,90 @@
 use omega_compiler::{
-    ArtifactEmissionPolicy, CheckedCompilation, CompileOptions, CompileReport, CompileRequest,
-    RequestedCompileProduct, compile_to_checked,
+    ArtifactEmissionPolicy, CheckedCompilation, CompileOptions as CompilerOptions, CompileReport,
+    CompileRequest, RequestedCompileProduct, compile_to_checked,
 };
+use std::path::PathBuf;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CanaryCompileProduct {
+    Check,
+    NativeArtifactAndPublish,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CanaryCompileSpec {
+    root_path: PathBuf,
+    build_dir: Option<PathBuf>,
+    target_name: Option<String>,
+    product: CanaryCompileProduct,
+}
+
+impl CanaryCompileSpec {
+    fn into_request_parts(self) -> (CompilerOptions, CanaryCompileProduct) {
+        (
+            CompilerOptions {
+                root_path: self.root_path,
+                build_dir: self.build_dir,
+                target_name: self.target_name,
+            },
+            self.product,
+        )
+    }
+}
 
 fn production_compile(
-    options: CompileOptions,
+    spec: CanaryCompileSpec,
 ) -> Result<CompileReport, Vec<psi_diagnostics::Diagnostic>> {
-    let publish = options.write_output;
+    let (options, product) = spec.into_request_parts();
     let build_dir = options.build_dir();
-    let product = if publish {
-        RequestedCompileProduct::NativeArtifact
-    } else {
-        RequestedCompileProduct::Check
+    let requested_product = match product {
+        CanaryCompileProduct::Check => RequestedCompileProduct::Check,
+        CanaryCompileProduct::NativeArtifactAndPublish => RequestedCompileProduct::NativeArtifact,
     };
-    let report =
-        omega_compiler::compile(CompileRequest::new(options).with_requested_product(product))?;
-    if publish {
-        report
+    let report = omega_compiler::compile(
+        CompileRequest::new(options).with_requested_product(requested_product),
+    )?;
+    match product {
+        CanaryCompileProduct::Check => Ok(report),
+        CanaryCompileProduct::NativeArtifactAndPublish => report
             .publish_retained_native_artifact(&build_dir)
-            .map_err(|error| vec![psi_diagnostics::Diagnostic::error(error)])
-    } else {
-        Ok(report)
+            .map_err(|error| vec![psi_diagnostics::Diagnostic::error(error)]),
     }
 }
 
 fn compile_with_artifact_policy(
-    options: CompileOptions,
+    spec: CanaryCompileSpec,
     artifact_policy: ArtifactEmissionPolicy,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
-    let publish = options.write_output;
+    let (options, product) = spec.into_request_parts();
     let build_dir = options.build_dir();
-    let product = if publish {
-        RequestedCompileProduct::NativeArtifact
-    } else {
-        RequestedCompileProduct::Check
+    let requested_product = match product {
+        CanaryCompileProduct::Check => RequestedCompileProduct::Check,
+        CanaryCompileProduct::NativeArtifactAndPublish => RequestedCompileProduct::NativeArtifact,
     };
     let report = omega_compiler::compile(
         CompileRequest::new(options)
-            .with_requested_product(product)
+            .with_requested_product(requested_product)
             .with_artifact_policy(artifact_policy),
     )?;
-    if publish {
-        report
+    match product {
+        CanaryCompileProduct::Check => Ok(report),
+        CanaryCompileProduct::NativeArtifactAndPublish => report
             .publish_retained_native_artifact(&build_dir)
-            .map_err(|error| vec![Diagnostic::error(error)])
-    } else {
-        Ok(report)
+            .map_err(|error| vec![Diagnostic::error(error)]),
     }
 }
 
-fn compile(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>> {
-    compile_with_artifact_policy(options, ArtifactEmissionPolicy::OutputOnly)
+fn compile(spec: CanaryCompileSpec) -> Result<CompileReport, Vec<Diagnostic>> {
+    compile_with_artifact_policy(spec, ArtifactEmissionPolicy::OutputOnly)
 }
 
 /// Compile a canary that explicitly asserts an auxiliary compiler artifact.
 /// Disposable native/runtime canaries must use [`compile`] so their temporary
 /// build directories contain only the certified executable they consume.
 fn compile_with_auxiliary_artifacts(
-    options: CompileOptions,
+    spec: CanaryCompileSpec,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
-    compile_with_artifact_policy(options, ArtifactEmissionPolicy::Full)
+    compile_with_artifact_policy(spec, ArtifactEmissionPolicy::Full)
 }
 
 use psi_checked_interpreter::{InterpretOutcome, interpret_entry};
@@ -74,7 +99,7 @@ use std::fs;
 use std::io::Write;
 #[cfg(windows)]
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 #[cfg(not(windows))]
 use std::process::Command;
 #[cfg(windows)]
@@ -1294,11 +1319,11 @@ fn compile_canary_without_output_for_target(
 ) -> Result<CompileReport, Vec<Diagnostic>> {
     let build_dir = unique_no_output_build_dir();
     let result = compile_with_artifact_policy(
-        CompileOptions {
+        CanaryCompileSpec {
             root_path: canary_dir.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: Some(target.into()),
-            write_output: false,
+            product: CanaryCompileProduct::Check,
         },
         ArtifactEmissionPolicy::OutputOnly,
     );
@@ -1307,8 +1332,8 @@ fn compile_canary_without_output_for_target(
 }
 
 fn compile_canary_without_output(canary_dir: &Path) -> Result<CompileReport, Vec<Diagnostic>> {
-    // `compile` writes pipeline phase artifacts into `build_dir()` even when
-    // `write_output` is false, and a `None` build dir defaults to `<canary>/build`
+    // A checking request writes pipeline phase artifacts into `build_dir()`,
+    // and a `None` build dir defaults to `<canary>/build`
     // -- a path SHARED by every test that compiles the same canary. Under parallel
     // test threads two such compiles race on the artifact files (delete-while-write
     // / file-in-use on Windows), which is exactly the intermittent
@@ -1316,11 +1341,11 @@ fn compile_canary_without_output(canary_dir: &Path) -> Result<CompileReport, Vec
     // full-suite flake. Give every no-output compile its own temp dir instead.
     let build_dir = unique_no_output_build_dir();
     let result = compile_with_artifact_policy(
-        CompileOptions {
+        CanaryCompileSpec {
             root_path: canary_dir.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: None,
-            write_output: false,
+            product: CanaryCompileProduct::Check,
         },
         ArtifactEmissionPolicy::OutputOnly,
     );
@@ -1333,11 +1358,10 @@ fn compile_native_canary_without_output(
 ) -> Result<CompileReport, Vec<Diagnostic>> {
     let build_dir = unique_no_output_build_dir();
     let result = omega_compiler::compile(
-        CompileRequest::new(CompileOptions {
+        CompileRequest::new(CompilerOptions {
             root_path: canary_dir.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: None,
-            write_output: false,
         })
         .with_requested_product(RequestedCompileProduct::NativeArtifact)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
@@ -1358,11 +1382,10 @@ fn compile_rooted_backend_canary_without_output_for_target(
 ) -> Result<CompileReport, Vec<Diagnostic>> {
     let build_dir = unique_no_output_build_dir();
     let result = omega_compiler::compile(
-        CompileRequest::new(CompileOptions {
+        CompileRequest::new(CompilerOptions {
             root_path: canary_dir.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: Some(target.into()),
-            write_output: false,
         })
         .with_requested_product(RequestedCompileProduct::NativeArtifact)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
@@ -1422,11 +1445,11 @@ fn compile_rooted_canary_for_target_with_artifact_policy(
     artifact_policy: ArtifactEmissionPolicy,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
     compile_with_artifact_policy(
-        CompileOptions {
+        CanaryCompileSpec {
             root_path: canary_dir.join("main.omg"),
             build_dir: Some(build_dir),
             target_name: Some(target.into()),
-            write_output: true,
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
         },
         artifact_policy,
     )
@@ -2568,11 +2591,11 @@ fn compile_single_file_hosted_main(
         hosted_main_program_entry_build(target),
     )
     .expect("write exact hosted ProgramEntry binding");
-    production_compile(CompileOptions {
+    production_compile(CanaryCompileSpec {
         root_path: source.join("main.omg"),
         build_dir: Some(scratch.join("out")),
         target_name: Some(target.into()),
-        write_output: true,
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
     })
 }
 

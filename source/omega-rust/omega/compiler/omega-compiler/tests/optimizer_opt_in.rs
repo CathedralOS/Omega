@@ -6,26 +6,23 @@ use omega_package_compilation::{
 };
 use std::fmt::Write as _;
 
-fn compile(
+fn compile_native_and_publish(
     options: CompileOptions,
 ) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
-    let publish = options.write_output;
     let build_dir = options.build_dir();
-    let product = if publish {
-        omega_compiler::RequestedCompileProduct::NativeArtifact
-    } else {
-        omega_compiler::RequestedCompileProduct::Check
-    };
     let report = omega_compiler::compile(
-        omega_compiler::CompileRequest::new(options).with_requested_product(product),
+        omega_compiler::CompileRequest::new(options)
+            .with_requested_product(omega_compiler::RequestedCompileProduct::NativeArtifact),
     )?;
-    if publish {
-        report
-            .publish_retained_native_artifact(&build_dir)
-            .map_err(|error| vec![psi_diagnostics::Diagnostic::error(error)])
-    } else {
-        Ok(report)
-    }
+    report
+        .publish_retained_native_artifact(&build_dir)
+        .map_err(|error| vec![psi_diagnostics::Diagnostic::error(error)])
+}
+
+fn compile_check(
+    options: CompileOptions,
+) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
+    omega_compiler::compile(omega_compiler::CompileRequest::new(options))
 }
 use psi_core::PackageKeyIdentity;
 use std::path::PathBuf;
@@ -273,11 +270,10 @@ machine build(builder: &mut Build) {
         ),
     );
     let build_dir = root.join("build");
-    let diagnostics = compile(CompileOptions {
+    let diagnostics = compile_native_and_publish(CompileOptions {
         root_path: root.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("windows_x64".into()),
-        write_output: true,
     })
     .expect_err("selected optimization must not fall through to legacy O0 lowering");
     assert_eq!(diagnostics.len(), 1);
@@ -312,11 +308,10 @@ machine build(builder: &mut Build) {
         ),
     );
     let build_dir = root.join("build");
-    let diagnostics = compile(CompileOptions {
+    let diagnostics = compile_native_and_publish(CompileOptions {
         root_path: root.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("windows_x64".into()),
-        write_output: true,
     })
     .expect_err("selected optimization must not fall through to legacy O0 lowering");
     assert_eq!(diagnostics.len(), 1);
@@ -371,11 +366,10 @@ machine build(builder: &mut Build) {
     );
 
     let build_dir = selected.join("build");
-    let diagnostics = compile(CompileOptions {
+    let diagnostics = compile_native_and_publish(CompileOptions {
         root_path: selected.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("windows_x64".into()),
-        write_output: true,
     })
     .expect_err("the build-visible layout selection must remain execution-gated");
     assert_eq!(diagnostics.len(), 1);
@@ -424,11 +418,10 @@ machine build(builder: &mut Build) {
     );
 
     let build_dir = selected.join("build");
-    let diagnostics = compile(CompileOptions {
+    let diagnostics = compile_native_and_publish(CompileOptions {
         root_path: selected.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("windows_x64".into()),
-        write_output: true,
     })
     .expect_err("the build-visible machine selection must remain publication-gated");
     assert_eq!(diagnostics.len(), 1);
@@ -543,11 +536,10 @@ machine build(builder: &mut Build) {
     );
 
     let build_dir = selected.join("build");
-    let diagnostics = compile(CompileOptions {
+    let diagnostics = compile_native_and_publish(CompileOptions {
         root_path: selected.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("windows_x64".into()),
-        write_output: true,
     })
     .expect_err("the build-visible allocation recovery must remain publication-gated");
     assert_eq!(diagnostics.len(), 1);
@@ -596,11 +588,10 @@ machine build(builder: &mut Build) {
     );
 
     let build_dir = selected.join("build");
-    let diagnostics = compile(CompileOptions {
+    let diagnostics = compile_native_and_publish(CompileOptions {
         root_path: selected.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: Some("windows_x64".into()),
-        write_output: true,
     })
     .expect_err("the build-visible rematerialization must remain publication-gated");
     assert_eq!(diagnostics.len(), 1);
@@ -633,11 +624,10 @@ fn selected_check_only_validates_without_entering_an_optimizer_backend() {
 "#,
         ),
     );
-    compile(CompileOptions {
+    compile_check(CompileOptions {
         root_path: root.join("main.omg"),
         build_dir: None,
         target_name: None,
-        write_output: false,
     })
     .expect("check-only compilation validates selection without running optimization");
 }
