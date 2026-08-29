@@ -103,7 +103,32 @@ fn assign_expression_symbols(
             recurse!(binary.left);
             recurse!(binary.right);
         }
-        ExpressionNode::Cast(cast) => recurse!(cast.value),
+        ExpressionNode::Cast(cast) => {
+            recurse!(cast.value);
+            let mut target_type = child_type_references.get(cast.target_type).clone();
+            crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type(
+                symbols,
+                child_type_references,
+                local_type_parameters,
+                SymbolHandle::invalid(),
+                &mut target_type,
+            );
+            *child_type_references.get_mut(cast.target_type) = target_type;
+            for offset in 0..cast.semantic_domain_arguments.count() {
+                let start = cast.semantic_domain_arguments.start();
+                let handle =
+                    psi_arena::Handle::from_parts(start.arena_index() + offset, start.generation());
+                let mut argument = child_type_references.get(handle).clone();
+                crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type(
+                    symbols,
+                    child_type_references,
+                    local_type_parameters,
+                    SymbolHandle::invalid(),
+                    &mut argument,
+                );
+                *child_type_references.get_mut(handle) = argument;
+            }
+        }
         ExpressionNode::Call(call) => {
             if call.receiver.is_valid() {
                 recurse!(call.receiver);

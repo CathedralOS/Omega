@@ -23,19 +23,6 @@ pub(crate) fn lower_type_reference_into_table(
     )
 }
 
-pub(crate) fn lower_type_reference_into_trees(
-    source_trees: &resolved::SymbolResolvedTrees,
-    typed_trees: &mut typed::TypedTrees,
-    type_reference: &resolved::types::TypeReference,
-) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
-    lower_type_reference_into_trees_with_exposure(
-        source_trees,
-        typed_trees,
-        type_reference,
-        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
-    )
-}
-
 pub(super) fn lower_type_reference_into_trees_with_exposure(
     source_trees: &resolved::SymbolResolvedTrees,
     typed_trees: &mut typed::TypedTrees,

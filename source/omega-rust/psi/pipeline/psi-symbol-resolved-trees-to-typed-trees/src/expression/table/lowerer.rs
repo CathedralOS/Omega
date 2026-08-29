@@ -137,11 +137,16 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                         "cast target type lowering requires the enclosing resolved program",
                     )
                 })?;
-                let target_type = crate::type_reference::lower_type_reference_into_trees(
-                    program,
-                    self.target_trees,
-                    program.child_type_reference(cast.target_type),
-                )?;
+                let exposure = self.source.authored_expression_exposure(expression).unwrap_or(
+                    psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                );
+                let target_type =
+                    crate::type_reference::lower_type_reference_into_trees_with_exposure(
+                        program,
+                        self.target_trees,
+                        program.child_type_reference(cast.target_type),
+                        exposure,
+                    )?;
                 let target_label = lower_name_path_members_into_table(
                     self.source,
                     self.target(),
@@ -156,10 +161,11 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     .child_type_references(cast.semantic_domain_arguments)
                     .iter()
                     .map(|argument| {
-                        crate::type_reference::lower_type_reference_into_trees(
+                        crate::type_reference::lower_type_reference_into_trees_with_exposure(
                             program,
                             self.target_trees,
                             argument,
+                            exposure,
                         )
                     })
                     .collect::<Result<Vec<_>, _>>()?;
@@ -364,11 +370,16 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                         "`zero_value<{quotient}>()` cannot observe or choose a retained quotient representative: quotient values are opaque and have no compiler-verified canonical representative; use a named lifted operation with its role-correctness contract"
                     )));
                 }
-                let type_reference = crate::type_reference::lower_type_reference_into_trees(
-                    program,
-                    self.target_trees,
-                    program.child_type_reference(*type_reference),
-                )?;
+                let exposure = self.source.authored_expression_exposure(expression).unwrap_or(
+                    psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                );
+                let type_reference =
+                    crate::type_reference::lower_type_reference_into_trees_with_exposure(
+                        program,
+                        self.target_trees,
+                        program.child_type_reference(*type_reference),
+                        exposure,
+                    )?;
                 Ok(self
                     .target()
                     .insert(typed::expression::ExpressionNode::ZeroValue(type_reference)))

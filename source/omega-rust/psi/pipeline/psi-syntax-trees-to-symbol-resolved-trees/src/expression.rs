@@ -27,6 +27,7 @@ pub(crate) fn lower_expression_into_table(
     )?;
     expression_table(lowerer).set_source_span(lowered, source_span);
     if let Some(exposure) = lowerer.current_authored_expression_exposure {
+        expression_table(lowerer).set_authored_expression_exposure(lowered, exposure);
         lowerer
             .pending_authored_expressions
             .push(crate::lowerer::PendingAuthoredExpression {
