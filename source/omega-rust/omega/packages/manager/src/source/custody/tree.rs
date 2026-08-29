@@ -10,7 +10,7 @@ use super::platform::{
     verify_windows_open_cache_directory_custody, verify_windows_open_cache_link_custody,
     verify_windows_open_cache_regular_file_custody,
 };
-use crate::records::atomic_file::{RecordFileLimits, RecordFileRoot};
+use omega_platform_custody::record_file::{RecordFileLimits, RecordFileRoot};
 use crate::source::SourceResolveError;
 use crate::source::git::cache::identity::{cache_invalid, local_snapshot_invalid};
 use crate::source::limits::{

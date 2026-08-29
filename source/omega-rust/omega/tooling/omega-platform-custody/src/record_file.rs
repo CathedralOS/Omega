@@ -14,7 +14,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 const MAXIMUM_STAGE_ATTEMPTS: u64 = 256;
 static NEXT_STAGE_ID: AtomicU64 = AtomicU64::new(0);
 
-pub(crate) fn is_portable_record_file_name(value: &str, maximum_bytes: usize) -> bool {
+pub fn is_portable_record_file_name(value: &str, maximum_bytes: usize) -> bool {
     !value.is_empty()
         && value.len() <= maximum_bytes
         && !value.contains('/')
@@ -41,12 +41,12 @@ fn is_windows_reserved_path_component(component: &str) -> bool {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RecordFileLimits {
-    pub(crate) maximum_bytes: usize,
+pub struct RecordFileLimits {
+    pub maximum_bytes: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum RecordFileError {
+pub enum RecordFileError {
     Io { path: PathBuf, message: String },
     InvalidDestination { path: PathBuf },
     NotRegularFile { path: PathBuf },
@@ -60,13 +60,13 @@ pub(crate) enum RecordFileError {
 }
 
 #[derive(Debug)]
-pub(crate) struct RecordFileRoot {
+pub struct RecordFileRoot {
     display_path: PathBuf,
     directory: CapabilityDirectory,
 }
 
 impl RecordFileRoot {
-    pub(crate) fn from_directory(
+    pub fn from_directory(
         directory: CapabilityDirectory,
         display_path: PathBuf,
     ) -> Result<Self, RecordFileError> {
@@ -82,7 +82,7 @@ impl RecordFileRoot {
         })
     }
 
-    pub(crate) fn read(
+    pub fn read(
         &self,
         relative_path: &Path,
         limits: RecordFileLimits,
@@ -124,7 +124,7 @@ impl RecordFileRoot {
         Ok(read)
     }
 
-    pub(crate) fn write_new(
+    pub fn write_new(
         &self,
         relative_path: &Path,
         bytes: &[u8],
@@ -210,7 +210,7 @@ impl RecordFileRoot {
     /// and file identity that were prepared. This is suitable for
     /// resolver-owned mutable control files; immutable records continue to use
     /// [`Self::write_new`].
-    pub(crate) fn replace_existing(
+    pub fn replace_existing(
         &self,
         relative_path: &Path,
         bytes: &[u8],
@@ -301,7 +301,7 @@ impl RecordFileRoot {
     }
 }
 
-pub(crate) struct RootRecordRead<'root> {
+pub struct RootRecordRead<'root> {
     bytes: Vec<u8>,
     file: CapabilityFile,
     root: &'root RecordFileRoot,
@@ -310,11 +310,11 @@ pub(crate) struct RootRecordRead<'root> {
 }
 
 impl RootRecordRead<'_> {
-    pub(crate) fn bytes(&self) -> &[u8] {
+    pub fn bytes(&self) -> &[u8] {
         &self.bytes
     }
 
-    pub(crate) fn verify_current(
+    pub fn verify_current(
         &mut self,
         limits: RecordFileLimits,
     ) -> Result<(), RecordFileError> {

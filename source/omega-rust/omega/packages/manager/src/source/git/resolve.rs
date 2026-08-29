@@ -1,6 +1,6 @@
 //! End-to-end Git resolution and final custody reconciliation.
 
-use crate::records::atomic_file::{RecordFileLimits, RecordFileRoot};
+use omega_platform_custody::record_file::{RecordFileLimits, RecordFileRoot};
 use crate::source::custody::lock::CacheEntryLock;
 use crate::source::custody::platform::same_capability_file_identity;
 use crate::source::custody::publication::{
