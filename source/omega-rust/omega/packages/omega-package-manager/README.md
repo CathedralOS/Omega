@@ -116,7 +116,8 @@ and production-manifest v2 identities bind the role as part of exact compiler
 custody. Candidate-closure commitment v4 also binds it. Review compares a
 package-to-application change as lost dependency compatibility and an
 application-to-package change as lost activation compatibility; neither is a
-generic symmetric role-change string.
+generic symmetric role-change string. Baseline-backed deterministic triage v2
+joins that result to the exact root decision and blocks the update.
 
 Workspaces are member catalogs, not keyed graph nodes. Each selected application
 member forms its own closure; membership alone does not combine applications or

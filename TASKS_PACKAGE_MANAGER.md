@@ -319,8 +319,8 @@ explicitly.
   manifest v2 identities bind it; candidate-closure commitment v4 binds it too.
   Baseline-to-candidate review compares package-to-application as lost
   dependency compatibility and application-to-package as lost activation
-  compatibility. Package-only callers use the explicit `new_package`
-  constructor.
+  compatibility; deterministic triage v2 carries that fixed reason and blocks
+  the update. Package-only callers use the explicit `new_package` constructor.
 
   Remaining work:
 

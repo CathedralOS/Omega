@@ -2,6 +2,7 @@
 
 use crate::identity::PackageKey;
 use crate::review::comparison::changed_review_risk;
+use crate::review::comparison::{ReviewOnlyRootRoleChange, ReviewOnlyRootRoleContract};
 use crate::review::records::PackageReviewEvidence;
 use crate::review::{CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet};
 use omega_package_review::evidence::{
@@ -36,6 +37,8 @@ pub enum PackageTriageReason {
     CapabilityOrApiChanged,
     SourceLineageChanged,
     BuildObservationChanged,
+    RootLostDependencyCompatibility,
+    RootLostApplicationActivation,
     RepresentationTcbIntroducedOrChanged,
     AcceptedClaimRequiresResolution,
     RetainedDangerousAuthority(PackageReviewDangerousAuthorityClass),
@@ -199,6 +202,34 @@ pub(crate) fn triage_review_update_records<B: PackageReviewEvidence>(
         );
     }
     CompilerReviewTriage { decisions }
+}
+
+pub(crate) fn apply_root_role_change(
+    triage: &mut CompilerReviewTriage,
+    change: &ReviewOnlyRootRoleChange,
+) {
+    let reason = match change.broken_contract() {
+        ReviewOnlyRootRoleContract::DependencyCompatibility => {
+            PackageTriageReason::RootLostDependencyCompatibility
+        }
+        ReviewOnlyRootRoleContract::ApplicationActivation => {
+            PackageTriageReason::RootLostApplicationActivation
+        }
+    };
+    let decision = triage
+        .decisions
+        .iter_mut()
+        .find(|decision| {
+            decision.baseline_key.as_ref() == Some(change.root())
+                || decision.candidate_key.as_ref() == Some(change.root())
+        })
+        .expect("stable compared root has one deterministic triage decision");
+    if !decision.reasons.contains(&reason) {
+        decision.reasons.push(reason);
+    }
+    decision.disposition = decision
+        .disposition
+        .max(PackageTriageDisposition::BlockedCapabilityChange);
 }
 
 fn reviews_by_name<R: PackageReviewEvidence>(reviews: &[R]) -> BTreeMap<&str, Vec<&R>> {

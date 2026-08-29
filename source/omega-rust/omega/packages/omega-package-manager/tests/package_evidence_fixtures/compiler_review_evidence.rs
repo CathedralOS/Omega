@@ -355,7 +355,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
                     .expect("live baseline comparison")
                 );
                 assert_eq!(
-                    triage_review_update_from_baseline(&reopened, &reviews, &unavailable),
+                    triage_review_update_from_baseline(&reopened, &reviews, &closure, &unavailable,),
                     unavailable_triage,
                     "reopened baseline preserves unavailable-source triage"
                 );

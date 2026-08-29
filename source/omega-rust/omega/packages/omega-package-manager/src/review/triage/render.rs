@@ -45,7 +45,7 @@ pub(super) fn render_bounded(
         });
     }
     let mut rendered = String::with_capacity(required_bytes);
-    rendered.push_str("OMEGA_PACKAGE_SOURCE_TRIAGE_V1\n");
+    rendered.push_str("OMEGA_PACKAGE_SOURCE_TRIAGE_V2\n");
     for decision in triage.decisions() {
         rendered.push_str("package ");
         rendered.push_str(decision.package_name());
@@ -77,7 +77,7 @@ fn render_key(output: &mut String, label: &str, key: Option<&PackageKey>) {
 }
 
 fn required_render_bytes(decisions: &[PackageTriageDecision]) -> usize {
-    let mut required = "OMEGA_PACKAGE_SOURCE_TRIAGE_V1\n".len();
+    let mut required = "OMEGA_PACKAGE_SOURCE_TRIAGE_V2\n".len();
     for decision in decisions {
         required = saturating_add(required, "package \n".len());
         required = saturating_add(required, decision.package_name().len());
@@ -130,6 +130,10 @@ pub(super) const fn reason_token(reason: PackageTriageReason) -> &'static str {
         PackageTriageReason::CapabilityOrApiChanged => "capability_or_api_changed",
         PackageTriageReason::SourceLineageChanged => "source_lineage_changed",
         PackageTriageReason::BuildObservationChanged => "build_observation_changed",
+        PackageTriageReason::RootLostDependencyCompatibility => {
+            "root_lost_dependency_compatibility"
+        }
+        PackageTriageReason::RootLostApplicationActivation => "root_lost_application_activation",
         PackageTriageReason::RepresentationTcbIntroducedOrChanged => {
             "representation_tcb_introduced_or_changed"
         }
