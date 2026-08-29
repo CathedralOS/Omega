@@ -1114,6 +1114,20 @@ Source-metadata identity to equal current compiler-validated package custody.
 Earlier summary schemas reject through the record's existing semantic-schema
 binding; record framing is unchanged.
 
+Summary v28 and replay-record v9 separate an ordinary build artifact from a
+generated-source handoff. After admitted Source-input events, the same exact
+direct-child ordinary-file `create(438)`/full-write/close chain may end with no
+`include_source`. Provider-free replay executes that chain in a fresh virtual
+Output namespace, requires the generated-source handoff to remain absent, and
+reconstructs the exact one-file tree. Direct issuance still requires equality
+with independently sponsored physical staged-tree custody, and an unexplained
+entry rejects. Reopening ignores host Output drift and does not add the
+artifact to the compiler source set. Record v9 carries an explicit absent-or-
+present handoff disposition so recovery cannot infer source publication from
+the mere existence of an output file. The record remains non-authoritative and
+retains the same package Source-metadata join required by the generated-source
+and empty-Output lanes.
+
 Byte-valued inputs are evaluated once by the shared preparer and reject above
 the evaluator's current 16 MiB sponsor ceiling before provider cloning/
 allocation. Raw transfer counts use one checked conversion and
@@ -1142,9 +1156,9 @@ entries, 256 MiB total logical bytes, and 256 MiB per object extent. A
 per-package or path-summed quota is not a valid substitute.
 These summary fields are compiler-issued execution evidence kept outside
 canonical capability/API comparison bytes. In isolation they are not a receipt
-and do not claim either replay verdict; only the exact v24/v6 one-file grammar
-and v27/v8 empty-Output grammar above may join them to verified operation replay
-and reproduced tree equality.
+and do not claim either replay verdict; only the exact v24/v6 generated-source,
+v27/v8 empty-Output, and v28/v9 ordinary-artifact grammars above may join them
+to verified operation replay and reproduced tree equality.
 Sponsored package review does retain a versioned commitment to
 the complete fresh Output tree after successful evaluator/provider teardown
 and before deleting the disposable session. The canonical tree binds sorted
@@ -1161,11 +1175,12 @@ private fields and can materialize it into an existing empty concrete directory,
 then independently re-inspect exact paths, kinds, modes, targets, and bytes
 before returning the same commitment. Hard-link topology is neither retained
 nor leaked through the count. In isolation this is output-tree custody and
-replay only. The exact v24/v6 one-file and v27/v8 empty-Output grammars above
-supply canonical operation replay and retained observed inputs; the one-file
-case additionally binds generated-output handoff. All broader shapes still
-require those missing pieces. This custody rung does not exclude a hostile
-same-user process racing the review session.
+replay only. The exact v24/v6 generated-source, v27/v8 empty-Output, and v28/v9
+ordinary-artifact grammars above supply canonical operation replay and retained
+observed inputs. Only the generated-source case binds a present source handoff;
+the ordinary-artifact case binds its absence. All broader shapes still require
+those missing pieces. This custody rung does not exclude a hostile same-user
+process racing the review session.
 
 Policy can consequently distinguish an ordinary development build, a release
 that requires record replay, and a supply-chain release that requires

@@ -36,6 +36,14 @@ pub(crate) fn build_observation_commitment(summary: &BuildObservationSummary) ->
     }
     digest.update([u8::from(summary.source_inputs_replay_verified())]);
     digest.update([u8::from(summary.operation_replay_verified())]);
+    digest.update(
+        u64::try_from(summary.included_source_paths().len())
+            .expect("included-source path count fits u64")
+            .to_le_bytes(),
+    );
+    for path in summary.included_source_paths() {
+        hash_bytes(&mut digest, path);
+    }
     match summary.staged_output_tree() {
         None => digest.update([0]),
         Some(tree) => {

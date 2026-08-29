@@ -1356,6 +1356,19 @@ separately rejoins its canonical Source-metadata identity to current compiler-
 validated package custody. Earlier summary schemas reject through the existing
 semantic-schema binding; record framing is unchanged.
 
+Observation summary v28 and compiler replay-record v9 distinguish an ordinary
+build artifact from generated source. After admitted Source-input events, the
+same exact direct-child ordinary-file `create(438)`/full-write/close chain may
+finish without `include_source`. Replay executes the output chain in a fresh
+virtual namespace, requires the handoff to remain absent, and reconstructs the
+exact one-file tree. Initial issuance still requires equality with independent
+sponsored staged-tree custody, and unexplained entries reject. Reopening ignores
+host Output drift and does not add the artifact to the Omega source set. Record
+v9 retains an explicit absent-or-present handoff disposition rather than
+inferring publication from the output file. It remains non-authoritative and
+must still rejoin its Source-metadata identity to current compiler-validated
+package custody.
+
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities reject negative, wrapped, or

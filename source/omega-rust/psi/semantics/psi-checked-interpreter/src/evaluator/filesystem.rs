@@ -230,11 +230,16 @@ impl<'program> Evaluator<'program> {
             }
             return Ok(());
         };
-        let Some(expected_included_source) = replay.expected_included_source() else {
-            return trap("filesystem replay output has no generated-source handoff");
-        };
-        if self.build_included_sources.as_slice() != [expected_included_source] {
-            return trap("filesystem replay generated-source handoff changed");
+        match replay.expected_included_source() {
+            None if !self.build_included_sources.is_empty() => {
+                return trap("filesystem replay unexpectedly handed off an ordinary output file");
+            }
+            Some(expected)
+                if self.build_included_sources.as_slice() != std::slice::from_ref(&expected) =>
+            {
+                return trap("filesystem replay generated-source handoff changed");
+            }
+            _ => {}
         }
         let mut expected_path = format!("/root/{}", output.output_root().get()).into_bytes();
         expected_path.push(b'/');
@@ -2359,6 +2364,7 @@ mod tests {
         let mut evaluator = Evaluator::new(&program, &[]);
         evaluator.filesystem_replay = Some(crate::FilesystemReplay {
             attempts: vec![expected.clone()].into(),
+            expected_included_source: None,
         });
 
         assert!(matches!(
