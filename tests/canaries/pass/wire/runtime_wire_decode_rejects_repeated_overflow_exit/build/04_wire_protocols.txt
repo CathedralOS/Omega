@@ -1,9 +1,0 @@
-# Omega Wire Protocols
-
-wire data schemas: 1
-
-## wire data Burst
-encoding: (default)
-current era: 0
-fields:
-  0 samples [i32; 2]

@@ -1,9 +1,0 @@
-# Omega Wire Protocols
-
-wire data schemas: 1
-
-## wire data Blob
-encoding: (default)
-current era: 0
-fields:
-  0 bytes &[u8]

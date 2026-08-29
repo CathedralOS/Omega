@@ -1,7 +1,0 @@
-{
-  "entry_machine": "Main::main",
-  "entry_state": "main",
-  "effect_bits": "0x0000000000200000",
-  "effects": ["host_boundary"],
-  "capability_flows": {"uses": 5, "returns": 0, "acquires": 0, "stores": 5, "derives": 0}
-}

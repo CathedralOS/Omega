@@ -64,12 +64,13 @@ Beta remains a small compiler-construction substrate with raw memory.
 - `source/beta/SEMANTICS.md` — canonical small-step runtime meaning and
   maximal observations.
 
-`source/beta/compiler/cold-start/full-source.sh`,
-`source/beta/compiler/validation/selfhost.sh`, and
-`source/beta/test.sh`
-gate reconstruction, the fixed point, and language behavior. The obsolete
-Python backend and gate were removed because they added no unique semantic or
-lower-rooted refinement coverage.
+`source/beta/compiler/cold-start/rebuild-artifact.sh --check` reconstructs the
+fixed-point artifact without changing it, and
+`source/beta/compiler/validation/admission/bc-block-control.sh` owns the exact
+source/artifact admission. `source/beta/compiler/cold-start/test.sh` and
+`source/beta/test.sh` retain focused language behavior tests; they are not
+additional compiler edges. The obsolete Python backend and gate were removed
+because they added no unique semantic or lower-rooted refinement coverage.
 
 ## Implementation frontiers
 
