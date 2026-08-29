@@ -240,8 +240,14 @@ pub struct BoundaryCallingPlanRealization {
     pub boundary_trait: psi_symbols::SymbolHandle,
     pub boundary_arguments: Vec<TypeReferenceHandle>,
     pub requirement_machine: psi_symbols::SymbolHandle,
+    /// Compact compatibility/report coordinate for typed-tree consumers.
+    /// Exact plan custody below remains the authority for realization joins.
     pub fingerprint: u64,
     pub boundary_entry_plan: BoundaryEntryPlan,
+    /// Crate-sealed exact evidence minted with the validated realization.
+    /// The public fingerprint remains a compact compatibility/report
+    /// coordinate and cannot authorize replacement of this plan.
+    pub(crate) exact_boundary_entry_plan: BoundaryEntryPlan,
     pub callback_binders: Vec<BoundaryCallbackBinder>,
     pub callback_demands: Vec<NativeCallbackDemand>,
     pub callback_context_closed: bool,
@@ -249,6 +255,12 @@ pub struct BoundaryCallingPlanRealization {
     pub materialized_signature: MaterializedBoundarySignature,
     pub policy_machine: String,
     pub relationship_span: psi_source::SourceSpan,
+}
+
+impl BoundaryCallingPlanRealization {
+    pub const fn exact_boundary_entry_plan(&self) -> &BoundaryEntryPlan {
+        &self.exact_boundary_entry_plan
+    }
 }
 
 fn validate_retained_callback_binders(
@@ -758,6 +770,7 @@ pub fn compute_boundary_calling_plans(
             requirement_machine,
             fingerprint: validated.contract_fingerprint(),
             boundary_entry_plan: validated.plan().clone(),
+            exact_boundary_entry_plan: validated.plan().clone(),
             callback_binders: signature.callback_binders.clone(),
             callback_demands: signature.callback_demands.clone(),
             callback_context_closed: false,
@@ -892,6 +905,7 @@ pub fn close_outbound_callback_materializations(
         let new_fingerprint = validated.contract_fingerprint();
         realization.fingerprint = new_fingerprint;
         realization.boundary_entry_plan = validated.plan().clone();
+        realization.exact_boundary_entry_plan = validated.plan().clone();
         realization.callback_demands = demands;
         realization.callback_context_closed = true;
         realization.materialized_signature = signature;
@@ -3052,6 +3066,7 @@ mod tests {
             requirement_machine: requirement,
             fingerprint,
             boundary_entry_plan: validated.plan().clone(),
+            exact_boundary_entry_plan: validated.plan().clone(),
             callback_binders: Vec::new(),
             callback_demands: Vec::new(),
             callback_context_closed: false,
@@ -3069,6 +3084,7 @@ mod tests {
             requirement_machine: registration_operation,
             fingerprint,
             boundary_entry_plan: validated.plan().clone(),
+            exact_boundary_entry_plan: validated.plan().clone(),
             callback_binders: vec![BoundaryCallbackBinder {
                 binder: StaticMachineBinderId::new(31).unwrap(),
                 requirement: CallbackRequirementId::new(37).unwrap(),
@@ -3208,6 +3224,7 @@ mod tests {
         )
         .unwrap()
         .contract_fingerprint();
+        realization.exact_boundary_entry_plan = realization.boundary_entry_plan.clone();
         let bound = validate_nominal_callback_placement_bindings(&checked, &realizations)
             .expect("exact retained callback context should replay");
         let retained = bound[0]

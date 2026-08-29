@@ -402,17 +402,12 @@ pub struct CompileReport {
     /// Exact subtractive release overlay applied after build selection and
     /// before native realization. Ordinary requests retain `None`.
     optimization_rollback: Option<OptimizationRollbackReceipt>,
-    /// Deterministic accounting from the transitional typed-tree build
-    /// evaluator. This is explicitly not terminal-Psi fuel.
-    pub build_evaluation_usage: Option<omega_build_evaluation::BuildEvaluationUsage>,
-    /// Exact build-host observation ceiling and realized class for the
-    /// selected build-machine run. This does not claim replayability or source
-    /// rebuildability.
-    pub build_observation_summary: Option<omega_build_evaluation::BuildObservationSummary>,
+    /// Filesystem-free comparison between the request's explicit admissions
+    /// and every trust obligation reconstructed by compilation.
+    trust_admission_settlement: omega_trust_model::TrustAdmissionSettlement,
 }
 
 impl CompileReport {
-    #[allow(clippy::too_many_arguments)]
     pub fn checked(
         root_path: PathBuf,
         source_file_count: usize,
@@ -420,8 +415,6 @@ impl CompileReport {
         output_kind: CompileOutputKind,
         executable_publication: Option<ExecutablePublicationReceipt>,
         app_bundle_publication: Option<ExecutablePublicationReceipt>,
-        build_evaluation_usage: Option<omega_build_evaluation::BuildEvaluationUsage>,
-        build_observation_summary: Option<omega_build_evaluation::BuildObservationSummary>,
     ) -> Result<Self, &'static str> {
         let report = Self {
             root_path,
@@ -433,8 +426,7 @@ impl CompileReport {
             executable_publication,
             app_bundle_publication,
             optimization_rollback: None,
-            build_evaluation_usage,
-            build_observation_summary,
+            trust_admission_settlement: Default::default(),
         };
         if report.has_consistent_executable_publication_custody() {
             Ok(report)
@@ -448,8 +440,6 @@ impl CompileReport {
         source_file_count: usize,
         artifact: RetainedNativeArtifact,
         optimization_rollback: Option<OptimizationRollbackReceipt>,
-        build_evaluation_usage: Option<omega_build_evaluation::BuildEvaluationUsage>,
-        build_observation_summary: Option<omega_build_evaluation::BuildObservationSummary>,
     ) -> Result<Self, &'static str> {
         artifact
             .validate()
@@ -464,8 +454,7 @@ impl CompileReport {
             executable_publication: None,
             app_bundle_publication: None,
             optimization_rollback,
-            build_evaluation_usage,
-            build_observation_summary,
+            trust_admission_settlement: Default::default(),
         };
         if !report.has_consistent_executable_publication_custody() {
             return Err("compiler report retained inconsistent native-artifact custody");
@@ -584,8 +573,7 @@ impl CompileReport {
             executable_publication: Some(receipt),
             app_bundle_publication: None,
             optimization_rollback: self.optimization_rollback,
-            build_evaluation_usage: self.build_evaluation_usage,
-            build_observation_summary: self.build_observation_summary,
+            trust_admission_settlement: self.trust_admission_settlement,
         };
         if !report.has_consistent_executable_publication_custody() {
             return Err("published native report failed custody replay".to_owned());
@@ -613,12 +601,22 @@ impl CompileReport {
         self.optimization_rollback.as_ref()
     }
 
+    pub fn with_trust_admission_settlement(
+        mut self,
+        settlement: omega_trust_model::TrustAdmissionSettlement,
+    ) -> Self {
+        self.trust_admission_settlement = settlement;
+        self
+    }
+
+    pub const fn trust_admission_settlement(&self) -> &omega_trust_model::TrustAdmissionSettlement {
+        &self.trust_admission_settlement
+    }
+
     pub fn from_artifact(
         root_path: PathBuf,
         source_file_count: usize,
         artifact: psi_terminal_codec::CanonicalTerminalArtifact,
-        build_evaluation_usage: Option<omega_build_evaluation::BuildEvaluationUsage>,
-        build_observation_summary: Option<omega_build_evaluation::BuildObservationSummary>,
     ) -> Result<Self, &'static str> {
         artifact
             .validate()
@@ -633,8 +631,7 @@ impl CompileReport {
             executable_publication: None,
             app_bundle_publication: None,
             optimization_rollback: None,
-            build_evaluation_usage,
-            build_observation_summary,
+            trust_admission_settlement: Default::default(),
         };
         report
             .has_consistent_executable_publication_custody()
@@ -821,8 +818,7 @@ mod tests {
             executable_publication: flat,
             app_bundle_publication: bundle,
             optimization_rollback: None,
-            build_evaluation_usage: None,
-            build_observation_summary: None,
+            trust_admission_settlement: Default::default(),
         }
     }
 
@@ -901,8 +897,6 @@ mod tests {
                 false,
                 CompileOutputKind::CheckOnly,
                 Some(flat.clone()),
-                None,
-                None,
                 None,
             )
             .is_err()

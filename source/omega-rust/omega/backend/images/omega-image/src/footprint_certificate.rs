@@ -8,8 +8,30 @@ use crate::{
     FinalCompilerTextDigest,
 };
 use psi_diagnostics::Diagnostic;
+use sha2::{Digest, Sha256};
 
 pub const FINAL_FOOTPRINT_CERTIFICATE_MARKER: &str = "omega.final-footprint-certificate.current";
+
+macro_rules! footprint_digest {
+    ($name:ident) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub struct $name([u8; 32]);
+
+        impl $name {
+            pub(crate) const fn from_digest(digest: [u8; 32]) -> Self {
+                Self(digest)
+            }
+
+            pub const fn as_bytes(&self) -> &[u8; 32] {
+                &self.0
+            }
+        }
+    };
+}
+
+footprint_digest!(FinalFootprintCoverageDigest);
+footprint_digest!(FinalFootprintPlacementBindingDigest);
+footprint_digest!(FinalFootprintCertificateDigest);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FinalFootprintClass {
@@ -182,12 +204,38 @@ impl FinalFootprintCoverage {
         }
         hash
     }
+
+    pub fn digest(&self) -> FinalFootprintCoverageDigest {
+        let mut digest = Sha256::new();
+        digest.update(b"omega.final-footprint-coverage.sha256.v1\0");
+        digest.update([
+            u8::from(self.enumeration_complete),
+            u8::from(self.region_enumeration_complete),
+            u8::from(self.footprint_enumeration_complete),
+        ]);
+        for classes in [
+            &self.covered_classes,
+            &self.absent_by_construction_classes,
+            &self.final_byte_validated_classes,
+            &self.missing_classes,
+        ] {
+            digest.update((classes.len() as u64).to_le_bytes());
+            for class in classes {
+                digest.update([class.tag()]);
+            }
+        }
+        FinalFootprintCoverageDigest::from_digest(digest.finalize().into())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinalFootprintCertificate {
     pub marker: &'static str,
+    pub certificate_digest: FinalFootprintCertificateDigest,
+    /// Compact report compatibility only.
     pub certificate_fingerprint: u64,
+    pub coverage_digest: FinalFootprintCoverageDigest,
+    /// Compact report compatibility only.
     pub coverage_fingerprint: u64,
     pub coverage: FinalFootprintCoverage,
     pub boundary_contract_fingerprint: Option<u64>,
@@ -198,6 +246,8 @@ pub struct FinalFootprintCertificate {
     pub compiler_function_validation: CompilerFunctionValidationEvidence,
     pub compiler_entry_footprint_binding: Option<CompilerEntryFootprintBindingEvidence>,
     pub inventory: PlacedExecutableRegionInventory,
+    pub boundary_placement_binding_digest: FinalFootprintPlacementBindingDigest,
+    /// Compact report compatibility only.
     pub boundary_placement_binding_fingerprint: u64,
 }
 
@@ -217,6 +267,7 @@ impl FinalFootprintCertificate {
                 "compiler text validation evidence has an invalid strong derivation digest",
             ));
         }
+        crate::model::validate_placed_executable_region_inventory_digest(&inventory)?;
         if !inventory.unclassified_gaps.is_empty() {
             return Err(Diagnostic::error(
                 "region-complete final footprint certificate cannot retain executable gaps",
@@ -249,7 +300,18 @@ impl FinalFootprintCertificate {
         )?;
         let coverage = FinalFootprintCoverage::current();
         coverage.validate_normalized()?;
+        let coverage_digest = coverage.digest();
         let coverage_fingerprint = coverage.fingerprint();
+        let boundary_placement_binding_digest = placement_binding_digest(
+            boundary_contract_fingerprint,
+            implementation_evidence_fingerprint,
+            implementation_fragment_count,
+            callback_placement_identity_fingerprint,
+            &compiler_text_validation,
+            compiler_function_validation,
+            compiler_entry_footprint_binding,
+            &inventory,
+        );
         let boundary_placement_binding_fingerprint = placement_binding_fingerprint(
             boundary_contract_fingerprint,
             implementation_evidence_fingerprint,
@@ -271,9 +333,19 @@ impl FinalFootprintCertificate {
                 .unwrap_or_default(),
             inventory.inventory_fingerprint,
         );
+        let certificate_digest = certificate_digest(
+            coverage_digest,
+            boundary_placement_binding_digest,
+            &compiler_text_validation,
+            compiler_function_validation,
+            compiler_entry_footprint_binding,
+            &inventory,
+        );
         Ok(Self {
             marker: FINAL_FOOTPRINT_CERTIFICATE_MARKER,
+            certificate_digest,
             certificate_fingerprint,
+            coverage_digest,
             coverage_fingerprint,
             coverage,
             boundary_contract_fingerprint,
@@ -284,6 +356,7 @@ impl FinalFootprintCertificate {
             compiler_function_validation,
             compiler_entry_footprint_binding,
             inventory,
+            boundary_placement_binding_digest,
             boundary_placement_binding_fingerprint,
         })
     }
@@ -295,6 +368,7 @@ impl FinalFootprintCertificate {
             ));
         }
         self.coverage.validate_normalized()?;
+        crate::model::validate_placed_executable_region_inventory_digest(&self.inventory)?;
         if !self.compiler_text_validation.has_valid_derivation_digest() {
             return Err(Diagnostic::error(
                 "compiler text validation evidence has an invalid strong derivation digest",
@@ -347,6 +421,27 @@ impl FinalFootprintCertificate {
                 "final footprint certificate coverage fingerprint mismatch",
             ));
         }
+        let expected_coverage_digest = self.coverage.digest();
+        if self.coverage_digest != expected_coverage_digest {
+            return Err(Diagnostic::error(
+                "final footprint certificate coverage digest mismatch",
+            ));
+        }
+        let expected_binding_digest = placement_binding_digest(
+            self.boundary_contract_fingerprint,
+            self.implementation_evidence_fingerprint,
+            self.implementation_fragment_count,
+            self.callback_placement_identity_fingerprint,
+            &self.compiler_text_validation,
+            self.compiler_function_validation,
+            self.compiler_entry_footprint_binding,
+            &self.inventory,
+        );
+        if self.boundary_placement_binding_digest != expected_binding_digest {
+            return Err(Diagnostic::error(
+                "final footprint certificate strong placement binding mismatch",
+            ));
+        }
         let expected_binding = placement_binding_fingerprint(
             self.boundary_contract_fingerprint,
             self.implementation_evidence_fingerprint,
@@ -378,6 +473,19 @@ impl FinalFootprintCertificate {
                 "final footprint certificate identity mismatch",
             ));
         }
+        let expected_certificate_digest = certificate_digest(
+            expected_coverage_digest,
+            expected_binding_digest,
+            &self.compiler_text_validation,
+            self.compiler_function_validation,
+            self.compiler_entry_footprint_binding,
+            &self.inventory,
+        );
+        if self.certificate_digest != expected_certificate_digest {
+            return Err(Diagnostic::error(
+                "final footprint certificate strong identity mismatch",
+            ));
+        }
         Ok(())
     }
 }
@@ -403,7 +511,9 @@ fn validate_entry_footprint_binding(
                 || binding.final_region_binding_fingerprint
                     != compiler_function_validation.final_region_binding_fingerprint
                 || binding.resulting_inventory_fingerprint != inventory.inventory_fingerprint
+                || binding.resulting_inventory_digest != inventory.inventory_digest
                 || binding.prior_inventory_fingerprint == binding.resulting_inventory_fingerprint
+                || binding.prior_inventory_digest == binding.resulting_inventory_digest
             {
                 return Err(Diagnostic::error(
                     "final footprint certificate entry-footprint mutation custody drifted",
@@ -411,6 +521,97 @@ fn validate_entry_footprint_binding(
             }
             Ok(())
         }
+    }
+}
+
+fn placement_binding_digest(
+    boundary_contract_fingerprint: Option<u64>,
+    implementation_evidence_fingerprint: u64,
+    implementation_fragment_count: usize,
+    callback_placement_identity_fingerprint: u64,
+    compiler_text_validation: &CompilerTextValidationEvidence,
+    compiler_function_validation: CompilerFunctionValidationEvidence,
+    compiler_entry_footprint_binding: Option<CompilerEntryFootprintBindingEvidence>,
+    inventory: &PlacedExecutableRegionInventory,
+) -> FinalFootprintPlacementBindingDigest {
+    let mut digest = Sha256::new();
+    digest.update(b"omega.final-footprint-placement-binding.sha256.v1\0");
+    digest.update([u8::from(boundary_contract_fingerprint.is_some())]);
+    digest.update(
+        boundary_contract_fingerprint
+            .unwrap_or_default()
+            .to_le_bytes(),
+    );
+    digest.update(implementation_evidence_fingerprint.to_le_bytes());
+    digest.update((implementation_fragment_count as u64).to_le_bytes());
+    digest.update(callback_placement_identity_fingerprint.to_le_bytes());
+    digest.update(compiler_text_validation.derivation_digest.as_bytes());
+    update_compiler_function_validation_digest(&mut digest, compiler_function_validation);
+    match compiler_entry_footprint_binding {
+        Some(binding) => {
+            digest.update([1]);
+            digest.update(binding.evidence_digest.as_bytes());
+        }
+        None => digest.update([0]),
+    }
+    digest.update(inventory.inventory_digest.as_bytes());
+    FinalFootprintPlacementBindingDigest::from_digest(digest.finalize().into())
+}
+
+fn certificate_digest(
+    coverage_digest: FinalFootprintCoverageDigest,
+    boundary_placement_binding_digest: FinalFootprintPlacementBindingDigest,
+    compiler_text_validation: &CompilerTextValidationEvidence,
+    compiler_function_validation: CompilerFunctionValidationEvidence,
+    compiler_entry_footprint_binding: Option<CompilerEntryFootprintBindingEvidence>,
+    inventory: &PlacedExecutableRegionInventory,
+) -> FinalFootprintCertificateDigest {
+    let mut digest = Sha256::new();
+    digest.update(b"omega.final-footprint-certificate.sha256.v1\0");
+    digest.update((FINAL_FOOTPRINT_CERTIFICATE_MARKER.len() as u64).to_le_bytes());
+    digest.update(FINAL_FOOTPRINT_CERTIFICATE_MARKER.as_bytes());
+    digest.update(coverage_digest.as_bytes());
+    digest.update(boundary_placement_binding_digest.as_bytes());
+    digest.update(compiler_text_validation.derivation_digest.as_bytes());
+    update_compiler_function_validation_digest(&mut digest, compiler_function_validation);
+    match compiler_entry_footprint_binding {
+        Some(binding) => {
+            digest.update([1]);
+            digest.update(binding.evidence_digest.as_bytes());
+        }
+        None => digest.update([0]),
+    }
+    digest.update(inventory.inventory_digest.as_bytes());
+    FinalFootprintCertificateDigest::from_digest(digest.finalize().into())
+}
+
+fn update_compiler_function_validation_digest(
+    digest: &mut Sha256,
+    evidence: CompilerFunctionValidationEvidence,
+) {
+    digest.update(b"omega.compiler-function-validation-structure.v1\0");
+    for value in [
+        evidence.function_count,
+        evidence.instruction_count,
+        evidence.zero_width_instruction_count,
+        evidence.checked_assembly_instruction_count,
+        evidence.fixed_mechanics_instruction_count,
+        evidence.body_specification_instruction_count,
+    ] {
+        digest.update((value as u64).to_le_bytes());
+    }
+    for value in [
+        evidence.fixed_mechanics_validation_fingerprint,
+        evidence.fixed_mechanics_boundary_contract_fingerprint,
+        evidence.fixed_mechanics_footprint_fingerprint,
+        evidence.body_specification_validation_fingerprint,
+        evidence.body_specification_boundary_contract_fingerprint,
+        evidence.body_specification_footprint_fingerprint,
+        evidence.composed_footprint_fingerprint,
+        evidence.final_region_binding_fingerprint,
+        evidence.validation_fingerprint,
+    ] {
+        digest.update(value.to_le_bytes());
     }
 }
 
@@ -506,16 +707,48 @@ fn fingerprint_bytes(hash: &mut u64, bytes: &[u8]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use omega_target::NativeTarget;
 
-    fn entry_footprint_binding() -> CompilerEntryFootprintBindingEvidence {
+    fn empty_inventory() -> PlacedExecutableRegionInventory {
+        let image = crate::FinalImage::with_capacity(
+            NativeTarget::host(),
+            crate::FinalImageMemory::default(),
+            Default::default(),
+            0,
+            0,
+            0,
+        );
+        crate::place_executable_regions(
+            &image,
+            crate::FinalImageLayout {
+                text_address: 0x1000,
+                ..crate::FinalImageLayout::default()
+            },
+        )
+        .expect("empty executable inventory should place")
+    }
+
+    fn entry_footprint_binding(
+        inventory: &PlacedExecutableRegionInventory,
+    ) -> CompilerEntryFootprintBindingEvidence {
         let mut binding = CompilerEntryFootprintBindingEvidence {
+            entry_region_evidence_digest: crate::CompilerEntryRegionBindingDigest::from_digest(
+                [20; 32],
+            ),
             entry_region_evidence_fingerprint: 20,
             final_region_binding_fingerprint: 19,
+            prior_inventory_digest: crate::PlacedExecutableRegionInventoryDigest::from_digest(
+                [12; 32],
+            ),
             prior_inventory_fingerprint: 12,
+            footprint_digest: crate::StateFootprintEvidenceDigest::from_digest([2; 32]),
             footprint_fingerprint: 2,
-            resulting_inventory_fingerprint: 13,
+            resulting_inventory_digest: inventory.inventory_digest,
+            resulting_inventory_fingerprint: inventory.inventory_fingerprint,
+            evidence_digest: crate::CompilerEntryFootprintBindingDigest::from_digest([0; 32]),
             evidence_fingerprint: 0,
         };
+        binding.evidence_digest = binding.recomputed_evidence_digest();
         binding.evidence_fingerprint = binding.recomputed_evidence_fingerprint();
         binding
     }
@@ -559,6 +792,8 @@ mod tests {
     }
 
     fn certificate() -> FinalFootprintCertificate {
+        let inventory = empty_inventory();
+        let binding = entry_footprint_binding(&inventory);
         FinalFootprintCertificate::current(
             Some(1),
             2,
@@ -582,15 +817,8 @@ mod tests {
                 final_region_binding_fingerprint: 19,
                 validation_fingerprint: 11,
             },
-            Some(entry_footprint_binding()),
-            PlacedExecutableRegionInventory {
-                text_address: 0x1000,
-                text_byte_count: 4,
-                text_fingerprint: 12,
-                inventory_fingerprint: 13,
-                regions: Vec::new(),
-                unclassified_gaps: Vec::new(),
-            },
+            Some(binding),
+            inventory,
         )
         .expect("complete certificate")
     }
@@ -671,9 +899,46 @@ mod tests {
                 value.inventory.inventory_fingerprint = 99;
                 value
             },
+            {
+                let mut value = certificate.clone();
+                value.inventory.inventory_digest =
+                    crate::PlacedExecutableRegionInventoryDigest::from_digest([99; 32]);
+                value
+            },
         ] {
             assert!(drifted.validate_identity().is_err());
         }
+    }
+
+    #[test]
+    fn compact_certificate_identity_cannot_substitute_strong_inventory_evidence() {
+        let certificate = certificate();
+        let mut substituted = certificate.clone();
+        substituted.inventory.inventory_digest =
+            crate::PlacedExecutableRegionInventoryDigest::from_digest([99; 32]);
+
+        assert_eq!(
+            substituted.inventory.inventory_fingerprint,
+            certificate.inventory.inventory_fingerprint
+        );
+        assert_eq!(
+            substituted.certificate_fingerprint,
+            certificate.certificate_fingerprint
+        );
+        assert!(substituted.validate_identity().is_err());
+
+        let mut substituted = certificate.clone();
+        let binding = substituted
+            .compiler_entry_footprint_binding
+            .as_mut()
+            .expect("entry binding");
+        binding.footprint_digest = crate::StateFootprintEvidenceDigest::from_digest([99; 32]);
+        binding.evidence_digest = binding.recomputed_evidence_digest();
+        assert_eq!(
+            substituted.certificate_fingerprint,
+            certificate.certificate_fingerprint
+        );
+        assert!(substituted.validate_identity().is_err());
     }
 
     #[test]
@@ -716,6 +981,7 @@ mod tests {
                 section_offset: 0,
                 address: 0x1000,
                 byte_count: 1,
+                byte_digest: crate::PlacedExecutableGapBytesDigest::from_digest([1; 32]),
                 byte_fingerprint: 1,
             });
         assert!(

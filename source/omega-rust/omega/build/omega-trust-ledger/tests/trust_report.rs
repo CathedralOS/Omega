@@ -7,9 +7,77 @@ use omega_compiler::{CompileOptions, compile_to_checked};
 fn compile(
     options: CompileOptions,
 ) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
-    let report = omega_compiler::compile(omega_compiler::CompileRequest::new(options))?;
-    assert!(!report.wrote_output());
-    Ok(report)
+    let admissions = omega_trust_ledger::read_trust_admissions(&options.root_path)?;
+    let root_path = options.root_path.clone();
+    let report = omega_compiler::compile(
+        omega_compiler::CompileRequest::new(options).with_accepted_trust_admissions(admissions),
+    )?;
+    let settlement = report.trust_admission_settlement();
+    if settlement.is_exactly_admitted() {
+        assert!(!report.wrote_output());
+        return Ok(report);
+    }
+    if !root_path
+        .parent()
+        .is_some_and(|project| project.join("omega.lock").exists())
+    {
+        omega_trust_ledger::accept_trust_admissions(&root_path, settlement.required())?;
+        assert!(!report.wrote_output());
+        return Ok(report);
+    }
+    let added = settlement
+        .unresolved()
+        .iter()
+        .filter(|required| {
+            !settlement
+                .unused()
+                .iter()
+                .any(|accepted| accepted.commitment() == required.commitment())
+        })
+        .map(|row| row.commitment().to_owned())
+        .collect::<Vec<_>>();
+    let removed = settlement
+        .unused()
+        .iter()
+        .filter(|accepted| {
+            !settlement
+                .unresolved()
+                .iter()
+                .any(|required| required.commitment() == accepted.commitment())
+        })
+        .map(|row| row.commitment().to_owned())
+        .collect::<Vec<_>>();
+    let changed = settlement
+        .unresolved()
+        .iter()
+        .filter_map(|required| {
+            settlement
+                .unused()
+                .iter()
+                .find(|accepted| accepted.commitment() == required.commitment())
+                .map(|accepted| {
+                    format!(
+                        "{} ({:016x} -> {:016x})",
+                        required.commitment(),
+                        accepted.identity(),
+                        required.identity()
+                    )
+                })
+        })
+        .collect::<Vec<_>>();
+    let display = |rows: &[String]| {
+        if rows.is_empty() {
+            "none".to_owned()
+        } else {
+            rows.join(", ")
+        }
+    };
+    Err(vec![psi_diagnostics::Diagnostic::error(format!(
+        "granted statement drifted: the complete trust receipt set no longer matches omega.lock -- added: {}; removed: {}; changed: {}",
+        display(&added),
+        display(&removed),
+        display(&changed),
+    ))])
 }
 
 #[test]
@@ -101,7 +169,7 @@ fn claim_free_boundary_symbols_do_not_consume_trust() {
         project.join("main.omg"),
         r#"pub boundary data Carrier;
 pub boundary machine Carrier::combine(a: Carrier, b: Carrier) -> Carrier;
-boundary trait AlgebraAudit {}
+pub boundary trait AlgebraAudit {}
 boundary machine combine_commutative(callback: &mut AlgebraAudit, a: Carrier, b: Carrier)
 reaches AlgebraAudit
 invokes callback;
@@ -268,8 +336,8 @@ fn non_provider_grants_use_one_exact_subject_in_lock_and_report() {
     std::fs::create_dir_all(&project).expect("create project dir");
     std::fs::write(
         project.join("main.omg"),
-        r#"data First {}
-data Second {}
+        r#"pub data First {}
+pub data Second {}
 boundary machine First::claim() ensures true;
 boundary machine Second::claim() ensures true;
 data Main {}
@@ -700,9 +768,9 @@ fn granted_generic_axiom_receipt_pins_template_and_machine_requirement() {
     let main_with = |requirement_clause: &str| {
         format!(
             r#"boundary trait Console {{ machine exit_process(return_code: i32); }}
-trait Ranked {{ machine Self::before(&self, other: &Self) -> bool; }}
+pub trait Ranked {{ machine Self::before(&self, other: &Self) -> bool; }}
 data Card {{ rank: i32; }}
-domain<T, const N: u64> T::Quantity<N>;
+pub domain<T, const N: u64> T::Quantity<N>;
 Ascending: Card satisfies Ranked {{
     machine before(&self, other: &Card) -> bool {{ self.rank < other.rank }}
 }}

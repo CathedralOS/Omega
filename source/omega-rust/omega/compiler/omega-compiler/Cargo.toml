@@ -16,7 +16,7 @@ omega-compilation-report = { path = "../omega-compilation-report" }
 omega-package-compilation = { path = "../../build/omega-package-compilation" }
 omega-provider-planning = { path = "../../build/omega-provider-planning" }
 omega-source-profile = { path = "../../tooling/omega-source-profile" }
-omega-trust-ledger = { path = "../../build/omega-trust-ledger" }
+omega-trust-model = { path = "../../build/omega-trust-model" }
 omega-core = { path = "../../representations/omega-core" }
 omega-optimization-core = { path = "../../representations/omega-optimization-core" }
 omega-optimization-pipeline = { path = "../../pipeline/optimization/omega-optimization-pipeline" }

@@ -11,12 +11,13 @@ pub(super) fn compile(request: CompileRequest) -> Result<CompileReport, Vec<Diag
         &request.options,
         request.package_inputs.as_ref(),
     )?;
-    settle_checked_trust(&request, &checked)?;
-    match request.requested_product {
+    let trust_settlement = settle_checked_trust(&request, &checked)?;
+    let report = match request.requested_product {
         RequestedCompileProduct::Check => checked_report(request, &checked),
         RequestedCompileProduct::TerminalArtifact => terminal_report(request, checked),
         RequestedCompileProduct::NativeArtifact => native_report(request, checked),
-    }
+    }?;
+    Ok(report.with_trust_admission_settlement(trust_settlement))
 }
 
 fn reject_rollback_without_native_realization(
@@ -44,18 +45,20 @@ fn reject_rollback_without_native_realization(
 fn settle_checked_trust(
     request: &CompileRequest,
     checked: &crate::pipeline::CheckedCompilation,
-) -> Result<(), Vec<Diagnostic>> {
-    let prepared = omega_trust_ledger::prepare_trust_lockfile(
-        &request.options.root_path,
+) -> Result<omega_trust_model::TrustAdmissionSettlement, Vec<Diagnostic>> {
+    let obligations = omega_trust_model::reconstruct_trust_obligations(
         &checked.typed,
+        checked,
         checked.root_grants(),
         checked.provider_plans(),
         checked.selected_provider_plans(),
         checked.accepted_template_classifications(),
         checked.package_identity().is_some(),
     )?;
-    omega_trust_ledger::enforce_trust_lockfile(prepared, checked)?;
-    omega_trust_ledger::write_trust_report(
+    let settlement =
+        omega_trust_model::settle_trust_admissions(obligations, &request.accepted_trust_admissions)
+            .map_err(|diagnostic| vec![diagnostic])?;
+    omega_trust_model::write_trust_report(
         &request.options.build_dir(),
         checked,
         checked.root_grants(),
@@ -74,7 +77,7 @@ fn settle_checked_trust(
             checked.component_progress(),
         )?;
     }
-    Ok(())
+    Ok(settlement)
 }
 
 fn checked_report(
@@ -88,8 +91,6 @@ fn checked_report(
         super::CompileOutputKind::CheckOnly,
         None,
         None,
-        checked.build_evaluation_usage(),
-        checked.build_observation_summary().cloned(),
     )
     .map_err(|message| vec![Diagnostic::error(message)])
 }
@@ -108,8 +109,6 @@ fn terminal_report(
             )]
         })?
         .to_owned();
-    let build_evaluation_usage = checked.build_evaluation_usage();
-    let build_observation_summary = checked.build_observation_summary().cloned();
     let artifact =
         psi_checked_trees_to_terminal::produce_terminal_artifact(&checked, &entry_machine)
             .map_err(|error| {
@@ -117,14 +116,8 @@ fn terminal_report(
                     "terminal-artifact production failed: {error}"
                 ))]
             })?;
-    CompileReport::from_artifact(
-        request.options.root_path,
-        source_file_count,
-        artifact,
-        build_evaluation_usage,
-        build_observation_summary,
-    )
-    .map_err(|message| vec![Diagnostic::error(message)])
+    CompileReport::from_artifact(request.options.root_path, source_file_count, artifact)
+        .map_err(|message| vec![Diagnostic::error(message)])
 }
 
 fn native_report(
@@ -152,8 +145,6 @@ fn native_report(
             "native-artifact production cannot discard pending build-bound component progress; request component staging with explicit establishment evidence",
         )]);
     }
-    let build_evaluation_usage = checked.build_evaluation_usage();
-    let build_observation_summary = checked.build_observation_summary().cloned();
     let optimization_rollback = request
         .optimization_rollback
         .reconcile(checked.optimization_selections());
@@ -192,8 +183,6 @@ fn native_report(
         source_file_count,
         native_artifact,
         optimization_rollback,
-        build_evaluation_usage,
-        build_observation_summary,
     )
     .map_err(|message| vec![Diagnostic::error(message)])
 }

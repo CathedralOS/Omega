@@ -2595,6 +2595,18 @@ read by its consumers. The lock belongs to whoever builds an artifact; a library
 does not pin its consumers' graph. What composes upward from a dependency is its
 manifest and its disclosed admissions — separate artifacts with separate rules.
 
+Compilation itself does not discover or mutate that lock. A compile request
+supplies one complete in-memory admission set; the compiler independently
+reconstructs the exact required obligations and returns the consumed,
+unresolved, and unused rows with its product. The command coordinator reads the
+workspace policy for an ordinary fail-closed check. Only the explicit
+`--accept-admissions` operation replaces the admitted set with the exact
+compiler-reconstructed set. A missing lock therefore never turns ordinary
+compilation into implicit approval, and trust-report files remain diagnostics
+rather than policy authority. Filesystem-free obligation/report construction
+lives in `omega-trust-model`; `omega-trust-ledger` is limited to coordinator-
+facing `omega.lock` custody.
+
 `omega::language::core` is bundled with the compiler by decision rather than by
 omission. It is the language: the checker cannot typecheck without it, its
 version is the language version, and two versions of it can never coexist in one

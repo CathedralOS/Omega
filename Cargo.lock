@@ -275,6 +275,7 @@ dependencies = [
  "omega-package-manager",
  "omega-resolver-execution",
  "omega-target",
+ "omega-trust-ledger",
  "psi-checked-interpreter",
  "psi-checked-trees-to-terminal",
  "psi-core",
@@ -450,11 +451,11 @@ dependencies = [
 name = "omega-compilation-report"
 version = "0.1.0"
 dependencies = [
- "omega-build-evaluation",
  "omega-image",
  "omega-native-artifact",
  "omega-optimization-core",
  "omega-target",
+ "omega-trust-model",
  "psi-terminal-codec",
  "sha2",
 ]
@@ -487,7 +488,7 @@ dependencies = [
  "omega-target",
  "omega-task-plans",
  "omega-terminal-psi-to-native-artifact",
- "omega-trust-ledger",
+ "omega-trust-model",
  "omega-visualizations",
  "psi-access-plans",
  "psi-arena",
@@ -1145,7 +1146,7 @@ dependencies = [
  "omega-program-entry-plan",
  "omega-target",
  "omega-task-plans",
- "omega-trust-ledger",
+ "omega-trust-model",
  "omega-visualizations",
  "psi-arena",
  "psi-build-time-evaluation",
@@ -1395,6 +1396,16 @@ dependencies = [
 
 [[package]]
 name = "omega-trust-ledger"
+version = "0.1.0"
+dependencies = [
+ "omega-compiler",
+ "omega-effects",
+ "omega-trust-model",
+ "psi-diagnostics",
+]
+
+[[package]]
+name = "omega-trust-model"
 version = "0.1.0"
 dependencies = [
  "omega-artifacts",

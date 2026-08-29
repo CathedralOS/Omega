@@ -323,8 +323,13 @@ fn selected_source_boundary_entry_plan(
             matching_realizations.len()
         )));
     };
+    if &realization.boundary_entry_plan != realization.exact_boundary_entry_plan() {
+        return Err(Diagnostic::error(format!(
+            "selected source boundary entry `{trait_name}::{method_name}` / `{requirement_identity}` substituted a calling plan behind its compact report fingerprint"
+        )));
+    }
 
-    Ok(Some(realization.boundary_entry_plan.clone()))
+    Ok(Some(realization.exact_boundary_entry_plan().clone()))
 }
 
 #[cfg(test)]

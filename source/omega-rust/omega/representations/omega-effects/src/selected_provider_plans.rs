@@ -154,10 +154,33 @@ impl SelectedProviderPlanFacts {
         &self.plans
     }
 
+    /// Compatibility/report lookup for existing compact-ID consumers. Code
+    /// making an admission or execution decision must use
+    /// [`Self::plan_by_exact_evidence`] instead.
     pub fn plan_by_identity(&self, identity: u64) -> Option<&ProviderPlan> {
         self.plans
             .iter()
             .find(|plan| plan.identity_fingerprint() == identity)
+    }
+
+    /// Rejoin a compact provider-plan report identity only when the caller
+    /// also retains the complete selected plan evidence. The fingerprint is a
+    /// compatibility coordinate; exact structural equality is the authority
+    /// check, so a collision-equal substitute cannot select another plan.
+    pub fn plan_by_exact_evidence(
+        &self,
+        report_identity: u64,
+        exact_plan: &ProviderPlan,
+    ) -> Option<&ProviderPlan> {
+        let mut matches = self
+            .plans
+            .iter()
+            .filter(|plan| plan.identity_fingerprint() == report_identity);
+        let selected = matches.next()?;
+        if matches.next().is_some() || selected != exact_plan {
+            return None;
+        }
+        Some(selected)
     }
 
     pub const fn normalized_identity(&self) -> u64 {
@@ -571,6 +594,30 @@ mod tests {
                 .plan_by_identity(alpha.identity_fingerprint())
                 .map(|plan| plan.name.as_str()),
             Some("Alpha")
+        );
+    }
+
+    #[test]
+    fn exact_plan_lookup_rejects_a_substitute_claiming_the_same_report_identity() {
+        let selected_plan = candidate("Alpha", "read");
+        let mut substituted_plan = selected_plan.clone();
+        substituted_plan.rows[0].binding = ProviderBinding::CheckedAdapter {
+            machine_identity: "AlphaProvider::substituted_read".into(),
+            machine_package_identity: None,
+        };
+        let report_identity = selected_plan.identity_fingerprint();
+        let selected = SelectedProviderPlanFacts::from_selected_plans(vec![selected_plan.clone()])
+            .expect("selected provider plan");
+
+        assert!(
+            selected
+                .plan_by_exact_evidence(report_identity, &substituted_plan)
+                .is_none(),
+            "claiming a collision-equal compact report identity cannot replace exact plan evidence"
+        );
+        assert_eq!(
+            selected.plan_by_exact_evidence(report_identity, &selected_plan),
+            Some(&selected_plan)
         );
     }
 

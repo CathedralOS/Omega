@@ -41,7 +41,7 @@ pub fn write_trust_report(
         }
         non_provider_grants.push((
             grant.as_str(),
-            crate::lockfile::resolve_non_provider_trust_grant(typed, grant)
+            crate::resolve_non_provider_trust_grant(typed, grant)
                 .map_err(|diagnostic| vec![diagnostic])?,
         ));
     }
@@ -252,7 +252,7 @@ pub fn write_trust_report(
             continue;
         }
         let granted = non_provider_grants.iter().any(|(_, subject)| {
-            *subject == crate::lockfile::NonProviderTrustGrant::AcceptedMachine(machine.symbol)
+            *subject == crate::NonProviderTrustGrant::AcceptedMachine(machine.symbol)
         });
         let contract = exact_machine_contract_plan(
             checked,

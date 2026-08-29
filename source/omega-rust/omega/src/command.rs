@@ -74,6 +74,7 @@ pub(crate) fn run() {
         root_path: arguments.root_path,
         target_name: arguments.target_name,
     };
+    let policy_root_path = options.root_path.clone();
 
     let artifact_policy = if arguments.output_only {
         ArtifactEmissionPolicy::OutputOnly
@@ -97,23 +98,67 @@ pub(crate) fn run() {
         .with_requested_product(requested_product)
         .with_artifact_policy(artifact_policy)
         .with_optimization_rollback(arguments.optimization_rollback);
+    let accepted_admissions = match omega_trust_ledger::read_trust_admissions(&policy_root_path) {
+        Ok(admissions) => admissions,
+        Err(diagnostics) => {
+            for diagnostic in diagnostics {
+                eprintln!("{diagnostic}");
+            }
+            std::process::exit(1);
+        }
+    };
+    request = request.with_accepted_trust_admissions(accepted_admissions);
     if let Some(package_inputs) = package_inputs {
         request = request.with_package_inputs(package_inputs);
     }
     match compile(request) {
-        Ok(report) if arguments.check_only => println!("{}", report.summary()),
-        Ok(report) => match output::publish_native_artifact(report, &build_dir) {
-            Ok((published, path)) => {
-                if let Some(receipt) = published.optimization_rollback_receipt() {
-                    println!("optimizer rollback: {receipt}");
+        Ok(report) => {
+            let settlement = report.trust_admission_settlement();
+            if arguments.accept_admissions {
+                if let Err(diagnostics) = omega_trust_ledger::accept_trust_admissions(
+                    &policy_root_path,
+                    settlement.required(),
+                ) {
+                    for diagnostic in diagnostics {
+                        eprintln!("{diagnostic}");
+                    }
+                    std::process::exit(1);
                 }
-                println!("published native output to {}", path.display());
-            }
-            Err(error) => {
-                eprintln!("{error}");
+            } else if !settlement.is_exactly_admitted() {
+                for admission in settlement.unresolved() {
+                    eprintln!(
+                        "unresolved trust admission `{}` [{:016x}]",
+                        admission.commitment(),
+                        admission.identity()
+                    );
+                }
+                for admission in settlement.unused() {
+                    eprintln!(
+                        "stale trust admission `{}` [{:016x}]",
+                        admission.commitment(),
+                        admission.identity()
+                    );
+                }
+                eprintln!("run again with --accept-admissions to accept this exact set");
                 std::process::exit(1);
             }
-        },
+            if arguments.check_only {
+                println!("{}", report.summary());
+            } else {
+                match output::publish_native_artifact(report, &build_dir) {
+                    Ok((published, path)) => {
+                        if let Some(receipt) = published.optimization_rollback_receipt() {
+                            println!("optimizer rollback: {receipt}");
+                        }
+                        println!("published native output to {}", path.display());
+                    }
+                    Err(error) => {
+                        eprintln!("{error}");
+                        std::process::exit(1);
+                    }
+                }
+            }
+        }
         Err(diagnostics) => {
             for diagnostic in diagnostics {
                 eprintln!("{diagnostic}");
@@ -181,6 +226,7 @@ fn local_source_storage() -> Result<omega_package_manager::SourceResolverStorage
 }
 
 struct CliArguments {
+    accept_admissions: bool,
     build_dir: Option<PathBuf>,
     check_only: bool,
     output_only: bool,
@@ -190,10 +236,11 @@ struct CliArguments {
 }
 
 fn usage() -> &'static str {
-    "usage: omega [--check] [--output-only] [--build-dir <dir>] [--target <name>] [--disable-optimization <ExactName>]... <root.omg>\n       omega run [--both] [--keep] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source --kind <local|git> <locator> [--rev <rev>]\n       omega source-snapshot --repository-root <dir> [--target <name>] [--feature-census] <root.omg>\n       omega refresh-samples [samples-dir]"
+    "usage: omega [--check] [--accept-admissions] [--output-only] [--build-dir <dir>] [--target <name>] [--disable-optimization <ExactName>]... <root.omg>\n       omega run [--both] [--keep] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source --kind <local|git> <locator> [--rev <rev>]\n       omega source-snapshot --repository-root <dir> [--target <name>] [--feature-census] <root.omg>\n       omega refresh-samples [samples-dir]"
 }
 
 fn parse_arguments() -> Result<CliArguments, String> {
+    let mut accept_admissions = false;
     let mut build_dir = None;
     let mut check_only = false;
     let mut disabled_optimizations = Vec::new();
@@ -205,6 +252,11 @@ fn parse_arguments() -> Result<CliArguments, String> {
     while let Some(argument) = arguments.next() {
         if argument == "--check" {
             check_only = true;
+            continue;
+        }
+
+        if argument == "--accept-admissions" {
+            accept_admissions = true;
             continue;
         }
 
@@ -256,6 +308,7 @@ fn parse_arguments() -> Result<CliArguments, String> {
         OptimizationRollback::from_exact_names(disabled_optimizations.iter().map(String::as_str))
             .map_err(|error| error.to_string())?;
     Ok(CliArguments {
+        accept_admissions,
         build_dir,
         check_only,
         output_only,

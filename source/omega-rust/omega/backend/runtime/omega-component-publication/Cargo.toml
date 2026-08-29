@@ -12,7 +12,7 @@ path = "src/lib.rs"
 omega-effects = { path = "../../../representations/omega-effects" }
 omega-executable-installation = { path = "../omega-executable-installation" }
 omega-external-roots = { path = "../omega-external-roots" }
-omega-image-emission = { path = "../../images/omega-image-emission" }
+omega-image-emission = { path = "../../images/omega-image-emission", features = ["installed-artifact"] }
 
 [dev-dependencies]
 omega-calling-conventions = { path = "../../../representations/omega-calling-conventions" }

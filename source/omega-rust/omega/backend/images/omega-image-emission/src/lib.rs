@@ -20,6 +20,7 @@ mod final_image_validation;
 mod fully_consumed_affine_pair;
 mod image_output;
 mod installation;
+#[cfg(feature = "installed-artifact")]
 mod installed_artifact;
 mod instruction_loads;
 mod native_fuel;
@@ -51,6 +52,7 @@ pub use image_output::{
     emit_scalar_call_reference_linux_x86_64_image, validate_executable_image,
 };
 pub use installation::*;
+#[cfg(feature = "installed-artifact")]
 pub use installed_artifact::{
     InstalledArtifact, InstalledArtifactBindingError, bind_installed_artifact,
 };

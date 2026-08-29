@@ -14,7 +14,7 @@ omega-component-candidate = { path = "../../backend/artifacts/omega-component-ca
 omega-executable-installation = { path = "../../backend/runtime/omega-executable-installation" }
 omega-effects = { path = "../../representations/omega-effects" }
 omega-external-roots = { path = "../../backend/runtime/omega-external-roots" }
-omega-image-emission = { path = "../../backend/images/omega-image-emission" }
+omega-image-emission = { path = "../../backend/images/omega-image-emission", features = ["installed-artifact"] }
 omega-installation-evidence = { path = "../../representations/omega-installation-evidence" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-layout-plans = { path = "../../../psi/foundation/psi-layout-plans" }

@@ -25,32 +25,17 @@ use omega_compiler::{
 use omega_package_compilation::{PackageCompilationInputs, PackageSourceBinding};
 use psi_checked_interpreter::FilesystemSponsor;
 
-#[derive(Debug, Clone, Copy)]
-enum TestCompileProduct {
-    Check,
-    NativeArtifactAndPublish,
-}
-
 fn compile(
     options: CompileOptions,
-    product: TestCompileProduct,
 ) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
     let build_dir = options.build_dir();
-    let requested_product = match product {
-        TestCompileProduct::Check => omega_compiler::RequestedCompileProduct::Check,
-        TestCompileProduct::NativeArtifactAndPublish => {
-            omega_compiler::RequestedCompileProduct::NativeArtifact
-        }
-    };
     let report = omega_compiler::compile(
-        omega_compiler::CompileRequest::new(options).with_requested_product(requested_product),
+        omega_compiler::CompileRequest::new(options)
+            .with_requested_product(omega_compiler::RequestedCompileProduct::NativeArtifact),
     )?;
-    match product {
-        TestCompileProduct::Check => Ok(report),
-        TestCompileProduct::NativeArtifactAndPublish => report
-            .publish_retained_native_artifact(&build_dir)
-            .map_err(|error| vec![psi_diagnostics::Diagnostic::error(error)]),
-    }
+    report
+        .publish_retained_native_artifact(&build_dir)
+        .map_err(|error| vec![psi_diagnostics::Diagnostic::error(error)])
 }
 
 use psi_core::PackageKeyIdentity;
@@ -552,15 +537,9 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
             build_dir: Some(build_dir.clone()),
             target_name: Some(profile.target_name().to_owned()),
         },
-        TestCompileProduct::NativeArtifactAndPublish,
     )
     .expect("declared filesystem+console build.omg should compile (console rows are SERVED, not backstopped)");
     assert!(report.wrote_output());
-    assert_eq!(report.build_evaluation_usage, Some(checked_usage));
-    assert_eq!(
-        report.build_observation_summary.as_ref(),
-        Some(checked_observations)
-    );
 
     let staged = std::fs::read_to_string(stage.join("asset.bin"))
         .expect("the build machine should have staged stage/asset.bin at compile time");
@@ -705,19 +684,13 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     )
     .expect("write main.omg");
 
-    let report = compile(
-        CompileOptions {
-            root_path: PathBuf::from(project.join("main.omg")),
-            build_dir: Some(project.join("build")),
-            target_name: Some(profile.target_name().to_owned()),
-        },
-        TestCompileProduct::Check,
-    )
-    .expect(
-        "declared filesystem build.omg should compile while denied source write returns fd < 0",
-    );
-    let observations = report
-        .build_observation_summary
+    let checked = compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+        .expect(
+            "declared filesystem build.omg should compile while denied source write returns fd < 0",
+        );
+    let observations = checked
+        .build_observation_summary()
+        .cloned()
         .expect("denied filesystem attempt remains an observed build-host operation");
     assert_eq!(observations.ceiling(), BuildObservationClass::Volatile);
     assert_eq!(observations.realized(), BuildObservationClass::Volatile);
@@ -954,17 +927,11 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     )
     .expect("write main.omg");
 
-    let report = compile(
-        CompileOptions {
-            root_path: project.join("main.omg"),
-            build_dir: Some(project.join("build")),
-            target_name: Some(profile.target_name().to_owned()),
-        },
-        TestCompileProduct::Check,
-    )
-    .expect("a denied descriptor metadata mutation is an ordinary build result");
-    let observations = report
-        .build_observation_summary
+    let checked = compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+        .expect("a denied descriptor metadata mutation is an ordinary build result");
+    let observations = checked
+        .build_observation_summary()
+        .cloned()
         .expect("descriptor mutation denial remains observable");
     let [opened, denied_mutation, denied_lock, closed] =
         observations.filesystem_operation_attempts()
@@ -2557,17 +2524,11 @@ fn canonical_source_root_cannot_be_used_for_writes() {
         r#"    let path: &[u8] in Path = builder.source.resolve("blocked.bin");
     self.descriptor = self.filesystem.create(path, 438);"#,
     );
-    let report = compile(
-        CompileOptions {
-            root_path: project.join("main.omg"),
-            build_dir: Some(project.join("build")),
-            target_name: Some(profile.target_name().to_owned()),
-        },
-        TestCompileProduct::Check,
-    )
-    .expect("a denied source-root write is an observed build result");
-    let observations = report
-        .build_observation_summary
+    let checked = compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+        .expect("a denied source-root write is an observed build result");
+    let observations = checked
+        .build_observation_summary()
+        .cloned()
         .expect("source-root denial remains observable");
     let [create] = observations.filesystem_operation_attempts() else {
         panic!("source-root write must retain one attempted create")
@@ -2658,17 +2619,11 @@ fn output_root_follow_rejects_a_symlink_escape_before_the_requested_operation() 
     create_directory_symlink(&outside, &build_dir.join("escape"))
         .expect("create escaping output directory symlink; Windows requires symlink privilege");
 
-    let report = compile(
-        CompileOptions {
-            root_path: project.join("main.omg"),
-            build_dir: Some(build_dir),
-            target_name: Some(profile.target_name().to_owned()),
-        },
-        TestCompileProduct::Check,
-    )
-    .expect("a denied output symlink escape remains an observed build result");
-    let observations = report
-        .build_observation_summary
+    let checked = compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+        .expect("a denied output symlink escape remains an observed build result");
+    let observations = checked
+        .build_observation_summary()
+        .cloned()
         .expect("output symlink denial remains observable");
     let [create] = observations.filesystem_operation_attempts() else {
         panic!("output symlink escape must retain one attempted create")

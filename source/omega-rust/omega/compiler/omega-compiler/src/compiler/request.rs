@@ -20,6 +20,7 @@ pub struct CompileRequest {
     pub(crate) requested_product: RequestedCompileProduct,
     pub(crate) artifact_policy: ArtifactEmissionPolicy,
     pub(crate) terminal_admission_profile: psi_proof_admission::AdmissionProfile,
+    pub(crate) accepted_trust_admissions: Vec<omega_trust_model::TrustAdmission>,
     pub(crate) package_inputs: Option<PackageCompilationInputs>,
     pub(crate) optimization_rollback: OptimizationRollback,
 }
@@ -33,6 +34,7 @@ impl CompileRequest {
             requested_product: RequestedCompileProduct::Check,
             artifact_policy: ArtifactEmissionPolicy::Full,
             terminal_admission_profile: psi_proof_admission::AdmissionProfile::default(),
+            accepted_trust_admissions: Vec::new(),
             package_inputs: None,
             optimization_rollback: OptimizationRollback::default(),
         }
@@ -56,6 +58,17 @@ impl CompileRequest {
         profile: psi_proof_admission::AdmissionProfile,
     ) -> Self {
         self.terminal_admission_profile = profile;
+        self
+    }
+
+    /// Supply the complete, exact admission set selected by owner policy.
+    /// Compilation compares this in-memory set with independently
+    /// reconstructed obligations and performs no policy discovery.
+    pub fn with_accepted_trust_admissions(
+        mut self,
+        admissions: Vec<omega_trust_model::TrustAdmission>,
+    ) -> Self {
+        self.accepted_trust_admissions = admissions;
         self
     }
 

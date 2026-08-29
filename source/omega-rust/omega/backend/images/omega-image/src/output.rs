@@ -1,3 +1,25 @@
+use sha2::{Digest, Sha256};
+
+macro_rules! image_evidence_digest {
+    ($name:ident) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub struct $name([u8; 32]);
+
+        impl $name {
+            pub(crate) const fn from_digest(digest: [u8; 32]) -> Self {
+                Self(digest)
+            }
+
+            pub const fn as_bytes(&self) -> &[u8; 32] {
+                &self.0
+            }
+        }
+    };
+}
+
+image_evidence_digest!(CompilerEntryRegionBindingDigest);
+image_evidence_digest!(CompilerEntryFootprintBindingDigest);
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutableImageOutput {
     pub bytes: Vec<u8>,
@@ -50,13 +72,63 @@ pub struct CompilerEntryRegionBindingEvidence {
     pub section_offset: usize,
     pub address: u64,
     pub byte_count: usize,
+    pub byte_digest: crate::PlacedExecutableRegionBytesDigest,
+    /// Compact report compatibility only.
     pub byte_fingerprint: u64,
+    pub inventory_digest: crate::PlacedExecutableRegionInventoryDigest,
+    /// Compact report compatibility only.
     pub inventory_fingerprint: u64,
     pub final_region_binding_fingerprint: u64,
+    pub evidence_digest: CompilerEntryRegionBindingDigest,
+    /// Compact report compatibility only.
     pub evidence_fingerprint: u64,
 }
 
 impl CompilerEntryRegionBindingEvidence {
+    pub fn recomputed_evidence_digest(&self) -> CompilerEntryRegionBindingDigest {
+        let mut digest = Sha256::new();
+        digest.update(b"omega.compiler-entry-region-binding.sha256.v1\0");
+        let identity = self.function_identity;
+        let role_tag = if identity.source_key().is_some() {
+            1u8
+        } else if identity.program_storage_entry_continuation().is_some() {
+            2u8
+        } else if identity.callback_thunk_placement_index().is_some() {
+            3u8
+        } else {
+            0u8
+        };
+        digest.update([role_tag]);
+        let continuation = identity.associated_source_continuation();
+        digest.update(u64::from(continuation.machine.arena_index()).to_le_bytes());
+        digest.update(u64::from(continuation.machine.generation()).to_le_bytes());
+        digest.update(u64::from(continuation.state.arena_index()).to_le_bytes());
+        digest.update(u64::from(continuation.state.generation()).to_le_bytes());
+        digest.update((continuation.segment_index as u64).to_le_bytes());
+        digest.update(
+            (identity
+                .callback_thunk_placement_index()
+                .unwrap_or(usize::MAX) as u64)
+                .to_le_bytes(),
+        );
+        digest.update(u64::from(self.object_symbol_handle.arena_index()).to_le_bytes());
+        digest.update(u64::from(self.object_symbol_handle.generation()).to_le_bytes());
+        digest.update((self.region_index as u64).to_le_bytes());
+        digest.update((self.symbol.len() as u64).to_le_bytes());
+        digest.update(self.symbol.as_bytes());
+        digest.update((self.section_offset as u64).to_le_bytes());
+        digest.update(self.address.to_le_bytes());
+        digest.update((self.byte_count as u64).to_le_bytes());
+        digest.update(self.byte_digest.as_bytes());
+        digest.update(self.inventory_digest.as_bytes());
+        digest.update(self.final_region_binding_fingerprint.to_le_bytes());
+        CompilerEntryRegionBindingDigest::from_digest(digest.finalize().into())
+    }
+
+    pub fn has_valid_evidence_digest(&self) -> bool {
+        self.evidence_digest == self.recomputed_evidence_digest()
+    }
+
     pub fn recomputed_evidence_fingerprint(&self) -> u64 {
         let mut hash = 0xcbf2_9ce4_8422_2325u64;
         let identity = self.function_identity;
@@ -127,15 +199,36 @@ impl CompilerEntryRegionBindingEvidence {
 /// compiler entry row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CompilerEntryFootprintBindingEvidence {
+    pub entry_region_evidence_digest: CompilerEntryRegionBindingDigest,
+    /// Compact report compatibility only.
     pub entry_region_evidence_fingerprint: u64,
     pub final_region_binding_fingerprint: u64,
+    pub prior_inventory_digest: crate::PlacedExecutableRegionInventoryDigest,
+    /// Compact report compatibility only.
     pub prior_inventory_fingerprint: u64,
+    pub footprint_digest: crate::StateFootprintEvidenceDigest,
+    /// Compact report compatibility only.
     pub footprint_fingerprint: u64,
+    pub resulting_inventory_digest: crate::PlacedExecutableRegionInventoryDigest,
+    /// Compact report compatibility only.
     pub resulting_inventory_fingerprint: u64,
+    pub evidence_digest: CompilerEntryFootprintBindingDigest,
+    /// Compact report compatibility only.
     pub evidence_fingerprint: u64,
 }
 
 impl CompilerEntryFootprintBindingEvidence {
+    pub fn recomputed_evidence_digest(self) -> CompilerEntryFootprintBindingDigest {
+        let mut digest = Sha256::new();
+        digest.update(b"omega.compiler-entry-footprint-binding.sha256.v1\0");
+        digest.update(self.entry_region_evidence_digest.as_bytes());
+        digest.update(self.final_region_binding_fingerprint.to_le_bytes());
+        digest.update(self.prior_inventory_digest.as_bytes());
+        digest.update(self.footprint_digest.as_bytes());
+        digest.update(self.resulting_inventory_digest.as_bytes());
+        CompilerEntryFootprintBindingDigest::from_digest(digest.finalize().into())
+    }
+
     pub fn recomputed_evidence_fingerprint(self) -> u64 {
         let mut hash = 0xcbf2_9ce4_8422_2325u64;
         for value in [
@@ -156,6 +249,8 @@ impl CompilerEntryFootprintBindingEvidence {
             && self.prior_inventory_fingerprint != 0
             && self.footprint_fingerprint != 0
             && self.resulting_inventory_fingerprint != 0
+            && self.prior_inventory_digest != self.resulting_inventory_digest
+            && self.evidence_digest == self.recomputed_evidence_digest()
             && self.evidence_fingerprint == self.recomputed_evidence_fingerprint()
     }
 }
@@ -379,4 +474,3 @@ mod tests {
         assert!(!evidence.has_valid_derivation_digest());
     }
 }
-use sha2::{Digest, Sha256};

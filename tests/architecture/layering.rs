@@ -206,6 +206,50 @@ fn workspace_root() -> std::path::PathBuf {
         .to_path_buf()
 }
 
+fn normal_dependency_tree(package: &str) -> String {
+    let manifest = workspace_root().join("source/omega-rust/omega/Cargo.toml");
+    let output = Command::new(env!("CARGO"))
+        .arg("tree")
+        .arg("--manifest-path")
+        .arg(&manifest)
+        .args([
+            "--package",
+            package,
+            "--edges",
+            "normal",
+            "--prefix",
+            "none",
+            "--format",
+            "{p}",
+        ])
+        .current_dir(workspace_root())
+        .output()
+        .unwrap_or_else(|error| panic!("failed to inspect {package} dependency closure: {error}"));
+    assert!(
+        output.status.success(),
+        "`cargo tree -p {package}` failed:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout).expect("cargo tree output must be UTF-8")
+}
+
+fn assert_normal_closure_excludes(package: &str, forbidden: &[&str]) {
+    let tree = normal_dependency_tree(package);
+    let violations = forbidden
+        .iter()
+        .filter(|name| {
+            tree.lines()
+                .any(|line| line == **name || line.starts_with(&format!("{name} ")))
+        })
+        .copied()
+        .collect::<Vec<_>>();
+    assert!(
+        violations.is_empty(),
+        "{package}'s ordinary production closure imports quarantined runtime owner(s): {}\n\n{tree}",
+        violations.join(", ")
+    );
+}
+
 #[test]
 fn workspace_layering_is_respected() {
     let graph = load_graph();
@@ -290,6 +334,36 @@ fn workspace_layering_is_respected() {
         stale_edges.is_empty(),
         "These KNOWN_EDGE_EXCEPTIONS no longer match any edge in the graph and should be removed: {stale_edges:?}",
     );
+}
+
+#[test]
+fn compilation_report_excludes_speculative_runtime_owners() {
+    let forbidden = [
+        "omega-component-candidate",
+        "omega-component-deployment",
+        "omega-component-publication",
+        "omega-executable-installation",
+        "omega-external-roots",
+    ];
+    for package in [
+        "omega-compilation-report",
+        "omega-artifacts",
+        "omega-image-emission",
+    ] {
+        assert_normal_closure_excludes(package, &forbidden);
+    }
+}
+
+#[test]
+fn ordinary_compiler_and_package_closures_exclude_component_deployment_owners() {
+    let forbidden = [
+        "omega-component-candidate",
+        "omega-component-deployment",
+        "omega-component-publication",
+    ];
+    for package in ["omega-compiler", "omega-package-manager"] {
+        assert_normal_closure_excludes(package, &forbidden);
+    }
 }
 
 /// Sanity check: every governed crate maps to a layer that has a rank, and the
@@ -492,11 +566,12 @@ fn source_profile_analysis_is_not_owned_by_the_compiler() {
 fn trust_ledgers_are_not_owned_or_reexported_by_the_compiler() {
     let root = workspace_root();
     let compiler = root.join("source/omega-rust/omega/compiler/omega-compiler/src");
-    let owner = root.join("source/omega-rust/omega/build/omega-trust-ledger/src/lib.rs");
+    let model = root.join("source/omega-rust/omega/build/omega-trust-model/src/lib.rs");
+    let ledger = root.join("source/omega-rust/omega/build/omega-trust-ledger/src/custody.rs");
 
     assert!(
-        owner.is_file(),
-        "omega-trust-ledger must own trust receipts and reports"
+        model.is_file() && ledger.is_file(),
+        "filesystem-free trust evidence and coordinator-owned policy custody must have separate owners"
     );
     assert!(
         !compiler.join("pipeline/trust/lockfile.rs").exists()
@@ -515,6 +590,22 @@ fn trust_ledgers_are_not_owned_or_reexported_by_the_compiler() {
             && !public_api.contains("write_trust_report")
             && !public_api.contains("AcceptedTemplateClassifications"),
         "omega-compiler must not compatibility-reexport trust-ledger ownership"
+    );
+    let compiler_manifest = std::fs::read_to_string(
+        root.join("source/omega-rust/omega/compiler/omega-compiler/Cargo.toml"),
+    )
+    .expect("read omega-compiler manifest");
+    assert!(
+        !compiler_manifest.contains("omega-trust-ledger"),
+        "omega-compiler must not depend on the filesystem policy owner"
+    );
+    let driver =
+        std::fs::read_to_string(compiler.join("compiler/driver.rs")).expect("read compiler driver");
+    assert!(
+        !driver.contains("omega.lock")
+            && !driver.contains("read_trust_admissions")
+            && !driver.contains("accept_trust_admissions"),
+        "ordinary compilation must not discover or mutate admission policy"
     );
 }
 
