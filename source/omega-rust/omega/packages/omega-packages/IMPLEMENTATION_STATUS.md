@@ -313,10 +313,12 @@ source inspection, and source audit use that capability; they no longer choose
 a project-local cache, accept an ambient cache override, or fall back to the
 host temporary directory. Every manager-owned root component is private. Git,
 workspace-member, and external-local lanes are retained separately and
-reconciled around ordinary closure operations. The public source-audit path now
-requires storage; its caller-path implementation is internal-only. Other
-explicit-path resolver harnesses remain while their tests and deeper
-acquisition APIs are migrated to carry retained lane handles directly.
+reconciled around ordinary closure operations. Their handles now remain intact
+through package binding and closure traversal into Git locking/cache
+acquisition and local locking/staging. The public source-audit path requires
+storage; its caller-path implementation is test-only. Other explicit-path
+resolver harnesses remain only while their tests are migrated to the production
+private-root constructor and that production surface is removed.
 Mutable local-package snapshots omit only `.git` metadata and the reserved
 root-level `build/` compiler output; package-authored ignore files do not control
 source identity, nested `build` directories remain source, and immutable Git

@@ -30,11 +30,13 @@ closed. Compiler-issued package review remains non-admitting.
   and local publication staging remains beneath it.
 
   Git, workspace-member, and external-local cache lanes are now created,
-  retained, and path-reconciled separately; ordinary closure and audit entry
-  points consume those lanes. Remaining work is to pass their retained handles
-  into low-level acquisition instead of reopening lane pathnames, make the
-  remaining explicit-path source/closure APIs test-only or hardened-mode-only,
-  and migrate their tests to the production private-root constructor. Cached
+  retained, and path-reconciled separately. Ordinary closure and audit entry
+  points carry those retained handles through package binding and closure
+  traversal into Git locking/cache acquisition and local locking/staging;
+  pathname reconciliation checks identity but does not grant acquisition
+  authority. Remaining work is to make the explicit-path source/closure APIs
+  test-only or hardened-mode-only and migrate their tests to the production
+  private-root constructor. Cached
   content must remain authenticated by immutable source identity and
   publication must remain an in-root atomic rename throughout that migration.
 

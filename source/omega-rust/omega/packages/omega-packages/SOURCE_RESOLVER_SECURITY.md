@@ -34,12 +34,15 @@ location. The manager creates every owned component with private permissions,
 retains the final directory, and rejects pathname replacement before and after
 closure operations. Dedicated Git, workspace-member, and external-local lanes
 are likewise created privately, retained, and reconciled; ordinary closure and
-audit entry points select those lanes without deriving new names. Compile
+audit entry points carry their handles through package binding and closure
+traversal into Git locking/cache acquisition and local locking/staging.
+Pathname reconciliation detects replacement but is not reacquired as ordinary
+operation authority. Compile
 dependency resolution, source inspection, and source audit no longer select a
 project-local cache, honor an ambient cache override, or fall back to the host
 temporary directory. Existing lower-level resolver harnesses still accept
-explicit cache paths; passing retained lane handles into those operations and
-migrating all tests remains open.
+explicit cache paths for their legacy tests; restricting that surface and
+migrating those tests to the production private-root constructor remains open.
 
 ## Portable executor floor
 

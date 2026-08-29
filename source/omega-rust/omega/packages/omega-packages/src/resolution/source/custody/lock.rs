@@ -30,6 +30,57 @@ pub(in crate::resolution::source) struct CacheEntryLock {
 }
 
 impl CacheEntryLock {
+    fn open_from_retained_parent(
+        kind: CacheCustodyKind,
+        parent_path: &Path,
+        retained_parent: &CapabilityDirectory,
+        lock_name: &OsStr,
+    ) -> Result<(File, CapabilityDirectory, OsString), SourceResolveError> {
+        let path = parent_path.join(lock_name);
+        let parent = retained_parent
+            .try_clone()
+            .map_err(|error| io_error(parent_path, error))?;
+        verify_retained_cache_parent_path(kind, parent_path, &parent)?;
+        let mut options = CapabilityOpenOptions::new();
+        options
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .follow(FollowSymlinks::No);
+        #[cfg(unix)]
+        options.mode(0o600);
+        let capability_file = parent.open_with(lock_name, &options).map_err(|error| {
+            cache_custody_invalid(
+                kind,
+                &path,
+                format!("could not open cache lock without following links: {error}"),
+            )
+        })?;
+        let handle_metadata = capability_file
+            .metadata()
+            .map_err(|error| io_error(&path, error))?;
+        let path_metadata = parent
+            .symlink_metadata(lock_name)
+            .map_err(|error| io_error(&path, error))?;
+        if !handle_metadata.is_file()
+            || path_metadata.file_type().is_symlink()
+            || !path_metadata.is_file()
+            || !same_capability_file_identity(&handle_metadata, &path_metadata)
+        {
+            return Err(cache_custody_invalid(
+                kind,
+                &path,
+                "cache lock is not a stable regular file beneath its retained parent",
+            ));
+        }
+        verify_capability_cache_node_owner_and_mode(kind, &path, &path_metadata)?;
+        let file = capability_file.into_std();
+        verify_macos_open_cache_extended_acl_custody(kind, &path, &file)?;
+        verify_windows_open_cache_custody(kind, &path, &file)?;
+        Ok((file, parent, lock_name.to_os_string()))
+    }
+
     pub(in crate::resolution::source) fn open_retained(
         kind: CacheCustodyKind,
         path: &Path,
@@ -87,6 +138,7 @@ impl CacheEntryLock {
         Ok(file)
     }
 
+    #[cfg(test)]
     pub(in crate::resolution::source) fn acquire_with_git_budget(
         path: &Path,
         executor: &GitExecutor,
@@ -115,6 +167,46 @@ impl CacheEntryLock {
             parent,
             kind: CacheCustodyKind::Git,
             path: path.to_path_buf(),
+            lock_name,
+        })
+    }
+
+    pub(in crate::resolution::source) fn acquire_with_git_budget_from_parent(
+        parent_path: &Path,
+        retained_parent: &CapabilityDirectory,
+        lock_name: &OsStr,
+        executor: &GitExecutor,
+    ) -> Result<Self, SourceResolveError> {
+        let path = parent_path.join(lock_name);
+        let (file, parent, lock_name) = Self::open_from_retained_parent(
+            CacheCustodyKind::Git,
+            parent_path,
+            retained_parent,
+            lock_name,
+        )?;
+        loop {
+            executor.verify_budget()?;
+            match file.try_lock() {
+                Ok(()) => break,
+                Err(std::fs::TryLockError::WouldBlock) => {
+                    let remaining = executor.remaining_time()?;
+                    std::thread::sleep(PROCESS_POLL_INTERVAL.min(remaining));
+                }
+                Err(std::fs::TryLockError::Error(error)) => {
+                    return Err(io_error(&path, error));
+                }
+            }
+        }
+        if let Err(error) = executor.verify_budget() {
+            let _ = file.unlock();
+            return Err(error);
+        }
+        verify_cache_lock_path_identity(CacheCustodyKind::Git, &path, &parent, &lock_name, &file)?;
+        Ok(Self {
+            file,
+            parent,
+            kind: CacheCustodyKind::Git,
+            path,
             lock_name,
         })
     }
@@ -178,6 +270,70 @@ impl CacheEntryLock {
             parent,
             kind: CacheCustodyKind::LocalSnapshot,
             path: path.to_path_buf(),
+            lock_name,
+        })
+    }
+
+    pub(in crate::resolution::source) fn acquire_local_from_parent(
+        parent_path: &Path,
+        retained_parent: &CapabilityDirectory,
+        lock_name: &OsStr,
+    ) -> Result<Self, SourceResolveError> {
+        Self::acquire_local_from_parent_with_timeout(
+            parent_path,
+            retained_parent,
+            lock_name,
+            LOCAL_SNAPSHOT_LOCK_TIMEOUT,
+        )
+    }
+
+    pub(in crate::resolution::source) fn acquire_local_from_parent_with_timeout(
+        parent_path: &Path,
+        retained_parent: &CapabilityDirectory,
+        lock_name: &OsStr,
+        timeout: Duration,
+    ) -> Result<Self, SourceResolveError> {
+        let path = parent_path.join(lock_name);
+        let (file, parent, lock_name) = Self::open_from_retained_parent(
+            CacheCustodyKind::LocalSnapshot,
+            parent_path,
+            retained_parent,
+            lock_name,
+        )?;
+        let started = Instant::now();
+        loop {
+            match file.try_lock() {
+                Ok(()) => break,
+                Err(std::fs::TryLockError::WouldBlock) => {
+                    let Some(remaining) = timeout.checked_sub(started.elapsed()) else {
+                        return Err(local_snapshot_lock_timed_out(&path, timeout));
+                    };
+                    if remaining.is_zero() {
+                        return Err(local_snapshot_lock_timed_out(&path, timeout));
+                    }
+                    std::thread::sleep(PROCESS_POLL_INTERVAL.min(remaining));
+                }
+                Err(std::fs::TryLockError::Error(error)) => {
+                    return Err(io_error(&path, error));
+                }
+            }
+        }
+        if started.elapsed() >= timeout {
+            let _ = file.unlock();
+            return Err(local_snapshot_lock_timed_out(&path, timeout));
+        }
+        verify_cache_lock_path_identity(
+            CacheCustodyKind::LocalSnapshot,
+            &path,
+            &parent,
+            &lock_name,
+            &file,
+        )?;
+        Ok(Self {
+            file,
+            parent,
+            kind: CacheCustodyKind::LocalSnapshot,
+            path,
             lock_name,
         })
     }

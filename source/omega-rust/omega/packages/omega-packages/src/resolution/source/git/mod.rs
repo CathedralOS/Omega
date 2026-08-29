@@ -58,8 +58,8 @@ pub(super) use request::{
 pub(super) use resolve::{
     bounded_git_fetch_arguments, replace_canonical_git_control_file,
     replace_canonical_git_control_file_from_open_repository, requested_network_endpoint,
-    resolve_git_source, resolve_verified_git_cache_entry, validate_pending_git_request,
-    verify_pending_git_snapshot,
+    resolve_git_source, resolve_git_source_in_lane, resolve_verified_git_cache_entry,
+    validate_pending_git_request, verify_pending_git_snapshot,
 };
 #[cfg(test)]
 #[allow(unused_imports)]

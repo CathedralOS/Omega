@@ -17,7 +17,7 @@ const WORKSPACE_MEMBERS: &str = "workspace-members";
 const EXTERNAL_LOCAL_SOURCES: &str = "external-local-sources";
 
 #[derive(Debug)]
-struct RetainedStorageLane {
+pub(in crate::resolution) struct RetainedStorageLane {
     path: PathBuf,
     directory: CapabilityDirectory,
     kind: CacheCustodyKind,
@@ -52,16 +52,16 @@ impl SourceResolverStorage {
         &self.root
     }
 
-    pub(crate) fn git_sources(&self) -> &Path {
-        &self.git_sources.path
+    pub(in crate::resolution) fn git_sources(&self) -> &RetainedStorageLane {
+        &self.git_sources
     }
 
-    pub(crate) fn workspace_members(&self) -> &Path {
-        &self.workspace_members.path
+    pub(in crate::resolution) fn workspace_members(&self) -> &RetainedStorageLane {
+        &self.workspace_members
     }
 
-    pub(crate) fn external_local_sources(&self) -> &Path {
-        &self.external_local_sources.path
+    pub(in crate::resolution) fn external_local_sources(&self) -> &RetainedStorageLane {
+        &self.external_local_sources
     }
 
     pub(crate) fn verify_path_identity(&self) -> Result<(), SourceResolveError> {
@@ -169,7 +169,25 @@ impl RetainedStorageLane {
         Ok(lane)
     }
 
-    fn verify_path_identity(&self) -> Result<(), SourceResolveError> {
+    pub(in crate::resolution) fn path(&self) -> &Path {
+        &self.path
+    }
+
+    pub(in crate::resolution) fn directory(&self) -> &CapabilityDirectory {
+        &self.directory
+    }
+
+    pub(in crate::resolution) fn retain_child(
+        &self,
+        name: &str,
+    ) -> Result<Self, SourceResolveError> {
+        self.verify_path_identity()?;
+        let child = Self::create(&self.path, &self.directory, name, self.kind)?;
+        self.verify_path_identity()?;
+        Ok(child)
+    }
+
+    pub(in crate::resolution) fn verify_path_identity(&self) -> Result<(), SourceResolveError> {
         verify_cache_custody_root(&self.path, self.kind)?;
         let retained = self
             .directory
@@ -285,7 +303,7 @@ mod tests {
                 storage.external_local_sources(),
             ] {
                 assert_eq!(
-                    std::fs::metadata(lane).unwrap().permissions().mode() & 0o777,
+                    std::fs::metadata(lane.path()).unwrap().permissions().mode() & 0o777,
                     0o700,
                 );
             }
@@ -320,7 +338,7 @@ mod tests {
         std::fs::create_dir_all(&base).expect("create isolated cache base");
         let storage = SourceResolverStorage::create_beneath(&base)
             .expect("production private-root constructor");
-        let lane = storage.git_sources().to_path_buf();
+        let lane = storage.git_sources().path().to_path_buf();
         let retained = lane.with_extension("retained");
         std::fs::rename(&lane, &retained).expect("move retained lane");
         std::fs::create_dir(&lane).expect("replace lane pathname");
