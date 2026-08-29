@@ -1100,13 +1100,25 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
                 .contains("stage_optimized_native_continuation_with_provider_executions"),
         "Omega native realization must traverse the canonical optimizer, route selected work through its verified physical continuation, and retain the transitional identity-assignment continuation only for the publishable baseline"
     );
+    let (_, native_conveyor) = production_realization
+        .split_once("let machine_code = match realization_input")
+        .expect("native realization has one explicit baseline/optimized conveyor split");
+    let (baseline_conveyor, optimized_conveyor) = native_conveyor
+        .split_once("NativeRealizationInput::Optimized")
+        .expect("native realization retains an explicit optimized conveyor arm");
+    let transitional_assignment =
+        "omega_target_operations_to_assigned_target_operations::assign_registers(";
+    assert!(
+        baseline_conveyor.contains(transitional_assignment)
+            && !optimized_conveyor.contains(transitional_assignment),
+        "only the publishable empty-selection baseline may retain transitional assignment"
+    );
     for forbidden in [
         "CheckedCompilation",
         "CheckedTrees",
         "lower_machine(",
         "encode_module(",
         "encode_proof_bundle(",
-        "assign_registers(",
         "lower_optimized_to_target_operations_with_provider_executions(",
     ] {
         assert!(
