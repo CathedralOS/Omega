@@ -41,7 +41,7 @@ pub(super) fn lower_trait_operator_scalar_return_machine(
         .iter()
         .find(|application| {
             application.declaration == plan.conformance
-                && application.fingerprint == plan.conformance_application_fingerprint
+                && application.report_fingerprint == plan.conformance_application_report_fingerprint
                 && application.commitment == plan.conformance_application_commitment
         })
         .ok_or(LoweringError::Unsupported(
@@ -965,7 +965,7 @@ mod trait_operator_tests {
             1
         );
         assert_ne!(
-            lowered.semantic_module.closed_conformance_applications[0].fingerprint,
+            lowered.semantic_module.closed_conformance_applications[0].report_fingerprint,
             0
         );
         let entry = lowered

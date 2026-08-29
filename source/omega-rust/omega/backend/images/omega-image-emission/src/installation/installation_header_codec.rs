@@ -79,35 +79,39 @@ pub(super) fn encode_installation_header(
     bytes.extend_from_slice(record.compiler_text_validation.derivation_digest.as_bytes());
     push_u64(
         bytes,
-        record.compiler_text_validation.encoded_text_fingerprint,
+        record
+            .compiler_text_validation
+            .encoded_text_report_fingerprint,
     );
     push_u64(
         bytes,
         record
             .compiler_text_validation
-            .final_compiler_text_fingerprint,
+            .final_compiler_text_report_fingerprint,
     );
     push_u64(
         bytes,
         record
             .compiler_text_validation
-            .relocation_envelope_fingerprint,
+            .relocation_envelope_report_fingerprint,
     );
     push_u64(
         bytes,
         record
             .compiler_text_validation
-            .checked_instruction_validation_fingerprint,
+            .checked_instruction_validation_report_fingerprint,
     );
     push_u64(
         bytes,
         record
             .compiler_text_validation
-            .checked_instruction_footprint_fingerprint,
+            .checked_instruction_footprint_report_fingerprint,
     );
     push_u64(
         bytes,
-        record.compiler_text_validation.derivation_fingerprint,
+        record
+            .compiler_text_validation
+            .derivation_report_fingerprint,
     );
     push_u64(bytes, text_relocation_count);
     push_u64(bytes, checked_instruction_validation_count);
@@ -169,12 +173,12 @@ pub(super) fn decode_installation_header(
     let relocation_envelope_digest =
         CompilerTextRelocationEnvelopeDigest::from_digest(reader.array()?);
     let derivation_digest = CompilerTextDerivationDigest::from_digest(reader.array()?);
-    let encoded_text_fingerprint = reader.u64()?;
-    let final_compiler_text_fingerprint = reader.u64()?;
-    let relocation_envelope_fingerprint = reader.u64()?;
-    let checked_instruction_validation_fingerprint = reader.u64()?;
-    let checked_instruction_footprint_fingerprint = reader.u64()?;
-    let derivation_fingerprint = reader.u64()?;
+    let encoded_text_report_fingerprint = reader.u64()?;
+    let final_compiler_text_report_fingerprint = reader.u64()?;
+    let relocation_envelope_report_fingerprint = reader.u64()?;
+    let checked_instruction_validation_report_fingerprint = reader.u64()?;
+    let checked_instruction_footprint_report_fingerprint = reader.u64()?;
+    let derivation_report_fingerprint = reader.u64()?;
     let text_relocation_count = usize::try_from(reader.u64()?)
         .map_err(|_| InstallationError::CountNotRepresentable("text relocations"))?;
     let checked_instruction_validation_count = usize::try_from(reader.u64()?)
@@ -199,12 +203,12 @@ pub(super) fn decode_installation_header(
             final_compiler_text_digest,
             relocation_envelope_digest,
             derivation_digest,
-            encoded_text_fingerprint,
-            final_compiler_text_fingerprint,
-            relocation_envelope_fingerprint,
-            checked_instruction_validation_fingerprint,
-            checked_instruction_footprint_fingerprint,
-            derivation_fingerprint,
+            encoded_text_report_fingerprint,
+            final_compiler_text_report_fingerprint,
+            relocation_envelope_report_fingerprint,
+            checked_instruction_validation_report_fingerprint,
+            checked_instruction_footprint_report_fingerprint,
+            derivation_report_fingerprint,
             text_relocation_count,
             checked_instruction_validation_count,
         },

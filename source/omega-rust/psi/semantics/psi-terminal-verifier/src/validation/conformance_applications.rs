@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use psi_terminal::{
     TerminalModule, closed_conformance_application_commitment,
-    closed_conformance_application_fingerprint,
+    closed_conformance_application_report_fingerprint,
 };
 
 use super::ModuleError;
@@ -58,15 +58,15 @@ pub(super) fn validate_closed_conformance_applications(
         if !seen.insert((application.owner, application.commitment)) {
             return Err(ModuleError::DuplicateClosedConformanceApplication {
                 owner: application.owner,
-                fingerprint: application.fingerprint,
+                fingerprint: application.report_fingerprint,
             });
         }
-        let expected = closed_conformance_application_fingerprint(application);
-        if application.fingerprint == 0 || application.fingerprint != expected {
+        let expected = closed_conformance_application_report_fingerprint(application);
+        if application.report_fingerprint == 0 || application.report_fingerprint != expected {
             return Err(ModuleError::ClosedConformanceFingerprintMismatch {
                 owner: application.owner,
                 expected,
-                actual: application.fingerprint,
+                actual: application.report_fingerprint,
             });
         }
         let expected_commitment = closed_conformance_application_commitment(application);

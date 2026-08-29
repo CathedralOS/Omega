@@ -632,8 +632,12 @@ fn root_service_reach_substitutes_selected_rows_and_rejects_absence() {
     assert_eq!(reach.effective(), ["PortIo", "Timer"]);
     assert_eq!(reach.resolutions().len(), 1);
     assert_eq!(
-        reach.selected_provider_closure_fingerprint(),
+        reach.selected_provider_closure_report_fingerprint(),
         selected.normalized_identity()
+    );
+    assert_eq!(
+        reach.selected_provider_closure_digest(),
+        selected.identity_digest()
     );
 
     let error = ResolvedRootServiceReach::from_selected_provider_closure(
@@ -4405,12 +4409,12 @@ fn provider_execution_prepares_only_its_selected_entry_writer_and_exact_placemen
         .expect_err("a different selected provider closure must reject");
     assert!(error.0.contains("selected provider plan"));
 
-    execution.normalized_identity ^= 1;
+    execution.normalized_report_identity ^= 1;
     let error = execution
         .prepare_post_handoff_entry_writer(selected_plan, &code, &writer, 16, writer_site(0x8000))
         .expect_err("execution fingerprint drift must reject before source resolution");
     assert!(error.0.contains("identity fails exact structural replay"));
-    execution.normalized_identity ^= 1;
+    execution.normalized_report_identity ^= 1;
     execution
         .validate_for_writer_preparation()
         .expect("repaired execution evidence supports exact preparation retry");
@@ -4546,7 +4550,7 @@ fn installation_records_the_complete_external_root_and_pins_code_liveness() {
     )
     .expect("selected provider closes root reach");
     let validated = validate_external_root(candidate, &boundary()).expect("root plan");
-    let validated_identity = validated.normalized_identity();
+    let validated_identity = validated.normalized_report_identity();
     let authority = slot();
     let execution = provider_execution(&validated);
     let admission = RootAdmission::from_admitted_provider(
@@ -4565,7 +4569,7 @@ fn installation_records_the_complete_external_root_and_pins_code_liveness() {
 
     let record = ledger.record(installed.root()).expect("root record");
     assert_eq!(record.entry, entry);
-    assert_eq!(record.normalized_root_identity, validated_identity);
+    assert_eq!(record.normalized_root_report_identity, validated_identity);
     assert_eq!(record.installed_code, code.identity());
     assert_eq!(record.provider_execution, execution.identity());
     assert_eq!(record.provider_plan, execution.provider_plan());
@@ -4573,20 +4577,24 @@ fn installation_records_the_complete_external_root_and_pins_code_liveness() {
         record.native_fuel_kind,
         NativeFuelRealizationKind::FixedProvision
     );
-    assert_ne!(record.native_fuel_fingerprint, 0);
+    assert_ne!(record.native_fuel_report_fingerprint, 0);
     assert_eq!(record.requirement_identity, "TestRoot::entry");
     assert!(record.entry_claims.is_empty());
     assert_eq!(record.acknowledgement_parameter_index, None);
     assert!(record.interrupt_mask_guard_claim.is_none());
     assert_eq!(record.service_reach, ["PortIo", "Timer"]);
     assert_eq!(
-        record.selected_provider_closure_fingerprint,
+        record.selected_provider_closure_report_fingerprint,
         selected.normalized_identity()
+    );
+    assert_eq!(
+        record.selected_provider_closure_digest,
+        selected.identity_digest()
     );
     assert_eq!(record.installation_reach_resolutions.len(), 1);
     assert_eq!(
-        record.provider_execution_fingerprint,
-        execution.normalized_identity()
+        record.provider_execution_report_fingerprint,
+        execution.normalized_report_identity()
     );
     assert_eq!(record.effects.len(), 1);
     assert_eq!(record.trust_receipts.len(), 1);
@@ -4608,7 +4616,7 @@ fn installation_records_the_complete_external_root_and_pins_code_liveness() {
     );
     assert_eq!(record.component_pins.len(), 1);
     assert_eq!(
-        record.boundary_contract_fingerprint,
+        record.boundary_contract_report_fingerprint,
         boundary().contract_fingerprint()
     );
     let installed_report_fingerprint = ledger.report_fingerprint();
@@ -4855,8 +4863,8 @@ fn external_root_identity_binds_canonical_entry_claims() {
     let drifted = validate_external_root(drifted, &boundary)
         .expect("a different admitted domain remains a structurally valid root");
     assert_ne!(
-        baseline.normalized_identity(),
-        drifted.normalized_identity()
+        baseline.normalized_report_identity(),
+        drifted.normalized_report_identity()
     );
 
     let mut duplicate = interrupt_candidate(entry);
@@ -5080,7 +5088,10 @@ fn root_admission_rejects_execution_after_selected_plan_drift() {
     drifted.provider_plan = root_id(56, ProviderPlanId::from_normalized_identity);
     let second =
         validate_external_root(drifted, &boundary()).expect("second selected provider plan");
-    assert_ne!(first.normalized_identity(), second.normalized_identity());
+    assert_ne!(
+        first.normalized_report_identity(),
+        second.normalized_report_identity()
+    );
 
     let code = installed_code(2, entry);
     let authority = slot();
@@ -5108,7 +5119,7 @@ fn provider_execution_retains_exact_root_facts_beyond_the_compact_identity() {
         .trust_receipts
         .insert(root_id(44, TrustReceiptId::from_normalized_identity));
     let mut second = validate_external_root(drifted, &boundary()).expect("second root realization");
-    second.normalized_identity = first.normalized_identity;
+    second.normalized_report_identity = first.normalized_report_identity;
 
     let code = installed_code(2, entry);
     let authority = slot();
@@ -5131,24 +5142,24 @@ fn terminal_settlement_inherits_the_admitted_provider_execution() {
     let execution = provider_execution(&validated);
     let binding = execution.binding();
     assert_eq!(
-        binding.provider_plan(),
+        binding.provider_plan_report_identity(),
         execution.provider_plan().normalized_identity()
     );
     assert_eq!(
-        binding.provider_execution_identity(),
+        binding.provider_execution_report_identity(),
         execution.identity().normalized_identity()
     );
     assert_eq!(
-        binding.provider_execution_fingerprint(),
-        execution.normalized_identity()
+        binding.provider_execution_report_fingerprint(),
+        execution.normalized_report_identity()
     );
     assert_eq!(
-        binding.normalized_root_identity(),
-        validated.normalized_identity()
+        binding.normalized_root_report_identity(),
+        validated.normalized_report_identity()
     );
     assert_eq!(
-        binding.boundary_contract_fingerprint(),
-        validated.boundary_contract_fingerprint()
+        binding.boundary_contract_report_fingerprint(),
+        validated.boundary_contract_report_fingerprint()
     );
 }
 
@@ -5173,7 +5184,7 @@ fn slot_admission_retains_the_exact_validated_root() {
     let mut drifted = candidate(entry);
     drifted.acknowledgement_policy = None;
     let mut second = validate_external_root(drifted, &boundary()).expect("second root realization");
-    second.normalized_identity = first.normalized_identity;
+    second.normalized_report_identity = first.normalized_report_identity;
     let mut ledger = InstalledRootLedger::claim(&mut code).expect("canonical root ledger");
     let error = ledger
         .install(&code, second, authority, admission)

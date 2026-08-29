@@ -354,12 +354,13 @@ pub(crate) fn validate_placed_executable_region_inventory_digest(
 }
 
 /// Attach retained compiler boundary evidence to its exact final entry span.
-/// The association is part of the typed inventory and its fingerprint, rather
-/// than a presentation-only annotation added while serializing an artifact.
+/// The association is part of the typed inventory and its strong digest,
+/// rather than a presentation-only annotation added while serializing an
+/// artifact. Compact coordinates remain report compatibility only.
 pub fn bind_compiler_entry_footprint(
     inventory: &mut PlacedExecutableRegionInventory,
     binding: &crate::CompilerEntryRegionBindingEvidence,
-    final_region_binding_fingerprint: u64,
+    final_region_binding_report_fingerprint: u64,
     footprint: omega_calling_conventions::StateFootprintEvidence,
 ) -> Result<crate::CompilerEntryFootprintBindingEvidence, Diagnostic> {
     if !binding.function_identity.is_valid()
@@ -367,8 +368,9 @@ pub fn bind_compiler_entry_footprint(
         || !binding.has_valid_evidence_digest()
         || binding.inventory_digest != inventory.inventory_digest
         || binding.inventory_report_fingerprint != inventory.inventory_report_fingerprint
-        || binding.final_region_binding_fingerprint == 0
-        || binding.final_region_binding_fingerprint != final_region_binding_fingerprint
+        || binding.final_region_binding_report_fingerprint == 0
+        || binding.final_region_binding_report_fingerprint
+            != final_region_binding_report_fingerprint
         || binding.evidence_report_fingerprint != binding.recomputed_evidence_report_fingerprint()
     {
         return Err(Diagnostic::error(
@@ -423,9 +425,9 @@ pub fn bind_compiler_entry_footprint(
             binding.symbol
         )));
     }
-    let prior_inventory_fingerprint = inventory.inventory_report_fingerprint;
+    let prior_inventory_report_fingerprint = inventory.inventory_report_fingerprint;
     let prior_inventory_digest = inventory.inventory_digest;
-    let footprint_fingerprint = footprint.evidence_fingerprint();
+    let footprint_report_fingerprint = footprint.evidence_fingerprint();
     let footprint_digest = state_footprint_evidence_digest(&footprint);
     entry.footprint = Some(footprint);
     inventory.inventory_report_fingerprint = executable_inventory_report_fingerprint(
@@ -445,10 +447,10 @@ pub fn bind_compiler_entry_footprint(
     let mut evidence = crate::CompilerEntryFootprintBindingEvidence {
         entry_region_evidence_digest: binding.evidence_digest,
         entry_region_evidence_report_fingerprint: binding.evidence_report_fingerprint,
-        final_region_binding_fingerprint,
-        prior_inventory_report_fingerprint: prior_inventory_fingerprint,
+        final_region_binding_report_fingerprint,
+        prior_inventory_report_fingerprint,
         prior_inventory_digest,
-        footprint_report_fingerprint: footprint_fingerprint,
+        footprint_report_fingerprint,
         footprint_digest,
         resulting_inventory_report_fingerprint: inventory.inventory_report_fingerprint,
         resulting_inventory_digest: inventory.inventory_digest,
@@ -798,7 +800,7 @@ mod tests {
             byte_report_fingerprint: inventory.regions[0].byte_report_fingerprint,
             inventory_digest: inventory.inventory_digest,
             inventory_report_fingerprint: inventory.inventory_report_fingerprint,
-            final_region_binding_fingerprint: 8,
+            final_region_binding_report_fingerprint: 8,
             evidence_digest: crate::CompilerEntryRegionBindingDigest::from_digest([0; 32]),
             evidence_report_fingerprint: 0,
         };

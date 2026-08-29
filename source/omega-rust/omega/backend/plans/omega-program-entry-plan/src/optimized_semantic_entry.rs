@@ -446,6 +446,10 @@ mod tests {
             slot,
             "UefiPhysicalEntry::enter#exact".into(),
             omega_target::ProgramEntryPhysicalContractPackage::UefiX64,
+            crate::ProgramEntryPhysicalContractPackageSourceDigest::from_package_source(
+                omega_target::ProgramEntryPhysicalContractPackage::UefiX64,
+                b"optimized-semantic-entry-test-package-source",
+            ),
             0xfeed,
             vec!["EfiImageHandle".into(), "&EfiSystemTable".into()],
             "EfiStatus".into(),

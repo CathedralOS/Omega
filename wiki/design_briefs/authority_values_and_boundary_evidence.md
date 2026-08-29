@@ -217,6 +217,12 @@ algebra, structural places, substitution, producer call, and verifier replay.
 Compact-equal structural substitution therefore rejects. Sealed introduction
 and custody-exit frontier rows remain.
 
+Repository architecture validation scans exported Rust `u64` fingerprint
+fields across Psi and Omega. Explicit report/cache/compatibility vocabulary is
+accepted directly; every remaining legacy field is held to a shrinking
+path-and-count ceiling, so new unclassified fields and duplicate occurrences
+fail before they can become an accidental authority convention.
+
 ### Content-bearing claims
 
 A content-bearing exact qualification publishes one owner-unique conformance
@@ -896,6 +902,13 @@ only as an explicitly non-authoritative compatibility fingerprint while
 independently replaying the exact owned carrier; final-image and installation
 authority cannot be reconstructed from that compact value.
 
+Target-owned physical-entry package provenance follows the same rule. Build
+evaluation first validates exact toolchain origin and canonical source
+membership, then commits the package identity, package-relative source path,
+and source bytes with a domain-separated SHA-256 digest carried in the physical
+contract plan. Its historical FNV source value is a report coordinate only; a
+report-equal source substitution cannot reproduce the strong commitment.
+
 Provider execution follows this rule across source-free native lowering. The
 selected plan, execution, normalized root, and boundary-contract `u64` values
 in target operations, machine code, installation encoding, and retained native
@@ -907,6 +920,16 @@ replay compares those exact strings before comparing the compact report rows.
 Consequently a report-equal execution cannot be substituted for another exact
 requirement, and decoding an installation record cannot recreate admission.
 
+The external-root producer preserves the same distinction before that
+projection. Its normalized root, provider-execution, opaque-exit, stack, fuel,
+boundary-contract, and selected-closure FNV values are named report
+identities/fingerprints. `ValidatedExternalRoot`, `ProviderExecution`, and the
+installed-root ledger retain the complete candidate, validated boundary,
+resource columns, machine-state receipt, and exact exit assurance. Installed
+root reporting also retains the selected-provider-closure SHA-256 digest. All
+admission and writer preparation replay the exact carriers; holding every
+compact summary equal while changing root policy therefore still rejects.
+
 The generic native-image inventory follows the same split. Region and gap byte
 coordinates, final-text coordinates, and the aggregate inventory coordinate are
 named report fingerprints and remain beside domain-separated commitments to the
@@ -914,6 +937,17 @@ exact bytes, normalized rows, gaps, and footprint evidence. Compiler publication
 retains the strong inventory commitment through its certificate, publication
 receipt, and flat/bundle equality replay; preserving the compact report value
 while substituting the strong commitment rejects.
+
+Native-image output and footprint-certificate summaries apply that split to
+callback placement, boundary contracts, fixed/body mechanics, composed
+footprints, final-region joins, validation, and compiler-text derivation. Their
+compact values are report fingerprints only. Exact callback rows are replayed
+before emission, exact relocated text and relocation envelopes retain separate
+digests, placed-region inventory commits exact region and state-footprint rows,
+and entry-region plus footprint mutation custody retains strong evidence
+digests. A collision-resistant digest over a report summary preserves that
+summary's custody but does not promote an imported compact coordinate into the
+underlying authority.
 
 For hardware-entered provider slots, the selected service schema records a
 linear routed parameter qualification as a structured `accepts` row. The row

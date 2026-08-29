@@ -287,7 +287,7 @@ fn normalize_private_callback_demands(
         let slot_identity = format!(
             "{}#{:016x}",
             typed.normalized_hermetic_symbol_identity(selected.symbol)?,
-            closed_application.fingerprint,
+            closed_application.report_fingerprint,
         );
         if normalized
             .iter()

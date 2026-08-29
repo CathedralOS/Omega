@@ -2179,10 +2179,10 @@ fn nested_generic_conformance_application_closes_its_own_telescope() {
     assert_eq!(application.type_arguments, ["Bytes", "Message"]);
     assert_eq!(application.subject_identity.as_deref(), Some("Bytes"));
     assert_eq!(application.trait_arguments.len(), 1);
-    assert_ne!(application.fingerprint, 0);
+    assert_ne!(application.report_fingerprint, 0);
     assert_eq!(
         specialization.conformance_argument_fingerprints,
-        [application.fingerprint]
+        [application.report_fingerprint]
     );
 }
 
@@ -2618,7 +2618,10 @@ fn members_of_one_generic_conformance_family_have_distinct_identity() {
         .collect::<Vec<_>>();
     assert_eq!(applications.len(), 2);
     assert_eq!(applications[0].declaration, applications[1].declaration);
-    assert_ne!(applications[0].fingerprint, applications[1].fingerprint);
+    assert_ne!(
+        applications[0].report_fingerprint,
+        applications[1].report_fingerprint
+    );
     assert_ne!(
         applications[0].type_arguments,
         applications[1].type_arguments
@@ -3271,7 +3274,7 @@ fn static_named_witness_requirement_call_keeps_public_lanes_and_private_dispatch
         dispatch.realization_machine
     );
     assert_eq!(invocation.target_state_symbol, dispatch.realization_state);
-    assert_ne!(dispatch.application_fingerprint, 0);
+    assert_ne!(dispatch.application_report_fingerprint, 0);
 
     let [argument] = invocation.evidence_arguments.as_slice() else {
         panic!("one public requirement input")

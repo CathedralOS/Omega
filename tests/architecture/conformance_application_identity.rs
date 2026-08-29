@@ -45,4 +45,14 @@ fn closed_conformance_dispatch_never_authorizes_with_a_compact_identity_alone() 
         verifier.contains("application.commitment == dispatch.conformance_application_commitment"),
         "Terminal proof-output dispatch no longer rejoins the strong application commitment"
     );
+    assert!(
+        typed.contains("pub report_fingerprint: u64")
+            && checked.contains("pub application_report_fingerprint: u64")
+            && terminal.contains("pub report_fingerprint: u64")
+            && terminal.contains("pub conformance_application_report_fingerprint: u64")
+            && !typed.contains("pub application_fingerprint: u64")
+            && !checked.contains("pub application_fingerprint: u64")
+            && !terminal.contains("pub conformance_application_fingerprint: u64"),
+        "closed-conformance compact coordinates must remain explicitly report-only"
+    );
 }

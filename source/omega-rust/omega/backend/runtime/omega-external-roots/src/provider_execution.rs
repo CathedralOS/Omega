@@ -62,7 +62,7 @@ impl OpaqueProviderExitAssurance {
         Ok(self)
     }
 
-    fn fingerprint(self) -> u64 {
+    fn report_fingerprint(self) -> u64 {
         let mut hash = Fnv1a::new();
         match self {
             Self::AcceptedClaim {
@@ -85,37 +85,40 @@ impl OpaqueProviderExitAssurance {
 /// This does not fuse the stack, logical-fuel, and machine-state algebras.
 /// It binds their independently validated results, the selected normalized
 /// provider plan, and the executable entry into one provider execution that a
-/// root admission may publish.
+/// root admission may publish. Compact root, contract, stack, fuel, exit, and
+/// aggregate execution values are report coordinates beside the retained exact
+/// evidence and never replace its structural replay.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderExecution {
     pub(super) identity: ProviderExecutionId,
     pub(super) root_evidence: ValidatedExternalRoot,
     pub(super) provider_plan: ProviderPlanId,
     pub(super) root: ExternalRootId,
-    pub(super) normalized_root_identity: u64,
+    pub(super) normalized_root_report_identity: u64,
     pub(super) provider: RootProviderId,
     pub(super) entry: EntryStubId,
-    pub(super) boundary_contract_fingerprint: u64,
-    pub(super) stack_artifact_composition_fingerprint: u64,
-    pub(super) stack_demand_fingerprint: u64,
-    pub(super) logical_fuel_fingerprint: u64,
+    pub(super) boundary_contract_report_fingerprint: u64,
+    pub(super) stack_artifact_composition_report_fingerprint: u64,
+    pub(super) stack_demand_report_fingerprint: u64,
+    pub(super) logical_fuel_report_fingerprint: u64,
     pub(super) machine_state_validation_receipt: StateValidationReceiptId,
     pub(super) exit_assurance: OpaqueProviderExitAssurance,
-    pub(super) exit_assurance_fingerprint: u64,
+    pub(super) exit_assurance_report_fingerprint: u64,
     pub(super) effects: BTreeSet<RootEffectId>,
-    pub(super) normalized_identity: u64,
+    pub(super) normalized_report_identity: u64,
 }
 
 /// Non-constructible evidence that the external-root ledger admitted one exact
-/// provider execution. Terminal lowering may borrow or retain this value; wire
-/// formats record its fields but cannot recreate executable authority.
+/// provider execution. Terminal lowering may borrow or retain this value; its
+/// explicitly named compact report fields cannot recreate executable
+/// authority from a wire record.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AdmittedProviderExecution {
-    provider_plan: u64,
-    provider_execution_identity: u64,
-    provider_execution_fingerprint: u64,
-    normalized_root_identity: u64,
-    boundary_contract_fingerprint: u64,
+    provider_plan_report_identity: u64,
+    provider_execution_report_identity: u64,
+    provider_execution_report_fingerprint: u64,
+    normalized_root_report_identity: u64,
+    boundary_contract_report_fingerprint: u64,
 }
 
 /// One exact provider execution joined to the installed artifact resolver and
@@ -313,8 +316,8 @@ impl PreparedExternalRootPostHandoffWriterInvocation {
         self.root_evidence.boundary.plan().call.parameters.len()
     }
 
-    pub const fn selected_boundary_contract_fingerprint(&self) -> u64 {
-        self.root_evidence.boundary_contract_fingerprint
+    pub const fn selected_boundary_contract_report_fingerprint(&self) -> u64 {
+        self.root_evidence.boundary_contract_report_fingerprint
     }
 
     pub fn selected_entry_claims(&self) -> &[ExternalRootEntryClaim] {
@@ -464,8 +467,8 @@ impl<'mapping, 'bytes> WrittenExternalRootPostHandoffWriterDestination<'mapping,
         self.root_evidence.boundary.plan().call.parameters.len()
     }
 
-    pub const fn selected_boundary_contract_fingerprint(&self) -> u64 {
-        self.root_evidence.boundary_contract_fingerprint
+    pub const fn selected_boundary_contract_report_fingerprint(&self) -> u64 {
+        self.root_evidence.boundary_contract_report_fingerprint
     }
 
     pub fn selected_entry_claims(&self) -> &[ExternalRootEntryClaim] {
@@ -740,10 +743,11 @@ fn validate_external_root_writer_source(
         || provider_execution_evidence.binding() != provider_execution
         || root_evidence.candidate.entry != selected_entry
         || root_evidence.candidate.provider_plan.normalized_identity()
-            != provider_execution.provider_plan
-        || root_evidence.normalized_identity != provider_execution.normalized_root_identity
-        || root_evidence.boundary_contract_fingerprint
-            != provider_execution.boundary_contract_fingerprint
+            != provider_execution.provider_plan_report_identity
+        || root_evidence.normalized_report_identity
+            != provider_execution.normalized_root_report_identity
+        || root_evidence.boundary_contract_report_fingerprint
+            != provider_execution.boundary_contract_report_fingerprint
     {
         return Err(psi_layout_plans::MaterializationDiagnostic(
             "post-handoff writer source does not retain its exact validated external-root requirement and provider execution"
@@ -754,24 +758,24 @@ fn validate_external_root_writer_source(
 }
 
 impl AdmittedProviderExecution {
-    pub const fn provider_plan(&self) -> u64 {
-        self.provider_plan
+    pub const fn provider_plan_report_identity(&self) -> u64 {
+        self.provider_plan_report_identity
     }
 
-    pub const fn provider_execution_identity(&self) -> u64 {
-        self.provider_execution_identity
+    pub const fn provider_execution_report_identity(&self) -> u64 {
+        self.provider_execution_report_identity
     }
 
-    pub const fn provider_execution_fingerprint(&self) -> u64 {
-        self.provider_execution_fingerprint
+    pub const fn provider_execution_report_fingerprint(&self) -> u64 {
+        self.provider_execution_report_fingerprint
     }
 
-    pub const fn normalized_root_identity(&self) -> u64 {
-        self.normalized_root_identity
+    pub const fn normalized_root_report_identity(&self) -> u64 {
+        self.normalized_root_report_identity
     }
 
-    pub const fn boundary_contract_fingerprint(&self) -> u64 {
-        self.boundary_contract_fingerprint
+    pub const fn boundary_contract_report_fingerprint(&self) -> u64 {
+        self.boundary_contract_report_fingerprint
     }
 }
 
@@ -789,22 +793,22 @@ impl omega_installation_evidence::ProviderExecutionEvidence for ProviderExecutio
     }
 
     fn provider_execution_fingerprint(&self) -> u64 {
-        self.normalized_identity
+        self.normalized_report_identity
     }
 
     fn normalized_root_identity(&self) -> u64 {
-        self.normalized_root_identity
+        self.normalized_root_report_identity
     }
 
     fn boundary_contract_fingerprint(&self) -> u64 {
-        self.boundary_contract_fingerprint
+        self.boundary_contract_report_fingerprint
     }
 }
 
-fn fingerprint_provider_execution(
+fn provider_execution_report_fingerprint(
     identity: ProviderExecutionId,
     root: &ValidatedExternalRoot,
-    exit_assurance_fingerprint: u64,
+    exit_assurance_report_fingerprint: u64,
 ) -> u64 {
     let candidate = root.candidate();
     let mut hash = Fnv1a::new();
@@ -812,10 +816,10 @@ fn fingerprint_provider_execution(
     hash.u64(candidate.provider_plan.normalized_identity());
     hash.bytes(candidate.provider_plan_digest.as_bytes());
     hash.u64(candidate.identity.normalized_identity());
-    hash.u64(root.normalized_identity());
+    hash.u64(root.normalized_report_identity());
     hash.u64(candidate.provider.normalized_identity());
     hash.u64(candidate.entry.normalized_identity());
-    hash.u64(root.boundary_contract_fingerprint());
+    hash.u64(root.boundary_contract_report_fingerprint());
     hash.u64(candidate.stack.realization.composition().fingerprint());
     hash.u64(candidate.stack.realization.fingerprint());
     hash.u64(candidate.logical_fuel.realization.composition_fingerprint());
@@ -825,7 +829,7 @@ fn fingerprint_provider_execution(
             .validation_receipt
             .normalized_identity(),
     );
-    hash.u64(exit_assurance_fingerprint);
+    hash.u64(exit_assurance_report_fingerprint);
     for effect in &candidate.effects {
         hash.u64(effect.normalized_identity());
     }
@@ -848,31 +852,37 @@ impl ProviderExecution {
                 )
             })?
             .validate(root)?;
-        let exit_assurance_fingerprint = exit_assurance.fingerprint();
+        let exit_assurance_report_fingerprint = exit_assurance.report_fingerprint();
         let candidate = root.candidate();
-        let normalized_identity =
-            fingerprint_provider_execution(identity, root, exit_assurance_fingerprint);
+        let normalized_report_identity = provider_execution_report_fingerprint(
+            identity,
+            root,
+            exit_assurance_report_fingerprint,
+        );
         Ok(Self {
             identity,
             root_evidence: root.clone(),
             provider_plan: candidate.provider_plan,
             root: candidate.identity,
-            normalized_root_identity: root.normalized_identity(),
+            normalized_root_report_identity: root.normalized_report_identity(),
             provider: candidate.provider,
             entry: candidate.entry,
-            boundary_contract_fingerprint: root.boundary_contract_fingerprint(),
-            stack_artifact_composition_fingerprint: candidate
+            boundary_contract_report_fingerprint: root.boundary_contract_report_fingerprint(),
+            stack_artifact_composition_report_fingerprint: candidate
                 .stack
                 .realization
                 .composition()
                 .fingerprint(),
-            stack_demand_fingerprint: candidate.stack.realization.fingerprint(),
-            logical_fuel_fingerprint: candidate.logical_fuel.realization.composition_fingerprint(),
+            stack_demand_report_fingerprint: candidate.stack.realization.fingerprint(),
+            logical_fuel_report_fingerprint: candidate
+                .logical_fuel
+                .realization
+                .composition_fingerprint(),
             machine_state_validation_receipt: candidate.machine_state.validation_receipt,
             exit_assurance,
-            exit_assurance_fingerprint,
+            exit_assurance_report_fingerprint,
             effects: candidate.effects.clone(),
-            normalized_identity,
+            normalized_report_identity,
         })
     }
 
@@ -892,8 +902,8 @@ impl ProviderExecution {
         self.entry
     }
 
-    pub const fn normalized_identity(&self) -> u64 {
-        self.normalized_identity
+    pub const fn normalized_report_identity(&self) -> u64 {
+        self.normalized_report_identity
     }
 
     pub fn selected_requirement_identity(&self) -> &str {
@@ -904,8 +914,8 @@ impl ProviderExecution {
         self.root_evidence.boundary.plan().call.parameters.len()
     }
 
-    pub const fn selected_boundary_contract_fingerprint(&self) -> u64 {
-        self.root_evidence.boundary_contract_fingerprint
+    pub const fn selected_boundary_contract_report_fingerprint(&self) -> u64 {
+        self.root_evidence.boundary_contract_report_fingerprint
     }
 
     pub fn selected_entry_claims(&self) -> &[ExternalRootEntryClaim] {
@@ -917,11 +927,11 @@ impl ProviderExecution {
     /// plan choice: this binding inherits the plan selected by root admission.
     pub const fn binding(&self) -> AdmittedProviderExecution {
         AdmittedProviderExecution {
-            provider_plan: self.provider_plan.normalized_identity(),
-            provider_execution_identity: self.identity.normalized_identity(),
-            provider_execution_fingerprint: self.normalized_identity,
-            normalized_root_identity: self.normalized_root_identity,
-            boundary_contract_fingerprint: self.boundary_contract_fingerprint,
+            provider_plan_report_identity: self.provider_plan.normalized_identity(),
+            provider_execution_report_identity: self.identity.normalized_identity(),
+            provider_execution_report_fingerprint: self.normalized_report_identity,
+            normalized_root_report_identity: self.normalized_root_report_identity,
+            boundary_contract_report_fingerprint: self.boundary_contract_report_fingerprint,
         }
     }
 
@@ -940,13 +950,13 @@ impl ProviderExecution {
             ));
         }
         self.exit_assurance.validate(&replayed_root)?;
-        let exit_assurance_fingerprint = self.exit_assurance.fingerprint();
-        if exit_assurance_fingerprint != self.exit_assurance_fingerprint
-            || fingerprint_provider_execution(
+        let exit_assurance_report_fingerprint = self.exit_assurance.report_fingerprint();
+        if exit_assurance_report_fingerprint != self.exit_assurance_report_fingerprint
+            || provider_execution_report_fingerprint(
                 self.identity,
                 &replayed_root,
-                exit_assurance_fingerprint,
-            ) != self.normalized_identity
+                exit_assurance_report_fingerprint,
+            ) != self.normalized_report_identity
         {
             return Err(ExternalRootDiagnostic(
                 "post-handoff writer provider execution identity fails exact structural replay"
@@ -1013,23 +1023,24 @@ impl ProviderExecution {
         self.exit_assurance
     }
 
-    pub const fn exit_assurance_fingerprint(&self) -> u64 {
-        self.exit_assurance_fingerprint
+    pub const fn exit_assurance_report_fingerprint(&self) -> u64 {
+        self.exit_assurance_report_fingerprint
     }
 
     pub(super) fn matches_root(&self, root: &ValidatedExternalRoot) -> bool {
         let candidate = root.candidate();
         self.root_evidence == *root
             && self.root == candidate.identity
-            && self.normalized_root_identity == root.normalized_identity()
+            && self.normalized_root_report_identity == root.normalized_report_identity()
             && self.provider_plan == candidate.provider_plan
             && self.provider == candidate.provider
             && self.entry == candidate.entry
-            && self.boundary_contract_fingerprint == root.boundary_contract_fingerprint()
-            && self.stack_artifact_composition_fingerprint
+            && self.boundary_contract_report_fingerprint
+                == root.boundary_contract_report_fingerprint()
+            && self.stack_artifact_composition_report_fingerprint
                 == candidate.stack.realization.composition().fingerprint()
-            && self.stack_demand_fingerprint == candidate.stack.realization.fingerprint()
-            && self.logical_fuel_fingerprint
+            && self.stack_demand_report_fingerprint == candidate.stack.realization.fingerprint()
+            && self.logical_fuel_report_fingerprint
                 == candidate.logical_fuel.realization.composition_fingerprint()
             && self.machine_state_validation_receipt == candidate.machine_state.validation_receipt
             && self.effects == candidate.effects

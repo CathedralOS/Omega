@@ -91,43 +91,46 @@ pub fn validate_final_text_relocation_envelope(
         b"omega.final-compiler-text.sha256.v1\0",
         final_compiler_text,
     ));
-    let encoded_text_fingerprint = fingerprint_bytes(encoded_text_bytes);
-    let final_compiler_text_fingerprint = fingerprint_bytes(final_compiler_text);
+    let encoded_text_report_fingerprint = fingerprint_bytes(encoded_text_bytes);
+    let final_compiler_text_report_fingerprint = fingerprint_bytes(final_compiler_text);
     let mut relocation_digest = Sha256::new();
     relocation_digest.update(b"omega.compiler-text-relocation-envelope.sha256.v1\0");
     relocation_digest.update((text_relocations.len() as u64).to_le_bytes());
-    let mut relocation_envelope_fingerprint = FNV_OFFSET;
+    let mut relocation_envelope_report_fingerprint = FNV_OFFSET;
     for (offset, width, kind, addend) in &text_relocations {
         relocation_digest.update((*offset as u64).to_le_bytes());
         relocation_digest.update((*width as u64).to_le_bytes());
         relocation_digest.update([*kind]);
         relocation_digest.update(addend.to_le_bytes());
         fingerprint_into(
-            &mut relocation_envelope_fingerprint,
+            &mut relocation_envelope_report_fingerprint,
             &(*offset as u64).to_le_bytes(),
         );
         fingerprint_into(
-            &mut relocation_envelope_fingerprint,
+            &mut relocation_envelope_report_fingerprint,
             &(*width as u64).to_le_bytes(),
         );
-        fingerprint_into(&mut relocation_envelope_fingerprint, &[*kind]);
-        fingerprint_into(&mut relocation_envelope_fingerprint, &addend.to_le_bytes());
+        fingerprint_into(&mut relocation_envelope_report_fingerprint, &[*kind]);
+        fingerprint_into(
+            &mut relocation_envelope_report_fingerprint,
+            &addend.to_le_bytes(),
+        );
     }
-    let mut derivation_fingerprint = FNV_OFFSET;
+    let mut derivation_report_fingerprint = FNV_OFFSET;
     fingerprint_into(
-        &mut derivation_fingerprint,
-        &encoded_text_fingerprint.to_le_bytes(),
+        &mut derivation_report_fingerprint,
+        &encoded_text_report_fingerprint.to_le_bytes(),
     );
     fingerprint_into(
-        &mut derivation_fingerprint,
-        &final_compiler_text_fingerprint.to_le_bytes(),
+        &mut derivation_report_fingerprint,
+        &final_compiler_text_report_fingerprint.to_le_bytes(),
     );
     fingerprint_into(
-        &mut derivation_fingerprint,
-        &relocation_envelope_fingerprint.to_le_bytes(),
+        &mut derivation_report_fingerprint,
+        &relocation_envelope_report_fingerprint.to_le_bytes(),
     );
     fingerprint_into(
-        &mut derivation_fingerprint,
+        &mut derivation_report_fingerprint,
         &(text_relocations.len() as u64).to_le_bytes(),
     );
     let mut evidence = CompilerTextValidationEvidence {
@@ -137,12 +140,12 @@ pub fn validate_final_text_relocation_envelope(
             relocation_digest.finalize().into(),
         ),
         derivation_digest: CompilerTextDerivationDigest::from_digest([0; 32]),
-        encoded_text_fingerprint,
-        final_compiler_text_fingerprint,
-        relocation_envelope_fingerprint,
-        checked_instruction_validation_fingerprint: 0,
-        checked_instruction_footprint_fingerprint: 0,
-        derivation_fingerprint,
+        encoded_text_report_fingerprint,
+        final_compiler_text_report_fingerprint,
+        relocation_envelope_report_fingerprint,
+        checked_instruction_validation_report_fingerprint: 0,
+        checked_instruction_footprint_report_fingerprint: 0,
+        derivation_report_fingerprint,
         text_relocation_count: text_relocations.len(),
         checked_instruction_validation_count: 0,
     };

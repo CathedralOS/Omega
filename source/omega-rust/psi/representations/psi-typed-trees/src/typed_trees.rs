@@ -291,7 +291,7 @@ pub struct ClosedConformanceApplication {
     pub rows: Vec<ClosedConformanceRowIdentity>,
     /// Historical compact coordinate retained for diagnostics and local
     /// indexing. Authority-bearing joins must also replay `commitment`.
-    pub fingerprint: u64,
+    pub report_fingerprint: u64,
     /// Domain-separated commitment to the complete closed application.
     pub commitment: ClosedConformanceApplicationCommitment,
 }
@@ -332,7 +332,7 @@ pub struct ClosedConformanceRowIdentity {
 pub struct StaticRequirementDispatch {
     /// Non-authoritative compatibility coordinate for the selected
     /// application. `application_commitment` is the authoritative join.
-    pub application_fingerprint: u64,
+    pub application_report_fingerprint: u64,
     pub application_commitment: ClosedConformanceApplicationCommitment,
     pub declaring_trait: psi_symbols::SymbolHandle,
     pub requirement: psi_symbols::SymbolHandle,

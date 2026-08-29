@@ -599,7 +599,7 @@ fn trait_operator_use_consumes_only_the_selected_conformance_application() {
     assert!(candidate.trait_requirement_symbol.is_valid());
     assert!(candidate.realization_machine_symbol.is_valid());
     assert!(candidate.realization_state_symbol.is_valid());
-    assert_ne!(candidate.conformance_application_fingerprint, 0);
+    assert_ne!(candidate.conformance_application_report_fingerprint, 0);
     let conformance_selections = checked
         .authored_declaration_selections()
         .iter()
@@ -685,8 +685,8 @@ fn trait_operator_return_retains_exact_structural_scalar_call_plan() {
     );
     assert_eq!(plan.conformance, application.declaration);
     assert_eq!(
-        plan.conformance_application_fingerprint,
-        application.fingerprint
+        plan.conformance_application_report_fingerprint,
+        application.report_fingerprint
     );
     assert_eq!(plan.realization_machine, row.realization_machine);
     assert_eq!(plan.realization_state, row.realization_state);

@@ -59,8 +59,8 @@ pub(crate) fn external_root_records_manifest_json(
 fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
     output.push_str("{\"root\": ");
     push_hex_identity(output, record.root.normalized_identity());
-    output.push_str(", \"normalized_root_identity\": ");
-    push_hex_identity(output, record.normalized_root_identity);
+    output.push_str(", \"normalized_root_report_identity\": ");
+    push_hex_identity(output, record.normalized_root_report_identity);
     output.push_str(", \"entry\": ");
     push_hex_identity(output, record.entry.normalized_identity());
     output.push_str(", \"installed_code\": ");
@@ -75,8 +75,8 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
     push_hex_identity(output, record.admission.normalized_identity());
     output.push_str(", \"provider_execution\": ");
     push_hex_identity(output, record.provider_execution.normalized_identity());
-    output.push_str(", \"provider_execution_fingerprint\": ");
-    push_hex_identity(output, record.provider_execution_fingerprint);
+    output.push_str(", \"provider_execution_report_fingerprint\": ");
+    push_hex_identity(output, record.provider_execution_report_fingerprint);
     output.push_str(", \"provider_plan\": ");
     push_hex_identity(output, record.provider_plan.normalized_identity());
     output.push_str(", \"native_fuel\": {\"kind\": ");
@@ -87,11 +87,15 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
         omega_external_roots::NativeFuelRealizationKind::Interpreted => "interpreted",
     });
     output.push('"');
-    output.push_str(", \"fingerprint\": ");
-    push_hex_identity(output, record.native_fuel_fingerprint);
+    output.push_str(", \"report_fingerprint\": ");
+    push_hex_identity(output, record.native_fuel_report_fingerprint);
     output.push('}');
-    output.push_str(", \"boundary_contract\": ");
-    push_hex_identity(output, record.boundary_contract_fingerprint);
+    output.push_str(", \"selected_provider_closure_report_fingerprint\": ");
+    push_hex_identity(output, record.selected_provider_closure_report_fingerprint);
+    output.push_str(", \"selected_provider_closure_digest\": ");
+    push_hex_digest(output, record.selected_provider_closure_digest.as_bytes());
+    output.push_str(", \"boundary_contract_report_fingerprint\": ");
+    push_hex_identity(output, record.boundary_contract_report_fingerprint);
     output.push_str(", \"boundary_plan\": ");
     calling_plan_json::push_boundary_plan_json(output, &record.boundary);
     output.push_str(", \"provider\": ");
@@ -589,5 +593,14 @@ fn push_identity_set(output: &mut String, identities: impl IntoIterator<Item = u
 fn push_hex_identity(output: &mut String, identity: u64) {
     output.push('"');
     output.push_str(&format!("0x{identity:016x}"));
+    output.push('"');
+}
+
+fn push_hex_digest(output: &mut String, digest: &[u8; 32]) {
+    output.push('"');
+    output.push_str("0x");
+    for byte in digest {
+        output.push_str(&format!("{byte:02x}"));
+    }
     output.push('"');
 }

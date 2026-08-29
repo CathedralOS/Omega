@@ -595,8 +595,8 @@ fn x86_internal_call_is_a_typed_relocation_and_the_only_final_text_mutation() {
         .compiler_text_validation
         .expect("relocation evidence");
     assert_ne!(
-        evidence.encoded_text_fingerprint,
-        evidence.final_compiler_text_fingerprint
+        evidence.encoded_text_report_fingerprint,
+        evidence.final_compiler_text_report_fingerprint
     );
     assert_eq!(evidence.text_relocation_count, 1);
 
@@ -2205,8 +2205,8 @@ fn supported_writers_preserve_exact_terminal_text_and_complete_regions() {
             .compiler_text_validation
             .expect("exact terminal text should publish validation evidence");
         assert_eq!(
-            evidence.encoded_text_fingerprint,
-            evidence.final_compiler_text_fingerprint
+            evidence.encoded_text_report_fingerprint,
+            evidence.final_compiler_text_report_fingerprint
         );
         assert!(evidence.has_valid_derivation_digest());
         assert_ne!(

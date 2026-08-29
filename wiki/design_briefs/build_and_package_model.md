@@ -398,6 +398,14 @@ implementation; it does not repeat the target's register/stack arrival contract
 or discover an export by spelling. Binding is selection, not invocation:
 `build.omg` supplies neither the machine's receiver nor its entry arguments.
 
+The resulting physical-contract plan retains a domain-separated SHA-256
+commitment to the exact toolchain package identity, canonical package-relative
+source path, and source bytes. The prior FNV source value remains only as an
+explicitly non-authoritative report fingerprint. Exact toolchain origin, source
+membership, contract identities, and the complete calling plan remain separate
+checks; holding the compact report value equal cannot substitute different
+package source bytes.
+
 ## Target-declared slots
 
 A target profile declares a closed typed slot set. Each slot owns:

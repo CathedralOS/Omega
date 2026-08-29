@@ -645,8 +645,9 @@ format 33 / vocabulary 38 preserve this split and serialize the application
 and dispatch commitments. Terminal validation recomputes the application
 commitment from its complete source-free structure, selects dispatch by owner
 plus that commitment, and then replays the exact row. The compact fingerprint
-is report/index data only. Erasing the proof rows leaves runtime parameter/result
-shape, storage, operations, and fixed fuel unchanged.
+is named a report fingerprint and remains report/index data only. Erasing the
+proof rows leaves runtime parameter/result shape, storage, operations, and fixed
+fuel unchanged.
 
 Outcome
 guards expose selectors only in applicable arms.
@@ -2172,6 +2173,14 @@ publication. A selected-entry progress-bearing canary now does the same with
 one exact source-derived `self.field` premise, source-selected provider plan,
 installed provider occurrence, authorized establishment route, and opaque
 acceptance; malformed closure input returns the claimed session for retry.
+
+External-root execution summaries do not become authority while crossing this
+installation boundary. Compact normalized-root, provider-execution,
+opaque-exit, stack, fuel, boundary-contract, and selected-closure values are
+named report coordinates. The ledger retains the exact validated root,
+boundary, resource columns, provider exit assurance, and installed occurrence,
+and its public record also carries the strong selected-provider-closure digest.
+Compact-equal root-policy substitution therefore fails exact admission replay.
 
 Psi now owns one canonical source-free handoff carrier. The
 `CanonicalTerminalArtifact` retains exact semantic, proof, optional debug, and

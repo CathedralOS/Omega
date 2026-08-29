@@ -601,6 +601,10 @@ mod tests {
                     slot,
                     "UefiPhysicalEntry::enter#recipe".into(),
                     omega_target::ProgramEntryPhysicalContractPackage::UefiX64,
+                    crate::ProgramEntryPhysicalContractPackageSourceDigest::from_package_source(
+                        omega_target::ProgramEntryPhysicalContractPackage::UefiX64,
+                        b"optimized-semantic-wrapper-test-package-source",
+                    ),
                     1,
                     vec!["EfiImageHandle".into(), "&EfiSystemTable".into()],
                     "EfiStatus".into(),

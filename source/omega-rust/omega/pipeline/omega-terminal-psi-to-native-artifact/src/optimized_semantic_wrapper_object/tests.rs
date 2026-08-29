@@ -89,6 +89,10 @@ fn encoding() -> StagedOptimizedProgramStorageSemanticWrapperEncoding {
                 slot,
                 "UefiPhysicalEntry::enter#object".into(),
                 omega_target::ProgramEntryPhysicalContractPackage::UefiX64,
+                omega_program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest::from_package_source(
+                    omega_target::ProgramEntryPhysicalContractPackage::UefiX64,
+                    b"optimized-semantic-wrapper-object-test-package-source",
+                ),
                 1,
                 vec!["EfiImageHandle".into(), "&EfiSystemTable".into()],
                 "EfiStatus".into(),

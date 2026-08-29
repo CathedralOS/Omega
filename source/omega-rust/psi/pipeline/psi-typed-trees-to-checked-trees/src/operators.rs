@@ -936,7 +936,7 @@ fn trait_operator_use_fact(
             candidate.application.declaration,
             candidate.row.realization_machine,
             candidate.row.realization_state,
-            candidate.application.fingerprint,
+            candidate.application.report_fingerprint,
             candidate.application.commitment,
         )
         .with_signature(

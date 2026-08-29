@@ -5,7 +5,8 @@ use omega_calling_conventions::{
     validate_state_footprint,
 };
 use omega_effects::{
-    InstallationReachResolution, SelectedProviderPlanFacts, provider_plan::ProviderPlanDigest,
+    InstallationReachResolution, SelectedProviderClosureDigest, SelectedProviderPlanFacts,
+    provider_plan::ProviderPlanDigest,
 };
 use psi_layout_plans::EntryStubId;
 use psi_terminal::{ServiceDeclaration, TerminalModule, TerminalRootServiceReach};
@@ -67,13 +68,18 @@ pub struct ExternalRootResultClaim {
 /// realization row. Construction fails closed on an absent selection; the
 /// published root therefore never substitutes an authored upper bound for a
 /// provider's actual reach.
+///
+/// The compact selected-closure value is report compatibility only. The
+/// collision-resistant closure digest and exact resolution rows remain beside
+/// it for retained-root replay.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedRootServiceReach {
     concrete: Vec<String>,
     installation_requirements: Vec<String>,
     resolutions: Vec<InstallationReachResolution>,
     effective: Vec<String>,
-    selected_provider_closure_fingerprint: u64,
+    selected_provider_closure_report_fingerprint: u64,
+    selected_provider_closure_digest: SelectedProviderClosureDigest,
 }
 
 impl ResolvedRootServiceReach {
@@ -187,7 +193,8 @@ impl ResolvedRootServiceReach {
             installation_requirements,
             resolutions,
             effective,
-            selected_provider_closure_fingerprint: selected.normalized_identity(),
+            selected_provider_closure_report_fingerprint: selected.compatibility_report_identity(),
+            selected_provider_closure_digest: selected.identity_digest(),
         })
     }
 
@@ -207,8 +214,12 @@ impl ResolvedRootServiceReach {
         &self.effective
     }
 
-    pub const fn selected_provider_closure_fingerprint(&self) -> u64 {
-        self.selected_provider_closure_fingerprint
+    pub const fn selected_provider_closure_report_fingerprint(&self) -> u64 {
+        self.selected_provider_closure_report_fingerprint
+    }
+
+    pub const fn selected_provider_closure_digest(&self) -> SelectedProviderClosureDigest {
+        self.selected_provider_closure_digest
     }
 }
 
@@ -263,8 +274,8 @@ pub struct ExternalRootCandidate {
 pub struct ValidatedExternalRoot {
     pub(crate) candidate: ExternalRootCandidate,
     pub(crate) boundary: ValidatedBoundaryEntryPlan,
-    pub(crate) boundary_contract_fingerprint: u64,
-    pub(crate) normalized_identity: u64,
+    pub(crate) boundary_contract_report_fingerprint: u64,
+    pub(crate) normalized_report_identity: u64,
 }
 
 impl ValidatedExternalRoot {
@@ -276,12 +287,12 @@ impl ValidatedExternalRoot {
         self.boundary.plan()
     }
 
-    pub const fn boundary_contract_fingerprint(&self) -> u64 {
-        self.boundary_contract_fingerprint
+    pub const fn boundary_contract_report_fingerprint(&self) -> u64 {
+        self.boundary_contract_report_fingerprint
     }
 
-    pub const fn normalized_identity(&self) -> u64 {
-        self.normalized_identity
+    pub const fn normalized_report_identity(&self) -> u64 {
+        self.normalized_report_identity
     }
 }
 
@@ -417,17 +428,18 @@ pub fn validate_external_root(
         }
     }
 
-    let boundary_contract_fingerprint = boundary.contract_fingerprint();
-    let normalized_identity = fingerprint_root(&candidate, boundary_contract_fingerprint);
+    let boundary_contract_report_fingerprint = boundary.contract_fingerprint();
+    let normalized_report_identity =
+        root_report_fingerprint(&candidate, boundary_contract_report_fingerprint);
     Ok(ValidatedExternalRoot {
         candidate,
         boundary: boundary.clone(),
-        boundary_contract_fingerprint,
-        normalized_identity,
+        boundary_contract_report_fingerprint,
+        normalized_report_identity,
     })
 }
 
-fn fingerprint_root(candidate: &ExternalRootCandidate, boundary: u64) -> u64 {
+fn root_report_fingerprint(candidate: &ExternalRootCandidate, boundary: u64) -> u64 {
     let mut hash = Fnv1a::new();
     hash.u64(candidate.identity.normalized_identity());
     hash.u64(candidate.entry.normalized_identity());
@@ -461,7 +473,13 @@ fn fingerprint_root(candidate: &ExternalRootCandidate, boundary: u64) -> u64 {
     hash.u64(
         candidate
             .service_reach
-            .selected_provider_closure_fingerprint(),
+            .selected_provider_closure_report_fingerprint(),
+    );
+    hash.bytes(
+        candidate
+            .service_reach
+            .selected_provider_closure_digest()
+            .as_bytes(),
     );
     hash.u64(candidate.service_reach.concrete().len() as u64);
     for service in candidate.service_reach.concrete() {
