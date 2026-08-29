@@ -113,17 +113,17 @@ code, discover a closure, manufacture proof premises, or decide admission.
   - [x] Move the existing Beta tape adjacent to `beta_compiler.alpha`, delete
     its otherwise content-free `artifacts/` bucket, and make path hygiene reject
     nested artifact buckets for every canonical compiler owner.
-  - [ ] **DESIGN-BLOCKED — OWNER Q7.** Materialize the Gamma compiler source, tape,
+  - [ ] **DESIGN-BLOCKED — OWNER Q6.** Materialize the Gamma compiler source, tape,
     and adjacent validation in `source/gamma/compiler/`; section 3 owns the
     implementation.
-  - [ ] **DESIGN-BLOCKED — OWNER Q6/Q7.** Materialize the Delta compiler source,
+  - [ ] **DESIGN-BLOCKED — OWNER Q5/Q6.** Materialize the Delta compiler source,
     tape, and adjacent validation in `source/delta/compiler/`; section 4 owns
     the implementation.
-  - [ ] **DESIGN-BLOCKED — OWNER Q6.** Author
+  - [ ] **DESIGN-BLOCKED — OWNER Q5.** Author
     `source/omega/omega_compiler.delta` once Delta's source and closure contract
     is selected; section 5 owns the implementation. This source work does not
     wait for the physical Gamma/Delta compiler artifacts.
-  - [ ] **DEPENDENCY-BLOCKED — OWNER Q7, missing Gamma/Delta compilers, and missing
+  - [ ] **DEPENDENCY-BLOCKED — OWNER Q6, missing Gamma/Delta compilers, and missing
     `D`.** Materialize the resulting `omega0_compiler_bytecode.tape` only after
     the predecessor chain and source closure exist. Section 5 owns `D → omega₀`;
     section 6 owns completion of the existing `build.omg`/`main.omg` closure and
@@ -177,7 +177,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 
 ## 2. Alpha-written Beta compiler
 
-- [ ] **BLOCKED — OWNER Q9 (Beta compiler outcome): ADMIT-ALPHA-BETA-COMPILER.** Audit the canonical
+- [ ] **BLOCKED — OWNER Q8 (Beta compiler outcome): ADMIT-ALPHA-BETA-COMPILER.** Audit the canonical
   `source/beta/compiler/beta_compiler.alpha` against the complete Beta v1
   contract. Its exact directly assembled Alpha tape is now the canonical Beta
   compiler artifact. It must accept arbitrary valid Beta within explicit
@@ -198,7 +198,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     corrected that assembler's signed-division bug for high-bit `u64` immediate
     bytes. The canonical tape passes the generic structural gate. Every
     production consumer now uses its direct tape output.
-  - [ ] **DESIGN-BLOCKED — OWNER Q8:** Enforce Beta definite initialization across
+  - [ ] **DESIGN-BLOCKED — OWNER Q7:** Enforce Beta definite initialization across
     state/transition CFGs after fixing the flat-block formation and guarded-edge
     well-formedness rules. A source-order symbol-table pass alone does not prove
     initialization on every path; the byte-vector must-analysis and bounded
@@ -219,7 +219,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     guards are necessarily dominated by the smaller tape extent and are
     documented as corruption teeth rather than falsely advertised independent
     source capacities.
-  - [ ] **OWNER-BLOCKED — OWNER Q9:** Project malformed source and each private
+  - [ ] **OWNER-BLOCKED — OWNER Q8:** Project malformed source and each private
     capacity failure to exact, typed no-partial-artifact outcomes. The Alpha
     boundary currently exposes raw success bytes plus a halt code and has no
     selected canonical carrier for `Complete`, `Reject`, `Incomplete`, and
@@ -247,7 +247,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   executable consumers and no bounded comparison gate; constructing a new gate
   merely to justify retention would reverse the repository policy. Its fixed
   point and source now survive only in Git history.
-- [ ] **OWNER-BLOCKED — OWNER Q11.** Close exact
+- [ ] **OWNER-BLOCKED — OWNER Q10.** Close exact
   Alpha-assembly-source-to-Alpha-tape correspondence. First
   specify the authoritative assembly grammar and two-pass encoding, then bind
   the exact raw `beta_compiler.alpha` and tape subjects and check that every
@@ -287,7 +287,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     lemma, duplicate IDs and trailing forms reject, and the independent checker
     matches those controls; a later rewrite cannot change an accepted lemma's
     definitional meaning.
-  - [ ] **OWNER-BLOCKED — OWNER Q11:** Turn the ground assembly judgment into a derivation certificate
+  - [ ] **OWNER-BLOCKED — OWNER Q10:** Turn the ground assembly judgment into a derivation certificate
     over those checker-bound subjects. The certificate must check the complete
     two-pass ledger, unique label map, total source/tape partitions, exact
     fixups, and full exhaustion.
@@ -320,7 +320,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       checked propositions with `use`; it accepts in 1.192 seconds. This proves
       the proposed reclamation boundary is viable but does not yet prove the
       required boundary chain or assembly semantics.
-    - OWNER Q11 must choose between bounded subject-bound chunk equalities whose exact
+    - OWNER Q10 must choose between bounded subject-bound chunk equalities whose exact
       boundary states compose through checked congruence/`eqelim` into the one
       root edge judgment, or generic sound branch-local reclamation in the
       checker. Neither choice may add an assembly-specific primitive, trusted
@@ -330,52 +330,52 @@ code, discover a closure, manufacture proof premises, or decide admission.
 
 ## 3. Beta-written Gamma compiler
 
-- [ ] **DESIGN-BLOCKED — OWNER Q7: BUILD-GAMMA-COMPILER.** Define the complete Gamma source contract, then
+- [ ] **DESIGN-BLOCKED — OWNER Q6: BUILD-GAMMA-COMPILER.** Define the complete Gamma source contract, then
   implement `source/gamma/compiler/gamma_compiler.beta` as a standalone
   compiler from Gamma source to Alpha tape. It may reuse or reorganize
   `interp.beta` and `typeck.beta`; no external interpreter may remain part of
-  compilation. OWNER Q7 must first select one typed executable grammar, entry/stream
+  compilation. OWNER Q6 must first select one typed executable grammar, entry/stream
   ABI, outcome model, and fuel/resource meaning. The current interpreter and
   type checker implement disconnected untyped-executable and typed-nonexecuting
   languages, so choosing either in code would invent Gamma semantics.
 - [x] Keep `interp.beta` and `typeck.beta` only as reusable compiler components
   or bounded semantic oracles. Their inventories now name present gates and
-  explicit Q8 absorption/deletion conditions; neither is accepted as a
+  explicit Q6 absorption/deletion conditions; neither is accepted as a
   compiler edge. The retained post-prune gates pass 41 interpreter cases, the
   fail-closed arena case, 23 type-checker cases, and 101 independent
-  differential cases. Q8's compiler task owns the later absorb-or-delete step.
+  differential cases. Q6's compiler task owns the later absorb-or-delete step.
   - [x] Delete the interpreter's dead environment lookup and the
     `Node`/`Chunks`/`ZeroTree` compact representation plus 524,288-slot
     translator-carrier case. They existed for the deleted cross-rung translator,
     not for Gamma semantics or the canonical compiler edge. Rewrite the
-    interpreter-first claims to classify both executables as pre-Q8 oracles.
+    interpreter-first claims to classify both executables as pre-Q6 oracles.
   - [x] Remove the type checker's retired proof-kernel purpose and reject
     unknown declared types explicitly instead of allowing the shared `-1`
     error/type sentinel to compare equal.
-- [ ] **DEPENDENCY-BLOCKED — OWNER Q7 and missing `gamma_compiler.beta`.** Check the
+- [ ] **DEPENDENCY-BLOCKED — OWNER Q6 and missing `gamma_compiler.beta`.** Check the
   exact Beta-source-to-Alpha-tape refinement and all resource outcomes. Measure
   representative compiler-sized inputs; a 12-hour ceiling is emergency
   containment, not acceptable normal performance.
 
 ## 4. Gamma-written Delta compiler
 
-- [ ] **DESIGN-BLOCKED — OWNER Q6: FREEZE-DELTA-V1.** Finish one self-contained Delta grammar, static
+- [ ] **DESIGN-BLOCKED — OWNER Q5: FREEZE-DELTA-V1.** Finish one self-contained Delta grammar, static
   semantics, deterministic execution model, sealed byte I/O contract, and
   resource taxonomy. Delta is an independent robust C-like compiler-host
-  language; it does not inherit Omega meaning merely by sharing spelling. Q7
+  language; it does not inherit Omega meaning merely by sharing spelling. Q5
   must close the contradictory `Incomplete` placement, exact reject/trap
   taxonomy, keyword policy, optional domains/contracts, builtin resolution,
   Console/string ABI, scalar-transition miss, and closure presentation.
-- [ ] **DESIGN-BLOCKED — OWNER Q6/Q7: BUILD-DELTA-COMPILER.** Implement
+- [ ] **DESIGN-BLOCKED — OWNER Q5/Q6: BUILD-DELTA-COMPILER.** Implement
   `source/delta/compiler/delta_compiler.gamma` to consume arbitrary valid Delta
   and emit exact Alpha tape directly. No Beta translator, Gamma evaluator
   subprocess, host encoder/decoder, native assembler stream, or older compiler
   participates.
-- [ ] **DESIGN-BLOCKED — OWNER Q6.** Derive compact positive, negative, trap, and
+- [ ] **DESIGN-BLOCKED — OWNER Q5.** Derive compact positive, negative, trap, and
   private-budget `Incomplete` conformance directly from the frozen Delta
   contract. Do not recreate cases that merely pin quirks of the removed
   translator.
-- [ ] **DEPENDENCY-BLOCKED — OWNER Q7 and missing `delta_compiler.gamma`.** Run that
+- [ ] **DEPENDENCY-BLOCKED — OWNER Q6 and missing `delta_compiler.gamma`.** Run that
   contract-derived suite through the real Gamma-written compiler and bind every
   outcome to its no-partial-tape behavior.
   - [x] Delete `exprc.delta` and `minic.delta`; both were demonstrations of the
@@ -384,21 +384,21 @@ code, discover a closure, manufacture proof premises, or decide admission.
     classifying native-backend slices as language tests. It mixed retired
     Darwin/ARM layout and trap assumptions, deleted `contracts.sh` workflows,
     demonstrations, and unresolved keyword/domain/result/builtin proposals.
-    After OWNER Q6 freezes Delta v1, derive a compact positive/negative suite from
+    After OWNER Q5 freezes Delta v1, derive a compact positive/negative suite from
     the frozen contract and run it through the actual Gamma-written compiler.
-- [ ] **DEPENDENCY-BLOCKED — OWNER Q6/Q7 and missing Gamma/Delta compilers.** Check
+- [ ] **DEPENDENCY-BLOCKED — OWNER Q5/Q6 and missing Gamma/Delta compilers.** Check
   exact Gamma-source-to-Alpha-tape refinement, including realistic source
   closures large enough to compile `D`.
 
 ## 5. Delta-written full Omega compiler `D`
 
-- [ ] **DESIGN-BLOCKED — OWNER Q6: OWN-OMEGA-D.** Author one exact package-resolved closure `D` at
+- [ ] **DESIGN-BLOCKED — OWNER Q5: OWN-OMEGA-D.** Author one exact package-resolved closure `D` at
   `source/omega/omega_compiler.delta`; do not preserve historical filenames,
   snapshots, or native-publication adapters as authorities. This is downstream
-  of Q7. The deleted prototype remains available in Git for selectively
+  of Q6. The deleted prototype remains available in Git for selectively
   re-deriving an isolated algorithm, but it cannot be restored or copied as a
   compiler-shaped starting point.
-- [ ] **DEPENDENCY-BLOCKED — OWNER Q6 and missing `D`.** Make `D` implement the
+- [ ] **DEPENDENCY-BLOCKED — OWNER Q5 and missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are
   allowed; weakened Omega semantics are not.
@@ -412,7 +412,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 
 ## 6. Omega-written full compiler `C`
 
-- [ ] **DEPENDENCY-BLOCKED — OWNER Q12 and current ranked-runtime acceptance.**
+- [ ] **DEPENDENCY-BLOCKED — OWNER Q11 and current ranked-runtime acceptance.**
   Publish one deterministic package-resolved Omega closure `C` rooted at
   `source/omega/build.omg`. Psi modules are included only when imported by the
   compiler executable; interpreters, viewers, REPLs, proof explorers, and other
@@ -425,7 +425,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   and gates are already deleted rather than retained as a second bootstrap
   observation. Freeze that final checked production closure only when `C`
   itself is complete; do not revive an inspection-only precursor.
-- [ ] **DEPENDENCY-BLOCKED — OWNER Q12 and current ranked-runtime acceptance.**
+- [ ] **DEPENDENCY-BLOCKED — OWNER Q11 and current ranked-runtime acceptance.**
   Author `C` with a conservative compositional subset of ordinary Omega to
   simplify the first self-build. This is an incidental source profile, never a
   named dialect or permission for `omega₀` to implement less than full Omega.

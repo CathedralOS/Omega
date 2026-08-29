@@ -61,78 +61,7 @@ closed.
 - Tempting but wrong: retain only a solver `Proven` verdict without the selected
   theorem identity, ordered premises, per-side application, and replay data.
 
-## Q2 — Nominal result carriers for observing compare-exchange
-
-### Context
-
-The atomic design settles two observing compare-exchange requirements and
-their exact closed outcomes. Decisive `AtomicCompareExchange<T>` reports
-`Exchanged | Mismatched(observed: T)`. Single-attempt
-`AtomicCompareExchangeOnce<T>` additionally reports
-`Uncommitted(observed: T)` when the comparison matched but the attempt did not
-commit. Both require copyable `T`, success uses the success ordering, and both
-failure arms use the read-compatible failure ordering.
-
-Those names currently identify public operation requirements, not value types.
-Omega source locals require an explicit nominal type, ordinary case patterns
-qualify cases through that type, and the core library declares no observing-CAS
-result data family. The implemented decisive source intrinsic instead exposes
-the instruction-observed prior scalar; the single-attempt source intrinsic is
-correctly fenced because that carrier cannot distinguish `Uncommitted` from a
-mismatch.
-
-### Problem statement
-
-The language does not name the nominal closed result type or types that own
-`Exchanged`, `Mismatched`, and `Uncommitted`. It therefore does not settle
-whether decisive and single-attempt results use two distinct generic families,
-one larger shared family with an impossible decisive case, or some other
-nominal relationship; nor does it settle the public case-qualification paths.
-Ordinary Omega sums assign tag zero and the home representation to the first
-declared case, but the atomic result table specifies a set of outcomes rather
-than their declaration order. Choosing `Exchanged` first would make all-zero
-storage look successful; choosing a payload-bearing failure first also needs an
-explicit rule for the generic `observed: T` home value.
-Choosing names such as `AtomicCompareExchangeResult<T>` and
-`AtomicCompareExchangeOnceResult<T>` in the compiler or core library would
-create a public core ABI and pattern-matching vocabulary not specified by the
-requirement table. Reusing the requirement names as value types would silently
-conflate two distinct language identities.
-
-### Proposed direction
-
-Declare two distinct ordinary generic core result sums, one for each observing
-axis, with owner-approved nominal names. The decisive sum has exactly
-`Exchanged` and `Mismatched(observed: T)`; the single-attempt sum has exactly
-those cases plus `Uncommitted(observed: T)`. Constrain both to copyable `T` and
-make their cases available through the ordinary nominal case namespace.
-Explicitly choose their canonical case order and whether uninitialized/home
-storage is permitted to denote any operation outcome; do not inherit a
-success-looking zero representation accidentally. Change the existing decisive
-source operation to return its closed sum rather than the legacy prior scalar,
-and give the single-attempt operation the distinct three-case sum. Keep the
-operation requirement identities separate from these value-type identities.
-
-### Alternates
-
-- Acceptable: choose different explicit public names or a containing namespace,
-  provided decisive code cannot observe or construct an `Uncommitted` outcome
-  and the two requirement identities remain distinct.
-- Acceptable: make the result carrier construction-only or give it an explicit
-  non-outcome home state, if ordinary zero initialization cannot provide a
-  sound failure-first representation for every admitted `T`.
-- Acceptable as a migration aid: diagnose the legacy scalar annotation with a
-  targeted replacement message, without retaining scalar-return semantics as
-  an overload.
-- Tempting but wrong: infer an anonymous sum from the local initializer; Omega
-  case construction and matching are nominal, and the public pattern paths
-  would still be undefined.
-- Tempting but wrong: model both requirements with the observed-prior scalar or
-  a success Boolean; either representation erases the specified closed cases.
-- Tempting but wrong: expose `Uncommitted` on the decisive result merely because
-  one larger runtime layout would be convenient.
-
-## Q3 — Strict SSH trust and credential authority
+## Q2 — Strict SSH trust and credential authority
 
 ### Context
 
@@ -181,7 +110,7 @@ producer claim.
 - Tempting but wrong: serialize private keys, tokens, or reusable credentials in
   `omega.lock` or source-resolution evidence.
 
-## Q4 — Suspension as control-flow exit or resumable continuation
+## Q3 — Suspension as control-flow exit or resumable continuation
 
 ### Context
 
@@ -220,7 +149,7 @@ and its custody.
 - Tempting but wrong: classify every `MaySuspend` call as a local CFG exit
   without retaining its continuation and outcome-specific state.
 
-## Q5 — Cyclic control flow in Terminal Psi
+## Q4 — Cyclic control flow in Terminal Psi
 
 ### Context
 
@@ -260,7 +189,7 @@ block-loop API.
   validation before loop-carried SSA, ownership, cleanup, and fuel semantics
   exist.
 
-## Q6 — Close the Delta v1 semantic contract
+## Q5 — Close the Delta v1 semantic contract
 
 ### Context
 
@@ -340,7 +269,7 @@ out of Delta without weakening its ability to host a robust compiler.
 - Tempting but wrong: retain the old translator's private capacities, exit
   codes, or Darwin output behavior as language rules.
 
-## Q7 — Select one typed executable Gamma contract
+## Q6 — Select one typed executable Gamma contract
 
 ### Context
 
@@ -410,7 +339,7 @@ failures.
 - Tempting but wrong: make Alpha I/O effects directly callable from arbitrary
   Gamma source merely to avoid defining the compiler-entry adapter.
 
-## Q8 — Fix Beta block formation and definite-initialization reachability
+## Q7 — Fix Beta block formation and definite-initialization reachability
 
 ### Context
 
@@ -475,7 +404,7 @@ semantic acceptance independent of optimizer sophistication.
 - Tempting but wrong: zero-initialize generated frame slots and call the gap
   closed; that changes Beta's written local semantics and hides skipped stores.
 
-## Q9 — Select the canonical Beta compiler outcome carrier
+## Q8 — Select the canonical Beta compiler outcome carrier
 
 ### Context
 
@@ -539,7 +468,7 @@ impossible fixup/table condition maps to `InternalFailure`.
 - Tempting but wrong: prepend a success tag to Alpha tape and thereby change the
   canonical artifact bytes or require a stripping stage.
 
-## Q10 — Canonical kernel propositions for exact scalar operations
+## Q9 — Canonical kernel propositions for exact scalar operations
 
 ### Context
 
@@ -596,7 +525,7 @@ and mirrored verifier search tree.
 - Tempting but wrong: serialize only the producer's chosen goal and trust it
   without independently reconstructing the operation-owned proposition.
 
-## Q11 — Compose the exact Alpha-to-Beta edge within checker capacity
+## Q10 — Compose the exact Alpha-to-Beta edge within checker capacity
 
 ### Context
 
@@ -658,7 +587,7 @@ of adding an assembly-specific evaluator path.
   primitive, trust a producer receipt, compare hashes, or weaken exact total
   partitioning.
 
-## Q12 — Own the ranked native-fuel sponsor entry
+## Q11 — Own the ranked native-fuel sponsor entry
 
 ### Context
 
@@ -706,7 +635,7 @@ prove the final call target is exactly that admitted sponsor entry.
 - Tempting but wrong: append an anonymous helper, magic host callback, script,
   or test-only trampoline and treat successful execution as chain evidence.
 
-## Q13 — Semantic loci for the remaining dangerous-authority classes
+## Q12 — Semantic loci for the remaining dangerous-authority classes
 
 ### Context
 

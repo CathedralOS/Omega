@@ -597,20 +597,56 @@ values and may therefore transfer an affine or linear resident owned by a
 Stable initialized placement. Cross-activation sharing is checked separately
 and requires the resident type to be transferable.
 
-Compare-exchange has two independent axes. `AtomicCompareExchange<T>` is
-decisive and observing: it reports `Exchanged` or
-`Mismatched(observed: T)`. `AtomicCompareExchangeOnce<T>` is the observing
-single-attempt sibling and additionally reports `Uncommitted(observed: T)`
-when the comparison matched but the target did not commit that attempt. Both
-require a copyable resident because failure exposes its current value.
+Compare-exchange has two independent axes and four ordinary flat core outcome
+types:
 
+```omega
+pub data AtomicCompareExchangeOutcome<T> {
+    case Mismatched(observed: T);
+    case Exchanged;
+}
+
+pub data AtomicCompareExchangeOnceOutcome<T> {
+    case Mismatched(observed: T);
+    case Exchanged;
+    case Uncommitted(observed: T);
+}
+
+pub data AtomicTryExchangeOutcome<T> {
+    case Mismatched(proposed: T);
+    case Exchanged(displaced: T);
+}
+
+pub data AtomicTryExchangeOnceOutcome<T> {
+    case Mismatched(proposed: T);
+    case Exchanged(displaced: T);
+    case Uncommitted(proposed: T);
+}
+```
+
+The declaration order above is canonical and therefore fixes tags zero, one,
+and, where present, two. Case paths are the ordinary flat nominal paths, such
+as `AtomicCompareExchangeOnceOutcome::Uncommitted`; no enclosing atomic-result
+namespace is implied. `Outcome` describes these expected closed terminal
+states, but does not reserve `Result` or impose one universal result taxonomy:
+an ordinary library remains free to declare a generic `Result<T, E>` when that
+shape is useful.
+
+`AtomicCompareExchange<T>` is decisive and observing.
+`AtomicCompareExchangeOnce<T>` is its observing single-attempt sibling. Both
+require a copyable resident because failure exposes its current value.
 `AtomicTryExchange<T, Key>` and `AtomicTryExchangeOnce<T, Key>` are the
-non-observing decisive and single-attempt siblings. Failure returns the
-uncommitted proposed `T` without exposing the resident; success returns the
-displaced resident unless the selected raw-transition law proves it
-discardable. They may therefore transfer affine or linear custody when the
-placement owns the resident. `Key` is a copyable comparison key with one exact
-selected encoding law and cannot construct another owned `T`.
+non-observing decisive and single-attempt siblings. Every try-exchange branch
+returns exactly one owned `T`: the uncommitted proposal on failure and the
+displaced resident on success. They may therefore transfer affine or linear
+custody when the placement owns the resident. `Key` is a copyable comparison
+input governed by one exact selected encoding law. The key is not returned;
+neither the key nor the law parameterizes the runtime outcome type.
+The selected law cannot erase Type-side custody: success always returns the
+displaced resident, and ordinary multiplicity alone decides whether the caller
+may discard it. Each generic outcome is an ordinary affine container whose
+active payload carries any substituted affine or linear debt; no new
+multiplicity rule is introduced.
 
 For both axes, mismatch and uncommitted outcomes use the read-compatible
 failure ordering and success uses the success ordering. Comparison is over the
@@ -618,13 +654,24 @@ stored representation selected by the operation law, not user-defined
 equality. `Once` always denotes a weak single attempt; it never means
 non-observing.
 
+The zero tag is deliberately `Mismatched`, never success. A freshly constructed
+outcome establishes only its case and payload; no outcome value by itself proves
+that an atomic event occurred. That authority comes from the operation contract
+and checked call. If zero does not establish the payload `T`, the outcome is not
+usable until constructed. Storage that must exist before execution uses a
+separate `Empty | Ready(outcome)` wrapper rather than adding a non-outcome case
+to these exact operation results.
+
 The current compiler preserves the observing single-attempt operation as a
 distinct checked ordering and permission identity, but does not yet admit its
-source call. Its closed three-arm result carrier is still a prerequisite. The
-cases and payloads above are settled, but the public nominal result-type
-identities and case-qualification paths await an owner language-design
-decision; checked interpretation and native lowering reject the operation
-rather than erase `Uncommitted` by using the decisive carrier.
+source call or lower it. Implementation must add the four carriers and retain
+their exact nominal identity, case order, payload schema, and conditional
+linear debt through checked source, Terminal Psi, interpretation, native
+lowering, package review, and replay. Until then, the single-attempt operation
+continues to reject rather than erase `Uncommitted` by using the decisive
+carrier. The existing decisive source operation migrates from its legacy
+observed-prior scalar to `AtomicCompareExchangeOutcome<T>` with a directed
+diagnostic; it does not retain a scalar overload.
 
 `Receive` uses the strong portable baseline. A target may select a weaker
 acquire instruction only when a protocol proof establishes that every

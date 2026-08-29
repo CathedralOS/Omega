@@ -169,11 +169,41 @@ The public requirement identities and result shapes are:
 | `AtomicLoad<T>` | observed `T` |
 | `AtomicStore<T>` | no value |
 | `AtomicSwap<T>` | prior `T` |
-| `AtomicCompareExchange<T>` | `Exchanged | Mismatched(observed: T)` |
-| `AtomicCompareExchangeOnce<T>` | `Exchanged | Mismatched(observed: T) | Uncommitted(observed: T)` |
-| `AtomicTryExchange<T, Key>` | `Exchanged(displaced: T) | Mismatched(proposed: T)` |
-| `AtomicTryExchangeOnce<T, Key>` | `Exchanged(displaced: T) | Mismatched(proposed: T) | Uncommitted(proposed: T)` |
+| `AtomicCompareExchange<T>` | `AtomicCompareExchangeOutcome<T>` |
+| `AtomicCompareExchangeOnce<T>` | `AtomicCompareExchangeOnceOutcome<T>` |
+| `AtomicTryExchange<T, Key>` | `AtomicTryExchangeOutcome<T>` |
+| `AtomicTryExchangeOnce<T, Key>` | `AtomicTryExchangeOnceOutcome<T>` |
 | `AtomicFetchAdd<T>` and each other fetch requirement | prior `T` |
+
+The four outcome declarations are flat ordinary core data, not requirement
+identities and not members of a new atomic-result namespace:
+
+```omega
+pub data AtomicCompareExchangeOutcome<T> {
+    case Mismatched(observed: T);       // tag 0
+    case Exchanged;                     // tag 1
+}
+pub data AtomicCompareExchangeOnceOutcome<T> {
+    case Mismatched(observed: T);       // tag 0
+    case Exchanged;                     // tag 1
+    case Uncommitted(observed: T);      // tag 2
+}
+pub data AtomicTryExchangeOutcome<T> {
+    case Mismatched(proposed: T);       // tag 0
+    case Exchanged(displaced: T);       // tag 1
+}
+pub data AtomicTryExchangeOnceOutcome<T> {
+    case Mismatched(proposed: T);       // tag 0
+    case Exchanged(displaced: T);       // tag 1
+    case Uncommitted(proposed: T);      // tag 2
+}
+```
+
+These names deliberately retain the `Atomic` family prefix for discoverability
+and use `Outcome` because mismatch and an uncommitted attempt are expected
+control-flow states rather than errors. This is a local naming decision, not a
+universal `Result`/`Outcome` law. Libraries may define a generic `Result<T, E>`
+or a different direct nominal sum when either matches their domain.
 
 Load/store/swap/fetch take one legal ordering. All compare-exchange
 requirements take separate success and failure orderings. New hardware
@@ -195,8 +225,9 @@ Additional eligibility is per operation:
 - both non-observing requirements return the proposed value on every failure
   and may transfer affine or linear custody when the placement owns its
   resident. Their copyable `Key` and selected raw-transition law prove the exact
-  comparison encoding without constructing a second owned `T`; success returns
-  the displaced resident unless the same selected law proves it discardable;
+  comparison encoding without constructing a second owned `T`; success always
+  returns the displaced resident, and ordinary multiplicity decides whether
+  the caller may discard it;
   and
 - each fetch requirement proves its exact operation law over raw
   representations.
@@ -268,11 +299,19 @@ the exact success/failure orderings and permission axis preserved through
 access-plan authorization. Source admission for the single-attempt form is not
 implemented yet: the checked/source trees do not have its three-arm closed
 result carrier, so mapping it to the decisive prior-value carrier would lose
-`Uncommitted`. The case shapes are settled, but the public nominal result-type
-identities and case-qualification paths remain an owner language-design
-question. Until that identity is settled and the carrier is implemented, both
-the checked interpreter and the legacy native state-graph boundary reject any
-forged single-attempt operation before execution or lowering.
+`Uncommitted`. The public identities, case paths, canonical order, and payloads
+are now fixed above. Until those carriers are implemented and retained through
+checked source, Terminal Psi, interpretation, lowering, package review, and
+replay, both the checked interpreter and the legacy native state-graph boundary
+reject any forged single-attempt operation before execution or lowering.
+
+The zero tag is a mismatch, not success. A zero-initialized instance establishes
+no atomic authority: only the checked operation and its contract establish that
+an event occurred. If zero does not establish `T`, the carrier remains unusable
+until constructed. A consumer that needs pre-execution storage uses a separate
+`Empty | Ready(outcome)` wrapper rather than adding an impossible non-outcome
+case to the operation result. Generic outcome containers remain ordinary affine
+data while an active payload carries any substituted affine or linear debt.
 It does not yet constitute the formal memory model: the language relations,
 their global-order axioms, and proofs that each target mapping refines them
 remain required.
