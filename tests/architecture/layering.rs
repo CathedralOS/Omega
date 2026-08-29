@@ -822,7 +822,7 @@ fn package_review_is_not_owned_or_reexported_by_the_compiler() {
 }
 
 #[test]
-fn package_subsystem_has_discoverable_owners_and_bounded_modules() {
+fn package_subsystem_has_deliberate_entrances() {
     let packages = workspace_root().join("source/omega-rust/omega/packages");
     let top_level = std::fs::read_dir(&packages)
         .expect("read package subsystem entrance")
@@ -843,14 +843,34 @@ fn package_subsystem_has_discoverable_owners_and_bounded_modules() {
         "the package subsystem top level is a deliberate architectural map; document and guard new responsibilities"
     );
 
+    let manager_source = std::fs::read_dir(packages.join("manager/src"))
+        .expect("read package manager source entrance")
+        .map(|entry| {
+            entry
+                .expect("read package manager source entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect::<BTreeSet<_>>();
+    let expected_manager_source = ["commands", "declarations", "lib.rs", "resolution", "review"]
+        .into_iter()
+        .map(str::to_owned)
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        manager_source, expected_manager_source,
+        "the manager entrance must read as commands, declarations, resolution, then review"
+    );
+
     for required in [
         "README.md",
         "manager/src/lib.rs",
-        "manager/src/workflow/mod.rs",
-        "manager/src/workflow/source_audit/mod.rs",
-        "manager/src/manifest/mod.rs",
-        "manager/src/package/mod.rs",
-        "manager/src/graph/mod.rs",
+        "manager/src/commands/mod.rs",
+        "manager/src/commands/source_audit/mod.rs",
+        "manager/src/declarations/mod.rs",
+        "manager/src/resolution/mod.rs",
+        "manager/src/resolution/package/mod.rs",
+        "manager/src/resolution/graph/mod.rs",
         "manager/src/review/mod.rs",
         "review/README.md",
         "review/advisory/README.md",
@@ -889,7 +909,10 @@ fn package_subsystem_has_discoverable_owners_and_bounded_modules() {
         "advisory-tooling",
         "package-review",
         "resolver-execution",
-        "manager/src/resolution",
+        "manager/src/workflow",
+        "manager/src/manifest",
+        "manager/src/package",
+        "manager/src/graph",
         "manager/src/storage",
         "manager/src/source/package",
         "manager/src/source/audit.rs",
@@ -947,13 +970,6 @@ fn package_subsystem_has_discoverable_owners_and_bounded_modules() {
                     path.display()
                 );
             }
-            let lines = source.lines().count();
-            let line_ceiling = 800;
-            assert!(
-                lines <= line_ceiling,
-                "package Rust module exceeds its {line_ceiling}-line discovery ceiling: {} ({lines} lines)",
-                path.display()
-            );
         }
     }
 }

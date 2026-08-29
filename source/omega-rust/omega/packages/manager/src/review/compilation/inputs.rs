@@ -1,6 +1,6 @@
 //! Revalidated package-aware inputs handed from source custody to the compiler.
 
-use crate::graph::ResolvedPackageSourceClosure;
+use crate::resolution::graph::ResolvedPackageSourceClosure;
 use omega_package_compilation::{
     PackageCompilationInputError, PackageCompilationInputs, PackageDependencyBinding,
     PackageSourceBinding,
@@ -68,7 +68,7 @@ pub fn package_compilation_inputs_for(
 }
 
 fn binding_with_canonical_source_metadata(
-    custody: &crate::package::PackageSourceCustody,
+    custody: &crate::resolution::package::PackageSourceCustody,
     binding: PackageSourceBinding,
 ) -> Result<PackageSourceBinding, PackageCompilationInputError> {
     omega_package_source::capture_verified_package_source_snapshot(
@@ -116,10 +116,10 @@ pub(crate) fn reachable_package_keys(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::graph::PackageRootSourceRequest;
-    use crate::graph::reconciliation::resolve_package_source_closure;
-    use crate::manifest::dependency_projection::DependencySourceRequest;
-    use crate::package::PackageSourceCustody;
+    use crate::declarations::dependency_projection::DependencySourceRequest;
+    use crate::resolution::graph::PackageRootSourceRequest;
+    use crate::resolution::graph::reconciliation::resolve_package_source_closure;
+    use crate::resolution::package::PackageSourceCustody;
     use omega_package_source::{
         GitCommitId, GitTreeId, ImmutableSourceResolution, PackageKey, PackageName,
         SourceContentDigest, SourceLineage,
