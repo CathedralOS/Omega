@@ -1,0 +1,3 @@
+; An unmatched step that changes the published observation cannot be silent.
+(= z (s z))
+(refl z)

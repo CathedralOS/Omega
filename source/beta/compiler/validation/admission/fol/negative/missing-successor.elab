@@ -1,0 +1,10 @@
+; A base relation alone cannot manufacture the successor case for an opaque
+; total trace.  The rejected step attempts to reuse P(n) as P(n+1).
+(-> (rel 901 (f 60 z) (f 61 z))
+    (all n (rel 901 (f 60 n) (f 61 n))))
+(lam base (rel 901 (f 60 z) (f 61 z))
+  (natind n
+    (rel 901 (f 60 n) (f 61 n))
+    base
+    (gen n
+      (lam ih (rel 901 (f 60 n) (f 61 n)) ih))))

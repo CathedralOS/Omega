@@ -1,0 +1,185 @@
+; First ordinary-FOL operational-refinement seam for the Beta compiler edge.
+;
+; This is deliberately a small, closed pair of machines.  It checks that the
+; existing kernel can express the proof architecture selected for bc.beta:
+; constructive traces, nondecreasing synchronization, zero/many target steps,
+; a decreasing rank for erased progress, and a genuinely cyclic running trace.
+; It is not the bc.beta admission certificate.
+
+; Generic trace induction.  Function 60 is the source trace, 61 the target
+; trace, 62 the synchronization function, and relation 900 the symbolic schema.
+(def 0
+  (-> (rel 900 (f 60 z) (f 61 (f 62 z)))
+      (-> (all n
+            (-> (rel 900 (f 60 n) (f 61 (f 62 n)))
+                (rel 900 (f 60 (s n)) (f 61 (f 62 (s n))))))
+          (all n (rel 900 (f 60 n) (f 61 (f 62 n))))))
+  (lam base (rel 900 (f 60 z) (f 61 (f 62 z)))
+    (lam step
+      (all n
+        (-> (rel 900 (f 60 n) (f 61 (f 62 n)))
+            (rel 900 (f 60 (s n)) (f 61 (f 62 (s n))))))
+      (natind n
+        (rel 900 (f 60 n) (f 61 (f 62 n)))
+        base
+        (gen n
+          (lam ih (rel 900 (f 60 n) (f 61 (f 62 n)))
+            (app (inst step n) ih)))))))
+
+; User-Peano indices.  User functions dispatch on declared constructors rather
+; than the checker's built-in z/s terms; function 45 maps these indices to the
+; built-in Nat used for synchronization arithmetic.
+(data 2 0 0 0)
+(data 3 1 1 0)
+
+; Finite erased-step machine.
+; Source: S0 -> S1 -> Halt.  Target: S0 -> Halt.
+; pred is the synchronization 0,0,1,2,..., so the first source transition
+; consumes zero target transitions.  S0 and S1 are both silent.
+(data 10 0 0 0)
+(data 11 0 0 0)
+(data 12 0 0 0)
+(fun 30 2 (k 10))
+(fun 30 3 (f 31 (v 0)))
+(fun 31 2 (k 11))
+(fun 31 3 (k 12))
+(fun 32 2 (k 10))
+(fun 32 3 (k 12))
+(fun 33 2 (k 2))
+(fun 33 3 (v 0))
+(fun 34 10 z)
+(fun 34 11 z)
+(fun 34 12 (s z))
+(fun 35 2 (s z))
+(fun 35 3 z)
+
+(def 1
+  (all n (= (f 34 (f 31 n)) (f 34 (f 32 n))))
+  (rec 2 3 n
+    (= (f 34 (f 31 n)) (f 34 (f 32 n)))
+    (refl z)
+    (gen n
+      (lam ih (= (f 34 (f 31 n)) (f 34 (f 32 n)))
+        (refl (s z))))))
+
+(def 2
+  (all n (= (f 34 (f 30 n)) (f 34 (f 32 (f 33 n)))))
+  (rec 2 3 n
+    (= (f 34 (f 30 n)) (f 34 (f 32 (f 33 n))))
+    (refl z)
+    (gen n
+      (lam ih (= (f 34 (f 30 n)) (f 34 (f 32 (f 33 n))))
+        (inst (use 1) n)))))
+
+; The erased first transition is silent, sync(1)=sync(0), and its pair-rank
+; strictly decreases: rank(1)+1=rank(0).
+(def 3
+  (& (= (f 33 (k 3 (k 2))) (f 33 (k 2)))
+     (& (= (f 34 (f 30 (k 2))) (f 34 (f 30 (k 3 (k 2)))))
+        (ex d (= (+ (f 35 (k 3 (k 2))) (s d)) (f 35 (k 2))))))
+  (pair (refl (k 2))
+    (pair (refl z)
+      (wit d (= (+ (f 35 (k 3 (k 2))) (s d)) (f 35 (k 2))) z (refl (s z))))))
+
+; Multi-step machine.
+; Source: M0 -> Halt.  Target: M0 -> M1 -> Halt.
+; double is the synchronization, so every source transition advances the
+; target by two steps.  All pre-halt states are silent.
+(data 13 0 0 0)
+(data 14 0 0 0)
+(data 15 0 0 0)
+(fun 36 2 (k 13))
+(fun 36 3 (k 15))
+(fun 37 2 (k 13))
+(fun 37 3 (f 38 (v 0)))
+(fun 38 2 (k 14))
+(fun 38 3 (k 15))
+(fun 39 2 (k 2))
+(fun 39 3 (k 3 (k 3 (rec 0))))
+(fun 40 13 z)
+(fun 40 14 z)
+(fun 40 15 (s z))
+(fun 45 2 z)
+(fun 45 3 (s (s (rec 0))))
+
+(def 4
+  (all n (= (f 40 (f 36 n)) (f 40 (f 37 (f 39 n)))))
+  (rec 2 3 n
+    (= (f 40 (f 36 n)) (f 40 (f 37 (f 39 n))))
+    (refl z)
+    (gen n
+      (lam ih (= (f 40 (f 36 n)) (f 40 (f 37 (f 39 n))))
+        (refl (s z))))))
+
+; sync(n+1)=2+sync(n), an explicit nondecreasing witness.
+(def 5
+  (all n (ex d (= (+ d (f 45 n)) (f 45 (k 3 n)))))
+  (rec 2 3 n
+    (ex d (= (+ d (f 45 n)) (f 45 (k 3 n))))
+    (wit d (= (+ d (f 45 (k 2))) (f 45 (k 3 (k 2)))) 2
+      (refl (s (s z))))
+    (gen n
+      (lam ih (ex d (= (+ d (f 45 n)) (f 45 (k 3 n))))
+        (wit d (= (+ d (f 45 (k 3 n))) (f 45 (k 3 (k 3 n)))) 2
+          (refl (s (s (s (s (f 45 n)))))))))))
+
+; Genuine cyclic running trace.
+; D0 and D1 toggle forever.  The trace is primitive recursive over Nat; the
+; two structural lemmas establish that every selected successor remains
+; Running and keeps the empty observation.
+(data 16 0 0 0)
+(data 17 0 0 0)
+(fun 41 16 (k 17))
+(fun 41 17 (k 16))
+(fun 42 2 (k 16))
+(fun 42 3 (f 41 (rec 0)))
+(fun 43 16 (s z))
+(fun 43 17 (s z))
+(fun 44 16 z)
+(fun 44 17 z)
+
+(def 6
+  (all state (= (f 43 (f 41 state)) (s z)))
+  (rec 16 17 state
+    (= (f 43 (f 41 state)) (s z))
+    (refl (s z))
+    (refl (s z))))
+
+(def 7
+  (all n (= (f 43 (f 42 n)) (s z)))
+  (rec 2 3 n
+    (= (f 43 (f 42 n)) (s z))
+    (refl (s z))
+    (gen n
+      (lam ih (= (f 43 (f 42 n)) (s z))
+        (inst (use 6) (f 42 n))))))
+
+(def 8
+  (all state (= (f 44 (f 41 state)) z))
+  (rec 16 17 state
+    (= (f 44 (f 41 state)) z)
+    (refl z)
+    (refl z)))
+
+(def 9
+  (all n (= (f 44 (f 42 n)) z))
+  (rec 2 3 n
+    (= (f 44 (f 42 n)) z)
+    (refl z)
+    (gen n
+      (lam ih (= (f 44 (f 42 n)) z)
+        (inst (use 8) (f 42 n))))))
+
+(& (all n (= (f 34 (f 30 n)) (f 34 (f 32 (f 33 n)))))
+   (& (& (= (f 33 (k 3 (k 2))) (f 33 (k 2)))
+         (& (= (f 34 (f 30 (k 2))) (f 34 (f 30 (k 3 (k 2)))))
+            (ex d (= (+ (f 35 (k 3 (k 2))) (s d)) (f 35 (k 2))))))
+      (& (all n (= (f 40 (f 36 n)) (f 40 (f 37 (f 39 n)))))
+         (& (all n (ex d (= (+ d (f 45 n)) (f 45 (k 3 n)))))
+            (& (all n (= (f 43 (f 42 n)) (s z)))
+               (all n (= (f 44 (f 42 n)) z)))))))
+(pair (use 2)
+  (pair (use 3)
+    (pair (use 4)
+      (pair (use 5)
+        (pair (use 7) (use 9))))))
