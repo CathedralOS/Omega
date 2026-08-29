@@ -4,6 +4,7 @@ use omega_build_evaluation::{
     BuildObservationClass, capture_verified_build_filesystem_replay_record,
     recover_review_only_build_filesystem_replay_record,
 };
+use omega_build_output::BuildStagedOutputTree;
 use omega_compiler::{
     compile_to_checked_with_packages_and_replay_record,
     compile_to_checked_with_packages_in_sponsored_build_dir,
@@ -110,6 +111,40 @@ reaches FilesystemHost
             .expect("write mixed Output-tree main source");
     }
 
+    fn write_hard_link_sources(&self, target: &str) {
+        std::fs::write(
+            self.source.join("build.omg"),
+            format!(
+                r#"use omega::language::std::filesystem_host;
+
+target {target} {{}}
+
+machine build(builder: &mut Build)
+reaches FilesystemHost
+{{
+    builder.package("hard-link-output-tree");
+    let input: &[u8] in Path = builder.source.resolve("main.omg");
+    let source_descriptor: i32 = builder.filesystem.open(input, 0);
+    let source_buffer: [u8; 64] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    let source_count: i64 = builder.filesystem.read(source_descriptor, &mut source_buffer, 64);
+    let source_close: i32 = builder.filesystem.close(source_descriptor);
+    let original: &[u8] in Path = builder.output.resolve("tool");
+    let output_descriptor: i32 = builder.filesystem.create(original, 438);
+    let output_count: i64 = builder.filesystem.write(output_descriptor, "hard-link payload\n");
+    let permissions_result: i32 = builder.filesystem.set_file_permissions(output_descriptor, 493);
+    let output_close: i32 = builder.filesystem.close(output_descriptor);
+    let alias: &[u8] in Path = builder.output.resolve("tool-alias");
+    let hard_link_result: i32 = builder.filesystem.hard_link(original, alias);
+    builder.freestanding = false;
+}}
+"#,
+            ),
+        )
+        .expect("write hard-link Output-tree build source");
+        std::fs::write(self.source.join("main.omg"), "data Main { value: u8; }\n")
+            .expect("write hard-link Output-tree main source");
+    }
+
     fn sponsored_output(&self) -> (PathBuf, FilesystemSponsor) {
         let session = std::fs::canonicalize(&self.session).expect("canonicalize session");
         let sponsor = FilesystemSponsor::new(&session).expect("create sponsor");
@@ -170,6 +205,39 @@ fn package_inputs(source: &Path, package_name: &str) -> PackageCompilationInputs
         .expect("directory package input")
 }
 
+#[cfg(unix)]
+fn assert_normalized_hard_link_output(tree: &BuildStagedOutputTree, destination: &Path) {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+    std::fs::create_dir(destination).expect("create staged-output materialization directory");
+    assert_eq!(
+        tree.materialize_into(destination)
+            .expect("materialize retained hard-link output"),
+        tree.commitment()
+    );
+
+    let original = destination.join("tool");
+    let alias = destination.join("tool-alias");
+    assert_eq!(
+        std::fs::read(&original).expect("read retained original"),
+        b"hard-link payload\n"
+    );
+    assert_eq!(
+        std::fs::read(&alias).expect("read retained alias"),
+        b"hard-link payload\n"
+    );
+
+    let original_metadata = std::fs::metadata(&original).expect("inspect retained original");
+    let alias_metadata = std::fs::metadata(&alias).expect("inspect retained alias");
+    assert!(original_metadata.is_file());
+    assert!(alias_metadata.is_file());
+    assert_eq!(original_metadata.permissions().mode() & 0o777, 0o755);
+    assert_eq!(alias_metadata.permissions().mode() & 0o777, 0o755);
+    assert_eq!(original_metadata.nlink(), 1);
+    assert_eq!(alias_metadata.nlink(), 1);
+    assert_ne!(original_metadata.ino(), alias_metadata.ino());
+}
+
 #[test]
 fn empty_output_directory_tree_replays_without_host_output() {
     let profile = omega_target::TargetProfile::host();
@@ -190,7 +258,7 @@ fn empty_output_directory_tree_replays_without_host_output() {
     let summary = checked
         .build_observation_summary()
         .expect("directory build retains observations");
-    assert_eq!(summary.schema_version(), 44);
+    assert_eq!(summary.schema_version(), 45);
     assert!(summary.operation_replay_verified());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
@@ -354,4 +422,121 @@ fn mixed_output_tree_with_nested_source_and_symlink_replays_without_host_output(
             .expect("replayed mixed Output tree staged custody"),
         staged
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn portable_hard_link_output_replays_and_stages_as_equal_regular_files() {
+    let profile = omega_target::TargetProfile::host();
+    let project = TestProject::new();
+    project.write_hard_link_sources(profile.target_name());
+    let (output, sponsor) = project.sponsored_output();
+    set_tree_permissions(&project.source, true);
+    let inputs = package_inputs(&project.source, "hard-link-output-tree");
+    let checked = compile_to_checked_with_packages_in_sponsored_build_dir(
+        &project.source.join("main.omg"),
+        &output,
+        Some(profile.target_name()),
+        inputs.clone(),
+        sponsor,
+    )
+    .expect("exact portable hard-link Output tree should receipt");
+
+    let summary = checked
+        .build_observation_summary()
+        .expect("hard-link Output tree retains observations");
+    assert!(summary.operation_replay_verified());
+    assert_eq!(summary.realized(), BuildObservationClass::Receipted);
+    assert_eq!(
+        summary
+            .filesystem_operation_attempts()
+            .iter()
+            .map(|attempt| attempt.operation_tag())
+            .collect::<Vec<_>>(),
+        vec![2, 4, 8, 1, 5, 17, 8, 19]
+    );
+    let hard_link = summary
+        .filesystem_operation_attempts()
+        .last()
+        .expect("hard-link attempt");
+    assert_eq!(hard_link.provider(), BuildFilesystemProvider::RealScoped);
+    assert_eq!(
+        hard_link.result(),
+        BuildFilesystemOperationResult::Scalar(0)
+    );
+    assert_eq!(hard_link.post_error(), 0);
+    assert_eq!(hard_link.rooted_path_operand_resolutions().len(), 2);
+    assert_eq!(
+        hard_link.rooted_path_operand_resolutions()[0].relative_path(),
+        b"tool"
+    );
+    assert_eq!(
+        hard_link.rooted_path_operand_resolutions()[1].relative_path(),
+        b"tool-alias"
+    );
+    assert!(
+        hard_link
+            .rooted_path_operand_resolutions()
+            .iter()
+            .all(|path| path.root() == BuildFilesystemRoot::Output)
+    );
+    assert_eq!(hard_link.authorized_paths().len(), 2);
+    assert!(
+        hard_link
+            .authorized_paths()
+            .iter()
+            .all(|path| path.access() == BuildFilesystemGrantAccess::Write)
+    );
+
+    let staged = summary
+        .staged_output_tree()
+        .expect("hard-link tree has explicit staged custody");
+    assert_eq!(staged.entry_count(), 2);
+    assert_eq!(staged.file_bytes(), 18);
+    assert_normalized_hard_link_output(staged, &project.session.join("captured-staged"));
+
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let record = capture_verified_build_filesystem_replay_record(summary, limits)
+        .expect("hard-link Output-tree receipt encodes")
+        .expect("hard-link Output-tree receipt retains custody");
+    let recovered =
+        recover_review_only_build_filesystem_replay_record(record.canonical_bytes(), limits)
+            .expect("hard-link Output-tree receipt recovers");
+    assert_eq!(recovered, record);
+
+    std::fs::remove_file(output.join("tool-alias")).expect("remove captured hard-link alias");
+    std::fs::remove_file(output.join("tool")).expect("remove captured hard-link original");
+    std::fs::write(output.join("tool"), "spoofed host file")
+        .expect("replace original with drifted host file");
+    std::fs::write(output.join("tool-alias"), "second spoofed host file")
+        .expect("replace alias with drifted host file");
+    let replayed = compile_to_checked_with_packages_and_replay_record(
+        &project.source.join("main.omg"),
+        Some(profile.target_name()),
+        inputs,
+        recovered,
+    )
+    .expect("hard-link Output-tree replay must not consult drifted host Output");
+    set_tree_permissions(&project.source, false);
+    let replayed_summary = replayed
+        .build_observation_summary()
+        .expect("replayed hard-link Output tree retains observations");
+    assert!(replayed_summary.operation_replay_verified());
+    assert_eq!(
+        replayed_summary.realized(),
+        BuildObservationClass::Receipted
+    );
+    assert_eq!(
+        replayed_summary
+            .filesystem_operation_attempts()
+            .iter()
+            .map(|attempt| attempt.operation_tag())
+            .collect::<Vec<_>>(),
+        vec![2, 4, 8, 1, 5, 17, 8, 19]
+    );
+    let replayed_staged = replayed_summary
+        .staged_output_tree()
+        .expect("replayed hard-link Output tree staged custody");
+    assert_eq!(replayed_staged, staged);
+    assert_normalized_hard_link_output(replayed_staged, &project.session.join("replayed-staged"));
 }
