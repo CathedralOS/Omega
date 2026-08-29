@@ -53,7 +53,6 @@ members = [
     "source/omega-rust/omega/backend/artifacts/omega-component-candidate",
     "source/omega-rust/omega/build/omega-component-deployment",
     "source/omega-rust/omega/representations/omega-task-plans",
-    "source/omega-rust/omega/representations/omega-backend-report-types",
     "source/omega-rust/omega/backend/runtime/omega-runtime-abi",
     "source/omega-rust/omega/representations/omega-function-identity",
     "source/omega-rust/omega/backend/instruction_set_architectures/omega-x86-encoding",
