@@ -12,9 +12,9 @@ join. It must not contain rule mechanics, codecs, broad fixtures, or hundreds
 of accessors. A pure re-export wall is also insufficient.
 
 Preferred entrance size is below 100 lines. Crossing 200 lines requires a
-specific reason in review. Production files above 1,500 lines fail the
-organization gate; lower thresholds are preferred for mixed-responsibility
-files.
+specific reason in review. Production files above 1,300 lines fail the
+organization gate; dedicated test fixtures retain a 1,500-line ceiling. Lower
+thresholds are preferred for mixed-responsibility files.
 
 ## Taxonomy
 
@@ -200,6 +200,10 @@ payloadless-case, and boundary leaves.
 Current-ownership validation exposes one current-signature entry reconstruction
 to ordered CFG-replay entrance; its model, frontier mutation, cleanup,
 structural-placement, and residual-affine mechanics descend independently.
+Complete-unit structural catalogs expose one ordered type-index to
+domain-index join, then descend into content projection, type declarations,
+function-local catalogs, witnesses, provider specialization, and path
+resolution.
 Liveness computation and pre-allocation machine-effect encoding also keep
 their broad fixtures in sibling test leaves, so production file size measures
 production responsibility.

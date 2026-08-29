@@ -11,7 +11,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const MAX_RUST_FILE_LINES: usize = 1_500;
+const MAX_PRODUCTION_RUST_FILE_LINES: usize = 1_300;
+const MAX_TEST_RUST_FILE_LINES: usize = 1_500;
 const PREFERRED_ENTRANCE_LINES: usize = 100;
 const MAX_ENTRANCE_LINES: usize = 200;
 
@@ -74,6 +75,10 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/unit_validation/operation_contracts/mod.rs",
         coordination_marker: "fn validate_values_and_bindings",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/unit_validation/structural_catalog/mod.rs",
+        coordination_marker: "fn index_structural_catalogs",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/current_ownership/mod.rs",
@@ -258,6 +263,10 @@ fn is_entrance(path: &str) -> bool {
         .is_some_and(|file_name| file_name == "lib.rs" || file_name == "mod.rs")
 }
 
+fn is_test_source(path: &str) -> bool {
+    path.contains("/tests/") || path.ends_with("/tests.rs") || path.ends_with("_tests.rs")
+}
+
 #[test]
 fn optimizer_source_organization_is_bounded_and_navigable() {
     let repository = repository_root();
@@ -329,9 +338,14 @@ fn optimizer_source_organization_is_bounded_and_navigable() {
 
     let mut observed_exceptions = BTreeSet::new();
     for (path, lines) in &source_lines {
-        if *lines > MAX_RUST_FILE_LINES {
+        let ceiling = if is_test_source(path) {
+            MAX_TEST_RUST_FILE_LINES
+        } else {
+            MAX_PRODUCTION_RUST_FILE_LINES
+        };
+        if *lines > ceiling {
             violations.insert(format!(
-                "Rust file exceeds {MAX_RUST_FILE_LINES} lines: {path} ({lines})"
+                "Rust file exceeds its {ceiling}-line ceiling: {path} ({lines})"
             ));
         }
 
