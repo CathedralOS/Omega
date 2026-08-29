@@ -2,8 +2,8 @@ use super::rows::ReviewOnlyCanonicalRow;
 use crate::identity::PackageKey;
 use omega_build_evaluation::BuildObservationSummary;
 use omega_package_compilation::{PackageGeneratedSourceBundle, PackageSourceConsumptionCommitment};
-use omega_package_review::evidence::{CheckedPackageReviewProjection, PackageReviewCanonicalRow};
-use omega_package_review::obligation_ledger::OrdinaryPackageObligationLedger;
+use omega_package_evidence::evidence::{CheckedPackageReviewProjection, PackageReviewCanonicalRow};
+use omega_package_evidence::obligations::OrdinaryPackageObligationLedger;
 use omega_package_source::ImmutableSourceResolution;
 
 /// Compiler-issued review material for one exact package source selection.
@@ -21,7 +21,7 @@ pub struct CompilerIssuedPackageReview {
     pub(super) projection: CheckedPackageReviewProjection,
     pub(super) canonical_review_bytes: Vec<u8>,
     pub(super) canonical_rows: Vec<PackageReviewCanonicalRow>,
-    pub(super) obligation_ledger: OrdinaryPackageObligationLedger,
+    pub(super) obligations: OrdinaryPackageObligationLedger,
     pub(super) comparison_rows: Vec<ReviewOnlyCanonicalRow>,
 }
 
@@ -66,8 +66,8 @@ impl CompilerIssuedPackageReview {
     /// Exact schema-bound replay question reconstructed from this package's
     /// checked source. It remains compiler-issued review material, not a
     /// discharge result, admission decision, package instance, or lock row.
-    pub const fn obligation_ledger(&self) -> &OrdinaryPackageObligationLedger {
-        &self.obligation_ledger
+    pub const fn obligations(&self) -> &OrdinaryPackageObligationLedger {
+        &self.obligations
     }
 
     pub(crate) fn comparison_rows(&self) -> &[ReviewOnlyCanonicalRow] {

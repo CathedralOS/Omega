@@ -1,14 +1,14 @@
 use omega_compiler::compile_to_checked_with_packages;
 use omega_package_compilation::{PackageCompilationInputs, PackageSourceBinding};
-use omega_package_review::encoding::{
+use omega_package_evidence::encoding::{
     PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION, PackageReviewCanonicalRowRecoveryLimits,
     decode_package_review_canonical_row, decode_package_review_canonical_row_with_limits,
     encode_package_review_canonical_row,
 };
-use omega_package_review::evidence::{
+use omega_package_evidence::evidence::{
     PackageReviewCanonicalRowKind, PackageReviewSourceLocationRole,
 };
-use omega_package_review::project_checked_package_review;
+use omega_package_evidence::project_checked_package_review;
 use psi_core::PackageKeyIdentity;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -24,7 +24,7 @@ struct TempPackage(PathBuf);
 impl TempPackage {
     fn new() -> Self {
         let path = std::env::temp_dir().join(format!(
-            "omega-package-review-row-recovery-{}-{}",
+            "omega-package-evidence-row-recovery-{}-{}",
             std::process::id(),
             NEXT_TEMP.fetch_add(1, Ordering::Relaxed)
         ));
@@ -49,7 +49,7 @@ fn package_identity() -> PackageKeyIdentity {
 
 fn fixture_rows() -> Option<(
     omega_target::TargetProfile,
-    Vec<omega_package_review::evidence::PackageReviewCanonicalRow>,
+    Vec<omega_package_evidence::evidence::PackageReviewCanonicalRow>,
 )> {
     let target_name = host_target_name()?;
     let package = TempPackage::new();
@@ -355,7 +355,7 @@ fn decoder_rejects_malformed_noncanonical_and_over_limit_recovery_rows() {
         usize::MAX,
     );
     assert!(
-        omega_package_review::encoding::encode_package_review_canonical_row_with_limits(
+        omega_package_evidence::encoding::encode_package_review_canonical_row_with_limits(
             authored,
             tiny_envelope
         )

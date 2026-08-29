@@ -18,6 +18,6 @@ pub use dependencies::{
 };
 pub use project::{
     ApplicationDeclaration, BuildDeclaration, BuildDeclarationError, BuildDeclarationKind,
-    PackageDeclaration, PackageDeclarationError, WorkspaceDeclaration, WorkspaceMemberPath,
-    extract_build_declaration, extract_package_declaration,
+    PackageDeclaration, WorkspaceDeclaration, WorkspaceMemberPath, extract_build_declaration,
+    extract_package_declaration,
 };

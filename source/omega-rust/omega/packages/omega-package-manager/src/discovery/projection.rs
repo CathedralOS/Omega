@@ -3,7 +3,7 @@ use crate::declarations::dependencies::read::{
     DependencyProjectionError, ProjectedDependencies, extract_build_dependency_projection,
 };
 use crate::declarations::project::{
-    BuildDeclaration, BuildDeclarationKind, PackageDeclarationError,
+    BuildDeclaration, BuildDeclarationKind, BuildDeclarationError,
 };
 use crate::identity::PackageName;
 use std::path::Path;
@@ -26,27 +26,27 @@ pub(super) fn project_package_build(
         Ok(projection) => projection,
         Err(DependencyProjectionError::MissingBuildFile { path }) => {
             return Err(ResolvePackageSourceError::Declaration(
-                PackageDeclarationError::MissingBuildFile { path },
+                BuildDeclarationError::MissingBuildFile { path },
             ));
         }
         Err(DependencyProjectionError::ReadBuildFile { path, message }) => {
             return Err(ResolvePackageSourceError::Declaration(
-                PackageDeclarationError::ReadBuildFile { path, message },
+                BuildDeclarationError::ReadBuildFile { path, message },
             ));
         }
         Err(DependencyProjectionError::InvalidBuildFileEncoding { path }) => {
             return Err(ResolvePackageSourceError::Declaration(
-                PackageDeclarationError::InvalidBuildFileEncoding { path },
+                BuildDeclarationError::InvalidBuildFileEncoding { path },
             ));
         }
         Err(DependencyProjectionError::Lex { message }) => {
             return Err(ResolvePackageSourceError::Declaration(
-                PackageDeclarationError::Lex { message },
+                BuildDeclarationError::Lex { message },
             ));
         }
         Err(DependencyProjectionError::Parse { message }) => {
             return Err(ResolvePackageSourceError::Declaration(
-                PackageDeclarationError::Parse { message },
+                BuildDeclarationError::Parse { message },
             ));
         }
         Err(DependencyProjectionError::BuildDeclaration(error)) => {
@@ -69,7 +69,7 @@ pub(super) fn project_package_build(
             })
         }
         other => Err(ResolvePackageSourceError::Declaration(
-            PackageDeclarationError::ExpectedPackageDeclaration {
+            BuildDeclarationError::ExpectedPackageDeclaration {
                 found: other.kind(),
             },
         )),

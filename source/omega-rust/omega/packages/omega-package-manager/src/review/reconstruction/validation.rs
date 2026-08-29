@@ -4,7 +4,7 @@ use super::model::{
 };
 use crate::graph::CanonicalSourceClosureSubject;
 use crate::identity::PackageKey;
-use omega_package_review::obligation_ledger::encode_ordinary_package_obligation_ledger;
+use omega_package_evidence::obligations::encode_ordinary_package_obligation_ledger;
 use psi_core::PackageKeyIdentity;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -41,7 +41,7 @@ pub(super) fn validate_association(
         }
     }
 
-    let expected_target = entries[0].obligation_ledger.target();
+    let expected_target = entries[0].obligations.target();
     let mut total_ledger_bytes = 0usize;
     for (source, entry) in source_closure.packages().iter().zip(entries) {
         if entry.package != *source.key() {
@@ -49,19 +49,19 @@ pub(super) fn validate_association(
                 "package reconstruction entries are not in canonical source-package order",
             ));
         }
-        if entry.obligation_ledger.package() != entry.package.identity() {
+        if entry.obligations.package() != entry.package.identity() {
             return Err(CanonicalPackageReconstructionQuestionError::new(
                 "obligation ledger root identity does not match its source package",
             ));
         }
-        if entry.obligation_ledger.target() != expected_target {
+        if entry.obligations.target() != expected_target {
             return Err(CanonicalPackageReconstructionQuestionError::new(
                 "package reconstruction question mixes deployment targets",
             ));
         }
         validate_ledger_source_closure(source_closure, entry)?;
         let encoded =
-            encode_ordinary_package_obligation_ledger(&entry.obligation_ledger).map_err(|_| {
+            encode_ordinary_package_obligation_ledger(&entry.obligations).map_err(|_| {
                 CanonicalPackageReconstructionQuestionError::new(
                     "package reconstruction question contains an invalid obligation ledger",
                 )
@@ -97,7 +97,7 @@ fn validate_ledger_source_closure(
         .map(PackageKey::identity)
         .collect::<Vec<_>>();
     expected_packages.sort_unstable();
-    if entry.obligation_ledger.dependency_closure().packages() != expected_packages {
+    if entry.obligations.dependency_closure().packages() != expected_packages {
         return Err(CanonicalPackageReconstructionQuestionError::new(
             "obligation ledger package closure does not match the source subject",
         ));
@@ -117,7 +117,7 @@ fn validate_ledger_source_closure(
         .collect::<Vec<_>>();
     expected_dependencies.sort_unstable();
     let actual_dependencies = entry
-        .obligation_ledger
+        .obligations
         .dependency_closure()
         .dependencies()
         .iter()

@@ -65,7 +65,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     let different_relation = compile("Representative", "same_bucket", "FirstEvidence", false);
     let different_relation_body = compile("Representative", "equivalent", "FirstEvidence", true);
 
-    let quotient = |review: &omega_package_review::evidence::CheckedPackageReviewProjection| {
+    let quotient = |review: &omega_package_evidence::evidence::CheckedPackageReviewProjection| {
         review
             .public_data()
             .iter()

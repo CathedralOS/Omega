@@ -6,7 +6,7 @@ use crate::review::{
     PackageTriageDisposition, PackageTriageReason, ReviewOnlyCapabilityConflictChange,
     ReviewOnlyCapabilityConflictLimits,
 };
-use omega_package_review::evidence::{
+use omega_package_evidence::evidence::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
     PackageReviewDangerousAuthorityClass, PackageReviewNominalOwner,
     PackageReviewSourceLocationRole,

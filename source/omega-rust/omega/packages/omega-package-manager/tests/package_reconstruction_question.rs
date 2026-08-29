@@ -105,7 +105,7 @@ fn canonical_question_round_trips_and_freshly_reconstructs_complete_closure() {
     );
     for entry in question.entries() {
         assert_eq!(
-            entry.obligation_ledger().package(),
+            entry.obligations().package(),
             entry.package().identity()
         );
         let expected_transitive_packages = match entry.package().name().as_str() {
@@ -115,7 +115,7 @@ fn canonical_question_round_trips_and_freshly_reconstructs_complete_closure() {
         };
         assert_eq!(
             entry
-                .obligation_ledger()
+                .obligations()
                 .dependency_closure()
                 .packages()
                 .len(),
@@ -170,11 +170,11 @@ fn exact_nested_source_request_changes_question_with_identical_ledgers_and_fresh
         question
             .entries()
             .iter()
-            .map(|entry| entry.obligation_ledger())
+            .map(|entry| entry.obligations())
             .eq(alternate
                 .entries()
                 .iter()
-                .map(|entry| entry.obligation_ledger())),
+                .map(|entry| entry.obligations())),
         "the alternate question reuses byte-identical obligation ledgers"
     );
     assert_ne!(question.canonical_bytes(), alternate.canonical_bytes());

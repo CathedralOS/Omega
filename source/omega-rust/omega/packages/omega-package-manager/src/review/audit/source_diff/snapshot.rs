@@ -77,8 +77,8 @@ pub(super) fn capture_snapshot(
         .map_err(|error| PackageSourcePatchError::SourceSelectionCustody { side, error })?;
     let custody_limits = custody.source_limits();
     let review_limits = LocalSourceLimits {
-        max_files: custody_limits
-            .max_files
+        max_entries: custody_limits
+            .max_entries
             .min(limits.maximum_entries_per_snapshot()),
         max_bytes: custody_limits
             .max_bytes

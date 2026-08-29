@@ -389,7 +389,7 @@ explicitly.
 ## P8 — Final release gate
 
 - [ ] **PACKAGE-MANAGER-RELEASE-AUDIT.** Before enabling mutation, rerun the
-  complete package, package-review, package-compilation, resolver, compiler
+  complete package, package-evidence, package-compilation, resolver, compiler
   handoff, platform-native, fixture, recovery, and architecture suites. Require
   zero unexpected ignores, no legacy manifest/receipt/plan surface, no physical
   std special-casing, no unresolved canonical evidence rows, and a clean atomic

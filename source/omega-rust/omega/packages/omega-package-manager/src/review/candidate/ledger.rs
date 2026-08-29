@@ -1,4 +1,4 @@
-use omega_package_review::obligation_ledger::OrdinaryPackageObligationLedger;
+use omega_package_evidence::obligations::OrdinaryPackageObligationLedger;
 
 pub(super) const MAXIMUM_RETAINED_ORDINARY_LEDGER_BYTES: usize = 64 * 1024 * 1024;
 

@@ -11,7 +11,7 @@ pub(crate) struct TempPackage(pub(crate) PathBuf);
 impl TempPackage {
     pub(crate) fn new() -> Self {
         let path = std::env::temp_dir().join(format!(
-            "omega-package-review-{}-{}",
+            "omega-package-evidence-{}-{}",
             std::process::id(),
             NEXT_TEMP.fetch_add(1, Ordering::Relaxed)
         ));

@@ -1,6 +1,8 @@
 use super::*;
 use crate::declarations::BuildDeclarationKind;
-use crate::identity::{AliasName, PackageName};
+use crate::discovery::PackageSourceNavigation;
+use crate::graph::ResolvedSourceIdentity;
+use crate::identity::{AliasName, PackageKey, PackageName};
 use omega_package_source::{
     GitCommitId, GitTreeId, ImmutableSourceResolution, SourceLineage, SourceRelativePath,
 };

@@ -129,11 +129,11 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
                 node.source().key().name().as_str()
             );
             let ledger_bytes =
-                encode_ordinary_package_obligation_ledger(issued.obligation_ledger())
+                encode_ordinary_package_obligation_ledger(issued.obligations())
                     .expect("compiler-issued review retains a canonical obligation ledger");
             let recovered = decode_ordinary_package_obligation_ledger(&ledger_bytes)
                 .expect("retained obligation ledger should recover canonically");
-            assert_eq!(&recovered, issued.obligation_ledger());
+            assert_eq!(&recovered, issued.obligations());
         }
 
         let root_review = reviews

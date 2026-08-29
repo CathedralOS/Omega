@@ -1068,32 +1068,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "omega-package-manager"
-version = "0.1.0"
-dependencies = [
- "cap-std",
- "omega-build-declarations",
- "omega-build-evaluation",
- "omega-compiler",
- "omega-package-compilation",
- "omega-package-review",
- "omega-package-source",
- "omega-platform-custody",
- "omega-target",
- "psi-arena",
- "psi-checked-interpreter",
- "psi-core",
- "psi-diagnostics",
- "psi-source",
- "psi-source-files-to-tokens",
- "psi-syntax-trees",
- "psi-tokens",
- "psi-tokens-to-syntax-trees",
- "sha2",
-]
-
-[[package]]
-name = "omega-package-review"
+name = "omega-package-evidence"
 version = "0.1.0"
 dependencies = [
  "omega-build-evaluation",
@@ -1117,6 +1092,31 @@ dependencies = [
  "psi-typed-trees",
  "psi-typed-trees-to-checked-trees",
  "psi-validation",
+ "sha2",
+]
+
+[[package]]
+name = "omega-package-manager"
+version = "0.1.0"
+dependencies = [
+ "cap-std",
+ "omega-build-declarations",
+ "omega-build-evaluation",
+ "omega-compiler",
+ "omega-package-compilation",
+ "omega-package-evidence",
+ "omega-package-source",
+ "omega-platform-custody",
+ "omega-target",
+ "psi-arena",
+ "psi-checked-interpreter",
+ "psi-core",
+ "psi-diagnostics",
+ "psi-source",
+ "psi-source-files-to-tokens",
+ "psi-syntax-trees",
+ "psi-tokens",
+ "psi-tokens-to-syntax-trees",
  "sha2",
 ]
 
