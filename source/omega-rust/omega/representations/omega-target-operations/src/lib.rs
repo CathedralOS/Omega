@@ -3,7 +3,7 @@
 //! Target-selected operations derived from source-independent terminal Omega
 //! requirements.
 
-pub use omega_abstract_operations::CompletionClaimSource;
+pub use omega_abstract_operations::{CompletionClaimSource, RankedU32CountdownCustody};
 use omega_calling_conventions::{CallPlan, ValuePlacement, ValueShape};
 use omega_target::NativeTarget;
 use psi_core::{
@@ -367,6 +367,10 @@ pub enum TargetUnitOperation {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetOperation {
+    /// Exact admitted structural-Unit `u32` countdown. This carrier preserves
+    /// the verifier/fuel custody and cyclic graph identity directly; it is not
+    /// an acyclic conditional-control tree.
+    RankedU32Countdown(TargetRankedU32Countdown),
     /// Ordered straight-line Unit/effect body. Scalar expression trees remain
     /// a separate representation so value-less execution cannot fabricate a
     /// pseudo-result.
@@ -585,6 +589,15 @@ pub enum TargetOperation {
         when_true: TargetConditionalBooleanArm,
         when_false: TargetConditionalBooleanArm,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetRankedU32Countdown {
+    pub custody: RankedU32CountdownCustody,
+    pub call_plan: CallPlan,
+    pub structural_types: Vec<StructuralTypeDeclaration>,
+    pub structural_parameters: Vec<TargetStructuralParameter>,
+    pub cleanup_actions: Vec<TerminalAffineCleanupAction>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

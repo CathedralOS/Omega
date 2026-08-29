@@ -9,6 +9,8 @@ pub enum ArtifactLoweringError {
     ProofDecode(psi_terminal_codec::ProofCodecError),
     ProofFingerprint(psi_terminal_codec::ProofCodecError),
     Verification(psi_terminal_verifier::VerificationError),
+    FixedFuel(psi_terminal_fixed_fuel::FixedFuelError),
+    RankedNativeCustody(&'static str),
     Lowering(LoweringError),
 }
 

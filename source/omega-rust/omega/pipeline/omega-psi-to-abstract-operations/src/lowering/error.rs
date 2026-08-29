@@ -24,10 +24,6 @@ pub enum LoweringError {
         machine: MachineId,
         block: BlockId,
     },
-    VerifiedControlCycle {
-        machine: MachineId,
-        block: BlockId,
-    },
     VerifiedJumpArityMismatch {
         edge: psi_core::EdgeId,
     },

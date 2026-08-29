@@ -14,10 +14,145 @@ use psi_core::{
     EdgeId, IntegerSign, IntegerType, ObligationId, OperationId, PlaceId, ScalarType,
     StructuralTypeId,
 };
+use psi_source_files_to_tokens::Lexer;
+use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use psi_terminal::{
     SemanticFingerprint, StructuralMultiplicity, StructuralPathSegment,
     TerminalAffineCleanupAction, TerminalPsiIdentity, VocabularyMarker,
 };
+use psi_tokens_to_syntax_trees::parse_syntax_trees;
+use psi_typed_trees_to_checked_trees::lower_typed_trees;
+
+const RANKED_COUNTDOWN_SOURCE: &str = r#"
+    data Token { value: i32; }
+    data Root {}
+
+    machine Root::countdown(token: Token, remaining: u32)
+    terminates by remaining -> Nat::Descending;
+    {
+        transition remaining > 0 {
+            true -> countdown(token, remaining - 1)
+            _ -> done(token)
+        }
+        state done(token: Token) {}
+    }
+"#;
+
+fn ranked_target(target: NativeTarget) -> omega_target_operations::TargetOperationPlan {
+    let tokens = Lexer::new(RANKED_COUNTDOWN_SOURCE)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::countdown")
+        .expect("lower terminal countdown");
+    let semantic = psi_terminal_codec::encode_module(&lowered.semantic_module).expect("semantic");
+    let proof = psi_terminal_codec::encode_proof_bundle(&lowered.proof_bundle).expect("proof");
+    let ranked =
+        omega_psi_to_abstract_operations::lower_artifact_sections_for_native_ranked_countdown(
+            &semantic,
+            &proof,
+            &psi_proof_admission::AdmissionProfile::default(),
+        )
+        .expect("admit native ranked countdown");
+    omega_abstract_operations_to_target_operations::lower_ranked_to_target_operations(
+        &ranked, target,
+    )
+    .expect("lower ranked target")
+}
+
+#[test]
+fn ranked_countdown_assignment_preserves_custody_and_uses_the_initial_register() {
+    for (target, expected_register) in [
+        (NativeTarget::linux_x64(), MachineRegister::X86Rdi),
+        (NativeTarget::linux_arm64(), MachineRegister::Aarch64X(0)),
+    ] {
+        let target_plan = ranked_target(target);
+        let TargetOperation::RankedU32Countdown(target_countdown) =
+            &target_plan.functions[0].operation
+        else {
+            panic!("target ranked carrier")
+        };
+        let assigned = assign_registers(&target_plan).expect("assign ranked countdown");
+        assert_eq!(
+            assigned.functions[0].provenance,
+            target_plan.functions[0].provenance
+        );
+        let AssignedOperation::RankedU32Countdown(countdown) = &assigned.functions[0].operation
+        else {
+            panic!("assigned ranked carrier")
+        };
+        assert_eq!(countdown.custody, target_countdown.custody);
+        assert_eq!(countdown.call_plan, target_countdown.call_plan);
+        assert_eq!(
+            countdown.structural_types,
+            target_countdown.structural_types
+        );
+        assert_eq!(
+            countdown.structural_parameters,
+            target_countdown.structural_parameters
+        );
+        assert_eq!(countdown.cleanup_actions, target_countdown.cleanup_actions);
+        assert_eq!(countdown.rank_home, expected_register);
+    }
+}
+
+#[test]
+fn ranked_countdown_assignment_rejects_stack_and_wrong_architecture_rank_homes() {
+    let mut stacked = ranked_target(NativeTarget::linux_x64());
+    let TargetOperation::RankedU32Countdown(countdown) = &mut stacked.functions[0].operation else {
+        unreachable!()
+    };
+    let source = countdown.custody.graph.initial_value;
+    countdown.call_plan.parameters[0].locations = vec![ValueLocation::Stack {
+        stack_byte_offset: 0,
+        value_byte_offset: 0,
+        byte_size: 4,
+        alignment: 4,
+    }];
+    assert_eq!(
+        assign_registers(&stacked),
+        Err(AssignmentError::RankedCountdownRequiresRegister(source))
+    );
+
+    let mut wrong_arch = ranked_target(NativeTarget::linux_x64());
+    let TargetOperation::RankedU32Countdown(countdown) = &mut wrong_arch.functions[0].operation
+    else {
+        unreachable!()
+    };
+    countdown.call_plan.parameters[0].locations = vec![ValueLocation::Register {
+        register: MachineRegister::Aarch64X(0),
+        value_byte_offset: 0,
+        byte_size: 4,
+    }];
+    assert_eq!(
+        assign_registers(&wrong_arch),
+        Err(AssignmentError::ParameterRegisterArchitectureMismatch {
+            value: source,
+            register: MachineRegister::Aarch64X(0),
+            architecture: omega_target::Architecture::X86_64,
+        })
+    );
+
+    let mut wrong_same_arch = ranked_target(NativeTarget::linux_x64());
+    let TargetOperation::RankedU32Countdown(countdown) =
+        &mut wrong_same_arch.functions[0].operation
+    else {
+        unreachable!()
+    };
+    countdown.call_plan.parameters[0].locations = vec![ValueLocation::Register {
+        register: MachineRegister::X86Rsi,
+        value_byte_offset: 0,
+        byte_size: 4,
+    }];
+    assert_eq!(
+        assign_registers(&wrong_same_arch),
+        Err(AssignmentError::RankedCountdownAbiMismatch(source))
+    );
+}
 
 #[test]
 fn three_leaf_boolean_cleanup_assignment_retains_exact_edges() {

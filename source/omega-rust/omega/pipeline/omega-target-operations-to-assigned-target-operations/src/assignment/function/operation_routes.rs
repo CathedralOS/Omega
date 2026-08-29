@@ -1,4 +1,4 @@
-use super::{boundary, cleanup, scalar, structural, structural_parameter, unit};
+use super::{boundary, cleanup, ranked_countdown, scalar, structural, structural_parameter, unit};
 use crate::assignment::shared::*;
 
 /// Exhaustive target-carrier classification. Each arm names the lower semantic
@@ -8,6 +8,9 @@ pub(super) fn assign_operation(
     target: NativeTarget,
 ) -> Result<AssignedOperation, AssignmentError> {
     match &function.operation {
+        TargetOperation::RankedU32Countdown(countdown) => {
+            ranked_countdown::assign(countdown, target)
+        }
         operation @ TargetOperation::ReturnStructuralScalarCall { .. } => {
             structural::scalar_call_result::assign(function.machine, operation, target)
         }

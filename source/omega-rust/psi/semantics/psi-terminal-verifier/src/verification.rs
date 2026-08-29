@@ -11,7 +11,7 @@ use psi_terminal::TerminalModule;
 use crate::{
     ModuleError, ValidatedTerminalModule, VerifiedTerminalStructuralFrontiers,
     reconstruct_validated_structural_ownership_frontiers, validate_module,
-    validate_module_for_interpretation,
+    validate_module_for_interpretation, validate_module_for_native_ranked_countdown,
 };
 
 mod affine_joins;
@@ -152,6 +152,17 @@ pub struct VerifiedFixedFuelTerminalModule<'module> {
     state: VerifiedTerminalModuleState<'module>,
 }
 
+/// Proof-checked authority for native lowering of the exact structural Unit
+/// `u32` ranked-countdown slice.
+///
+/// This carrier cannot be constructed from ordinary, interpreter, or
+/// fixed-fuel authority. Its private state keeps native admission distinct
+/// even while all current ranked consumers share proof reconstruction.
+#[derive(Debug)]
+pub struct VerifiedNativeRankedTerminalModule<'module> {
+    state: VerifiedTerminalModuleState<'module>,
+}
+
 #[derive(Debug)]
 struct VerifiedTerminalModuleState<'module> {
     validated: ValidatedTerminalModule<'module>,
@@ -202,6 +213,28 @@ impl<'module> VerifiedFixedFuelTerminalModule<'module> {
     }
 }
 
+impl<'module> VerifiedNativeRankedTerminalModule<'module> {
+    pub const fn module(&self) -> &'module TerminalModule {
+        self.state.validated.module()
+    }
+
+    pub fn accepted_facts(&self) -> &[AcceptedFact] {
+        &self.state.accepted_facts
+    }
+
+    pub const fn proof_bundle(&self) -> &ProofBundle {
+        &self.state.proof_bundle
+    }
+
+    pub const fn reconstructed_obligations(&self) -> &ReconstructedTerminalObligationSet {
+        &self.state.reconstructed_obligations
+    }
+
+    pub const fn structural_frontiers(&self) -> &VerifiedTerminalStructuralFrontiers {
+        &self.state.structural_frontiers
+    }
+}
+
 pub fn verify_module<'module>(
     module: &'module TerminalModule,
     proof_bundle: &ProofBundle,
@@ -242,6 +275,23 @@ pub fn verify_module_for_fixed_fuel<'module>(
         validate_module_for_interpretation(module).map_err(VerificationError::Module)?;
     verify_validated_module(validated.validated(), proof_bundle, profile)
         .map(|state| VerifiedFixedFuelTerminalModule { state })
+}
+
+/// Verify the exact structural Unit `u32` ranked-countdown subset admitted for
+/// native lowering.
+///
+/// Ordinary execution continues to reject ranked control. Interpreter and
+/// fixed-fuel verification use different opaque result types and therefore
+/// cannot authorize this native boundary.
+pub fn verify_module_for_native_ranked_countdown<'module>(
+    module: &'module TerminalModule,
+    proof_bundle: &ProofBundle,
+    profile: &AdmissionProfile,
+) -> Result<VerifiedNativeRankedTerminalModule<'module>, VerificationError> {
+    let validated =
+        validate_module_for_native_ranked_countdown(module).map_err(VerificationError::Module)?;
+    verify_validated_module(validated, proof_bundle, profile)
+        .map(|state| VerifiedNativeRankedTerminalModule { state })
 }
 
 fn verify_validated_module<'module>(

@@ -147,6 +147,13 @@ pub fn validate_module_for_interpretation(
     })
 }
 
+pub(crate) fn validate_module_for_native_ranked_countdown(
+    module: &TerminalModule,
+) -> Result<ValidatedTerminalModule<'_>, ModuleError> {
+    validate_module_with_policy(module, ValidationPolicy::NativeRankedCountdown)?;
+    Ok(ValidatedTerminalModule { module })
+}
+
 /// Validate a Terminal-Psi module and expose the exact deterministic ownership
 /// frontier snapshots computed by the verifier's own custody walk.
 pub fn reconstruct_structural_ownership_frontiers(
@@ -204,6 +211,7 @@ pub fn validate_module_representation(module: &TerminalModule) -> Result<(), Mod
 enum ValidationPolicy {
     Execution,
     Interpretation,
+    NativeRankedCountdown,
     Representation,
 }
 
@@ -267,10 +275,55 @@ fn validate_module_with_policy(
     }
     root_service_reach::validate_root_service_reach_exact(module)?;
 
-    if policy == ValidationPolicy::Interpretation {
-        validate_interpretable_ranked_countdown_module(module)?;
+    match policy {
+        ValidationPolicy::Interpretation => {
+            validate_interpretable_ranked_countdown_module(module)?;
+        }
+        ValidationPolicy::NativeRankedCountdown => {
+            validate_native_ranked_countdown_module(module)?;
+        }
+        ValidationPolicy::Execution | ValidationPolicy::Representation => {}
     }
 
+    Ok(())
+}
+
+fn validate_native_ranked_countdown_module(module: &TerminalModule) -> Result<(), ModuleError> {
+    validate_interpretable_ranked_countdown_module(module)?;
+    let Some(machine) = module
+        .machines
+        .iter()
+        .find(|machine| machine.ranked_scc.is_some())
+    else {
+        return Err(ModuleError::NonExecutableRankedScc(module.entry));
+    };
+    let component = machine.ranked_scc.as_ref().expect("ranked machine");
+    let u32_type = IntegerType::new(IntegerSign::Unsigned, 32)
+        .expect("the fixed unsigned 32-bit carrier is valid");
+    let [structural_parameter] = machine.structural_parameters.as_slice() else {
+        return Err(ModuleError::NonExecutableRankedScc(machine.id));
+    };
+    let [structural_place] = machine.structural_places.as_slice() else {
+        return Err(ModuleError::NonExecutableRankedScc(machine.id));
+    };
+    if component.rank_type != u32_type
+        || machine.parameters[0].scalar_type != ScalarType::Integer(u32_type)
+        || structural_parameter.position != 0
+        || structural_parameter.is_self
+        || structural_parameter.multiplicity != StructuralMultiplicity::Affine
+        || structural_parameter.access != StructuralAccess::Owned
+        || !structural_parameter.qualifications.is_empty()
+        || structural_place.id != structural_parameter.place
+        || structural_place.kind
+            != (StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            })
+        || !machine.entry_claims.is_empty()
+        || !machine.content_entry_claims.is_empty()
+    {
+        return Err(ModuleError::NonExecutableRankedScc(machine.id));
+    }
     Ok(())
 }
 

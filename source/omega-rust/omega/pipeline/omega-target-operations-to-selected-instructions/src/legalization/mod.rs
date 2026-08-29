@@ -18,7 +18,7 @@ pub use model::{
 use omega_abstract_operations::AbstractOperationPlan;
 use omega_legalized_operations::{LegalizedOperationPlan, legalized_operation_plan_identity};
 use omega_optimization_unit::PsiOptimizationUnit;
-use omega_target_operations::TargetOperationPlan;
+use omega_target_operations::{TargetOperation, TargetOperationPlan};
 
 use replay::replay_terminal_legalized_plan;
 use source::{
@@ -30,6 +30,7 @@ pub fn legalize_target_operations(
     abstract_plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<ValidatedLegalizedOperations, LegalizationError> {
+    reject_ranked_countdown(target)?;
     let plan = LegalizedOperationPlan {
         psi: target.psi,
         optimization_unit: unit.identity,
@@ -56,6 +57,7 @@ pub fn validate_legalized_operations(
     unit: &PsiOptimizationUnit,
     plan: LegalizedOperationPlan,
 ) -> Result<ValidatedLegalizedOperations, LegalizationError> {
+    reject_ranked_countdown(target)?;
     let decomposition_count = replay_terminal_legalized_plan(target, abstract_plan, unit, &plan)?;
     let receipt = LegalizationValidationReceipt {
         identity: legalized_operation_plan_identity(&plan),
@@ -69,4 +71,17 @@ pub fn validate_legalized_operations(
         decomposition_count,
     };
     Ok(ValidatedLegalizedOperations { plan, receipt })
+}
+
+fn reject_ranked_countdown(target: &TargetOperationPlan) -> Result<(), LegalizationError> {
+    if let Some(function) = target
+        .functions
+        .iter()
+        .find(|function| matches!(function.operation, TargetOperation::RankedU32Countdown(_)))
+    {
+        return Err(LegalizationError::RankedCountdownNotYetSelectable {
+            machine: function.machine,
+        });
+    }
+    Ok(())
 }

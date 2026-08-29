@@ -6,6 +6,7 @@ mod conditional_cleanup;
 mod coordination;
 mod function;
 mod provider_evidence;
+mod ranked_countdown;
 mod scalar;
 mod shared;
 mod structural;
@@ -33,6 +34,15 @@ pub fn lower_to_target_operations(
     target: NativeTarget,
 ) -> Result<TargetOperationPlan, LoweringError> {
     lower_to_target_operations_with_settlements(plan, target, &[])
+}
+
+/// Lower the separately admitted exact native-ranked countdown without
+/// widening the ordinary Unit or acyclic conditional-control families.
+pub fn lower_ranked_to_target_operations(
+    ranked: &omega_abstract_operations::RankedNativeAbstractOperationPlan,
+    target: NativeTarget,
+) -> Result<TargetOperationPlan, LoweringError> {
+    ranked_countdown::lower(ranked, target)
 }
 
 /// Lower an effectful terminal plan using exact provider executions already

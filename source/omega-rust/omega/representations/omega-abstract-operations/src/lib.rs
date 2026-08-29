@@ -8,16 +8,19 @@
 //! `ExpressionHandle`, source statement, target register, or storage choice.
 
 use psi_core::{
-    BlockId, BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId,
-    PlaceId, ScalarType, ServiceId, StructuralCaseId, StructuralTypeId, ValueId,
+    BlockId, BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId,
+    ObligationId, OperationId, PlaceId, ScalarType, ServiceId, StructuralCaseId, StructuralTypeId,
+    ValueId,
 };
 use psi_terminal::{
     BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, ContentEntryClaim, CrashCause,
     CrashRouteBucket, EntryClaim, OutcomeSpecificCallEvidence, ProviderCandidateConformance,
     StructuralArgument, StructuralOperationResult, StructuralParameterDeclaration,
     StructuralPlaceDeclaration, StructuralResultClaimTransfer, StructuralResultDeclaration,
-    StructuralTypeDeclaration, TerminalAffineCleanupAction, TerminalPsiIdentity,
+    StructuralTypeDeclaration, TerminalAffineCleanupAction, TerminalPsiIdentity, TerminalRankedScc,
 };
+use psi_terminal_fixed_fuel::FixedEntryFuelCertificate;
+use psi_terminal_verifier::VerifiedMachineStructuralFrontiers;
 
 /// Exact caller claim source needed to replay boundary-completion custody after
 /// the verified module is discarded. Content-bearing sources retain their full
@@ -65,6 +68,47 @@ pub struct AbstractOperationPlan {
     /// terminal-Psi semantic identity.
     pub provider_candidates: Vec<ProviderCandidateConformance>,
     pub functions: Vec<AbstractFunction>,
+}
+
+/// Native-ranked admission kept beside, rather than inside, the ordinary
+/// abstract-operation plan. Existing acyclic plan and function constructors
+/// therefore remain unchanged.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RankedNativeAbstractOperationPlan {
+    pub plan: AbstractOperationPlan,
+    pub countdown: RankedU32CountdownCustody,
+}
+
+/// Exact source-free custody for the first native-ranked control slice.
+///
+/// The SCC owns rank and covered-edge meaning. `graph` retains the remaining
+/// concrete operation/edge coordinates needed for later lowering to replay
+/// that meaning without recognizing source syntax. The fixed-fuel certificate
+/// and verifier frontier snapshots remain independently issued evidence and
+/// are not replaced by producer-authored hashes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RankedU32CountdownCustody {
+    pub ranked_scc: TerminalRankedScc,
+    pub fixed_fuel: FixedEntryFuelCertificate,
+    pub graph: RankedU32CountdownGraph,
+    pub structural_frontiers: VerifiedMachineStructuralFrontiers,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RankedU32CountdownGraph {
+    pub entry: BlockId,
+    pub preheader_edge: EdgeId,
+    pub initial_value: ValueId,
+    pub zero_operation: OperationId,
+    pub zero_value: ValueId,
+    pub compare_operation: OperationId,
+    pub false_exit_edge: EdgeId,
+    pub done_block: BlockId,
+    pub one_operation: OperationId,
+    pub one_value: ValueId,
+    pub subtract_operation: OperationId,
+    pub subtract_obligation: ObligationId,
+    pub return_edge: EdgeId,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

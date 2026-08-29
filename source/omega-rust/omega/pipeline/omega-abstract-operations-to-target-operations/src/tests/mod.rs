@@ -32,6 +32,7 @@ pub(super) use psi_terminal::{
 };
 
 mod native_boundaries;
+mod ranked_countdown;
 mod scalar;
 mod structural_and_cleanup;
 mod unit_and_settlements;

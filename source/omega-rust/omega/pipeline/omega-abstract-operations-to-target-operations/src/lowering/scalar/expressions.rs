@@ -91,7 +91,7 @@ pub(super) fn scalar_function_result(
         .ok_or(LoweringError::FunctionResultKindMismatch(function.machine))
 }
 
-pub(super) fn scalar_shape(
+pub(in crate::lowering) fn scalar_shape(
     value: ValueId,
     scalar_type: ScalarType,
     require_native_parameter: bool,
@@ -109,7 +109,7 @@ pub(super) fn scalar_shape(
     Ok(ValueShape::integer(bytes, bytes.next_power_of_two().min(8)))
 }
 
-pub(super) fn scalar_parameter_location(
+pub(in crate::lowering) fn scalar_parameter_location(
     parameter: &AbstractParameter,
     placement: &ValuePlacement,
 ) -> Result<ScalarParameterLocation, LoweringError> {
