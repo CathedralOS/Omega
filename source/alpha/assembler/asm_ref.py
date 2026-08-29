@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # asm_ref.py — an INDEPENDENT reference assembler: Alpha assembly text (stdin) -> raw bytecode tape (stdout),
-# written from beta/README.md + the 21-opcode encoding, NOT ported from assembler.alpha.
+# written from ../ASSEMBLY.md + the 21-opcode encoding, NOT ported from assembler.alpha.
 #
 # WHY THIS EXISTS — executable reference and regression coverage for the Alpha
 # assembly encoding. asm-diamond.sh assembles real programs with the lattice
@@ -11,6 +11,7 @@
 # Encoding: opcode 1 byte; register operand 1 byte (`rN`); immediate/address operand 8 bytes LE (a decimal,
 # or a label resolved to its absolute byte offset in the tape). `db "..."` emits the decoded string bytes.
 # Comments are `;` to end of line (respecting string quotes); commas are whitespace.
+import re
 import sys
 
 # mnemonic -> (opcode, operand kinds)  where 'r' = register byte, 'x' = 8-byte immediate/address
@@ -25,62 +26,76 @@ OPS = {
 }
 MASK = (1 << 64) - 1
 ESC = {'n': 10, 't': 9, 'r': 13, '0': 0, '\\': 92, "'": 39, '"': 34}
+IDENT = re.compile(r'[A-Za-z_.$][A-Za-z0-9_.$]*\Z')
+DECIMAL = re.compile(r'[0-9]+\Z')
 
-def strip_comment(line):
-    out = []; q = False; i = 0
-    while i < len(line):
-        c = line[i]
-        if c == '"':
-            q = not q
-        elif c == ';' and not q:
-            break
-        out.append(c); i += 1
-    return ''.join(out)
-
-def tokenize(line):
-    toks = []; i = 0; n = len(line)
+def tokenize(text):
+    """Lex the byte-preserving Latin-1 view of the complete source stream."""
+    toks = []; i = 0; n = len(text)
     while i < n:
-        c = line[i]
-        if c in ' \t\r,':
+        c = text[i]
+        if ord(c) <= 32 or c == ',':
             i += 1; continue
+        if c == ';':
+            i += 1
+            while i < n and text[i] != '\n':
+                i += 1
+            continue
         if c == '"':                                   # a quoted string stays one token
             j = i + 1
-            while j < n and line[j] != '"':
-                j += 2 if line[j] == '\\' else 1
-            toks.append(line[i:j + 1]); i = j + 1
+            while j < n and text[j] != '"':
+                j += 2 if text[j] == '\\' else 1
+            if j >= n:
+                raise SyntaxError('asm_ref: unterminated db string')
+            toks.append(text[i:j + 1]); i = j + 1
         else:
             j = i
-            while j < n and line[j] not in ' \t\r,':
+            while (j < n and ord(text[j]) > 32 and
+                   text[j] not in ',;'):
                 j += 1
-            toks.append(line[i:j]); i = j
+            toks.append(text[i:j]); i = j
     return toks
 
-def decode_str(inner):                                 # inner = text between the quotes
+def decode_str(token):
+    if len(token) < 2 or token[0] != '"' or token[-1] != '"':
+        raise SyntaxError('asm_ref: db requires one quoted string')
+    inner = token[1:-1]
     out = bytearray(); i = 0
     while i < len(inner):
         if inner[i] == '\\':
+            if i + 1 >= len(inner) or inner[i + 1] not in ESC:
+                raise SyntaxError('asm_ref: unknown db escape')
             out.append(ESC[inner[i + 1]]); i += 2
         else:
-            out.append(ord(inner[i])); i += 1
+            value = ord(inner[i])
+            if not 32 <= value < 127:
+                raise SyntaxError('asm_ref: non-printable raw db byte')
+            out.append(value); i += 1
     return out
 
 def parse(text):
     """-> list of items: ('label', name) | ('ins', mnem, [operand tokens]) | ('db', bytes)"""
-    items = []
-    for raw in text.splitlines():
-        toks = tokenize(strip_comment(raw))
-        k = 0
-        while k < len(toks):
-            t = toks[k]
-            if t.endswith(':'):
-                items.append(('label', t[:-1])); k += 1; continue
-            if t == 'db':
-                items.append(('db', decode_str(toks[k + 1][1:-1]))); k += 2; continue
-            if t not in OPS:
-                raise SyntaxError(f'asm_ref: unknown mnemonic {t!r}')
-            kinds = OPS[t][1]
-            operands = toks[k + 1:k + 1 + len(kinds)]
-            items.append(('ins', t, operands)); k += 1 + len(kinds)
+    items = []; labels = set(); toks = tokenize(text); k = 0
+    while k < len(toks):
+        t = toks[k]
+        if t.endswith(':'):
+            name = t[:-1]
+            if not IDENT.fullmatch(name):
+                raise SyntaxError(f'asm_ref: malformed label {name!r}')
+            if name in labels:
+                raise SyntaxError(f'asm_ref: duplicate label {name!r}')
+            labels.add(name); items.append(('label', name)); k += 1; continue
+        if t == 'db':
+            if k + 1 >= len(toks):
+                raise SyntaxError('asm_ref: db requires one quoted string')
+            items.append(('db', decode_str(toks[k + 1]))); k += 2; continue
+        if t not in OPS:
+            raise SyntaxError(f'asm_ref: unknown mnemonic {t!r}')
+        kinds = OPS[t][1]
+        operands = toks[k + 1:k + 1 + len(kinds)]
+        if len(operands) != len(kinds):
+            raise SyntaxError(f'asm_ref: missing operand for {t!r}')
+        items.append(('ins', t, operands)); k += 1 + len(kinds)
     return items
 
 def size(item):
@@ -118,11 +133,20 @@ def assemble(text):
                     raise SyntaxError(f'asm_ref: register out of range {tok!r}')
                 out.append(value)
             else:
-                v = labels[tok] if tok in labels else int(tok)
-                out += (v & MASK).to_bytes(8, 'little')
+                if DECIMAL.fullmatch(tok):
+                    v = int(tok)
+                    if v > MASK:
+                        raise SyntaxError(f'asm_ref: word out of range {tok!r}')
+                elif IDENT.fullmatch(tok) and tok in labels:
+                    v = labels[tok]
+                else:
+                    raise SyntaxError(f'asm_ref: malformed or unresolved word {tok!r}')
+                out += v.to_bytes(8, 'little')
     return out
 
 def main():
-    sys.stdout.buffer.write(assemble(sys.stdin.read()))
+    # Latin-1 is a byte-preserving view. Significant non-ASCII bytes are later
+    # rejected; arbitrary comment payload bytes remain ignorable as specified.
+    sys.stdout.buffer.write(assemble(sys.stdin.buffer.read().decode('latin1')))
 
 main()

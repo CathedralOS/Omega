@@ -154,6 +154,10 @@ p1_skip:
         imm   r9, 0
         jeq   r8, r9, p1_loop
         call  next_token
+        imm   r3, 524320
+        load  r4, r3
+        imm   r5, 1
+        jeq   r4, r5, operand_reject
         imm   r3, 524416
         load  r8, r3
         imm   r9, 1
@@ -351,6 +355,9 @@ parse_num:
         load  r5, r3           ; TLEN
         imm   r6, 0            ; accumulator
         imm   r7, 0            ; i
+        imm   r12, 0           ; significant digit count (leading zeroes ignored)
+        imm   r8, 1
+        jlt   r5, r8, operand_reject
 pn_loop:
         jlt   r7, r5, pn_in
         jmp   pn_done
@@ -360,7 +367,32 @@ pn_in:
         add   r8, r7
         loadb r9, r8           ; c
         imm   r10, 48
+        jlt   r9, r10, operand_reject
+        imm   r11, 58
+        jlt   r9, r11, pn_digit
+        jmp   operand_reject
+pn_digit:
         sub   r9, r10          ; digit
+        imm   r10, 0
+        jnz   r12, pn_significant
+        jnz   r6, pn_significant
+        jnz   r9, pn_significant
+        jmp   pn_overflow_check
+pn_significant:
+        imm   r10, 1
+        add   r12, r10
+        imm   r10, 20
+        jlt   r10, r12, operand_reject
+pn_overflow_check:
+        ; UINT64_MAX / 10 = 1844674407370955161, remainder 5.  The
+        ; threshold is below INT64_MAX, so Alpha's signed jlt is sufficient.
+        imm   r10, 1844674407370955161
+        jlt   r10, r6, operand_reject
+        jlt   r6, r10, pn_accumulate
+        imm   r11, 6
+        jlt   r9, r11, pn_accumulate
+        jmp   operand_reject
+pn_accumulate:
         imm   r10, 10
         mul   r6, r10
         add   r6, r9           ; acc = acc*10 + digit
@@ -380,6 +412,10 @@ parse_op:
         load  r4, r3           ; TSTART
         imm   r3, 524312
         load  r5, r3           ; TLEN
+        imm   r11, 1
+        jlt   r5, r11, unknown_mnemonic
+        imm   r11, 8
+        jlt   r11, r5, unknown_mnemonic
         imm   r6, 0            ; acc (packed token)
         imm   r7, 0            ; i
         imm   r10, 1           ; place (256^i)
@@ -403,8 +439,7 @@ po_match:
 po_mloop:
         imm   r1, 21
         jlt   r0, r1, po_min
-        imm   r0, 8            ; unknown mnemonic
-        halt  r0
+        jmp   unknown_mnemonic
 po_min:
         mov   r2, r0
         imm   r1, 8
@@ -420,6 +455,10 @@ po_found:
         imm   r3, 524384
         store r3, r0           ; NUM = op
         ret
+
+unknown_mnemonic:
+        imm   r0, 8
+        halt  r0
 
 ; ---------------- op_widths ----------------
 ; from OPCODE, set NOPS and WID0/WID1/WID2 (widths 0 absent, 1 reg, 8 imm/addr).
@@ -528,9 +567,103 @@ ow_rr:
         store r4, r5
         ret
 
+; ---------------- validate_ident ----------------
+; Validate IDENT at source offset r4 with length r5.  Preserve r4/r5.
+validate_ident:
+        imm   r6, 1
+        jlt   r5, r6, operand_reject
+        imm   r6, 0
+vi_loop:
+        jlt   r6, r5, vi_byte
+        ret
+vi_byte:
+        imm   r7, 1048576
+        add   r7, r4
+        add   r7, r6
+        loadb r8, r7
+        imm   r9, 0
+        jeq   r6, r9, vi_ident_char
+        ; Subsequent identifier bytes additionally admit decimal digits.
+        imm   r9, 48
+        jlt   r8, r9, vi_ident_char
+        imm   r9, 58
+        jlt   r8, r9, vi_valid
+vi_ident_char:
+        imm   r9, 36           ; '$'
+        jeq   r8, r9, vi_valid
+        imm   r9, 46           ; '.'
+        jeq   r8, r9, vi_valid
+        imm   r9, 95           ; '_'
+        jeq   r8, r9, vi_valid
+        imm   r9, 65
+        jlt   r8, r9, operand_reject
+        imm   r9, 91
+        jlt   r8, r9, vi_valid ; A-Z
+        imm   r9, 97
+        jlt   r8, r9, operand_reject
+        imm   r9, 123
+        jlt   r8, r9, vi_valid ; a-z
+        jmp   operand_reject
+vi_valid:
+        imm   r9, 1
+        add   r6, r9
+        jmp   vi_loop
+
 ; ---------------- record_label ----------------
-; append (TSTART, TLEN-1, OUT) to the label tables; NLBL++.
+; Validate uniqueness, then append (TSTART, TLEN-1, OUT) to the label tables.
 record_label:
+        imm   r3, 524304
+        load  r4, r3           ; TSTART
+        imm   r3, 524312
+        load  r5, r3           ; TLEN including ':'
+        imm   r6, 1
+        sub   r5, r6
+        call  validate_ident
+
+        ; Reject a duplicate definition before mutating the table.
+        imm   r3, 524336
+        load  r0, r3           ; NLBL
+        imm   r1, 0
+rl_dup_loop:
+        jlt   r1, r0, rl_dup_item
+        jmp   rl_append
+rl_dup_item:
+        mov   r2, r1
+        imm   r3, 8
+        mul   r2, r3
+        imm   r3, 2621440
+        add   r3, r2
+        load  r6, r3
+        jeq   r5, r6, rl_dup_len
+        jmp   rl_dup_next
+rl_dup_len:
+        imm   r3, 2097152
+        add   r3, r2
+        load  r7, r3
+        imm   r8, 0
+rl_dup_cmp:
+        jlt   r8, r5, rl_dup_byte
+        jmp   operand_reject
+rl_dup_byte:
+        imm   r9, 1048576
+        add   r9, r4
+        add   r9, r8
+        loadb r10, r9
+        imm   r9, 1048576
+        add   r9, r7
+        add   r9, r8
+        loadb r11, r9
+        jeq   r10, r11, rl_dup_same
+        jmp   rl_dup_next
+rl_dup_same:
+        imm   r9, 1
+        add   r8, r9
+        jmp   rl_dup_cmp
+rl_dup_next:
+        imm   r9, 1
+        add   r1, r9
+        jmp   rl_dup_loop
+rl_append:
         imm   r3, 524336
         load  r0, r3           ; index = NLBL
         mov   r1, r0
@@ -620,83 +753,59 @@ fl_none:
         halt  r0
 
 ; ---------------- emit_operand ----------------
-; read the next token, resolve it (register rN, decimal number, or label),
-; emit EMITW bytes little-endian.
+; Read and validate the next operand according to EMITW: width 1 is exactly
+; REGISTER, width 8 is exactly DECIMAL or IDENT. Emit little-endian bytes.
 emit_operand:
         call  next_token
-        imm   r3, 524304
-        load  r4, r3           ; TSTART
-        imm   r5, 1048576
-        add   r5, r4
-        loadb r6, r5           ; first char
-        imm   r7, 114          ; 'r'
-        jeq   r6, r7, eo_maybe_reg
-        imm   r7, 48
-        jlt   r6, r7, eo_label ; < '0' => label
-        imm   r7, 58
-        jlt   r6, r7, eo_num   ; <= '9' => number
-        jmp   eo_label
-eo_maybe_reg:
-        imm   r5, 524312
-        load  r8, r5           ; TLEN
-        imm   r9, 2
-        jlt   r8, r9, eo_label ; len < 2 => label (e.g. a name "r")
-        imm   r5, 1048576
-        add   r5, r4
-        imm   r9, 1
-        add   r5, r9
-        loadb r6, r5           ; second char
-        imm   r7, 48
-        jlt   r6, r7, eo_label ; not a digit => label (e.g. read_loop)
-        imm   r7, 58
-        jlt   r6, r7, eo_reg   ; digit => register rN
-        jmp   eo_label
-eo_reg:
-        ; First validate the whole suffix. A nondigit makes the complete token
-        ; a label even when its decimal prefix is already above 255.
+        imm   r3, 524320
+        load  r4, r3
+        imm   r5, 1
+        jeq   r4, r5, operand_reject
+        imm   r3, 524392
+        load  r1, r3           ; EMITW
+        imm   r2, 1
+        jeq   r1, r2, eo_register
+        imm   r2, 8
+        jeq   r1, r2, eo_word
+        jmp   operand_reject
+
+eo_register:
         imm   r3, 524304
         load  r4, r3           ; TSTART
         imm   r3, 524312
         load  r5, r3           ; TLEN
-        imm   r7, 1            ; i = 1 (skip 'r')
-er_validate:
-        jlt   r7, r5, er_validate_in
-        jmp   er_parse
-er_validate_in:
-        imm   r8, 1048576
-        add   r8, r4
-        add   r8, r7
-        loadb r9, r8
-        imm   r10, 48
-        jlt   r9, r10, eo_label
-        imm   r10, 58
-        jlt   r9, r10, er_validate_next
-        jmp   eo_label
-er_validate_next:
-        imm   r10, 1
-        add   r7, r10
-        jmp   er_validate
+        imm   r6, 2
+        jlt   r5, r6, operand_reject
+        imm   r6, 1048576
+        add   r6, r4
+        loadb r6, r6
+        imm   r7, 114          ; 'r'
+        jeq   r6, r7, er_parse
+        jmp   operand_reject
 er_parse:
-        imm   r6, 0            ; value = decimal of token[1..TLEN]
-        imm   r7, 1
+        imm   r6, 0            ; register value
+        imm   r7, 1            ; skip 'r'
 er_loop:
-        jlt   r7, r5, er_in
+        jlt   r7, r5, er_byte
         jmp   er_done
-er_in:
+er_byte:
         imm   r8, 1048576
         add   r8, r4
         add   r8, r7
         loadb r9, r8
         imm   r10, 48
+        jlt   r9, r10, operand_reject
+        imm   r11, 58
+        jlt   r9, r11, er_digit
+        jmp   operand_reject
+er_digit:
         sub   r9, r10
-        ; Reject above r255 before multiplication, avoiding wrapped decimal
-        ; accumulation accidentally re-entering the valid register range.
         imm   r10, 25
-        jlt   r10, r6, er_bad
+        jlt   r10, r6, operand_reject
         jlt   r6, r10, er_acc
         imm   r10, 6
         jlt   r9, r10, er_acc
-        jmp   er_bad
+        jmp   operand_reject
 er_acc:
         imm   r10, 10
         mul   r6, r10
@@ -708,13 +817,27 @@ er_done:
         imm   r3, 524384
         store r3, r6           ; NUM = register number
         jmp   eo_emit
-er_bad:
-        imm   r0, 7            ; malformed/out-of-range operand token
-        halt  r0
-eo_num:
+
+eo_word:
+        imm   r3, 524304
+        load  r4, r3
+        imm   r3, 524312
+        load  r5, r3
+        imm   r6, 1
+        jlt   r5, r6, operand_reject
+        imm   r6, 1048576
+        add   r6, r4
+        loadb r6, r6
+        imm   r7, 48
+        jlt   r6, r7, eo_identifier
+        imm   r7, 58
+        jlt   r6, r7, eo_decimal
+        jmp   eo_identifier
+eo_decimal:
         call  parse_num
         jmp   eo_emit
-eo_label:
+eo_identifier:
+        call  validate_ident
         call  find_label
 eo_emit:
         imm   r3, 524384
@@ -735,6 +858,10 @@ eo_bloop:
         jmp   eo_bloop
 eo_done:
         ret
+
+operand_reject:
+        imm   r0, 7
+        halt  r0
 
 ; ---------------- is_db ----------------
 ; NUM = 1 if the current token (TSTART/TLEN) is the directive "db", else 0.
@@ -777,9 +904,9 @@ isdb_yes:
         ret
 
 ; ---------------- db_scan ----------------
-; Handle a `db "..."` data directive: from CUR (just past the "db" token), find
-; the opening quote, then read bytes until the closing quote — decoding the
-; escapes \n \t \r \0 (and emitting \\ and \" literally). DBEMIT (524400) selects:
+; Handle a `db "..."` data directive.  Only lexical separators/comments may
+; occur before the opening quote. Raw string bytes must be printable ASCII and
+; escapes are exactly \n \t \r \0 \\ \" \'. DBEMIT (524400) selects:
 ;   0 = pass 1, add each byte to OUT (so labels after the data get right addrs);
 ;   1 = pass 2, write each byte to the tape. Leaves CUR past the closing quote.
 db_scan:
@@ -797,9 +924,32 @@ ds_fq_in:
         loadb r2, r5
         imm   r6, 34           ; '"'
         jeq   r2, r6, ds_open
+        imm   r6, 33
+        jlt   r2, r6, ds_fq_adv
+        imm   r6, 44           ; ','
+        jeq   r2, r6, ds_fq_adv
+        imm   r6, 59           ; ';'
+        jeq   r2, r6, ds_comment
+        jmp   db_reject
+ds_fq_adv:
         imm   r6, 1
         add   r1, r6
         jmp   ds_findq
+ds_comment:
+        imm   r6, 1
+        add   r1, r6
+ds_comment_loop:
+        jlt   r1, r3, ds_comment_byte
+        jmp   db_reject
+ds_comment_byte:
+        imm   r5, 1048576
+        add   r5, r1
+        loadb r2, r5
+        imm   r6, 1
+        add   r1, r6
+        imm   r6, 10
+        jeq   r2, r6, ds_findq
+        jmp   ds_comment_loop
 ds_open:
         imm   r6, 1
         add   r1, r6           ; past the opening quote
@@ -815,10 +965,17 @@ ds_loop_in:
         jeq   r2, r6, ds_close
         imm   r6, 92           ; '\'
         jeq   r2, r6, ds_esc
-        jmp   ds_emit
+        imm   r6, 32
+        jlt   r2, r6, db_reject
+        imm   r6, 127
+        jlt   r2, r6, ds_emit
+        jmp   db_reject
 ds_esc:
         imm   r6, 1
         add   r1, r6           ; skip the backslash
+        jlt   r1, r3, ds_esc_in
+        jmp   db_reject
+ds_esc_in:
         imm   r5, 1048576
         add   r5, r1
         loadb r2, r5           ; escaped char
@@ -830,7 +987,13 @@ ds_esc:
         jeq   r2, r6, ds_e_r
         imm   r6, 48           ; '0'
         jeq   r2, r6, ds_e_0
-        jmp   ds_emit          ; \\ \" or other: emit the char as-is
+        imm   r6, 92           ; '\\'
+        jeq   r2, r6, ds_emit
+        imm   r6, 34           ; '\"'
+        jeq   r2, r6, ds_emit
+        imm   r6, 39           ; '\''
+        jeq   r2, r6, ds_emit
+        jmp   db_reject
 ds_e_n:
         imm   r2, 10
         jmp   ds_emit
@@ -868,3 +1031,7 @@ ds_close:
         imm   r3, 524296
         store r3, r1           ; CUR = r1
         ret
+
+db_reject:
+        imm   r0, 9
+        halt  r0
