@@ -1,4 +1,4 @@
-use omega_package_manager::{PackageSourceReviewInput, PackageTriageDisposition};
+use omega_package_manager::review::{PackageSourceReviewInput, PackageTriageDisposition};
 use sha2::{Digest, Sha256};
 
 use super::protocol::{
@@ -92,7 +92,7 @@ fn advisory_review_input_commitment(review_input: &str) -> [u8; 32] {
 #[cfg(test)]
 mod tests {
     use super::{advisory_review_input_commitment, invoke_rendered_advisory_review};
-    use omega_package_manager::PackageTriageDisposition;
+    use omega_package_manager::review::PackageTriageDisposition;
 
     use crate::PackageAdvisoryRecommendation;
     use std::convert::Infallible;
