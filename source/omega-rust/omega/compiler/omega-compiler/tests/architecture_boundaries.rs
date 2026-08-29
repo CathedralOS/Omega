@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -83,37 +84,103 @@ fn representation_crates_do_not_depend_on_native_bridge() {
 }
 
 #[test]
-fn lowering_crates_do_not_depend_on_final_machinery_crates() {
-    // Pipeline crates produce IR. Final target machinery stays behind the
-    // orchestration boundary.
+fn only_exact_target_closing_pipeline_crates_depend_on_final_machinery() {
+    // Most pipeline crates remain target-neutral. The repository architecture
+    // deliberately places checked target-closing transformations in pipeline,
+    // so their exact backend-primitive edges are an exhaustive contract rather
+    // than a blanket layering violation.
     let repo_root = repo_root();
     let lowering_root = repo_root.join("source/omega-rust/omega/pipeline");
-    let forbidden_paths = [
+    let final_machinery_paths = [
         "backend/instruction_set_architectures/",
         "backend/object/",
         "backend/images/",
     ];
-    let forbidden_crates = ["omega-machine-emission"];
+    let mut expected = BTreeSet::from([
+        (
+            "omega-optimization-pipeline",
+            "omega-isa-aarch64",
+            "backend/instruction_set_architectures/omega-isa-aarch64",
+        ),
+        (
+            "omega-optimization-pipeline",
+            "omega-isa-x86_64",
+            "backend/instruction_set_architectures/omega-isa-x86_64",
+        ),
+        (
+            "omega-optimization-pipeline",
+            "omega-object-file",
+            "backend/object/omega-object-file",
+        ),
+        (
+            "omega-terminal-psi-to-native-artifact",
+            "omega-image-emission",
+            "backend/images/omega-image-emission",
+        ),
+        (
+            "omega-terminal-psi-to-native-artifact",
+            "omega-isa-x86_64",
+            "backend/instruction_set_architectures/omega-isa-x86_64",
+        ),
+        (
+            "omega-terminal-psi-to-native-artifact",
+            "omega-machine-emission",
+            "backend/omega-machine-emission",
+        ),
+        (
+            "omega-terminal-psi-to-native-artifact",
+            "omega-object-file",
+            "backend/object/omega-object-file",
+        ),
+    ]);
 
     for cargo_toml in cargo_tomls_under(&lowering_root) {
         let contents = fs::read_to_string(&cargo_toml)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", cargo_toml.display()));
-
-        for path_fragment in forbidden_paths {
+        let crate_name = cargo_toml
+            .parent()
+            .and_then(Path::file_name)
+            .and_then(|name| name.to_str())
+            .expect("a pipeline manifest has a UTF-8 crate directory");
+        for line in production_dependency_lines(&contents) {
+            let is_final_machinery = final_machinery_paths
+                .iter()
+                .any(|path_fragment| line.contains(path_fragment))
+                || line.starts_with("omega-machine-emission =");
+            if !is_final_machinery {
+                continue;
+            }
+            let dependency = line
+                .split_once('=')
+                .map(|(name, _)| name.trim())
+                .expect("a dependency line contains `=`");
+            let Some(allowance) = expected
+                .iter()
+                .copied()
+                .find(|(owner, allowed, _)| *owner == crate_name && *allowed == dependency)
+            else {
+                panic!(
+                    "{} adds unauthorized target-closing dependency `{dependency}`; only the exact reviewed pipeline/backend edges are allowed",
+                    cargo_toml.display()
+                );
+            };
             assert!(
-                !has_dependency_under(&contents, path_fragment),
-                "{} must not depend on crates under `{path_fragment}`; pipeline crates produce IR, final target machinery stays behind orchestration",
-                cargo_toml.display()
+                line.contains(allowance.2),
+                "{} dependency `{dependency}` must retain reviewed target-closing path `{}`",
+                cargo_toml.display(),
+                allowance.2,
             );
-        }
-        for crate_name in forbidden_crates {
             assert!(
-                !has_dependency(&contents, crate_name),
-                "{} must not depend on `{crate_name}`; pipeline crates produce IR, final target machinery stays behind orchestration",
-                cargo_toml.display()
+                expected.remove(&allowance),
+                "{} repeats reviewed target-closing dependency `{dependency}`",
+                cargo_toml.display(),
             );
         }
     }
+    assert!(
+        expected.is_empty(),
+        "reviewed target-closing dependency allowances disappeared without updating the architecture contract: {expected:?}"
+    );
 }
 
 #[test]
