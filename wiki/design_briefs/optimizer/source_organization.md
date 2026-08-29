@@ -416,6 +416,12 @@ partition; the validator's `total_scalar_identity/mod.rs` entrance descends
 independently into classification, literal evidence, accounting, application,
 and corruption tests. The two sides share typed candidate data, not matching
 logic or an authoritative shape table.
+Wrapping zero-count shifts are an adjacent two-row rule, not a widening of the
+neutral-arithmetic rule identity. The producer's common proposal conveyor
+accepts a rule-local shape classifier; the independent validator maps each
+closed identity kind back to exactly one rule and validator. Both sides retain
+the shifted value type separately from the shift-count literal type, so a
+mixed-width shift cannot be admitted through same-type assumptions.
 Independent dead-scalar validation exposes one custody-and-analysis-contract
 entrance above its exact rule catalog, exhaustive closed operation partition,
 and rewrite replay. A new operation or dead-scalar rule therefore has one

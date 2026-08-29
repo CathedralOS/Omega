@@ -245,14 +245,23 @@ fn external_decision_record_and_replay_preserve_compatible_policy_phi_gvn() {
         budget(8),
     )
     .unwrap();
-    let [point] = baseline.external_decisions().points() else {
-        panic!("compatible-policy phi fixture has one external decision point");
-    };
+    let points = baseline.external_decisions().points();
+    let point = points
+        .iter()
+        .find(|point| {
+            point.rule()
+                == crate::PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule::contract()
+                    .identity()
+        })
+        .expect("compatible-policy phi fixture retains its exact decision point");
     assert_eq!(
         point.rule(),
         crate::PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule::contract().identity()
     );
     assert!(matches!(point.action(), ExternalDecisionAction::Choose(_)));
+    assert!(points.iter().any(|point| {
+        point.rule() == crate::rules::WrappingShiftZeroCountIdentityRule::contract().identity()
+    }));
 
     let replayed = replay_psi_pipeline(
         verified_compatible_policy_phi_gvn_unit(),

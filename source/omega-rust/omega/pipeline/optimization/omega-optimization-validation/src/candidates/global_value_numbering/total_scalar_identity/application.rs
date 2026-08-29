@@ -9,6 +9,7 @@ pub(super) fn independently_apply_total_scalar_identity(
     node_index: usize,
     affected_blocks: &[BlockId],
     provenance: Vec<ProvenanceRewrite>,
+    validator: OptimizationValidatorIdentity,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
     let mut output = input.clone();
     let output_function = output
@@ -82,9 +83,7 @@ pub(super) fn independently_apply_total_scalar_identity(
     Ok(ValidatedPsiRewrite {
         unit: output,
         candidate: candidate.identity(),
-        validator: OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.live-obligation-free-wrapping-integer-neutral-arithmetic-identity-elimination.v1",
-        ),
+        validator,
         provenance,
     })
 }

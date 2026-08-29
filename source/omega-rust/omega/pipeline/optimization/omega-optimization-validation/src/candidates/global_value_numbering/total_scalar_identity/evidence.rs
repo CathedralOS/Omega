@@ -11,7 +11,7 @@ pub(super) fn independently_validate_neutral_literal(
 ) -> Result<(), OptimizationUnitValidationError> {
     let definition = scalar_value_definition(function, shape.identity_operand)
         .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
-    if definition.scalar_type != ScalarType::Integer(shape.scalar_type) {
+    if definition.scalar_type != ScalarType::Integer(shape.identity_operand_type) {
         return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
     }
     let ValueDefinitionSite::Node { block, node } = definition.site else {
@@ -37,7 +37,7 @@ pub(super) fn independently_validate_neutral_literal(
         return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
     };
     if result != shape.identity_operand
-        || scalar_type != ScalarType::Integer(shape.scalar_type)
+        || scalar_type != ScalarType::Integer(shape.identity_operand_type)
         || value != shape.identity_constant
         || !function.facts.iter().any(|fact| {
             matches!(fact, OptimizationFact::IntegerConstant {

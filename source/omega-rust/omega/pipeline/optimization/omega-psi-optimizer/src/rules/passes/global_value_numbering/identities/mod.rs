@@ -1,10 +1,12 @@
 //! Obligation-free total scalar identities.
 //!
-//! [`shapes`] owns the exact ordered identity vocabulary; [`rule`] owns
-//! analysis admission, custody accounting, and candidate construction.
+//! [`rule`] owns each exact rule contract, [`shapes`] owns the disjoint
+//! arithmetic and shift partitions, and [`proposal`] owns their common
+//! analysis-to-candidate conveyor.
 
+mod proposal;
 mod rule;
 mod shapes;
 
-pub use rule::WrappingNeutralArithmeticIdentityRule;
+pub use rule::{WrappingNeutralArithmeticIdentityRule, WrappingShiftZeroCountIdentityRule};
 pub(in crate::rules::passes) use shapes::*;

@@ -7,6 +7,8 @@ pub(crate) enum WrappingNeutralOperation {
     Add,
     Subtract,
     Multiply,
+    ShiftLeft,
+    ShiftRight,
 }
 
 pub(crate) fn wrapping_neutral_identity_unit(
@@ -33,6 +35,26 @@ pub(crate) fn wrapping_neutral_identity_unit_with_type_and_liveness(
     both_operands_literal: bool,
     result_is_live: bool,
 ) -> PsiOptimizationUnit {
+    wrapping_neutral_identity_unit_with_value_and_identity_types_and_liveness(
+        integer,
+        integer,
+        operation,
+        literal_value,
+        literal_left,
+        both_operands_literal,
+        result_is_live,
+    )
+}
+
+pub(crate) fn wrapping_neutral_identity_unit_with_value_and_identity_types_and_liveness(
+    value_type: IntegerType,
+    identity_operand_type: IntegerType,
+    operation: WrappingNeutralOperation,
+    literal_value: IntegerValue,
+    literal_left: bool,
+    both_operands_literal: bool,
+    result_is_live: bool,
+) -> PsiOptimizationUnit {
     let machine = id(1_901, MachineId::new);
     let block = id(1_902, BlockId::new);
     let other = id(1_903, ValueId::new);
@@ -40,7 +62,7 @@ pub(crate) fn wrapping_neutral_identity_unit_with_type_and_liveness(
     let result = id(1_905, ValueId::new);
     let literal_operation = id(1_906, OperationId::new);
     let identity_operation = id(1_907, OperationId::new);
-    let scalar_type = ScalarType::Integer(integer);
+    let scalar_type = ScalarType::Integer(value_type);
     let (left, right) = if both_operands_literal {
         (literal, literal)
     } else if literal_left {
@@ -52,23 +74,39 @@ pub(crate) fn wrapping_neutral_identity_unit_with_type_and_liveness(
         WrappingNeutralOperation::Add => O::WrappingIntegerAdd {
             psi_operation: identity_operation,
             result,
-            scalar_type: integer,
+            scalar_type: value_type,
             left,
             right,
         },
         WrappingNeutralOperation::Subtract => O::WrappingIntegerSubtract {
             psi_operation: identity_operation,
             result,
-            scalar_type: integer,
+            scalar_type: value_type,
             left,
             right,
         },
         WrappingNeutralOperation::Multiply => O::WrappingIntegerMultiply {
             psi_operation: identity_operation,
             result,
-            scalar_type: integer,
+            scalar_type: value_type,
             left,
             right,
+        },
+        WrappingNeutralOperation::ShiftLeft => O::WrappingIntegerShiftLeft {
+            psi_operation: identity_operation,
+            result,
+            value_type,
+            count_type: identity_operand_type,
+            value: other,
+            count: literal,
+        },
+        WrappingNeutralOperation::ShiftRight => O::WrappingIntegerShiftRight {
+            psi_operation: identity_operation,
+            result,
+            value_type,
+            count_type: identity_operand_type,
+            value: other,
+            count: literal,
         },
     };
     reconstruct_psi_optimization_unit_seed(
@@ -105,7 +143,7 @@ pub(crate) fn wrapping_neutral_identity_unit_with_type_and_liveness(
                     O::IntegerConstant {
                         psi_operation: literal_operation,
                         result: literal,
-                        scalar_type,
+                        scalar_type: ScalarType::Integer(identity_operand_type),
                         value: literal_value,
                     },
                     operation,
