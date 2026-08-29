@@ -389,64 +389,7 @@ impossible fixup/table condition maps to `InternalFailure`.
 - Tempting but wrong: prepend a success tag to Alpha tape and thereby change the
   canonical artifact bytes or require a stripping stage.
 
-## Q7 — Canonical kernel propositions for exact scalar operations
-
-### Context
-
-Terminal scalar semantics now owns typed `CanonicalScalarGoal` carriers for
-every proof-bearing exact integer operation. Nonzero divisors, defined exact
-division, and exact shift counts have settled kernel propositions, so the
-verifier reconstructs those obligations directly and checks the producer's
-serialized derivation without searching its mirrored candidate frontier.
-
-Three goal families intentionally return no kernel proposition: exact-cast
-representability, exact shift-left representability, and exact arithmetic
-representability for add, subtract, and multiply. The bootstrap verifier still
-uses its legacy sufficient-form reducer for those families, so their accepted
-proof question can depend on available facts.
-
-### Problem statement
-
-The language must choose the exact proposition vocabulary and coordinates for
-these representability obligations. The choice determines certificate identity,
-which algebraic facts are premises versus derivation steps, how signed and
-unsigned bounds are expressed, and what the independently reconstructing
-verifier checks. Selecting whichever sufficient interval or affine consequence
-happens to be discoverable would keep acceptance search-dependent; inventing a
-compiler-private proposition would make producer and checker semantics drift.
-
-### Proposed direction
-
-Give each remaining typed goal one direct, canonical kernel proposition derived
-only from its operation schema and operands:
-
-- exact cast: the source value is representable in the exact target integer
-  carrier;
-- exact shift-left: the mathematically shifted value is representable in the
-  value carrier, separately from the already-settled shift-count obligation;
-- exact add, subtract, and multiply: the operation's mathematical expression is
-  representable in its result carrier.
-
-Represent carrier membership with one shared canonical proposition family and
-retain the exact integer type plus structural scalar expression. Algebraic
-rewrites, interval bounds, aliases, and affine decompositions remain producer
-proof steps rather than alternate verifier-selected obligations. Once these
-mappings are settled, remove the remaining production sufficient-form reducer
-and mirrored verifier search tree.
-
-### Alternates
-
-- Acceptable: define distinct closed proposition families per operation if a
-  shared representability proposition cannot preserve exact operation identity,
-  provided each mapping is deterministic and schema-owned.
-- Acceptable as a narrower first release: reject an unsettled exact operation at
-  Terminal publication until its canonical kernel proposition is available.
-- Tempting but wrong: keep choosing a unique sufficient proposition by searching
-  the verifier's available-fact frontier.
-- Tempting but wrong: serialize only the producer's chosen goal and trust it
-  without independently reconstructing the operation-owned proposition.
-
-## Q8 — Compose the exact Alpha-to-Beta edge within checker capacity
+## Q7 — Compose the exact Alpha-to-Beta edge within checker capacity
 
 ### Context
 
@@ -508,7 +451,7 @@ of adding an assembly-specific evaluator path.
   primitive, trust a producer receipt, compare hashes, or weaken exact total
   partitioning.
 
-## Q9 — Own the ranked native-fuel sponsor entry
+## Q8 — Own the ranked native-fuel sponsor entry
 
 ### Context
 
@@ -556,7 +499,7 @@ prove the final call target is exactly that admitted sponsor entry.
 - Tempting but wrong: append an anonymous helper, magic host callback, script,
   or test-only trampoline and treat successful execution as chain evidence.
 
-## Q10 — Semantic loci for the remaining dangerous-authority classes
+## Q9 — Semantic loci for the remaining dangerous-authority classes
 
 ### Context
 
@@ -611,7 +554,7 @@ inventing a nominal declaration solely for package review.
 - Tempting but wrong: treat a package-wide role or a reviewer/model verdict as
   the authority identity.
 
-## Q12 — Normative identifier and string-literal lexical contract
+## Q10 — Normative identifier and string-literal lexical contract
 
 ### Context
 
@@ -666,7 +609,7 @@ special status to identifiers or values.
 - Tempting but wrong: call literals raw bytes while silently converting a
   codepoint escape into UTF-8.
 
-## Q13 — Evaluation order for call arguments and aggregate fields
+## Q11 — Evaluation order for call arguments and aggregate fields
 
 ### Context
 
@@ -713,7 +656,7 @@ proof that it preserves all observable effects, failures, moves, and cleanup.
 - Tempting but wrong: let backends or optimization levels choose different
   orders for expressions whose effects or failure are observable.
 
-## Q14 — Explicit sum discriminants under zero initialization
+## Q12 — Explicit sum discriminants under zero initialization
 
 ### Context
 

@@ -38,7 +38,7 @@ scanners, or receipts.
 
 ## Trusted-core simplification
 
-- [ ] **DESIGN-BLOCKED — OWNER Q7. KEEP-TERMINAL-VERIFICATION-NONSEARCHING.** Separate deterministic
+- [ ] **KEEP-TERMINAL-VERIFICATION-NONSEARCHING.** Separate deterministic
   reconstruction of the complete Terminal-Psi obligation set from discovery
   of proof routes. The producer may search and must serialize the selected
   derivation. The verifier checks that explicit derivation against the
@@ -50,16 +50,20 @@ scanners, or receipts.
   that reduces drift without sharing producer conclusions, and retain mutation
   teeth proving that omitted obligations and malformed witness edges reject.
 
-  The settled-goal slice is live. Nonzero-divisor, defined-exact-division, and
-  exact-shift-count questions now come directly from Terminal semantic schemas;
-  available alternate facts cannot change the reconstructed question, and a
-  malformed producer-selected edge rejects even when the verifier could have
-  rediscovered a primitive route. Mirrored candidate selectors are test-only
-  for these paths. Completion is language-design blocked on
-  [`Q7`](OWNER_QUESTIONS.md#q7--canonical-kernel-propositions-for-exact-scalar-operations):
-  exact cast, exact shift-left representability, and exact add/subtract/multiply
-  still have no settled canonical kernel proposition and therefore retain the
-  legacy sufficient-form reducer.
+  The complete proposition vocabulary is settled. Nonzero-divisor,
+  defined-exact-division, and exact-shift-count questions already come directly
+  from Terminal semantic schemas. Exact cast, exact shift-left, and exact
+  add/subtract/multiply use a proof-only total `IntegerMathTerm` plus parallel
+  mathematical equality/order relations. Carrier representability expands to
+  its canonical lower and upper bounds; operation identity remains in
+  `CanonicalScalarGoal` rather than multiplying proposition families.
+
+  Implement those remaining mappings, make `kernel_proposition` total rather
+  than optional, and remove their production sufficient-form reducer and
+  mirrored verifier search. Deterministic schema-local normalization may fold
+  closed mathematical expressions, bare carrier inclusion, and vacuous bounds.
+  Symbolic interval propagation, affine reduction, aliases, and other
+  fact-dependent proof discovery remain untrusted producer work.
 
   Acceptance: verifier complexity scales with the supplied certificate and
   reconstructed obligations rather than a proof-search frontier; deleting the
@@ -585,7 +589,7 @@ Remaining:
   distinct strong identity. The standalone metered object-container publication
   API was deleted once it no longer strengthened a consumer edge. Transfer-
   runtime replay now additionally requires its exact activation slots to
-  preserve the ABI rank carrier. **OWNER-BLOCKED — Q9 (ranked native-fuel sponsor):** honest ranked runtime
+  preserve the ABI rank carrier. **OWNER-BLOCKED — Q8 (ranked native-fuel sponsor):** honest ranked runtime
   execution still needs a sponsor-ownership ruling: the binder requires an
   already-owned in-object sponsor function, while the admitted ranked artifact
   is exactly one countdown function and cannot use itself as sponsor. Native
@@ -774,7 +778,7 @@ Remaining:
   drift, absence of inference from `reaches <=`/bodylessness/catalog lookup,
   and the complete declaration-classification migration.
 
-  **DESIGN-BLOCKED — [OWNER Q12](OWNER_QUESTIONS.md#q12--normative-identifier-and-string-literal-lexical-contract):**
+  **DESIGN-BLOCKED — [OWNER Q10](OWNER_QUESTIONS.md#q10--normative-identifier-and-string-literal-lexical-contract):**
   the lexical claim has explicit specification conflicts. The current
   Omega-written lexer accepts Unicode XID identifiers despite the
   guide's ASCII-transparent/source-payload-only wording, accepts `\u{...}`
@@ -793,11 +797,11 @@ Remaining:
   Two broader rulings must also close before the compiler source may depend on
   them observably. Call-argument and aggregate-literal field evaluation order
   are not normative under
-  [OWNER Q13](OWNER_QUESTIONS.md#q13--evaluation-order-for-call-arguments-and-aggregate-fields);
+  [OWNER Q11](OWNER_QUESTIONS.md#q11--evaluation-order-for-call-arguments-and-aggregate-fields);
   current bridge slices therefore admit only combinations whose relative order
   cannot be observed. Explicit sum discriminants can conflict with the first-
   case/tag-zero initialization invariant under
-  [OWNER Q14](OWNER_QUESTIONS.md#q14--explicit-sum-discriminants-under-zero-initialization),
+  [OWNER Q12](OWNER_QUESTIONS.md#q12--explicit-sum-discriminants-under-zero-initialization),
   while default aggregate byte layout remains compiler-controlled. Rule these
   exact language questions before relying on effectful/trapping evaluation
   order or explicit discriminants; do not let a bootstrap-private schedule or

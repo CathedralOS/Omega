@@ -424,6 +424,15 @@ the compiler cannot prove an operation safe, it is a **compile error** — there
 is no unexpected arithmetic and no silent wraparound. (Decided 2026-06-14; this
 is the Ada/SPARK model — range types plus a prover — not a build-mode flag.)
 
+For casts and overflow-prone Exact operations, the checked question is always
+the direct one: does the operation's unbounded mathematical result lie within
+the selected machine carrier? The proof system can describe that mathematical
+result without first constructing the possibly overflowing machine value.
+Compiler automation may use ranges, affine forms, aliases, or a solver to find
+a derivation, but the artifact carries that derivation and the verifier checks
+it against the same canonical carrier bounds. The verifier does not act as an
+arithmetic oracle or choose whichever sufficient fact it happens to discover.
+
 Fixed-width integer `/` truncates its quotient toward zero. Integer `%` is the
 corresponding remainder, so a nonzero signed result has the dividend's sign;
 it is not Euclidean modulo. Both operations require a nonzero divisor, and the

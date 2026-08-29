@@ -1,9 +1,9 @@
-; typeck.beta — a pre-Q8 Gamma static-semantics oracle, written in Beta.
+; typeck.beta — a pre-contract Gamma static-semantics oracle, written in Beta.
 ;
 ; This program exercises candidate monomorphic type rules. It is not a proof
-; kernel, a selected executable Gamma contract, or a compiler stage. OWNER Q8 decides
-; which rules enter the Beta-written Gamma compiler and whether this standalone
-; parser/checker is then deleted.
+; kernel, a selected executable Gamma contract, or a compiler stage. The selected
+; Gamma contract decides which rules enter the Beta-written Gamma compiler and
+; whether this standalone parser/checker is then deleted.
 ;
 ; Phase 1: builtin Int + top-level functions with typed params and a declared return
 ; type; arithmetic/comparisons are Int x Int -> Int, `if` wants an Int condition and
