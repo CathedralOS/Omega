@@ -1,3 +1,5 @@
+//! Stable package names, aliases, source lineages, and immutable resolutions.
+
 use psi_core::PackageKeyIdentity;
 use sha2::{Digest, Sha256};
 use std::fmt;

@@ -1,4 +1,6 @@
-use crate::review_evidence::PackageReviewEvidence;
+//! Exact-key validation across compiler review and resolved source custody.
+
+use crate::review::evidence::PackageReviewEvidence;
 use crate::{
     CompilerIssuedPackageReviewSet, ImmutableSourceResolution, PackageKey, PackageSourceCustody,
     ResolvedPackageSourceClosure,

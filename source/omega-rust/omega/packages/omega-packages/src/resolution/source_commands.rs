@@ -1,3 +1,5 @@
+//! Read-only source inspection used by the command-facing diagnostic surface.
+
 use crate::source::{
     GitSourceRequest, GitSourceRequestError, LocalSourceLimits, SourceResolveError,
     resolve_git_source, resolve_local_source,

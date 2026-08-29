@@ -1,4 +1,8 @@
-use crate::identity::{AliasName, IdentityError, ImmutableSourceResolution, PackageKey};
+//! Typed package graph reconciliation over immutable source identities.
+
+use crate::resolution::identity::{
+    AliasName, IdentityError, ImmutableSourceResolution, PackageKey,
+};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// A package's stable identity paired with one immutable source selection.
@@ -319,7 +323,7 @@ fn visit_for_cycle(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::identity::{
+    use crate::resolution::identity::{
         GitCommitId, GitTreeId, PackageName, SourceContentDigest, SourceLineage,
     };
 

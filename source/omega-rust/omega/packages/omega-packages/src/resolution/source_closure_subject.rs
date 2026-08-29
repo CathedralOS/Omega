@@ -1,9 +1,13 @@
-use crate::closure_resolution::{PackageRootSourceRequest, ResolvedPackageSourceClosure};
-use crate::dependency_projection::DependencySourceRequest;
-use crate::graph::{
+//! Canonical, recoverable identity of one complete resolved source closure.
+
+use crate::declarations::dependency_projection::DependencySourceRequest;
+use crate::resolution::closure_resolution::{
+    PackageRootSourceRequest, ResolvedPackageSourceClosure,
+};
+use crate::resolution::graph::{
     ResolvedDependency, ResolvedPackageClosure, ResolvedPackageNode, ResolvedSourceIdentity,
 };
-use crate::identity::{
+use crate::resolution::identity::{
     AliasName, ExternalLocalLineage, ExternalSourceContext, GitCommitId, GitTransport, GitTreeId,
     ImmutableSourceResolution, PackageKey, PackageName, SourceContentDigest, SourceLineage,
     WorkspaceLineageIdentity, WorkspaceMemberLineage, WorkspaceMemberPath,

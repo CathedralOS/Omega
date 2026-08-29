@@ -1,12 +1,14 @@
-use crate::closure_resolution::{
+//! Explicit local, workspace, and Git source policies for closure traversal.
+
+use crate::declarations::dependency_projection::DependencySourceRequest;
+use crate::resolution::closure_resolution::{
     PackageRootSourceRequest, PackageSourceClosureLimits, PackageSourceClosureResolutionError,
     PackageSourceCustody, ResolvedPackageSourceClosure, resolve_package_source_closure_with_limits,
 };
-use crate::dependency_projection::DependencySourceRequest;
-use crate::identity::{
+use crate::resolution::identity::{
     ExternalSourceContext, PackageKey, SourceLineage, WorkspaceLineageIdentity, WorkspaceMemberPath,
 };
-use crate::package_source::{
+use crate::resolution::package_source::{
     ResolvePackageSourceError, resolve_external_local_package_source,
     resolve_external_local_project_source, resolve_git_package_source,
     resolve_workspace_member_package_source,
@@ -90,7 +92,7 @@ pub enum ResolveDependencySourceError {
         reason: String,
     },
     UnknownWorkspace {
-        package: crate::identity::PackageKey,
+        package: crate::resolution::identity::PackageKey,
     },
     ConflictingWorkspaceRoot {
         identity: WorkspaceLineageIdentity,
@@ -252,7 +254,7 @@ fn resolve_workspace_package_closure_impl(
     })?;
     if root.source().canonical_live_root != expected_member_root
         || root.key().source_lineage()
-            != &SourceLineage::Workspace(crate::identity::WorkspaceMemberLineage::new(
+            != &SourceLineage::Workspace(crate::resolution::identity::WorkspaceMemberLineage::new(
                 workspace_identity.clone(),
                 root_member_path,
             ))

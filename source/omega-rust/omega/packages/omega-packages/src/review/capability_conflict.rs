@@ -1,8 +1,10 @@
-use crate::review_closure::{
+//! Exact canonical-row conflicts between accepted and candidate review sets.
+
+use crate::review::closure::{
     ReviewOnlyClosureValidationError, ReviewOnlySetValidationError, validate_review_only_closure,
     validate_review_only_records,
 };
-use crate::review_evidence::{
+use crate::review::evidence::{
     PackageReviewEvidence, ReviewOnlyCanonicalRow, ReviewOnlyCompilerExecutableCommitment,
     ReviewOnlySourceConsumptionCommitment,
 };

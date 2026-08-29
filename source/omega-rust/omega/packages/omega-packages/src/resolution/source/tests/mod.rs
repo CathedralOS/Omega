@@ -1,7 +1,7 @@
 //! Responsibility-mirrored resolver regression suite.
 
 use super::*;
-use crate::identity::PackageName;
+use crate::resolution::identity::PackageName;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 mod custody;

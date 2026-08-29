@@ -1,6 +1,8 @@
-use crate::compiler_handoff::reachable_package_keys;
-use crate::review_evidence::ReviewOnlyCanonicalRow;
-use crate::source::{SourceResolveError, verify_package_source_snapshot};
+//! Compiler review of every package in one resolved immutable closure.
+
+use crate::resolution::source::{SourceResolveError, verify_package_source_snapshot};
+use crate::review::compiler_handoff::reachable_package_keys;
+use crate::review::evidence::ReviewOnlyCanonicalRow;
 use crate::{
     ImmutableSourceResolution, PackageKey, ResolvedPackageSourceClosure,
     package_compilation_inputs_for,

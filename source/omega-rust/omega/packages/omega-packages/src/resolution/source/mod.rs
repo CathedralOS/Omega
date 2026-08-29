@@ -4,11 +4,11 @@
 //! live under [`local`]; Git request validation, object authentication,
 //! materialization, cache custody, and process execution live under [`git`].
 
-use crate::identity::{
+use crate::resolution::identity::{
     GitObjectIdAlgorithm, GitRequestedNetworkEndpoint, GitTransport, IdentityError,
     SourceContentDigest, SourceLineage,
 };
-use crate::record_file::{RecordFileLimits, RecordFileRoot};
+use crate::storage::record_file::{RecordFileLimits, RecordFileRoot};
 use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt};
 #[cfg(unix)]
 use cap_std::fs::{

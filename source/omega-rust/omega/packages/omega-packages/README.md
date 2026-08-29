@@ -1518,50 +1518,38 @@ resolution, or project writes. Ordinary source files named `install.omg` or
   observations.
 - Giving downloaded code resolver, root-package, or acceptance authority.
 
-## Expected structure
+## Source structure
 
-This is the intended corrected architecture, not an inventory of current
-files. Entries that do not yet exist describe future owners and do not preserve
-the deleted implementations that previously used the same filenames.
+The parent [`packages/README.md`](../README.md) is the subsystem entrance and
+explains the three crate boundaries. Inside this workflow crate, folders name
+responsibilities; the crate root only explains and reexports them.
 
 ```text
 omega-packages/
 |-- README.md
 |-- src/
-|   |-- identity.rs        # Package/source lineage and instance identity.
-|   |-- source.rs          # Source requests and immutable snapshots.
-|   |-- package_source.rs  # Snapshot-to-declared-PackageKey custody.
-|   |-- record_file.rs     # Private bounded path and directory-capability persistence.
-|   |-- declaration.rs     # Hermetic builder.package projection.
-|   |-- dependency_projection.rs # Hermetic literal source requests.
-|   |-- dependency_edit.rs # Digest-bound conservative build.omg edit plans.
-|   |-- graph.rs           # Typed pre-admission source reconciliation.
-|   |-- closure_resolution.rs # Bounded recursive immutable source custody.
-|   |-- source_adapter.rs  # Explicit workspace and Git closure policy.
-|   |-- compiler_handoff.rs # Revalidated package-aware compiler inputs.
-|   |-- compiler_review.rs # Closure compilation and retained schema-bound replay ledgers.
-|   |-- source_commands.rs # Unhardened source diagnostic command surface.
-|   |-- source_patch.rs    # Bounded hostile-data source review packet.
-|   |-- review_evidence.rs # Private live/recovered comparison evidence seam.
-|   |-- review_baseline.rs # Bounded restart-stable capsule and rooted file custody.
-|   |-- review_closure.rs # Shared exact-key compiler-review/custody checks.
-|   |-- source_review.rs   # Custody/evidence join and bounded advisory boundary.
-|   |-- source_triage.rs   # Compiler-row source/provenance triage.
-|   |-- capability_conflict.rs # Bounded review-only exact row conflicts.
-|   |-- evidence.rs        # Compiler-issued package admission evidence.
-|   |-- lock.rs            # Accepted closure and evidence baseline.
-|   |-- conflict.rs        # Candidate-bound review-only root-policy decisions.
-|   |-- audit.rs           # Source/provenance/capability audit rendering.
-|   |-- install.rs         # Fetch, derive, admit, then edit/write.
-|   |-- update.rs          # Candidate reconciliation and admission.
-|   `-- commands.rs        # Thin CLI-facing orchestration.
+|   |-- lib.rs                    # Responsibility map and compatibility exports.
+|   |-- declarations/             # Read and conservatively edit build.omg.
+|   |-- resolution/
+|   |   |-- identity.rs           # Package/source lineage and immutable identity.
+|   |   |-- graph.rs              # Typed pre-admission reconciliation.
+|   |   |-- closure_resolution.rs # Bounded recursive source custody.
+|   |   |-- package_source.rs     # Snapshot-to-declared-PackageKey custody.
+|   |   |-- source_adapter.rs     # Explicit workspace and Git closure policy.
+|   |   |-- source_closure_subject.rs # Canonical complete-closure subject.
+|   |   |-- source_commands.rs    # Read-only diagnostic command surface.
+|   |   `-- source/               # Local/Git acquisition and host custody.
+|   |-- review/                   # Compiler review, comparison, triage, and policy.
+|   |-- storage/record_file.rs    # Internal bounded rooted persistence.
+|   `-- bin/omega-source-snapshot.rs
 `-- tests/
-    |-- identity.rs
-    |-- install.rs
-    |-- update.rs
-    |-- audit.rs
-    `-- remote_fixtures.rs
+    |-- capability_conflicts/    # Transaction, public-API, and operational deltas.
+    `-- responsibility-specific integration fixtures
 ```
+
+Future accepted evidence, lock, audit, install, and update owners belong under
+`review/` or a later transaction folder once their boundaries are implemented.
+They should not return as speculative flat files in the crate root.
 
 Machine persistence format is an internal encoding choice. Human review and
 conflict surfaces use concise canonical text and do not expose package-authored

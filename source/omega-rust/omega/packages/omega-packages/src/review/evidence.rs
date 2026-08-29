@@ -1,3 +1,5 @@
+//! Private comparison evidence joining compiler rows to source and observations.
+
 use crate::{CompilerIssuedPackageReview, ImmutableSourceResolution, PackageKey};
 use omega_build_evaluation::{
     BuildFilesystemGrantAccess, BuildFilesystemGrantRefusalReason,

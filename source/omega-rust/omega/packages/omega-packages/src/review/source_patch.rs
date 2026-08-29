@@ -1,4 +1,6 @@
-use crate::source::{
+//! Bounded, hostile-data-safe patches for source review.
+
+use crate::resolution::source::{
     LocalSourceLimits, SourceResolveError, VerifiedPackageSourceEntry,
     VerifiedPackageSourceEntryKind, capture_verified_package_source_snapshot,
     verify_package_source_snapshot,

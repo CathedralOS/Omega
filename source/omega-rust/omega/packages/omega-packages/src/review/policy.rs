@@ -1,4 +1,6 @@
-use crate::record_file::{
+//! Candidate-bound root-policy decisions for blocking review conflicts.
+
+use crate::storage::record_file::{
     RecordFileError, RecordFileLimits, RecordFileRoot, is_portable_record_file_name,
 };
 use crate::{
