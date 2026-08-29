@@ -1,4 +1,5 @@
 use crate::evidence::PackageReviewSourceLocationRole;
+use crate::projection::behavior::canonical_checked_invocation_targets;
 use crate::projection::semantics::facts::exactly_one;
 use crate::projection::source::ProjectedNestedSourceLocation;
 use omega_compiler::CheckedCompilation;
@@ -73,40 +74,4 @@ pub(crate) fn project_signature_invocation_source_locations(
             role: PackageReviewSourceLocationRole::SynchronousInvocation,
         })
         .collect())
-}
-
-pub(crate) fn canonical_checked_invocation_targets(
-    compilation: &CheckedCompilation,
-    targets: &[psi_effects::InvocationTarget],
-) -> Result<Vec<String>, Vec<Diagnostic>> {
-    let mut canonical = targets
-        .iter()
-        .map(|target| match target {
-            psi_effects::InvocationTarget::Parameter(index) => Ok(format!("parameter:{index}")),
-            psi_effects::InvocationTarget::Service(symbol) => {
-                let matching = compilation
-                    .traits()
-                    .iter()
-                    .filter(|definition| definition.symbol == *symbol)
-                    .collect::<Vec<_>>();
-                let [definition] = matching.as_slice() else {
-                    return Err(vec![Diagnostic::error(format!(
-                        "reviewed synchronous invocation resolves service symbol {} to {} declarations; expected exactly one",
-                        symbol.arena_index(),
-                        matching.len(),
-                    ))]);
-                };
-                if !definition.is_boundary {
-                    return Err(vec![Diagnostic::error(format!(
-                        "reviewed synchronous invocation resolves `{}` to a non-boundary trait",
-                        definition.name,
-                    ))]);
-                }
-                Ok(format!("service:{}", definition.name))
-            }
-        })
-        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-    canonical.sort();
-    canonical.dedup();
-    Ok(canonical)
 }

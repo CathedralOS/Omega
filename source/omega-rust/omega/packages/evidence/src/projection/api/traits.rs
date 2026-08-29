@@ -2,17 +2,9 @@ use super::super::behavior::{
     project_crash_routes, project_service_row, project_synchronous_invocations,
     project_trait_requirement_termination,
 };
-use super::super::contracts::callables::{
+use super::super::contracts::facts::{
     ContractProjectionContext, project_trait_requirement_contracts,
 };
-use super::super::contracts::operations::{
-    project_signature_invocation_source_locations, project_signature_operational_source_locations,
-};
-use super::super::contracts::parameters::{
-    collect_callable_parameter_source_locations, collect_type_parameter_source_locations,
-};
-use super::super::contracts::service_reach::project_signature_service_reach_source_locations;
-use super::super::contracts::source_locations::project_contract_source_locations;
 use super::super::semantics::conformances::project_conformance_bounds;
 use super::super::semantics::declarations::{
     nominal_identity, reviewed_package_owns, trait_requirement_identity,
@@ -22,7 +14,14 @@ use super::super::semantics::signatures::parameters::{
 };
 use super::super::semantics::types::lifetimes::lifetime_binder_ordinal;
 use super::super::semantics::types::review_signature_type_identity_with_binders;
+use super::super::source::contracts::project_contract_source_locations;
+use super::super::source::invocations::project_signature_invocation_source_locations;
 use super::super::source::locations::project_nested_declaration_source_location;
+use super::super::source::parameters::{
+    collect_callable_parameter_source_locations, collect_type_parameter_source_locations,
+};
+use super::super::source::service_reach::project_signature_service_reach_source_locations;
+use super::super::source::suspension::project_signature_operational_source_locations;
 use crate::evidence::{
     PackageReviewSourceLocationRole, PackageReviewTraitCompositionKind, PackageReviewTraitParent,
     PackageReviewTraitRequirement, PackageReviewTraitRequirementParameter, PackageReviewTraitShape,
