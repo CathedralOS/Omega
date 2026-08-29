@@ -1,5 +1,7 @@
-use super::leaves::{replay_active_resident_chain_shape, replay_edge_fuel, replay_leaf};
+use super::leaves::{replay_edge_fuel, replay_leaf};
 use super::shared::*;
+use super::validators::validator_accepts;
+use crate::legalization::catalog::scalar_form_for_recipe;
 
 pub(super) fn replay_unit_function(
     function: usize,
@@ -139,147 +141,26 @@ pub(super) fn replay_function(
         return Err(Error::SourceCustodyMismatch);
     }
 
-    let recipe_matches_target = match proposed.recipe {
-        LegalizationRecipe::ReturnU64ImmediateConditionalV1 => {
-            [when_true, when_false].iter().all(|arm| {
-                matches!(
-                    arm.control.as_ref(),
-                    TargetIntegerControl::Return {
-                        expression: TargetIntegerExpression::Immediate { .. },
-                        ..
-                    }
-                )
-            })
-        }
-        LegalizationRecipe::ReturnU64EntryParameterConditionalV1 => {
-            [when_true, when_false].iter().all(|arm| {
-                matches!(
-                    arm.control.as_ref(),
-                    TargetIntegerControl::Return {
-                        expression: TargetIntegerExpression::Parameter { .. },
-                        ..
-                    }
-                )
-            })
-        }
-        LegalizationRecipe::ReturnU64ExactAddImmediateConditionalV1 => [
-            when_true, when_false,
-        ]
-        .iter()
-        .all(|arm| {
-            matches!(
-                arm.control.as_ref(),
-                TargetIntegerControl::Return {
-                    expression: TargetIntegerExpression::ExactAdd { left, right, .. },
-                    ..
-                } if matches!(left.as_ref(), TargetIntegerExpression::Immediate { .. })
-                    && matches!(right.as_ref(), TargetIntegerExpression::Immediate { .. })
-            )
-        }),
-        LegalizationRecipe::ReturnU64ExactSubtractImmediateConditionalV1 => [
-            when_true, when_false,
-        ]
-        .iter()
-        .all(|arm| {
-            matches!(
-                arm.control.as_ref(),
-                TargetIntegerControl::Return {
-                    expression: TargetIntegerExpression::ExactSubtract { left, right, .. },
-                    ..
-                } if matches!(left.as_ref(), TargetIntegerExpression::Immediate { .. })
-                    && matches!(right.as_ref(), TargetIntegerExpression::Immediate { .. })
-            )
-        }),
-        LegalizationRecipe::ReturnU64WidenedU8ExactAddImmediateConditionalV1 => [
-            when_true, when_false,
-        ]
-        .iter()
-        .all(|arm| {
-            matches!(
-                arm.control.as_ref(),
-                TargetIntegerControl::Return {
-                    expression: TargetIntegerExpression::IntegerWiden {
-                        source_type,
-                        operand,
-                        ..
-                    },
-                    ..
-                } if *source_type
-                    == psi_core::IntegerType::new(IntegerSign::Unsigned, 8).expect("u8")
-                    && matches!(
-                        operand.as_ref(),
-                        TargetIntegerExpression::ExactAdd { left, right, .. }
-                            if matches!(left.as_ref(), TargetIntegerExpression::Immediate { .. })
-                                && matches!(right.as_ref(), TargetIntegerExpression::Immediate { .. })
-                    )
-            )
-        }),
-        LegalizationRecipe::ReturnU64WidenedU8ExactSubtractImmediateConditionalV1 => [
-            when_true, when_false,
-        ]
-        .iter()
-        .all(|arm| {
-            matches!(
-                arm.control.as_ref(),
-                TargetIntegerControl::Return {
-                    expression: TargetIntegerExpression::IntegerWiden {
-                        source_type,
-                        operand,
-                        ..
-                    },
-                    ..
-                } if *source_type
-                    == psi_core::IntegerType::new(IntegerSign::Unsigned, 8).expect("u8")
-                    && matches!(
-                        operand.as_ref(),
-                        TargetIntegerExpression::ExactSubtract { left, right, .. }
-                            if matches!(left.as_ref(), TargetIntegerExpression::Immediate { .. })
-                                && matches!(right.as_ref(), TargetIntegerExpression::Immediate { .. })
-                    )
-            )
-        }),
-        LegalizationRecipe::ReturnU64ActiveResidentExactAddChainConditionalV1 => {
-            matches!(
-                (when_true.control.as_ref(), when_false.control.as_ref()),
-                (
-                    TargetIntegerControl::Return { expression, .. },
-                    TargetIntegerControl::Return {
-                        expression: TargetIntegerExpression::Immediate { .. },
-                        ..
-                    }
-                ) if replay_active_resident_chain_shape(expression)
-            )
-        }
-    };
-    if !recipe_matches_target {
+    let form = scalar_form_for_recipe(proposed.recipe).ok_or(Error::NonCanonicalLegalizedPlan)?;
+    if !validator_accepts(
+        form.validator,
+        when_true.control.as_ref(),
+        when_false.control.as_ref(),
+    ) {
         return Err(Error::NonCanonicalLegalizedPlan);
     }
 
-    let (offsets, operation_count, leaf_node_counts, parameter_count) = match proposed.recipe {
-        LegalizationRecipe::ReturnU64ImmediateConditionalV1 => ([0, 1, 3], 5, [2, 2], 1),
-        LegalizationRecipe::ReturnU64EntryParameterConditionalV1 => ([0, 1, 2], 3, [1, 1], 2),
-        LegalizationRecipe::ReturnU64ExactAddImmediateConditionalV1
-        | LegalizationRecipe::ReturnU64ExactSubtractImmediateConditionalV1 => {
-            ([0, 1, 5], 9, [4, 4], 1)
-        }
-        LegalizationRecipe::ReturnU64WidenedU8ExactAddImmediateConditionalV1
-        | LegalizationRecipe::ReturnU64WidenedU8ExactSubtractImmediateConditionalV1 => {
-            ([0, 1, 6], 11, [5, 5], 1)
-        }
-        LegalizationRecipe::ReturnU64ActiveResidentExactAddChainConditionalV1 => {
-            ([0, 1, 8], 10, [7, 2], 1)
-        }
-    };
-    if abstracted.operations.len() != operation_count
-        || abstracted.parameters.len() != parameter_count
-        || optimized.parameters.len() != parameter_count
+    let constraints = form.constraints;
+    if abstracted.operations.len() != constraints.operation_count
+        || abstracted.parameters.len() != constraints.parameter_count
+        || optimized.parameters.len() != constraints.parameter_count
         || abstracted
             .block_entries
             .iter()
-            .zip(offsets)
+            .zip(constraints.block_offsets)
             .any(|(entry, offset)| entry.operation_offset != offset)
-        || optimized.blocks[1].nodes.len() != leaf_node_counts[0]
-        || optimized.blocks[2].nodes.len() != leaf_node_counts[1]
+        || optimized.blocks[1].nodes.len() != constraints.leaf_node_counts[0]
+        || optimized.blocks[2].nodes.len() != constraints.leaf_node_counts[1]
     {
         return Err(Error::UnsupportedSourceShape { function });
     }
@@ -363,7 +244,7 @@ pub(super) fn replay_function(
         proposed.recipe,
         when_true.psi_edge,
         when_true.control.as_ref(),
-        &abstracted.operations[offsets[1]..offsets[2]],
+        &abstracted.operations[constraints.block_offsets[1]..constraints.block_offsets[2]],
         &optimized.blocks[1].nodes,
         abstracted,
         optimized,
@@ -377,7 +258,7 @@ pub(super) fn replay_function(
         proposed.recipe,
         when_false.psi_edge,
         when_false.control.as_ref(),
-        &abstracted.operations[offsets[2]..],
+        &abstracted.operations[constraints.block_offsets[2]..],
         &optimized.blocks[2].nodes,
         abstracted,
         optimized,

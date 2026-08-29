@@ -1,4 +1,7 @@
-use omega_compiler::{CompileOptions, compile_to_checked, compile_to_checked_with_packages};
+use omega_compiler::{
+    CompileOptions, CompileRequest, OptimizationRollback, RequestedCompileProduct,
+    compile_to_checked, compile_to_checked_with_packages,
+};
 use omega_optimization_core::Optimization;
 use omega_optimization_pipeline::OptimizationReportRequest;
 use omega_package_compilation::{
@@ -289,6 +292,57 @@ machine build(builder: &mut Build) {
             .message
             .contains("complete verified optimizer pipeline")
     );
+    assert!(!build_dir.join("omega-program").exists());
+    assert!(!build_dir.join("omega-program.exe").exists());
+}
+
+#[test]
+fn partial_rollback_routes_only_the_nonempty_effective_selection_and_fails_closed() {
+    let root = project(
+        "partial-rollback-fail-closed",
+        Some(
+            r#"target windows_x64 { }
+machine build(builder: &mut Build) {
+    builder.application("optimizer-partial-rollback-fail-closed");
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+    builder.optimizations.enable(Optimization::ControlFlowCleanup);
+    builder.optimizations.enable(Optimization::CopyPropagation);
+}
+"#,
+        ),
+    );
+    let build_dir = root.join("build");
+    let diagnostics = omega_compiler::compile(
+        CompileRequest::new(CompileOptions {
+            root_path: root.join("main.omg"),
+            build_dir: Some(build_dir.clone()),
+            target_name: Some("windows_x64".into()),
+        })
+        .with_requested_product(RequestedCompileProduct::NativeArtifact)
+        .with_optimization_rollback(
+            OptimizationRollback::new([Optimization::CopyPropagation])
+                .expect("the partial rollback request must be unique"),
+        ),
+    )
+    .expect_err("a nonempty effective selection must still enter the verified optimizer lane");
+
+    assert_eq!(diagnostics.len(), 1);
+    assert!(
+        diagnostics[0].message.contains("`ControlFlowCleanup`"),
+        "unexpected diagnostic: {}",
+        diagnostics[0].message
+    );
+    assert!(
+        !diagnostics[0].message.contains("CopyPropagation"),
+        "disabled rule leaked into the effective optimizer selection: {}",
+        diagnostics[0].message
+    );
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("complete verified optimizer pipeline")
+    );
+    assert!(diagnostics[0].message.contains("no output was installed"));
     assert!(!build_dir.join("omega-program").exists());
     assert!(!build_dir.join("omega-program.exe").exists());
 }

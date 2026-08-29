@@ -372,6 +372,10 @@ struct RequiredRuleCatalog {
 /// replace them with a second selection table.
 const REQUIRED_RULE_CATALOGS: &[RequiredRuleCatalog] = &[
     RequiredRuleCatalog {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/catalog.rs",
+        order_marker: "SCALAR_LEGALIZATION_FORMS",
+    },
+    RequiredRuleCatalog {
         path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/catalog.rs",
         order_marker: "ALLOCATION_RECOVERY_RULE_CATALOG",
     },

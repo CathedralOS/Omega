@@ -4,6 +4,7 @@ mod functions;
 mod leaves;
 mod shared;
 mod structural;
+mod validators;
 
 use functions::{replay_function, replay_unit_function};
 use shared::*;

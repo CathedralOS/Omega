@@ -83,6 +83,7 @@ The current source-visible rule paths are:
 
 | Phase | Entrance | Catalog | Next rung |
 |---|---|---|---|
+| Mandatory scalar legalization | `omega-target-operations-to-selected-instructions/src/legalization/mod.rs` | adjacent `catalog.rs` | independent `source/matchers.rs` and `replay/validators.rs` |
 | Psi | `omega-psi-optimizer/src/rules/mod.rs` | `rules/catalog.rs` | `rules/passes/<exact-pass>/catalog.rs` |
 | Selected lowering and allocation recovery | `omega-regalloc/src/rules/mod.rs` | `rules/catalog.rs` | `rules/{literal_fold,fixed_view_copy,pressure_rematerialization}/` |
 | Post-allocation machine | `omega-machine-optimizer/src/rules/mod.rs` | `rules/catalog.rs` | `rules/<isa>/<exact-rule>/` |
@@ -150,6 +151,13 @@ leaf-expression families; selected-plan construction and validation descend
 separately through constraints, roster construction, function/block/register
 checks, integrity replay, and canonical identity. No production leaf in that
 crate exceeds the 1,300-line ceiling.
+
+The scalar legalization family also carries the Squalr-style registry shape
+directly: one adjacent seven-row catalog owns precedence, recipe, shape, and
+planning-cost data; producer matching and independent validation are separate
+named leaves. Costs are descriptive and cannot participate in legality. The
+architecture gate requires the catalog and prevents replay from reaching the
+producer matcher.
 
 The preceding abstract-to-target stage is governed by the same contract. Its
 crate map points to a settlement-and-installation coordinator, then to one
