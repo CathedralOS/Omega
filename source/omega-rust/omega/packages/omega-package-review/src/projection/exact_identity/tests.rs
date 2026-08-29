@@ -1,8 +1,10 @@
 use super::super::evidence::validate_selected_provider_declaration_owner;
 use super::{
-    PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewToolchainSourceIdentity,
     nominal_owner_from_symbols, toolchain_source_identity, validate_package_type_identity_input,
     validate_package_type_identity_input_inner,
+};
+use crate::model::{
+    PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewToolchainSourceIdentity,
 };
 use psi_core::PackageKeyIdentity;
 use psi_source::{SourceFile, SourceId, SourceMap, SourceOrigin, SourceSpan, Span};

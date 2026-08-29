@@ -17,7 +17,12 @@ src/
 |-- lib.rs                 Public facade; no package behavior lives here.
 |-- declarations/          Read and conservatively edit build.omg.
 |-- resolution/
-|   |-- identity.rs        Package names, keys, lineages, and immutable pins.
+|   |-- identity/          Stable package and source identity facade.
+|   |   |-- names.rs       Package names, aliases, and source-bound keys.
+|   |   |-- git.rs         Git repository lineages and accepted transports.
+|   |   |-- locator.rs     Strict Git locator parsing and normalization.
+|   |   |-- local.rs       Workspace and external-local lineages and digests.
+|   |   `-- resolution.rs  Immutable source pins and typed Git object IDs.
 |   |-- closure/           Resolve and identify one complete package closure.
 |   |   |-- sources.rs     Connect declarations to workspace, local, and Git sources.
 |   |   |-- reconcile.rs   Reconcile the complete dependency closure.
@@ -26,7 +31,10 @@ src/
 |   `-- source/            Capture hostile source under resolver custody.
 |       |-- storage.rs     Private per-user storage and retained cache lanes.
 |       |-- local/         Local snapshot capture and authentication.
-|       |-- git/           Git request, fetch, object authentication, and snapshot.
+|       |-- git/           Git request, fetch, authentication, and materialization.
+|       |   |-- objects/   Authenticate commits, trees, paths, and bounded blobs.
+|       |   |-- snapshot/  Construct, validate, and atomically publish source trees.
+|       |   `-- execution/ Confine Git processes and establish executable custody.
 |       `-- custody/       Tree checks, host policy, locks, and atomic publication.
 |-- review/
 |   |-- compiler_review.rs Compile a resolved closure into compiler-issued evidence.
