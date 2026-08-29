@@ -4,13 +4,14 @@ use super::super::reconciliation::{
     PackageRootSourceRequest, PackageSourceClosureLimits, ResolvedPackageSourceClosure,
 };
 use super::cache::{
-    resolve_external_local_package_from_cache, resolve_external_local_project_from_cache,
-    GitAcquisitionCache, SourceCacheLane,
+    GitAcquisitionCache, SourceCacheLane, resolve_external_local_package_from_cache,
+    resolve_external_local_project_from_cache,
 };
 use super::dependencies::resolve_registered_package_closure;
 use super::errors::ResolveExternalLocalPackageClosureError;
+use crate::identity::PackageKey;
 use crate::resolution::source::ResolvePackageSourceError;
-use omega_package_source::{ExternalSourceContext, PackageKey, SourceLineage};
+use omega_package_source::{ExternalSourceContext, SourceLineage};
 use omega_package_source::{LocalSourceLimits, SourceResolverStorage};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

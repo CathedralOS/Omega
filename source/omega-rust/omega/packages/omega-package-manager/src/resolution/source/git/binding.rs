@@ -5,9 +5,10 @@ use super::super::{
     GitWorkspaceSelectionEvidence, PackageSourceMaterialization, PackageSourceNavigation,
     PackageSourceSelectionEvidence, ResolvePackageSourceError, ResolvedPackageSource,
 };
+use crate::identity::PackageKey;
 use omega_package_source::{
-    GitCommitId, GitTreeId, ImmutableSourceResolution, LocalSourceLimits, PackageKey,
-    ResolvedGitSource, SourceLineage,
+    GitCommitId, GitTreeId, ImmutableSourceResolution, LocalSourceLimits, ResolvedGitSource,
+    SourceLineage,
 };
 
 pub(super) fn bind_projected_git_package_source(

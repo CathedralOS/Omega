@@ -32,11 +32,10 @@ pub use git::workspace::{
     GitWorkspaceSelection,
 };
 pub use identity::{
-    AliasName, ExternalLocalLineage, ExternalSourceContext, GenericGitLineage, GitCommitId,
+    ExternalLocalLineage, ExternalSourceContext, GenericGitLineage, GitCommitId,
     GitHubRepositoryLineage, GitLabRepositoryLineage, GitObjectIdAlgorithm, GitTransport,
-    GitTreeId, IdentityError, ImmutableSourceResolution, PackageKey, PackageName,
-    SourceContentDigest, SourceLineage, WorkspaceLineageIdentity, WorkspaceMemberLineage,
-    WorkspaceMemberPath,
+    GitTreeId, IdentityError, ImmutableSourceResolution, SourceContentDigest, SourceLineage,
+    WorkspaceLineageIdentity, WorkspaceMemberLineage, WorkspaceMemberPath,
 };
 pub use limits::LocalSourceLimits;
 pub use local::model::{

@@ -1,8 +1,8 @@
 use super::PackageFixture;
+use crate::identity::{AliasName, PackageName};
 use crate::manifest::dependencies::read::{
     DependencyProjectionError, DependencySourceRequest, PackageSelection,
 };
-use omega_package_source::{AliasName, PackageName};
 
 #[test]
 fn resolves_default_alias_from_the_dependency_declaration() {

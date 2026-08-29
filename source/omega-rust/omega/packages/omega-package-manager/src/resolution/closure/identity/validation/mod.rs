@@ -11,12 +11,12 @@ use super::{
     CanonicalDependencySourceSelection, CanonicalRootSourceSelection,
     CanonicalSourceClosureSubjectError, CanonicalSourceClosureSubjectLimits,
 };
+use crate::identity::PackageKey;
 use crate::resolution::closure::{
     ResolvedDependency, ResolvedPackageClosure, ResolvedPackageNode, ResolvedSourceIdentity,
 };
 use crate::resolution::source::PackageSourceNavigation;
 use dependency::{validate_dependency_request, validate_dependency_selection_kind};
-use omega_package_source::PackageKey;
 use root::validate_root_request;
 use source::{validate_package_navigation, validate_source_identity};
 use std::collections::BTreeMap;

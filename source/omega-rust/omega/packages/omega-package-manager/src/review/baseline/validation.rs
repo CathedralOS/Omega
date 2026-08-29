@@ -1,13 +1,14 @@
 //! Canonical graph and resource validation shared by capture and recovery.
 
 use super::{ReviewOnlyBaselineError, ReviewOnlyBaselineLimits, ReviewOnlyBaselinePackage};
+use crate::identity::{AliasName, PackageKey};
 use crate::resolution::ResolvedPackageClosure;
 use crate::review::records::ReviewOnlyCanonicalRow;
 use omega_build_evaluation::BuildFilesystemReplayRecordLimits;
 use omega_package_review::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRecoveryLimits,
 };
-use omega_package_source::{AliasName, ImmutableSourceResolution, PackageKey};
+use omega_package_source::ImmutableSourceResolution;
 use std::collections::{BTreeMap, VecDeque};
 
 pub(super) struct PendingPackage {

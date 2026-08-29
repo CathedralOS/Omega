@@ -1,6 +1,7 @@
 //! High-level comparison, triage, and source-review operations.
 
 use super::ReviewOnlyBaselineCapsule;
+use crate::identity::PackageKey;
 use crate::resolution::{PackageSourceCustody, ResolvedPackageSourceClosure};
 use crate::review::audit_input::assemble_update_source_review_records;
 use crate::review::comparison::compare_review_only_capability_records;
@@ -10,7 +11,6 @@ use crate::review::{
     PackageSourceReviewInput, PackageSourceReviewLimits, ReviewOnlyCapabilityConflictError,
     ReviewOnlyCapabilityConflictLimits, ReviewOnlyCapabilityConflictSet,
 };
-use omega_package_source::PackageKey;
 use std::collections::BTreeSet;
 
 pub fn compare_review_only_capabilities_from_baseline(

@@ -27,7 +27,7 @@ pub fn package_compilation_inputs(
 /// unreachable-package check.
 pub fn package_compilation_inputs_for(
     closure: &ResolvedPackageSourceClosure,
-    root: &omega_package_source::PackageKey,
+    root: &crate::identity::PackageKey,
 ) -> Result<PackageCompilationInputs, Vec<PackageCompilationInputError>> {
     let reachable = reachable_package_keys(closure, root);
     let packages = closure
@@ -105,8 +105,8 @@ fn revalidate_package_source_selection(
 
 pub(crate) fn reachable_package_keys(
     closure: &ResolvedPackageSourceClosure,
-    root: &omega_package_source::PackageKey,
-) -> BTreeSet<omega_package_source::PackageKey> {
+    root: &crate::identity::PackageKey,
+) -> BTreeSet<crate::identity::PackageKey> {
     let mut reachable = BTreeSet::new();
     let mut pending = vec![root.clone()];
     while let Some(package) = pending.pop() {
@@ -129,13 +129,12 @@ pub(crate) fn reachable_package_keys(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::identity::{PackageKey, PackageName};
     use crate::manifest::dependencies::read::DependencySourceRequest;
     use crate::resolution::closure::PackageRootSourceRequest;
     use crate::resolution::closure::reconciliation::resolve_package_source_closure;
     use crate::resolution::source::PackageSourceCustody;
-    use omega_package_source::{
-        GitCommitId, GitTreeId, ImmutableSourceResolution, PackageKey, PackageName, SourceLineage,
-    };
+    use omega_package_source::{GitCommitId, GitTreeId, ImmutableSourceResolution, SourceLineage};
     #[cfg(unix)]
     use psi_checked_interpreter::CanonicalFilesystemMetadataRowKind;
     use std::path::PathBuf;

@@ -1,4 +1,4 @@
-//! Stable package names, aliases, source lineages, and immutable resolutions.
+//! Stable source lineages and immutable source resolutions.
 
 use sha2::{Digest, Sha256};
 
@@ -32,7 +32,6 @@ mod error;
 mod git;
 mod local;
 mod locator;
-mod names;
 mod resolution;
 
 pub use error::IdentityError;
@@ -45,17 +44,7 @@ pub use local::{
     ExternalLocalLineage, ExternalSourceContext, SourceContentDigest, WorkspaceLineageIdentity,
     WorkspaceMemberLineage, WorkspaceMemberPath,
 };
-pub use names::{AliasName, PackageKey, PackageName};
 pub use resolution::{GitCommitId, GitObjectIdAlgorithm, GitTreeId, ImmutableSourceResolution};
-
-pub(super) fn is_snake_case(value: &str) -> bool {
-    value.as_bytes().first().is_some_and(u8::is_ascii_lowercase)
-        && !value.ends_with('_')
-        && !value.contains("__")
-        && value.chars().all(|character| {
-            character.is_ascii_lowercase() || character.is_ascii_digit() || character == '_'
-        })
-}
 
 pub(super) fn hash_field(hasher: &mut Sha256, bytes: &[u8]) {
     hasher.update((bytes.len() as u64).to_be_bytes());

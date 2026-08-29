@@ -1,9 +1,10 @@
 //! Paths, limits, conflicts, and failures exposed by reconciliation.
 
 use super::super::PackageClosureValidationError;
+use crate::identity::{AliasName, PackageKey};
 use crate::manifest::dependencies::read::DependencySourceRequest;
 use crate::resolution::source::PackageSourceCustody;
-use omega_package_source::{AliasName, PackageKey};
+
 use std::fmt;
 
 /// One exact requester-local edge in a root-to-dependency path.

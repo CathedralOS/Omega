@@ -1,4 +1,4 @@
-use super::{SourceLineage, hash_field, is_snake_case};
+use omega_package_source::SourceLineage;
 use psi_core::PackageKeyIdentity;
 use sha2::{Digest, Sha256};
 
@@ -26,6 +26,7 @@ impl From<omega_build_declarations::ProjectName> for PackageName {
         Self(value.into_string())
     }
 }
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AliasName(String);
 
@@ -47,11 +48,6 @@ impl AliasName {
 }
 
 /// Stable nominal identity: authored name plus canonical source lineage.
-///
-/// Git lineage names the repository namespace. Requested revisions, resolved
-/// commits, trees, and content belong to the exact package instance and must not
-/// enter this key; competing revisions reconcile or conflict instead of silently
-/// creating two nominal universes.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PackageKey {
     name: PackageName,
@@ -82,4 +78,18 @@ impl PackageKey {
         PackageKeyIdentity::from_digest(hasher.finalize().into())
             .expect("domain-separated SHA-256 package identity must be nonzero")
     }
+}
+
+fn is_snake_case(value: &str) -> bool {
+    value.as_bytes().first().is_some_and(u8::is_ascii_lowercase)
+        && !value.ends_with('_')
+        && !value.contains("__")
+        && value.chars().all(|character| {
+            character.is_ascii_lowercase() || character.is_ascii_digit() || character == '_'
+        })
+}
+
+fn hash_field(hasher: &mut Sha256, bytes: &[u8]) {
+    hasher.update((bytes.len() as u64).to_be_bytes());
+    hasher.update(bytes);
 }

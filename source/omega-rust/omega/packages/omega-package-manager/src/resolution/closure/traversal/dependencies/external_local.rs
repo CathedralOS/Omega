@@ -1,8 +1,9 @@
-use super::super::cache::{resolve_external_local_package_from_cache, SourceCacheLane};
+use super::super::cache::{SourceCacheLane, resolve_external_local_package_from_cache};
 use super::super::errors::ResolveDependencySourceError;
 use super::context::{WorkspaceContext, WorkspaceContextKind};
+use crate::identity::PackageKey;
 use crate::resolution::source::PackageSourceCustody;
-use omega_package_source::{ExternalSourceContext, LocalSourceLimits, PackageKey, SourceLineage};
+use omega_package_source::{ExternalSourceContext, LocalSourceLimits, SourceLineage};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 

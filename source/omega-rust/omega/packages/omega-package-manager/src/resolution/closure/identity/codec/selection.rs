@@ -6,15 +6,16 @@ use super::super::{
     CanonicalRootSourceRequest, CanonicalRootSourceSelection, CanonicalSourceClosureSubjectError,
     CanonicalSourceClosureSubjectLimits, SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION,
 };
-use super::framing::{decode_hex_32, encode_hex, Decoder, Encoder};
+use super::framing::{Decoder, Encoder, decode_hex_32, encode_hex};
 use super::source::{
     decode_package_key, decode_source_identity, decode_source_lineage, encode_package_key,
     encode_source_identity, encode_source_lineage,
 };
+use crate::identity::{AliasName, PackageName};
 use crate::manifest::dependencies::read::PackageSelection;
 use crate::resolution::closure::ResolvedSourceIdentity;
 use crate::resolution::source::PackageSourceNavigation;
-use omega_package_source::{AliasName, ExternalSourceContext, PackageName, WorkspaceMemberPath};
+use omega_package_source::{ExternalSourceContext, WorkspaceMemberPath};
 
 pub(in super::super) fn encode_subject(
     root: &CanonicalRootSourceSelection,

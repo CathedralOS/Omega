@@ -1,5 +1,5 @@
+use crate::identity::PackageKey;
 use crate::review::{PackageSourcePatchError, TriageRenderError};
-use omega_package_source::PackageKey;
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

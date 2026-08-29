@@ -1,9 +1,9 @@
+use crate::identity::PackageKey;
 use crate::resolution::PackageSourceCustody;
 use crate::review::records::PackageReviewEvidence;
 use crate::review::records::validation::{
     ReviewOnlyClosureValidationError, ReviewOnlySetValidationError,
 };
-use omega_package_source::PackageKey;
 use std::collections::BTreeMap;
 
 use super::super::error::{PackageSourceReviewCustodyRole, PackageSourceReviewError};

@@ -4,13 +4,14 @@ use super::format::{
     change_tag, row_kind_tag, row_risk_tag, source_location_role_tag, synthetic_source_kind_tag,
 };
 use super::model::*;
+use crate::identity::PackageKey;
 use crate::resolution::{DependencyRequestPath, ResolvedPackageSourceClosure};
 use crate::review::records::PackageReviewEvidence;
 use omega_package_review::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
     PackageReviewSourceLocationOwner,
 };
-use omega_package_source::{ImmutableSourceResolution, PackageKey};
+use omega_package_source::ImmutableSourceResolution;
 use sha2::{Digest, Sha256};
 
 const CONFLICT_FINGERPRINT_DOMAIN: &[u8] = b"OMEGA-PACKAGE-CAPABILITY-CONFLICT\0";

@@ -1,62 +1,7 @@
 use super::*;
 
-fn package_name() -> PackageName {
-    PackageName::parse("arithmetic-kernels").unwrap()
-}
-
 fn lineage(locator: &str) -> SourceLineage {
     SourceLineage::git(locator).unwrap()
-}
-
-fn git_resolution(seed: u8) -> ImmutableSourceResolution {
-    ImmutableSourceResolution::git(
-        GitCommitId::parse_hex(&format!("{seed:02x}").repeat(20)).unwrap(),
-        GitTreeId::parse_hex(&format!("{:02x}", seed.wrapping_add(1)).repeat(20)).unwrap(),
-    )
-    .unwrap()
-}
-
-#[test]
-fn package_names_require_canonical_kebab_case_and_reject_spoofs() {
-    assert!(PackageName::parse("arithmetic-kernels").is_ok());
-    assert!(PackageName::parse("sha256").is_ok());
-    assert!(PackageName::parse("codec-2").is_ok());
-    for invalid in [
-        "",
-        "Arithmetic-kernels",
-        "arithmetic_kernels",
-        "-arithmetic",
-        "arithmetic-",
-        "arithmetic--kernels",
-        "arithmetic.kernels",
-        "123-tools",
-        "arithmetіc-kernels",
-    ] {
-        assert!(PackageName::parse(invalid).is_err(), "accepted {invalid:?}");
-    }
-}
-
-#[test]
-fn aliases_require_canonical_snake_case_identifiers() {
-    for valid in ["arithmetic_kernels", "sha256", "codec_2"] {
-        assert_eq!(AliasName::parse(valid).unwrap().as_str(), valid);
-    }
-    for invalid in [
-        "",
-        "Arithmetic_kernels",
-        "arithmetic-kernels",
-        "_arithmetic",
-        "arithmetic_",
-        "arithmetic__kernels",
-        "123_tools",
-        "arithmetіc_kernels",
-    ] {
-        assert!(AliasName::parse(invalid).is_err(), "accepted {invalid:?}");
-    }
-    assert_eq!(
-        package_name().default_alias().as_str(),
-        "arithmetic_kernels"
-    );
 }
 
 #[test]
@@ -296,55 +241,6 @@ fn recovered_external_local_lineage_rejects_noncanonical_separators() {
         )
         .is_err()
     );
-}
-
-#[test]
-fn source_or_name_change_is_replacement_while_revision_change_is_update() {
-    let original_key = PackageKey::new(
-        package_name(),
-        lineage("https://github.com/CathedralOS/arithmetic-kernels.git"),
-    );
-    let transport_equivalent_key = PackageKey::new(
-        package_name(),
-        lineage("git@github.com:cathedralos/arithmetic-kernels"),
-    );
-    let other_source_key = PackageKey::new(
-        package_name(),
-        lineage("https://github.com/Other/arithmetic-kernels.git"),
-    );
-    let other_name_key = PackageKey::new(
-        PackageName::parse("arithmetic-core").unwrap(),
-        lineage("https://github.com/CathedralOS/arithmetic-kernels.git"),
-    );
-
-    assert_eq!(original_key, transport_equivalent_key);
-    assert_ne!(original_key, other_source_key);
-    assert_ne!(original_key, other_name_key);
-    assert_ne!(git_resolution(1), git_resolution(2));
-}
-
-#[test]
-fn package_key_identity_uses_canonical_name_and_source_lineage() {
-    let https = PackageKey::new(
-        package_name(),
-        lineage("https://github.com/CathedralOS/arithmetic-kernels.git"),
-    );
-    let ssh = PackageKey::new(
-        package_name(),
-        lineage("git@github.com:cathedralos/arithmetic-kernels"),
-    );
-    let other_name = PackageKey::new(
-        PackageName::parse("arithmetic-core").unwrap(),
-        lineage("https://github.com/CathedralOS/arithmetic-kernels.git"),
-    );
-    let other_lineage = PackageKey::new(
-        package_name(),
-        lineage("https://github.com/Other/arithmetic-kernels.git"),
-    );
-
-    assert_eq!(https.identity(), ssh.identity());
-    assert_ne!(https.identity(), other_name.identity());
-    assert_ne!(https.identity(), other_lineage.identity());
 }
 
 #[test]

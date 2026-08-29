@@ -114,7 +114,7 @@ machine build(builder: &mut Build) {
         )
         .expect("validated local Git root request"),
         crate::manifest::PackageSelection::Named(
-            omega_package_source::PackageName::parse("matrix").expect("package name"),
+            crate::identity::PackageName::parse("matrix").expect("package name"),
         ),
     );
     let storage = SourceResolverStorage::for_hardened_base(&cache)
@@ -193,7 +193,7 @@ machine build(builder: &mut Build) {
         )
         .expect("validated local Git root request"),
         crate::manifest::PackageSelection::Named(
-            omega_package_source::PackageName::parse("left").expect("package name"),
+            crate::identity::PackageName::parse("left").expect("package name"),
         ),
     );
     let storage = SourceResolverStorage::for_hardened_base(&cache)
@@ -294,7 +294,7 @@ machine build(builder: &mut Build) {
         )
         .expect("validated local Git root request"),
         crate::manifest::PackageSelection::Named(
-            omega_package_source::PackageName::parse("left").expect("package name"),
+            crate::identity::PackageName::parse("left").expect("package name"),
         ),
     );
     let storage = SourceResolverStorage::for_hardened_base(&cache)

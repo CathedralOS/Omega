@@ -1,8 +1,9 @@
 use super::projection::project_package_build;
 use super::{ResolvePackageSourceError, ResolvedPackageSource};
+use crate::identity::PackageKey;
 use omega_package_source::{
-    ImmutableSourceResolution, PackageKey, SourceContentDigest, SourceLineage,
-    WorkspaceLineageIdentity, WorkspaceMemberLineage, WorkspaceMemberPath,
+    ImmutableSourceResolution, SourceContentDigest, SourceLineage, WorkspaceLineageIdentity,
+    WorkspaceMemberLineage, WorkspaceMemberPath,
 };
 use omega_package_source::{LocalSourceLimits, ResolvedLocalSnapshot, SourceResolverStorage};
 use omega_package_source::{RetainedStorageLane, resolve_local_source_snapshot_in_lane};

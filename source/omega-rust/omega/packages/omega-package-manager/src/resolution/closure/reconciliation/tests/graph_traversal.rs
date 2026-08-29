@@ -1,6 +1,6 @@
 use super::super::*;
 use super::support::*;
-use crate::resolution::{resolve_workspace_member_package_source, ResolvedPackageSource};
+use crate::resolution::{ResolvedPackageSource, resolve_workspace_member_package_source};
 use omega_package_source::{LocalSourceLimits, SourceLineage, WorkspaceMemberPath};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -73,11 +73,13 @@ fn resolves_diamond_once_while_visiting_every_authored_request() {
     assert_eq!(path.steps().len(), 2);
     assert_eq!(path.steps()[0].alias().as_str(), "left_math");
     assert_eq!(path.steps()[1].alias().as_str(), "shared_math");
-    assert!(closure
-        .dependency_path(closure.graph().root())
-        .unwrap()
-        .steps()
-        .is_empty());
+    assert!(
+        closure
+            .dependency_path(closure.graph().root())
+            .unwrap()
+            .steps()
+            .is_empty()
+    );
     assert!(closure.dependency_path(&key("absent", "absent")).is_none());
 
     let requests = closure.source_requests();
@@ -106,9 +108,11 @@ fn resolves_diamond_once_while_visiting_every_authored_request() {
             .collect::<BTreeSet<_>>(),
         BTreeSet::from(["shared-from-left", "shared-from-right"])
     );
-    assert!(shared_bindings
-        .iter()
-        .all(|binding| binding.alias().as_str() == "shared_math"));
+    assert!(
+        shared_bindings
+            .iter()
+            .all(|binding| binding.alias().as_str() == "shared_math")
+    );
 }
 
 #[test]

@@ -15,12 +15,12 @@ pub use request::{
 
 use super::super::{ResolvedPackageSourceClosure, ResolvedSourceIdentity};
 use super::codec::{
-    decode_dependency_selection, decode_root_selection, decode_source_identity, encode_subject,
-    fingerprint, Decoder,
+    Decoder, decode_dependency_selection, decode_root_selection, decode_source_identity,
+    encode_subject, fingerprint,
 };
 use super::validation::{canonical_root_request, validate_subject};
+use crate::identity::PackageKey;
 use crate::resolution::source::PackageSourceNavigation;
-use omega_package_source::PackageKey;
 
 #[cfg(test)]
 mod tests;

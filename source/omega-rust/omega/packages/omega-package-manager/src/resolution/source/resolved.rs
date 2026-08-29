@@ -1,10 +1,11 @@
+use crate::identity::PackageKey;
 use crate::manifest::dependencies::read::DependencySourceRequest;
 use crate::resolution::source::PackageSourceCustody;
 use crate::resolution::source::PackageSourceMaterialization;
 use crate::resolution::source::PackageSourceNavigation;
 use crate::resolution::source::PackageSourceSelectionEvidence;
+use omega_package_source::ImmutableSourceResolution;
 use omega_package_source::LocalSourceLimits;
-use omega_package_source::{ImmutableSourceResolution, PackageKey};
 use std::path::{Path, PathBuf};
 
 /// An immutable source snapshot after its package-owned declaration has been

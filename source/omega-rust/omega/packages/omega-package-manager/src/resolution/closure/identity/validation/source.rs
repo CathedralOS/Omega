@@ -1,7 +1,8 @@
 use super::super::CanonicalSourceClosureSubjectError;
+use crate::identity::PackageKey;
 use crate::resolution::closure::ResolvedSourceIdentity;
 use crate::resolution::source::PackageSourceNavigation;
-use omega_package_source::{ImmutableSourceResolution, PackageKey, SourceLineage};
+use omega_package_source::{ImmutableSourceResolution, SourceLineage};
 
 pub(super) fn validate_package_navigation(
     source: &ResolvedSourceIdentity,

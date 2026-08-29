@@ -1,7 +1,8 @@
 use super::super::reconciliation::PackageSourceClosureResolutionError;
+use crate::identity::PackageKey;
 use crate::resolution::source::ResolvePackageSourceError;
 use omega_package_source::GitSourceRequestError;
-use omega_package_source::{PackageKey, WorkspaceLineageIdentity, WorkspaceMemberPath};
+use omega_package_source::{WorkspaceLineageIdentity, WorkspaceMemberPath};
 use std::fmt;
 
 #[derive(Debug)]

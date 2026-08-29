@@ -1,7 +1,7 @@
 use super::{make_tree_owner_writable, temp_root, write_package};
 use crate::manifest::dependencies::read::DependencySourceRequest;
 use crate::resolution::source::{
-    resolve_workspace_member_package_source, ResolvePackageSourceError,
+    ResolvePackageSourceError, resolve_workspace_member_package_source,
 };
 #[cfg(unix)]
 use omega_package_source::SourceResolveError;

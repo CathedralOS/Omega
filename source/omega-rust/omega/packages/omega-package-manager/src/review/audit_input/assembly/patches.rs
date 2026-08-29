@@ -1,9 +1,9 @@
+use crate::identity::PackageKey;
 use crate::resolution::{PackageSourceCustody, ResolvedPackageSourceClosure};
 use crate::review::{
     CompilerReviewTriage, PackageTriageDecision, PackageTriageDisposition, PackageTriageReason,
     render_package_source_patch,
 };
-use omega_package_source::PackageKey;
 use std::collections::BTreeMap;
 
 use super::super::error::PackageSourceReviewError;

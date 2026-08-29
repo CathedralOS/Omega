@@ -2,10 +2,11 @@
 
 use super::super::{ResolvedPackageClosure, ResolvedSourceIdentity};
 use super::model::{DependencyRequestPath, DependencyRequestPathStep};
+use crate::identity::{AliasName, PackageKey};
 use crate::manifest::dependencies::read::DependencySourceRequest;
 use crate::resolution::closure::PackageRootSourceRequest;
 use crate::resolution::source::PackageSourceCustody;
-use omega_package_source::{AliasName, PackageKey};
+
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::path::Path;
 

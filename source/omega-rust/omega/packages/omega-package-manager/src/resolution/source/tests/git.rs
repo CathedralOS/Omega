@@ -1,9 +1,8 @@
 use super::{make_tree_owner_writable, temp_root, write_package};
 use crate::manifest::dependencies::read::DependencySourceRequest;
 use crate::resolution::source::{
-    resolve_external_local_package_source, resolve_git_package_source,
-    resolve_selected_git_package_source_with_storage, GitPackageSourceRequest,
-    ResolvePackageSourceError,
+    GitPackageSourceRequest, ResolvePackageSourceError, resolve_external_local_package_source,
+    resolve_git_package_source, resolve_selected_git_package_source_with_storage,
 };
 use omega_package_source::{ExternalSourceContext, GitSourceRequest, LocalSourceLimits};
 use std::path::Path;
@@ -90,7 +89,7 @@ fn named_git_binding_rejects_missing_and_duplicate_declared_names() {
         &GitPackageSourceRequest::new(
             acquisition.clone(),
             crate::manifest::PackageSelection::Named(
-                omega_package_source::PackageName::parse("missing").unwrap(),
+                crate::identity::PackageName::parse("missing").unwrap(),
             ),
         ),
         &storage,
@@ -110,7 +109,7 @@ fn named_git_binding_rejects_missing_and_duplicate_declared_names() {
         &GitPackageSourceRequest::new(
             acquisition,
             crate::manifest::PackageSelection::Named(
-                omega_package_source::PackageName::parse("same-name").unwrap(),
+                crate::identity::PackageName::parse("same-name").unwrap(),
             ),
         ),
         &storage,
@@ -165,7 +164,7 @@ fn named_git_binding_rejects_symlink_member_navigation() {
         &GitPackageSourceRequest::new(
             acquisition,
             crate::manifest::PackageSelection::Named(
-                omega_package_source::PackageName::parse("linked-package").unwrap(),
+                crate::identity::PackageName::parse("linked-package").unwrap(),
             ),
         ),
         &storage,

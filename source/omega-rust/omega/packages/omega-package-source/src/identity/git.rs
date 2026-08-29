@@ -48,7 +48,9 @@ impl SourceLineage {
         }
     }
 
-    pub(super) fn hash_canonical(&self, hasher: &mut Sha256) {
+    /// Append this lineage's canonical source-owned identity fields.
+    #[doc(hidden)]
+    pub fn hash_canonical(&self, hasher: &mut Sha256) {
         match self {
             Self::GitHub(lineage) => {
                 hash_field(hasher, b"github");

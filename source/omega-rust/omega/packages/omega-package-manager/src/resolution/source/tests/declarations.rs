@@ -1,7 +1,7 @@
 use super::{make_tree_owner_writable, temp_root, write_package};
 use crate::manifest::dependencies::read::{DependencyProjectionError, DependencySourceRequest};
 use crate::manifest::roles::PackageDeclarationError;
-use crate::resolution::source::{resolve_external_local_package_source, ResolvePackageSourceError};
+use crate::resolution::source::{ResolvePackageSourceError, resolve_external_local_package_source};
 use omega_package_source::{ExternalSourceContext, LocalSourceLimits};
 
 #[test]

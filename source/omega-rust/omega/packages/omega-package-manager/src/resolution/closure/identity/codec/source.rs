@@ -1,13 +1,14 @@
 //! Canonical package key, source lineage, and immutable resolution encoding.
 
-use super::super::validation::{validate_package_key, validate_source_lineage};
 use super::super::CanonicalSourceClosureSubjectError;
-use super::framing::{decode_hex_32, encode_hex, Decoder, Encoder};
+use super::super::validation::{validate_package_key, validate_source_lineage};
+use super::framing::{Decoder, Encoder, decode_hex_32, encode_hex};
+use crate::identity::{PackageKey, PackageName};
 use crate::resolution::closure::ResolvedSourceIdentity;
 use omega_package_source::{
     ExternalLocalLineage, ExternalSourceContext, GitCommitId, GitTransport, GitTreeId,
-    ImmutableSourceResolution, PackageKey, PackageName, SourceContentDigest, SourceLineage,
-    WorkspaceLineageIdentity, WorkspaceMemberLineage, WorkspaceMemberPath,
+    ImmutableSourceResolution, SourceContentDigest, SourceLineage, WorkspaceLineageIdentity,
+    WorkspaceMemberLineage, WorkspaceMemberPath,
 };
 
 pub(super) fn encode_source_identity(

@@ -1,6 +1,7 @@
 //! Validated package-closure model over immutable source identities.
 
-use omega_package_source::{AliasName, IdentityError, ImmutableSourceResolution, PackageKey};
+use crate::identity::{AliasName, PackageKey};
+use omega_package_source::{IdentityError, ImmutableSourceResolution};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// A package's stable identity paired with one immutable source selection.
