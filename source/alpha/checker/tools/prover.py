@@ -1479,7 +1479,7 @@ def emit_inline(goal, proof):  # a SELF-CONTAINED check.beta proof: each (use i)
     # CLOSED proof, so the proof needs NO def-prelude and can stand alone as one `(def N prop proof)` at a
     # STABLE id. Same splice as emit_gamma (sound: lemma proofs are closed -> de Bruijn stays correct), but
     # emitted in check.beta syntax. Lets the prover GENERATE the contract lemma library (one inlined def per
-    # lemma) that discharge.rs cites -- the hand-written .elab base becomes automation output, kernel-checked.
+    # lemma) that discharge.rs cites -- the hand-written .proof base becomes automation output, kernel-checked.
     proof = _inline_offset(proof)
     return "%s\t%s" % (beta_prop(goal), to_db(proof, [], tuple(_base_ib)))
 

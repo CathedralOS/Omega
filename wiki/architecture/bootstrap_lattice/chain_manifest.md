@@ -49,7 +49,7 @@ byte-for-byte by `source/alpha/assembler/selfhost.sh`:
 Exact input source: `source/beta/compiler/bc.beta`, 32605 bytes,
 SHA-256 `b6ad15ed9cc540a628b83c671bd8c6629770056a641d72d885e41354a8b06c4c`.
 
-Exact output artifact: `source/beta/compiler/artifacts/bc.tape`, 40693
+Exact output artifact: `source/beta/compiler/artifacts/beta_compiler_bytecode.tape`, 40693
 bytes, SHA-256
 `73a0087da97b0629617ba8ced637a7783b2cc6911be906d1b4df5801e65c2cdd`.
 The Alpha-written cold start reconstructs it and the Beta compiler reproduces
@@ -87,14 +87,14 @@ the interpreter.
 The current logical checker input is
 `source/alpha/checker/implementations/beta/check.beta`, 68349 bytes,
 SHA-256 `965cb8417582fee099450a905a6c41535cf53b8bcef2c5a22bd0fe1def27fb10`.
-The accepted output is `source/alpha/checker/artifacts/check.tape`, 150937
+The accepted output is `source/alpha/checker/artifacts/proof_checker_bytecode.tape`, 150937
 bytes, SHA-256
 `34330f0bf94385fdc403fa989ff113d5c579c8cf8318e1c6c3a86bc080ebd37c`.
-The Alpha-written cold Beta compiler constructs it without `bc.tape`, and
+The Alpha-written cold Beta compiler constructs it without `beta_compiler_bytecode.tape`, and
 `source/alpha/checker/reconstruct-artifact.sh` reproduces it twice and compares
 the committed bytes before discriminating accept/reject controls. A checker
-compiled by `bc.tape`, plus the Gamma and Python checkers, is differential
-evidence only and cannot admit `bc.tape`.
+compiled by `beta_compiler_bytecode.tape`, plus the Gamma and Python checkers, is differential
+evidence only and cannot admit `beta_compiler_bytecode.tape`.
 
 ## Delta publication
 

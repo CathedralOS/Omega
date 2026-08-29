@@ -23,7 +23,7 @@ Because the representation is not canonical (`(1,0) ~ (2,1) ~ …`), `~` is a **
 equivalence**, not definitional equality — so every law is stated *up to `~`*, and the first
 job is to prove `~` *is* an equivalence and that the operations respect it.
 
-## Proved so far (all in the gate, `corpus/proofs/int-*.elab`)
+## Proved so far (all in the gate, `corpus/proofs/int-*.proof`)
 
 - **`~` is an equivalence relation** — reflexive, symmetric, **transitive** (transitivity is
   the substantive one: it rests on right-cancellation of `ℕ` addition plus a 4-term reordering).

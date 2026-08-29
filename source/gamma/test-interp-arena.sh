@@ -22,8 +22,8 @@ T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 stamp_beta_compiler "$T/bc.exe" >/dev/null
 "$T/bc.exe" < "$OMEGA_PATH_GAMMA/interp.beta" > "$T/interp.asm"
-"$OMEGA_PATH_ALPHA_ASSEMBLER/$BETA_SEED" < "$T/interp.asm" > "$T/interp.tape"
-stamp_seed "$T/interp.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$T/interp.exe" >/dev/null 2>&1
+"$OMEGA_PATH_ALPHA_ASSEMBLER/$BETA_SEED" < "$T/interp.asm" > "$T/gamma_interpreter_bytecode.tape"
+stamp_seed "$T/gamma_interpreter_bytecode.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$T/interp.exe" >/dev/null 2>&1
 
 # Eight compact Cons allocations per tail step retain 49,664,000 bytes. No
 # collector may reclaim this reachable list; the exact checked boundary must

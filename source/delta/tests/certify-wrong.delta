@@ -1,0 +1,65 @@
+// THE NEGATIVE CONTROL for the convergence suite. Every other certify-*.delta emits a TRUE
+// certificate the trust anchor ACCEPTS; this one is a deliberately BUGGY computation that the
+// anchor must REJECT. It reads a and b, computes the real sum s = a + b, but then EMITS THE
+// FALSE CLAIM that a + b = s + 1, shipped with (refl (s+1)):
+//   printf '2 3' | certify-wrong  ->  (= (p (s (s z)) (s (s (s z)))) (s (s (s (s (s (s z))))))) (refl (s (s (s (s (s (s z)))))))
+//   printf '2 3' | certify-wrong | check.exe  ->  reject   (delta computes 2+3 = 5, not 6)
+// This is the convergence thesis stated as a falsifiable test: "the trust anchor checks the
+// COMPUTATION, not the compiler." Without it, every accept-test in the suite would still pass
+// vacuously if the checker ever degenerated to accept-everything -- a negative control is the
+// only thing that catches that failure mode. refl(s+1) has type (= s+1 s+1); the goal is
+// (= (p a b) s+1) which normalizes to (= s s+1), and s is NOT convertible to s+1, so the
+// kernel rejects. Naturals are the checker's unary form (s (s ... z)); + is the raw `p`.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+    machine write_byte(b: i32);
+    machine read_byte() -> i32;
+}
+data Main {
+    console: Console;
+    buf: [u8; 64]; n: i32; pos: i32; c: i32;
+    a: i32; b: i32; s: i32; w: i32; uv: i32;
+}
+machine Main::emit_nat(&mut self, v: i32) {
+    self.uv = v;
+    transition 0 { _ -> uo() }
+    state uo()   { transition self.uv == 0 { true -> uz()  false -> uo2() } }
+    state uo2()  { write_byte(40); write_byte(115); write_byte(32); self.uv = self.uv - 1; transition 0 { _ -> uo() } }
+    state uz()   { write_byte(122); self.uv = v; transition 0 { _ -> uc() } }
+    state uc()   { transition self.uv == 0 { true -> ud()  false -> uc2() } }
+    state uc2()  { write_byte(41); self.uv = self.uv - 1; transition 0 { _ -> uc() } }
+    state ud()   {}
+}
+machine Main::main(&mut self) {
+    self.n = 0; self.a = 0; self.b = 0;
+    transition 0 { _ -> rd() }
+    state rd()    { self.c = read_byte(); transition self.c < 0 { true -> go()  false -> store() } }
+    state store() { self.buf[self.n] = self.c; self.n = self.n + 1; transition 0 { _ -> rd() } }
+    state go()    { self.pos = 0; transition 0 { _ -> pa() } }
+    state pa()    { transition self.buf[self.pos] < 48 { true -> skipnd()  false -> paHi() } }
+    state paHi()  { transition self.buf[self.pos] > 57 { true -> skipnd()  false -> paD() } }
+    state paD()   { self.a = self.a * 10 + (self.buf[self.pos] - 48); self.pos = self.pos + 1; transition 0 { _ -> pa() } }
+    state skipnd(){ transition self.pos < self.n { true -> snd()  false -> compute() } }
+    state snd()   { transition self.buf[self.pos] < 48 { true -> snda()  false -> sndHi() } }
+    state sndHi() { transition self.buf[self.pos] > 57 { true -> snda()  false -> pb() } }
+    state snda()  { self.pos = self.pos + 1; transition 0 { _ -> skipnd() } }
+    state pb()    { transition self.buf[self.pos] < 48 { true -> compute()  false -> pbHi() } }
+    state pbHi()  { transition self.buf[self.pos] > 57 { true -> compute()  false -> pbD() } }
+    state pbD()   { self.b = self.b * 10 + (self.buf[self.pos] - 48); self.pos = self.pos + 1; transition 0 { _ -> pb() } }
+    // compute the real sum, then deliberately claim it is one greater (the bug under test)
+    state compute(){ self.s = self.a + self.b; self.w = self.s + 1; transition 0 { _ -> emit() } }
+    // emit the FALSE certificate  (= (p A B) W) (refl W)  where W = a+b+1
+    state emit() {
+        write_byte(40); write_byte(61); write_byte(32); write_byte(40); write_byte(112); write_byte(32); // "(= (p "
+        self.emit_nat(self.a);
+        write_byte(32);                                                                                   // " "
+        self.emit_nat(self.b);
+        write_byte(41); write_byte(32);                                                                   // ") "
+        self.emit_nat(self.w);
+        write_byte(41); write_byte(32); write_byte(40); write_byte(114); write_byte(101);
+        write_byte(102); write_byte(108); write_byte(32);                                                 // ") (refl "
+        self.emit_nat(self.w);
+        write_byte(41);                                                                                   // ")"
+        self.console.exit_process(0)
+    }
+}

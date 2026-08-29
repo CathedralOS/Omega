@@ -249,7 +249,7 @@ D10 fixes the shape of the authoritative Delta v1 subject, but its
 self-contained `LANGUAGE.md`, complete input/resource and observation profiles,
 and independently reconstructible elaboration rules are not yet published.
 Consequently an artifact-aware verifier still cannot reconstruct the exact
-proposition that the current `source/delta/compiler/main.alp` bytes and this
+proposition that the current `source/delta/compiler/main.delta` bytes and this
 Mach-O executable must satisfy. Treating the translator implementation as both
 the semantics and its own refinement witness would be circular.
 

@@ -1,0 +1,18 @@
+; insert-reduce.proof — the two INSERT REDUCTION lemmas the insert-preserves-sorted case analysis needs: given
+; the value of le(x,z), insert commits to one branch. Insertion-sort insert (list-first, x the extra):
+;   insert(Nil,x)=[x] ; insert(Cons z zs, x) = cond(le(x,z), Cons x (Cons z zs), Cons z (insert zs x)).
+; `cond` is fun-dispatched via a PAIR of branches (funs are binary-max): cond(True,pr)=fst pr, cond(False,pr)=snd pr.
+; Lemma 1 (prepend): ∀x z zs. le(x,z)=True  -> insert(Cons z zs, x) = Cons x (Cons z zs).
+; Lemma 2 (append) : ∀x z zs. le(x,z)=False -> insert(Cons z zs, x) = Cons z (insert zs x).
+; Proof of each: rewrite le(x,z) to its known Bool value (via eqelim + eq-sym) so cond fires (fst/snd), then refl.
+; This validates the case-split-and-reduce mechanism the crux (insert-preserves-sorted) is built on.
+(data 2 0 0 0) (data 3 1 1 0) (data 60 0 0 0) (data 61 2 0 1) (data 70 2 0 0) (data 80 0 0 0) (data 81 0 0 0)
+(fun 25 2 (k 80)) (fun 25 3 (f 26 (y 0) (v 0)))
+(fun 26 2 (k 81)) (fun 26 3 (f 25 (y 0) (v 0)))
+(fun 100 70 (v 0)) (fun 101 70 (v 1))
+(fun 29 80 (f 100 (y 0))) (fun 29 81 (f 101 (y 0)))
+(fun 30 60 (k 61 (y 0) (k 60)))
+(fun 30 61 (f 29 (f 25 (y 0) (v 0)) (k 70 (k 61 (y 0) (k 61 (v 0) (v 1))) (k 61 (v 0) (f 30 (v 1) (y 0))))))
+
+(& (all x (all z (all zs (-> (= (f 25 x z) (k 80)) (= (f 30 (k 61 z zs) x) (k 61 x (k 61 z zs))))))) (all x (all z (all zs (-> (= (f 25 x z) (k 81)) (= (f 30 (k 61 z zs) x) (k 61 z (f 30 zs x))))))))
+(pair (gen x (gen z (gen zs (lam eqT (= (f 25 x z) (k 80)) (eqelim w (= (f 29 w (k 70 (k 61 x (k 61 z zs)) (k 61 z (f 30 zs x)))) (k 61 x (k 61 z zs))) (eqelim v (= v (f 25 x z)) eqT (refl (f 25 x z))) (refl (k 61 x (k 61 z zs)))))))) (gen x (gen z (gen zs (lam eqF (= (f 25 x z) (k 81)) (eqelim w (= (f 29 w (k 70 (k 61 x (k 61 z zs)) (k 61 z (f 30 zs x)))) (k 61 z (f 30 zs x))) (eqelim v (= v (f 25 x z)) eqF (refl (f 25 x z))) (refl (k 61 z (f 30 zs x)))))))))

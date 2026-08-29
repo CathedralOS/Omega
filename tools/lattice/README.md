@@ -12,7 +12,7 @@ sh tools/lattice/verify-lattice.sh
 
 The runner contains only the presently closed producer spine: Alpha seed
 acceptance (which already includes assembler reproduction), construction of
-the below-Beta checker, non-mutating Alpha-rooted reconstruction of `bc.tape`,
+the below-Beta checker, non-mutating Alpha-rooted reconstruction of `beta_compiler_bytecode.tape`,
 and the one canonical `bc` admission. The standalone assembler self-host,
 artifact-framing gate, Gamma program suites, path-policy test, source-closure
 test, and Delta publication fixtures remain directly runnable diagnostics or

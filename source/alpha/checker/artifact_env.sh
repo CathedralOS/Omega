@@ -8,7 +8,7 @@
 }
 
 . "$OMEGA_PATH_ALPHA/seed_env.sh"
-PROOF_CHECKER_TAPE="$OMEGA_PATH_ALPHA_CHECKER/artifacts/check.tape"
+PROOF_CHECKER_TAPE="$OMEGA_PATH_ALPHA_CHECKER/artifacts/proof_checker_bytecode.tape"
 export PROOF_CHECKER_TAPE
 
 stamp_proof_checker() {

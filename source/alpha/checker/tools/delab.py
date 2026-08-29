@@ -3,7 +3,7 @@
 delab.py — the inverse of elab.py: decompile a raw proof certificate (de Bruijn) back into
 the named-binder surface syntax. Two uses:
 
-  1. Migration — convert the hand-written gate certificates into maintainable .elab sources.
+  1. Migration — convert the hand-written gate certificates into maintainable .proof sources.
   2. Round-trip validation — for any cert C, `elab.py < (delab.py < C)` should re-accept,
      and ideally reproduce C byte-for-byte. This cross-checks BOTH tools: a bug in either
      surfaces as a changed or rejected certificate.
@@ -16,7 +16,7 @@ variable — `(v k)` with no enclosing binder, e.g. the eigenvariable edge-case 
 name to resolve to and is out of scope; so are deliberately ill-scoped reject-certs (an
 out-of-range `(v k)` is exactly the bug they pin, and is correctly un-nameable).
 
-Usage:  delab.py < cert.txt              # print the named-binder .elab source
+Usage:  delab.py < cert.txt              # print the named-binder .proof source
         delab.py --roundtrip ./check.exe < cert.txt   # delab, re-elab, diff + check
 """
 import sys

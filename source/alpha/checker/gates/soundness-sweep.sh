@@ -7,7 +7,7 @@
 # universals. This widens that EVIDENCE across the proof corpus: for each curated
 # theorem that is an equation over functions the gamma reference interpreter can
 # evaluate, it does BOTH, independently:
-#   (1) elaborate corpus/proofs/NAME.elab and require the TRUSTED implementations/beta/check.beta to ACCEPT it
+#   (1) elaborate corpus/proofs/NAME.proof and require the TRUSTED implementations/beta/check.beta to ACCEPT it
 #       (the universal is proved), and
 #   (2) evaluate the SAME equation at concrete instances in the interpreter and
 #       require it to HOLD.
@@ -78,8 +78,8 @@ Z0='(Pair Ze Ze)'; ON='(Pair (Su Ze) Ze)'          # 0 and 1
 PASS=0; FAIL=0
 # sweep DESC  ELAB_BASENAME  OP_EXPR(closed gamma expr that must evaluate to 1)
 sweep() {
-  v=$(python3 tools/elab.py --check "$T/check.exe" < "corpus/proofs/$2.elab" 2>&1)
-  if [ "$v" != accept ]; then FAIL=$((FAIL+1)); echo "  FAIL $1 : implementations/beta/check.beta did not accept corpus/proofs/$2.elab ($v)"; return; fi
+  v=$(python3 tools/elab.py --check "$T/check.exe" < "corpus/proofs/$2.proof" 2>&1)
+  if [ "$v" != accept ]; then FAIL=$((FAIL+1)); echo "  FAIL $1 : implementations/beta/check.beta did not accept corpus/proofs/$2.proof ($v)"; return; fi
   printf '%s\n%s\n' "$DEFS" "$3" | "$T/interp.exe" >/dev/null; n=$?
   if [ "$n" != 1 ]; then FAIL=$((FAIL+1)); echo "  FAIL $1 : interpreter refutes the equation at the instances (got $n)"; return; fi
   PASS=$((PASS+1))

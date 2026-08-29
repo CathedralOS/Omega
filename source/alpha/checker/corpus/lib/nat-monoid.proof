@@ -1,0 +1,37 @@
+; lib/nat-monoid.proof — SHARED nat commutative-monoid library, pulled in via `(include lib/nat-monoid.proof)`.
+; Single-responsibility: the (0, uadd) commutative monoid — user nats k2/k3, uadd (fun 21), and its four
+; structural laws — lives HERE, in ONE place, instead of being copy-pasted into every ∀-input fold proof
+; (sum-forall, sqsum-forall, …). An including file adds only its fold-specific funs + goal + fold proof; the
+; four `(lemma …)`s below auto-wrap that proof as nested `have`s (see elab.py's include expansion), so the
+; fold proof may cite add0r / uaddsuc / addcomm / addassoc by name. Still fully checked: the emitted cert is
+; verified by check.beta + check_ref.py + checker.gamma exactly as before — this is front-end sugar only.
+(data 2 0 0 0) (data 3 1 1 0) (data 60 0 0 0) (data 61 2 0 1)
+(fun 21 2 (y 0)) (fun 21 3 (k 3 (rec 0)))                ; uadd(0,n)=n ; uadd(s m,n)=s(uadd(m,n))
+
+; --- uadd is a commutative monoid: right identity, successor pushout, commutativity, associativity ---
+(lemma add0r (all a (= (f 21 a (k 2)) a))
+  (rec 2 3 a (= (f 21 a (k 2)) a)
+    (refl (k 2))
+    (gen a1 (lam ih (= (f 21 a1 (k 2)) a1)
+      (eqelim x (= (k 3 (f 21 a1 (k 2))) (k 3 x)) ih (refl (k 3 (f 21 a1 (k 2)))))))))
+(lemma uaddsuc (all a (all b (= (f 21 a (k 3 b)) (k 3 (f 21 a b)))))
+  (rec 2 3 a (all b (= (f 21 a (k 3 b)) (k 3 (f 21 a b))))
+    (gen b (refl (k 3 b)))
+    (gen a1 (lam ih (all b (= (f 21 a1 (k 3 b)) (k 3 (f 21 a1 b))))
+      (gen b (eqelim x (= (k 3 (f 21 a1 (k 3 b))) (k 3 x)) (inst ih b) (refl (k 3 (f 21 a1 (k 3 b))))))))))
+(lemma addcomm (all a (all b (= (f 21 a b) (f 21 b a))))
+  (rec 2 3 a (all b (= (f 21 a b) (f 21 b a)))
+    (gen b (eqelim x (= x (f 21 b (k 2))) (inst add0r b) (refl (f 21 b (k 2)))))
+    (gen a1 (lam ih (all b (= (f 21 a1 b) (f 21 b a1)))
+      (gen b
+        (have s1 (= (k 3 (f 21 a1 b)) (k 3 (f 21 b a1)))
+          (eqelim x (= (k 3 (f 21 a1 b)) (k 3 x)) (inst ih b) (refl (k 3 (f 21 a1 b))))
+        (have s2 (= (k 3 (f 21 b a1)) (f 21 b (k 3 a1)))
+          (eqelim x (= x (f 21 b (k 3 a1))) (inst* uaddsuc b a1) (refl (f 21 b (k 3 a1))))
+          (eqelim x (= (k 3 (f 21 a1 b)) x) s2 s1))))))))
+(lemma addassoc (all a (all b (all c (= (f 21 (f 21 a b) c) (f 21 a (f 21 b c))))))
+  (rec 2 3 a (all b (all c (= (f 21 (f 21 a b) c) (f 21 a (f 21 b c)))))
+    (gen b (gen c (refl (f 21 b c))))
+    (gen a1 (lam ih (all b (all c (= (f 21 (f 21 a1 b) c) (f 21 a1 (f 21 b c)))))
+      (gen b (gen c
+        (eqelim x (= (k 3 (f 21 (f 21 a1 b) c)) (k 3 x)) (inst* ih b c) (refl (k 3 (f 21 (f 21 a1 b) c))))))))))

@@ -16,12 +16,12 @@ test.sh       focused Beta language gate
 ```text
 bc-alpha.alpha --(Alpha seed + assembler)--> cold-start compiler
 bc.beta        --(cold-start compiler)-----> initial bc tape
-bc.beta        --(initial bc)--------------> persisted fixed-point bc.tape
+bc.beta        --(initial bc)--------------> persisted fixed-point beta_compiler_bytecode.tape
 ```
 
 [`compiler/cold-start/`](compiler/cold-start/README.md) owns the lower-rooted
 construction. It covers the exact pinned Beta surface, rebuilds `bc.beta`, and
-reaches the accepted [`compiler/artifacts/bc.tape`](compiler/artifacts/README.md)
+reaches the accepted [`compiler/artifacts/beta_compiler_bytecode.tape`](compiler/artifacts/README.md)
 without a Rust producer. The current tape is 40,693 bytes.
 
 [`compiler/validation/`](compiler/validation/README.md) owns source/artifact
@@ -34,7 +34,7 @@ needed to accept that reconstructed proposition.
 
 ## Role in the lattice
 
-The accepted `bc.tape` builds Gamma's canonical evaluator and type checker.
+The accepted `beta_compiler_bytecode.tape` builds Gamma's canonical evaluator and type checker.
 Gamma then evaluates Delta through Delta's declared meaning route. The
 Alpha-owned derivation checker is a trust-floor service beside these producer
 edges, not another compiler rung.

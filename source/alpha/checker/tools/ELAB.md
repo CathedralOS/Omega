@@ -71,17 +71,17 @@ paren-balance, instead of a silent wrong index that the checker rejects with no 
 ## Use
 
 ```sh
-python3 tools/elab.py < proof.elab              # print the raw certificate
-python3 tools/elab.py --check ./check.exe < proof.elab   # elaborate, then run the checker
+python3 tools/elab.py < proof.proof              # print the raw certificate
+python3 tools/elab.py --check ./check.exe < proof.proof   # elaborate, then run the checker
 ```
 
 ## Validation
 
-`gates/elab-test.sh` elaborates every `corpus/proofs/*.elab` and asserts the
+`gates/elab-test.sh` elaborates every `corpus/proofs/*.proof` and asserts the
 trusted `check.beta` accepts the result — so a regression in the elaborator surfaces as a
 rejected certificate. The sources in `corpus/proofs/` were checked to compile **byte-identically**
 to the corresponding hand-written gate certificates (`nat-add-zero`, `le-succ-mono`), and
 `le-trans` — a three-lemma proof that was painful to write by hand — was authored directly
-in the named-binder surface and accepted. Future gate theorems can be developed in `.elab`
+in the named-binder surface and accepted. Future gate theorems can be developed in `.proof`
 and the emitted certificate pasted into `gates/test.sh`, or the source kept under
 `corpus/proofs/`.

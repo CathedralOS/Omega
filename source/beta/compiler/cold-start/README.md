@@ -59,7 +59,7 @@ This now accepts the exact pinned `bc.beta` profile and closes its external-
 producer cold-start dependency. [`rebuild-artifact.sh`](rebuild-artifact.sh)
 builds `bc.beta` through the Alpha-written compiler and advances to the
 self-hosted fixed point. Its `--check` mode reconstructs
-[`../artifacts/bc.tape`](../artifacts/README.md) byte-for-byte without changing
+[`../artifacts/beta_compiler_bytecode.tape`](../artifacts/README.md) byte-for-byte without changing
 the repository; its default mode deliberately installs that reconstruction.
 The focused [`test.sh`](test.sh) exercises the cold compiler's accepted and
 rejected Beta surface, but that regression suite is not a compiler-lattice

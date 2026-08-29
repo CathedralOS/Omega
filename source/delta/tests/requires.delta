@@ -1,0 +1,16 @@
+// `requires <cond>` — Omega's precondition contract, declared on a machine signature. Each
+// condition is checked at entry on every call; a false precondition TRAPS, exactly like an
+// inline `assert` (or overflow / divide-by-zero / out-of-bounds). This is the declarative,
+// dynamic half of contracts: the obligation lives on the SIGNATURE — the single source of
+// truth for what the machine demands of its callers — not hand-written in the body. (The
+// static, proof-carrying half is the convergence's certify-*.delta.) Here both preconditions
+// hold for safe_div(84, 2), so it returns 42.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine safe_div(a: i32, b: i32) -> i32 requires a > 0 requires b > 0 {
+    return a / b;
+}
+machine Main::main(&mut self) {
+    let r: i32 = safe_div(84, 2);
+    self.console.exit_process(r)
+}

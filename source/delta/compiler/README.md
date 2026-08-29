@@ -1,12 +1,12 @@
 # Delta compiler
 
-This directory owns the canonical Delta-written compiler source. `main.alp` is
+This directory owns the canonical Delta-written compiler source. `main.delta` is
 the current physical path of the single translation unit consumed by the
 lower-rung publication route; it is a compiler input, not a sample or a
 separate bootstrap bridge.
 
-D10 retires `.alp` for Delta and selects `.delta`. The queued atomic migration
-updates the locations companion and every consumer while preserving the exact
+D10 retired `.alp` for Delta and selected `.delta`. The atomic migration
+updated the locations companion and every consumer while preserving the exact
 source bytes and path-independent closure identity. Delta may share source
 spelling with Omega, but its meaning is self-contained and independent of both
 Alpha and Omega. Splitting the translation unit into ordinary Delta modules is

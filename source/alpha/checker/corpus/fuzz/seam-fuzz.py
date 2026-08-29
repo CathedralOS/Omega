@@ -27,7 +27,7 @@ DEFS = (
 # fun/rec encoding the semantics-diamond uses, exercised here at random arguments.
 MFUN = "(fun 10 2 (y 0)) (fun 10 3 (k 3 (rec 0))) (fun 11 2 (k 2)) (fun 11 3 (f 10 (y 0) (rec 0)))"
 # user-list FUNCTIONS over a user list type (nil' = (k 2), cons' h t = (k 3 h t)) -- the corpus's own
-# encoding (reverse-append.elab etc.). eq.beta infers the recursive arg from (rec 1), so NO data decl is
+# encoding (reverse-append.proof etc.). eq.beta infers the recursive arg from (rec 1), so NO data decl is
 # needed. length = fun 10, suml = fun 11 (raw plus is `p`, not `+`), reverse = fun 9 via append = fun 8.
 # This exercises the deepest reducer path: recursion over a 2-field user constructor + a nested fun call.
 UL_LEN = "(fun 10 2 z) (fun 10 3 (s (rec 1)))"

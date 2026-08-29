@@ -27,10 +27,10 @@ compiler between Delta and `omega₀`.
 - [`FEATURE_LEDGER.md`](FEATURE_LEDGER.md) tracks Delta-language facilities
   justified by the compiler stage and the ordinary-Omega surface used by `C`.
 
-[`compiler/main.alp`](compiler/main.alp) is the current physical location of the
-canonical Delta compiler source. D10 retires the misleading `.alp` suffix; the
-queued path-only migration renames it and the Delta corpus to `.delta` without
-changing source bytes or path-independent closure identity. Its fixed storage
+[`compiler/main.delta`](compiler/main.delta) is the current physical location of the
+canonical Delta compiler source. D10 retired the misleading `.alp` suffix; the
+path-only migration renamed it and the Delta corpus to `.delta` without changing
+source bytes or path-independent closure identity. Its fixed storage
 and host I/O choices are
 implementation/resource commitments only where the Delta contract explicitly
 retains them.

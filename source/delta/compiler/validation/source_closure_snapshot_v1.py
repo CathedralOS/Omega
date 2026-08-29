@@ -130,7 +130,8 @@ def path_free(value: object, context: str = "snapshot") -> None:
             path_free(item, context)
     elif isinstance(value, str):
         lowered = value.lower()
-        if "/" in value or "\\" in value or ".alp" in lowered or ".json" in lowered:
+        if ("/" in value or "\\" in value
+                or lowered.endswith((".alp", ".delta", ".json"))):
             fail(f"{context} contains path spelling")
 
 

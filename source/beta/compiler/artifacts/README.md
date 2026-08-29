@@ -1,10 +1,9 @@
 # Persisted Beta compiler artifact
 
-`bc.tape` is the platform-independent Alpha tape for the fixed-point Beta
-compiler. D10 selects the descriptive destination name
-`beta_compiler_bytecode.tape`. `bc.tape` remains the current committed path
-until the atomic naming migration updates every consumer; the tape bytes and
-content hash do not change merely because its path does.
+`beta_compiler_bytecode.tape` is the platform-independent Alpha tape for the fixed-point Beta
+compiler. D10 selected this descriptive committed name; the atomic naming
+migration updated every consumer without changing the tape bytes or content
+hash.
 
 Its only construction lineage is:
 
@@ -12,7 +11,7 @@ Its only construction lineage is:
 Alpha seed + Alpha-written assembler
   -> cold-start/bc-alpha.alpha
   -> compile bc.beta once (initial bc)
-  -> compile bc.beta again (persisted fixed-point bc.tape)
+  -> compile bc.beta again (persisted fixed-point beta_compiler_bytecode.tape)
 ```
 
 `cold-start/rebuild-artifact.sh --check` reconstructs that tape and compares it

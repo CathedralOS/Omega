@@ -1,0 +1,13 @@
+;
+; listsum-hom.proof — the MapReduce law: listsum(xs ++ ys) = listsum(xs) + listsum(ys) (divide-and-conquer
+; aggregation). The additive-monoid lemma (addassoc) comes from the shared lib/nat-monoid.proof.
+(include lib/nat-monoid.proof)
+
+(fun 94 60 (k 2))
+(fun 94 61 (f 21 (v 0) (rec 1)))
+(fun 62 60 (y 0))
+(fun 62 61 (k 61 (v 0) (rec 1)))
+
+(all xs (all ys (= (f 94 (f 62 xs ys)) (f 21 (f 94 xs) (f 94 ys)))))
+; --- homomorphism by induction on xs (cites addassoc from the library) ---
+(rec 60 61 xs (all ys (= (f 94 (f 62 xs ys)) (f 21 (f 94 xs) (f 94 ys)))) (gen ys (refl (f 94 ys))) (gen h (gen t (lam ih (all ys (= (f 94 (f 62 t ys)) (f 21 (f 94 t) (f 94 ys)))) (gen ys (eqelim x (= (f 21 h (f 94 (f 62 t ys))) x) (eqelim x (= x (f 21 (f 21 h (f 94 t)) (f 94 ys))) (inst* addassoc h (f 94 t) (f 94 ys)) (refl (f 21 (f 21 h (f 94 t)) (f 94 ys)))) (eqelim x (= (f 21 h (f 94 (f 62 t ys))) (f 21 h x)) (inst ih ys) (refl (f 21 h (f 94 (f 62 t ys)))))))))))

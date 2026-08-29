@@ -1,0 +1,15 @@
+; triangular.proof — the GAUSS / TRIANGULAR-NUMBER closed form:  sumTo(n) + sumTo(n) = n * (n+1),
+; where sumTo(n)=0+1+...+n (fun 45).  A CLOSED-FORM product identity (not a fold/order lemma): the sum of
+; the first n naturals, doubled, equals n*(n+1). By induction on n; the successor step uses the middle-four
+; exchange exch4 (proved here from addassoc+addcomm), the IH, and mulsucr — all umul/uadd laws come from the
+; shared lib/nat-semiring.proof. (Classic Gauss sum; the ring reasoning a closed form needs, kernel-checked.)
+(include lib/nat-semiring.proof)
+(fun 45 2 (k 2)) (fun 45 3 (f 21 (rec 0) (k 3 (v 0))))    ; sumTo(0)=0 ; sumTo(s n)=sumTo(n) + (s n)
+
+(all n (= (f 21 (f 45 n) (f 45 n)) (f 22 n (k 3 n))))
+(have exch4 (all a (all b (all c (all d (= (f 21 (f 21 a b) (f 21 c d)) (f 21 (f 21 a c) (f 21 b d)))))))
+  (gen a (gen b (gen c (gen d (eqelim x (= (f 21 (f 21 a b) (f 21 c d)) x) (eqelim x (= x (f 21 (f 21 a c) (f 21 b d))) (inst* addassoc a c (f 21 b d)) (refl (f 21 (f 21 a c) (f 21 b d)))) (eqelim x (= (f 21 (f 21 a b) (f 21 c d)) x) (eqelim x (= (f 21 a (f 21 (f 21 c b) d)) (f 21 a x)) (inst* addassoc c b d) (refl (f 21 a (f 21 (f 21 c b) d)))) (eqelim x (= (f 21 (f 21 a b) (f 21 c d)) x) (eqelim x (= (f 21 a (f 21 (f 21 b c) d)) (f 21 a (f 21 x d))) (inst* addcomm b c) (refl (f 21 a (f 21 (f 21 b c) d)))) (eqelim x (= (f 21 (f 21 a b) (f 21 c d)) x) (eqelim x (= (f 21 a (f 21 b (f 21 c d))) (f 21 a x)) (eqelim x (= x (f 21 (f 21 b c) d)) (inst* addassoc b c d) (refl (f 21 (f 21 b c) d))) (refl (f 21 a (f 21 b (f 21 c d))))) (eqelim x (= (f 21 (f 21 a b) (f 21 c d)) x) (inst* addassoc a b (f 21 c d)) (refl (f 21 (f 21 a b) (f 21 c d))))))))))))
+(rec 2 3 n (= (f 21 (f 45 n) (f 45 n)) (f 22 n (k 3 n)))
+  (refl (k 2))
+  (gen n (lam ih (= (f 21 (f 45 n) (f 45 n)) (f 22 n (k 3 n)))
+    (eqelim x (= (f 21 (f 21 (f 45 n) (k 3 n)) (f 21 (f 45 n) (k 3 n))) x) (eqelim x (= x (f 22 (k 3 n) (k 3 (k 3 n)))) (inst* mulsucr (k 3 n) (k 3 n)) (refl (f 22 (k 3 n) (k 3 (k 3 n))))) (eqelim x (= (f 21 (f 21 (f 45 n) (k 3 n)) (f 21 (f 45 n) (k 3 n))) x) (inst* addassoc (k 3 n) (k 3 n) (f 22 n (k 3 n))) (eqelim x (= (f 21 (f 21 (f 45 n) (k 3 n)) (f 21 (f 45 n) (k 3 n))) x) (inst* addcomm (f 22 n (k 3 n)) (f 21 (k 3 n) (k 3 n))) (eqelim x (= (f 21 (f 21 (f 45 n) (k 3 n)) (f 21 (f 45 n) (k 3 n))) x) (eqelim x (= (f 21 (f 21 (f 45 n) (f 45 n)) (f 21 (k 3 n) (k 3 n))) (f 21 x (f 21 (k 3 n) (k 3 n)))) ih (refl (f 21 (f 21 (f 45 n) (f 45 n)) (f 21 (k 3 n) (k 3 n))))) (eqelim x (= (f 21 (f 21 (f 45 n) (k 3 n)) (f 21 (f 45 n) (k 3 n))) x) (inst* exch4 (f 45 n) (k 3 n) (f 45 n) (k 3 n)) (refl (f 21 (f 21 (f 45 n) (k 3 n)) (f 21 (f 45 n) (k 3 n)))))))))))))

@@ -5,7 +5,7 @@ This directory owns the checked proof-development seam for
 first-order checker and natural-number induction; it does not add a transition-
 system or coinduction rule.
 
-`trace-refinement.elab` establishes the first closed architecture cases:
+`trace-refinement.proof` establishes the first closed architecture cases:
 
 - a finite source transition erased to zero Alpha steps, with unchanged
   observation and a strictly decreasing rank;
@@ -19,7 +19,7 @@ system or coinduction rule.
   payload is the root return slot; this lemma does not supply the exact-machine
   premises itself.
 
-`bc-main-resource-refinement.elab` is the 7,539-byte proof-authoring form for
+`bc-main-resource-refinement.proof` is the 7,539-byte proof-authoring form for
 the first owner-bound instruction cutpoint. Conditional on the cutpoint
 relation carrying root return slot 39, it maps one Beta resource return through
 seven Alpha controls at PCs 40251, 40261, 40264, 40267, 40270, 40273, and 39.

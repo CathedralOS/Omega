@@ -1,0 +1,20 @@
+;
+; pair-forall.proof — the TWO-ACCUMULATOR fold: a single pass threads a SUM and a COUNT together as a pair,
+; proving pairfold(xs,(s,c)) = (listsum(xs)+s, len(xs)+c). The additive commutative-monoid lemmas come from the
+; shared lib/nat-monoid.proof; this file adds the pair type (data 70) + fst/snd (fun 100/101) + the fold funs.
+; (Shape of stdin_checksum's read_byte loop: byte SUM and COUNT threaded at once.)
+(include lib/nat-monoid.proof)
+
+(data 70 2 0 0)
+(fun 94 60 (k 2))
+(fun 94 61 (f 21 (v 0) (rec 1)))
+(fun 97 60 (k 2))
+(fun 97 61 (k 3 (rec 1)))
+(fun 100 70 (v 0))
+(fun 101 70 (v 1))
+(fun 96 60 (y 0))
+(fun 96 61 (recx 1 (k 70 (f 21 (v 0) (f 100 (y 0))) (k 3 (f 101 (y 0))))))
+
+(all xs (all s (all c (= (f 96 xs (k 70 s c)) (k 70 (f 21 (f 94 xs) s) (f 21 (f 97 xs) c))))))
+; --- the paired fold theorem, by induction on xs (cites the included monoid lemmas by name) ---
+(rec 60 61 xs (all s (all c (= (f 96 xs (k 70 s c)) (k 70 (f 21 (f 94 xs) s) (f 21 (f 97 xs) c))))) (gen s (gen c (refl (k 70 s c)))) (gen h (gen t (lam ih (all s (all c (= (f 96 t (k 70 s c)) (k 70 (f 21 (f 94 t) s) (f 21 (f 97 t) c))))) (gen s (gen c (have s1 (= (f 21 (f 94 t) (f 21 h s)) (f 21 (f 21 (f 94 t) h) s)) (eqelim x (= x (f 21 (f 21 (f 94 t) h) s)) (inst* addassoc (f 94 t) h s) (refl (f 21 (f 21 (f 94 t) h) s))) (have s2 (= (f 21 (f 21 (f 94 t) h) s) (f 21 (f 21 h (f 94 t)) s)) (eqelim x (= (f 21 (f 21 (f 94 t) h) s) (f 21 x s)) (inst* addcomm (f 94 t) h) (refl (f 21 (f 21 (f 94 t) h) s))) (have bridge1 (= (f 21 (f 94 t) (f 21 h s)) (f 21 (f 21 h (f 94 t)) s)) (eqelim x (= (f 21 (f 94 t) (f 21 h s)) x) s2 s1) (have bridge2 (= (f 21 (f 97 t) (k 3 c)) (k 3 (f 21 (f 97 t) c))) (inst* uaddsuc (f 97 t) c) (have ihv (= (f 96 t (k 70 (f 21 h s) (k 3 c))) (k 70 (f 21 (f 94 t) (f 21 h s)) (f 21 (f 97 t) (k 3 c)))) (inst* ih (f 21 h s) (k 3 c)) (have pa (= (f 96 t (k 70 (f 21 h s) (k 3 c))) (k 70 (f 21 (f 21 h (f 94 t)) s) (f 21 (f 97 t) (k 3 c)))) (eqelim x (= (f 96 t (k 70 (f 21 h s) (k 3 c))) (k 70 x (f 21 (f 97 t) (k 3 c)))) bridge1 ihv) (eqelim x (= (f 96 t (k 70 (f 21 h s) (k 3 c))) (k 70 (f 21 (f 21 h (f 94 t)) s) x)) bridge2 pa)))))))))))))

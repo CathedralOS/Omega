@@ -36,7 +36,7 @@ stamp_seed "$TMP/bootstrap.tape" "$SEED" "$TMP/bootstrap-bc" >/dev/null
 "$TMP/bootstrap-bc" < "$OMEGA_PATH_BETA_COMPILER/bc.beta" > "$TMP/fixed.alpha"
 "$ASSEMBLER" < "$TMP/fixed.alpha" > "$TMP/fixed.tape"
 
-ARTIFACT="$OMEGA_PATH_BETA_COMPILER/artifacts/bc.tape"
+ARTIFACT="$OMEGA_PATH_BETA_COMPILER/artifacts/beta_compiler_bytecode.tape"
 if [ "$MODE" = "--check" ]; then
   cmp "$TMP/fixed.tape" "$ARTIFACT"
   echo "Alpha-rooted bc construction matches the persisted artifact ($(wc -c < "$ARTIFACT" | tr -d ' ') bytes)"

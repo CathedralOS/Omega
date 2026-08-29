@@ -133,7 +133,7 @@ class DriverTests(unittest.TestCase):
         self.assertEqual(duplicate.stdout, b"")
 
     def test_plan_tape_input_ceiling_rejects_before_status(self) -> None:
-        tape = self.root / "artifacts/delta2gamma.tape"
+        tape = self.root / "artifacts/delta_to_gamma_bytecode.tape"
         with tape.open("r+b") as stream:
             stream.truncate(publication.MAX_TAPE + 1)
         result = self.run_cli("status")
