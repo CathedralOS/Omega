@@ -167,6 +167,9 @@ Pre-allocation machine-effect staging keeps its exact ISA catalog, analysis,
 source-route construction, independent replay, custody projection, and model
 in named leaves; its entrance replay-gates every supported selected-source
 lineage.
+Active-resident selected-form encoding similarly separates source-validated
+byte construction, custody projection, independent replay, retained model,
+and corruption support below one replay-gated pre-layout entrance.
 Structural-Unit function-relative realization separates its retained model,
 physical-stage construction, independent replay, source-shape admission,
 manifest reconstruction, and custody projection below one replay-gated
