@@ -16,6 +16,27 @@ import time
 from pathlib import Path
 
 
+def split_certificate(source: Path, prefix: Path, proof: Path) -> None:
+    """Split one elaborated certificate before its final top-level proof form."""
+    raw = source.read_bytes()
+    depth = 0
+    form_starts: list[int] = []
+    for offset, byte in enumerate(raw):
+        if byte == ord("("):
+            if depth == 0:
+                form_starts.append(offset)
+            depth += 1
+        elif byte == ord(")"):
+            depth -= 1
+            if depth < 0:
+                raise SystemExit("certificate split: unbalanced closing parenthesis")
+    if depth != 0 or len(form_starts) < 2:
+        raise SystemExit("certificate split: malformed top-level forms")
+    proof_start = form_starts[-1]
+    prefix.write_bytes(raw[:proof_start])
+    proof.write_bytes(raw[proof_start:])
+
+
 def elaborate(elab: Path, source: Path) -> bytes:
     run = subprocess.run(
         [sys.executable, str(elab)],
@@ -74,6 +95,9 @@ def gamma_verdict(
 
 
 def main() -> int:
+    if len(sys.argv) == 5 and sys.argv[1] == "--split":
+        split_certificate(Path(sys.argv[2]), Path(sys.argv[3]), Path(sys.argv[4]))
+        return 0
     if len(sys.argv) != 8:
         raise SystemExit(
             "usage: trace_refinement_seam.py CHECKER CHECK_REF ELAB "

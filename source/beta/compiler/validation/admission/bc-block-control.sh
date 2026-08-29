@@ -15,6 +15,7 @@ unset OMEGA_PATH_PARENT
 export OMEGA_REPO_ROOT
 . "$OMEGA_REPO_ROOT/tools/lattice/paths.sh"
 . "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh"
+. "$OMEGA_PATH_ALPHA_CHECKER/artifact_env.sh"
 
 ASM="$OMEGA_PATH_ALPHA_ASSEMBLER/$BETA_SEED"
 SEED="$OMEGA_PATH_ALPHA/$ALPHA_SEED"
@@ -86,6 +87,7 @@ require_control_bundle_unchanged() {
     echo "bc block control FAIL — canonical control.bundle changed between owners" >&2
     exit 1
   fi
+  return 0
 }
 
 # The root observable excludes invalid-opcode execution only after the exact
@@ -940,7 +942,8 @@ root_observation_require_module_budgets() {
     bc-root-observation-memory-safety.alpha \
     bc-root-observation-maximal.alpha \
     bc-root-observation-publication.alpha \
-    bc-root-observation-publication-payloads.alpha
+    bc-root-observation-publication-payloads.alpha \
+    bc-fol-resource-cleanup-ledger.alpha
   do
     root_observation_module_bytes=$(wc -c \
       < "$OBLIGATION_DIR/$root_observation_module" | tr -d ' ')
@@ -951,18 +954,22 @@ root_observation_require_module_budgets() {
   done
 }
 
+emit_root_observation_prefix() {
+  emit_expression_table_prefix
+  cat "$OBLIGATION_DIR/bc-root-observation-root.alpha" \
+    "$OBLIGATION_DIR/bc-root-observation-antecedents.alpha" \
+    "$OBLIGATION_DIR/bc-root-observation-shape.alpha" \
+    "$OBLIGATION_DIR/bc-root-observation-gfp.alpha" \
+    "$OBLIGATION_DIR/bc-root-observation-resource-join.alpha" \
+    "$OBLIGATION_DIR/bc-root-observation-memory-safety.alpha" \
+    "$OBLIGATION_DIR/bc-root-observation-maximal.alpha"
+}
+
 build_root_observation_checker() {
   root_observation_require_module_budgets
   {
-    emit_expression_table_prefix
-    cat "$OBLIGATION_DIR/bc-root-observation-root.alpha" \
-      "$OBLIGATION_DIR/bc-root-observation-antecedents.alpha" \
-      "$OBLIGATION_DIR/bc-root-observation-shape.alpha" \
-      "$OBLIGATION_DIR/bc-root-observation-gfp.alpha" \
-      "$OBLIGATION_DIR/bc-root-observation-resource-join.alpha" \
-      "$OBLIGATION_DIR/bc-root-observation-memory-safety.alpha" \
-      "$OBLIGATION_DIR/bc-root-observation-maximal.alpha" \
-      "$OBLIGATION_DIR/bc-root-observation-publication.alpha" \
+    emit_root_observation_prefix
+    cat "$OBLIGATION_DIR/bc-root-observation-publication.alpha" \
       "$OBLIGATION_DIR/bc-root-observation-publication-payloads.alpha"
   } > "$T/root-observation.alpha"
   python3 "$OMEGA_PATH_ALPHA_ASSEMBLER/asm_ref.py" \
@@ -980,6 +987,112 @@ build_root_observation_checker() {
   fi
   stamp_seed "$T/root-observation.tape" "$SEED" \
     "$T/root-observation" >/dev/null
+}
+
+build_fol_resource_cleanup_ledger() {
+  {
+    emit_root_observation_prefix
+    cat "$OBLIGATION_DIR/bc-fol-resource-cleanup-ledger.alpha"
+  } > "$T/fol-resource-ledger.alpha"
+  python3 "$OMEGA_PATH_ALPHA_ASSEMBLER/asm_ref.py" \
+    < "$T/fol-resource-ledger.alpha" > "$T/fol-resource-ledger-ref.tape"
+  "$ASM" < "$T/fol-resource-ledger.alpha" > "$T/fol-resource-ledger.tape"
+  cmp -s "$T/fol-resource-ledger.tape" "$T/fol-resource-ledger-ref.tape" || {
+    echo "bc block control FAIL — FOL resource ledger assembler diamond disagrees" >&2
+    exit 1
+  }
+  fol_resource_ledger_tape_bytes=$(wc -c \
+    < "$T/fol-resource-ledger.tape" | tr -d ' ')
+  if [ "$fol_resource_ledger_tape_bytes" -gt 100000 ]; then
+    echo "bc block control FAIL — FOL resource ledger tape is ${fol_resource_ledger_tape_bytes} bytes (100000-byte engineering budget)" >&2
+    exit 1
+  fi
+  stamp_seed "$T/fol-resource-ledger.tape" "$SEED" \
+    "$T/fol-resource-ledger" >/dev/null
+  stamp_proof_checker "$T/proof-checker" >/dev/null
+}
+
+smoke_fol_resource_cleanup_ledger() {
+  set +e
+  "$T/fol-resource-ledger" < "$T/control.bundle" \
+    > "$T/fol-resource-owner-prefix"
+  fol_resource_ledger_status=$?
+  set -e
+  if [ "$fol_resource_ledger_status" != 0 ] || \
+      [ ! -s "$T/fol-resource-owner-prefix" ]; then
+    echo "bc block control FAIL — FOL resource ledger did not publish its canonical prefix" >&2
+    exit 1
+  fi
+  python3 "$OMEGA_PATH_ALPHA_CHECKER/tools/elab.py" \
+    < "$GATE_DIR/fol/bc-main-resource-refinement.elab" \
+    > "$T/fol-resource-candidate.raw"
+  python3 "$GATE_DIR/fol/trace_refinement_seam.py" --split \
+    "$T/fol-resource-candidate.raw" \
+    "$T/fol-resource-candidate-prefix" \
+    "$T/fol-resource-candidate-proof"
+  cmp -s "$T/fol-resource-owner-prefix" \
+    "$T/fol-resource-candidate-prefix" || {
+    echo "bc block control FAIL — proof producer changed FOL resource declarations or goal" >&2
+    exit 1
+  }
+  cat "$T/fol-resource-owner-prefix" "$T/fol-resource-candidate-proof" \
+    > "$T/fol-resource-certificate"
+  set +e
+  fol_resource_verdict=$("$T/proof-checker" \
+    < "$T/fol-resource-certificate")
+  fol_resource_checker_status=$?
+  set -e
+  if [ "$fol_resource_verdict" != accept ]; then
+    echo "bc block control FAIL — rooted checker rejected FOL resource cleanup (status $fol_resource_checker_status)" >&2
+    exit 1
+  fi
+
+  # A producer can construct a valid proof about different symbolic subjects.
+  # Show that such a certificate remains logically valid, then require the
+  # owner-prefix boundary—not producer pedigree—to reject the substitution.
+  for fol_resource_binding_case in subject profile
+  do
+    case "$fol_resource_binding_case" in
+      subject)
+        fol_resource_binding_old='(k 30 (k 41) (k 42))'
+        fol_resource_binding_new='(k 30 (k 42) (k 41))'
+        ;;
+      profile)
+        fol_resource_binding_old='(k 30 (k 43) (k 44))'
+        fol_resource_binding_new='(k 30 (k 44) (k 43))'
+        ;;
+    esac
+    python3 -c 'import pathlib,sys
+p = pathlib.Path(sys.argv[1]); out = pathlib.Path(sys.argv[2])
+raw = p.read_bytes(); old = sys.argv[3].encode(); new = sys.argv[4].encode()
+changed = raw.replace(old, new)
+if changed == raw: raise SystemExit("binding tooth did not find its target")
+out.write_bytes(changed)' \
+      "$T/fol-resource-candidate.raw" \
+      "$T/fol-resource-$fol_resource_binding_case.raw" \
+      "$fol_resource_binding_old" "$fol_resource_binding_new"
+    set +e
+    fol_resource_binding_verdict=$("$T/proof-checker" \
+      < "$T/fol-resource-$fol_resource_binding_case.raw")
+    set -e
+    if [ "$fol_resource_binding_verdict" != accept ]; then
+      echo "bc block control FAIL — FOL $fol_resource_binding_case binding control was not independently valid" >&2
+      exit 1
+    fi
+    python3 "$GATE_DIR/fol/trace_refinement_seam.py" --split \
+      "$T/fol-resource-$fol_resource_binding_case.raw" \
+      "$T/fol-resource-$fol_resource_binding_case-prefix" \
+      "$T/fol-resource-$fol_resource_binding_case-proof"
+    if cmp -s "$T/fol-resource-owner-prefix" \
+        "$T/fol-resource-$fol_resource_binding_case-prefix"; then
+      echo "bc block control FAIL — owner accepted changed FOL $fol_resource_binding_case" >&2
+      exit 1
+    fi
+  done
+  require_control_bundle_unchanged
+  # Keep the function's status independent of the final conditional inside the
+  # bundle-integrity helper on shells that propagate its false test status.
+  return 0
 }
 
 smoke_root_observation_checker() {
@@ -1011,6 +1124,8 @@ establish_root_observation_canonical() {
   root_observation_discharge_owners
   build_root_observation_checker
   smoke_root_observation_checker
+  build_fol_resource_cleanup_ledger
+  smoke_fol_resource_cleanup_ledger
 }
 
 bc_timing_start canonical-prerequisites
@@ -1240,4 +1355,4 @@ label_emitters_case_run swapped-emit-occurrence "$T/swapped-emit-occurrence.bund
 
 root_tape_bytes=$(wc -c < "$T/root-observation.tape" | tr -d ' ')
 root_tape_sha256=$(shasum -a 256 "$T/root-observation.tape" | cut -d ' ' -f 1)
-echo "bc admission: exact B_bc1 maximal observation + 8 format/identity-binding teeth + 4 expression-prefix teeth + 4 effect-prefix teeth passed (${root_tape_bytes}-byte ROOT tape, sha256 ${root_tape_sha256})"
+echo "bc admission: exact B_bc1 maximal observation + 8 format/identity-binding teeth + 2 FOL owner-binding teeth + 4 expression-prefix teeth + 4 effect-prefix teeth passed (${root_tape_bytes}-byte ROOT tape, sha256 ${root_tape_sha256})"

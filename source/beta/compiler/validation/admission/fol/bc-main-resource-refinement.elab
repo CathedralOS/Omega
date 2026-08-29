@@ -53,7 +53,8 @@
 (fun 30 14 (k 14))
 (fun 31 15 (k 11 (k 20 (f 29 (v 0)))))
 
-; Total target successor for the exact load, epilogue, return, root-halt path.
+; Total target successor for four owner-recognized cleanup stages. These stages
+; are not yet the raw instruction-by-instruction next_alpha relation.
 (fun 32 12 (f 33 (v 0)))
 (fun 32 13 (k 13 (v 0)))
 (fun 32 14 (k 14))
@@ -71,7 +72,7 @@
 (fun 35 13 (v 0))
 (fun 35 14 (k 22))
 
-; Instruction-debt rank: load=4, epilogue=3, return=2, root halt=1.
+; Stage-debt rank: load=4, epilogue=3, return=2, root halt=1.
 (fun 36 12 (f 37 (v 0)))
 (fun 36 13 z)
 (fun 36 14 z)
