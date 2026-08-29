@@ -7,6 +7,7 @@ mod snapshot;
 
 pub use model::{ResolvedLocalSnapshot, ResolvedLocalSource};
 pub(crate) use model::{VerifiedPackageSourceEntry, VerifiedPackageSourceEntryKind};
+pub(in crate::resolution) use operations::resolve_local_source_snapshot_in_lane;
 pub(crate) use operations::{
     capture_verified_package_source_snapshot, verify_package_source_snapshot,
 };

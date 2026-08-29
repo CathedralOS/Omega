@@ -1,10 +1,15 @@
 //! Read-only source inspection used by the command-facing diagnostic surface.
 
+use crate::resolution::source::{RetainedStorageLane, resolve_git_source_in_lane};
+#[cfg(test)]
+use crate::source::resolve_git_source;
 use crate::source::{
     GitSourceRequest, GitSourceRequestError, LocalSourceLimits, SourceResolveError,
-    SourceResolverStorage, resolve_git_source, resolve_local_source,
+    SourceResolverStorage, resolve_local_source,
 };
-use std::path::{Path, PathBuf};
+#[cfg(test)]
+use std::path::Path;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SourceAdapter {
@@ -169,6 +174,7 @@ fn reject_local_rev(
     Ok(())
 }
 
+#[cfg(test)]
 pub(crate) fn audit_package_source_in_cache(
     request: PackageSourceRequest,
     cache_dir: impl AsRef<Path>,
@@ -213,6 +219,50 @@ pub(crate) fn audit_package_source_in_cache(
     }
 }
 
+fn audit_package_source_in_lane(
+    request: PackageSourceRequest,
+    lane: &RetainedStorageLane,
+    limits: LocalSourceLimits,
+) -> Result<PackageSourceAudit, SourceResolveError> {
+    match request {
+        PackageSourceRequest::LocalPath(path) => {
+            let resolved = resolve_local_source(&path, limits)?;
+            Ok(PackageSourceAudit {
+                source_kind: "local-path".to_owned(),
+                locator: path.display().to_string(),
+                transport_profile: None,
+                requested_rev: None,
+                resolved_commit: None,
+                resolved_tree: None,
+                network_transfer_ceiling: None,
+                network_uploaded_bytes: None,
+                network_downloaded_bytes: None,
+                content_identity: resolved.content_identity,
+                file_count: resolved.file_count,
+                byte_count: resolved.byte_count,
+            })
+        }
+        PackageSourceRequest::Git(request) => {
+            let resolved = resolve_git_source_in_lane(&request, lane, limits)?;
+            let network_transfer = resolved.network_transfer_observation();
+            Ok(PackageSourceAudit {
+                source_kind: "git".to_owned(),
+                locator: request.locator_identity().to_owned(),
+                transport_profile: Some(resolved.transport_profile().as_str().to_owned()),
+                requested_rev: Some(resolved.requested_revision().to_owned()),
+                resolved_commit: Some(resolved.commit().to_owned()),
+                resolved_tree: Some(resolved.tree().to_owned()),
+                network_transfer_ceiling: Some(network_transfer.ceiling()),
+                network_uploaded_bytes: Some(network_transfer.uploaded()),
+                network_downloaded_bytes: Some(network_transfer.downloaded()),
+                content_identity: resolved.local().content_identity.clone(),
+                file_count: resolved.local().file_count,
+                byte_count: resolved.local().byte_count,
+            })
+        }
+    }
+}
+
 /// Audit one source using manager-owned private resolver storage.
 pub fn audit_package_source(
     request: PackageSourceRequest,
@@ -220,7 +270,7 @@ pub fn audit_package_source(
     limits: LocalSourceLimits,
 ) -> Result<PackageSourceAudit, SourceResolveError> {
     storage.verify_path_identity()?;
-    let result = audit_package_source_in_cache(request, storage.git_sources(), limits);
+    let result = audit_package_source_in_lane(request, storage.git_sources(), limits);
     storage.verify_path_identity()?;
     result
 }
@@ -382,7 +432,7 @@ mod tests {
 
         let low_level = audit_package_source_in_cache(
             PackageSourceRequest::LocalPath(root.clone()),
-            storage.git_sources(),
+            storage.git_sources().path(),
             LocalSourceLimits::default(),
         )
         .expect("audit local source in explicit cache");

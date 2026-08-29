@@ -21,6 +21,7 @@ use crate::resolution::source::git::{
     local_snapshot_metadata, make_open_snapshot_read_only, open_or_create_snapshot_directory,
     verify_local_snapshot, write_snapshot_file_from_open_root,
 };
+use crate::resolution::source::storage::RetainedStorageLane;
 use crate::resolution::source::{
     LOCAL_CACHE_SNAPSHOTS, LOCAL_SNAPSHOT_CUSTODY_POLICY, LOCAL_SNAPSHOT_METADATA,
     LOCAL_SNAPSHOT_SOURCE, LocalSourceLimits, SourceResolveError,
@@ -69,6 +70,87 @@ pub(in crate::resolution::source) fn publish_local_snapshot(
     })
 }
 
+pub(in crate::resolution) fn publish_local_snapshot_in_lane(
+    requested_root: PathBuf,
+    captured: CapturedLocalTree,
+    lane: &RetainedStorageLane,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedLocalSnapshot, SourceResolveError> {
+    lane.verify_path_identity()?;
+    let result = (|| {
+        validate_retained_local_snapshot_topology(&captured.normalized.root, lane.path())?;
+        let snapshots = lane.retain_child(LOCAL_CACHE_SNAPSHOTS)?;
+        publish_local_snapshot_in_retained_collection(requested_root, captured, &snapshots, limits)
+    })();
+    match lane.verify_path_identity() {
+        Ok(()) => result,
+        Err(error) => Err(error),
+    }
+}
+
+fn publish_local_snapshot_in_retained_collection(
+    requested_root: PathBuf,
+    captured: CapturedLocalTree,
+    snapshots: &RetainedStorageLane,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedLocalSnapshot, SourceResolveError> {
+    snapshots.verify_path_identity()?;
+    let identity = captured.normalized.content_identity.clone();
+    let custody_identity = local_snapshot_custody_identity(
+        &captured.normalized.root,
+        &captured.normalized.content_identity,
+    );
+    let publication_name = format!("source-{custody_identity}");
+    let publication = snapshots.path().join(&publication_name);
+    let lock_name = format!("source-{custody_identity}.lock");
+    let result = (|| {
+        let _entry_lock = CacheEntryLock::acquire_local_from_parent(
+            snapshots.path(),
+            snapshots.directory(),
+            OsStr::new(&lock_name),
+        )?;
+
+        let publication_exists = match snapshots.directory().symlink_metadata(&publication_name) {
+            Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
+                return Err(local_snapshot_invalid(
+                    &publication,
+                    "local snapshot publication is not a concrete directory",
+                ));
+            }
+            Ok(_) => true,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+            Err(error) => return Err(io_error(&publication, error)),
+        };
+        let normalized = if publication_exists {
+            let normalized = verify_local_snapshot(&publication, &identity, limits)?;
+            verify_live_source_unchanged(&captured.normalized, limits)?;
+            normalized
+        } else {
+            materialize_local_snapshot_from_open_parent(
+                snapshots.path(),
+                snapshots.directory(),
+                &publication,
+                &captured,
+                limits,
+            )?
+        };
+
+        verify_local_cache_custody(&publication, limits)?;
+        Ok(ResolvedLocalSnapshot {
+            requested_root,
+            canonical_live_root: captured.normalized.root,
+            snapshot_root: normalized.root.clone(),
+            normalized,
+        })
+    })();
+
+    let snapshots_result = snapshots.verify_path_identity();
+    match snapshots_result {
+        Ok(()) => result,
+        Err(error) => Err(error),
+    }
+}
+
 fn validate_local_snapshot_topology(
     canonical_live_root: &Path,
     cache_dir: &Path,
@@ -85,6 +167,22 @@ fn validate_local_snapshot_topology(
         });
     }
     Ok(canonical_cache_dir)
+}
+
+fn validate_retained_local_snapshot_topology(
+    canonical_live_root: &Path,
+    canonical_cache_dir: &Path,
+) -> Result<(), SourceResolveError> {
+    let snapshot_collection = canonical_cache_dir.join(LOCAL_CACHE_SNAPSHOTS);
+    if canonical_cache_dir.starts_with(canonical_live_root)
+        || canonical_live_root.starts_with(&snapshot_collection)
+    {
+        return Err(SourceResolveError::LocalSnapshotCacheOverlapsSource {
+            canonical_live_root: canonical_live_root.to_path_buf(),
+            canonical_cache_dir: canonical_cache_dir.to_path_buf(),
+        });
+    }
+    Ok(())
 }
 
 pub(in crate::resolution::source) fn local_snapshot_custody_identity(
@@ -148,11 +246,39 @@ fn materialize_local_snapshot(
     limits: LocalSourceLimits,
 ) -> Result<ResolvedLocalSource, SourceResolveError> {
     let identity = &captured.normalized.content_identity;
-    let mut pending = PendingMaterializedSnapshot::create(
+    let pending = PendingMaterializedSnapshot::create(
         CacheCustodyKind::LocalSnapshot,
         snapshots,
         &format!(".source-{identity}.stage"),
     )?;
+    materialize_pending_local_snapshot(pending, snapshots, publication, captured, limits)
+}
+
+fn materialize_local_snapshot_from_open_parent(
+    snapshots: &Path,
+    retained_snapshots: &cap_std::fs::Dir,
+    publication: &Path,
+    captured: &CapturedLocalTree,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedLocalSource, SourceResolveError> {
+    let identity = &captured.normalized.content_identity;
+    let pending = PendingMaterializedSnapshot::create_from_open_parent(
+        CacheCustodyKind::LocalSnapshot,
+        snapshots,
+        retained_snapshots,
+        &format!(".source-{identity}.stage"),
+    )?;
+    materialize_pending_local_snapshot(pending, snapshots, publication, captured, limits)
+}
+
+fn materialize_pending_local_snapshot(
+    mut pending: PendingMaterializedSnapshot,
+    snapshots: &Path,
+    publication: &Path,
+    captured: &CapturedLocalTree,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedLocalSource, SourceResolveError> {
+    let identity = &captured.normalized.content_identity;
     let source = pending.root.join(LOCAL_SNAPSHOT_SOURCE);
     pending
         .directory()?

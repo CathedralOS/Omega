@@ -4,6 +4,7 @@ use crate::resolution::identity::{
     GitCommitId, GitTreeId, ImmutableSourceResolution, PackageKey, SourceContentDigest,
     SourceLineage,
 };
+use crate::resolution::source::{RetainedStorageLane, resolve_git_source_in_lane};
 use crate::source::{GitSourceRequest, LocalSourceLimits, ResolvedGitSource, resolve_git_source};
 use std::path::Path;
 
@@ -18,6 +19,17 @@ pub fn resolve_git_package_source(
     let limits = limits.compiler_bounded();
     let lineage = request.lineage().clone();
     let source = resolve_git_source(request, cache_dir, limits)?;
+    bind_git_package_source(lineage, source, limits)
+}
+
+pub(in crate::resolution) fn resolve_git_package_source_in_lane(
+    request: &GitSourceRequest,
+    lane: &RetainedStorageLane,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
+    let limits = limits.compiler_bounded();
+    let lineage = request.lineage().clone();
+    let source = resolve_git_source_in_lane(request, lane, limits)?;
     bind_git_package_source(lineage, source, limits)
 }
 

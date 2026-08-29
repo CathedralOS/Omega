@@ -4,6 +4,7 @@ use crate::resolution::identity::{
     ExternalLocalLineage, ExternalSourceContext, ImmutableSourceResolution, PackageKey,
     SourceContentDigest, SourceLineage,
 };
+use crate::resolution::source::{RetainedStorageLane, resolve_local_source_snapshot_in_lane};
 use crate::source::{LocalSourceLimits, ResolvedLocalSnapshot, resolve_local_source_snapshot};
 use std::path::Path;
 
@@ -47,6 +48,36 @@ pub fn resolve_external_local_project_source(
     )
 }
 
+pub(in crate::resolution) fn resolve_external_local_package_source_in_lane(
+    source_root: impl AsRef<Path>,
+    lane: &RetainedStorageLane,
+    limits: LocalSourceLimits,
+    source_context: ExternalSourceContext,
+) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
+    resolve_external_local_declared_source_in_lane(
+        source_root.as_ref(),
+        lane,
+        limits,
+        source_context,
+        false,
+    )
+}
+
+pub(in crate::resolution) fn resolve_external_local_project_source_in_lane(
+    source_root: impl AsRef<Path>,
+    lane: &RetainedStorageLane,
+    limits: LocalSourceLimits,
+    source_context: ExternalSourceContext,
+) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
+    resolve_external_local_declared_source_in_lane(
+        source_root.as_ref(),
+        lane,
+        limits,
+        source_context,
+        true,
+    )
+}
+
 fn resolve_external_local_declared_source(
     source_root: &Path,
     cache_dir: &Path,
@@ -56,6 +87,27 @@ fn resolve_external_local_declared_source(
 ) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
     let limits = limits.compiler_bounded();
     let source = resolve_local_source_snapshot(source_root, cache_dir, limits)?;
+    bind_external_local_declared_source(source, limits, source_context, application_root_allowed)
+}
+
+fn resolve_external_local_declared_source_in_lane(
+    source_root: &Path,
+    lane: &RetainedStorageLane,
+    limits: LocalSourceLimits,
+    source_context: ExternalSourceContext,
+    application_root_allowed: bool,
+) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
+    let limits = limits.compiler_bounded();
+    let source = resolve_local_source_snapshot_in_lane(source_root, lane, limits)?;
+    bind_external_local_declared_source(source, limits, source_context, application_root_allowed)
+}
+
+fn bind_external_local_declared_source(
+    source: ResolvedLocalSnapshot,
+    limits: LocalSourceLimits,
+    source_context: ExternalSourceContext,
+    application_root_allowed: bool,
+) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
     let lineage = SourceLineage::ExternalLocal(ExternalLocalLineage::canonicalize(
         &source.canonical_live_root,
         source_context,

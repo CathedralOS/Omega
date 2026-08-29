@@ -6,10 +6,13 @@ use crate::resolution::source::custody::{
 };
 use crate::resolution::source::error::SourceResolveError;
 use crate::resolution::source::limits::{GIT_CONFIG_SHA256, LocalSourceLimits};
-use crate::resolution::source::local::{SourceTreePolicy, capture_local_source, io_error};
+use crate::resolution::source::local::{
+    SourceTreePolicy, capture_local_source, io_error, open_absolute_directory_nofollow,
+};
 use crate::resolution::source::observations::{
     PendingResolvedGitSource, ResolvedGitSource, issue_git_source_resolution_observation,
 };
+use crate::resolution::source::storage::RetainedStorageLane;
 use crate::storage::record_file::{RecordFileLimits, RecordFileRoot};
 use cap_fs_ext::DirExt;
 use cap_std::fs::Dir as CapabilityDirectory;
@@ -38,6 +41,42 @@ pub fn resolve_git_source(
     limits: LocalSourceLimits,
 ) -> Result<ResolvedGitSource, SourceResolveError> {
     let limits = limits.compiler_bounded();
+    let cache_dir = cache_dir.as_ref();
+    std::fs::create_dir_all(cache_dir).map_err(|error| io_error(cache_dir, error))?;
+    let cache_dir = cache_dir
+        .canonicalize()
+        .map_err(|error| io_error(cache_dir, error))?;
+    verify_git_cache_root_custody(&cache_dir)?;
+    let cache_directory = open_absolute_directory_nofollow(&cache_dir)
+        .map_err(|error| io_error(&cache_dir, error))?;
+    let result =
+        resolve_git_source_from_retained_cache(request, &cache_dir, &cache_directory, limits);
+    verify_git_cache_root_custody(&cache_dir)?;
+    result
+}
+
+pub(in crate::resolution) fn resolve_git_source_in_lane(
+    request: &GitSourceRequest,
+    lane: &RetainedStorageLane,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedGitSource, SourceResolveError> {
+    lane.verify_path_identity()?;
+    let result = resolve_git_source_from_retained_cache(
+        request,
+        lane.path(),
+        lane.directory(),
+        limits.compiler_bounded(),
+    );
+    lane.verify_path_identity()?;
+    result
+}
+
+fn resolve_git_source_from_retained_cache(
+    request: &GitSourceRequest,
+    cache_dir: &Path,
+    cache_directory: &CapabilityDirectory,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedGitSource, SourceResolveError> {
     let execution_transport = request.execution_transport();
     #[cfg(test)]
     let requested_network_endpoint = if execution_transport == GitExecutionTransport::File {
@@ -51,19 +90,18 @@ pub fn resolve_git_source(
     let result = (|| {
         let requested_rev = request.requested_revision();
         let locator_identity = request.locator_identity();
-        let cache_dir = cache_dir.as_ref();
-        std::fs::create_dir_all(cache_dir).map_err(|error| io_error(cache_dir, error))?;
-        let cache_dir = cache_dir
-            .canonicalize()
-            .map_err(|error| io_error(cache_dir, error))?;
-        verify_git_cache_root_custody(&cache_dir)?;
         let cache_identity =
             git_cache_identity(locator_identity, requested_rev, execution_transport);
         let entry_root = cache_dir.join(format!("git-{cache_identity}"));
-        let lock_path = cache_dir.join(format!("git-{cache_identity}.lock"));
-        let entry_lock = CacheEntryLock::acquire_with_git_budget(&lock_path, &executor)?;
+        let lock_name = OsString::from(format!("git-{cache_identity}.lock"));
+        let entry_lock = CacheEntryLock::acquire_with_git_budget_from_parent(
+            cache_dir,
+            cache_directory,
+            &lock_name,
+            &executor,
+        )?;
         let entry_name =
-            direct_cache_child_name(CacheCustodyKind::Git, &cache_dir, &entry_root)?.to_os_string();
+            direct_cache_child_name(CacheCustodyKind::Git, cache_dir, &entry_root)?.to_os_string();
         let cache_entry_existed = retained_cache_directory_exists(
             CacheCustodyKind::Git,
             entry_lock.parent(),
@@ -143,7 +181,7 @@ pub fn resolve_git_source(
                     request,
                     &executor,
                     &entry_lock,
-                    &cache_dir,
+                    cache_dir,
                     &entry_root,
                     limits,
                 )

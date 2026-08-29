@@ -4,6 +4,7 @@ use crate::resolution::identity::{
     ImmutableSourceResolution, PackageKey, SourceContentDigest, SourceLineage,
     WorkspaceLineageIdentity, WorkspaceMemberLineage, WorkspaceMemberPath,
 };
+use crate::resolution::source::{RetainedStorageLane, resolve_local_source_snapshot_in_lane};
 use crate::source::{LocalSourceLimits, ResolvedLocalSnapshot, resolve_local_source_snapshot};
 use std::path::{Path, PathBuf};
 
@@ -23,7 +24,32 @@ pub fn resolve_workspace_member_package_source(
 ) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
     let limits = limits.compiler_bounded();
     let workspace_identity = WorkspaceLineageIdentity::from_root_source(workspace_root_source)?;
-    let requested_workspace_root = live_workspace_root.as_ref();
+    let canonical_declared_member_root =
+        validate_workspace_member_root(live_workspace_root.as_ref(), &member_path)?;
+    let source = resolve_local_source_snapshot(&canonical_declared_member_root, cache_dir, limits)?;
+    bind_workspace_member_package_source(workspace_identity, member_path, source, limits)
+}
+
+pub(in crate::resolution) fn resolve_workspace_member_package_source_in_lane(
+    workspace_root_source: &SourceLineage,
+    member_path: WorkspaceMemberPath,
+    live_workspace_root: impl AsRef<Path>,
+    lane: &RetainedStorageLane,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
+    let limits = limits.compiler_bounded();
+    let workspace_identity = WorkspaceLineageIdentity::from_root_source(workspace_root_source)?;
+    let canonical_declared_member_root =
+        validate_workspace_member_root(live_workspace_root.as_ref(), &member_path)?;
+    let source =
+        resolve_local_source_snapshot_in_lane(&canonical_declared_member_root, lane, limits)?;
+    bind_workspace_member_package_source(workspace_identity, member_path, source, limits)
+}
+
+fn validate_workspace_member_root(
+    requested_workspace_root: &Path,
+    member_path: &WorkspaceMemberPath,
+) -> Result<PathBuf, ResolvePackageSourceError> {
     let declared_member_root = requested_workspace_root.join(member_path.as_str());
 
     let canonical_workspace_root = canonical_workspace_path(requested_workspace_root)?;
@@ -40,7 +66,15 @@ pub fn resolve_workspace_member_package_source(
             member_root: canonical_declared_member_root,
         });
     }
-    let source = resolve_local_source_snapshot(&canonical_declared_member_root, cache_dir, limits)?;
+    Ok(canonical_declared_member_root)
+}
+
+fn bind_workspace_member_package_source(
+    workspace_identity: WorkspaceLineageIdentity,
+    member_path: WorkspaceMemberPath,
+    source: ResolvedLocalSnapshot,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
     let lineage =
         SourceLineage::Workspace(WorkspaceMemberLineage::new(workspace_identity, member_path));
     let (declaration, dependency_requests) = project_package_build(&source.snapshot_root, false)?;

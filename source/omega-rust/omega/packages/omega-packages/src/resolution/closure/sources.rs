@@ -9,13 +9,16 @@ use crate::resolution::identity::{
     ExternalSourceContext, PackageKey, SourceLineage, WorkspaceLineageIdentity, WorkspaceMemberPath,
 };
 use crate::resolution::package_source::{
-    ResolvePackageSourceError, resolve_external_local_package_source,
-    resolve_external_local_project_source, resolve_git_package_source,
-    resolve_workspace_member_package_source,
+    ResolvePackageSourceError, ResolvedPackageSource, resolve_external_local_package_source,
+    resolve_external_local_package_source_in_lane, resolve_external_local_project_source,
+    resolve_external_local_project_source_in_lane, resolve_git_package_source,
+    resolve_git_package_source_in_lane, resolve_workspace_member_package_source,
+    resolve_workspace_member_package_source_in_lane,
 };
+use crate::resolution::source::RetainedStorageLane;
 use crate::source::{
     GitSourceRequest, GitSourceRequestError, LocalSourceLimits, ResolvedGitSource,
-    SourceResolverStorage,
+    ResolvedLocalSnapshot, SourceResolverStorage,
 };
 use std::collections::BTreeMap;
 use std::fmt;
@@ -165,6 +168,12 @@ struct WorkspaceContext {
     allows_external_paths: bool,
 }
 
+#[derive(Clone, Copy)]
+enum SourceCacheLane<'a> {
+    Retained(&'a RetainedStorageLane),
+    Explicit(&'a Path),
+}
+
 /// Resolve one explicit workspace member and its complete Path/Git closure.
 ///
 /// No parent-directory discovery occurs. Path requests are interpreted only
@@ -179,12 +188,14 @@ pub fn resolve_workspace_package_closure(
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveWorkspacePackageClosureError> {
     let cache_dir = cache_dir.as_ref();
+    let workspace_cache = cache_dir.join("workspace-members");
+    let git_cache = cache_dir.join("git-sources");
     resolve_workspace_package_closure_impl(
         workspace_root_source,
         root_member_path,
         live_workspace_root.as_ref(),
-        &cache_dir.join("workspace-members"),
-        &cache_dir.join("git-sources"),
+        SourceCacheLane::Explicit(&workspace_cache),
+        SourceCacheLane::Explicit(&git_cache),
         source_limits,
         closure_limits,
         None,
@@ -207,8 +218,8 @@ pub fn resolve_workspace_package_closure_with_storage(
         workspace_root_source,
         root_member_path,
         live_workspace_root.as_ref(),
-        storage.workspace_members(),
-        storage.git_sources(),
+        SourceCacheLane::Retained(storage.workspace_members()),
+        SourceCacheLane::Retained(storage.git_sources()),
         source_limits,
         closure_limits,
         None,
@@ -235,12 +246,14 @@ pub fn resolve_workspace_package_closure_in_context(
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveWorkspacePackageClosureError> {
     let cache_dir = cache_dir.as_ref();
+    let workspace_cache = cache_dir.join("workspace-members");
+    let git_cache = cache_dir.join("git-sources");
     resolve_workspace_package_closure_impl(
         workspace_root_source,
         root_member_path,
         live_workspace_root.as_ref(),
-        &cache_dir.join("workspace-members"),
-        &cache_dir.join("git-sources"),
+        SourceCacheLane::Explicit(&workspace_cache),
+        SourceCacheLane::Explicit(&git_cache),
         source_limits,
         closure_limits,
         Some(&source_context),
@@ -264,8 +277,8 @@ pub fn resolve_workspace_package_closure_in_context_with_storage(
         workspace_root_source,
         root_member_path,
         live_workspace_root.as_ref(),
-        storage.workspace_members(),
-        storage.git_sources(),
+        SourceCacheLane::Retained(storage.workspace_members()),
+        SourceCacheLane::Retained(storage.git_sources()),
         source_limits,
         closure_limits,
         Some(&source_context),
@@ -280,8 +293,8 @@ fn resolve_workspace_package_closure_impl(
     workspace_root_source: &SourceLineage,
     root_member_path: WorkspaceMemberPath,
     live_workspace_root: &Path,
-    workspace_cache: &Path,
-    git_cache: &Path,
+    workspace_cache: SourceCacheLane<'_>,
+    git_cache: SourceCacheLane<'_>,
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
     external_context: Option<&ExternalSourceContext>,
@@ -294,7 +307,7 @@ fn resolve_workspace_package_closure_impl(
     let workspace_identity = WorkspaceLineageIdentity::from_root_source(workspace_root_source)
         .map_err(ResolvePackageSourceError::from)
         .map_err(ResolveWorkspacePackageClosureError::Root)?;
-    let root = resolve_workspace_member_package_source(
+    let root = resolve_workspace_member_from_cache(
         workspace_root_source,
         root_member_path.clone(),
         live_workspace_root,
@@ -367,9 +380,9 @@ pub fn resolve_git_package_closure(
     let local_cache = cache_dir.join("external-local-sources");
     resolve_git_package_closure_from_lanes(
         request,
-        &workspace_cache,
-        &git_cache,
-        &local_cache,
+        SourceCacheLane::Explicit(&workspace_cache),
+        SourceCacheLane::Explicit(&git_cache),
+        SourceCacheLane::Explicit(&local_cache),
         source_limits,
         closure_limits,
     )
@@ -377,13 +390,13 @@ pub fn resolve_git_package_closure(
 
 fn resolve_git_package_closure_from_lanes(
     request: &GitSourceRequest,
-    workspace_cache: &Path,
-    git_cache: &Path,
-    local_cache: &Path,
+    workspace_cache: SourceCacheLane<'_>,
+    git_cache: SourceCacheLane<'_>,
+    local_cache: SourceCacheLane<'_>,
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveGitPackageClosureError> {
-    let root = resolve_git_package_source(request, git_cache, source_limits)
+    let root = resolve_git_from_cache(request, git_cache, source_limits)
         .map_err(ResolveGitPackageClosureError::Root)?;
     if !git_root_request_matches(request, root.source(), root.key().source_lineage()) {
         return Err(ResolveGitPackageClosureError::RootRequestMismatch);
@@ -423,9 +436,9 @@ pub fn resolve_git_package_closure_with_storage(
     })?;
     let result = resolve_git_package_closure_from_lanes(
         request,
-        storage.workspace_members(),
-        storage.git_sources(),
-        storage.external_local_sources(),
+        SourceCacheLane::Retained(storage.workspace_members()),
+        SourceCacheLane::Retained(storage.git_sources()),
+        SourceCacheLane::Retained(storage.external_local_sources()),
         source_limits,
         closure_limits,
     );
@@ -463,12 +476,15 @@ pub fn resolve_external_local_package_closure(
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
     let cache_dir = cache_dir.as_ref();
+    let local_cache = cache_dir.join("external-local-sources");
+    let workspace_cache = cache_dir.join("workspace-members");
+    let git_cache = cache_dir.join("git-sources");
     resolve_external_local_declared_closure_from_lanes(
         live_root.as_ref(),
         source_context,
-        &cache_dir.join("external-local-sources"),
-        &cache_dir.join("workspace-members"),
-        &cache_dir.join("git-sources"),
+        SourceCacheLane::Explicit(&local_cache),
+        SourceCacheLane::Explicit(&workspace_cache),
+        SourceCacheLane::Explicit(&git_cache),
         source_limits,
         closure_limits,
         false,
@@ -504,12 +520,15 @@ pub fn resolve_external_local_project_closure(
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
     let cache_dir = cache_dir.as_ref();
+    let local_cache = cache_dir.join("external-local-sources");
+    let workspace_cache = cache_dir.join("workspace-members");
+    let git_cache = cache_dir.join("git-sources");
     resolve_external_local_declared_closure_from_lanes(
         live_root.as_ref(),
         source_context,
-        &cache_dir.join("external-local-sources"),
-        &cache_dir.join("workspace-members"),
-        &cache_dir.join("git-sources"),
+        SourceCacheLane::Explicit(&local_cache),
+        SourceCacheLane::Explicit(&workspace_cache),
+        SourceCacheLane::Explicit(&git_cache),
         source_limits,
         closure_limits,
         true,
@@ -548,9 +567,9 @@ fn resolve_external_local_declared_closure_with_storage(
     let result = resolve_external_local_declared_closure_from_lanes(
         live_root,
         source_context,
-        storage.external_local_sources(),
-        storage.workspace_members(),
-        storage.git_sources(),
+        SourceCacheLane::Retained(storage.external_local_sources()),
+        SourceCacheLane::Retained(storage.workspace_members()),
+        SourceCacheLane::Retained(storage.git_sources()),
         source_limits,
         closure_limits,
         application_root_allowed,
@@ -564,9 +583,9 @@ fn resolve_external_local_declared_closure_with_storage(
 fn resolve_external_local_declared_closure_from_lanes(
     live_root: &Path,
     source_context: ExternalSourceContext,
-    local_cache: &Path,
-    workspace_cache: &Path,
-    git_cache: &Path,
+    local_cache: SourceCacheLane<'_>,
+    workspace_cache: SourceCacheLane<'_>,
+    git_cache: SourceCacheLane<'_>,
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
     application_root_allowed: bool,
@@ -577,14 +596,14 @@ fn resolve_external_local_declared_closure_from_lanes(
         source_context: source_context.clone(),
     };
     let root = if application_root_allowed {
-        resolve_external_local_project_source(
+        resolve_external_local_project_from_cache(
             &requested_root,
             local_cache,
             source_limits,
             source_context.clone(),
         )
     } else {
-        resolve_external_local_package_source(
+        resolve_external_local_package_from_cache(
             &requested_root,
             local_cache,
             source_limits,
@@ -621,13 +640,83 @@ fn resolve_external_local_declared_closure_from_lanes(
     .map_err(ResolveExternalLocalPackageClosureError::Closure)
 }
 
+fn resolve_git_from_cache(
+    request: &GitSourceRequest,
+    cache: SourceCacheLane<'_>,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
+    match cache {
+        SourceCacheLane::Retained(lane) => {
+            resolve_git_package_source_in_lane(request, lane, limits)
+        }
+        SourceCacheLane::Explicit(path) => resolve_git_package_source(request, path, limits),
+    }
+}
+
+fn resolve_external_local_package_from_cache(
+    source_root: impl AsRef<Path>,
+    cache: SourceCacheLane<'_>,
+    limits: LocalSourceLimits,
+    source_context: ExternalSourceContext,
+) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
+    match cache {
+        SourceCacheLane::Retained(lane) => {
+            resolve_external_local_package_source_in_lane(source_root, lane, limits, source_context)
+        }
+        SourceCacheLane::Explicit(path) => {
+            resolve_external_local_package_source(source_root, path, limits, source_context)
+        }
+    }
+}
+
+fn resolve_external_local_project_from_cache(
+    source_root: impl AsRef<Path>,
+    cache: SourceCacheLane<'_>,
+    limits: LocalSourceLimits,
+    source_context: ExternalSourceContext,
+) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
+    match cache {
+        SourceCacheLane::Retained(lane) => {
+            resolve_external_local_project_source_in_lane(source_root, lane, limits, source_context)
+        }
+        SourceCacheLane::Explicit(path) => {
+            resolve_external_local_project_source(source_root, path, limits, source_context)
+        }
+    }
+}
+
+fn resolve_workspace_member_from_cache(
+    workspace_root_source: &SourceLineage,
+    member_path: WorkspaceMemberPath,
+    live_workspace_root: impl AsRef<Path>,
+    cache: SourceCacheLane<'_>,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
+    match cache {
+        SourceCacheLane::Retained(lane) => resolve_workspace_member_package_source_in_lane(
+            workspace_root_source,
+            member_path,
+            live_workspace_root,
+            lane,
+            limits,
+        ),
+        SourceCacheLane::Explicit(path) => resolve_workspace_member_package_source(
+            workspace_root_source,
+            member_path,
+            live_workspace_root,
+            path,
+            limits,
+        ),
+    }
+}
+
 fn resolve_registered_package_closure(
     root_request: PackageRootSourceRequest,
     root: PackageSourceCustody,
     closure_limits: PackageSourceClosureLimits,
-    workspace_cache: &Path,
-    git_cache: &Path,
-    external_local_cache: &Path,
+    workspace_cache: SourceCacheLane<'_>,
+    git_cache: SourceCacheLane<'_>,
+    external_local_cache: SourceCacheLane<'_>,
     source_limits: LocalSourceLimits,
     workspaces: &mut BTreeMap<WorkspaceLineageIdentity, WorkspaceContext>,
     external_roots: &mut BTreeMap<PackageKey, PathBuf>,
@@ -646,7 +735,7 @@ fn resolve_registered_package_closure(
                 revision,
                 ..
             } => {
-                let resolved = resolve_git_package_source(
+                let resolved = resolve_git_from_cache(
                     &GitSourceRequest::new(repository.clone(), Some(revision.clone()))?,
                     git_cache,
                     source_limits,
@@ -679,7 +768,7 @@ fn resolve_registered_package_closure(
                     }
                 })?;
                 match normalize_member_path(base.as_deref(), location) {
-                    Ok(member_path) => resolve_workspace_member_package_source(
+                    Ok(member_path) => resolve_workspace_member_from_cache(
                         &context.root_source,
                         member_path,
                         &context.root,
@@ -737,7 +826,7 @@ fn resolve_external_dependency(
     location: &str,
     external_roots: &mut BTreeMap<PackageKey, PathBuf>,
     external_context: Option<&ExternalSourceContext>,
-    local_cache: &Path,
+    local_cache: SourceCacheLane<'_>,
     source_limits: LocalSourceLimits,
 ) -> Result<PackageSourceCustody, ResolveDependencySourceError> {
     let requester_root = external_roots
@@ -761,7 +850,7 @@ fn resolve_external_dependency_from_root(
     requester_root: &Path,
     external_roots: &mut BTreeMap<PackageKey, PathBuf>,
     external_context: Option<&ExternalSourceContext>,
-    local_cache: &Path,
+    local_cache: SourceCacheLane<'_>,
     source_limits: LocalSourceLimits,
 ) -> Result<PackageSourceCustody, ResolveDependencySourceError> {
     if location.is_empty() || location.bytes().any(|byte| byte.is_ascii_control()) {
@@ -778,7 +867,7 @@ fn resolve_external_dependency_from_root(
     } else {
         requester_root.join(authored)
     };
-    let resolved = resolve_external_local_package_source(
+    let resolved = resolve_external_local_package_from_cache(
         target,
         local_cache,
         source_limits,
