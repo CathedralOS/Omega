@@ -1,6 +1,6 @@
 # Design Brief: Mathematical Proofs
 
-Current as of 2026-08-08. Omega does not introduce a second proof language.
+Current as of 2026-08-28. Omega does not introduce a second proof language.
 Proofs use ordinary machines, data, contracts, domains, and ranked recursion;
 proof-only uses erase after checking.
 
@@ -171,10 +171,11 @@ compatibility event.
 ## Trust and accepted facts
 
 Omega has no `assume` or scattered `unsafe` block. Unproved claims enter through
-accepted boundary contracts and root grants, producing explicit trust receipts.
-An accepted theorem is a bodyless `boundary machine`, as already specified by
+admission-bearing boundary contracts and root grants, producing explicit trust
+receipts only after owner policy accepts them. A bodyless `boundary machine`
+carrying `ensures` is an axiom claim, not a proved theorem, as specified by
 chapter 10. There is no parallel `boundary fact` spelling. Decision 20's
-accepted supply mode remains explicit in the semantic artifact.
+admission-bearing supply mode remains explicit in the semantic artifact.
 
 A deferral is different from accepted truth:
 

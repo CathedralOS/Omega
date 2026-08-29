@@ -57,7 +57,9 @@ The Psi product role owns this stage; its hosted source belongs under
   including `in`, domain intersections, and domain unions.
 - `parser/expression/primary.rs` owns literals, grouped expressions, array literals, path names, and struct literals.
 - `parser/expression/postfix.rs` owns calls, argument lists, indexing/ranges, member access, and casts.
-- `parser/machine.rs` owns machine headers, body/member sequencing, implicit entry construction, and attached-data path splitting.
+- `parser/machine.rs` owns machine headers, explicit top-level `boundary
+  requirement` headers, body/member sequencing, implicit entry construction,
+  and attached-data path splitting.
 - `parser/machine/clauses.rs` owns machine `satisfies`, external-realization
   `via <Binding>`, `terminates [by ...]`, `reaches`, `invokes`, `suspends`,
   `blocks`, `crashes`, `requires`, and `ensures`
@@ -116,7 +118,7 @@ name denotes.
 | Calls | Syntactic call expressions/statements plus ordered `suspend` / `block` acknowledgements. |
 | Transitions | Syntactic transition statements and targets. |
 | Reach | Reach clauses and synchronous invocation ceilings as unresolved names. |
-| Boundary edges | Parsed `boundary` traits and operators, exact bodyless boundary satisfiers with optional payload-bearing `via`, and target policies. |
+| Boundary edges | Parsed `boundary` traits, operators, and explicit top-level requirements; exact bodyless boundary satisfiers with optional payload-bearing `via`; and target policies. |
 
 ## Ownership Rules
 

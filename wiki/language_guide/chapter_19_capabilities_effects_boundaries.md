@@ -304,14 +304,13 @@ requirements whose exact service row is selected with the installed
 realization:
 
 ```omega
-boundary machine InterruptAcknowledgement::complete(self)
+pub boundary requirement InterruptAcknowledgement::complete(self)
 reaches <= MachineControl + PortIo
 requires
-    self in InterruptAcknowledgement::Pending
-ensures true;
+    self in InterruptAcknowledgement::Pending;
 ```
 
-This introduces one abstract row keyed by the exact normalized requirement
+This explicit declaration introduces one abstract row keyed by the exact normalized requirement
 path and bounded above by the ordinary `+`-separated service set. A fixed
 `reaches MachineControl + PortIo` publishes that union to callers immediately;
 `reaches <= MachineControl + PortIo` carries a symbolic exact row inside its
@@ -1372,12 +1371,33 @@ See
 
 ## Boundary Realization Catalog
 
-Omega has one provider model. A boundary declaration publishes a requirement;
-an ordinary checked machine or an irreducible bodyless `boundary machine`
-satisfies it; the
+Omega has one provider model. A boundary trait/operator or explicit top-level
+`boundary requirement` publishes a selectable slot; an ordinary checked
+machine or an irreducible bodyless `boundary machine` satisfies it; the
 toolchain derives a candidate `ProviderPlan`; and the selected target profile,
 `build.omg`, or installation binding chooses one admitted candidate for the
 owned slot. A requirement never embeds that choice.
+
+Top-level carrier-owned operations use the same declaration/reference path:
+
+```omega
+pub boundary requirement InterruptAcknowledgement::complete(self)
+reaches <= MachineControl + PortIo
+requires self in InterruptAcknowledgement::Pending;
+
+machine LapicCompletion::complete(
+    acknowledgement: InterruptAcknowledgement in Pending
+)
+satisfies InterruptAcknowledgement::complete
+reaches MachineControl
+{
+    // checked completion
+}
+```
+
+`build.omg` may select the exact requirement and provider type. Selection does
+not create the `satisfies` edge, and equal reach rows convey neither provider
+identity nor token lineage.
 
 Compiler intrinsics use the same shape:
 

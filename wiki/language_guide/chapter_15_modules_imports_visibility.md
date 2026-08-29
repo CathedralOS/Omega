@@ -299,13 +299,15 @@ direct dependent require `pub`. The conformance's normalized public surface may
 retain private member-machine and proof identities because callers select the
 authorized row map rather than those implementations.
 
-An exact `machine ... satisfies Trait::requirement` edge is not a standalone
-conformance declaration and follows the machine's visibility. Its optional
+An exact `machine ... satisfies Requirement` edge is not a standalone
+conformance declaration and follows the machine's visibility. Its target may
+be a trait/operator requirement or an explicit top-level `boundary
+requirement`. Its optional
 `as Name` label groups requirement-local satisfiers but does not create a
 package-level selectable declaration. The edge nevertheless authors two exact
 declaration selections: the trait and its overload-resolved requirement. An
 operator requirement similarly selects the exact signature-matched operator.
-Both coordinates require direct dependency authority and must be public when
+All selected coordinates require direct dependency authority and must be public when
 the realizing machine publishes an interface, including boundary or accepted
 supply not separately spelled `pub`. Selection identity is settled before
 supply policy: an inadmissible external realization does not erase or replace
@@ -367,7 +369,7 @@ exact descriptor.
 ## Visibility
 
 Declarations are private by default unless marked `pub`. Independently
-nameable data, domains, traits, machines, wire schemas, operators,
+nameable data, domains, traits, machines, top-level boundary requirements, wire schemas, operators,
 propositions, and constants support that rule. A declared ranking measure is
 private proof machinery for `terminates by`; the parser rejects `pub measure`.
 Complete name-first conformances follow the same rule: they are private unless

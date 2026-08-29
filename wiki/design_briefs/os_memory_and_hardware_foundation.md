@@ -1528,8 +1528,9 @@ operation, provider execution, acknowledgement policy, and token lineage.
 The installation owner now seals that join as an interrupt-completion route and
 replays the exact installed reach resolution when the provider receipt settles
 the acknowledgement. Publishing the provider-selected completion row in source
-remains blocked on the top-level boundary-provider selection decision in
-`OWNER_QUESTIONS.md` Q9.
+remains implementation-blocked on **TOP-LEVEL-BOUNDARY-REQUIREMENTS** in
+`TASKS.md`: the explicit requirement, satisfier edge, typed selection, and
+token-lineage replay must land together.
 Their bounded symbolic rows may propagate only inside that installation
 closure. Its preselection manifest reports every row and bound; installation
 substitutes each selected provider row, and final admission rejects an

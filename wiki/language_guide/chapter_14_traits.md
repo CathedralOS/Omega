@@ -928,14 +928,13 @@ An installation-bound provider requirement may instead introduce one fresh
 bounded abstract row directly:
 
 ```omega
-boundary machine InterruptAcknowledgement::complete(self)
+pub boundary requirement InterruptAcknowledgement::complete(self)
 reaches <= MachineControl + PortIo
 requires
-    self in InterruptAcknowledgement::Pending
-ensures true;
+    self in InterruptAcknowledgement::Pending;
 ```
 
-The normalized requirement path supplies the row identity. `<=` means that
+The explicit normalized requirement path supplies the row identity. `<=` means that
 the selected realization publishes the exact row and that this row must be a
 subset of the written `+`-separated bound. It does not mean Boolean choice,
 exclusive-or, a lower bound, or authority acquisition; the empty row remains a

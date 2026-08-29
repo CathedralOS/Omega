@@ -583,9 +583,10 @@ and must not be preserved as a second selection path.
 
 Selection identities are nominal; binding identities are normalized evaluated
 values. `select_provider` retains one static selectable-declaration reference
-and one provider-data type path. The first resolves to either one exact boundary
-trait or one exact package-qualified boundary-operator family; the second
-resolves to one provider-data symbol. Both carry compiler-derived package owners
+and one provider-data type path. The first resolves to one exact boundary
+trait, one exact package-qualified boundary-operator family, or one exact
+top-level `boundary requirement`; the second resolves to one provider-data
+symbol. Both carry compiler-derived package owners
 into selection. Plans match only exact `(package, canonical path)` slot and
 provider identities; authored
 spellings remain diagnostic data and there is no leaf-name fallback. Checked
@@ -603,7 +604,7 @@ selection; frontend drivers do not transport a raw machine-name side channel.
 Producer names are deterministic, authored selection rows retain their source
 order and identity, and build overrides continue to outrank target defaults.
 
-`Build::select_provider<Service, Provider>()` is ordinary typed API vocabulary.
+`Build::select_provider<Slot, Provider>()` is ordinary typed API vocabulary.
 It performs a declaration-family-per-slot override; users do not repeat every
 default and cannot append or mutate derived plan rows. Strings, normalized
 signature spellings, ordinals, compiler fingerprints, and declaration order
@@ -616,6 +617,26 @@ selected target-owned realization contract, not as value arguments to
 target-specific leaves. When two configurations are genuinely distinct
 authored choices, they use distinct nominal/static realization identities;
 runtime-variable descriptors remain ordinary capability values.
+
+A top-level requirement candidate is still declared in source rather than
+invented by build policy:
+
+```omega
+machine LapicCompletion::complete(
+    acknowledgement: InterruptAcknowledgement in Pending
+)
+satisfies InterruptAcknowledgement::complete
+reaches MachineControl
+{
+    // checked LAPIC completion
+}
+```
+
+The build may then select
+`select_provider<InterruptAcknowledgement::complete, LapicCompletion>()`.
+Missing, private, ambiguous, foreign, or duplicate candidates reject. The
+selected operation retains its identity independently from its reach row;
+equal rows never select or correlate providers.
 
 Boundary-operator family membership is a semantic set. Evidence deduplicates
 exact overload coordinates and serializes them in canonical coordinate-identity
@@ -1341,7 +1362,7 @@ Public-trait composition is the first such carrier: canonical sorting keeps
 each typed parent identifier's exact authored span with its trait row under a
 closed `trait_parent` role. Syntax, resolved, and typed contracts retain the
 exact authored clause-keyword span independently from semantic facts. Direct
-machine, public-trait requirement, and public-operator contracts carry it under
+machine, public trait/top-level-requirement, and public-operator contracts carry it under
 `contract_clause`; projected declaration families recursively collect the same
 anchor from structural static-machine parameter contracts. This uniformly covers expression, membership, proposition,
 named-evidence, and outcome-group forms. Accepted-claim rows share the callable
@@ -1360,7 +1381,7 @@ provenance rejects, while compiler-generated calls produce no invented source
 location. Authored `invokes` targets are retained as one typed record binding
 their exact parameter-symbol/ordinal or boundary-trait symbol to the target-name
 span. Invocation inference consumes that target rather than reselecting by
-spelling. Callable, public-trait requirement, and recursively structural
+spelling. Callable, public trait/top-level-requirement, and recursively structural
 machine-parameter review rows carry the span under `synchronous_invocation`,
 with top-level rows joined exactly to checked invocation facts. Those facts
 retain the exact symbolic published and inferred targets before provider
@@ -1377,8 +1398,8 @@ Review carries authored member spans—or the keyword span for an empty row—un
 parent-closure entries. Recovery envelope v6 and conflict fingerprint
 v9/rendering V8 bind that reach-source schema. Authored `suspends` and `blocks`
 keyword occurrences now survive syntax, resolution, typed lowering, trait-
-default synthesis, copying, and specialization. Callable, public-trait
-requirement, and recursively structural machine-parameter rows carry distinct
+default synthesis, copying, and specialization. Callable, public trait/top-
+level-requirement, and recursively structural machine-parameter rows carry distinct
 `suspension` and `blocking` roles. Projection requires retained keywords,
 authored booleans, and checked published/internal interfaces to agree exactly;
 omission and inference receive no invented location. A public or otherwise
@@ -1409,7 +1430,7 @@ declaration under `trait_requirement`; public data rows retain fields, sum
 cases, and payload fields under `data_member`. These roles consume the existing
 typed declaration symbols. Direct declarations use their authored spans;
 generated declarations expose only their real derivation origin.
-Reviewed package callables, public operators, and public trait requirements
+Reviewed package callables, public operators, and public trait/top-level requirements
 likewise retain every value-parameter declaration under `callable_parameter`.
 The same compiler-owned walk covers value parameters nested in structural
 static-machine contracts. These coordinates bind what review displays without

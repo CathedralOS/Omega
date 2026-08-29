@@ -619,7 +619,7 @@ Current ownership is:
   structural consequence of the invocation's incoming path. Exact conjuncts
   and consequences remain separate checked fields. Private inferred callers
   remain body-summary inputs rather than authored-ceiling obligations.
-  Callable trait requirements and unresolved compile-time machine parameters
+  Callable trait and top-level boundary requirements, plus unresolved compile-time machine parameters,
   instead select a checked crash-contract capsule. The capsule retains the
   normalized public crash buckets and pins them to the complete normalized
   callable-contract fingerprint, so call refinement never depends on a local

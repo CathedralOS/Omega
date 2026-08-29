@@ -20,7 +20,8 @@ A `ProviderPlan` maps requirements to their checked realizations, but it is a
 **derived normalized artifact**, not a value assembled row by row by user
 code. Authors provide three inputs:
 
-1. boundary-trait requirements;
+1. boundary-trait/operator requirements or explicit top-level `boundary
+   requirement` declarations;
 2. ordinary checked machines that explicitly `satisfy` those requirements;
    and
 3. irreducible bodyless boundary leaves declared with `satisfies ...`, using

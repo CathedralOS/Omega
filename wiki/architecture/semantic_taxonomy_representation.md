@@ -354,20 +354,31 @@ names.
 Consumption eligibility should normally be derived views/queries over the
 contract, not stored independent booleans that can drift.
 
-The supply representation preserves the five settled variants directly:
+The supply representation preserves the four settled variants directly:
 
 ```text
 MachineSupplyMode =
     CheckedBody
-  | Requirement
-  | Boundary
-  | Accepted
-  | ExternalRealization { binding: NormalizedBindingId }
+  | Requirement {
+        identity: TraitRequirement
+                | ComponentRequirement
+                | TopLevelBoundaryRequirement
+    }
+  | AdmissionClaim
+  | ExternalRealization { binding: Optional<NormalizedBindingId> }
 ```
 
-`Boundary` is an externally supplied host/component declaration. `Accepted` is
-the axiom-tier form whose trust remains explicit. Neither is interchangeable
-with a checked body or a requirement.
+`AdmissionClaim` is the axiom-tier form whose trust remains explicit and whose
+acceptance is supplied only by separate owner policy. The old undifferentiated
+`Boundary` mode retires: an externally supplied operation is an explicit
+requirement, an external realization satisfying one, or an admission-bearing
+claim. A claim-free bodyless free machine has no residual supply category.
+
+`TopLevelBoundaryRequirement` is sourced only by an explicit `boundary
+requirement` declaration. It retains the exact package-qualified operation,
+static telescope, signature, visibility, contract, and optional installation-
+bound reach row. A bodyless boundary machine, bounded row, catalog match, or
+build selection cannot synthesize this mode.
 
 `ExternalRealization` is sourced by a bodyless `boundary machine ... satisfies
 ...`; an optional `via <Binding>` carries an undiscoverable payload. The binding
@@ -381,9 +392,9 @@ from explicit conformance closure rather than authored rows.
 `NormalizedBindingId` interns the complete evaluated structured binding, never
 a rendered lookup string. The producing build-time-machine closure, enclosing
 realization-machine symbol, normalized signature, and target application remain
-explicit identity inputs. A payload-free `CompilerIntrinsic` uses the
-realization symbol plus target to select a sealed catalog lowering. A DLL
-locator is instead one typed object-format variant containing all of its raw
+explicit identity inputs. A compiler intrinsic has no binding value: the
+realization symbol plus target select a sealed catalog lowering directly. A
+DLL locator is instead one typed object-format variant containing all of its raw
 coordinates as fixed byte arrays and scalars. The satisfied requirement's calling
 policy supplies the independently evaluated `CallPlan`; it is not duplicated in
 the binding. Raw linker bytes are target-package data, enter the binding

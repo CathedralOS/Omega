@@ -260,14 +260,26 @@ machine and requirement calls.
 
 ## Supply Forms
 
-The one machine construct has four explicit supply forms:
+The callable machine model has five explicit supply forms:
 
 | Supply | Spelling |
 |---|---|
 | Checked Omega implementation | `{ ... }` body |
 | Trait requirement | Bodyless declaration inside the trait |
+| Top-level provider requirement | `boundary requirement Package::operation(...);` |
 | External requirement realization | Bodyless `boundary machine ... satisfies Trait::requirement;`, with `via <Binding>` only for an explicit payload |
-| Accepted claim | Bodyless `boundary machine ... ensures ...;` |
+| Admission-bearing claim | Bodyless `boundary machine ... ensures ...;` |
+
+A top-level boundary requirement is a nominal operation slot whose natural
+source owner is a carrier rather than a trait. It is explicit: neither a
+bounded reach clause, absence of a body, catalog lookup, `via`, nor a later
+build selection can manufacture this declaration kind. Its exact package,
+path, static telescope, signature, and contract form requirement identity.
+Checked and external machines may target it with the ordinary `satisfies`
+clause. A carrier-qualified requirement remains callable through its attached
+operation syntax; the declaration contributes interface identity, not runtime
+authority. Any authority comes from the receiver or arguments—for example, a
+linear acknowledgement consumed by `complete`.
 
 An external realization binds an irreducible imported operation to a
 requirement without pretending the binding is executable Omega code:
@@ -303,6 +315,14 @@ satisfied requirement's `Calling<C, Policy>` relationship separately evaluates
 the ABI `CallPlan`; the binding cannot select a second one. A compiler intrinsic
 has no binding value: its exact realization-machine symbol, normalized
 signature, and target select the sealed lowering catalog entry.
+
+Compiler-owned fact-position terms are not a sixth machine supply form.
+`embed(value)`, `old(&place)`, and similar canonical term formers are accepted
+only in their specified proof positions and do not acquire fake bodyless
+boundary declarations merely to enter name resolution.
+A claim-free bodyless free machine is likewise not an abstract requirement or
+proof symbol. It rejects unless it is one of the temporary core declarations
+named for migration to a real category.
 
 The compiler fingerprints the complete evaluated binding, its producer closure,
 and selected target. Changing a raw foreign spelling therefore changes every
