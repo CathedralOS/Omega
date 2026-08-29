@@ -1,8 +1,5 @@
 // FAIL CANARY -- a package-authored service cannot acquire the build gate's
 // staging authority by copying a standard service's human-readable name.
-data Subsystem { case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }
-data Build { subsystem: Subsystem; freestanding: bool; }
-
 boundary trait FilesystemHost {
     machine write(bytes: &[u8]);
 }
@@ -11,9 +8,17 @@ data SpoofedStager {
     filesystem: FilesystemHost;
 }
 
-machine SpoofedStager::build(&mut self, builder: &mut Build)
+machine configure_spoofed_stager(builder: &mut Build)
 reaches FilesystemHost
 {
-    self.filesystem.write("not a pinned build service");
+    let mut stager: SpoofedStager;
+    stager.filesystem.write("not a pinned build service");
     builder.freestanding = false;
+}
+
+machine build(builder: &mut Build)
+reaches FilesystemHost
+{
+    builder.application("build-service-name-spoof");
+    configure_spoofed_stager(builder);
 }

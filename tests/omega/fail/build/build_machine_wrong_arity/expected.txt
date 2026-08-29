@@ -1,1 +1,1 @@
-takes 2 argument(s); the build-time position supplied 1
+package build machine must have exactly one parameter: `builder: &mut Build`

@@ -2,19 +2,25 @@
 // the pinned FilesystemHost/Console staging services. Canonical service
 // identity prevents a wrapper from laundering itself through a lowercase
 // compatibility category.
-data Subsystem { case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }
-data Build { subsystem: Subsystem; freestanding: bool; }
-
 boundary trait BuildLog { machine write_line(text: &[u8]); }
 
 data Logger {
     log: BuildLog;
 }
 
-machine Logger::build(&mut self, builder: &mut Build)
+machine configure_log(builder: &mut Build)
+reaches
+    BuildLog
+{
+    let mut logger: Logger;
+    logger.log.write_line("configuring");
+    builder.freestanding = false;
+}
+
+machine build(builder: &mut Build)
 reaches
     Console
 {
-    self.log.write_line("configuring");
-    builder.freestanding = false;
+    builder.application("build-boundary-rowless");
+    configure_log(builder);
 }

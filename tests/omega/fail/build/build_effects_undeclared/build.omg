@@ -3,18 +3,15 @@
 // but inferred reach may not silently widen the build contract.
 use omega::language::std::filesystem_host;
 
-data Subsystem { case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }
-data Build { subsystem: Subsystem; freestanding: bool; }
-
-data Stager {
-    fs: FilesystemHost;
-    fd: i32;
+machine write_build_asset(builder: &mut Build)
+reaches FilesystemHost
+{
+    let output: &[u8] in Path = builder.output.resolve("asset.bin");
+    let descriptor: i32 = builder.filesystem.create(output, 438);
+    _ = builder.filesystem.close(descriptor);
 }
 
-machine Stager::build(&mut self, builder: &mut Build) {
-    self.fd = self.fs.create("build/asset.bin", 438);
-    transition true { true -> done(builder) _ -> done(builder) }
-    state done(&mut self, builder: &mut Build) {
-        builder.freestanding = false;
-    }
+machine build(builder: &mut Build) {
+    builder.application("build-effects-undeclared");
+    write_build_asset(builder);
 }

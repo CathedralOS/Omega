@@ -336,10 +336,6 @@ fn generated_source_logical_path(
 /// Require the exact selected free build root to declare its project role
 /// through the same compiler-neutral grammar used by package orchestration.
 ///
-/// Scoped `Owner::build` roots remain in the explicit Q4 compatibility lane.
-/// They are not accepted as declarations here, and package-aware readers still
-/// reject them. The standalone compiler preserves their current behavior only
-/// until that owner question is settled.
 fn validate_selected_build_role(
     source_storage: &SourceStorage,
     build_source_id: Option<psi_source::SourceId>,
@@ -347,26 +343,6 @@ fn validate_selected_build_role(
     let Some(build_source_id) = build_source_id else {
         return Ok(());
     };
-    let selected = source_storage
-        .files
-        .iter()
-        .find_map(|(_, file)| (file.source_id == build_source_id).then_some(file))
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "selected build source has no retained syntax file",
-            )]
-        })?;
-    let has_scoped_build = selected.root_items.iter().any(|handle| {
-        matches!(
-            source_storage.syntax_trees.items.item(*handle),
-            psi_syntax_trees::item::Item::Machine(machine)
-                if machine.attached_data.is_some()
-                    && machine.name.as_str().rsplit("::").next() == Some("build")
-        )
-    });
-    if has_scoped_build {
-        return Ok(());
-    }
     let source = source_storage.sources.get(build_source_id).ok_or_else(|| {
         vec![Diagnostic::error(
             "selected build source has no retained source text",
@@ -477,10 +453,9 @@ fn validate_package_source_frontier(
 }
 
 /// The TOOLCHAIN-PROVIDED build vocabulary (build_and_package_model.md): a
-/// build.omg is just `machine build(builder: &mut Build) { ... }` or the scoped
-/// `machine Owner::build(&mut self, builder: &mut Build) { ... }` -- the `Build` /
-/// `Subsystem` types are CORE-DEFINED, never authored per file. When a
-/// build.omg root declares either build-machine shape and no `Build` data of
+/// build.omg has exactly one free `machine build(builder: &mut Build) { ... }`
+/// entry. The `Build` / `Subsystem` types are CORE-DEFINED, never authored per
+/// file. When a build.omg root declares that build-machine shape and no `Build` data of
 /// its own, the build-machine fragment is injected as a virtual source (a
 /// program-declared `Build` wins, which keeps migration and deliberate
 /// overrides possible). Package identity uses the same injected `Build`
@@ -854,9 +829,7 @@ fn inject_build_prelude(
         for root_item in &file.root_items {
             match source_storage.syntax_trees.root_item(*root_item) {
                 psi_syntax_trees::item::Item::Machine(machine)
-                    if is_build_file
-                        && (machine.name.as_str() == "build"
-                            || machine.name.as_str().ends_with("::build")) =>
+                    if is_build_file && machine.name.as_str() == "build" =>
                 {
                     has_build_machine = true;
                     build_reaches_filesystem |= source_storage

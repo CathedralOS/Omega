@@ -1921,9 +1921,8 @@ impl Default for BuildConfig {
     }
 }
 
-/// Whether a machine is the program's build machine: named `build` (the
-/// FREE pure-config shape) or `<Component>::build` (the Q4 compatibility
-/// shape) AND declared in the exact companion `build.omg` selected by project
+/// Whether a machine is the program's canonical free build machine, declared
+/// in the exact companion `build.omg` selected by project
 /// discovery. Typed symbols retain authored source identity, so neither a
 /// filename scan nor a machine-name handoff is authority.
 /// A wrong-arity build machine still refuses at evaluation with the arity
@@ -1933,8 +1932,7 @@ pub fn is_build_machine(
     machine: &psi_typed_trees::machine::Machine,
     build_source_id: Option<psi_source::SourceId>,
 ) -> bool {
-    let name = machine.name.as_str();
-    if name != BUILD_MACHINE && !name.ends_with("::build") {
+    if machine.name.as_str() != BUILD_MACHINE {
         return false;
     }
     let Some(build_source_id) = build_source_id else {
