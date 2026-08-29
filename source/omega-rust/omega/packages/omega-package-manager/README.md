@@ -56,7 +56,7 @@ resolution/closure/
 ├── traversal/       follow declared workspace, local, and Git edges
 ├── reconciliation/  reconcile one complete closure
 └── identity/        canonical identity of the exact closure
-    ├── subject.rs   canonical closure question and fingerprint
+    ├── subject/     closure question, requests, limits, and fingerprint
     ├── codec/       encode framing, source identities, and selections
     └── validation/  reject invalid graphs, requests, and source custody
 ```
