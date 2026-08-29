@@ -852,7 +852,7 @@ semantic acceptance independent of optimizer sophistication.
 - Tempting but wrong: zero-initialize generated frame slots and call the gap
   closed; that changes Beta's written local semantics and hides skipped stores.
 
-## Q18 — Select the canonical Beta compiler outcome carrier
+## Q17 — Select the canonical Beta compiler outcome carrier
 
 ### Context
 
