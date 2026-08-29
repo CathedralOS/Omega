@@ -87,6 +87,10 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn validate_native_fuel_plan",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/backend/images/omega-image-emission/src/native_fuel/ranked_u32_countdown/mod.rs",
+        coordination_marker: "object::admit_rebased_branches",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/backend/images/omega-image-emission/src/ranked_u32_countdown/mod.rs",
         coordination_marker: "pub(super) fn replay_ranked_u32_countdown",
     },

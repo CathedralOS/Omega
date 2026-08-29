@@ -189,10 +189,12 @@ on both sides of their trust boundary. Each `native_fuel/mod.rs` is a small real
 join: machine emission classifies ranked custody before general two-pass
 instrumentation, while image emission admits the semantic object before general
 meter replay and ranked branch replay. Their `general.rs` leaves retain the
-ordinary algorithm and focused fixtures; `ranked_u32_countdown.rs` owns only the
-charge-interleaved control distinction. The architecture gate governs both
-trees and prevents image replay from calling charge, cold-dispatch, or ranked-
-branch producer encoders.
+ordinary algorithm and focused fixtures. Image replay's 45-line
+`ranked_u32_countdown/mod.rs` entrance owns classification plus the object and
+final-publication joins, then descends into coordinate decoding, object
+admission, and final-byte publication leaves. The architecture gate governs
+both trees and prevents image replay from calling charge, cold-dispatch, or
+ranked-branch producer encoders.
 
 Psi SCCP constant evaluation now follows the same downward-navigation rule.
 Its 35-line entrance owns the shared SCCP rule contract and names boolean and

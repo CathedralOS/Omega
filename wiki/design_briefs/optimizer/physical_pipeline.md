@@ -32,7 +32,12 @@ three control fragments. Independent image replay reconstructs those
 coordinates and consumes target-owned decoders for every hot charge, cold
 dispatch, and rebased branch. Destination branches enter charge-group starts;
 they never target a relocated semantic instruction after its charges.
-Executable-image publication remains a separate named boundary.
+At executable-image publication, one shared ranked replay runs after the
+final-text relocation envelope for both direct and transfer-runtime images. It
+replays semantic proof/rank/ABI/frontier/fuel custody, reconstructs the exact
+nine-row source-to-charge mapping, excludes relocations from the ranked
+function, and decodes every final hot, cold, and branch fragment. Runtime
+relocations remain confined to the appended transfer/resume suffix.
 
 The mandatory lowering crate has two explicit entrances. `legalization/mod.rs`
 joins canonical source projection to independent whole-plan replay;
@@ -177,6 +182,11 @@ function-relative realization is v9, while fragment emission and fragment text
 placement are v8. Their records retain the exact selected-lowering selection
 or post-allocation optimization, not a broad optimization level.
 
+Ranked native-fuel images use the same direct and transfer-runtime carriers as
+ordinary metered functions. The ranked leaf adds validation, not a parallel
+route: both Linux x64 and Linux Arm64 images retain the five-coordinate rebase
+record through final-byte replay and canonical installation encoding.
+
 The Terminal-Psi-to-native stage now exposes its full physical composition as
 small owning entrances. Source-entry settlement replays declaration and
 calling-plan custody. Native realization then chooses the ordinary or exact
@@ -232,6 +242,11 @@ injection, platform ABI substitution, preservation-convention drift, and the
 Microsoft structural-Unit call row. This does not claim general call-crossing
 allocation coverage: general scalar calls are not yet represented in the
 selected CFG.
+
+Ranked native-fuel coverage proves direct and transfer-runtime executable-image
+and installation custody on Linux x64 and Linux Arm64. It checks exact final
+metered bytes, nine charge coordinates, two x86 or three AArch64 runtime
+relocations, runtime evidence, and installation encode/decode/rejoin.
 
 The ordinary empty-selection compiler route is deliberately outside this
 optimizer custody chain. Its four-target byte and artifact-metadata baseline is

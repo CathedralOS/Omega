@@ -381,7 +381,7 @@ fn replay_function(
     Ok((bytes, semantic_end_offset, charges))
 }
 
-fn validate_charge(
+pub(super) fn validate_charge(
     architecture: Architecture,
     policy: &NativeFuelTargetPlanProjection,
     attribution: NativeFuelAttribution,
@@ -414,7 +414,7 @@ fn validate_charge(
     })
 }
 
-fn validate_cold_dispatch(
+pub(super) fn validate_cold_dispatch(
     architecture: Architecture,
     policy: &NativeFuelTargetPlanProjection,
     attribution: NativeFuelAttribution,
@@ -450,14 +450,14 @@ fn validate_cold_dispatch(
     })
 }
 
-const fn hot_charge_byte_count(architecture: Architecture) -> usize {
+pub(super) const fn hot_charge_byte_count(architecture: Architecture) -> usize {
     match architecture {
         Architecture::X86_64 => omega_isa_x86_64::X86_NATIVE_FUEL_CHARGE_BYTE_COUNT,
         Architecture::Aarch64 => omega_isa_aarch64::AARCH64_NATIVE_FUEL_CHARGE_BYTE_COUNT,
     }
 }
 
-const fn cold_dispatch_byte_count(architecture: Architecture) -> usize {
+pub(super) const fn cold_dispatch_byte_count(architecture: Architecture) -> usize {
     match architecture {
         Architecture::X86_64 => omega_isa_x86_64::X86_NATIVE_FUEL_COLD_DISPATCH_BYTE_COUNT,
         Architecture::Aarch64 => omega_isa_aarch64::AARCH64_NATIVE_FUEL_COLD_DISPATCH_BYTE_COUNT,

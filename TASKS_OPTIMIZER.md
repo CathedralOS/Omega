@@ -17,6 +17,15 @@ another broad alias while executing this plan.
 
 ## Current stopping point
 
+[x] Ranked-`u32` native-fuel custody now crosses both direct and
+transfer-runtime executable-image boundaries on Linux x64 and Linux Arm64.
+One 45-line replay entrance joins target-decoded coordinate reconstruction to
+object admission and independently rejoins semantic proof/rank/ABI/fuel
+custody to final bytes. Final replay reconstructs all five branch coordinates,
+all nine source-to-charge rows, all hot and cold fragments, relocation
+isolation, and all three rebased branches before either image is admitted;
+both routes then round-trip canonical installation custody.
+
 [x] Global value numbering now includes one closed obligation-free wrapping
 neutral-arithmetic family: `0 + x`, `x + 0`, `x - 0`, `1 * x`, and `x * 1`.
 The ordered producer leaf admits only those five typed rows; a separate
@@ -436,10 +445,11 @@ parallel route or optional coordinator field.
   independently. Structural-Unit selected validation also reconstructs ABI
   layout and call constraints without construction helpers. The unmetered
   ranked-`u32` machine carrier now has target-decoder-led unmetered and
-  native-fuel object replay, and the unmetered ranked route reaches final-image,
-  installation, native-artifact, and callable custody. Only the direct and
-  transfer-runtime ranked native-fuel executable-image routes remain fenced;
-  remaining lowering and publication routes still need closure.
+  native-fuel object replay. The unmetered route reaches final-image,
+  installation, native-artifact, and callable custody; direct and
+  transfer-runtime native-fuel routes now independently replay final bytes and
+  reach canonical installation custody on both ranked targets. Remaining
+  lowering and publication routes still need closure.
 - [ ] Add generated differential testing across interpreter/reference native
   execution for exact integer, float, trap, atomic, placed-memory, cleanup, and
   transition cases.

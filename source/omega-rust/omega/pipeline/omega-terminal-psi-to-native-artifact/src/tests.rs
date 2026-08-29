@@ -1,6 +1,8 @@
 use super::*;
 use std::collections::BTreeSet;
 
+mod native_fuel;
+
 use crate::realization::project_selected_provider_adapters_for_requirements;
 use omega_effects::provider_plan::{
     ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
@@ -35,44 +37,6 @@ const RANKED_COUNTDOWN_SOURCE: &str = r#"
         state done(token: Token) {}
     }
 "#;
-
-fn ranked_native_fuel_policy(
-    target: omega_target::NativeTarget,
-) -> omega_installation_evidence::NativeFuelTargetPlanProjection {
-    let (profile, register) = if target == omega_target::NativeTarget::linux_x64() {
-        (
-            omega_target::TargetProfile::LinuxX64,
-            omega_calling_conventions::MachineRegister::X86Rbx,
-        )
-    } else {
-        (
-            omega_target::TargetProfile::LinuxArm64,
-            omega_calling_conventions::MachineRegister::Aarch64X(28),
-        )
-    };
-    omega_installation_evidence::NativeFuelTargetPlanProjection {
-        profile,
-        target,
-        transport:
-            omega_installation_evidence::SponsorContextTransport::ReservedNonvolatileRegister {
-                register,
-            },
-        context: omega_installation_evidence::NativeFuelContextLayout {
-            byte_size: 256,
-            alignment: 16,
-            remaining_units_offset: 24,
-            unpaid_site_kind_offset: 32,
-            unpaid_site_identity_offset: 40,
-            required_units_offset: 48,
-            transfer_entry_offset: 56,
-            retry_code_offset_offset: 64,
-            sponsor_stack_top_offset: 72,
-            activation_state_offset: 80,
-            activation_state_byte_count: 176,
-        },
-        transfer_plan_identity: 11,
-    }
-}
 
 #[test]
 fn ranked_native_dispatch_emits_exact_machine_body_and_logical_fuel_sites() {
@@ -235,11 +199,15 @@ fn ranked_native_dispatch_emits_exact_machine_body_and_logical_fuel_sites() {
             .validate()
             .expect("ranked native artifact should replay independently");
 
-        let instrumented = omega_machine_emission::instrument_native_fuel(
-            emitted.clone(),
-            ranked_native_fuel_policy(target),
-        )
-        .expect("rebase ranked branches around exact native-fuel charges");
+        let transfer_plan = native_fuel::transfer_runtime_plan(target);
+        let target_policy = native_fuel::target_policy(&transfer_plan);
+        assert_eq!(
+            target_policy.transfer_plan_identity,
+            transfer_plan.normalized_identity()
+        );
+        let instrumented =
+            omega_machine_emission::instrument_native_fuel(emitted.clone(), target_policy)
+                .expect("rebase ranked branches around exact native-fuel charges");
         assert_eq!(instrumented.source, emitted);
         let metered = &instrumented.functions[0];
         let rebased = metered
@@ -336,13 +304,11 @@ fn ranked_native_dispatch_emits_exact_machine_body_and_logical_fuel_sites() {
         let metered_container = omega_image_emission::emit_native_fuel_object_container(&validated);
         assert_eq!(metered_container.output.text_bytes, final_size);
         assert_eq!(metered_container.output.relocations, 0);
-        let metered_image_error =
-            omega_image_emission::emit_native_fuel_executable_image(&validated, 0)
-                .expect_err("ranked native-fuel final image remains a later boundary");
-        assert!(
-            metered_image_error
-                .message
-                .contains("no final-image replay")
+        native_fuel::assert_ranked_publication_round_trips(
+            &validated,
+            metered,
+            expected_rebase,
+            &transfer_plan,
         );
 
         for offset in [
@@ -404,7 +370,7 @@ fn ranked_native_dispatch_emits_exact_machine_body_and_logical_fuel_sites() {
         assert!(matches!(
             omega_machine_emission::instrument_native_fuel(
                 stripped_metering_source,
-                ranked_native_fuel_policy(target),
+                target_policy,
             ),
             Err(
                 omega_machine_emission::NativeFuelInstrumentationError::MissingRankedCountdownCustody(
