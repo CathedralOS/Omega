@@ -574,9 +574,14 @@ owns device contents and cannot derive that operation. Both observing
 compare-exchange forms return the resident observation on failure and therefore
 require a copyable resident. The non-observing forms return the proposed value
 on mismatch and, for the single-attempt form, on uncommitted failure; success
-returns the displaced resident unless an exact selected rule proves it
-discardable. Their copyable `Key` and selected atomic rule prove the exact
-comparison encoding without constructing a second owned `T`. Fetch conformance
+always returns the displaced resident, and ordinary multiplicity decides
+whether the caller may discard it. Their copyable `Key` and selected atomic
+rule prove the exact comparison encoding without constructing a second owned
+`T`; neither is a runtime parameter of `AtomicTryExchangeOutcome<T>` or
+`AtomicTryExchangeOnceOutcome<T>`. The observing forms analogously return
+`AtomicCompareExchangeOutcome<T>` or
+`AtomicCompareExchangeOnceOutcome<T>`. These fixed nominal sums and their
+canonical case order are part of the operation ABI. Fetch conformance
 additionally proves the exact provider raw transition over every read-reachable
 representation; no External read/write pair synthesizes it.
 

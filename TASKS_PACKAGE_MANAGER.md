@@ -43,7 +43,7 @@ closed. Compiler-issued package review remains non-admitting.
   - run the existing Windows Job Object process-count, per-process memory,
     aggregate-memory, and aggregate-CPU exhaustion pairs on a native Windows
     worker; cross-compilation is not execution evidence;
-  - narrow macOS SSH discovery/fetch reads after OWNER Q3 settles explicit host-key,
+  - narrow macOS SSH discovery/fetch reads after OWNER Q2 settles explicit host-key,
     key, credential-provider, and credential-file custody;
   - make the existing broker transfer ceiling complete by denying direct helper
     egress on Linux and Windows; separately enforce whole-operation object-store,
@@ -66,7 +66,7 @@ closed. Compiler-issued package review remains non-admitting.
   The detailed established floor and remaining platform gaps are maintained in
   `source/omega-rust/omega/packages/omega-package-source/SOURCE_RESOLVER_SECURITY.md`.
   Strict SSH trust and credential authority is
-  design-blocked on OWNER Q3 (strict SSH custody); the other bullets are engineering work.
+  design-blocked on OWNER Q2 (strict SSH custody); the other bullets are engineering work.
 
 ## P2 — Total compiler admission projection
 
@@ -184,7 +184,7 @@ closed. Compiler-issued package review remains non-admitting.
   metadata may be deployment policy; it must not become proof that an audit
   occurred.
 
-- [ ] **DESIGN-BLOCKED — OWNER Q13: DANGEROUS-AUTHORITY-CLASSIFICATION.** The
+- [ ] **DESIGN-BLOCKED — OWNER Q12: DANGEROUS-AUTHORITY-CLASSIFICATION.** The
   existing compiler-owned catalog exactly classifies every currently declared
   authority surface. Select semantic loci for network, dynamic loading,
   signing, secrets, executable installation, DMA/IOMMU, and future surfaces
@@ -379,7 +379,7 @@ explicitly.
   bodylessness, catalog presence, nor build policy may synthesize a requirement
   or satisfier edge.
 
-- [ ] **BLOCKED — OWNER Q3: STRICT-SSH-CUSTODY.** Settle host-key, key,
+- [ ] **BLOCKED — OWNER Q2: STRICT-SSH-CUSTODY.** Settle host-key, key,
   credential-provider, and credential-file authority before narrowing the
   remaining SSH read surface or treating SSH resolution as strict evidence.
 

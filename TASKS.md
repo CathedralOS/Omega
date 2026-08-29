@@ -38,7 +38,7 @@ scanners, or receipts.
 
 ## Trusted-core simplification
 
-- [ ] **DESIGN-BLOCKED — OWNER Q10. KEEP-TERMINAL-VERIFICATION-NONSEARCHING.** Separate deterministic
+- [ ] **DESIGN-BLOCKED — OWNER Q9. KEEP-TERMINAL-VERIFICATION-NONSEARCHING.** Separate deterministic
   reconstruction of the complete Terminal-Psi obligation set from discovery
   of proof routes. The producer may search and must serialize the selected
   derivation. The verifier checks that explicit derivation against the
@@ -56,7 +56,7 @@ scanners, or receipts.
   malformed producer-selected edge rejects even when the verifier could have
   rediscovered a primitive route. Mirrored candidate selectors are test-only
   for these paths. Completion is language-design blocked on
-  [`Q10`](OWNER_QUESTIONS.md#q10--canonical-kernel-propositions-for-exact-scalar-operations):
+  [`Q9`](OWNER_QUESTIONS.md#q9--canonical-kernel-propositions-for-exact-scalar-operations):
   exact cast, exact shift-left representability, and exact add/subtract/multiply
   still have no settled canonical kernel proposition and therefore retain the
   legacy sufficient-form reducer.
@@ -585,7 +585,7 @@ Remaining:
   distinct strong identity. The standalone metered object-container publication
   API was deleted once it no longer strengthened a consumer edge. Transfer-
   runtime replay now additionally requires its exact activation slots to
-  preserve the ABI rank carrier. **OWNER-BLOCKED — Q13 (ranked native-fuel sponsor):** honest ranked runtime
+  preserve the ABI rank carrier. **OWNER-BLOCKED — Q11 (ranked native-fuel sponsor):** honest ranked runtime
   execution still needs a sponsor-ownership ruling: the binder requires an
   already-owned in-object sponsor function, while the admitted ranked artifact
   is exactly one countdown function and cannot use itself as sponsor. Native
@@ -2239,10 +2239,23 @@ Owners:
   drift, and releases only the loan. Source-visible domain establishment,
   `Vacant` transitions, partial moves, Terminal propagation, and installation
   remain.
-- Complete the atomic 2x2 compare-exchange family: existing observing strong
-  and weak forms require copyable residents; new non-observing strong and weak
-  forms return the proposal on failure and may transfer affine or linear
+- Complete the atomic 2x2 compare-exchange family: existing observing decisive
+  and single-attempt forms require copyable residents; new non-observing
+  decisive and single-attempt forms return the proposal on failure and may
+  transfer affine or linear
   custody using one copyable comparison key and exact selected encoding law.
+  Add the four settled flat core carriers together:
+  `AtomicCompareExchangeOutcome<T>`,
+  `AtomicCompareExchangeOnceOutcome<T>`,
+  `AtomicTryExchangeOutcome<T>`, and
+  `AtomicTryExchangeOnceOutcome<T>`. Their canonical cases are failure-first:
+  `Mismatched` is tag zero, `Exchanged` is tag one, and `Uncommitted` is tag two
+  only on the single-attempt carriers. Observing failure carries `observed: T`;
+  non-observing failure carries `proposed: T`; non-observing success always
+  carries `displaced: T`. A selected encoding law cannot erase Type-side
+  custody, so ordinary multiplicity alone decides whether the displaced value
+  may be discarded. `Key` remains a copyable comparison input and the selected
+  law remains checked call evidence; neither parameterizes the runtime outcome.
   The atomic access-policy vocabulary now retains that 2x2 permission family as
   four distinct authored and admitted rows: observing decisive
   `compare_exchange`, observing single-attempt `compare_exchange_once`, non-
@@ -2276,11 +2289,14 @@ Owners:
   existing observing-decisive source call is currently derivable. A concrete
   source-visible closed-result carrier and its parser/checker desugaring remain
   prerequisites for `compare_exchange_once`; reusing the decisive prior-value
-  carrier would erase `Uncommitted`. The cases and payloads are settled, but
-  the public nominal result-type identities and therefore their case paths are
-  design-blocked under “Nominal result carriers for observing
-  compare-exchange” in `OWNER_QUESTIONS.md`. Source calls for the other
-  families, runtime-result custody, an atomic attempt or retry, the non-
+  carrier would erase `Uncommitted`. The identities, case paths, order, and
+  payloads are settled; implement and retain them through checked source,
+  Terminal Psi, interpretation, lowering, package review, and replay. Migrate
+  the decisive scalar-return call with a targeted diagnostic rather than a
+  scalar overload. The observing carriers may land first, but publish all four
+  core identities together; the try operations remain fenced until their
+  custody and encoding-law rows exist. Source calls for the other families,
+  runtime-result custody, an atomic attempt or retry, the non-
   observing comparison key/selected-encoding law, Terminal rows, provider
   selection or installation, backend target operation identity, and executable
   lowering remain open.

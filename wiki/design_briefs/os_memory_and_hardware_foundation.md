@@ -505,7 +505,11 @@ resident on failure and therefore require it to be copyable.
 the proposed value on mismatch or an uncommitted attempt and may transfer
 affine or linear custody. Their copyable key and selected transition law prove
 the exact comparison encoding without constructing a second owned `T`;
-success returns the displaced resident unless that law proves it discardable.
+success always returns the displaced resident, and ordinary multiplicity
+decides whether the caller may discard it. The public runtime carriers are
+`AtomicTryExchangeOutcome<T>` and `AtomicTryExchangeOnceOutcome<T>`; the key and
+law remain comparison input and checked evidence respectively, rather than
+result parameters.
 Strength and failure observation are independent axes. Each fetch operation
 additionally proves its exact authorized raw transition over every
 provider-reachable representation; External read/write capability never
@@ -936,9 +940,11 @@ retain their exact operation family. Observing decisive and single-attempt
 compare-exchange additionally remain distinct in the shared ordering carrier
 and permission check. The single-attempt form is not source-admitted or lowered
 yet because its three-arm result carrier is absent. The outcome cases are
-settled, but the public nominal result-type identities and case paths remain an
-owner language-design question; checked interpretation and legacy native
-lowering reject it at their entry boundaries rather than collapsing it into
+owned by the flat core types `AtomicCompareExchangeOutcome<T>` and
+`AtomicCompareExchangeOnceOutcome<T>`, with `Mismatched` at tag zero,
+`Exchanged` at tag one, and `Uncommitted` at tag two where present. Checked
+interpretation and legacy native lowering continue to reject the unimplemented
+single-attempt path at their entry boundaries rather than collapsing it into
 decisive compare-exchange.
 
 This section records the implementation boundary, not its history. The P2

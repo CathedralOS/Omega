@@ -2439,7 +2439,11 @@ cases expose `observed: T`, so the resident must be copyable. The checked typed
 placed-field boundary now retains this as a non-authorizing contract for each
 admitted observing axis: exact field and resident type, normalized unrestricted
 multiplicity, transfer width, permission identity, and the distinct decisive or
-single-attempt closed result shape are independently replayed. Affine or linear
+single-attempt closed result shape are independently replayed. Those shapes are
+the flat core identities `AtomicCompareExchangeOutcome<T>` with canonical cases
+`Mismatched(observed: T), Exchanged`, and
+`AtomicCompareExchangeOnceOutcome<T>` with canonical cases
+`Mismatched(observed: T), Exchanged, Uncommitted(observed: T)`. Affine or linear
 observing residents reject. A `try_exchange*`-only field retains no such row and
 gains no observing or selected-encoding authority. This contract is not a
 Terminal row. The checked/runtime join may retain its matching provider-backed
@@ -2450,9 +2454,14 @@ backend identity, or lowering authority. The independent non-observing pair,
 `AtomicTryExchangeOnce<T, Key>`, returns the proposed value on mismatch or an
 uncommitted attempt and can transfer affine or linear residents. The copyable
 key and selected raw-transition law determine the comparison without
-constructing another owned `T`; success returns the displaced resident unless
-that law proves it discardable. `Once` always denotes the weak/single-attempt
-axis, never the observation axis.
+constructing another owned `T`. Their result identities are
+`AtomicTryExchangeOutcome<T>` and `AtomicTryExchangeOnceOutcome<T>`; every case
+contains exactly one owned `T`, proposed on failure and displaced on success.
+The law cannot erase Type-side custody: success always returns the displaced
+resident, and ordinary multiplicity decides whether it may be discarded.
+`Key` remains a copyable comparison input and its encoding law remains checked
+call evidence; neither is a runtime outcome parameter. `Once` always denotes
+the weak/single-attempt axis, never the observation axis.
 
 Generic `ResidentContentTransfer<P, T>` is one provider requirement schema, not
 one ambient slot per monomorph. An artifact records each concrete application
@@ -3758,7 +3767,7 @@ owner-derived identity. The former metered object-container publication API was
 deleted because no supported consumer ended at that weaker checkpoint.
 Transfer-runtime plans must explicitly save the ABI rank carrier. Supplying an
 honest sponsor entry for this deliberately one-function artifact remains an
-owner decision (Q13, ranked native-fuel sponsor), so schedule comparison does not invent a compiler-private
+owner decision (Q11, ranked native-fuel sponsor), so schedule comparison does not invent a compiler-private
 helper.
 
 Omega may use a certificate only for the exact installed terminal bytes,
