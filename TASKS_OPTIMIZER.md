@@ -179,6 +179,9 @@ and no-selection compatibility remain enforced.
 - [x] Split the pre-physical manifest monolith into retained model, record
   projection, independent join validation, canonical codec/identity, human
   rendering, and focused test leaves below one projection-to-replay entrance.
+- [x] Split complete-unit operation contracts into value flow, ordered node
+  contracts, service/call, structural-access, claim-transfer, payloadless-case,
+  boundary, and scalar-type leaves below one per-node validation entrance.
 - [>] Replace remaining flat executable stages and mixed-responsibility files
   with semantic folders whose small `mod.rs` owns the real stage join. Tighten
   the production-file ceiling as each named legacy leaf is removed.
