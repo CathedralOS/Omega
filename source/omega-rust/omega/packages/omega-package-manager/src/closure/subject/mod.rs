@@ -2,7 +2,7 @@
 
 use super::graph::ResolvedSourceIdentity;
 use super::reconciliation::ResolvedPackageSourceClosure;
-use crate::declarations::dependency_projection::DependencySourceRequest;
+use crate::manifest::dependency_projection::DependencySourceRequest;
 use crate::source::identity::{
     AliasName, ExternalSourceContext, PackageKey, PackageName, SourceLineage, WorkspaceMemberPath,
 };

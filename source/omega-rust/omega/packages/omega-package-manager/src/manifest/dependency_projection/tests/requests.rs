@@ -1,7 +1,5 @@
 use super::PackageFixture;
-use crate::declarations::dependency_projection::{
-    DependencyProjectionError, DependencySourceRequest,
-};
+use crate::manifest::dependency_projection::{DependencyProjectionError, DependencySourceRequest};
 use crate::source::identity::{AliasName, PackageName};
 
 #[test]

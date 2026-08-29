@@ -1,5 +1,5 @@
-use crate::declarations::declaration::PackageDeclarationError;
-use crate::declarations::dependency_projection::DependencyProjectionError;
+use crate::manifest::declaration::PackageDeclarationError;
+use crate::manifest::dependency_projection::DependencyProjectionError;
 use crate::source::SourceResolveError;
 use crate::source::identity::IdentityError;
 use std::fmt;

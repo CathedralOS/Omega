@@ -1,7 +1,7 @@
-use crate::declarations::dependency_edit::{
+use crate::manifest::dependency_edit::{
     BUILD_MACHINE_NAME, BUILDER_PARAMETER_NAME, BuildDependencyEditError,
 };
-use crate::declarations::dependency_projection::DependencyProjectionError;
+use crate::manifest::dependency_projection::DependencyProjectionError;
 use psi_source_files_to_tokens::Lexer;
 use psi_syntax_trees::item::Item;
 use psi_tokens::TokenStream;

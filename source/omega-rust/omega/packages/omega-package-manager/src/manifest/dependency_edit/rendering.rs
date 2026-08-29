@@ -1,4 +1,4 @@
-use crate::declarations::dependency_projection::DependencySourceRequest;
+use crate::manifest::dependency_projection::DependencySourceRequest;
 use sha2::{Digest, Sha256};
 
 use super::BUILDER_PARAMETER_NAME;

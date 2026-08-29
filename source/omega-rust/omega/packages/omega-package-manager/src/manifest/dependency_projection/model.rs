@@ -1,4 +1,4 @@
-use crate::declarations::declaration::BuildDeclaration;
+use crate::manifest::declaration::BuildDeclaration;
 use crate::source::identity::{AliasName, PackageName};
 
 /// One source request projected without evaluating `build.omg`.

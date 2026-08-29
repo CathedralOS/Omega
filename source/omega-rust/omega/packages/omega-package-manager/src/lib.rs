@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Package declarations, immutable source acquisition, closure review, and
+//! Package manifests, immutable source acquisition, closure review, and
 //! root policy for Omega's registry-free package manager.
 //!
 //! Start with the responsibility modules below. The crate keeps its historical
@@ -8,7 +8,7 @@
 //! tree instead of accumulating in this root.
 
 pub mod closure;
-pub mod declarations;
+pub mod manifest;
 mod records;
 pub mod review;
 pub mod source;
@@ -33,7 +33,7 @@ pub use closure::{
     resolve_workspace_package_closure_in_context_with_storage,
     resolve_workspace_package_closure_with_storage,
 };
-pub use declarations::{
+pub use manifest::{
     ApplicationDeclaration, BuildDeclaration, BuildDeclarationError, BuildDeclarationKind,
     BuildDependencyEditError, BuildDependencyEditPlan, BuildDependencyManualPatch,
     BuildDependencyManualReason, BuildDependencyProjection, BuildFileReplacement,

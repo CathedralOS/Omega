@@ -3,7 +3,7 @@
 use super::super::graph::{ResolvedPackageClosure, ResolvedSourceIdentity};
 use super::model::{DependencyRequestPath, DependencyRequestPathStep};
 use super::source_custody::{PackageRootSourceRequest, PackageSourceCustody};
-use crate::declarations::dependency_projection::DependencySourceRequest;
+use crate::manifest::dependency_projection::DependencySourceRequest;
 use crate::source::identity::{AliasName, PackageKey};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::path::Path;

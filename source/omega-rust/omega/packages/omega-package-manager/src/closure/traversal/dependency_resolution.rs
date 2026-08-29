@@ -9,7 +9,7 @@ use super::cache::{
     resolve_workspace_member_from_cache,
 };
 use super::errors::ResolveDependencySourceError;
-use crate::declarations::dependency_projection::DependencySourceRequest;
+use crate::manifest::dependency_projection::DependencySourceRequest;
 use crate::source::identity::{
     ExternalSourceContext, PackageKey, SourceLineage, WorkspaceLineageIdentity, WorkspaceMemberPath,
 };

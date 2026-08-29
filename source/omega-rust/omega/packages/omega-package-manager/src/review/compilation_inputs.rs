@@ -118,7 +118,7 @@ mod tests {
     use super::*;
     use crate::closure::reconciliation::resolve_package_source_closure;
     use crate::closure::{PackageRootSourceRequest, PackageSourceCustody};
-    use crate::declarations::dependency_projection::DependencySourceRequest;
+    use crate::manifest::dependency_projection::DependencySourceRequest;
     use crate::source::identity::{
         GitCommitId, GitTreeId, ImmutableSourceResolution, PackageKey, PackageName,
         SourceContentDigest, SourceLineage,

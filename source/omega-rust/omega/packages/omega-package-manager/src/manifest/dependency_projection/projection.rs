@@ -2,7 +2,7 @@ use super::error::DependencyProjectionError;
 use super::model::{BuildDependencyProjection, DependencySourceRequest};
 use super::policy::{reject_authored_toolchain_vocabulary, reject_unprojected_dependency_syntax};
 use super::source_literal::{project_alias_literal, project_source_literal};
-use crate::declarations::declaration::{BuildDeclarationError, convert_shared_declaration};
+use crate::manifest::declaration::{BuildDeclarationError, convert_shared_declaration};
 use omega_build_declarations as shared;
 use psi_source_files_to_tokens::Lexer;
 use psi_syntax_trees::SyntaxTrees;

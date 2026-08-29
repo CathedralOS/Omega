@@ -1,4 +1,4 @@
-use crate::declarations::dependency_projection::DependencyProjectionError;
+use crate::manifest::dependency_projection::DependencyProjectionError;
 use std::fmt;
 use std::path::{Path, PathBuf};
 

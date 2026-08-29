@@ -2,10 +2,8 @@ use super::{
     ResolvePackageSourceError, resolve_external_local_package_source, resolve_git_package_source,
     resolve_workspace_member_package_source,
 };
-use crate::declarations::declaration::PackageDeclarationError;
-use crate::declarations::dependency_projection::{
-    DependencyProjectionError, DependencySourceRequest,
-};
+use crate::manifest::declaration::PackageDeclarationError;
+use crate::manifest::dependency_projection::{DependencyProjectionError, DependencySourceRequest};
 #[cfg(unix)]
 use crate::source::SourceResolveError;
 use crate::source::identity::{
@@ -339,7 +337,7 @@ fn application_role_cannot_be_bound_as_a_package_source() {
         error,
         ResolvePackageSourceError::Declaration(
             PackageDeclarationError::ExpectedPackageDeclaration {
-                found: crate::declarations::declaration::BuildDeclarationKind::Application
+                found: crate::manifest::declaration::BuildDeclarationKind::Application
             }
         )
     ));

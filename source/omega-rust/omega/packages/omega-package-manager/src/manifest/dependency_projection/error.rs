@@ -1,4 +1,4 @@
-use crate::declarations::declaration::BuildDeclarationError;
+use crate::manifest::declaration::BuildDeclarationError;
 use std::fmt;
 use std::path::PathBuf;
 

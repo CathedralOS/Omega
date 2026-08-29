@@ -1,13 +1,11 @@
-use crate::declarations::dependency_edit::BUILD_FILE_NAME;
-use crate::declarations::dependency_edit::layout::discover_build_layout;
-use crate::declarations::dependency_edit::model::{
+use crate::manifest::dependency_edit::BUILD_FILE_NAME;
+use crate::manifest::dependency_edit::layout::discover_build_layout;
+use crate::manifest::dependency_edit::model::{
     BuildDependencyEditError, BuildDependencyEditPlan, BuildDependencyManualPatch,
     BuildDependencyManualReason, BuildFileReplacement,
 };
-use crate::declarations::dependency_edit::rendering::{
-    canonical_dependency_statement, source_digest,
-};
-use crate::declarations::dependency_projection::{DependencySourceRequest, extract_from_source};
+use crate::manifest::dependency_edit::rendering::{canonical_dependency_statement, source_digest};
+use crate::manifest::dependency_projection::{DependencySourceRequest, extract_from_source};
 use std::fs;
 use std::path::{Path, PathBuf};
 
