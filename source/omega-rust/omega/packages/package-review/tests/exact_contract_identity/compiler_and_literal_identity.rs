@@ -59,6 +59,48 @@ fn review_projects_width_landed_float_literals_by_exact_bits() {
 }
 
 #[test]
+fn float_contract_review_rejects_missing_checked_width_landing() {
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        "pub proposition reviewed(value: f32) = value == 1.25;\n",
+    );
+    package.write(
+        "build.omg",
+        "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+    );
+    let mut checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("float landing-tamper fixture should check");
+    let float_expression = checked
+        .expression_table
+        .iter_expressions()
+        .find_map(|(expression, node)| {
+            matches!(node, psi_typed_trees::expression::ExpressionNode::Float(_))
+                .then_some(expression)
+        })
+        .expect("landed float expression");
+    *checked
+        .typed
+        .expression_table
+        .expression_mut(float_expression) = psi_typed_trees::expression::ExpressionNode::Float(
+        psi_typed_trees::expression::FloatLiteral::parse("1.25")
+            .expect("unlanded exact float literal"),
+    );
+
+    let diagnostics = project_checked_package_review(&checked)
+        .expect_err("review must not infer a missing checked float width");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("without an exact checked width landing")
+    }));
+}
+
+#[test]
 fn review_projects_exact_compiler_byte_sequence_predicate_identity() {
     let project = |predicate: &str| {
         let package = TempPackage::new();
