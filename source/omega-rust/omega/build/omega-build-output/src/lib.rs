@@ -203,7 +203,7 @@ pub fn replayed_single_ordinary_file(
 
 /// Reconstruct the repeated ordinary-artifact receipt grammar from canonical
 /// replay operands. Every file is a distinct direct child created by one exact
-/// create/full-write/close chain. Directory and other namespace effects remain
+/// create/full-write*/close sequence. Directory and other namespace effects remain
 /// outside this grammar rather than being inferred from a final digest.
 pub fn replayed_ordinary_files(
     files: &[(&[u8], &[u8])],

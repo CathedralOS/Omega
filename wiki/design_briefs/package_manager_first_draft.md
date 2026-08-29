@@ -1359,7 +1359,7 @@ semantic-schema binding; record framing is unchanged.
 Observation summary v28 and compiler replay-record v9 distinguish an ordinary
 build artifact from generated source. After admitted Source-input events, the
 same exact direct-child ordinary-file `create(438)`/full-write/close chain may
-finish without `include_source`. Replay executes the output chain in a fresh
+finish without `include_source`. Replay executes the Output file in a fresh
 virtual namespace, requires the handoff to remain absent, and reconstructs the
 exact one-file tree. Initial issuance still requires equality with independent
 sponsored staged-tree custody, and unexplained entries reject. Reopening ignores
@@ -1417,6 +1417,17 @@ must equal both fresh virtual replay and independent sponsored Output custody.
 Negative or malformed offsets, partial or failed writes, extent overflow or
 retention excess, interleaving, seek, descriptor duplication, and reopen remain
 outside the grammar. Existing handoff and frontend gates are unchanged.
+
+Observation summary v33 and compiler replay-record v14 admit a freshly created
+empty Output file without requiring a synthetic zero-byte write. The file
+grammar is now `create(438)`, zero or more complete sequential or positioned
+writes, then close. `create` followed immediately by `close` reconstructs one
+ordinary zero-byte file and must still agree with fresh virtual replay and
+independent sponsored Output custody. A zero-byte write remains a distinct
+retained operation when authored; the compiler never invents one. Missing or
+failed close, interleaving, and every otherwise unsupported operation still
+reject. Internal replay vocabulary now names the unit an Output file rather
+than a write chain.
 
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/

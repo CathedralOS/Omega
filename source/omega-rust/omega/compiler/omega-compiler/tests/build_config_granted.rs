@@ -353,7 +353,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 32);
+    assert_eq!(checked_observations.schema_version(), 33);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -3779,6 +3779,108 @@ fn full_positioned_writes_replay_exact_cursor_and_extent() {
 
     let _ = std::fs::remove_dir_all(&project);
     let _ = std::fs::remove_dir_all(rooted_build_session(&project, "positioned-writes-review"));
+}
+
+#[test]
+fn empty_output_file_replays_without_synthetic_write() {
+    let (project, profile) = rooted_build_probe_project(
+        "empty-output-file",
+        r#"    let input: &[u8] in Path = builder.source.resolve("main.omg");
+    self.descriptor = self.filesystem.open(input, 0);
+    self.result = self.filesystem.read(self.descriptor, &mut self.buffer, 23);
+    self.code = self.filesystem.close(self.descriptor);
+    let artifact: &[u8] in Path = builder.output.resolve("empty.bin");
+    self.descriptor = self.filesystem.create(artifact, 438);
+    self.code = self.filesystem.close(self.descriptor);
+    let generated: &[u8] in Path = builder.output.resolve("after-empty.omg");
+    self.descriptor = self.filesystem.create(generated, 438);
+    self.result = self.filesystem.write(self.descriptor, "data AfterEmpty {}\n");
+    self.code = self.filesystem.close(self.descriptor);
+    builder.output.include_source(generated);"#,
+    );
+    let checked =
+        compile_rooted_probe_with_sponsored_output(&project, profile, "empty-output-review")
+            .expect("empty ordinary Output file should receipt");
+    let summary = checked
+        .build_observation_summary()
+        .expect("empty-output receipt retains observations");
+    assert!(summary.operation_replay_verified());
+    assert_eq!(summary.realized(), BuildObservationClass::Receipted);
+    assert_eq!(
+        summary
+            .filesystem_operation_attempts()
+            .iter()
+            .map(|attempt| attempt.operation_tag())
+            .collect::<Vec<_>>(),
+        vec![2, 4, 8, 1, 8, 1, 5, 8]
+    );
+    assert_eq!(
+        summary
+            .included_source_handoffs()
+            .iter()
+            .map(|handoff| (
+                handoff.relative_path(),
+                handoff.filesystem_attempt_ordinal()
+            ))
+            .collect::<Vec<_>>(),
+        vec![(b"after-empty.omg".as_slice(), 8)]
+    );
+    let tree = summary
+        .staged_output_tree()
+        .expect("empty and generated Output files retain one exact tree");
+    assert_eq!(tree.entry_count(), 2);
+    assert!(
+        std::fs::read(
+            rooted_build_session(&project, "empty-output-review").join("output/empty.bin")
+        )
+        .unwrap()
+        .is_empty()
+    );
+
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let record = capture_verified_build_filesystem_replay_record(summary, limits)
+        .expect("empty-output receipt should encode")
+        .expect("empty-output receipt should retain replay custody");
+    assert_eq!(
+        recover_review_only_build_filesystem_replay_record(record.canonical_bytes(), limits)
+            .expect("empty-output replay record should recover"),
+        record
+    );
+
+    let package = PackageKeyIdentity::from_digest([103; 32]).expect("nonzero package identity");
+    set_canonical_source_tree_permissions(&project, true);
+    let package_source = PackageSourceBinding::new(package, "empty-output", project.clone())
+        .with_canonical_source_metadata()
+        .expect("capture empty-output canonical metadata");
+    let package_inputs = PackageCompilationInputs::new(package, vec![package_source], Vec::new())
+        .expect("single-package empty-output input");
+    std::fs::write(
+        rooted_build_session(&project, "empty-output-review").join("output/empty.bin"),
+        b"spoofed",
+    )
+    .expect("change physical empty Output after receipt capture");
+    let replayed = compile_to_checked_with_packages_and_replay_record(
+        &project.join("main.omg"),
+        Some(profile.target_name()),
+        package_inputs,
+        record,
+    )
+    .expect("empty-output replay ignores host Output drift");
+    set_canonical_source_tree_permissions(&project, false);
+    assert_eq!(
+        replayed
+            .typed
+            .symbols
+            .source_files()
+            .find(|source| source.path.ends_with("after-empty.omg"))
+            .expect("source after empty Output enters final compilation")
+            .source
+            .as_ref(),
+        "data AfterEmpty {}\n"
+    );
+
+    let _ = std::fs::remove_dir_all(&project);
+    let _ = std::fs::remove_dir_all(rooted_build_session(&project, "empty-output-review"));
 }
 
 #[test]
