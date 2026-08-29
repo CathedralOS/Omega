@@ -17,6 +17,10 @@ name = "optimizer_source_organization"
 path = "optimizer_source_organization.rs"
 
 [[test]]
+name = "package_source_organization"
+path = "package_source_organization.rs"
+
+[[test]]
 name = "semantic_taxonomy_inventory"
 path = "semantic_taxonomy_inventory.rs"
 
