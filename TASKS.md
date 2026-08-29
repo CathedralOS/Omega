@@ -2698,6 +2698,15 @@ Remaining:
   measurements. The driver no longer owns trust-report algorithms, writers,
   snapshot arguments, timing output, or observation-policy branching, and the
   checked snapshot writer is no longer re-exported from the pipeline root.
+  Request-owned product admission is now explicit as well. Consuming
+  `CompileRequest::validate_for_execution` returns a private
+  `ValidatedCompileRequest` before the driver may acquire source. The request
+  owner enforces the existing cross-field rule that a nonempty optimization
+  rollback can accompany only `NativeArtifact`, preserving the exact
+  diagnostic and the pre-source/no-output rejection. The driver no longer
+  inspects rollback contents or formats request-policy diagnostics; it only
+  coordinates an admitted request through the shared frontend and selected
+  product stop.
 
   Restore the driver contract:
 
