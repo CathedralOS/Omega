@@ -150,11 +150,14 @@ Omega/
 |       |   |-- [CRATE] omega-component-deployment/
 |       |   `-- [CRATE] omega-trust-ledger/
 |       |-- compiler/                                    # Thin product coordinator and result surface.
-|       |-- packages/                                    # Registry-free package manager and trust boundaries.
+|       |-- packages/                                    # Registry-free package service and trust boundaries.
 |       |   |-- README.md                                # Human entrance and dependency-direction map.
-|       |   |-- [CRATE] omega-package-manager/                  # Declarations, resolution, review workflow, and policy.
-|       |   |-- [CRATE] omega-package-review/            # Compiler-owned non-admitting semantic projection.
-|       |   `-- [CRATE] omega-resolver-execution/        # OS confinement for hostile acquisition helpers.
+|       |   |-- manager/                                 # Command workflows, graph, and local admission policy.
+|       |   |-- source/                                  # Immutable acquisition boundary.
+|       |   |   `-- [CRATE] execution/                   # OS confinement for hostile acquisition helpers.
+|       |   `-- review/                                  # Human and compiler review surfaces.
+|       |       |-- [CRATE] evidence/                    # Compiler-owned non-admitting semantic projection.
+|       |       `-- [CRATE] advisory/                    # Optional model-facing source review.
 |       |-- tooling/                                     # Auxiliary artifacts, profiles, visualizations, and host custody.
 |       |-- src/                                         # Tiny `omega` product command.
 |       `-- tests/                                       # Cargo integration tests for that product command.

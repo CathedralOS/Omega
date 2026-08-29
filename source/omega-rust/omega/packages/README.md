@@ -1,31 +1,32 @@
 # Omega Packages
 
-Start in [`manager`](manager/README.md). It owns the package workflow and is the
-only package crate called by the `omega` command.
+Start in [`manager`](manager/README.md) for a user operation. Follow
+[`source`](source/README.md) when the operation acquires hostile input, and
+[`review`](review/README.md) when it turns checked compiler state into a local
+admission decision.
 
 ```text
 packages/
-├── README.md             this entrance
-├── advisory-tooling/     optional model-facing source-review protocol
-├── manager/              workflow → manifest/source/package/graph/review
-├── package-review/       checked compiler state → inert review evidence
-└── resolver-execution/   confined native source-resolution processes
+├── README.md       this entrance
+├── manager/        command workflows, package graph, and local admission
+├── source/         immutable acquisition and hostile process execution
+└── review/         compiler evidence and optional advisory review
 ```
 
 The dependency direction is one-way:
 
 ```text
-manager ──→ package-review
-        └─→ resolver-execution
-advisory-tooling ──→ manager
+manager ──→ source/execution
+        └─→ review/evidence
+review/advisory ──→ manager
 ```
 
-`package-review` understands compiler semantics but cannot admit packages.
-`resolver-execution` understands host confinement but cannot choose package
+`review/evidence` understands compiler semantics but cannot admit packages.
+`source/execution` understands host confinement but cannot choose package
 identity or policy. `manager` composes those results, but mutating install and
 update transactions remain gated by [`TASKS_PACKAGE_MANAGER.md`](../../../../TASKS_PACKAGE_MANAGER.md).
 
-`advisory-tooling` consumes deterministic bounded manager output. Its model
+`review/advisory` consumes deterministic bounded manager output. Its model
 protocol and recommendations are optional and never participate in acceptance.
 
 Design references:

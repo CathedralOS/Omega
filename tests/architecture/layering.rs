@@ -681,7 +681,7 @@ fn package_review_is_not_owned_or_reexported_by_the_compiler() {
         "package review projection and evidence schemas must not return to omega-compiler"
     );
 
-    let owner = root.join("source/omega-rust/omega/packages/package-review/src/lib.rs");
+    let owner = root.join("source/omega-rust/omega/packages/review/evidence/src/lib.rs");
     assert!(
         owner.is_file(),
         "omega-package-review must own package review"
@@ -717,10 +717,9 @@ fn package_subsystem_has_discoverable_owners_and_bounded_modules() {
         .collect::<BTreeSet<_>>();
     let expected_top_level = [
         "README.md",
-        "advisory-tooling",
         "manager",
-        "package-review",
-        "resolver-execution",
+        "review",
+        "source",
     ]
     .into_iter()
     .map(str::to_owned)
@@ -732,8 +731,6 @@ fn package_subsystem_has_discoverable_owners_and_bounded_modules() {
 
     for required in [
         "README.md",
-        "advisory-tooling/README.md",
-        "advisory-tooling/src/lib.rs",
         "manager/src/lib.rs",
         "manager/src/workflow/mod.rs",
         "manager/src/workflow/source_audit/mod.rs",
@@ -743,11 +740,15 @@ fn package_subsystem_has_discoverable_owners_and_bounded_modules() {
         "manager/src/graph/mod.rs",
         "manager/src/review/mod.rs",
         "manager/src/records/mod.rs",
-        "package-review/src/lib.rs",
-        "package-review/src/evidence/contracts/mod.rs",
-        "package-review/src/evidence/signatures/mod.rs",
-        "package-review/src/obligation_ledger/mod.rs",
-        "resolver-execution/src/lib.rs",
+        "review/README.md",
+        "review/advisory/README.md",
+        "review/advisory/src/lib.rs",
+        "review/evidence/src/lib.rs",
+        "review/evidence/src/evidence/contracts/mod.rs",
+        "review/evidence/src/evidence/signatures/mod.rs",
+        "review/evidence/src/obligation_ledger/mod.rs",
+        "source/README.md",
+        "source/execution/src/lib.rs",
     ] {
         let entrance = packages.join(required);
         assert!(
@@ -771,6 +772,9 @@ fn package_subsystem_has_discoverable_owners_and_bounded_modules() {
         "omega-package-manager",
         "omega-package-review",
         "omega-resolver-execution",
+        "advisory-tooling",
+        "package-review",
+        "resolver-execution",
         "manager/src/resolution",
         "manager/src/storage",
         "manager/src/source/package",
@@ -778,14 +782,14 @@ fn package_subsystem_has_discoverable_owners_and_bounded_modules() {
         "manager/src/review/advisor",
         "manager/src/review/compiler",
         "manager/src/review/diff",
-        "package-review/src/encoding/obligation_ledger",
-        "package-review/src/projection/public_traits.rs",
-        "package-review/src/projection/provider_families.rs",
-        "package-review/src/projection/provider_intrinsics.rs",
-        "package-review/src/projection/evidence/selected_providers.rs",
-        "package-review/src/projection/evidence",
-        "package-review/src/evidence/contracts.rs",
-        "package-review/src/evidence/signatures.rs",
+        "review/evidence/src/encoding/obligation_ledger",
+        "review/evidence/src/projection/public_traits.rs",
+        "review/evidence/src/projection/provider_families.rs",
+        "review/evidence/src/projection/provider_intrinsics.rs",
+        "review/evidence/src/projection/evidence/selected_providers.rs",
+        "review/evidence/src/projection/evidence",
+        "review/evidence/src/evidence/contracts.rs",
+        "review/evidence/src/evidence/signatures.rs",
     ] {
         assert!(
             !packages.join(retired).exists(),
@@ -893,7 +897,7 @@ fn package_semantics_exclude_executable_provenance_and_model_protocols() {
             "model protocol must remain outside package core: {retired}"
         );
     }
-    let optional_tool = root.join("source/omega-rust/omega/packages/advisory-tooling/src");
+    let optional_tool = root.join("source/omega-rust/omega/packages/review/advisory/src");
     for owned in ["protocol.rs", "invocation.rs"] {
         assert!(
             optional_tool.join(owned).is_file(),
@@ -3092,7 +3096,7 @@ fn external_root_stack_and_fuel_fingerprints_are_report_only() {
 fn package_review_provider_plan_fingerprints_are_report_only() {
     let root = workspace_root();
     let evidence_path =
-        root.join("source/omega-rust/omega/packages/package-review/src/evidence/projection.rs");
+        root.join("source/omega-rust/omega/packages/review/evidence/src/evidence/projection.rs");
     let evidence = std::fs::read_to_string(&evidence_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", evidence_path.display()));
     assert!(
@@ -3106,7 +3110,7 @@ fn package_review_provider_plan_fingerprints_are_report_only() {
     );
 
     let encoding_path = root
-        .join("source/omega-rust/omega/packages/package-review/src/encoding/values/providers.rs");
+        .join("source/omega-rust/omega/packages/review/evidence/src/encoding/values/providers.rs");
     let encoding = std::fs::read_to_string(&encoding_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", encoding_path.display()));
     assert!(
