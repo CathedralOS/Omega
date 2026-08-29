@@ -30,12 +30,11 @@ trap 'rm -rf "$TMP"' EXIT
 
 "$ASSEMBLER" < "$OMEGA_PATH_BETA_COMPILER/beta_compiler.alpha" > "$TMP/compiler.tape"
 
-ARTIFACT="$OMEGA_PATH_BETA_COMPILER/artifacts/beta_compiler_bytecode.tape"
+ARTIFACT="$OMEGA_PATH_BETA_COMPILER/beta_compiler_bytecode.tape"
 if [ "$MODE" = "--check" ]; then
   cmp "$TMP/compiler.tape" "$ARTIFACT"
   echo "Alpha-written Beta compiler matches the persisted artifact ($(wc -c < "$ARTIFACT" | tr -d ' ') bytes)"
 else
-  mkdir -p "$OMEGA_PATH_BETA_COMPILER/artifacts"
   cp "$TMP/compiler.tape" "$ARTIFACT"
   echo "rebuilt canonical Beta compiler artifact ($(wc -c < "$ARTIFACT" | tr -d ' ') bytes)"
 fi

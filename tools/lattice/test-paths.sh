@@ -25,6 +25,7 @@ expect_role alpha-checker "$OMEGA_REPO_ROOT/source/alpha/checker"
 expect_role beta-compiler "$OMEGA_REPO_ROOT/source/beta/compiler"
 expect_role beta-validation "$OMEGA_REPO_ROOT/source/beta/compiler/validation"
 expect_role gamma "$OMEGA_REPO_ROOT/source/gamma"
+expect_role gamma-compiler "$OMEGA_REPO_ROOT/source/gamma/compiler"
 expect_role delta "$OMEGA_REPO_ROOT/source/delta"
 expect_role delta-compiler "$OMEGA_REPO_ROOT/source/delta/compiler"
 expect_role psi "$OMEGA_REPO_ROOT/source/psi"
@@ -60,6 +61,10 @@ done
 [ ! -e "$OMEGA_REPO_ROOT/source/gamma/canonical-bytes" ] || fail "unowned Gamma canonical-byte bucket remains"
 [ ! -e "$OMEGA_REPO_ROOT/source/gamma/terminal-codec-primitives" ] || fail "unowned Gamma terminal-codec bucket remains"
 [ ! -e "$OMEGA_PATH_DELTA/source-closures" ] || fail "Delta compiler validation records remain at the language root"
+[ ! -e "$OMEGA_PATH_BETA_COMPILER/artifacts" ] || fail "Beta compiler artifact remains in a nested artifacts bucket"
+[ ! -e "$OMEGA_PATH_GAMMA_COMPILER/artifacts" ] || fail "Gamma compiler artifact remains in a nested artifacts bucket"
+[ ! -e "$OMEGA_PATH_DELTA_COMPILER/artifacts" ] || fail "Delta compiler artifact remains in a nested artifacts bucket"
+[ ! -e "$OMEGA_PATH_OMEGA/artifacts" ] || fail "Omega compiler artifacts remain in a nested artifacts bucket"
 for misplaced in \
   "$OMEGA_PATH_DELTA"/DELTA_*_V1.md \
   "$OMEGA_PATH_DELTA"/lower-rooted-* \

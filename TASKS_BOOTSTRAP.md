@@ -98,6 +98,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
   Do not create generic `bootstrap/`, `on-ramp/`, `assurance/`, `canaries/`, or
   generation directories. `omega₀` and `omega` are artifacts, not languages or
   source owners.
+  - [x] Move the existing Beta tape adjacent to `beta_compiler.alpha`, delete
+    its otherwise content-free `artifacts/` bucket, and make path hygiene reject
+    nested artifact buckets for every canonical compiler owner.
 - [ ] Update path-hygiene and lattice runners to enumerate only the canonical
   owners above. They must fail if a lower rung imports source or a semantic
   executable from beyond its immediate successor.
