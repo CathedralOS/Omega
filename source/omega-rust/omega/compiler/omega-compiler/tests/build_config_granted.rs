@@ -353,7 +353,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 31);
+    assert_eq!(checked_observations.schema_version(), 32);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -3663,6 +3663,122 @@ fn sequential_full_writes_replay_as_concatenated_output_files() {
 
     let _ = std::fs::remove_dir_all(&project);
     let _ = std::fs::remove_dir_all(rooted_build_session(&project, "sequential-writes-review"));
+}
+
+#[test]
+fn full_positioned_writes_replay_exact_cursor_and_extent() {
+    let (project, profile) = rooted_build_probe_project(
+        "positioned-full-output-writes",
+        r#"    let input: &[u8] in Path = builder.source.resolve("main.omg");
+    self.descriptor = self.filesystem.open(input, 0);
+    self.result = self.filesystem.read(self.descriptor, &mut self.buffer, 23);
+    self.code = self.filesystem.close(self.descriptor);
+    let generated: &[u8] in Path = builder.output.resolve("positioned.omg");
+    self.descriptor = self.filesystem.create(generated, 438);
+    self.result = self.filesystem.write(self.descriptor, "data ");
+    self.result = self.filesystem.write_at(self.descriptor, "Positioned {}\n", 5);
+    self.result = self.filesystem.write(self.descriptor, "Positioned {}\n");
+    self.code = self.filesystem.close(self.descriptor);
+    builder.output.include_source(generated);
+    let artifact: &[u8] in Path = builder.output.resolve("positioned.bin");
+    self.descriptor = self.filesystem.create(artifact, 438);
+    self.result = self.filesystem.write(self.descriptor, "head");
+    self.result = self.filesystem.write_at(self.descriptor, "tail", 8);
+    self.result = self.filesystem.write(self.descriptor, "-cur");
+    self.result = self.filesystem.write_at(self.descriptor, "", 40);
+    self.code = self.filesystem.close(self.descriptor);"#,
+    );
+    let checked =
+        compile_rooted_probe_with_sponsored_output(&project, profile, "positioned-writes-review")
+            .expect("full positioned writes should receipt");
+    let summary = checked
+        .build_observation_summary()
+        .expect("positioned-write receipt retains observations");
+    assert!(summary.operation_replay_verified());
+    assert_eq!(summary.realized(), BuildObservationClass::Receipted);
+    assert_eq!(
+        summary
+            .filesystem_operation_attempts()
+            .iter()
+            .map(|attempt| attempt.operation_tag())
+            .collect::<Vec<_>>(),
+        vec![2, 4, 8, 1, 5, 7, 5, 8, 1, 5, 7, 5, 7, 8]
+    );
+    assert_eq!(
+        summary
+            .included_source_handoffs()
+            .iter()
+            .map(|handoff| (
+                handoff.relative_path(),
+                handoff.filesystem_attempt_ordinal()
+            ))
+            .collect::<Vec<_>>(),
+        vec![(b"positioned.omg".as_slice(), 8)]
+    );
+    assert_eq!(
+        checked
+            .typed
+            .symbols
+            .source_files()
+            .find(|source| source.path.ends_with("positioned.omg"))
+            .expect("positioned generated source enters final compilation")
+            .source
+            .as_ref(),
+        "data Positioned {}\n"
+    );
+    assert_eq!(
+        std::fs::read(
+            rooted_build_session(&project, "positioned-writes-review")
+                .join("output/positioned.bin")
+        )
+        .unwrap(),
+        b"head-curtail"
+    );
+
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let record = capture_verified_build_filesystem_replay_record(summary, limits)
+        .expect("positioned-write receipt should encode")
+        .expect("positioned-write receipt should retain replay custody");
+    assert_eq!(
+        recover_review_only_build_filesystem_replay_record(record.canonical_bytes(), limits)
+            .expect("positioned-write replay record should recover"),
+        record
+    );
+
+    let package = PackageKeyIdentity::from_digest([102; 32]).expect("nonzero package identity");
+    set_canonical_source_tree_permissions(&project, true);
+    let package_source = PackageSourceBinding::new(package, "positioned", project.clone())
+        .with_canonical_source_metadata()
+        .expect("capture positioned-write canonical metadata");
+    let package_inputs = PackageCompilationInputs::new(package, vec![package_source], Vec::new())
+        .expect("single-package positioned-write input");
+    std::fs::write(
+        rooted_build_session(&project, "positioned-writes-review").join("output/positioned.omg"),
+        "data Spoofed {}\n",
+    )
+    .expect("change physical positioned Output after receipt capture");
+    let replayed = compile_to_checked_with_packages_and_replay_record(
+        &project.join("main.omg"),
+        Some(profile.target_name()),
+        package_inputs,
+        record,
+    )
+    .expect("positioned-write replay ignores host Output drift");
+    set_canonical_source_tree_permissions(&project, false);
+    assert_eq!(
+        replayed
+            .typed
+            .symbols
+            .source_files()
+            .find(|source| source.path.ends_with("positioned.omg"))
+            .expect("replayed positioned source enters final compilation")
+            .source
+            .as_ref(),
+        "data Positioned {}\n"
+    );
+
+    let _ = std::fs::remove_dir_all(&project);
+    let _ = std::fs::remove_dir_all(rooted_build_session(&project, "positioned-writes-review"));
 }
 
 #[test]

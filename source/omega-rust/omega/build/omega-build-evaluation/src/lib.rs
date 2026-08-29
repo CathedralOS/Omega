@@ -300,7 +300,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 31;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 32;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -2312,14 +2312,7 @@ fn receipted_output_files(
             {
                 return None;
             }
-            let byte_count = output.writes().iter().try_fold(0usize, |count, write| {
-                count.checked_add(write.bytes().len())
-            })?;
-            let mut bytes = Vec::new();
-            bytes.try_reserve_exact(byte_count).ok()?;
-            for write in output.writes() {
-                bytes.extend_from_slice(write.bytes());
-            }
+            let bytes = output.replayed_bytes().ok()?;
             Some(ReceiptedOutputFile {
                 relative_path: output.output_relative_path().to_vec(),
                 bytes,

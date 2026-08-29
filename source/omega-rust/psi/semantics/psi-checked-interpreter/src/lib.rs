@@ -1622,7 +1622,7 @@ pub struct FilesystemReplay {
 /// rung (`0o666`, represented in Omega source as decimal `438`).
 pub const FILESYSTEM_REPLAY_OUTPUT_CREATE_MODE: i32 = 438;
 pub const MAX_INCLUDED_BUILD_SOURCES: usize = 256;
-const MAX_FILESYSTEM_REPLAY_RETAINED_BYTES: usize = 16 * 1024 * 1024;
+pub const MAX_FILESYSTEM_REPLAY_RETAINED_BYTES: usize = 16 * 1024 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilesystemReplayReadKind {
@@ -1878,9 +1878,18 @@ impl FilesystemSourceInputReplayRecord {
     }
 }
 
-/// One complete sequential write within a freshly created Output file.
+/// Cursor behavior for one complete write within a freshly created Output file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilesystemOutputWriteReplayKind {
+    Sequential,
+    Positioned { offset: i64 },
+}
+
+/// One complete sequential or positioned write within a freshly created
+/// Output file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FilesystemOutputWriteReplayRecord {
+    kind: FilesystemOutputWriteReplayKind,
     bytes: Vec<u8>,
     result: i64,
     post_error: i32,
@@ -1888,6 +1897,39 @@ pub struct FilesystemOutputWriteReplayRecord {
 
 impl FilesystemOutputWriteReplayRecord {
     pub fn new(bytes: Vec<u8>, result: i64, post_error: i32) -> Result<Self, String> {
+        Self::with_kind(
+            FilesystemOutputWriteReplayKind::Sequential,
+            bytes,
+            result,
+            post_error,
+        )
+    }
+
+    pub fn positioned(
+        offset: i64,
+        bytes: Vec<u8>,
+        result: i64,
+        post_error: i32,
+    ) -> Result<Self, String> {
+        if offset < 0 {
+            return Err(
+                "filesystem replay positioned output offset must be nonnegative".to_owned(),
+            );
+        }
+        Self::with_kind(
+            FilesystemOutputWriteReplayKind::Positioned { offset },
+            bytes,
+            result,
+            post_error,
+        )
+    }
+
+    fn with_kind(
+        kind: FilesystemOutputWriteReplayKind,
+        bytes: Vec<u8>,
+        result: i64,
+        post_error: i32,
+    ) -> Result<Self, String> {
         let full_result = i64::try_from(bytes.len())
             .map_err(|_| "filesystem replay output exceeds i64 write length".to_owned())?;
         if result != full_result {
@@ -1897,10 +1939,15 @@ impl FilesystemOutputWriteReplayRecord {
             );
         }
         Ok(Self {
+            kind,
             bytes,
             result,
             post_error,
         })
+    }
+
+    pub const fn kind(&self) -> FilesystemOutputWriteReplayKind {
+        self.kind
     }
 
     pub fn bytes(&self) -> &[u8] {
@@ -1916,11 +1963,13 @@ impl FilesystemOutputWriteReplayRecord {
     }
 }
 
-/// One or more complete sequential writes to one freshly created Output file.
+/// One or more complete sequential or positioned writes to one freshly created
+/// Output file.
 ///
 /// The chain is deliberately narrow: canonical `create` (tag 1), canonical
-/// one or more `write` calls (tag 5), then canonical `close` (tag 8), all through the scoped real
-/// provider and one fresh descriptor identity. A compiler may reconstruct the
+/// one or more `write` (tag 5) or `write_at` (tag 7) calls, then canonical
+/// `close` (tag 8), all through the scoped real provider and one fresh
+/// descriptor identity. A compiler may reconstruct the
 /// exact attempts from this record, but the record does not claim publication,
 /// receipt strength, or custody of a staged tree.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1978,14 +2027,16 @@ impl FilesystemOutputWriteChainReplayRecord {
         if writes.is_empty() {
             return Err("filesystem replay output requires at least one complete write".to_owned());
         }
-        Ok(Self {
+        let record = Self {
             output_root,
             output_relative_path,
             logical_handle_identity,
             create_post_error,
             writes,
             close_post_error,
-        })
+        };
+        record.replayed_extent()?;
+        Ok(record)
     }
 
     pub const fn output_root(&self) -> FilesystemGrantRootIdentity {
@@ -2012,8 +2063,61 @@ impl FilesystemOutputWriteChainReplayRecord {
         &self.writes
     }
 
+    pub fn replayed_bytes(&self) -> Result<Vec<u8>, String> {
+        let extent = self.replayed_extent()?;
+        let mut output = Vec::new();
+        output
+            .try_reserve_exact(extent)
+            .map_err(|_| "filesystem replay output allocation failed".to_owned())?;
+        output.resize(extent, 0);
+        let mut cursor = 0usize;
+        for write in &self.writes {
+            let start = match write.kind {
+                FilesystemOutputWriteReplayKind::Sequential => cursor,
+                FilesystemOutputWriteReplayKind::Positioned { offset } => usize::try_from(offset)
+                    .map_err(|_| {
+                    "filesystem replay positioned output offset exceeds this host".to_owned()
+                })?,
+            };
+            let end = start
+                .checked_add(write.bytes.len())
+                .ok_or_else(|| "filesystem replay output extent overflowed".to_owned())?;
+            if !write.bytes.is_empty() {
+                output[start..end].copy_from_slice(&write.bytes);
+            }
+            if write.kind == FilesystemOutputWriteReplayKind::Sequential {
+                cursor = end;
+            }
+        }
+        Ok(output)
+    }
+
     pub const fn close_post_error(&self) -> i32 {
         self.close_post_error
+    }
+
+    fn replayed_extent(&self) -> Result<usize, String> {
+        let mut cursor = 0usize;
+        let mut extent = 0usize;
+        for write in &self.writes {
+            let start = match write.kind {
+                FilesystemOutputWriteReplayKind::Sequential => cursor,
+                FilesystemOutputWriteReplayKind::Positioned { offset } => usize::try_from(offset)
+                    .map_err(|_| {
+                    "filesystem replay positioned output offset exceeds this host".to_owned()
+                })?,
+            };
+            let end = start
+                .checked_add(write.bytes.len())
+                .ok_or_else(|| "filesystem replay output extent overflowed".to_owned())?;
+            if !write.bytes.is_empty() {
+                extent = extent.max(end);
+            }
+            if write.kind == FilesystemOutputWriteReplayKind::Sequential {
+                cursor = end;
+            }
+        }
+        Ok(extent)
     }
 }
 
@@ -2193,6 +2297,7 @@ impl FilesystemReplay {
         }
         validate_source_input_attempts(&attempts[..output_start])?;
         let outputs = output_write_chain_records_from_attempts(&attempts[output_start..])?;
+        validate_output_replay_extents(&outputs)?;
         for output in &outputs {
             if source_attempts_overlap_output(
                 &attempts[..output_start],
@@ -2220,6 +2325,7 @@ impl FilesystemReplay {
     pub fn from_input_output_record(
         record: FilesystemInputOutputReplayRecord,
     ) -> Result<Self, String> {
+        validate_output_replay_extents(&record.output_write_chains)?;
         let mut attempts = source_input_record_attempts(record.source_input);
         for output in record.output_write_chains {
             attempts.extend(output_write_chain_attempts(output));
@@ -2230,6 +2336,24 @@ impl FilesystemReplay {
             expected_included_sources: record.expected_included_sources.into(),
         })
     }
+}
+
+fn validate_output_replay_extents(
+    outputs: &[FilesystemOutputWriteChainReplayRecord],
+) -> Result<(), String> {
+    outputs
+        .iter()
+        .try_fold(0usize, |total, output| {
+            total
+                .checked_add(output.replayed_extent()?)
+                .filter(|extent| *extent <= MAX_FILESYSTEM_REPLAY_RETAINED_BYTES)
+                .ok_or_else(|| {
+                    format!(
+                        "filesystem replay Output exceeds its {MAX_FILESYSTEM_REPLAY_RETAINED_BYTES}-byte aggregate extent ceiling"
+                    )
+                })
+        })
+        .map(|_| ())
 }
 
 fn validate_expected_included_sources(
@@ -2646,13 +2770,23 @@ fn output_write_record_from_attempt(
     else {
         return Err("filesystem replay Output write must succeed".to_owned());
     };
-    if write.operation_tag != 5
+    let kind_is_exact = match write.operation_tag {
+        5 => write.scalar_operands.is_empty(),
+        7 => matches!(
+            write.scalar_operands.as_slice(),
+            [FilesystemScalarOperand {
+                operand_ordinal: 2,
+                value: FilesystemScalarOperandValue::I64(offset),
+            }] if *offset >= 0
+        ),
+        _ => false,
+    };
+    if !kind_is_exact
         || write.provider != FilesystemObservationProvider::RealScoped
         || write_bytes.operand_ordinal != 1
         || write_input.operand_ordinal != 0
         || write_input.kind != FilesystemLogicalHandleKind::Descriptor
         || write_input.resolution != FilesystemLogicalHandleInputResolution::Resolved(identity)
-        || !write.scalar_operands.is_empty()
         || !write.path_like_operands.is_empty()
         || !write.rooted_path_operand_resolutions.is_empty()
         || !write.returned_paths.is_empty()
@@ -2669,11 +2803,31 @@ fn output_write_record_from_attempt(
     {
         return Err("filesystem replay Output write lanes are inconsistent".to_owned());
     }
-    FilesystemOutputWriteReplayRecord::new(
-        write_bytes.bytes.clone(),
-        write_result,
-        write_post_error,
-    )
+    match write.operation_tag {
+        5 => FilesystemOutputWriteReplayRecord::new(
+            write_bytes.bytes.clone(),
+            write_result,
+            write_post_error,
+        ),
+        7 => {
+            let [
+                FilesystemScalarOperand {
+                    value: FilesystemScalarOperandValue::I64(offset),
+                    ..
+                },
+            ] = write.scalar_operands.as_slice()
+            else {
+                unreachable!("validated positioned write has one i64 offset")
+            };
+            FilesystemOutputWriteReplayRecord::positioned(
+                *offset,
+                write_bytes.bytes.clone(),
+                write_result,
+                write_post_error,
+            )
+        }
+        _ => unreachable!("validated output write has a supported operation"),
+    }
 }
 
 fn output_write_chain_records_from_attempts(
@@ -2694,7 +2848,7 @@ fn output_write_chain_records_from_attempts(
         }
         cursor += 1;
         let writes_start = cursor;
-        while cursor < attempts.len() && attempts[cursor].operation_tag() == 5 {
+        while cursor < attempts.len() && matches!(attempts[cursor].operation_tag(), 5 | 7) {
             cursor += 1;
         }
         if cursor == writes_start
@@ -2773,13 +2927,24 @@ fn output_write_chain_attempts(
         .writes
         .into_iter()
         .map(|write| FilesystemOperationAttempt {
-            operation_tag: 5,
+            operation_tag: match write.kind {
+                FilesystemOutputWriteReplayKind::Sequential => 5,
+                FilesystemOutputWriteReplayKind::Positioned { .. } => 7,
+            },
             provider: FilesystemObservationProvider::RealScoped,
             outcome: Some(FilesystemOperationAttemptOutcome::Returned {
                 result: FilesystemOperationResult::Scalar(write.result),
                 post_error: write.post_error,
             }),
-            scalar_operands: Vec::new(),
+            scalar_operands: match write.kind {
+                FilesystemOutputWriteReplayKind::Sequential => Vec::new(),
+                FilesystemOutputWriteReplayKind::Positioned { offset } => {
+                    vec![FilesystemScalarOperand {
+                        operand_ordinal: 2,
+                        value: FilesystemScalarOperandValue::I64(offset),
+                    }]
+                }
+            },
             byte_operands: vec![FilesystemByteOperand {
                 operand_ordinal: 1,
                 bytes: write.bytes,
@@ -2902,6 +3067,23 @@ mod filesystem_replay_record_tests {
             0,
         )
         .expect("multiple complete sequential writes are canonical")
+    }
+
+    fn positioned_output_chain(identity: u64) -> FilesystemOutputWriteChainReplayRecord {
+        FilesystemOutputWriteChainReplayRecord::with_writes(
+            root(2),
+            b"positioned.generated.omg".to_vec(),
+            identity,
+            0,
+            vec![
+                FilesystemOutputWriteReplayRecord::new(b"head".to_vec(), 4, 0).unwrap(),
+                FilesystemOutputWriteReplayRecord::positioned(8, b"tail".to_vec(), 4, 0).unwrap(),
+                FilesystemOutputWriteReplayRecord::new(b"-cur".to_vec(), 4, 0).unwrap(),
+                FilesystemOutputWriteReplayRecord::positioned(0, Vec::new(), 0, 0).unwrap(),
+            ],
+            0,
+        )
+        .expect("mixed complete sequential and positioned writes are canonical")
     }
 
     fn descriptor_metadata_input(identity: u64) -> FilesystemSourceInputReplayRecord {
@@ -3099,6 +3281,90 @@ mod filesystem_replay_record_tests {
         let observations = EvaluationObservations::from_filesystem_operation_attempts(
             wrong_descriptor,
             vec![handoff],
+        );
+        assert!(FilesystemReplay::from_input_output_observations(&observations).is_err());
+    }
+
+    #[test]
+    fn typed_output_chain_retains_full_positioned_writes_and_cursor_semantics() {
+        let output = positioned_output_chain(2);
+        assert_eq!(output.replayed_bytes().unwrap(), b"head-curtail");
+        let record =
+            FilesystemInputOutputReplayRecord::new(source_input(1), vec![output], Vec::new())
+                .unwrap();
+        let replay = FilesystemReplay::from_input_output_record(record).unwrap();
+        assert_eq!(
+            replay
+                .attempts()
+                .iter()
+                .map(FilesystemOperationAttempt::operation_tag)
+                .collect::<Vec<_>>(),
+            vec![2, 4, 8, 1, 5, 7, 5, 7, 8]
+        );
+        let decoded = FilesystemReplay::from_input_output_observations(
+            &EvaluationObservations::from_filesystem_operation_attempts(
+                replay.attempts().to_vec(),
+                Vec::new(),
+            ),
+        )
+        .expect("positioned output observations retain exact operation shape");
+        let output_write_chains = decoded.output_write_chains();
+        let [decoded] = output_write_chains.as_slice() else {
+            panic!("one positioned output chain is retained")
+        };
+        assert_eq!(decoded.replayed_bytes().unwrap(), b"head-curtail");
+        assert_eq!(
+            decoded.writes()[1].kind(),
+            FilesystemOutputWriteReplayKind::Positioned { offset: 8 }
+        );
+
+        assert!(FilesystemOutputWriteReplayRecord::positioned(-1, vec![1], 1, 0).is_err());
+        let zero_length_beyond_extent = FilesystemOutputWriteChainReplayRecord::with_writes(
+            root(2),
+            b"empty.bin".to_vec(),
+            3,
+            0,
+            vec![FilesystemOutputWriteReplayRecord::positioned(1, Vec::new(), 0, 0).unwrap()],
+            0,
+        )
+        .expect("zero-length positioned writes do not extend Output");
+        assert!(
+            zero_length_beyond_extent
+                .replayed_bytes()
+                .unwrap()
+                .is_empty()
+        );
+
+        let sparse_over_ceiling = FilesystemOutputWriteChainReplayRecord::with_writes(
+            root(2),
+            b"sparse.bin".to_vec(),
+            3,
+            0,
+            vec![
+                FilesystemOutputWriteReplayRecord::positioned(
+                    i64::try_from(MAX_FILESYSTEM_REPLAY_RETAINED_BYTES).unwrap(),
+                    vec![1],
+                    1,
+                    0,
+                )
+                .unwrap(),
+            ],
+            0,
+        )
+        .expect("typed positioned chain is valid before replay allocation policy");
+        let sparse_record = FilesystemInputOutputReplayRecord::new(
+            source_input(1),
+            vec![sparse_over_ceiling],
+            Vec::new(),
+        )
+        .unwrap();
+        assert!(FilesystemReplay::from_input_output_record(sparse_record).is_err());
+
+        let mut wrong_offset_lane = replay.attempts().to_vec();
+        wrong_offset_lane[5].scalar_operands[0].operand_ordinal = 1;
+        let observations = EvaluationObservations::from_filesystem_operation_attempts(
+            wrong_offset_lane,
+            Vec::new(),
         );
         assert!(FilesystemReplay::from_input_output_observations(&observations).is_err());
     }
