@@ -108,9 +108,11 @@ frame "$SOURCE" 78109 "$TAPE" 20977 "$T/valid.frame"
 case_run "canonical source and tape" 0 "$T/valid.frame"
 
 # Exercise fixed-path computation over both exact subjects at compiler scale.
-# The declared path constructors descend to the final real byte in each
-# checker-owned power-of-two tree. This is still only a carrier control until
-# the complete assembly relation replaces the status ledger below.
+# The declared path constructors descend to the first and final source bytes
+# and the final tape byte in the checker-owned power-of-two trees. Multiple
+# computed equalities over one compiler-sized subject also pin conversion's
+# temporary-arena reclamation. This is still only a carrier control until the
+# complete assembly relation replaces the status ledger below.
 CHECKER_CERT='(data 16 0 0 0) (data 17 1 1 0) (data 18 1 1 0)
 (fun 110 16 (y 0))
 (fun 110 17 (recx 0 (f 111 (y 0))))
@@ -119,11 +121,15 @@ CHECKER_CERT='(data 16 0 0 0) (data 17 1 1 0) (data 18 1 1 0)
 (fun 112 63 (v 1))
 (fun 113 62 (v 0))
 (&
-  (= (f 113 (f 110 (k 18 (k 17 (k 17 (k 18 (k 18 (k 17 (k 17 (k 17 (k 18 (k 17 (k 17 (k 17 (k 18 (k 18 (k 18 (k 17 (k 17 (k 16)))))))))))))))))) source)) (k 60 (k 0) (k 10)))
-  (= (f 113 (f 110 (k 18 (k 17 (k 18 (k 17 (k 17 (k 17 (k 18 (k 18 (k 18 (k 18 (k 18 (k 17 (k 17 (k 17 (k 17 (k 16)))))))))))))))) tape)) (k 60 (k 6) (k 14))))
+  (= (f 113 (f 110 (k 17 (k 17 (k 17 (k 17 (k 17 (k 17 (k 17 (k 17 (k 17 (k 17 (k 17 (k 17 (k 17 (k 17 (k 17 (k 17 (k 17 (k 16)))))))))))))))))) source)) (k 60 (k 3) (k 11)))
+  (&
+    (= (f 113 (f 110 (k 18 (k 17 (k 17 (k 18 (k 18 (k 17 (k 17 (k 17 (k 18 (k 17 (k 17 (k 17 (k 18 (k 18 (k 18 (k 17 (k 17 (k 16)))))))))))))))))) source)) (k 60 (k 0) (k 10)))
+    (= (f 113 (f 110 (k 18 (k 17 (k 18 (k 17 (k 17 (k 17 (k 18 (k 18 (k 18 (k 18 (k 18 (k 17 (k 17 (k 17 (k 17 (k 16)))))))))))))))) tape)) (k 60 (k 6) (k 14)))))
 (pair
-  (refl (k 60 (k 0) (k 10)))
-  (refl (k 60 (k 6) (k 14))))'
+  (refl (k 60 (k 3) (k 11)))
+  (pair
+    (refl (k 60 (k 0) (k 10)))
+    (refl (k 60 (k 6) (k 14)))))'
 checker_frame "$SOURCE" "$TAPE" "$CHECKER_CERT" "$T/checker.frame"
 checker_case_run "exact checker subject computation" 1 accept "$T/checker.frame"
 
