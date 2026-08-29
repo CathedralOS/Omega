@@ -18,9 +18,20 @@ fn id<T>(value: u64, constructor: impl FnOnce(u64) -> Option<T>) -> T {
     constructor(value).unwrap()
 }
 
-fn contract() -> OptimizationRuleContract {
+fn contract(identity: TotalScalarIdentityKind) -> OptimizationRuleContract {
+    let domain = match identity {
+        TotalScalarIdentityKind::WrappingIntegerAddZeroLeft
+        | TotalScalarIdentityKind::WrappingIntegerAddZeroRight
+        | TotalScalarIdentityKind::WrappingIntegerSubtractZeroRight
+        | TotalScalarIdentityKind::WrappingIntegerMultiplyOneLeft
+        | TotalScalarIdentityKind::WrappingIntegerMultiplyOneRight => RULE_DOMAIN,
+        TotalScalarIdentityKind::WrappingIntegerShiftLeftZeroCount
+        | TotalScalarIdentityKind::WrappingIntegerShiftRightZeroCount => {
+            b"omega.psi-rule.live-obligation-free-wrapping-integer-shift-zero-count-elimination.v1"
+        }
+    };
     OptimizationRuleContract::new(
-        OptimizationRuleIdentity::from_canonical_bytes(RULE_DOMAIN),
+        OptimizationRuleIdentity::from_canonical_bytes(domain),
         OptimizationPassIdentity::from_canonical_bytes(b"test-gvn-pass"),
         1,
         AnalysisSet::new([
@@ -44,9 +55,11 @@ fn fixture(identity: TotalScalarIdentityKind) -> (PsiOptimizationUnit, TotalScal
     let arithmetic_operation = id(7, OperationId::new);
     let return_edge = id(8, EdgeId::new);
     let scalar_type = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
-    let (neutral_value, operation, replacement) = match identity {
+    let count_type = IntegerType::new(IntegerSign::Signed, 8).unwrap();
+    let (neutral_value, identity_operand_type, operation, replacement) = match identity {
         TotalScalarIdentityKind::WrappingIntegerAddZeroLeft => (
             IntegerValue::Unsigned(0),
+            scalar_type,
             AbstractOperation::WrappingIntegerAdd {
                 psi_operation: arithmetic_operation,
                 result,
@@ -58,6 +71,7 @@ fn fixture(identity: TotalScalarIdentityKind) -> (PsiOptimizationUnit, TotalScal
         ),
         TotalScalarIdentityKind::WrappingIntegerAddZeroRight => (
             IntegerValue::Unsigned(0),
+            scalar_type,
             AbstractOperation::WrappingIntegerAdd {
                 psi_operation: arithmetic_operation,
                 result,
@@ -69,6 +83,7 @@ fn fixture(identity: TotalScalarIdentityKind) -> (PsiOptimizationUnit, TotalScal
         ),
         TotalScalarIdentityKind::WrappingIntegerSubtractZeroRight => (
             IntegerValue::Unsigned(0),
+            scalar_type,
             AbstractOperation::WrappingIntegerSubtract {
                 psi_operation: arithmetic_operation,
                 result,
@@ -80,6 +95,7 @@ fn fixture(identity: TotalScalarIdentityKind) -> (PsiOptimizationUnit, TotalScal
         ),
         TotalScalarIdentityKind::WrappingIntegerMultiplyOneLeft => (
             IntegerValue::Unsigned(1),
+            scalar_type,
             AbstractOperation::WrappingIntegerMultiply {
                 psi_operation: arithmetic_operation,
                 result,
@@ -91,12 +107,39 @@ fn fixture(identity: TotalScalarIdentityKind) -> (PsiOptimizationUnit, TotalScal
         ),
         TotalScalarIdentityKind::WrappingIntegerMultiplyOneRight => (
             IntegerValue::Unsigned(1),
+            scalar_type,
             AbstractOperation::WrappingIntegerMultiply {
                 psi_operation: arithmetic_operation,
                 result,
                 scalar_type,
                 left: input_value,
                 right: neutral,
+            },
+            input_value,
+        ),
+        TotalScalarIdentityKind::WrappingIntegerShiftLeftZeroCount => (
+            IntegerValue::Signed(0),
+            count_type,
+            AbstractOperation::WrappingIntegerShiftLeft {
+                psi_operation: arithmetic_operation,
+                result,
+                value_type: scalar_type,
+                count_type,
+                value: input_value,
+                count: neutral,
+            },
+            input_value,
+        ),
+        TotalScalarIdentityKind::WrappingIntegerShiftRightZeroCount => (
+            IntegerValue::Signed(0),
+            count_type,
+            AbstractOperation::WrappingIntegerShiftRight {
+                psi_operation: arithmetic_operation,
+                result,
+                value_type: scalar_type,
+                count_type,
+                value: input_value,
+                count: neutral,
             },
             input_value,
         ),
@@ -135,7 +178,7 @@ fn fixture(identity: TotalScalarIdentityKind) -> (PsiOptimizationUnit, TotalScal
                     AbstractOperation::IntegerConstant {
                         psi_operation: literal_operation,
                         result: neutral,
-                        scalar_type: ScalarType::Integer(scalar_type),
+                        scalar_type: ScalarType::Integer(identity_operand_type),
                         value: neutral_value,
                     },
                     operation,
@@ -172,6 +215,22 @@ fn candidate(
     patch: TotalScalarIdentityRewrite,
     mutate_accounting: bool,
     fact: Option<omega_optimization_core::ScalarConstantFactIdentity>,
+) -> PsiRewriteCandidate {
+    candidate_with_contract(
+        unit,
+        patch,
+        mutate_accounting,
+        fact,
+        contract(patch.identity),
+    )
+}
+
+fn candidate_with_contract(
+    unit: &PsiOptimizationUnit,
+    patch: TotalScalarIdentityRewrite,
+    mutate_accounting: bool,
+    fact: Option<omega_optimization_core::ScalarConstantFactIdentity>,
+    rule_contract: OptimizationRuleContract,
 ) -> PsiRewriteCandidate {
     let function = &unit.functions[0];
     let O::IntegerConstant {
@@ -212,7 +271,7 @@ fn candidate(
     }
     PsiRewriteCandidate::new_total_scalar_identity(
         unit.identity,
-        contract(),
+        rule_contract,
         blocks,
         provenance,
         fact.unwrap_or(expected_fact),
@@ -223,13 +282,15 @@ fn candidate(
 }
 
 #[test]
-fn all_five_total_rows_replay_without_proof_custody() {
+fn all_seven_total_rows_replay_without_proof_custody() {
     let identities = [
         TotalScalarIdentityKind::WrappingIntegerAddZeroLeft,
         TotalScalarIdentityKind::WrappingIntegerAddZeroRight,
         TotalScalarIdentityKind::WrappingIntegerSubtractZeroRight,
         TotalScalarIdentityKind::WrappingIntegerMultiplyOneLeft,
         TotalScalarIdentityKind::WrappingIntegerMultiplyOneRight,
+        TotalScalarIdentityKind::WrappingIntegerShiftLeftZeroCount,
+        TotalScalarIdentityKind::WrappingIntegerShiftRightZeroCount,
     ];
     for identity in identities {
         let (unit, patch) = fixture(identity);
@@ -273,5 +334,35 @@ fn independent_validator_rejects_kind_fact_and_accounting_corruption() {
     assert_eq!(
         validate_total_scalar_identity_candidate(&unit, &candidate(&unit, patch, true, None)),
         Err(OptimizationUnitValidationError::CandidateProvenanceMismatch)
+    );
+
+    let (shift_unit, shift_patch) =
+        fixture(TotalScalarIdentityKind::WrappingIntegerShiftLeftZeroCount);
+    let arithmetic_contract = contract(TotalScalarIdentityKind::WrappingIntegerAddZeroLeft);
+    assert_eq!(
+        validate_total_scalar_identity_candidate(
+            &shift_unit,
+            &candidate_with_contract(&shift_unit, shift_patch, false, None, arithmetic_contract,),
+        ),
+        Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch),
+    );
+
+    let mut wrong_shift_kind = shift_patch;
+    wrong_shift_kind.identity = TotalScalarIdentityKind::WrappingIntegerShiftRightZeroCount;
+    assert_eq!(
+        validate_total_scalar_identity_candidate(
+            &shift_unit,
+            &candidate(&shift_unit, wrong_shift_kind, false, None),
+        ),
+        Err(OptimizationUnitValidationError::CandidatePatchMismatch),
+    );
+
+    let shift_contract = contract(TotalScalarIdentityKind::WrappingIntegerShiftRightZeroCount);
+    assert_eq!(
+        validate_total_scalar_identity_candidate(
+            &unit,
+            &candidate_with_contract(&unit, patch, false, None, shift_contract),
+        ),
+        Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch),
     );
 }

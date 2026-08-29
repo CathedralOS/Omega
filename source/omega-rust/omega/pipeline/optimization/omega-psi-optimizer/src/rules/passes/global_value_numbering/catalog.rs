@@ -16,5 +16,6 @@ pub(in crate::rules) fn built_in_registrations() -> Vec<BuiltInRuleRegistration>
         BuiltInRuleRegistration::new(7, DominatorProofCertifiedCompatiblePolicyScalarGvnRule),
         BuiltInRuleRegistration::new(8, PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule),
         BuiltInRuleRegistration::new(9, WrappingNeutralArithmeticIdentityRule),
+        BuiltInRuleRegistration::new(10, WrappingShiftZeroCountIdentityRule),
     ]
 }

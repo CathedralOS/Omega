@@ -344,7 +344,7 @@ fn proof_certified_live_identity_candidate_identity_binds_policy_and_side_kind()
 }
 
 #[test]
-fn total_scalar_identity_codec_binds_all_five_rows_and_only_the_literal_fact() {
+fn total_scalar_identity_codec_binds_all_seven_rows_and_only_the_literal_fact() {
     let machine = MachineId::new(701).unwrap();
     let block = BlockId::new(702).unwrap();
     let location = NodeLocation {
@@ -381,6 +381,14 @@ fn total_scalar_identity_codec_binds_all_five_rows_and_only_the_literal_fact() {
         (TotalScalarIdentityKind::WrappingIntegerSubtractZeroRight, 3),
         (TotalScalarIdentityKind::WrappingIntegerMultiplyOneLeft, 4),
         (TotalScalarIdentityKind::WrappingIntegerMultiplyOneRight, 5),
+        (
+            TotalScalarIdentityKind::WrappingIntegerShiftLeftZeroCount,
+            6,
+        ),
+        (
+            TotalScalarIdentityKind::WrappingIntegerShiftRightZeroCount,
+            7,
+        ),
     ]
     .map(|(identity, identity_tag)| {
         let input =
@@ -440,5 +448,5 @@ fn total_scalar_identity_codec_binds_all_five_rows_and_only_the_literal_fact() {
         assert_eq!(canonical.last(), Some(&identity_tag));
         candidate.identity()
     });
-    assert_eq!(identities.into_iter().collect::<BTreeSet<_>>().len(), 5);
+    assert_eq!(identities.into_iter().collect::<BTreeSet<_>>().len(), 7);
 }

@@ -241,7 +241,7 @@ pub(super) fn convergence_measure(
         );
     let global_value_numbering_pass =
         omega_optimization_core::OptimizationPassIdentity::from_canonical_bytes(
-            b"omega.psi-pass.global-value-numbering.v8",
+            b"omega.psi-pass.global-value-numbering.v9",
         );
     if registry.pass() == Some(cfg_pass) {
         control_flow_structure_count(unit)

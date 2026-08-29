@@ -17,6 +17,15 @@ another broad alias while executing this plan.
 
 ## Current stopping point
 
+[x] Global value numbering now has a separate two-row obligation-free wrapping
+shift family: `x << 0 -> x` and `x >> 0 -> x`. Its exact rule is adjacent to,
+but not merged with, the five-row neutral-arithmetic rule. Producer and
+validator independently reconstruct the value type and the potentially
+different count type; candidates retain only the exact zero-literal fact and
+consume no accepted obligation. Candidate tags 6/7 are append-only, the GVN
+pass identity is v9, and the rule remains disabled with an empty exact-name
+selection.
+
 [x] Ranked-`u32` native-fuel custody now crosses both direct and
 transfer-runtime executable-image boundaries on Linux x64 and Linux Arm64.
 One 45-line replay entrance joins target-decoded coordinate reconstruction to
@@ -467,8 +476,11 @@ parallel route or optional coordinator field.
 - [x] Proof-check elision and proof-certified exact integer identities.
 - [x] Extend GVN with an exhaustive five-row obligation-free wrapping neutral
   arithmetic identity partition and independent validator reconstruction.
-- [ ] Extend GVN and scalar identities to further exact operation families only
-  with exhaustive producer/validator partitions.
+- [>] Extend GVN and scalar identities to further exact operation families only
+  with exhaustive producer/validator partitions. The separate wrapping-shift
+  zero-count family is complete; saturating neutral arithmetic, wrapping
+  multiply annihilation, and bitwise identities remain unselected future
+  families.
 - [ ] Implement loop-invariant code motion after cyclic Terminal-Psi semantics
   are resolved.
 - [?] Define suspension/resume edges for CFG analyses.

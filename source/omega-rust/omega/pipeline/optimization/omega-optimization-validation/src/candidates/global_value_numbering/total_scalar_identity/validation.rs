@@ -5,8 +5,10 @@ use super::classification::independently_classify_total_scalar_identity;
 use super::evidence::independently_validate_neutral_literal;
 use super::*;
 
-const RULE_DOMAIN: &[u8] =
+const NEUTRAL_ARITHMETIC_RULE_DOMAIN: &[u8] =
     b"omega.psi-rule.live-obligation-free-wrapping-integer-neutral-arithmetic-identity-elimination.v1";
+const SHIFT_ZERO_COUNT_RULE_DOMAIN: &[u8] =
+    b"omega.psi-rule.live-obligation-free-wrapping-integer-shift-zero-count-elimination.v1";
 
 pub fn validate_total_scalar_identity_candidate(
     input: &PsiOptimizationUnit,
@@ -16,11 +18,9 @@ pub fn validate_total_scalar_identity_candidate(
     if candidate.input() != input.identity {
         return Err(OptimizationUnitValidationError::CandidateInputMismatch);
     }
-    let rule = OptimizationRuleIdentity::from_canonical_bytes(RULE_DOMAIN);
-    if candidate.rule() != rule
-        || !candidate
-            .required_analyses()
-            .contains(AnalysisKind::ScalarConstants)
+    if !candidate
+        .required_analyses()
+        .contains(AnalysisKind::ScalarConstants)
         || !candidate
             .required_analyses()
             .contains(AnalysisKind::UseDefinition)
@@ -40,6 +40,8 @@ pub fn validate_total_scalar_identity_candidate(
     let PsiRewritePatch::EliminateTotalScalarIdentity(patch) = candidate.patch() else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     };
+    let validator = exact_rule_validator(candidate.rule(), patch.identity)
+        .ok_or(OptimizationUnitValidationError::CandidateAnalysisContractMismatch)?;
     if candidate.node_decision_point() != Some(patch.location)
         || candidate.substitutions()
             != [ScalarSubstitution {
@@ -122,5 +124,31 @@ pub fn validate_total_scalar_identity_candidate(
         node_index,
         &affected_blocks,
         provenance,
+        validator,
     )
+}
+
+fn exact_rule_validator(
+    rule: OptimizationRuleIdentity,
+    identity: TotalScalarIdentityKind,
+) -> Option<OptimizationValidatorIdentity> {
+    let (rule_domain, validator_domain) = match identity {
+        TotalScalarIdentityKind::WrappingIntegerAddZeroLeft
+        | TotalScalarIdentityKind::WrappingIntegerAddZeroRight
+        | TotalScalarIdentityKind::WrappingIntegerSubtractZeroRight
+        | TotalScalarIdentityKind::WrappingIntegerMultiplyOneLeft
+        | TotalScalarIdentityKind::WrappingIntegerMultiplyOneRight => (
+            NEUTRAL_ARITHMETIC_RULE_DOMAIN,
+            b"omega.validator.live-obligation-free-wrapping-integer-neutral-arithmetic-identity-elimination.v1"
+                .as_slice(),
+        ),
+        TotalScalarIdentityKind::WrappingIntegerShiftLeftZeroCount
+        | TotalScalarIdentityKind::WrappingIntegerShiftRightZeroCount => (
+            SHIFT_ZERO_COUNT_RULE_DOMAIN,
+            b"omega.validator.live-obligation-free-wrapping-integer-shift-zero-count-elimination.v1"
+                .as_slice(),
+        ),
+    };
+    (rule == OptimizationRuleIdentity::from_canonical_bytes(rule_domain))
+        .then(|| OptimizationValidatorIdentity::from_canonical_bytes(validator_domain))
 }
