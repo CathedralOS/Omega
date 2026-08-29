@@ -123,6 +123,8 @@ and no-selection compatibility remain enforced.
   entrance owns environment-to-replayed-result custody.
 - [x] Split selected-CFG liveness staging into model, analysis, independent
   replay, and custody projection leaves below one replay-gated entrance.
+- [x] Split CFG-aware live-range staging into model, analysis, independent
+  replay, and custody projection leaves below one replay-gated entrance.
 - [x] Split allocation-legality staging into explicit availability policies,
   analysis, independent replay, custody projection, and model leaves; its
   entrance owns policy selection and the shared replay-gated stage join.
