@@ -2,6 +2,7 @@ use psi::parse::input;
 use psi::parse::owner;
 use psi::source::source;
 use psi::syntax::syntax;
+use psi::tokens::tokens;
 
 // Data-declaration grammar attached to the parser owner. Token traversal stays
 // in input.omg; this module uses only declaration-local spans, table bases, and
@@ -19,11 +20,12 @@ machine Parser::parse_data(
     }
 
     state root_full(&mut self) {
+        let token: Token = self.input.tokens[self.current_index];
         self.output.reject(
             ParseDiagnosticCode::RootCapacityExceeded,
             self.source,
-            self.current_start,
-            self.current_end
+            token.start,
+            token.end
         );
     }
 
@@ -41,7 +43,7 @@ machine Parser::parse_data(
         self.data_multiplicity = DataMultiplicity::Affine;
         self.cursor = self.cursor + 1;
         self.skip_trivia();
-        transition self.cursor < self.token_count {
+        transition self.cursor < self.input.token_count {
             true -> data_name()
             _ -> expected_data_name_at_end()
         }
@@ -53,13 +55,31 @@ machine Parser::parse_data(
     }
 
     state data_name_loaded(&mut self) {
-        transition self.current_tag == 1 || (
-            self.current_tag == 5 &&
-            self.current_first != 20 &&
-            self.current_first != 21
-        ) {
-            true -> retain_data_name(self.current_start, self.current_end)
-            _ -> expected_data_name(self.current_start, self.current_end)
+        let token: Token = self.input.tokens[self.current_index];
+        transition token {
+            Token::Identifier -> retain_data_name(
+                token.start,
+                token.end
+            )
+            Token::Keyword { keyword } -> data_name_keyword(
+                keyword,
+                token.start,
+                token.end
+            )
+            _ -> expected_data_name(token.start, token.end)
+        }
+    }
+
+    state data_name_keyword(
+        &mut self,
+        keyword: KeywordKind,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        transition keyword {
+            KeywordKind::SelfType -> expected_data_name(start, end)
+            KeywordKind::SelfValue -> expected_data_name(start, end)
+            _ -> retain_data_name(start, end)
         }
     }
 
@@ -72,7 +92,7 @@ machine Parser::parse_data(
         self.data_name_end = end;
         self.cursor = self.cursor + 1;
         self.skip_trivia();
-        transition self.cursor < self.token_count {
+        transition self.cursor < self.input.token_count {
             true -> data_body()
             _ -> expected_data_body_at_end()
         }
@@ -84,23 +104,34 @@ machine Parser::parse_data(
     }
 
     state data_body_loaded(&mut self) {
-        transition self.current_tag == 6 && self.current_first == 21 {
-            true -> data_property_start()
-            _ -> data_body_brace()
+        let token: Token = self.input.tokens[self.current_index];
+        transition token {
+            Token::Punctuation { punctuation } -> data_body_punctuation(
+                punctuation,
+                token.start,
+                token.end
+            )
+            _ -> expected_data_body(token.start, token.end)
         }
     }
 
-    state data_body_brace(&mut self) {
-        transition self.current_tag == 6 && self.current_first == 20 {
-            true -> data_body_start()
-            _ -> expected_data_body(self.current_start, self.current_end)
+    state data_body_punctuation(
+        &mut self,
+        punctuation: PunctuationKind,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        transition punctuation {
+            PunctuationKind::LeftBracket -> data_property_start()
+            PunctuationKind::LeftBrace -> data_body_start()
+            _ -> expected_data_body(start, end)
         }
     }
 
     state data_property_start(&mut self) {
         self.cursor = self.cursor + 1;
         self.skip_trivia();
-        transition self.cursor < self.token_count {
+        transition self.cursor < self.input.token_count {
             true -> data_property()
             _ -> expected_data_property_at_end()
         }
@@ -112,9 +143,13 @@ machine Parser::parse_data(
     }
 
     state data_property_loaded(&mut self) {
-        transition self.current_tag == 5 && self.current_first == 31 {
-            true -> retain_copy_property()
-            _ -> expected_data_property(self.current_start, self.current_end)
+        let token: Token = self.input.tokens[self.current_index];
+        transition token {
+            Token::Keyword { keyword: KeywordKind::Copy } -> retain_copy_property()
+            _ -> expected_data_property(
+                token.start,
+                token.end
+            )
         }
     }
 
@@ -122,7 +157,7 @@ machine Parser::parse_data(
         self.data_multiplicity = DataMultiplicity::Unrestricted;
         self.cursor = self.cursor + 1;
         self.skip_trivia();
-        transition self.cursor < self.token_count {
+        transition self.cursor < self.input.token_count {
             true -> data_property_end()
             _ -> expected_data_property_end_at_end()
         }
@@ -134,16 +169,20 @@ machine Parser::parse_data(
     }
 
     state data_property_end_loaded(&mut self) {
-        transition self.current_tag == 6 && self.current_first == 37 {
-            true -> after_data_property()
-            _ -> expected_data_property_end(self.current_start, self.current_end)
+        let token: Token = self.input.tokens[self.current_index];
+        transition token {
+            Token::Punctuation { punctuation: PunctuationKind::RightBracket } -> after_data_property()
+            _ -> expected_data_property_end(
+                token.start,
+                token.end
+            )
         }
     }
 
     state after_data_property(&mut self) {
         self.cursor = self.cursor + 1;
         self.skip_trivia();
-        transition self.cursor < self.token_count {
+        transition self.cursor < self.input.token_count {
             true -> data_body()
             _ -> expected_data_body_at_end()
         }
@@ -152,7 +191,7 @@ machine Parser::parse_data(
     state data_body_start(&mut self) {
         self.cursor = self.cursor + 1;
         self.skip_trivia();
-        transition self.cursor < self.token_count {
+        transition self.cursor < self.input.token_count {
             true -> data_member()
             _ -> expected_data_body_at_end()
         }
@@ -164,27 +203,31 @@ machine Parser::parse_data(
     }
 
     state data_member_loaded(&mut self) {
-        transition self.current_tag == 6 && self.current_first == 36 {
-            true -> retain_data(self.current_end)
-            _ -> classify_case_member()
-        }
-    }
-
-    state classify_case_member(&mut self) {
-        transition self.current_tag == 5 && self.current_first == 30 {
-            true -> case_marker()
+        let token: Token = self.input.tokens[self.current_index];
+        transition token {
+            Token::Punctuation { punctuation: PunctuationKind::RightBrace } -> retain_data(
+                token.end
+            )
+            Token::Keyword { keyword: KeywordKind::Case } -> case_marker(
+                token.start,
+                token.end
+            )
             _ -> field_capacity()
         }
     }
 
     // `case` is contextual. `case Name;` is an alternative, while
     // `case: Type;` remains an ordinary field named `case`.
-    state case_marker(&mut self) {
-        self.case_start = self.current_start;
-        self.case_keyword_end = self.current_end;
+    state case_marker(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.case_start = start;
+        self.case_keyword_end = end;
         self.cursor = self.cursor + 1;
         self.skip_trivia();
-        transition self.cursor < self.token_count {
+        transition self.cursor < self.input.token_count {
             true -> case_marker_tail()
             _ -> expected_data_case_name_at_end()
         }
@@ -196,9 +239,22 @@ machine Parser::parse_data(
     }
 
     state case_marker_tail_loaded(&mut self) {
-        transition self.current_tag == 6 && self.current_first == 6 {
-            true -> contextual_case_field_capacity()
-            _ -> case_name_kind()
+        let token: Token = self.input.tokens[self.current_index];
+        transition token {
+            Token::Punctuation { punctuation: PunctuationKind::Colon } -> contextual_case_field_capacity()
+            Token::Identifier -> case_capacity(
+                token.start,
+                token.end
+            )
+            Token::Keyword { keyword } -> case_name_keyword(
+                keyword,
+                token.start,
+                token.end
+            )
+            _ -> expected_data_case_name(
+                token.start,
+                token.end
+            )
         }
     }
 
@@ -223,27 +279,37 @@ machine Parser::parse_data(
         transition { _ -> field_type_start() }
     }
 
-    state case_name_kind(&mut self) {
-        transition self.current_tag == 1 || (
-            self.current_tag == 5 &&
-            self.current_first != 20 &&
-            self.current_first != 21
-        ) {
-            true -> case_capacity()
-            _ -> expected_data_case_name(self.current_start, self.current_end)
+    state case_name_keyword(
+        &mut self,
+        keyword: KeywordKind,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        transition keyword {
+            KeywordKind::SelfType -> expected_data_case_name(start, end)
+            KeywordKind::SelfValue -> expected_data_case_name(start, end)
+            _ -> case_capacity(start, end)
         }
     }
 
-    state case_capacity(&mut self) {
+    state case_capacity(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
         transition self.output.case_count < 512 {
-            true -> case_member_capacity()
+            true -> case_member_capacity(start, end)
             _ -> case_full()
         }
     }
 
-    state case_member_capacity(&mut self) {
+    state case_member_capacity(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
         transition self.output.data_member_count < 1024 {
-            true -> retain_case_name(self.current_start, self.current_end)
+            true -> retain_case_name(start, end)
             _ -> data_member_full()
         }
     }
@@ -257,7 +323,7 @@ machine Parser::parse_data(
         self.case_name_end = end;
         self.cursor = self.cursor + 1;
         self.skip_trivia();
-        transition self.cursor < self.token_count {
+        transition self.cursor < self.input.token_count {
             true -> case_end()
             _ -> expected_data_case_end_at_end()
         }
@@ -269,9 +335,15 @@ machine Parser::parse_data(
     }
 
     state case_end_loaded(&mut self) {
-        transition self.current_tag == 6 && self.current_first == 39 {
-            true -> retain_case(self.current_end)
-            _ -> expected_data_case_end(self.current_start, self.current_end)
+        let token: Token = self.input.tokens[self.current_index];
+        transition token {
+            Token::Punctuation { punctuation: PunctuationKind::Semicolon } -> retain_case(
+                token.end
+            )
+            _ -> expected_data_case_end(
+                token.start,
+                token.end
+            )
         }
     }
 
@@ -327,7 +399,7 @@ machine Parser::parse_data(
         self.output.data_member_count = self.output.data_member_count + 1;
         self.cursor = self.cursor + 1;
         self.skip_trivia();
-        transition self.cursor < self.token_count {
+        transition self.cursor < self.input.token_count {
             true -> data_member()
             _ -> expected_data_body_at_end()
         }
@@ -348,13 +420,31 @@ machine Parser::parse_data(
     }
 
     state field_name(&mut self) {
-        transition self.current_tag == 1 || (
-            self.current_tag == 5 &&
-            self.current_first != 20 &&
-            self.current_first != 21
-        ) {
-            true -> retain_field_name(self.current_start, self.current_end)
-            _ -> expected_field_colon(self.current_start, self.current_end)
+        let token: Token = self.input.tokens[self.current_index];
+        transition token {
+            Token::Identifier -> retain_field_name(
+                token.start,
+                token.end
+            )
+            Token::Keyword { keyword } -> field_name_keyword(
+                keyword,
+                token.start,
+                token.end
+            )
+            _ -> expected_field_colon(token.start, token.end)
+        }
+    }
+
+    state field_name_keyword(
+        &mut self,
+        keyword: KeywordKind,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        transition keyword {
+            KeywordKind::SelfType -> expected_field_colon(start, end)
+            KeywordKind::SelfValue -> expected_field_colon(start, end)
+            _ -> retain_field_name(start, end)
         }
     }
 
@@ -368,7 +458,7 @@ machine Parser::parse_data(
         self.field_name_end = end;
         self.cursor = self.cursor + 1;
         self.skip_trivia();
-        transition self.cursor < self.token_count {
+        transition self.cursor < self.input.token_count {
             true -> field_colon()
             _ -> expected_field_colon_at_end()
         }
@@ -380,16 +470,20 @@ machine Parser::parse_data(
     }
 
     state field_colon_loaded(&mut self) {
-        transition self.current_tag == 6 && self.current_first == 6 {
-            true -> field_type_start()
-            _ -> expected_field_colon(self.current_start, self.current_end)
+        let token: Token = self.input.tokens[self.current_index];
+        transition token {
+            Token::Punctuation { punctuation: PunctuationKind::Colon } -> field_type_start()
+            _ -> expected_field_colon(
+                token.start,
+                token.end
+            )
         }
     }
 
     state field_type_start(&mut self) {
         self.cursor = self.cursor + 1;
         self.skip_trivia();
-        transition self.cursor < self.token_count {
+        transition self.cursor < self.input.token_count {
             true -> field_type()
             _ -> expected_field_type_at_end()
         }
@@ -401,19 +495,41 @@ machine Parser::parse_data(
     }
 
     state field_type_loaded(&mut self) {
-        transition self.current_tag == 1 || (
-            self.current_tag == 5 &&
-            self.current_first != 20 &&
-            self.current_first != 21
-        ) {
-            true -> type_reference_capacity()
-            _ -> expected_field_type(self.current_start, self.current_end)
+        let token: Token = self.input.tokens[self.current_index];
+        transition token {
+            Token::Identifier -> type_reference_capacity(
+                token.start,
+                token.end
+            )
+            Token::Keyword { keyword } -> field_type_keyword(
+                keyword,
+                token.start,
+                token.end
+            )
+            _ -> expected_field_type(token.start, token.end)
         }
     }
 
-    state type_reference_capacity(&mut self) {
+    state field_type_keyword(
+        &mut self,
+        keyword: KeywordKind,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        transition keyword {
+            KeywordKind::SelfType -> expected_field_type(start, end)
+            KeywordKind::SelfValue -> expected_field_type(start, end)
+            _ -> type_reference_capacity(start, end)
+        }
+    }
+
+    state type_reference_capacity(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
         transition self.output.type_reference_count < 1024 {
-            true -> retain_type_name(self.current_start, self.current_end)
+            true -> retain_type_name(start, end)
             _ -> type_reference_full()
         }
     }
@@ -427,7 +543,7 @@ machine Parser::parse_data(
         self.type_name_end = end;
         self.cursor = self.cursor + 1;
         self.skip_trivia();
-        transition self.cursor < self.token_count {
+        transition self.cursor < self.input.token_count {
             true -> field_end()
             _ -> expected_field_end_at_end()
         }
@@ -439,9 +555,15 @@ machine Parser::parse_data(
     }
 
     state field_end_loaded(&mut self) {
-        transition self.current_tag == 6 && self.current_first == 39 {
-            true -> retain_type_reference(self.current_end)
-            _ -> expected_field_end(self.current_start, self.current_end)
+        let token: Token = self.input.tokens[self.current_index];
+        transition token {
+            Token::Punctuation { punctuation: PunctuationKind::Semicolon } -> retain_type_reference(
+                token.end
+            )
+            _ -> expected_field_end(
+                token.start,
+                token.end
+            )
         }
     }
 
@@ -532,7 +654,7 @@ machine Parser::parse_data(
         self.output.data_member_count = self.output.data_member_count + 1;
         self.cursor = self.cursor + 1;
         self.skip_trivia();
-        transition self.cursor < self.token_count {
+        transition self.cursor < self.input.token_count {
             true -> data_member()
             _ -> expected_data_body_at_end()
         }
@@ -600,23 +722,28 @@ machine Parser::parse_data(
     }
 
     state data_full(&mut self) {
-        self.output.reject(ParseDiagnosticCode::DataCapacityExceeded, self.source, self.current_start, self.current_end);
+        let token: Token = self.input.tokens[self.current_index];
+        self.output.reject(ParseDiagnosticCode::DataCapacityExceeded, self.source, token.start, token.end);
     }
 
     state field_full(&mut self) {
-        self.output.reject(ParseDiagnosticCode::DataFieldCapacityExceeded, self.source, self.current_start, self.current_end);
+        let token: Token = self.input.tokens[self.current_index];
+        self.output.reject(ParseDiagnosticCode::DataFieldCapacityExceeded, self.source, token.start, token.end);
     }
 
     state type_reference_full(&mut self) {
-        self.output.reject(ParseDiagnosticCode::TypeReferenceCapacityExceeded, self.source, self.current_start, self.current_end);
+        let token: Token = self.input.tokens[self.current_index];
+        self.output.reject(ParseDiagnosticCode::TypeReferenceCapacityExceeded, self.source, token.start, token.end);
     }
 
     state data_member_full(&mut self) {
-        self.output.reject(ParseDiagnosticCode::DataMemberCapacityExceeded, self.source, self.current_start, self.current_end);
+        let token: Token = self.input.tokens[self.current_index];
+        self.output.reject(ParseDiagnosticCode::DataMemberCapacityExceeded, self.source, token.start, token.end);
     }
 
     state case_full(&mut self) {
-        self.output.reject(ParseDiagnosticCode::DataCaseCapacityExceeded, self.source, self.current_start, self.current_end);
+        let token: Token = self.input.tokens[self.current_index];
+        self.output.reject(ParseDiagnosticCode::DataCaseCapacityExceeded, self.source, token.start, token.end);
     }
 
     state expected_data_property_at_end(&mut self) {

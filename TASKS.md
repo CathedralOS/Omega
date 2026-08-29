@@ -494,29 +494,32 @@ Remaining:
   bypass Terminal Psi, revive the deleted backend, or route around the failure
   in report/artifact policy.
 
-  After ranked native lowering and artifact custody restore the product build,
-  complete the following parser/lexer work in order before expanding the
-  accepted grammar:
+  The token/entrypoint cleanup below was completed early because retaining its
+  parallel truth was negative value even while native publication remained
+  blocked. Runtime acceptance still precedes any grammar expansion:
 
   1. Produce acceptance evidence from the current product source with one
      freshly built CLI and one explicitly selected target, then run all 45
      parser cases against the resulting fresh native artifact. Record the CLI,
-     target, and artifact identity. `OMEGA_PRODUCT_PROGRAM` reuse remains an
-     iteration convenience and is not milestone acceptance evidence.
-  2. Atomically replace the current `Token`, `TokenObservation`, and parser
-     numeric-array projections with one canonical typed token owner. The lexer
-     and parser must share that representation directly: delete the mirrored
-     observation stream, kind-to-private-number mapping, handoff copies, raw
-     token ordinals, and parallel tag/first/start/end truth in the same change.
-     A conservative physical layout may remain, but no compatibility bridge or
-     second token semantics may survive the migration.
-  3. Move lex/parse diagnostic serialization out of the exact product compiler
-     closure into an Omega harness owned by the black-box gate. Preserve the
-     same 45 accepted, rejected, capacity-edge, lexical-handoff, and determinism
-     cases and their structural observations; the exact compiler entrypoint
-     should retain only product phase driving and product diagnostics. Keep the
-     decoder semantic-free, and add focused lexer assertions before retaining
-     any lexer observer solely for a protocol-prefix check.
+     target, and artifact identity. The canonical script has no cached-artifact
+     path and prints SHA-256 identities for the selected CLI and fresh artifact.
+     It is currently **DEPENDENCY-BLOCKED**: both the product closure and
+     gate-owned harness pass checked-source compilation, but native publication
+     fails closed because the attached Unit closure lacks a checked transitive
+     machine plan.
+  2. **SOURCE-COMPLETE.** The lexer now transfers its one canonical mixed
+     `Token` array to the parser as a whole ownership move. `TokenObservation`,
+     the lexer ordinal mapper, the per-token handoff, four parser token arrays,
+     raw ordinal comparisons, and scalar current-token projections were deleted
+     atomically. Only a bounded current index remains; every classification
+     reads the typed token.
+  3. **SOURCE-COMPLETE.** Lex/parse diagnostic serialization moved from the
+     exact product compiler entrypoint into `source/psi/parse/harness.omg`,
+     imported only by `source/psi/gates/parser/`. The product entrypoint is now
+     66 lines of phase driving and exit diagnostics. Numeric protocol projection
+     exists only as gate-owned ephemeral state. The same 45 accepted, rejected,
+     capacity-edge, lexical-handoff, and determinism cases remain mandatory once
+     native publication is restored; the Python decoder remains semantic-free.
 
   Do not recover speed by duplicating token access, generating state
   permutations, or enabling unconsumed viewers/debug output.

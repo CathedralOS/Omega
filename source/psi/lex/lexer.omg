@@ -374,156 +374,22 @@ machine Lexer::validate_utf8(&mut self) {
     state complete(&mut self) {}
 }
 
-machine Lexer::push_token(&mut self, kind: TokenKind) {
-    transition kind {
-        TokenKind::Identifier -> tagged(kind, 1, 0, 0, 0)
-        TokenKind::Integer { base, empty_digits, has_suffix } -> integer(kind, base, empty_digits, has_suffix)
-        TokenKind::Float { has_exponent, empty_exponent, has_suffix } -> float(kind, has_exponent, empty_exponent, has_suffix)
-        TokenKind::StringLiteral -> tagged(kind, 4, 0, 0, 0)
-        TokenKind::Keyword { keyword } -> keyword(kind, keyword)
-        TokenKind::Punctuation { punctuation } -> punctuation(kind, punctuation)
-        TokenKind::Whitespace -> tagged(kind, 7, 0, 0, 0)
-        TokenKind::LineComment -> tagged(kind, 8, 0, 0, 0)
-        TokenKind::BlockComment -> tagged(kind, 9, 0, 0, 0)
-        _ -> tagged(kind, 255, 0, 0, 0)
-    }
-
-    state integer(&mut self, retained: TokenKind, base: NumericBase, empty_digits: bool, has_suffix: bool) {
-        transition base {
-            NumericBase::Binary -> integer_base(retained, 0, empty_digits, has_suffix)
-            NumericBase::Octal -> integer_base(retained, 1, empty_digits, has_suffix)
-            NumericBase::Decimal -> integer_base(retained, 2, empty_digits, has_suffix)
-            NumericBase::Hexadecimal -> integer_base(retained, 3, empty_digits, has_suffix)
-        }
-    }
-    state integer_base(&mut self, retained: TokenKind, base: u8, empty_digits: bool, has_suffix: bool) {
-        transition empty_digits { true -> integer_empty(retained, base, 1, has_suffix) _ -> integer_empty(retained, base, 0, has_suffix) }
-    }
-    state integer_empty(&mut self, retained: TokenKind, base: u8, empty_digits: u8, has_suffix: bool) {
-        transition has_suffix { true -> tagged(retained, 2, base, empty_digits, 1) _ -> tagged(retained, 2, base, empty_digits, 0) }
-    }
-    state float(&mut self, retained: TokenKind, has_exponent: bool, empty_exponent: bool, has_suffix: bool) {
-        transition has_exponent { true -> float_exponent(retained, 1, empty_exponent, has_suffix) _ -> float_exponent(retained, 0, empty_exponent, has_suffix) }
-    }
-    state float_exponent(&mut self, retained: TokenKind, has_exponent: u8, empty_exponent: bool, has_suffix: bool) {
-        transition empty_exponent { true -> float_empty(retained, has_exponent, 1, has_suffix) _ -> float_empty(retained, has_exponent, 0, has_suffix) }
-    }
-    state float_empty(&mut self, retained: TokenKind, has_exponent: u8, empty_exponent: u8, has_suffix: bool) {
-        transition has_suffix { true -> tagged(retained, 3, has_exponent, empty_exponent, 1) _ -> tagged(retained, 3, has_exponent, empty_exponent, 0) }
-    }
-    state keyword(&mut self, retained: TokenKind, keyword: KeywordKind) {
-        transition keyword {
-            KeywordKind::As -> tagged(retained, 5, 0, 0, 0)
-            KeywordKind::CallingConvention -> tagged(retained, 5, 1, 0, 0)
-            KeywordKind::Capability -> tagged(retained, 5, 2, 0, 0)
-            KeywordKind::Contains -> tagged(retained, 5, 3, 0, 0)
-            KeywordKind::Data -> tagged(retained, 5, 4, 0, 0)
-            KeywordKind::Else -> tagged(retained, 5, 5, 0, 0)
-            KeywordKind::Enum -> tagged(retained, 5, 6, 0, 0)
-            KeywordKind::False -> tagged(retained, 5, 7, 0, 0)
-            KeywordKind::Foreign -> tagged(retained, 5, 8, 0, 0)
-            KeywordKind::Host -> tagged(retained, 5, 9, 0, 0)
-            KeywordKind::If -> tagged(retained, 5, 10, 0, 0)
-            KeywordKind::Let -> tagged(retained, 5, 11, 0, 0)
-            KeywordKind::Library -> tagged(retained, 5, 12, 0, 0)
-            KeywordKind::Loop -> tagged(retained, 5, 13, 0, 0)
-            KeywordKind::Machine -> tagged(retained, 5, 14, 0, 0)
-            KeywordKind::Match -> tagged(retained, 5, 15, 0, 0)
-            KeywordKind::Owns -> tagged(retained, 5, 16, 0, 0)
-            KeywordKind::Platform -> tagged(retained, 5, 17, 0, 0)
-            KeywordKind::Pub -> tagged(retained, 5, 18, 0, 0)
-            KeywordKind::Return -> tagged(retained, 5, 19, 0, 0)
-            KeywordKind::SelfType -> tagged(retained, 5, 20, 0, 0)
-            KeywordKind::SelfValue -> tagged(retained, 5, 21, 0, 0)
-            KeywordKind::State -> tagged(retained, 5, 22, 0, 0)
-            KeywordKind::Struct -> tagged(retained, 5, 23, 0, 0)
-            KeywordKind::Target -> tagged(retained, 5, 24, 0, 0)
-            KeywordKind::Transition -> tagged(retained, 5, 25, 0, 0)
-            KeywordKind::True -> tagged(retained, 5, 26, 0, 0)
-            KeywordKind::Use -> tagged(retained, 5, 27, 0, 0)
-            KeywordKind::When -> tagged(retained, 5, 28, 0, 0)
-            KeywordKind::While -> tagged(retained, 5, 29, 0, 0)
-            KeywordKind::Case -> tagged(retained, 5, 30, 0, 0)
-            KeywordKind::Copy -> tagged(retained, 5, 31, 0, 0)
-            _ -> tagged(retained, 5, 255, 0, 0)
-        }
-    }
-    state punctuation(&mut self, retained: TokenKind, punctuation: PunctuationKind) {
-        transition punctuation {
-            PunctuationKind::Ampersand -> tagged(retained, 6, 0, 0, 0)
-            PunctuationKind::AndAnd -> tagged(retained, 6, 1, 0, 0)
-            PunctuationKind::Apostrophe -> tagged(retained, 6, 2, 0, 0)
-            PunctuationKind::Arrow -> tagged(retained, 6, 3, 0, 0)
-            PunctuationKind::Asterisk -> tagged(retained, 6, 4, 0, 0)
-            PunctuationKind::Caret -> tagged(retained, 6, 5, 0, 0)
-            PunctuationKind::Colon -> tagged(retained, 6, 6, 0, 0)
-            PunctuationKind::ColonColon -> tagged(retained, 6, 7, 0, 0)
-            PunctuationKind::Comma -> tagged(retained, 6, 8, 0, 0)
-            PunctuationKind::Dot -> tagged(retained, 6, 9, 0, 0)
-            PunctuationKind::DotDot -> tagged(retained, 6, 10, 0, 0)
-            PunctuationKind::DotDotEqual -> tagged(retained, 6, 11, 0, 0)
-            PunctuationKind::Equal -> tagged(retained, 6, 12, 0, 0)
-            PunctuationKind::EqualEqual -> tagged(retained, 6, 13, 0, 0)
-            PunctuationKind::Exclamation -> tagged(retained, 6, 14, 0, 0)
-            PunctuationKind::ExclamationEqual -> tagged(retained, 6, 15, 0, 0)
-            PunctuationKind::Greater -> tagged(retained, 6, 16, 0, 0)
-            PunctuationKind::GreaterEqual -> tagged(retained, 6, 17, 0, 0)
-            PunctuationKind::GreaterGreater -> tagged(retained, 6, 18, 0, 0)
-            PunctuationKind::Hash -> tagged(retained, 6, 19, 0, 0)
-            PunctuationKind::LeftBrace -> tagged(retained, 6, 20, 0, 0)
-            PunctuationKind::LeftBracket -> tagged(retained, 6, 21, 0, 0)
-            PunctuationKind::LeftParen -> tagged(retained, 6, 22, 0, 0)
-            PunctuationKind::Less -> tagged(retained, 6, 23, 0, 0)
-            PunctuationKind::LessEqual -> tagged(retained, 6, 24, 0, 0)
-            PunctuationKind::LessLess -> tagged(retained, 6, 25, 0, 0)
-            PunctuationKind::Minus -> tagged(retained, 6, 26, 0, 0)
-            PunctuationKind::Percent -> tagged(retained, 6, 27, 0, 0)
-            PunctuationKind::Pipe -> tagged(retained, 6, 28, 0, 0)
-            PunctuationKind::PipePipe -> tagged(retained, 6, 29, 0, 0)
-            PunctuationKind::Plus -> tagged(retained, 6, 30, 0, 0)
-            PunctuationKind::PlusEqual -> tagged(retained, 6, 31, 0, 0)
-            PunctuationKind::MinusEqual -> tagged(retained, 6, 32, 0, 0)
-            PunctuationKind::AsteriskEqual -> tagged(retained, 6, 33, 0, 0)
-            PunctuationKind::SlashEqual -> tagged(retained, 6, 34, 0, 0)
-            PunctuationKind::PercentEqual -> tagged(retained, 6, 35, 0, 0)
-            PunctuationKind::RightBrace -> tagged(retained, 6, 36, 0, 0)
-            PunctuationKind::RightBracket -> tagged(retained, 6, 37, 0, 0)
-            PunctuationKind::RightParen -> tagged(retained, 6, 38, 0, 0)
-            PunctuationKind::Semicolon -> tagged(retained, 6, 39, 0, 0)
-            PunctuationKind::Slash -> tagged(retained, 6, 40, 0, 0)
-            PunctuationKind::Tilde -> tagged(retained, 6, 41, 0, 0)
-            _ -> tagged(retained, 6, 255, 0, 0)
-        }
-    }
-    state tagged(&mut self, retained: TokenKind, tag: u8, first: u8, second: u8, third: u8) {
-        self.retain_token(retained, tag, first, second, third);
-    }
+machine Lexer::push_token(&mut self, kind: Token) {
+    self.retain_token(kind);
 }
 
-machine Lexer::retain_token(
-    &mut self,
-    kind: TokenKind,
-    observation_tag: u8,
-    observation_first: u8,
-    observation_second: u8,
-    observation_third: u8
-) {
+machine Lexer::retain_token(&mut self, kind: Token) {
     let retained_decoded_start: u64 in Trapping = self.decoded_start;
     let retained_decoded_end: u64 in Trapping = self.output.decoded_length;
     let retained_decoded_length: u64 in Trapping =
         retained_decoded_end - retained_decoded_start;
-    self.output.push(
-        self.source.id,
-        kind,
-        self.token_start,
-        self.token_end,
-        retained_decoded_start,
-        retained_decoded_length,
-        observation_tag,
-        observation_first,
-        observation_second,
-        observation_third
-    );
+    let mut token: Token = kind;
+    token.source = self.source.id.value;
+    token.start = self.token_start;
+    token.end = self.token_end;
+    token.decoded_start = retained_decoded_start;
+    token.decoded_length = retained_decoded_length;
+    self.output.push(token);
     transition self.output.last_retained {
         true -> done()
         _ -> full()
@@ -626,39 +492,39 @@ machine Lexer::classify_keyword(&mut self) {
     state case_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "case"); let matched: bool = self.predicate_result; transition matched { true -> case_yes() _ -> copy_kw() } }
     state copy_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "copy"); let matched: bool = self.predicate_result; transition matched { true -> copy_yes() _ -> identifier() } }
 
-    state as_kw(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::As }); }
-    state calling_convention_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::CallingConvention }); }
-    state capability_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::Capability }); }
-    state contains_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::Contains }); }
-    state data_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::Data }); }
-    state else_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::Else }); }
-    state enum_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::Enum }); }
-    state false_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::False }); }
-    state foreign_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::Foreign }); }
-    state host_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::Host }); }
-    state if_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::If }); }
-    state let_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::Let }); }
-    state library_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::Library }); }
-    state loop_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::Loop }); }
-    state machine_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::Machine }); }
-    state match_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::Match }); }
-    state owns_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::Owns }); }
-    state platform_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::Platform }); }
-    state pub_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::Pub }); }
-    state return_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::Return }); }
-    state self_type_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::SelfType }); }
-    state self_value_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::SelfValue }); }
-    state state_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::State }); }
-    state struct_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::Struct }); }
-    state target_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::Target }); }
-    state transition_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::Transition }); }
-    state true_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::True }); }
-    state use_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::Use }); }
-    state when_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::When }); }
-    state while_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::While }); }
-    state case_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::Case }); }
-    state copy_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::Copy }); }
-    state identifier(&mut self) { self.push_token(TokenKind::Identifier); }
+    state as_kw(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::As }); }
+    state calling_convention_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::CallingConvention }); }
+    state capability_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Capability }); }
+    state contains_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Contains }); }
+    state data_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Data }); }
+    state else_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Else }); }
+    state enum_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Enum }); }
+    state false_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::False }); }
+    state foreign_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Foreign }); }
+    state host_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Host }); }
+    state if_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::If }); }
+    state let_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Let }); }
+    state library_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Library }); }
+    state loop_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Loop }); }
+    state machine_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Machine }); }
+    state match_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Match }); }
+    state owns_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Owns }); }
+    state platform_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Platform }); }
+    state pub_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Pub }); }
+    state return_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Return }); }
+    state self_type_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::SelfType }); }
+    state self_value_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::SelfValue }); }
+    state state_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::State }); }
+    state struct_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Struct }); }
+    state target_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Target }); }
+    state transition_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Transition }); }
+    state true_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::True }); }
+    state use_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Use }); }
+    state when_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::When }); }
+    state while_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::While }); }
+    state case_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Case }); }
+    state copy_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Copy }); }
+    state identifier(&mut self) { self.push_token(Token::Identifier); }
 }
 
 machine Lexer::lex_identifier(&mut self) {
@@ -723,7 +589,7 @@ machine Lexer::lex_whitespace(&mut self) {
 
     state finish(&mut self) {
         self.token_end = self.cursor;
-        self.push_token(TokenKind::Whitespace);
+        self.push_token(Token::Whitespace);
     }
 }
 
@@ -756,12 +622,12 @@ machine Lexer::lex_line_comment(&mut self) {
     state consume_newline(&mut self) {
         self.token_end = self.cursor;
         self.cursor = self.cursor + 1;
-        self.push_token(TokenKind::LineComment);
+        self.push_token(Token::LineComment);
     }
 
     state finish(&mut self) {
         self.token_end = self.cursor;
-        self.push_token(TokenKind::LineComment);
+        self.push_token(Token::LineComment);
     }
 }
 
@@ -827,7 +693,7 @@ machine Lexer::lex_block_comment(&mut self) {
 
     state finish(&mut self) {
         self.token_end = self.cursor;
-        self.push_token(TokenKind::BlockComment);
+        self.push_token(Token::BlockComment);
     }
 
     state unterminated(&mut self) {
@@ -1100,7 +966,7 @@ machine Lexer::lex_cooked_string(&mut self) {
     state finish(&mut self) {
         self.cursor = self.cursor + 1;
         self.token_end = self.cursor;
-        self.push_token(TokenKind::StringLiteral);
+        self.push_token(Token::StringLiteral);
     }
 
     state unterminated(&mut self) { self.reject(LexDiagnosticCode::UnterminatedStringLiteral, self.token_start, self.source.length); }
@@ -1224,7 +1090,7 @@ machine Lexer::lex_raw_string(&mut self) {
         transition self.output.accepted { true -> emit() _ -> done() }
     }
 
-    state emit(&mut self) { self.push_token(TokenKind::StringLiteral); }
+    state emit(&mut self) { self.push_token(Token::StringLiteral); }
     state invalid_delimiter(&mut self) { self.reject(LexDiagnosticCode::InvalidRawStringDelimiter, self.token_start, self.cursor + 1); }
     state unterminated(&mut self) { self.reject(LexDiagnosticCode::UnterminatedRawString, self.token_start, self.source.length); }
     state done(&mut self) {}
@@ -1470,14 +1336,14 @@ machine Lexer::lex_number(&mut self) {
         transition self.numeric_is_float { true -> emit_float() _ -> emit_integer() }
     }
     state emit_float(&mut self) {
-        self.push_token(TokenKind::Float {
+        self.push_token(Token::Float {
             has_exponent: self.numeric_has_exponent,
             empty_exponent: self.numeric_empty_exponent,
             has_suffix: self.numeric_has_suffix
         });
     }
     state emit_integer(&mut self) {
-        self.push_token(TokenKind::Integer {
+        self.push_token(Token::Integer {
             base: self.numeric_base,
             empty_digits: self.numeric_empty_digits,
             has_suffix: self.numeric_has_suffix
@@ -1595,7 +1461,7 @@ machine Lexer::lex_punctuation(&mut self) {
 machine Lexer::emit_punctuation(&mut self, kind: PunctuationKind, length: u64 in Trapping) {
     self.cursor = self.cursor + length;
     self.token_end = self.cursor;
-    self.push_token(TokenKind::Punctuation { punctuation: kind });
+    self.push_token(Token::Punctuation { punctuation: kind });
 }
 
 machine Lexer::lex_next(&mut self) {

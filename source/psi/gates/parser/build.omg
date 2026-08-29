@@ -1,0 +1,18 @@
+// Temporary compiler-discovery scaffolding. Delete these declarations together
+// when immutable CLI target activation supplies the selected profile directly.
+target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+
+machine build(builder: &mut Build) {
+    builder.application("psi-parser-gate");
+    builder.roots.bind(windows_x86_64::ProgramEntry, ParserHarness::main);
+    builder.roots.bind(linux_x86_64::ProgramEntry, ParserHarness::main);
+    builder.roots.bind(linux_arm64::ProgramEntry, ParserHarness::main);
+    builder.roots.bind(macos_arm64::ProgramEntry, ParserHarness::main);
+    builder.depend_as("psi", Source::Path {
+        location: "../.."
+    });
+}
+use psi::parse::harness;

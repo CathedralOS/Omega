@@ -1,20 +1,17 @@
 use psi::source::source;
 use psi::syntax::syntax;
+use psi::tokens::tokens;
 
-// One parser owns one output arena, one bounded token table, and scalar scratch.
-// Behavior is split across responsibility-local modules. The tables stay flat
-// until the hosted backend can address large nested aggregates directly.
+// One parser owns one output arena and parse-local scratch. TokenStream
+// ownership transfers once from the lexer; no token or projection is copied.
 pub data Parser {
     output: SyntaxTrees;
-    token_tags: [u8; 16384] in Trapping;
-    token_first: [u8; 16384] in Trapping;
-    token_starts: [u64 in Trapping; 16384] in Trapping;
-    token_ends: [u64 in Trapping; 16384] in Trapping;
-    token_count: u64 [0..=16384];
+    input: TokenStream;
     source: SourceId;
     source_length: u64 in Trapping;
-    last_retained: bool;
     cursor: u64 in Trapping;
+    current_index: u64 [0..=16383];
+    current_present: bool;
     item_start: u64 in Trapping;
     use_first_member: u64 in Trapping;
     data_item_start: u64 in Trapping;
@@ -34,8 +31,4 @@ pub data Parser {
     case_keyword_end: u64 in Trapping;
     case_name_start: u64 in Trapping;
     case_name_end: u64 in Trapping;
-    current_tag: u8;
-    current_first: u8;
-    current_start: u64 in Trapping;
-    current_end: u64 in Trapping;
 }

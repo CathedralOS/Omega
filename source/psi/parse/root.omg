@@ -3,6 +3,7 @@ use psi::parse::input;
 use psi::parse::owner;
 use psi::source::source;
 use psi::syntax::syntax;
+use psi::tokens::tokens;
 
 // Whole-file sequencing and use-item grammar. Data declarations are delegated
 // to data.omg; input.omg remains the only token/cursor behavior owner.
@@ -13,7 +14,7 @@ machine Parser::parse_roots(&mut self) {
 
     state next_root(&mut self) {
         self.skip_trivia();
-        transition self.cursor < self.token_count {
+        transition self.cursor < self.input.token_count {
             true -> classify_root()
             _ -> done()
         }
@@ -25,31 +26,39 @@ machine Parser::parse_roots(&mut self) {
     }
 
     state classify_root_loaded(&mut self) {
-        self.item_start = self.current_start;
-        transition self.current_tag == 5 && self.current_first == 27 {
-            true -> prepare_use()
-            _ -> classify_data_root()
+        let token: Token = self.input.tokens[self.current_index];
+        self.item_start = token.start;
+        transition token {
+            Token::Keyword { keyword } -> classify_root_keyword(
+                keyword,
+                token.start,
+                token.end
+            )
+            _ -> unsupported_root(
+                token.start,
+                token.end
+            )
         }
     }
 
-    state classify_data_root(&mut self) {
-        transition self.current_tag == 5 && self.current_first == 4 {
-            true -> dispatch_data(false)
-            _ -> classify_public_data_root()
-        }
-    }
-
-    state classify_public_data_root(&mut self) {
-        transition self.current_tag == 5 && self.current_first == 18 {
-            true -> public_data_root()
-            _ -> unsupported_root(self.current_start, self.current_end)
+    state classify_root_keyword(
+        &mut self,
+        keyword: KeywordKind,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        transition keyword {
+            KeywordKind::Use -> prepare_use()
+            KeywordKind::Data -> dispatch_data(false)
+            KeywordKind::Pub -> public_data_root()
+            _ -> unsupported_root(start, end)
         }
     }
 
     state public_data_root(&mut self) {
         self.cursor = self.cursor + 1;
         self.skip_trivia();
-        transition self.cursor < self.token_count {
+        transition self.cursor < self.input.token_count {
             true -> public_data_keyword()
             _ -> expected_data_after_public_at_end()
         }
@@ -61,9 +70,13 @@ machine Parser::parse_roots(&mut self) {
     }
 
     state public_data_keyword_loaded(&mut self) {
-        transition self.current_tag == 5 && self.current_first == 4 {
-            true -> dispatch_data(true)
-            _ -> expected_data_after_public(self.current_start, self.current_end)
+        let token: Token = self.input.tokens[self.current_index];
+        transition token {
+            Token::Keyword { keyword: KeywordKind::Data } -> dispatch_data(true)
+            _ -> expected_data_after_public(
+                token.start,
+                token.end
+            )
         }
     }
 
@@ -91,11 +104,12 @@ machine Parser::parse_roots(&mut self) {
     }
 
     state root_full(&mut self) {
+        let token: Token = self.input.tokens[self.current_index];
         self.output.reject(
             ParseDiagnosticCode::RootCapacityExceeded,
             self.source,
-            self.current_start,
-            self.current_end
+            token.start,
+            token.end
         );
     }
 
@@ -107,11 +121,12 @@ machine Parser::parse_roots(&mut self) {
     }
 
     state use_full(&mut self) {
+        let token: Token = self.input.tokens[self.current_index];
         self.output.reject(
             ParseDiagnosticCode::UseCapacityExceeded,
             self.source,
-            self.current_start,
-            self.current_end
+            token.start,
+            token.end
         );
     }
 
@@ -119,7 +134,7 @@ machine Parser::parse_roots(&mut self) {
         self.use_first_member = self.output.member_count;
         self.cursor = self.cursor + 1;
         self.skip_trivia();
-        transition self.cursor < self.token_count {
+        transition self.cursor < self.input.token_count {
             true -> first_member()
             _ -> expected_member_at_end()
         }
@@ -131,13 +146,31 @@ machine Parser::parse_roots(&mut self) {
     }
 
     state first_member_loaded(&mut self) {
-        transition self.current_tag == 1 || (
-            self.current_tag == 5 &&
-            self.current_first != 20 &&
-            self.current_first != 21
-        ) {
-            true -> retain_member(self.current_start, self.current_end)
-            _ -> expected_member(self.current_start, self.current_end)
+        let token: Token = self.input.tokens[self.current_index];
+        transition token {
+            Token::Identifier -> retain_member(
+                token.start,
+                token.end
+            )
+            Token::Keyword { keyword } -> first_member_keyword(
+                keyword,
+                token.start,
+                token.end
+            )
+            _ -> expected_member(token.start, token.end)
+        }
+    }
+
+    state first_member_keyword(
+        &mut self,
+        keyword: KeywordKind,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        transition keyword {
+            KeywordKind::SelfType -> expected_member(start, end)
+            KeywordKind::SelfValue -> expected_member(start, end)
+            _ -> retain_member(start, end)
         }
     }
 
@@ -166,7 +199,7 @@ machine Parser::parse_roots(&mut self) {
         self.output.member_count = self.output.member_count + 1;
         self.cursor = self.cursor + 1;
         self.skip_trivia();
-        transition self.cursor < self.token_count {
+        transition self.cursor < self.input.token_count {
             true -> path_tail()
             _ -> expected_separator_at_end()
         }
@@ -178,13 +211,15 @@ machine Parser::parse_roots(&mut self) {
     }
 
     state path_tail_loaded(&mut self) {
-        transition self.current_tag == 6 && self.current_first == 7 {
-            true -> separator()
-            _ -> semicolon(
-                self.current_tag,
-                self.current_first,
-                self.current_start,
-                self.current_end
+        let token: Token = self.input.tokens[self.current_index];
+        transition token {
+            Token::Punctuation { punctuation: PunctuationKind::ColonColon } -> separator()
+            Token::Punctuation { punctuation: PunctuationKind::Semicolon } -> retain_use(
+                token.end
+            )
+            _ -> expected_separator(
+                token.start,
+                token.end
             )
         }
     }
@@ -192,7 +227,7 @@ machine Parser::parse_roots(&mut self) {
     state separator(&mut self) {
         self.cursor = self.cursor + 1;
         self.skip_trivia();
-        transition self.cursor < self.token_count {
+        transition self.cursor < self.input.token_count {
             true -> next_member()
             _ -> expected_member_at_end()
         }
@@ -204,26 +239,31 @@ machine Parser::parse_roots(&mut self) {
     }
 
     state next_member_loaded(&mut self) {
-        transition self.current_tag == 1 || (
-            self.current_tag == 5 &&
-            self.current_first != 20 &&
-            self.current_first != 21
-        ) {
-            true -> retain_member(self.current_start, self.current_end)
-            _ -> expected_member(self.current_start, self.current_end)
+        let token: Token = self.input.tokens[self.current_index];
+        transition token {
+            Token::Identifier -> retain_member(
+                token.start,
+                token.end
+            )
+            Token::Keyword { keyword } -> next_member_keyword(
+                keyword,
+                token.start,
+                token.end
+            )
+            _ -> expected_member(token.start, token.end)
         }
     }
 
-    state semicolon(
+    state next_member_keyword(
         &mut self,
-        tag: u8,
-        first: u8,
+        keyword: KeywordKind,
         start: u64 in Trapping,
         end: u64 in Trapping
     ) {
-        transition tag == 6 && first == 39 {
-            true -> retain_use(end)
-            _ -> expected_separator(start, end)
+        transition keyword {
+            KeywordKind::SelfType -> expected_member(start, end)
+            KeywordKind::SelfValue -> expected_member(start, end)
+            _ -> retain_member(start, end)
         }
     }
 

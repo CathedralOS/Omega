@@ -1,0 +1,907 @@
+// Gate-owned black-box lexer/parser harness. This file is excluded from the
+// product compiler closure and imported only by the parser acceptance gate.
+
+use omega::language::std::console;
+use psi::lex::lexer;
+use psi::parse::parser;
+use psi::syntax::syntax;
+
+pub data ParserHarness {
+    console: Console;
+    lexer: Lexer;
+    parser: Parser;
+    token_wire: TokenWireCoordinates;
+}
+
+pub data TokenWireCoordinates [copy] {
+    source: u32 in Trapping;
+    start: u64 in Trapping;
+    end: u64 in Trapping;
+    decoded_start: u64 in Trapping;
+    decoded_length: u64 in Trapping;
+}
+
+machine Token::project_gate_wire_coordinates(
+    &self,
+    output: &mut TokenWireCoordinates
+) {
+    output.source = self.source;
+    output.start = self.start;
+    output.end = self.end;
+    output.decoded_start = self.decoded_start;
+    output.decoded_length = self.decoded_length;
+}
+
+pub machine ParserHarness::main(&mut self)
+reaches Console
+invokes Console;
+{
+    self.lexer.initialize(1);
+    transition { _ -> read() }
+
+    state read(&mut self) {
+        let input: ByteRead = self.console.read_byte();
+        transition input {
+            ByteRead::Byte { value } -> retain(value)
+            _ -> tokenize()
+        }
+    }
+
+    state retain(&mut self, value: i32) {
+        self.lexer.append_source_byte(value as u8);
+        transition self.lexer.source.last_retained {
+            true -> read()
+            _ -> source_full()
+        }
+    }
+
+    state source_full(&mut self) {
+        self.lexer.reject(
+            LexDiagnosticCode::SourceCapacityExceeded,
+            self.lexer.source.length,
+            self.lexer.source.length
+        );
+        self.write_lex_observation();
+        self.console.exit_process(252);
+    }
+
+    state tokenize(&mut self) {
+        self.lexer.tokenize();
+        transition self.lexer.output.accepted {
+            true -> prepare_parse()
+            _ -> rejected()
+        }
+    }
+
+    state prepare_parse(&mut self) {
+        self.parser.initialize(
+            self.lexer.source.id,
+            self.lexer.source.length,
+            self.lexer.output
+        );
+        transition { _ -> parse() }
+    }
+
+    state parse(&mut self) {
+        self.parser.parse();
+        transition self.parser.output.accepted {
+            true -> accepted()
+            _ -> parse_rejected()
+        }
+    }
+
+    state accepted(&mut self) {
+        self.write_parse_observation();
+        self.console.exit_process(0);
+    }
+
+    state parse_rejected(&mut self) {
+        self.write_parse_observation();
+        self.console.exit_process(250);
+    }
+
+    state rejected(&mut self) {
+        self.write_lex_observation();
+        self.console.exit_process(251);
+    }
+}
+
+// Versioned canonical structural parse observation. Every scalar coordinate
+// and count is little-endian u64. The stream begins with `OMGPAR3\0`, version
+// 3, acceptance and diagnostic fields, followed by ordered root, use-item,
+// path-member, data-item, authored data-member, data-field, data-case, and
+// type-reference tables. This is hosted development tooling, not an Omega ABI.
+machine ParserHarness::write_parse_observation(&mut self) {
+    self.write_byte(79);
+    self.write_byte(77);
+    self.write_byte(71);
+    self.write_byte(80);
+    self.write_byte(65);
+    self.write_byte(82);
+    self.write_byte(51);
+    self.write_byte(0);
+    self.write_u64(3);
+    transition self.parser.output.accepted {
+        true -> parse_accepted_header()
+        _ -> parse_rejected_header()
+    }
+
+    state parse_accepted_header(&mut self) {
+        self.write_byte(1);
+        transition { _ -> parse_diagnostic_none() }
+    }
+
+    state parse_rejected_header(&mut self) {
+        self.write_byte(0);
+        transition self.parser.output.diagnostic.code {
+            ParseDiagnosticCode::None -> parse_diagnostic_none()
+            ParseDiagnosticCode::LexicalInputRejected -> parse_diagnostic(1)
+            ParseDiagnosticCode::UnsupportedRootItem -> parse_diagnostic(2)
+            ParseDiagnosticCode::ExpectedPathMember -> parse_diagnostic(3)
+            ParseDiagnosticCode::ExpectedPathSeparatorOrSemicolon -> parse_diagnostic(4)
+            ParseDiagnosticCode::RootCapacityExceeded -> parse_diagnostic(5)
+            ParseDiagnosticCode::UseCapacityExceeded -> parse_diagnostic(6)
+            ParseDiagnosticCode::PathMemberCapacityExceeded -> parse_diagnostic(7)
+            ParseDiagnosticCode::TokenInputCapacityExceeded -> parse_diagnostic(8)
+            ParseDiagnosticCode::ExpectedDataAfterPub -> parse_diagnostic(9)
+            ParseDiagnosticCode::ExpectedDataName -> parse_diagnostic(10)
+            ParseDiagnosticCode::ExpectedDataBody -> parse_diagnostic(11)
+            ParseDiagnosticCode::ExpectedDataFieldColon -> parse_diagnostic(12)
+            ParseDiagnosticCode::ExpectedDataFieldType -> parse_diagnostic(13)
+            ParseDiagnosticCode::ExpectedDataFieldEnd -> parse_diagnostic(14)
+            ParseDiagnosticCode::DataCapacityExceeded -> parse_diagnostic(15)
+            ParseDiagnosticCode::DataFieldCapacityExceeded -> parse_diagnostic(16)
+            ParseDiagnosticCode::TypeReferenceCapacityExceeded -> parse_diagnostic(17)
+            ParseDiagnosticCode::ExpectedDataProperty -> parse_diagnostic(18)
+            ParseDiagnosticCode::ExpectedDataPropertyEnd -> parse_diagnostic(19)
+            ParseDiagnosticCode::ExpectedDataCaseName -> parse_diagnostic(20)
+            ParseDiagnosticCode::ExpectedDataCaseEnd -> parse_diagnostic(21)
+            ParseDiagnosticCode::DataMemberCapacityExceeded -> parse_diagnostic(22)
+            ParseDiagnosticCode::DataCaseCapacityExceeded -> parse_diagnostic(23)
+        }
+    }
+
+    state parse_diagnostic_none(&mut self) {
+        self.write_byte(0);
+        transition { _ -> parse_diagnostic_coordinates() }
+    }
+
+    state parse_diagnostic(&mut self, tag: u8) {
+        self.write_byte(tag);
+        transition { _ -> parse_diagnostic_coordinates() }
+    }
+
+    state parse_diagnostic_coordinates(&mut self) {
+        self.write_u64(self.parser.output.diagnostic.source_span.source.value as u64);
+        self.write_u64(self.parser.output.diagnostic.source_span.span.start);
+        self.write_u64(self.parser.output.diagnostic.source_span.span.end);
+        self.write_u64(self.parser.output.root_count);
+        transition self.parser.output.root_count > 0 {
+            true -> parse_root(0)
+            _ -> parse_use_count()
+        }
+    }
+
+    state parse_root(&mut self, index: u64 [0..=255]) {
+        let root: RootItem = self.parser.output.roots[index];
+        transition root.kind {
+            RootItemKind::Use -> parse_root_use(root, index)
+            RootItemKind::Data -> parse_root_data(root, index)
+        }
+    }
+
+    state parse_root_use(
+        &mut self,
+        root: RootItem,
+        index: u64 [0..=255]
+    ) {
+        self.write_byte(1);
+        self.write_u64(root.item_index);
+        self.write_u64(root.source_span.source.value as u64);
+        self.write_u64(root.source_span.span.start);
+        self.write_u64(root.source_span.span.end);
+        let next: u64 = index + 1;
+        transition next < self.parser.output.root_count {
+            true -> parse_root_bound(next)
+            _ -> parse_use_count()
+        }
+    }
+
+    state parse_root_data(
+        &mut self,
+        root: RootItem,
+        index: u64 [0..=255]
+    ) {
+        self.write_byte(2);
+        self.write_u64(root.item_index);
+        self.write_u64(root.source_span.source.value as u64);
+        self.write_u64(root.source_span.span.start);
+        self.write_u64(root.source_span.span.end);
+        let next: u64 = index + 1;
+        transition next < self.parser.output.root_count {
+            true -> parse_root_bound(next)
+            _ -> parse_use_count()
+        }
+    }
+
+    state parse_root_bound(&mut self, next: u64) {
+        transition next < 256 {
+            true -> parse_root(next)
+            _ -> parse_use_count()
+        }
+    }
+
+    state parse_use_count(&mut self) {
+        self.write_u64(self.parser.output.use_count);
+        transition self.parser.output.use_count > 0 {
+            true -> parse_use_item(0)
+            _ -> parse_member_count()
+        }
+    }
+
+    state parse_use_item(&mut self, index: u64 [0..=255]) {
+        let item: UseItem = self.parser.output.uses[index];
+        self.write_u64(item.first_member);
+        self.write_u64(item.member_count);
+        self.write_u64(item.source_span.source.value as u64);
+        self.write_u64(item.source_span.span.start);
+        self.write_u64(item.source_span.span.end);
+        let next: u64 = index + 1;
+        transition next < self.parser.output.use_count {
+            true -> parse_use_bound(next)
+            _ -> parse_member_count()
+        }
+    }
+
+    state parse_use_bound(&mut self, next: u64) {
+        transition next < 256 {
+            true -> parse_use_item(next)
+            _ -> parse_member_count()
+        }
+    }
+
+    state parse_member_count(&mut self) {
+        self.write_u64(self.parser.output.member_count);
+        transition self.parser.output.member_count > 0 {
+            true -> parse_member(0)
+            _ -> parse_data_count()
+        }
+    }
+
+    state parse_member(&mut self, index: u64 [0..=1023]) {
+        let member: IdentifierSpan = self.parser.output.members[index];
+        self.write_u64(member.source_span.source.value as u64);
+        self.write_u64(member.source_span.span.start);
+        self.write_u64(member.source_span.span.end);
+        let next: u64 = index + 1;
+        transition next < self.parser.output.member_count {
+            true -> parse_member_bound(next)
+            _ -> parse_data_count()
+        }
+    }
+
+    state parse_member_bound(&mut self, next: u64) {
+        transition next < 1024 {
+            true -> parse_member(next)
+            _ -> parse_data_count()
+        }
+    }
+
+    state parse_data_count(&mut self) {
+        self.write_u64(self.parser.output.data_count);
+        transition self.parser.output.data_count > 0 {
+            true -> parse_data_item(0)
+            _ -> parse_data_member_count()
+        }
+    }
+
+    state parse_data_item(&mut self, index: u64 [0..=255]) {
+        let item: DataItem = self.parser.output.data_items[index];
+        self.write_u64(item.name.source_span.source.value as u64);
+        self.write_u64(item.name.source_span.span.start);
+        self.write_u64(item.name.source_span.span.end);
+        self.write_u64(item.first_member);
+        self.write_u64(item.member_count);
+        self.write_u64(item.first_field);
+        self.write_u64(item.field_count);
+        self.write_u64(item.first_case);
+        self.write_u64(item.case_count);
+        transition item.multiplicity {
+            DataMultiplicity::Affine -> parse_data_multiplicity(item, index, 0)
+            DataMultiplicity::Unrestricted -> parse_data_multiplicity(item, index, 1)
+        }
+    }
+
+    state parse_data_multiplicity(
+        &mut self,
+        item: DataItem,
+        index: u64 [0..=255],
+        multiplicity: u8
+    ) {
+        self.write_byte(multiplicity);
+        transition item.is_public {
+            true -> parse_data_public(item, index)
+            _ -> parse_data_private(item, index)
+        }
+    }
+
+    state parse_data_public(
+        &mut self,
+        item: DataItem,
+        index: u64 [0..=255]
+    ) {
+        self.write_byte(1);
+        transition { _ -> parse_data_span(item, index) }
+    }
+
+    state parse_data_private(
+        &mut self,
+        item: DataItem,
+        index: u64 [0..=255]
+    ) {
+        self.write_byte(0);
+        transition { _ -> parse_data_span(item, index) }
+    }
+
+    state parse_data_span(
+        &mut self,
+        item: DataItem,
+        index: u64 [0..=255]
+    ) {
+        self.write_u64(item.source_span.source.value as u64);
+        self.write_u64(item.source_span.span.start);
+        self.write_u64(item.source_span.span.end);
+        let next: u64 = index + 1;
+        transition next < self.parser.output.data_count {
+            true -> parse_data_bound(next)
+            _ -> parse_data_member_count()
+        }
+    }
+
+    state parse_data_bound(&mut self, next: u64) {
+        transition next < 256 {
+            true -> parse_data_item(next)
+            _ -> parse_data_member_count()
+        }
+    }
+
+    state parse_data_member_count(&mut self) {
+        self.write_u64(self.parser.output.data_member_count);
+        transition self.parser.output.data_member_count > 0 {
+            true -> parse_data_member(0)
+            _ -> parse_field_count()
+        }
+    }
+
+    state parse_data_member(&mut self, index: u64 [0..=1023]) {
+        let member: DataMember = self.parser.output.data_members[index];
+        transition member.kind {
+            DataMemberKind::Field -> parse_data_member_kind(member, index, 1)
+            DataMemberKind::Case -> parse_data_member_kind(member, index, 2)
+        }
+    }
+
+    state parse_data_member_kind(
+        &mut self,
+        member: DataMember,
+        index: u64 [0..=1023],
+        kind: u8
+    ) {
+        self.write_byte(kind);
+        self.write_u64(member.item_index);
+        self.write_u64(member.source_span.source.value as u64);
+        self.write_u64(member.source_span.span.start);
+        self.write_u64(member.source_span.span.end);
+        let next: u64 = index + 1;
+        transition next < self.parser.output.data_member_count {
+            true -> parse_data_member_bound(next)
+            _ -> parse_field_count()
+        }
+    }
+
+    state parse_data_member_bound(&mut self, next: u64) {
+        transition next < 1024 {
+            true -> parse_data_member(next)
+            _ -> parse_field_count()
+        }
+    }
+
+    state parse_field_count(&mut self) {
+        self.write_u64(self.parser.output.field_count);
+        transition self.parser.output.field_count > 0 {
+            true -> parse_field(0)
+            _ -> parse_case_count()
+        }
+    }
+
+    state parse_field(&mut self, index: u64 [0..=1023]) {
+        let field: DataField = self.parser.output.fields[index];
+        self.write_u64(field.name.source_span.source.value as u64);
+        self.write_u64(field.name.source_span.span.start);
+        self.write_u64(field.name.source_span.span.end);
+        self.write_u64(field.type_reference);
+        self.write_u64(field.source_span.source.value as u64);
+        self.write_u64(field.source_span.span.start);
+        self.write_u64(field.source_span.span.end);
+        let next: u64 = index + 1;
+        transition next < self.parser.output.field_count {
+            true -> parse_field_bound(next)
+            _ -> parse_case_count()
+        }
+    }
+
+    state parse_field_bound(&mut self, next: u64) {
+        transition next < 1024 {
+            true -> parse_field(next)
+            _ -> parse_case_count()
+        }
+    }
+
+    state parse_case_count(&mut self) {
+        self.write_u64(self.parser.output.case_count);
+        transition self.parser.output.case_count > 0 {
+            true -> parse_case(0)
+            _ -> parse_type_reference_count()
+        }
+    }
+
+    state parse_case(&mut self, index: u64 [0..=511]) {
+        let data_case: DataCase = self.parser.output.cases[index];
+        self.write_u64(data_case.name.source_span.source.value as u64);
+        self.write_u64(data_case.name.source_span.span.start);
+        self.write_u64(data_case.name.source_span.span.end);
+        self.write_u64(data_case.source_span.source.value as u64);
+        self.write_u64(data_case.source_span.span.start);
+        self.write_u64(data_case.source_span.span.end);
+        let next: u64 = index + 1;
+        transition next < self.parser.output.case_count {
+            true -> parse_case_bound(next)
+            _ -> parse_type_reference_count()
+        }
+    }
+
+    state parse_case_bound(&mut self, next: u64) {
+        transition next < 512 {
+            true -> parse_case(next)
+            _ -> parse_type_reference_count()
+        }
+    }
+
+    state parse_type_reference_count(&mut self) {
+        self.write_u64(self.parser.output.type_reference_count);
+        transition self.parser.output.type_reference_count > 0 {
+            true -> parse_type_reference(0)
+            _ -> parse_done()
+        }
+    }
+
+    state parse_type_reference(&mut self, index: u64 [0..=1023]) {
+        let type_reference: TypeReference =
+            self.parser.output.type_references[index];
+        transition type_reference.kind {
+            TypeReferenceKind::Named -> parse_named_type_reference(type_reference, index)
+        }
+    }
+
+    state parse_named_type_reference(
+        &mut self,
+        type_reference: TypeReference,
+        index: u64 [0..=1023]
+    ) {
+        self.write_byte(1);
+        self.write_u64(type_reference.name.source_span.source.value as u64);
+        self.write_u64(type_reference.name.source_span.span.start);
+        self.write_u64(type_reference.name.source_span.span.end);
+        self.write_u64(type_reference.source_span.source.value as u64);
+        self.write_u64(type_reference.source_span.span.start);
+        self.write_u64(type_reference.source_span.span.end);
+        let next: u64 = index + 1;
+        transition next < self.parser.output.type_reference_count {
+            true -> parse_type_reference_bound(next)
+            _ -> parse_done()
+        }
+    }
+
+    state parse_type_reference_bound(&mut self, next: u64) {
+        transition next < 1024 {
+            true -> parse_type_reference(next)
+            _ -> parse_done()
+        }
+    }
+
+    state parse_done(&mut self) { }
+}
+
+// Versioned canonical lexical observation. Every scalar coordinate/count is
+// little-endian u64. The stream begins with `OMGLEX1\0`, version 1, then:
+// accepted byte, diagnostic tag, diagnostic source/start/end, exact retained
+// source bytes, and every retained token. Each token carries a structural kind
+// tag plus three metadata bytes, source/start/end, raw spelling, and decoded
+// bytes. This is hosted development tooling, not an Omega ABI or an enum layout.
+machine ParserHarness::write_lex_observation(&mut self) {
+    self.write_byte(79);
+    self.write_byte(77);
+    self.write_byte(71);
+    self.write_byte(76);
+    self.write_byte(69);
+    self.write_byte(88);
+    self.write_byte(49);
+    self.write_byte(0);
+    self.write_u64(1);
+    transition self.lexer.output.accepted {
+        true -> accepted_header()
+        _ -> rejected_header()
+    }
+
+    state accepted_header(&mut self) {
+        self.write_byte(1);
+        transition { _ -> diagnostic_none() }
+    }
+
+    state rejected_header(&mut self) {
+        self.write_byte(0);
+        transition self.lexer.output.diagnostic.code {
+            LexDiagnosticCode::None -> diagnostic_none()
+            LexDiagnosticCode::InvalidUtf8 -> diagnostic(1)
+            LexDiagnosticCode::UnsupportedPunctuation -> diagnostic(2)
+            LexDiagnosticCode::UnterminatedBlockComment -> diagnostic(3)
+            LexDiagnosticCode::UnterminatedStringLiteral -> diagnostic(4)
+            LexDiagnosticCode::UnterminatedStringEscape -> diagnostic(5)
+            LexDiagnosticCode::UnsupportedEscape -> diagnostic(6)
+            LexDiagnosticCode::UnterminatedHexEscape -> diagnostic(7)
+            LexDiagnosticCode::InvalidHexEscapeDigit -> diagnostic(8)
+            LexDiagnosticCode::UnterminatedUnicodeEscape -> diagnostic(9)
+            LexDiagnosticCode::ExpectedUnicodeEscapeBrace -> diagnostic(10)
+            LexDiagnosticCode::EmptyUnicodeEscape -> diagnostic(11)
+            LexDiagnosticCode::InvalidUnicodeEscapeDigit -> diagnostic(12)
+            LexDiagnosticCode::InvalidUnicodeEscapeValue -> diagnostic(13)
+            LexDiagnosticCode::InvalidUnicodeScalar -> diagnostic(14)
+            LexDiagnosticCode::InvalidRawStringDelimiter -> diagnostic(15)
+            LexDiagnosticCode::UnterminatedRawString -> diagnostic(16)
+            LexDiagnosticCode::TokenCapacityExceeded -> diagnostic(17)
+            LexDiagnosticCode::SourceCapacityExceeded -> diagnostic(18)
+            LexDiagnosticCode::DecodedCapacityExceeded -> diagnostic(19)
+        }
+    }
+
+    state diagnostic_none(&mut self) {
+        self.write_byte(0);
+        transition { _ -> diagnostic_coordinates() }
+    }
+
+    state diagnostic(&mut self, tag: u8) {
+        self.write_byte(tag);
+        transition { _ -> diagnostic_coordinates() }
+    }
+
+    state diagnostic_coordinates(&mut self) {
+        self.write_u64(self.lexer.output.diagnostic.source_span.source.value as u64);
+        self.write_u64(self.lexer.output.diagnostic.source_span.span.start);
+        self.write_u64(self.lexer.output.diagnostic.source_span.span.end);
+        self.write_u64(self.lexer.source.length);
+        transition self.lexer.source.length > 0 {
+            true -> source_byte(0)
+            _ -> token_count()
+        }
+    }
+
+    state source_byte(&mut self, index: u64 [0..=65535]) {
+        self.write_byte(self.lexer.source.bytes[index]);
+        let next: u64 = index + 1;
+        transition next < self.lexer.source.length {
+            true -> source_bound(next)
+            _ -> token_count()
+        }
+    }
+
+    state source_bound(&mut self, next: u64) {
+        transition next < 65536 {
+            true -> source_byte(next)
+            _ -> token_count()
+        }
+    }
+
+    state token_count(&mut self) {
+        self.write_u64(self.lexer.output.token_count);
+        transition self.lexer.output.token_count > 0 {
+            true -> token(0)
+            _ -> done()
+        }
+    }
+
+    state token(&mut self, index: u64 [0..=16383]) {
+        let token: Token = self.lexer.output.tokens[index];
+        self.write_token(token);
+        let next: u64 = index + 1;
+        transition next < self.lexer.output.token_count {
+            true -> token_bound(next)
+            _ -> done()
+        }
+    }
+
+    state token_bound(&mut self, next: u64) {
+        transition next < 16384 {
+            true -> token(next)
+            _ -> done()
+        }
+    }
+
+    state done(&mut self) { }
+}
+
+// The legacy numeric projection exists only at this gate-owned observation wire.
+// Lexer and parser semantics share Token directly and never store these
+// ordinals. Delete this serializer when a stronger semantic-free gate subsumes
+// the retained black-box protocol.
+machine ParserHarness::write_token(&mut self, kind: Token) {
+    kind.project_gate_wire_coordinates(&mut self.token_wire);
+    transition kind {
+        Token::Identifier -> tagged(self.token_wire, 1, 0, 0, 0)
+        Token::Integer { base, empty_digits, has_suffix } -> integer(
+            self.token_wire, base, empty_digits, has_suffix
+        )
+        Token::Float { has_exponent, empty_exponent, has_suffix } -> float(
+            self.token_wire, has_exponent, empty_exponent, has_suffix
+        )
+        Token::StringLiteral -> tagged(self.token_wire, 4, 0, 0, 0)
+        Token::Keyword { keyword } -> keyword(self.token_wire, keyword)
+        Token::Punctuation { punctuation } -> punctuation(self.token_wire, punctuation)
+        Token::Whitespace -> tagged(self.token_wire, 7, 0, 0, 0)
+        Token::LineComment -> tagged(self.token_wire, 8, 0, 0, 0)
+        Token::BlockComment -> tagged(self.token_wire, 9, 0, 0, 0)
+    }
+
+    state integer(&mut self, coordinates: TokenWireCoordinates, base: NumericBase, empty_digits: bool, has_suffix: bool) {
+        transition base {
+            NumericBase::Binary -> integer_base(coordinates, 0, empty_digits, has_suffix)
+            NumericBase::Octal -> integer_base(coordinates, 1, empty_digits, has_suffix)
+            NumericBase::Decimal -> integer_base(coordinates, 2, empty_digits, has_suffix)
+            NumericBase::Hexadecimal -> integer_base(coordinates, 3, empty_digits, has_suffix)
+        }
+    }
+    state integer_base(&mut self, coordinates: TokenWireCoordinates, base: u8, empty_digits: bool, has_suffix: bool) {
+        transition empty_digits {
+            true -> integer_empty(coordinates, base, 1, has_suffix)
+            _ -> integer_empty(coordinates, base, 0, has_suffix)
+        }
+    }
+    state integer_empty(&mut self, coordinates: TokenWireCoordinates, base: u8, empty_digits: u8, has_suffix: bool) {
+        transition has_suffix {
+            true -> tagged(coordinates, 2, base, empty_digits, 1)
+            _ -> tagged(coordinates, 2, base, empty_digits, 0)
+        }
+    }
+    state float(&mut self, coordinates: TokenWireCoordinates, has_exponent: bool, empty_exponent: bool, has_suffix: bool) {
+        transition has_exponent {
+            true -> float_exponent(coordinates, 1, empty_exponent, has_suffix)
+            _ -> float_exponent(coordinates, 0, empty_exponent, has_suffix)
+        }
+    }
+    state float_exponent(&mut self, coordinates: TokenWireCoordinates, has_exponent: u8, empty_exponent: bool, has_suffix: bool) {
+        transition empty_exponent {
+            true -> float_empty(coordinates, has_exponent, 1, has_suffix)
+            _ -> float_empty(coordinates, has_exponent, 0, has_suffix)
+        }
+    }
+    state float_empty(&mut self, coordinates: TokenWireCoordinates, has_exponent: u8, empty_exponent: u8, has_suffix: bool) {
+        transition has_suffix {
+            true -> tagged(coordinates, 3, has_exponent, empty_exponent, 1)
+            _ -> tagged(coordinates, 3, has_exponent, empty_exponent, 0)
+        }
+    }
+    state keyword(&mut self, coordinates: TokenWireCoordinates, keyword: KeywordKind) {
+        transition keyword {
+            KeywordKind::As -> tagged(coordinates, 5, 0, 0, 0)
+            KeywordKind::CallingConvention -> tagged(coordinates, 5, 1, 0, 0)
+            KeywordKind::Capability -> tagged(coordinates, 5, 2, 0, 0)
+            KeywordKind::Contains -> tagged(coordinates, 5, 3, 0, 0)
+            KeywordKind::Data -> tagged(coordinates, 5, 4, 0, 0)
+            KeywordKind::Else -> tagged(coordinates, 5, 5, 0, 0)
+            KeywordKind::Enum -> tagged(coordinates, 5, 6, 0, 0)
+            KeywordKind::False -> tagged(coordinates, 5, 7, 0, 0)
+            KeywordKind::Foreign -> tagged(coordinates, 5, 8, 0, 0)
+            KeywordKind::Host -> tagged(coordinates, 5, 9, 0, 0)
+            KeywordKind::If -> tagged(coordinates, 5, 10, 0, 0)
+            KeywordKind::Let -> tagged(coordinates, 5, 11, 0, 0)
+            KeywordKind::Library -> tagged(coordinates, 5, 12, 0, 0)
+            KeywordKind::Loop -> tagged(coordinates, 5, 13, 0, 0)
+            KeywordKind::Machine -> tagged(coordinates, 5, 14, 0, 0)
+            KeywordKind::Match -> tagged(coordinates, 5, 15, 0, 0)
+            KeywordKind::Owns -> tagged(coordinates, 5, 16, 0, 0)
+            KeywordKind::Platform -> tagged(coordinates, 5, 17, 0, 0)
+            KeywordKind::Pub -> tagged(coordinates, 5, 18, 0, 0)
+            KeywordKind::Return -> tagged(coordinates, 5, 19, 0, 0)
+            KeywordKind::SelfType -> tagged(coordinates, 5, 20, 0, 0)
+            KeywordKind::SelfValue -> tagged(coordinates, 5, 21, 0, 0)
+            KeywordKind::State -> tagged(coordinates, 5, 22, 0, 0)
+            KeywordKind::Struct -> tagged(coordinates, 5, 23, 0, 0)
+            KeywordKind::Target -> tagged(coordinates, 5, 24, 0, 0)
+            KeywordKind::Transition -> tagged(coordinates, 5, 25, 0, 0)
+            KeywordKind::True -> tagged(coordinates, 5, 26, 0, 0)
+            KeywordKind::Use -> tagged(coordinates, 5, 27, 0, 0)
+            KeywordKind::When -> tagged(coordinates, 5, 28, 0, 0)
+            KeywordKind::While -> tagged(coordinates, 5, 29, 0, 0)
+            KeywordKind::Case -> tagged(coordinates, 5, 30, 0, 0)
+            KeywordKind::Copy -> tagged(coordinates, 5, 31, 0, 0)
+            _ -> tagged(coordinates, 5, 255, 0, 0)
+        }
+    }
+    state punctuation(&mut self, coordinates: TokenWireCoordinates, punctuation: PunctuationKind) {
+        transition punctuation {
+            PunctuationKind::Ampersand -> tagged(coordinates, 6, 0, 0, 0)
+            PunctuationKind::AndAnd -> tagged(coordinates, 6, 1, 0, 0)
+            PunctuationKind::Apostrophe -> tagged(coordinates, 6, 2, 0, 0)
+            PunctuationKind::Arrow -> tagged(coordinates, 6, 3, 0, 0)
+            PunctuationKind::Asterisk -> tagged(coordinates, 6, 4, 0, 0)
+            PunctuationKind::Caret -> tagged(coordinates, 6, 5, 0, 0)
+            PunctuationKind::Colon -> tagged(coordinates, 6, 6, 0, 0)
+            PunctuationKind::ColonColon -> tagged(coordinates, 6, 7, 0, 0)
+            PunctuationKind::Comma -> tagged(coordinates, 6, 8, 0, 0)
+            PunctuationKind::Dot -> tagged(coordinates, 6, 9, 0, 0)
+            PunctuationKind::DotDot -> tagged(coordinates, 6, 10, 0, 0)
+            PunctuationKind::DotDotEqual -> tagged(coordinates, 6, 11, 0, 0)
+            PunctuationKind::Equal -> tagged(coordinates, 6, 12, 0, 0)
+            PunctuationKind::EqualEqual -> tagged(coordinates, 6, 13, 0, 0)
+            PunctuationKind::Exclamation -> tagged(coordinates, 6, 14, 0, 0)
+            PunctuationKind::ExclamationEqual -> tagged(coordinates, 6, 15, 0, 0)
+            PunctuationKind::Greater -> tagged(coordinates, 6, 16, 0, 0)
+            PunctuationKind::GreaterEqual -> tagged(coordinates, 6, 17, 0, 0)
+            PunctuationKind::GreaterGreater -> tagged(coordinates, 6, 18, 0, 0)
+            PunctuationKind::Hash -> tagged(coordinates, 6, 19, 0, 0)
+            PunctuationKind::LeftBrace -> tagged(coordinates, 6, 20, 0, 0)
+            PunctuationKind::LeftBracket -> tagged(coordinates, 6, 21, 0, 0)
+            PunctuationKind::LeftParen -> tagged(coordinates, 6, 22, 0, 0)
+            PunctuationKind::Less -> tagged(coordinates, 6, 23, 0, 0)
+            PunctuationKind::LessEqual -> tagged(coordinates, 6, 24, 0, 0)
+            PunctuationKind::LessLess -> tagged(coordinates, 6, 25, 0, 0)
+            PunctuationKind::Minus -> tagged(coordinates, 6, 26, 0, 0)
+            PunctuationKind::Percent -> tagged(coordinates, 6, 27, 0, 0)
+            PunctuationKind::Pipe -> tagged(coordinates, 6, 28, 0, 0)
+            PunctuationKind::PipePipe -> tagged(coordinates, 6, 29, 0, 0)
+            PunctuationKind::Plus -> tagged(coordinates, 6, 30, 0, 0)
+            PunctuationKind::PlusEqual -> tagged(coordinates, 6, 31, 0, 0)
+            PunctuationKind::MinusEqual -> tagged(coordinates, 6, 32, 0, 0)
+            PunctuationKind::AsteriskEqual -> tagged(coordinates, 6, 33, 0, 0)
+            PunctuationKind::SlashEqual -> tagged(coordinates, 6, 34, 0, 0)
+            PunctuationKind::PercentEqual -> tagged(coordinates, 6, 35, 0, 0)
+            PunctuationKind::RightBrace -> tagged(coordinates, 6, 36, 0, 0)
+            PunctuationKind::RightBracket -> tagged(coordinates, 6, 37, 0, 0)
+            PunctuationKind::RightParen -> tagged(coordinates, 6, 38, 0, 0)
+            PunctuationKind::Semicolon -> tagged(coordinates, 6, 39, 0, 0)
+            PunctuationKind::Slash -> tagged(coordinates, 6, 40, 0, 0)
+            PunctuationKind::Tilde -> tagged(coordinates, 6, 41, 0, 0)
+            _ -> tagged(coordinates, 6, 255, 0, 0)
+        }
+    }
+    state tagged(
+        &mut self,
+        coordinates: TokenWireCoordinates,
+        tag: u8,
+        first: u8,
+        second: u8,
+        third: u8
+    ) {
+        self.write_byte(tag);
+        self.write_byte(first);
+        self.write_byte(second);
+        self.write_byte(third);
+        self.write_token_payload(
+            coordinates.source,
+            coordinates.start,
+            coordinates.end,
+            coordinates.decoded_start,
+            coordinates.decoded_length
+        );
+    }
+}
+
+machine ParserHarness::write_token_payload(
+    &mut self,
+    source_id: u32 in Trapping,
+    start: u64 in Trapping,
+    end: u64 in Trapping,
+    decoded_start: u64 in Trapping,
+    decoded_length: u64 in Trapping
+) {
+    self.write_u64(source_id as u64);
+    self.write_u64(start);
+    self.write_u64(end);
+    self.write_u64(end - start);
+    transition start < end {
+        true -> raw_start(start as u64)
+        _ -> decoded_count()
+    }
+
+    state raw_start(&mut self, byte_index: u64) {
+        transition byte_index < 65536 {
+            true -> raw_byte(byte_index)
+            _ -> decoded_count()
+        }
+    }
+
+    state raw_byte(&mut self, byte_index: u64 [0..=65535]) {
+        self.write_byte(self.lexer.source.bytes[byte_index]);
+        let next: u64 = byte_index + 1;
+        transition next < end {
+            true -> raw_bound(next)
+            _ -> decoded_count()
+        }
+    }
+
+    state raw_bound(&mut self, next: u64) {
+        transition next < 65536 {
+            true -> raw_byte(next)
+            _ -> decoded_count()
+        }
+    }
+
+    state decoded_count(&mut self) {
+        self.write_u64(decoded_length);
+        transition decoded_length > 0 {
+            true -> decoded_start_bound(decoded_start as u64, decoded_length)
+            _ -> done()
+        }
+    }
+
+    state decoded_start_bound(
+        &mut self,
+        byte_index: u64,
+        remaining: u64 in Trapping
+    ) {
+        transition byte_index < 65536 {
+            true -> decoded_byte(byte_index, remaining)
+            _ -> done()
+        }
+    }
+
+    state decoded_byte(
+        &mut self,
+        byte_index: u64 [0..=65535],
+        remaining: u64 in Trapping
+    ) {
+        self.write_byte(self.lexer.output.decoded[byte_index]);
+        transition remaining > 1 {
+            true -> decoded_next(byte_index, remaining)
+            _ -> done()
+        }
+    }
+
+    state decoded_next(
+        &mut self,
+        byte_index: u64 [0..=65535],
+        remaining: u64 in Trapping
+    ) {
+        let next: u64 = byte_index + 1;
+        transition next < 65536 {
+            true -> decoded_decrement(next, remaining)
+            _ -> done()
+        }
+    }
+
+    state decoded_decrement(
+        &mut self,
+        next: u64 [0..=65535],
+        remaining: u64 in Trapping
+    ) {
+        let next_remaining: u64 in Trapping = remaining - 1;
+        transition { _ -> decoded_byte(next, next_remaining) }
+    }
+
+    state done(&mut self) { }
+}
+
+machine ParserHarness::write_u64(&mut self, value: u64 in Trapping) {
+    self.write_byte((value % 256) as u8);
+    self.write_byte((value / 256 % 256) as u8);
+    self.write_byte((value / 65536 % 256) as u8);
+    self.write_byte((value / 16777216 % 256) as u8);
+    self.write_byte((value / 4294967296 % 256) as u8);
+    self.write_byte((value / 1099511627776 % 256) as u8);
+    self.write_byte((value / 281474976710656 % 256) as u8);
+    self.write_byte((value / 72057594037927936 % 256) as u8);
+}
+
+machine ParserHarness::write_byte(&mut self, value: u8) {
+    let mut output: u8 = value;
+    self.console.write_byte(output as i32);
+}
