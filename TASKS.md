@@ -778,21 +778,22 @@ Remaining:
   drift, absence of inference from `reaches <=`/bodylessness/catalog lookup,
   and the complete declaration-classification migration.
 
-  **DESIGN-BLOCKED — [OWNER Q9](OWNER_QUESTIONS.md#q9--normative-identifier-and-string-literal-lexical-contract):**
-  the lexical claim has explicit specification conflicts. The current
-  Omega-written lexer accepts Unicode XID identifiers despite the
-  guide's ASCII-transparent/source-payload-only wording, accepts `\u{...}`
-  escapes even though the guide forbids codepoint-to-byte escapes, and accepts
-  raw strings whose delimiter/content rules are not yet normative there. The
-  product source now uses the specified `u64` `Array`/`Slice` index and count
-  carrier for byte coordinates, collection counts, and scan indices throughout
-  the live lexical slice while retaining `u32` for Unicode scalar values; the earlier
-  implicit `u32`/`u64` indexing and `.len` comparisons are gone without adding
-  a heterogeneous-conversion rule. The live source still exercises the three
-  unsettled lexical behaviors but does not claim full-spec lexical conformance
-  for them. Do not expand Unicode identifier, codepoint-escape, or raw-string
-  behavior, or add compiler-source dependencies on those behaviors, until the
-  owner rules one normative lexical contract.
+  **LEXICAL-PROFILE-V1:** migrate both maintained lexers to the closed lexical
+  contract in Chapter 1. Accept valid UTF-8 source framing, ASCII identifiers,
+  and exactly space/tab/CR/LF as syntactic whitespace; retain non-ASCII bytes in
+  comments and literal bodies. Remove Unicode-XID identifier acceptance,
+  `\u{...}` codepoint-to-UTF-8 synthesis, raw-string acceptance, the generated
+  `source/psi/lex/unicode_tables.omg` table, and the Rust `unicode-ident`
+  dependency. Remove the corresponding token diagnostics and harness protocol
+  rows rather than preserving dead vocabulary. Add cross-implementation
+  canaries that accept byte-preserving `"café"`, reject its establishment as
+  `AsciiOnly`, and reject NBSP, U+2028, U+3000, Unicode identifiers, codepoint
+  escapes, and raw strings with an "outside the current language profile"
+  diagnostic. Preserve the existing `u64` byte-coordinate/count migration;
+  `u32` remains appropriate only where source decoding temporarily carries a
+  Unicode scalar. Future Unicode identifiers or an Omega-native raw-payload
+  form require a new normative contract and do not preserve the retired
+  implementation spellings by default.
 
   The evaluation-order ruling is closed. Every eager child evaluates exactly
   once in the language's authored left-to-right schedule: attached receiver

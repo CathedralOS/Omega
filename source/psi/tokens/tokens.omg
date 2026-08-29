@@ -1,8 +1,10 @@
 use psi::source::source;
 
-// Final product token vocabulary for the source-to-token phase. Token spelling
-// remains in the source unit; cooked/raw string tokens additionally retain
-// their exact decoded byte range in TokenStream::decoded.
+// Product token vocabulary for the source-to-token phase. Token spelling
+// remains in the source unit; cooked string tokens additionally retain their
+// exact decoded byte range in TokenStream::decoded. Raw-string and Unicode-
+// escape diagnostics remain only until the LEXICAL-PROFILE-V1 migration removes
+// their lexer paths and protocol rows atomically.
 
 pub data NumericBase [copy] {
     case Binary;

@@ -1107,6 +1107,12 @@ no codepoint synthesis, ASCII-transparent source). Litmus: delete every encoding
 from the library and the compiler must still lex and parse — it just can't
 establish `in <encoding>` on anything, which is correct.
 
+Ordinary build-time machines may nevertheless provide rich text tooling. They
+can read resources, encode scalar values, normalize under an explicitly chosen
+Unicode contract, validate the resulting bytes, and emit an owned source or
+data artifact. That is replaceable checked library/build behavior; it does not
+grant the lexer an encoding intrinsic or attach text meaning to every literal.
+
 Simple, *per-element* encodings are a boolean expression directly; a *sequence*
 property like UTF-8 is a pure, terminating machine over the bytes (see the
 recogniser below):

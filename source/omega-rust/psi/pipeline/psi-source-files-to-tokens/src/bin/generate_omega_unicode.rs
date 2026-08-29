@@ -1,9 +1,11 @@
-//! Generate the ordinary-Omega Unicode XID tables used by the hosted lexer.
+//! Legacy generator for the hosted lexer's retired Unicode XID tables.
 //!
 //! This producer is untrusted construction tooling. Psi's lexer owns the
 //! committed output; this tool pins unicode-ident's crate checksum and Unicode
 //! version and regenerates the ranges by enumerating every Unicode scalar
-//! against the pinned source predicate.
+//! against the pinned source predicate. LEXICAL-PROFILE-V1 removes this tool,
+//! its output, and the corresponding lexer paths; this file grants no current
+//! Omega lexical semantics.
 
 use std::fmt::Write as _;
 
