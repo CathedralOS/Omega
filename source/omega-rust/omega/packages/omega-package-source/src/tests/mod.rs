@@ -23,7 +23,7 @@ use crate::git::snapshot::{
 #[allow(unused_imports)]
 use crate::limits::*;
 #[allow(unused_imports)]
-use crate::local::{capture::*, snapshot::*};
+use crate::local::{capture::*, model::*, operations::*, snapshot::*};
 #[allow(unused_imports)]
 use crate::observations::{accounting::*, execution::*, receipt::*, resolution::*, resolved::*};
 use cap_std::ambient_authority;

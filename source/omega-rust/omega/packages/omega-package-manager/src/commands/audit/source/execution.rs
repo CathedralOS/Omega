@@ -4,12 +4,13 @@ use super::report::PackageSourceAudit;
 #[cfg(test)]
 use super::request::PackageSourceRequestParseError;
 use super::request::{PackageSourceAuditCommandError, PackageSourceRequest, SourceAdapter};
+use omega_package_source::git::resolution::resolve_git_source_in_lane;
 #[cfg(test)]
 use omega_package_source::resolve_git_source_with_storage;
+use omega_package_source::storage::RetainedStorageLane;
 use omega_package_source::{
     LocalSourceLimits, SourceResolveError, SourceResolverStorage, resolve_local_source,
 };
-use omega_package_source::{RetainedStorageLane, resolve_git_source_in_lane};
 #[cfg(test)]
 use std::path::Path;
 #[cfg(test)]

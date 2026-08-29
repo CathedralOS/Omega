@@ -4,7 +4,7 @@ use crate::resolution::source::{
     resolve_selected_git_package_source_from_pin_in_lanes,
     resolve_workspace_member_package_source_in_lane,
 };
-use omega_package_source::RetainedStorageLane;
+use omega_package_source::storage::RetainedStorageLane;
 use omega_package_source::{ExternalSourceContext, SourceLineage, SourceRelativePath};
 use omega_package_source::{
     GitAcquisitionPin, GitSourceRequest, LocalSourceLimits, ResolvedGitSource,
