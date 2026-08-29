@@ -422,6 +422,12 @@ file. Its 37-line entrance owns their common analysis, invalidation, pass, and
 version contract, then descends into separate obligation-free,
 proof-certified, and compatible-policy rule leaves. Each leaf retains only its
 own expression/evidence mechanics, and none exceeds 275 lines.
+Same-block and dominating GVN now mirror that descent. Their 32- and 37-line
+entrances own the analysis/invalidation contract specific to their traversal,
+then expose obligation-free, proof-certified, and compatible-policy leaves.
+The former 449- and 656-line mixed files are gone; all six replacements are at
+most 212 lines. A catalog row therefore leads through one traversal entrance
+to one exact semantic family at every GVN scope.
 Obligation-free wrapping neutral arithmetic is a separate closed family. The
 producer's `identities/mod.rs` entrance exposes its rule and five-row shape
 partition; the validator's `total_scalar_identity/mod.rs` entrance descends
