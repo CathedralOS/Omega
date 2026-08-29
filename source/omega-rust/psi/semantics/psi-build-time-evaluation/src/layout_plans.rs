@@ -19,6 +19,7 @@ use psi_typed_trees::TypedTrees;
 use crate::BuildTimeAdmissionPlan;
 
 mod const_materializable;
+mod const_sum_materializable;
 mod owned_value_encoding;
 mod plan_validation;
 mod schema_reflection;
@@ -26,6 +27,9 @@ mod schema_value;
 
 pub use const_materializable::{
     ValidatedConstMaterialization, validate_const_materializable_typed_owned_layout,
+};
+pub use const_sum_materializable::{
+    ValidatedConstSumMaterialization, validate_const_materializable_conventional_sum,
 };
 use owned_value_encoding::{encode_typed_owned_value, exact_struct_fields};
 pub(crate) use plan_validation::validate_plan;

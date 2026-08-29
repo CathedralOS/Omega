@@ -61,6 +61,13 @@ therefore do not mistake `#N` for a runtime discriminant. Fixed-layout `At` and
 `Bits` placement remains limited to the reflected common/record fields; tagged
 case placement belongs to the next closed-vocabulary extension.
 
+The compiler's existing conventional sum representation has a separate
+read-only report for constant materialization. `omega-layout` projects its
+fixed four-byte tag, authored-order ordinals, all-case payload overlay, and
+total geometry; Psi revalidates that report before staging one active case.
+This report is not a `LayoutPlan`, cannot be authored by a layout policy, and
+does not settle the deferred tagged/untagged programmable placement vocabulary.
+
 The closed vocabulary includes only primitive placement concepts the backend
 must understand: offsets/alignment, fixed and runtime strides, tagged/untagged
 overlays, bit ranges, fragmented placement of one logical source across several

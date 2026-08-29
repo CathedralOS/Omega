@@ -58,6 +58,47 @@ pub struct LayoutPlanReport {
     pub align: u64,
 }
 
+/// One compiler-owned conventional payload field in a case-bearing runtime
+/// layout. Unlike [`LayoutPlanReport`], this is not source-programmable
+/// placement vocabulary: it reports the language implementation's fixed
+/// tag-prefixed overlay representation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConventionalSumPayloadFieldLayoutReport {
+    pub field: String,
+    pub member_identity: Option<u64>,
+    /// Absolute byte offset within the complete sum value.
+    pub offset: u64,
+    pub size: u64,
+    pub align: u64,
+}
+
+/// One authored-order case and its relevant payload geometry.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConventionalSumCaseLayoutReport {
+    pub case: String,
+    pub member_identity: Option<u64>,
+    /// Runtime discriminant, fixed by authored case order rather than stable
+    /// schema identity.
+    pub ordinal: u32,
+    pub payload_fields: Vec<ConventionalSumPayloadFieldLayoutReport>,
+}
+
+/// Exact compiler-owned conventional layout for one closed pure sum.
+///
+/// This report does not extend programmable `Layout` policies with tag/case
+/// placement. It is a target-closed observation of the existing fixed runtime
+/// representation and grants no storage or materialization authority alone.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConventionalSumLayoutReport {
+    pub schema_identity: u64,
+    pub tag_offset: u64,
+    pub tag_size: u64,
+    pub tag_align: u64,
+    pub cases: Vec<ConventionalSumCaseLayoutReport>,
+    pub size: u64,
+    pub align: u64,
+}
+
 /// One normalized semantic-field-free callback destination in a native
 /// layout. Declaration identities are exact canonical strings rather than
 /// authored ordinals or arena handles. The authoritative layout policy owns
@@ -159,6 +200,51 @@ pub fn normalized_layout_plan_fingerprint(layout: &LayoutPlanReport) -> u64 {
         }
     }
     if hash == 0 { 1 } else { hash }
+}
+
+/// Deterministic compatibility identity of an exact conventional sum report.
+/// Case ordinal remains identity-bearing even for numbered schemas because it
+/// controls the runtime tag. Numbered source names are presentation-only.
+pub fn normalized_conventional_sum_layout_fingerprint(layout: &ConventionalSumLayoutReport) -> u64 {
+    let mut hash = 0xcbf29ce484222325u64;
+    hash_fingerprint_bytes(&mut hash, b"omega.conventional-sum-layout.v1");
+    for value in [
+        layout.schema_identity,
+        layout.tag_offset,
+        layout.tag_size,
+        layout.tag_align,
+        layout.size,
+        layout.align,
+        layout.cases.len() as u64,
+    ] {
+        hash_fingerprint_u64(&mut hash, value);
+    }
+    for case in &layout.cases {
+        hash_fingerprint_u64(&mut hash, u64::from(case.ordinal));
+        hash_optional_member_identity(&mut hash, case.member_identity, &case.case);
+        hash_fingerprint_u64(&mut hash, case.payload_fields.len() as u64);
+        for field in &case.payload_fields {
+            hash_optional_member_identity(&mut hash, field.member_identity, &field.field);
+            for value in [field.offset, field.size, field.align] {
+                hash_fingerprint_u64(&mut hash, value);
+            }
+        }
+    }
+    if hash == 0 { 1 } else { hash }
+}
+
+fn hash_optional_member_identity(hash: &mut u64, identity: Option<u64>, name: &str) {
+    match identity {
+        Some(identity) => {
+            hash_fingerprint_byte(hash, 1);
+            hash_fingerprint_u64(hash, identity);
+        }
+        None => {
+            hash_fingerprint_byte(hash, 0);
+            hash_fingerprint_u64(hash, name.len() as u64);
+            hash_fingerprint_bytes(hash, name.as_bytes());
+        }
+    }
 }
 
 /// Canonical identity of a native layout including its private demands. The

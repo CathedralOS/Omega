@@ -309,7 +309,7 @@ fn validate_fixed_layout(
     Ok(())
 }
 
-fn unique_data_by_name<'a>(
+pub(super) fn unique_data_by_name<'a>(
     typed: &'a TypedTrees,
     name: &str,
 ) -> Result<&'a DataDefinition, MaterializationDiagnostic> {
@@ -422,7 +422,7 @@ fn validate_record_value(
     result
 }
 
-fn validate_value(
+pub(super) fn validate_value(
     typed: &TypedTrees,
     type_reference: TypeReferenceHandle,
     value: &BuildTimeValue,
@@ -566,7 +566,7 @@ fn validate_value(
     }
 }
 
-fn value_kind(value: &BuildTimeValue) -> &'static str {
+pub(super) fn value_kind(value: &BuildTimeValue) -> &'static str {
     match value {
         BuildTimeValue::Unit => "Unit",
         BuildTimeValue::Int(_) => "integer",
@@ -605,7 +605,7 @@ fn materialization_identity(
     if hash == 0 { 1 } else { hash }
 }
 
-fn hash_value(hash: &mut u64, value: &BuildTimeValue) {
+pub(super) fn hash_value(hash: &mut u64, value: &BuildTimeValue) {
     match value {
         BuildTimeValue::Unit => hash_byte(hash, 0),
         BuildTimeValue::Int(value) => {
@@ -653,22 +653,22 @@ fn hash_value(hash: &mut u64, value: &BuildTimeValue) {
     }
 }
 
-fn hash_text(hash: &mut u64, value: &str) {
+pub(super) fn hash_text(hash: &mut u64, value: &str) {
     hash_u64(hash, value.len() as u64);
     hash_bytes(hash, value.as_bytes());
 }
 
-fn hash_u64(hash: &mut u64, value: u64) {
+pub(super) fn hash_u64(hash: &mut u64, value: u64) {
     hash_bytes(hash, &value.to_le_bytes());
 }
 
-fn hash_bytes(hash: &mut u64, values: &[u8]) {
+pub(super) fn hash_bytes(hash: &mut u64, values: &[u8]) {
     for value in values {
         hash_byte(hash, *value);
     }
 }
 
-fn hash_byte(hash: &mut u64, value: u8) {
+pub(super) fn hash_byte(hash: &mut u64, value: u8) {
     *hash ^= u64::from(value);
     *hash = hash.wrapping_mul(0x100000001b3);
 }

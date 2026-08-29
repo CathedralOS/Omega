@@ -72,6 +72,60 @@ fn normalized_layout_identity_is_order_independent_and_geometry_bound() {
 }
 
 #[test]
+fn conventional_sum_identity_binds_ordinals_geometry_and_unnumbered_names() {
+    let baseline = ConventionalSumLayoutReport {
+        schema_identity: 7,
+        tag_offset: 0,
+        tag_size: 4,
+        tag_align: 4,
+        cases: vec![ConventionalSumCaseLayoutReport {
+            case: "Ready".into(),
+            member_identity: Some(41),
+            ordinal: 0,
+            payload_fields: vec![ConventionalSumPayloadFieldLayoutReport {
+                field: "value".into(),
+                member_identity: None,
+                offset: 4,
+                size: 4,
+                align: 4,
+            }],
+        }],
+        size: 8,
+        align: 4,
+    };
+    let identity = normalized_conventional_sum_layout_fingerprint(&baseline);
+    assert_ne!(identity, 0);
+
+    let mut renamed_numbered_case = baseline.clone();
+    renamed_numbered_case.cases[0].case = "Available".into();
+    assert_eq!(
+        identity,
+        normalized_conventional_sum_layout_fingerprint(&renamed_numbered_case)
+    );
+
+    let mut reordered = baseline.clone();
+    reordered.cases[0].ordinal = 1;
+    assert_ne!(
+        identity,
+        normalized_conventional_sum_layout_fingerprint(&reordered)
+    );
+
+    let mut renamed_unnumbered_field = baseline.clone();
+    renamed_unnumbered_field.cases[0].payload_fields[0].field = "payload".into();
+    assert_ne!(
+        identity,
+        normalized_conventional_sum_layout_fingerprint(&renamed_unnumbered_field)
+    );
+
+    let mut shifted = baseline;
+    shifted.cases[0].payload_fields[0].offset = 8;
+    assert_ne!(
+        identity,
+        normalized_conventional_sum_layout_fingerprint(&shifted)
+    );
+}
+
+#[test]
 fn stable_member_identity_makes_source_rename_presentation_only() {
     let mut original = split_layout();
     original.schema_identity = 0x44;
