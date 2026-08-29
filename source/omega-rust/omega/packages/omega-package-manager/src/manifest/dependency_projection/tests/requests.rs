@@ -1,6 +1,6 @@
 use super::PackageFixture;
 use crate::manifest::dependency_projection::{DependencyProjectionError, DependencySourceRequest};
-use crate::source::identity::{AliasName, PackageName};
+use crate::resolution::identity::{AliasName, PackageName};
 
 #[test]
 fn resolves_default_alias_from_the_dependency_declaration() {

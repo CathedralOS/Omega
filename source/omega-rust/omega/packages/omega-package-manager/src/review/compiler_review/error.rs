@@ -1,6 +1,6 @@
 use super::{CompilerExecutableVerificationPhase, PackageSourceVerificationPhase};
 use crate::PackageKey;
-use crate::source::acquisition::SourceResolveError;
+use crate::resolution::acquisition::SourceResolveError;
 use omega_build_provenance::{CompilerExecutableCommitment, CompilerExecutableCommitmentError};
 use omega_package_compilation::PackageCompilationInputError;
 use omega_package_review::PackageReviewEncodingError;

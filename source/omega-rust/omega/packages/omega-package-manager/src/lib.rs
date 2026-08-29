@@ -7,15 +7,40 @@
 //! flat exports for callers, while implementation ownership follows the module
 //! tree instead of accumulating in this root.
 
-pub mod closure;
 pub mod manifest;
 mod records;
+pub mod resolution;
 pub mod review;
-pub mod source;
 
+pub use manifest::{
+    ApplicationDeclaration, BuildDeclaration, BuildDeclarationError, BuildDeclarationKind,
+    BuildDependencyEditError, BuildDependencyEditPlan, BuildDependencyManualPatch,
+    BuildDependencyManualReason, BuildDependencyProjection, BuildFileReplacement,
+    DependencyProjectionError, DependencySourceRequest, PackageDeclaration,
+    PackageDeclarationError, WorkspaceDeclaration, canonical_dependency_statement,
+    extract_build_declaration, extract_build_dependency_projection, extract_dependency_projection,
+    extract_package_declaration, plan_dependency_addition, plan_dependency_replacement,
+};
 #[cfg(test)]
-pub(crate) use closure::resolve_external_local_package_closure;
-pub use closure::{
+pub(crate) use resolution::resolve_external_local_package_closure;
+pub use resolution::{
+    AliasName, ExternalLocalLineage, ExternalSourceContext, GenericGitLineage, GitCommitId,
+    GitExecutableIdentity, GitHubRepositoryLineage, GitLabRepositoryLineage,
+    GitNetworkTransferObservation, GitObjectIdAlgorithm, GitSourceRequest, GitSourceRequestError,
+    GitSourceResolutionObservation, GitTransport, GitTransportExecutableIdentity,
+    GitTransportProfile, GitTreeId, IdentityError, ImmutableSourceResolution, LocalSourceLimits,
+    PackageKey, PackageName, PackageSourceAudit, PackageSourceAuditCommandError,
+    PackageSourceRequest, PackageSourceRequestParseError, ResolvePackageSourceError,
+    ResolvedGitSource, ResolvedLocalSnapshot, ResolvedLocalSource, ResolvedPackageSource,
+    SourceAdapter, SourceContentDigest, SourceLineage, SourceResolveError, SourceResolverStorage,
+    WorkspaceLineageIdentity, WorkspaceMemberLineage, WorkspaceMemberPath, audit_package_source,
+    audit_package_source_locator, resolve_external_local_package_source_with_storage,
+    resolve_external_local_project_source_with_storage, resolve_git_package_source_with_storage,
+    resolve_git_source_with_storage, resolve_local_source,
+    resolve_local_source_snapshot_with_storage,
+    resolve_workspace_member_package_source_with_storage,
+};
+pub use resolution::{
     CanonicalDependencySourceRequest, CanonicalDependencySourceSelection,
     CanonicalRootSourceRequest, CanonicalRootSourceSelection, CanonicalSourceClosureSubject,
     CanonicalSourceClosureSubjectError, CanonicalSourceClosureSubjectFingerprint,
@@ -33,14 +58,9 @@ pub use closure::{
     resolve_workspace_package_closure_in_context_with_storage,
     resolve_workspace_package_closure_with_storage,
 };
-pub use manifest::{
-    ApplicationDeclaration, BuildDeclaration, BuildDeclarationError, BuildDeclarationKind,
-    BuildDependencyEditError, BuildDependencyEditPlan, BuildDependencyManualPatch,
-    BuildDependencyManualReason, BuildDependencyProjection, BuildFileReplacement,
-    DependencyProjectionError, DependencySourceRequest, PackageDeclaration,
-    PackageDeclarationError, WorkspaceDeclaration, canonical_dependency_statement,
-    extract_build_declaration, extract_build_dependency_projection, extract_dependency_projection,
-    extract_package_declaration, plan_dependency_addition, plan_dependency_replacement,
+#[cfg(test)]
+pub(crate) use resolution::{
+    resolve_external_local_package_source, resolve_workspace_member_package_source,
 };
 pub use review::{
     CanonicalPackageReconstructionEntry, CanonicalPackageReconstructionQuestion,
@@ -75,25 +95,4 @@ pub use review::{
     recover_review_only_root_policy_resolution, render_package_source_patch,
     resolve_review_only_root_policy_decisions, triage_initial_install, triage_review_update,
     triage_review_update_from_baseline, triage_update_without_admission_baseline,
-};
-pub use source::{
-    AliasName, ExternalLocalLineage, ExternalSourceContext, GenericGitLineage, GitCommitId,
-    GitExecutableIdentity, GitHubRepositoryLineage, GitLabRepositoryLineage,
-    GitNetworkTransferObservation, GitObjectIdAlgorithm, GitSourceRequest, GitSourceRequestError,
-    GitSourceResolutionObservation, GitTransport, GitTransportExecutableIdentity,
-    GitTransportProfile, GitTreeId, IdentityError, ImmutableSourceResolution, LocalSourceLimits,
-    PackageKey, PackageName, PackageSourceAudit, PackageSourceAuditCommandError,
-    PackageSourceRequest, PackageSourceRequestParseError, ResolvePackageSourceError,
-    ResolvedGitSource, ResolvedLocalSnapshot, ResolvedLocalSource, ResolvedPackageSource,
-    SourceAdapter, SourceContentDigest, SourceLineage, SourceResolveError, SourceResolverStorage,
-    WorkspaceLineageIdentity, WorkspaceMemberLineage, WorkspaceMemberPath, audit_package_source,
-    audit_package_source_locator, resolve_external_local_package_source_with_storage,
-    resolve_external_local_project_source_with_storage, resolve_git_package_source_with_storage,
-    resolve_git_source_with_storage, resolve_local_source,
-    resolve_local_source_snapshot_with_storage,
-    resolve_workspace_member_package_source_with_storage,
-};
-#[cfg(test)]
-pub(crate) use source::{
-    resolve_external_local_package_source, resolve_workspace_member_package_source,
 };
