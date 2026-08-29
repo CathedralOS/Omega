@@ -26,6 +26,7 @@ mod instruction_loads;
 mod native_fuel;
 mod native_fuel_runtime;
 mod partial_cleanup_partition;
+mod ranked_countdown;
 mod scalar_call_stack;
 mod scalar_cleanup_preservation;
 mod scalar_conditional_call_paths;
@@ -73,6 +74,7 @@ use completion_receipts::{CompletionCustodyError, validate_completion_custody};
 use fully_consumed_affine_pair::{
     exact_fully_consumed_affine_pair, exact_partially_consumed_affine_triple,
 };
+use ranked_countdown::validate_ranked_countdown;
 use scalar_cleanup_preservation::validate_scalar_cleanup_preservation;
 use scalar_conditional_call_paths::{conditional_call_path, conditional_paths_are_exclusive};
 use scalar_control_cleanup::{cleanup_for_owner, validate_scalar_control_cleanup_evidence};
@@ -436,7 +438,9 @@ pub fn build_object_artifact(plan: &MachineCodePlan) -> Result<ObjectArtifact, O
         if function.bytes.is_empty() {
             return Err(ObjectError::EmptyFunction(function.machine));
         }
-        if function.requires_ranked_countdown_replay() {
+        if function.ranked_u32_countdown.is_some() {
+            validate_ranked_countdown(function, plan.psi, plan.target)?;
+        } else if function.requires_ranked_countdown_replay() {
             return Err(ObjectError::RankedCountdownNotYetReplayable(
                 function.machine,
             ));
@@ -1432,6 +1436,9 @@ pub enum ObjectError {
     },
     EmptyFunction(MachineId),
     RankedCountdownNotYetReplayable(MachineId),
+    InvalidRankedCountdownEvidence(MachineId),
+    RankedCountdownBytesMismatch(MachineId),
+    RankedCountdownEvidenceConflict(MachineId),
     NonCanonicalInternalCallOrder(MachineId),
     NonCanonicalFuelAttributionOrder(MachineId),
     FuelAttributionOutsideFunction(MachineId),
