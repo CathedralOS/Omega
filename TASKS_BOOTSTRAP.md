@@ -128,19 +128,20 @@ code, discover a closure, manufacture proof premises, or decide admission.
     the predecessor chain and source closure exist. Section 5 owns `D → omega₀`;
     section 6 owns completion of the existing `build.omg`/`main.omg` closure and
     `C → omega`.
-- [x] Update path-hygiene and lattice runners to enumerate only the canonical
-  owners above. They must fail if a lower rung imports source or a semantic
-  executable from beyond its immediate successor. `lattice_path` now accepts
-  only the five chain-owner roles, the default runner contains only the closed
-  Alpha row, exact compiler source/tape names are positively enumerated, and
-  owner-aware scans reject forward imports and alternate native artifacts.
+- [x] Make one path-hygiene gate enumerate only the canonical owners above and
+  fail if a lower rung imports source or a semantic executable from beyond its
+  immediate successor. Exact implemented compiler source/tape names are
+  positively enumerated, and owner-aware scans reject forward imports and
+  alternate native artifacts. Delete the `lattice_path` role facade and the
+  `verify-lattice.sh` ceremony wrapper around `source/alpha/verify.sh --edge`;
+  the real Alpha gate is invoked directly from its owner.
 - [x] Make retention mechanically auditable: every owned file and subtree under
   the canonical Alpha-through-Omega owners must name its canonical edge or
   bounded failure-detection/proof role in the nearest retention inventory,
   including leaf files inside a classified child, and every inventory must
   state deletion conditions. Delete unowned wrappers, comparators, corpora,
   reports, and generators; do not create an indefinite “diagnostic” exemption.
-  `test-paths.sh` enforces this file-level proof. The unrun 43-file Delta
+  `check-path-hygiene.sh` enforces this file-level proof. The unrun 43-file Delta
   native-route corpus, completed Alpha extent-migration script, duplicate
   seed/reference random fuzzer, checker theorem museum/prover/adapters, and
   misleading Beta `cold-start/` owner were removed.
