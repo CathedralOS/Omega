@@ -273,11 +273,14 @@ pub(in crate::symbols) fn assign_static_argument_symbols(
 }
 
 /// Resolve one `Build::select_provider` path as an exact declaration identity.
-/// The marker's two static arguments are type paths, not executable machine
-/// selections; their kind is checked by build harvesting after typed lowering.
+/// The marker's static arguments are exact declaration paths, not executable
+/// machine selections. The first may denote one boundary trait or an entire
+/// same-path boundary-operator family; build harvesting reifies and validates
+/// the complete family after typed lowering.
 pub(in crate::symbols) fn assign_provider_selection_argument_symbol(
     symbols: &SymbolTable,
     argument: &mut psi_symbol_resolved_trees::expression::StaticMachineArgument,
+    allow_operator_family: bool,
 ) {
     if argument.evidence_projection.is_some()
         || argument.const_literal.is_some()
@@ -292,11 +295,28 @@ pub(in crate::symbols) fn assign_provider_selection_argument_symbol(
         .map(|member| member.as_str())
         .collect::<Vec<_>>()
         .join("::");
-    let exact = top_level_symbol_by_kinds(
-        symbols,
-        &[SymbolKind::Trait, SymbolKind::Data, SymbolKind::BuiltinType],
-        &rendered,
-    );
+    let kinds = [
+        SymbolKind::Trait,
+        SymbolKind::Operator,
+        SymbolKind::Data,
+        SymbolKind::BuiltinType,
+    ];
+    let exact = argument.path.last().and_then(|name| {
+        if allow_operator_family {
+            symbols.find_top_level_declaration_or_operator_family_from_source(
+                &rendered,
+                &kinds,
+                name.source_span(),
+            )
+        } else {
+            symbols.find_top_level_by_name_and_kinds_from_source(
+                &rendered,
+                &kinds,
+                name.source_span(),
+            )
+        }
+    });
+    let exact = exact.unwrap_or_else(SymbolHandle::invalid);
     argument.symbol = if exact.is_valid() {
         exact
     } else {
@@ -308,7 +328,10 @@ pub(in crate::symbols) fn assign_provider_selection_argument_symbol(
             .filter(|symbol| {
                 matches!(
                     symbols.get(*symbol).kind,
-                    SymbolKind::Trait | SymbolKind::Data | SymbolKind::BuiltinType
+                    SymbolKind::Trait
+                        | SymbolKind::Operator
+                        | SymbolKind::Data
+                        | SymbolKind::BuiltinType
                 )
             })
             .unwrap_or_else(SymbolHandle::invalid)

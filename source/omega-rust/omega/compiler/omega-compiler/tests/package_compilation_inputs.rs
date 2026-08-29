@@ -3438,6 +3438,78 @@ machine Provider::first() satisfies Pair::first via Binding::VtableSlot(1);
 }
 
 #[test]
+fn dependency_operator_family_selection_covers_every_overload_atomically() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let dependency = tree.package("dependency");
+
+    TempTree::write(root.join("main.omg"), "use dep::provider;\n");
+    TempTree::write(
+        root.join("build.omg"),
+        r#"machine build(builder: &mut Build) {
+    builder.package("root");
+    builder.select_provider<Convert::apply, ConvertProvider>();
+}
+"#,
+    );
+    TempTree::write(
+        dependency.join("provider.omg"),
+        r#"pub data Convert { }
+pub boundary operator Convert::apply(value: i32) -> i32;
+pub boundary operator Convert::apply(value: u32) -> u32;
+
+pub data ConvertProvider { }
+machine ConvertProvider::apply_i32(value: i32) -> i32
+satisfies Convert::apply
+{
+    transition { _ -> (value) }
+}
+machine ConvertProvider::apply_u32(value: u32) -> u32
+satisfies Convert::apply
+{
+    transition { _ -> (value) }
+}
+"#,
+    );
+
+    let inputs = PackageCompilationInputs::new(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "dependency", dependency),
+        ],
+        vec![PackageDependencyBinding::new(
+            identity(1),
+            "dep",
+            identity(2),
+        )],
+    )
+    .expect("reconciled operator-provider graph should validate");
+
+    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+        .expect("one family selection should select both exact overload plans");
+    let plans = checked.selected_provider_plans().plans();
+    assert_eq!(plans.len(), 2);
+    assert!(
+        plans
+            .iter()
+            .all(|plan| plan.provider_type == "ConvertProvider")
+    );
+    let mut coordinates = plans
+        .iter()
+        .map(|plan| plan.schema.trait_name.as_str())
+        .collect::<Vec<_>>();
+    coordinates.sort_unstable();
+    assert_eq!(
+        coordinates,
+        vec![
+            "operator::Convert::apply(named(name(i32)))->named(name(i32))",
+            "operator::Convert::apply(named(name(u32)))->named(name(u32))",
+        ]
+    );
+}
+
+#[test]
 fn dependency_build_files_cannot_join_the_program() {
     let tree = TempTree::new();
     let root = tree.package("root");

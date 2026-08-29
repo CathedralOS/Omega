@@ -36,11 +36,17 @@ closed. Compiler-issued package review remains non-admitting.
   - run the existing Windows Job Object process-count, per-process memory,
     aggregate-memory, and aggregate-CPU exhaustion pairs on a native Windows
     worker; cross-compilation is not execution evidence;
-  - narrow macOS SSH discovery/fetch reads after Q18 settles explicit host-key,
+  - replace the raw-command executor seam with an opaque prepared execution
+    whose compiler-issued completion observation binds the exact command,
+    policy, native container lifecycle, termination, and cleanup;
+  - seal local-source issuance behind one opaque final observation joining the
+    requested and canonical source, snapshot, limits, custody, and final rehash;
+  - narrow macOS SSH discovery/fetch reads after Q14 settles explicit host-key,
     key, credential-provider, and credential-file custody;
-  - enforce whole-operation transfer, object-store, temporary-disk, descendant
-    CPU/memory/process, and during-write quotas rather than only rejecting
-    oversized retained state after the helper exits;
+  - make the existing broker transfer ceiling complete by denying direct helper
+    egress on Linux and Windows; separately enforce whole-operation object-store,
+    temporary-disk, descendant CPU/memory/process, and during-write quotas
+    rather than only rejecting oversized retained state after the helper exits;
   - decide and implement the stronger isolation needed against hostile
     same-user cache/source mutation, executable replacement, loaded-image
     substitution, and hostile Unix descendants escaping their process group;

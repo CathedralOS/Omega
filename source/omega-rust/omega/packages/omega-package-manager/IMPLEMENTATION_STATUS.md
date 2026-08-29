@@ -1145,8 +1145,12 @@ identifies the active plan and rejoins its exact requirement and realizing
 machine. Projection repeats the exact symbol, slot, checked-adapter binding,
 package, and machine join. A named-boundary canary covers unique selection.
 Fixed-token boundary operators remain fail-closed until checked-adapter token
-dispatch exists. Atomic same-path overload-family selection, canonical
-membership, and complete provider coverage remain implementation work under
+dispatch exists. Typed build selection now resolves a package-qualified
+same-path boundary-operator family, canonicalizes every exact overload
+coordinate, and selects complete plans from one nominal provider atomically;
+unknown, ambiguous, or provider-missing coordinates reject the whole family.
+Package review still must retain that family set, mapping, target, and
+generic/exact-application coverage under
 **BOUNDARY-OPERATOR-FAMILY-SELECTION**. Public callable `requires`
 and `ensures` retain exact structural rows for the closed
 boolean/integer expression subset over parameter ordinals, `result`, generic

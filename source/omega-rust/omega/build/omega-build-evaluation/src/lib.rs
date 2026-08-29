@@ -3348,9 +3348,11 @@ fn harvest_wire_compatibility_demands(
     }
 }
 
-/// PRV4c: collect `b.select_provider<BoundaryTrait, ProviderType>();` from
-/// the one authoritative build machine. Merely spelling either type elsewhere
-/// grants nothing; selection authority comes from this file-scoped root.
+/// PRV4c: collect `builder.select_provider<Subject, ProviderType>();` from the
+/// one authoritative build machine. `Subject` is either one exact boundary
+/// trait or one exact package-qualified boundary-operator family. Merely
+/// spelling either declaration elsewhere grants nothing; selection authority
+/// comes from this file-scoped root.
 pub fn harvest_provider_selections(
     typed: &TypedTrees,
     machine: &psi_typed_trees::machine::Machine,
@@ -3383,20 +3385,86 @@ pub fn harvest_provider_selections(
                 authored_path,
             }
         };
-        let boundary_trait = project_identity(boundary_argument);
+        let boundary_identity = project_identity(boundary_argument);
         let provider_type = project_identity(provider_argument);
-        if !boundary_trait.symbol.is_valid()
-            || typed.symbols.get(boundary_trait.symbol).kind != SymbolKind::Trait
-            || !typed.traits().iter().any(|definition| {
-                definition.symbol == boundary_trait.symbol && definition.is_boundary
-            })
+        let subject = if boundary_identity.symbol.is_valid()
+            && typed.symbols.get(boundary_identity.symbol).kind == SymbolKind::Trait
+            && typed.traits().iter().any(|definition| {
+                definition.symbol == boundary_identity.symbol && definition.is_boundary
+            }) {
+            omega_provider_planning::ProviderSelectionSubject::BoundaryTrait(boundary_identity)
+        } else if boundary_identity.symbol.is_valid()
+            && typed.symbols.get(boundary_identity.symbol).kind == SymbolKind::Operator
         {
+            let Some(representative) =
+                psi_typed_trees::operator::declaration_by_symbol(typed, boundary_identity.symbol)
+            else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "provider selection subject `{}` has no exact retained operator declaration",
+                    boundary_identity.authored_path
+                )));
+                return;
+            };
+            let canonical_path = typed
+                .operator_path_members(representative.name)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
+            let family_package = typed.symbols.symbol_package_identity(representative.symbol);
+            let mut coordinates = typed
+                .operators()
+                .iter()
+                .chain(
+                    typed
+                        .domain_definitions()
+                        .iter()
+                        .flat_map(|domain| typed.domain_operators(domain)),
+                )
+                .filter(|operator| {
+                    operator.is_boundary
+                        && typed.symbols.symbol_package_identity(operator.symbol) == family_package
+                        && typed
+                            .operator_path_members(operator.name)
+                            .iter()
+                            .map(|member| member.as_str())
+                            .collect::<Vec<_>>()
+                            .join("::")
+                            == canonical_path
+                })
+                .map(
+                    |operator| omega_provider_planning::ProviderOperatorFamilyCoordinate {
+                        symbol: operator.symbol,
+                        requirement_identity:
+                            psi_typed_trees::operator::boundary_operator_requirement_identity(
+                                typed, operator,
+                            ),
+                    },
+                )
+                .collect::<Vec<_>>();
+            match omega_provider_planning::ProviderOperatorFamilySelection::new(
+                family_package,
+                canonical_path,
+                boundary_identity.authored_path,
+                std::mem::take(&mut coordinates),
+            ) {
+                Ok(family) => {
+                    omega_provider_planning::ProviderSelectionSubject::BoundaryOperatorFamily(
+                        family,
+                    )
+                }
+                Err(reason) => {
+                    diagnostics.push(Diagnostic::error(reason));
+                    return;
+                }
+            }
+        } else {
             diagnostics.push(Diagnostic::error(format!(
-                "provider selection boundary `{}` does not resolve to an exact boundary trait",
-                boundary_trait.authored_path
+                "provider selection subject `{}` does not resolve to an exact boundary trait or boundary-operator family",
+                boundary_identity.authored_path
             )));
             return;
-        }
+        };
         if !provider_type.symbol.is_valid()
             || typed.symbols.get(provider_type.symbol).kind != SymbolKind::Data
         {
@@ -3408,12 +3476,12 @@ pub fn harvest_provider_selections(
         }
         if let Some(existing) = selections
             .iter()
-            .find(|selection| selection.boundary_trait.symbol == boundary_trait.symbol)
+            .find(|selection| selection.subject.same_declaration_as(&subject))
         {
             if existing.provider_type.symbol != provider_type.symbol {
                 diagnostics.push(Diagnostic::error(format!(
                     "build selects two provider types for slot `{}`: `{}` and `{}`",
-                    boundary_trait.canonical_path,
+                    subject.canonical_path(),
                     existing.provider_type.canonical_path,
                     provider_type.canonical_path,
                 )));
@@ -3421,7 +3489,7 @@ pub fn harvest_provider_selections(
             }
         }
         selections.push(ProviderSelection {
-            boundary_trait,
+            subject,
             provider_type,
             selecting_machine: machine.symbol,
             source_span,

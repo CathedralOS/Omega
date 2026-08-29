@@ -14,4 +14,7 @@ pub mod plans;
 mod selection;
 pub mod task_plans;
 
-pub use selection::{ProviderSelection, ProviderSelectionIdentity};
+pub use selection::{
+    ProviderOperatorFamilyCoordinate, ProviderOperatorFamilySelection, ProviderSelection,
+    ProviderSelectionIdentity, ProviderSelectionSubject,
+};

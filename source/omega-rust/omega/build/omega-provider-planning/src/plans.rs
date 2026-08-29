@@ -3597,11 +3597,17 @@ fn provider_slot_key(plan: &omega_effects::provider_plan::ProviderPlan) -> Provi
     )
 }
 
-fn selected_boundary_key(selection: &crate::ProviderSelection) -> ProviderSelectionKey {
-    (
-        selection.boundary_trait.package,
-        selection.boundary_trait.canonical_path.clone(),
-    )
+fn selected_subject_keys(selection: &crate::ProviderSelection) -> Vec<ProviderSelectionKey> {
+    match &selection.subject {
+        crate::ProviderSelectionSubject::BoundaryTrait(identity) => {
+            vec![(identity.package, identity.canonical_path.clone())]
+        }
+        crate::ProviderSelectionSubject::BoundaryOperatorFamily(family) => family
+            .coordinates()
+            .iter()
+            .map(|coordinate| (family.package, coordinate.requirement_identity.clone()))
+            .collect(),
+    }
 }
 
 fn selected_provider_key(selection: &crate::ProviderSelection) -> ProviderSelectionKey {
@@ -3858,7 +3864,9 @@ pub fn selected_provider_plan_facts_with_provenance(
             let selecting_source = typed
                 .symbols
                 .symbol_provenance_source_span(declaration.selecting_machine);
-            if declaration.boundary_trait.symbol != schema_symbol
+            if !declaration
+                .subject
+                .selects_schema(schema_symbol, &plan.schema.trait_name)
                 || Some(declaration.provider_type.symbol) != provenance.provider_type
                 || selecting_source.is_none_or(|source| {
                     source.source_id != declaration.source_span.source_id
@@ -3916,15 +3924,24 @@ fn resolve_provider_selection_slots(
     let mut resolved = Vec::new();
     let mut diagnostics = Vec::new();
     for declaration in declarations {
-        let slot_key = selected_boundary_key(declaration);
-        if slot_keys.contains(&slot_key) {
-            resolved.push((slot_key, declaration.clone()));
-        } else {
-            diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-                "{owner} selects provider `{}` for unknown boundary slot `{}`; the slot must exist in the loaded dependency closure",
-                declaration.provider_type.authored_path,
-                declaration.boundary_trait.authored_path,
-            )));
+        for slot_key in selected_subject_keys(declaration) {
+            if slot_keys.contains(&slot_key) {
+                resolved.push((slot_key, declaration.clone()));
+            } else {
+                let message = match &declaration.subject {
+                    crate::ProviderSelectionSubject::BoundaryTrait(identity) => format!(
+                        "{owner} selects provider `{}` for unknown boundary slot `{}`; the slot must exist in the loaded dependency closure",
+                        declaration.provider_type.authored_path, identity.authored_path,
+                    ),
+                    crate::ProviderSelectionSubject::BoundaryOperatorFamily(_) => format!(
+                        "{owner} selects provider `{}` for unknown boundary coordinate `{}` in subject `{}`; every selected coordinate must exist in the loaded dependency closure",
+                        declaration.provider_type.authored_path,
+                        slot_key.1,
+                        declaration.subject.authored_path(),
+                    ),
+                };
+                diagnostics.push(psi_diagnostics::Diagnostic::error(message));
+            }
         }
     }
     (resolved, diagnostics)
@@ -4019,7 +4036,7 @@ fn select_provider_plan_indices(
                     .iter()
                     .map(|declaration| format!(
                         "`{} -> {}`",
-                        declaration.boundary_trait.authored_path,
+                        declaration.subject.authored_path(),
                         declaration.provider_type.authored_path,
                     ))
                     .collect::<Vec<_>>()

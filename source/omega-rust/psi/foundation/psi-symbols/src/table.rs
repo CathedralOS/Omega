@@ -396,6 +396,42 @@ impl SymbolTable {
             .or_else(|| candidates.first().copied())
     }
 
+    /// Resolve either one exact declaration or one source-scoped overloaded
+    /// operator family. The returned operator is only a representative;
+    /// typed consumers must reconstruct and validate the complete same-path
+    /// family before granting it authority.
+    pub fn find_top_level_declaration_or_operator_family_from_source(
+        &self,
+        name: &str,
+        kinds: &[SymbolKind],
+        reference: SourceSpan,
+    ) -> Option<SymbolHandle> {
+        if let Some(exact) =
+            self.find_top_level_by_name_and_kinds_from_source(name, kinds, reference)
+        {
+            return Some(exact);
+        }
+        if reference.span.start == reference.span.end {
+            return None;
+        }
+        let binding = self
+            .source_scoped_top_level_bindings
+            .iter()
+            .find(|binding| {
+                binding.reference_source == reference.source_id && binding.name.as_ref() == name
+            })?;
+        let mut family = self.child_handles(self.root)?.filter(|symbol| {
+            self.get(*symbol).kind == SymbolKind::Operator
+                && kinds.contains(&SymbolKind::Operator)
+                && self.name(*symbol) == name
+                && self
+                    .symbol_source_span(*symbol)
+                    .is_some_and(|span| span.source_id == binding.declaration_source)
+        });
+        let representative = family.next()?;
+        family.next().map(|_| representative)
+    }
+
     /// Whether two same-spelled declarations intentionally occupy separate
     /// source-resolution contexts established by an explicit binding.
     pub fn source_scopes_separate(&self, left: SymbolHandle, right: SymbolHandle) -> bool {
