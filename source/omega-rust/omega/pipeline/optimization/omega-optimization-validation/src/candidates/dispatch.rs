@@ -47,6 +47,9 @@ pub fn validate_psi_rewrite_candidate(
         PsiRewritePatch::EliminateProofCertifiedScalarIdentity(_) => {
             validate_proof_certified_scalar_identity_candidate(input, candidate)
         }
+        PsiRewritePatch::EliminateTotalScalarIdentity(_) => {
+            validate_total_scalar_identity_candidate(input, candidate)
+        }
         PsiRewritePatch::PruneUnreachablePrivateMachines(_) => {
             validate_unreachable_private_machines_candidate(input, candidate)
         }

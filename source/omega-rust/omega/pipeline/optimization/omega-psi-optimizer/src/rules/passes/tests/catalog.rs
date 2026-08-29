@@ -72,7 +72,7 @@ fn absent_selection_registers_nothing_and_missing_analysis_fails_closed() {
     assert_eq!(built_in_psi_registry(&copy).unwrap().len(), 1);
     let gvn = OptimizationSelections::new([Optimization::GlobalValueNumbering]).unwrap();
     let gvn = built_in_psi_registry(&gvn).unwrap();
-    assert_eq!(gvn.len(), 9);
+    assert_eq!(gvn.len(), 10);
     assert_eq!(
         gvn.contracts()
             .map(|contract| contract.identity())
@@ -87,6 +87,7 @@ fn absent_selection_registers_nothing_and_missing_analysis_fails_closed() {
             SameBlockProofCertifiedCompatiblePolicyScalarCseRule::contract().identity(),
             DominatorProofCertifiedCompatiblePolicyScalarGvnRule::contract().identity(),
             PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule::contract().identity(),
+            WrappingNeutralArithmeticIdentityRule::contract().identity(),
         ]
     );
     assert!(gvn.contracts().all(|contract| {

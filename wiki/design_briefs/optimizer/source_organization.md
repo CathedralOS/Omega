@@ -408,6 +408,12 @@ entrance validates candidate custody and selects local/dominating elimination
 or phi-translated join synthesis; `rule_catalog` exposes the exact admitted
 rule identities, while proof admission, expression keys, dominance replay,
 and the two rewrite protocols descend into named leaves.
+Obligation-free wrapping neutral arithmetic is a separate closed family. The
+producer's `identities/mod.rs` entrance exposes its rule and five-row shape
+partition; the validator's `total_scalar_identity/mod.rs` entrance descends
+independently into classification, literal evidence, accounting, application,
+and corruption tests. The two sides share typed candidate data, not matching
+logic or an authoritative shape table.
 Independent dead-scalar validation exposes one custody-and-analysis-contract
 entrance above its exact rule catalog, exhaustive closed operation partition,
 and rewrite replay. A new operation or dead-scalar rule therefore has one

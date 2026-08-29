@@ -178,6 +178,35 @@ impl PsiRewriteCandidate {
         )
     }
 
+    /// Eliminate one wrapping arithmetic identity whose neutral operand is
+    /// independently bound to a literal fact. No proof obligation is needed:
+    /// wrapping arithmetic makes these five laws total over the integer type.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_total_scalar_identity(
+        input: OptimizationUnitIdentity,
+        contract: OptimizationRuleContract,
+        affected_blocks: Vec<BlockId>,
+        provenance: Vec<ProvenanceRewrite>,
+        constant_fact: ScalarConstantFactIdentity,
+        predicted_cost_delta: i64,
+        patch: TotalScalarIdentityRewrite,
+    ) -> Result<Self, PsiRewriteCandidateError> {
+        Self::new(
+            input,
+            contract,
+            affected_blocks,
+            vec![ScalarSubstitution {
+                from: patch.result,
+                to: patch.replacement,
+                scalar_type: ScalarType::Integer(patch.scalar_type),
+            }],
+            provenance,
+            PsiRewriteWitness::TotalScalarIdentity { constant_fact },
+            predicted_cost_delta,
+            PsiRewritePatch::EliminateTotalScalarIdentity(patch),
+        )
+    }
+
     pub fn new_local_scalar_common_subexpression(
         input: OptimizationUnitIdentity,
         contract: OptimizationRuleContract,

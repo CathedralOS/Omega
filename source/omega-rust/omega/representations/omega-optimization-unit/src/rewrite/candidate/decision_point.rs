@@ -52,6 +52,9 @@ pub(super) fn derive(
         PsiRewritePatch::EliminateProofCertifiedScalarIdentity(patch) => {
             PsiRewriteDecisionPoint::Node(patch.location)
         }
+        PsiRewritePatch::EliminateTotalScalarIdentity(patch) => {
+            PsiRewriteDecisionPoint::Node(patch.location)
+        }
         PsiRewritePatch::PruneUnreachablePrivateMachines(patch) => {
             if patch.machines.is_empty() || patch.machines.windows(2).any(|pair| pair[0] >= pair[1])
             {

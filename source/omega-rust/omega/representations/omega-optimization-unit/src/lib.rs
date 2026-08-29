@@ -61,8 +61,8 @@ pub use rewrite::{
     PsiRewritePatch, RedundantBlockParameterRewrite, RedundantBlockParameterWitness,
     ScalarConstantValue, ScalarEvaluationWitness, ScalarSubstitution, SccpBlockRow, SccpEdgeRow,
     SccpEdgeState, SccpMachineSnapshot, SccpValueRow, SccpValueState, SharedJumpFusionRewrite,
-    UnreachablePrivateMachinesRewrite, derived_sccp_scalar_constant_fact_identity,
-    literal_scalar_constant_fact_identity,
+    TotalScalarIdentityKind, TotalScalarIdentityRewrite, UnreachablePrivateMachinesRewrite,
+    derived_sccp_scalar_constant_fact_identity, literal_scalar_constant_fact_identity,
 };
 
 /// The exact immutable Terminal Psi semantic site realized by one unit node.

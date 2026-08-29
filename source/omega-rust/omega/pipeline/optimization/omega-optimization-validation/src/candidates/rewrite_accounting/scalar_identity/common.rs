@@ -1,17 +1,20 @@
 use super::*;
 
-pub(crate) fn reconstruct_proof_certified_scalar_identity_accounting(
+pub(super) fn reconstruct_scalar_identity_accounting(
     function: &PsiOptimizationFunction,
-    patch: ProofCertifiedScalarIdentityRewrite,
+    location: NodeLocation,
+    source_operation: OperationId,
+    result: ValueId,
+    scalar_type: ScalarType,
 ) -> Option<(
     Vec<BlockId>,
     Vec<omega_optimization_unit::ProvenanceRewrite>,
 )> {
     let dead = DeadScalarNodeRewrite {
-        location: patch.location,
-        source_operation: patch.source_operation,
-        result: patch.result,
-        scalar_type: ScalarType::Integer(patch.scalar_type),
+        location,
+        source_operation,
+        result,
+        scalar_type,
     };
     let (mut blocks, mut provenance) = reconstruct_dead_scalar_node_accounting(function, dead)?;
     for use_block in &function.blocks {
@@ -20,7 +23,7 @@ pub(crate) fn reconstruct_proof_certified_scalar_identity_accounting(
                 .nodes
                 .iter()
                 .flat_map(|node| &node.uses)
-                .any(|row| row.value == patch.result)
+                .any(|row| row.value == result)
         {
             continue;
         }

@@ -510,6 +510,29 @@ pub struct DeadScalarNodeRewrite {
     pub scalar_type: ScalarType,
 }
 
+/// The closed, obligation-free wrapping identities whose result is exactly an
+/// existing operand for every value of the declared integer type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TotalScalarIdentityKind {
+    WrappingIntegerAddZeroLeft,
+    WrappingIntegerAddZeroRight,
+    WrappingIntegerSubtractZeroRight,
+    WrappingIntegerMultiplyOneLeft,
+    WrappingIntegerMultiplyOneRight,
+}
+
+/// Remove one total wrapping integer identity and replace every use of its
+/// live result with the equivalent existing operand.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TotalScalarIdentityRewrite {
+    pub location: NodeLocation,
+    pub source_operation: OperationId,
+    pub result: ValueId,
+    pub replacement: ValueId,
+    pub scalar_type: IntegerType,
+    pub identity: TotalScalarIdentityKind,
+}
+
 /// The closed integer identities whose verifier-accepted obligation permits
 /// the operation to disappear while its live result is replaced by an
 /// existing operand. Exact, wrapping, and saturating operation identities are
@@ -634,6 +657,7 @@ pub enum PsiRewritePatch {
     EliminatePhiTranslatedScalarCommonSubexpression(PhiTranslatedScalarGvnRewrite),
     EliminateProofCertifiedScalarIdentity(ProofCertifiedScalarIdentityRewrite),
     PruneUnreachablePrivateMachines(UnreachablePrivateMachinesRewrite),
+    EliminateTotalScalarIdentity(TotalScalarIdentityRewrite),
 }
 
 impl PsiRewritePatch {
@@ -653,6 +677,9 @@ pub(super) enum PsiRewriteWitness {
     ProofCertifiedScalarIdentity {
         constant_fact: ScalarConstantFactIdentity,
         obligation_fact: AcceptedObligationFactIdentity,
+    },
+    TotalScalarIdentity {
+        constant_fact: ScalarConstantFactIdentity,
     },
     OwnershipFrontiers(OwnershipFrontierWitness),
     StructuralIdentity,
