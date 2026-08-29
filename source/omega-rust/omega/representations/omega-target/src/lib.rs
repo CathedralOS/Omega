@@ -3,6 +3,7 @@ use psi_diagnostics::Diagnostic;
 mod elf_loader;
 mod foreign_locator;
 mod uefi_system_table;
+mod uefi_system_table_occurrence;
 
 pub use elf_loader::{
     ElfInterpreterPlanValidationError, NormalizedElfInterpreterPlan, normalize_elf_interpreter_plan,
@@ -15,6 +16,10 @@ pub use uefi_system_table::{
     UefiSystemTableNativeField, UefiSystemTableNativeFieldKind, UefiSystemTableNativeFieldLayout,
     UefiSystemTableNativeLayoutError, ValidatedUefiSystemTableNativeLayout,
     plan_uefi_system_table_native_layout,
+};
+pub use uefi_system_table_occurrence::{
+    UEFI_SYSTEM_TABLE_SIGNATURE, UefiSystemTableOccurrenceValidationError,
+    ValidatedUefiSystemTableHeaderIntegrity, validate_uefi_system_table_occurrence,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
