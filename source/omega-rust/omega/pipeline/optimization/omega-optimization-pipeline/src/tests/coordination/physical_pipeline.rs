@@ -554,6 +554,49 @@ fn compiler_facing_physical_pipeline_routes_aarch64_cbnz_through_the_generic_pos
         ),
         Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)
     );
+    let mut corrupt_layout = fused_layout.clone();
+    corrupt_layout.functions_mut()[0]
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.instructions)
+        .find(|row| row.instruction == action.compare)
+        .unwrap()
+        .bytes
+        .push(0);
+    assert_eq!(
+        validate_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion(
+            selected_stage.selected(),
+            machine,
+            physical,
+            &fused_encoding,
+            optimization,
+            &corrupt_layout,
+        ),
+        Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)
+    );
+    let mut corrupt_layout = fused_layout.clone();
+    corrupt_layout.functions_mut()[0]
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.instructions)
+        .find(|row| row.instruction == action.branch)
+        .unwrap()
+        .branch
+        .as_mut()
+        .unwrap()
+        .decoded_register_reads
+        .clear();
+    assert_eq!(
+        validate_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion(
+            selected_stage.selected(),
+            machine,
+            physical,
+            &fused_encoding,
+            optimization,
+            &corrupt_layout,
+        ),
+        Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)
+    );
 
     let mut rehashed_corruption = optimization.fusion().plan().clone();
     rehashed_corruption.actions[0].source_read.view = physical.model().view_named("x2").unwrap().id;

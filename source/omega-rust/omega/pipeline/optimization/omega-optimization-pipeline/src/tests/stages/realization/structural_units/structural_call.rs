@@ -498,6 +498,48 @@ fn structural_unit_call_reaches_post_allocation_machine_custody() {
         ),
         Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)
     ));
+    let mut corrupted = layout.clone();
+    corrupted.structural_unit_functions_mut()[0]
+        .call
+        .as_mut()
+        .unwrap()
+        .bytes[0] ^= 1;
+    assert!(matches!(
+        validate_optimized_resolved_selected_form_layout(
+            range_stage.liveness_stage().selected_stage().selected(),
+            &post,
+            environment.physical(),
+            &encoding,
+            &corrupted,
+        ),
+        Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)
+    ));
+    let mut corrupted = layout.clone();
+    corrupted.structural_unit_functions_mut()[0]
+        .return_instruction
+        .offset += 1;
+    assert!(matches!(
+        validate_optimized_resolved_selected_form_layout(
+            range_stage.liveness_stage().selected_stage().selected(),
+            &post,
+            environment.physical(),
+            &encoding,
+            &corrupted,
+        ),
+        Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)
+    ));
+    let mut corrupted = layout.clone();
+    corrupted.structural_unit_functions_mut()[0].byte_count += 1;
+    assert!(matches!(
+        validate_optimized_resolved_selected_form_layout(
+            range_stage.liveness_stage().selected_stage().selected(),
+            &post,
+            environment.physical(),
+            &encoding,
+            &corrupted,
+        ),
+        Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)
+    ));
 
     let mut realization = stage_optimized_structural_unit_function_relative_realization(homes)
         .expect("structural Unit calls must reach owning function-relative custody");

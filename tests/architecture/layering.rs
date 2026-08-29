@@ -2642,3 +2642,125 @@ fn psi_content_compact_fingerprints_are_report_only_beside_exact_replay() {
         "content authority must rejoin owner definitions and replay exact equations/substitutions",
     );
 }
+
+#[test]
+fn resolved_layout_validation_cannot_reenter_its_producer() {
+    let root = workspace_root();
+    let stage = root.join(
+        "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/layout/resolved_selected_form_layout",
+    );
+    let entrance = std::fs::read_to_string(stage.join("mod.rs"))
+        .expect("read resolved selected-form layout entrance");
+    assert!(
+        entrance.contains("validation::validate("),
+        "the resolved-layout entrance must send candidate artifacts into independent validation",
+    );
+    assert!(
+        !entrance.contains("let replayed = compute"),
+        "the resolved-layout validator must not reconstruct artifacts with its producer",
+    );
+    for required_rung in [
+        "mod ordinary;",
+        "mod structural;",
+        "mod validation;",
+        "let artifact = compute::compute(",
+        "validation::validate(",
+    ] {
+        assert!(
+            entrance.contains(required_rung),
+            "the resolved-layout entrance must expose coordination rung `{required_rung}`",
+        );
+    }
+    assert!(
+        !entrance.contains("mod rules;"),
+        "resolved layout must use semantic family names rather than a flat rules bucket",
+    );
+
+    let producer_entrance = std::fs::read_to_string(stage.join("ordinary/mod.rs"))
+        .expect("read ordinary-layout producer entrance");
+    for required_rung in [
+        "mod branch;",
+        "mod function;",
+        "mod order;",
+        "mod plan;",
+        "mod policy;",
+        "mod row;",
+    ] {
+        assert!(
+            producer_entrance.contains(required_rung),
+            "ordinary-layout construction must expose navigable rung `{required_rung}`",
+        );
+    }
+    assert!(
+        producer_entrance.lines().count() < 100,
+        "ordinary-layout construction entrance must remain tiny",
+    );
+
+    let validation = [
+        "mod.rs",
+        "aggregate.rs",
+        "branch.rs",
+        "ordinary/mod.rs",
+        "ordinary/function.rs",
+        "ordinary/order.rs",
+        "ordinary/plan.rs",
+        "ordinary/roster.rs",
+        "policy.rs",
+        "row.rs",
+        "structural.rs",
+    ]
+    .into_iter()
+    .map(|leaf| {
+        let path = stage.join("validation").join(leaf);
+        std::fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()))
+    })
+    .collect::<Vec<_>>()
+    .join("\n");
+    for forbidden in [
+        "compute::",
+        "super::rules",
+        "super::structural",
+        "layout_function",
+        "layout_single_block",
+        "selected_layout_policy",
+        "resolve_instruction",
+        "resolve_branch",
+        "layout_structural_unit_function",
+        "encode_x86_64_selected_nonzero_branch_form",
+        "encode_aarch64_selected_nonzero_branch_form",
+        "encode_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form",
+        "stage_optimized_resolved_selected_form_layout",
+        "stage_optimized_layout_independent_selected_form_encoding",
+        "validate_layout_byte_savings",
+    ] {
+        assert!(
+            !validation.contains(forbidden),
+            "independent resolved-layout validation must not consume producer mechanics; found {forbidden}",
+        );
+    }
+    for required_decoder in [
+        "validate_x86_64_selected_nonzero_branch_form",
+        "validate_aarch64_selected_nonzero_branch_form",
+        "validate_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form",
+    ] {
+        assert!(
+            validation.contains(required_decoder),
+            "resolved-layout validation must visibly descend into target-owned decoder `{required_decoder}`",
+        );
+    }
+    let ordinary_entrance = std::fs::read_to_string(stage.join("validation/ordinary/mod.rs"))
+        .expect("read ordinary-layout validation entrance");
+    for required_rung in [
+        "mod function;",
+        "mod order;",
+        "mod plan;",
+        "mod roster;",
+        "function::validate(",
+    ] {
+        assert!(
+            ordinary_entrance.contains(required_rung),
+            "ordinary-layout validation must expose navigable rung `{required_rung}`",
+        );
+    }
+}

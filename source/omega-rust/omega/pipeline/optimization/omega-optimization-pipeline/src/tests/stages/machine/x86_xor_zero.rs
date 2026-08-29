@@ -200,6 +200,25 @@ fn x86_xor_zero_reaches_direct_whole_function_exit_with_exact_custody() {
         &selected_layout,
     )
     .unwrap();
+    let mut corrupted_layout = selected_layout.clone();
+    corrupted_layout.functions_mut()[0]
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.instructions)
+        .find(|row| row.instruction == plan.actions[0].instruction)
+        .unwrap()
+        .bytes[0] ^= 1;
+    assert_eq!(
+        validate_optimized_resolved_selected_form_layout_with_post_allocation_machine_optimization(
+            selected_stage.selected(),
+            &machine,
+            physical,
+            &selected_encoding,
+            Some(&optimization),
+            &corrupted_layout,
+        ),
+        Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)
+    );
     validate_whole_function_exit_contract_with_post_allocation_machine_optimization(
         selected_stage.selected(),
         &machine,

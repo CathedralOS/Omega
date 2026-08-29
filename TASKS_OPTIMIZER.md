@@ -71,6 +71,13 @@ validation rung. Its small entrance coordinates ordinary rows, structural
 rows, and aggregate custody; candidate bytes descend into target-owned
 decoders and cannot re-enter producer encoding helpers.
 
+[x] Resolved selected-form layout now has one small construction/admission
+entrance and mirrored semantic subtrees. Ordinary construction descends
+through policy, canonical order, span planning, row handling, and target
+branch encoding; independent validation separately derives those facts and
+admits candidate branch bytes only through target decoders. Architecture and
+corruption tests pin both the navigation shape and the producer boundary.
+
 ## Completed foundation
 
 - [x] Exact source-visible `Optimization` vocabulary and versioned canonical
@@ -327,8 +334,8 @@ decoders and cannot re-enter producer encoding helpers.
 - [x] Source-to-optimized Psi projection and lower-stage custody checks.
 - [>] Complete translation validation for all lowering and machine rule
   families. Layout-independent baseline, MOVN, XOR-zero, CBNZ dispositions,
-  and structural-Unit encodings now replay independently; remaining lowering,
-  resolved-layout, and publication routes still need closure.
+  structural-Unit encodings, and resolved function-relative layouts now replay
+  independently; remaining lowering and publication routes still need closure.
 - [ ] Add generated differential testing across interpreter/reference native
   execution for exact integer, float, trap, atomic, placed-memory, cleanup, and
   transition cases.
@@ -469,5 +476,5 @@ rewrite or opt a program into lossy floating-point semantics.
     selected-lowering carrier; do not add add/subtract route variants.
 14. [ ] Unify fixed-view-copy and active-resident realization under one generic
     allocation-recovery carrier before extending either publication route.
-15. [ ] Make resolved-layout validation independent before claiming complete
+15. [x] Make resolved-layout validation independent before claiming complete
     translation validation for those generic publication routes.

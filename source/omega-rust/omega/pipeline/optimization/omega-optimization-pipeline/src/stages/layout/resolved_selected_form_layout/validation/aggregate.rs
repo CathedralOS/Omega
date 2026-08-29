@@ -1,0 +1,50 @@
+use omega_regalloc::ValidatedSelectedAnalysis;
+
+use crate::{
+    PostAllocationMachineOptimizationCustody, StagedOptimizedPostAllocationMachinePlan,
+    StagedOptimizedSelectedFormEncoding,
+};
+
+use super::super::{
+    OptimizedResolvedSelectedFormLayoutError, SelectedFunctionLayoutPolicy,
+    StagedOptimizedResolvedSelectedFormLayout, identity::layout_identity,
+};
+
+pub(super) fn validate_roots<S: ValidatedSelectedAnalysis>(
+    selected: &S,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    pre_layout: &StagedOptimizedSelectedFormEncoding,
+    optimization: Option<PostAllocationMachineOptimizationCustody>,
+    policy: SelectedFunctionLayoutPolicy,
+    artifact: &StagedOptimizedResolvedSelectedFormLayout,
+) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
+    if artifact.selected != selected.selected_identity()
+        || artifact.machine != machine.machine().receipt().identity()
+        || artifact.pre_layout != pre_layout.identity()
+        || artifact.post_allocation_machine_optimization != optimization
+        || artifact.target != selected.selected_plan().target
+        || artifact.policy != policy
+    {
+        return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
+    }
+    Ok(())
+}
+
+pub(super) fn validate_identity(
+    artifact: &StagedOptimizedResolvedSelectedFormLayout,
+) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
+    let identity = layout_identity(
+        artifact.selected,
+        artifact.machine,
+        artifact.pre_layout,
+        artifact.post_allocation_machine_optimization,
+        artifact.target,
+        artifact.policy,
+        artifact.functions(),
+        artifact.structural_unit_functions(),
+    );
+    if artifact.identity != identity {
+        return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
+    }
+    Ok(())
+}
