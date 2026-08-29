@@ -8,11 +8,11 @@ use crate::network::{
 use crate::process::limits;
 use crate::request::{
     RESOLVER_EXECUTION_ADDITIONAL_EXECUTABLE_LIMIT, require_absolute,
-    require_canonical_bounded_path,
+    require_canonical_bounded_path, require_regular_file,
 };
 use std::io;
 use std::path::{Path, PathBuf};
-#[cfg(test)]
+#[cfg(any(test, not(target_os = "macos")))]
 use std::process::Command;
 
 #[derive(Debug)]
@@ -93,6 +93,21 @@ impl ResolverExecutionBackend {
 
     pub const fn identity(&self) -> &ResolverExecutionBackendIdentity {
         &self.identity
+    }
+
+    /// Reject a Linux package-source launch that would otherwise degrade to
+    /// resource limits without a native filesystem boundary.
+    pub fn require_package_resolution_floor(&self) -> io::Result<()> {
+        #[cfg(target_os = "linux")]
+        if !matches!(
+            self.identity,
+            ResolverExecutionBackendIdentity::LinuxLandlockV5
+        ) {
+            return Err(io::Error::other(
+                "Linux package resolution requires fully available Landlock ABI v5",
+            ));
+        }
+        Ok(())
     }
 
     /// Open a compiler-owned loopback broker for one already-validated remote
@@ -389,6 +404,7 @@ impl ResolverExecutionBackend {
     ) -> io::Result<ResolverPreparedExecution> {
         self.verify()?;
         require_absolute(executable, "resolver executable")?;
+        require_regular_file(executable, "resolver executable")?;
         if additional_executables.len() > RESOLVER_EXECUTION_ADDITIONAL_EXECUTABLE_LIMIT {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -399,6 +415,7 @@ impl ResolverExecutionBackend {
         for helper in additional_executables {
             require_absolute(helper, "resolver helper executable")?;
             require_canonical_bounded_path(helper, "resolver helper executable")?;
+            require_regular_file(helper, "resolver helper executable")?;
         }
         let mut additional_executables = additional_executables.to_vec();
         additional_executables.retain(|helper| helper != executable);

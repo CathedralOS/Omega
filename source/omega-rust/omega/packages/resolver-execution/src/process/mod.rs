@@ -1,5 +1,7 @@
 use std::io;
 
+#[cfg(unix)]
+mod descriptors;
 pub(crate) mod limits;
 mod observation;
 
@@ -37,23 +39,25 @@ impl ResolverExecutionChild {
     pub fn spawn(prepared: ResolverPreparedExecution) -> io::Result<Self> {
         let command_identity = prepared.command_identity()?;
         let (command, policy) = prepared.into_parts();
+        #[cfg(unix)]
+        let command = {
+            let mut command = command;
+            descriptors::mark_ambient_close_on_exec(&mut command)?;
+            command
+        };
+        #[cfg(all(unix, not(target_os = "linux")))]
+        let mut command = command;
         #[cfg(target_os = "linux")]
         let child = confinement::linux::spawn(command, &policy)?;
         #[cfg(all(unix, not(target_os = "linux")))]
-        let child = {
-            let mut command = command;
-            command.group_spawn()?
-        };
+        let child = { command.group_spawn()? };
         #[cfg(windows)]
         let child = {
             let mut command = command;
             confinement::windows::WindowsJobChild::spawn(&mut command)?
         };
         #[cfg(not(any(unix, windows)))]
-        let child = {
-            let mut command = command;
-            command.spawn()?
-        };
+        let child = { command.spawn()? };
         Ok(Self {
             child,
             policy: Some(policy),

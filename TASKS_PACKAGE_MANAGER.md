@@ -28,9 +28,12 @@ closed. Compiler-issued package review remains non-admitting.
   Remaining work:
 
   - complete Linux metadata/read, direct-egress, and endpoint confinement.
-    Landlock ABI v5 already closes handled filesystem mutation and exact
-    executable paths when fully available; unsupported kernels retain explicit
-    unavailable rows rather than a partial claim;
+    Landlock ABI v5 already constrains handled content/namespace mutation and
+    path-based execution when fully available, but the complete write and
+    executable rows remain unavailable: metadata operations such as mode/time
+    changes are unmediated, and executable memfds or anonymous executable code
+    require an additional mechanism such as seccomp. Package resolution rejects
+    the resource-limit-only Linux fallback;
   - run the Linux Landlock write, inherited-descriptor, and exact-executable
     canaries on a native ABI-v5 worker; cross-compilation is not execution
     evidence;

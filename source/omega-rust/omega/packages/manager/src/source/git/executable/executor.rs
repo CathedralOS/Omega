@@ -165,6 +165,11 @@ impl GitExecutor {
                 message: error.to_string(),
             }
         })?;
+        execution_backend
+            .require_package_resolution_floor()
+            .map_err(|error| SourceResolveError::GitExecutionBoundaryInvalid {
+                message: error.to_string(),
+            })?;
         let network_transfer_budget =
             ResolverExecutionTransferBudget::new(network_transfer_ceiling).map_err(|error| {
                 SourceResolveError::GitExecutionBoundaryInvalid {

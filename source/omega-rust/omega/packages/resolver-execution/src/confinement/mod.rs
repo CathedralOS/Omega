@@ -28,7 +28,7 @@ pub(crate) fn guarantee_disposition(
 
     match guarantee {
         FilesystemWritesConfined | ExecutablePathsConfined
-            if matches!(backend, MacosSeatbelt { .. } | LinuxLandlockV5) =>
+            if matches!(backend, MacosSeatbelt { .. }) =>
         {
             Enforced
         }

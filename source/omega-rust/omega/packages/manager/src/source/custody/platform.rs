@@ -1,14 +1,16 @@
 //! Filesystem custody shared by local snapshots and Git cache entries.
 
+#[cfg(any(target_os = "macos", windows))]
 use super::lock::same_std_and_capability_file_identity;
 use super::tree::{CacheCustodyKind, cache_custody_invalid};
 use crate::source::SourceResolveError;
+#[cfg(any(target_os = "macos", windows))]
 use crate::source::local::capture::{io_error, open_absolute_directory_nofollow};
+#[cfg(any(target_os = "macos", windows))]
 use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
-use cap_std::fs::{
-    Dir as CapabilityDirectory, Metadata as CapabilityMetadata,
-    OpenOptions as CapabilityOpenOptions,
-};
+#[cfg(any(target_os = "macos", windows))]
+use cap_std::fs::OpenOptions as CapabilityOpenOptions;
+use cap_std::fs::{Dir as CapabilityDirectory, Metadata as CapabilityMetadata};
 use std::ffi::OsStr;
 use std::fs::File;
 use std::path::Path;
@@ -451,14 +453,6 @@ pub(super) fn verify_macos_open_cache_regular_file_acl_custody(
     _parent: &CapabilityDirectory,
     _name: &OsStr,
     _classified: &CapabilityMetadata,
-) -> Result<(), SourceResolveError> {
-    Ok(())
-}
-
-#[cfg(all(unix, not(target_os = "macos")))]
-pub(super) fn verify_macos_cache_link_extended_acl_custody(
-    _kind: CacheCustodyKind,
-    _path: &Path,
 ) -> Result<(), SourceResolveError> {
     Ok(())
 }

@@ -188,3 +188,31 @@ fn inspection_read_roots_are_required_exactly_for_inspection() {
         "inspection content-read roots must be absolute"
     );
 }
+
+#[test]
+fn executable_authority_rejects_directories() {
+    let backend = ResolverExecutionBackend::open().expect("open resolver backend");
+    let inspection_root = inspection_root();
+    let executable = if cfg!(windows) {
+        Path::new(r"C:\Windows\System32\cmd.exe")
+    } else {
+        Path::new("/bin/sh")
+    };
+
+    assert!(
+        backend
+            .command_with_inspection_read_root_observation(&inspection_root, &[], &inspection_root,)
+            .is_err(),
+        "a directory cannot become an executable subtree grant",
+    );
+    assert!(
+        backend
+            .command_with_inspection_read_root_observation(
+                executable,
+                &[inspection_root.clone()],
+                &inspection_root,
+            )
+            .is_err(),
+        "a helper directory cannot become an executable subtree grant",
+    );
+}

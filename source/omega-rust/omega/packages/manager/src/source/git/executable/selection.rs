@@ -7,6 +7,8 @@ use super::identity::{
 use crate::source::SourceResolveError;
 use crate::source::git::request::GitExecutionTransport;
 use crate::source::observations::GitTransportExecutableIdentity;
+#[cfg(unix)]
+use nix::unistd::{Uid, User};
 use omega_resolver_execution::RESOLVER_CONNECT_HELPER_BASENAME;
 #[cfg(test)]
 use std::ffi::OsStr;
@@ -23,7 +25,7 @@ pub(super) fn open_resolver_execution_helpers(
     execution_transport: GitExecutionTransport,
 ) -> Result<Vec<GitTransportExecutableObservation>, SourceResolveError> {
     let mut paths = match execution_transport {
-        GitExecutionTransport::Ssh => vec![PathBuf::from("/bin/sh"), PathBuf::from("/bin/bash")],
+        GitExecutionTransport::Ssh => ssh_runtime_shell_paths(),
         GitExecutionTransport::Https => Vec::new(),
         #[cfg(test)]
         GitExecutionTransport::File => [
@@ -46,7 +48,22 @@ pub(super) fn open_resolver_execution_helpers(
         .collect()
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(all(unix, not(target_os = "macos")))]
+pub(super) fn open_resolver_execution_helpers(
+    execution_transport: GitExecutionTransport,
+) -> Result<Vec<GitTransportExecutableObservation>, SourceResolveError> {
+    if execution_transport != GitExecutionTransport::Ssh {
+        return Ok(Vec::new());
+    }
+    let mut paths = ssh_runtime_shell_paths();
+    paths.push(resolver_connect_helper_path()?);
+    paths
+        .iter()
+        .map(|path| open_git_transport_executable(path))
+        .collect()
+}
+
+#[cfg(windows)]
 pub(super) fn open_resolver_execution_helpers(
     execution_transport: GitExecutionTransport,
 ) -> Result<Vec<GitTransportExecutableObservation>, SourceResolveError> {
@@ -57,6 +74,18 @@ pub(super) fn open_resolver_execution_helpers(
         .iter()
         .map(|path| open_git_transport_executable(path))
         .collect()
+}
+
+#[cfg(unix)]
+fn ssh_runtime_shell_paths() -> Vec<PathBuf> {
+    let mut paths = vec![PathBuf::from("/bin/sh")];
+    if let Ok(Some(user)) = User::from_uid(Uid::effective())
+        && user.shell.is_absolute()
+        && !paths.contains(&user.shell)
+    {
+        paths.push(user.shell);
+    }
+    paths
 }
 
 pub(in crate::source) fn resolver_connect_helper_path() -> Result<PathBuf, SourceResolveError> {

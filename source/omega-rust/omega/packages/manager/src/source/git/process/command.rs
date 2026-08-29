@@ -4,10 +4,11 @@ use crate::source::SourceResolveError;
 use crate::source::git::executable::GitExecutor;
 use crate::source::git::request::GitExecutionTransport;
 use crate::source::local::io_error;
+#[cfg(unix)]
+use omega_resolver_execution::RESOLVER_CONNECT_HELPER_BASENAME;
 use omega_resolver_execution::{
-    RESOLVER_CONNECT_BROKER_ENVIRONMENT, RESOLVER_CONNECT_HELPER_BASENAME,
-    RESOLVER_CONNECT_TARGET_ENVIRONMENT, ResolverExecutionEndpointRoute, ResolverExecutionPhase,
-    ResolverPreparedExecution,
+    RESOLVER_CONNECT_BROKER_ENVIRONMENT, RESOLVER_CONNECT_TARGET_ENVIRONMENT,
+    ResolverExecutionEndpointRoute, ResolverExecutionPhase, ResolverPreparedExecution,
 };
 use std::ffi::{OsStr, OsString};
 use std::path::Path;
@@ -269,6 +270,7 @@ pub(in crate::source) fn sealed_ssh_command(ssh_executable: &Path) -> OsString {
     ))
 }
 
+#[cfg(unix)]
 fn resolver_connect_helper_command_name() -> String {
     if cfg!(windows) {
         format!("{RESOLVER_CONNECT_HELPER_BASENAME}.exe")

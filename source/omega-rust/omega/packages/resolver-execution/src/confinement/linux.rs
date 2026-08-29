@@ -12,7 +12,8 @@ use landlock::{
     RulesetCreatedAttr, RulesetStatus, make_bitflags,
 };
 use std::io;
-use std::os::unix::process::CommandExt;
+use std::os::fd::{AsFd, AsRawFd};
+use std::path::Path;
 use std::process::Command;
 
 const LINUX_LANDLOCK_ABI: ABI = ABI::V5;
@@ -45,8 +46,6 @@ pub(crate) fn spawn(
         }
     }
 
-    close_ambient_descriptors_on_exec(&mut command);
-
     std::thread::scope(|scope| {
         scope
             .spawn(move || {
@@ -56,28 +55,6 @@ pub(crate) fn spawn(
             .join()
             .map_err(|_| io::Error::other("Linux resolver confinement thread panicked"))?
     })
-}
-
-fn close_ambient_descriptors_on_exec(command: &mut Command) {
-    // Landlock does not revoke authority held through already-open files. Mark
-    // every non-standard descriptor close-on-exec after Command has installed
-    // its explicit null/pipe streams, while preserving Rust's exec-error pipe
-    // until the exec itself. Landlock-capable kernels necessarily support this
-    // close_range mode; any unexpected failure rejects the launch.
-    unsafe {
-        command.pre_exec(|| {
-            let result = libc::syscall(
-                libc::SYS_close_range,
-                3_u32,
-                u32::MAX,
-                libc::CLOSE_RANGE_CLOEXEC,
-            );
-            if result == -1 {
-                return Err(io::Error::last_os_error());
-            }
-            Ok(())
-        });
-    }
 }
 
 fn enforce(policy: &ResolverExecutionPolicyObservation) -> io::Result<()> {
@@ -101,18 +78,16 @@ fn enforce(policy: &ResolverExecutionPolicyObservation) -> io::Result<()> {
         .map_err(landlock_error)?;
 
     let executable_access = make_bitflags!(AccessFs::{ReadFile | Execute});
+    let primary_executable = PathFd::new(policy.executable()).map_err(landlock_error)?;
+    require_regular_executable(&primary_executable, policy.executable())?;
     ruleset = ruleset
-        .add_rule(PathBeneath::new(
-            PathFd::new(policy.executable()).map_err(landlock_error)?,
-            executable_access,
-        ))
+        .add_rule(PathBeneath::new(primary_executable, executable_access))
         .map_err(landlock_error)?;
     for executable in policy.additional_executables() {
+        let executable_fd = PathFd::new(executable).map_err(landlock_error)?;
+        require_regular_executable(&executable_fd, executable)?;
         ruleset = ruleset
-            .add_rule(PathBeneath::new(
-                PathFd::new(executable).map_err(landlock_error)?,
-                executable_access,
-            ))
+            .add_rule(PathBeneath::new(executable_fd, executable_access))
             .map_err(landlock_error)?;
     }
 
@@ -152,6 +127,24 @@ fn enforce(policy: &ResolverExecutionPolicyObservation) -> io::Result<()> {
     if status.ruleset != RulesetStatus::FullyEnforced || !status.no_new_privs {
         return Err(io::Error::other(
             "Linux resolver Landlock v5 policy was not fully enforced",
+        ));
+    }
+    Ok(())
+}
+
+fn require_regular_executable(executable: &PathFd, path: &Path) -> io::Result<()> {
+    let mut status = std::mem::MaybeUninit::<libc::stat>::uninit();
+    if unsafe { libc::fstat(executable.as_fd().as_raw_fd(), status.as_mut_ptr()) } == -1 {
+        return Err(io::Error::last_os_error());
+    }
+    let status = unsafe { status.assume_init() };
+    if status.st_mode & libc::S_IFMT != libc::S_IFREG {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "Linux resolver executable is not a regular file: {}",
+                path.display()
+            ),
         ));
     }
     Ok(())

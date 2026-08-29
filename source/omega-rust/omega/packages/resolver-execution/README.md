@@ -88,19 +88,25 @@ best-effort claims.
   chains. The applicable
   filesystem-write, network-denial, executable-path, and phase-applicable
   descendant-containment rows are enforced.
-- Unix children intersect compiler CPU, core-file, single-file, and descriptor
-  ceilings with stricter inherited limits. Linux and Android additionally
-  apply an address-space ceiling.
+- Unix children mark the non-standard ambient descriptors observed at launch
+  close-on-exec, then intersect compiler CPU, core-file, single-file, and
+  descriptor ceilings with stricter inherited limits. Linux uses atomic
+  `close_range`; other Unix hosts snapshot `/dev/fd`, so a hostile concurrent
+  opener remains outside their incomplete strict boundary. Linux and Android
+  additionally apply an address-space ceiling.
 - Linux kernels with fully available Landlock ABI v5 handle every ABI-v5
   filesystem right. A dedicated restricted thread launches the child so Omega's
   other threads remain unrestricted. Reads remain broad and therefore
-  unclaimed; ordinary writes are admitted only beneath the exact mutable root,
-  device writes only to `/dev/null`, and execution only for the exact primary
-  and bounded additional executable paths. Enforcement requires both
-  `FullyEnforced` and `no_new_privs`; every non-standard inherited descriptor
-  is marked close-on-exec before package code can run, because Landlock cannot
-  revoke authority from an already-open file. Unsupported or disabled kernels
-  retain the resource-limit backend and mark these rows unavailable. Landlock does not yet
+  unclaimed; handled content/namespace writes are admitted only beneath the
+  exact mutable root, device writes only to `/dev/null`, and path-based
+  execution only for verified regular files in the primary and bounded helper
+  set. Enforcement requires both `FullyEnforced` and `no_new_privs`. These are
+  useful controls, not the complete `FilesystemWritesConfined` or
+  `ExecutablePathsConfined` guarantees: Landlock does not mediate several
+  metadata mutations and cannot prevent executable memfds or anonymous
+  executable code. Both rows therefore remain unavailable. The package manager
+  rejects Linux package resolution when Landlock ABI v5 is unavailable instead
+  of running with the resource-limit backend alone. Landlock also does not yet
   establish endpoint confinement, direct-egress denial, aggregate descendant
   custody, or protection against a hostile same-user process.
 - Other Unix hosts currently receive limits without strict filesystem/network
@@ -144,6 +150,8 @@ helper from bypassing the broker on a backend without endpoint confinement.
 The installed `omega` package includes `omega-resolver-connect` beside the main
 binary. HTTPS uses Git's command-scoped proxy configuration. SSH invokes the
 companion through a fixed ProxyCommand name and a sealed helper-only `PATH`;
+the exact system command shell and current login shell needed by Git and
+OpenSSH are independently verified and included in the native executable set;
 compiler-authored environment fields carry the broker and target authorities,
 so package locator text never becomes shell syntax.
 
