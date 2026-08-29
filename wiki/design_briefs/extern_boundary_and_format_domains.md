@@ -394,9 +394,17 @@ already-resolved source-text bytes, and independently rejoins the complete
 assembled file, Linux target-specific format, image statistics, and placed
 executable-region inventory. Rejection retains the intact assembled owner;
 success retains the mutated image beside exact `ExecutableImageOutput` bytes
-but grants no publication receipt or execution event. Optional `.gnu.hash`,
-production emitter integration, and ordinary source `via` evaluation remain
-open. An owned direct `[u8; N]` destination now contextually
+but grants no publication receipt or execution event. The first production-
+emitter bridge now consumes only that admitted carrier and independently
+rejoins its exact final image, import/relocation counts, compiler-text
+relocation envelope, executable-region inventory, target, and bytes to the
+borrowed source-free `ObjectArtifact`. Any target or artifact drift rejects
+with the admitted carrier intact. Success is deliberately a distinct
+non-installable custody carrier rather than `ExecutableImage`, so the bridge
+adds no installation, publication, or execution authority. Optional
+`.gnu.hash`, compiler orchestration of the complete dynamic-owner chain, and
+ordinary source `via` evaluation remain open. An owned direct `[u8; N]`
+destination now contextually
 copies a quoted literal into an ordinary raw-byte array only when `N` is a
 resolved integer literal and the source byte count matches exactly; non-byte
 or unresolved/mismatched widths reject, and hermetic evaluation observes the

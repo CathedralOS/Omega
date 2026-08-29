@@ -29,9 +29,51 @@ pub(super) fn validate_terminal_image(
     scalar_exit_shim: Option<LinuxX86ScalarExitShim>,
     output: &EmittedImageOutput,
 ) -> Result<CompilerTextValidationEvidence, Diagnostic> {
-    if output.final_image_imports != 0 {
+    validate_terminal_image_with_import_count(
+        artifact,
+        object,
+        relocations,
+        text_bytes,
+        scalar_exit_shim,
+        output,
+        0,
+    )
+}
+
+pub(super) fn validate_terminal_dynamic_elf_image(
+    artifact: &ObjectArtifact,
+    output: &EmittedImageOutput,
+) -> Result<CompilerTextValidationEvidence, Diagnostic> {
+    let expected_imports = artifact
+        .object()
+        .layout
+        .symbols
+        .iter()
+        .filter(|(_, symbol)| symbol.kind == omega_object_file::SymbolKind::Import)
+        .count();
+    validate_terminal_image_with_import_count(
+        artifact,
+        artifact.object(),
+        artifact.relocations(),
+        artifact.text_bytes(),
+        None,
+        output,
+        expected_imports,
+    )
+}
+
+fn validate_terminal_image_with_import_count(
+    artifact: &ObjectArtifact,
+    object: &omega_object_file::ObjectPlan,
+    relocations: &omega_object_file::RelocationPlan,
+    text_bytes: &[u8],
+    scalar_exit_shim: Option<LinuxX86ScalarExitShim>,
+    output: &EmittedImageOutput,
+    expected_imports: usize,
+) -> Result<CompilerTextValidationEvidence, Diagnostic> {
+    if output.final_image_imports != expected_imports {
         return Err(Diagnostic::error(
-            "terminal-Psi internal-call image unexpectedly retained imports",
+            "terminal-Psi image import count drifted from its exact object plan",
         ));
     }
     if output.final_image_relocations != relocations.record_count() {

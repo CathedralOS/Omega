@@ -16,6 +16,7 @@
 mod boundary_results;
 mod byte_sequence_custody;
 mod completion_receipts;
+mod dynamic_elf;
 mod final_image_validation;
 mod fully_consumed_affine_pair;
 mod image_output;
@@ -45,6 +46,10 @@ mod unit_affine_cleanup;
 mod unit_call_custody;
 mod unit_stack;
 
+pub use dynamic_elf::{
+    DynamicElfImageEmission, DynamicElfImageEmissionError, emit_admitted_dynamic_elf_image,
+    validate_dynamic_elf_image_emission,
+};
 pub use image_output::{
     ExecutableImage, NativeFuelExecutableImage, NativeFuelTransferRuntimeExecutableImage,
     ObjectContainer, ScalarCallReferenceImage, can_emit_executable_image, emit_executable_image,
