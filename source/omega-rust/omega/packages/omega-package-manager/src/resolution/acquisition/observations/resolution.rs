@@ -84,6 +84,7 @@ pub(in crate::resolution::acquisition) fn issue_git_source_resolution_observatio
         .zip(&resolved.command_execution_observations)
     {
         if command.phase != policy.phase()
+            || command.completion.policy() != policy
             || command.policy_identity != format_sha256(&Sha256::digest(policy.canonical_bytes()))
             || match (policy.endpoint_route(), &command.endpoint_observation) {
                 (Some(route), Some(endpoint)) => endpoint.route() != route,
@@ -188,6 +189,7 @@ pub(in crate::resolution::acquisition) fn issue_git_source_resolution_observatio
         );
         hash_resolution_field(&mut hasher, observation.policy_identity.as_bytes());
         hash_resolution_field(&mut hasher, observation.command_identity.as_bytes());
+        hash_resolution_field(&mut hasher, &observation.completion.canonical_bytes());
         hash_resolution_optional_i32(&mut hasher, observation.status_code);
         hash_resolution_optional_i32(&mut hasher, observation.termination_signal);
         hash_resolution_u64(&mut hasher, observation.stdout_length);

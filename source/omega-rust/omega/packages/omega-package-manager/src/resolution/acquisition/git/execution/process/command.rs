@@ -7,17 +7,17 @@ use crate::resolution::acquisition::local::io_error;
 use omega_resolver_execution::{
     RESOLVER_CONNECT_BROKER_ENVIRONMENT, RESOLVER_CONNECT_HELPER_BASENAME,
     RESOLVER_CONNECT_TARGET_ENVIRONMENT, ResolverExecutionEndpointRoute, ResolverExecutionPhase,
+    ResolverPreparedExecution,
 };
 use std::ffi::{OsStr, OsString};
 use std::path::Path;
-use std::process::Command;
 
 pub(in crate::resolution::acquisition) fn sealed_git_command_with_route(
     executor: &GitExecutor,
     working_directory: &Path,
     phase: ResolverExecutionPhase,
     endpoint_route: Option<&ResolverExecutionEndpointRoute>,
-) -> Result<Command, SourceResolveError> {
+) -> Result<ResolverPreparedExecution, SourceResolveError> {
     executor.verify()?;
     if !working_directory.is_absolute() {
         return Err(SourceResolveError::Git {
@@ -66,43 +66,35 @@ pub(in crate::resolution::acquisition) fn sealed_git_command_with_route(
     let network_transport =
         network_phase.then(|| executor.execution_transport.resolver_network_transport());
     let command_result = match phase {
-        ResolverExecutionPhase::RepositoryInspection => executor
-            .execution_backend
-            .command_with_inspection_read_root_observation(
+        ResolverExecutionPhase::RepositoryInspection => {
+            executor.execution_backend.prepare_inspection(
                 &executor.identity.path,
                 &helper_executables,
                 working_directory,
-            ),
-        ResolverExecutionPhase::TransportDiscovery => executor
-            .execution_backend
-            .command_with_discovery_route_observation(
-                &executor.identity.path,
-                &helper_executables,
-                network_transport.expect("discovery transport derived from the closed phase"),
-                endpoint_route.expect("discovery route opened from the validated request"),
-                working_directory,
-            ),
+            )
+        }
+        ResolverExecutionPhase::TransportDiscovery => executor.execution_backend.prepare_discovery(
+            &executor.identity.path,
+            &helper_executables,
+            network_transport.expect("discovery transport derived from the closed phase"),
+            endpoint_route.expect("discovery route opened from the validated request"),
+            working_directory,
+        ),
         ResolverExecutionPhase::RepositoryInitialization | ResolverExecutionPhase::Fetch => {
-            executor
-                .execution_backend
-                .command_with_endpoint_route_observation(
-                    &executor.identity.path,
-                    &helper_executables,
-                    phase,
-                    network_transport,
-                    endpoint_route,
-                    mutable_root,
-                )
+            executor.execution_backend.prepare_with_endpoint_route(
+                &executor.identity.path,
+                &helper_executables,
+                phase,
+                network_transport,
+                endpoint_route,
+                mutable_root,
+            )
         }
     };
-    let (mut command, execution_policy_observation) =
+    let mut command =
         command_result.map_err(|error| SourceResolveError::GitExecutionBoundaryInvalid {
             message: error.to_string(),
         })?;
-    executor
-        .execution_policy_observations
-        .borrow_mut()
-        .push(execution_policy_observation);
     command
         .env_clear()
         .current_dir(working_directory)
@@ -232,7 +224,7 @@ pub(in crate::resolution::acquisition) fn sealed_git_command(
     executor: &GitExecutor,
     working_directory: &Path,
     phase: ResolverExecutionPhase,
-) -> Result<Command, SourceResolveError> {
+) -> Result<ResolverPreparedExecution, SourceResolveError> {
     let route = if matches!(
         phase,
         ResolverExecutionPhase::TransportDiscovery | ResolverExecutionPhase::Fetch

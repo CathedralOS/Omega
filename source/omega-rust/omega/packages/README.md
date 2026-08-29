@@ -13,13 +13,12 @@ packages/
 |-- omega-package-manager/       # Workflow entrance and public Rust API.
 |   `-- src/
 |       |-- manifest/            # Read and conservatively edit build.omg.
-|       |-- source/              # Identify, resolve, acquire, and audit sources.
-|       |-- closure/             # Reconcile and identify the dependency graph.
+|       |-- resolution/          # Acquire sources and close the dependency graph.
 |       |-- review/              # Compiler review, comparison, triage, and policy.
 |       `-- records/             # Internal bounded retained records.
 |-- omega-package-review/        # Compiler-owned, non-admitting semantic projection.
 |   `-- src/
-|       |-- model/               # Stable review vocabulary.
+|       |-- evidence/            # Stable review vocabulary.
 |       |-- projection/          # Checked compiler state into that vocabulary.
 |       `-- encoding/            # Canonical rows and strict recovery.
 `-- omega-resolver-execution/    # OS process/network confinement for acquisition.

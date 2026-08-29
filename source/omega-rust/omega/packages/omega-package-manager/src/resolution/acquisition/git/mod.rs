@@ -26,7 +26,7 @@ pub(super) use execution::{
     GitTransportExecutableObservation, StreamCaptureResult, command_cleanup_reserve,
     duration_millis, format_hex, format_sha256, git_batch_stdin_identity,
     git_command_configuration_identity, git_helper_path, null_device,
-    open_git_transport_executable, open_https_transport_executable, process_group_already_absent,
+    open_git_transport_executable, open_https_transport_executable,
     reconcile_git_cache_operation_result, reconcile_git_command_endpoint_result,
     reconcile_git_command_result, resolver_connect_helper_path, run_command_bounded_with_budget,
     run_command_bounded_with_stdin_and_budget, run_git, run_git_bytes_stdout, run_git_output,

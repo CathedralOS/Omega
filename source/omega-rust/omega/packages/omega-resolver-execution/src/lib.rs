@@ -11,6 +11,7 @@ mod backend;
 mod confinement;
 mod model;
 mod network;
+mod prepared;
 mod process;
 mod request;
 
@@ -29,4 +30,8 @@ pub use network::{
     ResolverExecutionEndpointRoutePolicy, ResolverExecutionRequestedEndpoint,
     ResolverExecutionTransferBudget, run_resolver_connect_helper,
 };
-pub use process::ResolverExecutionChild;
+pub use prepared::{ResolverExecutionCommandIdentity, ResolverPreparedExecution};
+pub use process::{
+    ResolverExecutionChild, ResolverExecutionCompletionObservation, ResolverExecutionExitStatus,
+    ResolverExecutionTerminationDisposition,
+};

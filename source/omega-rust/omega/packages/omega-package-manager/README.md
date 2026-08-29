@@ -19,42 +19,42 @@ src/
 |-- manifest/              Read and conservatively edit build.omg.
 |   |-- dependency_projection/ Extract and validate checked dependency requests.
 |   `-- dependency_edit/   Plan and render conservative declaration patches.
-|-- source/                Package sources, from names to retained snapshots.
+|-- resolution/            Resolve exact sources and the complete dependency closure.
 |   |-- identity/          Stable package and source identity facade.
 |   |   |-- names.rs       Package names, aliases, and source-bound keys.
 |   |   |-- git.rs         Git repository lineages and accepted transports.
 |   |   |-- locator.rs     Strict Git locator parsing and normalization.
 |   |   |-- local.rs       Workspace and external-local lineages and digests.
 |   |   `-- resolution.rs  Immutable source pins and typed Git object IDs.
-|   |-- package_resolution/ Bind Git, workspace, and local requests to packages.
+|   |-- package/           Bind Git, workspace, and local requests to packages.
 |   |-- inspection.rs      Source-inspection command boundary.
-|   `-- acquisition/       Capture hostile source under resolver custody.
-|       |-- storage.rs     Private per-user storage and retained cache lanes.
-|       |-- local/         Local snapshot capture and authentication.
-|       |-- git/           Git request, fetch, authentication, and materialization.
-|       |   |-- cache/     Create, authenticate, invalidate, and reuse Git caches.
-|       |   |-- objects/   Authenticate commits, trees, paths, and bounded blobs.
-|       |   |-- snapshot/  Construct, validate, and atomically publish source trees.
-|       |   `-- execution/ Confine Git processes and establish executable custody.
-|       |-- observations/  Issue resolved-source, execution, and accounting records.
-|       `-- custody/       Tree checks, host policy, locks, and atomic publication.
-|-- closure/               Resolve and identify one complete package closure.
-|   |-- traversal/         Connect manifest requests to workspace, local, and Git sources.
-|   |   |-- mod.rs         Root-source workflow facade and public entry points.
-|   |   |-- workspace.rs   Explicit workspace-member roots.
-|   |   |-- git.rs         Immutable Git roots and request matching.
-|   |   |-- external_local.rs Explicit local roots outside a workspace.
-|   |   |-- dependency_resolution.rs Resolve declared Path and Git edges.
-|   |   |-- cache.rs       Access retained source-storage lanes.
-|   |   `-- errors.rs      Public traversal failure vocabulary.
-|   |-- reconciliation/    Reconcile the complete dependency closure.
-|   |   |-- mod.rs         Reconciliation facade and result vocabulary.
-|   |   |-- source_custody.rs Exact root requests and immutable custody.
-|   |   |-- resolution.rs  Bounded traversal and conflict-path collection.
-|   |   |-- resolved_closure.rs Validated closure and source-selection views.
-|   |   `-- model.rs       Paths, limits, conflicts, and failures.
-|   |-- graph/             Validate package nodes, edges, aliases, and reachability.
-|   `-- subject/           Canonically encode the exact resolved closure.
+|   |-- acquisition/       Capture hostile source under resolver custody.
+|   |   |-- storage.rs     Private per-user storage and retained cache lanes.
+|   |   |-- local/         Local snapshot capture and authentication.
+|   |   |-- git/           Git request, fetch, authentication, and materialization.
+|   |   |   |-- cache/     Create, authenticate, invalidate, and reuse Git caches.
+|   |   |   |-- objects/   Authenticate commits, trees, paths, and bounded blobs.
+|   |   |   |-- snapshot/  Construct, validate, and atomically publish source trees.
+|   |   |   `-- execution/ Confine Git processes and establish executable custody.
+|   |   |-- observations/  Issue resolved-source, execution, and accounting records.
+|   |   `-- custody/       Tree checks, host policy, locks, and atomic publication.
+|   `-- closure/           Resolve and identify one complete package closure.
+|       |-- traversal/     Connect manifest requests to workspace, local, and Git sources.
+|       |   |-- mod.rs     Root-source workflow facade and public entry points.
+|       |   |-- workspace.rs Explicit workspace-member roots.
+|       |   |-- git.rs     Immutable Git roots and request matching.
+|       |   |-- external_local.rs Explicit local roots outside a workspace.
+|       |   |-- dependency_resolution.rs Resolve declared Path and Git edges.
+|       |   |-- cache.rs   Access retained source-storage lanes.
+|       |   `-- errors.rs  Public traversal failure vocabulary.
+|       |-- reconciliation/ Reconcile the complete dependency closure.
+|       |   |-- mod.rs     Reconciliation facade and result vocabulary.
+|       |   |-- source_custody.rs Exact root requests and immutable custody.
+|       |   |-- resolution.rs Bounded traversal and conflict-path collection.
+|       |   |-- resolved_closure.rs Validated closure and source-selection views.
+|       |   `-- model.rs   Paths, limits, conflicts, and failures.
+|       |-- graph/         Validate package nodes, edges, aliases, and reachability.
+|       `-- subject/       Canonically encode the exact resolved closure.
 |-- review/
 |   |-- compilation_inputs.rs Compiler inputs derived from exact source custody.
 |   |-- review_set_validation.rs Join complete review sets to package custody.

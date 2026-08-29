@@ -311,6 +311,7 @@ impl GitExecutor {
         }
         for (policy, command) in observations.iter().zip(command_observations.iter()) {
             if command.phase != policy.phase()
+                || command.completion.policy() != policy
                 || command.policy_identity
                     != format_sha256(&Sha256::digest(policy.canonical_bytes()))
             {
@@ -390,23 +391,14 @@ impl GitExecutor {
         output: &BoundedCommandOutput,
         endpoint_observation: Option<ResolverExecutionEndpointObservation>,
     ) -> Result<(), SourceResolveError> {
-        let policy_identity = {
-            let policies = self.execution_policy_observations.borrow();
-            let index = self.command_execution_observations.borrow().len();
-            let policy = policies.get(index).ok_or_else(|| {
-                SourceResolveError::GitExecutionBoundaryInvalid {
-                    message: "native command completed without a matching policy observation"
-                        .to_owned(),
-                }
-            })?;
-            if policy.phase() != phase {
-                return Err(SourceResolveError::GitExecutionBoundaryInvalid {
-                    message: "native command phase does not match its policy observation"
-                        .to_owned(),
-                });
-            }
-            format_sha256(&Sha256::digest(policy.canonical_bytes()))
-        };
+        let completion = &output.completion;
+        let policy = completion.policy();
+        if policy.phase() != phase {
+            return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+                message: "native command phase does not match its completed policy observation"
+                    .to_owned(),
+            });
+        }
         #[cfg(unix)]
         let termination_signal = {
             use std::os::unix::process::ExitStatusExt;
@@ -414,20 +406,34 @@ impl GitExecutor {
         };
         #[cfg(not(unix))]
         let termination_signal = None;
+        if completion.status().success() != output.status.success()
+            || completion.status().code() != output.status.code()
+            || completion.status().unix_signal() != termination_signal
+        {
+            return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+                message: "captured Git status does not match resolver completion".to_owned(),
+            });
+        }
+        let policy_identity = format_sha256(&Sha256::digest(policy.canonical_bytes()));
+        let observation = GitCommandExecutionObservation {
+            phase,
+            policy_identity,
+            command_identity,
+            status_code: output.status.code(),
+            termination_signal,
+            stdout_length: output.stdout.len() as u64,
+            stdout_identity: format_sha256(&Sha256::digest(&output.stdout)),
+            stderr_length: output.stderr.len() as u64,
+            stderr_identity: format_sha256(&Sha256::digest(&output.stderr)),
+            endpoint_observation,
+            completion: completion.clone(),
+        };
+        self.execution_policy_observations
+            .borrow_mut()
+            .push(policy.clone());
         self.command_execution_observations
             .borrow_mut()
-            .push(GitCommandExecutionObservation {
-                phase,
-                policy_identity,
-                command_identity,
-                status_code: output.status.code(),
-                termination_signal,
-                stdout_length: output.stdout.len() as u64,
-                stdout_identity: format_sha256(&Sha256::digest(&output.stdout)),
-                stderr_length: output.stderr.len() as u64,
-                stderr_identity: format_sha256(&Sha256::digest(&output.stderr)),
-                endpoint_observation,
-            });
+            .push(observation);
         Ok(())
     }
 

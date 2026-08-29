@@ -14,9 +14,13 @@ text or containment claims.
 - `src/request.rs` validates compiler-selected executable and custody paths;
   it does not interpret package-authored locator text.
 - `src/backend.rs` validates one launch request, selects the verified host
-  backend, and constructs a command and policy observation together.
-- `src/process/` owns child-container lifecycle and compiler-owned process
-  limits. Its tests cover inherited Unix-limit intersection and enforcement.
+  backend, and constructs an opaque prepared execution with its policy.
+- `src/prepared.rs` owns the only caller-configurable command surface and the
+  bounded identity of its exact program, arguments, environment, and working
+  directory. It exposes no raw command extraction or executable replacement.
+- `src/process/` consumes prepared executions, owns child-container lifecycle
+  and compiler-owned process limits, and issues completion only after explicit
+  whole-container termination or confirmed absence plus child reaping.
 - `src/network/` owns typed endpoint policy and observations (`model.rs`), the
   shared transfer ceiling (`budget.rs`), the bounded loopback route
   (`broker.rs`), CONNECT framing (`connect_protocol.rs`), bidirectional copying
@@ -40,7 +44,9 @@ lib.rs (public reexports only)
   -> backend.rs
        -> model.rs + request.rs + network/ + process/limits.rs
        -> confinement/ (host policy and guarantee classification)
+       -> prepared.rs (opaque configured launch)
   -> process/ (owned child lifecycle)
+       -> prepared.rs + completion observation
        -> confinement/windows.rs only on Windows
   -> network/ (sealed endpoint policy, broker, and connector helper)
 
@@ -94,15 +100,20 @@ best-effort claims.
   suspended child rather than falling back. Windows therefore enforces
   descendant containment, process-count, CPU-time, and aggregate CPU/memory
   rows, but still lacks filesystem, executable-path, and endpoint confinement.
-- Every command is constructed together with a bounded canonical policy
-  observation binding the backend, phase, closed network transport when
+- Every prepared execution owns a bounded canonical policy observation binding
+  the backend, phase, closed network transport when
   applicable, sealed endpoint route when applicable, generated policy hash,
   numeric resource ceilings, primary executable path, normalized bounded
   descendant-executable path set, discovery/inspection content-read roots when
   applicable, mutable root, and every closed native guarantee as `Enforced`,
   `Unavailable`, or `NotRequired`. There is no public constructor
-  or decoder. This describes configuration, not execution or executable
-  content identity; `require_strict` rejects the current backends.
+  or decoder. Spawning consumes the prepared value. A completion observation is
+  issued only after whole-container termination or confirmed absence and reap;
+  it binds that policy to the exact command identity, normalized exit status,
+  and cleanup disposition. Standard-input content remains separately bound by
+  the protocol owner because native `Stdio` handles have no portable inspectable
+  identity. This is lifecycle provenance, not executable-content identity or a
+  source receipt; `require_strict` rejects the current backends.
 
 The broker bounds CONNECT request bytes and headers, the complete DNS result
 set collected before any upstream connection, accepted connections, buffers,

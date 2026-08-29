@@ -113,9 +113,9 @@ where
     let command_timeout = executor.begin_launch()?;
     command.args(args);
     let command_identity =
-        git_command_configuration_identity(&command, phase, &GitCommandStdinIdentity::Null);
+        git_command_configuration_identity(&command, phase, &GitCommandStdinIdentity::Null)?;
     let result = run_command_bounded_with_budget(
-        &mut command,
+        command,
         "command",
         GIT_STDOUT_LIMIT,
         GIT_STDERR_LIMIT,

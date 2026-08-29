@@ -127,8 +127,8 @@ it cannot be recovered or promoted into an accepted lock. Authoritative source
 persistence must begin with the future opaque receipt rather than a caller-
 readable intermediate record.
 
-The native execution crate now returns a narrower opaque policy observation
-with each command it constructs. It binds the verified backend, closed phase,
+The native execution crate now returns an opaque prepared execution which owns
+its policy observation. It binds the verified backend, closed phase,
 generated policy hash, numeric compiler ceilings, primary executable path,
 normalized bounded descendant-executable path set, mutable root, sealed
 endpoint route where applicable, exact discovery/inspection content-read roots
@@ -136,11 +136,16 @@ where applicable, and a complete ordered guarantee vocabulary.
 Required guarantees are either `Enforced` or
 `Unavailable`; phase-inapplicable rows are `NotRequired`. There is no public
 constructor or decoder, path and helper counts are bounded, and
-`require_strict` rejects any unavailable row. Git resolution retains one value
-for every configured command only inside a resolution that ultimately
-succeeds. This prevents a phase-only summary from hiding different executable
-or filesystem scopes, but it is configuration provenance—not proof the command
-ran and not a `SourceResolutionReceiptV1`. The complete receipt must join the
+`require_strict` rejects any unavailable row. Callers can append arguments,
+explicit environment, working directory, and standard-I/O plumbing but cannot
+extract the command or replace its executable. Spawn consumes the prepared
+value. Completion is issued only after the native container was explicitly
+terminated or confirmed absent and its child status reaped; it binds the policy
+to a bounded identity of the exact program, ordered arguments, explicit
+environment plus inheritance disposition, and working directory. Git retains
+policy only through that completion, rather than when configuration is merely
+attempted. This is execution-lifecycle provenance, not a
+`SourceResolutionReceiptV1`. The complete receipt must join the
 package layer's exact executable content observations, environment/protocol
 sealing, endpoint and credential trust, bounded command result, object
 authentication, snapshot identity, and final publication verdict.
@@ -172,7 +177,7 @@ exact compiler-owned rlimit rows are `Enforced` throughout macOS.
 HTTPS discovery/fetch. It remains `Unavailable` for SSH discovery/fetch because
 their content and metadata remain broad.
 Before a successful Git result is issued, the package layer also requires the
-number of retained policy observations to equal the bounded launch count and
+number of completion-derived policy observations to equal the bounded launch count and
 requires every observation's executable path set to equal the paths backed by
 the still-verified Git, selected transport, and fixed platform-helper content
 identities for that phase. The result now retains those fixed helper identities
@@ -180,13 +185,16 @@ instead of dropping them. This closes configuration-to-content association for
 successful resolution; it still is not an execution-result receipt.
 
 Each completed Git command now also contributes one bounded package-layer
-execution observation after output capture, executable/backend revalidation,
+execution observation after output capture, native completion,
+executable/backend revalidation,
 and budget reconciliation succeed. A domain-separated command commitment binds
 the closed phase, actual native program and ordered arguments, complete explicit
-environment, working directory, and either null stdin or the exact object-batch
-stdin length and digest. The outcome binds exit code or Unix signal plus exact
-bounded stdout/stderr lengths and digests, and joins positionally to the digest
-of its native policy observation. Network commands additionally retain the
+environment and inheritance disposition, working directory, and either null
+stdin or the exact object-batch stdin length and digest. The outcome binds exit
+code or Unix signal plus exact bounded stdout/stderr lengths and digests. It
+retains the resolver-issued completion and requires its policy and status to
+match, eliminating the former positional construction-time join. Network
+commands additionally retain the
 sealed route, bounded CONNECT outcomes, and effective peers; successful remote
 issuance requires at least one connected event and exact route-policy equality.
 Successful resolution requires outcome,

@@ -153,9 +153,9 @@ fn execute_git_blob_batch(
         &command,
         ResolverExecutionPhase::RepositoryInspection,
         &stdin_identity,
-    );
+    )?;
     let result = run_command_bounded_with_stdin_and_budget(
-        &mut command,
+        command,
         Stdio::from(request),
         "cat-file --batch",
         stdout_limit,

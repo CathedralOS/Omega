@@ -58,7 +58,7 @@ pub(in crate::resolution::acquisition) const LOCAL_SNAPSHOT_LOCK_TIMEOUT: Durati
     Duration::from_secs(120);
 pub(in crate::resolution::acquisition) const PROCESS_POLL_INTERVAL: Duration =
     Duration::from_millis(5);
-pub(in crate::resolution::acquisition) const GIT_RESOLUTION_OBSERVATION_SCHEMA_VERSION: u32 = 4;
+pub(in crate::resolution::acquisition) const GIT_RESOLUTION_OBSERVATION_SCHEMA_VERSION: u32 = 5;
 pub(in crate::resolution::acquisition) const GIT_RESOLUTION_OBSERVATION_DOMAIN: &[u8] =
     b"omega-git-resolution-observation-v4";
 pub(in crate::resolution::acquisition) static STAGING_SEQUENCE: AtomicU64 = AtomicU64::new(0);
