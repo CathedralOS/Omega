@@ -883,14 +883,27 @@ Remaining:
   evidence to occurrence provenance and firmware phase before projecting
   services.
 
+  The returning-profile lifecycle composition gate now lives in
+  `omega-external-roots`. One invocation-owned firmware ledger mints a
+  non-clone exact-range occurrence provenance carrier and the sole current
+  Boot-Services-live phase lease. The consuming join replays the exact UEFI
+  x64 entry/layout identity, requires integrity and provenance to retain the
+  same allocation and range, rejects copied report identities from a foreign
+  ledger, and returns all three inputs on rejection. Success is a non-clone,
+  metadata-only lifecycle carrier: it exposes no table bytes, raw address,
+  service-field value, provider, `Extent`, root, or execution authority.
+  Releasing it consumes the retained inputs and returns only a report
+  observation; a failed release returns the complete scoped carrier. The
+  returning ledger will not begin firmware return while its phase lease is
+  live.
+
   The next composition edge is design-settled. Implement one exact
   target-runtime bootstrap adapter satisfying `UefiPhysicalEntry::enter`; the
   generated shell invokes it, while `build.omg` binds only the semantic
   continuation. Keep `EfiSystemTable` private beneath lifecycle-scoped
   providers and `EfiImageHandle` as an opaque provenance-bearing input; neither
-  is an `Extent`. Join the validated table-header integrity carrier to exact
-  occurrence provenance and firmware phase before exposing provider
-  projections.
+  is an `Extent`. Have the adapter consume the landed integrity/provenance/phase
+  join before exposing any provider projection.
 
   Land the returning `UefiApplication` profile first. Its checked adapter uses
   exact admitted provider postconditions: physical arrival supplies a valid
