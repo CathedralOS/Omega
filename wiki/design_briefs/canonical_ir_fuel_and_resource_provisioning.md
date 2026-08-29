@@ -672,9 +672,13 @@ opaque verifier carrier: it derives actual preheader, header, decrement, exit,
 and return costs from the current schedule and combines them as `entry +
 maximum_iterations * cycle + exit`. The certificate binds the canonical
 terminal identity and fails closed when that exact all-input ceiling cannot fit
-its scalar denomination. Acyclic segment checking is not widened, and Omega
-lowering, native installation, and provider dispatch remain separate
-milestones.
+its scalar denomination. Omega's disjoint ranked-native path retains an opaque
+verifier-issued owned semantic subject through machine code and independently
+rejoins its public ranked graph, structural signature, type declarations,
+provenance, and logical-fuel rows at object emission. This prevents coordinated
+rewrites of otherwise self-consistent projected coordinates from replacing the
+verified subject. Acyclic segment checking is not widened; final-image/native
+installation and provider dispatch remain separate milestones.
 
 Every verifier, reduction-family, denotation-row, composition theorem, and
 irreducible semantic dependency has an exact versioned node in a closed trust

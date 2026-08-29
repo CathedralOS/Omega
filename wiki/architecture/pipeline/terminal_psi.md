@@ -939,20 +939,24 @@ premise, and requires the exact-subtract evidence before constructing resumable
   for this exact machine. Native admission combines the canonical Terminal
   proof, exact fixed-fuel certificate, converged structural frontier, and the
   reconstructed preheader/header/guard/subtract/backedge graph into one custody
-  object. Abstract, target, and assigned-target representations retain that
-  object unchanged. Target lowering replays the exact graph, affine-owned
-  structural parameter, exit cleanup, and ABI placement; assignment accepts
-  only the target-prescribed rank register. The ordinary selected-instruction
+  object together with a verifier-issued owned copy of the exact Terminal
+  semantic subject. Abstract, target, and assigned-target representations
+  retain that object unchanged. Target lowering replays the exact graph,
+  affine-owned structural parameter, exit cleanup, and ABI placement;
+  assignment accepts only the target-prescribed rank register. The ordinary selected-instruction
   path stays closed, while a disjoint unoptimized route emits the exact Linux
   x86-64 and AArch64 countdown bodies from assigned custody. The machine-code
   carrier retains the semantic custody, complete ABI/structural inputs, and
   canonical four-operation/five-edge logical-fuel attribution. Unmetered object
   replay independently decodes each target body and reconstructs the exact
   Psi/entry, rank, fixed-fuel, ABI, structural-frontier, cleanup, provenance,
-  and nine-row attribution contract. Its object function retains the complete
-  ranked record, and a stripped record remains a hard failure. Generic
-  native-fuel instrumentation remains closed because it cannot yet rebase
-  internal branches around inserted charge sites; final-image emission has a
+  and nine-row attribution contract. It also rejoins the projected graph,
+  structural signature, and type declarations to the verifier-owned semantic
+  module, rejecting coherent coordinate substitution rather than accepting a
+  merely self-consistent record. Its object function retains the complete
+  ranked record, and a stripped record remains a hard failure. Ranked-aware
+  native-fuel instrumentation and independent image replay rebase and validate
+  the three internal branches around charge sites; final-image emission has a
   separate named rejection until ranked final-byte replay lands. This authority
   is not a general cyclic-control exception and cannot be obtained by converting
   either the interpreter carrier or ordinary acyclic verification.

@@ -29,6 +29,7 @@ omega-isa-aarch64 = { path = "../../instruction_set_architectures/omega-isa-aarc
 omega-isa-x86_64 = { path = "../../instruction_set_architectures/omega-isa-x86_64" }
 psi-core = { path = "../../../../psi/foundation/psi-core" }
 psi-terminal = { path = "../../../../psi/representations/psi-terminal" }
+psi-terminal-codec = { path = "../../../../psi/semantics/psi-terminal-codec" }
 psi-terminal-fuel = { path = "../../../../psi/semantics/psi-terminal-fuel" }
 sha2 = "0.10"
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder", "instr_info"] }

@@ -697,6 +697,7 @@ dependencies = [
  "psi-core",
  "psi-diagnostics",
  "psi-terminal",
+ "psi-terminal-codec",
  "psi-terminal-fuel",
  "sha2",
 ]

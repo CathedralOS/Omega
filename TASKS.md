@@ -467,8 +467,9 @@ Remaining:
   custody are now complete through assigned target operations for the same
   exact first slice. A third opaque verifier carrier admits only the canonical
   structural Unit / `u32` countdown machine and retains its Terminal proof,
-  exact fixed-fuel certificate, structural frontier, and concrete ranked graph
-  as one custody object. Abstract lowering reconstructs that object directly
+  exact fixed-fuel certificate, structural frontier, concrete ranked graph,
+  and a verifier-issued owned copy of the exact Terminal semantic subject as
+  one custody object. Abstract lowering reconstructs that object directly
   from canonical semantic/proof sections; ordinary acyclic lowering still
   rejects the cycle. Target lowering replays every ranked operation and edge,
   validates the affine-owned structural frontier and exact exit cleanup, and
@@ -481,14 +482,17 @@ Remaining:
   header-targeting backward branch. Machine code retains semantic custody,
   complete ABI/structural inputs, and all four operation plus five edge fuel
   sites; it does not duplicate target-constant layout as evidence. Generic
-  native-fuel instrumentation rejects this carrier until it can rebase internal
-  branches. Exact unmetered object replay is now complete for the disjoint
+  native-fuel instrumentation now rebases this carrier's internal branches as
+  described below. Exact unmetered object replay is complete for the disjoint
   carrier. Target-owned x86-64 and AArch64 validators independently decode the
   rank register width, opcodes, immediates, and all three branch destinations;
   the object boundary separately reconstructs Psi/entry identity, fixed-fuel
   custody, the ranked graph, ABI call plan, affine frontier and cleanup, exact
-  provenance, and all nine fuel rows. The complete ranked record survives on
-  `ObjectFunction`, while stripping that optional record still rejects. Ranked-
+  provenance, and all nine fuel rows. It rejoins those public projections to
+  the verifier-owned semantic module, so coherent operation renumbering or an
+  extra structural-type row cannot substitute a different self-consistent
+  record. The complete ranked record survives on `ObjectFunction`, while
+  stripping that optional record still rejects. Ranked-
   aware native-fuel rebasing is also complete for this carrier: both producer
   and independent image replay
   map each original branch instruction after its own hot charge, map the header
