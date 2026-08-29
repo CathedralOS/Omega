@@ -1,8 +1,9 @@
 //! Representation-only validation for retained ranked control components.
 //!
-//! This closes source-handle-free identity and graph custody without granting
-//! execution authority. The following verifier milestone must reconstruct the
-//! positive guard and decrement from ordinary Terminal operations.
+//! This closes source-handle-free identity, graph custody, guard/decrement
+//! reconstruction, and structural-frontier preservation without granting
+//! execution authority. Interpreter, fuel, and native support remain separate
+//! milestones.
 
 use super::*;
 use psi_core::{IntegerCarrier, IntegerSign};

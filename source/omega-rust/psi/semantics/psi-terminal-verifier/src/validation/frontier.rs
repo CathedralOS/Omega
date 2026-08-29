@@ -862,7 +862,36 @@ pub(super) fn validate_structural_frontier(
             }
         }
     }
+    if let Some(component) = &machine.ranked_scc {
+        for row in &component.covered_cyclic_edges {
+            let established = snapshots
+                .block_entries
+                .get(&row.target)
+                .expect("ranked validation established the backedge target block");
+            let preserved = snapshots
+                .edge_exits
+                .get(&row.edge)
+                .expect("frontier replay visited the ranked backedge");
+            require_snapshot_match(row.target, established, preserved)?;
+        }
+    }
     Ok(snapshots)
+}
+
+fn require_snapshot_match(
+    block: BlockId,
+    expected: &VerifiedStructuralOwnershipFrontier,
+    candidate: &VerifiedStructuralOwnershipFrontier,
+) -> Result<(), ModuleError> {
+    if candidate.claims != expected.claims {
+        return Err(ModuleError::ClaimFrontierJoinMismatch(block));
+    }
+    if candidate.owned_places != expected.owned_places
+        || candidate.partial_custody != expected.partial_custody
+    {
+        return Err(ModuleError::OwnedStructuralFrontierJoinMismatch(block));
+    }
+    Ok(())
 }
 
 fn projected_fixed_array_root_is_fully_consumed(
@@ -1118,4 +1147,59 @@ fn apply_edge_trivial_affine_discards(
         frontier.owned_places.remove(place);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn empty_snapshot() -> VerifiedStructuralOwnershipFrontier {
+        VerifiedStructuralOwnershipFrontier {
+            claims: Vec::new(),
+            owned_places: Vec::new(),
+            partial_custody: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn ranked_preservation_compares_every_frontier_axis_in_diagnostic_order() {
+        let block = BlockId::new(1).unwrap();
+        let expected = empty_snapshot();
+        assert_eq!(require_snapshot_match(block, &expected, &expected), Ok(()));
+
+        let mut claim_drift = empty_snapshot();
+        claim_drift.claims.push(VerifiedLiveClaim {
+            claim: ClaimId::new(1).unwrap(),
+            input: None,
+            path: Vec::new(),
+            multiplicity: None,
+        });
+        assert_eq!(
+            require_snapshot_match(block, &expected, &claim_drift),
+            Err(ModuleError::ClaimFrontierJoinMismatch(block))
+        );
+
+        let place = PlaceId::new(1).unwrap();
+        let mut owned_drift = empty_snapshot();
+        owned_drift.owned_places.push(VerifiedOwnedStructuralPlace {
+            place,
+            multiplicity: StructuralMultiplicity::Affine,
+        });
+        assert_eq!(
+            require_snapshot_match(block, &expected, &owned_drift),
+            Err(ModuleError::OwnedStructuralFrontierJoinMismatch(block))
+        );
+
+        let mut partial_drift = empty_snapshot();
+        partial_drift
+            .partial_custody
+            .push(VerifiedPartialStructuralCustody {
+                place,
+                moved_paths: vec![vec![StructuralPathSegment::FixedIndex(0)]],
+            });
+        assert_eq!(
+            require_snapshot_match(block, &expected, &partial_drift),
+            Err(ModuleError::OwnedStructuralFrontierJoinMismatch(block))
+        );
+    }
 }
