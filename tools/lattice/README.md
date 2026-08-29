@@ -1,44 +1,41 @@
-# Lattice runner
+# Lattice topology tooling
 
-`verify-lattice.sh` is optional POSIX-shell orchestration for the direct
-compiler sequence. It is not a compiler stage, evidence producer, source
-resolver, or acceptance authority. Every invoked gate is independently
-executable, and the runner prints the exact command before execution and again
-on failure.
+This directory contains only shared path plumbing and one topology gate. It
+does not own a compiler stage, source closure, proof, artifact, or full-chain
+runner.
 
 ```sh
-sh tools/lattice/verify-lattice.sh
+sh tools/lattice/check-path-hygiene.sh
+sh source/alpha/verify.sh --edge
 ```
 
-The runner contains only the presently closed chain floor: selected Alpha seed
-behavior plus exact assembler construction. The below-Beta checker is a service
-beside compiler edges, not a top-level lattice row; its construction remains
-independently runnable from `source/alpha/checker/`. The canonical Beta
-artifact's generic structure/refinement diagnostics,
-Gamma program suites, path-policy test, and stress tools remain directly
-runnable diagnostics; repeating them as top-level rows would falsely present
-an open compiler edge as closed.
+The second command is the presently closed lattice floor: audited Alpha seed
+behavior plus exact assembler construction. It is run directly from its owner.
+There is deliberately no wrapper that relabels that one command as a complete
+lattice run or prints ceremonial status for compiler edges that do not exist.
+Future edge construction and admission commands stay adjacent to the compiler
+artifact they produce.
 
-Native Alpha source/container reproduction remains available through
-`source/alpha/verify.sh` without `--edge`. It is a supply-chain diagnostic and
-irreducible seed-admission aid, not a semantic premise repeated by the direct
-compiler-edge runner.
+`check-path-hygiene.sh` is the single repository-topology gate. It positively
+enumerates the implemented compiler source/tape identities, inventories every
+retained Alpha-through-Omega file, rejects alternate bootstrap owners and
+native compiler identities above Alpha, and prevents a lower compiler owner
+from reaching beyond its immediate successor.
 
-As later artifacts become available, this runner should invoke their actual
-producer/admission commands. It must not substitute a verifier's fixture suite
-or a source snapshot for the missing artifact.
+`paths.sh` exports only paths consumed by present gates. Missing future
+Gamma/Delta/Omega compiler sources and tapes are not represented by placeholder
+variables; the files enter the positive inventory when they actually exist.
+Shell and Python remain replaceable invocation plumbing and may not parse an
+accepted language, lower code, manufacture proof premises, or decide
+admission.
 
-Reusable Gamma interpreter/type-checker suites remain locally testable, but are
-not compiler edges and therefore are not default lattice steps. The future
-Beta-written Gamma compiler owns the actual canonical Gamma-to-tape invocation.
+## Retention and deletion
 
-`paths.sh` exposes exact source/artifact locators and shared service locations,
-but `lattice_path` maps only the five canonical chain owners: Alpha, the Beta
-compiler, the Gamma compiler, the Delta compiler, and the shared Omega owner
-for `D` and `C`. Shell and Python helpers may coordinate or test commands, but
-no lattice claim depends on this runner, its working directory, or
-transformations performed by it.
+| File | Present consumer | Deletion condition |
+| --- | --- | --- |
+| `paths.sh` | Alpha, Beta, Gamma, and topology gates that share exact owner paths | Absorb the remaining locators into a single cheaper canonical invocation mechanism, then delete this file and update every consumer atomically. |
+| `check-path-hygiene.sh` | Repository checks for the direct-lattice ownership and retention invariant | Replace it only with one canonical gate that enforces the same positive artifact inventory, immediate-successor boundary, and file-level retention proof more economically. |
 
-The retired root `compiler/` cache, `.lattice-cache` receipt profiles, and their
-ignore rules are gone. A role path remains only when it names a current owner or
-an explicitly tracked migration component.
+The retired `verify-lattice.sh`, `test-paths.sh`, `lattice_path` role facade,
+future-artifact locators, root compiler cache, and receipt profiles had no
+independent semantic or acceptance role. Git history owns them.
