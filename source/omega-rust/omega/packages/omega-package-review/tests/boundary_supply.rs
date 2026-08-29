@@ -547,7 +547,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
 }
 
 #[test]
-fn named_float_conversion_remains_fail_closed_without_complete_type_identity() {
+fn review_closes_named_float_conversion_with_exact_types_and_domain() {
     let Some(target) = host_target_name() else {
         return;
     };
@@ -579,13 +579,44 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         package_inputs(&package.0),
     )
     .expect("named-float conversion fixture should check");
-    let diagnostics = project_checked_package_review(&checked)
-        .expect_err("conversion must reject until source and target type identity are closed");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("without a closed package-review identity")
-    }));
+    let review = project_checked_package_review(&checked)
+        .expect("named-float conversion has a closed package-review identity");
+    let selected = review
+        .selected_providers()
+        .iter()
+        .find(|provider| provider.schema_declaration().path() == "F32::from_f64")
+        .expect("selected F32::from_f64 provider");
+    let [row] = selected.row_declarations() else {
+        panic!("one selected provider row for F32::from_f64")
+    };
+    assert_eq!(
+        row.compiler_intrinsic_execution(),
+        Some(
+            PackageReviewCompilerIntrinsicExecution::NamedFloatConversion {
+                source: omega_provider_planning::plans::CompilerNumericType::F64,
+                target: omega_provider_planning::plans::CompilerNumericType::F32,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            }
+        ),
+    );
+    assert_eq!(row.compiler_intrinsic_builtin(), None);
+    assert_eq!(row.realization().path(), "FloatProvider::from_f64");
+
+    let selected_provider_row = review
+        .canonical_rows()
+        .expect("canonical conversion provider rows")
+        .into_iter()
+        .find(|row| row.kind() == PackageReviewCanonicalRowKind::SelectedProviderSet)
+        .expect("selected-provider canonical row");
+    let encoded = encode_package_review_canonical_row(&selected_provider_row)
+        .expect("selected conversion-provider recovery envelope should encode");
+    let decoded = decode_package_review_canonical_row(&encoded)
+        .expect("selected conversion-provider recovery envelope should decode");
+    assert_eq!(
+        decoded.canonical_bytes(),
+        selected_provider_row.canonical_bytes(),
+        "canonical recovery must preserve exact conversion identity",
+    );
 }
 
 #[test]

@@ -8,7 +8,7 @@
 //! requirement rather than the bootstrap execution form.
 
 use omega_effects::provider_plan::ProviderBinding;
-use omega_provider_planning::plans::CompilerIntrinsicExecutionIdentity;
+use omega_provider_planning::plans::{CompilerIntrinsicExecutionIdentity, CompilerNumericType};
 use psi_checked_trees::CheckedTrees;
 use psi_diagnostics::Diagnostic;
 use psi_numerics::arithmetic::ArithmeticDomain;
@@ -364,10 +364,24 @@ pub fn derive_selected_compiler_intrinsic_execution_identity(
             CompilerIntrinsicExecutionIdentity::NamedFloatNegation(format),
         )));
     }
-    if matches!(realization, NamedFloatRealization::Convert(_)) {
-        return Ok(Some(
-            SelectedCompilerIntrinsicExecutionIdentity::Unsupported,
-        ));
+    if let NamedFloatRealization::Convert(domain) = realization {
+        let operators = checked
+            .typed
+            .operators()
+            .iter()
+            .filter(|operator| operator.symbol == requirement_symbol)
+            .collect::<Vec<_>>();
+        let [operator] = operators.as_slice() else {
+            return Err(Diagnostic::error(format!(
+                "selected ProviderPlan `{}` resolves conversion requirement symbol {:?} to {} operator declarations",
+                plan.name,
+                requirement_symbol,
+                operators.len(),
+            )));
+        };
+        return named_float_conversion_execution_identity(checked, operator, domain)
+            .map(SelectedCompilerIntrinsicExecutionIdentity::Closed)
+            .map(Some);
     }
     let function = named_float_realization_builtin(realization)?;
     let symbol = checked
@@ -389,6 +403,42 @@ pub fn derive_selected_compiler_intrinsic_execution_identity(
     Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
         CompilerIntrinsicExecutionIdentity::BuiltinFunction(function),
     )))
+}
+
+fn named_float_conversion_execution_identity(
+    checked: &CheckedTrees,
+    operator: &psi_typed_trees::operator::OperatorDefinition,
+    domain: ArithmeticDomain,
+) -> Result<CompilerIntrinsicExecutionIdentity, Diagnostic> {
+    let [value] = checked.typed.operator_parameters(operator) else {
+        return Err(Diagnostic::error(
+            "selected named-float conversion must retain exactly one parameter",
+        ));
+    };
+    let source = checked
+        .typed
+        .primitive_type_reference(value.type_reference)
+        .and_then(CompilerNumericType::from_primitive)
+        .ok_or_else(|| {
+            Diagnostic::error("selected named-float conversion has no closed numeric source type")
+        })?;
+    let target = checked
+        .typed
+        .primitive_type_reference(operator.return_type)
+        .and_then(CompilerNumericType::from_primitive)
+        .ok_or_else(|| {
+            Diagnostic::error("selected named-float conversion has no closed numeric target type")
+        })?;
+    if !source.is_float() && !target.is_float() {
+        return Err(Diagnostic::error(
+            "selected named-float conversion does not cross a floating-point type",
+        ));
+    }
+    Ok(CompilerIntrinsicExecutionIdentity::NamedFloatConversion {
+        source,
+        target,
+        domain,
+    })
 }
 
 fn selected_compiler_intrinsic_realization(
@@ -850,6 +900,8 @@ mod tests {
         boundary operator F32::maximum(left: f32, right: f32) -> f32;
         boundary operator F32::negate(value: f32) -> f32;
         boundary operator F32::from_f64(value: f64) -> f32;
+        data I32 {}
+        boundary operator I32::from_f64(value: f64) -> i32 in Saturating;
 
         data FloatProvider {}
         machine FloatProvider::minimum(left: f32, right: f32) -> f32
@@ -864,6 +916,9 @@ mod tests {
         machine FloatProvider::from_f64(value: f64) -> f32
         satisfies F32::from_f64
         via Binding::CompilerIntrinsic;
+        machine FloatProvider::from_f64_saturating(value: f64) -> i32 in Saturating
+        satisfies I32::from_f64
+        via Binding::CompilerIntrinsic;
 
         machine run() -> f32 {
             transition { _ -> (F32::minimum(1.0f32, 2.0f32)) }
@@ -876,6 +931,7 @@ mod tests {
         maximum_plan: omega_effects::provider_plan::ProviderPlan,
         negate_plan: omega_effects::provider_plan::ProviderPlan,
         conversion_plan: omega_effects::provider_plan::ProviderPlan,
+        saturating_conversion_plan: omega_effects::provider_plan::ProviderPlan,
         operator_use: psi_checked_trees::CheckedNamedOperatorUseFact,
     }
 
@@ -911,6 +967,11 @@ mod tests {
             .find(|plan| plan.schema.trait_name.contains("F32::from_f64"))
             .expect("F32::from_f64 provider plan")
             .clone();
+        let saturating_conversion_plan = plans
+            .iter()
+            .find(|plan| plan.schema.trait_name.contains("I32::from_f64"))
+            .expect("I32::from_f64 provider plan")
+            .clone();
         let checked = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
             .expect("check named-float dispatch fixture");
         let operator_use = checked
@@ -941,6 +1002,7 @@ mod tests {
             maximum_plan,
             negate_plan,
             conversion_plan,
+            saturating_conversion_plan,
             operator_use,
         }
     }
@@ -1254,8 +1316,46 @@ mod tests {
             )
             .expect("exact selected conversion must rederive")
             .expect("conversion is a compiler intrinsic"),
-            SelectedCompilerIntrinsicExecutionIdentity::Unsupported,
-            "conversion remains fail-closed until source and target type identity are retained",
+            SelectedCompilerIntrinsicExecutionIdentity::Closed(
+                CompilerIntrinsicExecutionIdentity::NamedFloatConversion {
+                    source: CompilerNumericType::F64,
+                    target: CompilerNumericType::F32,
+                    domain: ArithmeticDomain::Exact,
+                },
+            ),
+        );
+
+        let saturating_conversion_symbol = fixture
+            .checked
+            .typed
+            .operators()
+            .iter()
+            .find(|operator| {
+                fixture
+                    .checked
+                    .typed
+                    .operator_path_members(operator.name)
+                    .iter()
+                    .map(|member| member.as_str())
+                    .eq(["I32", "from_f64"])
+            })
+            .expect("I32::from_f64 operator")
+            .symbol;
+        assert_eq!(
+            derive_selected_compiler_intrinsic_execution_identity(
+                &fixture.checked,
+                &fixture.saturating_conversion_plan,
+                saturating_conversion_symbol,
+            )
+            .expect("exact selected saturating conversion must rederive")
+            .expect("saturating conversion is a compiler intrinsic"),
+            SelectedCompilerIntrinsicExecutionIdentity::Closed(
+                CompilerIntrinsicExecutionIdentity::NamedFloatConversion {
+                    source: CompilerNumericType::F64,
+                    target: CompilerNumericType::I32,
+                    domain: ArithmeticDomain::Saturating,
+                },
+            ),
         );
     }
 

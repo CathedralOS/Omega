@@ -3648,9 +3648,67 @@ pub struct SelectedProviderPlanWithProvenance {
 /// This vocabulary is intentionally finite. A checked compiler intrinsic that
 /// cannot be represented here is not package-reviewable yet.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompilerNumericType {
+    I8,
+    I16,
+    I32,
+    I64,
+    U8,
+    U16,
+    U32,
+    U64,
+    F32,
+    F64,
+}
+
+impl CompilerNumericType {
+    pub const fn from_primitive(primitive: psi_typed_trees::types::PrimitiveType) -> Option<Self> {
+        use psi_typed_trees::types::PrimitiveType;
+
+        match primitive {
+            PrimitiveType::I8 => Some(Self::I8),
+            PrimitiveType::I16 => Some(Self::I16),
+            PrimitiveType::I32 => Some(Self::I32),
+            PrimitiveType::I64 => Some(Self::I64),
+            PrimitiveType::U8 => Some(Self::U8),
+            PrimitiveType::U16 => Some(Self::U16),
+            PrimitiveType::U32 => Some(Self::U32),
+            PrimitiveType::U64 => Some(Self::U64),
+            PrimitiveType::F32 => Some(Self::F32),
+            PrimitiveType::F64 => Some(Self::F64),
+            PrimitiveType::Bool | PrimitiveType::Addr => None,
+        }
+    }
+
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::I8 => "i8",
+            Self::I16 => "i16",
+            Self::I32 => "i32",
+            Self::I64 => "i64",
+            Self::U8 => "u8",
+            Self::U16 => "u16",
+            Self::U32 => "u32",
+            Self::U64 => "u64",
+            Self::F32 => "f32",
+            Self::F64 => "f64",
+        }
+    }
+
+    pub const fn is_float(self) -> bool {
+        matches!(self, Self::F32 | Self::F64)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompilerIntrinsicExecutionIdentity {
     BuiltinFunction(psi_symbols::BuiltinFunction),
     NamedFloatNegation(psi_numerics::literals::FloatFormat),
+    NamedFloatConversion {
+        source: CompilerNumericType,
+        target: CompilerNumericType,
+        domain: psi_numerics::arithmetic::ArithmeticDomain,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

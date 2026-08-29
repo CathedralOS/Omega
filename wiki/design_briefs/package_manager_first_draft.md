@@ -717,9 +717,14 @@ is selected by compiler dispatch from the exact checked boundary overload and
 external realization join, never parsed from the authored realization-machine
 name; that machine remains a separate package-qualified nominal. Projection
 rederives and cross-checks the atom, while absent, cross-format, non-intrinsic,
-and otherwise spoofed state rejects. Named-float conversion remains
-fail-closed until its source type, target type, and arithmetic policy are
-carried together as one closed execution identity.
+and otherwise spoofed state rejects.
+Review v80 and canonical row v38 close named-float conversion as one atom
+containing the exact checked numeric source type, numeric target type, and
+arithmetic domain. This distinguishes float-width conversion from every
+float-to-integer width and signedness and distinguishes `Exact`, `Saturating`,
+and `Trapping` integer results. The compiler derives all three coordinates from
+the exact checked overload; changing or omitting any coordinate rejects during
+review reconciliation rather than degrading to an authored name.
 Review v75 and canonical row v33 likewise admit the compiler-owned collection-
 length projection in public contract expressions. Checked proof-static member
 resolution derives the receiver type from its retained declaration symbol,

@@ -43,6 +43,15 @@ const fn project_execution_identity(
         CompilerIntrinsicExecutionIdentity::NamedFloatNegation(format) => {
             PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(format)
         }
+        CompilerIntrinsicExecutionIdentity::NamedFloatConversion {
+            source,
+            target,
+            domain,
+        } => PackageReviewCompilerIntrinsicExecution::NamedFloatConversion {
+            source,
+            target,
+            domain,
+        },
     }
 }
 
@@ -54,6 +63,16 @@ fn execution_identity_label(identity: CompilerIntrinsicExecutionIdentity) -> Str
         CompilerIntrinsicExecutionIdentity::NamedFloatNegation(format) => {
             format!("named-float negation `{}`", format.name())
         }
+        CompilerIntrinsicExecutionIdentity::NamedFloatConversion {
+            source,
+            target,
+            domain,
+        } => format!(
+            "named-float conversion `{} -> {}` in `{}` arithmetic",
+            source.name(),
+            target.name(),
+            domain.name(),
+        ),
     }
 }
 
@@ -101,8 +120,10 @@ mod tests {
     #[test]
     fn execution_reconciliation_rejects_missing_mismatched_and_spoofed_state() {
         use omega_provider_planning::plans::CompilerIntrinsicExecutionIdentity::{
-            BuiltinFunction, NamedFloatNegation,
+            BuiltinFunction, NamedFloatConversion, NamedFloatNegation,
         };
+        use omega_provider_planning::plans::CompilerNumericType;
+        use psi_numerics::arithmetic::ArithmeticDomain;
         use psi_numerics::literals::FloatFormat;
         use psi_symbols::BuiltinFunction::{Max, Min};
 
@@ -116,6 +137,23 @@ mod tests {
                 Some(BuiltinFunction(Min)),
             ),
             Ok(Some(BuiltinFunction(Min))),
+        );
+
+        let conversion = NamedFloatConversion {
+            source: CompilerNumericType::F64,
+            target: CompilerNumericType::F32,
+            domain: ArithmeticDomain::Exact,
+        };
+        assert_eq!(
+            reconcile_compiler_intrinsic_execution(
+                "convert",
+                true,
+                Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
+                    conversion
+                )),
+                Some(conversion),
+            ),
+            Ok(Some(conversion)),
         );
 
         for (derived, retained, expected) in [
@@ -141,6 +179,39 @@ mod tests {
                 "retains compiler execution identity named-float negation `f64`, but exact selected execution rederives named-float negation `f32`",
             ),
             (
+                Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
+                    conversion,
+                )),
+                Some(NamedFloatConversion {
+                    source: CompilerNumericType::F32,
+                    target: CompilerNumericType::F32,
+                    domain: ArithmeticDomain::Exact,
+                }),
+                "retains compiler execution identity named-float conversion `f32 -> f32` in `Exact` arithmetic, but exact selected execution rederives named-float conversion `f64 -> f32` in `Exact` arithmetic",
+            ),
+            (
+                Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
+                    conversion,
+                )),
+                Some(NamedFloatConversion {
+                    source: CompilerNumericType::F64,
+                    target: CompilerNumericType::F64,
+                    domain: ArithmeticDomain::Exact,
+                }),
+                "retains compiler execution identity named-float conversion `f64 -> f64` in `Exact` arithmetic, but exact selected execution rederives named-float conversion `f64 -> f32` in `Exact` arithmetic",
+            ),
+            (
+                Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
+                    conversion,
+                )),
+                Some(NamedFloatConversion {
+                    source: CompilerNumericType::F64,
+                    target: CompilerNumericType::F32,
+                    domain: ArithmeticDomain::Wrapping,
+                }),
+                "retains compiler execution identity named-float conversion `f64 -> f32` in `Wrapping` arithmetic, but exact selected execution rederives named-float conversion `f64 -> f32` in `Exact` arithmetic",
+            ),
+            (
                 Some(SelectedCompilerIntrinsicExecutionIdentity::Unsupported),
                 None,
                 "without a closed package-review identity",
@@ -159,5 +230,12 @@ mod tests {
         )
         .expect_err("a non-intrinsic row cannot claim compiler identity");
         assert!(spoofed.contains("spoofed compiler execution identity named-float negation `f32`"));
+
+        let spoofed_conversion =
+            reconcile_compiler_intrinsic_execution("ordinary", false, None, Some(conversion))
+                .expect_err("a non-intrinsic row cannot claim compiler conversion identity");
+        assert!(spoofed_conversion.contains(
+            "spoofed compiler execution identity named-float conversion `f64 -> f32` in `Exact` arithmetic"
+        ));
     }
 }

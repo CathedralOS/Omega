@@ -63,4 +63,11 @@ reconstruction before recovered rows can be compared.
 
 The crate root exports the stable external surface. Cross-responsibility
 construction helpers and fields remain `pub(crate)` and are not external API.
-The canonical review schema is version 79 and row schema version 37.
+Compiler-owned provider execution identity is retained independently from the
+authored realization nominal. The closed review vocabulary currently covers
+builtin functions, exact named-float negation formats, and named-float
+conversions with explicit source type, target type, and arithmetic domain.
+Unsupported intrinsic forms remain inadmissible until they receive a closed
+identity.
+
+The canonical review schema is version 80 and row schema version 38.

@@ -2,9 +2,9 @@ use super::*;
 use psi_core::PackageKeyIdentity;
 
 pub(crate) const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 79;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 80;
 pub(crate) const ROW_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW\0";
-pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 37;
+pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 38;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PackageReviewEncodingLimits {
