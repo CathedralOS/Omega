@@ -159,10 +159,14 @@ return value, frame shape, parameter, or entry-control form the hardware cannot
 honor instead of manufacturing a deliberately invalid plan.
 
 An accepted result is compiler-validated and canonicalized before use. The
-fingerprint of that canonical evaluated result—not `C`'s symbol, source body, or
-unnormalized construction order—enters public contract identity. Refactoring a
-policy machine without changing its normalized output therefore preserves ABI
-identity; changing an observable placement or state commitment changes it.
+canonical evaluated result—not `C`'s symbol, source body, or unnormalized
+construction order—enters public contract identity. The complete canonical
+public contract now has a domain-separated SHA-256 commitment; its historical
+64-bit fingerprint is compatibility/report metadata only. Checked plans,
+realized envelopes, Terminal handoff, and nominal provider selection replay the
+strong commitment. Refactoring a policy machine without changing its normalized
+output therefore preserves ABI identity; changing an observable placement or
+state commitment changes it.
 
 Selected vtable-slot, vtable-field, service-table, and source-authored import
 bindings carry that evaluated plan all the way through layout and emission.

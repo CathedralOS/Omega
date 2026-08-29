@@ -13,12 +13,15 @@ pub enum NominalMachineUseSite {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CheckedMachineContractEnvelopeIdentity {
     pub contract_fingerprint: u64,
+    pub contract_commitment: crate::MachineContractCommitment,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CheckedMachineContractRefinement {
     pub published_requirement_fingerprint: u64,
+    pub published_requirement_commitment: crate::MachineContractCommitment,
     pub selected_actual_fingerprint: u64,
+    pub selected_actual_commitment: crate::MachineContractCommitment,
 }
 
 /// Exact evaluated boundary-entry plan selected for a nominal callback use.
@@ -194,6 +197,12 @@ impl NominalMachineUseFacts {
                     .contract_fingerprint
                 || nominal_use.refinement.selected_actual_fingerprint
                     != nominal_use.selected_actual_envelope.contract_fingerprint
+                || nominal_use.refinement.published_requirement_commitment
+                    != nominal_use
+                        .published_requirement_envelope
+                        .contract_commitment
+                || nominal_use.refinement.selected_actual_commitment
+                    != nominal_use.selected_actual_envelope.contract_commitment
             {
                 return Err(
                     "nominal machine use refinement receipt does not bind its envelope identities"
@@ -234,6 +243,7 @@ impl NominalMachineUseFacts {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::MachineContractCommitment;
 
     fn nominal_use(selected_machine_index: u32) -> CheckedNominalMachineUse {
         CheckedNominalMachineUse {
@@ -247,14 +257,18 @@ mod tests {
             canonical_requirement_overload: "Handler::call".to_owned(),
             published_requirement_envelope: CheckedMachineContractEnvelopeIdentity {
                 contract_fingerprint: 7,
+                contract_commitment: MachineContractCommitment::from_digest([7; 32]),
             },
             selected_actual_envelope: CheckedMachineContractEnvelopeIdentity {
                 contract_fingerprint: 8,
+                contract_commitment: MachineContractCommitment::from_digest([8; 32]),
             },
             callback_placement: None,
             refinement: CheckedMachineContractRefinement {
                 published_requirement_fingerprint: 7,
+                published_requirement_commitment: MachineContractCommitment::from_digest([7; 32]),
                 selected_actual_fingerprint: 8,
+                selected_actual_commitment: MachineContractCommitment::from_digest([8; 32]),
             },
         }
     }

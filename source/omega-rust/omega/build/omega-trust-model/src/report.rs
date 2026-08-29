@@ -755,6 +755,7 @@ mod tests {
                 closed_scalar_values: Default::default(),
                 crash: CrashPlan::default(),
                 fingerprint: 0x1234_5678_9abc_def0,
+                commitment: psi_checked_trees::MachineContractCommitment::from_digest([1; 32]),
             });
         assert_eq!(
             accepted_instance_contract_fingerprint(&checked, machine, "admitted"),
@@ -804,6 +805,7 @@ mod tests {
                 closed_scalar_values: Default::default(),
                 crash,
                 fingerprint: 0,
+                commitment: psi_checked_trees::MachineContractCommitment::from_digest([0; 32]),
             }],
             crash_capsules: Vec::new(),
             realized_envelopes: Vec::new(),
@@ -854,6 +856,7 @@ mod tests {
                 closed_scalar_values: Default::default(),
                 crash: CrashPlan::published_ceiling(Vec::new()),
                 fingerprint: 0x1234,
+                commitment: psi_checked_trees::MachineContractCommitment::from_digest([1; 32]),
             });
         let empty_reach = checked.facts.service_reaches.rows.intern(Vec::new());
         checked.facts.service_reaches.machines.append_to_span(

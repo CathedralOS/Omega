@@ -76,7 +76,7 @@ const PROJECTED_SOURCE: &str = r#"
 
 const FIXED_INDEX_SOURCE: &str = r#"
     boundary trait PortIo {}
-    data Receipt [linear] { should_abort: bool; }
+    pub data Receipt [linear] { should_abort: bool; }
 
     boundary machine Receipt::settle(self)
     reaches PortIo

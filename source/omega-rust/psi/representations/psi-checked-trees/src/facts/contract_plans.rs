@@ -15,6 +15,7 @@ use psi_language_semantics::{
 };
 use psi_numerics::literals::IntegerLiteral;
 use psi_symbols::SymbolHandle;
+use sha2::{Digest, Sha256};
 use std::{cmp::Ordering, hash::Hash};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -489,9 +490,10 @@ impl CheckedCrashSite {
 /// summary may be a published ceiling or conservative same-unit checked-body
 /// evidence. `surviving_buckets` are already expressed in the caller's
 /// canonical scalar value namespace, including direct caller-local arguments.
-/// `target_machine` plus `target_contract_fingerprint` also pins the
+/// `target_machine` plus `target_contract_commitment` pins the exact
 /// parameter-relative route origin when terminal control must bind a staged
 /// argument value directly rather than reverse-matching caller expressions.
+/// The compact fingerprint remains a compatibility/report coordinate only.
 /// Exact incoming conjuncts remain distinct
 /// from the sound structural consequences used by ceiling coverage. An empty
 /// surviving set is meaningful evidence that the selected summary is
@@ -503,20 +505,23 @@ pub struct CheckedCrashCallSite {
     target_machine: SymbolHandle,
     target_state: SymbolHandle,
     target_contract_fingerprint: u64,
+    target_contract_commitment: MachineContractCommitment,
     path_guard_conjuncts: Vec<CrashPredicateIdentity>,
     path_guard_consequences: Vec<CrashPredicateIdentity>,
     surviving_buckets: Vec<CrashRouteBucket>,
 }
 
 /// Source-independent published envelope for a callable requirement that has
-/// no local `MachineContractPlan`. The fingerprint pins the complete normalized
-/// callable contract; independent operational axes and the crash ceiling stay
-/// directly queryable without reopening the authored signature.
+/// no local `MachineContractPlan`. The commitment pins the complete normalized
+/// callable contract; the fingerprint is a compatibility/report coordinate.
+/// Independent operational axes and the crash ceiling stay directly queryable
+/// without reopening the authored signature.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CrashContractCapsule {
     target_machine: SymbolHandle,
     target_state: SymbolHandle,
     target_contract_fingerprint: u64,
+    target_contract_commitment: MachineContractCommitment,
     published_service_reach: Vec<String>,
     published_synchronous_invocations: Vec<String>,
     published_may_suspend: bool,
@@ -530,6 +535,22 @@ impl CrashContractCapsule {
         target_machine: SymbolHandle,
         target_state: SymbolHandle,
         target_contract_fingerprint: u64,
+        published_buckets: Vec<CrashRouteBucket>,
+    ) -> Self {
+        Self::new_with_commitment(
+            target_machine,
+            target_state,
+            target_contract_fingerprint,
+            MachineContractCommitment::from_digest([0; 32]),
+            published_buckets,
+        )
+    }
+
+    pub fn new_with_commitment(
+        target_machine: SymbolHandle,
+        target_state: SymbolHandle,
+        target_contract_fingerprint: u64,
+        target_contract_commitment: MachineContractCommitment,
         mut published_buckets: Vec<CrashRouteBucket>,
     ) -> Self {
         published_buckets.sort();
@@ -538,6 +559,7 @@ impl CrashContractCapsule {
             target_machine,
             target_state,
             target_contract_fingerprint,
+            target_contract_commitment,
             published_service_reach: Vec::new(),
             published_synchronous_invocations: Vec::new(),
             published_may_suspend: false,
@@ -579,6 +601,10 @@ impl CrashContractCapsule {
         self.target_contract_fingerprint
     }
 
+    pub const fn target_contract_commitment(&self) -> MachineContractCommitment {
+        self.target_contract_commitment
+    }
+
     pub fn published_buckets(&self) -> &[CrashRouteBucket] {
         &self.published_buckets
     }
@@ -610,6 +636,24 @@ impl CheckedCrashCallSite {
         target_machine: SymbolHandle,
         target_state: SymbolHandle,
         target_contract_fingerprint: u64,
+        surviving_buckets: Vec<CrashRouteBucket>,
+    ) -> Self {
+        Self::new_with_commitment(
+            location,
+            target_machine,
+            target_state,
+            target_contract_fingerprint,
+            MachineContractCommitment::from_digest([0; 32]),
+            surviving_buckets,
+        )
+    }
+
+    pub fn new_with_commitment(
+        location: CrashCallSiteLocation,
+        target_machine: SymbolHandle,
+        target_state: SymbolHandle,
+        target_contract_fingerprint: u64,
+        target_contract_commitment: MachineContractCommitment,
         mut surviving_buckets: Vec<CrashRouteBucket>,
     ) -> Self {
         surviving_buckets.sort();
@@ -619,6 +663,7 @@ impl CheckedCrashCallSite {
             target_machine,
             target_state,
             target_contract_fingerprint,
+            target_contract_commitment,
             path_guard_conjuncts: Vec::new(),
             path_guard_consequences: Vec::new(),
             surviving_buckets,
@@ -639,6 +684,10 @@ impl CheckedCrashCallSite {
 
     pub const fn target_contract_fingerprint(&self) -> u64 {
         self.target_contract_fingerprint
+    }
+
+    pub const fn target_contract_commitment(&self) -> MachineContractCommitment {
+        self.target_contract_commitment
     }
 
     pub fn path_guard_conjuncts(&self) -> &[CrashPredicateIdentity] {
@@ -1077,7 +1126,9 @@ impl MachineContractPlans {
             if matching.next().is_some() {
                 return Err("checked resource envelope has duplicate realized machine rows");
             }
-            if realized.contract_fingerprint != contract.fingerprint {
+            if realized.contract_fingerprint != contract.fingerprint
+                || realized.contract_commitment != contract.commitment
+            {
                 return Err(
                     "checked resource envelope contract identity disagrees with its realized machine row",
                 );
@@ -1507,6 +1558,7 @@ fn checked_resource_fingerprint(bytes: impl IntoIterator<Item = u8>) -> u64 {
 pub struct RealizedMachineContractEnvelope {
     pub machine: SymbolHandle,
     pub contract_fingerprint: u64,
+    pub contract_commitment: MachineContractCommitment,
     pub effective_service_reach: Vec<String>,
     /// Concrete reach with installation-selected upper-bound contributions
     /// removed. Root composition unions resolved rows into this provenance-
@@ -1539,10 +1591,35 @@ pub struct MachineContractPlan {
     /// Clause grouping, ordering, duplicate predicates, and `true` spelling do
     /// not survive into the published carrier; sites do not enter identity.
     pub crash: CrashPlan,
-    /// The deterministic identity over the published halves above. Stable
-    /// across prover-strength changes and body edits that keep the declared
-    /// surface.
+    /// Historical compact compatibility coordinate. This is report/cache data
+    /// and never sufficient contract authority without `commitment`.
     pub fingerprint: u64,
+    /// Domain-separated SHA-256 commitment to the complete canonical public
+    /// contract structure.
+    pub commitment: MachineContractCommitment,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct MachineContractCommitment([u8; 32]);
+
+impl MachineContractCommitment {
+    pub const fn from_digest(digest: [u8; 32]) -> Self {
+        Self(digest)
+    }
+
+    pub const fn as_bytes(self) -> [u8; 32] {
+        self.0
+    }
+
+    pub fn is_zero(self) -> bool {
+        self.0 == [0; 32]
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MachineContractIdentity {
+    pub compatibility_fingerprint: u64,
+    pub commitment: MachineContractCommitment,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1591,11 +1668,10 @@ impl ClosedScalarValueContractPlan {
     }
 }
 
-/// The slice-1 fingerprint: an FNV-1a fold over the published halves'
-/// normalized encodings. Deterministic across programs for the same
-/// declared surface (canonical service names are sorted/deduplicated; the
-/// termination guarantee and supply mode are closed enums).
-pub fn contract_fingerprint(
+/// Canonical public contract identity. The historical FNV-1a coordinate is
+/// retained for reports and caches; authority uses the domain-separated
+/// SHA-256 commitment over the same complete normalized byte stream.
+pub fn contract_identity(
     supply_mode: MachineSupplyMode,
     published_service_names: &[String],
     invocation_interface: SynchronousInvocationInterface,
@@ -1605,13 +1681,16 @@ pub fn contract_fingerprint(
     crash: &CrashPlan,
     termination: &TerminationInterface,
     canonical_facts: &[Vec<u8>],
-) -> u64 {
+) -> MachineContractIdentity {
     const OFFSET: u64 = 0xcbf29ce484222325;
     const PRIME: u64 = 0x100000001b3;
     let mut hash = OFFSET;
+    let mut strong = Sha256::new();
+    strong.update(b"omega.checked-machine-public-contract.v1\0");
     let mut fold = |byte: u8| {
         hash ^= u64::from(byte);
         hash = hash.wrapping_mul(PRIME);
+        strong.update([byte]);
     };
     fold(match supply_mode {
         MachineSupplyMode::CheckedBody => 1,
@@ -1722,12 +1801,103 @@ pub fn contract_fingerprint(
         }
         fold(0xfc);
     }
-    hash
+    MachineContractIdentity {
+        compatibility_fingerprint: hash,
+        commitment: MachineContractCommitment::from_digest(strong.finalize().into()),
+    }
+}
+
+pub fn contract_fingerprint(
+    supply_mode: MachineSupplyMode,
+    published_service_names: &[String],
+    invocation_interface: SynchronousInvocationInterface,
+    published_invocations: &[String],
+    suspension_interface: SuspensionInterface,
+    blocking_interface: BlockingInterface,
+    crash: &CrashPlan,
+    termination: &TerminationInterface,
+    canonical_facts: &[Vec<u8>],
+) -> u64 {
+    contract_identity(
+        supply_mode,
+        published_service_names,
+        invocation_interface,
+        published_invocations,
+        suspension_interface,
+        blocking_interface,
+        crash,
+        termination,
+        canonical_facts,
+    )
+    .compatibility_fingerprint
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn compact_equal_machine_contract_substitution_rejects() {
+        let machine = SymbolHandle::from_arena_index(17);
+        let entry = SymbolHandle::from_arena_index(18);
+        let compact = 0xfeed;
+        let expected = MachineContractCommitment::from_digest([0x11; 32]);
+        let substituted = MachineContractCommitment::from_digest([0x22; 32]);
+        let plans = MachineContractPlans {
+            machines: vec![MachineContractPlan {
+                machine,
+                closed_scalar_values: ClosedScalarValueContractPlan::default(),
+                crash: CrashPlan::default(),
+                fingerprint: compact,
+                commitment: expected,
+            }],
+            crash_capsules: Vec::new(),
+            realized_envelopes: vec![RealizedMachineContractEnvelope {
+                machine,
+                contract_fingerprint: compact,
+                contract_commitment: substituted,
+                effective_service_reach: Vec::new(),
+                concrete_service_reach: Vec::new(),
+                unresolved_installation_reaches: Vec::new(),
+                effective_synchronous_invocations: Vec::new(),
+                checked_may_suspend: false,
+                checked_may_block: false,
+                checked_termination: TerminationGuarantee::NoGuarantee,
+                checked_crash: CrashPlan::default(),
+                mutation: Vec::new(),
+                capabilities: Vec::new(),
+                resources: CheckedMachineResourceEnvelopes::from_checked_contract_entries(
+                    machine,
+                    compact,
+                    [entry],
+                ),
+            }],
+        };
+
+        assert!(
+            plans
+                .validate_resource_envelopes()
+                .expect_err("compact-equal structural contract substitution must reject")
+                .contains("contract identity disagrees")
+        );
+    }
+
+    #[test]
+    fn machine_contract_fnv_is_report_only_and_strong_identity_is_domain_separated() {
+        let source = include_str!("contract_plans.rs");
+        let compact_marker = ["const OFFSET: u64 = 0x", "cbf29ce484222325"].concat();
+        assert_eq!(
+            source.matches(compact_marker.as_str()).count(),
+            2,
+            "the reviewed checked-contract/resource compact inventory changed"
+        );
+        assert!(
+            source.contains("omega.checked-machine-public-contract.v1\\0")
+                && source.contains("pub fn contract_identity(")
+                && source.contains("pub commitment: MachineContractCommitment"),
+            "public machine contracts must retain a domain-separated strong commitment"
+        );
+    }
 
     #[test]
     fn checked_resource_envelope_replays_three_distinct_derivation_obligations() {

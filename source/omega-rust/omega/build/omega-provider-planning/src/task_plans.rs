@@ -1229,12 +1229,14 @@ mod tests {
                 closed_scalar_values: Default::default(),
                 crash: Default::default(),
                 fingerprint: 0x1111,
+                commitment: psi_checked_trees::MachineContractCommitment::from_digest([1; 32]),
             },
             psi_checked_trees::MachineContractPlan {
                 machine: unrelated,
                 closed_scalar_values: Default::default(),
                 crash: Default::default(),
                 fingerprint: 0x2222,
+                commitment: psi_checked_trees::MachineContractCommitment::from_digest([2; 32]),
             },
         ];
         program.facts.suspensions.machines = vec![

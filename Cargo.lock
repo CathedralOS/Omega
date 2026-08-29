@@ -585,6 +585,7 @@ version = "0.1.0"
 name = "omega-effects"
 version = "0.1.0"
 dependencies = [
+ "omega-installation-evidence",
  "omega-target",
  "psi-core",
  "psi-diagnostics",
@@ -601,6 +602,7 @@ dependencies = [
 name = "omega-executable-installation"
 version = "0.1.0"
 dependencies = [
+ "omega-installation-evidence",
  "omega-target",
  "psi-extents",
  "psi-layout-plans",
@@ -1550,6 +1552,7 @@ dependencies = [
  "psi-source",
  "psi-symbols",
  "psi-typed-trees",
+ "sha2",
 ]
 
 [[package]]

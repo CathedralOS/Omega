@@ -337,9 +337,10 @@ checked placement identity, a domain-separated callback entry identity, exact
 Text interval and BSS snapshot, encoded address store, and target relocation
 rows; retained-artifact validation independently replays the full snapshot.
 Deployment projects those entries into the artifact entry catalog, then binds
-the complete sealed entry to the exact installed occurrence, architecture,
-unrelocated/materialized bytes, and entry offset. Root installation requires
-the same installed occurrence, entry, and requirement, and pending/live/error/
+the complete sealed entry to a domain-separated digest of the exact installed
+occurrence, architecture, unrelocated/materialized bytes, and entry offset.
+Root installation requires the same installed-occurrence digest, entry, and
+requirement, and pending/live/error/
 cleanup/quiescence custody never drops that attribution. The manifest exposes
 no resolved address and grants no registrar invocation, source `Registration`,
 capacity, lease, or publication authority. `DataAddress`, direct parameters,

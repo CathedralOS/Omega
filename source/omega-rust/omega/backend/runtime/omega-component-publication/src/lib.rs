@@ -283,7 +283,10 @@ impl RunnableComponentEraLedger {
         receipt: ComponentEraPublicationReceipt,
         runnable: InstalledRunnableComponent,
     ) -> Result<(), Box<RunnableEraPublicationError>> {
-        if candidate.artifact_instance_identity != runnable.installed_code().normalized_identity() {
+        if candidate.artifact_occurrence_digest != runnable.installed().occurrence_digest()
+            || candidate.artifact_instance_compatibility_report_identity
+                != runnable.installed_code().normalized_identity()
+        {
             return Err(Box::new(RunnableEraPublicationError {
                 candidate,
                 receipt,

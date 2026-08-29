@@ -595,6 +595,7 @@ pub(super) fn attach_checked_crash_calls(
                 target_parameter_names,
                 target_routes,
                 target_contract_fingerprint,
+                target_contract_commitment,
             ) = if let (Some(target_machine), Some(target_plan)) = (local_target, local_plan) {
                 let Some(target_state) = program
                     .machine_states(target_machine)
@@ -641,6 +642,7 @@ pub(super) fn attach_checked_crash_calls(
                         .unwrap_or_default(),
                     target_routes,
                     target_plan.fingerprint,
+                    target_plan.commitment,
                 )
             } else {
                 let Some(capsule) = crash_capsules.iter().find(|capsule| {
@@ -670,6 +672,7 @@ pub(super) fn attach_checked_crash_calls(
                         }
                     },
                     capsule.target_contract_fingerprint(),
+                    capsule.target_contract_commitment(),
                 )
             };
             let Some(call_site) = crate::find_call_site(
@@ -736,9 +739,8 @@ pub(super) fn attach_checked_crash_calls(
                     calls_by_caller.push((state_flow.machine_symbol, Vec::new()));
                     calls_by_caller.len() - 1
                 });
-            calls_by_caller[caller_index]
-                .1
-                .push(psi_checked_trees::CheckedCrashCallSite::new(
+            calls_by_caller[caller_index].1.push(
+                psi_checked_trees::CheckedCrashCallSite::new_with_commitment(
                     psi_checked_trees::CrashCallSiteLocation::new(
                         state_flow.state_symbol,
                         u32::try_from(call_flow.statement_index)
@@ -749,8 +751,10 @@ pub(super) fn attach_checked_crash_calls(
                     target_machine_symbol,
                     target_state_symbol,
                     target_contract_fingerprint,
+                    target_contract_commitment,
                     surviving_buckets,
-                ));
+                ),
+            );
         }
     }
 

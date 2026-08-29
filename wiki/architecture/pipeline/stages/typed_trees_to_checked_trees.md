@@ -626,7 +626,7 @@ Current ownership is:
   Callable trait and top-level boundary requirements, plus unresolved compile-time machine parameters,
   instead select a checked crash-contract capsule. The capsule retains the
   normalized public crash buckets and pins them to the complete normalized
-  callable-contract fingerprint, so call refinement never depends on a local
+  callable-contract commitment, so call refinement never depends on a local
   body or reopens the authored signature after checked lowering. Separately
   compiled imports still require the corresponding artifact-capsule input;
   that input is design blocked until the semantic import/export carrier,
@@ -648,9 +648,10 @@ Current ownership is:
   selected machine into that plan fingerprint. Target lowering joins the fixed
   slot/destination row to this per-use selection and rejects incomplete private
   materialization closure.
-  The row also joins the requirement capsule's normalized contract fingerprint
-  to the selected machine's normalized declared contract fingerprint and
-  retains an explicit admission-refinement receipt over those endpoints. The
+  The row also joins the requirement capsule's normalized contract commitment
+  to the selected machine's normalized declared contract commitment and retains
+  an explicit admission-refinement receipt over those endpoints. Historical
+  compact fingerprints remain report compatibility coordinates only. The
   published capsule separately carries canonical service reach, synchronous
   invocation, suspension, blocking, termination, and crash axes. One
   exact-machine realized envelope aggregates effective checked reach and

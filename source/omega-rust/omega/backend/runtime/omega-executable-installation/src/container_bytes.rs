@@ -26,6 +26,8 @@ const SECTION_PLACEMENT: u16 = 5;
 const SECTION_ENTRIES: u16 = 6;
 const SECTION_PROOF: u16 = 7;
 const SECTION_INFORMATIONAL: u16 = 8;
+const SECTION_AUTHORITY_COMMITMENTS: u16 = 9;
+const AUTHORITY_COMMITMENT_BYTES: u64 = 128;
 
 pub fn non_authoritative_informational_section_fingerprint(
     kind: u16,
@@ -72,12 +74,45 @@ pub fn encode_executable_container(
     proof: &[u8],
     limits: ContainerLimits,
 ) -> Result<Vec<u8>, InstallationDiagnostic> {
+    encode_executable_container_version(artifact, proof, limits, true)
+}
+
+/// Re-encodes a decoded version-1 compatibility candidate byte-for-byte.
+/// Version 1 has no strong imported-authority section and cannot be admitted.
+pub fn encode_executable_container_v1_compatibility(
+    artifact: &Artifact,
+    proof: &[u8],
+    limits: ContainerLimits,
+) -> Result<Vec<u8>, InstallationDiagnostic> {
+    encode_executable_container_version(artifact, proof, limits, false)
+}
+
+fn encode_executable_container_version(
+    artifact: &Artifact,
+    proof: &[u8],
+    limits: ContainerLimits,
+    strong_authority: bool,
+) -> Result<Vec<u8>, InstallationDiagnostic> {
     if proof.is_empty() {
         return Err(InstallationDiagnostic(
             "artifact proof section cannot be empty".into(),
         ));
     }
-    let section_count = 7_u64;
+    match (strong_authority, artifact.0.authority_commitments) {
+        (true, None) => {
+            return Err(InstallationDiagnostic(
+                "container-v2 encoding requires strong authority commitments".into(),
+            ));
+        }
+        (false, Some(_)) => {
+            return Err(InstallationDiagnostic(
+                "container-v1 compatibility encoding cannot discard strong authority commitments"
+                    .into(),
+            ));
+        }
+        _ => {}
+    }
+    let section_count = if strong_authority { 8_u64 } else { 7_u64 };
     if limits.max_sections < section_count as usize {
         return Err(InstallationDiagnostic(format!(
             "canonical executable container needs {section_count} sections, configured bound is {}",
@@ -118,7 +153,7 @@ pub fn encode_executable_container(
     let proof_length = u64::try_from(proof.len())
         .map_err(|_| InstallationDiagnostic("artifact proof length is not representable".into()))?;
 
-    let payload_lengths = [
+    let mut payload_lengths = vec![
         artifact.0.byte_length,
         relocation_length,
         8,
@@ -127,6 +162,9 @@ pub fn encode_executable_container(
         entry_length,
         proof_length,
     ];
+    if strong_authority {
+        payload_lengths.push(AUTHORITY_COMMITMENT_BYTES);
+    }
     if let Some(length) = payload_lengths
         .iter()
         .copied()
@@ -140,7 +178,7 @@ pub fn encode_executable_container(
 
     let mut offsets = Vec::with_capacity(payload_lengths.len());
     let mut cursor = directory_end;
-    for length in payload_lengths {
+    for length in payload_lengths.iter().copied() {
         offsets.push(cursor);
         cursor = cursor
             .checked_add(length)
@@ -170,7 +208,11 @@ pub fn encode_executable_container(
             (
                 "format_marker",
                 16,
-                u64::from(OMEGA_EXECUTABLE_CONTAINER_MARKER),
+                u64::from(if strong_authority {
+                    OMEGA_EXECUTABLE_CONTAINER_V2_MARKER
+                } else {
+                    OMEGA_EXECUTABLE_CONTAINER_V1_MARKER
+                }),
             ),
             ("header_bytes", 16, OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES),
             (
@@ -202,7 +244,7 @@ pub fn encode_executable_container(
     )?;
 
     let proof_digest = normalized_proof_payload_digest(proof);
-    let sections = [
+    let mut sections = vec![
         (SECTION_CODE, 1, 0, offsets[0], payload_lengths[0]),
         (
             SECTION_RELOCATIONS,
@@ -241,6 +283,15 @@ pub fn encode_executable_container(
         ),
         (SECTION_PROOF, 1, 0, offsets[6], payload_lengths[6]),
     ];
+    if strong_authority {
+        sections.push((
+            SECTION_AUTHORITY_COMMITMENTS,
+            1,
+            0,
+            offsets[7],
+            payload_lengths[7],
+        ));
+    }
     for (index, (kind, flags, identity, offset, length)) in sections.iter().enumerate() {
         let record_offset = OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES
             + index as u64 * OMEGA_EXECUTABLE_CONTAINER_SECTION_RECORD_BYTES;
@@ -404,6 +455,18 @@ pub fn encode_executable_container(
         "artifact proof section",
     )?
     .copy_from_slice(proof);
+    if let Some(commitments) = artifact.0.authority_commitments {
+        let authority = checked_slice_mut(
+            &mut bytes,
+            offsets[7],
+            payload_lengths[7],
+            "artifact authority-commitment section",
+        )?;
+        authority[..32].copy_from_slice(commitments.imported_contracts().as_bytes());
+        authority[32..64].copy_from_slice(commitments.declared_footprint().as_bytes());
+        authority[64..96].copy_from_slice(commitments.machine_regime().as_bytes());
+        authority[96..128].copy_from_slice(commitments.installation_scope().as_bytes());
+    }
 
     let checked = decode_executable_container(&bytes, limits)?;
     if checked.artifact() != artifact
@@ -438,7 +501,12 @@ pub fn decode_executable_container(
     require_zero("container header reserved0", header["reserved0"])?;
     require_zero("container header reserved1", header["reserved1"])?;
     require_zero("container header reserved2", header["reserved2"])?;
-    if header["format_marker"] != u64::from(OMEGA_EXECUTABLE_CONTAINER_MARKER) {
+    let format_marker =
+        u16::try_from(header["format_marker"]).expect("16-bit executable-container marker field");
+    if !matches!(
+        format_marker,
+        OMEGA_EXECUTABLE_CONTAINER_V1_MARKER | OMEGA_EXECUTABLE_CONTAINER_V2_MARKER
+    ) {
         return Err(InstallationDiagnostic(format!(
             "unsupported Omega executable container marker 0x{:04x}",
             header["format_marker"]
@@ -534,7 +602,7 @@ pub fn decode_executable_container(
         }
         let kind = u16::try_from(record["kind"]).expect("16-bit layout field");
         let required = record["flags"] == 1;
-        validate_known_section_flags(kind, required)?;
+        validate_known_section_flags(kind, required, format_marker)?;
         let section = WireSection {
             kind,
             required,
@@ -561,13 +629,16 @@ pub fn decode_executable_container(
             "artifact section payload",
         )?;
         validate_wire_section_identity(section)?;
-        if section.kind > SECTION_INFORMATIONAL && section.required {
+        if !is_known_section_kind(section.kind) && section.required {
             return Err(InstallationDiagnostic(format!(
                 "unknown required artifact section {}",
                 section.identity
             )));
         }
-        if section.kind >= SECTION_INFORMATIONAL {
+        if section.kind == SECTION_INFORMATIONAL
+            || (section.kind > SECTION_INFORMATIONAL
+                && section.kind != SECTION_AUTHORITY_COMMITMENTS)
+        {
             let payload = checked_slice(
                 bytes,
                 section.offset,
@@ -594,6 +665,25 @@ pub fn decode_executable_container(
     let placement_section = only_wire_section(&wire_sections, SECTION_PLACEMENT, "placement")?;
     let entries_section = only_wire_section(&wire_sections, SECTION_ENTRIES, "entries")?;
     let proof_section = only_wire_section(&wire_sections, SECTION_PROOF, "proof")?;
+    let authority_section = match format_marker {
+        OMEGA_EXECUTABLE_CONTAINER_V1_MARKER => {
+            if wire_sections
+                .iter()
+                .any(|section| section.kind == SECTION_AUTHORITY_COMMITMENTS)
+            {
+                return Err(InstallationDiagnostic(
+                    "container-v1 cannot carry a v2 authority-commitment section".into(),
+                ));
+            }
+            None
+        }
+        OMEGA_EXECUTABLE_CONTAINER_V2_MARKER => Some(only_wire_section(
+            &wire_sections,
+            SECTION_AUTHORITY_COMMITMENTS,
+            "authority-commitment",
+        )?),
+        _ => unreachable!("format marker checked above"),
+    };
 
     let code = checked_slice(
         bytes,
@@ -626,6 +716,17 @@ pub fn decode_executable_container(
     )?
     .to_vec();
     let proof_payload = normalized_proof_payload_digest(&proof);
+    let authority_commitments = authority_section
+        .map(|section| {
+            decode_authority_commitments(
+                bytes,
+                section,
+                contracts,
+                declared_footprint,
+                placement_constraints,
+            )
+        })
+        .transpose()?;
 
     let sections = wire_sections
         .into_iter()
@@ -638,6 +739,10 @@ pub fn decode_executable_container(
                 SECTION_PLACEMENT => ContainerSectionKind::Placement(placement_plan),
                 SECTION_ENTRIES => ContainerSectionKind::Entries(entry_set),
                 SECTION_PROOF => ContainerSectionKind::Proof(proof_payload),
+                SECTION_AUTHORITY_COMMITMENTS => ContainerSectionKind::AuthorityCommitments(
+                    authority_commitments
+                        .expect("v2 authority section decoded before section construction"),
+                ),
                 SECTION_INFORMATIONAL => ContainerSectionKind::Informational(
                     NonAuthoritativeInformationalFingerprint64::from_compatibility_value(
                         section.identity,
@@ -663,7 +768,7 @@ pub fn decode_executable_container(
 
     validate_decoded_container(
         DecodedArtifactContainer {
-            format_marker: OMEGA_EXECUTABLE_CONTAINER_MARKER,
+            format_marker,
             total_length,
             artifact,
             content_fingerprint,
@@ -680,6 +785,7 @@ pub fn decode_executable_container(
             relocations,
             proof_payload,
             proof,
+            authority_commitments,
             sections,
         },
         limits,
@@ -716,7 +822,11 @@ fn validate_decode_limits(
     Ok(())
 }
 
-fn validate_known_section_flags(kind: u16, required: bool) -> Result<(), InstallationDiagnostic> {
+fn validate_known_section_flags(
+    kind: u16,
+    required: bool,
+    format_marker: u16,
+) -> Result<(), InstallationDiagnostic> {
     match kind {
         SECTION_CODE | SECTION_RELOCATIONS | SECTION_CONTRACTS | SECTION_FOOTPRINT
         | SECTION_PLACEMENT | SECTION_ENTRIES | SECTION_PROOF
@@ -729,13 +839,35 @@ fn validate_known_section_flags(kind: u16, required: bool) -> Result<(), Install
         SECTION_INFORMATIONAL if required => Err(InstallationDiagnostic(
             "informational artifact sections cannot be required".into(),
         )),
+        SECTION_AUTHORITY_COMMITMENTS
+            if format_marker == OMEGA_EXECUTABLE_CONTAINER_V2_MARKER && !required =>
+        {
+            Err(InstallationDiagnostic(
+                "container-v2 authority commitments must be required".into(),
+            ))
+        }
         _ => Ok(()),
     }
 }
 
+fn is_known_section_kind(kind: u16) -> bool {
+    matches!(
+        kind,
+        SECTION_CODE
+            | SECTION_RELOCATIONS
+            | SECTION_CONTRACTS
+            | SECTION_FOOTPRINT
+            | SECTION_PLACEMENT
+            | SECTION_ENTRIES
+            | SECTION_PROOF
+            | SECTION_INFORMATIONAL
+            | SECTION_AUTHORITY_COMMITMENTS
+    )
+}
+
 fn validate_wire_section_identity(section: WireSection) -> Result<(), InstallationDiagnostic> {
     match section.kind {
-        SECTION_CODE | SECTION_PROOF if section.identity != 0 => {
+        SECTION_CODE | SECTION_PROOF | SECTION_AUTHORITY_COMMITMENTS if section.identity != 0 => {
             Err(InstallationDiagnostic(format!(
                 "artifact section kind {} must use zero wire identity",
                 section.kind
@@ -754,7 +886,10 @@ fn validate_wire_section_identity(section: WireSection) -> Result<(), Installati
                 section.kind
             )))
         }
-        kind if kind > SECTION_INFORMATIONAL && section.identity == 0 => {
+        kind if kind > SECTION_INFORMATIONAL
+            && kind != SECTION_AUTHORITY_COMMITMENTS
+            && section.identity == 0 =>
+        {
             Err(InstallationDiagnostic(format!(
                 "unknown artifact section kind {kind} requires a nonzero trace identity"
             )))
@@ -846,6 +981,37 @@ where
         )));
     }
     constructor(decoded["identity"])
+}
+
+fn decode_authority_commitments(
+    bytes: &[u8],
+    section: WireSection,
+    contracts: MachineContractSetId,
+    footprint: MachineFootprintId,
+    placement: PlacementConstraints,
+) -> Result<ArtifactAuthorityCommitments, InstallationDiagnostic> {
+    if section.length != AUTHORITY_COMMITMENT_BYTES {
+        return Err(InstallationDiagnostic(format!(
+            "authority-commitment section must contain exactly {AUTHORITY_COMMITMENT_BYTES} bytes"
+        )));
+    }
+    let payload = checked_slice(
+        bytes,
+        section.offset,
+        section.length,
+        "authority-commitment section",
+    )?;
+    ArtifactAuthorityCommitments::from_decoded_digests(
+        contracts,
+        footprint,
+        placement,
+        payload[..32].try_into().expect("32-byte contract digest"),
+        payload[32..64]
+            .try_into()
+            .expect("32-byte footprint digest"),
+        payload[64..96].try_into().expect("32-byte regime digest"),
+        payload[96..128].try_into().expect("32-byte scope digest"),
+    )
 }
 
 fn decode_placement(
@@ -1390,7 +1556,7 @@ mod tests {
         let proof = vec![0xa5; 64];
         let mut decoded =
             DecodedArtifactContainer {
-                format_marker: OMEGA_EXECUTABLE_CONTAINER_MARKER,
+                format_marker: OMEGA_EXECUTABLE_CONTAINER_V1_MARKER,
                 total_length,
                 artifact: ArtifactId::from_normalized_identity(1).unwrap(),
                 content_fingerprint:
@@ -1413,6 +1579,7 @@ mod tests {
                 }],
                 proof_payload: normalized_proof_payload_digest(&proof),
                 proof,
+                authority_commitments: None,
                 sections: Vec::new(),
             };
         decoded.content_fingerprint =
@@ -1431,7 +1598,7 @@ mod tests {
                 (
                     "format_marker",
                     16,
-                    u64::from(OMEGA_EXECUTABLE_CONTAINER_MARKER),
+                    u64::from(OMEGA_EXECUTABLE_CONTAINER_V1_MARKER),
                 ),
                 ("header_bytes", 16, OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES),
                 ("architecture", 8, 2),
@@ -1564,6 +1731,41 @@ mod tests {
         bytes
     }
 
+    fn strong_artifact() -> Artifact {
+        let legacy = decode_executable_container(&canonical_bytes(), limits())
+            .expect("legacy compatibility candidate");
+        let source = legacy.artifact();
+        let regime = MachineRegimeId::from_normalized_identity(10).expect("machine regime");
+        let scope =
+            ArtifactInstallationScopeId::from_normalized_identity(11).expect("installation scope");
+        let placement_constraints =
+            PlacementConstraints::new(None, 1, PlacementPhase::Load, Some(regime), Some(scope))
+                .expect("strong placement constraints");
+        let commitments = ArtifactAuthorityCommitments::from_canonical_evidence(
+            source.0.contracts,
+            b"canonical imported contract set",
+            source.0.declared_footprint,
+            b"canonical declared footprint",
+            Some((regime, b"canonical machine regime")),
+            Some((scope, b"canonical installation scope")),
+        );
+        Artifact::from_canonical_decode(
+            source.0.identity,
+            source.0.architecture,
+            source.0.code.clone(),
+            source.0.contracts,
+            source.0.declared_footprint,
+            source.0.placement_plan,
+            placement_constraints,
+            source.0.entry_set,
+            source.0.entries.clone(),
+            source.0.relocation_set,
+            source.0.relocations.clone(),
+            commitments,
+        )
+        .expect("strong artifact")
+    }
+
     fn add_optional_section(mut bytes: Vec<u8>, kind: u16, payload: &[u8]) -> Vec<u8> {
         let old_section_count = 7_usize;
         let inserted_directory_offset = OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES as usize
@@ -1630,8 +1832,12 @@ mod tests {
     fn canonical_encoder_round_trips_the_exact_validated_artifact_and_proof() {
         let canonical = canonical_bytes();
         let source = decode_executable_container(&canonical, limits()).expect("source");
-        let encoded = encode_executable_container(source.artifact(), source.proof(), limits())
-            .expect("encode");
+        let encoded = encode_executable_container_v1_compatibility(
+            source.artifact(),
+            source.proof(),
+            limits(),
+        )
+        .expect("encode");
         assert_eq!(
             encoded, canonical,
             "container-v1 wire bytes must remain stable"
@@ -1647,6 +1853,90 @@ mod tests {
         assert_eq!(decoded.artifact(), source.artifact());
         assert_eq!(decoded.proof(), source.proof());
         assert_eq!(decoded.proof_payload(), source.proof_payload());
+    }
+
+    #[test]
+    fn container_v2_round_trips_strong_authority_commitments() {
+        let artifact = strong_artifact();
+        let proof = vec![0xa5; 64];
+        let encoded = encode_executable_container(&artifact, &proof, limits()).expect("encode v2");
+        assert_eq!(
+            u16::from_le_bytes(encoded[8..10].try_into().unwrap()),
+            OMEGA_EXECUTABLE_CONTAINER_V2_MARKER,
+        );
+        assert_eq!(u16::from_le_bytes(encoded[14..16].try_into().unwrap()), 8);
+
+        let decoded = decode_executable_container(&encoded, limits()).expect("decode v2");
+        assert_eq!(decoded.artifact(), &artifact);
+        assert_eq!(
+            decoded.artifact().authority_commitments(),
+            artifact.authority_commitments(),
+        );
+    }
+
+    #[test]
+    fn compact_equal_authority_digest_substitutions_cannot_replay_admission() {
+        let artifact = strong_artifact();
+        let proof = vec![0xa5; 64];
+        let encoded = encode_executable_container(&artifact, &proof, limits()).expect("encode v2");
+        let original = decode_executable_container(&encoded, limits()).expect("original v2");
+        let authority_record = OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES as usize + 7 * 32;
+        let authority_offset = u64::from_le_bytes(
+            encoded[authority_record + 16..authority_record + 24]
+                .try_into()
+                .unwrap(),
+        ) as usize;
+
+        for digest_offset in [0, 32, 64, 96] {
+            let mut substituted = encoded.clone();
+            substituted[authority_offset + digest_offset] ^= 1;
+            let substituted =
+                decode_executable_container(&substituted, limits()).expect("substituted v2");
+            assert_eq!(
+                substituted.artifact().0.contracts,
+                original.artifact().0.contracts,
+                "the adversary preserves the compact contract report identity",
+            );
+            assert_eq!(
+                substituted.artifact().0.declared_footprint,
+                original.artifact().0.declared_footprint,
+                "the adversary preserves the compact footprint report identity",
+            );
+            assert_eq!(
+                substituted.artifact().0.placement_constraints,
+                original.artifact().0.placement_constraints,
+                "the adversary preserves compact regime/scope report identities",
+            );
+            assert_ne!(
+                substituted.artifact().content(),
+                original.artifact().content(),
+                "each strong authority commitment participates in executable content identity",
+            );
+
+            let evidence = ValidatedContainerAdmissionEvidence::from_validator(
+                AdmissionReceiptId::from_normalized_identity(70).unwrap(),
+                &original,
+                true,
+            );
+            let error = admit_validated_container(&substituted, evidence)
+                .expect_err("strong authority substitution must not replay admission");
+            assert!(error.0.contains("different validated container"));
+        }
+    }
+
+    #[test]
+    fn container_v1_decodes_for_compatibility_but_cannot_be_admitted() {
+        let legacy =
+            decode_executable_container(&canonical_bytes(), limits()).expect("legacy decode");
+        assert!(legacy.artifact().authority_commitments().is_none());
+        let evidence = ValidatedContainerAdmissionEvidence::from_validator(
+            AdmissionReceiptId::from_normalized_identity(70).unwrap(),
+            &legacy,
+            true,
+        );
+        let error = admit_validated_container(&legacy, evidence)
+            .expect_err("v1 compact-only authority must not admit");
+        assert!(error.0.contains("container-v1 compatibility"));
     }
 
     #[test]

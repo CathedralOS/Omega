@@ -467,8 +467,10 @@ fn lower_checked_direct_call_binding(
         .ok_or(LoweringError::Unsupported(
             "direct scalar call target has no checked contract plan",
         ))?;
-    if checked_call.target_contract_fingerprint() != target_contract.fingerprint {
-        return unsupported("checked scalar call target contract fingerprint disagrees");
+    if checked_call.target_contract_fingerprint() != target_contract.fingerprint
+        || checked_call.target_contract_commitment() != target_contract.commitment
+    {
+        return unsupported("checked scalar call target contract identity disagrees");
     }
     if checked_call.surviving_buckets().iter().any(|bucket| {
         bucket.alternative_guards().iter().any(|guard| {

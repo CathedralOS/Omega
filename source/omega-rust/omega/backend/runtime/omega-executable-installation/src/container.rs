@@ -1,6 +1,8 @@
 use super::*;
 
-pub const OMEGA_EXECUTABLE_CONTAINER_MARKER: u16 = u16::from_le_bytes(*b"OX");
+pub const OMEGA_EXECUTABLE_CONTAINER_V1_MARKER: u16 = u16::from_le_bytes(*b"OX");
+pub const OMEGA_EXECUTABLE_CONTAINER_V2_MARKER: u16 = u16::from_le_bytes(*b"O2");
+pub const OMEGA_EXECUTABLE_CONTAINER_MARKER: u16 = OMEGA_EXECUTABLE_CONTAINER_V2_MARKER;
 const CANONICAL_ENTRY_RECORD_BYTES: u64 = 16;
 const CANONICAL_RELOCATION_COUNT_BYTES: u64 = 8;
 const CANONICAL_RELOCATION_RECORD_BYTES: u64 = 32;
@@ -37,6 +39,7 @@ pub enum ContainerSectionKind {
     Placement(PlacementPlanId),
     Entries(EntrySetId),
     Proof(ProofPayloadDigest),
+    AuthorityCommitments(ArtifactAuthorityCommitments),
     Informational(NonAuthoritativeInformationalFingerprint64),
     /// An unrecognized optional section is informational by definition. It
     /// cannot supply an identity used by admission.
@@ -105,11 +108,16 @@ pub struct DecodedArtifactContainer {
     /// Exact decoded executable bytes. The post-decode validator binds these
     /// bytes into normalized content identity before any admission fact exists.
     pub code: Vec<u8>,
+    /// Compact imported-contract report coordinate. Version-2 authority is
+    /// the matching digest in `authority_commitments`.
     pub contracts: MachineContractSetId,
+    /// Compact declared-footprint report coordinate. Version-2 authority is
+    /// the matching digest in `authority_commitments`.
     pub declared_footprint: MachineFootprintId,
     pub placement_plan: PlacementPlanId,
-    /// Checked decode of the canonical placement section. Its identity and
-    /// normalized constraints are both bound into artifact admission.
+    /// Checked decode of the canonical placement section. Compact regime and
+    /// installation-scope values here are report coordinates; version-2
+    /// authority is the matching digest in `authority_commitments`.
     pub placement_constraints: PlacementConstraints,
     /// Checked decode of the compiler-selected entry set. Entry identities are
     /// sealed materialization symbols; offsets are interpreted only by the
@@ -122,6 +130,9 @@ pub struct DecodedArtifactContainer {
     /// Exact identity-invisible proof bytes. Admission binds these bytes even
     /// though executable-content identity deliberately excludes them.
     pub proof: Vec<u8>,
+    /// Present only for container v2. Version 1 remains decodable for tooling
+    /// compatibility but cannot produce admission evidence.
+    pub authority_commitments: Option<ArtifactAuthorityCommitments>,
     pub sections: Vec<ContainerSection>,
 }
 
@@ -245,7 +256,10 @@ pub fn validate_decoded_container(
             "artifact-container limits must all be nonzero".into(),
         ));
     }
-    if decoded.format_marker != OMEGA_EXECUTABLE_CONTAINER_MARKER {
+    if !matches!(
+        decoded.format_marker,
+        OMEGA_EXECUTABLE_CONTAINER_V1_MARKER | OMEGA_EXECUTABLE_CONTAINER_V2_MARKER
+    ) {
         return Err(InstallationDiagnostic(format!(
             "unsupported Omega executable container marker 0x{:04x}",
             decoded.format_marker
@@ -290,6 +304,7 @@ pub fn validate_decoded_container(
     let mut placement = 0;
     let mut entries = 0;
     let mut proof = 0;
+    let mut authority_commitments = 0;
     let mut informational = Vec::new();
     let mut unknown_informational = Vec::new();
     for section in &decoded.sections {
@@ -384,6 +399,20 @@ pub fn validate_decoded_container(
                     ));
                 }
             }
+            ContainerSectionKind::AuthorityCommitments(commitments) => {
+                authority_commitments += 1;
+                if Some(commitments) != decoded.authority_commitments {
+                    return Err(InstallationDiagnostic(
+                        "authority-commitment section does not match decoded strong evidence"
+                            .into(),
+                    ));
+                }
+                if section.length != 128 {
+                    return Err(InstallationDiagnostic(
+                        "authority-commitment section must contain four 32-byte digests".into(),
+                    ));
+                }
+            }
             ContainerSectionKind::Informational(identity) => informational.push(identity),
             ContainerSectionKind::Unknown { identity, required } => {
                 if required {
@@ -419,6 +448,23 @@ pub fn validate_decoded_container(
             )));
         }
     }
+    match decoded.format_marker {
+        OMEGA_EXECUTABLE_CONTAINER_V1_MARKER => {
+            if decoded.authority_commitments.is_some() || authority_commitments != 0 {
+                return Err(InstallationDiagnostic(
+                    "container-v1 cannot carry v2 authority commitments".into(),
+                ));
+            }
+        }
+        OMEGA_EXECUTABLE_CONTAINER_V2_MARKER => {
+            if decoded.authority_commitments.is_none() || authority_commitments != 1 {
+                return Err(InstallationDiagnostic(format!(
+                    "container-v2 requires exactly one authority-commitment section, found {authority_commitments}"
+                )));
+            }
+        }
+        _ => unreachable!("format marker checked above"),
+    }
 
     let relocations = validate_decoded_relocations(
         decoded.relocations,
@@ -437,6 +483,7 @@ pub fn validate_decoded_container(
         &decoded.entries,
         decoded.relocation_set,
         &relocations,
+        decoded.authority_commitments.as_ref(),
     )?;
     if computed_fingerprint != decoded.content_fingerprint {
         return Err(InstallationDiagnostic(format!(
@@ -445,19 +492,35 @@ pub fn validate_decoded_container(
             computed_fingerprint.compatibility_value()
         )));
     }
-    let artifact = Artifact::from_canonical_decode(
-        decoded.artifact,
-        decoded.architecture,
-        decoded.code,
-        decoded.contracts,
-        decoded.declared_footprint,
-        decoded.placement_plan,
-        decoded.placement_constraints,
-        decoded.entry_set,
-        decoded.entries,
-        decoded.relocation_set,
-        relocations,
-    )?;
+    let artifact = match decoded.authority_commitments {
+        Some(commitments) => Artifact::from_canonical_decode(
+            decoded.artifact,
+            decoded.architecture,
+            decoded.code,
+            decoded.contracts,
+            decoded.declared_footprint,
+            decoded.placement_plan,
+            decoded.placement_constraints,
+            decoded.entry_set,
+            decoded.entries,
+            decoded.relocation_set,
+            relocations,
+            commitments,
+        )?,
+        None => Artifact::from_legacy_v1_decode(
+            decoded.artifact,
+            decoded.architecture,
+            decoded.code,
+            decoded.contracts,
+            decoded.declared_footprint,
+            decoded.placement_plan,
+            decoded.placement_constraints,
+            decoded.entry_set,
+            decoded.entries,
+            decoded.relocation_set,
+            relocations,
+        )?,
+    };
     Ok(ValidatedArtifactContainer {
         artifact,
         proof_payload: decoded.proof_payload,
@@ -491,6 +554,7 @@ pub fn normalized_decoded_content_digest(
         &decoded.entries,
         decoded.relocation_set,
         &relocations,
+        decoded.authority_commitments.as_ref(),
     )
     .map(|(digest, _)| digest)
 }
@@ -518,6 +582,7 @@ pub fn non_authoritative_decoded_container_fingerprint(
         &decoded.entries,
         decoded.relocation_set,
         &relocations,
+        decoded.authority_commitments.as_ref(),
     )
     .map(|(_, fingerprint)| fingerprint)
 }
@@ -534,6 +599,7 @@ pub(super) fn derive_artifact_content_commitments(
     entries: &[ArtifactEntry],
     relocation_set: RelocationSetId,
     relocations: &[DecodedArtifactRelocation],
+    authority_commitments: Option<&ArtifactAuthorityCommitments>,
 ) -> Result<
     (
         ArtifactContentDigest,
@@ -542,7 +608,11 @@ pub(super) fn derive_artifact_content_commitments(
     InstallationDiagnostic,
 > {
     let mut digest = Sha256::new();
-    digest.update(b"omega.executable-content.sha256.v1\0");
+    digest.update(if authority_commitments.is_some() {
+        b"omega.executable-content.sha256.v2\0".as_slice()
+    } else {
+        b"omega.executable-content.sha256.v1\0".as_slice()
+    });
     let mut fingerprint = 0xcbf2_9ce4_8422_2325u64;
     fingerprint_bytes(&mut fingerprint, b"omega-executable-content-v1");
     content_commitment_bytes(
@@ -635,6 +705,13 @@ pub(super) fn derive_artifact_content_commitments(
             &mut fingerprint,
             &relocation.addend.to_le_bytes(),
         );
+    }
+
+    if let Some(commitments) = authority_commitments {
+        digest.update(commitments.imported_contracts().as_bytes());
+        digest.update(commitments.declared_footprint().as_bytes());
+        digest.update(commitments.machine_regime().as_bytes());
+        digest.update(commitments.installation_scope().as_bytes());
     }
 
     Ok((
@@ -794,10 +871,18 @@ mod tests {
         let proof = normalized_proof_payload_digest(&proof_bytes);
         let entry_set = id(8, EntrySetId::from_normalized_identity);
         let entry = EntryStubId::from_normalized_identity(9).expect("entry identity");
+        let authority_commitments = ArtifactAuthorityCommitments::from_canonical_evidence(
+            contracts,
+            b"test imported contract set",
+            footprint,
+            b"test declared footprint",
+            None,
+            None,
+        );
         let mut decoded =
             DecodedArtifactContainer {
                 format_marker: OMEGA_EXECUTABLE_CONTAINER_MARKER,
-                total_length: 448,
+                total_length: 576,
                 artifact: id(1, ArtifactId::from_normalized_identity),
                 content_fingerprint:
                     NonAuthoritativeContainerFingerprint64::from_compatibility_value(2).unwrap(),
@@ -821,6 +906,7 @@ mod tests {
                 }],
                 proof_payload: proof,
                 proof: proof_bytes,
+                authority_commitments: Some(authority_commitments),
                 sections: vec![
                     ContainerSection {
                         kind: ContainerSectionKind::Code,
@@ -856,6 +942,11 @@ mod tests {
                         kind: ContainerSectionKind::Proof(proof),
                         offset: 384,
                         length: 64,
+                    },
+                    ContainerSection {
+                        kind: ContainerSectionKind::AuthorityCommitments(authority_commitments),
+                        offset: 448,
+                        length: 128,
                     },
                 ],
             };
@@ -969,12 +1060,12 @@ mod tests {
         );
 
         let mut decorated = decoded();
-        decorated.total_length = 512;
+        decorated.total_length = 640;
         decorated.sections.push(ContainerSection {
             kind: ContainerSectionKind::Informational(
                 NonAuthoritativeInformationalFingerprint64::from_compatibility_value(88).unwrap(),
             ),
-            offset: 448,
+            offset: 576,
             length: 64,
         });
         let decorated =
@@ -1020,13 +1111,13 @@ mod tests {
     #[test]
     fn unknown_required_rejects_while_unknown_optional_is_informational() {
         let mut optional = decoded();
-        optional.total_length = 512;
+        optional.total_length = 640;
         optional.sections.push(ContainerSection {
             kind: ContainerSectionKind::Unknown {
                 identity: 99,
                 required: false,
             },
-            offset: 448,
+            offset: 576,
             length: 64,
         });
         let container =
@@ -1034,13 +1125,13 @@ mod tests {
         assert_eq!(container.unknown_informational_sections(), &[99]);
 
         let mut required = decoded();
-        required.total_length = 512;
+        required.total_length = 640;
         required.sections.push(ContainerSection {
             kind: ContainerSectionKind::Unknown {
                 identity: 99,
                 required: true,
             },
-            offset: 448,
+            offset: 576,
             length: 64,
         });
         let error = validate_decoded_container(required, limits()).expect_err("required unknown");
@@ -1050,17 +1141,17 @@ mod tests {
     #[test]
     fn duplicate_missing_overlapping_and_out_of_bounds_sections_reject() {
         let mut duplicate = decoded();
-        duplicate.total_length = 512;
+        duplicate.total_length = 640;
         duplicate.sections.push(ContainerSection {
             kind: ContainerSectionKind::Code,
-            offset: 448,
+            offset: 576,
             length: 64,
         });
         let error = validate_decoded_container(duplicate, limits()).expect_err("duplicate code");
         assert!(error.0.contains("exactly one code"));
 
         let mut missing = decoded();
-        missing.sections.pop();
+        missing.sections.remove(6);
         let error = validate_decoded_container(missing, limits()).expect_err("missing proof");
         assert!(error.0.contains("exactly one proof"));
 
@@ -1070,7 +1161,7 @@ mod tests {
         assert!(error.0.contains("overlap"));
 
         let mut outside = decoded();
-        outside.sections[6].offset = 430;
+        outside.sections[6].offset = 620;
         let error = validate_decoded_container(outside, limits()).expect_err("outside");
         assert!(error.0.contains("exceeds"));
     }

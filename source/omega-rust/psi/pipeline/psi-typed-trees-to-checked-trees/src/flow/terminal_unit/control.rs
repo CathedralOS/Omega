@@ -666,6 +666,7 @@ pub(super) fn build_boundary_machine(
         result_type,
         domain_requirements,
         contract_fingerprint: contract.fingerprint,
+        contract_commitment: contract.commitment,
         contract_service_reach: facts.service_reaches.plan_for_machine(machine.symbol)?,
         service_reach: state_flow.service_reach.clone(),
     })
@@ -822,6 +823,7 @@ pub(super) fn build_static_boundary_requirements(
                 result_type,
                 domain_requirements,
                 contract_fingerprint: capsule.target_contract_fingerprint(),
+                contract_commitment: capsule.target_contract_commitment(),
                 contract_service_reach: psi_language_semantics::ServiceReachPlan {
                     interface: psi_language_semantics::ServiceReachInterface::PublishedCeiling(
                         *published_reach,
@@ -973,6 +975,7 @@ pub(super) fn build_checked_machine(
         entry_claims,
         body_qualifications,
         contract_fingerprint: contract.fingerprint,
+        contract_commitment: contract.commitment,
         contract_service_reach: facts.service_reaches.plan_for_machine(machine.symbol)?,
         service_reach: state_flow.service_reach.clone(),
         operations,

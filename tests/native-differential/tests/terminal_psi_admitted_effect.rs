@@ -1109,18 +1109,32 @@ fn install_entry_artifact(entry: EntryStubId) -> InstalledCode {
         Some(ArtifactInstallationScopeId::from_normalized_identity(61).unwrap()),
     )
     .unwrap();
+    let contracts = install_id(120, MachineContractSetId::from_normalized_identity);
+    let footprint = install_id(121, MachineFootprintId::from_normalized_identity);
     let artifact = Artifact::from_canonical_decode(
         install_id(100, ArtifactId::from_normalized_identity),
         omega_target::Architecture::X86_64,
         vec![0; 64],
-        install_id(120, MachineContractSetId::from_normalized_identity),
-        install_id(121, MachineFootprintId::from_normalized_identity),
+        contracts,
+        footprint,
         install_id(122, PlacementPlanId::from_normalized_identity),
         constraints,
         install_id(123, EntrySetId::from_normalized_identity),
         vec![ArtifactEntry::from_canonical_decode(entry, 16)],
         install_id(124, RelocationSetId::from_normalized_identity),
         Vec::new(),
+        omega_executable_installation::ArtifactAuthorityCommitments::from_canonical_evidence(
+            contracts,
+            b"admitted-effect-machine-contracts-v1",
+            footprint,
+            b"admitted-effect-machine-footprint-v1",
+            constraints
+                .machine_regime()
+                .map(|regime| (regime, b"admitted-effect-machine-regime-v1".as_slice())),
+            constraints
+                .installation_scope()
+                .map(|scope| (scope, b"admitted-effect-installation-scope-v1".as_slice())),
+        ),
     )
     .unwrap();
     let admitted = admit_executable(

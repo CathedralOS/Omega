@@ -1,5 +1,7 @@
 use std::collections::BTreeSet;
 
+use omega_installation_evidence::InstalledArtifactOccurrenceDigest;
+
 use crate::{
     CoexistingExecutableTcbReport, CoexistingExecutableTcbSet, ExecutableTcbProfileAcceptance,
 };
@@ -46,11 +48,13 @@ pub enum ComponentEraEntryState {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ComponentEraCandidate {
     pub era_identity: u64,
-    /// Compact report identity for the installed artifact occurrence governed
-    /// by this lifecycle era. Runtime installation custody must retain its
-    /// exact opaque occurrence evidence separately; this number is not that
-    /// authority.
-    pub artifact_instance_identity: u64,
+    /// Collision-resistant commitment derived from the exact installed
+    /// artifact occurrence retained by runtime publication custody.
+    pub artifact_occurrence_digest: InstalledArtifactOccurrenceDigest,
+    /// Compact compatibility report coordinate only. Publication and lease
+    /// joins require `artifact_occurrence_digest`; this value cannot authorize
+    /// an artifact occurrence by itself.
+    pub artifact_instance_compatibility_report_identity: u64,
     pub binding_contract_identity: String,
     pub entry_contract_identity: String,
     pub entry_plan_identity: String,
@@ -79,7 +83,8 @@ pub struct ProgramLocalRootEpochLease {
     binding_contract_identity: String,
     entry_contract_identity: String,
     era_identity: u64,
-    artifact_instance_identity: u64,
+    artifact_occurrence_digest: InstalledArtifactOccurrenceDigest,
+    artifact_instance_compatibility_report_identity: u64,
     entry_plan_identity: String,
     entry_plan_admission_receipt_identity: String,
     candidate: ComponentEraCandidate,
@@ -102,8 +107,12 @@ impl ProgramLocalRootEpochLease {
         self.era_identity
     }
 
-    pub const fn artifact_instance_identity(&self) -> u64 {
-        self.artifact_instance_identity
+    pub const fn artifact_occurrence_digest(&self) -> InstalledArtifactOccurrenceDigest {
+        self.artifact_occurrence_digest
+    }
+
+    pub const fn artifact_instance_compatibility_report_identity(&self) -> u64 {
+        self.artifact_instance_compatibility_report_identity
     }
 }
 
@@ -116,7 +125,8 @@ pub struct ComponentEraPublicationReceipt {
     entry_contract_identity: String,
     previous_era_identity: Option<u64>,
     candidate_era_identity: u64,
-    candidate_artifact_instance_identity: u64,
+    candidate_artifact_occurrence_digest: InstalledArtifactOccurrenceDigest,
+    candidate_artifact_instance_compatibility_report_identity: u64,
     candidate_entry_plan_identity: String,
     candidate_entry_plan_admission_receipt_identity: String,
     candidate: ComponentEraCandidate,
@@ -138,7 +148,9 @@ impl ComponentEraPublicationReceipt {
             entry_contract_identity: ledger.entry_contract_identity.clone(),
             previous_era_identity: ledger.current_era,
             candidate_era_identity: candidate.era_identity,
-            candidate_artifact_instance_identity: candidate.artifact_instance_identity,
+            candidate_artifact_occurrence_digest: candidate.artifact_occurrence_digest,
+            candidate_artifact_instance_compatibility_report_identity: candidate
+                .artifact_instance_compatibility_report_identity,
             candidate_entry_plan_identity: candidate.entry_plan_identity.clone(),
             candidate_entry_plan_admission_receipt_identity: candidate
                 .entry_plan_admission_receipt_identity
@@ -366,7 +378,7 @@ impl ComponentEraEntryLedger {
             }))
         };
         if candidate.era_identity == 0
-            || candidate.artifact_instance_identity == 0
+            || candidate.artifact_instance_compatibility_report_identity == 0
             || candidate.binding_contract_identity.trim().is_empty()
             || candidate.entry_contract_identity.trim().is_empty()
             || candidate.entry_plan_identity.trim().is_empty()
@@ -408,7 +420,9 @@ impl ComponentEraEntryLedger {
             && receipt.entry_contract_identity == self.entry_contract_identity
             && receipt.previous_era_identity == self.current_era
             && receipt.candidate_era_identity == candidate.era_identity
-            && receipt.candidate_artifact_instance_identity == candidate.artifact_instance_identity
+            && receipt.candidate_artifact_occurrence_digest == candidate.artifact_occurrence_digest
+            && receipt.candidate_artifact_instance_compatibility_report_identity
+                == candidate.artifact_instance_compatibility_report_identity
             && receipt.candidate_entry_plan_identity == candidate.entry_plan_identity
             && receipt.candidate_entry_plan_admission_receipt_identity
                 == candidate.entry_plan_admission_receipt_identity
@@ -511,7 +525,10 @@ impl ComponentEraEntryLedger {
             binding_contract_identity: self.binding_contract_identity.clone(),
             entry_contract_identity: self.entry_contract_identity.clone(),
             era_identity,
-            artifact_instance_identity: record.candidate.artifact_instance_identity,
+            artifact_occurrence_digest: record.candidate.artifact_occurrence_digest,
+            artifact_instance_compatibility_report_identity: record
+                .candidate
+                .artifact_instance_compatibility_report_identity,
             entry_plan_identity: record.candidate.entry_plan_identity.clone(),
             entry_plan_admission_receipt_identity: record
                 .candidate
@@ -544,7 +561,11 @@ impl ComponentEraEntryLedger {
             && lease.binding_contract_identity == self.binding_contract_identity
             && lease.entry_contract_identity == self.entry_contract_identity
             && lease.entry_contract_identity == record.candidate.entry_contract_identity
-            && lease.artifact_instance_identity == record.candidate.artifact_instance_identity
+            && lease.artifact_occurrence_digest == record.candidate.artifact_occurrence_digest
+            && lease.artifact_instance_compatibility_report_identity
+                == record
+                    .candidate
+                    .artifact_instance_compatibility_report_identity
             && lease.entry_plan_identity == record.candidate.entry_plan_identity
             && lease.entry_plan_admission_receipt_identity
                 == record.candidate.entry_plan_admission_receipt_identity
@@ -586,7 +607,11 @@ impl ComponentEraEntryLedger {
             && lease.binding_contract_identity == self.binding_contract_identity
             && lease.entry_contract_identity == self.entry_contract_identity
             && lease.entry_contract_identity == record.candidate.entry_contract_identity
-            && lease.artifact_instance_identity == record.candidate.artifact_instance_identity
+            && lease.artifact_occurrence_digest == record.candidate.artifact_occurrence_digest
+            && lease.artifact_instance_compatibility_report_identity
+                == record
+                    .candidate
+                    .artifact_instance_compatibility_report_identity
             && lease.entry_plan_identity == record.candidate.entry_plan_identity
             && lease.entry_plan_admission_receipt_identity
                 == record.candidate.entry_plan_admission_receipt_identity
@@ -910,7 +935,10 @@ mod tests {
     fn candidate(era: u64) -> ComponentEraCandidate {
         ComponentEraCandidate {
             era_identity: era,
-            artifact_instance_identity: era + 1_000,
+            artifact_occurrence_digest: InstalledArtifactOccurrenceDigest::from_sha256(
+                [era as u8; 32],
+            ),
+            artifact_instance_compatibility_report_identity: era + 1_000,
             binding_contract_identity: "CodecBinding/v1".into(),
             entry_contract_identity: "CodecEntry/v1".into(),
             entry_plan_identity: format!("entry-plan:{era}"),
@@ -1047,7 +1075,7 @@ mod tests {
     fn program_local_root_epoch_lease_requires_current_open_exact_contract_and_artifact() {
         let mut ledger = ledger(2);
         let mut incomplete = candidate(10);
-        incomplete.artifact_instance_identity = 0;
+        incomplete.artifact_instance_compatibility_report_identity = 0;
         let receipt =
             ComponentEraPublicationReceipt::from_runtime(99, &ledger, &incomplete, true, false);
         assert!(ledger.publish(incomplete, receipt).is_err());
@@ -1060,7 +1088,7 @@ mod tests {
             true,
             false,
         );
-        drifted.candidate_artifact_instance_identity += 1;
+        drifted.candidate_artifact_instance_compatibility_report_identity += 1;
         let error = ledger
             .publish(original_candidate, drifted)
             .expect_err("artifact-instance drift");
@@ -1090,7 +1118,10 @@ mod tests {
             .acquire_program_local_root_epoch_lease(lease_id(900), 10, "CodecEntry/v1")
             .expect("exact current era lease");
         assert_eq!(lease.era_identity(), 10);
-        assert_eq!(lease.artifact_instance_identity(), 1_010);
+        assert_eq!(
+            lease.artifact_instance_compatibility_report_identity(),
+            1_010
+        );
         assert_eq!(ledger.program_local_root_authority_holds(10), Some(1));
         ledger
             .validate_program_local_root_epoch_lease(&lease)

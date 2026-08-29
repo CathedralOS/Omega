@@ -538,13 +538,16 @@ exact bytes and rejects a directory restatement that differs. This preserves
 normalizer-owned reporting identity without granting the payload semantic or
 admission authority.
 
-The inverse compiler-side encoder is live over the same layout records. It
-emits only the seven required semantic sections in canonical order, derives the
-proof digest from the exact payload, checks configured section/relocation/
-total-size bounds before allocation, and routes its completed bytes back
-through the hostile-input decoder before returning them. Producer and consumer
-therefore share one schema and fail closed on drift; optional informational
-decoration is intentionally a later packaging step with no admission role.
+The inverse compiler-side encoder is live over the same layout records. Its
+ordinary path emits container v2 with the seven original semantic sections plus
+one required authority-commitment section in canonical order, derives the proof
+digest from the exact payload, checks configured section/relocation/total-size
+bounds before allocation, and routes its completed bytes back through the
+hostile-input decoder before returning them. Producer and consumer therefore
+share one schema and fail closed on drift; optional informational decoration is
+intentionally a later packaging step with no admission role. A separately named
+compatibility encoder reproduces the seven-section v1 bytes exactly, but v1
+candidates cannot pass executable admission.
 The ordinary artifact writer now exposes the only compiler-packaging seam for
 this form: it accepts an already-normalized `Artifact` plus exact proof bytes,
 invokes the canonical encoder, and atomically installs the resulting file. It
@@ -552,8 +555,8 @@ does not accept a final PE/ELF/Mach-O image or a caller-selected byte buffer as
 an executable candidate.
 Verifier evidence retains that exact immutable candidate, its strong content
 and proof digests, and the exact proof bytes. The remaining FNV content field is
-container-v1 compatibility only, while informational-section fingerprints stay
-authority-free. The encoder reproduces the existing v1 bytes exactly.
+container compatibility reporting only, while informational-section
+fingerprints stay authority-free.
 Normalization binds the exact code bytes, instruction-set architecture,
 contracts, footprint, placement, entries, and canonical relocations into
 content identity; proof evidence remains outside that promise. The artifact
@@ -566,12 +569,17 @@ code, relocation, contract, footprint, placement, and entry facts into that
 packaging seam remains engineering, as does wrapping the canonical result in
 the target's firmware envelope.
 
-This local hardening does not upgrade semantic identities imported into the
-container. Contract, footprint, placement, entry/data-symbol, regime, and
-installation-scope commitments require canonical upstream bytes or wider
-domain digests and therefore a later container version. Those are engineering
-follow-ups, not permission to treat their current `u64` carriers as collision-
-resistant authority.
+Container v2 additionally requires four independent domain-separated SHA-256
+commitments over canonical evidence for the imported contract set, declared
+machine footprint, machine regime, and installation scope. Their historical
+`u64` values are report coordinates only. All four strong commitments enter
+artifact content identity, admission replay, retained materialization custody,
+and final-byte identity; changing any commitment while keeping every compact
+coordinate fixed rejects. The production compiler-to-container translator that
+supplies those canonical upstream evidence bytes remains engineering work in
+the quarantined runtime lane. Placement and entry/data-symbol authority remain
+bound by their exact retained structures and the artifact content commitment,
+not by compact equality.
 
 The initial image uses the same trust discipline at an earlier phase: the
 current trusted build validates the artifact and signs its admitted identity,

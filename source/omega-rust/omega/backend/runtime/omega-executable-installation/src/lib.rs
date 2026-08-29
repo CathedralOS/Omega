@@ -6,6 +6,7 @@
 
 use std::sync::Arc;
 
+use omega_installation_evidence::InstalledArtifactOccurrenceDigest;
 use omega_target::Architecture;
 use psi_extents::{
     AddressSpaceId, Extent, ExtentProvenanceId, ExtentRights, MappedExtent, MappingReceiptContext,
@@ -78,6 +79,177 @@ normalized_digest!(ArtifactContentDigest);
 normalized_digest!(ProofPayloadDigest);
 normalized_digest!(FinalBytesDigest);
 normalized_digest!(RetirementFactDigest);
+
+macro_rules! canonical_authority_digest {
+    ($name:ident, $domain:literal) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub struct $name([u8; 32]);
+
+        impl $name {
+            fn from_report_identity_and_canonical_bytes(
+                report_identity: u64,
+                canonical: &[u8],
+            ) -> Self {
+                let mut digest = Sha256::new();
+                digest.update($domain);
+                digest.update(report_identity.to_le_bytes());
+                digest.update((canonical.len() as u64).to_le_bytes());
+                digest.update(canonical);
+                Self(digest.finalize().into())
+            }
+
+            pub(crate) const fn from_digest(digest: [u8; 32]) -> Self {
+                Self(digest)
+            }
+
+            pub const fn as_bytes(&self) -> &[u8; 32] {
+                &self.0
+            }
+        }
+    };
+}
+
+canonical_authority_digest!(
+    ImportedContractSetDigest,
+    b"omega.imported-contract-set.sha256.v1\0"
+);
+canonical_authority_digest!(
+    DeclaredFootprintDigest,
+    b"omega.declared-machine-footprint.sha256.v1\0"
+);
+canonical_authority_digest!(MachineRegimeDigest, b"omega.machine-regime.sha256.v1\0");
+canonical_authority_digest!(
+    InstallationScopeDigest,
+    b"omega.artifact-installation-scope.sha256.v1\0"
+);
+
+/// Collision-resistant commitments to the exact authority-bearing values
+/// imported by an executable artifact. The compact normalized identities
+/// remain report coordinates and are included in each digest's domain-framed
+/// preimage; they are never sufficient on their own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ArtifactAuthorityCommitments {
+    imported_contract_report_identity: u64,
+    imported_contracts: ImportedContractSetDigest,
+    declared_footprint_report_identity: u64,
+    declared_footprint: DeclaredFootprintDigest,
+    machine_regime_report_identity: u64,
+    machine_regime: MachineRegimeDigest,
+    installation_scope_report_identity: u64,
+    installation_scope: InstallationScopeDigest,
+}
+
+impl ArtifactAuthorityCommitments {
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_canonical_evidence(
+        contracts: MachineContractSetId,
+        contract_bytes: &[u8],
+        footprint: MachineFootprintId,
+        footprint_bytes: &[u8],
+        regime: Option<(psi_layout_plans::MachineRegimeId, &[u8])>,
+        scope: Option<(psi_layout_plans::ArtifactInstallationScopeId, &[u8])>,
+    ) -> Self {
+        let (regime_identity, regime_bytes) = regime
+            .map(|(identity, bytes)| (identity.normalized_identity(), bytes))
+            .unwrap_or((0, &[]));
+        let (scope_identity, scope_bytes) = scope
+            .map(|(identity, bytes)| (identity.normalized_identity(), bytes))
+            .unwrap_or((0, &[]));
+        Self {
+            imported_contract_report_identity: contracts.normalized_identity(),
+            imported_contracts: ImportedContractSetDigest::from_report_identity_and_canonical_bytes(
+                contracts.normalized_identity(),
+                contract_bytes,
+            ),
+            declared_footprint_report_identity: footprint.normalized_identity(),
+            declared_footprint: DeclaredFootprintDigest::from_report_identity_and_canonical_bytes(
+                footprint.normalized_identity(),
+                footprint_bytes,
+            ),
+            machine_regime_report_identity: regime_identity,
+            machine_regime: MachineRegimeDigest::from_report_identity_and_canonical_bytes(
+                regime_identity,
+                regime_bytes,
+            ),
+            installation_scope_report_identity: scope_identity,
+            installation_scope: InstallationScopeDigest::from_report_identity_and_canonical_bytes(
+                scope_identity,
+                scope_bytes,
+            ),
+        }
+    }
+
+    pub const fn imported_contracts(&self) -> ImportedContractSetDigest {
+        self.imported_contracts
+    }
+
+    pub const fn declared_footprint(&self) -> DeclaredFootprintDigest {
+        self.declared_footprint
+    }
+
+    pub const fn machine_regime(&self) -> MachineRegimeDigest {
+        self.machine_regime
+    }
+
+    pub const fn installation_scope(&self) -> InstallationScopeDigest {
+        self.installation_scope
+    }
+
+    pub(crate) fn from_decoded_digests(
+        contracts: MachineContractSetId,
+        footprint: MachineFootprintId,
+        placement: PlacementConstraints,
+        imported_contracts: [u8; 32],
+        declared_footprint: [u8; 32],
+        machine_regime: [u8; 32],
+        installation_scope: [u8; 32],
+    ) -> Result<Self, InstallationDiagnostic> {
+        if [
+            imported_contracts,
+            declared_footprint,
+            machine_regime,
+            installation_scope,
+        ]
+        .contains(&[0; 32])
+        {
+            return Err(InstallationDiagnostic(
+                "executable-container authority commitments cannot be zero".into(),
+            ));
+        }
+        Ok(Self {
+            imported_contract_report_identity: contracts.normalized_identity(),
+            imported_contracts: ImportedContractSetDigest::from_digest(imported_contracts),
+            declared_footprint_report_identity: footprint.normalized_identity(),
+            declared_footprint: DeclaredFootprintDigest::from_digest(declared_footprint),
+            machine_regime_report_identity: placement
+                .machine_regime()
+                .map_or(0, |identity| identity.normalized_identity()),
+            machine_regime: MachineRegimeDigest::from_digest(machine_regime),
+            installation_scope_report_identity: placement
+                .installation_scope()
+                .map_or(0, |identity| identity.normalized_identity()),
+            installation_scope: InstallationScopeDigest::from_digest(installation_scope),
+        })
+    }
+
+    fn matches_report_coordinates(
+        &self,
+        contracts: MachineContractSetId,
+        footprint: MachineFootprintId,
+        placement: PlacementConstraints,
+    ) -> bool {
+        self.imported_contract_report_identity == contracts.normalized_identity()
+            && self.declared_footprint_report_identity == footprint.normalized_identity()
+            && self.machine_regime_report_identity
+                == placement
+                    .machine_regime()
+                    .map_or(0, |identity| identity.normalized_identity())
+            && self.installation_scope_report_identity
+                == placement
+                    .installation_scope()
+                    .map_or(0, |identity| identity.normalized_identity())
+    }
+}
 
 impl RetirementFactDigest {
     /// Derive one provider-defined completion fact from its canonical bytes.
@@ -160,6 +332,7 @@ struct ArtifactRecord {
     entries: Vec<ArtifactEntry>,
     relocation_set: RelocationSetId,
     relocations: Vec<DecodedArtifactRelocation>,
+    authority_commitments: Option<ArtifactAuthorityCommitments>,
 }
 
 /// Canonically decoded entry in one executable artifact. The offset remains
@@ -203,10 +376,83 @@ impl Artifact {
         placement_plan: PlacementPlanId,
         placement_constraints: PlacementConstraints,
         entry_set: EntrySetId,
-        mut entries: Vec<ArtifactEntry>,
+        entries: Vec<ArtifactEntry>,
+        relocation_set: RelocationSetId,
+        relocations: Vec<DecodedArtifactRelocation>,
+        authority_commitments: ArtifactAuthorityCommitments,
+    ) -> Result<Self, InstallationDiagnostic> {
+        Self::from_decoded_parts(
+            identity,
+            architecture,
+            code,
+            contracts,
+            declared_footprint,
+            placement_plan,
+            placement_constraints,
+            entry_set,
+            entries,
+            relocation_set,
+            relocations,
+            Some(authority_commitments),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn from_legacy_v1_decode(
+        identity: ArtifactId,
+        architecture: Architecture,
+        code: Vec<u8>,
+        contracts: MachineContractSetId,
+        declared_footprint: MachineFootprintId,
+        placement_plan: PlacementPlanId,
+        placement_constraints: PlacementConstraints,
+        entry_set: EntrySetId,
+        entries: Vec<ArtifactEntry>,
         relocation_set: RelocationSetId,
         relocations: Vec<DecodedArtifactRelocation>,
     ) -> Result<Self, InstallationDiagnostic> {
+        Self::from_decoded_parts(
+            identity,
+            architecture,
+            code,
+            contracts,
+            declared_footprint,
+            placement_plan,
+            placement_constraints,
+            entry_set,
+            entries,
+            relocation_set,
+            relocations,
+            None,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn from_decoded_parts(
+        identity: ArtifactId,
+        architecture: Architecture,
+        code: Vec<u8>,
+        contracts: MachineContractSetId,
+        declared_footprint: MachineFootprintId,
+        placement_plan: PlacementPlanId,
+        placement_constraints: PlacementConstraints,
+        entry_set: EntrySetId,
+        mut entries: Vec<ArtifactEntry>,
+        relocation_set: RelocationSetId,
+        relocations: Vec<DecodedArtifactRelocation>,
+        authority_commitments: Option<ArtifactAuthorityCommitments>,
+    ) -> Result<Self, InstallationDiagnostic> {
+        if authority_commitments.as_ref().is_some_and(|commitments| {
+            !commitments.matches_report_coordinates(
+                contracts,
+                declared_footprint,
+                placement_constraints,
+            )
+        }) {
+            return Err(InstallationDiagnostic(
+                "strong authority commitments do not match their compact report coordinates".into(),
+            ));
+        }
         if code.is_empty() {
             return Err(InstallationDiagnostic(
                 "executable artifact cannot have empty content".into(),
@@ -258,6 +504,7 @@ impl Artifact {
             &entries,
             relocation_set,
             &relocations,
+            authority_commitments.as_ref(),
         )?;
         Ok(Self(Arc::new(ArtifactRecord {
             identity,
@@ -274,6 +521,7 @@ impl Artifact {
             entries,
             relocation_set,
             relocations,
+            authority_commitments,
         })))
     }
 
@@ -329,6 +577,10 @@ impl Artifact {
     /// identities; this projection grants no address resolver.
     pub fn relocations(&self) -> &[DecodedArtifactRelocation] {
         &self.0.relocations
+    }
+
+    pub fn authority_commitments(&self) -> Option<&ArtifactAuthorityCommitments> {
+        self.0.authority_commitments.as_ref()
     }
 
     fn entry(&self, identity: EntryStubId) -> Option<ArtifactEntry> {
@@ -411,6 +663,12 @@ pub fn admit_executable(
     artifact: &Artifact,
     evidence: ArtifactAdmissionEvidence,
 ) -> Result<AdmittedArtifact, InstallationDiagnostic> {
+    if artifact.0.authority_commitments.is_none() {
+        return Err(InstallationDiagnostic(
+            "container-v1 compatibility candidates lack strong authority commitments and cannot be admitted"
+                .into(),
+        ));
+    }
     if !evidence.accepted {
         return Err(InstallationDiagnostic(
             "artifact validator did not accept executable eligibility".into(),
@@ -1618,6 +1876,10 @@ impl InstalledCode {
         InstalledCodeContext(InstalledCodeEvidence::from_installed(self))
     }
 
+    pub fn occurrence_digest(&self) -> InstalledArtifactOccurrenceDigest {
+        installed_artifact_occurrence_digest(&InstalledCodeEvidence::from_installed(self))
+    }
+
     /// Returns a sealed target only for an entry admitted with this installed
     /// artifact. The numeric address stays private to writer execution.
     pub fn selected_entry_target(
@@ -2032,6 +2294,12 @@ struct InstalledCodeEvidence {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstalledCodeContext(InstalledCodeEvidence);
 
+impl InstalledCodeContext {
+    pub fn occurrence_digest(&self) -> InstalledArtifactOccurrenceDigest {
+        installed_artifact_occurrence_digest(&self.0)
+    }
+}
+
 impl InstalledCodeEvidence {
     fn from_installed(installed: &InstalledCode) -> Self {
         Self {
@@ -2040,6 +2308,105 @@ impl InstalledCodeEvidence {
             wx: installed.wx,
         }
     }
+}
+
+fn installed_artifact_occurrence_digest(
+    evidence: &InstalledCodeEvidence,
+) -> InstalledArtifactOccurrenceDigest {
+    fn bytes(digest: &mut Sha256, value: &[u8]) {
+        digest.update((value.len() as u64).to_le_bytes());
+        digest.update(value);
+    }
+
+    fn optional_u64(digest: &mut Sha256, value: Option<u64>) {
+        match value {
+            Some(value) => {
+                digest.update([1]);
+                digest.update(value.to_le_bytes());
+            }
+            None => digest.update([0]),
+        }
+    }
+
+    let validated = &evidence.validated;
+    let admitted = &validated.admission_evidence;
+    let constraints = validated.constraints;
+    let mut digest = Sha256::new();
+    digest.update(b"omega.installed-artifact-occurrence.sha256.v1\0");
+    digest.update(admitted.artifact.content().digest());
+    digest.update(
+        admitted
+            .artifact
+            .identity()
+            .normalized_identity()
+            .to_le_bytes(),
+    );
+    digest.update(admitted.admission.normalized_identity().to_le_bytes());
+    match &admitted.container_proof {
+        Some(proof) => {
+            digest.update([1]);
+            digest.update(proof.digest.digest());
+            bytes(&mut digest, &proof.bytes);
+        }
+        None => digest.update([0]),
+    }
+    digest.update(evidence.installed.normalized_identity().to_le_bytes());
+    digest.update(validated.placement.normalized_identity().to_le_bytes());
+    digest.update(validated.scope.normalized_identity().to_le_bytes());
+    digest.update([match validated.audience {
+        InstallationAudience::DormantLocal => 1,
+        InstallationAudience::FutureFetcher => 2,
+    }]);
+    match constraints.permitted_range() {
+        Some(range) => {
+            digest.update([1]);
+            digest.update(range.start_inclusive().to_le_bytes());
+            digest.update(range.end_exclusive().to_le_bytes());
+        }
+        None => digest.update([0]),
+    }
+    digest.update(constraints.alignment().to_le_bytes());
+    digest.update([match constraints.phase() {
+        psi_layout_plans::PlacementPhase::Build => 1,
+        psi_layout_plans::PlacementPhase::Load => 2,
+        psi_layout_plans::PlacementPhase::PostHandoff => 3,
+    }]);
+    optional_u64(
+        &mut digest,
+        constraints
+            .machine_regime()
+            .map(|identity| identity.normalized_identity()),
+    );
+    optional_u64(
+        &mut digest,
+        constraints
+            .installation_scope()
+            .map(|identity| identity.normalized_identity()),
+    );
+    digest.update(validated.base.to_le_bytes());
+    digest.update(validated.length.to_le_bytes());
+    digest.update(validated.address_space.normalized_identity().to_le_bytes());
+    digest.update((validated.rights.identities().count() as u64).to_le_bytes());
+    for right in validated.rights.identities() {
+        digest.update(right.normalized_identity().to_le_bytes());
+    }
+    digest.update(validated.provenance.normalized_identity().to_le_bytes());
+    digest.update(validated.era.normalized_identity().to_le_bytes());
+    digest.update(validated.lineage.normalized_identity().to_le_bytes());
+    bytes(&mut digest, &validated.final_bytes);
+    digest.update(
+        validated
+            .realized_footprint
+            .normalized_identity()
+            .to_le_bytes(),
+    );
+    digest.update(validated.validation.normalized_identity().to_le_bytes());
+    digest.update([match evidence.wx {
+        WxEnforcement::HardwareEnforced => 1,
+        WxEnforcement::ConventionOnly => 2,
+        WxEnforcement::Unsupported => 3,
+    }]);
+    InstalledArtifactOccurrenceDigest::from_sha256(digest.finalize().into())
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -2243,6 +2610,21 @@ mod tests {
         .expect("placement constraints")
     }
 
+    fn authority_commitments(constraints: PlacementConstraints) -> ArtifactAuthorityCommitments {
+        ArtifactAuthorityCommitments::from_canonical_evidence(
+            id(30, MachineContractSetId::from_normalized_identity),
+            b"test imported contract set",
+            id(31, MachineFootprintId::from_normalized_identity),
+            b"test declared footprint",
+            constraints
+                .machine_regime()
+                .map(|identity| (identity, b"test machine regime".as_slice())),
+            constraints
+                .installation_scope()
+                .map(|identity| (identity, b"test installation scope".as_slice())),
+        )
+    }
+
     fn artifact(identity: u64) -> Artifact {
         artifact_with(
             identity,
@@ -2253,6 +2635,7 @@ mod tests {
     }
 
     fn colliding_artifact(identity: u64, fill: u8) -> Artifact {
+        let constraints = artifact_placement_constraints();
         Artifact::from_canonical_decode(
             id(identity, ArtifactId::from_normalized_identity),
             Architecture::X86_64,
@@ -2260,7 +2643,7 @@ mod tests {
             id(30, MachineContractSetId::from_normalized_identity),
             id(31, MachineFootprintId::from_normalized_identity),
             id(32, PlacementPlanId::from_normalized_identity),
-            artifact_placement_constraints(),
+            constraints,
             id(33, EntrySetId::from_normalized_identity),
             vec![ArtifactEntry::from_canonical_decode(
                 entry_id(identity + 1000),
@@ -2268,6 +2651,7 @@ mod tests {
             )],
             id(34, RelocationSetId::from_normalized_identity),
             Vec::new(),
+            authority_commitments(constraints),
         )
         .expect("colliding artifact")
     }
@@ -2278,6 +2662,7 @@ mod tests {
         entry_set: EntrySetId,
         entry: EntryStubId,
     ) -> Artifact {
+        let commitments = authority_commitments(constraints);
         Artifact::from_canonical_decode(
             id(identity, ArtifactId::from_normalized_identity),
             Architecture::X86_64,
@@ -2290,6 +2675,7 @@ mod tests {
             vec![ArtifactEntry::from_canonical_decode(entry, 16)],
             id(34, RelocationSetId::from_normalized_identity),
             Vec::new(),
+            commitments,
         )
         .expect("artifact")
     }
@@ -2430,6 +2816,7 @@ mod tests {
         code: Vec<u8>,
         relocations: Vec<DecodedArtifactRelocation>,
     ) -> Artifact {
+        let constraints = artifact_placement_constraints();
         Artifact::from_canonical_decode(
             id(identity, ArtifactId::from_normalized_identity),
             architecture,
@@ -2437,7 +2824,7 @@ mod tests {
             id(30, MachineContractSetId::from_normalized_identity),
             id(31, MachineFootprintId::from_normalized_identity),
             id(32, PlacementPlanId::from_normalized_identity),
-            artifact_placement_constraints(),
+            constraints,
             id(33, EntrySetId::from_normalized_identity),
             vec![ArtifactEntry::from_canonical_decode(
                 entry_id(identity + 1000),
@@ -2445,6 +2832,7 @@ mod tests {
             )],
             id(34, RelocationSetId::from_normalized_identity),
             relocations,
+            authority_commitments(constraints),
         )
         .expect("relocatable artifact")
     }
@@ -3281,6 +3669,7 @@ mod tests {
             ],
             id(34, RelocationSetId::from_normalized_identity),
             Vec::new(),
+            authority_commitments(artifact_placement_constraints()),
         )
         .expect("two symbolic entries may select one code address");
         let admitted = admit(&candidate);

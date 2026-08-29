@@ -463,18 +463,32 @@ fn install_terminal_object(
         ArtifactInstallationScopeId::from_normalized_identity(0x5301).expect("artifact scope");
     let constraints = PlacementConstraints::new(None, 16, PlacementPhase::Load, None, Some(scope))
         .expect("terminal placement constraints");
+    let contracts = installation_id(0x5312, MachineContractSetId::from_normalized_identity);
+    let footprint = installation_id(0x5313, MachineFootprintId::from_normalized_identity);
     let artifact = Artifact::from_canonical_decode(
         installation_id(0x5310, ArtifactId::from_normalized_identity),
         terminal.target().architecture,
         code,
-        installation_id(0x5312, MachineContractSetId::from_normalized_identity),
-        installation_id(0x5313, MachineFootprintId::from_normalized_identity),
+        contracts,
+        footprint,
         installation_id(0x5314, PlacementPlanId::from_normalized_identity),
         constraints,
         installation_id(0x5315, EntrySetId::from_normalized_identity),
         vec![ArtifactEntry::from_canonical_decode(entry, entry_offset)],
         installation_id(0x5316, RelocationSetId::from_normalized_identity),
         Vec::new(),
+        omega_executable_installation::ArtifactAuthorityCommitments::from_canonical_evidence(
+            contracts,
+            b"terminal-source-machine-contracts-v1",
+            footprint,
+            b"terminal-source-machine-footprint-v1",
+            constraints
+                .machine_regime()
+                .map(|regime| (regime, b"terminal-source-machine-regime-v1".as_slice())),
+            constraints
+                .installation_scope()
+                .map(|scope| (scope, b"terminal-source-installation-scope-v1".as_slice())),
+        ),
     )
     .expect("terminal text should decode as an executable artifact");
     let admitted = admit_executable(
@@ -638,7 +652,11 @@ fn source_terminal_installation_publishes_only_with_retained_code_custody() {
     );
     let candidate = ComponentEraCandidate {
         era_identity: 1,
-        artifact_instance_identity: installed_identity.normalized_identity(),
+        artifact_occurrence_digest: runnable
+            .installed_artifact()
+            .installed()
+            .occurrence_digest(),
+        artifact_instance_compatibility_report_identity: installed_identity.normalized_identity(),
         binding_contract_identity: "SourceTerminalBinding/v1".into(),
         entry_contract_identity: "terminal_constant".into(),
         entry_plan_identity: "source-terminal-entry-plan".into(),
@@ -1236,7 +1254,11 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
     );
     let candidate = ComponentEraCandidate {
         era_identity: 1,
-        artifact_instance_identity: installed_identity.normalized_identity(),
+        artifact_occurrence_digest: runnable
+            .installed_artifact()
+            .installed()
+            .occurrence_digest(),
+        artifact_instance_compatibility_report_identity: installed_identity.normalized_identity(),
         binding_contract_identity: "SourceProgressBinding/v1".into(),
         entry_contract_identity: "Main::main".into(),
         entry_plan_identity: "source-progress-entry-plan".into(),

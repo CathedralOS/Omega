@@ -41,6 +41,35 @@ pub(super) fn lower_boundary_scalar_return_machine(
     {
         return unsupported("result-bearing boundary call disagrees with its exact checked target");
     }
+    let exact_identity = checked
+        .facts
+        .contract_plans
+        .for_machine(boundary.machine)
+        .map(|contract| (contract.fingerprint, contract.commitment))
+        .or_else(|| {
+            checked
+                .facts
+                .contract_plans
+                .crash_capsule(boundary.machine, boundary.state)
+                .map(|capsule| {
+                    (
+                        capsule.target_contract_fingerprint(),
+                        capsule.target_contract_commitment(),
+                    )
+                })
+        })
+        .or_else(|| {
+            (!boundary.contract_commitment.is_zero())
+                .then_some((boundary.contract_fingerprint, boundary.contract_commitment))
+        })
+        .ok_or(LoweringError::Unsupported(
+            "result-bearing boundary target is missing its canonical contract identity",
+        ))?;
+    if (boundary.contract_fingerprint, boundary.contract_commitment) != exact_identity {
+        return unsupported(
+            "result-bearing boundary target contract compatibility coordinate or strong commitment drifted",
+        );
+    }
 
     let (structural_types, type_ids) = lower_structural_type_plans(&plans.structural_types)?;
     let (structural_domains, domain_ids) =

@@ -256,18 +256,35 @@ fn install_provider_artifact(
     let constraints =
         PlacementConstraints::new(None, 16, PlacementPhase::PostHandoff, None, Some(scope))
             .unwrap();
+    let contracts = install_id(seed + 4, MachineContractSetId::from_normalized_identity);
+    let footprint = install_id(seed + 5, MachineFootprintId::from_normalized_identity);
     let artifact = Artifact::from_canonical_decode(
         install_id(seed + 2, ArtifactId::from_normalized_identity),
         architecture,
         vec![0; 64],
-        install_id(seed + 4, MachineContractSetId::from_normalized_identity),
-        install_id(seed + 5, MachineFootprintId::from_normalized_identity),
+        contracts,
+        footprint,
         install_id(seed + 6, PlacementPlanId::from_normalized_identity),
         constraints,
         install_id(seed + 7, EntrySetId::from_normalized_identity),
         vec![ArtifactEntry::from_canonical_decode(entry, 16)],
         install_id(seed + 8, RelocationSetId::from_normalized_identity),
         Vec::new(),
+        omega_executable_installation::ArtifactAuthorityCommitments::from_canonical_evidence(
+            contracts,
+            b"native-differential-machine-contracts-v1",
+            footprint,
+            b"native-differential-machine-footprint-v1",
+            constraints
+                .machine_regime()
+                .map(|regime| (regime, b"native-differential-machine-regime-v1".as_slice())),
+            constraints.installation_scope().map(|scope| {
+                (
+                    scope,
+                    b"native-differential-installation-scope-v1".as_slice(),
+                )
+            }),
+        ),
     )
     .expect("provider artifact");
     let admitted = admit_executable(

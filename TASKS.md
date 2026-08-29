@@ -144,11 +144,22 @@ scanners, or receipts.
   non-authoritative compatibility fingerprints beside exact retained plans.
   Provider-existing-content grants additionally bind a domain-separated digest
   over canonical layout, access policy, and reach, and build-time schema FNV
-  keys are collision-checked local discriminators. Remaining engineering work
-  includes the component-era lease-to-installed-occurrence join, the checked
-  machine public-contract fingerprint across the semantic/native pipeline, and
-  the imported-contract, footprint, regime, and installation-scope commitments
-  needed for the next executable-container version.
+  keys are collision-checked local discriminators. Component-era leases now
+  bind a domain-separated digest of the complete installed occurrence and
+  replay it through publication, deployment journals, and program-local root
+  cohorts; the former installed-artifact `u64` is report compatibility only.
+  Checked machine contracts now retain a domain-separated SHA-256 commitment to
+  the complete canonical public contract beside their historical compact report
+  coordinate. Checked plans, crash capsules/call sites, realized envelopes,
+  Terminal handoff, nominal refinement, and provider callback selection replay
+  that commitment. The default executable container is now v2: a required
+  authority section carries independent imported-contract-set, declared-
+  footprint, machine-regime, and installation-scope commitments, all four enter
+  executable content identity, and admission rejects v1 candidates. Container
+  v1 remains an explicit byte-stable tooling compatibility path. Remaining work
+  is the broader compact-identity inventory and its repository-wide
+  enforcement, including residual Terminal-Psi conformance/content coordinates
+  and external-root report fields.
 
   Acceptance: an automated architecture test rejects new authoritative
   `u64`-only identities, every retained FNV use has a local non-authoritative

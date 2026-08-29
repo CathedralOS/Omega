@@ -123,18 +123,31 @@ fn installed_code_with_fill_and_installation_identity(
     fill: u8,
     installed_code_identity: u64,
 ) -> InstalledCode {
+    let artifact_constraints = constraints();
+    let contracts = install_id(30, MachineContractSetId::from_normalized_identity);
+    let footprint = install_id(31, MachineFootprintId::from_normalized_identity);
     let artifact = Artifact::from_canonical_decode(
         install_id(artifact_identity, ArtifactId::from_normalized_identity),
         omega_target::Architecture::X86_64,
         vec![fill; 64],
-        install_id(30, MachineContractSetId::from_normalized_identity),
-        install_id(31, MachineFootprintId::from_normalized_identity),
+        contracts,
+        footprint,
         install_id(32, PlacementPlanId::from_normalized_identity),
-        constraints(),
+        artifact_constraints,
         install_id(33, EntrySetId::from_normalized_identity),
         vec![ArtifactEntry::from_canonical_decode(entry, 16)],
         install_id(34, RelocationSetId::from_normalized_identity),
         Vec::new(),
+        omega_executable_installation::ArtifactAuthorityCommitments::from_canonical_evidence(
+            contracts,
+            b"test-machine-contracts-v1",
+            footprint,
+            b"test-machine-footprint-v1",
+            None,
+            artifact_constraints
+                .installation_scope()
+                .map(|scope| (scope, b"test-installation-scope-v1".as_slice())),
+        ),
     )
     .expect("artifact");
     let admitted = admit_executable(
@@ -1673,7 +1686,8 @@ fn program_local_tcb_acceptance(seed: u64) -> ExecutableTcbProfileAcceptance {
 fn program_local_lifecycle(
     ledger_identity: u64,
     era_identity: u64,
-    artifact_instance_identity: u64,
+    artifact_occurrence_digest: omega_installation_evidence::InstalledArtifactOccurrenceDigest,
+    artifact_instance_compatibility_report_identity: u64,
     entry_contract_identity: &str,
 ) -> ComponentEraEntryLedger {
     let mut ledger = ComponentEraEntryLedger::new(
@@ -1688,7 +1702,8 @@ fn program_local_lifecycle(
     publish_program_local_era(
         &mut ledger,
         era_identity,
-        artifact_instance_identity,
+        artifact_occurrence_digest,
+        artifact_instance_compatibility_report_identity,
         entry_contract_identity,
         era_identity + 100,
         false,
@@ -1699,14 +1714,16 @@ fn program_local_lifecycle(
 fn publish_program_local_era(
     ledger: &mut ComponentEraEntryLedger,
     era_identity: u64,
-    artifact_instance_identity: u64,
+    artifact_occurrence_digest: omega_installation_evidence::InstalledArtifactOccurrenceDigest,
+    artifact_instance_compatibility_report_identity: u64,
     entry_contract_identity: &str,
     publication_identity: u64,
     previous_era_closed: bool,
 ) {
     let candidate = ComponentEraCandidate {
         era_identity,
-        artifact_instance_identity,
+        artifact_occurrence_digest,
+        artifact_instance_compatibility_report_identity,
         binding_contract_identity: "TestRootBinding/v1".into(),
         entry_contract_identity: entry_contract_identity.into(),
         entry_plan_identity: format!("entry-plan:{era_identity}"),
@@ -2276,7 +2293,13 @@ fn epoch_cohort_seals_exact_members_and_derives_aggregate_schema() {
         .try_into()
         .expect("one producer schema");
     let prebinding = prebinding.identity();
-    let mut lifecycle = program_local_lifecycle(730, 10, code_identity, "TestRoot::entry");
+    let mut lifecycle = program_local_lifecycle(
+        730,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
 
     let omitted = installation
         .seal_epoch_cohort(&lifecycle, std::iter::empty())
@@ -2378,7 +2401,13 @@ fn coexistence_report_requires_every_exact_live_epoch_without_reducing_rows() {
         .try_into()
         .expect("one first producer schema");
 
-    let mut lifecycle = program_local_lifecycle(760, 10, first_code_identity, "TestRoot::entry");
+    let mut lifecycle = program_local_lifecycle(
+        760,
+        10,
+        first_root.installed_artifact_occurrence_digest(),
+        first_code_identity,
+        "TestRoot::entry",
+    );
     let first_lease = program_local_epoch_lease(&mut lifecycle, 860, 10, "TestRoot::entry");
     let first_cohort = first_installation
         .seal_epoch_cohort(
@@ -2397,6 +2426,7 @@ fn coexistence_report_requires_every_exact_live_epoch_without_reducing_rows() {
     publish_program_local_era(
         &mut lifecycle,
         20,
+        second_code.occurrence_digest(),
         second_code_identity,
         "TestRoot::entry",
         120,
@@ -2462,7 +2492,13 @@ fn coexistence_report_requires_every_exact_live_epoch_without_reducing_rows() {
             == &module.boundary_machines[0].program_local_root_introductions[0].capacity
     }));
 
-    let other_lifecycle = program_local_lifecycle(761, 10, first_code_identity, "TestRoot::entry");
+    let other_lifecycle = program_local_lifecycle(
+        761,
+        10,
+        first_root.installed_artifact_occurrence_digest(),
+        first_code_identity,
+        "TestRoot::entry",
+    );
     let substituted = compose_program_local_root_coexistence_report(
         &other_lifecycle,
         std::iter::once(&first_snapshot),
@@ -2470,8 +2506,13 @@ fn coexistence_report_requires_every_exact_live_epoch_without_reducing_rows() {
     .expect_err("a snapshot from another lifecycle ledger rejects");
     assert!(substituted.0.contains("another lifecycle ledger"));
 
-    let later_only_lifecycle =
-        program_local_lifecycle(760, 20, second_code_identity, "TestRoot::entry");
+    let later_only_lifecycle = program_local_lifecycle(
+        760,
+        20,
+        second_root.installed_artifact_occurrence_digest(),
+        second_code_identity,
+        "TestRoot::entry",
+    );
     let stale = compose_program_local_root_coexistence_report(
         &later_only_lifecycle,
         std::iter::once(&first_snapshot),
@@ -2515,7 +2556,13 @@ fn installed_subject_establishes_exact_capacity_lineage_once_and_pins_the_epoch(
         .expect("verified installed prebinding")
         .try_into()
         .expect("one producer schema");
-    let mut lifecycle = program_local_lifecycle(740, 10, code_identity, "TestRoot::entry");
+    let mut lifecycle = program_local_lifecycle(
+        740,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
     let lease = program_local_epoch_lease(&mut lifecycle, 840, 10, "TestRoot::entry");
     let cohort = installation
         .seal_epoch_cohort(
@@ -2566,7 +2613,13 @@ fn installed_subject_establishes_exact_capacity_lineage_once_and_pins_the_epoch(
         941
     );
 
-    let mut substituted = program_local_lifecycle(741, 10, code_identity, "TestRoot::entry");
+    let mut substituted = program_local_lifecycle(
+        741,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
     let retirement = installation
         .retire_established(established, &mut substituted)
         .expect_err("a foreign lifecycle cannot retire the established root");
@@ -2597,7 +2650,13 @@ fn program_local_extent_registry_retains_exact_account_through_split_and_retirem
         .expect("verified installed Extent prebinding")
         .try_into()
         .expect("one producer schema");
-    let mut lifecycle = program_local_lifecycle(780, 10, code_identity, "TestRoot::entry");
+    let mut lifecycle = program_local_lifecycle(
+        780,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
     let lease = program_local_epoch_lease(&mut lifecycle, 880, 10, "TestRoot::entry");
     let mut runtime = installation
         .seal_epoch_cohort(
@@ -2656,7 +2715,13 @@ fn program_local_extent_registry_retains_exact_account_through_split_and_retirem
     assert_eq!(registry.held_accounts(), 1);
     let extent = lower.merge(upper).expect("recombine exact root Extent");
 
-    let mut substituted = program_local_lifecycle(781, 10, code_identity, "TestRoot::entry");
+    let mut substituted = program_local_lifecycle(
+        781,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
     let rejected = registry
         .retire(extent, &mut installation, &mut substituted)
         .expect_err("a foreign lifecycle cannot release the retained occurrence");
@@ -2688,7 +2753,13 @@ fn counted_program_local_capacity_cannot_mint_an_extent() {
         .expect("verified installed counted prebinding")
         .try_into()
         .expect("one producer schema");
-    let mut lifecycle = program_local_lifecycle(782, 10, code_identity, "TestRoot::entry");
+    let mut lifecycle = program_local_lifecycle(
+        782,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
     let lease = program_local_epoch_lease(&mut lifecycle, 882, 10, "TestRoot::entry");
     let mut runtime = installation
         .seal_epoch_cohort(
@@ -2755,7 +2826,13 @@ fn subject_capacity_rejection_is_transactional_and_a_later_epoch_is_fresh() {
         .try_into()
         .expect("one producer schema");
     let prebinding = prebinding.identity();
-    let mut lifecycle = program_local_lifecycle(750, 10, code_identity, "TestRoot::entry");
+    let mut lifecycle = program_local_lifecycle(
+        750,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
     let lease = program_local_epoch_lease(&mut lifecycle, 850, 10, "TestRoot::entry");
     let mut runtime = installation
         .seal_epoch_cohort(
@@ -2807,6 +2884,7 @@ fn subject_capacity_rejection_is_transactional_and_a_later_epoch_is_fresh() {
     publish_program_local_era(
         &mut lifecycle,
         20,
+        root.installed_artifact_occurrence_digest(),
         code_identity,
         "TestRoot::entry",
         125,
@@ -2999,7 +3077,13 @@ fn program_local_root_join_pins_exact_root_artifact_contract_and_epoch_once() {
         .try_into()
         .expect("one program-local prebinding");
     let prebinding = prebinding.identity();
-    let mut lifecycle = program_local_lifecycle(700, 10, code_identity, "TestRoot::entry");
+    let mut lifecycle = program_local_lifecycle(
+        700,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
     let occurrence = join_program_local(
         &mut installation,
         prebinding,
@@ -3014,7 +3098,13 @@ fn program_local_root_join_pins_exact_root_artifact_contract_and_epoch_once() {
     assert_eq!(occurrence.identity().lifecycle_epoch(), 10);
     assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(1));
 
-    let mut foreign_lifecycle = program_local_lifecycle(701, 10, code_identity, "TestRoot::entry");
+    let mut foreign_lifecycle = program_local_lifecycle(
+        701,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
     let foreign = join_program_local(
         &mut installation,
         prebinding,
@@ -3070,6 +3160,7 @@ fn program_local_root_join_pins_exact_root_artifact_contract_and_epoch_once() {
     publish_program_local_era(
         &mut lifecycle,
         20,
+        root.installed_artifact_occurrence_digest(),
         code_identity,
         "TestRoot::entry",
         120,
@@ -3111,7 +3202,13 @@ fn program_local_root_failed_join_returns_lease_without_burning_the_occurrence()
         .expect("one program-local prebinding");
     let prebinding = prebinding.identity();
 
-    let mut lifecycle = program_local_lifecycle(710, 10, code_identity, "TestRoot::entry");
+    let mut lifecycle = program_local_lifecycle(
+        710,
+        10,
+        first.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
     let substituted = join_program_local(
         &mut installation,
         prebinding,
@@ -3127,7 +3224,13 @@ fn program_local_root_failed_join_returns_lease_without_burning_the_occurrence()
         .release_program_local_root_epoch_lease(lease)
         .expect("root substitution returns the lease");
 
-    let mut wrong_artifact = program_local_lifecycle(711, 10, code_identity + 1, "TestRoot::entry");
+    let mut wrong_artifact = program_local_lifecycle(
+        711,
+        10,
+        omega_installation_evidence::InstalledArtifactOccurrenceDigest::from_sha256([0xaa; 32]),
+        code_identity,
+        "TestRoot::entry",
+    );
     let substituted = join_program_local(
         &mut installation,
         prebinding,
@@ -3143,7 +3246,13 @@ fn program_local_root_failed_join_returns_lease_without_burning_the_occurrence()
         .release_program_local_root_epoch_lease(lease)
         .expect("artifact substitution returns the lease");
 
-    let mut wrong_contract = program_local_lifecycle(712, 10, code_identity, "OtherRoot::entry");
+    let mut wrong_contract = program_local_lifecycle(
+        712,
+        10,
+        first.installed_artifact_occurrence_digest(),
+        code_identity,
+        "OtherRoot::entry",
+    );
     let substituted = join_program_local(
         &mut installation,
         prebinding,
@@ -3159,11 +3268,18 @@ fn program_local_root_failed_join_returns_lease_without_burning_the_occurrence()
         .release_program_local_root_epoch_lease(lease)
         .expect("contract substitution returns the lease");
 
-    let mut stale_lifecycle = program_local_lifecycle(713, 10, code_identity, "TestRoot::entry");
+    let mut stale_lifecycle = program_local_lifecycle(
+        713,
+        10,
+        first.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
     let stale_lease = program_local_epoch_lease(&mut stale_lifecycle, 814, 10, "TestRoot::entry");
     publish_program_local_era(
         &mut stale_lifecycle,
         20,
+        first.installed_artifact_occurrence_digest(),
         code_identity,
         "TestRoot::entry",
         121,
@@ -3218,8 +3334,20 @@ fn program_local_root_failed_retirement_returns_the_complete_occurrence() {
         .expect("verified installed prebinding")
         .try_into()
         .expect("one program-local prebinding");
-    let mut rightful = program_local_lifecycle(720, 10, code_identity, "TestRoot::entry");
-    let mut substituted = program_local_lifecycle(721, 10, code_identity, "TestRoot::entry");
+    let mut rightful = program_local_lifecycle(
+        720,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
+    let mut substituted = program_local_lifecycle(
+        721,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
     let occurrence = join_program_local(
         &mut installation,
         prebinding.identity(),

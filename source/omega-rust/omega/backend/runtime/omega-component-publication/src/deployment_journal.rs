@@ -261,7 +261,10 @@ pub fn prepare_component_deployment(
             "journal and candidate-era identities cannot be zero",
         ));
     }
-    if candidate.artifact_instance_identity != runnable.installed_code().normalized_identity() {
+    if candidate.artifact_occurrence_digest != runnable.installed().occurrence_digest()
+        || candidate.artifact_instance_compatibility_report_identity
+            != runnable.installed_code().normalized_identity()
+    {
         return Err(preparation_error(
             candidate,
             receipt,
@@ -360,7 +363,7 @@ pub fn prepare_component_deployment(
     };
     let candidate_occurrence = match ComponentDeploymentEraOccurrence::new(
         candidate.era_identity,
-        candidate.artifact_instance_identity,
+        candidate.artifact_instance_compatibility_report_identity,
         runnable.artifact().normalized_identity(),
     ) {
         Ok(value) => value,

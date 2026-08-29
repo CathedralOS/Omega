@@ -70,6 +70,20 @@ pub(super) fn lower_attached_unit_closure_including(
         if machine.contract_fingerprint == 0 {
             return unsupported("Unit closure contains a null checked contract fingerprint");
         }
+        let contract = checked
+            .facts
+            .contract_plans
+            .for_machine(machine.machine)
+            .ok_or(LoweringError::Unsupported(
+                "Unit closure is missing its canonical checked contract",
+            ))?;
+        if machine.contract_fingerprint != contract.fingerprint
+            || machine.contract_commitment != contract.commitment
+        {
+            return unsupported(
+                "Unit closure contract compatibility coordinate or strong commitment drifted",
+            );
+        }
         validate_unit_operation_sequence(machine)?;
         for operation in &machine.operations {
             match operation {
@@ -115,6 +129,37 @@ pub(super) fn lower_attached_unit_closure_including(
                     {
                         return unsupported(
                             "boundary Unit call does not match the exact checked target state, contract, and reach",
+                        );
+                    }
+                    let exact_identity = checked
+                        .facts
+                        .contract_plans
+                        .for_machine(target.machine)
+                        .map(|contract| (contract.fingerprint, contract.commitment))
+                        .or_else(|| {
+                            checked
+                                .facts
+                                .contract_plans
+                                .crash_capsule(target.machine, target.state)
+                                .map(|capsule| {
+                                    (
+                                        capsule.target_contract_fingerprint(),
+                                        capsule.target_contract_commitment(),
+                                    )
+                                })
+                        })
+                        .or_else(|| {
+                            (!target.contract_commitment.is_zero()).then_some((
+                                target.contract_fingerprint,
+                                target.contract_commitment,
+                            ))
+                        })
+                        .ok_or(LoweringError::Unsupported(
+                            "Unit boundary target is missing its canonical checked contract identity",
+                        ))?;
+                    if (target.contract_fingerprint, target.contract_commitment) != exact_identity {
+                        return unsupported(
+                            "Unit boundary target contract compatibility coordinate or strong commitment drifted",
                         );
                     }
                     if !boundaries
