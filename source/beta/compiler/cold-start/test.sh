@@ -21,7 +21,7 @@ SEED="$OMEGA_PATH_ALPHA/$ALPHA_SEED"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
-"$ASSEMBLER" < "$OMEGA_PATH_BETA_COMPILER/beta_compiler.alpha" > "$TMP/compiler.tape"
+"$ASSEMBLER" < "$OMEGA_PATH_BETA_COMPILER_SOURCE" > "$TMP/compiler.tape"
 stamp_seed "$TMP/compiler.tape" "$SEED" "$TMP/compiler" >/dev/null
 
 pass=0

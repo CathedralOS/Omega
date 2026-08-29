@@ -23,7 +23,7 @@ SEED="${OMEGA_PATH_ALPHA}/$ALPHA_SEED"
 ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 BC="$T/bc.exe"
-"$ASM" < "${OMEGA_PATH_BETA_COMPILER}/beta_compiler.alpha" > "$T/bc.tape"
+"$ASM" < "$OMEGA_PATH_BETA_COMPILER_SOURCE" > "$T/bc.tape"
 stamp_seed "$T/bc.tape" "$SEED" "$BC" >/dev/null 2>&1 || { echo "symbolic differential: compiler construction failed"; exit 1; }
 stamp_proof_checker "$T/check.exe" >/dev/null 2>&1 || { echo "symbolic differential: checker artifact unavailable"; exit 1; }
 

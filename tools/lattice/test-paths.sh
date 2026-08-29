@@ -20,26 +20,111 @@ expect_role() {
   [ "$actual" = "$expected" ] || fail "$role resolved to $actual, expected $expected"
 }
 
+expect_rejected_role() {
+  if lattice_path "$1" >/dev/null 2>&1; then
+    fail "non-chain role was accepted: $1"
+  fi
+}
+
 expect_role alpha "$OMEGA_REPO_ROOT/source/alpha"
-expect_role alpha-checker "$OMEGA_REPO_ROOT/source/alpha/checker"
 expect_role beta-compiler "$OMEGA_REPO_ROOT/source/beta/compiler"
-expect_role beta-validation "$OMEGA_REPO_ROOT/source/beta/compiler/validation"
-expect_role gamma "$OMEGA_REPO_ROOT/source/gamma"
 expect_role gamma-compiler "$OMEGA_REPO_ROOT/source/gamma/compiler"
-expect_role delta "$OMEGA_REPO_ROOT/source/delta"
 expect_role delta-compiler "$OMEGA_REPO_ROOT/source/delta/compiler"
-expect_role psi "$OMEGA_REPO_ROOT/source/psi"
 expect_role omega "$OMEGA_REPO_ROOT/source/omega"
-expect_role lattice-tools "$OMEGA_REPO_ROOT/tools/lattice"
+
+for non_chain_role in alpha-assembler alpha-checker beta-validation beta-reference \
+  gamma delta psi lattice-tools
+do
+  expect_rejected_role "$non_chain_role"
+done
 
 for required in \
   "$OMEGA_PATH_ALPHA" "$OMEGA_PATH_ALPHA_ASSEMBLER" \
   "$OMEGA_PATH_ALPHA_CHECKER" "$OMEGA_PATH_BETA" "$OMEGA_PATH_GAMMA" \
-  "$OMEGA_PATH_DELTA" "$OMEGA_PATH_DELTA_COMPILER" \
-  "$OMEGA_PATH_PSI" "$OMEGA_PATH_OMEGA" \
+  "$OMEGA_PATH_GAMMA_COMPILER" "$OMEGA_PATH_DELTA" "$OMEGA_PATH_DELTA_COMPILER" \
+  "$OMEGA_PATH_OMEGA" \
   "$OMEGA_PATH_BETA_COMPILER" "$OMEGA_PATH_BETA_VALIDATION"
 do
   [ -d "$required" ] || fail "required owner is absent: $required"
+done
+
+
+[ "$OMEGA_PATH_BETA_COMPILER_SOURCE" = "$OMEGA_PATH_BETA_COMPILER/beta_compiler.alpha" ] ||
+  fail "Beta compiler source locator is not canonical"
+[ "$OMEGA_PATH_BETA_COMPILER_TAPE" = "$OMEGA_PATH_BETA_COMPILER/beta_compiler_bytecode.tape" ] ||
+  fail "Beta compiler tape locator is not canonical"
+[ "$OMEGA_PATH_GAMMA_COMPILER_SOURCE" = "$OMEGA_PATH_GAMMA_COMPILER/gamma_compiler.beta" ] ||
+  fail "Gamma compiler source locator is not canonical"
+[ "$OMEGA_PATH_GAMMA_COMPILER_TAPE" = "$OMEGA_PATH_GAMMA_COMPILER/gamma_compiler_bytecode.tape" ] ||
+  fail "Gamma compiler tape locator is not canonical"
+[ "$OMEGA_PATH_DELTA_COMPILER_SOURCE" = "$OMEGA_PATH_DELTA_COMPILER/delta_compiler.gamma" ] ||
+  fail "Delta compiler source locator is not canonical"
+[ "$OMEGA_PATH_DELTA_COMPILER_TAPE" = "$OMEGA_PATH_DELTA_COMPILER/delta_compiler_bytecode.tape" ] ||
+  fail "Delta compiler tape locator is not canonical"
+[ "$OMEGA_PATH_OMEGA_D_SOURCE" = "$OMEGA_PATH_OMEGA/omega_compiler.delta" ] ||
+  fail "Omega D source locator is not canonical"
+[ "$OMEGA_PATH_OMEGA0_COMPILER_TAPE" = "$OMEGA_PATH_OMEGA/omega0_compiler_bytecode.tape" ] ||
+  fail "omega0 tape locator is not canonical"
+[ "$OMEGA_PATH_OMEGA_C_BUILD" = "$OMEGA_PATH_OMEGA/build.omg" ] ||
+  fail "Omega C build locator is not canonical"
+[ "$OMEGA_PATH_OMEGA_C_MAIN" = "$OMEGA_PATH_OMEGA/main.omg" ] ||
+  fail "Omega C main locator is not canonical"
+[ "$OMEGA_PATH_OMEGA_COMPILER_TAPE" = "$OMEGA_PATH_OMEGA/omega_compiler_bytecode.tape" ] ||
+  fail "Omega compiler tape locator is not canonical"
+
+[ -f "$OMEGA_PATH_BETA_COMPILER_SOURCE" ] || fail "canonical Beta compiler source is absent"
+[ -f "$OMEGA_PATH_BETA_COMPILER_TAPE" ] || fail "canonical Beta compiler tape is absent"
+[ -f "$OMEGA_PATH_OMEGA_C_BUILD" ] || fail "canonical Omega C build root is absent"
+[ -f "$OMEGA_PATH_OMEGA_C_MAIN" ] || fail "canonical Omega C main root is absent"
+
+# The source root may host product/reference owners beside the lattice, but no
+# unclassified top-level owner may silently become another bootstrap route.
+tracked_source_roots=$(git -C "$OMEGA_REPO_ROOT" ls-files source | \
+  awk -F/ 'NF > 2 { print $2 }' | sort -u)
+expected_source_roots='alpha
+beta
+delta
+gamma
+library
+omega
+omega-rust
+psi'
+[ "$tracked_source_roots" = "$expected_source_roots" ] ||
+  fail "tracked source owners differ from the classified source-root set"
+
+# Canonical compiler-shaped source and tape names are a positive allow-list.
+# Future entries may be absent while their language contract is open, but no
+# alternate spelling, suffix, nested tape, or native compiler identity may
+# appear in their place.
+tracked_compiler_sources=$(git -C "$OMEGA_REPO_ROOT" ls-files \
+  source/beta source/gamma source/delta source/omega | \
+  grep -E '/[^/]*compiler\.(alpha|beta|gamma|delta|omg)$' || true)
+expected_compiler_sources='source/beta/compiler/beta_compiler.alpha'
+[ "$tracked_compiler_sources" = "$expected_compiler_sources" ] ||
+  fail "compiler source exists outside the canonical implemented location"
+
+tracked_compiler_tapes=$(git -C "$OMEGA_REPO_ROOT" ls-files \
+  source/beta source/gamma source/delta source/omega | \
+  grep -E '/[^/]*compiler[^/]*\.tape$' || true)
+expected_compiler_tapes='source/beta/compiler/beta_compiler_bytecode.tape'
+[ "$tracked_compiler_tapes" = "$expected_compiler_tapes" ] ||
+  fail "compiler tape exists outside the canonical implemented location"
+
+tracked_native_compilers=$(git -C "$OMEGA_REPO_ROOT" ls-files \
+  source/beta source/gamma source/delta source/omega | \
+  grep -E '\.(exe|elf|dll|dylib|so|a|o|obj|wasm)$' || true)
+[ -z "$tracked_native_compilers" ] ||
+  fail "native compiler artifact exists above the Alpha seed: $tracked_native_compilers"
+
+for canonical_owner in \
+  "$OMEGA_PATH_ALPHA" "$OMEGA_PATH_BETA" "$OMEGA_PATH_GAMMA" \
+  "$OMEGA_PATH_DELTA" "$OMEGA_PATH_OMEGA"
+do
+  generic_buckets=$(find "$canonical_owner" -type d \
+    \( -name bootstrap -o -name on-ramp -o -name assurance -o -name canaries \) \
+    -print)
+  [ -z "$generic_buckets" ] ||
+    fail "generic ownership bucket remains under $canonical_owner: $generic_buckets"
 done
 
 [ ! -e "$OMEGA_REPO_ROOT/source/on-ramp" ] || fail "retired source/on-ramp directory remains"
@@ -85,15 +170,18 @@ done
 [ ! -e "$OMEGA_REPO_ROOT/tools/bootstrap" ] || fail "generic bootstrap tooling bucket remains"
 [ ! -e "$OMEGA_REPO_ROOT/tools/assurance" ] || fail "generic assurance tooling bucket remains"
 
-# The canonical Beta source/artifact exist, but exact edge admission remains
-# open. Do not present diagnostic construction as a closed lattice row.
-beta_step_count=$(grep -c '^step "beta — ' "$OMEGA_LATTICE_RUNNER" || true)
-[ "$beta_step_count" -eq 0 ] ||
-  fail "default lattice presents $beta_step_count unadmitted Beta rows"
+# The only closed chain row is Alpha. The checker is a service beside the
+# chain, and no differently labelled open edge may enter through a blacklist
+# gap, so pin the complete step set rather than selected forbidden labels.
+expected_steps='step "alpha — seed behavior and exact assembler construction" alpha verify.sh --edge'
+actual_steps=$(grep '^step "' "$OMEGA_LATTICE_RUNNER" || true)
+[ "$actual_steps" = "$expected_steps" ] ||
+  fail "default lattice step set is not exactly the closed Alpha floor"
 
 for diagnostic in \
   'check-path-hygiene.sh' \
   'selfhost.sh' \
+  'reconstruct-artifact.sh' \
   'admission/bc-artifact-structure.sh' \
   'test-interp.sh' \
   'test-typeck.sh' \

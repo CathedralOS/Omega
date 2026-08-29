@@ -33,7 +33,6 @@ step() { # label owner-role script [arguments...]
 }
 
 step "alpha — seed behavior and exact assembler construction" alpha verify.sh --edge
-step "alpha — below-Beta checker construction" alpha-checker reconstruct-artifact.sh
 
 echo ""
 echo "LATTICE FLOOR GATES PASS — canonical Beta, Gamma, Delta, omega₀, and omega edges remain open"
