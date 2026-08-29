@@ -48,7 +48,7 @@ use psi_language_semantics::content::{
     ContentPlaceVersion as CheckedContentPlaceVersion,
     ContentProjectionExpression as CheckedContentProjectionExpression,
     ContentScalarExpression as CheckedContentScalarExpression,
-    ContentStructuralPlace as CheckedContentStructuralPlace, conservation_fingerprint,
+    ContentStructuralPlace as CheckedContentStructuralPlace, conservation_report_fingerprint,
 };
 use psi_language_semantics::{
     CarryPolicy, Multiplicity, PermissionClaimIdentity, SemanticDomainId, ServiceReachId,
@@ -780,7 +780,8 @@ impl LoweredIntegerBinaryKind {
 /// absent; only normalized semantic identities and stable spellings survive.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoweredContentConservation {
-    pub source_fingerprint: u64,
+    /// Non-authoritative compact coordinate beside the exact proposition.
+    pub source_report_fingerprint: u64,
     pub structural_places: Vec<StructuralPlaceDeclaration>,
     pub proposition: Proposition,
 }
@@ -810,7 +811,8 @@ pub struct LoweredContentPartitionCompositions {
 pub struct LoweredContentPartitionComposition {
     producer_coordinate: SourceCallCoordinate,
     source_callable: psi_symbols::SymbolHandle,
-    source_fingerprint: u64,
+    /// Non-authoritative compact coordinate beside the exact retained source.
+    source_report_fingerprint: u64,
     source_structural_places: Vec<StructuralPlaceDeclaration>,
     source: ContentConservation,
     input_claims: Vec<ClaimId>,

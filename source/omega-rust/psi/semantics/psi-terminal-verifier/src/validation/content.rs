@@ -42,8 +42,8 @@ pub(super) fn validate_boundary_content_guarantees(
                     guarantee.conservation.clone(),
                 ))
                 .map_err(ModuleError::MalformedProposition)?;
-            if content_conservation_fingerprint(&guarantee.conservation, &kinds)
-                != Some(guarantee.fingerprint)
+            if content_conservation_report_fingerprint(&guarantee.conservation, &kinds)
+                != Some(guarantee.report_fingerprint)
             {
                 return Err(ModuleError::InvalidBoundaryContentGuarantee(boundary.id));
             }
@@ -367,10 +367,10 @@ pub(super) fn validate_content_partition_compositions(
             ))
             .map_err(ModuleError::MalformedProposition)?;
         let reconstructed_fingerprint =
-            content_conservation_fingerprint(&composition.source, &source_kinds);
-        if reconstructed_fingerprint != Some(composition.source_fingerprint) {
+            content_conservation_report_fingerprint(&composition.source, &source_kinds);
+        if reconstructed_fingerprint != Some(composition.source_report_fingerprint) {
             return Err(ModuleError::ContentPartitionSourceFingerprintMismatch {
-                recorded: composition.source_fingerprint,
+                recorded: composition.source_report_fingerprint,
                 reconstructed: reconstructed_fingerprint,
             });
         }
@@ -928,7 +928,7 @@ mod tests {
         let term = ContentTerm::Projection {
             projection: ContentProjectionIdentity {
                 domain: psi_core::ContentDomainId::new(7).expect("content domain identity"),
-                projection_fingerprint: 0xfeed,
+                projection_report_fingerprint: 0xfeed,
             },
             subject: ContentStructuralPlace {
                 version: psi_core::ContentPlaceVersion::Current,

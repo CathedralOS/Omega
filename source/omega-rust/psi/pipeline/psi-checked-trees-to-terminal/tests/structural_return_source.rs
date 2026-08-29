@@ -104,7 +104,7 @@ const SOURCE: &str = r#"
 
 const INDEXED_CUSTODY_SOURCE: &str = r#"
     boundary trait PortIo {}
-    data Receipt [linear] { value: u64; }
+    pub data Receipt [linear] { value: u64; }
 
     boundary machine Receipt::settle(self)
     reaches PortIo
@@ -121,7 +121,7 @@ const INDEXED_CUSTODY_SOURCE: &str = r#"
 
 const RESULT_BOUNDARY_CUSTODY_SOURCE: &str = r#"
     boundary trait PortIo {}
-    data Receipt [linear] { value: u64; }
+    pub data Receipt [linear] { value: u64; }
 
     boundary machine Receipt::settle(self) -> bool
     reaches PortIo
@@ -143,7 +143,7 @@ const RESULT_BOUNDARY_CONTENT_CUSTODY_SOURCE: &str = r#"
         machine project(subject: &Self) -> A;
     }
 
-    data Region [linear] { length: u64; }
+    pub data Region [linear] { length: u64; }
     domain Region::Owned;
     machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
     satisfies Content<CountedQuantity<ByteUnit>>::project
@@ -195,7 +195,7 @@ const RESULT_BOUNDARY_BOUNDED_REACH_SOURCE: &str = r#"
 
 const ORDINARY_INDEXED_CUSTODY_SOURCE: &str = r#"
     boundary trait PortIo {}
-    data Receipt [linear] { value: u64; }
+    pub data Receipt [linear] { value: u64; }
 
     boundary machine Receipt::settle(self)
     reaches PortIo
@@ -547,7 +547,7 @@ fn source_content_custody_exit_retains_projection_and_commits_only_after_success
         panic!("one owner-unique content projection")
     };
     assert_eq!(projection.algebra.kind, ContentAlgebraKind::CountedQuantity);
-    assert_ne!(projection.projection.projection_fingerprint, 0);
+    assert_ne!(projection.projection.projection_report_fingerprint, 0);
     let owner_projection = module.structural_domains[0]
         .content_projection
         .as_ref()

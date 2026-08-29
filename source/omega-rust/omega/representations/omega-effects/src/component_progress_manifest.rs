@@ -1,4 +1,26 @@
-use crate::{SelectedProviderPlanFacts, provider_plan::ServiceProgressSubject};
+use crate::{
+    SelectedProviderClosureDigest, SelectedProviderPlanFacts, provider_plan::ServiceProgressSubject,
+};
+use sha2::{Digest, Sha256};
+
+/// Collision-resistant commitment to one exact component progress manifest.
+///
+/// The compact normalized identity remains available for diagnostics and
+/// compatibility records. Installation admission must retain this commitment
+/// (or the complete manifest) so a compact-equal substitute cannot authorize
+/// a different selected provider closure or pending demand set.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ComponentProgressManifestDigest([u8; 32]);
+
+impl ComponentProgressManifestDigest {
+    const fn from_digest(digest: [u8; 32]) -> Self {
+        Self(digest)
+    }
+
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+}
 
 /// Source-handle-free input derived from checked call facts before composition.
 /// It names an obligation only; selected-plan identity is joined by
@@ -39,9 +61,14 @@ pub struct ComponentBuildBoundProgressDemand {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ComponentProgressManifest {
     entry_callable_identity: String,
-    selected_provider_closure_identity: u64,
+    /// Non-authoritative compatibility/report coordinate. The selected
+    /// closure digest below is the authority-bearing join.
+    selected_provider_closure_report_identity: u64,
+    selected_provider_closure_digest: SelectedProviderClosureDigest,
     pending: Vec<ComponentBuildBoundProgressDemand>,
-    normalized_identity: u64,
+    /// Non-authoritative compatibility/report coordinate.
+    compatibility_report_identity: u64,
+    identity_digest: ComponentProgressManifestDigest,
 }
 
 impl ComponentProgressManifest {
@@ -137,17 +164,25 @@ impl ComponentProgressManifest {
         }
         pending.sort();
         pending.dedup();
-        let selected_provider_closure_identity = selected.normalized_identity();
-        let normalized_identity = fingerprint(
+        let selected_provider_closure_report_identity = selected.compatibility_report_identity();
+        let selected_provider_closure_digest = selected.identity_digest();
+        let compatibility_report_identity = compatibility_report_fingerprint(
             &entry_callable_identity,
-            selected_provider_closure_identity,
+            selected_provider_closure_report_identity,
+            &pending,
+        );
+        let identity_digest = digest_manifest(
+            &entry_callable_identity,
+            selected_provider_closure_digest,
             &pending,
         );
         Ok(Self {
             entry_callable_identity,
-            selected_provider_closure_identity,
+            selected_provider_closure_report_identity,
+            selected_provider_closure_digest,
             pending,
-            normalized_identity,
+            compatibility_report_identity,
+            identity_digest,
         })
     }
 
@@ -155,20 +190,129 @@ impl ComponentProgressManifest {
         &self.entry_callable_identity
     }
 
+    /// Compatibility accessor for the non-authoritative compact selected
+    /// closure coordinate. Admission must also compare the closure digest.
     pub const fn selected_provider_closure_identity(&self) -> u64 {
-        self.selected_provider_closure_identity
+        self.selected_provider_closure_report_identity
+    }
+
+    /// Strong authority join to the exact selected-provider closure used
+    /// while binding this manifest.
+    pub const fn selected_provider_closure_digest(&self) -> SelectedProviderClosureDigest {
+        self.selected_provider_closure_digest
+    }
+
+    /// Replays both the report coordinate and collision-resistant commitment.
+    pub fn matches_selected_provider_closure(&self, selected: &SelectedProviderPlanFacts) -> bool {
+        self.selected_provider_closure_report_identity == selected.compatibility_report_identity()
+            && self.selected_provider_closure_digest == selected.identity_digest()
     }
 
     pub fn pending(&self) -> &[ComponentBuildBoundProgressDemand] {
         &self.pending
     }
 
+    /// Compatibility accessor for the non-authoritative compact manifest
+    /// coordinate.
     pub const fn normalized_identity(&self) -> u64 {
-        self.normalized_identity
+        self.compatibility_report_identity
+    }
+
+    /// Explicit name for the non-authoritative compact manifest coordinate.
+    pub const fn compatibility_report_identity(&self) -> u64 {
+        self.compatibility_report_identity
+    }
+
+    pub const fn identity_digest(&self) -> ComponentProgressManifestDigest {
+        self.identity_digest
     }
 }
 
-fn fingerprint(entry: &str, selected: u64, pending: &[ComponentBuildBoundProgressDemand]) -> u64 {
+fn digest_manifest(
+    entry: &str,
+    selected: SelectedProviderClosureDigest,
+    pending: &[ComponentBuildBoundProgressDemand],
+) -> ComponentProgressManifestDigest {
+    let mut encoder = ManifestDigestEncoder::new();
+    encoder.string(entry);
+    encoder.bytes(selected.as_bytes());
+    encoder.len(pending.len());
+    for demand in pending {
+        encoder.string(&demand.provider_service_identity);
+        encoder.package_identity(demand.provider_service_package_identity);
+        encoder.string(&demand.requirement_identity);
+        encoder.package_identity(demand.requirement_owner_package_identity);
+        encoder.string(&demand.profile_identity);
+        encoder.strings(&demand.subject_projections);
+        encoder.len(demand.establishment_routes.len());
+        for route in &demand.establishment_routes {
+            encoder.string(route.kind.as_str());
+            encoder.string(&route.requirement_identity);
+        }
+        // This remains a compact plan coordinate, but the selected closure
+        // commitment above binds the exact uniquely indexed plans.
+        encoder.u64(demand.provider_plan_identity);
+        encoder.string(&demand.origin_callable_identity);
+        encoder.string(&demand.origin_state_identity);
+        encoder.u64(demand.statement_ordinal as u64);
+        encoder.u64(demand.call_ordinal as u64);
+    }
+    encoder.finish()
+}
+
+struct ManifestDigestEncoder(Sha256);
+
+impl ManifestDigestEncoder {
+    fn new() -> Self {
+        let mut digest = Sha256::new();
+        digest.update(b"omega.component-progress-manifest.sha256.v1\0");
+        Self(digest)
+    }
+
+    fn finish(self) -> ComponentProgressManifestDigest {
+        ComponentProgressManifestDigest::from_digest(self.0.finalize().into())
+    }
+
+    fn bytes(&mut self, bytes: &[u8]) {
+        self.0.update((bytes.len() as u64).to_le_bytes());
+        self.0.update(bytes);
+    }
+
+    fn string(&mut self, value: &str) {
+        self.bytes(value.as_bytes());
+    }
+
+    fn strings(&mut self, values: &[String]) {
+        self.len(values.len());
+        for value in values {
+            self.string(value);
+        }
+    }
+
+    fn len(&mut self, len: usize) {
+        self.u64(len as u64);
+    }
+
+    fn u64(&mut self, value: u64) {
+        self.0.update(value.to_le_bytes());
+    }
+
+    fn package_identity(&mut self, identity: Option<psi_core::PackageKeyIdentity>) {
+        match identity {
+            Some(identity) => {
+                self.0.update([1]);
+                self.bytes(&identity.digest());
+            }
+            None => self.0.update([0]),
+        }
+    }
+}
+
+fn compatibility_report_fingerprint(
+    entry: &str,
+    selected: u64,
+    pending: &[ComponentBuildBoundProgressDemand],
+) -> u64 {
     let mut hash = 0xcbf29ce484222325u64;
     let mut write = |bytes: &[u8]| {
         for byte in (bytes.len() as u64)
@@ -324,6 +468,49 @@ mod tests {
             first.pending()[0].provider_plan_identity,
             selected.plans()[0].identity_fingerprint()
         );
+        assert!(first.matches_selected_provider_closure(&selected));
+        assert_ne!(first.identity_digest().as_bytes(), &[0; 32]);
+    }
+
+    #[test]
+    fn compact_equal_selected_closure_substitution_changes_strong_manifest_evidence() {
+        let selected = selected();
+        let manifest = ComponentProgressManifest::bind(
+            "Application::run#exact".into(),
+            &selected,
+            vec![demand(1)],
+        )
+        .expect("exact demands should bind");
+
+        let mut substitute_plan = selected_plan();
+        substitute_plan.target = "adversarial-substitute".into();
+        let substitute = SelectedProviderPlanFacts::from_selected_plans(vec![substitute_plan])
+            .expect("structurally valid substitute closure");
+        assert_ne!(selected.identity_digest(), substitute.identity_digest());
+
+        // Model an adversary supplying a structurally different closure under
+        // the same compact report coordinate. Private fields keep this state
+        // unforgeable outside the representation owner; the test demonstrates
+        // that the strong join, unlike the u64 coordinate, rejects it.
+        let substituted = ComponentProgressManifest {
+            entry_callable_identity: manifest.entry_callable_identity.clone(),
+            selected_provider_closure_report_identity: manifest
+                .selected_provider_closure_report_identity,
+            selected_provider_closure_digest: substitute.identity_digest(),
+            pending: manifest.pending.clone(),
+            compatibility_report_identity: manifest.compatibility_report_identity,
+            identity_digest: digest_manifest(
+                &manifest.entry_callable_identity,
+                substitute.identity_digest(),
+                &manifest.pending,
+            ),
+        };
+        assert_eq!(
+            manifest.compatibility_report_identity(),
+            substituted.compatibility_report_identity()
+        );
+        assert_ne!(manifest.identity_digest(), substituted.identity_digest());
+        assert!(!substituted.matches_selected_provider_closure(&selected));
     }
 
     #[test]

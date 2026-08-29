@@ -47,7 +47,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "fa91a9e4aaecb12fcd5f14876fb7a3f98cbd17d46e5494c24bacdbd2cb69b757"
+        "6963272ecacba62f6a936b86e5e7aca27db7a63fe56ff8e386dbc07827fbcf83"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -87,8 +87,11 @@ fn structural_domain_owner_content_projection_round_trips_and_enters_identity() 
     };
     let expression =
         ContentProjectionExpression::CountedQuantity(ContentProjectionScalar::Natural("4".into()));
-    let projection_fingerprint =
-        psi_language_semantics::content::terminal_projection_fingerprint(&algebra, &expression);
+    let projection_report_fingerprint =
+        psi_language_semantics::content::terminal_projection_report_fingerprint(
+            &algebra,
+            &expression,
+        );
     module.structural_domains.push(StructuralDomainDeclaration {
         id: structural_domain_id(1),
         semantic_domain: psi_core::DomainSemanticId::new(1).unwrap(),
@@ -97,7 +100,7 @@ fn structural_domain_owner_content_projection_round_trips_and_enters_identity() 
         content_projection: Some(StructuralContentProjection {
             identity: ContentProjectionIdentity {
                 domain: ContentDomainId::new(1).unwrap(),
-                projection_fingerprint,
+                projection_report_fingerprint,
             },
             algebra,
             expression,
@@ -115,8 +118,8 @@ fn structural_domain_owner_content_projection_round_trips_and_enters_identity() 
         .expect("owner projection");
     owner.expression =
         ContentProjectionExpression::CountedQuantity(ContentProjectionScalar::Natural("5".into()));
-    owner.identity.projection_fingerprint =
-        psi_language_semantics::content::terminal_projection_fingerprint(
+    owner.identity.projection_report_fingerprint =
+        psi_language_semantics::content::terminal_projection_report_fingerprint(
             &owner.algebra,
             &owner.expression,
         );
@@ -3604,7 +3607,7 @@ fn content_conservation_fixture(vocabulary_marker: VocabularyMarker) -> Terminal
     let result_place = place_id(2);
     let projection = ContentProjectionIdentity {
         domain: ContentDomainId::new(7).expect("domain"),
-        projection_fingerprint: 0x1234,
+        projection_report_fingerprint: 0x1234,
     };
     let projected = |version, root, field: Option<&str>| ContentTerm::Projection {
         projection,
@@ -3721,7 +3724,7 @@ fn identity_reshuffle_fixture(vocabulary_marker: VocabularyMarker) -> TerminalMo
             ClaimContentProjection {
                 projection: ContentProjectionIdentity {
                     domain: ContentDomainId::new(7).expect("domain"),
-                    projection_fingerprint: 0x1234,
+                    projection_report_fingerprint: 0x1234,
                 },
                 algebra: ContentAlgebra {
                     kind: ContentAlgebraKind::IntervalSet,
@@ -3731,7 +3734,7 @@ fn identity_reshuffle_fixture(vocabulary_marker: VocabularyMarker) -> TerminalMo
             ClaimContentProjection {
                 projection: ContentProjectionIdentity {
                     domain: ContentDomainId::new(8).expect("domain"),
-                    projection_fingerprint: 0x5678,
+                    projection_report_fingerprint: 0x5678,
                 },
                 algebra: ContentAlgebra {
                     kind: ContentAlgebraKind::CountedQuantity,
@@ -3824,7 +3827,7 @@ fn partition_composition_fixture() -> TerminalModule {
     substitutions.sort();
     machine.content_partition_compositions = vec![ContentPartitionComposition {
         producer_operation: operation_id(90),
-        source_fingerprint: 0xfeed_face_dead_beef,
+        source_report_fingerprint: 0xfeed_face_dead_beef,
         source_structural_places: vec![
             StructuralPlaceDeclaration {
                 id: source_input_root,

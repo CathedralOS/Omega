@@ -57,7 +57,7 @@ pub(super) fn encode_boundary_machine(
         writer.id(schema.qualification);
         writer.id(schema.carrier);
         writer.id(schema.projection.domain);
-        writer.u64(schema.projection.projection_fingerprint);
+        writer.u64(schema.projection.projection_report_fingerprint);
         writer.u8(match schema.algebra.kind {
             ContentAlgebraKind::IntervalSet => 1,
             ContentAlgebraKind::CountedQuantity => 2,
@@ -203,7 +203,7 @@ pub(super) fn decode_boundary_machine(
             let qualification = reader.id("StructuralDomainId")?;
             let carrier = reader.id("StructuralTypeId")?;
             let projection_domain = reader.id("ContentDomainId")?;
-            let projection_fingerprint = reader.u64()?;
+            let projection_report_fingerprint = reader.u64()?;
             let algebra_kind = match reader.u8()? {
                 1 => ContentAlgebraKind::IntervalSet,
                 2 => ContentAlgebraKind::CountedQuantity,
@@ -219,7 +219,7 @@ pub(super) fn decode_boundary_machine(
                 carrier,
                 projection: ContentProjectionIdentity {
                     domain: projection_domain,
-                    projection_fingerprint,
+                    projection_report_fingerprint,
                 },
                 algebra: ContentAlgebra {
                     kind: algebra_kind,

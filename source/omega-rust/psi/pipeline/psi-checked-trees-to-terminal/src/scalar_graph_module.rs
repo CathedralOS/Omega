@@ -972,7 +972,7 @@ pub(super) fn build_scalar_graph_module(
             }
             Ok(ContentPartitionComposition {
                 producer_operation,
-                source_fingerprint: composition.source_fingerprint,
+                source_report_fingerprint: composition.source_report_fingerprint,
                 source_structural_places: composition.source_structural_places,
                 source: composition.source,
                 input_claims: composition.input_claims,

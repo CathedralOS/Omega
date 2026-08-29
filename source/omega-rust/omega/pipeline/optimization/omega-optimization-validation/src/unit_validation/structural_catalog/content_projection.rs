@@ -88,12 +88,12 @@ pub(crate) fn validate_structural_content_projection(
         )
     );
     projection.identity.domain.get() == semantic_domain.get()
-        && projection.identity.projection_fingerprint != 0
+        && projection.identity.projection_report_fingerprint != 0
         && !projection.algebra.parameter.is_empty()
         && shape_matches_algebra
         && validate_content_projection_expression(&projection.expression, carrier, types)
-        && psi_language_semantics::content::terminal_projection_fingerprint(
+        && psi_language_semantics::content::terminal_projection_report_fingerprint(
             &projection.algebra,
             &projection.expression,
-        ) == projection.identity.projection_fingerprint
+        ) == projection.identity.projection_report_fingerprint
 }

@@ -3,7 +3,7 @@ use psi_checked_trees::data::TypeParameterKind;
 use psi_terminal::{
     ClosedConformanceApplication, ClosedConformanceParameterBinding,
     ClosedConformanceParameterKind, ClosedConformanceRow, TerminalModule,
-    closed_conformance_application_fingerprint,
+    closed_conformance_application_commitment, closed_conformance_application_fingerprint,
 };
 
 use super::LoweringError;
@@ -161,8 +161,10 @@ pub(super) fn lower_closed_conformance_applications(
                 trait_arguments: application.trait_arguments.clone(),
                 rows,
                 fingerprint: 0,
+                commitment: Default::default(),
             };
             lowered.fingerprint = closed_conformance_application_fingerprint(&lowered);
+            lowered.commitment = closed_conformance_application_commitment(&lowered);
             applications.push(lowered);
         }
     }

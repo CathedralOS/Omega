@@ -1381,7 +1381,7 @@ fn source_projection(
         domain: SymbolHandle::from_arena_index(70),
         semantic_domain,
         projection_machine: SymbolHandle::from_arena_index(71),
-        projection_fingerprint: 0xfeed,
+        projection_report_fingerprint: 0xfeed,
         subject: CheckedContentStructuralPlace {
             version,
             root,

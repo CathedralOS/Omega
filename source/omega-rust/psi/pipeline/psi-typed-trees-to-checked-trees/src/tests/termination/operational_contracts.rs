@@ -600,7 +600,10 @@ fn contract_plans_fingerprint_published_halves() {
     };
     assert_eq!(frame(quiet_a).paths(), &["self.left".to_owned()]);
     assert_eq!(frame(quiet_b).paths(), &["self.right".to_owned()]);
-    assert_ne!(frame(quiet_a).fingerprint(), frame(quiet_b).fingerprint());
+    assert_ne!(
+        frame(quiet_a).compatibility_report_fingerprint(),
+        frame(quiet_b).compatibility_report_fingerprint()
+    );
     assert_eq!(frame(write_alpha).paths(), &["$P0".to_owned()]);
     assert_eq!(frame(write_alpha), frame(write_beta));
     assert_eq!(frame(transitioning).paths(), &["self.left".to_owned()]);

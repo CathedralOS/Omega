@@ -11,12 +11,14 @@ pub enum WriteFrameCompleteness {
 
 /// Canonical may-write frame shared by inference, checked-plan storage, and
 /// artifact consumers. Complete paths are sorted and deduplicated before the
-/// identity is computed; opaque frames intentionally expose no usable paths.
+/// report coordinate is computed; opaque frames intentionally expose no usable
+/// paths. Semantic consumers compare completeness and exact normalized paths,
+/// never the compact coordinate alone.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NormalizedWriteFrame {
     completeness: WriteFrameCompleteness,
     paths: Vec<String>,
-    fingerprint: u64,
+    compatibility_report_fingerprint: u64,
 }
 
 impl Default for NormalizedWriteFrame {
@@ -29,11 +31,15 @@ impl NormalizedWriteFrame {
     pub fn complete(mut paths: Vec<String>) -> Self {
         paths.sort();
         paths.dedup();
-        let fingerprint = write_frame_fingerprint(WriteFrameCompleteness::Complete, &paths);
+        let compatibility_report_fingerprint =
+            non_authoritative_write_frame_compatibility_fingerprint(
+                WriteFrameCompleteness::Complete,
+                &paths,
+            );
         Self {
             completeness: WriteFrameCompleteness::Complete,
             paths,
-            fingerprint,
+            compatibility_report_fingerprint,
         }
     }
 
@@ -41,7 +47,11 @@ impl NormalizedWriteFrame {
         Self {
             completeness: WriteFrameCompleteness::Opaque,
             paths: Vec::new(),
-            fingerprint: write_frame_fingerprint(WriteFrameCompleteness::Opaque, &[]),
+            compatibility_report_fingerprint:
+                non_authoritative_write_frame_compatibility_fingerprint(
+                    WriteFrameCompleteness::Opaque,
+                    &[],
+                ),
         }
     }
 
@@ -65,12 +75,12 @@ impl NormalizedWriteFrame {
         self.is_complete().then_some(self.paths)
     }
 
-    pub fn fingerprint(&self) -> u64 {
-        self.fingerprint
+    pub fn compatibility_report_fingerprint(&self) -> u64 {
+        self.compatibility_report_fingerprint
     }
 }
 
-fn write_frame_fingerprint(
+fn non_authoritative_write_frame_compatibility_fingerprint(
     completeness: WriteFrameCompleteness,
     normalized_paths: &[String],
 ) -> u64 {
@@ -122,7 +132,10 @@ mod tests {
         let opaque = NormalizedWriteFrame::opaque();
         let pure = NormalizedWriteFrame::complete(Vec::new());
 
-        assert_ne!(opaque.fingerprint(), pure.fingerprint());
+        assert_ne!(
+            opaque.compatibility_report_fingerprint(),
+            pure.compatibility_report_fingerprint()
+        );
         assert_eq!(NormalizedWriteFrame::default(), opaque);
         assert!(opaque.complete_paths().is_none());
         assert_eq!(pure.complete_paths(), Some([].as_slice()));

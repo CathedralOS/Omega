@@ -33,14 +33,14 @@ fn source_plan_with_domain(semantic_domain: SemanticDomainId) -> ContentConserva
         entry,
         CheckedContentConservationTerm::separate([right, left]),
     );
-    let fingerprint = conservation_fingerprint(&algebra, &equation);
+    let report_fingerprint = conservation_report_fingerprint(&algebra, &equation);
     ContentConservationPlan {
         owner_kind: ContentConservationOwnerKind::Machine,
         owner: SymbolHandle::from_arena_index(20),
         callable: SymbolHandle::from_arena_index(21),
         algebra,
         equation,
-        fingerprint,
+        report_fingerprint,
     }
 }
 
@@ -73,14 +73,14 @@ fn direct_source_plan(
         coordinate_space: "Address".to_owned(),
     };
     let equation = ContentConservationEquation::new(entry, output);
-    let fingerprint = conservation_fingerprint(&algebra, &equation);
+    let report_fingerprint = conservation_report_fingerprint(&algebra, &equation);
     ContentConservationPlan {
         owner_kind: ContentConservationOwnerKind::Machine,
         owner: SymbolHandle::from_arena_index(20),
         callable: SymbolHandle::from_arena_index(21),
         algebra,
         equation,
-        fingerprint,
+        report_fingerprint,
     }
 }
 
@@ -101,7 +101,7 @@ fn case_direct_source_plan(semantic_domain: SemanticDomainId) -> ContentConserva
         domain: SymbolHandle::from_arena_index(70),
         semantic_domain,
         projection_machine: SymbolHandle::from_arena_index(71),
-        projection_fingerprint: 0xfeed,
+        projection_report_fingerprint: 0xfeed,
         subject: CheckedContentStructuralPlace {
             version,
             root,
@@ -126,14 +126,14 @@ fn case_direct_source_plan(semantic_domain: SemanticDomainId) -> ContentConserva
     let algebra = CheckedContentAlgebraIdentity::IntervalSet {
         coordinate_space: "Address".to_owned(),
     };
-    let fingerprint = conservation_fingerprint(&algebra, &equation);
+    let report_fingerprint = conservation_report_fingerprint(&algebra, &equation);
     ContentConservationPlan {
         owner_kind: ContentConservationOwnerKind::Machine,
         owner: SymbolHandle::from_arena_index(20),
         callable: SymbolHandle::from_arena_index(21),
         algebra,
         equation,
-        fingerprint,
+        report_fingerprint,
     }
 }
 
@@ -196,7 +196,7 @@ fn partition_composition_fact() -> ContentPartitionCompositionFact {
         machine_symbol: plan.owner,
         state_symbol: plan.callable,
         source_callable: source_plan.callable,
-        source_fingerprint: source_plan.fingerprint,
+        source_report_fingerprint: source_plan.report_fingerprint,
         source_derivation_depth: 0,
         source_plan,
         statement_index: 4,
@@ -225,7 +225,7 @@ fn checked_content_plan_lowers_without_arena_local_identity() {
     let plan = source_plan();
     let lowered = lower_content_conservation_plan(&plan).expect("lowered conservation");
 
-    assert_eq!(lowered.source_fingerprint, plan.fingerprint);
+    assert_eq!(lowered.source_report_fingerprint, plan.report_fingerprint);
     assert_eq!(
         lowered.structural_places,
         vec![
@@ -251,8 +251,8 @@ fn checked_content_plan_lowers_without_arena_local_identity() {
         panic!("content proposition")
     };
     assert_eq!(
-        psi_core::content_conservation_fingerprint(conservation, &structural_places),
-        Some(plan.fingerprint),
+        psi_core::content_conservation_report_fingerprint(conservation, &structural_places),
+        Some(plan.report_fingerprint),
         "terminal reconstruction must preserve the checked-plan identity preimage"
     );
 
@@ -274,7 +274,7 @@ fn checked_content_plan_lowers_without_arena_local_identity() {
         panic!("entry projection")
     };
     assert_eq!(projection.domain.get(), 9);
-    assert_eq!(projection.projection_fingerprint, 0xfeed);
+    assert_eq!(projection.projection_report_fingerprint, 0xfeed);
     assert_eq!(subject.version, ContentPlaceVersion::Entry);
     assert_eq!(subject.root.get(), 1);
     assert!(subject.segments.is_empty());
@@ -349,7 +349,10 @@ fn checked_partition_composition_lowers_with_exact_source_and_dense_claims() {
         }
     );
     assert_eq!(row.source_callable, fact.source_callable);
-    assert_eq!(row.source_fingerprint, fact.source_fingerprint);
+    assert_eq!(
+        row.source_report_fingerprint,
+        fact.source_report_fingerprint
+    );
     assert_eq!(row.input_claims, vec![ClaimId::new(1).expect("claim")]);
     assert_eq!(row.substitutions.len(), 3);
     assert_eq!(row.source, row.derived);
@@ -418,7 +421,7 @@ fn checked_partition_composition_lowers_a_partition_only_entry_claim() {
 #[test]
 fn checked_content_plan_fails_closed_on_corrupt_identity() {
     let mut plan = source_plan();
-    plan.fingerprint ^= 1;
+    plan.report_fingerprint ^= 1;
     assert!(matches!(
         lower_content_conservation_plan(&plan),
         Err(LoweringError::ContentConservationFingerprintMismatch { .. })
@@ -429,6 +432,21 @@ fn checked_content_plan_fails_closed_on_corrupt_identity() {
         lower_content_conservation_plan(&plan),
         Err(LoweringError::InvalidContentDomainIdentity)
     );
+}
+
+#[test]
+fn compact_equal_content_plan_substitution_rejects_without_exact_equation_replay() {
+    let authoritative = source_plan();
+    let mut substituted = direct_source_plan(SemanticDomainId(9), "substituted");
+
+    // Model a collision-equal report/cache coordinate. The exact equation is
+    // deliberately different, so lowering must recompute it and fail closed.
+    substituted.report_fingerprint = authoritative.report_fingerprint;
+    assert_ne!(substituted.equation, authoritative.equation);
+    assert!(matches!(
+        lower_content_conservation_plan(&substituted),
+        Err(LoweringError::ContentConservationFingerprintMismatch { .. })
+    ));
 }
 
 #[test]

@@ -20,15 +20,16 @@ pub enum ContentAlgebraKind {
     CountedQuantity,
 }
 
-/// Exact owner-unique content projection selected by one qualification.
+/// Owner-local content-projection coordinate selected by one qualification.
 ///
-/// The source normalizer binds the semantic domain and the stable projection
-/// definition fingerprint. Arena-local machine symbols are deliberately not
+/// The compact report fingerprint is non-authoritative: the owning structural
+/// domain retains the exact algebra and expression, and every use rejoins and
+/// replays that definition. Arena-local machine symbols are deliberately not
 /// part of terminal Psi.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ContentProjectionIdentity {
     pub domain: ContentDomainId,
-    pub projection_fingerprint: u64,
+    pub projection_report_fingerprint: u64,
 }
 
 /// Source-handle-free scalar expression defining one installed root's
@@ -199,14 +200,15 @@ impl ContentConservation {
     }
 }
 
-/// Reconstruct the checked-language identity fingerprint of one terminal
-/// content equation. Structural root ids are machine-local representation;
-/// the semantic preimage uses their declared parameter/result roles.
+/// Reconstruct the checked-language report fingerprint of one terminal
+/// content equation. This compact value is non-authoritative: structural root
+/// ids are machine-local representation, while theorem admission replays the
+/// exact retained equation and substitution against the producer call.
 ///
 /// `None` means the terminal row cannot have originated in the checked
 /// fingerprint vocabulary (currently only a content-domain id wider than the
 /// checked `u32` identity space, or an undeclared structural root).
-pub fn content_conservation_fingerprint(
+pub fn content_conservation_report_fingerprint(
     conservation: &ContentConservation,
     structural_places: &BTreeMap<PlaceId, StructuralPlaceKind>,
 ) -> Option<u64> {
@@ -244,7 +246,7 @@ fn encode_fingerprint_term(
         } => {
             output.push(1);
             output.extend_from_slice(&u32::try_from(projection.domain.get()).ok()?.to_le_bytes());
-            output.extend_from_slice(&projection.projection_fingerprint.to_le_bytes());
+            output.extend_from_slice(&projection.projection_report_fingerprint.to_le_bytes());
             output.push(match subject.version {
                 ContentPlaceVersion::Entry => 1,
                 ContentPlaceVersion::Current => 2,
@@ -315,7 +317,7 @@ fn validate_term(term: &ContentTerm, depth: usize) -> Result<(), PropositionErro
             projection,
             subject,
         } => {
-            if projection.projection_fingerprint == 0 {
+            if projection.projection_report_fingerprint == 0 {
                 return Err(PropositionError::ZeroContentProjectionFingerprint);
             }
             if subject.segments.iter().any(
@@ -362,7 +364,7 @@ mod tests {
         ContentTerm::Projection {
             projection: ContentProjectionIdentity {
                 domain: ContentDomainId::new(1).expect("domain"),
-                projection_fingerprint: 2,
+                projection_report_fingerprint: 2,
             },
             subject: ContentStructuralPlace {
                 version,

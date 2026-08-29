@@ -489,6 +489,7 @@ fn validate_static_requirement_dispatch(
         ordinal: invocation.ordinal,
     };
     if dispatch.conformance_application_fingerprint == 0
+        || dispatch.conformance_application_commitment.is_zero()
         || dispatch.public_requirement_identity.is_empty()
         || dispatch.public_requirement_identity != invocation.target_machine_identity
         || dispatch.declaring_trait_identity.is_empty()
@@ -513,6 +514,7 @@ fn validate_static_requirement_dispatch(
         .filter(|application| {
             application.owner == invocation.caller
                 && application.fingerprint == dispatch.conformance_application_fingerprint
+                && application.commitment == dispatch.conformance_application_commitment
         });
     let Some(application) = applications.next() else {
         return Err(invalid());

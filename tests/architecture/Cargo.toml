@@ -24,6 +24,10 @@ path = "semantic_taxonomy_inventory.rs"
 name = "validation_integration"
 path = "validation_integration.rs"
 
+[[test]]
+name = "conformance_application_identity"
+path = "conformance_application_identity.rs"
+
 [dev-dependencies]
 psi-arena = { path = "../../source/omega-rust/psi/foundation/psi-arena" }
 psi-symbols = { path = "../../source/omega-rust/psi/foundation/psi-symbols" }

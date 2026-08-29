@@ -737,7 +737,12 @@ fn encode_completion_claim_source(bytes: &mut Vec<u8>, source: &CompletionClaimS
 
 fn encode_claim_projection(bytes: &mut Vec<u8>, projection: &ClaimContentProjection) {
     bytes.extend_from_slice(&projection.projection.domain.get().to_le_bytes());
-    bytes.extend_from_slice(&projection.projection.projection_fingerprint.to_le_bytes());
+    bytes.extend_from_slice(
+        &projection
+            .projection
+            .projection_report_fingerprint
+            .to_le_bytes(),
+    );
     encode_content_algebra(bytes, &projection.algebra);
 }
 

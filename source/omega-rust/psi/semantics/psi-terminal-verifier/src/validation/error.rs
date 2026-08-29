@@ -74,6 +74,9 @@ pub enum ModuleError {
         expected: u64,
         actual: u64,
     },
+    ClosedConformanceCommitmentMismatch {
+        owner: MachineId,
+    },
     DuplicatePropositionDeclaration(PropositionId),
     DuplicatePropositionApplication(PropositionId),
     NonDensePropositionDeclaration {

@@ -243,7 +243,7 @@ fn extent_root_provider_adapter_compiles() {
             && matches!(right.as_ref(), ContentScalarExpression::RuntimeScalarEmbedding(path)
                 if matches!(path.as_slice(), [field] if field.name == "length"))
     ));
-    assert_ne!(plan.fingerprint, 0);
+    assert_ne!(plan.report_fingerprint, 0);
 
     let build_dir = std::env::temp_dir().join(format!("omega-extent-root-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
@@ -338,7 +338,7 @@ fn content_conservation_contract_is_normalized_and_reported() {
         plan.equation.right(),
         ContentConservationTerm::Separate(outputs) if outputs.len() == 2
     ));
-    assert_ne!(plan.fingerprint, 0);
+    assert_ne!(plan.report_fingerprint, 0);
 
     let build_dir =
         std::env::temp_dir().join(format!("omega-content-conservation-{}", std::process::id()));

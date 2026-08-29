@@ -73,7 +73,7 @@ pub(super) fn encode_completion_claim_source(
         );
         for projection in &content.projections {
             push_u64(bytes, projection.projection.domain.get());
-            push_u64(bytes, projection.projection.projection_fingerprint);
+            push_u64(bytes, projection.projection.projection_report_fingerprint);
             bytes.push(match projection.algebra.kind {
                 ContentAlgebraKind::IntervalSet => 1,
                 ContentAlgebraKind::CountedQuantity => 2,
@@ -147,7 +147,7 @@ pub(super) fn decode_completion_claim_source(
         for _ in 0..projection_count {
             let domain = ContentDomainId::new(reader.u64()?)
                 .ok_or(InstallationError::ZeroSettlementIdentity("ContentDomainId"))?;
-            let projection_fingerprint = reader.u64()?;
+            let projection_report_fingerprint = reader.u64()?;
             let kind = match reader.u8()? {
                 1 => ContentAlgebraKind::IntervalSet,
                 2 => ContentAlgebraKind::CountedQuantity,
@@ -159,7 +159,7 @@ pub(super) fn decode_completion_claim_source(
             projections.push(ClaimContentProjection {
                 projection: ContentProjectionIdentity {
                     domain,
-                    projection_fingerprint,
+                    projection_report_fingerprint,
                 },
                 algebra: ContentAlgebra {
                     kind,

@@ -122,7 +122,9 @@ pub(super) fn lower_structural_content_projection(
     else {
         return Ok(None);
     };
-    if projection.carrier_identity != expected_carrier_identity || projection.fingerprint == 0 {
+    if projection.carrier_identity != expected_carrier_identity
+        || projection.report_fingerprint == 0
+    {
         return unsupported(
             "structural domain content projection disagrees with its carrier or identity",
         );
@@ -141,12 +143,16 @@ pub(super) fn lower_structural_content_projection(
     let identity = ContentProjectionIdentity {
         domain: ContentDomainId::new(u64::from(domain.0))
             .ok_or(LoweringError::InvalidContentDomainIdentity)?,
-        projection_fingerprint: projection.fingerprint,
+        projection_report_fingerprint: projection.report_fingerprint,
     };
-    if psi_language_semantics::content::terminal_projection_fingerprint(&algebra, &expression)
-        != identity.projection_fingerprint
+    if psi_language_semantics::content::terminal_projection_report_fingerprint(
+        &algebra,
+        &expression,
+    ) != identity.projection_report_fingerprint
     {
-        return unsupported("structural domain content projection fingerprint does not replay");
+        return unsupported(
+            "structural domain content projection report_fingerprint does not replay",
+        );
     }
     Ok(Some(StructuralContentProjection {
         identity,
@@ -206,7 +212,7 @@ pub(super) fn lower_whole_content_entry_claims(
                         "content projection carrier disagrees with its qualified parameter",
                     );
                 }
-                if projection.fingerprint == 0 {
+                if projection.report_fingerprint == 0 {
                     return Err(LoweringError::ZeroContentProjectionFingerprint);
                 }
                 let domain = ContentDomainId::new(u64::from(projection.semantic_domain.0))
@@ -226,7 +232,7 @@ pub(super) fn lower_whole_content_entry_claims(
                 Ok(ClaimContentProjection {
                     projection: ContentProjectionIdentity {
                         domain,
-                        projection_fingerprint: projection.fingerprint,
+                        projection_report_fingerprint: projection.report_fingerprint,
                     },
                     algebra,
                 })
@@ -280,11 +286,11 @@ pub(super) fn lower_whole_content_entry_claims(
 pub fn lower_content_conservation_plan(
     plan: &ContentConservationPlan,
 ) -> Result<LoweredContentConservation, LoweringError> {
-    let expected_fingerprint = conservation_fingerprint(&plan.algebra, &plan.equation);
-    if plan.fingerprint != expected_fingerprint {
+    let expected_fingerprint = conservation_report_fingerprint(&plan.algebra, &plan.equation);
+    if plan.report_fingerprint != expected_fingerprint {
         return Err(LoweringError::ContentConservationFingerprintMismatch {
             expected: expected_fingerprint,
-            actual: plan.fingerprint,
+            actual: plan.report_fingerprint,
         });
     }
 
@@ -313,7 +319,7 @@ pub fn lower_content_conservation_plan(
         .map_err(LoweringError::InvalidContentProposition)?;
 
     Ok(LoweredContentConservation {
-        source_fingerprint: plan.fingerprint,
+        source_report_fingerprint: plan.report_fingerprint,
         structural_places: structural_places
             .into_iter()
             .map(|(id, kind)| StructuralPlaceDeclaration { id, kind })
@@ -336,7 +342,7 @@ pub fn lower_boundary_content_guarantees(
             let lowered = lower_content_conservation_plan(plan)?;
             let conservation = lowered_conservation(lowered.proposition)?;
             Ok(ContentConservationGuarantee {
-                fingerprint: lowered.source_fingerprint,
+                report_fingerprint: lowered.source_report_fingerprint,
                 structural_places: lowered.structural_places,
                 conservation,
             })
@@ -543,7 +549,7 @@ pub fn lower_content_partition_compositions(
             || fact.plan.owner != fact.machine_symbol
             || fact.plan.callable != fact.state_symbol
             || fact.source_plan.callable != fact.source_callable
-            || fact.source_plan.fingerprint != fact.source_fingerprint
+            || fact.source_plan.report_fingerprint != fact.source_report_fingerprint
         {
             return Err(LoweringError::ContentPartitionFactOwnerMismatch);
         }
@@ -612,7 +618,7 @@ pub fn lower_content_partition_compositions(
                 call_ordinal: fact.call_ordinal,
             },
             source_callable: fact.source_callable,
-            source_fingerprint: fact.source_fingerprint,
+            source_report_fingerprint: fact.source_report_fingerprint,
             source_structural_places,
             source: source_conservation,
             input_claims,
@@ -880,7 +886,7 @@ fn replay_checked_partition_term(
             domain,
             semantic_domain,
             projection_machine,
-            projection_fingerprint,
+            projection_report_fingerprint,
             subject,
         } => {
             let target = substitutions
@@ -893,7 +899,7 @@ fn replay_checked_partition_term(
                 domain: *domain,
                 semantic_domain: *semantic_domain,
                 projection_machine: *projection_machine,
-                projection_fingerprint: *projection_fingerprint,
+                projection_report_fingerprint: *projection_report_fingerprint,
                 subject: target,
             })
         }
@@ -1015,19 +1021,19 @@ fn lower_content_term(
     match term {
         CheckedContentConservationTerm::Projection {
             semantic_domain,
-            projection_fingerprint,
+            projection_report_fingerprint,
             subject,
             ..
         } => {
             let domain = ContentDomainId::new(u64::from(semantic_domain.0))
                 .ok_or(LoweringError::InvalidContentDomainIdentity)?;
-            if *projection_fingerprint == 0 {
+            if *projection_report_fingerprint == 0 {
                 return Err(LoweringError::ZeroContentProjectionFingerprint);
             }
             Ok(ContentTerm::Projection {
                 projection: ContentProjectionIdentity {
                     domain,
-                    projection_fingerprint: *projection_fingerprint,
+                    projection_report_fingerprint: *projection_report_fingerprint,
                 },
                 subject: lower_content_place(subject, structural_places)?,
             })

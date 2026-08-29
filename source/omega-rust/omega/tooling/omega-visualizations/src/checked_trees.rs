@@ -994,7 +994,7 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
     content_projections.sort_by_key(|plan| {
         (
             qualification_symbol_label(program, plan.domain),
-            plan.fingerprint,
+            plan.report_fingerprint,
         )
     });
     json.push_str("\n  ],\n  \"content_projections\": [");
@@ -1023,8 +1023,8 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
         push_content_algebra_json(&mut json, &plan.algebra);
         json.push_str(",\n      \"normalized_projection\": ");
         push_content_projection_json(&mut json, &plan.expression);
-        json.push_str(",\n      \"fingerprint\": ");
-        push_json_string(&mut json, &format!("0x{:016x}", plan.fingerprint));
+        json.push_str(",\n      \"report_fingerprint\": ");
+        push_json_string(&mut json, &format!("0x{:016x}", plan.report_fingerprint));
         json.push_str("\n    }");
     }
     let mut identity_reshuffles = program
@@ -1062,7 +1062,7 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
             row.input_parameter_symbol,
             row.input_segments,
             row.output_segments,
-            row.plan.fingerprint,
+            row.plan.report_fingerprint,
         );
         assert!(
             !identity_reshuffle_keys.contains(&key),
@@ -1113,8 +1113,11 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
         push_content_conservation_term_json(&mut json, program, row.plan.equation.left());
         json.push_str(", \"right\": ");
         push_content_conservation_term_json(&mut json, program, row.plan.equation.right());
-        json.push_str("},\n      \"fingerprint\": ");
-        push_json_string(&mut json, &format!("0x{:016x}", row.plan.fingerprint));
+        json.push_str("},\n      \"report_fingerprint\": ");
+        push_json_string(
+            &mut json,
+            &format!("0x{:016x}", row.plan.report_fingerprint),
+        );
         json.push_str("\n    }");
     }
     let mut partition_compositions = program
@@ -1148,7 +1151,7 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
         );
         assert!(
             row.source_callable == row.source_plan.callable
-                && row.source_fingerprint == row.source_plan.fingerprint,
+                && row.source_report_fingerprint == row.source_plan.report_fingerprint,
             "content partition composition must retain its exact source-plan coordinates",
         );
         validate_content_partition_input_custody(program, row);
@@ -1159,8 +1162,8 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
             row.state_symbol,
             row.statement_index,
             row.call_ordinal,
-            row.source_fingerprint,
-            row.plan.fingerprint,
+            row.source_report_fingerprint,
+            row.plan.report_fingerprint,
         );
         assert!(
             !partition_composition_keys.contains(&key),
@@ -1188,8 +1191,11 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
             &callable_overload_identity(program, row.source_plan.owner, row.source_callable)
                 .expect("content partition composition must name an exact source callable"),
         );
-        json.push_str(",\n      \"source_fingerprint\": ");
-        push_json_string(&mut json, &format!("0x{:016x}", row.source_fingerprint));
+        json.push_str(",\n      \"source_report_fingerprint\": ");
+        push_json_string(
+            &mut json,
+            &format!("0x{:016x}", row.source_report_fingerprint),
+        );
         json.push_str(",\n      \"source_derivation_depth\": ");
         json.push_str(&row.source_derivation_depth.to_string());
         json.push_str(",\n      \"source_equation\": {\"left\": ");
@@ -1249,8 +1255,11 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
         push_content_conservation_term_json(&mut json, program, row.plan.equation.left());
         json.push_str(", \"right\": ");
         push_content_conservation_term_json(&mut json, program, row.plan.equation.right());
-        json.push_str("},\n      \"fingerprint\": ");
-        push_json_string(&mut json, &format!("0x{:016x}", row.plan.fingerprint));
+        json.push_str("},\n      \"report_fingerprint\": ");
+        push_json_string(
+            &mut json,
+            &format!("0x{:016x}", row.plan.report_fingerprint),
+        );
         json.push_str("\n    }");
     }
     let mut conservation = program
@@ -1260,7 +1269,12 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
         .conservation_plans
         .iter()
         .collect::<Vec<_>>();
-    conservation.sort_by_key(|plan| (symbol_label(program, plan.callable), plan.fingerprint));
+    conservation.sort_by_key(|plan| {
+        (
+            symbol_label(program, plan.callable),
+            plan.report_fingerprint,
+        )
+    });
     json.push_str("\n  ],\n  \"content_conservation\": [");
     let mut authored_keys = Vec::new();
     for (index, plan) in conservation.iter().enumerate() {
@@ -1305,8 +1319,8 @@ pub fn claim_outcome_manifest_json(program: &CheckedTrees) -> String {
         push_content_conservation_term_json(&mut json, program, plan.equation.left());
         json.push_str(", \"right\": ");
         push_content_conservation_term_json(&mut json, program, plan.equation.right());
-        json.push_str("},\n      \"fingerprint\": ");
-        push_json_string(&mut json, &format!("0x{:016x}", plan.fingerprint));
+        json.push_str("},\n      \"report_fingerprint\": ");
+        push_json_string(&mut json, &format!("0x{:016x}", plan.report_fingerprint));
         json.push_str("\n    }");
     }
     json.push_str("\n  ]\n}\n");
@@ -1431,7 +1445,7 @@ fn validated_claim_outcome_entries<'program>(
 fn validated_content_projection_plans(
     program: &CheckedTrees,
 ) -> Vec<&psi_language_semantics::content::ContentProjectionPlan> {
-    use psi_language_semantics::content::projection_fingerprint;
+    use psi_language_semantics::content::projection_report_fingerprint;
 
     let mut seen_domains = Vec::new();
     let mut seen_semantic_domains = Vec::new();
@@ -1487,9 +1501,9 @@ fn validated_content_projection_plans(
                 "content projection plan machine must resolve to exactly one typed machine",
             );
             assert_eq!(
-                plan.fingerprint,
-                projection_fingerprint(&plan.algebra, &plan.expression),
-                "content projection plan must retain its exact normalized fingerprint",
+                plan.report_fingerprint,
+                projection_report_fingerprint(&plan.algebra, &plan.expression),
+                "content projection plan must retain its exact normalized report_fingerprint",
             );
             assert!(
                 !seen_domains.contains(&plan.domain),
@@ -1511,7 +1525,9 @@ fn validate_content_conservation_plan(
     projection_plans: &[&psi_language_semantics::content::ContentProjectionPlan],
     plan: &psi_language_semantics::content::ContentConservationPlan,
 ) {
-    use psi_language_semantics::content::{ContentConservationOwnerKind, conservation_fingerprint};
+    use psi_language_semantics::content::{
+        ContentConservationOwnerKind, conservation_report_fingerprint,
+    };
 
     match plan.owner_kind {
         ContentConservationOwnerKind::Machine => {
@@ -1564,9 +1580,9 @@ fn validate_content_conservation_plan(
         }
     }
     assert_eq!(
-        plan.fingerprint,
-        conservation_fingerprint(&plan.algebra, &plan.equation),
-        "content conservation plan must retain its exact normalized fingerprint",
+        plan.report_fingerprint,
+        conservation_report_fingerprint(&plan.algebra, &plan.equation),
+        "content conservation plan must retain its exact normalized report_fingerprint",
     );
     validate_content_conservation_term(projection_plans, &plan.algebra, plan.equation.left());
     validate_content_conservation_term(projection_plans, &plan.algebra, plan.equation.right());
@@ -1584,14 +1600,14 @@ fn validate_content_conservation_term(
             domain,
             semantic_domain,
             projection_machine,
-            projection_fingerprint,
+            projection_report_fingerprint,
             ..
         } => {
             let mut matches = projection_plans.iter().filter(|plan| {
                 plan.domain == *domain
                     && plan.semantic_domain == *semantic_domain
                     && plan.machine == *projection_machine
-                    && plan.fingerprint == *projection_fingerprint
+                    && plan.report_fingerprint == *projection_report_fingerprint
             });
             let projection = matches.next().expect(
                 "content conservation projection term must join one exact retained projection plan",
@@ -2012,7 +2028,7 @@ fn validate_content_partition_substitution_replay(
                 domain,
                 semantic_domain,
                 projection_machine,
-                projection_fingerprint,
+                projection_report_fingerprint,
                 subject,
             } => {
                 let target = substitutions
@@ -2025,7 +2041,7 @@ fn validate_content_partition_substitution_replay(
                     domain: *domain,
                     semantic_domain: *semantic_domain,
                     projection_machine: *projection_machine,
-                    projection_fingerprint: *projection_fingerprint,
+                    projection_report_fingerprint: *projection_report_fingerprint,
                     subject: target.target.clone(),
                 }
             }
@@ -2430,7 +2446,7 @@ fn push_content_conservation_term_json(
             domain,
             semantic_domain,
             projection_machine,
-            projection_fingerprint,
+            projection_report_fingerprint,
             subject,
         } => {
             json.push_str("{\"kind\": \"projection\", \"domain\": ");
@@ -2442,8 +2458,8 @@ fn push_content_conservation_term_json(
                 json,
                 &qualification_symbol_label(program, *projection_machine),
             );
-            json.push_str(", \"projection_fingerprint\": ");
-            push_json_string(json, &format!("0x{projection_fingerprint:016x}"));
+            json.push_str(", \"projection_report_fingerprint\": ");
+            push_json_string(json, &format!("0x{projection_report_fingerprint:016x}"));
             json.push_str(", \"place\": ");
             push_content_structural_place_json(json, subject);
             json.push('}');
@@ -3891,7 +3907,10 @@ pub fn machine_contract_manifest_json(program: &CheckedTrees) -> String {
                 },
             );
             json.push_str(", \"fingerprint\": \"0x");
-            json.push_str(&format!("{:016x}", state_frame.frame.fingerprint()));
+            json.push_str(&format!(
+                "{:016x}",
+                state_frame.frame.compatibility_report_fingerprint()
+            ));
             json.push_str("\", \"paths\": [");
             push_json_strings(&mut json, state_frame.frame.paths());
             json.push_str("]}");

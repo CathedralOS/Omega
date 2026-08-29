@@ -270,7 +270,12 @@ fn program_local_root_schema_fields_digest(
     digest.update(schema.qualification.get().to_le_bytes());
     digest.update(schema.carrier.get().to_le_bytes());
     digest.update(schema.projection.domain.get().to_le_bytes());
-    digest.update(schema.projection.projection_fingerprint.to_le_bytes());
+    digest.update(
+        schema
+            .projection
+            .projection_report_fingerprint
+            .to_le_bytes(),
+    );
     digest.update([match schema.algebra.kind {
         ContentAlgebraKind::IntervalSet => 1,
         ContentAlgebraKind::CountedQuantity => 2,
@@ -2116,7 +2121,7 @@ mod capacity_evaluation_tests {
             carrier: psi_core::StructuralTypeId::new(2).expect("carrier"),
             projection: psi_core::ContentProjectionIdentity {
                 domain: psi_core::ContentDomainId::new(3).expect("content domain"),
-                projection_fingerprint: 0xfeed,
+                projection_report_fingerprint: 0xfeed,
             },
             algebra: ContentAlgebra {
                 kind: ContentAlgebraKind::CountedQuantity,

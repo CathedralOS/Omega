@@ -2520,3 +2520,125 @@ fn selected_form_encoding_validation_cannot_reenter_its_producer() {
         );
     }
 }
+
+#[test]
+fn deployment_journal_compact_byte_identity_is_report_only() {
+    let root = workspace_root();
+    let storage_path = root.join(
+        "source/omega-rust/omega/backend/runtime/omega-component-publication/src/deployment_journal_storage.rs",
+    );
+    let storage = std::fs::read_to_string(&storage_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", storage_path.display()));
+
+    assert!(
+        storage.contains("byte_compatibility_report_fingerprint: u64")
+            && storage.contains("non_authoritative_byte_compatibility_fingerprint")
+            && !storage.contains("byte_fingerprint: u64"),
+        "durable deployment-journal FNV must remain explicitly report compatibility only",
+    );
+    assert!(
+        storage.contains("decoded != self.record")
+            && storage.contains("bytes != expected")
+            && storage.contains("bytes.len() != self.byte_count"),
+        "durable journal replay must authorize from the exact canonical record and bytes before consulting the compact report coordinate",
+    );
+}
+
+#[test]
+fn normalized_write_frame_compact_identity_is_report_only() {
+    let root = workspace_root();
+    let frame_path =
+        root.join("source/omega-rust/psi/representations/psi-facts/src/write_frame.rs");
+    let frame = std::fs::read_to_string(&frame_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", frame_path.display()));
+
+    assert!(
+        frame.contains("compatibility_report_fingerprint: u64")
+            && frame.contains("non_authoritative_write_frame_compatibility_fingerprint")
+            && !frame.contains("\n    fingerprint: u64"),
+        "normalized write-frame FNV must remain an explicitly non-authoritative report coordinate",
+    );
+    assert!(
+        frame.contains("completeness: WriteFrameCompleteness")
+            && frame.contains("paths: Vec<String>"),
+        "write-frame semantic identity must retain completeness and exact normalized paths",
+    );
+}
+
+#[test]
+fn external_root_progress_rejoins_the_exact_selected_provider_closure() {
+    let root = workspace_root();
+    let manifest_path = root.join(
+        "source/omega-rust/omega/representations/omega-effects/src/component_progress_manifest.rs",
+    );
+    let manifest = std::fs::read_to_string(&manifest_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", manifest_path.display()));
+    assert!(
+        manifest.contains("omega.component-progress-manifest.sha256.v1\\0")
+            && manifest
+                .contains("selected_provider_closure_digest: SelectedProviderClosureDigest",)
+            && manifest.contains("pub fn matches_selected_provider_closure"),
+        "component progress manifests must bind exact selected-provider evidence with a domain-separated strong commitment",
+    );
+
+    let installation_path = root.join(
+        "source/omega-rust/omega/backend/runtime/omega-external-roots/src/progress_profile_installation.rs",
+    );
+    let installation = std::fs::read_to_string(&installation_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", installation_path.display()));
+    assert!(
+        installation.contains("selected_provider_closure_report_identity: u64")
+            && installation.contains(
+                "selected_provider_closure_digest: SelectedProviderClosureDigest",
+            )
+            && installation.matches("non_authoritative_report_fingerprint: u64").count() == 2
+            && !installation.contains("\n    fingerprint: u64")
+            && installation.contains(
+                "if !manifest.matches_selected_provider_closure(&closure.selected)",
+            )
+            && !installation.contains(
+                "if manifest.selected_provider_closure_identity() != closure.selected.normalized_identity()",
+            ),
+        "progress receipt admission and component sealing must not authorize through a compact selected-closure identity alone",
+    );
+}
+
+#[test]
+fn psi_content_compact_fingerprints_are_report_only_beside_exact_replay() {
+    let root = workspace_root();
+    let core_path = root.join("source/omega-rust/psi/foundation/psi-core/src/content.rs");
+    let core = std::fs::read_to_string(&core_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", core_path.display()));
+    assert!(
+        core.contains("projection_report_fingerprint: u64")
+            && core.contains("content_conservation_report_fingerprint")
+            && core.contains("compact report fingerprint is non-authoritative")
+            && !core.contains("projection_fingerprint"),
+        "content projection/conservation compact values must remain explicitly report-only",
+    );
+
+    let terminal_path =
+        root.join("source/omega-rust/psi/representations/psi-terminal/src/module.rs");
+    let terminal = std::fs::read_to_string(&terminal_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", terminal_path.display()));
+    assert!(
+        terminal.contains("pub report_fingerprint: u64")
+            && terminal.contains("pub source_report_fingerprint: u64")
+            && terminal.contains("pub source: ContentConservation")
+            && terminal.contains("pub derived: ContentConservation")
+            && !terminal.contains("pub source_fingerprint: u64"),
+        "Terminal content report coordinates must retain the exact equations they describe",
+    );
+
+    let verifier_path = root
+        .join("source/omega-rust/psi/semantics/psi-terminal-verifier/src/validation/content.rs");
+    let verifier = std::fs::read_to_string(&verifier_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", verifier_path.display()));
+    assert!(
+        verifier.contains("owner_algebra != algebra")
+            && verifier.contains("replay_partition_conservation")
+            && verifier.contains("if replayed != composition.derived")
+            && verifier.contains("content_guarantees_alpha_equal"),
+        "content authority must rejoin owner definitions and replay exact equations/substitutions",
+    );
+}

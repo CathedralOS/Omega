@@ -289,7 +289,28 @@ pub struct ClosedConformanceApplication {
     pub trait_definition: psi_symbols::SymbolHandle,
     pub trait_arguments: Vec<String>,
     pub rows: Vec<ClosedConformanceRowIdentity>,
+    /// Historical compact coordinate retained for diagnostics and local
+    /// indexing. Authority-bearing joins must also replay `commitment`.
     pub fingerprint: u64,
+    /// Domain-separated commitment to the complete closed application.
+    pub commitment: ClosedConformanceApplicationCommitment,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ClosedConformanceApplicationCommitment([u8; 32]);
+
+impl ClosedConformanceApplicationCommitment {
+    pub const fn from_digest(digest: [u8; 32]) -> Self {
+        Self(digest)
+    }
+
+    pub const fn as_bytes(self) -> [u8; 32] {
+        self.0
+    }
+
+    pub fn is_zero(self) -> bool {
+        self.0 == [0; 32]
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -309,7 +330,10 @@ pub struct ClosedConformanceRowIdentity {
 /// identity.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StaticRequirementDispatch {
+    /// Non-authoritative compatibility coordinate for the selected
+    /// application. `application_commitment` is the authoritative join.
     pub application_fingerprint: u64,
+    pub application_commitment: ClosedConformanceApplicationCommitment,
     pub declaring_trait: psi_symbols::SymbolHandle,
     pub requirement: psi_symbols::SymbolHandle,
     pub realization_machine: psi_symbols::SymbolHandle,

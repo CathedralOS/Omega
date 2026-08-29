@@ -13,7 +13,7 @@ use psi_diagnostics::Diagnostic;
 use psi_language_semantics::content::{
     ContentAlgebraIdentity, ContentConservationOwnerKind, ContentConservationPlan,
     ContentPlaceRoot, ContentPlaceSegment, ContentPlaceVersion, ContentProjectionPlan,
-    ContentStructuralPlace, conservation_fingerprint,
+    ContentStructuralPlace, conservation_report_fingerprint,
 };
 use psi_symbols::{BuiltinFunction, SymbolHandle};
 use psi_typed_trees::TypedTrees;
@@ -197,7 +197,7 @@ fn collect_callable_plans(
                 )));
                 continue;
             }
-            let fingerprint = conservation_fingerprint(&algebra, &equation);
+            let report_fingerprint = conservation_report_fingerprint(&algebra, &equation);
             plans.push(ContentConservationSourcePlan {
                 source_expression: *expression,
                 plan: ContentConservationPlan {
@@ -206,7 +206,7 @@ fn collect_callable_plans(
                     callable,
                     algebra,
                     equation,
-                    fingerprint,
+                    report_fingerprint,
                 },
             });
         }

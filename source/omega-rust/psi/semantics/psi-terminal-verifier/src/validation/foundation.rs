@@ -874,14 +874,14 @@ fn validate_structural_content_projection(
         )
     );
     projection.identity.domain.get() == semantic_domain.get()
-        && projection.identity.projection_fingerprint != 0
+        && projection.identity.projection_report_fingerprint != 0
         && !projection.algebra.parameter.is_empty()
         && shape_matches_algebra
         && validate_content_projection_expression(&projection.expression, carrier, types)
-        && psi_language_semantics::content::terminal_projection_fingerprint(
+        && psi_language_semantics::content::terminal_projection_report_fingerprint(
             &projection.algebra,
             &projection.expression,
-        ) == projection.identity.projection_fingerprint
+        ) == projection.identity.projection_report_fingerprint
 }
 
 fn validate_program_local_root_introductions(
@@ -939,17 +939,17 @@ fn validate_program_local_root_introductions(
             || !parameter.qualifications.contains(&schema.qualification)
             || !boundary.requires.contains(&requirement)
             || schema.projection.domain.get() != domain.semantic_domain.get()
-            || schema.projection.projection_fingerprint == 0
+            || schema.projection.projection_report_fingerprint == 0
             || schema.algebra.parameter.is_empty()
             || !shape_matches_algebra
             || !capacity_valid
             || schema.projection != owner_projection.identity
             || schema.algebra != owner_projection.algebra
             || schema.capacity != owner_projection.expression
-            || psi_language_semantics::content::terminal_projection_fingerprint(
+            || psi_language_semantics::content::terminal_projection_report_fingerprint(
                 &schema.algebra,
                 &schema.capacity,
-            ) != schema.projection.projection_fingerprint
+            ) != schema.projection.projection_report_fingerprint
             || program_local_root_introduction_identity(
                 &boundary.identity,
                 &domain.identity,

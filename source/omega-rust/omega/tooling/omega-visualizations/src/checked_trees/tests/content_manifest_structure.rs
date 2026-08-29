@@ -240,7 +240,8 @@ fn claim_outcome_manifest_keeps_paths_and_source_kinds_structured() {
             right: Box::new(ContentScalarExpression::Natural("1".to_owned())),
         },
     };
-    let projection_identity = projection_fingerprint(&projection_algebra, &projection_expression);
+    let projection_identity =
+        projection_report_fingerprint(&projection_algebra, &projection_expression);
     program
         .facts
         .qualifications
@@ -256,13 +257,13 @@ fn claim_outcome_manifest_keeps_paths_and_source_kinds_structured() {
             machine: projection_machine_symbol,
             algebra: projection_algebra,
             expression: projection_expression,
-            fingerprint: projection_identity,
+            report_fingerprint: projection_identity,
         });
     let input = ContentConservationTerm::Projection {
         domain: domain_symbol,
         semantic_domain,
         projection_machine: projection_machine_symbol,
-        projection_fingerprint: projection_identity,
+        projection_report_fingerprint: projection_identity,
         subject: ContentStructuralPlace {
             version: ContentPlaceVersion::Entry,
             root: ContentPlaceRoot::Parameter {
@@ -278,7 +279,7 @@ fn claim_outcome_manifest_keeps_paths_and_source_kinds_structured() {
         domain: domain_symbol,
         semantic_domain,
         projection_machine: projection_machine_symbol,
-        projection_fingerprint: projection_identity,
+        projection_report_fingerprint: projection_identity,
         subject: ContentStructuralPlace {
             version: ContentPlaceVersion::Current,
             root: ContentPlaceRoot::Result,
@@ -322,14 +323,14 @@ fn claim_outcome_manifest_keeps_paths_and_source_kinds_structured() {
     };
     let partition_entry_place = input_subject.clone();
     let equation = ContentConservationEquation::new(input.clone(), output.clone());
-    let fingerprint = conservation_fingerprint(&algebra, &equation);
+    let report_fingerprint = conservation_report_fingerprint(&algebra, &equation);
     let plan = ContentConservationPlan {
         owner_kind: ContentConservationOwnerKind::Machine,
         owner: machine_symbol,
         callable: state_symbol,
         algebra,
         equation,
-        fingerprint,
+        report_fingerprint,
     };
     let source_partition_equation = ContentConservationEquation::new(
         ContentConservationTerm::Separate(vec![input.clone(), output.clone()]),
@@ -340,14 +341,17 @@ fn claim_outcome_manifest_keeps_paths_and_source_kinds_structured() {
         owner: machine_symbol,
         callable: state_symbol,
         algebra: plan.algebra.clone(),
-        fingerprint: conservation_fingerprint(&plan.algebra, &source_partition_equation),
+        report_fingerprint: conservation_report_fingerprint(
+            &plan.algebra,
+            &source_partition_equation,
+        ),
         equation: source_partition_equation,
     };
     let derived_output = ContentConservationTerm::Projection {
         domain: domain_symbol,
         semantic_domain,
         projection_machine: projection_machine_symbol,
-        projection_fingerprint: projection_identity,
+        projection_report_fingerprint: projection_identity,
         subject: substitutions[1].target.clone(),
     };
     let derived_partition_equation = ContentConservationEquation::new(
@@ -359,7 +363,10 @@ fn claim_outcome_manifest_keeps_paths_and_source_kinds_structured() {
         owner: machine_symbol,
         callable: state_symbol,
         algebra: plan.algebra.clone(),
-        fingerprint: conservation_fingerprint(&plan.algebra, &derived_partition_equation),
+        report_fingerprint: conservation_report_fingerprint(
+            &plan.algebra,
+            &derived_partition_equation,
+        ),
         equation: derived_partition_equation,
     };
     program
@@ -403,7 +410,7 @@ fn claim_outcome_manifest_keeps_paths_and_source_kinds_structured() {
             machine_symbol,
             state_symbol,
             source_callable: state_symbol,
-            source_fingerprint: source_partition_plan.fingerprint,
+            source_report_fingerprint: source_partition_plan.report_fingerprint,
             source_derivation_depth: 0,
             source_plan: source_partition_plan,
             statement_index: 4,
@@ -494,7 +501,7 @@ fn claim_outcome_manifest_keeps_paths_and_source_kinds_structured() {
     assert!(json.contains("\"path\": [\"length\"]"));
     assert!(json.contains("\"operator\": \"add\""));
     assert!(json.contains(&format!(
-        "\"fingerprint\": \"0x{projection_identity:016x}\""
+        "\"report_fingerprint\": \"0x{projection_identity:016x}\""
     )));
     assert!(
         conservation

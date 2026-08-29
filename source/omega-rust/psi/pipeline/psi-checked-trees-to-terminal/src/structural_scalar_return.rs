@@ -42,6 +42,7 @@ pub(super) fn lower_trait_operator_scalar_return_machine(
         .find(|application| {
             application.declaration == plan.conformance
                 && application.fingerprint == plan.conformance_application_fingerprint
+                && application.commitment == plan.conformance_application_commitment
         })
         .ok_or(LoweringError::Unsupported(
             "trait operator caller lost its exact closed conformance application",

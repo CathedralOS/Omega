@@ -11,13 +11,13 @@ fn content_partition_result_rewrite_validation_fixture() -> CheckedTrees {
                 domain,
                 semantic_domain,
                 projection_machine,
-                projection_fingerprint,
+                projection_report_fingerprint,
                 subject,
             } => ContentConservationTerm::Projection {
                 domain: *domain,
                 semantic_domain: *semantic_domain,
                 projection_machine: *projection_machine,
-                projection_fingerprint: *projection_fingerprint,
+                projection_report_fingerprint: *projection_report_fingerprint,
                 subject: if subject == source {
                     target.clone()
                 } else {
@@ -125,7 +125,8 @@ fn content_partition_result_rewrite_validation_fixture() -> CheckedTrees {
             rewrite_result_subject(row.source_plan.equation.left(), &source, &target),
             rewrite_result_subject(row.source_plan.equation.right(), &source, &target),
         );
-        row.plan.fingerprint = conservation_fingerprint(&row.plan.algebra, &row.plan.equation);
+        row.plan.report_fingerprint =
+            conservation_report_fingerprint(&row.plan.algebra, &row.plan.equation);
         row.result_rewrites = vec![ContentPartitionResultRewrite {
             claim_identity: result_identity,
             source: source.clone(),

@@ -211,7 +211,11 @@ Current terminal production retains dense entry-claim bindings, exact
 one-to-one identity reshuffles, and direct authored partition substitutions.
 It independently replays every substitution and rejects ambiguous claim paths,
 theorem-shape or algebra drift, and staged derivations not represented by the
-current vocabulary. Sealed introduction and custody-exit frontier rows remain.
+current vocabulary. Content projection and conservation FNV values are report/
+cache coordinates only: semantic authority remains the exact owner definition,
+algebra, structural places, substitution, producer call, and verifier replay.
+Compact-equal structural substitution therefore rejects. Sealed introduction
+and custody-exit frontier rows remain.
 
 ### Content-bearing claims
 

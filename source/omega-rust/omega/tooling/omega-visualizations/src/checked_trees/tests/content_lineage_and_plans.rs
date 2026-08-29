@@ -7,7 +7,7 @@ fn lineage_child_plan(parent: &ContentConservationPlan) -> ContentConservationPl
                 domain,
                 semantic_domain,
                 projection_machine,
-                projection_fingerprint,
+                projection_report_fingerprint,
                 subject,
             } => {
                 let mut subject = subject.clone();
@@ -18,7 +18,7 @@ fn lineage_child_plan(parent: &ContentConservationPlan) -> ContentConservationPl
                     domain: *domain,
                     semantic_domain: *semantic_domain,
                     projection_machine: *projection_machine,
-                    projection_fingerprint: *projection_fingerprint,
+                    projection_report_fingerprint: *projection_report_fingerprint,
                     subject,
                 }
             }
@@ -39,7 +39,7 @@ fn lineage_child_plan(parent: &ContentConservationPlan) -> ContentConservationPl
         owner: parent.owner,
         callable: parent.callable,
         algebra: parent.algebra.clone(),
-        fingerprint: conservation_fingerprint(&parent.algebra, &equation),
+        report_fingerprint: conservation_report_fingerprint(&parent.algebra, &equation),
         equation,
     }
 }
@@ -48,7 +48,7 @@ fn push_content_partition_lineage_child(program: &mut CheckedTrees, source_deriv
     let parent = program.facts.qualifications.content.partition_compositions[0].clone();
     let mut child = parent.clone();
     child.source_callable = parent.plan.callable;
-    child.source_fingerprint = parent.plan.fingerprint;
+    child.source_report_fingerprint = parent.plan.report_fingerprint;
     child.source_plan = parent.plan.clone();
     child.source_derivation_depth = source_derivation_depth;
     child.plan = lineage_child_plan(&parent.plan);
@@ -152,7 +152,7 @@ fn content_partition_lineage_manifest_rejects_self_reference() {
     let row = &mut program.facts.qualifications.content.partition_compositions[0];
     row.source_plan = row.plan.clone();
     row.source_callable = row.plan.callable;
-    row.source_fingerprint = row.plan.fingerprint;
+    row.source_report_fingerprint = row.plan.report_fingerprint;
     row.source_derivation_depth = 1;
     validate_content_partition_lineage(&program);
 }
@@ -168,7 +168,7 @@ fn content_partition_lineage_manifest_rejects_two_row_cycle() {
     let base = &mut program.facts.qualifications.content.partition_compositions[0];
     base.source_plan = child_plan;
     base.source_callable = base.source_plan.callable;
-    base.source_fingerprint = base.source_plan.fingerprint;
+    base.source_report_fingerprint = base.source_plan.report_fingerprint;
     base.source_derivation_depth = 2;
     validate_content_partition_lineage(&program);
 }
@@ -222,7 +222,7 @@ fn content_projection_validation_fixture() -> CheckedTrees {
     let expression = ContentProjectionExpression::CountedQuantity {
         magnitude: ContentScalarExpression::Natural("1".to_owned()),
     };
-    let fingerprint = projection_fingerprint(&algebra, &expression);
+    let report_fingerprint = projection_report_fingerprint(&algebra, &expression);
     program
         .facts
         .qualifications
@@ -238,7 +238,7 @@ fn content_projection_validation_fixture() -> CheckedTrees {
             machine: machine_symbol,
             algebra,
             expression,
-            fingerprint,
+            report_fingerprint,
         });
     program
 }
@@ -253,7 +253,7 @@ fn content_conservation_plan(
         domain: projection.domain,
         semantic_domain: projection.semantic_domain,
         projection_machine: projection.machine,
-        projection_fingerprint: projection.fingerprint,
+        projection_report_fingerprint: projection.report_fingerprint,
         subject: ContentStructuralPlace {
             version: ContentPlaceVersion::Entry,
             root: ContentPlaceRoot::Parameter {
@@ -269,7 +269,7 @@ fn content_conservation_plan(
         domain: projection.domain,
         semantic_domain: projection.semantic_domain,
         projection_machine: projection.machine,
-        projection_fingerprint: projection.fingerprint,
+        projection_report_fingerprint: projection.report_fingerprint,
         subject: ContentStructuralPlace {
             version: ContentPlaceVersion::Current,
             root: ContentPlaceRoot::Result,
@@ -278,14 +278,14 @@ fn content_conservation_plan(
     };
     let algebra = projection.algebra.clone();
     let equation = ContentConservationEquation::new(left, right);
-    let fingerprint = conservation_fingerprint(&algebra, &equation);
+    let report_fingerprint = conservation_report_fingerprint(&algebra, &equation);
     ContentConservationPlan {
         owner_kind,
         owner,
         callable,
         algebra,
         equation,
-        fingerprint,
+        report_fingerprint,
     }
 }
 
@@ -391,7 +391,7 @@ fn push_content_partition_row(
             machine_symbol,
             state_symbol,
             source_callable: source_plan.callable,
-            source_fingerprint: source_plan.fingerprint,
+            source_report_fingerprint: source_plan.report_fingerprint,
             source_derivation_depth: 0,
             source_plan,
             statement_index: 0,
@@ -439,10 +439,10 @@ fn content_conservation_manifest_rejects_cross_owner_callable() {
 }
 
 #[test]
-#[should_panic(expected = "must retain its exact normalized fingerprint")]
+#[should_panic(expected = "must retain its exact normalized report_fingerprint")]
 fn content_conservation_manifest_rejects_fingerprint_drift() {
     let (mut program, ..) = content_conservation_validation_fixture();
-    program.facts.qualifications.content.conservation_plans[0].fingerprint ^= 1;
+    program.facts.qualifications.content.conservation_plans[0].report_fingerprint ^= 1;
     claim_outcome_manifest_json(&program);
 }
 
@@ -453,15 +453,15 @@ fn content_conservation_manifest_rejects_projection_tuple_drift() {
     let plan = &mut program.facts.qualifications.content.conservation_plans[0];
     let mut left = plan.equation.left().clone();
     let ContentConservationTerm::Projection {
-        projection_fingerprint,
+        projection_report_fingerprint,
         ..
     } = &mut left
     else {
         unreachable!("fixture term is a projection")
     };
-    *projection_fingerprint ^= 1;
+    *projection_report_fingerprint ^= 1;
     plan.equation = ContentConservationEquation::new(left, plan.equation.right().clone());
-    plan.fingerprint = conservation_fingerprint(&plan.algebra, &plan.equation);
+    plan.report_fingerprint = conservation_report_fingerprint(&plan.algebra, &plan.equation);
     claim_outcome_manifest_json(&program);
 }
 
@@ -473,7 +473,7 @@ fn content_conservation_manifest_rejects_projection_algebra_drift() {
     plan.algebra = ContentAlgebraIdentity::CountedQuantity {
         unit: "named(name(UnrelatedUnit))".to_owned(),
     };
-    plan.fingerprint = conservation_fingerprint(&plan.algebra, &plan.equation);
+    plan.report_fingerprint = conservation_report_fingerprint(&plan.algebra, &plan.equation);
     claim_outcome_manifest_json(&program);
 }
 
@@ -528,7 +528,7 @@ fn content_conservation_manifest_rejects_partition_source_coordinate_drift() {
     let (mut program, machine, state, ..) = content_conservation_validation_fixture();
     let plan = program.facts.qualifications.content.conservation_plans[0].clone();
     push_content_partition_row(&mut program, machine, state, plan.clone(), plan);
-    program.facts.qualifications.content.partition_compositions[0].source_fingerprint ^= 1;
+    program.facts.qualifications.content.partition_compositions[0].source_report_fingerprint ^= 1;
     claim_outcome_manifest_json(&program);
 }
 
@@ -583,10 +583,10 @@ fn content_projection_manifest_rejects_missing_projection_machine() {
 }
 
 #[test]
-#[should_panic(expected = "must retain its exact normalized fingerprint")]
+#[should_panic(expected = "must retain its exact normalized report_fingerprint")]
 fn content_projection_manifest_rejects_fingerprint_drift() {
     let mut program = content_projection_validation_fixture();
-    program.facts.qualifications.content.plans[0].fingerprint ^= 1;
+    program.facts.qualifications.content.plans[0].report_fingerprint ^= 1;
     validated_content_projection_plans(&program);
 }
 

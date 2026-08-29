@@ -1535,7 +1535,7 @@ mod tests {
         let root = PlaceId::new(1).expect("place");
         let projection = ContentProjectionIdentity {
             domain: ContentDomainId::new(2).expect("domain"),
-            projection_fingerprint: 3,
+            projection_report_fingerprint: 3,
         };
         let term = |field: &str| ContentTerm::Projection {
             projection,

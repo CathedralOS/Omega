@@ -1497,7 +1497,7 @@ fn checked_resource_axis_fingerprint(
     bytes.extend(entry.generation().to_le_bytes());
     bytes.extend(contract_fingerprint.to_le_bytes());
     bytes.push(derivation_obligation.identity_tag());
-    checked_resource_fingerprint(bytes)
+    checked_resource_report_fingerprint(bytes)
 }
 
 fn checked_resource_envelope_fingerprint(
@@ -1517,7 +1517,7 @@ fn checked_resource_envelope_fingerprint(
     bytes.extend(stack.to_le_bytes());
     bytes.extend(logical_structural_work.to_le_bytes());
     bytes.extend(machine_state.to_le_bytes());
-    checked_resource_fingerprint(bytes)
+    checked_resource_report_fingerprint(bytes)
 }
 
 fn checked_resource_roster_fingerprint(
@@ -1539,10 +1539,10 @@ fn checked_resource_roster_fingerprint(
         bytes.extend(entry.entry.generation().to_le_bytes());
         bytes.extend(entry.fingerprint.to_le_bytes());
     }
-    checked_resource_fingerprint(bytes)
+    checked_resource_report_fingerprint(bytes)
 }
 
-fn checked_resource_fingerprint(bytes: impl IntoIterator<Item = u8>) -> u64 {
+fn checked_resource_report_fingerprint(bytes: impl IntoIterator<Item = u8>) -> u64 {
     const OFFSET: u64 = 0xcbf29ce484222325;
     const PRIME: u64 = 0x100000001b3;
     bytes.into_iter().fold(OFFSET, |hash, byte| {

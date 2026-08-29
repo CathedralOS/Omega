@@ -80,7 +80,7 @@ pub(super) fn encode_content_term(bytes: &mut CanonicalBytes, term: &ContentTerm
         } => {
             bytes.u8(1);
             bytes.id(projection.domain);
-            bytes.u64(projection.projection_fingerprint);
+            bytes.u64(projection.projection_report_fingerprint);
             encode_content_place(bytes, subject);
         }
         ContentTerm::Separate(terms) => {

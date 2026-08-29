@@ -38,7 +38,9 @@ pub struct ContentPartitionCompositionFact {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
     pub source_callable: SymbolHandle,
-    pub source_fingerprint: u64,
+    /// Non-authoritative compact coordinate for the exact retained source
+    /// plan. Lowering replays `source_plan` before publishing this report value.
+    pub source_report_fingerprint: u64,
     /// Number of checked wrapper-composition edges between this row's source
     /// theorem and an authored conservation plan. Terminal Psi accepts
     /// only zero because it cannot yet replay a transitive derivation chain.

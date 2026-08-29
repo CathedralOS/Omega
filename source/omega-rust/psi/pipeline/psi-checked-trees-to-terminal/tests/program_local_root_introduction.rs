@@ -235,7 +235,7 @@ fn verifier_rejects_tampering_of_every_schema_identity_input() {
     mutate(|schema| schema.qualification = psi_core::StructuralDomainId::new(99).unwrap());
     mutate(|schema| schema.carrier = psi_core::StructuralTypeId::new(99).unwrap());
     mutate(|schema| schema.projection.domain = psi_core::ContentDomainId::new(99).unwrap());
-    mutate(|schema| schema.projection.projection_fingerprint ^= 1);
+    mutate(|schema| schema.projection.projection_report_fingerprint ^= 1);
     mutate(|schema| schema.algebra.kind = ContentAlgebraKind::IntervalSet);
     mutate(|schema| schema.algebra.parameter.push_str("Drift"));
     mutate(|schema| {
@@ -255,8 +255,8 @@ fn coherently_understated_route_schema_cannot_rewrite_its_owner_projection() {
     schema.capacity = ContentProjectionExpression::CountedQuantity(
         ContentProjectionScalar::Natural("1".to_owned()),
     );
-    schema.projection.projection_fingerprint =
-        psi_language_semantics::content::terminal_projection_fingerprint(
+    schema.projection.projection_report_fingerprint =
+        psi_language_semantics::content::terminal_projection_report_fingerprint(
             &schema.algebra,
             &schema.capacity,
         );

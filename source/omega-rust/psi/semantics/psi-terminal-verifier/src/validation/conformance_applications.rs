@@ -1,6 +1,9 @@
 use std::collections::BTreeSet;
 
-use psi_terminal::{TerminalModule, closed_conformance_application_fingerprint};
+use psi_terminal::{
+    TerminalModule, closed_conformance_application_commitment,
+    closed_conformance_application_fingerprint,
+};
 
 use super::ModuleError;
 
@@ -52,7 +55,7 @@ pub(super) fn validate_closed_conformance_applications(
                 declaration: application.declaration_identity.clone(),
             });
         }
-        if !seen.insert((application.owner, application.fingerprint)) {
+        if !seen.insert((application.owner, application.commitment)) {
             return Err(ModuleError::DuplicateClosedConformanceApplication {
                 owner: application.owner,
                 fingerprint: application.fingerprint,
@@ -64,6 +67,12 @@ pub(super) fn validate_closed_conformance_applications(
                 owner: application.owner,
                 expected,
                 actual: application.fingerprint,
+            });
+        }
+        let expected_commitment = closed_conformance_application_commitment(application);
+        if application.commitment.is_zero() || application.commitment != expected_commitment {
+            return Err(ModuleError::ClosedConformanceCommitmentMismatch {
+                owner: application.owner,
             });
         }
     }

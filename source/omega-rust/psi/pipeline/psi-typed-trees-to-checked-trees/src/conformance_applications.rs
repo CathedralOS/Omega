@@ -12,6 +12,7 @@ use psi_typed_trees::expression::{ExpressionNode, StaticMachineArgument};
 use psi_typed_trees::statement::StatementNode;
 use psi_typed_trees::typed_trees::{ClosedConformanceApplication, ClosedConformanceRowIdentity};
 use psi_typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
+use sha2::{Digest, Sha256};
 
 pub(crate) fn validate_conformance_applications(
     program: &TypedTrees,
@@ -294,7 +295,7 @@ pub fn close_conformance_application(
             realization_state: row.realization_state,
         })
         .collect::<Vec<_>>();
-    let fingerprint = application_fingerprint(
+    let identity = application_identity(
         program,
         declaration_name,
         &lifetime_arguments,
@@ -316,7 +317,8 @@ pub fn close_conformance_application(
         trait_definition: trait_definition.symbol,
         trait_arguments,
         rows: row_identities,
-        fingerprint,
+        fingerprint: identity.compatibility_fingerprint,
+        commitment: identity.commitment,
     })
 }
 
@@ -477,7 +479,13 @@ pub(crate) fn substituted_type_identity_with_lifetimes(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn application_fingerprint(
+struct ApplicationIdentity {
+    compatibility_fingerprint: u64,
+    commitment: psi_typed_trees::typed_trees::ClosedConformanceApplicationCommitment,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn application_identity(
     program: &TypedTrees,
     declaration: &str,
     lifetime_arguments: &[String],
@@ -488,7 +496,7 @@ fn application_fingerprint(
     trait_name: &str,
     trait_arguments: &[String],
     rows: &[psi_typed_trees::trait_definition::ConformanceRow],
-) -> u64 {
+) -> ApplicationIdentity {
     const OFFSET: u64 = 0xcbf29ce484222325;
     const PRIME: u64 = 0x100000001b3;
     let mut bytes = Vec::new();
@@ -556,9 +564,18 @@ fn application_fingerprint(
         bytes.push(0xfe);
     }
     let mut hash = OFFSET;
+    let mut strong = Sha256::new();
+    strong.update(b"omega.psi.closed-conformance-application.v1\0");
+    strong.update(&bytes);
     for byte in bytes {
         hash ^= u64::from(byte);
         hash = hash.wrapping_mul(PRIME);
     }
-    hash
+    ApplicationIdentity {
+        compatibility_fingerprint: hash,
+        commitment:
+            psi_typed_trees::typed_trees::ClosedConformanceApplicationCommitment::from_digest(
+                strong.finalize().into(),
+            ),
+    }
 }

@@ -1777,6 +1777,7 @@ dependencies = [
  "psi-core",
  "psi-language-core",
  "psi-language-semantics",
+ "sha2",
 ]
 
 [[package]]
@@ -1904,6 +1905,7 @@ dependencies = [
  "psi-tokens-to-syntax-trees",
  "psi-typed-trees",
  "psi-validation",
+ "sha2",
 ]
 
 [[package]]

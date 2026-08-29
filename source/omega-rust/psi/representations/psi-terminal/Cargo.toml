@@ -12,3 +12,4 @@ path = "src/lib.rs"
 psi-core = { path = "../../foundation/psi-core" }
 psi-language-core = { path = "../../foundation/psi-language-core" }
 psi-language-semantics = { path = "../../foundation/psi-language-semantics" }
+sha2 = "0.10"

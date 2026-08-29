@@ -6,15 +6,15 @@
 
 use psi_core::{ContentProjectionIdentity, IeeeFloatFormat};
 use psi_terminal::{
-    ClosedConformanceApplication, ClosedConformanceParameterBinding,
-    ClosedConformanceParameterKind, ClosedConformanceRow, EvidenceContractLane,
-    EvidenceContractLaneKind, EvidenceTermDeclaration, FloatMeaningEqualityProposition,
-    FloatMeaningProjection, FloatMeaningProjectionOperation, FloatProjectionInput,
-    FloatProjectionInputId, InstallationReachDependency, ProofOnlyValueType, ProofOutput,
-    ProofOutputCall, ProofOutputEvidenceArgument, ProofOutputRuntimeCall, ProofOutputRuntimeResult,
-    ProofPropositionId, ProofValueDeclaration, ProofValueId, ServiceDeclaration,
-    StaticRequirementDispatch, StructuralContentProjection, StructuralDomainDeclaration,
-    TerminalModule, TerminalRootServiceReach, VocabularyMarker,
+    ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
+    ClosedConformanceParameterBinding, ClosedConformanceParameterKind, ClosedConformanceRow,
+    EvidenceContractLane, EvidenceContractLaneKind, EvidenceTermDeclaration,
+    FloatMeaningEqualityProposition, FloatMeaningProjection, FloatMeaningProjectionOperation,
+    FloatProjectionInput, FloatProjectionInputId, InstallationReachDependency, ProofOnlyValueType,
+    ProofOutput, ProofOutputCall, ProofOutputEvidenceArgument, ProofOutputRuntimeCall,
+    ProofOutputRuntimeResult, ProofPropositionId, ProofValueDeclaration, ProofValueId,
+    ServiceDeclaration, StaticRequirementDispatch, StructuralContentProjection,
+    StructuralDomainDeclaration, TerminalModule, TerminalRootServiceReach, VocabularyMarker,
 };
 
 use super::content_wire::{decode_content_algebra, encode_content_algebra};
@@ -55,7 +55,7 @@ pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
         writer.boolean(declaration.content_projection.is_some());
         if let Some(projection) = &declaration.content_projection {
             writer.id(projection.identity.domain);
-            writer.u64(projection.identity.projection_fingerprint);
+            writer.u64(projection.identity.projection_report_fingerprint);
             encode_content_algebra(&mut writer, &projection.algebra)?;
             encode_content_projection_expression(&mut writer, &projection.expression)?;
         }
@@ -177,6 +177,7 @@ pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
         writer.boolean(invocation.static_requirement_dispatch.is_some());
         if let Some(dispatch) = &invocation.static_requirement_dispatch {
             writer.u64(dispatch.conformance_application_fingerprint);
+            writer.bytes(&dispatch.conformance_application_commitment.as_bytes());
             writer.string(
                 "static public requirement identity",
                 &dispatch.public_requirement_identity,
@@ -293,6 +294,7 @@ pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
             )?;
         }
         writer.u64(application.fingerprint);
+        writer.bytes(&application.commitment.as_bytes());
     }
     writer.len(
         "quotient correspondences",
@@ -325,7 +327,7 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
                 Some(StructuralContentProjection {
                     identity: ContentProjectionIdentity {
                         domain: reader.id("ContentDomainId")?,
-                        projection_fingerprint: reader.u64()?,
+                        projection_report_fingerprint: reader.u64()?,
                     },
                     algebra: decode_content_algebra(reader)?,
                     expression: decode_content_projection_expression(reader, 0)?,
@@ -432,6 +434,8 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
                 .then(|| {
                     Ok(StaticRequirementDispatch {
                         conformance_application_fingerprint: reader.u64()?,
+                        conformance_application_commitment:
+                            ClosedConformanceApplicationCommitment::from_digest(reader.array()?),
                         public_requirement_identity: reader
                             .string("static public requirement identity")?,
                         declaring_trait_identity: reader
@@ -533,6 +537,7 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
                 })
             })?,
             fingerprint: reader.u64()?,
+            commitment: ClosedConformanceApplicationCommitment::from_digest(reader.array()?),
         })
     })?;
     let quotient_correspondences = decode_counted(reader, decode_quotient_correspondence)?;

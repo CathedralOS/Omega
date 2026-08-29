@@ -7,6 +7,7 @@ use psi_core::{
     StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_language_core::BindingRelevance;
+use sha2::{Digest, Sha256};
 
 /// Marker for the single unstable terminal-Psi semantic vocabulary.
 ///
@@ -27,7 +28,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        37
+        38
     }
 }
 
@@ -153,7 +154,29 @@ pub struct ClosedConformanceApplication {
     pub trait_identity: String,
     pub trait_arguments: Vec<String>,
     pub rows: Vec<ClosedConformanceRow>,
+    /// Historical compact report/index coordinate. It cannot authorize a
+    /// dispatch or replay without the adjacent strong commitment.
     pub fingerprint: u64,
+    /// Domain-separated SHA-256 commitment to the exact source-free
+    /// application structure.
+    pub commitment: ClosedConformanceApplicationCommitment,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ClosedConformanceApplicationCommitment([u8; 32]);
+
+impl ClosedConformanceApplicationCommitment {
+    pub const fn from_digest(digest: [u8; 32]) -> Self {
+        Self(digest)
+    }
+
+    pub const fn as_bytes(self) -> [u8; 32] {
+        self.0
+    }
+
+    pub fn is_zero(self) -> bool {
+        self.0 == [0; 32]
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -227,6 +250,55 @@ pub fn closed_conformance_application_fingerprint(
     bytes.into_iter().fold(OFFSET, |hash, byte| {
         (hash ^ u64::from(byte)).wrapping_mul(PRIME)
     })
+}
+
+/// Authority-bearing identity for a closed conformance application.
+///
+/// The owner is deliberately outside this commitment: ownership is an exact
+/// independent join, while this value commits to the reusable semantic
+/// application structure itself.
+pub fn closed_conformance_application_commitment(
+    application: &ClosedConformanceApplication,
+) -> ClosedConformanceApplicationCommitment {
+    fn push(digest: &mut Sha256, value: &str) {
+        digest.update((value.len() as u64).to_le_bytes());
+        digest.update(value.as_bytes());
+    }
+
+    let mut digest = Sha256::new();
+    digest.update(b"omega.psi.terminal.closed-conformance-application.v1\0");
+    push(&mut digest, &application.declaration_identity);
+    push(
+        &mut digest,
+        application
+            .subject_identity
+            .as_deref()
+            .unwrap_or("<subjectless>"),
+    );
+    push(&mut digest, &application.trait_identity);
+    digest.update((application.telescope.len() as u64).to_le_bytes());
+    for binding in &application.telescope {
+        push(&mut digest, &binding.parameter);
+        digest.update([match binding.kind {
+            ClosedConformanceParameterKind::Lifetime => 1,
+            ClosedConformanceParameterKind::Type => 2,
+            ClosedConformanceParameterKind::Const => 3,
+            ClosedConformanceParameterKind::Machine => 4,
+        }]);
+        push(&mut digest, &binding.argument);
+    }
+    digest.update((application.trait_arguments.len() as u64).to_le_bytes());
+    for argument in &application.trait_arguments {
+        push(&mut digest, argument);
+    }
+    digest.update((application.rows.len() as u64).to_le_bytes());
+    for row in &application.rows {
+        push(&mut digest, &row.declaring_trait_identity);
+        push(&mut digest, &row.public_requirement_identity);
+        push(&mut digest, &row.requirement_identity);
+        push(&mut digest, &row.realization_identity);
+    }
+    ClosedConformanceApplicationCommitment::from_digest(digest.finalize().into())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -414,7 +486,10 @@ pub struct BoundaryMachineDeclaration {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ContentConservationGuarantee {
-    pub fingerprint: u64,
+    /// Non-authoritative compact coordinate for reports and cache joins. The
+    /// exact retained conservation equation and structural-place replay carry
+    /// theorem authority.
+    pub report_fingerprint: u64,
     /// Guarantee-local structural roots, alpha-matched to the boundary
     /// signature by parameter position.
     pub structural_places: Vec<StructuralPlaceDeclaration>,
@@ -505,7 +580,10 @@ pub fn program_local_root_introduction_identity(
     bytes(&mut hash, &schema.source_parameter_position.to_le_bytes());
     bytes(
         &mut hash,
-        &schema.projection.projection_fingerprint.to_le_bytes(),
+        &schema
+            .projection
+            .projection_report_fingerprint
+            .to_le_bytes(),
     );
     bytes(
         &mut hash,
@@ -711,8 +789,11 @@ pub struct ProofOutputCall {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StaticRequirementDispatch {
-    /// Exact application owned by `ProofOutputCall::caller`.
+    /// Non-authoritative compatibility coordinate for the exact application
+    /// owned by `ProofOutputCall::caller`.
     pub conformance_application_fingerprint: u64,
+    /// Authority-bearing join to the complete closed application.
+    pub conformance_application_commitment: ClosedConformanceApplicationCommitment,
     /// Canonical public requirement overload exposed to the caller. This is
     /// deliberately distinct from the selected row's declaration path.
     pub public_requirement_identity: String,
@@ -949,7 +1030,9 @@ pub struct ContentPartitionComposition {
     /// source theorem used by this composition. Merely carrying this row is
     /// never semantic authority.
     pub producer_operation: OperationId,
-    pub source_fingerprint: u64,
+    /// Non-authoritative compact coordinate for reporting and caches. The
+    /// exact source equation below is independently reconstructed and replayed.
+    pub source_report_fingerprint: u64,
     /// Structural-place declarations for the source callable's theorem. They
     /// live in a namespace local to this witness rather than the wrapper.
     pub source_structural_places: Vec<StructuralPlaceDeclaration>,

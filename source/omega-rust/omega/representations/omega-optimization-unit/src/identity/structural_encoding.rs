@@ -102,7 +102,7 @@ pub(super) fn encode_program_local_root_introduction(
     bytes.id(schema.qualification);
     bytes.id(schema.carrier);
     bytes.id(schema.projection.domain);
-    bytes.u64(schema.projection.projection_fingerprint);
+    bytes.u64(schema.projection.projection_report_fingerprint);
     encode_content_algebra(bytes, &schema.algebra);
     encode_content_projection_expression(bytes, &schema.capacity);
     bytes.u64(schema.identity);
@@ -177,7 +177,7 @@ pub(super) fn encode_content_conservation_guarantee(
     bytes: &mut CanonicalBytes,
     guarantee: &ContentConservationGuarantee,
 ) {
-    bytes.u64(guarantee.fingerprint);
+    bytes.u64(guarantee.report_fingerprint);
     bytes.slice(&guarantee.structural_places, |bytes, place| {
         encode_place_declaration(bytes, *place)
     });
@@ -278,7 +278,7 @@ pub(super) fn encode_structural_domain(
         declaration.content_projection.as_ref(),
         |bytes, projection| {
             bytes.id(projection.identity.domain);
-            bytes.u64(projection.identity.projection_fingerprint);
+            bytes.u64(projection.identity.projection_report_fingerprint);
             encode_content_algebra(bytes, &projection.algebra);
             encode_content_projection_expression(bytes, &projection.expression);
         },
@@ -373,7 +373,7 @@ pub(super) fn encode_claim_projection(
     projection: &ClaimContentProjection,
 ) {
     bytes.id(projection.projection.domain);
-    bytes.u64(projection.projection.projection_fingerprint);
+    bytes.u64(projection.projection.projection_report_fingerprint);
     encode_content_algebra(bytes, &projection.algebra);
 }
 

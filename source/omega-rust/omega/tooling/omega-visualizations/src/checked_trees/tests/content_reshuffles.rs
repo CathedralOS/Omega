@@ -41,7 +41,7 @@ pub(super) fn content_identity_reshuffle_validation_fixture() -> CheckedTrees {
     let expression = ContentProjectionExpression::CountedQuantity {
         magnitude: ContentScalarExpression::Natural("1".to_owned()),
     };
-    let projection_identity = projection_fingerprint(&algebra, &expression);
+    let projection_identity = projection_report_fingerprint(&algebra, &expression);
     program
         .facts
         .qualifications
@@ -57,13 +57,13 @@ pub(super) fn content_identity_reshuffle_validation_fixture() -> CheckedTrees {
             machine: projection_machine_symbol,
             algebra: algebra.clone(),
             expression,
-            fingerprint: projection_identity,
+            report_fingerprint: projection_identity,
         });
     let input = ContentConservationTerm::Projection {
         domain,
         semantic_domain,
         projection_machine: projection_machine_symbol,
-        projection_fingerprint: projection_identity,
+        projection_report_fingerprint: projection_identity,
         subject: ContentStructuralPlace {
             version: ContentPlaceVersion::Entry,
             root: ContentPlaceRoot::Parameter {
@@ -79,7 +79,7 @@ pub(super) fn content_identity_reshuffle_validation_fixture() -> CheckedTrees {
         domain,
         semantic_domain,
         projection_machine: projection_machine_symbol,
-        projection_fingerprint: projection_identity,
+        projection_report_fingerprint: projection_identity,
         subject: ContentStructuralPlace {
             version: ContentPlaceVersion::Current,
             root: ContentPlaceRoot::Result,
@@ -87,7 +87,7 @@ pub(super) fn content_identity_reshuffle_validation_fixture() -> CheckedTrees {
         },
     };
     let equation = ContentConservationEquation::new(input, output);
-    let fingerprint = conservation_fingerprint(&algebra, &equation);
+    let report_fingerprint = conservation_report_fingerprint(&algebra, &equation);
     let claim_identity = program
         .facts
         .flow
@@ -116,7 +116,7 @@ pub(super) fn content_identity_reshuffle_validation_fixture() -> CheckedTrees {
                 callable: state,
                 algebra,
                 equation,
-                fingerprint,
+                report_fingerprint,
             },
         });
     program
@@ -275,7 +275,7 @@ fn content_identity_reshuffle_manifest_rejects_subject_drift() {
             domain,
             semantic_domain,
             projection_machine,
-            projection_fingerprint,
+            projection_report_fingerprint,
             subject,
         } if subject.version == ContentPlaceVersion::Entry => {
             let mut subject = subject.clone();
@@ -287,7 +287,7 @@ fn content_identity_reshuffle_manifest_rejects_subject_drift() {
                 domain: *domain,
                 semantic_domain: *semantic_domain,
                 projection_machine: *projection_machine,
-                projection_fingerprint: *projection_fingerprint,
+                projection_report_fingerprint: *projection_report_fingerprint,
                 subject,
             }
         }
@@ -296,7 +296,8 @@ fn content_identity_reshuffle_manifest_rejects_subject_drift() {
     let left = mutate_subject(row.plan.equation.left());
     let right = mutate_subject(row.plan.equation.right());
     row.plan.equation = ContentConservationEquation::new(left, right);
-    row.plan.fingerprint = conservation_fingerprint(&row.plan.algebra, &row.plan.equation);
+    row.plan.report_fingerprint =
+        conservation_report_fingerprint(&row.plan.algebra, &row.plan.equation);
     claim_outcome_manifest_json(&program);
 }
 

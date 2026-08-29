@@ -16,7 +16,7 @@ use psi_language_semantics::content::{
     ContentCaseSegment, ContentConservationEquation, ContentConservationOwnerKind,
     ContentConservationPlan, ContentConservationTerm, ContentFieldSegment, ContentPlaceRoot,
     ContentPlaceSegment, ContentPlaceVersion, ContentProjectionPlan, ContentStructuralPlace,
-    conservation_fingerprint, content_conservation_plan_bytes,
+    conservation_report_fingerprint, content_conservation_plan_bytes,
 };
 use psi_language_semantics::{
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
@@ -150,13 +150,14 @@ pub(crate) fn infer_identity_preserving_reshuffles(program: &TypedTrees, facts: 
         for input_plan in input_plans {
             for output_plan in output_plans.iter().copied().filter(|output_plan| {
                 output_plan.semantic_domain == input_plan.semantic_domain
-                    && output_plan.fingerprint == input_plan.fingerprint
+                    && output_plan.report_fingerprint == input_plan.report_fingerprint
                     && output_plan.algebra == input_plan.algebra
             }) {
                 let left = projection_term(input_plan, input_subject.clone());
                 let right = projection_term(output_plan, output_subject.clone());
                 let equation = ContentConservationEquation::new(left, right);
-                let fingerprint = conservation_fingerprint(&input_plan.algebra, &equation);
+                let report_fingerprint =
+                    conservation_report_fingerprint(&input_plan.algebra, &equation);
                 reshuffles.push(ContentIdentityReshuffleFact {
                     machine_symbol,
                     state_symbol,
@@ -170,7 +171,7 @@ pub(crate) fn infer_identity_preserving_reshuffles(program: &TypedTrees, facts: 
                         callable: state_symbol,
                         algebra: input_plan.algebra.clone(),
                         equation,
-                        fingerprint,
+                        report_fingerprint,
                     },
                 });
             }
@@ -288,7 +289,8 @@ pub(crate) fn compose_partition_wrappers(program: &TypedTrees, facts: &mut Check
                             .any(|existing| {
                                 existing.callable == state.symbol
                                     && existing.algebra == composition.plan.algebra
-                                    && existing.fingerprint == composition.plan.fingerprint
+                                    && existing.report_fingerprint
+                                        == composition.plan.report_fingerprint
                                     && existing.equation == composition.plan.equation
                             })
                         {
@@ -305,7 +307,7 @@ pub(crate) fn compose_partition_wrappers(program: &TypedTrees, facts: &mut Check
                 fact.machine_symbol.arena_index(),
                 fact.state_symbol.arena_index(),
                 fact.source_callable.arena_index(),
-                fact.source_fingerprint,
+                fact.source_report_fingerprint,
                 content_conservation_plan_bytes(&fact.plan),
             )
         });
@@ -524,20 +526,20 @@ fn instantiate_partition_wrapper(
     });
     evidence.substitutions.dedup();
     let equation = ContentConservationEquation::new(left, right);
-    let fingerprint = conservation_fingerprint(&source.algebra, &equation);
+    let report_fingerprint = conservation_report_fingerprint(&source.algebra, &equation);
     let plan = ContentConservationPlan {
         owner_kind: ContentConservationOwnerKind::Machine,
         owner: machine_symbol,
         callable: state.symbol,
         algebra: source.algebra.clone(),
         equation,
-        fingerprint,
+        report_fingerprint,
     };
     Some(ContentPartitionCompositionFact {
         machine_symbol,
         state_symbol: state.symbol,
         source_callable: source.callable,
-        source_fingerprint: source.fingerprint,
+        source_report_fingerprint: source.report_fingerprint,
         source_derivation_depth,
         source_plan: source.clone(),
         statement_index: invocation.statement_index,
@@ -628,13 +630,13 @@ fn instantiate_partition_term(
             domain,
             semantic_domain,
             projection_machine,
-            projection_fingerprint,
+            projection_report_fingerprint,
             subject,
         } => Some(ContentConservationTerm::Projection {
             domain: *domain,
             semantic_domain: *semantic_domain,
             projection_machine: *projection_machine,
-            projection_fingerprint: *projection_fingerprint,
+            projection_report_fingerprint: *projection_report_fingerprint,
             subject: instantiate_partition_subject(
                 program,
                 facts,
@@ -1027,7 +1029,7 @@ fn projection_term(
         domain: plan.domain,
         semantic_domain: plan.semantic_domain,
         projection_machine: plan.machine,
-        projection_fingerprint: plan.fingerprint,
+        projection_report_fingerprint: plan.report_fingerprint,
         subject,
     }
 }

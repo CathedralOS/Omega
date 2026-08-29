@@ -152,7 +152,7 @@ fn machine_contract_manifest_reads_independent_mutation_facts() {
         .find(|frame| frame.state == state_symbol)
         .expect("exact entry frame");
     retained_frame.frame = psi_facts::NormalizedWriteFrame::complete(vec!["self.value".to_owned()]);
-    let retained_fingerprint = retained_frame.frame.fingerprint();
+    let retained_fingerprint = retained_frame.frame.compatibility_report_fingerprint();
     let with_mutation = machine_contract_manifest_json(&program);
     let baseline_contract_start = baseline.find("\"contract\"").expect("baseline contract");
     let baseline_implementation_start = baseline

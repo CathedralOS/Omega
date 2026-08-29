@@ -89,7 +89,10 @@ pub struct CheckedOperatorCandidateFact {
     /// conformance row.
     pub realization_machine_symbol: SymbolHandle,
     pub realization_state_symbol: SymbolHandle,
+    /// Compact report coordinate; authority uses the adjacent commitment.
     pub conformance_application_fingerprint: u64,
+    pub conformance_application_commitment:
+        psi_typed_trees::typed_trees::ClosedConformanceApplicationCommitment,
     pub receiver_type: TypeReferenceHandle,
     pub return_type: TypeReferenceHandle,
     pub contracts: HandleSpan<SignatureContract>,
@@ -109,6 +112,10 @@ impl CheckedOperatorCandidateFact {
             realization_machine_symbol: SymbolHandle::invalid(),
             realization_state_symbol: SymbolHandle::invalid(),
             conformance_application_fingerprint: 0,
+            conformance_application_commitment:
+                psi_typed_trees::typed_trees::ClosedConformanceApplicationCommitment::from_digest(
+                    [0; 32],
+                ),
             receiver_type: TypeReferenceHandle::invalid(),
             return_type: TypeReferenceHandle::invalid(),
             contracts: HandleSpan::empty(),
@@ -128,6 +135,10 @@ impl CheckedOperatorCandidateFact {
             realization_machine_symbol: SymbolHandle::invalid(),
             realization_state_symbol: SymbolHandle::invalid(),
             conformance_application_fingerprint: 0,
+            conformance_application_commitment:
+                psi_typed_trees::typed_trees::ClosedConformanceApplicationCommitment::from_digest(
+                    [0; 32],
+                ),
             receiver_type: TypeReferenceHandle::invalid(),
             return_type: TypeReferenceHandle::invalid(),
             contracts: HandleSpan::empty(),
@@ -148,6 +159,8 @@ impl CheckedOperatorCandidateFact {
         realization_machine_symbol: SymbolHandle,
         realization_state_symbol: SymbolHandle,
         conformance_application_fingerprint: u64,
+        conformance_application_commitment:
+            psi_typed_trees::typed_trees::ClosedConformanceApplicationCommitment,
     ) -> Self {
         Self {
             operator_symbol: requirement_symbol,
@@ -157,6 +170,7 @@ impl CheckedOperatorCandidateFact {
             realization_machine_symbol,
             realization_state_symbol,
             conformance_application_fingerprint,
+            conformance_application_commitment,
             receiver_type: TypeReferenceHandle::invalid(),
             return_type: TypeReferenceHandle::invalid(),
             contracts: HandleSpan::empty(),
