@@ -4,7 +4,7 @@ use super::{
     CanonicalSourceClosureSubjectLimits,
 };
 use crate::resolution::closure::reconciliation::PackageRootSourceRequest;
-use crate::resolution::closure::validation::{
+use crate::resolution::closure::{
     ResolvedDependency, ResolvedPackageClosure, ResolvedPackageNode, ResolvedSourceIdentity,
 };
 use omega_package_source::GitSourceRequest;

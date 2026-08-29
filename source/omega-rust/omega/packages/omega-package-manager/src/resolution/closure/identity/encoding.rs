@@ -6,7 +6,7 @@ use super::{
     SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION, SOURCE_CLOSURE_SUBJECT_FINGERPRINT_DOMAIN,
     SOURCE_CLOSURE_SUBJECT_MAGIC,
 };
-use crate::resolution::closure::validation::ResolvedSourceIdentity;
+use crate::resolution::closure::ResolvedSourceIdentity;
 use omega_package_source::{
     AliasName, ExternalLocalLineage, ExternalSourceContext, GitCommitId, GitTransport, GitTreeId,
     ImmutableSourceResolution, PackageKey, PackageName, SourceContentDigest, SourceLineage,

@@ -1,6 +1,6 @@
 //! Paths, limits, conflicts, and failures exposed by reconciliation.
 
-use super::super::validation::PackageClosureValidationError;
+use super::super::PackageClosureValidationError;
 use crate::manifest::dependencies::read::DependencySourceRequest;
 use crate::resolution::binding::PackageSourceCustody;
 use omega_package_source::{AliasName, PackageKey};

@@ -41,12 +41,16 @@ vocabulary, but cannot select a dependency closure or admit it.
 ```text
 resolution/closure/
 ├── mod.rs           closure boundary and public vocabulary
+├── model.rs         validated nodes, edges, aliases, and reachability
 ├── root_request.rs  exact request selecting the root
 ├── traversal/       follow declared workspace, local, and Git edges
 ├── reconciliation/  reconcile one complete closure
-├── validation/      validate nodes, edges, aliases, and reachability
 └── identity/        canonical identity of the exact closure
 ```
+
+Directory entrances are maps: `mod.rs` names the responsibility and points to
+plainly named implementation files. Substantive implementation does not live in
+an entrance file.
 
 ### Identity and reconciliation
 

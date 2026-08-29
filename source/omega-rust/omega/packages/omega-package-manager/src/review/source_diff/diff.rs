@@ -1,7 +1,8 @@
 //! Bounded line splitting, Myers diff, and hunk construction.
 
 use super::output::{BoundedOutput, render_source_line};
-use super::{CONTEXT_LINES, PackageSourcePatchError, PackageSourcePatchLimits};
+use super::patch::CONTEXT_LINES;
+use super::{PackageSourcePatchError, PackageSourcePatchLimits};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct SourceLine<'source> {

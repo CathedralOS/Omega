@@ -1,4 +1,5 @@
 use super::*;
+use omega_package_source::{AliasName, ImmutableSourceResolution, PackageKey};
 use omega_package_source::{
     GitCommitId, GitTreeId, PackageName, SourceContentDigest, SourceLineage,
 };

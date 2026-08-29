@@ -1,6 +1,6 @@
 //! Bounded traversal, custody reconciliation, and conflict path collection.
 
-use super::super::validation::{
+use super::super::{
     ResolvedDependency, ResolvedPackageClosure, ResolvedPackageNode, ResolvedSourceIdentity,
 };
 use super::model::{
