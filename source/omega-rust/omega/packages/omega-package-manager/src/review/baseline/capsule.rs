@@ -4,11 +4,9 @@ use super::encoding::{
     Decoder, Encoder, capsule_checksum, clone_baseline_bytes, decode_package_key,
     decode_replay_record_option, decode_resolution, encode_package_key,
     encode_replay_record_option, encode_resolution, ensure_bounded_string, replay_parent_binding,
-    validate_package_key_bounds, validate_recovery_row,
+    validate_recovery_row,
 };
-use super::validation::{
-    PendingPackage, canonical_graph, graph_depth, replay_record_limits, row_limits, validate_rows,
-};
+use super::validation::{PendingPackage, canonical_graph, row_limits, validate_rows};
 use super::{
     CHECKSUM_BYTES, MAGIC, REVIEW_ONLY_ARTIFACT_CLASS, ReviewOnlyBaselineError,
     ReviewOnlyBaselineLimits, VERSION,
@@ -20,9 +18,7 @@ use crate::graph::{
 };
 use crate::identity::{AliasName, PackageKey};
 use crate::review::CompilerIssuedPackageReviewSet;
-use crate::review::records::validation::{
-    validate_review_only_closure, validate_review_only_records,
-};
+use crate::review::records::validation::validate_review_only_closure;
 use crate::review::records::{
     PackageReviewEvidence, ReviewOnlyCanonicalRow, ReviewOnlySourceConsumptionCommitment,
     build_observation_commitment, whole_review_commitment,
@@ -30,7 +26,6 @@ use crate::review::records::{
 use omega_build_evaluation::{
     BuildFilesystemReplayRecordLimits, ReviewOnlyBuildFilesystemReplayRecord,
     capture_verified_build_filesystem_replay_record,
-    recover_review_only_build_filesystem_replay_record,
 };
 use omega_package_review::encoding::{
     decode_package_review_canonical_row_with_limits,
@@ -43,15 +38,15 @@ use std::collections::BTreeMap;
 /// baseline capsule.
 #[derive(Debug, Clone)]
 pub struct ReviewOnlyBaselinePackage {
-    key: PackageKey,
-    resolution: ImmutableSourceResolution,
-    target: String,
+    pub(super) key: PackageKey,
+    pub(super) resolution: ImmutableSourceResolution,
+    pub(super) target: String,
     source_consumption_commitment: ReviewOnlySourceConsumptionCommitment,
-    build_observation_commitment: Option<[u8; 32]>,
-    source_input_replay_record: Option<ReviewOnlyBuildFilesystemReplayRecord>,
-    replay_record_parent_binding: Option<[u8; 32]>,
+    pub(super) build_observation_commitment: Option<[u8; 32]>,
+    pub(super) source_input_replay_record: Option<ReviewOnlyBuildFilesystemReplayRecord>,
+    pub(super) replay_record_parent_binding: Option<[u8; 32]>,
     whole_review_commitment: [u8; 32],
-    canonical_rows: Vec<ReviewOnlyCanonicalRow>,
+    pub(super) canonical_rows: Vec<ReviewOnlyCanonicalRow>,
 }
 
 impl ReviewOnlyBaselinePackage {
@@ -130,8 +125,8 @@ impl PackageReviewEvidence for ReviewOnlyBaselinePackage {
 /// authorize a conflict, mutate a project, or stand in for `omega.lock`.
 #[derive(Debug, Clone)]
 pub struct ReviewOnlyBaselineCapsule {
-    graph: ResolvedPackageClosure,
-    packages: Vec<ReviewOnlyBaselinePackage>,
+    pub(super) graph: ResolvedPackageClosure,
+    pub(super) packages: Vec<ReviewOnlyBaselinePackage>,
 }
 
 impl ReviewOnlyBaselineCapsule {
@@ -566,117 +561,6 @@ impl ReviewOnlyBaselineCapsule {
 
     pub fn packages(&self) -> &[ReviewOnlyBaselinePackage] {
         &self.packages
-    }
-
-    fn validate(&self, limits: ReviewOnlyBaselineLimits) -> Result<(), ReviewOnlyBaselineError> {
-        if self.packages.is_empty() || self.packages.len() > limits.maximum_packages {
-            return Err(ReviewOnlyBaselineError::new(
-                "review baseline package count violates its bounds",
-            ));
-        }
-        validate_review_only_records(&self.packages)
-            .map_err(|_| ReviewOnlyBaselineError::new("invalid review baseline record set"))?;
-        let mut dependencies = 0usize;
-        let mut rows = 0usize;
-        let mut row_recovery_bytes = 0usize;
-        let mut replay_record_bytes = 0usize;
-        for package in &self.packages {
-            let node = self.graph.package(&package.key).ok_or_else(|| {
-                ReviewOnlyBaselineError::new("review baseline graph/review mismatch")
-            })?;
-            if node.source().resolution() != &package.resolution {
-                return Err(ReviewOnlyBaselineError::new(
-                    "review baseline graph/review resolution mismatch",
-                ));
-            }
-            ensure_bounded_string(
-                &package.target,
-                limits.maximum_target_bytes,
-                "review baseline target violates its byte bounds",
-            )?;
-            validate_package_key_bounds(&package.key, limits.maximum_identity_bytes)?;
-            dependencies = dependencies.saturating_add(node.dependencies().len());
-            rows = rows.saturating_add(package.canonical_rows.len());
-            for dependency in node.dependencies() {
-                ensure_bounded_string(
-                    dependency.alias().as_str(),
-                    limits.maximum_identity_bytes,
-                    "review baseline dependency alias violates its byte bounds",
-                )?;
-            }
-            for row in &package.canonical_rows {
-                let recovery_bytes = row.recovery_bytes().ok_or_else(|| {
-                    ReviewOnlyBaselineError::new(
-                        "review baseline contains a non-recoverable comparison row",
-                    )
-                })?;
-                row_recovery_bytes = row_recovery_bytes
-                    .checked_add(recovery_bytes.len())
-                    .ok_or_else(|| {
-                        ReviewOnlyBaselineError::new(
-                            "review baseline row recovery byte count overflowed",
-                        )
-                    })?;
-            }
-            if package.source_input_replay_record.is_some()
-                && package.build_observation_commitment.is_none()
-            {
-                return Err(ReviewOnlyBaselineError::new(
-                    "filesystem replay record has no parent build observation",
-                ));
-            }
-            if let Some(replay) = &package.source_input_replay_record {
-                replay_record_bytes = replay_record_bytes
-                    .checked_add(replay.canonical_bytes().len())
-                    .ok_or_else(|| {
-                        ReviewOnlyBaselineError::new("review baseline replay byte count overflowed")
-                    })?;
-                let recovered = recover_review_only_build_filesystem_replay_record(
-                    replay.canonical_bytes(),
-                    replay_record_limits(limits),
-                )
-                .map_err(|_| {
-                    ReviewOnlyBaselineError::new("invalid compiler filesystem replay record")
-                })?;
-                if recovered.commitment() != replay.commitment() {
-                    return Err(ReviewOnlyBaselineError::new(
-                        "filesystem replay record commitment mismatch",
-                    ));
-                }
-            }
-            let expected_binding = match (
-                package.build_observation_commitment,
-                package.source_input_replay_record.as_ref(),
-            ) {
-                (Some(parent), Some(replay)) => {
-                    Some(replay_parent_binding(parent, replay.commitment()))
-                }
-                (None, None) | (Some(_), None) => None,
-                (None, Some(_)) => {
-                    return Err(ReviewOnlyBaselineError::new(
-                        "filesystem replay record has no parent build observation",
-                    ));
-                }
-            };
-            if package.replay_record_parent_binding != expected_binding {
-                return Err(ReviewOnlyBaselineError::new(
-                    "filesystem replay record parent binding mismatch",
-                ));
-            }
-            validate_rows(&package.canonical_rows)?;
-        }
-        if self.graph.packages().len() != self.packages.len()
-            || dependencies > limits.maximum_dependencies
-            || rows > limits.maximum_rows
-            || row_recovery_bytes > limits.maximum_row_recovery_bytes
-            || replay_record_bytes > limits.maximum_capsule_bytes
-            || graph_depth(&self.graph) > limits.maximum_graph_depth
-        {
-            return Err(ReviewOnlyBaselineError::new(
-                "review baseline closure violates its resource bounds",
-            ));
-        }
-        Ok(())
     }
 }
 
