@@ -135,7 +135,7 @@ closed. Compiler-issued package review remains non-admitting.
     permission-frontier, crash-refinement, and compiler-intrinsic ownership
     joins;
   - an exact trust-bearing association for operator-bound external supply;
-  - same-path overloaded boundary-provider selection after OWNER Q10;
+  - same-path overloaded boundary-provider selection after OWNER Q9;
   - complete exact semantic-subject commitments, certificate closure, and
     reproducibility dispositions.
 
@@ -322,7 +322,7 @@ closed. Compiler-issued package review remains non-admitting.
   must reject every std selection; no package name, alias, path, or magic mount
   may confer authority.
 
-- [ ] **BLOCKED — OWNER Q10: OVERLOADED-BOUNDARY-PROVIDER-SELECTION.** Settle
+- [ ] **BLOCKED — OWNER Q9: OVERLOADED-BOUNDARY-PROVIDER-SELECTION.** Settle
   authored override selection for same-path overloaded boundary-operator
   families before admitting that provider form into package evidence.
 

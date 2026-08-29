@@ -993,7 +993,7 @@ realizing machine. Projection repeats the exact symbol, slot, checked-adapter
 binding, package, and machine join. A named-boundary canary covers unique
 selection. Fixed-token boundary operators remain fail-closed until checked-
 adapter token dispatch exists. Authored override of a same-path overloaded
-operator family remains OWNER Q10. The projection never substitutes an overload
+operator family remains OWNER Q9. The projection never substitutes an overload
 display name or a runtime-layout-only
 type identity for this contract surface.
 

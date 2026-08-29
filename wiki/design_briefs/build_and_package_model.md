@@ -139,7 +139,6 @@ invokes FilesystemHost;
     builder.depend(Source::Path {
         location: "../../contracts/uefi"
     });
-    builder.target = cathedral::targets::uefi_x86_64;
     builder.roots.bind(
         cathedral::targets::uefi_x86_64::ProgramEntry,
         Application::start
@@ -276,6 +275,14 @@ data Build {
 }
 ```
 
+`target` is the one exact profile supplied immutably by the build invocation.
+Build source may inspect it but cannot assign, substitute, or multiply it. A
+CLI `Host` convenience is resolved to one concrete profile before semantic
+build evaluation; `Host` is never retained as artifact identity. Building four
+targets means four activations and four artifacts. A fat or universal artifact
+requires its own explicit target profile rather than several selections in one
+activation.
+
 This is the durable projection, not a claim that the source-visible activation
 handle serializes every ephemeral facet it exposes. In particular, its source
 and staging roots and admitted `filesystem` service are absent from this
@@ -293,8 +300,69 @@ identity, fail-closed behavior, and eventual manifest projection.
 Hosted versus freestanding, subsystem/image format, default providers, calling
 policies, fault supply, and resource supply belong to the selected target
 profile. They are not repeated as independently mutable booleans or enums in
-each build. In-source `target ... {}` blocks are transitional syntax to remove;
-selection and slot bindings belong in `Build`.
+each build. In-source `target ... {}` blocks and `builder.target = ...` are
+transitional syntax to remove. Target choice belongs to the invocation;
+target-qualified slot and provider bindings remain ordinary authored build
+data.
+
+### Requested target and target admissibility
+
+The invocation requests one exact `TargetProfile`; the activation presents
+that immutable value as `Build.target`. Source does not separately assert a
+supported-target set or accept the request ceremonially. Instead, the selected
+target is admissible exactly when the artifact-role closure validates:
+
+```text
+omega build --target linux_arm64   # exact request
+omega build                        # CLI resolves Host to one exact request
+```
+
+```text
+requested exact target
+    + target-qualified roots and provider realizations
+    + target semantics, ABI, layout, resources, and reach ceiling
+    -> one valid artifact closure, or rejection
+```
+
+An application without its selected profile's `ProgramEntry` rejects. A
+library has no such requirement; a component must close its declared slots;
+and a target-neutral artifact need not acquire a native entry at all. Thus
+absence of an application root is not a universal declaration of unsupported
+target status. The output role determines which closure must exist.
+
+This rule establishes mechanical target admissibility under one pinned target
+profile and semantic version. It does not assert that a human tested every
+configuration. Any separately reported tested-target matrix is operational
+metadata and never substitutes for closure validation. Conversely, because
+new profiles are admitted by successful validation rather than an authored
+allowlist, validation coverage is load-bearing: target-sensitive assumptions
+must be explicit predicates or observations, not unchecked folklore such as
+"addresses are probably 64 bit."
+
+The `TargetProfile` schema and target-observation vocabulary are
+toolchain-owned and closed. Concrete profile declarations come from validated
+target packages in the selected toolchain closure; they are not a forever
+hard-coded compiler enum. Ordinary packages may name an exact profile but may
+not reinterpret one. The canonical profile spelling is exact—for example,
+`windows_x86_64`, not a second `windows_x64` alias.
+
+### Runtime reach ceiling
+
+Provider selection and runtime authorization are distinct. Selecting no
+filesystem provider does not mean "filesystem denied," because absence of a
+declaration cannot create policy. The authoritative build declares one
+explicit complete runtime-reach ceiling, and validation proves:
+
+```text
+inferred transitive runtime demand
+    ⊆ authored complete reach ceiling
+    ⊆ selected target supply
+```
+
+Exclusion from that sealed complete set is an explicit denial. A violation
+retains a provenance chain to the dependency, declaration, or selection that
+introduced the demand so diagnostics can identify the edge that exceeded the
+ceiling even when only prebuilt artifact evidence is available.
 
 The platform's launch calling plan is checked against the generated arrival
 bridge, while the explicitly bound source machine is checked against the
@@ -402,7 +470,6 @@ An installable artifact explicitly binds every required build-bound slot:
 
 ```omega
 machine build(builder: &mut Build) {
-    builder.target = windows_x86_64;
     builder.roots.bind(
         windows_x86_64::ProgramEntry,
         Application::start
@@ -473,12 +540,14 @@ visible parameter list. Those are ordinary arguments to the selected source
 entry only because that target intentionally makes provisioning the program's
 job. A hosted program sees neither extent by default.
 
-The selected target determines the required-slot closure. Binding a slot owned
-by another profile rejects regardless of mutation order. Duplicate bindings
-report the first binding site; a missing required slot names the exact slot.
-Package/library builds bind no roots. Runtime-installed slots may remain open,
-but installation must validate the same binding shape, portable demands,
-target supply, authority, and lifecycle before publishing reachability.
+The selected target determines the required-slot closure. One build source may
+author rows for several exact profiles; only rows owned by the requested
+profile enter that activation's durable projection. A row whose slot is not
+owned by its authored profile rejects, as do duplicate active bindings. A
+missing required slot names the exact slot. Package/library builds bind no
+roots. Runtime-installed slots may remain open, but installation must validate
+the same binding shape, portable demands, target supply, authority, and
+lifecycle before publishing reachability.
 
 There is no `main`, `Main::run`, uniquely visible export, special entry field,
 or ambient `static`. Project templates may write ordinary slot bindings, but
@@ -502,7 +571,7 @@ configuration selects the already-declared candidate.
 Requirement declarations never select their own provider. In particular, a
 `boundary operator` carries no provider clause: checked satisfiers and
 `satisfies ... via <Binding>` leaves declare candidates, and compiler policy
-chooses one exact plan. Unique covering selection is implemented. OWNER Q10
+chooses one exact plan. Unique covering selection is implemented. OWNER Q9
 must settle how an authored build/target override applies to a same-path
 overloaded operator family before that override route opens. The retired top-
 level `provider Name : Category;` declaration and operator-local
@@ -532,6 +601,14 @@ order and identity, and build overrides continue to outrank target defaults.
 `Build::select_provider<Service, Provider>()` is ordinary typed API vocabulary.
 It performs a type-per-slot override; users do not repeat every default and
 cannot append or mutate derived plan rows.
+
+Selection remains nominal and argument-free. Target-specific values such as a
+Windows standard-output handle or Linux file descriptor belong inside the
+selected target-owned realization contract, not as value arguments to
+`select_provider`. A target-neutral provider facade may resolve to checked
+target-specific leaves. When two configurations are genuinely distinct
+authored choices, they use distinct nominal/static realization identities;
+runtime-variable descriptors remain ordinary capability values.
 
 The same selection owns componentization. A selection is `fused` by default;
 the build may instead request `independent` emission through the typed `Build`
@@ -1517,7 +1594,7 @@ repeats that exact symbol, slot, checked-adapter binding, package, and machine
 join. A positive named-boundary canary covers the unique-candidate route.
 Fixed-token boundary operators remain fail-closed until checked-adapter token
 dispatch exists. Authored selection across a same-path overloaded family
-remains OWNER Q10. Operators
+remains OWNER Q9. Operators
 with outcome-specific or crash contracts, and providers with any nonempty
 checked crash behavior, reject until their refinement rules exist. The
 association is a retained compiler-private

@@ -317,59 +317,7 @@ role from names.
   as an ordinary package at the import surface; that preserves two identities
   for one dependency and defeats capability review.
 
-## Q8 — Requested versus source-selected build targets
-
-### Context
-
-The build/package design gives durable `Build` one selected `TargetProfile` and
-shows ordinary source assigning `builder.target`. The migration/reference
-compiler still discovers target availability through transitional
-`target name {}` items and receives the selected target from its invocation.
-The Omega-written compiler's `build.omg` consequently declares four selectable
-targets while binding one entry root for each. Its checkpoint build prelude has
-no `TargetProfile`, target field, or target-selection operation yet.
-
-### Problem statement
-
-Replacing those four declarations with one ordinary assignment is not a
-mechanical syntax migration. A singular source-chosen target would collapse the
-compiler package's cross-target availability, while `Target::Host` or an
-implicitly preinitialized field would make ambient invocation state select
-semantic build output without a specified Omega value or retained authored
-acceptance. Conversely, treating `Build.target` as a set would contradict the
-settled singular durable projection. The language does not yet say how an
-external requested target enters the build machine, how source accepts or
-rejects it, or which fact establishes the one normalized selected target.
-
-### Proposed direction
-
-Separate invocation request from durable selection. Give the build activation
-an immutable, exact requested `TargetProfile`, and require ordinary build source
-to accept that value into the singular durable `Build.target` (directly or
-through one ordinary operation). Source may constrain the closed profiles it
-supports with normal Omega control flow; the compiler product can therefore
-accept its four supported profiles without declaring four competing selected
-outputs. Normalize and retain both request identity and authored acceptance,
-and reject omission, substitution, or multiple selections. Resolve a `Host`
-convenience before semantic build evaluation so ambient host identity never
-enters the durable artifact implicitly.
-
-### Alternates
-
-- Acceptable if target support is entirely expressed by root/provider
-  availability: initialize an immutable selected target from the invocation
-  and remove source-level target selection, but revise the durable `Build`
-  model and explain how source rejects unsupported targets.
-- Acceptable if source must enumerate support independently: add an ordinary
-  supported-target collection plus a separate singular selection operation;
-  keep their identities distinct and require the requested target to belong to
-  the authored collection.
-- Tempting but wrong: replace the four product declarations with the current
-  development host's concrete profile.
-- Tempting but wrong: add a magical `Target::Host` case whose meaning changes
-  after source evaluation or is omitted from normalized build identity.
-
-## Q9 — Explicit transport authority for quotient preconditions
+## Q8 — Explicit transport authority for quotient preconditions
 
 ### Context
 
@@ -417,7 +365,7 @@ closed.
 - Tempting but wrong: retain only a solver `Proven` verdict without the selected
   theorem identity, ordered premises, per-side application, and replay data.
 
-## Q10 — Selecting an overloaded boundary-operator provider family
+## Q9 — Selecting an overloaded boundary-operator provider family
 
 ### Context
 
@@ -466,7 +414,7 @@ syntax.
 - Tempting but wrong: apply a family override only to overloads the provider
   happens to implement and leave the rest on unrelated defaults.
 
-## Q11 — Provider selection for a top-level boundary requirement
+## Q10 — Provider selection for a top-level boundary requirement
 
 ### Context
 
@@ -511,7 +459,7 @@ settlement authority.
 - Tempting but wrong: keep one hardcoded `PortIo` completion row and treat it as
   proof of PIC/LAPIC provider coherence.
 
-## Q12 — Source result schema for placed-view establishment
+## Q11 — Source result schema for placed-view establishment
 
 ### Context
 
@@ -573,7 +521,7 @@ outputs outside the runtime result.
 - Tempting but wrong: derive result identity from source spelling, call-site
   order, accessor names, parameter ordinals, or compact plan fingerprints.
 
-## Q13 — Declaring a direct native-parameter callback destination
+## Q12 — Declaring a direct native-parameter callback destination
 
 ### Context
 
@@ -630,7 +578,7 @@ that would add or reorder ABI parameters.
 - Tempting but wrong: expose a raw parameter ordinal, physical register/stack
   location, or callback code address to source policy.
 
-## Q14 — Reborrow restoration disposition
+## Q13 — Reborrow restoration disposition
 
 ### Context
 
@@ -679,7 +627,7 @@ post-return use, cleanup, or Terminal resource claim may be derived from them.
 - Tempting but wrong: skip retired projected parents and return authority
   directly to a root without retaining and validating the complete path.
 
-## Q15 — Nominal result carriers for observing compare-exchange
+## Q14 — Nominal result carriers for observing compare-exchange
 
 ### Context
 
@@ -750,7 +698,7 @@ operation requirement identities separate from these value-type identities.
 - Tempting but wrong: expose `Uncommitted` on the decisive result merely because
   one larger runtime layout would be convenient.
 
-## Q16 — Strict SSH trust and credential authority
+## Q15 — Strict SSH trust and credential authority
 
 ### Context
 
@@ -799,7 +747,7 @@ producer claim.
 - Tempting but wrong: serialize private keys, tokens, or reusable credentials in
   `omega.lock` or source-resolution evidence.
 
-## Q19 — Suspension as control-flow exit or resumable continuation
+## Q16 — Suspension as control-flow exit or resumable continuation
 
 ### Context
 
@@ -838,7 +786,7 @@ and its custody.
 - Tempting but wrong: classify every `MaySuspend` call as a local CFG exit
   without retaining its continuation and outcome-specific state.
 
-## Q20 — Cyclic control flow in Terminal Psi
+## Q17 — Cyclic control flow in Terminal Psi
 
 ### Context
 

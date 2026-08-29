@@ -9,7 +9,6 @@ their source APIs and backend support remain incomplete.
 
 ```omega
 machine build(builder: &mut Build) {
-    builder.target = cathedral::targets::uefi_x86_64;
     builder.roots.bind(
         cathedral::targets::uefi_x86_64::ProgramEntry,
         Application::start
@@ -17,7 +16,9 @@ machine build(builder: &mut Build) {
 }
 ```
 
-A freestanding target has no ambient hosted provider set. Firmware, memory,
+A concrete freestanding profile is selected immutably by the invocation; this
+build only authors its target-qualified root binding. A freestanding target has
+no ambient hosted provider set. Firmware, memory,
 device, clock, scheduling, entry, and exit services must be selected from
 explicit target packages and admitted providers. The selected profile supplies
 the freestanding fact and ordinary provider defaults; `build.omg` binds required

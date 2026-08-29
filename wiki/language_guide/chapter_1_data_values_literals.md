@@ -21,18 +21,20 @@ machine start() {
 }
 
 machine build(builder: &mut Build) {
-    builder.target = windows_x86_64;
     builder.roots.bind(windows_x86_64::ProgramEntry, start);
 }
 ```
 
-`build.omg` selects `start`; it does not call the machine, supply arguments, or
-bless storage, and the language does not discover `main` by name. At launch, the
-hosted target's generated bridge performs platform storage and provider setup
-before calling this source-level entry, so ordinary applications do not receive
-raw image or stack extents. The target-selected Console provider services the
-call. Programs that need one program-lifetime receiver attach the selected entry
-machine to that receiver's data type; Chapter 3 shows that form.
+The invocation selects one exact target—when omitted, the CLI may resolve its
+`Host` convenience to a concrete profile before evaluating this build. The
+`build.omg` file binds `start` for the Windows profile; it does not choose the
+target, call the machine, supply arguments, or bless storage, and the language
+does not discover `main` by name. At launch, the hosted target's generated
+bridge performs platform storage and provider setup before calling this
+source-level entry, so ordinary applications do not receive raw image or stack
+extents. The target-selected Console provider services the call. Programs that
+need one program-lifetime receiver attach the selected entry machine to that
+receiver's data type; Chapter 3 shows that form.
 
 The receiver's `data` declaration remains an ordinary value shape. Selecting an
 attached entry provisions one occurrence. Storage authority, qualification,

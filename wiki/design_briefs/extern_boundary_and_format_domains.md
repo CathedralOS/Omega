@@ -1020,7 +1020,6 @@ machine start() {
 }
 
 machine build(builder: &mut Build) {
-    builder.target = windows_x86_64;
     builder.roots.bind(
         windows_x86_64::ProgramEntry,
         start
