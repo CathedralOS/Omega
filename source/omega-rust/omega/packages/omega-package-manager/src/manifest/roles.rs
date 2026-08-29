@@ -130,22 +130,26 @@ mod tests {
     }
 
     #[test]
-    fn wrapper_preserves_first_parameter_only_builder_rule() {
-        assert!(
+    fn wrapper_preserves_exact_single_builder_parameter_rule() {
+        assert_eq!(
             extract_from_source(
-                r#"
-            machine build(builder: &mut Build, filesystem: &mut Filesystem) {
-                builder.application("service-backed-app");
-            }
-            "#,
-            )
-            .is_ok()
+                r#"machine build(builder: &mut Build, filesystem: &mut Filesystem) {}"#,
+            ),
+            Err(PackageDeclarationError::InvalidBuildParameter)
         );
         assert_eq!(
             extract_from_source(
                 r#"machine build(filesystem: &mut Filesystem, builder: &mut Build) {}"#,
             ),
             Err(PackageDeclarationError::InvalidBuildParameter)
+        );
+        assert!(
+            extract_from_source(
+                r#"machine build(builder: &mut Build) {
+                    builder.application("service-backed-app");
+                }"#,
+            )
+            .is_ok()
         );
     }
 
