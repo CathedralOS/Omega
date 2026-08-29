@@ -149,8 +149,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
   function-, hash-, or workload-specific jets are forbidden. No current floor
   measurement triggers escalation: the complete Alpha-written Beta compiler
   surface gate runs 121 cases in under three seconds on the development host.
-  The largest current retained Beta output, the 223,333-byte checker tape,
-  leaves 38,807 bytes in the Alpha payload after replacing repeated inline
+  The largest current retained Beta output, the 229,192-byte checker tape,
+  leaves 32,948 bytes in the Alpha payload after replacing repeated inline
   stack-fault blocks with one local terminal block per procedure.
 
 ## 2. Alpha-written Beta compiler
@@ -241,10 +241,14 @@ code, discover a closure, manufacture proof premises, or decide admission.
     certificate extents; checker-built immutable byte lists are available only
     as the framed `source` and `tape` constants. Identical subjects accept a
     reflexivity control, a one-byte mutation rejects, unframed input cannot
-    spoof either constant, and the rebuilt 223,333-byte checker tape retains
-    38,807 bytes of Alpha payload headroom. The exact 78,109-byte compiler
+    spoof either constant, and the rebuilt 229,192-byte checker tape retains
+    32,948 bytes of Alpha payload headroom. The exact 78,109-byte compiler
     source plus 20,977-byte tape carrier runs in under one second; raw-list
     comparison is iterative rather than proportional to the Beta call stack.
+    Declaration tables are range-checked and immutable before the first checked
+    lemma, duplicate IDs and trailing forms reject, and the independent checker
+    matches those controls; a later rewrite cannot change an accepted lemma's
+    definitional meaning.
   - [ ] Turn the reconstructed ground judgment into a derivation certificate
     over those checker-bound subjects. The certificate must check the complete
     two-pass ledger, unique label map, total source/tape partitions, exact

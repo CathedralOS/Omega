@@ -41,6 +41,12 @@ reduction, list membership, and product witnesses. The compact gate suite owns
 the executable rule inventory; a theorem library is deliberately not stored
 under this service.
 
+Function, constructor, and product declarations must precede the first checked
+lemma. Their tables are bounded, IDs and rules are unique, and the theory freezes
+at that first lemma; later declarations reject rather than retroactively changing
+the meaning of an accepted proof. Lemma IDs are likewise bounded and unique, and
+no non-whitespace form may follow the one goal/proof pair.
+
 Artifact-bound callers use the binary frame below; legacy plain certificate
 input remains available for generic judgments.
 
