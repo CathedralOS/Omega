@@ -17,8 +17,11 @@ text or containment claims.
   backend, and constructs a command and policy observation together.
 - `src/process/` owns child-container lifecycle and compiler-owned process
   limits. Its tests cover inherited Unix-limit intersection and enforcement.
-- `src/network/` owns typed endpoint policy, the bounded loopback CONNECT
-  broker, the fixed connector helper protocol, and endpoint observations.
+- `src/network/` owns typed endpoint policy and observations (`model.rs`), the
+  shared transfer ceiling (`budget.rs`), the bounded loopback route
+  (`broker.rs`), CONNECT framing (`connect_protocol.rs`), bidirectional copying
+  (`relay.rs`), and the fixed helper process boundary (`helper.rs`). Its
+  `mod.rs` is the explicit network facade.
 - `src/confinement/` owns native confinement facts and implementations.
   `macos.rs` owns Seatbelt policy/custody and its native canaries;
   `windows.rs` owns suspended launch, Job Object assignment and limits,
