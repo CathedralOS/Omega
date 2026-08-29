@@ -23,7 +23,7 @@ src/
 |   |-- authority.rs          reached authority and intrinsic risk classes
 |   |-- semantics.rs          semantic dependencies and representation TCB
 |   |-- source_custody/       bounded source coordinates and final row/source pairing
-|   |-- public_api/           public domains, data, propositions, constants, operators, and traits
+|   |-- public_api/           public domains, data, propositions, constants, operators, traits, and conformances
 |   |-- callables.rs          callable envelope projection
 |   |-- contracts/            contract metadata, propositions, and expressions
 |   |   |-- metadata/         checked contract evidence, operations, and service reach
