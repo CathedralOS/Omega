@@ -588,7 +588,7 @@ fn object_boundary_rejects_noncanonical_or_incomplete_machine_code_plans() {
     .collect();
     assert_eq!(
         build_object_artifact(&stripped_ranked_custody),
-        Err(ObjectError::RankedCountdownNotYetReplayable(machine_id(1)))
+        Err(ObjectError::MissingRankedCountdownCustody(machine_id(1)))
     );
 }
 

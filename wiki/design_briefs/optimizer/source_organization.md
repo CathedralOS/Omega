@@ -175,6 +175,15 @@ calling mechanics descend another rung into named leaves. Typed plain-Unit and
 structural-Unit recipes participate in the V9 identity rather than being
 inferred from an untyped roster after admission.
 
+Ranked-`u32` object admission is governed as one exact validation subtree, not
+as a rule catalog. Its sub-100-line `ranked_u32_countdown/mod.rs` entrance owns
+classification and the layout/contract/fuel join; `layout.rs` consumes only
+opaque target-decoder evidence, `contract.rs` reconstructs semantic, ABI, and
+frontier custody, and `fuel.rs` reconstructs the nine exact attribution rows.
+An architecture guard prevents this subtree from depending on machine emission
+or calling either target encoder, and the entrance keeps final-image authority
+explicitly fenced.
+
 Psi SCCP constant evaluation now follows the same downward-navigation rule.
 Its 35-line entrance owns the shared SCCP rule contract and names boolean and
 integer families. The integer entrance descends into binary arithmetic/shifts,

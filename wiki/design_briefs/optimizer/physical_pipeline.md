@@ -18,6 +18,14 @@ the entire program. Selected rules may fold exact incoming immediates or choose
 equivalent target forms, but must preserve operation, edge, trap, provenance,
 and fuel identities.
 
+The disjoint unoptimized ranked-`u32` lane now reaches unmetered object custody
+without borrowing its machine-code producer as a validator. Each ISA owns an
+opaque decoder result for its exact countdown body; the image boundary joins
+that decoded layout to independent rank, fixed-fuel, ABI, affine-frontier,
+cleanup, provenance, and nine-row fuel replay. The complete ranked record is
+retained on the object function. Native-fuel branch rebasing and final-image
+publication remain named later boundaries.
+
 The mandatory lowering crate has two explicit entrances. `legalization/mod.rs`
 joins canonical source projection to independent whole-plan replay;
 `selection/mod.rs` joins selected-plan construction to independent validation.

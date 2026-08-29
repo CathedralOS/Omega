@@ -946,12 +946,16 @@ premise, and requires the exact-subtract evidence before constructing resumable
   path stays closed, while a disjoint unoptimized route emits the exact Linux
   x86-64 and AArch64 countdown bodies from assigned custody. The machine-code
   carrier retains the semantic custody, complete ABI/structural inputs, and
-  canonical four-operation/five-edge logical-fuel attribution. Object replay
-  and generic native-fuel instrumentation remain closed: the former has not
-  independently replayed the ranked body, and the latter cannot yet rebase its
-  internal branches around inserted charge sites. This authority is not a
-  general cyclic-control exception and cannot be obtained by converting either
-  the interpreter carrier or ordinary acyclic verification.
+  canonical four-operation/five-edge logical-fuel attribution. Unmetered object
+  replay independently decodes each target body and reconstructs the exact
+  Psi/entry, rank, fixed-fuel, ABI, structural-frontier, cleanup, provenance,
+  and nine-row attribution contract. Its object function retains the complete
+  ranked record, and a stripped record remains a hard failure. Generic
+  native-fuel instrumentation remains closed because it cannot yet rebase
+  internal branches around inserted charge sites; final-image emission has a
+  separate named rejection until ranked final-byte replay lands. This authority
+  is not a general cyclic-control exception and cannot be obtained by converting
+  either the interpreter carrier or ordinary acyclic verification.
 Unconditional jumps and conditional arms may additionally pass
 direct primitive scalar inputs into typed successor block parameters; the edge
 materializes those arguments before committing its structural cleanup.
