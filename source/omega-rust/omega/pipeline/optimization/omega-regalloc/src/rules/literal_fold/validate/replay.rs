@@ -1,10 +1,4 @@
-use omega_optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use omega_register_model::{
-    RegisterInstructionConstraint, RegisterOperandAccess, TargetRegisterEnvironmentConstraintKeys,
-    TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
-    ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
-    target_register_environment_identity,
-};
+use omega_register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
 use omega_selected_instructions::{
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionPlan, SelectedInstructionProvenance, SelectedOperand, SelectedTerminator,
@@ -13,162 +7,22 @@ use omega_selected_instructions::{
 use psi_core::IntegerValue;
 
 use crate::{
-    FunctionLiteralFold, LiteralFoldAction, LiteralFoldError, LiteralFoldPolicy,
-    RecoveryClassification, RecoveryVictimRole, ValidatedAllocationLegality,
-    ValidatedAllocatorAvailability, ValidatedLiveRanges, ValidatedRecoveryClassifications,
-    ValidatedSelectedAnalysis, ValidatedSpillChoices,
+    FunctionLiteralFold, LiteralFoldAction, LiteralFoldError, RecoveryClassification,
+    RecoveryVictimRole, ValidatedRecoveryClassifications, ValidatedSelectedAnalysis,
 };
 
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn validate_literal_fold_roots<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    ranges: &ValidatedLiveRanges,
-    legality: &ValidatedAllocationLegality,
-    spill_choices: &ValidatedSpillChoices,
-    recovery: &ValidatedRecoveryClassifications,
-    availability: &ValidatedAllocatorAvailability,
-    register_environment: TargetRegisterEnvironmentIdentity,
-    physical: &ValidatedPhysicalRegisterModel,
-    constraints: &ValidatedRegisterConstraintCatalog,
-    reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: TargetRegisterEnvironmentConstraintKeys,
-) -> Result<(), LiteralFoldError> {
-    if ranges.receipt().selected() != selected.selected_identity()
-        || ranges.receipt().optimization_unit() != selected.optimization_unit_identity()
-        || ranges.receipt().fuel_schedule() != selected.fuel_schedule_identity()
-        || legality.receipt().ranges() != ranges.receipt().identity()
-        || legality.receipt().register_environment() != register_environment
-        || legality.receipt().allocator_availability() != availability.receipt().identity()
-        || availability.receipt().register_environment() != register_environment
-        || availability.receipt().physical() != physical.identity()
-        || constraints.physical_identity() != physical.identity()
-        || reservations.physical_identity() != physical.identity()
-        || reservations.target() != selected.selected_plan().target
-        || target_register_environment_identity(
-            selected.selected_plan().target,
-            physical,
-            constraints,
-            reservations,
-            selected_keys,
-        ) != register_environment
-        || spill_choices.receipt().ranges() != ranges.receipt().identity()
-        || spill_choices.receipt().legality() != legality.receipt().identity()
-        || spill_choices.receipt().register_environment() != register_environment
-        || spill_choices.receipt().allocator_availability() != availability.receipt().identity()
-        || recovery.receipt().selected() != selected.selected_identity()
-        || recovery.receipt().ranges() != ranges.receipt().identity()
-        || recovery.receipt().legality() != legality.receipt().identity()
-        || recovery.receipt().spill_choices() != spill_choices.receipt().identity()
-        || recovery.receipt().register_environment() != register_environment
-        || recovery.receipt().allocator_availability() != availability.receipt().identity()
-        || recovery.receipt().optimization_unit() != selected.optimization_unit_identity()
-        || recovery.receipt().fuel_schedule() != selected.fuel_schedule_identity()
-        || selected.selected_plan().functions.len() != recovery.plan().functions.len()
-    {
-        return Err(LiteralFoldError::RootMismatch);
-    }
-    Ok(())
-}
+use super::constraints::ValidationImmediateRows;
 
-pub(crate) struct ImmediateRows<'a> {
-    add: Option<&'a RegisterInstructionConstraint>,
-    subtract: Option<&'a RegisterInstructionConstraint>,
-}
-
-pub(crate) fn immediate_rows(
-    constraints: &ValidatedRegisterConstraintCatalog,
-    keys: TargetRegisterEnvironmentConstraintKeys,
-    policy: LiteralFoldPolicy,
-) -> Result<ImmediateRows<'_>, LiteralFoldError> {
-    let find = |key| {
-        constraints
-            .catalog()
-            .constraints
-            .iter()
-            .find(|row| row.key == key)
-            .ok_or(LiteralFoldError::ImmediateConstraintMismatch)
-    };
-    let (add, subtract) = match policy {
-        LiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1 => {
-            (Some(find(keys.add_i64_immediate)?), None)
-        }
-        LiteralFoldPolicy::SelectedIncomingU12ExactSubtractImmediateV1 => {
-            (None, Some(find(keys.subtract_i64_immediate)?))
-        }
-        LiteralFoldPolicy::SelectedIncomingU12ExactAddAndSubtractImmediateV1 => (
-            Some(find(keys.add_i64_immediate)?),
-            Some(find(keys.subtract_i64_immediate)?),
-        ),
-    };
-    for row in [add, subtract].into_iter().flatten() {
-        validate_immediate_row(row)?;
-    }
-    Ok(ImmediateRows { add, subtract })
-}
-
-fn validate_immediate_row(row: &RegisterInstructionConstraint) -> Result<(), LiteralFoldError> {
-    let [left, result] = row.operands.as_slice() else {
-        return Err(LiteralFoldError::ImmediateConstraintMismatch);
-    };
-    if left.operand != 0
-        || left.access != RegisterOperandAccess::Use
-        || result.operand != 1
-        || result.access != RegisterOperandAccess::Def
-        || left.class != result.class
-        || [left, result].iter().any(|operand| {
-            operand.fixed_view.is_some() || operand.tied_to.is_some() || operand.early_clobber
-        })
-        || !row.implicit_uses.is_empty()
-        || !row.implicit_defs.is_empty()
-        || !row.clobbers.is_empty()
-    {
-        return Err(LiteralFoldError::ImmediateConstraintMismatch);
-    }
-    Ok(())
-}
-
-pub(crate) fn fold_usage(
-    selected: &impl ValidatedSelectedAnalysis,
-    applied: usize,
-) -> Result<OptimizationWorkUsage, LiteralFoldError> {
-    let functions = u64::try_from(selected.selected_plan().functions.len())
-        .map_err(|_| LiteralFoldError::WorkOverflow)?;
-    let validation_steps = selected
-        .selected_plan()
-        .functions
-        .iter()
-        .try_fold(0_u64, |total, function| {
-            let instructions = function.blocks.iter().try_fold(0_u64, |count, block| {
-                count.checked_add(
-                    u64::try_from(block.instructions.len())
-                        .ok()?
-                        .checked_add(1)?,
-                )
-            })?;
-            total
-                .checked_add(u64::try_from(function.virtual_registers.len()).ok()?)?
-                .checked_add(instructions)
-        })
-        .ok_or(LiteralFoldError::WorkOverflow)?;
-    let applied = u64::try_from(applied).map_err(|_| LiteralFoldError::WorkOverflow)?;
-    Ok(OptimizationWorkUsage {
-        rule_evaluations: functions,
-        candidates: applied,
-        validation_steps,
-        commits: applied,
-        iterations: 1,
-    })
-}
-
-pub(crate) fn replay_actions(
+pub(super) fn reconstruct_literal_fold(
     selected: &impl ValidatedSelectedAnalysis,
     recovery: &ValidatedRecoveryClassifications,
-    rows: &ImmediateRows<'_>,
+    rows: &ValidationImmediateRows<'_>,
 ) -> Result<(Vec<FunctionLiteralFold>, SelectedInstructionPlan), LiteralFoldError> {
-    let mut output = selected.selected_plan().clone();
-    let mut functions = Vec::with_capacity(output.functions.len());
-    for function_index in 0..output.functions.len() {
-        let source = &selected.selected_plan().functions[function_index];
+    let source_plan = selected.selected_plan();
+    let mut transformed = source_plan.clone();
+    let mut expected_functions = Vec::with_capacity(source_plan.functions.len());
+
+    for (function_index, source) in source_plan.functions.iter().enumerate() {
         let recovery_function = recovery.plan().functions.get(function_index).ok_or(
             LiteralFoldError::FunctionMismatch {
                 function: function_index,
@@ -179,37 +33,35 @@ pub(crate) fn replay_actions(
                 function: function_index,
             });
         }
-        validate_dense(function_index, source)?;
-        let action = match &recovery_function.classification {
-            None => None,
-            Some(classification) => Some(action_from_classification(
-                function_index,
-                source,
-                classification,
-                rows,
-            )?),
-        };
+        validate_dense_identifiers(function_index, source)?;
+
+        let action = recovery_function
+            .classification
+            .as_ref()
+            .map(|classification| reconstruct_action(function_index, source, classification, rows))
+            .transpose()?;
         if let Some(action) = action {
-            apply_action(
+            rebuild_function(
                 function_index,
-                &mut output.functions[function_index],
+                &mut transformed.functions[function_index],
                 action,
                 rows,
             )?;
         }
-        functions.push(FunctionLiteralFold {
+        expected_functions.push(FunctionLiteralFold {
             machine: source.machine,
             action,
         });
     }
-    Ok((functions, output))
+
+    Ok((expected_functions, transformed))
 }
 
-fn action_from_classification(
+fn reconstruct_action(
     function_index: usize,
     function: &SelectedFunction,
     candidate: &crate::PressureRecoveryClassification,
-    rows: &ImmediateRows<'_>,
+    rows: &ValidationImmediateRows<'_>,
 ) -> Result<LiteralFoldAction, LiteralFoldError> {
     if candidate.role != RecoveryVictimRole::Incoming {
         return Err(LiteralFoldError::UnsupportedVictimRole {
@@ -244,6 +96,7 @@ fn action_from_classification(
             function: function_index,
         });
     }
+
     let block = function
         .blocks
         .iter()
@@ -266,6 +119,7 @@ fn action_from_classification(
         .ok_or(LiteralFoldError::ConsumerMismatch {
             function: function_index,
         })?;
+
     if literal.kind
         != (SelectedInstructionKind::MaterializeI64 {
             value: IntegerValue::Unsigned(*value),
@@ -279,14 +133,11 @@ fn action_from_classification(
             function: function_index,
         });
     }
-    let row = match consumer.kind {
-        SelectedInstructionKind::ExactAddI64 { .. } => rows.add,
-        SelectedInstructionKind::ExactSubtractI64 { .. } => rows.subtract,
-        _ => None,
-    }
-    .ok_or(LiteralFoldError::ConsumerMismatch {
-        function: function_index,
-    })?;
+
+    let row =
+        immediate_row_for_consumer(consumer, rows).ok_or(LiteralFoldError::ConsumerMismatch {
+            function: function_index,
+        })?;
     let [left, right, result] = consumer.operands.as_slice() else {
         return Err(LiteralFoldError::ConsumerMismatch {
             function: function_index,
@@ -303,6 +154,7 @@ fn action_from_classification(
             function: function_index,
         });
     }
+
     Ok(LiteralFoldAction {
         block: candidate.block,
         pressure_point: candidate.point,
@@ -316,7 +168,18 @@ fn action_from_classification(
     })
 }
 
-fn validate_dense(
+fn immediate_row_for_consumer<'a>(
+    consumer: &SelectedInstruction,
+    rows: &ValidationImmediateRows<'a>,
+) -> Option<&'a RegisterInstructionConstraint> {
+    match consumer.kind {
+        SelectedInstructionKind::ExactAddI64 { .. } => rows.add,
+        SelectedInstructionKind::ExactSubtractI64 { .. } => rows.subtract,
+        _ => None,
+    }
+}
+
+fn validate_dense_identifiers(
     function_index: usize,
     function: &SelectedFunction,
 ) -> Result<(), LiteralFoldError> {
@@ -354,11 +217,11 @@ fn validate_dense(
     Ok(())
 }
 
-fn apply_action(
+fn rebuild_function(
     function_index: usize,
     function: &mut SelectedFunction,
     action: LiteralFoldAction,
-    rows: &ImmediateRows<'_>,
+    rows: &ValidationImmediateRows<'_>,
 ) -> Result<(), LiteralFoldError> {
     let block = function
         .blocks
@@ -382,7 +245,8 @@ fn apply_action(
         .ok_or(LiteralFoldError::DecisionMismatch {
             function: function_index,
         })?;
-    let (row, kind) = match consumer.kind {
+
+    let (row, rewritten_kind) = match consumer.kind {
         SelectedInstructionKind::ExactAddI64 {
             obligation,
             accepted_fact,
@@ -412,12 +276,13 @@ fn apply_action(
         .ok_or(LiteralFoldError::ConsumerMismatch {
             function: function_index,
         })?;
+
     let consumer_provenance = consumer.provenance.clone();
     let mut operations = literal.provenance.operations;
     operations.extend(consumer_provenance.operations);
     let mut fuel = literal.provenance.fuel;
     fuel.extend(consumer_provenance.fuel);
-    consumer.kind = kind;
+    consumer.kind = rewritten_kind;
     consumer.constraint = action.immediate_constraint;
     consumer.operands = vec![
         selected_operand(&row.operands[0], action.left),
@@ -564,19 +429,5 @@ fn selected_operand(
         fixed_view: constraint.fixed_view,
         tied_to: constraint.tied_to,
         early_clobber: constraint.early_clobber,
-    }
-}
-
-pub(crate) fn ensure_budget(
-    usage: OptimizationWorkUsage,
-    budget: OptimizationWorkBudget,
-) -> Result<(), LiteralFoldError> {
-    if usage.within(budget) {
-        Ok(())
-    } else {
-        Err(LiteralFoldError::BudgetExceeded {
-            required: usage,
-            budget,
-        })
     }
 }

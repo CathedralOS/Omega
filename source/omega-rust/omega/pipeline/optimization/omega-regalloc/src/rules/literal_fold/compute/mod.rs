@@ -1,3 +1,12 @@
+//! Literal-fold proposal coordination entrance.
+
+mod actions;
+mod constraints;
+mod function_rewrite;
+mod functions;
+mod roots;
+mod usage;
+
 use omega_optimization_core::OptimizationWorkBudget;
 use omega_register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
@@ -12,9 +21,10 @@ use crate::{
     ValidatedSelectedAnalysis, ValidatedSpillChoices,
 };
 
-use super::transform::{
-    ensure_budget, fold_usage, immediate_rows, replay_actions, validate_literal_fold_roots,
-};
+use constraints::select_immediate_rows;
+use functions::derive_function_folds;
+use roots::validate_literal_fold_roots;
+use usage::{ensure_budget, fold_usage};
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn compute_terminal_literal_fold<S: ValidatedSelectedAnalysis>(
@@ -45,16 +55,15 @@ pub(crate) fn compute_terminal_literal_fold<S: ValidatedSelectedAnalysis>(
         reservations,
         selected_keys,
     )?;
-    let rows = immediate_rows(constraints, selected_keys, policy)?;
-    let (functions, transformed) = replay_actions(selected, recovery, &rows)?;
-    let usage = fold_usage(
-        selected,
-        functions
-            .iter()
-            .filter(|function| function.action.is_some())
-            .count(),
-    )?;
+    let rows = select_immediate_rows(constraints, selected_keys, policy)?;
+    let (functions, transformed) = derive_function_folds(selected, recovery, &rows)?;
+    let applied = functions
+        .iter()
+        .filter(|function| function.action.is_some())
+        .count();
+    let usage = fold_usage(selected, applied)?;
     ensure_budget(usage, budget)?;
+
     Ok(LiteralFoldPlan {
         source_selected: selected.selected_identity(),
         spill_choices: spill_choices.receipt().identity(),

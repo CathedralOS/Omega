@@ -2501,6 +2501,66 @@ fn executable_container_v2_retains_strong_imported_authority_commitments() {
 }
 
 #[test]
+fn selected_lowering_validation_cannot_reenter_its_producer() {
+    let root = workspace_root();
+    let rule = root.join(
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/literal_fold",
+    );
+    let entrance = std::fs::read_to_string(rule.join("mod.rs"))
+        .expect("read selected-lowering literal-fold entrance");
+    assert!(
+        entrance.contains("compute::compute_terminal_literal_fold(")
+            && entrance.contains("validate_literal_fold("),
+        "the selected-lowering entrance must visibly join proposal to independent validation",
+    );
+
+    let validation_root = rule.join("validate");
+    let mut pending = vec![validation_root.clone()];
+    let mut validation = String::new();
+    while let Some(directory) = pending.pop() {
+        for entry in std::fs::read_dir(&directory)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", directory.display()))
+        {
+            let path = entry.expect("read literal-fold validation entry").path();
+            if path.is_dir() {
+                pending.push(path);
+            } else if path.extension().and_then(|extension| extension.to_str()) == Some("rs") {
+                validation.push_str(
+                    &std::fs::read_to_string(&path).unwrap_or_else(|error| {
+                        panic!("failed to read {}: {error}", path.display())
+                    }),
+                );
+                validation.push('\n');
+            }
+        }
+    }
+    for forbidden in [
+        "super::transform",
+        "crate::rules::literal_fold::transform",
+        "replay_actions",
+        "apply_action",
+        "action_from_classification",
+        "compute_terminal_literal_fold",
+    ] {
+        assert!(
+            !validation.contains(forbidden),
+            "independent selected-lowering validation must not consume producer mechanics; found {forbidden}",
+        );
+    }
+    for required in [
+        "reconstruct_literal_fold",
+        "reconstruct_immediate_rows",
+        "reconstruct_fold_usage",
+        "validate_literal_fold_roots",
+    ] {
+        assert!(
+            validation.contains(required),
+            "selected-lowering validation must visibly own independent `{required}` reconstruction",
+        );
+    }
+}
+
+#[test]
 fn selected_form_encoding_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let stage = root.join(

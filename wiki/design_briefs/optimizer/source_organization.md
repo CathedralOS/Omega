@@ -266,8 +266,13 @@ that check. The optimized ordinary-callable-entry stage is a physical example:
 its `mod.rs` owns build/replay, with records in `model.rs`, semantic
 reconstruction in `reconstruction.rs`, and wire format in `codec.rs`. The
 selected-lowering literal-fold stage follows the same rule: the regalloc rule
-entrance owns phase projection and catalog order; pipeline custody then
-descends through `model`, `schedule`, `execution`, and `accounting`.
+entrance owns the proposal-to-independent-validation join. Proposal and
+validation descend through separate roots, constraint, work-accounting,
+action-reconstruction, and selected-plan reconstruction leaves; validation
+cannot import producer transformation mechanics. The architecture gate names
+this entrance and rejects any producer dependency from its complete validation
+subtree. Pipeline custody then descends through `model`, `schedule`,
+`execution`, and `accounting`.
 Fragment admission consumes the resulting phase carrier through one
 `SelectedLowering` source kind. The exact add/subtract rules and optional rel8
 layout result remain below that carrier; none owns a parallel publication

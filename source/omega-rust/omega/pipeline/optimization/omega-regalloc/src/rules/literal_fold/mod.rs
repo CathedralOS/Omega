@@ -5,7 +5,6 @@ use crate::*;
 pub(crate) mod compute;
 pub(crate) mod identity;
 pub(crate) mod model;
-pub(crate) mod transform;
 pub(crate) mod validate;
 
 pub use identity::literal_fold_identity;
@@ -13,7 +12,7 @@ pub use model::*;
 pub use validate::validate_literal_fold;
 
 /// Fold one classified incoming unsigned-12-bit literal into its immediately
-/// following exact-add consumer.
+/// following enabled exact-add or exact-subtract consumer.
 pub fn fold_selected_incoming_literal<S: ValidatedSelectedAnalysis>(
     selected: &S,
     ranges: &ValidatedLiveRanges,

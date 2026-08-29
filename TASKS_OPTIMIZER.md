@@ -391,7 +391,8 @@ selection identity.
 - [x] Identity-bound decisions, pass records, manifests, and work usage.
 - [x] Source-to-optimized Psi projection and lower-stage custody checks.
 - [>] Complete translation validation for all lowering and machine rule
-  families. Layout-independent baseline, MOVN, XOR-zero, CBNZ dispositions,
+  families. Selected-lowering incoming-u12 add/subtract folds,
+  layout-independent baseline, MOVN, XOR-zero, CBNZ dispositions,
   structural-Unit encodings, and resolved function-relative layouts now replay
   independently; remaining lowering and publication routes still need closure.
 - [ ] Add generated differential testing across interpreter/reference native

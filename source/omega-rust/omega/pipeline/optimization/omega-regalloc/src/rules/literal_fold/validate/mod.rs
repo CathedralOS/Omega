@@ -1,3 +1,11 @@
+//! Independent literal-fold validation entrance.
+
+mod constraints;
+mod receipt;
+mod replay;
+mod roots;
+mod usage;
+
 use omega_register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
@@ -6,15 +14,16 @@ use omega_register_model::{
 use omega_target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use crate::{
-    LiteralFoldError, LiteralFoldPlan, LiteralFoldValidationReceipt, ValidatedAllocationLegality,
-    ValidatedAllocatorAvailability, ValidatedLiteralFold, ValidatedLiveRanges,
-    ValidatedRecoveryClassifications, ValidatedSelectedAnalysis, ValidatedSpillChoices,
-    literal_fold_identity,
+    LiteralFoldError, LiteralFoldPlan, ValidatedAllocationLegality, ValidatedAllocatorAvailability,
+    ValidatedLiteralFold, ValidatedLiveRanges, ValidatedRecoveryClassifications,
+    ValidatedSelectedAnalysis, ValidatedSpillChoices,
 };
 
-use super::transform::{
-    ensure_budget, fold_usage, immediate_rows, replay_actions, validate_literal_fold_roots,
-};
+use constraints::reconstruct_immediate_rows;
+use receipt::admit_literal_fold;
+use replay::reconstruct_literal_fold;
+use roots::validate_literal_fold_roots;
+use usage::{ensure_budget, reconstruct_fold_usage};
 
 #[allow(clippy::too_many_arguments)]
 pub fn validate_literal_fold<S: ValidatedSelectedAnalysis>(
@@ -56,8 +65,9 @@ pub fn validate_literal_fold<S: ValidatedSelectedAnalysis>(
     {
         return Err(LiteralFoldError::RootMismatch);
     }
-    let rows = immediate_rows(constraints, selected_keys, plan.policy)?;
-    let (expected_functions, transformed) = replay_actions(selected, recovery, &rows)?;
+
+    let rows = reconstruct_immediate_rows(constraints, selected_keys, plan.policy)?;
+    let (expected_functions, transformed) = reconstruct_literal_fold(selected, recovery, &rows)?;
     if plan.functions != expected_functions {
         return Err(LiteralFoldError::DecisionMismatch { function: 0 });
     }
@@ -65,35 +75,20 @@ pub fn validate_literal_fold<S: ValidatedSelectedAnalysis>(
         .iter()
         .filter(|function| function.action.is_some())
         .count();
-    let usage = fold_usage(selected, applied_count)?;
+    let usage = reconstruct_fold_usage(selected, applied_count)?;
     if plan.usage != usage {
         return Err(LiteralFoldError::UsageMismatch);
     }
     ensure_budget(plan.usage, plan.budget)?;
+
     let transformed_selected = selected_instruction_plan_identity(&transformed);
     if plan.transformed_selected != transformed_selected {
         return Err(LiteralFoldError::TransformedIdentityMismatch);
     }
-    let receipt = LiteralFoldValidationReceipt {
-        identity: literal_fold_identity(&plan),
-        source_selected: plan.source_selected,
-        spill_choices: plan.spill_choices,
-        recovery_classifications: plan.recovery_classifications,
-        ranges: plan.ranges,
-        legality: plan.legality,
-        register_environment: plan.register_environment,
-        allocator_availability: plan.allocator_availability,
-        optimization_unit: plan.optimization_unit,
-        fuel_schedule: plan.fuel_schedule,
-        transformed_selected,
-        policy: plan.policy,
-        usage: plan.usage,
-        function_count: transformed.functions.len(),
-        applied_count,
-    };
-    Ok(ValidatedLiteralFold {
+    Ok(admit_literal_fold(
         plan,
         transformed,
-        receipt,
-    })
+        transformed_selected,
+        applied_count,
+    ))
 }

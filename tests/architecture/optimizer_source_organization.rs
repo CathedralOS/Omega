@@ -193,6 +193,18 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn selected_lowering_rule_policy",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/literal_fold/mod.rs",
+        coordination_marker: "compute::compute_terminal_literal_fold(",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/literal_fold/compute/mod.rs",
+        coordination_marker: "derive_function_folds(selected, recovery, &rows)",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/literal_fold/validate/mod.rs",
+        coordination_marker: "reconstruct_literal_fold(selected, recovery, &rows)",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/mod.rs",
         coordination_marker: "pub fn selected_post_allocation_machine_rule",
     },
