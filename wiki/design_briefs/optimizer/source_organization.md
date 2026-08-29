@@ -170,6 +170,9 @@ lineage.
 Active-resident selected-form encoding similarly separates source-validated
 byte construction, custody projection, independent replay, retained model,
 and corruption support below one replay-gated pre-layout entrance.
+Its resolved-layout successor mirrors that structure with policy-checked
+layout construction, aggregate custody projection, independent replay,
+retained model, and corruption support below one admission entrance.
 Structural-Unit function-relative realization separates its retained model,
 physical-stage construction, independent replay, source-shape admission,
 manifest reconstruction, and custody projection below one replay-gated

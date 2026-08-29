@@ -155,6 +155,9 @@ and no-selection compatibility remain enforced.
 - [x] Split active-resident selected-form encoding into retained model,
   source-validated construction, custody projection, independent replay, and
   test-support leaves below one replay-gated entrance.
+- [x] Split active-resident resolved-layout staging into retained model,
+  policy-checked construction, aggregate custody projection, independent
+  replay, and test-support leaves below one replay-gated entrance.
 - [x] Split structural-Unit function-relative realization into model,
   construction, independent replay, source admission, manifest reconstruction,
   and custody leaves below one replay-gated entrance.
