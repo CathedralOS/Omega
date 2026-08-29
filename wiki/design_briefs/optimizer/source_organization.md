@@ -263,16 +263,21 @@ straight-line, conditional-scalar, and structural joins are mandatory
 coordination entrances rather than re-export walls.
 
 Abstract-to-target translation validation is a parallel rung, not another
-branch inside producer lowering. Its 76-line `validation/mod.rs` entrance owns
-target/root/roster custody and hands each function to the 85-line ordered
-`catalog.rs` enable/disable inventory. The catalog dispatches exact replay to the sibling
+branch inside producer lowering. Its sub-100-line `validation/mod.rs` entrance
+owns target/root/roster custody and hands each function to the sub-100-line
+ordered `catalog/mod.rs` enable/disable inventory. Descriptor model and typed
+replay adapters descend into `catalog/model.rs` and `catalog/dispatch.rs`; the
+catalog rejects duplicate or overlapping matches before dispatch. Exact replay
+then descends to the sibling
 `straight_line_integer_immediate.rs` and
-`straight_line_boolean_immediate.rs` leaves; immutable receipt and error
-vocabulary remain in `model.rs`. The optimizer's 75-line target-operation
-entrance owns the visible `lower -> independent validation -> retained carrier` join. An
-architecture gate prevents validation from importing lowering helpers, and
-the receipt names covered function families instead of implying that pending
-families were checked.
+`straight_line_boolean_immediate.rs` literal leaves or
+`straight_line_scalar_crash.rs`. Immutable root, disposition, family-receipt,
+and error vocabulary descend through `model/`. The optimizer's 75-line
+target-operation entrance owns the visible
+`lower -> independent validation -> retained carrier` join. An architecture
+gate prevents validation from importing lowering helpers, and each complete
+function-roster row carries either `Uncovered` or exactly one typed validated
+family receipt.
 
 The temporary target-to-assigned compatibility continuation is governed too.
 Its 33-line stage entrance checks the entry roster and coordinates per-function

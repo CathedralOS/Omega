@@ -175,7 +175,7 @@ const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn validate_abstract_to_target_translation",
     },
     RequiredCoordinationEntrance {
-        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/catalog.rs",
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/catalog/mod.rs",
         coordination_marker: "const ENABLED_TRANSLATION_FAMILIES",
     },
     RequiredCoordinationEntrance {

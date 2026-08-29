@@ -16,10 +16,13 @@ pub use lowering::{
 };
 pub use model::{AdmittedBoundarySettlement, LoweringError};
 pub use validation::{
-    AbstractToTargetFunctionRosterReceipt, AbstractToTargetTranslationValidationError,
+    AbstractToTargetFunctionRosterReceipt, AbstractToTargetFunctionTranslationDisposition,
+    AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamily,
+    AbstractToTargetTranslationFamilyError, AbstractToTargetTranslationValidationError,
     AbstractToTargetTranslationValidationReceipt, StraightLineBooleanImmediateTranslationError,
     StraightLineBooleanImmediateTranslationReceipt, StraightLineIntegerImmediateTranslationError,
-    StraightLineIntegerImmediateTranslationReceipt, validate_abstract_to_target_translation,
+    StraightLineIntegerImmediateTranslationReceipt, StraightLineScalarCrashTranslationError,
+    StraightLineScalarCrashTranslationReceipt, validate_abstract_to_target_translation,
 };
 
 #[cfg(test)]

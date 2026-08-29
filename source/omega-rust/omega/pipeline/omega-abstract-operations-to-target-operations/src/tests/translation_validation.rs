@@ -15,6 +15,8 @@ use psi_terminal::{
 };
 
 use crate::{
+    AbstractToTargetFunctionTranslationDisposition, AbstractToTargetFunctionTranslationReceipt,
+    AbstractToTargetTranslationFamily, AbstractToTargetTranslationFamilyError,
     AbstractToTargetTranslationValidationError, StraightLineIntegerImmediateTranslationError,
     lower_to_target_operations, validate_abstract_to_target_translation,
 };
@@ -148,7 +150,10 @@ fn validates_exact_integer_identity_on_every_native_target() {
                 source.functions[0].machine
             );
             assert_eq!(receipt.function_roster()[0].attachment(), None);
-            let [row] = receipt.straight_line_integer_immediates() else {
+            let AbstractToTargetFunctionTranslationDisposition::Validated(
+                AbstractToTargetFunctionTranslationReceipt::StraightLineIntegerImmediate(row),
+            ) = receipt.function_roster()[0].translation()
+            else {
                 panic!("exact literal return must publish one validated family row")
             };
             assert_eq!(row.machine(), source.functions[0].machine);
@@ -172,7 +177,10 @@ fn receipt_does_not_claim_unimplemented_parameterized_literal_family() {
     let target = lower_to_target_operations(&source, target_profile).unwrap();
     let receipt =
         validate_abstract_to_target_translation(&source, target_profile, &target).unwrap();
-    assert!(receipt.straight_line_integer_immediates().is_empty());
+    assert_eq!(
+        receipt.function_roster()[0].translation(),
+        &AbstractToTargetFunctionTranslationDisposition::Uncovered
+    );
     assert_eq!(receipt.function_count(), 1);
 }
 
@@ -186,7 +194,12 @@ fn receipt_retains_an_exact_attached_literal_function_roster() {
     let receipt =
         validate_abstract_to_target_translation(&source, target_profile, &target).unwrap();
     assert_eq!(receipt.function_roster()[0].attachment(), Some(attachment));
-    assert_eq!(receipt.straight_line_integer_immediates().len(), 1);
+    assert!(matches!(
+        receipt.function_roster()[0].translation(),
+        AbstractToTargetFunctionTranslationDisposition::Validated(
+            AbstractToTargetFunctionTranslationReceipt::StraightLineIntegerImmediate(_)
+        )
+    ));
 }
 
 #[test]
@@ -477,8 +490,11 @@ fn candidate_operation_and_provenance_corruption_fails_closed() {
     ] {
         assert!(matches!(
             candidate_error(|candidate| candidate.functions[0].provenance = provenance),
-            AbstractToTargetTranslationValidationError::StraightLineIntegerImmediate {
-                error: StraightLineIntegerImmediateTranslationError::TargetProvenance,
+            AbstractToTargetTranslationValidationError::FunctionFamily {
+                family: AbstractToTargetTranslationFamily::StraightLineIntegerImmediate,
+                error: AbstractToTargetTranslationFamilyError::StraightLineIntegerImmediate(
+                    StraightLineIntegerImmediateTranslationError::TargetProvenance
+                ),
                 ..
             }
         ));
@@ -491,8 +507,11 @@ fn candidate_operation_and_provenance_corruption_fails_closed() {
                 value: true,
             };
         }),
-        AbstractToTargetTranslationValidationError::StraightLineIntegerImmediate {
-            error: StraightLineIntegerImmediateTranslationError::TargetOperation,
+        AbstractToTargetTranslationValidationError::FunctionFamily {
+            family: AbstractToTargetTranslationFamily::StraightLineIntegerImmediate,
+            error: AbstractToTargetTranslationFamilyError::StraightLineIntegerImmediate(
+                StraightLineIntegerImmediateTranslationError::TargetOperation
+            ),
             ..
         }
     ));
@@ -524,8 +543,11 @@ fn candidate_operation_and_provenance_corruption_fails_closed() {
     ] {
         assert!(matches!(
             candidate_error(|candidate| mutate(&mut candidate.functions[0].operation)),
-            AbstractToTargetTranslationValidationError::StraightLineIntegerImmediate {
-                error: StraightLineIntegerImmediateTranslationError::TargetOperation,
+            AbstractToTargetTranslationValidationError::FunctionFamily {
+                family: AbstractToTargetTranslationFamily::StraightLineIntegerImmediate,
+                error: AbstractToTargetTranslationFamilyError::StraightLineIntegerImmediate(
+                    StraightLineIntegerImmediateTranslationError::TargetOperation
+                ),
                 ..
             }
         ));

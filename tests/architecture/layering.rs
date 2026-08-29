@@ -967,7 +967,7 @@ fn package_subsystem_has_deliberate_entrances() {
         "omega-package-manager/src/manifest/mod.rs",
         "omega-package-manager/src/manifest/dependencies/mod.rs",
         "omega-package-manager/src/resolution/mod.rs",
-        "omega-package-manager/src/resolution/binding/mod.rs",
+        "omega-package-manager/src/resolution/source/mod.rs",
         "omega-package-manager/src/resolution/closure/mod.rs",
         "omega-package-manager/src/resolution/closure/model.rs",
         "omega-package-manager/src/resolution/closure/identity/mod.rs",
@@ -2904,6 +2904,9 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "straight_line_boolean_immediate::validate",
         "straight_line_integer_immediate::is_candidate",
         "straight_line_integer_immediate::validate",
+        "straight_line_scalar_crash::is_candidate",
+        "straight_line_scalar_crash::validate",
+        "AmbiguousFunctionFamily",
     ] {
         assert!(
             validation.contains(required),

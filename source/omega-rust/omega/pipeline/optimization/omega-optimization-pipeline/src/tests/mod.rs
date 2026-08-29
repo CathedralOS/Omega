@@ -49,11 +49,12 @@ use psi_core::{
 };
 use psi_proof_admission::{AdmissionProfile, EvidenceRoute, PrimitiveJudgment};
 use psi_terminal::{
-    BindingRelevance, Block, MachineContract, Operation, OperationKind, OperationResult,
-    StructuralAccess, StructuralDomainDeclaration, StructuralFieldDeclaration, StructuralFieldType,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    BindingRelevance, Block, CrashCause, CrashRouteBucket, CrashRouteGuard, MachineContract,
+    Operation, OperationKind, OperationResult, StructuralAccess, StructuralDomainDeclaration,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, SuccessorEdge, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{ObligationEvidence, ProofBundle};
 

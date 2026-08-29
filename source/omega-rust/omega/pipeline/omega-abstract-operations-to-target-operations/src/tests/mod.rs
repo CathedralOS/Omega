@@ -37,6 +37,7 @@ mod scalar;
 mod structural_and_cleanup;
 mod translation_validation;
 mod translation_validation_boolean;
+mod translation_validation_crash;
 mod unit_and_settlements;
 
 pub(super) fn identity() -> TerminalPsiIdentity {

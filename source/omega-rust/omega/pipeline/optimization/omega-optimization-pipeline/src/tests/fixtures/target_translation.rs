@@ -4,28 +4,69 @@ pub(crate) fn integer_literal_return_artifact(
     integer_type: IntegerType,
     value: IntegerValue,
 ) -> (Vec<u8>, Vec<u8>) {
-    scalar_literal_return_artifact(
+    scalar_terminal_artifact(
         ScalarType::Integer(integer_type),
-        OperationKind::IntegerConstant { value },
+        ScalarTerminal::Literal(OperationKind::IntegerConstant { value }),
     )
 }
 
 pub(crate) fn boolean_literal_return_artifact(value: bool) -> (Vec<u8>, Vec<u8>) {
-    scalar_literal_return_artifact(
+    scalar_terminal_artifact(
         ScalarType::Boolean,
-        OperationKind::BooleanConstant { value },
+        ScalarTerminal::Literal(OperationKind::BooleanConstant { value }),
     )
 }
 
-fn scalar_literal_return_artifact(
+pub(crate) fn scalar_crash_artifact(
     scalar_type: ScalarType,
-    literal: OperationKind,
+    cause: CrashCause,
+) -> (Vec<u8>, Vec<u8>) {
+    scalar_terminal_artifact(scalar_type, ScalarTerminal::Crash(cause))
+}
+
+enum ScalarTerminal {
+    Literal(OperationKind),
+    Crash(CrashCause),
+}
+
+fn scalar_terminal_artifact(
+    scalar_type: ScalarType,
+    terminal: ScalarTerminal,
 ) -> (Vec<u8>, Vec<u8>) {
     let machine = MachineId::new(30_001).unwrap();
     let entry = BlockId::new(30_002).unwrap();
     let constant_value = ValueId::new(30_003).unwrap();
     let function_result = ValueId::new(30_004).unwrap();
     let declaration = |id| ValueDeclaration { id, scalar_type };
+    let edge = EdgeId::new(30_006).unwrap();
+    let (operations, terminator, crash_routes) = match terminal {
+        ScalarTerminal::Literal(literal) => (
+            vec![Operation {
+                id: OperationId::new(30_005).unwrap(),
+                result: OperationResult::Scalar(declaration(constant_value)),
+                kind: literal,
+            }],
+            Terminator::Return {
+                edge,
+                value: constant_value,
+                cleanup_actions: Vec::new(),
+            },
+            Vec::new(),
+        ),
+        ScalarTerminal::Crash(cause) => (
+            Vec::new(),
+            Terminator::Crash {
+                edge,
+                cause,
+                site_guard: Vec::new(),
+                frontier_lower_bound: Vec::new(),
+            },
+            vec![CrashRouteBucket {
+                cause,
+                alternatives: vec![CrashRouteGuard::Truth],
+            }],
+        ),
+    };
     let module = TerminalModule {
         vocabulary_marker: VocabularyMarker::CURRENT,
         entry: machine,
@@ -61,20 +102,12 @@ fn scalar_literal_return_artifact(
             blocks: vec![Block {
                 id: entry,
                 parameters: Vec::new(),
-                operations: vec![Operation {
-                    id: OperationId::new(30_005).unwrap(),
-                    result: OperationResult::Scalar(declaration(constant_value)),
-                    kind: literal,
-                }],
-                terminator: Terminator::Return {
-                    edge: EdgeId::new(30_006).unwrap(),
-                    value: constant_value,
-                    cleanup_actions: Vec::new(),
-                },
+                operations,
+                terminator,
             }],
             contract: MachineContract {
                 id: ContractId::new(30_007).unwrap(),
-                crash_routes: Vec::new(),
+                crash_routes,
                 requires: Vec::new(),
                 ensures: Vec::new(),
                 outcome_specific_ensures: Vec::new(),

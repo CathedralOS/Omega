@@ -15,6 +15,8 @@ use psi_terminal::{
 };
 
 use crate::{
+    AbstractToTargetFunctionTranslationDisposition, AbstractToTargetFunctionTranslationReceipt,
+    AbstractToTargetTranslationFamily, AbstractToTargetTranslationFamilyError,
     AbstractToTargetTranslationValidationError, StraightLineBooleanImmediateTranslationError,
     lower_to_target_operations, validate_abstract_to_target_translation,
 };
@@ -90,8 +92,11 @@ fn candidate_error(
     let target_profile = NativeTarget::linux_x64();
     let mut candidate = lower_to_target_operations(&source, target_profile).unwrap();
     mutate(&mut candidate);
-    let AbstractToTargetTranslationValidationError::StraightLineBooleanImmediate { error, .. } =
-        validate_abstract_to_target_translation(&source, target_profile, &candidate).unwrap_err()
+    let AbstractToTargetTranslationValidationError::FunctionFamily {
+        family: AbstractToTargetTranslationFamily::StraightLineBooleanImmediate,
+        error: AbstractToTargetTranslationFamilyError::StraightLineBooleanImmediate(error),
+        ..
+    } = validate_abstract_to_target_translation(&source, target_profile, &candidate).unwrap_err()
     else {
         panic!("Boolean-family corruption must fail at its independent validator")
     };
@@ -112,7 +117,10 @@ fn validates_exact_boolean_identity_on_every_native_target() {
             let target = lower_to_target_operations(&source, target_profile).unwrap();
             let receipt =
                 validate_abstract_to_target_translation(&source, target_profile, &target).unwrap();
-            let [row] = receipt.straight_line_boolean_immediates() else {
+            let AbstractToTargetFunctionTranslationDisposition::Validated(
+                AbstractToTargetFunctionTranslationReceipt::StraightLineBooleanImmediate(row),
+            ) = receipt.function_roster()[0].translation()
+            else {
                 panic!("exact Boolean return must publish one validated family row")
             };
             assert_eq!(row.machine(), MachineId::new(1_001).unwrap());
@@ -120,7 +128,6 @@ fn validates_exact_boolean_identity_on_every_native_target() {
             assert_eq!(row.return_edge(), EdgeId::new(1_006).unwrap());
             assert_eq!(row.source_value(), ValueId::new(1_004).unwrap());
             assert_eq!(row.value(), value);
-            assert!(receipt.straight_line_integer_immediates().is_empty());
         }
     }
 }
@@ -136,7 +143,10 @@ fn receipt_does_not_claim_unimplemented_parameterized_boolean_family() {
     let target = lower_to_target_operations(&source, target_profile).unwrap();
     let receipt =
         validate_abstract_to_target_translation(&source, target_profile, &target).unwrap();
-    assert!(receipt.straight_line_boolean_immediates().is_empty());
+    assert_eq!(
+        receipt.function_roster()[0].translation(),
+        &AbstractToTargetFunctionTranslationDisposition::Uncovered
+    );
 }
 
 #[test]
