@@ -23,6 +23,7 @@ mod literals;
 mod locals;
 mod machine_data;
 mod machine_parameters;
+mod machine_specialization_identity;
 mod operators;
 mod placed_views;
 mod places;
@@ -91,6 +92,7 @@ pub use machine_parameters::{
     ValidatedNominalMachineUse, ValidatedNominalMachineUseSite, validate_static_machine_selections,
     validate_static_machine_selections_with_facts,
 };
+pub use machine_specialization_identity::recompute_checked_machine_specialization_commitment;
 pub use placed_views::{
     CheckedAtomicResidentAccess, CheckedAtomicResidentAccessRejection,
     bind_checked_atomic_resident_access,

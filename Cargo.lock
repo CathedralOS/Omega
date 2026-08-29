@@ -1936,6 +1936,7 @@ version = "0.1.0"
 dependencies = [
  "psi-access-plans",
  "psi-arena",
+ "psi-checked-trees",
  "psi-core",
  "psi-diagnostics",
  "psi-effects",
@@ -1951,6 +1952,7 @@ dependencies = [
  "psi-syntax-trees-to-symbol-resolved-trees",
  "psi-tokens-to-syntax-trees",
  "psi-typed-trees",
+ "sha2",
 ]
 
 [[package]]

@@ -11,6 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 psi-access-plans = { path = "../../foundation/psi-access-plans" }
 psi-arena = { path = "../../foundation/psi-arena" }
+psi-checked-trees = { path = "../../representations/psi-checked-trees" }
 psi-diagnostics = { path = "../../foundation/psi-diagnostics" }
 psi-effects = { path = "../../representations/psi-effects" }
 psi-facts = { path = "../../representations/psi-facts" }
@@ -21,6 +22,7 @@ psi-numerics = { path = "../../foundation/psi-numerics" }
 psi-source = { path = "../../foundation/psi-source" }
 psi-symbols = { path = "../../foundation/psi-symbols" }
 psi-typed-trees = { path = "../../representations/psi-typed-trees" }
+sha2 = "0.10"
 
 [dev-dependencies]
 psi-core = { path = "../../foundation/psi-core" }
