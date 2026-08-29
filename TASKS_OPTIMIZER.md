@@ -189,6 +189,9 @@ and no-selection compatibility remain enforced.
 - [x] Split complete-unit structural catalogs into ordered type/domain indexing,
   content projection, type declarations, function-local catalogs, witnesses,
   provider specialization, and path-resolution leaves below one catalog join.
+- [x] Split independent rewrite accounting into adjacent/non-adjacent merge,
+  terminal fusion, dead scalar, proof identity, common-subexpression,
+  substitution, and threading leaves below shared custody/substitution contracts.
 - [>] Replace remaining flat executable stages and mixed-responsibility files
   with semantic folders whose small `mod.rs` owns the real stage join. Tighten
   the production-file ceiling as each named legacy leaf is removed.
