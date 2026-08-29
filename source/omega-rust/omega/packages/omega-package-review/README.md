@@ -22,17 +22,18 @@ src/
 |   |-- aggregate.rs          total projection entry and final assembly
 |   |-- evidence.rs           retained evidence, authority classes, and sources
 |   |-- public_traits.rs      public trait and conformance projection
-|   |-- public_api.rs         public domain, proposition, const, operator, and data
+|   |-- public_api/           public domains, propositions, constants, operators, and data
 |   |-- callables.rs          callable envelope projection
 |   |-- contracts/            contract metadata, propositions, and expressions
+|   |   |-- metadata/         checked contract evidence, operations, and service reach
+|   |   `-- expressions/      calls, members, constructors, names, and operators
 |   |-- providers.rs          conformance and provider/external-supply joins
 |   |-- provider_intrinsics.rs compiler-owned provider execution identity
 |   |-- operational.rs        reach, invocation, mutation, crash, and flow rows
-|   |-- exact_identity.rs     exact nominal, type, lifetime, and owner identity
-|   `-- exact_identity/tests.rs focused owner/type identity unit tests
+|   `-- exact_identity/       exact nominal, type, lifetime, and owner identity
 `-- encoding/                 canonical persistence boundaries
-    |-- canonical.rs          framing, row assembly, limits, and primitive encoder
-    |-- values.rs             semantic value encoding
+    |-- canonical/            framing, row assembly, limits, and primitive encoder
+    |-- values/               semantic value encoding by evidence family
     |-- recovery.rs           canonical-row recovery envelope
     `-- obligation_ledger.rs  local reconstruction ledger
 

@@ -1,5 +1,6 @@
 # Build output directories
 /target/
+/source/omega-rust/omega/target/
 /dist/
 /build/
 /samples/*/build/

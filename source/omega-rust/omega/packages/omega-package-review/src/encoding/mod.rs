@@ -28,8 +28,6 @@ pub use recovery::{
     decode_package_review_canonical_row, decode_package_review_canonical_row_with_limits,
     encode_package_review_canonical_row, encode_package_review_canonical_row_with_limits,
 };
-pub(crate) use values::*;
-
 impl CheckedPackageReviewProjection {
     /// Versioned, source-handle-free comparison bytes for this review-only
     /// projection. These bytes are not a package certificate and must not be
