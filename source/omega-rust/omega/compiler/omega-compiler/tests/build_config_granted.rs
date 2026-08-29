@@ -354,7 +354,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 38);
+    assert_eq!(checked_observations.schema_version(), 39);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -3899,6 +3899,7 @@ fn output_sync_operations_replay_in_authored_order() {
         compile_rooted_probe_with_sponsored_output(&project, profile, "synced-output-review")
             .expect("successful Output sync operations should receipt");
     let summary = checked.build_observation_summary().unwrap();
+    assert_eq!(summary.schema_version(), 39);
     assert!(summary.operation_replay_verified());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
@@ -3948,6 +3949,91 @@ fn output_sync_operations_replay_in_authored_order() {
 
     let _ = std::fs::remove_dir_all(&project);
     let _ = std::fs::remove_dir_all(rooted_build_session(&project, "synced-output-review"));
+}
+
+#[test]
+fn output_duplicate_and_immediate_close_replay_exact_lineage() {
+    let (project, profile) = rooted_build_probe_project(
+        "duplicated-output-file",
+        r#"    let input: &[u8] in Path = builder.source.resolve("main.omg");
+    self.descriptor = self.filesystem.open(input, 0);
+    self.result = self.filesystem.read(self.descriptor, &mut self.buffer, 23);
+    self.code = self.filesystem.close(self.descriptor);
+    let generated: &[u8] in Path = builder.output.resolve("duplicated.omg");
+    self.descriptor = self.filesystem.create(generated, 438);
+    self.code = self.filesystem.duplicate(self.descriptor);
+    self.code = self.filesystem.close(self.code);
+    self.result = self.filesystem.write(self.descriptor, "data Duplicated {}\n");
+    self.code = self.filesystem.close(self.descriptor);
+    builder.output.include_source(generated);"#,
+    );
+    let session = rooted_build_session(&project, "duplicated-output-review");
+    let checked =
+        compile_rooted_probe_with_sponsored_output(&project, profile, "duplicated-output-review")
+            .expect("successful Output duplicate and immediate close should receipt");
+    let summary = checked.build_observation_summary().unwrap();
+    assert_eq!(summary.schema_version(), 39);
+    assert!(summary.operation_replay_verified());
+    assert_eq!(summary.realized(), BuildObservationClass::Receipted);
+    assert_eq!(
+        summary
+            .filesystem_operation_attempts()
+            .iter()
+            .map(|attempt| attempt.operation_tag())
+            .collect::<Vec<_>>(),
+        vec![2, 4, 8, 1, 45, 8, 5, 8]
+    );
+    let duplicate = &summary.filesystem_operation_attempts()[4];
+    let omega_build_evaluation::BuildFilesystemLogicalHandleInputResolution::Resolved(
+        source_identity,
+    ) = duplicate.logical_handle_inputs()[0].resolution()
+    else {
+        panic!("duplicate source descriptor is resolved")
+    };
+    let output = duplicate
+        .logical_handle_output()
+        .expect("duplicate retains its fresh logical descriptor");
+    assert!(matches!(
+        output.source(),
+        omega_build_evaluation::BuildFilesystemLogicalHandleOutputSource::Duplicated(identity)
+            if identity == source_identity
+    ));
+    assert_eq!(
+        summary.included_source_handoffs()[0].filesystem_attempt_ordinal(),
+        8
+    );
+
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let record = capture_verified_build_filesystem_replay_record(summary, limits)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        recover_review_only_build_filesystem_replay_record(record.canonical_bytes(), limits)
+            .unwrap(),
+        record
+    );
+
+    let package = PackageKeyIdentity::from_digest([109; 32]).unwrap();
+    set_canonical_source_tree_permissions(&project, true);
+    let source = PackageSourceBinding::new(package, "duplicated-output", project.clone())
+        .with_canonical_source_metadata()
+        .unwrap();
+    let inputs = PackageCompilationInputs::new_package(package, vec![source], Vec::new()).unwrap();
+    std::fs::write(session.join("output/duplicated.omg"), "data Spoofed {}\n").unwrap();
+    let replayed = compile_to_checked_with_packages_and_replay_record(
+        &project.join("main.omg"),
+        Some(profile.target_name()),
+        inputs,
+        record,
+    )
+    .expect("duplicate replay ignores physical Output drift");
+    set_canonical_source_tree_permissions(&project, false);
+    assert!(replayed.typed.symbols.source_files().any(|source| {
+        source.path.ends_with("duplicated.omg") && source.source.as_ref() == "data Duplicated {}\n"
+    }));
+
+    let _ = std::fs::remove_dir_all(&project);
+    let _ = std::fs::remove_dir_all(session);
 }
 
 #[test]
