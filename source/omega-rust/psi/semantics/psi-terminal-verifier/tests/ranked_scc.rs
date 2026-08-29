@@ -14,7 +14,7 @@ use psi_terminal::{
 use psi_terminal_verifier::{
     ModuleError, ProofBundle, VerificationError, reconstruct_interpretable_operation_obligations,
     validate_module, validate_module_for_interpretation, validate_module_representation,
-    verify_module, verify_module_for_interpretation,
+    verify_module, verify_module_for_fixed_fuel, verify_module_for_interpretation,
 };
 
 fn id<T>(raw: u64, constructor: impl FnOnce(u64) -> Option<T>) -> T {
@@ -267,6 +267,15 @@ fn ranked_countdown_has_distinct_interpreter_only_authority() {
     );
     assert!(matches!(
         verify_module_for_interpretation(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default()
+        ),
+        Err(VerificationError::MissingEvidence(obligation))
+            if obligation == id(1, ObligationId::new)
+    ));
+    assert!(matches!(
+        verify_module_for_fixed_fuel(
             &module,
             &ProofBundle::default(),
             &AdmissionProfile::default()

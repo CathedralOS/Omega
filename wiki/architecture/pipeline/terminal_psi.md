@@ -3604,8 +3604,14 @@ the cost of an unreachable caller tail; a caller segment ending after a call
 uses only the callee's normal-return bound. Entry and segment certificates bind
 the exact terminal identity, schedule, endpoints, and ceiling; validation
 reconstructs those fields and the complete reachable segment partition. Ranked
-tail calls, loops, and relevant-precondition refinements require later vertical
-slices.
+control has one additional whole-entry slice: an opaque fixed-fuel verifier
+carrier accepts only the exact one-machine unsigned countdown, and the checker
+recomputes `preheader + (upper_bound - lower_bound) * (header + decrement) +
+(header + exit)`. Under the current schedule the `u32` source countdown costs
+`5 + 6n` and has all-input ceiling `25_769_803_775`. Arithmetic and final `u64`
+conversion are checked; an unrepresentable ceiling rejects. Ranked safe-point
+segments, tail calls, and relevant-precondition refinements require later
+vertical slices.
 
 Omega may use a certificate only for the exact installed terminal bytes,
 architecture, entry stub, and external-root context it names. Recomputable Psi

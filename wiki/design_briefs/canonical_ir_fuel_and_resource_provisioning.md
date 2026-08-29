@@ -650,7 +650,14 @@ reconstructs the positive guard as the discrete unsigned subtraction premise,
 and checks the decrement evidence before execution. Dynamic interpreter fuel
 therefore remains resumable across the backedge without granting the ordinary
 verified carrier used by fixed fuel, Omega lowering, native installation, or
-provider dispatch. Those cyclic consumers remain separate milestones.
+provider dispatch. Whole-entry fixed fuel for this exact slice uses another
+opaque verifier carrier: it derives actual preheader, header, decrement, exit,
+and return costs from the current schedule and combines them as `entry +
+maximum_iterations * cycle + exit`. The certificate binds the canonical
+terminal identity and fails closed when that exact all-input ceiling cannot fit
+its scalar denomination. Acyclic segment checking is not widened, and Omega
+lowering, native installation, and provider dispatch remain separate
+milestones.
 
 Every verifier, reduction-family, denotation-row, composition theorem, and
 irreducible semantic dependency has an exact versioned node in a closed trust

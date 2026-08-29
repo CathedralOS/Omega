@@ -2,19 +2,22 @@
 
 //! Recomputable restricted fixed-fuel certificates for terminal Psi.
 //!
-//! The terminal verifier accepts acyclic control flow, so the checker derives
-//! an exact maximum entry-to-terminal-exit cost without precondition assumptions
-//! and partitions the complete reachable graph at every reachable explicit edge.
+//! Ordinary terminal verification accepts acyclic control flow, so the checker
+//! derives an exact maximum entry-to-terminal-exit cost without precondition
+//! assumptions and partitions the complete reachable graph at every reachable
+//! explicit edge. A separate fixed-fuel carrier admits the first exact
+//! ranked unsigned countdown and derives its whole-entry ceiling without
+//! widening the acyclic segment or native-lowering authorities.
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use psi_core::{BlockId, EdgeId, MachineId, Proposition};
+use psi_core::{BlockId, EdgeId, IntegerValue, MachineId, Proposition};
 use psi_terminal::{
     OperationKind, TerminalAffineCleanupAction, TerminalMachine, TerminalModule, Terminator,
 };
 use psi_terminal_codec::{CodecError, TerminalPsiIdentity, terminal_psi_identity};
 use psi_terminal_fuel::{FuelScheduleIdentity, TerminalFuelSchedule};
-use psi_terminal_verifier::VerifiedTerminalModule;
+use psi_terminal_verifier::{VerifiedFixedFuelTerminalModule, VerifiedTerminalModule};
 
 /// Exact restricted theorem: every path from one machine entry reaches a
 /// return or crash within the published current logical-fuel ceiling.
@@ -161,6 +164,100 @@ pub fn validate_fixed_entry_fuel(
     certificate: &FixedEntryFuelCertificate,
 ) -> Result<(), FixedFuelError> {
     let expected = derive_fixed_entry_fuel(verified, certificate.entry)?;
+    if expected != *certificate {
+        return Err(FixedFuelError::CertificateMismatch);
+    }
+    Ok(())
+}
+
+/// Derive the all-input ceiling for the exact ranked unsigned-countdown slice
+/// admitted by the fixed-fuel verifier carrier.
+///
+/// The retained rank upper bound supplies the maximum number of covered
+/// backedge traversals. Costs are replayed from the actual preheader, header,
+/// decrement, exit, and return blocks under the current fuel schedule:
+/// `preheader + (upper_bound - lower_bound) * cycle + exit`.
+pub fn derive_ranked_countdown_entry_fuel(
+    verified: &VerifiedFixedFuelTerminalModule<'_>,
+    entry: MachineId,
+) -> Result<FixedEntryFuelCertificate, FixedFuelError> {
+    let module = verified.module();
+    let terminal_psi = terminal_psi_identity(module).map_err(FixedFuelError::SemanticIdentity)?;
+    let machine = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == entry)
+        .ok_or(FixedFuelError::UnknownEntry(entry))?;
+    let component = machine
+        .ranked_scc
+        .as_ref()
+        .ok_or(FixedFuelError::NotRankedCountdown(entry))?;
+    let [covered] = component.covered_cyclic_edges.as_slice() else {
+        return Err(FixedFuelError::NotRankedCountdown(entry));
+    };
+    let blocks = machine
+        .blocks
+        .iter()
+        .map(|block| (block.id, block))
+        .collect::<BTreeMap<_, _>>();
+    let preheader = blocks
+        .get(&machine.entry)
+        .copied()
+        .ok_or(FixedFuelError::UnknownBlock(machine.entry))?;
+    let header = blocks
+        .get(&component.header)
+        .copied()
+        .ok_or(FixedFuelError::UnknownBlock(component.header))?;
+    let decrement = blocks
+        .get(&covered.source)
+        .copied()
+        .ok_or(FixedFuelError::UnknownBlock(covered.source))?;
+    let Terminator::Conditional { when_false, .. } = &header.terminator else {
+        return Err(FixedFuelError::NotRankedCountdown(entry));
+    };
+    let done = blocks
+        .get(&when_false.target)
+        .copied()
+        .ok_or(FixedFuelError::UnknownBlock(when_false.target))?;
+
+    let schedule = TerminalFuelSchedule::CURRENT;
+    let preheader_units = block_units(preheader, schedule)?;
+    let header_units = block_units(header, schedule)?;
+    let cycle_units = header_units
+        .checked_add(block_units(decrement, schedule)?)
+        .ok_or(FixedFuelError::BoundOverflow)?;
+    let exit_units = header_units
+        .checked_add(block_units(done, schedule)?)
+        .ok_or(FixedFuelError::BoundOverflow)?;
+    let maximum_iterations = match (component.lower_bound, component.upper_bound) {
+        (IntegerValue::Unsigned(lower), IntegerValue::Unsigned(upper)) => upper
+            .checked_sub(lower)
+            .ok_or(FixedFuelError::NotRankedCountdown(entry))?,
+        _ => return Err(FixedFuelError::NotRankedCountdown(entry)),
+    };
+    let ceiling_units = u128::from(cycle_units)
+        .checked_mul(maximum_iterations)
+        .and_then(|units| units.checked_add(u128::from(preheader_units)))
+        .and_then(|units| units.checked_add(u128::from(exit_units)))
+        .ok_or(FixedFuelError::BoundOverflow)?;
+    let ceiling_units = u64::try_from(ceiling_units).map_err(|_| FixedFuelError::BoundOverflow)?;
+
+    Ok(FixedEntryFuelCertificate {
+        terminal_psi,
+        schedule: schedule.identity(),
+        entry,
+        relevant_preconditions: Vec::new(),
+        ceiling_units,
+    })
+}
+
+/// Independently replay an exact ranked-countdown certificate from the
+/// independently proof-checked fixed-fuel carrier.
+pub fn validate_ranked_countdown_entry_fuel(
+    verified: &VerifiedFixedFuelTerminalModule<'_>,
+    certificate: &FixedEntryFuelCertificate,
+) -> Result<(), FixedFuelError> {
+    let expected = derive_ranked_countdown_entry_fuel(verified, certificate.entry)?;
     if expected != *certificate {
         return Err(FixedFuelError::CertificateMismatch);
     }
@@ -444,6 +541,22 @@ fn checked_optional_add(value: Option<u64>, added: u64) -> Result<Option<u64>, F
                 .ok_or(FixedFuelError::BoundOverflow)
         })
         .transpose()
+}
+
+fn block_units(
+    block: &psi_terminal::Block,
+    schedule: TerminalFuelSchedule,
+) -> Result<u64, FixedFuelError> {
+    block
+        .operations
+        .iter()
+        .try_fold(0_u64, |units, operation| {
+            units
+                .checked_add(schedule.operation_units(&operation.kind))
+                .ok_or(FixedFuelError::BoundOverflow)
+        })?
+        .checked_add(schedule.terminator_units(&block.terminator))
+        .ok_or(FixedFuelError::BoundOverflow)
 }
 
 fn maximum_machine_outcomes(
@@ -812,6 +925,7 @@ pub enum FixedFuelError {
         callee: MachineId,
     },
     NoTerminalPath(MachineId),
+    NotRankedCountdown(MachineId),
     BoundOverflow,
     CertificateMismatch,
 }

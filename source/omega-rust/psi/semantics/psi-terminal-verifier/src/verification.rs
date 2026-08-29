@@ -141,6 +141,17 @@ pub struct VerifiedInterpretableTerminalModule<'module> {
     state: VerifiedTerminalModuleState<'module>,
 }
 
+/// Proof-checked authority for deriving a whole-entry fixed-fuel theorem for
+/// the exact ranked-countdown slice.
+///
+/// This carrier is deliberately distinct from both ordinary execution
+/// authority and interpreter authority. In particular, it cannot authorize
+/// native lowering or be supplied to the reference interpreter.
+#[derive(Debug)]
+pub struct VerifiedFixedFuelTerminalModule<'module> {
+    state: VerifiedTerminalModuleState<'module>,
+}
+
 #[derive(Debug)]
 struct VerifiedTerminalModuleState<'module> {
     validated: ValidatedTerminalModule<'module>,
@@ -185,6 +196,12 @@ impl<'module> VerifiedInterpretableTerminalModule<'module> {
     }
 }
 
+impl<'module> VerifiedFixedFuelTerminalModule<'module> {
+    pub const fn module(&self) -> &'module TerminalModule {
+        self.state.validated.module()
+    }
+}
+
 pub fn verify_module<'module>(
     module: &'module TerminalModule,
     proof_bundle: &ProofBundle,
@@ -198,7 +215,7 @@ pub fn verify_module<'module>(
 /// Verify the exact subset accepted by the reference interpreter.
 ///
 /// The distinct result carrier cannot be passed to fixed-fuel or native
-/// consumers that require [`VerifiedTerminalModule`].
+/// consumers that require their own proof-checked authority.
 pub fn verify_module_for_interpretation<'module>(
     module: &'module TerminalModule,
     proof_bundle: &ProofBundle,
@@ -208,6 +225,23 @@ pub fn verify_module_for_interpretation<'module>(
         validate_module_for_interpretation(module).map_err(VerificationError::Module)?;
     verify_validated_module(validated.validated(), proof_bundle, profile)
         .map(|state| VerifiedInterpretableTerminalModule { state })
+}
+
+/// Verify the exact ranked-countdown subset accepted for whole-entry
+/// fixed-fuel derivation.
+///
+/// Validation and proof reconstruction currently match the interpreter slice,
+/// but the distinct result carrier prevents one consumer's authority from
+/// silently authorizing the other or any ordinary/native consumer.
+pub fn verify_module_for_fixed_fuel<'module>(
+    module: &'module TerminalModule,
+    proof_bundle: &ProofBundle,
+    profile: &AdmissionProfile,
+) -> Result<VerifiedFixedFuelTerminalModule<'module>, VerificationError> {
+    let validated =
+        validate_module_for_interpretation(module).map_err(VerificationError::Module)?;
+    verify_validated_module(validated.validated(), proof_bundle, profile)
+        .map(|state| VerifiedFixedFuelTerminalModule { state })
 }
 
 fn verify_validated_module<'module>(
