@@ -225,7 +225,8 @@ impl<'program> Evaluator<'program> {
             ));
         }
         let outputs = replay.output_files();
-        if outputs.is_empty() {
+        let output_directory = replay.output_directory();
+        if outputs.is_empty() && output_directory.is_none() {
             if !self.build_included_sources.is_empty() {
                 return trap("source-only filesystem replay observed generated-source handoff");
             }
@@ -255,9 +256,17 @@ impl<'program> Evaluator<'program> {
                 expected_times.insert(expected_path, modification_time);
             }
         }
+        let expected_directories = output_directory
+            .map(|directory| {
+                let mut path = format!("/root/{}", directory.output_root().get()).into_bytes();
+                path.push(b'/');
+                path.extend_from_slice(directory.output_relative_path());
+                std::collections::BTreeSet::from([path])
+            })
+            .unwrap_or_default();
         if self.virtual_files != expected_files
             || !self.virtual_fds.is_empty()
-            || !self.virtual_dirs.is_empty()
+            || self.virtual_dirs != expected_directories
             || !self.virtual_finds.is_empty()
             || self.virtual_perms != expected_permissions
             || !self.virtual_symlinks.is_empty()

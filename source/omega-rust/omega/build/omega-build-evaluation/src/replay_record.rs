@@ -10,17 +10,21 @@ use crate::{
 use sha2::{Digest, Sha256};
 use std::fmt;
 
+mod directories;
+#[cfg(test)]
+mod directory_tests;
 mod duplicates;
 #[cfg(test)]
 mod lock_tests;
 mod locks;
 
+use directories::validate_output_directory_shape;
 use duplicates::validate_output_duplicate_shapes;
 use locks::validate_output_lock_shapes;
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 21;
+const VERSION: u16 = 22;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -176,7 +180,7 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
     let shapes = decoded.shapes;
     let output_start = shapes
         .iter()
-        .position(|shape| shape.operation == 1)
+        .position(|shape| matches!(shape.operation, 1 | 11))
         .unwrap_or(shapes.len());
     let mut events = Vec::new();
     let mut cursor = 0;
@@ -255,6 +259,39 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
                     "filesystem replay source inputs exceed retained replay policy",
                 )
             });
+    }
+    if shapes[output_start].operation == 11 {
+        let directory = &shapes[output_start];
+        let [rooted] = directory.rooted_paths.as_slice() else {
+            unreachable!("validated Output directory has one rooted path")
+        };
+        let directory = psi_checked_interpreter::FilesystemOutputDirectoryReplayRecord::new(
+            crate::BUILD_OUTPUT_ROOT_IDENTITY,
+            clone_bytes(rooted.bytes)?,
+        )
+        .map_err(|_| {
+            BuildFilesystemReplayRecordError::new(
+                "filesystem replay Output directory could not be rehydrated",
+            )
+        })?;
+        let typed_record =
+            psi_checked_interpreter::FilesystemInputOutputDirectoryReplayRecord::new(
+                typed_record,
+                directory,
+            )
+            .map_err(|_| {
+                BuildFilesystemReplayRecordError::new(
+                    "filesystem replay input/directory record could not be rehydrated",
+                )
+            })?;
+        return psi_checked_interpreter::FilesystemReplay::from_input_output_directory_record(
+            typed_record,
+        )
+        .map_err(|_| {
+            BuildFilesystemReplayRecordError::new(
+                "filesystem replay input/directory record exceeds retained replay policy",
+            )
+        });
     }
     let mut output_records = Vec::new();
     let output_ranges = output_file_ranges(&shapes, output_start)?;
@@ -1264,7 +1301,7 @@ fn validate_first_rung(
     let mut identities = Vec::new();
     let mut event_count = 0;
     while cursor < shapes.len() {
-        if shapes[cursor].operation == 1 {
+        if matches!(shapes[cursor].operation, 1 | 11) {
             break;
         }
         if matches!(shapes[cursor].operation, 38 | 40) {
@@ -1316,6 +1353,17 @@ fn validate_first_rung(
         ));
     }
     if cursor < shapes.len() {
+        if shapes[cursor].operation == 11 {
+            if shapes.len()
+                != cursor + psi_checked_interpreter::MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES
+            {
+                return Err(BuildFilesystemReplayRecordError::new(
+                    "filesystem replay Output-directory lane requires exactly one attempt",
+                ));
+            }
+            validate_output_directory_shape(&shapes[cursor])?;
+            return Ok(());
+        }
         let output_ranges = output_file_ranges(shapes, cursor)?;
         let mut output_paths = Vec::new();
         output_paths
