@@ -430,7 +430,7 @@ fn old_rejects_result_local_computed_and_retired_entry_operands() {
         rendered.contains("is not a parameter, `self`, `result`, or structural subplace"),
         "{rendered}"
     );
-    assert!(rendered.contains("entry(whole)"), "{rendered}");
+    assert!(rendered.contains("entry(&whole)"), "{rendered}");
 }
 
 #[test]

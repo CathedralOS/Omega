@@ -1289,9 +1289,21 @@ Remaining:
   raw handle, address, table bytes, `Extent`, storage root, shell, or execution
   authority.
 
-  The next composition edge is design-settled. Implement one exact
-  target-runtime bootstrap adapter satisfying `UefiPhysicalEntry::enter`; the
-  generated shell invokes it, while `build.omg` binds only the semantic
+  The first provider-specific correspondence rung is now live without yet
+  creating a callable provider. A consuming projection replays the exact live
+  ledger, physical contract, complete UEFI x64 system-table layout, and the
+  target-owned BootServices pointer row at ordinal 15 / byte 96. It retains the
+  nonzero field privately under the complete physical-arrival and phase-lease
+  custody. Rejection and ledger mismatch return that custody intact; successful
+  owner release consumes the projection before firmware return. Its public
+  surface exposes only report coordinates—never the field value, table bytes,
+  an address, `Extent`, service operation, provider execution, shell, or root
+  authority.
+
+  The next provider/adapter composition edge is design-settled. Implement one
+  exact target-runtime bootstrap adapter satisfying
+  `UefiPhysicalEntry::enter`; the generated shell invokes it, while `build.omg`
+  binds only the semantic
   continuation. Keep `EfiSystemTable` private beneath lifecycle-scoped
   providers and `EfiImageHandle` as an opaque provenance-bearing input; neither
   is an `Extent`. Have the adapter consume the landed integrity/provenance/phase
@@ -2747,12 +2759,15 @@ Remaining:
   pending rows itself. Report-facing production-subject projection now also
   consumes one complete `CheckedCompilation` under `pipeline/reporting`; the
   driver receives only the resulting report-owned subject and no longer
-  reconstructs package/build/target custody itself. Remaining cleanup is
-  limited to domain policy discovered inside product stopping; requested-
-  product stopping and final report assembly remain coordinator work. The
-  callback-placement rejection remains an intentional fail-closed Terminal
-  handoff fence until canonical callback-use custody lands as a PSIIR vertical
-  slice.
+  reconstructs package/build/target custody itself. Release rollback now also
+  closes through one owner-built `OptimizationRollbackSettlement`: its
+  effective selection and optional report receipt cannot drift across native
+  realization and final report assembly, and the driver no longer reconstructs
+  the empty-request identity case. No other product-stop domain policy is
+  currently identified. Requested-product stopping and final report assembly
+  remain coordinator work. The callback-placement rejection remains an
+  intentional fail-closed Terminal handoff fence until canonical callback-use
+  custody lands as a PSIIR vertical slice.
 
   The first request-normalization rung is live. One typed `CompileRequest`
   now owns the production compile options, requested product, artifact policy,
@@ -2870,9 +2885,13 @@ Remaining:
   owner enforces the existing cross-field rule that a nonempty optimization
   rollback can accompany only `NativeArtifact`, preserving the exact
   diagnostic and the pre-source/no-output rejection. The driver no longer
-  inspects rollback contents or formats request-policy diagnostics; it only
-  coordinates an admitted request through the shared frontend and selected
-  product stop.
+  inspects rollback contents or formats request-policy diagnostics. The
+  rollback owner now returns one complete settlement whose effective selection
+  alone enters native realization and whose optional receipt alone enters the
+  final report; empty rollback preserves the exact build selection without
+  minting a receipt. Architecture tests prevent the driver from rebuilding
+  that fallback. It only coordinates an admitted request through the shared
+  frontend and selected product stop.
 
   Restore the driver contract:
 
@@ -6495,30 +6514,29 @@ Owners:
   cascade through retired parents, completed restoration, or Terminal
   authority. A checked-only resource-lifecycle arena now independently merges
   those activation and weakening events in the same semantic phase order. Its
-  current polarity-blind state distinguishes an available carrier, a carrier
-  suspended by one exact child, and a carrier retired while that child still
-  owns the pending route. Only an available child that ends publishes a
-  non-authorizing disposition: reactivate its still-live exact parent, cascade
-  through an ordered path of earlier-retired parents to an exact
-  resource/root-lifetime target, or the currently combined retire/discard
-  result. Each row keeps exact child, parent, resource, activation, weakening,
-  path, phase, and target identity; missing, reordered, substituted, or drifted
-  rows reject before resource arenas rebuild.
+  access-exact state distinguishes an available carrier, a carrier suspended
+  by one exact exclusive child, a mutable carrier frozen by an exact shared
+  cohort, and either carrier retired while its descendants still own the
+  pending route. The checked representation retains each child's exact parent
+  access and classified effect. `Read -> Read` releases independently;
+  `Mutable -> Read` joins one cohort and restores the parent's original access
+  only after its final member ends; `Mutable -> Mutable`, `Mutable ->
+  WriteOnly`, and `WriteOnly -> WriteOnly` retain the exclusive suspension
+  path. The other four access cells reject with directed borrow diagnostics
+  before lifecycle reconstruction. Bare authored `&` now survives parsing as
+  an exact shared-borrow node, closing the source/certificate correspondence
+  without treating an ordinary reference-name use as a reborrow. Nine-cell,
+  concurrent-sibling, final-restoration, and transactional tamper canaries are
+  live. Each row keeps exact child, parent, resource, activation, weakening,
+  cohort/path, phase, and target identity; missing, reordered, substituted, or
+  drifted rows reject before resource arenas rebuild. These dispositions remain
+  checked-only and grant no restored use, cleanup, root custody, or Terminal
+  authority.
 
-  Complete the settled reborrow-restoration model. First add source and
-  classifier canaries for all nine `Read` / `Mutable` / `WriteOnly`
-  parent-to-child cells, including concurrent shared siblings, so an internal
-  disposition-drift error can never substitute for a borrow diagnostic. Then:
+  Complete the settled reborrow-restoration model:
 
   - replace the overloaded terminal variant with distinct same-boundary
     lineage-closure and state-exit direct-root-handoff outcomes;
-  - enforce the exact access-attenuation relation rather than collapsing it
-    through `is_exclusive`;
-  - make `Read` from `Read` release without suspension, and represent `Read`
-    descendants of `Mutable` as a shared cohort that freezes mutation until
-    its last descendant ends;
-  - retain one exclusive descendant branch for permitted `Mutable` or
-    `WriteOnly` children, restoring the parent's exact original access;
   - add checked suspension/freeze-containment evidence as an ordinary sibling
     of the existing compatibility certificates, joined to exact resources,
     access, formation, weakening, and projection identity;

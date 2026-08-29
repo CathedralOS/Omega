@@ -106,7 +106,15 @@ pub(crate) fn instantiate_operator_contract_expression_label_with_labels(
         ExpressionNode::Member(member) => {
             format!("{}.{}", instantiate(member.receiver), member.member)
         }
-        ExpressionNode::Borrow(inner) => format!("mut {}", instantiate(inner.target)),
+        ExpressionNode::Borrow(inner) => match inner.access {
+            psi_language_semantics::ReferenceAccess::Shared => instantiate(inner.target),
+            psi_language_semantics::ReferenceAccess::Mutable => {
+                format!("mut {}", instantiate(inner.target))
+            }
+            psi_language_semantics::ReferenceAccess::WriteOnly => {
+                format!("write {}", instantiate(inner.target))
+            }
+        },
         ExpressionNode::Unary(unary) => format!(
             "{}{}",
             unary.operator.display_name(),

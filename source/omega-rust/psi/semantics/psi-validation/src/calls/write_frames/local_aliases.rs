@@ -93,11 +93,13 @@ pub(super) fn expression_reborrows_local_alias_binding(
     let visit = |child| expression_reborrows_local_alias_binding(program, child, aliases);
     match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(inner) => {
-            let borrows_binding = matches!(
-                program.expression_table.expression(inner.target),
-                ExpressionNode::Name(_)
-            ) && arithmetic_domains::place_path(program, inner.target)
-                .is_some_and(|path| aliases.iter().any(|(alias, _)| path == *alias));
+            let borrows_binding = inner.access.is_exclusive()
+                && matches!(
+                    program.expression_table.expression(inner.target),
+                    ExpressionNode::Name(_)
+                )
+                && arithmetic_domains::place_path(program, inner.target)
+                    .is_some_and(|path| aliases.iter().any(|(alias, _)| path == *alias));
             borrows_binding || visit(inner.target)
         }
         ExpressionNode::Atomic(atomic) => visit(atomic.value) || visit(atomic.result),
@@ -147,11 +149,12 @@ pub(super) fn expression_reborrows_stable_alias_binding(
         |child| expression_reborrows_stable_alias_binding(program, child, parameters, aliases);
     match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(inner) => {
-            let reborrows_binding =
-                matches!(
+            let reborrows_binding = inner.access.is_exclusive()
+                && matches!(
                     program.expression_table.expression(inner.target),
                     ExpressionNode::Name(_)
-                ) && frame_place_path(program, inner.target).is_some_and(|place| {
+                )
+                && frame_place_path(program, inner.target).is_some_and(|place| {
                     let (root, suffix) = split_place_root(&place.path);
                     suffix.is_empty()
                         && (parameters.iter().any(|parameter| {

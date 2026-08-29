@@ -376,39 +376,34 @@ fn parse_unary_expression_handle<'tokens, 'source>(
 
     if input.at_punctuation(PunctuationKind::Ampersand) {
         let input = input.take_punctuation(PunctuationKind::Ampersand, "&")?;
-        if input.at_contextual("mut")
-            || input.at_contextual("write")
-            || input.at_keyword(KeywordKind::State)
-        {
-            let (access, input) = if input.at_contextual("mut") {
-                (
-                    psi_language_core::ReferenceAccess::Mutable,
-                    input.take_contextual("mut")?,
-                )
-            } else if input.at_contextual("write") {
-                (
-                    psi_language_core::ReferenceAccess::WriteOnly,
-                    input.take_contextual("write")?,
-                )
-            } else {
-                (
-                    psi_language_core::ReferenceAccess::Mutable,
-                    input.take_keyword(KeywordKind::State, "state")?,
-                )
-            };
-            let (expression, rest) = parse_unary_expression_handle(syntax_trees, input, context)?;
-            return Ok((
-                syntax_trees.expressions.insert(ExpressionNode::Borrow(
-                    psi_syntax_trees::expression::TableBorrowExpression {
-                        target: expression,
-                        access,
-                    },
-                )),
-                rest,
-            ));
-        }
-
-        return parse_unary_expression_handle(syntax_trees, input, context);
+        let (access, input) = if input.at_contextual("mut") {
+            (
+                psi_language_core::ReferenceAccess::Mutable,
+                input.take_contextual("mut")?,
+            )
+        } else if input.at_contextual("write") {
+            (
+                psi_language_core::ReferenceAccess::WriteOnly,
+                input.take_contextual("write")?,
+            )
+        } else if input.at_keyword(KeywordKind::State) {
+            (
+                psi_language_core::ReferenceAccess::Mutable,
+                input.take_keyword(KeywordKind::State, "state")?,
+            )
+        } else {
+            (psi_language_core::ReferenceAccess::Shared, input)
+        };
+        let (expression, rest) = parse_unary_expression_handle(syntax_trees, input, context)?;
+        return Ok((
+            syntax_trees.expressions.insert(ExpressionNode::Borrow(
+                psi_syntax_trees::expression::TableBorrowExpression {
+                    target: expression,
+                    access,
+                },
+            )),
+            rest,
+        ));
     }
 
     if input.at_punctuation(PunctuationKind::Exclamation) {

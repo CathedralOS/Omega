@@ -505,7 +505,8 @@ pub(super) fn syntactic_call_written_paths(
     }];
     for argument in arguments {
         let place = match program.expression_table.expression(*argument) {
-            ExpressionNode::Borrow(place) => place.target,
+            ExpressionNode::Borrow(place) if place.access.is_exclusive() => place.target,
+            ExpressionNode::Borrow(_) => continue,
             ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
                 *argument
             }

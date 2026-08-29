@@ -35,6 +35,39 @@ fn collects_exact_write_only_argument_access_kind() {
 }
 
 #[test]
+fn shared_borrow_argument_remains_read_only_through_checked_call_admission() {
+    let source = r#"
+        machine observe(value: &i32) {}
+
+        machine forward(value: &i32) {
+            observe(&value);
+        }
+    "#;
+
+    let tokens = psi_source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+    let resolved =
+        psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax).expect("resolve");
+    let typed = psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("type");
+
+    let facts = build_borrow_facts(&typed);
+    let call = facts
+        .states
+        .iter()
+        .flat_map(|(_, state)| facts.calls.span_or_empty(state.calls))
+        .next()
+        .expect("forwarding call");
+    let accesses = facts.argument_accesses.span_or_empty(call.accesses);
+    assert_eq!(accesses.len(), 1);
+    assert_eq!(accesses[0].kind, BorrowAccessKind::Read);
+
+    lower_typed_trees(typed).expect("shared borrow must not require a writable call root");
+}
+
+#[test]
 fn collects_mutable_attached_data_argument_access_roots() {
     let machine_symbol = SymbolHandle::from_arena_index(1);
     let state_symbol = SymbolHandle::from_arena_index(2);

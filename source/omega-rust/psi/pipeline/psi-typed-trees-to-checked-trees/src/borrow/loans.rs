@@ -16,7 +16,7 @@ mod aggregate;
 mod owner_paths;
 mod types;
 
-use types::{is_mutable_reference_type, is_reference_type};
+use types::{is_reference_type, reference_borrow_access_kind};
 
 pub(super) struct StatementBorrowLoan {
     pub(super) owner_symbol: SymbolHandle,
@@ -198,35 +198,42 @@ fn reference_local_borrow_loans(
     loan_trackers: &[StateLoanTracker],
     allow_direct_reborrow_lineage: bool,
 ) -> Vec<StatementBorrowLoan> {
-    let local_is_mutable_reference = is_mutable_reference_type(program, local_data.type_reference);
-    let is_explicit_reborrow = matches!(
-        program
-            .expression_table
-            .expression(local_data.initial_value),
-        psi_checked_trees::expression::ExpressionNode::Borrow(_)
-    );
+    let Some(local_access) = reference_borrow_access_kind(program, local_data.type_reference) else {
+        return Vec::new();
+    };
+    let explicit_reborrow_target = direct_reborrow_target(program, local_data.initial_value);
+    let is_explicit_reborrow = explicit_reborrow_target.is_some();
     let force_unretained = matches!(
         program
             .expression_table
             .expression(local_data.initial_value),
         psi_checked_trees::expression::ExpressionNode::Call(_)
             | psi_checked_trees::expression::ExpressionNode::Cast(_)
-    );
-    let Some(place) = (match program
-        .expression_table
-        .expression(local_data.initial_value)
-    {
-        psi_checked_trees::expression::ExpressionNode::Borrow(inner_expression)
-            if local_is_mutable_reference =>
-        {
-            whole_place_recast_borrow_place(
+    ) && !is_explicit_reborrow;
+    let explicit_reborrow_place = explicit_reborrow_target.and_then(|target| {
+        whole_place_recast_borrow_place(
+            program,
+            state.symbol,
+            statement_index,
+            target,
+            machine_symbol,
+        )
+        .or_else(|| {
+            borrow_access_place(
                 program,
                 state.symbol,
                 statement_index,
-                inner_expression.target,
+                target,
                 machine_symbol,
             )
-            .or_else(|| {
+        })
+    });
+    let inferred_place = match program
+        .expression_table
+        .expression(local_data.initial_value)
+    {
+        psi_checked_trees::expression::ExpressionNode::Borrow(inner_expression) => {
+            let ordinary = || {
                 borrow_access_place(
                     program,
                     state.symbol,
@@ -234,7 +241,19 @@ fn reference_local_borrow_loans(
                     inner_expression.target,
                     machine_symbol,
                 )
-            })
+            };
+            // Typed reference-to-reference borrow targets may carry a whole-place
+            // recast regardless of the requested child access. Preserve that
+            // parent-local identity for shared attenuation just as for exclusive
+            // reborrows so the exact lineage can be retained and classified.
+            whole_place_recast_borrow_place(
+                program,
+                state.symbol,
+                statement_index,
+                inner_expression.target,
+                machine_symbol,
+            )
+            .or_else(ordinary)
         }
         psi_checked_trees::expression::ExpressionNode::Cast(cast) if cast.form.is_recast() => {
             whole_place_recast_borrow_place(
@@ -262,7 +281,8 @@ fn reference_local_borrow_loans(
             machine_symbol,
         ),
         _ => None,
-    }) else {
+    };
+    let Some(place) = explicit_reborrow_place.or(inferred_place) else {
         return Vec::new();
     };
 
@@ -281,13 +301,30 @@ fn reference_local_borrow_loans(
                 allow_direct_reborrow_lineage && is_explicit_reborrow,
                 force_unretained,
             ),
-            kind: if local_is_mutable_reference {
-                psi_checked_trees::BorrowAccessKind::Mutable
-            } else {
-                psi_checked_trees::BorrowAccessKind::Read
-            },
+            kind: local_access.clone(),
         })
         .collect()
+}
+
+/// Finds only an explicit borrow possibly wrapped in reference-carrier casts.
+/// Typed trees normalize the implicit mutable-to-shared attenuation cast to
+/// `Value`, so the stable discriminator here is its reference target and lack
+/// of a semantic-domain retag. Numeric/domain casts and helper-returned views
+/// remain derived and unretained.
+fn direct_reborrow_target(
+    program: &psi_typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    match program.expression_table.expression(expression) {
+        psi_checked_trees::expression::ExpressionNode::Borrow(inner) => Some(inner.target),
+        psi_checked_trees::expression::ExpressionNode::Cast(cast)
+            if is_reference_type(program, cast.target_type)
+                && cast.semantic_domain.is_empty() =>
+        {
+            direct_reborrow_target(program, cast.value)
+        }
+        _ => None,
+    }
 }
 
 fn whole_place_recast_borrow_place(

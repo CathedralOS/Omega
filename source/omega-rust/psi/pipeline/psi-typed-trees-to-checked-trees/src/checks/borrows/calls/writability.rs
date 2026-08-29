@@ -36,6 +36,9 @@ pub(super) fn check_mutable_argument_writability(
         else {
             continue;
         };
+        if !inner_expression.access.is_exclusive() {
+            continue;
+        }
 
         let Some(root_name) = mutable_argument_root_name(program, inner_expression.target) else {
             diagnostics.push(Diagnostic::error(format!(

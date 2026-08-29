@@ -24,7 +24,7 @@ pub(crate) fn validate_checked_write_only_slice(
 ) {
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            let roots = program
+            let mut roots = program
                 .state_parameters(state)
                 .iter()
                 .filter_map(|parameter| {
@@ -45,6 +45,32 @@ pub(crate) fn validate_checked_write_only_slice(
                     })
                 })
                 .collect::<Vec<_>>();
+            roots.extend(
+                program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .iter()
+                    .filter_map(|statement| {
+                        let StatementNode::LocalData(local) = statement else {
+                            return None;
+                        };
+                        let TypeReferenceNode::Reference {
+                            referee,
+                            access: ReferenceAccess::WriteOnly,
+                            ..
+                        } = program
+                            .type_reference_table
+                            .type_reference(local.type_reference)
+                        else {
+                            return None;
+                        };
+                        Some(WriteOnlyRoot {
+                            symbol: local.symbol,
+                            name: local.name.as_str().to_owned(),
+                            referee: *referee,
+                        })
+                    }),
+            );
             if roots.is_empty() {
                 continue;
             }
