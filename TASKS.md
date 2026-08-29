@@ -1334,6 +1334,19 @@ Remaining:
   values, interface destination, service-pointer exposure, call operation,
   emitted bytes, firmware execution, image root, or adapter/shell claim.
 
+  The first adapter-composition typestate now consumes the complete physical-
+  arrival custody before `BootServices` provider projection. It independently
+  replays the exact target-owned UEFI x64 physical contract and retains the
+  collision-resistant calling-plan commitment; foreign-ledger and commitment-
+  substitution failures return the whole readiness carrier or arrival for
+  owner retry. Provider projection and every later `HandleProtocol` rung now
+  remain structurally beneath that non-clone readiness value. This is not
+  environment or entry-stack admission, `UefiPhysicalEntry::enter`
+  satisfaction, a generated shell, native adapter execution, semantic root
+  installation, or publication. Those claims still require target-owned
+  arrival/stack evidence and the generated invocation/install producers rather
+  than a caller-chosen receipt identity.
+
   The next provider/adapter composition edge is design-settled. Implement one
   exact target-runtime bootstrap adapter satisfying
   `UefiPhysicalEntry::enter`; the generated shell invokes it, while `build.omg`
@@ -9209,9 +9222,25 @@ reach or trust, and private proof improvements do not change public identity.
   remains one straight-line static plan with neither runtime liveness flags nor
   a cleanup loop.
 
-  Extend those lanes to recursively nested multiple residuals under the same
-  rule. Add recursive nested-array coverage, construction-prefix
-  ordinary-failure cleanup, and deeper canonical fuel/action ordinals.
+  The first recursively nested multiple-residual rung is closed under the same
+  static rule. A claim-free, unqualified affine root exactly `[[T; 3]; 2]`,
+  where `T` remains a checked record with no nominal cleanup, may move exactly
+  one direct leaf from each outer element through two ordinary one-parameter
+  Unit calls. Authored moves retain their order; cleanup emits the four live
+  leaves with outer indices decreasing and, within each outer element, inner
+  indices decreasing. Typed and checked planning, Terminal verification,
+  codec/interpreter replay, optimization ownership validation, target layout,
+  machine emission, object/image validation, and installation replay all
+  independently retain the exact two-index paths and nested type graph. The
+  five native targets retain the 48-byte outer carrier, 24-byte outer stride,
+  exact offsets, four cleanup actions, and canonical two-call/return fuel
+  ordinals. Same-outer, missing, duplicate, reversed-cleanup, and artifact-order
+  tampering reject. The interpreter still charges exactly five closure units:
+  residual count changes static frontier custody, not executable cleanup work.
+
+  Extend recursive coverage beyond that exact `[[T; 3]; 2]` rung. Add
+  construction-prefix ordinary-failure cleanup and deeper canonical
+  fuel/action ordinals.
 
   Dynamic/mixed projections, scalar/float/byte/linear/nominal/qualified/content
   elements, arrays with claims, sums, joins, and cycles remain separately fenced.
@@ -10264,8 +10293,16 @@ boundary without its corresponding checked law.
   file, target-specific format, image statistics, and placed executable-region
   inventory. Rejection retains the intact assembled owner; success retains the
   mutated image beside exact `ExecutableImageOutput` bytes and grants neither
-  publication nor an execution event. Optional `.gnu.hash`, production emitter
-  integration, and ordinary source `via` evaluation remain unimplemented.
+  publication nor an execution event. The first production-emitter integration
+  now consumes only that admitted carrier and independently rejoins its exact
+  final image, import/relocation counts, final-text relocation envelope,
+  executable-region inventory, target, and bytes to the borrowed source-free
+  `ObjectArtifact`. Target or artifact drift rejects with the admitted carrier
+  intact. Success remains a distinct non-installable custody type rather than
+  `ExecutableImage`, so it cannot enter existing installation/publication APIs
+  and grants no execution event. Optional `.gnu.hash`, compiler orchestration
+  of the complete dynamic-owner chain, and ordinary source `via` evaluation
+  remain unimplemented.
   The generic contextual byte-literal rung is also live for owned direct
   `[u8; N]` destinations used by final results, locals/owned initializers,
   exact resolved call arguments, and record/case fields. It copies source bytes

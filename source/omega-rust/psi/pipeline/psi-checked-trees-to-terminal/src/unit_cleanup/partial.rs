@@ -135,15 +135,10 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
             element_type_identity,
             length,
         } if exact_checked_affine_array_move_paths(
+            partial_plans,
             &moved_paths,
             element_type_identity,
             *length,
-        ) && matches!(
-            partial_plans
-                .iter()
-                .find(|shape| shape.identity == *element_type_identity)
-                .map(|shape| &shape.shape),
-            Some(CheckedUnitStructuralTypeShape::Record { .. })
         ) => {}
         _ => return unsupported("partial affine Unit field path or type identity drifted"),
     }
@@ -275,6 +270,51 @@ fn checked_partial_affine_residuals(
             length,
         } = &declaration.shape
         {
+            if *length == 2
+                && exact_checked_nested_affine_array_residual_moves(
+                    types,
+                    moved_paths,
+                    element_type_identity,
+                )
+            {
+                let CheckedUnitStructuralTypeShape::FixedArray {
+                    element_type_identity: leaf_type_identity,
+                    length: 3,
+                } = &types
+                    .iter()
+                    .find(|shape| shape.identity == *element_type_identity)?
+                    .shape
+                else {
+                    return None;
+                };
+                let moved_by_outer = moved_paths
+                    .iter()
+                    .filter_map(|(path, _)| match *path {
+                        [
+                            CheckedUnitStructuralPathSegment::FixedIndex(outer),
+                            CheckedUnitStructuralPathSegment::FixedIndex(inner),
+                        ] => Some((*outer, *inner)),
+                        _ => None,
+                    })
+                    .collect::<std::collections::BTreeMap<_, _>>();
+                let mut residuals = Vec::with_capacity(4);
+                for outer in (0_u64..2).rev() {
+                    let moved_inner = *moved_by_outer.get(&outer)?;
+                    for inner in (0_u64..3).rev() {
+                        if inner != moved_inner {
+                            residuals.push(CheckedUnitPartialAffineDiscardPlan {
+                                source_parameter_index: 0,
+                                path: vec![
+                                    CheckedUnitStructuralPathSegment::FixedIndex(outer),
+                                    CheckedUnitStructuralPathSegment::FixedIndex(inner),
+                                ],
+                                type_identity: leaf_type_identity.clone(),
+                            });
+                        }
+                    }
+                }
+                return Some(residuals);
+            }
             if !matches!(
                 types
                     .iter()
@@ -423,6 +463,7 @@ fn checked_partial_affine_residuals(
 }
 
 fn exact_checked_affine_array_move_paths(
+    types: &[CheckedUnitStructuralTypePlan],
     moved_paths: &[(
         &[CheckedUnitStructuralPathSegment],
         &str,
@@ -431,6 +472,20 @@ fn exact_checked_affine_array_move_paths(
     element_type_identity: &str,
     length: u64,
 ) -> bool {
+    if length == 2
+        && exact_checked_nested_affine_array_move_paths(types, moved_paths, element_type_identity)
+    {
+        return true;
+    }
+    if !matches!(
+        types
+            .iter()
+            .find(|shape| shape.identity == element_type_identity)
+            .map(|shape| &shape.shape),
+        Some(CheckedUnitStructuralTypeShape::Record { .. })
+    ) {
+        return false;
+    }
     match length {
         2 => {
             matches!(moved_paths, [(path, moved_type, _)]
@@ -456,6 +511,86 @@ fn exact_checked_affine_array_move_paths(
         }
         _ => false,
     }
+}
+
+fn exact_checked_nested_affine_array_move_paths(
+    types: &[CheckedUnitStructuralTypePlan],
+    moved_paths: &[(
+        &[CheckedUnitStructuralPathSegment],
+        &str,
+        psi_symbols::SymbolHandle,
+    )],
+    inner_type_identity: &str,
+) -> bool {
+    let Some(CheckedUnitStructuralTypeShape::FixedArray {
+        element_type_identity: leaf_type_identity,
+        length: 3,
+    }) = types
+        .iter()
+        .find(|shape| shape.identity == inner_type_identity)
+        .map(|shape| &shape.shape)
+    else {
+        return false;
+    };
+    if !matches!(
+        types
+            .iter()
+            .find(|shape| shape.identity == *leaf_type_identity)
+            .map(|shape| &shape.shape),
+        Some(CheckedUnitStructuralTypeShape::Record { .. })
+    ) || moved_paths.len() != 2
+    {
+        return false;
+    }
+    let outer_indexes = moved_paths
+        .iter()
+        .filter_map(|(path, moved_type, _)| match *path {
+            [
+                CheckedUnitStructuralPathSegment::FixedIndex(outer @ (0 | 1)),
+                CheckedUnitStructuralPathSegment::FixedIndex(0 | 1 | 2),
+            ] if *moved_type == leaf_type_identity => Some(*outer),
+            _ => None,
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    outer_indexes == std::collections::BTreeSet::from([0, 1])
+}
+
+fn exact_checked_nested_affine_array_residual_moves(
+    types: &[CheckedUnitStructuralTypePlan],
+    moved_paths: &[(&[CheckedUnitStructuralPathSegment], &str)],
+    inner_type_identity: &str,
+) -> bool {
+    let Some(CheckedUnitStructuralTypeShape::FixedArray {
+        element_type_identity: leaf_type_identity,
+        length: 3,
+    }) = types
+        .iter()
+        .find(|shape| shape.identity == inner_type_identity)
+        .map(|shape| &shape.shape)
+    else {
+        return false;
+    };
+    if !matches!(
+        types
+            .iter()
+            .find(|shape| shape.identity == *leaf_type_identity)
+            .map(|shape| &shape.shape),
+        Some(CheckedUnitStructuralTypeShape::Record { .. })
+    ) || moved_paths.len() != 2
+    {
+        return false;
+    }
+    let outer_indexes = moved_paths
+        .iter()
+        .filter_map(|(path, moved_type)| match *path {
+            [
+                CheckedUnitStructuralPathSegment::FixedIndex(outer @ (0 | 1)),
+                CheckedUnitStructuralPathSegment::FixedIndex(0 | 1 | 2),
+            ] if *moved_type == leaf_type_identity => Some(*outer),
+            _ => None,
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    outer_indexes == std::collections::BTreeSet::from([0, 1])
 }
 
 fn exact_checked_bounded_affine_array_move_paths(
@@ -554,6 +689,10 @@ fn checked_partial_affine_path(path: &[CheckedUnitStructuralPathSegment]) -> boo
         || matches!(
             path,
             [CheckedUnitStructuralPathSegment::FixedIndex(0 | 1 | 2 | 3)]
+                | [
+                    CheckedUnitStructuralPathSegment::FixedIndex(0 | 1),
+                    CheckedUnitStructuralPathSegment::FixedIndex(0 | 1 | 2),
+                ]
         )
 }
 

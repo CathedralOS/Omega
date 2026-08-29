@@ -673,6 +673,75 @@ fn four_element_affine_array_moves_two_indices_and_discards_the_complement_decre
 }
 
 #[test]
+fn nested_affine_arrays_discard_each_live_complement_in_decreasing_index_order() {
+    let checked = checked(
+        r#"
+        data Token { value: u64; }
+        data Sink {}
+        machine Sink::take(token: Token) {}
+        data Root {}
+        machine Root::nested(values: [[Token; 3]; 2]) {
+            Sink::take(values[1][0]);
+            Sink::take(values[0][1]);
+        }
+        machine Root::same_outer(values: [[Token; 3]; 2]) {
+            Sink::take(values[0][0]);
+            Sink::take(values[0][1]);
+        }
+        machine Root::one(values: [[Token; 3]; 2]) {
+            Sink::take(values[1][2]);
+        }
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_partial_affine_unit_cleanups
+        .for_machine(machine_named(&checked, "nested"))
+        .expect("one leaf move per outer array leaves four exact residual leaves");
+    let path = |path: &[CheckedUnitStructuralPathSegment]| match path {
+        [
+            CheckedUnitStructuralPathSegment::FixedIndex(outer),
+            CheckedUnitStructuralPathSegment::FixedIndex(inner),
+        ] => (*outer, *inner),
+        _ => panic!("nested array leaf has exactly two literal indices"),
+    };
+    assert_eq!(
+        plan.machine.operations[..2]
+            .iter()
+            .map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::CallUnit {
+                    structural_arguments,
+                    ..
+                } => path(&structural_arguments[0].path),
+                _ => panic!("nested cleanup contains calls before return"),
+            })
+            .collect::<Vec<_>>(),
+        vec![(1, 0), (0, 1)],
+        "authored move order is retained",
+    );
+    assert_eq!(
+        plan.residual_affine_discards
+            .iter()
+            .map(|discard| path(&discard.path))
+            .collect::<Vec<_>>(),
+        vec![(1, 2), (1, 1), (0, 2), (0, 0)],
+        "outer and inner live complements both descend",
+    );
+    for machine in ["same_outer", "one"] {
+        assert!(
+            checked
+                .facts
+                .flow
+                .terminal_partial_affine_unit_cleanups
+                .for_machine(machine_named(&checked, machine))
+                .is_none(),
+            "`{machine}` remains outside the exact nested-array rung",
+        );
+    }
+}
+
+#[test]
 fn affine_triple_partial_cleanup_rejects_nominal_elements_and_qualification() {
     let checked = checked(
         r#"

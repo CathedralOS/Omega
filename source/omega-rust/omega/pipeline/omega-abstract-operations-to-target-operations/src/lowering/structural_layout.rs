@@ -287,6 +287,68 @@ pub(super) fn expected_maximal_residual_subtrees(
             .collect::<Vec<_>>();
         return (!residuals.is_empty()).then_some(residuals);
     }
+    if moved.iter().all(|(path, _)| {
+        matches!(
+            path.as_slice(),
+            [
+                StructuralPathSegment::FixedIndex(0 | 1),
+                StructuralPathSegment::FixedIndex(0 | 1 | 2)
+            ]
+        )
+    }) {
+        let StructuralTypeShape::FixedArray { element, length: 2 } =
+            declarations.get(&root_type)?.shape
+        else {
+            return None;
+        };
+        let StructuralTypeShape::FixedArray {
+            element: leaf,
+            length: 3,
+        } = declarations.get(&element)?.shape
+        else {
+            return None;
+        };
+        if moved.len() != 2
+            || moved.iter().any(|(_, moved_type)| *moved_type != leaf)
+            || !matches!(
+                declarations
+                    .get(&leaf)
+                    .map(|declaration| &declaration.shape),
+                Some(StructuralTypeShape::Record { .. })
+            )
+        {
+            return None;
+        }
+        let moved_by_outer = moved
+            .iter()
+            .filter_map(|(path, _)| match path.as_slice() {
+                [
+                    StructuralPathSegment::FixedIndex(outer @ (0 | 1)),
+                    StructuralPathSegment::FixedIndex(inner @ (0 | 1 | 2)),
+                ] => Some((*outer, *inner)),
+                _ => None,
+            })
+            .collect::<BTreeMap<_, _>>();
+        if moved_by_outer.len() != 2 {
+            return None;
+        }
+        let mut residuals = Vec::with_capacity(4);
+        for outer in (0_u64..2).rev() {
+            let moved_inner = *moved_by_outer.get(&outer)?;
+            for inner in (0_u64..3).rev() {
+                if inner != moved_inner {
+                    residuals.push((
+                        vec![
+                            StructuralPathSegment::FixedIndex(outer),
+                            StructuralPathSegment::FixedIndex(inner),
+                        ],
+                        leaf,
+                    ));
+                }
+            }
+        }
+        return Some(residuals);
+    }
     let borrowed = moved
         .iter()
         .map(|(path, structural_type)| (path.as_slice(), *structural_type))
@@ -300,7 +362,14 @@ pub(super) fn is_partial_cleanup_path(path: &[StructuralPathSegment]) -> bool {
     (!path.is_empty()
         && path.iter().all(
             |segment| matches!(segment, StructuralPathSegment::Field(identity) if !identity.is_empty()),
-        )) || matches!(path, [StructuralPathSegment::FixedIndex(0 | 1 | 2 | 3)])
+        )) || matches!(
+        path,
+        [StructuralPathSegment::FixedIndex(0 | 1 | 2 | 3)]
+            | [
+                StructuralPathSegment::FixedIndex(0 | 1),
+                StructuralPathSegment::FixedIndex(0 | 1 | 2),
+            ]
+    )
 }
 
 pub(super) fn append_maximal_residual_subtrees(
