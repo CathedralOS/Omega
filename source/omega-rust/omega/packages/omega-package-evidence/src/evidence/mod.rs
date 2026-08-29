@@ -4,6 +4,7 @@
 //! inspect compiler state, encode persistence bytes, or make admission policy.
 
 mod authority;
+mod authority_expressions;
 mod contracts;
 mod data;
 mod domains;
@@ -14,13 +15,18 @@ mod rows;
 mod signatures;
 
 pub use authority::{
-    PackageReviewCapabilityFlow, PackageReviewCrash, PackageReviewCrashCall,
-    PackageReviewCrashInterface, PackageReviewCrashPredicate, PackageReviewCrashRoute,
-    PackageReviewCrashRouteGuard, PackageReviewCrashSite, PackageReviewDangerousAuthority,
-    PackageReviewDangerousAuthorityClass, PackageReviewDangerousAuthoritySlack,
-    PackageReviewInstallationReach, PackageReviewMutation, PackageReviewPermissionClaim,
-    PackageReviewPermissionSource, PackageReviewProgressPremise, PackageReviewProgressSubject,
-    PackageReviewTermination,
+    PackageReviewBooleanExpression, PackageReviewCapabilityFlow, PackageReviewCrash,
+    PackageReviewCrashCall, PackageReviewCrashCause, PackageReviewCrashInterface,
+    PackageReviewCrashPredicate, PackageReviewCrashRoute, PackageReviewCrashRouteGuard,
+    PackageReviewCrashSite, PackageReviewDangerousAuthority, PackageReviewDangerousAuthorityClass,
+    PackageReviewDangerousAuthoritySlack, PackageReviewIeeeFloatComparisonKind,
+    PackageReviewInstallationReach, PackageReviewIntegerBinaryKind,
+    PackageReviewIntegerComparisonKind, PackageReviewIntegerLiteral,
+    PackageReviewIntegerLiteralLanding, PackageReviewIntegerRange, PackageReviewMutation,
+    PackageReviewPermissionClaim, PackageReviewPermissionSource, PackageReviewPrimitiveType,
+    PackageReviewProgressPremise, PackageReviewProgressSubject, PackageReviewScalarExpression,
+    PackageReviewStructuralParameterField, PackageReviewStructuralPredicatePathSegment,
+    PackageReviewTermination, PackageReviewWriteFrameCompleteness,
 };
 pub use contracts::{
     PackageReviewArithmeticDomain, PackageReviewAtomicLoadOrdering,

@@ -3,6 +3,7 @@ use crate::encoding::encode::encoder::Encoder;
 use crate::evidence::{
     PackageReviewCapabilityFlow, PackageReviewInstallationReach, PackageReviewMutation,
     PackageReviewProgressSubject, PackageReviewSynchronousInvocation, PackageReviewTermination,
+    PackageReviewWriteFrameCompleteness,
 };
 
 use super::identity::encode_nominal;
@@ -83,8 +84,8 @@ pub(crate) fn encode_mutation(
 ) -> Result<(), PackageReviewEncodingError> {
     encode_nominal(encoder, &mutation.state)?;
     encoder.byte(match mutation.completeness {
-        psi_facts::WriteFrameCompleteness::Complete => 0,
-        psi_facts::WriteFrameCompleteness::Opaque => 1,
+        PackageReviewWriteFrameCompleteness::Complete => 0,
+        PackageReviewWriteFrameCompleteness::Opaque => 1,
     });
     encoder.sequence(&mutation.paths, |encoder, path| encoder.string(path))
 }

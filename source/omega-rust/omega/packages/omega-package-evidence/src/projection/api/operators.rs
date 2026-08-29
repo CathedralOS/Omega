@@ -2,6 +2,7 @@ use crate::evidence::{
     PackageReviewCallableParameter, PackageReviewCrashRoute, PackageReviewCrashRouteGuard,
     PackageReviewOperatorCoordinate, PackageReviewOperatorShape,
 };
+use crate::projection::behavior::project_crash_cause;
 use crate::projection::contracts::checked::facts::{ContractProjectionContext, project_contracts};
 use crate::projection::contracts::checked::parameters::{
     collect_callable_parameter_source_locations, collect_type_parameter_source_locations,
@@ -228,7 +229,7 @@ pub(crate) fn project_operator_crash_routes(
                 guards
             };
             Ok(PackageReviewCrashRoute {
-                cause: bucket.cause(),
+                cause: project_crash_cause(bucket.cause()),
                 alternative_guards,
             })
         })

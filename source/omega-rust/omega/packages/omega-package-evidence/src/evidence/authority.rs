@@ -1,3 +1,10 @@
+pub use super::authority_expressions::{
+    PackageReviewBooleanExpression, PackageReviewIeeeFloatComparisonKind,
+    PackageReviewIntegerBinaryKind, PackageReviewIntegerComparisonKind,
+    PackageReviewIntegerLiteral, PackageReviewIntegerLiteralLanding, PackageReviewIntegerRange,
+    PackageReviewPrimitiveType, PackageReviewScalarExpression,
+    PackageReviewStructuralParameterField, PackageReviewStructuralPredicatePathSegment,
+};
 use super::{contracts::PackageReviewContractExpression, identity::PackageReviewNominalIdentity};
 
 /// A compiler-owned risk class for authority exposed by a reviewed package.
@@ -90,8 +97,20 @@ impl PackageReviewInstallationReach {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewMutation {
     pub(crate) state: PackageReviewNominalIdentity,
-    pub(crate) completeness: psi_facts::WriteFrameCompleteness,
+    pub(crate) completeness: PackageReviewWriteFrameCompleteness,
     pub(crate) paths: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewWriteFrameCompleteness {
+    Complete,
+    Opaque,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewCrashCause {
+    Trap,
+    Abort,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -123,12 +142,12 @@ pub enum PackageReviewCrashRouteGuard {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewCrashRoute {
-    pub(crate) cause: psi_checked_trees::CrashCause,
+    pub(crate) cause: PackageReviewCrashCause,
     pub(crate) alternative_guards: Vec<PackageReviewCrashRouteGuard>,
 }
 
 impl PackageReviewCrashRoute {
-    pub const fn cause(&self) -> psi_checked_trees::CrashCause {
+    pub const fn cause(&self) -> PackageReviewCrashCause {
         self.cause
     }
 
@@ -181,7 +200,7 @@ impl PackageReviewPermissionClaim {
 pub struct PackageReviewCrashSite {
     pub(crate) state: PackageReviewNominalIdentity,
     pub(crate) statement_ordinal: u32,
-    pub(crate) cause: psi_checked_trees::CrashCause,
+    pub(crate) cause: PackageReviewCrashCause,
     pub(crate) path_guard_conjuncts: Vec<PackageReviewCrashPredicate>,
     pub(crate) path_guard_consequences: Vec<PackageReviewCrashPredicate>,
     pub(crate) guard_covering_buckets: Vec<u32>,
@@ -197,7 +216,7 @@ impl PackageReviewCrashSite {
         self.statement_ordinal
     }
 
-    pub const fn cause(&self) -> psi_checked_trees::CrashCause {
+    pub const fn cause(&self) -> PackageReviewCrashCause {
         self.cause
     }
 
@@ -268,8 +287,7 @@ impl PackageReviewCrashCall {
 pub struct PackageReviewCrash {
     pub(crate) interface: PackageReviewCrashInterface,
     pub(crate) published: Vec<PackageReviewCrashRoute>,
-    pub(crate) structural_runtime_requirements:
-        Option<Vec<psi_checked_trees::CheckedBooleanExpression>>,
+    pub(crate) structural_runtime_requirements: Option<Vec<PackageReviewBooleanExpression>>,
     pub(crate) checked_sites: Vec<PackageReviewCrashSite>,
     pub(crate) checked_calls: Vec<PackageReviewCrashCall>,
 }
@@ -283,9 +301,7 @@ impl PackageReviewCrash {
         &self.published
     }
 
-    pub fn structural_runtime_requirements(
-        &self,
-    ) -> Option<&[psi_checked_trees::CheckedBooleanExpression]> {
+    pub fn structural_runtime_requirements(&self) -> Option<&[PackageReviewBooleanExpression]> {
         self.structural_runtime_requirements.as_deref()
     }
 
@@ -368,7 +384,7 @@ impl PackageReviewMutation {
         &self.state
     }
 
-    pub const fn completeness(&self) -> psi_facts::WriteFrameCompleteness {
+    pub const fn completeness(&self) -> PackageReviewWriteFrameCompleteness {
         self.completeness
     }
 
