@@ -118,6 +118,9 @@ and no-selection compatibility remain enforced.
 - [x] Split target register-environment custody into a small construction and
   validation entrance above explicit target catalog, validated model,
   validation mechanics, and tests.
+- [x] Split allocation-legality staging into explicit availability policies,
+  analysis, independent replay, custody projection, and model leaves; its
+  entrance owns policy selection and the shared replay-gated stage join.
 - [x] Split post-allocation machine analysis by source-route construction,
   replay/custody validation, and sealed plan model; its entrance owns the
   common effects-plus-machine custody join.

@@ -137,12 +137,15 @@ relocation-free object-container boundary mirrors it and keeps codec tests out
 of production leaves. Target register-environment custody exposes one
 build/validation entrance above the exact target catalog, validated custody
 model, validation mechanics, and tests; the target/ABI matrix is therefore
-visible without burying the stage join in that catalog. Post-allocation
-machine analysis likewise separates source-route construction from replay
-validation and the sealed model, while its entrance owns the common
-effects-plus-machine custody join. Active-resident rematerialization now keeps
-producer computation and independent replay validation in separate leaves;
-its entrance alone grants stage custody after that reconstruction succeeds.
+visible without burying the stage join in that catalog. Allocation-legality
+staging puts each exact availability policy in one visible leaf and keeps
+analysis, independent replay, custody projection, and the retained model
+separate; its entrance owns policy selection plus the replay-gated stage join.
+Post-allocation machine analysis likewise separates source-route construction
+from replay validation and the sealed model, while its entrance owns the
+common effects-plus-machine custody join. Active-resident rematerialization
+keeps producer computation and independent replay validation in separate
+leaves; its entrance alone grants stage custody after that reconstruction.
 Liveness computation and pre-allocation machine-effect encoding also keep
 their broad fixtures in sibling test leaves, so production file size measures
 production responsibility.
