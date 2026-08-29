@@ -34,8 +34,8 @@ closed. Compiler-issued package review remains non-admitting.
     out of `omega-package-source`; source custody should expose only neutral
     source lineages, immutable resolutions, object identities, commitments, and
     validated relative paths;
-  - split package-review orchestration and replace misleading
-    evidence/projection modules without changing canonical rows or encodings;
+  - replace misleading evidence/projection modules without changing canonical
+    rows or encodings;
   - split oversized native confinement implementations and move their large
     inline test bodies under behavior-named test folders;
   - narrow flat and `#[doc(hidden)]` cross-crate facades after callers migrate,

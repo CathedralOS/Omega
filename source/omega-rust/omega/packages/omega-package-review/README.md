@@ -19,7 +19,7 @@ src/
 |   |-- projection.rs         complete review aggregate and internal row pairings
 |   `-- rows.rs               canonical row and source-coordinate carriers
 |-- projection/               checked compiler state -> review evidence
-|   |-- aggregate.rs          total projection entry and final assembly
+|   |-- orchestration/        validation, surface collection, providers, and assembly
 |   |-- authority.rs          reached authority and intrinsic risk classes
 |   |-- semantics.rs          semantic dependencies and representation TCB
 |   |-- source_custody/       bounded source coordinates and final row/source pairing
